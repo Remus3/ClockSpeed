@@ -28,7 +28,9 @@ binaries rather than a location.
 
 PRIVACY: every path this script prints goes through redact() first, and the
 account directory NAME is never printed - only a count and a redacted marker.
-This output is meant to be safe to paste into an issue.
+An EXCEPTION is a path-bearing value too and goes through _exc_reason() rather
+than into a message, by any formatting syntax. This output is meant to be safe
+to paste into an issue.
 
 Usage:
     python scripts/verify_env.py
@@ -108,6 +110,45 @@ _PORT_HEADERS = ("PORT", "STATE", "ALLOCATION", "DETAIL")
 def repo_root() -> Path:
     """Return the repository root, derived from this file's location."""
     return Path(__file__).resolve().parents[1]
+
+
+def _exc_reason(exc: BaseException) -> str:
+    """Render an exception as a REASON, with no filename and no path in it.
+
+    THE ROOT CAUSE. ``str()`` on an OSError appends the filename the call
+    failed on - "[Errno 13] Permission denied: '<a path>'" - while ``strerror``
+    carries the reason alone. Every path this script touches is discovered at
+    runtime and is routinely absolute and under a home directory, so it carries
+    the Windows account name. CLAUDE.md non-negotiable 12 counts an error
+    message as an echo path exactly like a debug dump or a hex preview, which
+    makes interpolating an exception into a message a privacy defect.
+
+    PER EXCEPTION TYPE, deliberately, because that is where the obvious version
+    of this helper goes wrong. Only OSError carries ``strerror``; a
+    JSONDecodeError and a UnicodeDecodeError do not, so a helper that reaches
+    for it and falls back to ``str(exc)`` for everything else silently
+    reintroduces the leak for every type it did not think about. Each type
+    handled below names the fields that are known to hold a REASON, and an
+    unrecognised type falls closed to its class name rather than to its text.
+
+    Two fields are never rendered on purpose: ``JSONDecodeError.doc`` and
+    ``UnicodeDecodeError.object`` hold file CONTENT rather than a reason.
+
+    Args:
+        exc: The exception being reported.
+
+    Returns:
+        A rendering safe to print, and never empty - an OSError with no
+        strerror falls back to the class name rather than to nothing, because
+        a failure whose reason is blank tells the reader less than nothing.
+    """
+    if isinstance(exc, OSError):
+        return redact(exc.strerror or type(exc).__name__)
+    if isinstance(exc, UnicodeDecodeError):
+        return redact(f"{exc.encoding} codec failed at byte {exc.start}: {exc.reason}")
+    if isinstance(exc, json.JSONDecodeError):
+        return redact(f"{exc.msg} at line {exc.lineno} column {exc.colno}")
+    return type(exc).__name__
 
 
 def _run(cmd: list[str], timeout: int = 20) -> str | None:
@@ -326,7 +367,9 @@ def load_ports(root: Path) -> tuple[dict | None, str]:
     try:
         return json.loads(path.read_text(encoding="utf-8")), ""
     except (OSError, ValueError) as exc:
-        return None, f"config/ports.json unreadable: {exc}"
+        # The literal names the file; _exc_reason names why. What is dropped is
+        # the DISCOVERED absolute path that str(exc) would have appended.
+        return None, f"config/ports.json unreadable: {_exc_reason(exc)}"
 
 
 def band_ports(payload: dict | None) -> list[int]:
@@ -355,7 +398,15 @@ def probe_port(port: int) -> tuple[str, str]:
         winerror = getattr(exc, "winerror", None)
         if code in ADDRESS_IN_USE_ERRNOS or winerror in ADDRESS_IN_USE_WINERRORS:
             return "BOUND", "something is listening"
-        return "ERROR", str(exc)
+        # The numeric code is kept because str(exc) used to render it and it is
+        # what an operator searches for. A code is not personal data; the
+        # filename str(exc) also appended is, so that half goes.
+        prefix = ""
+        if code is not None:
+            prefix = f"[errno {code}] "
+        elif winerror is not None:
+            prefix = f"[winerror {winerror}] "
+        return "ERROR", prefix + _exc_reason(exc)
     else:
         return "FREE", ""
     finally:

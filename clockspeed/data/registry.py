@@ -84,11 +84,31 @@ passes its own tests, so each is handled explicitly and each has a named test.
   is wrong for 42 of them. Six entries carry power with NO exponent at all;
   that means NOT clock-scalable, so it is modeled as None and never defaulted.
 
-- **``mMaxPotential`` is deliberately not read.** It is ``'1.000000'`` on
-  every entry and is NOT the overclock ceiling; reading it as one caps every
-  solve at 100 percent. ADR 0005 owns where the real ceiling comes from, and
-  until that is answered this model carries no ceiling rather than an invented
-  one.
+- **``mMaxPotential`` is the un-sharded BASE. The ceiling is not read, and
+  neither is any other operand of it.** The base IS read, per ADR 0005: it is
+  a per-building-class document value, and reading it here is what keeps a
+  literal ``1.0`` out of the solver for exactly the reason a literal 1.321929
+  is banned - a balance patch moves it, and a literal turns that into silently
+  wrong advice instead of a red build. It is ``'1.000000'`` on every measured
+  entry, which is what makes a folded constant pass every test that does not
+  mutate the corpus. Its absence is never defaulted to 1, on the same rule as
+  the exponent above.
+
+  What is NOT read is the CEILING. The game's own header declares the base as
+  the maximum **not accounting for installed power shards**, and the ceiling as
+  that base plus a shard slot count times the per-shard extra potential. The
+  slot count lives on a subsystem that this document does not export at all, so
+  the ceiling is UNKNOWN and per non-negotiable 7 an unknown is flagged and
+  skipped rather than guessed. None of ``mPotentialShardSlots``,
+  ``mExtraPotential``, ``mDefaultPotentialShardSlots`` or
+  ``mOverridePotentialShardSlots`` is read here either: a ceiling assembled
+  from three of the four operands is silently missing its multiplier, which is
+  the original failure with more arithmetic in front of it. Reading the base as
+  an achievable maximum caps every solve at 100 percent while looking correct
+  on every un-overclocked building in the world, and that is the trap the
+  python name exists to foreclose - nobody misreads "unsharded clock base" as
+  "the ceiling". ADR 0005 owns where the ceiling comes from; ADR 0006 owns how
+  the base enters this model.
 
 - **Recipes are whitelisted on NativeClass, never detected by shape.**
   ``FGCustomizationRecipe`` has a keyset byte-identical to ``FGRecipe``'s, so
@@ -199,6 +219,7 @@ __all__ = [
     "KEY_ESTIMATED_MIN_POWER",
     "KEY_FORM",
     "KEY_INGREDIENTS",
+    "KEY_MAX_POTENTIAL",
     "KEY_POWER_CONSUMPTION",
     "KEY_POWER_EXPONENT",
     "KEY_PRODUCED_IN",
@@ -263,6 +284,13 @@ KEY_ESTIMATED_MAX_POWER: Final = "mEstimatedMaximumPowerConsumption"
 
 KEY_VARIABLE_POWER_CONSTANT: Final = "mVariablePowerConsumptionConstant"
 KEY_VARIABLE_POWER_FACTOR: Final = "mVariablePowerConsumptionFactor"
+
+#: The UN-SHARDED clock base, kept under the game's own spelling so the
+#: provenance stays greppable while the python name it feeds says what it
+#: actually means. It is NOT the overclock ceiling - see the module docstring
+#: and ADR 0005 - and the other operands of the ceiling equation are
+#: deliberately absent from this file.
+KEY_MAX_POTENTIAL: Final = "mMaxPotential"
 
 # ---------------------------------------------------------------------------
 # Forms and units
@@ -471,6 +499,15 @@ class Building:
             ABOVE zero, which is the measured shape of a building whose draw
             is a range rather than a constant. A declared maximum of zero is a
             fixed-draw building, so presence of the key alone is not the test.
+        unsharded_clock_base: mMaxPotential as an exact Fraction, or None when
+            the entry declares none. It is the maximum clock with NO power
+            shards installed, which is what the game's own header calls it, and
+            it is NOT the overclock ceiling - the ceiling adds a shard slot
+            count that no file on this machine carries (ADR 0005, ADR 0006).
+            A caller that clamps a clock to this value is clamping to the
+            un-sharded base and has to say so rather than report it as the
+            ceiling. Absent is None and is never defaulted to 1, for the same
+            reason a missing exponent is not defaulted.
     """
 
     key: str
@@ -480,6 +517,9 @@ class Building:
     estimated_min_power: Fraction | None
     estimated_max_power: Fraction | None
     is_variable_power: bool
+    # Appended, and with a default, deliberately: a required field inserted
+    # mid-class breaks every positional construction of a Building at once.
+    unsharded_clock_base: Fraction | None = None
 
 
 @dataclass(frozen=True)
@@ -869,7 +909,8 @@ def _building(entry: Mapping[str, object], key: str, group_name: str, log: _Warn
         genuinely zero on the variable-power buildings - and the estimated
         range beside it is what carries their real draw. A draw that is absent
         or unreadable is None rather than zero, and the struct shape supplies
-        the range it names.
+        the range it names. The un-sharded clock base is read here too, and it
+        is a base rather than a ceiling - see the module docstring.
     """
     power, struct_min, struct_max = _declared_power(entry, key, log)
     minimum = _optional_fraction(entry, KEY_ESTIMATED_MIN_POWER, key, log)
@@ -896,6 +937,11 @@ def _building(entry: Mapping[str, object], key: str, group_name: str, log: _Warn
         estimated_min_power=minimum,
         estimated_max_power=maximum,
         is_variable_power=maximum is not None and maximum > 0,
+        # Read through the same optional-numeric path as every other numeric
+        # field, so a present-but-non-string value and an unparsable number are
+        # flagged here exactly as they are everywhere else, rather than
+        # collapsing into the "declared none" reading that None carries.
+        unsharded_clock_base=_optional_fraction(entry, KEY_MAX_POTENTIAL, key, log),
     )
 
 

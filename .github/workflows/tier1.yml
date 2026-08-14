@@ -219,27 +219,34 @@ jobs:
           print("all relative markdown cross-references resolve")
           PY
 
-      # -- Gate 7: types. ADVISORY at this stage, deliberately. --
+      # -- Gate 7: types. BLOCKING as of the phase-3 ratchet step. --
       # Invoked bare, with no target, so pyproject.toml owns what is checked -
       # its mypy `files` key already names the package and the suite. Naming a
       # target here would be a second copy of that list, and the second copy is
       # the one that drifts (CONVENTIONS.md section 2).
       #
-      # ADVISORY because the clockspeed/ package is a phase-0 skeleton
-      # (BOOTSTRAP.md section 10) and pyproject.toml deliberately holds mypy at
-      # its loosest setting with a written ratchet: phase 2 turns on
-      # disallow_untyped_defs for the data layer, phase 3 goes strict on the
-      # solver, phase 5 goes strict package-wide. Blocking on mypy today would
-      # hold the lane red for all of phase 0, and CONVENTIONS.md section 8 says
-      # this lane must never be red.
+      # It was advisory for phase 0 and phase 1, because the package was a
+      # skeleton and blocking would have held this lane red - and CONVENTIONS.md
+      # section 8 says this lane must never be red. That reason has expired.
+      # pyproject.toml now carries both owed ratchet rungs as real override
+      # blocks: disallow_untyped_defs on clockspeed.data.*, and the expanded
+      # constituents of strict on clockspeed.solve.*.
       #
-      # `continue-on-error` rather than `|| true`: the step still shows as FAILED
-      # in the run summary, so the finding is visible instead of swallowed.
+      # The flip is what makes the ratchet a gate rather than a note. Advisory,
+      # a strict-violating solve module would not turn this lane red, and the
+      # exact-arithmetic invariant the strict rung exists to protect
+      # (non-negotiable 6) would be guarded by a check nobody has to pass.
+      # Measured free at the moment of the flip: `python -m mypy` exits 0.
       #
-      # FLIP TO BLOCKING at the first ratchet step (end of phase 2, data layer):
-      # delete the `continue-on-error` line below. Nothing else changes.
-      - name: Type check (advisory - see comment)
-        continue-on-error: true
+      # Invoked bare, with no target, so pyproject.toml owns what is checked -
+      # its mypy `files` key already names the package and the suite. Naming a
+      # target here would be a second copy of that list, and the second copy is
+      # the one that drifts (CONVENTIONS.md section 2).
+      #
+      # DO NOT reintroduce `continue-on-error` to get a red lane green. A type
+      # error is fixed or the rung is lowered deliberately in pyproject.toml
+      # with a recorded reason; silencing the reporter is neither.
+      - name: Type check
         run: python -m mypy
 
       # -- Gate 8: the suite. --

@@ -24,8 +24,17 @@ its own hooks exactly like anything else, and `--verbose` / `--list-skipped`
 print every path it did not check together with the reason it did not.
 
 Nothing personal is hardcoded here. The Windows account name comes from the
-environment at runtime and the numeric platform account id is discovered by
-globbing the save root at runtime. Neither value appears in this file.
+environment, the platform account id from listing the save root, and the world
+names from the `.sav` basenames under it plus an operator declaration - all at
+runtime. No such value appears in this file, and the gate checking its own
+source is what proves it: a literal here would make the gate block itself.
+
+Detection of a world value is VALUE-based and never SHAPE-based, and that is a
+measurement rather than a preference. A world token is 22 characters of
+[A-Za-z0-9_-]; over the tracked tree, an anchored exact-22 match that also
+demands a digit, an upper and a lower still hits ordinary game class names of
+the `Build_ConstructorMk1_C` shape, a population clockspeed/data/registry.py
+only grows. A shape-only detector would refuse nearly every commit here.
 """
 
 from __future__ import annotations
@@ -114,6 +123,63 @@ class Report:
     def skip(self, label: str, why: str) -> None:
         """Record something not checked, and the reason it was not."""
         self.skipped.append((label, why))
+
+
+# --------------------------------------------------------------------------
+# Exception rendering
+# --------------------------------------------------------------------------
+
+
+def safe_exc_text(exc: BaseException) -> str:
+    """Render an exception with no path and no argument vector left in it.
+
+    THE ROOT CAUSE, stated once here so the seven call sites below do not each
+    have to restate it: on Windows, str() on an OSError appends the FILENAME it
+    failed on - "[Errno 2] No such file or directory: '<a path>'" - and that
+    path routinely carries the account name and the home directory. An error
+    message is an echo path exactly like a debug dump or a hex preview
+    (CLAUDE.md non-negotiable 12), so a guard that reports a failed read has to
+    strip it. Note that the formatting SYNTAX is irrelevant: this file renders
+    exceptions through f-strings, through %, and through .format, and all three
+    leak identically. The fix is at the value, not at the format string.
+
+    PER EXCEPTION TYPE, and deliberately not one OSError-shaped helper for all
+    of them. `strerror` is an OSError attribute, so a helper that reaches for
+    it on any other type finds nothing and falls back to the full str() -
+    which is precisely the leak it was written to prevent. Several of the types
+    that reach this function have no strerror at all:
+
+        OSError                     str() appends the filename, strerror does not
+        SyntaxError                 str() appends the file compile() was handed
+        subprocess.TimeoutExpired   str() renders the whole command line, and
+        subprocess.CalledProcessError   in --files mode that argv is built from
+                                    paths the caller supplied
+        anything else               str() may be absolutely anything
+
+    So this is an ALLOWLIST rather than a denylist: a field is rendered only
+    where that field is known not to carry a path, and an unrecognised type
+    contributes its class name and nothing else. That trades message detail for
+    the guarantee, and the trade is cheap - every diagnostic already names the
+    file in its LABEL, so a reader is never left wondering which path failed.
+
+    Returns:
+        A rendering that is safe to print, and never empty: a skip whose reason
+        is blank tells the reader less than nothing.
+    """
+    # GitError is defined further down under "Git plumbing", where it belongs.
+    # The name resolves at call time, and every caller runs after import.
+    if isinstance(exc, GitError):
+        # Its message is built by git_run_error() below, already argv-free.
+        return str(exc) or type(exc).__name__
+    if isinstance(exc, OSError):
+        return exc.strerror or type(exc).__name__
+    if isinstance(exc, SyntaxError):
+        return exc.msg or type(exc).__name__
+    if isinstance(exc, subprocess.TimeoutExpired):
+        return "%s after %s seconds" % (type(exc).__name__, exc.timeout)
+    if isinstance(exc, subprocess.CalledProcessError):
+        return "%s exit %d" % (type(exc).__name__, exc.returncode)
+    return type(exc).__name__
 
 
 # --------------------------------------------------------------------------
@@ -470,15 +536,94 @@ GENERIC_ACCOUNT_NAMES = frozenset(
 )
 
 SAVE_ROOT_PARTS = ("FactoryGame", "Saved", "SaveGames")
-MIN_ACCOUNT_ID_DIGITS = 8
+
+# Override surface. The three names clockspeed/data/locate.py already honours
+# are read here under exactly those names, so the two resolvers cannot drift
+# apart on the inputs they share; the two world names are new and are owned by
+# this gate. Nothing below is a VALUE - every one of these is the name of a
+# place a value may be found at runtime (CLAUDE.md non-negotiable 3).
+ENV_SAVE_ROOT = "CLOCKSPEED_SAVE_ROOT"
+ENV_ACCOUNT_DIR = "CLOCKSPEED_ACCOUNT_DIR"
+ENV_LOCAL_CONFIG = "CLOCKSPEED_LOCAL_CONFIG"
+ENV_WORLD_NAMES = "CLOCKSPEED_WORLD_NAMES"
+ENV_WORLD_TOKENS = "CLOCKSPEED_WORLD_TOKENS"
+
+CONFIG_ACCOUNT_DIR = "account_dir"
+CONFIG_WORLD_NAMES = "world_names"
+CONFIG_WORLD_TOKENS = "world_tokens"
+
+# config/local.json is gitignored, by `config/local.json` and again by the
+# `*.local.json` pattern beside it. That is what makes it the right place for
+# a declared world value: it is machine-local and it cannot be committed.
+LOCAL_CONFIG_RELATIVE = ("config", "local.json")
+MAX_LOCAL_CONFIG_BYTES = 64_000
+
+# Skip labels. A skip is how an exemption stays visible instead of silent
+# (CONVENTIONS.md section 15.1), so every filter below reports through one.
+PII_ACCOUNT_ID_LABEL = "<pii:account-id>"
+PII_ACCOUNT_NAME_LABEL = "<pii:account-name>"
+PII_WORLD_LABEL = "<pii:world>"
+
 # Shorter than this and a whole-word match on the account name would flag
-# ordinary prose more often than it would catch a leak.
+# ordinary prose more often than it would catch a leak. World names route
+# through this SAME floor: a world called "Ab" is not matchable either.
 MIN_ACCOUNT_NAME_CHARS = 3
+
+# An account directory name shorter than this is not an id on any platform.
+# This replaces the old digit-count floor, which was quietly doing two jobs at
+# once - the id-shape test AND the matchability filter - so removing the
+# all-digits test beside it would have left the second job undone and widened
+# the blocklist with nothing filtering it.
+MIN_ACCOUNT_DIR_CHARS = 8
+
+# A declared world token is matched verbatim, so it needs a floor of its own.
+MIN_WORLD_TOKEN_CHARS = 8
+
+# The save root is listed one level deep and no deeper, and the listing stops
+# here. A gate that hangs is a gate that gets turned off.
+MAX_SAVE_ROOT_ENTRIES = 512
+
+# Directory names that sit BESIDE an account directory without being one.
+# Separate from GENERIC_ACCOUNT_NAMES because the two lists answer different
+# questions and would otherwise drift into one blurred list: this one is
+# "names found under a save root", that one is "login names".
+GENERIC_SAVE_ROOT_DIRS = frozenset(
+    {
+        "archive",
+        "archives",
+        "backup",
+        "backups",
+        "blueprints",
+        "cache",
+        "common",
+        "logs",
+        "old",
+        "savegames",
+        "saves",
+        "screenshots",
+        "server",
+        "servers",
+        "shared",
+        "temp",
+        "tmp",
+    }
+)
+
+# A save filename, with the optional second suffix the game writes for a
+# rotated copy. Anchored at both ends: this matches a whole basename, never a
+# fragment of one.
+_SAVE_FILE_RE = re.compile(r"^(?P<stem>.+?)\.sav(?:\.[A-Za-z0-9]{1,8})?$", re.IGNORECASE)
+
+# The rotation suffix the game appends to an autosave. Deliberately narrow -
+# a looser rule would strip a real part of a world name and add a SHORTER
+# blocklist entry than the operator ever chose, which is how a whole-word
+# blocklist starts flagging prose.
+_ROTATION_SUFFIX_RE = re.compile(r"_autosave_\d+$", re.IGNORECASE)
 
 
 def save_root() -> Path | None:
     """Locate the platform save root without hardcoding any path."""
-    override = os.environ.get("CLOCKSPEED_SAVE_ROOT")
+    override = os.environ.get(ENV_SAVE_ROOT)
     if override:
         return Path(override)
     base = os.environ.get("LOCALAPPDATA") or os.environ.get("XDG_DATA_HOME")
@@ -487,45 +632,317 @@ def save_root() -> Path | None:
     return Path(base).joinpath(*SAVE_ROOT_PARTS)
 
 
-def discover_account_ids(report: Report | None = None) -> list[str]:
-    """Glob the save root for numeric account directories, at runtime.
+def _repo_root() -> Path:
+    """This checkout's root, derived from this file's own location."""
+    return Path(__file__).resolve().parents[1]
 
-    BOOTSTRAP.md section 2.2: the numeric platform account id is personal data
-    and must never be written down. It is therefore never written down here -
-    it is discovered. A machine with no game installed must still be able to
-    commit, so a missing save root is a quiet skip.
+
+def local_config() -> dict[str, str]:
+    """Read this machine's gitignored local configuration, if it has one.
+
+    A SECOND reader of config/local.json - clockspeed/data/locate.py owns the
+    canonical one - and the duplication is deliberate rather than an oversight.
+    This gate is the one tool that must run in a checkout where nothing is
+    installed and where the package may be mid-edit and not importable at all.
+    Importing the data layer here would make the commit gate fail whenever an
+    unrelated module was broken, and a gate that cannot start does not block.
+    clockspeed/data/locate.py records the same split at its own module head.
+
+    Absence, an implausible size, unreadable bytes and malformed JSON are all
+    the normal case and all mean the same thing: no local config.
+
+    Returns:
+        The string-valued entries, or an empty mapping. Never raises.
+    """
+    override = os.environ.get(ENV_LOCAL_CONFIG)
+    path = Path(override) if override else _repo_root().joinpath(*LOCAL_CONFIG_RELATIVE)
+    try:
+        if not path.is_file() or path.stat().st_size > MAX_LOCAL_CONFIG_BYTES:
+            return {}
+        raw = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return {}
+    try:
+        payload = json.loads(raw)
+    except ValueError:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    return {str(key): value for key, value in payload.items() if isinstance(value, str)}
+
+
+def declared_values(env_name: str, config_key: str) -> list[str]:
+    """Read an operator declaration: the environment first, the config second.
+
+    Comma separated, because a machine has many worlds where it has only one
+    save root. An empty declaration is not an error; it is the normal case.
+
+    Args:
+        env_name: Environment variable to read first.
+        config_key: config/local.json key to read when the variable is unset.
+
+    Returns:
+        The declared values, whitespace trimmed, empties dropped.
+    """
+    raw = (os.environ.get(env_name) or "").strip()
+    if not raw:
+        raw = (local_config().get(config_key) or "").strip()
+    return [chunk.strip() for chunk in raw.split(",") if chunk.strip()]
+
+
+def _matchable(value: str, minimum: int, generic: frozenset[str]) -> str | None:
+    """Judge whether a discovered value is safe to match as a whole word.
+
+    Returns:
+        None when the value is fine, otherwise the reason it was dropped. The
+        reason NEVER contains the value: a skip line that prints what it
+        skipped is itself an echo path (CLAUDE.md non-negotiable 12), and
+        --list-skipped prints on a PASSING run, which is the output nobody
+        reads closely.
+    """
+    if len(value) < minimum:
+        return "a discovered value of %d character(s) is too short to match safely" % len(value)
+    if value.lower() in generic:
+        return "a discovered value is a generic word; whole-word match would flag ordinary prose"
+    return None
+
+
+def _save_root_dirs(report: Report | None) -> list[Path]:
+    """List the save root's immediate subdirectories. READ-ONLY and bounded.
+
+    The save directory is never written to and never opened for write
+    (CLAUDE.md non-negotiable 1). Only entry NAMES are read here; no file is
+    opened at all.
+
+    Returns:
+        The subdirectories, or an empty list. Every reason for an empty list is
+        reported rather than swallowed.
     """
     root = save_root()
     if root is None:
-        if report is not None:
-            report.skip(
-                "<pii:account-id>",
-                "no LOCALAPPDATA in the environment; save root unknown",
-            )
+        _report_skip(report, PII_ACCOUNT_ID_LABEL, "no LOCALAPPDATA in the environment")
         return []
+    found: list[Path] = []
     try:
         if not root.is_dir():
-            if report is not None:
-                report.skip(
-                    "<pii:account-id>",
-                    "save root does not exist on this machine",
-                )
+            _report_skip(report, PII_ACCOUNT_ID_LABEL, "save root does not exist on this machine")
             return []
-        found = sorted(
-            entry.name
-            for entry in root.iterdir()
-            if entry.is_dir() and entry.name.isdigit() and len(entry.name) >= MIN_ACCOUNT_ID_DIGITS
-        )
+        for index, entry in enumerate(sorted(root.iterdir(), key=lambda item: item.name)):
+            if index >= MAX_SAVE_ROOT_ENTRIES:
+                _report_skip(
+                    report,
+                    PII_ACCOUNT_ID_LABEL,
+                    "save root holds more than %d entries; the rest were not read"
+                    % MAX_SAVE_ROOT_ENTRIES,
+                )
+                break
+            if entry.is_dir():
+                found.append(entry)
     except OSError as exc:
-        if report is not None:
-            report.skip("<pii:account-id>", f"save root unreadable: {exc}")
+        _report_skip(report, PII_ACCOUNT_ID_LABEL, "save root unreadable: " + safe_exc_text(exc))
         return []
+    return found
+
+
+def _report_skip(report: Report | None, label: str, why: str) -> None:
+    """Record a skip when there is a report to record it on."""
+    if report is not None:
+        report.skip(label, why)
+
+
+def discover_account_ids(report: Report | None = None) -> list[str]:
+    """Discover account directory names under the save root, at runtime.
+
+    NOT `.isdigit()`, and that is the whole point of this function's shape.
+    An account directory is identified by WHERE it sits - immediately below the
+    save root - and never by what it is made of, because only one of the three
+    shipping platforms writes digits there: Epic writes a hex token and the
+    Microsoft Store a braceless GUID. A digits-only filter recognised one
+    platform out of three and let the other two reach a commit unblocked.
+    clockspeed/data/locate.py keeps its own `.isdigit()` filter and that
+    asymmetry is deliberate - that site SELECTS which world to read, and
+    widening a selector makes the resolver silently pick the wrong world. This
+    gate only widens what it REFUSES to commit, so it is meant to be wider.
+
+    Widening the filter widens a whole-word blocklist, so the widening arrives
+    with a filter of its own. A name that is not matchable is dropped and the
+    drop is REPORTED, never silent:
+
+        too short       a short name matched as a whole word flags prose
+        generic         "backup" beside the account directory is not an id
+        no digit        every id shape carries digits; ordinary words do not
+
+    That last test is the deliberate opposite of `.isdigit()`: that one asked
+    whether EVERY character was a digit, this asks whether ANY is. It admits
+    all three id shapes and rejects the English words a save root collects.
+    An operator-DECLARED account directory skips it entirely, exactly as
+    clockspeed/data/locate.py declines to shape-check its own override - the
+    override exists precisely for a directory that does not look like the
+    default, and rejecting it would break the case it is for.
+
+    BOOTSTRAP.md section 2.2: the platform account id is personal data and must
+    never be written down. It is therefore never written down here. It is
+    discovered, and no code path below prints it.
+    """
+    found: list[str] = []
+    for value in declared_values(ENV_ACCOUNT_DIR, CONFIG_ACCOUNT_DIR):
+        name = PurePosixPath(value.replace("\\", "/")).name or value
+        reason = _matchable(name, MIN_ACCOUNT_DIR_CHARS, GENERIC_ACCOUNT_NAMES)
+        if reason is None:
+            found.append(name)
+        else:
+            _report_skip(report, PII_ACCOUNT_ID_LABEL, "declared account directory: " + reason)
+
+    for entry in _save_root_dirs(report):
+        name = entry.name
+        reason = _matchable(
+            name, MIN_ACCOUNT_DIR_CHARS, GENERIC_ACCOUNT_NAMES | GENERIC_SAVE_ROOT_DIRS
+        )
+        if reason is not None:
+            _report_skip(
+                report,
+                PII_ACCOUNT_ID_LABEL,
+                "save-root subdirectory is not an account id: " + reason,
+            )
+            continue
+        if not any(char.isdigit() for char in name):
+            _report_skip(
+                report,
+                PII_ACCOUNT_ID_LABEL,
+                "save-root subdirectory is not an account id: it carries no digit, "
+                "and every platform id shape does",
+            )
+            continue
+        found.append(name)
+
+    if report is not None and not found:
+        report.skip(PII_ACCOUNT_ID_LABEL, "no account directory is discoverable on this machine")
+    return sorted(set(found))
+
+
+def discover_world_names(report: Report | None = None) -> list[str]:
+    """Discover this machine's world names, at runtime, from three sources.
+
+    NEVER a literal. This gate is a tracked file and a world name is personal
+    data (CLAUDE.md non-negotiable 3), so no world value is written down here.
+    It is discovered, exactly as the account name and the account id are.
+
+    Sources, highest precedence first:
+
+      1. CLOCKSPEED_WORLD_NAMES, comma separated.
+      2. "world_names" in config/local.json, which is gitignored.
+      3. The `.sav` basenames under the save root, read READ-ONLY, names only.
+
+    Source 3 is the one that needs no setup, which is what makes it the source
+    that protects a machine nobody configured. Its blind spot is worth naming:
+    it sees a world that has been SAVED, so a world renamed since its last save
+    is matched under the old name and not the new one.
+
+    Every discovered name goes through the same two filters that already
+    protect the account name - a length floor and the generic-name list -
+    because a world called "test" must not blocklist the word "test" across the
+    whole repository. A dropped name is reported, never silently ignored.
+    """
+    candidates = list(declared_values(ENV_WORLD_NAMES, CONFIG_WORLD_NAMES))
+    for directory in [*_save_root_dirs(None), *_declared_account_dirs()]:
+        candidates.extend(_world_names_from_saves(directory))
+
+    found: list[str] = []
+    for value in candidates:
+        reason = _matchable(value, MIN_ACCOUNT_NAME_CHARS, GENERIC_ACCOUNT_NAMES)
+        if reason is None:
+            found.append(value)
+        else:
+            _report_skip(report, PII_WORLD_LABEL, "world name: " + reason)
+
     if report is not None and not found:
         report.skip(
-            "<pii:account-id>",
-            "save root exists but holds no numeric account directory",
+            PII_WORLD_LABEL,
+            "no world name is discoverable on this machine; set %s or add %s to "
+            "config/local.json to enable this check" % (ENV_WORLD_NAMES, CONFIG_WORLD_NAMES),
         )
-    return found
+    return sorted(set(found))
+
+
+def _declared_account_dirs() -> list[Path]:
+    """Resolve an operator-declared account directory to a path to list.
+
+    An override may be a bare directory name, joined onto the save root, or an
+    absolute path used as given - a copied or moved account directory still
+    works that way. Mirrors clockspeed/data/locate.py.
+    """
+    root = save_root()
+    resolved: list[Path] = []
+    for value in declared_values(ENV_ACCOUNT_DIR, CONFIG_ACCOUNT_DIR):
+        candidate = Path(value)
+        if not candidate.is_absolute():
+            if root is None:
+                continue
+            candidate = root / value
+        resolved.append(candidate)
+    return resolved
+
+
+def _world_names_from_saves(directory: Path) -> list[str]:
+    """Read world names out of the `.sav` basenames in one directory.
+
+    READ-ONLY: this lists entry names and opens nothing. Any failure returns an
+    empty list, because a save directory that cannot be listed is the same
+    situation as a machine with no game installed.
+    """
+    names: list[str] = []
+    try:
+        for index, entry in enumerate(directory.iterdir()):
+            if index >= MAX_SAVE_ROOT_ENTRIES:
+                break
+            match = _SAVE_FILE_RE.match(entry.name)
+            if match is None:
+                continue
+            stem = match.group("stem")
+            names.append(stem)
+            bare = _ROTATION_SUFFIX_RE.sub("", stem)
+            if bare != stem:
+                names.append(bare)
+    except OSError:
+        return names
+    return names
+
+
+def discover_world_tokens(report: Report | None = None) -> list[str]:
+    """Discover this machine's world tokens, at runtime.
+
+    THE HONEST LIMIT, recorded at the mechanism rather than in a document that
+    will drift away from it: A WORLD TOKEN IS MATCHABLE HERE ONLY WHEN THE
+    OPERATOR DECLARES IT. The token lives inside the save HEADER, and this gate
+    holds no header parser. Growing one would duplicate CS-400, which is still
+    open, and two parsers of the same bytes are two answers waiting to
+    disagree. A world NAME can be recovered from a filename; a world TOKEN
+    cannot, so until CS-400 lands the `.sav` basenames contribute nothing to
+    this list and an UNDECLARED TOKEN IS UNMATCHED AND WILL COMMIT.
+
+    That gap is real and it is not papered over: the skip naming it is printed
+    by --list-skipped on every run where no token is declared.
+
+    Matching is case SENSITIVE, unlike a world name. A token is generated
+    rather than typed, so a case-folded match would only widen the false
+    positives without catching anything a case-sensitive match misses.
+    """
+    found: list[str] = []
+    for value in declared_values(ENV_WORLD_TOKENS, CONFIG_WORLD_TOKENS):
+        reason = _matchable(value, MIN_WORLD_TOKEN_CHARS, GENERIC_ACCOUNT_NAMES)
+        if reason is None:
+            found.append(value)
+        else:
+            _report_skip(report, PII_WORLD_LABEL, "world token: " + reason)
+
+    if report is not None and not found:
+        report.skip(
+            PII_WORLD_LABEL,
+            "no world token is declared; a token lives in the save header, which "
+            "this gate does not parse, so set %s or add %s to config/local.json"
+            % (ENV_WORLD_TOKENS, CONFIG_WORLD_TOKENS),
+        )
+    return sorted(set(found))
 
 
 def current_account_names(report: Report | None = None) -> list[str]:
@@ -543,14 +960,14 @@ def current_account_names(report: Report | None = None) -> list[str]:
         if len(value) < MIN_ACCOUNT_NAME_CHARS:
             if report is not None:
                 report.skip(
-                    "<pii:account-name>",
+                    PII_ACCOUNT_NAME_LABEL,
                     "%s=<%d chars> is too short to match safely" % (key, len(value)),
                 )
             continue
         if value.lower() in GENERIC_ACCOUNT_NAMES:
             if report is not None:
                 report.skip(
-                    "<pii:account-name>",
+                    PII_ACCOUNT_NAME_LABEL,
                     f"{key} is a generic account name; whole-word match would flag ordinary prose",
                 )
             continue
@@ -558,23 +975,39 @@ def current_account_names(report: Report | None = None) -> list[str]:
     return names
 
 
+def _word_res(values: list[str], fold: bool) -> list[re.Pattern[str]]:
+    """Compile whole-word matchers for discovered values.
+
+    Every pattern is built with re.escape from a value found at runtime, which
+    is what keeps this gate free of the literals it exists to catch - and what
+    lets it check its own source without blocking itself.
+
+    Args:
+        values: Discovered values.
+        fold: Match case-insensitively. True for a name a human typed, False
+            for a generated token, where folding widens false positives
+            without catching anything a sensitive match misses.
+    """
+    flags = re.IGNORECASE if fold else 0
+    return [
+        re.compile(rf"(?<![A-Za-z0-9_-]){re.escape(value)}(?![A-Za-z0-9_-])", flags)
+        for value in values
+    ]
+
+
 class PiiMatchers:
     """Runtime-built PII matchers. Never constructed from a literal."""
 
     def __init__(self, report: Report | None = None) -> None:
-        """Discover the account name and account id for this machine."""
+        """Discover this machine's account name, account id and world values."""
         self.account_names = current_account_names(report)
         self.account_ids = discover_account_ids(report)
-        self.name_res = [
-            re.compile(
-                rf"(?<![A-Za-z0-9_]){re.escape(name)}(?![A-Za-z0-9_])",
-                re.IGNORECASE,
-            )
-            for name in self.account_names
-        ]
-        self.id_res = [
-            re.compile(rf"(?<!\d){re.escape(value)}(?!\d)") for value in self.account_ids
-        ]
+        self.world_names = discover_world_names(report)
+        self.world_tokens = discover_world_tokens(report)
+        self.name_res = _word_res(self.account_names, fold=True)
+        self.id_res = _word_res(self.account_ids, fold=False)
+        self.world_name_res = _word_res(self.world_names, fold=True)
+        self.world_token_res = _word_res(self.world_tokens, fold=False)
 
 
 def check_pii(label: str, text: str, matchers: PiiMatchers, report: Report) -> None:
@@ -602,29 +1035,36 @@ def check_pii(label: str, text: str, matchers: PiiMatchers, report: Report) -> N
                     "instead (CONVENTIONS.md section 10)",
                 )
             )
-        for pattern in matchers.name_res:
-            for match in pattern.finditer(line):
-                report.add(
-                    Diagnostic(
-                        label,
-                        lineno,
-                        match.start() + 1,
-                        "PII",
-                        "this machine's account name appears as a whole word",
-                    )
-                )
-        for pattern in matchers.id_res:
-            for match in pattern.finditer(line):
-                report.add(
-                    Diagnostic(
-                        label,
-                        lineno,
-                        match.start() + 1,
-                        "PII",
-                        "numeric platform account id discovered under the save "
-                        "root (BOOTSTRAP.md section 2.2)",
-                    )
-                )
+        for patterns, reason in _discovered_rules(matchers):
+            for pattern in patterns:
+                for match in pattern.finditer(line):
+                    report.add(Diagnostic(label, lineno, match.start() + 1, "PII", reason))
+
+
+def _discovered_rules(matchers: PiiMatchers) -> list[tuple[list[re.Pattern[str]], str]]:
+    """Pair each set of runtime-discovered matchers with the reason it blocks.
+
+    The reasons never quote the value they matched. A diagnostic is printed to
+    a terminal and pasted into issues, so a diagnostic that echoes the personal
+    data it found is the same leak in a different costume (CLAUDE.md
+    non-negotiable 12). The LABEL and the line:column say where to look.
+    """
+    return [
+        (matchers.name_res, "this machine's account name appears as a whole word"),
+        (
+            matchers.id_res,
+            "platform account id discovered under the save root (BOOTSTRAP.md section 2.2)",
+        ),
+        (
+            matchers.world_name_res,
+            "a world name discovered on this machine appears as a whole word "
+            "(CLAUDE.md non-negotiable 3)",
+        ),
+        (
+            matchers.world_token_res,
+            "a world token declared for this machine appears (CLAUDE.md non-negotiable 3)",
+        ),
+    ]
 
 
 # --------------------------------------------------------------------------
@@ -701,11 +1141,13 @@ def check_python_syntax(label: str, data: bytes, report: Report) -> None:
                 exc.lineno or 0,
                 exc.offset or 0,
                 "SYNTAX",
-                "python syntax error: %s" % (exc.msg or exc),
+                "python syntax error: %s" % (safe_exc_text(exc),),
             )
         )
     except ValueError as exc:
-        report.add(Diagnostic(label, 0, 0, "SYNTAX", f"python source rejected: {exc}"))
+        report.add(
+            Diagnostic(label, 0, 0, "SYNTAX", "python source rejected: " + safe_exc_text(exc))
+        )
 
 
 # --------------------------------------------------------------------------
@@ -865,7 +1307,9 @@ def run_ruff(units: list[Unit], report: Report, root: Path | None = None) -> Non
         try:
             proc = subprocess.run(argv, capture_output=True, timeout=RUFF_TIMEOUT, check=False)
         except (OSError, subprocess.SubprocessError) as exc:
-            report.notes.append(f"ruff: could not be run ({exc}) - lint skipped, not blocking")
+            report.notes.append(
+                "ruff: could not be run (%s) - lint skipped, not blocking" % (safe_exc_text(exc),)
+            )
             return
         raw = proc.stdout.decode("utf-8", "replace").strip()
         if not raw:
@@ -940,6 +1384,30 @@ class GitError(RuntimeError):
     """A git invocation that failed. Always fatal to the gate: fail closed."""
 
 
+def _git_subcommand(args: list[str]) -> str:
+    """Name the git subcommand, and nothing else from the argument vector.
+
+    Every argv this module builds starts with a fixed literal - "rev-parse",
+    "show", "diff" - so the subcommand is safe to print. The REST of the vector
+    is not: in --files mode it is derived from paths the caller typed on the
+    command line, and a message that echoes those echoes whatever home
+    directory they came from.
+    """
+    return args[0] if args else "<no subcommand>"
+
+
+def git_run_error(args: list[str], exc: BaseException) -> GitError:
+    """Build the error for a git invocation that could not be run at all.
+
+    Args:
+        args: The argument vector, of which only the subcommand is rendered.
+        exc: The failure, rendered through safe_exc_text - a git that is
+            missing raises FileNotFoundError, whose str() names the path it
+            searched.
+    """
+    return GitError("git %s failed to run: %s" % (_git_subcommand(args), safe_exc_text(exc)))
+
+
 def git(args: list[str], cwd: str | None = None) -> bytes:
     """Run git and return stdout as bytes, raising GitError on any failure.
 
@@ -956,12 +1424,17 @@ def git(args: list[str], cwd: str | None = None) -> bytes:
             check=False,
         )
     except (OSError, subprocess.SubprocessError) as exc:
-        raise GitError("git {} failed to run: {}".format(" ".join(args), exc)) from exc
+        raise git_run_error(args, exc) from exc
     if proc.returncode != 0:
+        # The argv is dropped here for the same reason git_run_error drops it.
+        # Git's own stderr is KEPT: it is not an exception rendering, and what
+        # it carries for the invocations this module makes is a repo-relative
+        # index path, which the diagnostic LABEL already shows. Tightening that
+        # channel further belongs with the rest of the sweep in CS-205.
         raise GitError(
             "git %s exited %d: %s"
             % (
-                " ".join(args),
+                _git_subcommand(args),
                 proc.returncode,
                 proc.stderr.decode("utf-8", "replace").strip(),
             )
@@ -1009,7 +1482,7 @@ def mode_staged(report: Report, matchers: PiiMatchers) -> None:
                     0,
                     0,
                     "INDEX",
-                    f"could not read the staged blob from the index: {exc}",
+                    "could not read the staged blob from the index: " + safe_exc_text(exc),
                 )
             )
             continue
@@ -1052,7 +1525,9 @@ def mode_files(paths: list[str], report: Report, matchers: PiiMatchers) -> None:
         try:
             data = Path(given).read_bytes()
         except OSError as exc:
-            report.add(Diagnostic(label, 0, 0, "IO", f"could not read the file: {exc}"))
+            report.add(
+                Diagnostic(label, 0, 0, "IO", "could not read the file: " + safe_exc_text(exc))
+            )
             continue
         if accept_bytes(unit, data, report):
             check_content(unit, matchers, report)

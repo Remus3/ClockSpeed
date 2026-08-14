@@ -283,3 +283,54 @@ ignore_missing_imports = false
 
 pretty = true
 show_error_codes = true
+
+
+# --- the ratchet, applied ---------------------------------------------------
+# Both rungs owed by the schedule above land here. The phase-2 rung was written
+# down when CS-200 closed but was never actually applied - the schedule above
+# was the only record of it, and a schedule is not a setting. Measured before
+# adding either block: `mypy --disallow-untyped-defs clockspeed/data` and
+# `mypy --strict clockspeed` both already exited 0, so neither rung costs a
+# single fix today. That is exactly when a ratchet should be tightened: the
+# cheap moment is before the code that would violate it is written, not after.
+#
+# DO NOT WRITE `strict = true` IN AN OVERRIDES BLOCK. It is accepted without
+# complaint and it is NOT scoped to the module pattern - it turns the strict
+# flags on GLOBALLY. Measured on the pinned mypy, on this tree: an overrides
+# block of `module = ["clockspeed.solve.*"]` plus `strict = true` produces 25
+# errors in tests/data/test_blobs.py, a file that pattern cannot match, while
+# the same config with the block removed is clean. Acceptance of the key is not
+# evidence of scoping - mypy rejects a bogus key in that position, which makes
+# `strict` look validated when it has merely been swallowed and applied
+# somewhere else.
+#
+# So the phase-3 rung is written as the per-module-settable constituents of
+# `strict`, which DO scope. Omitted from the list deliberately, because they are
+# global-only and are already set in the global block above: warn_unused_configs
+# and warn_redundant_casts.
+
+[[tool.mypy.overrides]]
+# Phase 2 rung. The data layer is the seam every other layer consumes, so an
+# unannotated def here is an unannotated def everywhere downstream.
+module = ["clockspeed.data.*"]
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+# Phase 3 rung - `strict` expanded, for the reason stated above. Strict on the
+# solver because the exact-arithmetic invariant - no float enters the solve path
+# (non-negotiable 6) - is worth a type-level guard in addition to the static AST
+# gate and the runtime audit. It catches the case neither of those can see: a
+# `float` declared in a signature and flowing in from an annotated caller.
+module = ["clockspeed.solve.*"]
+check_untyped_defs = true
+disallow_any_generics = true
+disallow_incomplete_defs = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disallow_untyped_defs = true
+extra_checks = true
+no_implicit_reexport = true
+strict_equality = true
+warn_return_any = true
+warn_unused_ignores = true

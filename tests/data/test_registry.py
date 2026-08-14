@@ -212,6 +212,43 @@ def code_string_constants(module: ModuleType) -> set[str]:
     }
 
 
+def registry_with_building_key(class_name: str, key: str, value: str | None) -> Registry:
+    """Rebuild the corpus with one field of one entry set or removed.
+
+    Every measured value of some fields is identical across the whole shipped
+    document, so a test asserting that value cannot tell a READ from a folded
+    constant. Mutating the corpus is what separates them.
+
+    Args:
+        class_name: The ClassName of the entry to patch. It must appear exactly
+            once, so a name the corpus deliberately duplicates cannot be used
+            here without the assertion below saying so.
+        key: The document key to set or remove.
+        value: The verbatim value to set, or None to remove the key entirely.
+
+    Returns:
+        A registry built from the patched copy, through the real docs_extract
+        seam. The shared corpus is untouched - ``docs_json`` hands back a fresh
+        parse.
+    """
+    groups = synthetic.docs_json()
+    patched = 0
+    for group in groups:
+        classes = group.get(synthetic.KEY_CLASSES)
+        if not isinstance(classes, list):
+            continue
+        for entry in classes:
+            if entry.get(synthetic.KEY_CLASS_NAME) != class_name:
+                continue
+            patched += 1
+            if value is None:
+                entry.pop(key, None)
+            else:
+                entry[key] = value
+    assert patched == 1, f"{class_name} appears {patched} times in the corpus, not once"
+    return build_registry(synthetic.document_from(groups))
+
+
 def io_for(recipe: Recipe, item_key: str, *, outputs: bool = False) -> RecipeIO:
     """Return the single input or output of ``recipe`` naming ``item_key``.
 
@@ -262,6 +299,10 @@ def test_every_document_key_the_registry_reads_matches_the_corpus_spelling() -> 
     assert registry_module.KEY_ESTIMATED_MAX_POWER == synthetic.KEY_ESTIMATED_MAX_POWER
     assert registry_module.KEY_VARIABLE_POWER_CONSTANT == synthetic.KEY_VARIABLE_POWER_CONSTANT
     assert registry_module.KEY_VARIABLE_POWER_FACTOR == synthetic.KEY_VARIABLE_POWER_FACTOR
+    # Added when the un-sharded clock base became a read field (ADR 0006).
+    # This test's name is a claim about EVERY key the registry reads, so a key
+    # left out of it turns the name into a lie.
+    assert registry_module.KEY_MAX_POTENTIAL == synthetic.KEY_MAX_POTENTIAL
 
 
 # ---------------------------------------------------------------------------
@@ -641,32 +682,115 @@ def test_the_struct_bounds_are_exact_fractions_taken_from_the_corpus_literal(
 
 
 # ---------------------------------------------------------------------------
-# Trap 5 - mMaxPotential is not the clock ceiling
+# Trap 5 - mMaxPotential is the UN-SHARDED BASE, and it is not the clock ceiling
 # ---------------------------------------------------------------------------
+#
+# ADR 0006 decides how the base enters the model; ADR 0005 decides where the
+# ceiling comes from, and its answer is "not from this document". Both halves
+# are load bearing and they pull in opposite directions, which is why the fence
+# here is two-sided rather than a flat ban:
+#
+#   READ the base. ADR 0005 consequence 1 requires mMaxPotential per building
+#   class off the registry precisely so that no literal 1.0 is ever written
+#   into the solver - the same reason a literal 1.321929 is banned.
+#
+#   Do NOT read, name or publish a ceiling. The ceiling needs a slot count that
+#   is in no file on this machine, so a model carrying three of the four
+#   operands would publish a ceiling silently missing its multiplier. Reading
+#   the base AS the ceiling caps every solve at 100 percent and is the exact
+#   trap ADR 0005 exists to foreclose.
+
+#: The operands of the ADR 0005 ceiling equation OTHER than the un-sharded
+#: base. Every one is a real key in the shipped document, and the previous
+#: version of this fence checked none of them - it forbade mMaxPotential alone,
+#: so a registry could have read all four of these in silence.
+CEILING_OPERAND_KEYS = (
+    "mPotentialShardSlots",
+    "mExtraPotential",
+    "mDefaultPotentialShardSlots",
+    "mOverridePotentialShardSlots",
+)
+
+#: Fragments no published field name may contain. "potential" and "ceiling"
+#: carry over from the fence this section replaces; the rest are the words a
+#: later "helpful" wiring-up would reach for.
+CEILING_NAME_FRAGMENTS = ("ceiling", "overclock", "max_clock", "potential", "shard")
 
 
-def test_the_registry_does_not_read_a_clock_ceiling_out_of_this_document() -> None:
-    # mMaxPotential is '1.000000' on all 62 entries and is NOT the ceiling.
-    # Reading it as one caps every solve at 100 percent; inventing 2.5 instead
-    # is a magic number the game can patch. ADR 0005 owns the question, and
-    # until it is answered the honest model carries no ceiling at all.
-    #
-    # The check is on the module's string CONSTANTS rather than on its text,
-    # so the docstring may explain why the field is ignored - which is the
-    # thing that stops it being "helpfully" wired up later - while the field
-    # itself remains unreadable by the code.
+def ceiling_flavoured(name: str) -> bool:
+    """Report whether a field name claims to be a clock ceiling.
+
+    "unsharded" is the ONE approved use of the shard root and it is trimmed
+    before the test, because that word is a NEGATION - it names the base
+    measured with no shards installed. Trimming can only ever join neighbouring
+    characters into a fragment, never hide one, so the allowance cannot produce
+    a false negative.
+
+    Args:
+        name: A dataclass field name.
+
+    Returns:
+        True when the name contains a forbidden fragment.
+    """
+    trimmed = name.replace("unsharded", "")
+    return any(fragment in trimmed for fragment in CEILING_NAME_FRAGMENTS)
+
+
+def test_the_unsharded_clock_base_is_read_per_building_and_absence_is_never_defaulted(
+    registry: Registry,
+) -> None:
+    # ADR 0005 consequence 1. The base is a document value, so it is read from
+    # the document - and an entry that declares none HAS none. Defaulting the
+    # absent case to 1 is the same invention as defaulting a missing exponent:
+    # it publishes a number the game never shipped, in the right type, and
+    # nothing downstream can tell it from a measured one.
+    assert registry.buildings[BLENDER_BUILDING].unsharded_clock_base == Fraction(1)
+    assert registry.buildings[FLOODLIGHT_BUILDING].unsharded_clock_base is None
+
+
+def test_the_unsharded_clock_base_comes_from_the_data_not_from_a_folded_constant() -> None:
+    # mMaxPotential is '1.000000' on every measured entry and on every corpus
+    # entry that carries it, so `unsharded_clock_base = Fraction(1)` hardcoded
+    # passes the test above and every other test in this file. Only mutating
+    # the corpus can tell a read from a constant - and the removal half proves
+    # the same for the None branch, which a `.get(key, 1)` default would pass.
+    raised = registry_with_building_key(BLENDER_BUILDING, synthetic.KEY_MAX_POTENTIAL, "2.000000")
+    assert raised.buildings[BLENDER_BUILDING].unsharded_clock_base == Fraction(2)
+    removed = registry_with_building_key(BLENDER_BUILDING, synthetic.KEY_MAX_POTENTIAL, None)
+    assert removed.buildings[BLENDER_BUILDING].unsharded_clock_base is None
+
+
+def test_the_base_is_read_and_every_other_ceiling_operand_stays_unread() -> None:
+    # The check is on the module's string CONSTANTS rather than on its text, so
+    # the docstring may explain what the field is not - which is the thing that
+    # stops it being wired into a ceiling later - while the operands themselves
+    # stay unreadable by the code. A comment never reaches the AST either.
     literals = code_string_constants(registry_module)
     # Positive half first: prove the extractor really sees the module's key
-    # literals, so the absence asserted below is evidence rather than an empty
-    # set agreeing with anything.
+    # literals, so the absences asserted below are evidence rather than an
+    # empty set agreeing with anything.
     assert synthetic.KEY_FORM in literals
-    assert not any(synthetic.KEY_MAX_POTENTIAL in literal for literal in literals)
+    assert synthetic.KEY_MAX_POTENTIAL in literals
+    for key in CEILING_OPERAND_KEYS:
+        assert not any(key in literal for literal in literals), key
+
+
+def test_no_published_field_names_itself_a_ceiling_and_the_base_field_is_present() -> None:
+    # A negative assertion needs its positive half twice over: the detector has
+    # to detect, and the field the fence permits has to exist. Without the
+    # first, a helper that always returned False would pass; without the
+    # second, deleting the base field entirely would pass too.
+    assert ceiling_flavoured("max_potential")
+    assert ceiling_flavoured("potential_shard_slots")
+    assert ceiling_flavoured("clock_ceiling")
+    assert not ceiling_flavoured("unsharded_clock_base")
     field_names = {
         item.name
         for model in (Item, Building, Recipe, RecipeIO)
         for item in dataclasses.fields(model)
     }
-    assert not any("potential" in name or "ceiling" in name for name in field_names)
+    assert "unsharded_clock_base" in field_names
+    assert [name for name in field_names if ceiling_flavoured(name)] == []
 
 
 # ---------------------------------------------------------------------------

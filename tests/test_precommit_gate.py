@@ -15,14 +15,27 @@ That is deliberate and it is not decoration: this file is itself checked by
 the gate, and a spelled-out em dash, PEM header or home path here would block
 the commit that adds these tests. test_gate_checks_its_own_slice_files proves
 the assembly worked.
+
+WORLD VALUES ARE SYNTHETIC AND CONSTRUCTED HERE, so ground truth is known
+independently of anything the gate does. Two rules follow from CLAUDE.md
+non-negotiables 3 and 11 and neither is negotiable:
+
+  1. The operator's real world name and real world token are NEVER staged into
+     any repository, written into any fixture, or asserted on.
+  2. The gate's own redactor is never used as the oracle for "does this string
+     hold personal data". A redactor is blind in exactly the places it is
+     blind, so testing it against itself proves nothing. Every value below is
+     built here, so what it is is known before the gate ever sees it.
 """
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import subprocess
 import sys
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -50,7 +63,35 @@ NON_BREAKING_SPACE = chr(0x00A0)
 PEM_HEADER = "-----BEGIN " + "RSA PRIVATE KEY" + "-----"
 PEM_FOOTER = "-----END " + "RSA PRIVATE KEY" + "-----"
 WINDOWS_HOME_PATH = "C:" + "\\" + "Users" + "\\" + "someoperator" + "\\" + "notes.txt"
+
+# Account directory names, one per platform shape. The 17-digit Steam form is
+# NOT the only shape: Epic writes a hex token and the Microsoft Store a
+# braceless GUID, so a filter that recognises only digits recognises one
+# platform out of three. All three are synthetic.
 FAKE_ACCOUNT_ID = "12345678901234567"
+FAKE_EPIC_ACCOUNT_ID = "a7f3" + "c081" + "b29d" + "4e56" + "90ab" + "cdef" + "1234" + "5678"
+FAKE_MSSTORE_ACCOUNT_ID = "3f2504e0" + "-4f89" + "-11d3" + "-9a0c" + "-0305e82c3301"
+
+# Synthetic world values. Neither string exists on any real machine, and
+# neither is spelled out as one literal - this file is checked by the gate.
+SYNTHETIC_WORLD_NAME = "Zynthetiqua" + "Prime"
+SYNTHETIC_WORLD_ID = "Zq7vNbXt41" + "KpRs93" + "MwYd2C"
+
+# The measured false-positive population behind condition C1. Every one of
+# these is exactly 22 characters, which is the world-token length, and every
+# one of them is ordinary tracked content. A shape-only token detector blocks
+# all four, so detection has to be driven by a discovered VALUE instead.
+TOKEN_SHAPED_BUT_HARMLESS = (
+    "Build_ConstructorMk1_C",
+    "Recipe_SteelWall_8x4_C",
+    "DedicatedServerAPIDocs",
+    "most-recently-modified",
+)
+
+# A directory component that appears nowhere else, so counting it in stderr
+# separates the diagnostic LABEL channel from an exception rendering. The
+# label legitimately carries the path once; a leaking exception adds a second.
+LEAK_MARKER = "zzleakmarkerdirzz"
 
 TIMEOUT = 180
 
@@ -62,13 +103,48 @@ def base_env(tmp_path: Path) -> dict[str, str]:
     on the machine running the suite, so these tests assert the gate's logic
     rather than the operator's login name. The one test that needs real
     detection sets CLOCKSPEED_SAVE_ROOT itself.
+
+    The world-value overrides are CLEARED and the local config is pointed at a
+    path that does not exist. Without that, a machine whose config/local.json
+    declares a real world would feed a real value into these tests, which
+    would make the suite machine-dependent and would risk asserting on the
+    operator's own data. test_gate_checks_its_own_slice_files is the one test
+    that deliberately runs against the real environment instead.
     """
     env = dict(os.environ)
     env["CLOCKSPEED_SAVE_ROOT"] = str(tmp_path / "absent-save-root")
+    env["CLOCKSPEED_LOCAL_CONFIG"] = str(tmp_path / "absent-local-config.json")
+    for key in ("CLOCKSPEED_WORLD_NAMES", "CLOCKSPEED_WORLD_TOKENS", "CLOCKSPEED_ACCOUNT_DIR"):
+        env.pop(key, None)
     env["USERNAME"] = "gatetestaccount"
     env["USER"] = "gatetestaccount"
     env["PYTHONIOENCODING"] = "utf-8"
     return env
+
+
+def load_gate() -> ModuleType:
+    """Import the gate by file path, for the checks that are pure text.
+
+    The suite runs the gate as a subprocess everywhere else, because the exit
+    code is half the contract. The exception RENDERINGS are the exception:
+    subprocess.TimeoutExpired and a failed git invocation cannot be provoked
+    end to end without making the suite slow and flaky, and what is under test
+    there is a string, not a verdict. Loading from the path rather than
+    importing ``tools.precommit_gate`` keeps tools/ out of the import graph.
+    """
+    name = "clockspeed_gate_under_test"
+    spec = importlib.util.spec_from_file_location(name, GATE)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    # Registered BEFORE exec_module, not after. The gate declares dataclasses
+    # under `from __future__ import annotations`, and @dataclass resolves those
+    # string annotations through sys.modules[cls.__module__]. A module that is
+    # not registered yet makes that lookup return None and the decorator raises
+    # while the class body is still executing.
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def run_gate(
@@ -240,7 +316,7 @@ def test_runtime_discovered_account_id_is_blocked(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "PII" in result.stderr
-    assert "numeric platform account id" in result.stderr
+    assert "platform account id" in result.stderr
 
 
 def test_absent_save_root_is_a_reported_skip_not_a_crash(tmp_path: Path) -> None:
@@ -541,3 +617,723 @@ def test_a_real_bare_credential_is_still_blocked(tmp_path: Path) -> None:
         assert result.returncode == 1, f"{name} credential NOT blocked:\n{err}"
         assert "SECRET" in err
         assert "bare high-entropy literal" in err
+
+
+# ==========================================================================
+# CS-201 - world names, world tokens, and account directories that are not
+# all digits.
+# ==========================================================================
+#
+# The finding that shapes every test below, measured over the whole tracked
+# tree rather than assumed: a world token is 22 characters of [A-Za-z0-9_-],
+# and so are thousands of ordinary strings already in this repository. Shape
+# alone cannot separate them. Detection is therefore driven by a VALUE the
+# gate discovered on this machine, and the tests come in pairs - one proving
+# the value blocks, one proving the lookalikes do not.
+
+
+def make_save_root(tmp_path: Path, *account_dirs: str) -> Path:
+    """Build a synthetic save root holding the named account directories."""
+    save_root = tmp_path / "save-root"
+    save_root.mkdir(parents=True, exist_ok=True)
+    for name in account_dirs:
+        (save_root / name).mkdir(parents=True, exist_ok=True)
+    return save_root
+
+
+# --------------------------------------------------------------------------
+# C1 - no shape-only blocking
+# --------------------------------------------------------------------------
+
+
+def test_token_shaped_ordinary_content_is_not_blocked(tmp_path: Path) -> None:
+    """C1. Four measured 22-character lookalikes must all pass.
+
+    This is the test that would catch a shape-only token detector. Every
+    string here is exactly a world token's length and character class, and
+    every one of them is ordinary content: two game class names of the kind
+    clockspeed/data/registry.py generates by the thousand, the name of a
+    first-party documentation file, and a phrase out of a docstring. A gate
+    that blocked these would refuse nearly every commit in this project.
+    """
+    body = "\n".join(TOKEN_SHAPED_BUT_HARMLESS) + "\n"
+    target = write(tmp_path / "lookalikes.md", body)
+    result = run_gate("--files", str(target), env=base_env(tmp_path))
+
+    assert result.returncode == 0, result.stderr
+    assert "PASS" in result.stdout
+
+
+# --------------------------------------------------------------------------
+# C2 - discovery, never a literal
+# --------------------------------------------------------------------------
+
+
+def test_world_name_declared_in_the_environment_is_blocked(tmp_path: Path) -> None:
+    """C2, source 1: an operator-declared override, mirroring locate.py."""
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_WORLD_NAMES"] = SYNTHETIC_WORLD_NAME
+
+    target = write(tmp_path / "note.md", "the " + SYNTHETIC_WORLD_NAME + " save\n")
+    result = run_gate("--files", str(target), env=env)
+
+    assert result.returncode == 1, result.stdout
+    assert "PII" in result.stderr
+    assert "world name discovered on this machine" in result.stderr
+
+
+def test_world_name_declared_in_local_config_is_blocked(tmp_path: Path) -> None:
+    """C2, source 2: config/local.json, which is gitignored.
+
+    tests/test_scaffold.py owns the assertion that the pattern really is
+    ignored; this test only proves the gate reads it.
+    """
+    config = tmp_path / "local.json"
+    write(config, '{"world_names": "' + SYNTHETIC_WORLD_NAME + '"}\n')
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_LOCAL_CONFIG"] = str(config)
+
+    target = write(tmp_path / "note.md", "the " + SYNTHETIC_WORLD_NAME + " save\n")
+    result = run_gate("--files", str(target), env=env)
+
+    assert result.returncode == 1, result.stdout
+    assert "world name discovered on this machine" in result.stderr
+
+
+def test_world_name_discovered_from_a_sav_basename_is_blocked(tmp_path: Path) -> None:
+    """C2, source 3: a .sav basename read under the discovered account dir.
+
+    The save directory is opened READ-ONLY and only its entry names are used.
+    This is the only source that needs no operator declaration, which makes it
+    the one that protects a machine nobody configured.
+    """
+    save_root = make_save_root(tmp_path, FAKE_ACCOUNT_ID)
+    (save_root / FAKE_ACCOUNT_ID / (SYNTHETIC_WORLD_NAME + ".sav")).write_bytes(b"")
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(save_root)
+
+    target = write(tmp_path / "note.md", "loaded " + SYNTHETIC_WORLD_NAME + " today\n")
+    result = run_gate("--files", str(target), env=env)
+
+    assert result.returncode == 1, result.stdout
+    assert "world name discovered on this machine" in result.stderr
+
+
+def test_autosave_basename_yields_the_bare_world_name(tmp_path: Path) -> None:
+    """The game rotates autosaves, so the stem carries a suffix the name does not."""
+    save_root = make_save_root(tmp_path, FAKE_ACCOUNT_ID)
+    rotated = SYNTHETIC_WORLD_NAME + "_autosave_2.sav"
+    (save_root / FAKE_ACCOUNT_ID / rotated).write_bytes(b"")
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(save_root)
+
+    target = write(tmp_path / "note.md", "loaded " + SYNTHETIC_WORLD_NAME + " today\n")
+    result = run_gate("--files", str(target), env=env)
+
+    assert result.returncode == 1, result.stdout
+    assert "world name discovered on this machine" in result.stderr
+
+
+def test_world_token_declared_in_the_environment_is_blocked(tmp_path: Path) -> None:
+    """C2: the token half.
+
+    HONEST LIMIT, and it is the reason this test has no .sav-derived sibling:
+    a world token lives inside the save HEADER, not in any filename. The gate
+    holds no header parser and must not grow one - that is CS-400, and a
+    second parser would be a second answer. Until it lands, a token is
+    matchable only when the operator declares it.
+    """
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_WORLD_TOKENS"] = SYNTHETIC_WORLD_ID
+
+    target = write(tmp_path / "ledger.md", "world " + SYNTHETIC_WORLD_ID + " seen\n")
+    result = run_gate("--files", str(target), env=env)
+
+    assert result.returncode == 1, result.stdout
+    assert "PII" in result.stderr
+    assert "world token declared for this machine" in result.stderr
+
+
+def test_the_gate_source_carries_no_world_value_of_its_own(tmp_path: Path) -> None:
+    """C2: detection is discovery, so an undiscoverable world matches nothing.
+
+    The structural proof that no world value is baked into the tracked gate.
+    With no override, no local config and no save root, the gate must hold
+    ZERO world matchers, so content that looks exactly like a world value
+    passes. If a literal had been embedded, this would block.
+
+    The complementary proof runs against the REAL environment in
+    test_gate_checks_its_own_slice_files: the gate is checked by itself with
+    the operator's own world values live, so a literal in the source would
+    make the gate block its own file.
+    """
+    body = SYNTHETIC_WORLD_NAME + "\n" + SYNTHETIC_WORLD_ID + "\n"
+    target = write(tmp_path / "worldish.md", body)
+    result = run_gate("--files", str(target), env=base_env(tmp_path))
+
+    assert result.returncode == 0, result.stderr
+    assert "PASS" in result.stdout
+
+
+# --------------------------------------------------------------------------
+# C4 - the matchability filter applies to world names too
+# --------------------------------------------------------------------------
+
+
+def test_generic_world_name_is_skipped_not_matched(tmp_path: Path) -> None:
+    """C4. A world named "test" must not blocklist the word across the repo.
+
+    Widening a whole-word blocklist is only safe when it is filtered, and the
+    exemption has to be visible: --list-skipped is where it shows up, so it
+    can never be silently in force.
+    """
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_WORLD_NAMES"] = "test"
+
+    target = write(tmp_path / "doc.md", "run the test suite before the test push\n")
+    result = run_gate("--files", str(target), "--list-skipped", env=env)
+
+    assert result.returncode == 0, result.stderr
+    assert "<pii:world>" in result.stdout
+    assert "generic" in result.stdout
+
+
+def test_short_world_name_is_skipped_not_matched(tmp_path: Path) -> None:
+    """C4, the length half of the same filter."""
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_WORLD_NAMES"] = "ab"
+
+    target = write(tmp_path / "doc.md", "ab ab ab\n")
+    result = run_gate("--files", str(target), "--list-skipped", env=env)
+
+    assert result.returncode == 0, result.stderr
+    assert "<pii:world>" in result.stdout
+    assert "too short to match safely" in result.stdout
+
+
+def test_a_skipped_value_is_never_echoed_in_the_skip_reason(tmp_path: Path) -> None:
+    """A skip reason that prints the value it skipped is itself the leak.
+
+    Non-negotiable 12 counts log lines as an echo path, and --list-skipped
+    prints to stdout on a PASSING run - the output nobody reads closely.
+
+    Both needles are distinctive on purpose. An earlier draft used a two
+    character world name and matched the "ab" inside "discoverable", which
+    would have made this test fail for a reason that had nothing to do with
+    the property under test.
+    """
+    dropped_dir = "Zynthetiquaville"
+    save_root = make_save_root(tmp_path, dropped_dir)
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(save_root)
+    env["CLOCKSPEED_WORLD_NAMES"] = "Zq"
+
+    target = write(tmp_path / "clean.md", "nothing here\n")
+    result = run_gate("--files", str(target), "--list-skipped", "--verbose", env=env)
+
+    assert result.returncode == 0, result.stderr
+    assert "<pii:world>" in result.stdout
+    assert "<pii:account-id>" in result.stdout
+    assert dropped_dir not in result.stdout
+    assert "Zq" not in result.stdout
+
+
+# --------------------------------------------------------------------------
+# C5 - dropping .isdigit() widens, and widening is only safe when filtered
+# --------------------------------------------------------------------------
+
+
+def test_non_digit_account_directories_are_blocked(tmp_path: Path) -> None:
+    """C5. The Epic hex and Microsoft Store GUID shapes, which .isdigit() missed.
+
+    This is the whole point of the item: an account directory is identified by
+    WHERE it sits, not by being all digits, and two of the three shipping
+    platforms do not write digits.
+    """
+    for account_id in (FAKE_EPIC_ACCOUNT_ID, FAKE_MSSTORE_ACCOUNT_ID):
+        save_root = make_save_root(tmp_path / account_id[:4], account_id)
+        env = base_env(tmp_path)
+        env["CLOCKSPEED_SAVE_ROOT"] = str(save_root)
+
+        target = write(tmp_path / account_id[:4] / "note.md", "acct " + account_id + "\n")
+        result = run_gate("--files", str(target), env=env)
+
+        assert result.returncode == 1, f"{account_id} not blocked:\n{result.stdout}"
+        assert "platform account id" in result.stderr
+
+
+def test_generic_save_root_subdirectory_is_a_reported_skip(tmp_path: Path) -> None:
+    """C5. Widening turns EVERY subdirectory into a blocklist entry.
+
+    A directory the operator made beside the account directory is not an
+    account id, and blocklisting its name would flag ordinary prose across the
+    repository. The drop is reported rather than silent, so the filter is
+    auditable instead of assumed.
+    """
+    save_root = make_save_root(tmp_path, "backup", "screenshots")
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(save_root)
+
+    body = "keep a backup and check the screenshots directory\n"
+    target = write(tmp_path / "ops.md", body)
+    result = run_gate("--files", str(target), "--list-skipped", env=env)
+
+    assert result.returncode == 0, result.stderr
+    assert "<pii:account-id>" in result.stdout
+    assert "not an account id" in result.stdout
+
+
+def test_the_gate_no_longer_filters_account_dirs_on_isdigit() -> None:
+    """The acceptance criterion, asserted against the shipped source.
+
+    The removed filter was `entry.name.isdigit()` guarded by
+    MIN_ACCOUNT_ID_DIGITS, a constant that was doing two jobs - the id-shape
+    test and the matchability floor - which is why dropping one without
+    replacing the other would have widened the blocklist unfiltered.
+
+    A bare "isdigit" search would NOT state the criterion, and asserting it
+    would be wrong rather than merely weak: the replacement filter asks
+    `any(char.isdigit() ...)`, which is the deliberate opposite of the removed
+    one - ANY digit rather than EVERY digit - and is what admits the Epic hex
+    and Microsoft Store GUID shapes. That behaviour is pinned by execution in
+    test_non_digit_account_directories_are_blocked; this pins the source.
+    """
+    source = GATE.read_bytes().decode("utf-8")
+
+    assert "name.isdigit" not in source
+    assert "MIN_ACCOUNT_ID_DIGITS" not in source
+
+
+def test_locate_keeps_its_isdigit_selection_filter() -> None:
+    """C6. The asymmetry is deliberate and must survive a later tidy-up.
+
+    clockspeed/data/locate.py SELECTS which world to read. Widening a selector
+    makes the resolver silently pick the wrong world, which is a correctness
+    bug, not a privacy fix. The gate only widens what it REFUSES to commit, so
+    it is deliberately wider than the resolver. This test exists so that
+    "make the two consistent" fails loudly instead of landing quietly.
+    """
+    resolver = (REPO_ROOT / "clockspeed" / "data" / "locate.py").read_bytes().decode("utf-8")
+
+    assert "isdigit" in resolver
+
+
+# --------------------------------------------------------------------------
+# C8 - discovery failure is a reported skip
+# --------------------------------------------------------------------------
+
+
+def test_undiscoverable_world_is_a_reported_skip_not_a_crash(tmp_path: Path) -> None:
+    """C8. No override, no config, no save root: report it and pass.
+
+    CI runs on a runner with no game, no LOCALAPPDATA and no local config.
+    A gate that crashed or blocked there would block every branch at once.
+    """
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+    result = run_gate("--files", str(target), "--list-skipped", env=base_env(tmp_path))
+
+    assert result.returncode == 0, result.stderr
+    assert "<pii:world>" in result.stdout
+
+
+def test_world_discovery_survives_an_absent_localappdata(tmp_path: Path) -> None:
+    """C7, the CI half: the suite runs where neither the game nor the vars exist."""
+    env = base_env(tmp_path)
+    for key in ("CLOCKSPEED_SAVE_ROOT", "LOCALAPPDATA", "XDG_DATA_HOME"):
+        env.pop(key, None)
+
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+    result = run_gate("--files", str(target), "--list-skipped", env=env)
+
+    assert result.returncode == 0, result.stderr
+    assert "<pii:world>" in result.stdout
+
+
+def test_unreadable_save_root_is_a_skip_not_a_crash(tmp_path: Path) -> None:
+    """C8. A save root that is a FILE, not a directory, must not take the gate down."""
+    not_a_dir = write(tmp_path / "save-root-file", "this is not a directory\n")
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(not_a_dir)
+
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+    result = run_gate("--files", str(target), "--list-skipped", env=env)
+
+    assert result.returncode == 0, result.stderr
+    assert "<pii:world>" in result.stdout
+
+
+# --------------------------------------------------------------------------
+# C9 - the gate needs no import outside the standard library
+# --------------------------------------------------------------------------
+
+
+def test_gate_imports_nothing_from_the_clockspeed_package() -> None:
+    """C9. The gate is the one tool that has to run in a checkout with nothing set up."""
+    source = GATE.read_bytes().decode("utf-8")
+
+    assert "import clockspeed" not in source
+    assert "from clockspeed" not in source
+
+
+def test_gate_still_runs_and_blocks_with_the_package_out_of_reach(tmp_path: Path) -> None:
+    """C9, proved by execution rather than by reading the imports.
+
+    A copy of the gate is run from a directory with no clockspeed package
+    anywhere above it. If the gate had grown a dependency on the data layer it
+    would fail to start here, and a gate that fails to start is a gate that
+    does not block.
+    """
+    isolated = tmp_path / "isolated"
+    isolated.mkdir()
+    copy = isolated / "gate_copy.py"
+    copy.write_bytes(GATE.read_bytes())
+
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_WORLD_NAMES"] = SYNTHETIC_WORLD_NAME
+    target = write(isolated / "note.md", "the " + SYNTHETIC_WORLD_NAME + " save\n")
+
+    proc = subprocess.run(
+        [sys.executable, str(copy), "--files", str(target)],
+        cwd=str(isolated),
+        capture_output=True,
+        env=env,
+        timeout=TIMEOUT,
+        check=False,
+    )
+    stderr = proc.stderr.decode("utf-8", "replace")
+
+    assert proc.returncode == 1, proc.stdout.decode("utf-8", "replace")
+    assert "world name discovered on this machine" in stderr
+
+
+# --------------------------------------------------------------------------
+# C7 - end to end, through a real commit, with no real personal data
+# --------------------------------------------------------------------------
+
+
+def git_with_env(*args: str, cwd: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    """Run git with an explicit environment, so the hook inherits it."""
+    proc = subprocess.run(
+        ["git", *args],
+        cwd=str(cwd),
+        capture_output=True,
+        env=env,
+        timeout=TIMEOUT,
+        check=False,
+    )
+    return subprocess.CompletedProcess(
+        proc.args,
+        proc.returncode,
+        proc.stdout.decode("utf-8", "replace"),
+        proc.stderr.decode("utf-8", "replace"),
+    )
+
+
+@pytest.fixture
+def hooked_repo(tmp_path: Path) -> Path:
+    """A throwaway repo whose pre-commit hook runs THIS gate, plus a base commit.
+
+    The repository's own .githooks/pre-commit is deliberately NOT reused
+    verbatim. It resolves the gate as $ROOT/tools/precommit_gate.py, which
+    does not exist inside a throwaway repo, so it would die "gate not found"
+    and the commit would fail for a reason that has nothing to do with the
+    gate's verdict. HEAD would be unchanged and the test would be green while
+    proving nothing. The hook written here names the real gate, and every test
+    that uses it also asserts the gate's own diagnostic text so that an
+    unrelated failure cannot masquerade as a block.
+
+    The base commit is made BEFORE the hook is wired, so the assertion after a
+    blocked commit is "HEAD did not move" rather than "HEAD never existed".
+    """
+    root = tmp_path / "hookedrepo"
+    root.mkdir()
+    assert git("init", "-q", "-b", "main", cwd=root).returncode == 0
+    git("config", "user.email", "gate@example.invalid", cwd=root)
+    git("config", "user.name", "Gate Test", cwd=root)
+    git("config", "commit.gpgsign", "false", cwd=root)
+
+    write(root / "seed.txt", "seed\n")
+    assert git("add", "seed.txt", cwd=root).returncode == 0
+    assert git("commit", "-q", "-m", "seed", cwd=root).returncode == 0
+
+    hooks = root / "gate-hooks"
+    hooks.mkdir()
+    hook = hooks / "pre-commit"
+    # Forward slashes and single quotes: git runs the hook under its bundled
+    # sh even on Windows, where a backslash inside double quotes is an escape.
+    interpreter = Path(sys.executable).as_posix()
+    body = f"#!/bin/sh\nexec '{interpreter}' '{GATE.as_posix()}' --staged\n"
+    hook.write_bytes(body.encode("ascii"))
+    hook.chmod(0o755)
+    assert git("config", "core.hooksPath", "gate-hooks", cwd=root).returncode == 0
+    return root
+
+
+def test_a_staged_world_name_is_blocked_by_a_real_commit(hooked_repo: Path, tmp_path: Path) -> None:
+    """C7. The acceptance criterion, end to end, on a SYNTHETIC world value.
+
+    CONVENTIONS.md is explicit that a hook's presence is never proof it fires;
+    the only valid test is to stage a violation, attempt a real commit and
+    assert HEAD is unchanged. The value staged here is built in this file and
+    exists on no machine - the operator's real world name is never written
+    into any repository, throwaway or not.
+    """
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_WORLD_NAMES"] = SYNTHETIC_WORLD_NAME
+
+    before = git("rev-parse", "HEAD", cwd=hooked_repo).stdout.strip()
+    assert before
+
+    write(hooked_repo / "world.md", "played " + SYNTHETIC_WORLD_NAME + " tonight\n")
+    assert git("add", "world.md", cwd=hooked_repo).returncode == 0
+
+    attempt = git_with_env("commit", "-m", "add a world note", cwd=hooked_repo, env=env)
+    after = git("rev-parse", "HEAD", cwd=hooked_repo).stdout.strip()
+
+    assert attempt.returncode != 0, attempt.stdout
+    assert "world name discovered on this machine" in attempt.stderr
+    assert after == before, "HEAD MOVED - the commit was not blocked"
+
+
+def test_a_staged_world_token_is_blocked_by_a_real_commit(
+    hooked_repo: Path, tmp_path: Path
+) -> None:
+    """C7, the token half. Same route, same synthetic-only rule."""
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_WORLD_TOKENS"] = SYNTHETIC_WORLD_ID
+
+    before = git("rev-parse", "HEAD", cwd=hooked_repo).stdout.strip()
+    write(hooked_repo / "ledger.md", "keyed by " + SYNTHETIC_WORLD_ID + "\n")
+    assert git("add", "ledger.md", cwd=hooked_repo).returncode == 0
+
+    attempt = git_with_env("commit", "-m", "add a ledger note", cwd=hooked_repo, env=env)
+    after = git("rev-parse", "HEAD", cwd=hooked_repo).stdout.strip()
+
+    assert attempt.returncode != 0, attempt.stdout
+    assert "world token declared for this machine" in attempt.stderr
+    assert after == before, "HEAD MOVED - the commit was not blocked"
+
+
+def test_the_same_commit_succeeds_when_no_world_value_is_discoverable(
+    hooked_repo: Path, tmp_path: Path
+) -> None:
+    """The control for the two tests above, and it is not optional.
+
+    Without it, a hook that failed for ANY reason - a bad interpreter, a
+    missing gate, a broken shebang - would make both blocking tests green
+    while proving nothing at all. This asserts the same repo, the same hook
+    and the same content DO commit once the world value is undiscoverable.
+    """
+    env = base_env(tmp_path)
+
+    before = git("rev-parse", "HEAD", cwd=hooked_repo).stdout.strip()
+    write(hooked_repo / "world.md", "played " + SYNTHETIC_WORLD_NAME + " tonight\n")
+    assert git("add", "world.md", cwd=hooked_repo).returncode == 0
+
+    attempt = git_with_env("commit", "-m", "add a world note", cwd=hooked_repo, env=env)
+    after = git("rev-parse", "HEAD", cwd=hooked_repo).stdout.strip()
+
+    assert attempt.returncode == 0, attempt.stdout + attempt.stderr
+    assert after != before, "HEAD did not move; the hook blocked a clean commit"
+
+
+# ==========================================================================
+# CS-202-B - no exception is rendered into a message, by any syntax
+# ==========================================================================
+#
+# On Windows, str() on an OSError appends the FILENAME it failed on, and that
+# filename routinely carries the account name and the home directory. An error
+# message is an echo path exactly like a debug dump (CLAUDE.md non-negotiable
+# 12). The renderings in this file use three different formatting syntaxes -
+# f-string, percent and .format - so an assertion written against one shape
+# would miss the other two. These are written against the OUTPUT instead.
+#
+# The diagnostic LABEL still carries the path, deliberately: that channel is
+# CS-204 and is not in scope here. So the tests count occurrences rather than
+# asserting absence - the label may carry it once, the reason may not repeat it.
+
+
+def leak_target(tmp_path: Path, name: str, text: str | None = None) -> Path:
+    """Place a file under a uniquely named directory, for occurrence counting."""
+    target = tmp_path / LEAK_MARKER / name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if text is not None:
+        target.write_bytes(text.encode("utf-8"))
+    return target
+
+
+def assert_path_is_rendered_once_per_line(stderr: str) -> None:
+    """Every diagnostic line may name the path ONCE, in its label, and no more.
+
+    Counted per line rather than over the whole stream, because one file can
+    produce several diagnostics and each is entitled to its own label. A
+    stream-wide count would read two legitimate labels as a leak, which is how
+    a test ends up asserting the wrong thing and being "fixed" by loosening it.
+    """
+    lines = stderr.splitlines()
+    assert any(LEAK_MARKER in line for line in lines), "nothing named the path; test is vacuous"
+    for line in lines:
+        assert line.count(LEAK_MARKER) <= 1, line
+
+
+def test_oserror_rendering_does_not_repeat_the_path(tmp_path: Path) -> None:
+    """D2, OSError. The measured leak: str(exc) appends the filename.
+
+    Before the fix this reads
+        <label>:0:0: IO could not read the file: [Errno 2] ...: '<full path>'
+    with the absolute path rendered a second time, backslashes and all.
+    """
+    missing = leak_target(tmp_path, "does-not-exist.py")
+    result = run_gate("--files", str(missing), env=base_env(tmp_path))
+
+    assert result.returncode == 1
+    assert "could not read the file" in result.stderr
+    assert_path_is_rendered_once_per_line(result.stderr)
+
+
+def test_syntax_error_rendering_does_not_repeat_the_path(tmp_path: Path) -> None:
+    """D2, SyntaxError. compile() is handed the label, and str(exc) echoes it."""
+    target = leak_target(tmp_path, "broken.py", "def broken(:\n    return 1\n")
+    result = run_gate("--files", str(target), env=base_env(tmp_path))
+
+    assert result.returncode == 1
+    assert "python syntax error" in result.stderr
+    assert_path_is_rendered_once_per_line(result.stderr)
+
+
+def test_nul_byte_source_blocks_without_repeating_the_path(tmp_path: Path) -> None:
+    """A NUL byte in a .py file is the one input that reaches compile() unhappy.
+
+    MEASURED on the interpreter this suite runs under: compile() answers a NUL
+    byte with SyntaxError("source code string cannot contain null bytes"), NOT
+    with ValueError. Older interpreters raised ValueError here, which is why
+    the gate still catches it, but the branch is unreachable on this floor. So
+    this asserts the property that holds either way - it blocks, and the path
+    is not rendered twice - and the ValueError rendering itself is pinned
+    directly in test_exception_renderer_handles_a_value_error.
+
+    The file is NOT called nul.py. "nul" is a reserved device name on Windows,
+    so that path resolves to the null device and the read fails with "Incorrect
+    function" long before compile() is reached, sending the test down the
+    OSError branch and proving nothing at all.
+    """
+    target = leak_target(tmp_path, "has_nul_byte.py")
+    target.write_bytes(b"VALUE = 1\x00\n")
+    result = run_gate("--files", str(target), env=base_env(tmp_path))
+
+    assert result.returncode == 1
+    assert "BINARY" in result.stderr
+    assert_path_is_rendered_once_per_line(result.stderr)
+
+
+def test_exception_renderer_handles_a_value_error() -> None:
+    """D2, ValueError.
+
+    It carries no strerror either, so the same strerror-shaped helper would
+    fall through to the full str() here too.
+    """
+    gate = load_gate()
+    leaked = "C:" + "\\" + "Users" + "\\" + "someoperator" + "\\" + "mod.py"
+    rendered = gate.safe_exc_text(ValueError(leaked))
+
+    assert "someoperator" not in rendered
+    assert rendered
+
+
+def test_exception_renderer_strips_the_filename_from_an_oserror() -> None:
+    """D2, per TYPE. strerror carries the reason; str() carries the path too."""
+    gate = load_gate()
+    leaked = "C:" + "\\" + "Users" + "\\" + "someoperator" + "\\" + "world.sav"
+    rendered = gate.safe_exc_text(OSError(2, "No such file or directory", leaked))
+
+    assert "someoperator" not in rendered
+    assert "No such file or directory" in rendered
+
+
+def test_exception_renderer_strips_the_filename_from_a_syntax_error() -> None:
+    """D2, SyntaxError.
+
+    The end-to-end sibling of this test is green even before the fix, because
+    compile() always sets .msg and the leaking `or exc` fallback beside it is
+    therefore unreachable in practice. Unreachable is not absent: a SyntaxError
+    with no .msg renders as "<msg> (<filename>, line N)" and the filename is
+    the path handed to compile(). This provokes that branch directly.
+    """
+    gate = load_gate()
+    leaked = "C:" + "\\" + "Users" + "\\" + "someoperator" + "\\" + "mod.py"
+    exc = SyntaxError("", (leaked, 1, 1, "def broken(:\n"))
+    rendered = gate.safe_exc_text(exc)
+
+    assert "someoperator" not in rendered
+    assert rendered
+
+
+def test_exception_renderer_handles_a_subprocess_error_with_no_strerror() -> None:
+    """D2, SubprocessError.
+
+    It has no strerror, so a strerror-shaped helper falls through to the full
+    str() - the exact leak being fixed.
+    """
+    gate = load_gate()
+    leaked = "C:" + "\\" + "Users" + "\\" + "someoperator" + "\\" + "python.exe"
+    rendered = gate.safe_exc_text(subprocess.SubprocessError(leaked))
+
+    assert "someoperator" not in rendered
+    assert rendered
+
+
+def test_exception_renderer_handles_a_timeout_carrying_the_argv() -> None:
+    """D2. TimeoutExpired renders its whole command line, argv included."""
+    gate = load_gate()
+    leaked = "C:" + "\\" + "Users" + "\\" + "someoperator" + "\\" + "notes.md"
+    rendered = gate.safe_exc_text(subprocess.TimeoutExpired(["ruff", leaked], 90))
+
+    assert "someoperator" not in rendered
+    assert rendered
+
+
+def test_exception_renderer_handles_a_called_process_error() -> None:
+    """D2. CalledProcessError renders its argv the same way."""
+    gate = load_gate()
+    leaked = "C:" + "\\" + "Users" + "\\" + "someoperator" + "\\" + "notes.md"
+    rendered = gate.safe_exc_text(subprocess.CalledProcessError(2, ["git", "show", leaked]))
+
+    assert "someoperator" not in rendered
+    assert rendered
+
+
+def test_exception_renderer_handles_a_bare_exception() -> None:
+    """D2. The fallback must never be the unfiltered str() of an unknown type."""
+    gate = load_gate()
+    leaked = "C:" + "\\" + "Users" + "\\" + "someoperator" + "\\" + "notes.md"
+    rendered = gate.safe_exc_text(RuntimeError(leaked))
+
+    assert "someoperator" not in rendered
+    assert rendered
+
+
+def test_git_error_message_carries_no_caller_supplied_argument() -> None:
+    """D2, GitError. Its message is BUILT by the gate at the failure site.
+
+    The message that reaches the diagnostic is assembled from the argv, and in
+    --files mode the caller supplies the paths that argv is derived from. Only
+    the subcommand - a fixed literal - belongs in a message.
+    """
+    gate = load_gate()
+    leaked = "C:" + "\\" + "Users" + "\\" + "someoperator" + "\\" + "notes.md"
+    error = gate.git_run_error(["show", ":" + leaked], OSError(2, "No such file or directory"))
+    rendered = gate.safe_exc_text(error)
+
+    assert "someoperator" not in str(error)
+    assert "someoperator" not in rendered
+    assert "show" in rendered
+
+
+def test_the_unreadable_path_verdict_is_unchanged(tmp_path: Path) -> None:
+    """D4. This half changes message TEXT and must change no verdict."""
+    missing = tmp_path / "does-not-exist.py"
+    result = run_gate("--files", str(missing), env=base_env(tmp_path))
+
+    assert result.returncode == 1
+    assert "IO" in result.stderr
+    assert "could not read the file" in result.stderr

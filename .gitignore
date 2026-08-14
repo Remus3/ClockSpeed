@@ -152,6 +152,18 @@ config/local.json
 .env
 .env.*
 
+# Agent worktrees. Session 3 measured why this line is not optional: with the
+# directory untracked but UNIGNORED, `git status` reported it as a candidate for
+# commit - so one `git add -A` would have committed a full duplicate of the tree,
+# including whatever half-finished state a builder was mid-edit on. It also
+# silently widened the local lint surface, because ruff respects .gitignore and
+# nothing else was excluding it: `ruff format --check .` went from 38 files to
+# 187 and reported a "failure" that was really a builder's scratch copy. The
+# main tree was clean the whole time. CI never saw either problem - a fresh
+# checkout has no worktrees - which is exactly what makes it a local-only false
+# red, and a gate the operator learns to distrust.
+/.claude/worktrees/
+
 # Local semantic recall store. Markdown in memory/ is the source of truth; the
 # store is a mirror and is rebuilt by tools/memory_sync.py (CONVENTIONS.md
 # section 11.2 - "The store, its config and its wiring are LOCAL and gitignored").

@@ -74,6 +74,47 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-14 - CS-201 - Frozen-file GRANT WITH CONDITIONS: tools/precommit_gate.py may gain world-value detection and lose the .isdigit() account filter
+Verification: grant adjudicated under `CLAUDE.md` section 6 by an agent that authored no
+part of the proposal; recorded here BEFORE any edit, per that section. The frozen list is
+unchanged and no agent self-granted. Ten conditions carry the grant, each stated as a
+testable requirement; the load-bearing ones are C1, C2 and C10.
+Blast-radius finding, measured over all 99 tracked files rather than assumed: a shape-only
+22-character world-token detector is NOT VIABLE. A naive unanchored `[A-Za-z0-9_-]{22}`
+matches 2082 times; anchored exact-22 matches 183; anchored exact-22 additionally requiring
+a digit, an upper and a lower still matches 5, every one of them a game class name of the
+`Build_ConstructorMk1_C` shape - and `clockspeed/data/registry.py` grows that population.
+The adjudication also REFUTED the premise it was handed: `clockspeed/data/version.py:352`
+`integrity` is a 64-char lowercase hex sha256, not a base64-like string, and the tree
+carries ZERO 40-character git SHAs, so neither is the false-positive source. Detection is
+therefore value-based (C2: env override, gitignored local config, or `.sav` basenames read
+under the discovered account directory) and never shape-based, and it never embeds a
+literal world value in the tracked gate (non-negotiable 3).
+C6 is a deliberate ASYMMETRY, recorded so it is not "fixed" later: the `.isdigit()` filter
+at `clockspeed/data/locate.py:657` is NOT removed. That site SELECTS which world to read,
+and widening selection makes the resolver silently pick the wrong world; the gate at
+`tools/precommit_gate.py:517` only widens what it refuses to commit. The gate must be wider
+than the resolver, so treating the two sites identically is a bug rather than consistency.
+
+### 2026-08-14 - CS-202 - Frozen-file GRANT WITH CONDITIONS: tools/precommit_gate.py exception renderings may be redacted
+Verification: same adjudication, same section 6 route, recorded before any edit. Separate
+grant from CS-201 and standing independently of it. Materially lower risk than CS-201: it
+changes message TEXT, never a verdict.
+The item's own acceptance criterion was found DEFECTIVE and is corrected as a condition of
+the grant. Its stated `f"...{exc}"` shape matches five of the seven exception renderings in
+the file; it misses `tools/precommit_gate.py:704`, a `%`-format, and `:959`, a `.format()`
+that also interpolates the git argv - and in `--files` mode that argv carries
+caller-supplied paths. The sweep and its test must therefore be formatting-agnostic. A
+second condition forbids reusing one OSError-shaped helper for all of them: `_exc_text` in
+`tools/drift_guard.py` redacts via `strerror`, which `ValueError` at :708 and
+`subprocess.SubprocessError` at :868 do not carry, so the remedy is per exception TYPE.
+Scope ruling recorded because it changes what CS-202 may claim: closing CS-202 against its
+two named files does NOT satisfy its own title. Four further files carry the same shape -
+`scripts/install_hooks.py` (ALSO FROZEN), `tools/edit_lint_check.py`, `tools/memory_sync.py`
+and `clockspeed/data/version.py:815` - plus `scripts/verify_env.py:358`, which sits in a
+named file but is a bare `str(exc)` outside the stated shape. CS-202 is rescoped to its two
+files and the remainder is filed as CS-205 rather than being quietly absorbed.
+
 ### 2026-08-14 - CS-200 - Phase 2 data layer: extraction, blob grammars, normalized registry, version pin, data drift guard
 Verification, all three acceptance criteria checked independently of the agents that built
 them. (1) Registry builds from the LIVE install: `clockspeed/data/registry.py::build_registry`
