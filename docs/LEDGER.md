@@ -74,6 +74,70 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-14 - CS-203 - tools/facts_probe.py has a test module; the default output is proven to carry no PII
+Verification: `tests/test_facts_probe.py`, 13 tests. The load-bearing pair is
+`test_default_payload_carries_no_account_id_no_world_name_and_no_home_path` and
+`test_unredacted_payload_emits_the_account_ids_the_world_name_and_the_home_path` - the
+second is what stops every "absent" assertion in the first passing against an empty
+payload. Redaction is proven POSITIONAL, not prefix-only, by
+`test_default_output_redacts_an_account_segment_sitting_mid_path`, parametrized over
+hex-token, braceless-GUID and seventeen-digit account shapes and asserting the path TAIL
+survives, so truncation cannot pass as redaction. Non-negotiable 1 is covered by a
+before/after `(is_dir, size, mtime_ns)` snapshot of the save tree.
+The oracle is deliberately NOT the redactor: every value is synthetic and planted by the
+test's own fixture, so it is known present as ground truth. `redact(x) != x` as the test for
+"x holds PII" is blind exactly where the redactor is blind, and that mistake was made and
+caught in session 2.
+Proven to detect by mutation on scratchpad copies, five independent breaks. The one that
+matters: with `locate`'s positional account rule removed but the digit-run backstop left
+intact, the hex-token and braceless-GUID cases go red while the seventeen-digit case still
+PASSES - which is precisely the "fixed for one shape, silent for the other three" defect,
+and proof the non-digit cases are not vacuous.
+
+### 2026-08-14 - CS-202 - Every exception rendering in scripts/verify_env.py and tools/precommit_gate.py is redacted per type
+Verification: `tests/test_verify_env.py` and `tests/test_precommit_gate.py`.
+`scripts/verify_env.py::_exc_reason` and `tools/precommit_gate.py::safe_exc_text` are
+per-type ALLOWLISTS that never fall through to `str(exc)`. Nine renderings were fixed, not
+the seven the item named: the sweep was done by AST rather than by text search, which is
+what found `verify_env.py:358` (a bare `str(exc)`, outside the `f"...{exc}"` shape the
+original acceptance specified) and gate lines 704 (`%`-format) and 959 (`.format()`, which
+also interpolated the git argv - and in `--files` mode that argv carries caller-supplied
+paths).
+Per-TYPE is the load-bearing condition and not a stylistic one: `_exc_text` in
+`tools/drift_guard.py` redacts via `strerror`, which only `OSError` carries, so a single
+OSError-shaped helper silently falls back to the full `str(exc)` for the `ValueError` at
+:708 and the `subprocess.SubprocessError` at :868 - reintroducing the leak it was written
+to close. Diagnostic value is preserved deliberately: errno, decoder reason, line and
+column are kept; anything derived from a discovered path is dropped; an unrecognised type
+renders as its class name only, failing closed.
+RESCOPED, and the rescope is itself the finding: this item's title claimed to complete the
+sweep and its acceptance named two files. Four more carry the same shape - one of them also
+frozen - so the remainder is CS-205 rather than being quietly absorbed. See the grant entry
+below. `traceback.print_exc()` in the gate's crash handler is a further residual, recorded
+on CS-205.
+
+### 2026-08-14 - CS-201 - The commit gate detects world names and world tokens by VALUE, and no longer filters account directories on .isdigit()
+Verification: `tools/precommit_gate.py` plus `tests/test_precommit_gate.py`. Proven END TO
+END rather than by unit test, per `CLAUDE.md` section 2.2 - hook presence is never proof of
+hook firing: with a SYNTHETIC world value declared via `CLOCKSPEED_WORLD_NAMES`, a file
+carrying it was staged and a real `git commit` attempted, giving exit 1, `PII a world name
+discovered on this machine appears as a whole word`, and HEAD unchanged. The negative half
+was proven in the same way: a file carrying `Build_ConstructorMk1_C`,
+`Recipe_SteelWall_8x4_C`, `DedicatedServerAPIDocs` and `most-recently-modified` commits
+CLEANLY with no world declared. No real world value was ever staged into any repository.
+Detection is VALUE-based - environment override, then gitignored local config, then `.sav`
+basenames read under the discovered account directory - and never shape-based, for the
+measured reason in the grant entry below. The C10 blast-radius rehearsal (the exact tier-1
+CI invocation over every tracked file) passes at exit 0 with discovery genuinely live on
+this machine.
+HONEST LIMIT, recorded at the mechanism and printed as a skip on every run: a world TOKEN
+lives in the save header, this gate holds no header parser and must not grow one (CS-400 is
+open), so an UNDECLARED TOKEN IS UNMATCHED AND WILL COMMIT. World names are recoverable
+from filenames; tokens are not. A second limit: `.sav` discovery only sees worlds that have
+been saved, so a world renamed since its last save matches under the old name.
+The `.isdigit()` removal is scoped to the gate at `:517` and is deliberately NOT mirrored
+into `clockspeed/data/locate.py:657` - see the C6 asymmetry in the grant entry.
+
 ### 2026-08-14 - CS-201 - Frozen-file GRANT WITH CONDITIONS: tools/precommit_gate.py may gain world-value detection and lose the .isdigit() account filter
 Verification: grant adjudicated under `CLAUDE.md` section 6 by an agent that authored no
 part of the proposal; recorded here BEFORE any edit, per that section. The frozen list is
