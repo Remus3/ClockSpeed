@@ -74,6 +74,27 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-14 - CS-105 - S7: the overclock power exponent is read from building class data, and a test fails if a literal appears in the power path
+Verification: `clockspeed/solve/power.py` plus `tests/solve/test_power.py`. The data half
+landed in phase 2 (`clockspeed/data/registry.py` reads `mPowerConsumptionExponent` per
+building class); the guard half could not exist until there was a power path to assert
+about, which is why this closed with phase 3 rather than phase 1.
+The guard ships as TWO tests, and the reason is measured rather than defensive. A literal
+scan over the module's constants catches `Fraction("1.321929")` - but a hardcoded
+`Fraction(1321929, 1000000)` is two INT literals and passes it. Demonstrated on a
+scratchpad copy: with the value hardcoded in the integer-pair spelling, the literal scan
+PASSED while the mutation test FAILED. The durable half is therefore the mutation test -
+two registries identical except for one building's exponent must produce DIFFERENT results,
+which no spelling of a constant can satisfy - and it does not go stale when a balance patch
+moves the number, which the literal blacklist does. The candidate values the scan checks
+are read from the fixture and from the pin census, never restated in the test, or the test
+would become the thing it forbids.
+A third assertion covers what neither scan can see: `power_exponent is None` means NOT
+clock-scalable and is never defaulted, so a floodlight is not silently clock-scaled.
+The ceiling remains UNKNOWN per ADR 0005 and this item does not touch it:
+`power.ClockCeiling` carries no field capable of holding a ceiling value, and
+`version.OVERCLOCK_POTENTIAL_SHARD_SLOTS` is still None.
+
 ### 2026-08-14 - CS-203 - tools/facts_probe.py has a test module; the default output is proven to carry no PII
 Verification: `tests/test_facts_probe.py`, 13 tests. The load-bearing pair is
 `test_default_payload_carries_no_account_id_no_world_name_and_no_home_path` and
