@@ -21,6 +21,8 @@ Budgets: this file under 20 KB (CI hard fail), each leaf under 6 KB (CI warn).
   ANSI-decode parse failure behind it; commit messages via `git commit -F`.
 - [Hook presence is not hook firing](hook-presence-is-not-hook-firing.md) - four ways a
   hook silently does nothing; only an end-to-end block test counts.
+- [A guard can be accepted and unscoped](a-guard-can-be-accepted-and-unscoped.md) - a tool
+  taking your key is not proof of where it applies; probe inside AND outside the scope.
 
 ## Project invariants
 

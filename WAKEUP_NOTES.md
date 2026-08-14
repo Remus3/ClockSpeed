@@ -31,6 +31,72 @@ the line becomes a pointer.
 
 ---
 
+## Session 3 - 2026-08-14 - phase 2 follow-ups, then the phase 3 solver core
+
+- **Shipped:** CS-105, CS-201, CS-202, CS-203. Phase 3 waves 0, 1 and 2 of CS-300 -
+  the registry seam plus ADR 0006, the mypy ratchet, `solve/exact.py`, the C1-C9 solve
+  corpus, `solve/power.py` and `solve/ratio.py`. Detail in `docs/LEDGER.md`.
+
+- **In flight:** CS-300 is NOT closed and must not be recorded as closed. Two of its three
+  acceptance criteria are met - hand-verified ratios including the byproduct loop, and the
+  exponent-from-data guard. The third, "the optimizer swappable by config with identical
+  results on a degenerate case", needs `solve/optimize.py` plus `solve/backends/` (wave 3),
+  and the whole-path no-float assertion needs `tests/solve/test_phase3_gate.py` (wave 4),
+  which by doctrine is written by an agent that authored no solve module.
+
+- **Decisions:** ADR 0006, status `proposed`, needs an adjudicator to flip it. It records
+  how the un-sharded clock base enters the model, which ADR 0005 specified but could not
+  implement. It supersedes nothing and ADR 0005 is unedited.
+
+- **Surprises**, each measured rather than reasoned about:
+  1. **`strict = true` does not work in a mypy per-module override.** It is accepted with no
+     complaint and applied GLOBALLY - the `clockspeed.solve.*` rung alone produced 25 errors
+     in `tests/data/test_blobs.py`, a file its pattern cannot match. Written out as its
+     twelve scoped constituents instead. Acceptance of a key is not evidence of scoping.
+  2. **`Fraction ** Fraction` returns a FLOAT** for a non-integer exponent, and the defect is
+     DATA-DEPENDENT: the same operator with `Fraction(2,1)` returns a Fraction, so a test
+     written with a whole-number exponent passes while the shipped 1.321929 degrades
+     silently. `**` is banned outright in `solve/`.
+  3. **ADR 0005 contradicted the shipped registry** and a test enforced the contradiction.
+     Resolved in data by S0-REG; see ADR 0006.
+  4. **The planner's C5 chain shared C3's product**, which gave that item a second producer
+     and destroyed C3's uniqueness - a rival plan satisfies every balance at 30 MW against
+     C3's 436/3 MW, so a minimizing solver would have returned it and C3's hand-verified
+     answer would have been wrong. Caught by the fixture slice, fenced with two tests.
+  5. **A shape-only world-token detector is not viable.** Measured over all 99 tracked files:
+     a naive 22-char regex matches 2082 times, and even at its tightest still matches 5 game
+     class names. CS-201 detection is value-based as a result.
+  6. **`.claude/worktrees/` was untracked but UNIGNORED** - one `git add -A` would have
+     committed a duplicate tree - and it inflated local `ruff format` from 38 files to 187,
+     reporting a builder's scratch copy as a main-tree failure. Now gitignored.
+
+- **Failed paths - do not retry:**
+  - **`git reset --hard` to undo a probe commit.** It discarded every tracked modification in
+    the working tree in one step, including four merged slices. Recovered in full because the
+    agent worktrees still held the builder output and the new files were untracked, but it
+    cost a full recovery cycle. Use `git reset --soft HEAD~1`. A trailing `--` does NOT make
+    `--hard` respect a pathspec; it is accepted as a whole-tree reset.
+  - **Slicing `pyproject.toml` at the first literal `[[tool.mypy.overrides]]`.** That string
+    appears in a COMMENT above the real blocks, so every generated test config was truncated
+    mid-comment and silently set the option globally. Six bisect results were measuring the
+    broken fixture rather than the thing under test.
+  - **Trusting a builder's baseline count.** Worktrees are cut from HEAD, so a builder that
+    started before a merge reports a baseline that is real for it and wrong for the tree.
+    Two builders reported honestly that their dependencies were absent; re-run post-merge.
+  - **Auditing a fence with a cruder check than the fence itself.** A first pass at the
+    ADR-0006 audit walked ALL string constants including docstrings and reported four false
+    failures, because the operand names legitimately appear in explanatory prose.
+
+- **Next action:** merge wave 3 (`solve/optimize.py`, `solve/backends/`) if it has landed,
+  then dispatch wave 4 - `tests/solve/test_phase3_gate.py` - to an agent that authored no
+  solve module. That gate is the remaining CS-300 acceptance criterion: an AST walk over an
+  asserted-EQUAL module set (not merely non-empty) banning float literals, the `float` and
+  `complex` names, `**`, `pow`, `round`, `divmod` and the float-manufacturing stdlib imports,
+  plus a self-test proving each construct IS detected, plus the import-graph check. Note that
+  `exact.py` and `power.py` both quote the `Fraction ** Fraction` measurement verbatim in
+  their docstrings, so the gate must scan the AST rather than the file text or it will flag
+  its own evidence.
+
 ## Session 2 - 2026-08-14 - three operator decisions, then phase 2 data layer
 
 - **Shipped:** CS-007 (LICENSE holder ratified), CS-100, CS-101, CS-102, CS-103 (phase 1
