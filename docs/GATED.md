@@ -91,6 +91,18 @@ a later public flip makes worse, and it is not this item.
 weighted-greedy backend, and the degenerate-case test that asserts two backends produce
 identical results.
 
+**PREP half COMPLETE 2026-08-14 under CS-300. The DRAIN half remains GATED.** Condition 2
+above is now satisfied: `clockspeed/solve/optimize.py` owns `OptimizerBackend`, and
+`clockspeed/solve/backends/` holds TWO in-repo implementations with genuinely different
+mechanisms - complete lattice enumeration, and a reachability least fixed point that prunes
+on feasibility before scoring. Both are reached only through `select_backend`, and an
+unknown backend name refuses at every precedence level rather than falling back, which is
+what makes "swappable" testable at all. Verification is in the CS-300 ledger entry.
+Condition 1 - a written license verdict for a candidate library, recorded here and as an
+ADR - is UNMET and no candidate has been triaged. This item does not close, and completing
+the PREP half never closes it. The external backend must still slot in without changing a
+single caller.
+
 ### CS-G03 - Public visibility flip
 
 **One line:** Flip the repository from private to public.

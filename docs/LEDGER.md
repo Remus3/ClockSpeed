@@ -74,6 +74,58 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-14 - CS-300 - Phase 3 gate: pillar 1 exact ratio solve, then pillar 2 behind the pluggable optimizer interface
+Verification, all three acceptance criteria checked independently of the agents that built
+them.
+(1) HAND-VERIFIED RATIOS INCLUDING A BYPRODUCT LOOP. `tests/solve/synthetic.py` carries C1
+to C9 with every expected value as a named constant. The load-bearing case is C3, where
+Gadget needs Fluid, Fluid comes from Residue and Residue comes from Gadget, so naive
+topological recursion does not terminate. Re-derived through the MERGED solver by the
+merger, not read from a builder report: machines `R_Gadget=2, R_Recover=2/3, R_Fluid=2,
+R_Plate=4/3`, raw Ore 60/min, every count exact `Fraction`, output identical across runs and
+across a reversed recipe tuple. C4 solves the same loop in reverse and cross-checks C3
+exactly via `Fraction(436,3) * Fraction(3,4) == Fraction(109)`. That there is no disguised
+tree walk is asserted STATICALLY - `tests/solve/test_ratio.py` parses `ratio.py`'s own call
+graph and requires it acyclic - because a memoizing recursive solver passes every value test.
+(2) NO FLOATING-POINT ARITHMETIC ANYWHERE IN THE SOLVE PATH.
+`tests/solve/test_phase3_gate.py`, 96 tests. A static AST walk over every module under
+`clockspeed/solve/`, with the module set asserted EQUAL to a pinned tuple rather than merely
+non-empty, so a rename cannot silently shrink coverage. Proven to DETECT rather than merely
+to pass: each forbidden construct injected into the real module sources and caught at the
+right line - float literal, `**`, `round`, `import math`, and a bare `float` reference. It
+scans the AST and never the text, because `exact.py` and `power.py` quote the
+`Fraction ** Fraction` measurement verbatim as evidence for the ban; a regex sweep reports
+47 hits in `exact.py` alone, all prose. Two further independent signals cover what a static
+check cannot see - `exact.audit_exact` asserts POSITIVELY (`type(x) is Fraction`) at every
+public seam, and the strict mypy rung catches a `float` declared in a signature.
+(3) THE OPTIMIZER SWAPPABLE BY CONFIG WITH IDENTICAL RESULTS ON A DEGENERATE CASE.
+`clockspeed/solve/optimize.py` owns `OptimizerBackend`; `backends/exhaustive.py` and
+`backends/greedy.py` implement it by genuinely different mechanisms - complete lattice
+enumeration versus a reachability least fixed point that prunes on feasibility before
+scoring. Fixture C5's feasible set is a SINGLETON by construction, with the
+better-on-every-objective recipe declared first and infeasible, so a registry-order stub and
+a score-before-feasibility greedy are both demonstrably wrong while any correct backend must
+agree. THREE assertions ship, not one - each backend against the hand-verified absolute
+(`Std_Gadget` x 3, Ore `Fraction(120)`, power `Fraction(45)` MW) and the two against each
+other - because agreement between two implementations is not evidence on its own. Both are
+reached only through `select_backend`; an unknown name refuses at all three precedence
+levels rather than falling back, verified independently (`exhausitve` -> `UnknownBackendError`).
+Determinism proven across two separate interpreter processes under differing PYTHONHASHSEED.
+CS-G02's PREP half is now complete: the interface exists and is proven by two in-repo
+backends, which is the stated precondition before an external LP/ILP dependency may be
+considered. The DRAIN half remains gated - see `docs/GATED.md`.
+A MERGER INSTRUCTION WAS REFUTED BY THE GATE AGENT AND THE REFUTATION WAS RIGHT. The wave-4
+dispatch required that no solve module pull in `clockspeed.data.docs_extract`. That is
+unsatisfiable: `registry.py:206` and `version.py` import it at module level, and
+`tests/data/test_phase2_gate.py:775-781` REQUIRES those edges. `docs/ARCHITECTURE.md:136-138`
+scopes the raw-docs prohibition to `advisor/`; the clause for this layer is "solve/ never
+reads a save". The carve-out is self-verifying - a test measures each carrier in its own
+child interpreter and fails if a carrier stops justifying it - and a DIRECT import of
+`docs_extract` from solve remains forbidden with no carve-out at all.
+Modules: `clockspeed/solve/{exact,ratio,power,optimize}.py`, `clockspeed/solve/backends/`.
+Tests: `tests/solve/test_{exact,synthetic,ratio,power,optimize,phase3_gate}.py`.
+ADR: `docs/adr/0006-unsharded-clock-base-and-the-ceiling-fence.md`
+
 ### 2026-08-14 - CS-105 - S7: the overclock power exponent is read from building class data, and a test fails if a literal appears in the power path
 Verification: `clockspeed/solve/power.py` plus `tests/solve/test_power.py`. The data half
 landed in phase 2 (`clockspeed/data/registry.py` reads `mPowerConsumptionExponent` per

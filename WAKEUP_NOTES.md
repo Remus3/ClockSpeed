@@ -33,16 +33,17 @@ the line becomes a pointer.
 
 ## Session 3 - 2026-08-14 - phase 2 follow-ups, then the phase 3 solver core
 
-- **Shipped:** CS-105, CS-201, CS-202, CS-203. Phase 3 waves 0, 1 and 2 of CS-300 -
-  the registry seam plus ADR 0006, the mypy ratchet, `solve/exact.py`, the C1-C9 solve
-  corpus, `solve/power.py` and `solve/ratio.py`. Detail in `docs/LEDGER.md`.
+- **Shipped:** CS-105, CS-201, CS-202, CS-203 and **CS-300, the phase 3 gate**, all four
+  waves. `solve/{exact,ratio,power,optimize}.py`, `solve/backends/`, the C1-C9 corpus, the
+  registry seam plus ADR 0006, and the mypy ratchet. Detail in `docs/LEDGER.md`.
 
-- **In flight:** CS-300 is NOT closed and must not be recorded as closed. Two of its three
-  acceptance criteria are met - hand-verified ratios including the byproduct loop, and the
-  exponent-from-data guard. The third, "the optimizer swappable by config with identical
-  results on a degenerate case", needs `solve/optimize.py` plus `solve/backends/` (wave 3),
-  and the whole-path no-float assertion needs `tests/solve/test_phase3_gate.py` (wave 4),
-  which by doctrine is written by an agent that authored no solve module.
+- **In flight:** nothing half-done; the working tree is committed and pushed. Phase 3 is
+  CLOSED and phase 4 (CS-400, the save reader) is next and unblocked. Two phase-3 follow-ups
+  were filed rather than absorbed: CS-301 (the variable-power law is unmeasured, so
+  `power.py` refuses to model it, and two branches have no fixture to exercise them) and
+  CS-302 (`ratio.py`'s refusal-path diagnosis is O(rows) extra solves and was never measured
+  at real-registry scale). Five phase-2 follow-ups are also open, CS-204 to CS-208, all
+  found by this session's own process rather than inherited.
 
 - **Decisions:** ADR 0006, status `proposed`, needs an adjudicator to flip it. It records
   how the un-sharded clock base enters the model, which ADR 0005 specified but could not
@@ -87,15 +88,22 @@ the line becomes a pointer.
     ADR-0006 audit walked ALL string constants including docstrings and reported four false
     failures, because the operand names legitimately appear in explanatory prose.
 
-- **Next action:** merge wave 3 (`solve/optimize.py`, `solve/backends/`) if it has landed,
-  then dispatch wave 4 - `tests/solve/test_phase3_gate.py` - to an agent that authored no
-  solve module. That gate is the remaining CS-300 acceptance criterion: an AST walk over an
-  asserted-EQUAL module set (not merely non-empty) banning float literals, the `float` and
-  `complex` names, `**`, `pow`, `round`, `divmod` and the float-manufacturing stdlib imports,
-  plus a self-test proving each construct IS detected, plus the import-graph check. Note that
-  `exact.py` and `power.py` both quote the `Fraction ** Fraction` measurement verbatim in
-  their docstrings, so the gate must scan the AST rather than the file text or it will flag
-  its own evidence.
+  7. **A merger instruction was refuted by the agent executing it, and the refutation was
+     right.** The wave-4 dispatch required that no solve module pull in
+     `clockspeed.data.docs_extract`. That is unsatisfiable - `registry.py:206` and
+     `version.py` import it at module level and `tests/data/test_phase2_gate.py:775-781`
+     REQUIRES those edges - and `docs/ARCHITECTURE.md:136-138` scopes the raw-docs
+     prohibition to `advisor/`, not to `solve/`, whose clause is "never reads a save".
+     Writing it as dispatched would have made the phase red against correct code.
+
+- **Next action:** get ADR 0006 adjudicated from `proposed` to `accepted` by an agent that
+  did not write it - it is the only unadjudicated artifact from this session - then begin
+  phase 4 (CS-400, the save reader). Phase 4 is unblocked and is where the two oldest
+  deferred questions land: whether `mInventoryPotential` serialization carries the overclock
+  slot count (ADR 0005's one remaining unknown, which would let `power.py` publish a real
+  ceiling), and the world-token half of CS-201, which cannot work until a header parser
+  exists. Note BOOTSTRAP.md section 3.1: the actor header layout is save-version dependent,
+  +8 on save versions 52 and 60 and +4 on version 36, so version-dispatch from day one.
 
 ## Session 2 - 2026-08-14 - three operator decisions, then phase 2 data layer
 
