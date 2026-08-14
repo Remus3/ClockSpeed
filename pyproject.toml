@@ -1,0 +1,285 @@
+# Clockspeed - project metadata and tool configuration.
+#
+# Authority for everything below: BOOTSTRAP.md sections 6 (module map), 10
+# (build phases), 11 (decision log) and 12 (non-negotiables); CONVENTIONS.md
+# sections 2 (single source of truth), 2.1 (size budgets), 7.1 (testing
+# discipline) and 10 (character set).
+#
+# 7-bit ASCII in every byte of this file. That is BOOTSTRAP.md section 12
+# item 4 and it is enforced three ways, deliberately overlapping:
+#   1. the tier-0 pre-commit character-set gate (authoritative),
+#   2. the ruff rules selected below (cheap, fires while typing),
+#   3. tests/test_scaffold.py, which asserts on the raw BYTES of every
+#      authored text file - the only one of the three that cannot be fooled
+#      by a construct the linter does not model.
+
+[build-system]
+requires = ["setuptools>=77.0"]
+build-backend = "setuptools.build_meta"
+
+
+# ===========================================================================
+# Project metadata
+# ===========================================================================
+
+[project]
+name = "clockspeed"
+description = "Deterministic, local, read-only planning and advisory system for a single-player factory-building game."
+readme = "README.md"
+requires-python = ">=3.13"
+
+# PEP 639 SPDX expression plus the file it is granted by. The copyright HOLDER
+# is owned by LICENSE and is deliberately not restated here: a restated fact is
+# a fact that will drift (CONVENTIONS.md section 2), and a LICENSE naming nobody
+# is a grant with no grantor (CONVENTIONS.md section 14 trap 3).
+license = "MIT"
+license-files = ["LICENSE"]
+
+# The version lives in exactly ONE place: clockspeed/__init__.py.
+# It is read from there at build time by [tool.setuptools.dynamic] below.
+# tests/test_scaffold.py asserts that wiring, so a second literal cannot be
+# introduced here without turning the suite red.
+dynamic = ["version"]
+
+# NO runtime dependencies, and this is a decision rather than an omission.
+# BOOTSTRAP.md section 11: "No external optimizer dependency in phase 3.
+# Interface first, dependency later and gated." Pillar 2 ships a
+# branch-and-bound or weighted-greedy search behind OptimizerBackend, and any
+# external linear/integer programming library goes through the CONVENTIONS.md
+# section 14 license gate before it is added and must slot behind the existing
+# interface without changing a caller. The advice path is also fully
+# deterministic and local, so nothing here may ever pull in a network client
+# or a model runtime.
+dependencies = []
+
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: End Users/Desktop",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Games/Entertainment",
+  "Private :: Do Not Upload",
+]
+
+[project.optional-dependencies]
+# The toolchain, and only the toolchain. Installing the project without this
+# extra must produce a working advisor, because the advice path is
+# dependency-free by decision.
+dev = [
+  "mypy>=1.11",
+  "pytest>=8.0",
+  "ruff>=0.13",
+]
+
+
+# ===========================================================================
+# Packaging
+# ===========================================================================
+
+[tool.setuptools.dynamic]
+version = { attr = "clockspeed.__version__" }
+
+[tool.setuptools.packages.find]
+# Anchored to clockspeed* so tests/, tools/, scripts/, docs/ and the gitignored
+# generated /data/ directory are never swept into a distribution.
+include = ["clockspeed*"]
+namespaces = false
+
+
+# ===========================================================================
+# ruff - lint
+# ===========================================================================
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["clockspeed", "tests"]
+
+[tool.ruff.lint]
+# Chosen for rules that catch real bugs rather than rules that enforce taste.
+#
+#   F, E, W    pyflakes and pycodestyle: undefined names, unused imports.
+#   B          bugbear: mutable default args, loop-variable capture, the
+#              classes of bug that survive review.
+#   A          builtin shadowing - a shadowed "id" or "list" is a real defect.
+#   ARG        unused arguments, which usually mean a signature drifted.
+#   C4         comprehension misuse.
+#   D          docstrings. Every seam in this project is documented at the
+#              module it governs; D is what keeps that true.
+#   FURB, PERF, PIE, RET, SIM   dead and redundant code.
+#   I          import sorting, deterministic and machine-fixable.
+#   N          naming.
+#   PGH        blanket "noqa" and blanket "type: ignore" - a suppression with
+#              no code suppresses the next bug too.
+#   PL         pylint subset: too-many-x, magic values, bad comparisons.
+#   PT         pytest style: bare asserts on tuples, wrong fixture scoping.
+#   PTH        pathlib over os.path, so paths stay portable.
+#   RUF        ruff-specific, and see the character-set note below.
+#   S          bandit: subprocess misuse, hardcoded credentials, unsafe
+#              deserialization. This project reads untrusted binary saves.
+#   SLF        private-member access across a seam - a direct signal that a
+#              layer reached past its neighbor (BOOTSTRAP.md section 6).
+#   T20        stray print(). Output goes through the surface layer.
+#   TID        banned relative imports, so a moved module fails loudly.
+#   UP         pyupgrade for the >=3.13 floor.
+#   YTT        sys.version misuse.
+#
+# CHARACTER SET, the hard project constraint (BOOTSTRAP.md section 12 item 4):
+# ruff has no "reject every byte above 0x7E" rule. The closest it offers is
+# selected here and it is a real net, not a substitute:
+#   PLC2401 / PLC2403  non-ASCII identifiers and non-ASCII import names.
+#   RUF001 / RUF002 / RUF003  ambiguous Unicode in strings, docstrings and
+#              comments - this is the net that catches the exact characters
+#              CONVENTIONS.md section 10 names: em-dash U+2014, en-dash
+#              U+2013 and the four smart quotes.
+# All five arrive via the PL and RUF selectors above. They are called out
+# explicitly here so nobody narrows those selectors without knowing what is
+# lost. What ruff CANNOT see - a non-ASCII byte in a markdown file, a TOML
+# comment, or a shell hook - is covered by the pre-commit gate and by
+# tests/test_scaffold.py::test_authored_text_files_are_seven_bit_ascii.
+select = [
+  "A", "ARG", "B", "C4", "D", "E", "F", "FURB", "I", "N", "PERF", "PGH",
+  "PIE", "PL", "PT", "PTH", "RET", "RUF", "S", "SIM", "SLF", "T20", "TID",
+  "UP", "W", "YTT",
+]
+
+ignore = [
+  # Conflicts with the formatter; the formatter owns implicit concatenation.
+  "ISC001",
+  # UP031 rewrites percent-formatting into f-strings. Both are correct Python
+  # and the rewrite catches no bug, so it fails the selection test stated
+  # above - "rules that catch real bugs, not rules that enforce taste". The
+  # rest of the UP family stays on because it does catch real things:
+  # deprecated imports, typing constructs the >=3.13 floor has superseded.
+  "UP031",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+  # assert IS the test. Bandit's S101 is written for production code.
+  "S101",
+  # A test function's NAME is its documentation, and the suite is read as a
+  # list of names. D100 and D104 stay on, so the module still has to say what
+  # it covers; only the per-function requirement is lifted.
+  "D103",
+  # The test harness shells out to git to learn which files would be tracked
+  # and which are ignored. S603 wants every subprocess call reviewed and S607
+  # wants an absolute path to the executable - but hardcoding an absolute
+  # interpreter or tool path into a tracked file is forbidden outright
+  # (CONVENTIONS.md section 10, BOOTSTRAP.md section 12 item 3). Resolving
+  # "git" from PATH is the correct behaviour here, so these two are suppressed
+  # at file scope with a reason rather than with a bare noqa.
+  "S603", "S607",
+]
+"scripts/**" = [
+  # Same PATH-resolution argument as above: these scripts drive git and the
+  # interpreter, and neither may be named by absolute path.
+  "S603", "S607",
+  # print IS the interface. verify_env.py exists to print a table of every
+  # external dependency with found/missing (CONVENTIONS.md section 1). The
+  # T20 ban on print is aimed at library code that should be returning values.
+  "T201",
+]
+"tools/**" = [
+  "S603", "S607",
+  "T201",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["clockspeed"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+# A relative import survives a module move silently and then imports the wrong
+# thing. Absolute imports fail loudly, which is what the seam discipline needs.
+ban-relative-imports = "all"
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.pylint]
+max-args = 8
+
+[tool.ruff.format]
+quote-style = "double"
+# LF, matching .gitattributes. Content hashes are load-bearing in this project
+# (the game data version pin, BOOTSTRAP.md section 8.1) and a file whose line
+# endings depend on the checkout machine cannot be hashed reliably.
+line-ending = "lf"
+
+
+# ===========================================================================
+# pytest
+# ===========================================================================
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+
+# testpaths is a SAFETY control, not a convenience.
+# CONVENTIONS.md section 7.1: "Run suites from the repo root with explicit
+# target directories, never a bare recursive invocation from the root - that
+# can sweep runtime state directories and destroy live locks or data."
+# The repo root will hold /data/ (the generated registry), /work/ (save copies
+# taken before parsing), /run/ and /logs/. A bare `pytest` from the root would
+# walk all of them. Pinning testpaths means a bare invocation collects only
+# tests/ and cannot reach live state.
+testpaths = ["tests"]
+
+# --strict-markers  an unregistered marker is a typo that silently selects
+#                   nothing, which is the "unrun gate" failure class
+#                   (CONVENTIONS.md section 7.2).
+# --strict-config   an unknown ini key is an error, not a shrug.
+# -ra               a short reason line for every non-pass, so a skipped gate
+#                   is visible instead of blending into the dots.
+addopts = "-ra --strict-markers --strict-config"
+
+# xfail must be honest: an xfail that starts passing is a finding.
+xfail_strict = true
+
+markers = [
+  "slow: a test the pre-push hook may exclude to keep tier 0 instant. Select the fast subset with -m 'not slow' (CONVENTIONS.md section 8, tier 0 pre-push).",
+]
+
+
+# ===========================================================================
+# mypy
+# ===========================================================================
+
+[tool.mypy]
+# Floor version, not the running version. The project supports >=3.13 and the
+# type checker must judge against the floor or it will accept syntax the floor
+# rejects.
+python_version = "3.13"
+files = ["clockspeed", "tests"]
+
+# STRICTNESS, stated deliberately: this is "check what is written, do not yet
+# demand annotations everywhere". The package is a phase-0 skeleton
+# (BOOTSTRAP.md section 10) and turning on disallow_untyped_defs today would
+# only produce noise about files that do not exist yet. What IS on is the set
+# that finds real defects in annotated code plus the set that finds rot in the
+# configuration itself.
+#
+# The ratchet, so this is not left at the loose setting by accident:
+#   phase 2 (data layer)  -> disallow_untyped_defs on clockspeed.data.*
+#   phase 3 (solver)      -> strict = true on clockspeed.solve.*, because the
+#                            exact-arithmetic invariant (no floats in the solve
+#                            path) is worth a type-level guard
+#   phase 5 (advisor)     -> strict = true package-wide
+# Tighten by adding a [[tool.mypy.overrides]] block per module; do not loosen
+# a global that was already earned.
+check_untyped_defs = true
+no_implicit_optional = true
+strict_equality = true
+warn_redundant_casts = true
+warn_unused_configs = true
+warn_unused_ignores = true
+warn_return_any = true
+warn_unreachable = true
+
+# A silent import failure makes the whole run vacuous - it type checks nothing
+# and exits zero. Report them.
+ignore_missing_imports = false
+
+pretty = true
+show_error_codes = true

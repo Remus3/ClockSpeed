@@ -1,0 +1,252 @@
+# =============================================================================
+# Clockspeed - CI tier 1: the fast lane.
+#
+# CONVENTIONS.md section 8: tier 1 runs on every push and is "the lane that must
+# never be red". Target wall clock is under three minutes.
+#
+# LEANNESS IS A REQUIREMENT, NOT A STYLE CHOICE. This repo is private and CI
+# minutes are metered (CONVENTIONS.md section 8, budget note), so this lane uses
+# one runner (ubuntu-latest, the cheapest), one interpreter, one dependency
+# install and no matrix. Everything expensive - the Windows runner, the full
+# suite with parallelism, the clean-checkout probe, the dependency and license
+# audits - lives in tier2.yml and runs nightly and on tag.
+#
+# CLEAN-MACHINE INVARIANT. BOOTSTRAP.md section 8.1: test fixtures are small
+# synthetic registries hand-authored in the repo, never slices of real game
+# data, precisely so the suite runs on a machine with no game installed and no
+# save file present. Nothing in this workflow may expect the game install, the
+# save directory, or any publisher-owned asset to exist. No step here compensates
+# for a missing game, and no step swallows a non-zero exit to hide one.
+# =============================================================================
+
+name: tier1
+
+on:
+  # Every branch. Tag pushes deliberately do NOT land here - a tag is tier 2.
+  push:
+    branches:
+      - '**'
+  # Same-repo pull requests fire both `push` and `pull_request`. The duplicate is
+  # kept on purpose: the `pull_request` run tests the MERGE result, which the
+  # `push` run (which tests the head commit) does not. The concurrency block
+  # below is the cost control instead.
+  pull_request:
+
+# Least privilege. Tier 1 only reads the tree.
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same ref. On a metered private repo this is the
+# single largest saving available for a lane that fires on every push.
+concurrency:
+  group: tier1-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # CONVENTIONS.md section 10: set these so subprocess output does not mojibake.
+  PYTHONUTF8: '1'
+  PYTHONIOENCODING: 'utf-8'
+  PIP_DISABLE_PIP_VERSION_CHECK: '1'
+
+jobs:
+  fast:
+    name: gates, lint, types, tests
+    runs-on: ubuntu-latest
+    # The target is under three minutes. Ten is the runaway cutoff, not a budget:
+    # a hung step must stop burning metered minutes rather than reach the
+    # six-hour default.
+    timeout-minutes: 10
+    defaults:
+      run:
+        # Declared explicitly rather than relying on the implicit default. The
+        # implicit shell is `bash -e`; naming it gets `bash -eo pipefail`, so a
+        # failure on the left-hand side of a pipe cannot be masked by a
+        # successful right-hand side.
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        # Shallow on purpose. Tier 1 gates the working tree. Full history is
+        # tier 3's job (CONVENTIONS.md section 17 item 1 - history is what leaks).
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          # Single version by design - see the leanness note in the header.
+          # 3.14 matches the interpreter this project is pinned to; the
+          # authoritative assertion lives in scripts/verify_env.py, not here.
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install toolchain
+        # ONE owner for the tool versions: the `dev` extra in pyproject.toml,
+        # which pins ruff, pytest and mypy. Naming versions again here would be a
+        # restated fact, and a restated fact is a fact that will drift
+        # (CONVENTIONS.md section 2).
+        #
+        # Editable install rather than a bare `pip install ruff pytest mypy`, for
+        # two reasons: it puts clockspeed on sys.path the way a developer machine
+        # has it, and it exercises the dynamic-version wiring in pyproject.toml,
+        # so a packaging break surfaces on the fast lane instead of at the first
+        # release tag.
+        run: python -m pip install -e ".[dev]"
+
+      # -- Gate 1: character set. The CI mirror of the tier-0 pre-commit gate. --
+      # Mode choice: `--files` with the full tracked-file list, NOT `--staged`.
+      # A CI checkout has an empty index relative to HEAD, so `--staged` would
+      # inspect nothing and report a green pass over zero files - exactly the
+      # "unrun gate" failure class in CONVENTIONS.md section 7.2. `--files` over
+      # `git ls-files` gates the whole tracked tree on every run, which is a
+      # strictly stronger check than the local hook performs.
+      #
+      # `--list-skipped` is not decoration. CONVENTIONS.md section 15.1: "a guard
+      # can be green while self-excusing - skipping itself on the very files it
+      # is meant to cover. Read what the guard skips." This prints that list into
+      # the run log every push, at no extra cost, so the skip set is auditable
+      # rather than assumed.
+      - name: Character-set gate over all tracked files
+        run: |
+          mapfile -d '' TRACKED < <(git ls-files -z)
+          if [ "${#TRACKED[@]}" -eq 0 ]; then
+            echo "FAIL: git ls-files returned nothing."
+            echo "Refusing to report a pass over an empty file set."
+            exit 1
+          fi
+          echo "gating ${#TRACKED[@]} tracked files"
+          python tools/precommit_gate.py --list-skipped --files "${TRACKED[@]}"
+
+      # -- Gate 2: lint. --
+      - name: Lint (ruff check)
+        run: python -m ruff check .
+
+      # -- Gate 3: formatting. --
+      # Kept blocking rather than advisory. It is deterministic, it is repaired by
+      # one command (`python -m ruff format .`), and a formatting gate that never
+      # fails is a formatting gate nobody obeys. Configuration is owned by
+      # pyproject.toml, not by this file.
+      - name: Format check (ruff format --check)
+        run: python -m ruff format --check .
+
+      # -- Gate 4: documentation size budgets (CONVENTIONS.md section 2.1). --
+      # The tool owns which budgets are hard-fail and which are warn; this step
+      # only reports its exit code.
+      - name: Doc size budgets
+        run: python tools/doc_budget.py
+
+      # -- Gate 5: drift. --
+      - name: Drift guard
+        run: python tools/drift_guard.py
+
+      # -- Gate 6: markdown cross-references (CONVENTIONS.md section 17 item 6). --
+      # Inline Python on purpose: no third-party action, so no new supply-chain
+      # dependency and nothing to run through the section 14 license gate.
+      # Scope: relative links only. External URLs are NOT fetched - a network
+      # check would make the lane flaky, and "must never be red" outranks
+      # catching a dead external link here.
+      - name: Markdown link check
+        run: |
+          python - <<'PY'
+          import re
+          import subprocess
+          import sys
+          from pathlib import Path
+          from urllib.parse import unquote
+
+          ROOT = Path.cwd()
+          listing = subprocess.run(
+              ["git", "ls-files", "-z", "*.md"],
+              capture_output=True, text=True, check=True,
+          ).stdout
+          files = sorted({ROOT / p for p in listing.split("\0") if p})
+          if not files:
+              print("FAIL: no tracked markdown files found.")
+              print("Refusing to report a pass over an empty file set.")
+              sys.exit(1)
+
+          FENCE = re.compile(r"^\s{0,3}(```|~~~)")
+          INLINE = re.compile(r"\[[^\]]*\]\(\s*<?([^)>\s]+)>?(?:\s+[\"'(][^)]*)?\s*\)")
+          REFDEF = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*<?([^\s>]+)>?")
+          SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.\-]*:")
+
+          failures = []
+          checked = 0
+          for md in files:
+              text = md.read_text(encoding="utf-8", errors="replace")
+              in_fence = False
+              for lineno, line in enumerate(text.splitlines(), 1):
+                  if FENCE.match(line):
+                      in_fence = not in_fence
+                      continue
+                  if in_fence:
+                      continue
+                  bare = re.sub(r"`[^`]*`", "", line)
+                  targets = list(INLINE.findall(bare))
+                  ref = REFDEF.match(bare)
+                  if ref:
+                      targets.append(ref.group(1))
+                  for raw in targets:
+                      target = raw.strip()
+                      if not target:
+                          continue
+                      if target.startswith("#") or target.startswith("//"):
+                          continue
+                      if SCHEME.match(target):
+                          continue
+                      path_part = unquote(target.split("#", 1)[0])
+                      if not path_part:
+                          continue
+                      if path_part.startswith("/"):
+                          candidate = ROOT / path_part.lstrip("/")
+                      else:
+                          candidate = md.parent / path_part
+                      checked += 1
+                      if not candidate.exists():
+                          rel = md.relative_to(ROOT).as_posix()
+                          failures.append(
+                              rel + ":" + str(lineno) + ": unresolved -> " + target
+                          )
+
+          print("markdown files scanned: " + str(len(files)))
+          print("relative cross-references checked: " + str(checked))
+          if failures:
+              print("UNRESOLVED RELATIVE MARKDOWN LINKS:")
+              print("CONVENTIONS.md section 17 item 6 - no orphaned or stale markdown.")
+              for item in failures:
+                  print("  " + item)
+              sys.exit(1)
+          print("all relative markdown cross-references resolve")
+          PY
+
+      # -- Gate 7: types. ADVISORY at this stage, deliberately. --
+      # Invoked bare, with no target, so pyproject.toml owns what is checked -
+      # its mypy `files` key already names the package and the suite. Naming a
+      # target here would be a second copy of that list, and the second copy is
+      # the one that drifts (CONVENTIONS.md section 2).
+      #
+      # ADVISORY because the clockspeed/ package is a phase-0 skeleton
+      # (BOOTSTRAP.md section 10) and pyproject.toml deliberately holds mypy at
+      # its loosest setting with a written ratchet: phase 2 turns on
+      # disallow_untyped_defs for the data layer, phase 3 goes strict on the
+      # solver, phase 5 goes strict package-wide. Blocking on mypy today would
+      # hold the lane red for all of phase 0, and CONVENTIONS.md section 8 says
+      # this lane must never be red.
+      #
+      # `continue-on-error` rather than `|| true`: the step still shows as FAILED
+      # in the run summary, so the finding is visible instead of swallowed.
+      #
+      # FLIP TO BLOCKING at the first ratchet step (end of phase 2, data layer):
+      # delete the `continue-on-error` line below. Nothing else changes.
+      - name: Type check (advisory - see comment)
+        continue-on-error: true
+        run: python -m mypy
+
+      # -- Gate 8: the suite. --
+      # EXPLICIT TARGET DIRECTORY, never a bare recursive invocation from the
+      # repo root. CONVENTIONS.md section 7.1 records why: a bare root run can
+      # sweep runtime state directories and destroy live locks or data. The rule
+      # is written for the developer machine, and the invocation is kept
+      # identical here so CI and local never diverge.
+      - name: Unit tests
+        run: python -m pytest tests -q

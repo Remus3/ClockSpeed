@@ -1,0 +1,849 @@
+"""The CS-200 phase 2 gate: properties the data layer must be FORCED to have.
+
+Every other module under ``tests/data`` tests what a data-layer module DOES.
+This one tests what the data layer and its own test suite must never start
+doing, and it exists because the middle clause of the CS-200 acceptance
+criterion - "the synthetic-fixture suite runs green on a machine with no game
+installed" - was, until this module, true only by luck.
+
+Luck is not a gate. Slices A through E each happened to write tests that need
+no install, but nothing failed if a future test quietly reached for one. That
+is precisely the CONVENTIONS.md section 7.2 class "the unrun gate is where the
+bug hides": the property that is never exercised is the property that silently
+stops holding. The load-bearing test here is
+``test_the_data_layer_suite_passes_with_the_install_unresolvable``, which runs
+the whole data-layer suite in a child interpreter with the install forced
+unresolvable and asserts a zero exit. On a machine with no game installed that
+child run is what CI does; on the operator's machine, where the game IS
+installed, it is the only thing that reproduces CI's environment.
+
+Five properties, each a separate section below:
+
+a. Every module in ``clockspeed/data/`` imports with no install present, and
+   none of them resolves an install at IMPORT time rather than at call time.
+b. No test in ``tests/data`` depends on a real install.
+c. No source file in ``clockspeed/data/`` hardcodes a drive-letter path or an
+   account-id-shaped digit run.
+d. The synthetic corpus is genuinely synthetic, and no fixture under
+   ``tests/`` is a save, a usmap or a shipped locale file.
+e. The data-layer seams are importable in isolation, so the allowed-import
+   matrix that ``docs/ARCHITECTURE.md`` section 3.1 calls mechanically
+   checkable actually is - for this layer, checked against ``sys.modules``
+   rather than against source text.
+
+Nothing here requires a game install, and nothing here writes to one. The
+child interpreters are launched through ``sys.executable`` so they inherit the
+running interpreter rather than whatever a bare name would resolve to on PATH.
+"""
+
+from __future__ import annotations
+
+import ast
+import json
+import os
+import re
+import subprocess
+import sys
+from functools import cache
+from pathlib import Path
+
+import pytest
+
+from clockspeed.data import locate
+from clockspeed.data.locate import (
+    ENV_ACCOUNT_DIR,
+    ENV_GAME_DIR,
+    ENV_LOCAL_CONFIG,
+    ENV_SAVE_ROOT,
+    MIN_ACCOUNT_ID_DIGITS,
+)
+from clockspeed.data.version import DOCS_RELATIVE, PIN_BEGIN_MARKER, PIN_END_MARKER
+
+# ---------------------------------------------------------------------------
+# Paths, derived rather than written down
+# ---------------------------------------------------------------------------
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DATA_PACKAGE = REPO_ROOT / "clockspeed" / "data"
+TESTS_ROOT = REPO_ROOT / "tests"
+DATA_TESTS = TESTS_ROOT / "data"
+SYNTHETIC_CORPUS = DATA_TESTS / "synthetic.py"
+
+# This module's own path. The child pytest run below MUST exclude it or the
+# gate re-runs itself forever, so the exclusion is derived from __file__ and
+# never from a literal filename that a rename would leave pointing at nothing.
+THIS_MODULE = Path(__file__).resolve()
+
+# The five modules the phase 2 gate covers. Short names, joined to the package
+# below, so the parametrize ids read as the module rather than as a path.
+DATA_MODULES: tuple[str, ...] = ("blobs", "docs_extract", "locate", "registry", "version")
+
+# ---------------------------------------------------------------------------
+# Forcing "no install"
+# ---------------------------------------------------------------------------
+
+# clockspeed/data/locate.py resolves in the order environment, then
+# config/local.json, then auto-detection - and an override naming something
+# that is not a directory resolves to None WITHOUT falling through to
+# detection. That behaviour is what lets a test force "no install" on a
+# machine where the game is installed, and it is asserted directly by
+# tests/data/test_locate.py::
+# test_game_dir_environment_override_that_is_not_a_directory_is_reported_not_raised.
+#
+# The path is under the repo root rather than under a temporary directory so
+# it needs no fixture and is identical in every child. It is asserted absent
+# below, so it can never quietly become a real directory and turn this whole
+# module into a no-op.
+ABSENT = REPO_ROOT / "no-such-path-phase-2-gate"
+
+_CHILD_TIMEOUT_SECONDS = 300
+
+
+def no_install_env() -> dict[str, str]:
+    """Build a child environment in which no install, save root or account can resolve.
+
+    All four override variables are set, not just the two that name an
+    install: leaving ``CLOCKSPEED_SAVE_ROOT`` unset would let a child fall
+    through to ``%LOCALAPPDATA%`` and find the operator's real save
+    directory, which is exactly the machine dependence this module exists to
+    forbid.
+
+    Returns:
+        A copy of the current environment with the overrides applied.
+    """
+    env = dict(os.environ)
+    env[ENV_GAME_DIR] = str(ABSENT / "install")
+    env[ENV_SAVE_ROOT] = str(ABSENT / "saves")
+    env[ENV_ACCOUNT_DIR] = str(ABSENT / "account")
+    env[ENV_LOCAL_CONFIG] = str(ABSENT / "local.json")
+    # CONVENTIONS.md section 10: pin the child's text encoding so its output
+    # decodes the same way on every machine.
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
+    return env
+
+
+def run_child(args: list[str], env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    """Run a child interpreter from the repo root and capture its output.
+
+    ``sys.executable`` is the only correct way to name the interpreter here.
+    A bare ``python`` would resolve off PATH to whatever happens to be first,
+    and an absolute interpreter path in a tracked file is forbidden outright
+    (CONVENTIONS.md section 10).
+
+    Every caller binds ``returncode`` to a local before asserting on it, and
+    that is not style. ``assert child.returncode == 0`` makes pytest's
+    assertion introspection repr the whole CompletedProcess in its "where"
+    clause, and ``args[0]`` is the absolute interpreter path - which on a
+    default Windows install sits under the operator's home directory and
+    carries their account name into the CI log. Asserting on a plain int
+    prints a plain int. tests/data/test_drift_guard_data.py records the same
+    discipline for the same reason.
+
+    Args:
+        args: Arguments after the interpreter.
+        env: The child environment.
+
+    Returns:
+        The completed process, decoded as text. A non-zero exit is returned
+        rather than raised so the caller can assert on it.
+    """
+    return subprocess.run(
+        [sys.executable, *args],
+        cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=_CHILD_TIMEOUT_SECONDS,
+        env=env,
+        check=False,
+    )
+
+
+def test_the_forced_absent_path_really_is_absent() -> None:
+    """The path every child points at must not exist, or the whole module is vacuous.
+
+    If ``ABSENT`` ever became a real directory the overrides would resolve to
+    something and every "no install" assertion below would be testing the
+    opposite of what it says.
+    """
+    assert not ABSENT.exists(), (
+        f"{ABSENT.name} exists, so the no-install overrides resolve to something real"
+    )
+
+
+# ===========================================================================
+# a. The data layer imports with no install present
+# ===========================================================================
+
+# Importing a module must never resolve an install. Resolution is filesystem
+# and registry work whose answer differs per machine and per session, so a
+# module that does it at import time is unusable in a test, unusable in CI,
+# and produces a different object depending on when it was first imported.
+#
+# The names are listed rather than discovered so the gate is a stated
+# contract, and test_the_resolver_set_matches_locates_public_surface below
+# asserts the list against the module so a resolver added later cannot slip
+# past by simply not being named here.
+RESOLVER_NAMES: tuple[str, ...] = (
+    "local_config",
+    "local_config_path",
+    "numeric_account_dirs",
+    "resolve_account_dir",
+    "resolve_game_dir",
+    "resolve_save_root",
+)
+
+# Imports the module named in argv[1] and reports every clockspeed module the
+# import pulled in. Serves section a (it exits non-zero if the import raises)
+# and section e (its stdout is the measured import graph).
+_PROBE_IMPORT = """
+import importlib
+import json
+import sys
+
+importlib.import_module(sys.argv[1])
+print(json.dumps(sorted(name for name in sys.modules if name.startswith("clockspeed"))))
+"""
+
+# Replaces every locate resolver with a raiser BEFORE importing the target, so
+# a resolver called at import time turns into a non-zero exit with a message
+# naming the resolver. Patching locate first is what makes this work through a
+# "from clockspeed.data.locate import resolve_game_dir" in the target too: the
+# target binds whatever the attribute holds at the moment it imports.
+_PROBE_REFUSE = """
+import importlib
+import sys
+
+locate = importlib.import_module("clockspeed.data.locate")
+
+
+def _make(resolver):
+    def _refuse(*args, **kwargs):
+        raise AssertionError("IMPORT-TIME RESOLUTION via " + resolver)
+
+    return _refuse
+
+
+for _name in sys.argv[2].split(","):
+    setattr(locate, _name, _make(_name))
+
+importlib.import_module(sys.argv[1])
+print("imported")
+"""
+
+
+@cache
+def import_probe(module: str) -> subprocess.CompletedProcess[str]:
+    """Import one data-layer module in a fresh interpreter with no install resolvable.
+
+    Cached because sections a and e ask different questions of the same run,
+    and a child interpreter per question would double the cost of this module
+    for no extra coverage.
+
+    Args:
+        module: Short module name under ``clockspeed.data``.
+
+    Returns:
+        The completed child process.
+    """
+    return run_child(["-c", _PROBE_IMPORT, f"clockspeed.data.{module}"], no_install_env())
+
+
+@pytest.mark.parametrize("module", DATA_MODULES)
+def test_data_module_imports_with_the_install_unresolvable(module: str) -> None:
+    """Importing the module on a machine with no install must not raise.
+
+    The failure this catches is a module that reads the install, the save
+    root or config/local.json at import time: it works on the operator's
+    machine, raises on a clean CI runner, and the traceback surfaces inside
+    whatever unrelated caller happened to touch the module first.
+    """
+    probe = import_probe(module)
+    exit_code = probe.returncode
+    assert exit_code == 0, (
+        f"importing clockspeed.data.{module} with no install failed:\n{probe.stderr}"
+    )
+
+
+@pytest.mark.parametrize("module", [name for name in DATA_MODULES if name != "locate"])
+def test_data_module_does_not_resolve_the_install_at_import_time(module: str) -> None:
+    """No consumer module calls a locate resolver while it is being imported.
+
+    Stronger than the import test above, which a module could pass while
+    still resolving successfully on a machine where resolution happens to
+    work. Here every resolver raises, so any import-time call fails loudly.
+
+    ``locate`` itself is excluded because it cannot be patched before it is
+    imported; ``test_data_module_calls_no_resolver_at_module_level`` covers
+    it by reading its module-level statements instead.
+    """
+    probe = run_child(
+        ["-c", _PROBE_REFUSE, f"clockspeed.data.{module}", ",".join(RESOLVER_NAMES)],
+        no_install_env(),
+    )
+    exit_code = probe.returncode
+    assert exit_code == 0, (
+        f"clockspeed.data.{module} resolved the install at import time:\n{probe.stderr}"
+    )
+    assert "IMPORT-TIME RESOLUTION" not in probe.stderr
+
+
+def test_the_resolver_set_matches_locates_public_surface() -> None:
+    """RESOLVER_NAMES names every public resolver locate defines, and nothing else.
+
+    An empty or stale set would make both probes above vacuous while leaving
+    them green - a claim about the pattern rather than about the code
+    (CONVENTIONS.md section 15.1). ``redact`` is excluded deliberately: it is
+    the privacy helper, it resolves nothing, and patching it to raise would
+    break the very redaction the failure messages depend on. Re-exported
+    names such as ``Path`` are filtered by ``__module__``.
+    """
+    public = {
+        name
+        for name in dir(locate)
+        if not name.startswith("_")
+        and callable(getattr(locate, name))
+        and getattr(getattr(locate, name), "__module__", None) == locate.__name__
+    }
+    assert public - {"redact"} == set(RESOLVER_NAMES), (
+        "locate's public resolver surface moved; RESOLVER_NAMES must be updated or the "
+        "import-time probes silently stop covering the new resolver"
+    )
+
+
+_SCOPE_NODES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+
+
+def _calls_under(node: ast.AST) -> list[ast.Call]:
+    """Collect every call expression anywhere beneath a node.
+
+    Args:
+        node: Any AST node.
+
+    Returns:
+        The call nodes, in traversal order.
+    """
+    return [child for child in ast.walk(node) if isinstance(child, ast.Call)]
+
+
+def _import_time_calls(node: ast.AST) -> list[ast.Call]:
+    """Collect the calls a module makes while it is being imported.
+
+    Descends through every statement that runs at import time - including
+    ones nested in a module-level ``if``, ``try`` or ``with`` - and prunes at
+    a function or class body, whose contents run when they are called rather
+    than when the module loads. Decorator expressions are NOT pruned, because
+    a decorator does run at import time.
+
+    Args:
+        node: The module node, or any node inside import-time scope.
+
+    Returns:
+        The call nodes that execute during import.
+    """
+    found: list[ast.Call] = []
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, _SCOPE_NODES):
+            for decorator in child.decorator_list:
+                found.extend(_calls_under(decorator))
+            continue
+        if isinstance(child, ast.Call):
+            found.append(child)
+        found.extend(_import_time_calls(child))
+    return found
+
+
+def _called_name(call: ast.Call) -> str | None:
+    """Return the bare name a call targets, ignoring how it was reached.
+
+    ``resolve_game_dir()`` and ``locate.resolve_game_dir()`` are the same
+    defect, so both reduce to ``resolve_game_dir``.
+
+    Args:
+        call: The call node.
+
+    Returns:
+        The name, or None for a call on an expression with no simple name.
+    """
+    if isinstance(call.func, ast.Name):
+        return call.func.id
+    if isinstance(call.func, ast.Attribute):
+        return call.func.attr
+    return None
+
+
+@pytest.mark.parametrize("module", DATA_MODULES)
+def test_data_module_calls_no_resolver_at_module_level(module: str) -> None:
+    """No data-layer module invokes a resolver from a statement that runs on import.
+
+    The AST is the right instrument here and a grep is not: a grep cannot
+    tell a call inside a function body, which is correct, from the identical
+    text at module level, which is the defect. This is also the only check
+    that covers ``locate`` itself, which cannot be patched before it loads.
+    """
+    source = (DATA_PACKAGE / f"{module}.py").read_text(encoding="utf-8")
+    offenders = sorted(
+        {
+            name
+            for name in (_called_name(call) for call in _import_time_calls(ast.parse(source)))
+            if name in RESOLVER_NAMES
+        }
+    )
+    assert not offenders, (
+        f"clockspeed/data/{module}.py calls {offenders} at module level, so importing it "
+        "resolves the install instead of leaving that to the caller"
+    )
+
+
+def test_the_import_time_call_finder_actually_finds() -> None:
+    """The AST walker separates import-time calls from deferred ones.
+
+    Without this the test above would pass for a module that never runs, and
+    a walker bug would make it permanently green. Both directions are pinned:
+    what it must catch, and what it must not flag.
+    """
+    caught = ast.parse(
+        "if True:\n    resolve_game_dir()\n\n@resolve_save_root()\ndef decorated():\n    pass\n"
+    )
+    deferred = ast.parse(
+        "def later():\n"
+        "    return resolve_game_dir()\n"
+        "\n"
+        "class Holder:\n"
+        "    def method(self):\n"
+        "        return locate.resolve_account_dir(None)\n"
+    )
+
+    found = {name for name in (_called_name(call) for call in _import_time_calls(caught)) if name}
+    assert found == {"resolve_game_dir", "resolve_save_root"}, (
+        f"the walker missed an import-time call; it found {sorted(found)}"
+    )
+    assert not _import_time_calls(deferred), (
+        "the walker flagged a call inside a function or method body, which runs at "
+        "call time and is exactly what the modules are supposed to do"
+    )
+
+
+# ===========================================================================
+# b. No data-layer test depends on a real install
+# ===========================================================================
+#
+# The load-bearing section. Everything above proves the SOURCE is
+# install-independent; this proves the SUITE is, which is the clause CS-200
+# actually states and the one nothing enforced before.
+
+
+def _child_pytest_args() -> list[str]:
+    """Build the argv for the child pytest run over the data-layer suite.
+
+    The recursion guard is explicit and not incidental: without
+    ``--ignore``, the child collects this module, which launches its own
+    child, forever. It is expressed as an absolute path derived from
+    ``__file__`` so renaming this file cannot leave the guard pointing at a
+    path that no longer exists - which would look green right up to the
+    moment the machine ran out of processes.
+
+    ``-p no:cacheprovider`` keeps the child from writing a .pytest_cache
+    that the parent run would then read.
+
+    Returns:
+        Arguments after the interpreter.
+    """
+    return [
+        "-m",
+        "pytest",
+        str(DATA_TESTS),
+        f"--ignore={THIS_MODULE}",
+        "-p",
+        "no:cacheprovider",
+        "-q",
+    ]
+
+
+def test_the_data_layer_suite_passes_with_the_install_unresolvable() -> None:
+    """The whole data-layer suite exits zero with the install forced unresolvable.
+
+    This is the CS-200 middle clause, enforced. A test that reaches for the
+    real shipped docs file, the real save root or the operator's
+    config/local.json turns this red on the machine where the game IS
+    installed - which is the only machine where the mistake is otherwise
+    invisible, because there it passes.
+
+    A test that genuinely needs an install is not forbidden; it must skip
+    with a reason, and a skip keeps the exit code at zero.
+    """
+    child = run_child(_child_pytest_args(), no_install_env())
+    exit_code = child.returncode
+    assert exit_code == 0, (
+        "the data-layer suite does not pass without a game install.\n"
+        f"exit code: {exit_code}\n"
+        f"stdout:\n{child.stdout}\n"
+        f"stderr:\n{child.stderr}"
+    )
+    # Exit 0 with nothing collected is impossible (pytest exits 5), but the
+    # count is asserted anyway rather than inferred: "the unrun gate is where
+    # the bug hides" applies to this gate as much as to the ones it guards.
+    passed = re.search(r"(\d+) passed", child.stdout)
+    assert passed is not None, f"the child run reported no passing tests:\n{child.stdout}"
+    assert int(passed.group(1)) > 0
+
+
+def test_the_child_run_excludes_this_module_so_the_gate_cannot_recurse() -> None:
+    """The recursion guard is verified against pytest's own collection, not assumed.
+
+    ``--ignore`` silently accepts a path it does not match, so the guard
+    working is a claim until pytest is asked what it collected. Both halves
+    matter: this module absent, and the rest of the data suite present. A
+    guard that excluded everything would also make the test above pass.
+    """
+    child = run_child([*_child_pytest_args(), "--collect-only"], no_install_env())
+    exit_code = child.returncode
+    assert exit_code == 0, f"collection failed:\n{child.stdout}\n{child.stderr}"
+
+    collected = child.stdout
+    assert THIS_MODULE.name not in collected, (
+        f"{THIS_MODULE.name} is collected by its own child run, so the gate recurses"
+    )
+    for sibling in ("test_locate.py", "test_registry.py", "test_version.py"):
+        assert sibling in collected, (
+            f"the child run collects no {sibling}; the ignore is too wide and the gate "
+            "would pass by testing nothing"
+        )
+
+
+# ===========================================================================
+# c. Path literals specific to the data layer
+# ===========================================================================
+#
+# WHAT tests/test_scaffold.py ALREADY COVERS, tree-wide, so none of it is
+# repeated here: every authored file is 7-bit ASCII
+# (test_authored_text_files_are_seven_bit_ascii), and no authored file holds
+# an absolute path under a user home directory - a Windows user profile, a
+# Linux /home or a macOS /Users path (test_no_absolute_home_paths_in_authored
+# _files, with its own detector self-test).
+#
+# What it does NOT cover, and what this section adds for the data layer:
+#   - a drive-letter absolute path that is NOT under a home directory. This
+#     layer is the one that resolves the install, so a hardcoded install root
+#     is the specific mistake available to it and to nothing else.
+#   - an account-id-shaped digit run. The account directory name is a
+#     platform account id and is personal data (BOOTSTRAP.md section 2.2).
+#     Scaffold catches it only when it appears inside a home path.
+
+# Assembled from fragments, exactly as scaffold does, so this file does not
+# contain the literal it hunts and can never match its own pattern.
+_DRIVE_PATH = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]")
+
+# The floor is imported from the resolver rather than restated, so the scan
+# and the thing it models cannot drift apart.
+_ACCOUNT_ID_SHAPE = re.compile(
+    r"(?<![0-9A-Za-z])[0-9]{" + str(MIN_ACCOUNT_ID_DIGITS) + r",}(?![0-9A-Za-z])"
+)
+
+
+def _strip_generated_pin(source: str) -> str:
+    """Remove the machine-generated pin block from a module's source text.
+
+    The pin is a census of the shipped docs file and legitimately carries
+    measured counts long enough to look like an account id - a byte count in
+    the tens of millions, for one. Those are numbers about a game file, not
+    about a person.
+
+    The exclusion is narrow on purpose. CONVENTIONS.md section 15.1 records
+    that a guard can be green while self-excusing, so this drops only the
+    lines strictly between the module's own two markers, and only in the file
+    that has them. If a marker is ever renamed this strips nothing, the scan
+    covers the whole file, and the test fails loudly - the safe direction.
+
+    Args:
+        source: Module source text.
+
+    Returns:
+        The source with the generated block removed.
+    """
+    kept: list[str] = []
+    inside = False
+    for line in source.splitlines():
+        stripped = line.strip()
+        if stripped == PIN_BEGIN_MARKER:
+            inside = True
+            continue
+        if stripped == PIN_END_MARKER:
+            inside = False
+            continue
+        if not inside:
+            kept.append(line)
+    return "\n".join(kept)
+
+
+def test_the_data_layer_path_detectors_actually_detect() -> None:
+    """Both detectors match what they are for and leave the legitimate cases alone.
+
+    An empty scan result is a claim about the PATTERN, not about the
+    codebase (CONVENTIONS.md section 15.1). The negatives are the ones that
+    matter here: this layer legitimately writes registry key paths, an
+    environment-variable-relative save root, and version numbers, and a
+    detector that flagged those would be turned off within a week.
+    """
+    sep = "\\"
+    drive_positives = ("C:" + sep + "Game", "d:/Games/Steam", "E:" + sep)
+    drive_negatives = (
+        "HKLM:" + sep + "SOFTWARE",  # a registry drive prefix, not a filesystem path
+        "%LOCALAPPDATA%" + sep + "Saved",
+        "CommunityResources/Docs",
+        "/Script/FactoryGame.FGRecipe",
+        "https://example.invalid/x",
+    )
+    for sample in drive_positives:
+        assert _DRIVE_PATH.search(sample) is not None, f"missed a drive path: {sample!r}"
+    for sample in drive_negatives:
+        assert _DRIVE_PATH.search(sample) is None, f"false positive on: {sample!r}"
+
+    long_run = "1" * MIN_ACCOUNT_ID_DIGITS
+    assert _ACCOUNT_ID_SHAPE.search("saves/" + long_run + "/world") is not None
+    assert _ACCOUNT_ID_SHAPE.search("1" * (MIN_ACCOUNT_ID_DIGITS - 1)) is None
+    assert _ACCOUNT_ID_SHAPE.search("v1.2.3") is None
+
+
+@pytest.mark.parametrize("module", DATA_MODULES)
+def test_no_data_layer_source_hardcodes_a_drive_letter_path(module: str) -> None:
+    """No module in the data layer names an absolute drive-letter path.
+
+    A hardcoded install root is wrong on every other machine including a
+    clean CI checkout, and this is the one layer with a reason to reach for
+    one. BOOTSTRAP.md section 12 item 3: detect it at runtime instead, which
+    is what locate.py exists to do.
+    """
+    path = DATA_PACKAGE / f"{module}.py"
+    violations = [
+        f"{module}.py:{number}"
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)
+        if _DRIVE_PATH.search(line) is not None
+    ]
+    assert not violations, (
+        "absolute drive-letter paths in the data layer (auto-detect these at runtime "
+        f"instead): {violations}"
+    )
+
+
+@pytest.mark.parametrize("module", DATA_MODULES)
+def test_no_data_layer_source_carries_an_account_id_shaped_digit_run(module: str) -> None:
+    """No module in the data layer holds a digit run long enough to be an account id.
+
+    Only the line NUMBER is reported. A message quoting the run would print
+    the personal data into CI logs and session transcripts, which is the harm
+    the assertion exists to prevent (BOOTSTRAP.md section 2.2).
+    """
+    source = (DATA_PACKAGE / f"{module}.py").read_text(encoding="utf-8")
+    scanned = _strip_generated_pin(source)
+    if PIN_BEGIN_MARKER in source:
+        assert len(scanned) < len(source), (
+            f"{module}.py carries the pin markers but stripping removed nothing, so the "
+            "exclusion has silently stopped matching"
+        )
+
+    violations = [
+        f"{module}.py:{number}"
+        for number, line in enumerate(scanned.splitlines(), start=1)
+        if _ACCOUNT_ID_SHAPE.search(line) is not None
+    ]
+    assert not violations, (
+        f"account-id-shaped digit runs in the data layer (content withheld): {violations}"
+    )
+
+
+# ===========================================================================
+# d. The synthetic corpus is genuinely synthetic
+# ===========================================================================
+
+# A save, a usmap and a shipped locale file are the three publisher-owned or
+# personal-data-bearing artifacts a fixture directory could plausibly acquire.
+# tests/test_scaffold.py asserts .gitignore EXCLUDES *.sav; this asserts none
+# has been placed under tests/ regardless, which is a different question - a
+# path can be force-added, and .gitignore says nothing about .usmap or a
+# locale file at all.
+_FORBIDDEN_FIXTURE_SUFFIXES = frozenset({".sav", ".usmap"})
+_LOCALE_FILE = re.compile(r"^[a-z]{2}-[A-Za-z]{2,4}\.json$")
+
+# The shipped docs file is roughly ten megabytes. Every hand-authored module
+# under tests/ is two orders of magnitude smaller, so a ceiling well above the
+# largest authored file and well below a real data slice separates the two
+# without ever tripping on ordinary test code.
+_MAX_TEST_FILE_BYTES = 256 * 1024
+
+
+def _test_tree_files() -> list[Path]:
+    """List real files under tests/, skipping bytecode caches.
+
+    Returns:
+        Sorted absolute paths.
+    """
+    return sorted(
+        path for path in TESTS_ROOT.rglob("*") if path.is_file() and "__pycache__" not in path.parts
+    )
+
+
+def test_no_fixture_is_a_save_a_usmap_or_a_shipped_locale_file() -> None:
+    """No artifact under tests/ is a save, a usmap or a shipped locale file.
+
+    BOOTSTRAP.md section 12 items 11 and 12: a save file is personal-data
+    bearing and is never placed in a fixture directory. The locale file and
+    the usmap are publisher-owned content that must be read from the install
+    at runtime and never committed (CONVENTIONS.md section 14).
+    """
+    offenders = [
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in _test_tree_files()
+        if path.suffix.lower() in _FORBIDDEN_FIXTURE_SUFFIXES or _LOCALE_FILE.match(path.name)
+    ]
+    assert not offenders, f"publisher-owned or personal-data artifacts under tests/: {offenders}"
+
+
+def test_no_file_under_tests_is_large_enough_to_be_a_slice_of_real_game_data() -> None:
+    """Every fixture is small enough to be hand-authored rather than extracted.
+
+    A size ceiling is crude and that is the point: it is the one check that
+    catches a trimmed real docs file dropped in "just for tests", which is
+    the specific move BOOTSTRAP.md section 8.1 fences off and which no
+    content assertion would catch because a real slice parses perfectly.
+    """
+    oversized = [
+        f"{path.relative_to(REPO_ROOT).as_posix()} ({path.stat().st_size} bytes)"
+        for path in _test_tree_files()
+        if path.stat().st_size > _MAX_TEST_FILE_BYTES
+    ]
+    assert not oversized, (
+        f"files under tests/ exceed {_MAX_TEST_FILE_BYTES} bytes, which is too large to be "
+        f"hand-authored synthetic material: {oversized}"
+    )
+
+
+def test_the_synthetic_corpus_names_no_install_path_and_no_account_id() -> None:
+    """The corpus holds no install path, no account id and no pointer at the shipped file.
+
+    The 7-bit ASCII half of "genuinely synthetic" is already asserted
+    tree-wide by tests/test_scaffold.py and is not repeated. What is specific
+    to the corpus is that it must be authored material rather than something
+    read off a real install: no drive-letter path, no account-id-shaped digit
+    run, and no reference to the shipped docs file's own relative path, which
+    is imported from the version pin rather than restated here.
+    """
+    text = SYNTHETIC_CORPUS.read_text(encoding="utf-8")
+
+    drive_hits = [
+        number
+        for number, line in enumerate(text.splitlines(), start=1)
+        if _DRIVE_PATH.search(line) is not None
+    ]
+    account_hits = [
+        number
+        for number, line in enumerate(text.splitlines(), start=1)
+        if _ACCOUNT_ID_SHAPE.search(line) is not None
+    ]
+
+    assert not drive_hits, f"the synthetic corpus names an absolute path at lines {drive_hits}"
+    assert not account_hits, (
+        f"the synthetic corpus holds an account-id-shaped digit run at lines {account_hits} "
+        "(content withheld)"
+    )
+    assert DOCS_RELATIVE not in text, (
+        "the synthetic corpus references the shipped docs file's own path, so it is "
+        "pointing at real game data rather than standing in for it"
+    )
+
+
+# ===========================================================================
+# e. The data-layer seams are importable in isolation
+# ===========================================================================
+#
+# docs/ARCHITECTURE.md section 3.1 states that layering reduces to an
+# allowed-import matrix and that walking the import graph makes it
+# mechanically checkable. This is that check for the data layer, measured
+# against sys.modules in a fresh interpreter rather than read out of source
+# text: an import that only fires under a conditional, or one reached
+# indirectly through a third module, is invisible to a source scan and
+# perfectly visible here.
+
+# module -> the clockspeed.data submodules importing it is allowed to pull in.
+# Read as a contract, not as a description: the FORBIDDEN half is asserted
+# because that is the layering claim, and the REQUIRED half is asserted too
+# because a negative assertion rules out without pinning down
+# (CONVENTIONS.md section 7.2) - it would pass just as happily for a module
+# that had collapsed to importing nothing at all.
+ALLOWED_IMPORTS: dict[str, frozenset[str]] = {
+    "blobs": frozenset(),
+    "docs_extract": frozenset(),
+    "locate": frozenset(),
+    "registry": frozenset({"blobs", "docs_extract"}),
+    "version": frozenset({"docs_extract"}),
+}
+
+
+def _imported_submodules(module: str) -> set[str]:
+    """Report which clockspeed.data submodules importing ``module`` pulled in.
+
+    Args:
+        module: Short module name under ``clockspeed.data``.
+
+    Returns:
+        Short names of the sibling submodules present in the child's
+        sys.modules, excluding the module itself.
+    """
+    probe = import_probe(module)
+    exit_code = probe.returncode
+    assert exit_code == 0, f"the import probe for {module} failed:\n{probe.stderr}"
+    loaded: list[str] = json.loads(probe.stdout.strip().splitlines()[-1])
+    prefix = "clockspeed.data."
+    return {
+        name.removeprefix(prefix)
+        for name in loaded
+        if name.startswith(prefix) and name.removeprefix(prefix) != module
+    }
+
+
+@pytest.mark.parametrize("module", DATA_MODULES)
+def test_importing_a_data_module_pulls_in_only_its_permitted_neighbours(module: str) -> None:
+    """Each data-layer module imports its permitted set and nothing above it.
+
+    The three claims that matter, all of them measured here: blobs imports
+    nothing from clockspeed at all, so the blob grammar can be reasoned about
+    on its own; docs_extract reaches for neither locate nor registry, so
+    reading the shipped document is independent of finding it and of
+    normalizing it; and registry imports neither locate nor version, so
+    building the registry cannot depend on where the install is or on which
+    build it came from.
+    """
+    permitted = ALLOWED_IMPORTS[module]
+    imported = _imported_submodules(module)
+
+    forbidden = sorted(imported - permitted)
+    assert not forbidden, (
+        f"importing clockspeed.data.{module} also loaded {forbidden}, which is outside its "
+        f"permitted set {sorted(permitted)} - a layer reaching past its neighbour"
+    )
+
+    missing = sorted(permitted - imported)
+    assert not missing, (
+        f"clockspeed.data.{module} no longer imports {missing}; the allowed-import matrix "
+        "is the contract and must be changed deliberately, not left describing the past"
+    )
+
+
+def test_blobs_imports_nothing_from_clockspeed_beyond_its_own_package_shell() -> None:
+    """Importing the blob grammar drags in no clockspeed module other than the packages.
+
+    Asserted on the full clockspeed namespace rather than on the data package
+    alone, because "blobs imports nothing from clockspeed" is the actual
+    claim - an import of clockspeed.solve would satisfy the per-package check
+    above and still be a seam violation.
+    """
+    probe = import_probe("blobs")
+    exit_code = probe.returncode
+    assert exit_code == 0, probe.stderr
+    loaded = set(json.loads(probe.stdout.strip().splitlines()[-1]))
+    assert loaded == {"clockspeed", "clockspeed.data", "clockspeed.data.blobs"}, (
+        f"importing clockspeed.data.blobs loaded {sorted(loaded)}; it is the bottom of the "
+        "layer and must depend on nothing inside the project"
+    )

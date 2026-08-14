@@ -1,0 +1,96 @@
+#!/bin/sh
+# Clockspeed pre-push hook - the fast unit subset (CONVENTIONS.md section 8).
+#
+# Runs pytest against the tests directory, quiet, with -x so the first failure
+# stops the run and the push.
+#
+# If pytest is not importable this hook FAILS. It does not skip. CONVENTIONS.md
+# section 7.2: "The unrun gate is where the bug hides. A skipped suite is not a
+# passing suite." Exit code 5 (no tests collected) is likewise a failure - an
+# empty suite proves nothing.
+#
+# LF line endings, no BOM - see the note in .githooks/pre-commit.
+
+set -u
+
+die() {
+    printf 'clockspeed pre-push: %s\n' "$1" >&2
+    shift
+    for line in "$@"; do
+        printf '  %s\n' "$line" >&2
+    done
+    exit 1
+}
+
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || ROOT=""
+if [ -z "$ROOT" ]; then
+    die "not inside a git work tree; refusing to run."
+fi
+
+TESTS="$ROOT/tests"
+if [ ! -d "$TESTS" ]; then
+    die "no tests directory at $TESTS" \
+        "Refusing to push an unverified tree." \
+        "Run: python scripts/verify_env.py"
+fi
+
+CS_PY=""
+CS_PY_ARG=""
+
+cs_probe() {
+    if [ -n "${2:-}" ]; then
+        "$1" "$2" -c "raise SystemExit(0)" >/dev/null 2>&1
+    else
+        "$1" -c "raise SystemExit(0)" >/dev/null 2>&1
+    fi
+}
+
+cs_python() {
+    if [ -n "$CS_PY_ARG" ]; then
+        "$CS_PY" "$CS_PY_ARG" "$@"
+    else
+        "$CS_PY" "$@"
+    fi
+}
+
+if [ -n "${CLOCKSPEED_PYTHON:-}" ] && cs_probe "$CLOCKSPEED_PYTHON"; then
+    CS_PY="$CLOCKSPEED_PYTHON"
+elif cs_probe python; then
+    CS_PY="python"
+elif cs_probe python3; then
+    CS_PY="python3"
+elif cs_probe py -3; then
+    CS_PY="py"
+    CS_PY_ARG="-3"
+else
+    die "no usable python interpreter found." \
+        "Tried \$CLOCKSPEED_PYTHON, 'python', 'python3', 'py -3'." \
+        "Set CLOCKSPEED_PYTHON to an interpreter and retry." \
+        "The push is BLOCKED: an unrunnable suite is not a passing suite."
+fi
+
+if ! cs_python -c "import pytest" >/dev/null 2>&1; then
+    die "pytest is not available to the resolved interpreter." \
+        "The unit subset did NOT run, so this push is BLOCKED." \
+        "A skipped suite is not a passing suite (CONVENTIONS.md 7.2)." \
+        "Run: python scripts/verify_env.py"
+fi
+
+# Explicit target directory, run from the repo root. Never a bare recursive
+# invocation from the root - that can sweep runtime state directories
+# (CONVENTIONS.md section 7.1). stdin is the ref list git handed us; pytest
+# must not inherit it.
+cs_python -m pytest "$TESTS" -q -x </dev/null
+STATUS=$?
+
+if [ "$STATUS" -eq 5 ]; then
+    die "pytest collected zero tests from $TESTS." \
+        "An empty suite is not a green suite; the push is BLOCKED."
+fi
+
+if [ "$STATUS" -ne 0 ]; then
+    printf 'clockspeed pre-push: BLOCKED (pytest exit %s). Nothing was pushed.\n' \
+        "$STATUS" >&2
+fi
+
+exit "$STATUS"

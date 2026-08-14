@@ -1,0 +1,156 @@
+#!/bin/sh
+# Clockspeed commit-msg hook - message hygiene (CONVENTIONS.md section 8).
+#
+# Rejects a message that is empty or whitespace only, carries any byte above
+# 0x7E, has a subject line longer than 72 characters, or is a bare placeholder
+# used as the entire subject.
+#
+# LF line endings, no BOM - see the note in .githooks/pre-commit.
+#
+# The message file is read as BYTES. The checks live in one inline python
+# program rather than in sh because sh cannot inspect bytes portably, and
+# because the interpreter has to be resolved here anyway (no hardcoded path).
+
+set -u
+
+die() {
+    printf 'clockspeed commit-msg: %s\n' "$1" >&2
+    shift
+    for line in "$@"; do
+        printf '  %s\n' "$line" >&2
+    done
+    exit 1
+}
+
+MSG_FILE="${1:-}"
+if [ -z "$MSG_FILE" ] || [ ! -f "$MSG_FILE" ]; then
+    die "no commit message file was passed to the hook."
+fi
+
+CS_PY=""
+CS_PY_ARG=""
+
+cs_probe() {
+    if [ -n "${2:-}" ]; then
+        "$1" "$2" -c "raise SystemExit(0)" >/dev/null 2>&1
+    else
+        "$1" -c "raise SystemExit(0)" >/dev/null 2>&1
+    fi
+}
+
+# One dispatcher, so the python program below exists exactly once.
+cs_python() {
+    if [ -n "$CS_PY_ARG" ]; then
+        "$CS_PY" "$CS_PY_ARG" "$@"
+    else
+        "$CS_PY" "$@"
+    fi
+}
+
+if [ -n "${CLOCKSPEED_PYTHON:-}" ] && cs_probe "$CLOCKSPEED_PYTHON"; then
+    CS_PY="$CLOCKSPEED_PYTHON"
+elif cs_probe python; then
+    CS_PY="python"
+elif cs_probe python3; then
+    CS_PY="python3"
+elif cs_probe py -3; then
+    CS_PY="py"
+    CS_PY_ARG="-3"
+else
+    die "no usable python interpreter found." \
+        "Tried \$CLOCKSPEED_PYTHON, 'python', 'python3', 'py -3'." \
+        "Set CLOCKSPEED_PYTHON to an interpreter and retry." \
+        "The commit is BLOCKED: an unrunnable check is not a passed check."
+fi
+
+cs_python - "$MSG_FILE" <<'CLOCKSPEED_COMMIT_MSG'
+import sys
+
+TOOL = "clockspeed commit-msg"
+LIMIT = 72
+PLACEHOLDERS = frozenset(["wip", "fix", "update", "temp", "asdf", "test"])
+NAMED = {
+    0x2014: "U+2014 em dash",
+    0x2013: "U+2013 en dash",
+    0x2018: "U+2018 left smart single quote",
+    0x2019: "U+2019 right smart single quote",
+    0x201C: "U+201C left smart double quote",
+    0x201D: "U+201D right smart double quote",
+    0x00A0: "U+00A0 non-breaking space",
+    0xFEFF: "U+FEFF byte order mark",
+}
+
+
+def fail(reason, *extra):
+    sys.stderr.write("%s: REJECTED - %s\n" % (TOOL, reason))
+    for line in extra:
+        sys.stderr.write("  %s\n" % line)
+    sys.stderr.write("  Nothing was committed. HEAD is unchanged.\n")
+    raise SystemExit(1)
+
+
+try:
+    with open(sys.argv[1], "rb") as handle:
+        raw = handle.read()
+except OSError as exc:
+    fail("could not read the commit message file: %s" % exc)
+
+# Strip git's comment lines and everything past a scissors marker, so the
+# template and any --verbose diff are not mistaken for the message.
+kept = []
+for line in raw.split(b"\n"):
+    stripped = line.rstrip(b"\r")
+    if stripped.startswith(b"#"):
+        if b">8" in stripped:
+            break
+        continue
+    kept.append(stripped)
+body = b"\n".join(kept)
+
+if not body.strip():
+    fail(
+        "the commit message is empty or whitespace only.",
+        "Write a real subject line saying what changed and why.",
+    )
+
+offenders = [(i, b) for i, b in enumerate(body) if b > 0x7E]
+if offenders:
+    text = body.decode("utf-8", "replace")
+    for number, line in enumerate(text.split("\n"), 1):
+        for column, char in enumerate(line, 1):
+            point = ord(char)
+            if point <= 0x7E:
+                continue
+            name = NAMED.get(point, "U+%04X" % point)
+            fail(
+                "non-ASCII character in the commit message.",
+                "line %d, column %d: %s" % (number, column, name),
+                "CONVENTIONS.md section 10 requires 7-bit ASCII in all",
+                "authored content, commit messages included.",
+            )
+    fail("non-ASCII byte in the commit message (byte offset %d)" % offenders[0][0])
+
+subject = ""
+for line in body.decode("ascii").split("\n"):
+    if line.strip():
+        subject = line.strip()
+        break
+
+if len(subject) > LIMIT:
+    fail(
+        "subject line is %d characters; the limit is %d." % (len(subject), LIMIT),
+        "Subject: %s" % subject,
+        "Move the detail into the body, after a blank line.",
+    )
+
+if subject.rstrip(".!").strip().lower() in PLACEHOLDERS:
+    fail(
+        "subject %r is a bare placeholder." % subject,
+        "Banned as an entire subject: " + ", ".join(sorted(PLACEHOLDERS)),
+        "Say what changed and why; the log is read by future you.",
+    )
+
+raise SystemExit(0)
+CLOCKSPEED_COMMIT_MSG
+
+exit $?

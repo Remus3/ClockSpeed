@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "base": 8901,
+  "band": {
+    "start": 8900,
+    "end": 8911
+  },
+  "allocations": {
+    "8901": "local HTTPS dashboard and JSON API"
+  },
+  "reserved": [
+    {"port": 8900, "purpose": "unassigned"},
+    {"port": 8902, "purpose": "unassigned"},
+    {"port": 8903, "purpose": "unassigned"},
+    {"port": 8904, "purpose": "unassigned"},
+    {"port": 8905, "purpose": "unassigned"},
+    {"port": 8906, "purpose": "unassigned"},
+    {"port": 8907, "purpose": "unassigned"},
+    {"port": 8908, "purpose": "unassigned"},
+    {"port": 8909, "purpose": "unassigned"},
+    {"port": 8910, "purpose": "unassigned"},
+    {"port": 8911, "purpose": "unassigned"}
+  ],
+  "notes": "verified free at allocation time; verify_env.py re-probes. This file is the single owner of the port numbers - no other tracked file restates them. An entry moves from reserved to allocations when something actually binds it; the purpose string says what binds it, not what might."
+}

@@ -1,0 +1,22 @@
+# Clockspeed - .rgignore
+#
+# Ripgrep already honours .gitignore, so everything generated, local or
+# publisher-owned is out of a search by default. This file covers the one case
+# .gitignore cannot: paths that ARE tracked and MUST stay tracked, but which are
+# historical rather than current.
+#
+# CONVENTIONS.md section 2: "Dated artifacts go to docs/_archive/, excluded from
+# ripgrep searches via .rgignore or an explicit glob, so they never pollute a
+# search for current truth."
+#
+# The failure this prevents: a grep for a rule, a path or a decision returns a
+# hit from a superseded session note, that hit is read as current, and work is
+# redone or a refuted idea is re-pitched. Rediscovery is the dominant failure
+# mode (CONVENTIONS.md section 0, corollary 3), and a stale grep hit is how it
+# gets in.
+#
+# To search the archive deliberately, pass --no-ignore-vcs --no-ignore or point
+# ripgrep straight at docs/_archive/. Being excluded here is not being hidden;
+# it is not being returned by accident.
+
+docs/_archive/

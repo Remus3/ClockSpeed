@@ -1,0 +1,229 @@
+# Clockspeed - .gitignore
+#
+# This file lands BEFORE the first commit. See BOOTSTRAP.md section 8.1 ("Add these to
+# .gitignore before the first commit"), section 12 non-negotiables 2 and 3, and
+# CONVENTIONS.md section 17 ("From day one, even while private").
+#
+# Three classes of thing are excluded here and each is excluded for a different reason.
+# The reason is stated on every group. If you are about to add a pattern, say which of
+# the three it is:
+#
+#   PUBLISHER-OWNED  - game data and anything extracted from the game install. Not ours
+#                      to redistribute. Read it from the local install at runtime.
+#   PII-BEARING      - carries the operator's identity. Save headers embed the platform
+#                      name, a platform account id and the player's display name as
+#                      plaintext hex (BOOTSTRAP section 2.2). A leak here is permanent
+#                      once it is in git history.
+#   LOCAL-ONLY       - machine-specific wiring, secrets, generated caches and runtime
+#                      state. Never the same on two machines, so tracking it is drift.
+#
+# A pattern with a leading slash is anchored to the repo root. That anchoring is
+# load-bearing: /data/ is the generated-artifact directory and MUST NOT touch the
+# clockspeed/data/ SOURCE package. Do not remove a leading slash without checking.
+
+
+# ---------------------------------------------------------------------------
+# NEGATION TEST - these paths MUST stay tracked.
+#
+# After editing this file, run:
+#     git check-ignore -v config/ports.json .claude/settings.json .githooks/pre-commit
+# and repeat for each path below. Every one of them MUST report NO match. If any path
+# below is reported as ignored, this file has a bug: narrow the offending pattern.
+# Do NOT paper over it with a wider negation - a negation that re-includes a directory
+# can re-include a secret that a later pattern was meant to catch.
+#
+#   config/ports.json
+#   .claude/settings.json
+#   .claude/agents/planner.md
+#   .claude/commands/done.md
+#   .github/workflows/tier1.yml
+#   .githooks/pre-commit
+#   tools/drift_guard.py
+#   scripts/verify_env.py
+#   tests/test_ratio.py
+#   docs/LEDGER.md
+#   docs/adr/README.md
+#   clockspeed/data/registry.py
+#   clockspeed/save/usmap.py
+# ---------------------------------------------------------------------------
+
+
+# ===========================================================================
+# PUBLISHER-OWNED - game data and anything extracted from the game install.
+# Never commit these. Not a slice, not a sample, not "just one small fixture".
+# Test fixtures are small synthetic registries hand-authored in the repo
+# (BOOTSTRAP section 8.1), never cuts of real game data.
+# ===========================================================================
+
+# Unreal packaged content and property mappings
+*.pak
+*.ucas
+*.utoc
+*.usmap
+*.uasset
+*.uexp
+*.umap
+
+# First-party reference material shipped in the install's CommunityResources
+Headers.zip
+CustomVersions.json
+DedicatedServerAPIDocs.md
+FactoryGame.usmap
+
+# Locale documentation dumps. The English one alone is over 10 MB and there are
+# dozens of siblings. Matched by FILENAME SHAPE, because a locale dump dropped
+# anywhere in the tree is the accident being prevented.
+#
+# The shapes are the real ones on disk: xx.json (io), xx-XX.json (en-US),
+# xx-NNN.json (es-419), xx-Xxxx.json (zh-Hans).
+#
+# Deliberately NOT written as Docs/*.json: git matches ignore patterns
+# case-insensitively when core.ignorecase is set, which it is on Windows, so
+# Docs/ would also silently swallow docs/ - and docs/ must stay tracked.
+#
+# Cost of these patterns: a two-letter tracked .json basename would be ignored.
+# There is none, and if one is ever needed, rename it - this shape is spoken for.
+??.json
+??-??.json
+??-???.json
+??-????.json
+en-US.json
+
+# Any local staging or scratch copy of install content
+/gamedata/
+/CommunityResources/
+/game/
+
+
+# ===========================================================================
+# PII-BEARING - save files and everything derived from them.
+# A .sav embeds the platform account id and the player display name in plain
+# hex inside the header options string (BOOTSTRAP section 2.2, measured).
+# A save file is a personal-data-bearing artifact: never commit one, never
+# attach one to an issue, never place one in a fixture directory.
+# ===========================================================================
+
+*.sav
+*.sav.bak
+*.savbackup
+
+# Snapshot corpus of the pinned reference world as it grows
+# (BOOTSTRAP section 2.3 - "Snapshot copies at milestones into a gitignored
+# corpus directory"). Regression input, permanently local.
+/corpus/
+
+# Save copies made for parsing. The game holds handles during autosave, so the
+# reader copies out before parsing (BOOTSTRAP section 8.2). Those copies are
+# still real saves and still carry PII.
+/work/
+
+# Screen and HUD capture artifacts (CONVENTIONS.md section 17: gitignore every
+# capture artifact). A screenshot of the game shows the world and the player.
+/captures/
+/screenshots/
+
+
+# ===========================================================================
+# LOCAL-ONLY - generated artifacts.
+# ===========================================================================
+
+# The generated artifact directory (BOOTSTRAP section 6: "data/  generated
+# artifacts - GITIGNORED"). Anchored, so clockspeed/data/ source is untouched.
+/data/
+
+# The advice ledger and the global per-rule mutes (BOOTSTRAP section 5.2:
+# "a plain JSON file in the project data directory ... It is gitignored").
+# Per-world advice state. Regenerable, machine-local, and it names worlds.
+/data/ledger.json
+/data/mutes.json
+*.ledger.json
+
+
+# ===========================================================================
+# LOCAL-ONLY - configuration and wiring that is per machine.
+# These name interpreters, absolute home paths and account directories, which
+# CONVENTIONS.md section 10 forbids in a tracked file.
+# ===========================================================================
+
+.mcp.json
+.claude/settings.local.json
+*.local.json
+config/local.json
+.env
+.env.*
+
+# Local semantic recall store. Markdown in memory/ is the source of truth; the
+# store is a mirror and is rebuilt by tools/memory_sync.py (CONVENTIONS.md
+# section 11.2 - "The store, its config and its wiring are LOCAL and gitignored").
+/.recall/
+/memory/*.db
+/memory/*.sqlite
+/memory/*.sqlite3
+
+
+# ===========================================================================
+# LOCAL-ONLY - certificates and keys.
+# The dashboard's self-signed certificate is generated by a tracked script into
+# a gitignored location (BOOTSTRAP section 7.1). The script is the artifact;
+# the key never is.
+# ===========================================================================
+
+/certs/
+*.pem
+*.key
+*.crt
+*.cer
+*.der
+*.pfx
+*.p12
+
+
+# ===========================================================================
+# LOCAL-ONLY - generated caches and build output.
+# ===========================================================================
+
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+/build/
+/dist/
+.venv/
+venv/
+
+# Node exists solely for the Electron shell (BOOTSTRAP section 11).
+node_modules/
+shell/dist/
+shell/out/
+
+
+# ===========================================================================
+# LOCAL-ONLY - runtime state.
+# Live process state, PID files and logs. Logs quote parsed data and can echo
+# header bytes, so they are treated as potentially PII-bearing too.
+# ===========================================================================
+
+/run/
+/logs/
+/var/
+*.log
+
+
+# ===========================================================================
+# LOCAL-ONLY - OS and editor noise.
+# ===========================================================================
+
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.DS_Store
+*.swp
+*~
+.idea/

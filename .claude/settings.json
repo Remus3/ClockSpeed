@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "defaultMode": "bypassPermissions",
+  "effortLevel": "xhigh",
+  "env": {
+    "PYTHONUTF8": "1",
+    "PYTHONIOENCODING": "utf-8"
+  },
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "allow": [],
+    "deny": []
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python tools/precommit_gate.py --text-stdin",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python tools/edit_lint_check.py --files \"$CLAUDE_FILE_PATHS\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

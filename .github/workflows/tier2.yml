@@ -1,0 +1,368 @@
+# =============================================================================
+# Clockspeed - CI tier 2: the full lane.
+#
+# CONVENTIONS.md section 8: tier 2 is the nightly-and-on-tag lane. It carries
+# the full suite with parallelism, the Windows runner, the CLEAN-CHECKOUT PROBE,
+# the dependency audit and the license audit. It is not on the every-push path
+# because CI minutes are metered on a private repo - that is the whole point of
+# tiering.
+#
+# CLEAN-MACHINE INVARIANT. BOOTSTRAP.md section 8.1: fixtures are small synthetic
+# registries hand-authored in the repo, never slices of real game data, so the
+# suite runs on a machine with no game installed and no save file present.
+# Nothing here may expect the game install, the save directory, or any
+# publisher-owned asset to exist. Equally, nothing here appends `|| true` or
+# `continue-on-error` to a step that is meant to catch a crash - a tool that
+# blows up on a clean machine is a real defect and this lane must show it. The
+# only advisory steps are the two audits at the bottom, and they say so.
+#
+# There is deliberately NO tier3.yml - see the comment block at the end of file.
+# =============================================================================
+
+name: tier2
+
+on:
+  # Nightly. Off the hour on purpose: the top of the hour is the busiest slot on
+  # shared runners and scheduled runs are queued, not guaranteed on time.
+  schedule:
+    - cron: '17 3 * * *'
+  # Every tag push. Tier 1 handles branches; tags land here.
+  push:
+    tags:
+      - 'v*'
+  # Manual. Required so the lane can be exercised on demand rather than only by
+  # waiting for the clock - notably right after this file changes.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tier2-${{ github.workflow }}-${{ github.ref }}
+  # NOT cancel-in-progress. A nightly or tag run that is half finished still
+  # carries useful signal; cancelling it to start another wastes the minutes
+  # already spent.
+  cancel-in-progress: false
+
+env:
+  # CONVENTIONS.md section 10.
+  PYTHONUTF8: '1'
+  PYTHONIOENCODING: 'utf-8'
+  PIP_DISABLE_PIP_VERSION_CHECK: '1'
+
+jobs:
+  # ===========================================================================
+  # Job 1 - the full suite on both target platforms.
+  # ===========================================================================
+  suite:
+    name: full suite (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      # A Windows-only failure and a Linux-only failure are different bugs, and
+      # this project's primary target is Windows. Never let one abort the other.
+      fail-fast: false
+      matrix:
+        # windows-latest is here because the character-set, path and
+        # line-ending traps in CONVENTIONS.md section 10 are Windows-specific:
+        # PowerShell 5.1 ANSI-decoding a BOM-less .ps1, LF-to-CRLF conversion in
+        # write_text, and backslash paths in JSON config. ubuntu-latest is the
+        # cheap canary and the portability check.
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        # One script for both platforms. Git Bash ships on the Windows runner.
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install toolchain
+        # The `dev` extra in pyproject.toml is the single owner of tool versions
+        # (CONVENTIONS.md section 2). Editable so the suite imports the package
+        # the same way it does on a developer machine.
+        run: python -m pip install -e ".[dev]"
+
+      - name: Enable test parallelism if pytest-xdist is available
+        id: xdist
+        run: |
+          if python -m pip install pytest-xdist && python -c "import xdist" 2>/dev/null; then
+            echo "args=-n auto" >> "$GITHUB_OUTPUT"
+            echo "pytest-xdist available - the suite runs in parallel"
+          else
+            echo "args=" >> "$GITHUB_OUTPUT"
+            echo "pytest-xdist unavailable - the suite runs serially"
+          fi
+
+      # EXPLICIT TARGET DIRECTORY, never a bare recursive run from the repo root.
+      # CONVENTIONS.md section 7.1: a bare root invocation can sweep runtime
+      # state directories and destroy live locks or data. The invocation is kept
+      # identical to the local one so CI and the developer machine never diverge.
+      - name: Full test suite
+        run: python -m pytest tests -q ${{ steps.xdist.outputs.args }}
+
+  # ===========================================================================
+  # Job 2 - THE CLEAN-CHECKOUT PROBE. The highest-value job in this file.
+  #
+  # CONVENTIONS.md section 1: a fresh clone has NO local wiring. Git hooks, MCP
+  # config and local settings are all untracked or local-config, so a new clone
+  # runs ZERO protection until someone wires it. CONVENTIONS.md section 8 says
+  # this probe is the only thing that catches "works on my machine" wiring.
+  #
+  # The shape matters: check out into ./source, then CLONE FRESH into ./probe and
+  # do all the work there. Running the bootstrap in the checkout itself would
+  # prove nothing, because the checkout is not the thing a new contributor gets.
+  # ===========================================================================
+  clean-checkout-probe:
+    name: clean-checkout probe (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both platforms. Hook wiring is where the platform-specific traps live:
+        # core.hooksPath is keyed by path STRING, so C:\X, C:/X and C:/x are three
+        # separate entries (CONVENTIONS.md section 16 item 3). CRLF in a hook is
+        # the other classic trap - measured 2026-08-13 as tolerated by Git for
+        # Windows' bundled bash, but dash and ash on this POSIX runner are stricter,
+        # which is exactly why the probe runs on both platforms.
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout (the source the fresh clone is taken from)
+        uses: actions/checkout@v4
+        with:
+          path: source
+          # Full history so the local clone below is an ordinary clone rather
+          # than a clone of a shallow repository.
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: source/pyproject.toml
+
+      - name: Clone fresh into a separate directory
+        run: |
+          git clone --no-hardlinks ./source ./probe
+          echo "fresh clone created at ./probe"
+
+      # --- Assertion 1: the fresh clone runs zero protection. ---
+      # This half of the pair is what makes the other half meaningful. Without
+      # it, a runner that somehow inherited core.hooksPath would let the
+      # post-bootstrap assertion pass while proving nothing about install_hooks.
+      - name: Assert core.hooksPath is NOT set before the bootstrap
+        working-directory: probe
+        run: |
+          if git config --get core.hooksPath > /dev/null 2>&1; then
+            echo "FAIL: core.hooksPath is already set in a freshly cloned repo."
+            echo "Either the clone inherited config it should not have, or the"
+            echo "value is tracked somewhere it must not be. Either way this"
+            echo "probe can no longer prove install_hooks.py does anything."
+            exit 1
+          fi
+          echo "OK: core.hooksPath is unset in the fresh clone, as expected."
+          echo "CONVENTIONS.md section 1 - a new clone runs zero protection."
+
+      - name: Install the toolchain INTO the fresh clone
+        working-directory: probe
+        # Order matters and is deliberate: toolchain first, bootstrap second.
+        # That is what a human does on a new machine, and scripts/verify_env.py
+        # exists to ASSERT the toolchain is present, not to install it. Doing it
+        # in this order means a verify_env failure below is a real finding rather
+        # than one this workflow inflicted on itself.
+        #
+        # Installed from the clone's own pyproject.toml, not from ./source, so
+        # nothing about this probe depends on the prepared checkout next door.
+        run: python -m pip install -e ".[dev]"
+
+      # --- Bootstrap step 1 of 3 (CONVENTIONS.md section 1, exact order). ---
+      - name: Bootstrap 1/3 - install_hooks.py
+        working-directory: probe
+        run: python scripts/install_hooks.py
+
+      # --- Assertion 2: the bootstrap actually wired the hooks. ---
+      - name: Assert core.hooksPath IS set after install_hooks.py
+        working-directory: probe
+        run: |
+          set +e
+          HOOKS_PATH="$(git config --get core.hooksPath)"
+          RC=$?
+          set -e
+          if [ "$RC" -ne 0 ] || [ -z "$HOOKS_PATH" ]; then
+            echo "FAIL: core.hooksPath is NOT set after install_hooks.py ran."
+            echo "CONVENTIONS.md section 1 requires install_hooks.py to fail"
+            echo "loudly when it cannot set core.hooksPath. It exited zero and"
+            echo "left the repo unprotected, which is the worse outcome."
+            exit 1
+          fi
+          echo "core.hooksPath = $HOOKS_PATH"
+          if [ ! -d "$HOOKS_PATH" ]; then
+            echo "FAIL: core.hooksPath points at a directory that does not exist."
+            exit 1
+          fi
+          echo "OK: core.hooksPath is set and the directory it names exists."
+          # PRESENCE IS NOT FIRING. CONVENTIONS.md section 16 item 4: the only
+          # valid proof a hook fires is end to end - stage a violation, attempt a
+          # REAL commit, assert HEAD is unchanged. That test is deliberately not
+          # written here, because it requires this workflow to create commits.
+          # It is the phase-0 acceptance criterion in BOOTSTRAP.md section 10 and
+          # is run locally. If it is ever automated, this job is where it belongs.
+          echo "NOTE: this asserts hook WIRING, not hook FIRING - see the comment."
+
+      # --- Bootstrap step 2 of 3. ---
+      # EXPECTED ON A CI RUNNER: verify_env.py reports the game install as
+      # MISSING, because no runner has the game. That must NOT fail this job.
+      # The contract (CONVENTIONS.md section 1) is that verify_env.py exits
+      # non-zero only on a missing HARD dependency, and the game install is not
+      # one for the test suite - BOOTSTRAP.md section 8.1 requires the suite to
+      # run green with no game installed and no save file present.
+      # So this step is BLOCKING on purpose: if it goes red here, either a hard
+      # dependency really is missing or verify_env.py has misclassified the game
+      # install as hard. Both are real bugs. Do not paper over either one by
+      # adding continue-on-error to this step.
+      # `--json` is available on this tool if a machine-readable record is ever
+      # wanted; the default table is what a human reads in the run log.
+      - name: Bootstrap 2/3 - verify_env.py (game install MISSING is expected)
+        working-directory: probe
+        run: python scripts/verify_env.py
+
+      # --- Bootstrap step 3 of 3. ---
+      # A fresh clone has no semantic recall store: it is local and gitignored
+      # (CONVENTIONS.md section 11.2), so on a runner there is nothing to mirror
+      # into. memory_sync.py must degrade cleanly in that case. This step is
+      # blocking for the same reason as the one above - if it exits non-zero on a
+      # clean machine, that is a wiring defect in the tool, and swallowing it
+      # here would hide exactly the failure this probe exists to find.
+      - name: Bootstrap 3/3 - memory_sync.py
+        working-directory: probe
+        run: python tools/memory_sync.py
+
+      # --- And finally: does the suite run in a clone nobody prepared? ---
+      - name: Suite in the fresh clone
+        working-directory: probe
+        run: python -m pytest tests -q
+
+  # ===========================================================================
+  # Job 3 - supply chain. Both audits are ADVISORY at this stage.
+  #
+  # Advisory because the project has almost no dependencies yet (BOOTSTRAP.md
+  # section 11: no external optimizer in phase 3, no community datasets), so a
+  # blocking audit today would gate on the CI toolchain's own transitive tree
+  # rather than on anything this project chose. Wired now anyway so it reports
+  # from day one and the first real dependency arrives into a working gate.
+  #
+  # `continue-on-error` rather than `|| true`: the step still shows as failed in
+  # the run summary, so an advisory finding is visible instead of swallowed.
+  #
+  # FLIP TO BLOCKING when the project takes its first real runtime dependency -
+  # that is also the moment CONVENTIONS.md section 14 (the license gate) starts
+  # having something to say, and tier 3 item 3 depends on this being real.
+  # ===========================================================================
+  audits:
+    name: dependency and license audit (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        # Explicit, so the shell is `bash -eo pipefail`. Both audit steps pipe
+        # into tee, and without pipefail tee's exit code would hide the auditor's
+        # - which would make every advisory step report green forever.
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install audit tooling
+        run: python -m pip install pip-audit pip-licenses
+
+      - name: Dependency audit (advisory)
+        continue-on-error: true
+        run: |
+          mkdir -p ci-audit-reports
+          pip-audit --progress-spinner off --desc \
+            | tee ci-audit-reports/pip-audit.txt
+
+      - name: License audit (advisory)
+        continue-on-error: true
+        run: |
+          mkdir -p ci-audit-reports
+          pip-licenses --format=markdown --with-authors --with-urls \
+            | tee ci-audit-reports/pip-licenses.md
+
+      - name: Upload audit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tier2-audit-reports
+          path: ci-audit-reports/
+          if-no-files-found: warn
+          # Short retention: these are regenerated nightly and storage is not free.
+          retention-days: 14
+
+# =============================================================================
+# TIER 3 - THE VISIBILITY-FLIP GATE. NOT BUILT YET, AND NOT AN OVERSIGHT.
+#
+# There is no .github/workflows/tier3.yml on purpose. Tier 3 is the manual
+# pre-flip gate (CONVENTIONS.md section 17, BOOTSTRAP.md section 10 phase 7) and
+# it is not due until phase 7. Creating it early invites it to be run, passed
+# synthetically, and treated as satisfied - which is precisely the failure mode
+# CONVENTIONS.md section 4 names: "gated items are never closed synthetically".
+# The repo is private first, public later; the flip is the irreversible step and
+# it gets a real gate at the time, not a placeholder now.
+#
+# The seven checks that must all pass at the flip (CONVENTIONS.md section 17):
+#
+#   1. Full-history secret scan. The WHOLE history, not just the working tree -
+#      history is what leaks. A clean tree over a dirty history is the trap.
+#   2. PII scan across all tracked files AND all commit messages. Patterns
+#      include: the numeric platform account id, the Windows account name, any
+#      absolute path under a user home, and the machine name. BOOTSTRAP.md
+#      section 2.2 adds two more that are measured, not hypothetical: the save
+#      header carries the platform account identifier and the player's DISPLAY
+#      NAME as plaintext inside its options string, so both decoded values are
+#      tier-3 scan patterns too.
+#   3. Third-party license audit against CONVENTIONS.md section 14. Read the
+#      copyright LINE, not just the SPDX name; a repo can contradict itself
+#      between its LICENSE file and its manifest.
+#   4. No publisher-owned data assets tracked, in history or in the tree - no
+#      docs JSON, no usmap, no extracted asset, and no .sav. A save file is a
+#      personal-data-bearing artifact (BOOTSTRAP.md section 2.2), so this check
+#      overlaps check 2 and both must run.
+#   5. README.md gets an outsider from zero to a first result.
+#   6. All doc cross-references resolve; no orphaned or stale markdown. Tier 1
+#      already runs the relative-link half of this every push; tier 3 adds the
+#      orphan and staleness sweep and should also validate external URLs, which
+#      tier 1 deliberately does not (a network check would make the fast lane
+#      flaky).
+#   7. A clean-checkout probe passes on a machine that has never seen the
+#      project. The `clean-checkout-probe` job above is the CI approximation and
+#      is NOT a substitute: a runner is not a machine that has never seen the
+#      project in the sense that matters, because the workflow itself supplies
+#      the interpreter and the toolchain.
+#
+# If history turns out to be dirty, CONVENTIONS.md section 17 says the honest fix
+# is a fresh-history public repo, not an incomplete rewrite - and that this is
+# decided before the first commit, because it is far cheaper then.
+# =============================================================================

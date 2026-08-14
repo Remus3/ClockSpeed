@@ -1,0 +1,80 @@
+# Clockspeed - .gitattributes
+#
+# WHY THIS FILE EXISTS: on Windows, Python's write_text converts LF to CRLF and
+# read_text hides the conversion, so byte counts and hash comparisons lie
+# (CONVENTIONS.md section 10). This project checks content hashes - the game
+# data version pin (BOOTSTRAP section 8.1) is one - and a file whose line
+# endings depend on which machine checked it out cannot be hashed reliably.
+#
+# So: LF in the repository AND LF in the working tree, on every platform, for
+# every text file. No eol=crlf exception anywhere. Where the byte count matters,
+# still write bytes explicitly rather than trusting a text-mode write.
+
+# Default: git decides what is text, and every text file is LF in the working tree.
+* text=auto eol=lf
+
+# Explicit, so a new extension is never left to heuristics.
+*.py            text eol=lf
+*.pyi           text eol=lf
+*.md            text eol=lf
+*.txt           text eol=lf
+*.json          text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.toml          text eol=lf
+*.cfg           text eol=lf
+*.ini           text eol=lf
+*.js            text eol=lf
+*.mjs           text eol=lf
+*.cjs           text eol=lf
+*.ts            text eol=lf
+*.css           text eol=lf
+*.html          text eol=lf
+*.svg           text eol=lf
+*.sh            text eol=lf
+*.ps1           text eol=lf
+LICENSE         text eol=lf
+.gitignore      text eol=lf
+.gitattributes  text eol=lf
+.rgignore       text eol=lf
+
+# Git hooks. LF is mandatory, not cosmetic - but for a narrower reason than the
+# usual folklore, and the difference matters when debugging.
+#
+# MEASURED 2026-08-13 on git 2.53.0.windows.3 / GNU bash 5.2.37 msys: a CRLF hook
+# RUNS CORRECTLY here - identical stdout and exit code to the LF original,
+# verified by executing both. So on THIS toolchain CRLF is NOT a valid
+# explanation for a hook that appears not to fire; look elsewhere first.
+#
+# LF stays mandatory anyway: dash, ash and older msys releases DO fail the
+# shebang on a trailing CR, and CI tier 2 runs these hooks on a POSIX runner.
+# CONVENTIONS.md section 16 also warns that hook findings are version-specific
+# and expire - re-measure, never inherit, and never relax the rule because one
+# bash release happens to be tolerant.
+#
+# Note that gitattributes cannot carry the executable bit - that lives in the index
+# file mode. scripts/install_hooks.py is responsible for setting core.hooksPath and
+# for making the hook files executable on checkout. Do not assume this file did it.
+.githooks/*     text eol=lf
+
+# Binary. Marked so git never runs line-ending conversion or a textual diff over
+# them. Every one of these is also gitignored - the mark is belt and braces for the
+# case where one is force-added or arrives through a submodule or a patch.
+*.sav           binary
+*.usmap         binary
+*.pak           binary
+*.ucas          binary
+*.utoc          binary
+*.uasset        binary
+*.uexp          binary
+*.zip           binary
+*.gz            binary
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.ico           binary
+*.pdf           binary
+*.exe           binary
+*.dll           binary
+*.pyd           binary
