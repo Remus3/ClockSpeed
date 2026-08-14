@@ -88,7 +88,17 @@ the line becomes a pointer.
     ADR-0006 audit walked ALL string constants including docstrings and reported four false
     failures, because the operand names legitimately appear in explanatory prose.
 
-  7. **A merger instruction was refuted by the agent executing it, and the refutation was
+  7. **Flipping the mypy gate to blocking immediately caught a PRE-EXISTING CI failure that
+     `continue-on-error` had been hiding.** mypy analyses for the platform it is RUNNING on,
+     so `if sys.platform != "win32": return` makes the rest of the function unreachable on
+     Linux and not on Windows - three `unreachable` errors in `clockspeed/data/locate.py`
+     off identical source, green locally and red on the runner. The previous CI run reports
+     `success` only because the failed step was allowed to pass the job. Fixed by pinning
+     `platform = "win32"` in the mypy config so the config means the same thing everywhere;
+     the cost, three unchecked non-Windows early returns, is stated in `pyproject.toml`
+     rather than hidden. **A green local gate is not evidence about CI when the tool's
+     behaviour depends on the host.**
+  8. **A merger instruction was refuted by the agent executing it, and the refutation was
      right.** The wave-4 dispatch required that no solve module pull in
      `clockspeed.data.docs_extract`. That is unsatisfiable - `registry.py:206` and
      `version.py` import it at module level and `tests/data/test_phase2_gate.py:775-781`

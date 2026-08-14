@@ -253,6 +253,26 @@ markers = [
 python_version = "3.13"
 files = ["clockspeed", "tests"]
 
+# TARGET PLATFORM, pinned so this config means the same thing on every machine.
+# Without it mypy analyses for the platform it happens to be RUNNING on, and
+# `sys.platform` narrows accordingly - so a `if sys.platform != "win32": return`
+# guard makes the rest of the function unreachable on Linux and not on Windows.
+# That produced a green local run and a red CI run off identical source: three
+# `unreachable` errors in clockspeed/data/locate.py, in the platform guards
+# around the 8.3 short-path rendering, the drive-root scan and the winreg Steam
+# lookup - all of them correct, portable code.
+#
+# It is pinned to win32 because that is what this project targets: the game
+# install, the save directory and the registry lookups are Windows, and the
+# `classifiers` block above already says so. The cost is stated rather than
+# hidden - the three non-Windows early-return branches are no longer type
+# checked. They are `return None`, `return [Path("/")]` and `return []`, which
+# is an acceptable trade for making CI and the developer machine agree.
+#
+# Verified when pinned: `mypy --platform=linux` reports exactly those three and
+# nothing else, so this masks no other finding.
+platform = "win32"
+
 # STRICTNESS, stated deliberately: this is "check what is written, do not yet
 # demand annotations everywhere". The package is a phase-0 skeleton
 # (BOOTSTRAP.md section 10) and turning on disallow_untyped_defs today would
