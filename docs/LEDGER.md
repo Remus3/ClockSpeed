@@ -74,6 +74,54 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-15 - CS-406 - FROZEN-FILE GRANT ISSUED for `scripts/install_hooks.py`, two sites, with conditions
+Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit, not a
+completion record. Ruled by an adjudicator that wrote none of `scripts/install_hooks.py`, the
+CS-205 grants or `tests/test_exception_rendering.py`. Every load-bearing citation was then
+re-probed by the merger independently rather than accepted: both line numbers exact, the
+`redact()` behaviour executed, and the sweep's own `scan_repo()` run directly.
+GRANTED, both sites, WITH CONDITIONS. Site 1 is the `traceback.print_exc()` in the
+`except BaseException:` handler of the `__main__` block (`:310` at this commit) - suppress by
+default behind the EXISTING `CLOCKSPEED_CRASH_TRACEBACK` flag, exit code stays 1 on both paths,
+the crash is never swallowed. Site 2 is the `print(f"{TOOL_NAME}: wiring {root}")` reporting line
+(`:236` at this commit) - render a CONSTANT naming the location relative to the repository root,
+never `root`, never `str(root)`, and specifically never `root.name`.
+NEITHER EXISTING GRANT COVERS EITHER SITE, and this was checked rather than assumed. Grant A
+enumerates six exception-RENDERING sites, resolved against `git show 9d24823` - neither of these
+old line numbers appears among them. Grant A's two named "adjacent" leaks resolve to the git
+stderr path and to the `InstallError` now at `:203-205`, both already fixed. Grant B is scoped to
+one site in `tools/precommit_gate.py`.
+THE ADJUDICATION REFUTED A CLAIM IN THE PROPOSAL ITSELF, and that is the most valuable part of
+this record. `ROADMAP.md` asserted both sites sit on the mechanized sweep's live residual list.
+MEASURED FALSE for site 2: running `scan_repo()` returns site 2 in neither the traceback list nor
+the object-rendering findings, and `UNGUARDED_TRACEBACK_RESIDUALS` is traceback-keyed only. Site 2
+is guarded by NOTHING today, so the "it cannot rot silently" argument does not carry it. Grant A
+predicted exactly this and the prediction was never re-read - the blind spot is inherited, not new.
+A dedicated test is therefore a CONDITION rather than a nicety.
+THE REMEDY MAY NOT IMPORT FROM `clockspeed`, under any fallback - no `try/except ImportError`, no
+`sys.path` insertion, no deferred function-local import. Three reasons, two measured. The
+installer is the first thing a fresh clone runs and its own sandbox tests require exit 0 with
+`clockspeed/` absent OR syntactically broken; a test already forbids a non-stdlib import
+outright; and `redact()` would not work here anyway - executed by the merger, it maps
+`C:\Clockspeed` to `C:/Clockspeed`, UNCHANGED, because the pinned root is not under a home
+directory while the test oracle's absolute-path regex still matches. A `redact()`-based remedy
+passes on a clone under a home directory and silently fails the stated acceptance on the
+operator's own machine. No new import is needed: `os` and `traceback` are already imported.
+EXPECTED RED, exactly one and it is required rather than a surprise:
+`test_unguarded_traceback_sites_are_only_the_recorded_residuals` goes red the moment site 1 is
+fixed, because the `scripts/install_hooks.py` residual key goes stale. Retiring that entry and
+adding the file to the guarded tuple IS the fix. ANY OTHER RED MEANS THE REMEDY WENT PAST THE
+GRANT.
+UNTOUCHED by this grant, carried forward verbatim from grant A: every exit code, the hooksPath
+readback check, the hook inspection rules, the wiring logic, and the two-run byte-identical
+property. This grant does not widen grant A.
+ALSO MEASURED, and it is why this entry cites handlers rather than only line numbers: ledger line
+citations drift. Grant B cites the gate traceback at `:1670`; the detector measures it at
+`tools/precommit_gate.py:1802` today.
+RESIDUAL, filed rather than granted: the sweep cannot see a discovered path rendered into a
+`print` outside a handler ANYWHERE in the tree. CS-406 fixes two instances by hand and nothing
+prevents a third. Extending the detector is out of scope here and is NOT granted by this entry.
+
 ### 2026-08-15 - CS-400 - Clause 1 goes from SKIPPED to PASSING, and the gate now says PARTIAL rather than NOT MET
 Verification: `tests/save/test_phase4_gate.py::test_a_real_world_parses_end_to_end`, which
 RUNS and asserts rather than skipping. Suite at close: 1463 passed, 4 skipped, exit 0.

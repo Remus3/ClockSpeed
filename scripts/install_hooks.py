@@ -27,6 +27,15 @@ What it does:
 
 Every failure path exits non-zero. Running it twice is a no-op with identical
 output.
+
+An unexpected exception exits 1 and reports the exception CLASS plus its
+redacted reason. The TRACEBACK is suppressed by default and revealed only by
+setting CLOCKSPEED_CRASH_TRACEBACK=1 - the commit gate's own flag name, shared
+rather than duplicated, so one concept cannot acquire two spellings. A
+traceback cannot be honestly redacted: it renders an absolute path per frame -
+a home path on any clone under a user profile - and its final line is
+str(exc), the exact rendering _exc_reason() removes everywhere else in this
+file. The flag changes what is PRINTED and never whether the install fails.
 """
 
 from __future__ import annotations
@@ -42,6 +51,14 @@ TOOL_NAME = "install_hooks"
 HOOKS_DIR_NAME = ".githooks"
 CONFIG_KEY = "core.hooksPath"
 GIT_TIMEOUT = 30
+
+# The opt-in that reveals a crash traceback. THE GATE'S NAME, reused rather
+# than a second flag invented for one concept. It cannot be imported from
+# tools/precommit_gate.py - this script is the first thing a fresh clone runs,
+# before tools/ is guaranteed to exist or even to parse - so the two spellings
+# are held together by tests/test_exception_rendering.py instead of by an
+# import, for the same reason _exc_reason() is duplicated rather than imported.
+ENV_CRASH_TRACEBACK = "CLOCKSPEED_CRASH_TRACEBACK"
 
 # The hooks this installer is responsible for wiring.
 EXPECTED_HOOKS = ("pre-commit", "commit-msg", "pre-push")
@@ -233,7 +250,22 @@ def install(root: Path) -> int:
             failures.append(f"{name}: {status} - {detail}")
 
     width = max(len(name) for name in EXPECTED_HOOKS)
-    print(f"{TOOL_NAME}: wiring {root}")
+    # The location is named RELATIVE to the repository root and never rendered
+    # absolute - the same form as the missing-directory message above, and for
+    # the same reason: the root is DISCOVERED at runtime and a clone routinely
+    # sits under a home directory (CLAUDE.md non-negotiable 12). The reader
+    # knows which repository they ran this in.
+    #
+    # Redaction is NOT the remedy here, and a redacted root would be a no-op
+    # that looked like a fix: a home-path redactor rewrites a root under a user
+    # profile and leaves a root that is not under one - the pinned project root
+    # is exactly that - untouched and still absolute. The basename is no remedy
+    # either: a clone made directly in a home directory makes it the account
+    # name. Only a CONSTANT is safe on every machine.
+    #
+    # This line prints BEFORE the `if failures:` branch below, so it is not
+    # only the success path - the exit-1 unusable-hook path renders it too.
+    print(f"{TOOL_NAME}: wiring {HOOKS_DIR_NAME}/ at the repository root")
     print()
     print("  %-*s  %-9s  %-18s  %s" % (width, "hook", "status", "exec bit", "detail"))
     print("  {}  {}  {}  {}".format("-" * width, "-" * 9, "-" * 18, "-" * 24))
@@ -306,7 +338,21 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except SystemExit:
         raise
-    except BaseException:
-        traceback.print_exc()
+    except BaseException as exc:
+        # SUPPRESS BY DEFAULT, OPT IN EXPLICITLY - the shape CLAUDE.md
+        # non-negotiable 12 already mandates for the save header options
+        # string. The class name and the redacted reason say WHAT broke; the
+        # traceback says where, and cannot say it without rendering an absolute
+        # path per frame and a final str(exc). Reformatting the crash report is
+        # all that happens here: the failure is never swallowed and the exit
+        # code is 1 on the default path and on the opt-in path alike.
+        sys.stderr.write(f"{TOOL_NAME}: crashed with {type(exc).__name__}: {_exc_reason(exc)}\n")
+        if os.environ.get(ENV_CRASH_TRACEBACK) == "1":
+            traceback.print_exc()
+        else:
+            sys.stderr.write(
+                f"  The traceback is suppressed. Set {ENV_CRASH_TRACEBACK}=1 to print it -\n"
+                "  it renders an absolute path per frame (CLAUDE.md non-negotiable 12).\n"
+            )
         sys.stderr.write(f"{TOOL_NAME}: unexpected failure; the hooks are NOT wired.\n")
         raise SystemExit(1) from None

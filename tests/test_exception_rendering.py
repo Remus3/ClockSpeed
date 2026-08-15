@@ -116,13 +116,6 @@ GUARDED_SUFFIX = " (opt-in guarded)"
 # and fails the test - this is a record of known residuals, not an allowlist
 # that quietly absorbs the next one.
 UNGUARDED_TRACEBACK_RESIDUALS = {
-    "scripts/install_hooks.py": (
-        "CS-205 grant A covers that file's exception RENDERINGS. The adjudicator "
-        "granted the suppress-by-default remedy for the gate's traceback under a "
-        "SEPARATE grant B, on the reasoning that a traceback is a different "
-        "remedy from a redaction - so the installer's crash handler needs its own "
-        "grant and is not self-granted here. Named, not silently left."
-    ),
     "tests/save/test_header.py": (
         "A redaction-ASSERTION helper: _exception_surfaces() collects str, repr, "
         "args, notes and the formatted traceback precisely so the test can assert "
@@ -573,11 +566,19 @@ def test_every_waiver_is_still_live():
     )
 
 
-def test_both_crash_handlers_suppress_their_traceback_by_default():
-    # GRANT B's pattern, asserted structurally at both places it applies. A
+def test_every_crash_handler_suppresses_its_traceback_by_default():
+    # GRANT B's pattern, asserted structurally at every place it applies. A
     # traceback renders an absolute path per frame and ends in str(exc), so it
     # can only be suppressed, never redacted.
-    for relative in ("tools/precommit_gate.py", "tools/edit_lint_check.py"):
+    #
+    # The installer joined this list under CS-406, which is why the name counts
+    # no longer says "both": a count in a test's NAME is a restated fact, and a
+    # restated fact drifts (CLAUDE.md section 4). The tuple is the record.
+    for relative in (
+        "tools/precommit_gate.py",
+        "tools/edit_lint_check.py",
+        "scripts/install_hooks.py",
+    ):
         source = (REPO_ROOT / relative).read_text(encoding="utf-8")
         visitor = scan_source(relative, source)
         assert visitor.tracebacks, f"{relative} lost its crash handler entirely"
@@ -854,3 +855,181 @@ def test_the_gate_gained_no_new_import():
     # rather than a silent new startup requirement.
     assert "ruff" not in roots
     assert "ruff" in guarded_import_probes(source)
+
+
+# ---------------------------------------------------------------------------
+# scripts/install_hooks.py - CS-406, the two leaks grant A and grant B missed
+# ---------------------------------------------------------------------------
+
+# Assembled from fragments for the same reason CRASH_MARKER above is: a
+# spelled-out home path in a tracked file is itself a violation, and the commit
+# gate would block the commit that added it.
+INSTALLER_CRASH_MARKER = "C:" + chr(92) + "Users" + chr(92) + "synthetic" + chr(92) + "wire.txt"
+
+# Crashes the installer from OUTSIDE, without adding a test hook to a frozen
+# file. The installer does `import subprocess` at module level and calls
+# subprocess.run() inside run_git(); run_git() catches only FileNotFoundError,
+# OSError and SubprocessError, and both require_work_tree() and main() catch
+# only InstallError - so a RuntimeError raised by a replaced subprocess.run
+# travels all the way to the __main__ crash handler, which is the site under
+# test. Replacing the attribute on the shared sys.modules entry before runpy
+# re-executes the installer is what makes this work with the frozen file
+# untouched.
+INSTALLER_CRASH_WRAPPER = """
+import runpy
+import subprocess
+
+MARKER = {marker!r}
+
+
+def boom(*args, **kwargs):
+    raise RuntimeError("synthetic crash wiring " + MARKER)
+
+
+subprocess.run = boom
+runpy.run_path({installer!r}, run_name="__main__")
+"""
+
+
+def provoke_installer_crash(tmp_path: Path, env_extra: dict[str, str] | None = None):
+    """Make the real installer raise a non-SystemExit inside main(), and run it."""
+    wrapper = tmp_path / "installer_crash_probe.py"
+    installer = str(REPO_ROOT.joinpath(*INSTALLER_RELATIVE))
+    body = INSTALLER_CRASH_WRAPPER.format(marker=INSTALLER_CRASH_MARKER, installer=installer)
+    wrapper.write_bytes(body.encode("ascii"))
+    return run_process([sys.executable, str(wrapper)], tmp_path, env_extra)
+
+
+def test_installer_crash_default_output_carries_no_absolute_path(tmp_path):
+    # CS-406 CONDITION 1. The crash handler used to call traceback.print_exc()
+    # unconditionally, which prints an absolute path PER FRAME - on a clone
+    # under a user profile that is the account name, once per frame.
+    result = provoke_installer_crash(tmp_path)
+    text = combined(result)
+
+    # Assert what IS there, not merely that something is absent.
+    assert "RuntimeError" in text, text
+    assert "The traceback is suppressed" in text, text
+    assert "CLOCKSPEED_CRASH_TRACEBACK" in text, "the default output must NAME the opt-in flag"
+    assert INSTALLER_CRASH_MARKER not in text, "the suppressed traceback still reached the output"
+    assert not ABSOLUTE_PATH.search(text), f"an absolute path reached the output:\n{text}"
+
+
+def test_installer_crash_exits_one_and_says_the_hooks_are_not_wired(tmp_path):
+    # CS-406 CONDITION 2, the default half. The worst outcome this file has is
+    # a fresh clone believing it is protected when it is not, so the crash is
+    # reformatted and never swallowed.
+    result = provoke_installer_crash(tmp_path)
+    assert result.returncode == 1, combined(result)
+    assert "the hooks are NOT wired" in combined(result), combined(result)
+
+
+def test_installer_crash_traceback_opt_in_still_exits_one(tmp_path):
+    # CS-406 CONDITION 2, the opt-in half, and the proof that the default above
+    # suppressed something rather than nothing: the marker is only reachable
+    # through the traceback, and here it must appear.
+    result = provoke_installer_crash(tmp_path, {"CLOCKSPEED_CRASH_TRACEBACK": "1"})
+    text = combined(result)
+
+    assert result.returncode == 1, text
+    assert INSTALLER_CRASH_MARKER in text, "the opt-in did not reveal the traceback"
+    assert "Traceback (most recent call last)" in text, text
+    assert "the hooks are NOT wired" in text, text
+
+
+def test_the_installer_crash_flag_defaults_off_and_is_documented(tmp_path):
+    # CS-406 CONDITION 3. ONE flag for one concept. The installer cannot import
+    # the gate - it is the first thing a fresh clone runs, before tools/ is
+    # guaranteed to exist or to parse (grant A condition 2) - so the shared
+    # spelling is pinned by this test instead of by an import. Two differently
+    # spelled flags for one concept is the drift class CLAUDE.md section 4
+    # exists to stop.
+    source = REPO_ROOT.joinpath(*INSTALLER_RELATIVE).read_text(encoding="utf-8")
+    docstring = ast.get_docstring(ast.parse(source)) or ""
+    assert "CLOCKSPEED_CRASH_TRACEBACK" in docstring, "the flag is not in the module docstring"
+    assert 'ENV_CRASH_TRACEBACK = "CLOCKSPEED_CRASH_TRACEBACK"' in source
+    assert 'ENV_CRASH_TRACEBACK = "CLOCKSPEED_CRASH_TRACEBACK"' in GATE.read_text(encoding="utf-8")
+
+    # Off means off: any value other than "1" leaves it suppressed.
+    result = provoke_installer_crash(tmp_path, {"CLOCKSPEED_CRASH_TRACEBACK": "0"})
+    assert result.returncode == 1
+    assert INSTALLER_CRASH_MARKER not in combined(result)
+
+
+def test_the_installer_gained_no_new_import():
+    # CS-406 CONDITION 4. os and traceback were already imported, which is why
+    # the env guard costs nothing. Pinned so that acquiring a dependency to
+    # implement the guard would be red rather than silent.
+    source = REPO_ROOT.joinpath(*INSTALLER_RELATIVE).read_text(encoding="utf-8")
+    roots = imported_roots(source)
+    assert {"os", "traceback"} <= roots
+
+
+# The wiring line, printed at the top of install(). The mechanized sweep above
+# is structurally BLIND to this site - it keys on traceback calls and on
+# renderings of a caught exception, and this is neither - so these two tests
+# are the only thing that guards it. Do not lean on the sweep here.
+WIRING_LINE = "wiring .githooks/ at the repository root"
+
+# The installer's closing WARNING block teaches that C:\X and C:/x are
+# DIFFERENT config keys. That example is a string LITERAL in the installer's
+# source, not a path discovered at runtime, and the oracle above is a
+# deliberately dumb "any drive-letter path" regex that cannot tell the two
+# apart. It is removed here by EXACT FRAGMENT rather than by loosening the
+# regex, so the oracle keeps its full strength over every other byte of the
+# report - which is the whole point of having an oracle the remedy does not
+# get to define. Assembled from fragments like the markers above.
+PATH_KEYING_EXAMPLE = "path-string keying (C:" + chr(92) + "X and C:/x are"
+
+
+def test_installer_wiring_line_renders_no_absolute_path(tmp_path):
+    # CS-406 CONDITIONS 7 TO 10, the exit-0 path. This line used to interpolate
+    # the discovered repository root. redact() is NOT the remedy and would be a
+    # no-op that looks like a fix: it rewrites a path under a home directory
+    # and leaves one that is not under a home directory untouched and still
+    # absolute, which is exactly the operator's own pinned root.
+    root = build_sandbox(tmp_path)
+    result = run_installer(root)
+    text = combined(result)
+
+    assert result.returncode == 0, text
+    # Assert what IS printed, not merely that something is absent.
+    assert WIRING_LINE in text, text
+    # If this goes red the warning text moved, and what is stripped below has
+    # to be re-examined before it is trusted again.
+    assert PATH_KEYING_EXAMPLE in text, "the pedagogical example moved; re-check the strip"
+    report = text.replace(PATH_KEYING_EXAMPLE, "")
+    assert not ABSOLUTE_PATH.search(report), f"an absolute path reached the output:\n{text}"
+
+    # No DISCOVERED path in any form: the root, its parent, or its basename.
+    # The basename is named explicitly because it is the shortcut that looks
+    # safe and is not - a clone made directly in a home directory makes
+    # root.name the account name.
+    assert str(root) not in text
+    assert str(tmp_path) not in text
+    assert root.name not in text, "the basename is not a safe abbreviation of the root"
+    # Non-vacuous: the sandbox root really is a path the oracle WOULD match, so
+    # a green here is the remedy rather than a harness that cannot fail.
+    assert ABSOLUTE_PATH.search(str(root)), "the sandbox root is not absolute; this proves nothing"
+
+
+def test_installer_wiring_line_renders_no_absolute_path_on_the_bad_hook_path(tmp_path):
+    # CS-406 CONDITION 10, the other half. ROADMAP.md calls this line "the
+    # SUCCESS path"; it is not only that. It executes BEFORE the `if failures:`
+    # branch, so the exit-1 unusable-hook path prints it too - and that path is
+    # where an operator is most likely to paste the output somewhere.
+    root = build_sandbox(tmp_path)
+    # CRLF is one of the conditions inspect_hook() rejects, and it leaves
+    # core.hooksPath set - so the installer reaches the wiring line, prints it,
+    # reports the bad hook and exits 1.
+    bad = root / ".githooks" / "pre-commit"
+    bad.write_bytes(bad.read_bytes().replace(b"\n", b"\r\n"))
+
+    result = run_installer(root)
+    text = combined(result)
+
+    assert result.returncode == 1, text
+    assert WIRING_LINE in text, text
+    assert "FAILED - unusable hook file(s)" in text, text
+    assert not ABSOLUTE_PATH.search(text), f"an absolute path reached the output:\n{text}"
+    assert str(root) not in text
