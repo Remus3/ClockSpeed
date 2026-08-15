@@ -14,8 +14,18 @@ Modes (mutually exclusive, exactly one is required):
                   checks over it. This is what the Claude PreToolUse hook
                   feeds a proposed command string into.
 
-Exit codes: 0 pass, 1 block. Nothing else. An unexpected exception prints its
-traceback and exits 1 - a gate that crashes open is worse than no gate at all.
+Exit codes: 0 pass, 1 block. Nothing else. An unexpected exception exits 1 - a
+gate that crashes open is worse than no gate at all - and reports the exception
+CLASS plus its redacted text.
+
+The TRACEBACK is suppressed by default and revealed only by setting
+CLOCKSPEED_CRASH_TRACEBACK=1. That is the same shape CLAUDE.md non-negotiable
+12 already mandates for the save header options string, and it is here for the
+same reason: a traceback cannot be honestly redacted. It renders an absolute
+path per frame - a home path on any checkout under a user profile - and its
+final line is str(exc), the exact rendering safe_exc_text() removes everywhere
+else in this file. Suppressing it changes what is PRINTED and never whether the
+gate fails: the exit code is 1 with the flag on and with it off.
 
 CONVENTIONS.md section 15.1: "a guard can be green while self-excusing -
 skipping itself on the very files it is meant to cover." This gate therefore
@@ -547,6 +557,11 @@ ENV_ACCOUNT_DIR = "CLOCKSPEED_ACCOUNT_DIR"
 ENV_LOCAL_CONFIG = "CLOCKSPEED_LOCAL_CONFIG"
 ENV_WORLD_NAMES = "CLOCKSPEED_WORLD_NAMES"
 ENV_WORLD_TOKENS = "CLOCKSPEED_WORLD_TOKENS"
+
+# The sixth name, and the only one that is not an override of a discovered
+# value: it opts IN to printing the crash traceback that the handler at the
+# foot of this file suppresses by default. See the module docstring.
+ENV_CRASH_TRACEBACK = "CLOCKSPEED_CRASH_TRACEBACK"
 
 CONFIG_ACCOUNT_DIR = "account_dir"
 CONFIG_WORLD_NAMES = "world_names"
@@ -1774,8 +1789,22 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except SystemExit:
         raise
-    except BaseException:
-        traceback.print_exc()
+    except BaseException as exc:
+        # SUPPRESS BY DEFAULT, OPT IN EXPLICITLY. The class name and the
+        # per-type redacted text say what broke; the traceback says where, and
+        # cannot say it without rendering an absolute path per frame and a
+        # final str(exc). Reformatting the crash report is all that happens
+        # here - the failure is never swallowed.
+        sys.stderr.write(
+            "%s: crashed with %s: %s\n" % (GATE_NAME, type(exc).__name__, safe_exc_text(exc))
+        )
+        if os.environ.get(ENV_CRASH_TRACEBACK) == "1":
+            traceback.print_exc()
+        else:
+            sys.stderr.write(
+                f"  The traceback is suppressed. Set {ENV_CRASH_TRACEBACK}=1 to print it -\n"
+                "  it renders an absolute path per frame (CLAUDE.md non-negotiable 12).\n"
+            )
         sys.stderr.write(
             f"{GATE_NAME}: the gate itself raised. Failing CLOSED with exit 1 - a gate "
             "that crashes open is worse than no gate.\n"

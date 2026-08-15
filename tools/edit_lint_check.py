@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import traceback
 from pathlib import Path, PurePosixPath
@@ -45,15 +46,20 @@ def check_json(label: str, data: bytes, report: gate.Report) -> None:
     try:
         json.loads(data.decode("utf-8"))
     except UnicodeDecodeError as exc:
-        report.add(gate.Diagnostic(label, 0, 0, "SYNTAX", f"json is not UTF-8: {exc}"))
+        # exc.reason and exc.start are the decoder's REASON and offset. The
+        # object itself is never rendered: str() on it would carry the bytes
+        # it choked on, and exc.object holds file CONTENT rather than a reason.
+        detail = f"{exc.reason} at byte {exc.start}"
+        report.add(gate.Diagnostic(label, 0, 0, "SYNTAX", f"json is not UTF-8: {detail}"))
     except ValueError as exc:
+        detail = getattr(exc, "msg", None) or type(exc).__name__
         report.add(
             gate.Diagnostic(
                 label,
                 getattr(exc, "lineno", 0) or 0,
                 getattr(exc, "colno", 0) or 0,
                 "SYNTAX",
-                f"invalid json: {exc}",
+                f"invalid json: {detail}",
             )
         )
 
@@ -70,16 +76,22 @@ def check_yaml(label: str, data: bytes, report: gate.Report) -> None:
     try:
         yaml.safe_load(data.decode("utf-8"))
     except UnicodeDecodeError as exc:
-        report.add(gate.Diagnostic(label, 0, 0, "SYNTAX", f"yaml is not UTF-8: {exc}"))
+        detail = f"{exc.reason} at byte {exc.start}"
+        report.add(gate.Diagnostic(label, 0, 0, "SYNTAX", f"yaml is not UTF-8: {detail}"))
     except yaml.YAMLError as exc:
         mark = getattr(exc, "problem_mark", None)
+        # The DEFAULT was the exception object itself. That reads like a field
+        # access and is not one: whenever `problem` is absent it rendered the
+        # whole exception, and a YAMLError raised from a file operation carries
+        # the path in its text. Falling back to the class name fails closed.
+        problem = getattr(exc, "problem", None) or type(exc).__name__
         report.add(
             gate.Diagnostic(
                 label,
                 (mark.line + 1) if mark else 0,
                 (mark.column + 1) if mark else 0,
                 "SYNTAX",
-                "invalid yaml: {}".format(getattr(exc, "problem", exc)),
+                f"invalid yaml: {problem}",
             )
         )
 
@@ -110,7 +122,13 @@ def main(argv: list[str] | None = None) -> int:
         try:
             data = Path(given).read_bytes()
         except OSError as exc:
-            report.add(gate.Diagnostic(label, 0, 0, "IO", f"could not read the file: {exc}"))
+            # The CS-204 residual. That item redacted the diagnostic LABEL
+            # channel, so the label here is already safe - but the REASON was
+            # still the raw object, and str() on an OSError appends the path it
+            # failed on. Redacting one channel and leaving the other beside it
+            # is not a fix, it is a narrower leak.
+            reason = gate.safe_exc_text(exc)
+            report.add(gate.Diagnostic(label, 0, 0, "IO", f"could not read the file: {reason}"))
             continue
         if not gate.accept_bytes(unit, data, report):
             continue
@@ -143,7 +161,19 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except SystemExit:
         raise
-    except BaseException:
-        traceback.print_exc()
-        sys.stderr.write(f"{TOOL_NAME}: guard raised; failing closed with exit 1.\n")
+    except BaseException as exc:
+        # Suppressed by default, opt in explicitly - the same shape CLAUDE.md
+        # non-negotiable 12 already mandates for the save header options
+        # string. A traceback cannot be honestly redacted: it renders an
+        # absolute path per frame and its final line is str(exc). The opt-in
+        # name is the gate's, shared rather than duplicated, so the two crash
+        # handlers cannot drift apart on the contract they publish.
+        sys.stderr.write(
+            "%s: guard raised %s: %s\n" % (TOOL_NAME, type(exc).__name__, gate.safe_exc_text(exc))
+        )
+        if os.environ.get(gate.ENV_CRASH_TRACEBACK) == "1":
+            traceback.print_exc()
+        else:
+            sys.stderr.write(f"  Set {gate.ENV_CRASH_TRACEBACK}=1 to print the traceback.\n")
+        sys.stderr.write(f"{TOOL_NAME}: failing closed with exit 1.\n")
         raise SystemExit(1) from None

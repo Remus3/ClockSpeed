@@ -74,6 +74,57 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-14 - CS-205 - A MECHANIZED repo-wide sweep asserts no tracked module renders an exception OBJECT into a message
+Verification: `tests/test_exception_rendering.py` plus `scripts/install_hooks.py`,
+`tools/precommit_gate.py`, `tools/edit_lint_check.py`, `tools/memory_sync.py` and
+`clockspeed/data/version.py`. Merged under the two frozen-file grants recorded above.
+Suite 1067 -> 1088, exit 0.
+The detector ENUMERATES tracked and untracked-but-not-ignored `*.py` rather than reading a
+list. The enumeration was widened beyond `--cached` for a measured reason: `--cached` cannot
+see a module until it is committed, INCLUDING THE DETECTOR ITSELF on the commit that adds it,
+which the builder hit as a genuine red.
+THE RED NAMED 13 REAL SITES IN THE REAL TREE, not a fixture, matching the adjudicator's
+independent AST sweep on file and line. It matched only after the TREE CORRECTED THE BUILDER
+TWICE, and both corrections are worth keeping: (1) the builder's first sweep found 12 and
+missed `tools/edit_lint_check.py:82`, where the object is the DEFAULT of a
+`getattr(exc, "problem", exc)` - it reads like a field access and renders the whole object
+whenever the field is absent, so the adjudicator was right and the detector was too narrow.
+That shape is now a positive-control case. (2) The builder found 3 sites the adjudicator did
+not report, all in `tests/save/test_usmap.py`, where the rendering IS the subject under test -
+recorded as the single waiver, with its reason, and ASSERTED STILL LIVE so it cannot rot.
+Both controls are real. POSITIVE: 8 leaky shapes across 10 sites all caught, and separately a
+leaky module was written into `tools/`, watched to go red, and deleted - which proves the
+ENUMERATION catches a file that is on no list. NEGATIVE: `clockspeed/data/docs_extract.py` is
+pinned BY NAME as not-flagged and the assertion is proven non-vacuous, because that module
+renders `exc.reason`, `exc.msg` and `exc.lineno` and a naive detector flags it, after which
+someone either "fixes" correct code or loosens the test.
+The installer stays DEPENDENCY-FREE by duplication rather than import, proven by tests that
+run it with `clockspeed/` and `tools/` absent AND syntactically broken - it is the first thing
+a fresh clone runs. Idempotence held: two real runs, exit 0 both, stdout byte-identical at
+1080 bytes. The builder captured and restored the machine's real `core.hooksPath`, which the
+installer rewrites; the merger verified it afterwards as `C:\Clockspeed\.githooks` with
+`verify_env.py` reporting FOUND and VERDICT PASS.
+GRANT B implemented as ruled: the crash traceback is SUPPRESSED BY DEFAULT behind
+`CLOCKSPEED_CRASH_TRACEBACK=1`, the exit code stays 1 on both paths, and the crash is provoked
+FROM OUTSIDE by patching `argparse` before `runpy` re-executes the gate, so no test hook was
+added inside the frozen file. `tests/test_precommit_gate.py` was not touched at all.
+GRANT B'S CITED LINE NUMBER WAS STALE - it named `:1670` and the only `traceback.print_exc()`
+was at `:1778`. The builder proceeded because "the single site" was unambiguous, and said so.
+PROVEN END TO END BY THE MERGER AFTER THE MERGE, because hook presence is never proof of hook
+firing and this change touched both the gate and the installer: an em-dash violation was
+staged, a real `git commit` attempted, and the result was `precommit_gate: BLOCKED`, the
+CHARSET diagnostic naming U+2014 at line and column, and HEAD UNCHANGED.
+UNCLOSED AND CORRECTLY NOT SELF-GRANTED, now filed as CS-406: `scripts/install_hooks.py:310`
+is a `traceback.print_exc()` of the same class as grant B, which grant A does not reach - the
+adjudicator's own structure implies this, since it carved the gate's traceback into a separate
+grant precisely because a traceback needs a different remedy from a redaction; and `:236`
+prints the absolute repository root on the SUCCESS path, a third adjacent non-exception leak
+the adjudicator did not name. Both are recorded in the sweep's live residual list, so a NEW
+unguarded traceback anywhere already fails the suite while these two are grandfathered by name.
+Also unverified and stated: the `:170` chmod branch is fixed but never EXECUTES on Windows,
+so it is verified by inspection plus a direct probe of the redaction helper against a real
+`OSError`, and by CI tier 2 rather than here.
+
 ### 2026-08-14 - CS-400 PARTIAL - Phase 4 waves 0 and 1: the spec correction, the synthetic corpus, and the four independent readers
 Verification: `clockspeed/save/{header,chunks,usmap,workdir}.py` plus
 `tests/save/{synthetic,test_synthetic,test_header,test_chunks,test_usmap,test_workdir}.py`.

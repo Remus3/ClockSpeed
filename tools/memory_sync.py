@@ -128,7 +128,13 @@ def validate_leaf(path: Path) -> list[str]:
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
-        return [f"unreadable: {exc}"]
+        # strerror, never the object. str() on an OSError appends the filename
+        # it failed on, and every leaf path here is built from a repository
+        # root discovered at runtime that may sit under a home directory
+        # (CLAUDE.md non-negotiable 12). This handler catches OSError and
+        # nothing else, so strerror is the right named field for it - a helper
+        # that reached for strerror on ANY type would be the CS-202 defect.
+        return [f"unreadable: {exc.strerror or type(exc).__name__}"]
 
     data, error = parse_frontmatter(text)
     if error:

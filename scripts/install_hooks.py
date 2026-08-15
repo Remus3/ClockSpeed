@@ -51,8 +51,53 @@ class InstallError(RuntimeError):
     """Anything that must stop the install with a non-zero exit."""
 
 
+def _exc_reason(exc: BaseException) -> str:
+    """Render an exception as a REASON, with no filename and no path in it.
+
+    THE ROOT CAUSE. ``str()`` on an OSError appends the filename the call
+    failed on - "[Errno 13] Permission denied: '<a path>'" - while ``strerror``
+    carries the reason alone. A fresh clone routinely sits under a home
+    directory, so that path carries the Windows account name, and CLAUDE.md
+    non-negotiable 12 counts an error message as an echo path exactly like a
+    debug dump or a hex preview.
+
+    PER EXCEPTION TYPE, deliberately, because that is where the obvious version
+    of this helper goes wrong. Only OSError carries ``strerror``; a
+    TimeoutExpired and a CalledProcessError do not, so a helper that reaches
+    for it and falls back to ``str(exc)`` for everything else silently
+    reintroduces the leak for every type it did not think about. An
+    unrecognised type falls closed to its class name rather than to its text.
+
+    DUPLICATED FROM tools/precommit_gate.py::safe_exc_text ON PURPOSE, and the
+    duplication is the point rather than an oversight. This script is the FIRST
+    thing a fresh clone runs (CONVENTIONS.md section 1), before anything is
+    installed and while `clockspeed/` and `tools/` may be absent, half-written
+    or syntactically broken. Importing a redactor from either would make the
+    one script whose job is to wire the protection unable to run without the
+    code it protects. tests/test_exception_rendering.py proves the installer
+    still runs and still exits correctly with both directories gone.
+    """
+    if isinstance(exc, InstallError):
+        # Its message is built in this module and is already free of git's
+        # stderr and of every discovered path.
+        return str(exc) or type(exc).__name__
+    if isinstance(exc, OSError):
+        return exc.strerror or type(exc).__name__
+    if isinstance(exc, subprocess.TimeoutExpired):
+        return "%s after %s seconds" % (type(exc).__name__, exc.timeout)
+    if isinstance(exc, subprocess.CalledProcessError):
+        return "%s exit %d" % (type(exc).__name__, exc.returncode)
+    return type(exc).__name__
+
+
 def run_git(args: list[str], cwd: str | None = None) -> str:
-    """Run git and return stdout, raising InstallError on any failure."""
+    """Run git and return stdout, raising InstallError on any failure.
+
+    The argv IS rendered on failure, unlike the gate's, and that is a measured
+    difference rather than an inconsistency: every caller below passes literal
+    constants, so this argv carries no discovered path. The gate redacts its
+    own because in `--files` mode the argv is built from caller-supplied paths.
+    """
     try:
         proc = subprocess.run(
             ["git", *args],
@@ -62,17 +107,20 @@ def run_git(args: list[str], cwd: str | None = None) -> str:
             check=False,
         )
     except FileNotFoundError as exc:
-        raise InstallError(f"git is not on PATH: {exc}") from exc
+        raise InstallError(f"git is not on PATH: {_exc_reason(exc)}") from exc
     except (OSError, subprocess.SubprocessError) as exc:
-        raise InstallError("git {} failed to run: {}".format(" ".join(args), exc)) from exc
-    if proc.returncode != 0:
         raise InstallError(
-            "git %s exited %d: %s"
-            % (
-                " ".join(args),
-                proc.returncode,
-                proc.stderr.decode("utf-8", "replace").strip(),
-            )
+            "git {} failed to run: {}".format(" ".join(args), _exc_reason(exc))
+        ) from exc
+    if proc.returncode != 0:
+        # git's stderr is NOT rendered. It reports absolute paths in it -
+        # "fatal: cannot change to '<a path>'" - and this clone may sit under a
+        # home directory, which makes the stderr channel an echo path exactly
+        # like an exception is (CLAUDE.md non-negotiable 12). The argv and the
+        # exit code are kept: they say which git call failed and how.
+        raise InstallError(
+            "git %s exited %d (its stderr is withheld: git prints absolute "
+            "paths there). Run that command by hand to see it." % (" ".join(args), proc.returncode)
         )
     return proc.stdout.decode("utf-8", "replace").strip()
 
@@ -82,7 +130,9 @@ def require_work_tree(start: Path) -> Path:
     try:
         inside = run_git(["rev-parse", "--is-inside-work-tree"], cwd=str(start))
     except InstallError as exc:
-        raise InstallError(f"refusing to run: not inside a git work tree ({exc})") from exc
+        raise InstallError(
+            f"refusing to run: not inside a git work tree ({_exc_reason(exc)})"
+        ) from exc
     if inside != "true":
         raise InstallError(
             f"refusing to run: `git rev-parse --is-inside-work-tree` said {inside!r}"
@@ -146,7 +196,13 @@ def install(root: Path) -> int:
     """Wire core.hooksPath, verify it took, and report what was wired."""
     hooks_dir = root / HOOKS_DIR_NAME
     if not hooks_dir.is_dir():
-        raise InstallError(f"no {HOOKS_DIR_NAME} directory at {hooks_dir}; nothing to wire")
+        # The path is named RELATIVE to the repository root rather than rendered
+        # absolute: the root is discovered at runtime and may sit under a home
+        # directory (CLAUDE.md non-negotiable 12). The reader knows which repo
+        # they ran this in.
+        raise InstallError(
+            f"no {HOOKS_DIR_NAME}/ directory at the repository root; nothing to wire"
+        )
 
     run_git(["config", CONFIG_KEY, HOOKS_DIR_NAME], cwd=str(root))
 
@@ -167,7 +223,8 @@ def install(root: Path) -> int:
             try:
                 exec_note = set_executable(path)
             except OSError as exc:
-                status, detail = ("CHMOD", f"could not set the executable bit: {exc}")
+                reason = _exc_reason(exc)
+                status, detail = ("CHMOD", f"could not set the executable bit: {reason}")
                 exec_note = "failed"
         else:
             exec_note = "not attempted"
@@ -224,7 +281,9 @@ def run_git_optional(args: list[str], root: Path) -> str | None:
             check=False,
         )
     except (OSError, subprocess.SubprocessError) as exc:
-        raise InstallError("git {} failed to run: {}".format(" ".join(args), exc)) from exc
+        raise InstallError(
+            "git {} failed to run: {}".format(" ".join(args), _exc_reason(exc))
+        ) from exc
     if proc.returncode != 0:
         return None
     return proc.stdout.decode("utf-8", "replace").strip()
@@ -237,7 +296,7 @@ def main() -> int:
         root = require_work_tree(here)
         return install(root)
     except InstallError as exc:
-        sys.stderr.write(f"{TOOL_NAME}: FAILED - {exc}\n")
+        sys.stderr.write(f"{TOOL_NAME}: FAILED - {_exc_reason(exc)}\n")
         sys.stderr.write("  The hooks are NOT wired. Do not treat this repository as gated.\n")
         return 1
 

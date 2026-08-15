@@ -812,7 +812,17 @@ def extract_pin_block(source: str) -> dict[str, Any]:
     try:
         payload = json.loads(block[opened + len(fence) : closed])
     except ValueError as exc:
-        raise PinFormatError(f"the generated pin block is not valid JSON: {exc}") from exc
+        # Named fields, never the object - the shape docs_extract.py already
+        # uses for the same decode. A JSONDecodeError carries msg, lineno and
+        # colno, all of which are reasons; str() on it would be fine here but
+        # a plain ValueError from a different json backend need not be, and an
+        # unrecognised type falls closed to its class name.
+        detail = getattr(exc, "msg", None) or type(exc).__name__
+        line = getattr(exc, "lineno", 0)
+        column = getattr(exc, "colno", 0)
+        raise PinFormatError(
+            f"the generated pin block is not valid JSON: {detail} at line {line} column {column}"
+        ) from exc
     if not isinstance(payload, dict):
         raise PinFormatError(
             f"the generated pin block is a JSON {type(payload).__name__}, expected an object"
