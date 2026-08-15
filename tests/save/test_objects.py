@@ -1424,7 +1424,26 @@ def test_a_real_save_of_a_measured_pair_walks_to_the_end_of_its_body() -> None:
         pytest.skip("no real save of a measured body-layout pair is present on this machine")
     header_version, save_version, body = found
 
-    table = objects.parse_body(body, save_version=save_version, header_version=header_version)
+    # THE PARSE IS GUARDED, and the guard is not defensive habit - it closes a
+    # leak MEASURED on this machine. pytest renders the ARGUMENTS of every frame
+    # in a failing traceback, without --showlocals and without any opt-in. So an
+    # exception escaping `parse_body(body, ...)` prints the head of a REAL SAVE
+    # BODY into the test log, and a save body holds the world's contents
+    # (CLAUDE.md non-negotiables 11 and 12). Verified by planting a marker in a
+    # bytes argument of a raising frame: it appeared twice in pytest's output.
+    #
+    # So nothing may raise with the bytes in flight. The failure is converted
+    # here into two closed-vocabulary scalars, with no exception in flight and
+    # pytrace suppressed.
+    try:
+        table = objects.parse_body(body, save_version=save_version, header_version=header_version)
+    except objects.ObjectError as exc:
+        reason = type(exc).__name__
+        pytest.fail(
+            f"a real save of a measured pair did not walk: header {header_version}, "
+            f"save {save_version}, {reason}",
+            pytrace=False,
+        )
 
     assert table.records != ()
     assert table.level_count > 1

@@ -982,6 +982,16 @@ def test_the_builder_matches_the_shape_of_a_real_save() -> None:
     if counterpart is None:
         pytest.skip("real save carries a header version the corpus does not model")
 
-    real_shape = _shape_of(blob)
+    # GUARDED. pytest renders the ARGUMENTS of every frame in a failing
+    # traceback, with no opt-in, so `_shape_of(blob)` raising would print the
+    # head of a REAL SAVE - which is the PII-bearing header carrying the options
+    # string and the session name (non-negotiables 11 and 12). Measured on this
+    # machine, not assumed: a marker planted in a bytes argument of a raising
+    # frame appeared twice in pytest's output. The comparison below is safe
+    # because _shape_of returns scalars and booleans only.
+    try:
+        real_shape = _shape_of(blob)
+    except Exception as exc:
+        pytest.fail(f"the real save did not yield a shape: {type(exc).__name__}", pytrace=False)
     synthetic_shape = _shape_of(counterpart.blob)
     assert real_shape == synthetic_shape

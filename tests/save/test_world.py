@@ -31,13 +31,26 @@ catch.
 
 WHAT IS NOT PROVEN HERE, STATED PLAINLY
 -----------------------------------------
-Every byte parsed below is built by ``tests/save/synthetic.py`` and the corpus
-labels its own BODY layout MODELLED rather than measured. CS-407 records that a
-real body opens with a version-dependent preamble that nothing yet locates, so
-``objects.py`` starts the record table at body offset 0 - which is the corpus
-layout only. **A green run here is not evidence that ``load_world`` can read a
-real save.** The real-save test is skip-if-absent for that reason and asserts
-shapes rather than values.
+Almost every byte parsed below is built by ``tests/save/synthetic.py``, and a
+corpus can only ever agree with whoever wrote it. **A green run here is NOT
+evidence that ``load_world`` can read a real save**, with exactly two
+exceptions: the two skip-if-absent tests at the end of this module, whose
+subject was produced by the game rather than by this repo.
+
+Nor is a green run evidence that saves in general are readable. CS-409 routes
+the default load to ``objects.parse_body``, which reads only a body whose
+``(header version, save version)`` pair is in ``objects.MEASURED_BODY_LAYOUTS``
+- today the single pair header 10 with save 36. **Three of the four real pairs
+are refused**, and ``test_every_unmeasured_real_pair_is_refused_and_the_measured
+_one_is_not`` asserts that refusal rather than papering over it. A reader who
+takes 60-odd green dots for "the save reader reads saves" has misread this
+module by roughly a factor of four.
+
+The flat-bodied corpus is therefore loaded through ``_load_flat``, which names
+``world.BODY_LAYOUT_FLAT`` at every call site. That verbosity is the point: a
+silent fallback from the levelled reader to the flat one would keep all of this
+green while returning a wrong record count for a real world, which is precisely
+the defect CS-409 removed.
 
 Unlock state is NOT parsed by anything in this project. ADR 0004 measured which
 FIELDS exist; it did not measure their serialized grammar, and
@@ -54,16 +67,30 @@ THE TRACEBACK RENDERING BELOW IS THE ASSERTION, NOT AN EMISSION
 ``test_no_planted_string_reaches_any_world_load_error_surface`` formats the
 traceback of every wrapped error precisely so it can assert that no planted
 marker reaches it. That is the same shape ``tests/save/test_header.py`` and
-``tests/save/test_objects.py`` already carry, and both are recorded in
-``tests/test_exception_rendering.py`` as redaction-ASSERTION residuals. This
-module needs the same recorded entry; that file is outside this slice's
-write-list and the requirement is reported rather than self-granted.
+``tests/save/test_objects.py`` already carry, and all three - this module
+included - are now recorded in ``tests/test_exception_rendering.py`` as
+redaction-ASSERTION waivers, asserted live by
+``test_every_waiver_is_still_live``. Deleting the traceback rendering below
+would delete the only check of that channel AND strand that waiver.
+
+THE ONE SURFACE THAT IS NOT THIS MODULE'S OWN CODE
+-----------------------------------------------------
+pytest renders a failing frame's ARGUMENTS. The frame that raises inside
+``load_world_from_bytes`` holds a whole save's BYTES, so on a REAL save an
+escaping ``WorldLoadError`` prints the header options string - platform,
+account id and player display name in plaintext - into the test log. That is
+non-negotiable 12 by way of the test runner rather than the parser, and it was
+OBSERVED in this module's own red run rather than theorised. The two real-save
+tests therefore load through ``_load_real_save_or_skip``, which catches the
+refusal and re-reports it as two closed-vocabulary fields with no exception in
+flight and ``pytrace`` suppressed.
 """
 
 from __future__ import annotations
 
 import ast
 import hashlib
+import inspect
 import traceback
 from collections.abc import Callable
 from pathlib import Path
@@ -71,6 +98,7 @@ from typing import Final
 
 import pytest
 
+from clockspeed.data import locate
 from clockspeed.data.locate import ENV_ACCOUNT_DIR, ENV_GAME_DIR, ENV_LOCAL_CONFIG, ENV_SAVE_ROOT
 from clockspeed.save import chunks, header, objects, usmap, workdir, world
 from tests.save import synthetic
@@ -104,6 +132,13 @@ _TINY_CHUNK_BYTES: Final = 96
 _MATURE_RECORD_COUNT: Final = 40
 
 _ROOT: Final = "Persistent_Level:PersistentLevel"
+
+#: The keyword the caller picks a body layout with, and a value that is not one.
+#: The bad value is asserted ABSENT from the refusal's message: a layout string
+#: is caller-supplied rather than save-read, but echoing an argument back is the
+#: habit that eventually echoes one holding save content.
+_LAYOUT_PARAMETER: Final = "body_layout"
+_NOT_A_LAYOUT: Final = "NotALayoutMarker"
 
 _KNOWN_CLASS_PATH_A: Final = "/Synthetic/Parts/Build_SyntheticSmelter.Build_SyntheticSmelter_C"
 _KNOWN_CLASS_NAME_A: Final = "Build_SyntheticSmelter_C"
@@ -336,6 +371,40 @@ def _write_save(directory: Path, name: str, blob: bytes) -> Path:
 
 
 # ---------------------------------------------------------------------------
+# CS-409: the corpus is FLAT-BODIED, and every load of it says so.
+#
+# Almost every fixture in tests/save/synthetic.py is built by ``build_body``,
+# which writes the single flat record table CS-407 measured to be a shape NO
+# REAL BODY HAS. ``SAVE_LEVELLED_V36`` is the only one built by
+# ``build_levelled_body``. So the corpus loads below are not the default path
+# and must not silently become it - they name the flat reader, once, here.
+#
+# THE TWO HELPERS DO NOT DEFAULT ANYTHING. They pass the layout explicitly, so
+# the module's own coverage of the DEFAULT lives entirely in the CS-409 section
+# further down, where it is asserted on the signature rather than inherited from
+# a helper a later test author copies without reading.
+# ---------------------------------------------------------------------------
+
+
+def _load_flat(data: bytes, **kwargs: object) -> world.WorldModel:
+    """Load a FLAT-bodied corpus fixture from bytes, saying so at the call site."""
+    return world.load_world_from_bytes(
+        data,
+        body_layout=world.BODY_LAYOUT_FLAT,
+        **kwargs,  # type: ignore[arg-type]
+    )
+
+
+def _load_flat_path(path: Path, **kwargs: object) -> world.WorldModel:
+    """Load a FLAT-bodied corpus fixture from disk, saying so at the call site."""
+    return world.load_world(
+        path,
+        body_layout=world.BODY_LAYOUT_FLAT,
+        **kwargs,  # type: ignore[arg-type]
+    )
+
+
+# ---------------------------------------------------------------------------
 # 1 - all four version fixtures load through the one entry point (CS-402)
 # ---------------------------------------------------------------------------
 
@@ -358,7 +427,7 @@ def test_every_version_fixture_loads_through_the_one_entry_point(
     36 and 52, and ``test_a_save_version_with_no_measured_delta_is_refused``
     pins the refusal.
     """
-    model = world.load_world_from_bytes(fixture.blob)
+    model = _load_flat(fixture.blob)
 
     assert isinstance(model, world.WorldModel)
     assert model.header.header_version == fixture.header_version
@@ -374,7 +443,7 @@ def test_save_cross_proves_the_composer_threads_both_scalars() -> None:
     body prefix with a NARROW transform delta, so a composer that threaded one
     scalar and derived the other passes every other fixture here.
     """
-    model = world.load_world_from_bytes(synthetic.SAVE_CROSS.blob)
+    model = _load_flat(synthetic.SAVE_CROSS.blob)
 
     assert (model.objects.body_prefix_width, model.objects.transform_delta) == (
         _WIDE_PREFIX,
@@ -385,7 +454,7 @@ def test_save_cross_proves_the_composer_threads_both_scalars() -> None:
 
 def test_the_narrow_prefix_fixture_is_dispatched_on_the_header_version() -> None:
     """The other side of the same seam: header 10 is the narrow-prefix branch."""
-    model = world.load_world_from_bytes(synthetic.SAVE_V36.blob)
+    model = _load_flat(synthetic.SAVE_V36.blob)
 
     assert (model.objects.body_prefix_width, model.objects.transform_delta) == (
         _NARROW_PREFIX,
@@ -398,7 +467,7 @@ def test_a_multi_chunk_save_loads_as_one_body() -> None:
     """A real save is multi-chunk. A composer that read one chunk reports a truncated world."""
     blob = _blob(objects_=_records(_MATURE_RECORD_COUNT), max_chunk_size=_TINY_CHUNK_BYTES)
 
-    model = world.load_world_from_bytes(blob)
+    model = _load_flat(blob)
 
     assert len(model.objects.records) == _MATURE_RECORD_COUNT
 
@@ -424,8 +493,8 @@ def test_two_saves_sharing_an_identifier_yield_the_same_token() -> None:
         max_chunk_size=_TINY_CHUNK_BYTES,
     )
 
-    one = world.load_world_from_bytes(first)
-    two = world.load_world_from_bytes(second)
+    one = _load_flat(first)
+    two = _load_flat(second)
 
     # Every one of the four differences is ASSERTED, not assumed. A stability
     # test whose two inputs are accidentally identical asserts nothing at all.
@@ -446,8 +515,8 @@ def _chunk_count(blob: bytes) -> int:
 
 def test_a_different_identifier_yields_a_different_token() -> None:
     """The other half of acceptance 2 - the control for the test above."""
-    same = world.load_world_from_bytes(_blob(world_token=synthetic.SYNTHETIC_WORLD_TOKEN))
-    other = world.load_world_from_bytes(_blob(world_token=synthetic.SYNTHETIC_WORLD_TOKEN_B))
+    same = _load_flat(_blob(world_token=synthetic.SYNTHETIC_WORLD_TOKEN))
+    other = _load_flat(_blob(world_token=synthetic.SYNTHETIC_WORLD_TOKEN_B))
 
     assert same.token != other.token
 
@@ -460,7 +529,7 @@ def test_a_token_never_seen_before_returns_a_normal_world_model(
     assert isolated_work_root  # the fixture is what keeps the copy out of the repo
     source = _write_save(tmp_path / "saves", "synthetic.sav", _blob(world_token=_UNSEEN_TOKEN))
 
-    model = world.load_world(source)
+    model = _load_flat_path(source)
 
     assert isinstance(model, world.WorldModel)
     assert model.token == _UNSEEN_TOKEN
@@ -468,7 +537,7 @@ def test_a_token_never_seen_before_returns_a_normal_world_model(
 
 def test_the_token_is_the_header_identifier_and_not_a_derived_value() -> None:
     """Pinned because a composer that hashed or normalised the token would still be stable."""
-    model = world.load_world_from_bytes(synthetic.SAVE_V60.blob)
+    model = _load_flat(synthetic.SAVE_V60.blob)
 
     assert model.token == synthetic.SYNTHETIC_WORLD_TOKEN
 
@@ -498,7 +567,7 @@ def test_an_absent_unlock_array_is_an_empty_set_rather_than_an_error(record_coun
     A fixture built only from a mature world stays green through exactly that
     defect, which is why both shapes are parametrized rather than one asserted.
     """
-    model = world.load_world_from_bytes(_blob(objects_=_records(record_count)))
+    model = _load_flat(_blob(objects_=_records(record_count)))
 
     assert model.unlocks.purchased_schematics == frozenset()
     assert model.unlocks.recipes == frozenset()
@@ -514,7 +583,7 @@ def test_the_empty_unlock_state_says_the_grammar_is_unmeasured() -> None:
     genuinely has nothing unlocked. The warning is what makes the emptiness
     honest rather than a fabricated answer.
     """
-    model = world.load_world_from_bytes(synthetic.SAVE_V60.blob)
+    model = _load_flat(synthetic.SAVE_V60.blob)
 
     codes = {warning.code for warning in model.warnings}
     assert world.WARN_UNLOCK_GRAMMAR_UNMEASURED in codes
@@ -528,7 +597,7 @@ def test_no_unlock_field_is_ever_fabricated() -> None:
     have been read. A non-empty collection here would mean an invented one.
     """
     for fixture in _LOADABLE_FIXTURES:
-        unlocks = world.load_world_from_bytes(fixture.blob).unlocks
+        unlocks = _load_flat(fixture.blob).unlocks
         assert not unlocks.purchased_schematics
         assert not unlocks.recipes
         assert not unlocks.scanned_resources
@@ -543,35 +612,33 @@ def test_no_unlock_field_is_ever_fabricated() -> None:
 
 def _header_failure() -> object:
     """An unsupported header version - header.UnsupportedHeaderVersionError."""
-    return world.load_world_from_bytes(
+    return _load_flat(
         _planted_blob(header_version=_UNSUPPORTED_HEADER_VERSION, with_save_name=True)
     )
 
 
 def _header_truncation_failure() -> object:
     """A file that ends inside the header - header.HeaderTruncatedError."""
-    return world.load_world_from_bytes(_planted_blob()[:24])
+    return _load_flat(_planted_blob()[:24])
 
 
 def _chunk_magic_failure() -> object:
     """A corrupted chunk magic - chunks.ChunkFramingError."""
     blob = _planted_blob()
     at = _chunk_offset(blob)
-    return world.load_world_from_bytes(blob[:at] + b"\x44\x33\x22\x11" + blob[at + 4 :])
+    return _load_flat(blob[:at] + b"\x44\x33\x22\x11" + blob[at + 4 :])
 
 
 def _chunk_stream_failure() -> object:
     """A corrupted zlib stream - chunks.ChunkDecompressError."""
     blob = _planted_blob()
     at = _chunk_offset(blob) + synthetic.ZLIB_OFFSET_WITH_ALGO
-    return world.load_world_from_bytes(blob[:at] + bytes([blob[at] ^ 0xFF]) + blob[at + 1 :])
+    return _load_flat(blob[:at] + bytes([blob[at] ^ 0xFF]) + blob[at + 1 :])
 
 
 def _object_version_failure() -> object:
     """A save version with no measured transform delta - objects.UnsupportedSaveVersionError."""
-    return world.load_world_from_bytes(
-        _planted_blob(header_version=_HEADER_13, save_version=_SAVE_42, objects_=())
-    )
+    return _load_flat(_planted_blob(header_version=_HEADER_13, save_version=_SAVE_42, objects_=()))
 
 
 def _object_truncation_failure() -> object:
@@ -582,7 +649,7 @@ def _object_truncation_failure() -> object:
     payload = body[: len(body) - 24]
     head = blob[: parsed.body_offset]
     framing = synthetic.default_framing(_HEADER_14)
-    return world.load_world_from_bytes(head + synthetic.build_chunks(payload, framing=framing))
+    return _load_flat(head + synthetic.build_chunks(payload, framing=framing))
 
 
 def _chunk_offset(blob: bytes) -> int:
@@ -602,7 +669,7 @@ def _usmap_failure_factory(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> C
 
     def call() -> object:
         _install_with_broken_usmap(monkeypatch, tmp_path)
-        return world.load_world_from_bytes(_planted_blob())
+        return _load_flat(_planted_blob())
 
     return call
 
@@ -660,9 +727,16 @@ def test_the_usmap_family_surfaces_as_a_world_load_error(
 
 
 def test_a_save_version_with_no_measured_delta_is_refused() -> None:
-    """SAVE_V42 cannot load, and that refusal is the format record rather than a gap."""
+    """SAVE_V42 cannot load, and that refusal is the format record rather than a gap.
+
+    THE FLAT READER IS NAMED HERE ON PURPOSE. Save 42's missing TRANSFORM DELTA
+    is a different unmeasured thing from header 13 / save 42's missing BODY
+    LAYOUT, and the levelled reader refuses on the layout first - so under the
+    default this test would still pass while no longer asserting what it says it
+    asserts. Naming the flat reader keeps the delta the subject.
+    """
     with pytest.raises(world.WorldLoadError) as caught:
-        world.load_world_from_bytes(synthetic.SAVE_V42.blob)
+        _load_flat(synthetic.SAVE_V42.blob)
 
     assert isinstance(caught.value.__cause__, objects.UnsupportedSaveVersionError)
 
@@ -757,7 +831,7 @@ def test_the_world_model_repr_carries_no_token_no_name_and_no_class_path() -> No
     print, so the rendering has to stay safe even when the parse is wrong.
     """
     blob = _planted_blob()
-    model = world.load_world_from_bytes(blob)
+    model = _load_flat(blob)
     rendered = repr(model)
 
     for token in _PLANTED_TOKENS:
@@ -768,7 +842,7 @@ def test_the_world_model_repr_carries_no_token_no_name_and_no_class_path() -> No
 
 def test_the_world_model_repr_renders_the_token_as_the_shared_mask() -> None:
     """``header.masked_token`` already exists. A second mask would be a second surface."""
-    model = world.load_world_from_bytes(synthetic.SAVE_V60.blob)
+    model = _load_flat(synthetic.SAVE_V60.blob)
 
     assert header.masked_token(model.token) in repr(model)
     assert model.token not in repr(model)
@@ -776,7 +850,7 @@ def test_the_world_model_repr_renders_the_token_as_the_shared_mask() -> None:
 
 def test_the_world_model_repr_renders_counts_and_versions() -> None:
     """A repr that withheld everything would be safe and useless."""
-    model = world.load_world_from_bytes(synthetic.SAVE_V60.blob)
+    model = _load_flat(synthetic.SAVE_V60.blob)
     rendered = repr(model)
 
     assert f"header_version={_HEADER_14}" in rendered
@@ -786,7 +860,7 @@ def test_the_world_model_repr_renders_counts_and_versions() -> None:
 
 def test_the_resource_node_repr_withholds_its_strings() -> None:
     """A node's instance name is world content and is withheld for the same reason."""
-    model = world.load_world_from_bytes(_blob(objects_=(_node_record(),)))
+    model = _load_flat(_blob(objects_=(_node_record(),)))
 
     rendered = repr(model.nodes[0])
     assert "SyntheticNode_0" not in rendered
@@ -814,7 +888,7 @@ def test_an_absent_property_map_warns_and_still_loads(
     """
     _no_install(monkeypatch, tmp_path)
 
-    model = world.load_world_from_bytes(synthetic.SAVE_V60.blob)
+    model = _load_flat(synthetic.SAVE_V60.blob)
 
     codes = {warning.code for warning in model.warnings}
     assert world.WARN_NO_PROPERTY_MAP in codes
@@ -831,7 +905,7 @@ def test_an_absent_property_map_claims_nothing_about_unknown_content(
     """
     _no_install(monkeypatch, tmp_path)
 
-    model = world.load_world_from_bytes(synthetic.unknown_actor_class().blob)
+    model = _load_flat(synthetic.unknown_actor_class().blob)
 
     assert model.objects.unknown_classes == ()
     assert model.contains_unmodeled_content is False
@@ -839,7 +913,7 @@ def test_an_absent_property_map_claims_nothing_about_unknown_content(
 
 def test_a_supplied_property_map_suppresses_the_absent_map_warning() -> None:
     """The warning reports a real state rather than firing unconditionally."""
-    model = world.load_world_from_bytes(
+    model = _load_flat(
         synthetic.SAVE_V60.blob,
         property_map=_property_map(_KNOWN_CLASS_NAME_A, _KNOWN_CLASS_NAME_B),
     )
@@ -855,7 +929,7 @@ def test_a_supplied_property_map_suppresses_the_absent_map_warning() -> None:
 
 def test_contains_unmodeled_content_is_true_when_a_class_is_not_modelled() -> None:
     """Acceptance 7, the true half. BOOTSTRAP.md section 9 requires the explicit report."""
-    model = world.load_world_from_bytes(
+    model = _load_flat(
         synthetic.unknown_actor_class().blob,
         property_map=_property_map(_KNOWN_CLASS_NAME_A),
     )
@@ -866,7 +940,7 @@ def test_contains_unmodeled_content_is_true_when_a_class_is_not_modelled() -> No
 
 def test_contains_unmodeled_content_is_false_when_every_class_is_modelled() -> None:
     """Acceptance 7, the false half. Without it, a hardcoded True passes."""
-    model = world.load_world_from_bytes(
+    model = _load_flat(
         synthetic.SAVE_V60.blob,
         property_map=_property_map(_KNOWN_CLASS_NAME_A, _KNOWN_CLASS_NAME_B),
     )
@@ -879,9 +953,7 @@ def test_an_unknown_class_does_not_stop_the_walk() -> None:
     """The release valve: the record is recorded, stepped over, and the walk finishes."""
     fixture = synthetic.unknown_actor_class()
 
-    model = world.load_world_from_bytes(
-        fixture.blob, property_map=_property_map(_KNOWN_CLASS_NAME_A)
-    )
+    model = _load_flat(fixture.blob, property_map=_property_map(_KNOWN_CLASS_NAME_A))
 
     assert len(model.objects.records) == len(fixture.objects)
 
@@ -893,7 +965,7 @@ def test_an_unknown_class_does_not_stop_the_walk() -> None:
 
 def test_a_resource_node_actor_is_recovered_with_its_placement() -> None:
     """ADR 0003: 626 node actors, 626 valid transforms. Geometry is free and exact."""
-    model = world.load_world_from_bytes(
+    model = _load_flat(
         _blob(objects_=(_node_record(), synthetic.SyntheticObject(_KNOWN_CLASS_PATH_A, _ROOT, "x")))
     )
 
@@ -904,7 +976,7 @@ def test_a_resource_node_actor_is_recovered_with_its_placement() -> None:
 
 def test_a_world_with_no_node_actors_has_no_nodes() -> None:
     """The control. Without it, a node list built from every record would pass above."""
-    model = world.load_world_from_bytes(synthetic.SAVE_V60.blob)
+    model = _load_flat(synthetic.SAVE_V60.blob)
 
     assert model.nodes == ()
 
@@ -916,7 +988,7 @@ def test_node_semantics_are_reported_as_unavailable_rather_than_guessed() -> Non
     the save at all, so a node carries placement and nothing else. Reporting
     that is what keeps degraded mode honest instead of quietly partial.
     """
-    model = world.load_world_from_bytes(_blob(objects_=(_node_record(),)))
+    model = _load_flat(_blob(objects_=(_node_record(),)))
 
     codes = {warning.code for warning in model.warnings}
     assert world.WARN_NODE_SEMANTICS_UNAVAILABLE in codes
@@ -1024,7 +1096,7 @@ def test_load_world_does_not_disturb_the_file_it_reads(
     source = _write_save(save_dir, "synthetic.sav", synthetic.SAVE_V60.blob)
     before = _fingerprint(save_dir)
 
-    model = world.load_world(source)
+    model = _load_flat_path(source)
 
     assert model.token == synthetic.SYNTHETIC_WORLD_TOKEN
     assert _fingerprint(save_dir) == before
@@ -1054,7 +1126,7 @@ def test_load_world_copies_before_it_parses(
     _no_install(monkeypatch, tmp_path)
     source = _write_save(tmp_path / "saves", "synthetic.sav", synthetic.SAVE_V60.blob)
 
-    world.load_world(source)
+    _load_flat_path(source)
 
     copies = list(isolated_work_root.rglob("*" + workdir.COPY_SUFFIX))
     assert len(copies) == 1
@@ -1084,7 +1156,7 @@ def test_the_world_model_carries_every_layer_s_warnings() -> None:
     """One stream, so a caller never has to reach into a sub-model to find a flag."""
     blob = _blob(header_version=_HEADER_14, save_version=_SAVE_36)
 
-    model = world.load_world_from_bytes(blob)
+    model = _load_flat(blob)
 
     sources = {warning.source for warning in model.warnings}
     assert world.SOURCE_HEADER in sources
@@ -1094,7 +1166,7 @@ def test_the_world_model_carries_every_layer_s_warnings() -> None:
 
 def test_no_world_warning_carries_a_string_read_out_of_the_save() -> None:
     """A warning is an echo path like any other. Every detail is fixed text."""
-    model = world.load_world_from_bytes(_planted_blob(header_version=_HEADER_14))
+    model = _load_flat(_planted_blob(header_version=_HEADER_14))
 
     for warning in model.warnings:
         rendered = f"{warning.source} {warning.code} {warning.detail}"
@@ -1117,10 +1189,154 @@ def test_the_world_module_imports_no_layer_above_it() -> None:
 
 def test_the_world_model_is_frozen() -> None:
     """A higher layer holds this object. A mutable one is a shared mutable world state."""
-    model = world.load_world_from_bytes(synthetic.SAVE_V60.blob)
+    model = _load_flat(synthetic.SAVE_V60.blob)
 
     with pytest.raises((AttributeError, TypeError)):
         model.token = _MUTATED_TOKEN  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# 10 - CS-409: the body layout a REAL save has, and the refusal for every pair
+# whose layout has not been measured
+# ---------------------------------------------------------------------------
+
+
+def _levelled_record_count() -> int:
+    """How many records the levelled fixture's levels declare between them.
+
+    Derived from the fixture rather than written down, because a literal here
+    would have to be re-derived by hand every time the corpus grows a level.
+
+    Returns:
+        The record count, components included.
+    """
+    return sum(
+        level.record_count for level in (*synthetic.LEVELLED_NAMED, synthetic.LEVELLED_PERSISTENT)
+    )
+
+
+def test_the_default_load_reads_the_levelled_body_a_real_save_actually_has() -> None:
+    """CS-409 acceptance 1. The DEFAULT path reads the shape a real body has.
+
+    CS-407 measured that no real body is a flat record table, so a composer
+    whose default is the flat reader returns an empty or wrong world from a real
+    save - the one outcome non-negotiable 7 forbids outright. This asserts the
+    LEVEL COUNT as well as the record count: the flat reader reports level_count
+    0 by construction, so the level count alone separates the two readers, and
+    the record count alone would not.
+    """
+    model = world.load_world_from_bytes(synthetic.SAVE_LEVELLED_V36.blob)
+
+    assert len(model.objects.records) == _levelled_record_count()
+    assert model.objects.level_count == len(synthetic.LEVELLED_NAMED) + 1
+    assert not [w for w in model.objects.warnings if w.code == objects.WARN_UNPARSED_DATA_SECTION]
+
+
+def test_a_pair_with_no_measured_body_layout_is_refused_rather_than_guessed() -> None:
+    """CS-409 acceptance 2, and the whole reason the item exists.
+
+    Header 14 / save 60 is a REAL pair whose whole-body layout has not been
+    derived. Before CS-409 this returned a WorldModel: the flat reader walked a
+    levelled body and reported whatever fell out. A refusal is the only honest
+    answer - an empty world, a wrong count and a crash are all worse, and the
+    first two are worse than the crash because nothing downstream can tell.
+    """
+    with pytest.raises(world.WorldLoadError) as caught:
+        world.load_world_from_bytes(synthetic.SAVE_V60.blob)
+
+    assert isinstance(caught.value.__cause__, objects.UnsupportedBodyLayoutError)
+    assert caught.value.stage == world.STAGE_OBJECTS
+
+
+def test_every_unmeasured_real_pair_is_refused_and_the_measured_one_is_not() -> None:
+    """The sibling sweep. One refusal proves one branch; the table proves the rule.
+
+    Every pair the corpus carries is checked against
+    ``objects.MEASURED_BODY_LAYOUTS`` rather than against a list written here,
+    so the day a pair is measured this test follows the measurement instead of
+    contradicting it.
+    """
+    for fixture in (*_LOADABLE_FIXTURES, synthetic.SAVE_LEVELLED_V36):
+        pair = (fixture.header_version, fixture.save_version)
+        if pair in objects.MEASURED_BODY_LAYOUTS:
+            continue
+        with pytest.raises(world.WorldLoadError) as caught:
+            world.load_world_from_bytes(fixture.blob)
+        assert isinstance(caught.value.__cause__, objects.ObjectError)
+
+
+def test_the_default_body_layout_is_the_one_a_real_save_needs() -> None:
+    """The safe path is the one a caller gets by not thinking about it.
+
+    Asserted on the SIGNATURE rather than on behaviour, because a default is
+    exactly the kind of thing a later edit flips while every behavioural test
+    that passes the argument explicitly stays green.
+    """
+    for entry in (world.load_world, world.load_world_from_bytes):
+        parameter = inspect.signature(entry).parameters[_LAYOUT_PARAMETER]
+        assert parameter.default == world.BODY_LAYOUT_LEVELLED
+        assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
+
+
+def test_the_flat_layout_is_reachable_only_through_an_explicit_choice() -> None:
+    """The corpus keeps working, and says so at every call site.
+
+    A silent try-flat-then-levelled fallback would keep every fixture green and
+    would hide exactly the wrong-shape defect this item removes, so the flat
+    reader is opt-in and named.
+    """
+    model = world.load_world_from_bytes(synthetic.SAVE_V60.blob, body_layout=world.BODY_LAYOUT_FLAT)
+
+    assert len(model.objects.records) == len(synthetic.SAVE_V60.objects)
+    assert model.objects.level_count == 0
+
+
+def test_an_unknown_body_layout_is_refused_before_a_byte_is_read() -> None:
+    """A caller bug is not a bad save, so it is NOT a WorldLoadError.
+
+    Raised eagerly and from both entry points. A check placed after the header
+    parse would report a save defect for a typo in an argument, and a caller
+    holding a genuinely broken save would never learn the argument was wrong.
+    """
+    for entry, argument in (
+        (world.load_world_from_bytes, synthetic.SAVE_LEVELLED_V36.blob),
+        (world.load_world, Path("there-is-no-such-save.sav")),
+    ):
+        with pytest.raises(ValueError) as caught:  # noqa: PT011 - the message IS asserted below
+            entry(argument, body_layout=_NOT_A_LAYOUT)  # type: ignore[arg-type]
+        assert not isinstance(caught.value, world.WorldLoadError)
+        assert _NOT_A_LAYOUT not in str(caught.value)
+
+
+def test_the_body_layout_vocabulary_is_closed() -> None:
+    """Two layouts, both named, and nothing else reachable.
+
+    Their DISTINCTNESS is deliberately not asserted here. Both are ``Final``
+    string literals, so mypy resolves the comparison statically and rejects
+    ``BODY_LAYOUT_LEVELLED != BODY_LAYOUT_FLAT`` as a non-overlapping equality
+    check - the type checker proves it at every commit, which is stronger than
+    a runtime assertion that only runs when the suite does.
+    """
+    assert set(world.BODY_LAYOUTS) == {world.BODY_LAYOUT_LEVELLED, world.BODY_LAYOUT_FLAT}
+    assert len(world.BODY_LAYOUTS) == len(set(world.BODY_LAYOUTS))
+
+
+def test_the_module_docstring_records_which_pairs_can_actually_be_read() -> None:
+    """A green suite must not be mistaken for "the save reader reads saves".
+
+    Three of the four real pairs are refused. That is the single most important
+    fact about this module today, so it is asserted rather than left to a
+    reader's goodwill - and asserted against the live measured set, so the
+    sentence cannot outlive the measurement it describes.
+    """
+    docstring = world.__doc__ or ""
+    measured = sorted(objects.MEASURED_BODY_LAYOUTS)
+
+    assert len(measured) == 1
+    for header_version, save_version in measured:
+        assert f"header {header_version}" in docstring
+        assert f"save {save_version}" in docstring
+    assert "MEASURED_BODY_LAYOUTS" in docstring
 
 
 # ---------------------------------------------------------------------------
@@ -1135,38 +1351,190 @@ def test_a_real_save_is_not_required_by_this_module(
 
     Asserted rather than assumed: the whole corpus is re-loaded with all four
     overrides pointed at nothing, which is the environment the rule suite runs
-    in.
+    in. BOTH readers are exercised - the levelled one is the default path and
+    therefore the one CI would fail on first.
     """
     _no_install(monkeypatch, tmp_path)
 
     for fixture in _LOADABLE_FIXTURES:
-        assert world.load_world_from_bytes(fixture.blob).token
+        assert _load_flat(fixture.blob).token
+    assert world.load_world_from_bytes(synthetic.SAVE_LEVELLED_V36.blob).token
 
 
 def test_the_real_library_reaches_the_object_stage_when_one_is_present(
     isolated_work_root: Path,
 ) -> None:
-    """Skip-if-absent, and COUNTS ONLY. CS-407 is why this asserts so little.
+    """Skip-if-absent, and COUNTS ONLY, over the NEWEST save whatever its pair.
 
-    A real body opens with a version-dependent preamble that nothing yet
-    locates, so the object walk cannot reach a real actor table. What this test
-    CAN prove is that the seam threads a real header's two version scalars into
-    a real chunk walk and gets a body out - and that whatever happens next is a
-    named ``WorldLoadError`` rather than a crash. It binds derived SCALARS to
-    locals and compares those; it renders no token, no name and no path.
+    Distinct from the end-to-end test below, which selects a save of a MEASURED
+    pair. This one takes whatever ``workdir.latest_save`` returns - most often
+    one of the three real pairs whose body layout is unmeasured - and proves
+    that the header parse and the chunk walk still reach a body for it. Those
+    two stages are version-correct for all four real pairs; only the object
+    stage is not, which is why this stops at the payload.
+
+    THE WHOLE BODY IS INSIDE A GUARD. ``header.read_header`` takes a PATH and
+    ``chunks.decompress_body`` takes the save's BYTES, and pytest renders a
+    failing frame's arguments - so an escaping error from either publishes an
+    absolute path under a home directory (non-negotiable 3) or the header
+    options string (non-negotiable 12). The failure is re-reported as the
+    error's class name, which is module-defined vocabulary, with no exception
+    in flight and ``pytrace`` suppressed.
     """
     assert isolated_work_root
     source = workdir.latest_save()
     if source is None:
         pytest.skip("no save library on this machine")
 
-    parsed = header.read_header(source)
-    token_length = len(parsed.world_token)
-    body = chunks.decompress_body(
-        source.read_bytes(), parsed.body_offset, header_version=parsed.header_version
-    )
+    scalars: tuple[int, int, int, int] | None = None
+    refusal: str | None = None
+    try:
+        parsed = header.read_header(source)
+        body = chunks.decompress_body(
+            source.read_bytes(), parsed.body_offset, header_version=parsed.header_version
+        )
+        scalars = (
+            parsed.header_version,
+            len(parsed.world_token),
+            body.chunk_count,
+            len(body.payload),
+        )
+    except (OSError, header.HeaderError, chunks.ChunkError) as exc:
+        refusal = type(exc).__name__
 
-    assert parsed.header_version in header.SUPPORTED_HEADER_VERSIONS
+    if refusal is not None:
+        pytest.fail(f"the newest real save did not reach a body: {refusal}", pytrace=False)
+    assert scalars is not None
+    header_version, token_length, chunk_count, payload_length = scalars
+
+    assert header_version in header.SUPPORTED_HEADER_VERSIONS
     assert token_length == header.WORLD_TOKEN_LENGTH
-    assert body.chunk_count >= 1
-    assert len(body.payload) > 0
+    assert chunk_count >= 1
+    assert payload_length > 0
+
+
+def _one_real_save_path_of_a_measured_pair() -> Path | None:
+    """Find a real save whose whole-body layout this project has measured.
+
+    The path is RETURNED and never rendered: ``load_world`` needs one, and an
+    absolute path under a home directory is personal data (non-negotiable 3).
+    Every caller below binds it to a local and passes it straight on.
+
+    Returns:
+        The path, or None when no such file is reachable on this machine.
+    """
+    root = locate.resolve_save_root()
+    if root is None:
+        return None
+    account = locate.resolve_account_dir(root)
+    if account is None:
+        return None
+    for path in sorted(account.glob("*.sav")):
+        try:
+            parsed = header.parse_header(path.read_bytes())
+        except (OSError, header.HeaderError):
+            continue
+        if (parsed.header_version, parsed.save_version) in objects.MEASURED_BODY_LAYOUTS:
+            return path
+    return None
+
+
+def _load_real_save_or_skip() -> world.WorldModel:
+    """Load a real save of a measured pair end to end, or skip.
+
+    THE EXCEPTION IS CAUGHT AND REDUCED TO TWO CLOSED-VOCABULARY FIELDS, AND
+    THAT IS THE WHOLE POINT OF THIS HELPER. pytest renders a failing frame's
+    ARGUMENTS, and the frame that raises inside ``load_world_from_bytes`` has a
+    whole real save's bytes as its argument - so an escaping ``WorldLoadError``
+    prints the header's options string, which carries the platform, the account
+    id and the player display name in plaintext, straight into the test log.
+    That is non-negotiable 12 by way of the test runner rather than by way of
+    the parser, and it was OBSERVED in this module's own red run before the
+    CS-409 fix landed, not theorised.
+
+    The re-report runs with no exception in flight and with ``pytrace``
+    suppressed, so neither the frame nor a ``__context__`` chain is rendered.
+
+    Returns:
+        The loaded model. Never returns on failure.
+    """
+    source = _one_real_save_path_of_a_measured_pair()
+    if source is None:
+        pytest.skip("no real save of a measured body-layout pair is present on this machine")
+
+    model: world.WorldModel | None = None
+    refusal: str | None = None
+    try:
+        model = world.load_world(source)
+    except world.WorldLoadError as exc:
+        refusal = f"{exc.stage}/{exc.cause_type}"
+
+    if refusal is not None:
+        pytest.fail(f"a real save of a measured pair did not load: {refusal}", pytrace=False)
+    assert model is not None
+    return model
+
+
+def test_a_real_save_of_a_measured_pair_loads_end_to_end_into_a_world_model(
+    isolated_work_root: Path,
+) -> None:
+    """THE PAYOFF. The first time anything in this project reads a real world.
+
+    Everything above this line is synthetic, and a corpus can only ever agree
+    with whoever wrote it. This is the one assertion in the module whose subject
+    was produced by the game, and it runs the WHOLE composition - copy, header,
+    chunks, property map, levelled body walk, model - through the single public
+    entry point rather than through the stages one at a time.
+
+    IT IS ALSO THE FIRST TEST THAT COULD LEAK A REAL WORLD. Every assertion
+    below binds a COUNT or a SCALAR to a local and compares that, so a failure
+    renders integers and booleans. No token, no level name, no class path, no
+    instance name and no path reaches an assertion, a message or a skip reason,
+    and the load itself goes through :func:`_load_real_save_or_skip` because a
+    RAISING load renders the save's bytes without either.
+    """
+    assert isolated_work_root
+    model = _load_real_save_or_skip()
+
+    record_count = len(model.objects.records)
+    level_count = model.objects.level_count
+    token_length = len(model.token)
+    pair = (model.objects.header_version, model.objects.save_version)
+    unparsed = len(
+        [w for w in model.objects.warnings if w.code == objects.WARN_UNPARSED_DATA_SECTION]
+    )
+    token_matches_header = model.token == model.header.world_token
+
+    assert record_count > 0
+    assert level_count > 1
+    assert token_length == header.WORLD_TOKEN_LENGTH
+    assert token_matches_header
+    assert pair in objects.MEASURED_BODY_LAYOUTS
+    assert unparsed == 0
+
+
+def test_a_real_world_model_reprs_without_leaking_it(isolated_work_root: Path) -> None:
+    """The repr guarantee, asserted against a REAL world rather than a fixture.
+
+    A planted marker proves the repr withholds a string the fixture put there.
+    It cannot prove the repr withholds a string only a real save has - and a
+    test runner or a logger reprs an object before a human chooses what to
+    print, so this is the surface that decides whether a crash discloses.
+    """
+    assert isolated_work_root
+    model = _load_real_save_or_skip()
+    rendered = repr(model)
+
+    # An EMPTY string is in every string, so a blank field would make an
+    # absence check pass or fail for a reason that has nothing to do with the
+    # repr. Blanks are dropped and the count of what was actually checked is
+    # asserted, so this cannot quietly degrade into checking nothing.
+    strings = [model.token, model.header.map_name]
+    strings.extend(r.type_path for r in model.objects.records)
+    strings.extend(r.instance_name for r in model.objects.records)
+    checked = [value for value in strings if value]
+    leaked = len([value for value in checked if value in rendered])
+
+    assert len(checked) > _TRIPLE
+    assert leaked == 0
+    assert rendered.isascii()

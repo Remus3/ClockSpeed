@@ -74,6 +74,82 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-14 - PII - pytest renders a failing frame's ARGUMENTS, so passing real save bytes into a raising frame is an echo path
+Verification: `tests/save/test_objects.py`, `tests/save/test_phase4_gate.py` and
+`tests/save/test_synthetic.py`, each real-save read now guarded. MEASURED, not reasoned
+about: a marker planted in a bytes argument of a raising frame appeared TWICE in pytest's
+output, with no `--showlocals` and no opt-in of any kind.
+THE WORST CASE IS THE HEAD OF A SAVE FILE, which is exactly the PII-bearing header - the save
+name, the options string carrying platform, account id and player display name, and the
+session name, which IS the operator's world name. So a test that passes `path.read_bytes()`
+into a frame that can raise prints all of that into the test log on the day it fails.
+Found by the CS-409 builder, which hit it on its OWN first red run - its output printed a
+real session name - and closed it for `tests/save/test_world.py`. It then stated plainly that
+it had NOT audited sibling modules, which is what made the sweep possible. The merger swept
+and found two more live sites and fixed all three: the object walk's real-save acceptance
+test, the gate's real-save partial, and the corpus shape anchor.
+The remedy is the same in each: catch, convert to closed-vocabulary scalars - a stage name
+and an exception CLASS name - and fail with `pytrace=False`, so nothing raises with the bytes
+in flight. This failure class is invisible to every green run BY CONSTRUCTION, because it
+only fires on failure, which is exactly when nobody is reading carefully.
+
+### 2026-08-14 - CS-409 - load_world routes to the LEVELLED body walk, and a real world parses END TO END
+Verification: `clockspeed/save/world.py` plus `tests/save/test_world.py`. Re-verified by the
+merger against the live library independently of the builder: **3 of 14 real saves now load
+end to end into a `WorldModel`** - 25769, 25769 and 25725 records, 202 levels, 2774 nodes -
+and the other 11 are refused with a clean `WorldLoadError`.
+INDEPENDENT CONFIRMATION OF CS-401 ON REAL DATA, which no fixture could supply: all three
+loaded saves render the SAME masked token digest while carrying DIFFERENT record counts. Two
+saves of one world share a token; the world changed between them. That is the token-stability
+claim measured on the game's own output rather than on a corpus.
+THE ROUTING DECISION AND WHY THE ALTERNATIVES WERE REJECTED, because this is the seam:
+`body_layout` is a keyword-only parameter DEFAULTING TO LEVELLED, so the safe path is the one
+a caller gets by not thinking. Routing on `MEASURED_BODY_LAYOUTS` was rejected under both of
+its readings - "unmeasured means flat" sends a real header-14 save to the flat reader, which
+is the silently-wrong world this item exists to remove, and "unmeasured means raise" deletes
+the whole flat corpus including `SAVE_CROSS`, which exists in no real file and can never be
+rescued. A fixture-shape probe was rejected as the banned silent fallback in disguise. An
+unrecognised layout raises `ValueError` and deliberately NOT `WorldLoadError`, so catching a
+bad save cannot swallow a typo, and the message renders the allowed set, never the supplied
+value.
+Five mutations, all caught - including the one that matters, a silent try-levelled-then-flat
+fallback, which the two refusal tests kill exactly as designed.
+
+### 2026-08-14 - CS-400 - Phase 4 acceptance gate: three of four clauses MET, and the gate says the phase MAY NOT CLOSE
+Verification: `tests/save/test_phase4_gate.py`. Suite at close: 1462 passed, 5 skipped,
+exit 0, from 734 at session start.
+**CLAUSE 1, "a real world parses", IS NOW MET FOR ONE OF FOUR VERSION PAIRS** - see the
+CS-409 entry above - and the gate's own end-to-end test still carries the CS-407 skip because
+it was authored before CS-409 landed. THE PHASE STILL MAY NOT CLOSE: three of the four real
+version pairs cannot be read at all, and CS-402 is separately unmet.
+CLAUSE 2, corrupted save: MET. All eight corruption helpers across four fixtures and both
+framings raise `WorldLoadError`, never a bare `struct.error`, `zlib.error`, `IndexError` or
+`MemoryError`.
+CLAUSE 3, truncated save: MET. All six boundaries in both scopes raise - and the gate records
+that they raise at DIFFERENT STAGES rather than forcing a uniform answer: file scope at the
+header and chunk layers, body scope at the OBJECT layer, with a companion proving the chunk
+layer accepts the body-scope damage first, because `save_with_truncated_body` recompresses
+and the damage is invisible there by construction.
+CLAUSE 4, the save directory is never opened for write: MET, by three independent signals
+each with a companion proving the detector DETECTS. The runtime audit hook in a child process
+caught a mode-based write, a flag-based `os.open` THROUGH THE FLAG CHANNEL, and `os.remove` -
+and its mandatory non-zero read-count assertion recorded 1 read open, without which the whole
+test passes for a `load_world` that does nothing. The filesystem fingerprint went red on a
+one-byte change and on a planted sidecar file. The static AST gate caught an injected
+construct in all six modules at the right line, went red on a new write in `workdir.py`, and
+went red on a REMOVED write there too, so it cannot silently lose its subject.
+THE GATE CAUGHT AN OVER-CLAIM IN ITS OWN FIRST DRAFT and one in the ROADMAP. Its own
+assertion that all three header versions are covered through the entry point was false - only
+10 and 14 are reachable, because header 13 lives solely in `SAVE_V42`, which the object stage
+refuses. The roadmap line making the same claim was written by the merger and is corrected.
+FOUND AND NOT FIXED, reported rather than silently patched: `tests/save/test_world.py`'s
+`_literal_mode` helper reads `node.args[0]` as the mode unconditionally, which is correct for
+`path.open("rb")` and wrong for the builtin `open(path, "rb")` where `args[0]` is the path.
+Latent only because `world.py` uses the method form, and it fails in the SAFE direction.
+Also recorded: `tools/drift_guard.py` guard (c) enumerates tracked files only, so it did not
+scan the gate module while it was untracked, and its PASS said nothing about it. The merger
+verified that file separately - 0 non-ASCII bytes, no home path, no drive-letter path.
+
 ### 2026-08-14 - CS-407 PARTIAL - A real save body is a LIST OF LEVELS, not an object table, and one of four version pairs is now derived
 Verification: `clockspeed/save/objects.py` `parse_body` plus `tests/save/synthetic.py`
 `build_levelled_body` and `tests/save/test_objects.py`. Re-verified by the merger against the

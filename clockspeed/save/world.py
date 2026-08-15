@@ -8,14 +8,14 @@ it; nothing above this layer sees save bytes, a chunk frame or a property map.
 
 It owns one more thing that nothing else can own: **the two version scalars.**
 ``chunks.decompress_body`` discards both the header version and the save
-version, and ``objects.parse_object_headers`` needs both. This module is the
-only place that holds them at once, so threading them is not plumbing - it is
-the seam, and getting it wrong is the defect the corpus was built to catch.
+version, and every reader in ``objects`` needs both. This module is the only
+place that holds them at once, so threading them is not plumbing - it is the
+seam, and getting it wrong is the defect the corpus was built to catch.
 
 THE COMPOSITION, IN ORDER
 ---------------------------
 ``workdir.copy_for_read`` -> ``header.parse_header`` -> ``chunks.decompress_body``
--> ``usmap.cached_usmap`` -> ``objects.parse_object_headers`` -> :class:`WorldModel`.
+-> ``usmap.cached_usmap`` -> ``objects.parse_body`` -> :class:`WorldModel`.
 
 Nothing here re-implements any of them. Each sibling was proven separately and
 this module is deliberately thin: every byte-level decision lives one layer
@@ -71,16 +71,51 @@ either crashes on a fresh onboarding world or reports a mature world's state for
 a new one, and the second failure produces confident wrong advice. An empty
 unlock set that says so is correct; a fabricated one is not.
 
-WHAT THIS MODULE CANNOT DO YET, STATED PLAINLY
-------------------------------------------------
-**It cannot read a real save's object table.** CS-407 records that a real body
-opens with a version-dependent preamble between the length prefix and the record
-table which nothing yet locates - the measured first int32 after the prefix is
-201, 6, 6 and 0 across the four real version pairs. ``objects.py`` therefore
-starts the table at body offset 0, which is the CORPUS layout only. The header
-parse and the chunk walk below are correct against real files; the object stage
-is correct against the corpus. Deriving that preamble is separate, measured
-work and is not closed by guessing an offset here.
+WHICH SAVES THIS CAN ACTUALLY READ - ONE PAIR OF FOUR
+--------------------------------------------------------
+**A green test suite here does NOT mean "the save reader reads saves."** Read
+this paragraph before believing one.
+
+``load_world`` reads a body whose ``(header version, save version)`` pair is in
+``objects.MEASURED_BODY_LAYOUTS``. Today that set holds exactly one pair:
+**header 10 with save 36.** The other THREE real pairs - header 13 with save 42,
+and header 14 with saves 52 and 60 - are **NOT** readable and are refused
+EAGERLY with a :class:`WorldLoadError` whose cause is
+``objects.UnsupportedBodyLayoutError``, before a byte of the body is walked.
+
+That refusal is the correct answer for them rather than a gap to be papered
+over. CS-407 measured that a real body is not a flat record table at all: it
+opens with a version-dependent preamble and then carries a LIST OF LEVELS, each
+with its own record table, collectable list and payload section. A layout
+guessed from a measured neighbour produces a walk that is confidently WRONG
+rather than one that fails - and non-negotiable 7 forbids exactly that: unknown
+content is flagged and skipped, never fatal, and NEVER SILENTLY WRONG. An empty
+or wrong world is worse than a refusal, because nothing downstream can tell.
+
+THE BODY LAYOUT IS AN EXPLICIT CHOICE, AND ITS DEFAULT IS THE REAL ONE
+------------------------------------------------------------------------
+``objects`` exposes two readers, and this module routes between them on the
+caller's ``body_layout`` argument rather than on a probe of the bytes:
+
+- :data:`BODY_LAYOUT_LEVELLED`, **the default**, calls ``objects.parse_body`` -
+  the layout a real save actually has.
+- :data:`BODY_LAYOUT_FLAT` calls ``objects.parse_object_headers`` - the single
+  flat table the synthetic corpus is built on. It pins the offset arithmetic and
+  the two-scalar version dispatch, ``synthetic.SAVE_CROSS`` above all, which is
+  a header/save pair that exists in no real file and therefore has no real body
+  to be levelled.
+
+**A silent try-flat-then-levelled fallback is refused.** It would keep every
+corpus fixture green while hiding the wrong-shape defect this routing exists to
+remove: a real body that failed the levelled walk would quietly fall through to
+a reader that returns a wrong count instead of an error. Sniffing the bytes for
+a shape is the same defect wearing a probe. So the choice is named, it is the
+caller's, and the value a caller gets by not thinking about it is the one that
+is correct for a REAL save.
+
+An unrecognised layout is a CALLER bug, not a bad save, so it raises
+``ValueError`` and deliberately NOT :class:`WorldLoadError` - a caller catching
+the load error to tolerate a corrupt save must not thereby swallow its own typo.
 
 Resource-node SEMANTICS are likewise unavailable, and that is a measurement
 rather than a gap. ADR 0003: a save stores deltas from level defaults, so a
@@ -136,12 +171,16 @@ from clockspeed.save.objects import (
     ObjectRecord,
     ObjectTable,
     class_name_of,
+    parse_body,
     parse_object_headers,
 )
 from clockspeed.save.usmap import PropertyMap, UsmapError, cached_usmap
 from clockspeed.save.workdir import WorkDirError, copy_for_read
 
 __all__ = [
+    "BODY_LAYOUTS",
+    "BODY_LAYOUT_FLAT",
+    "BODY_LAYOUT_LEVELLED",
     "EMPTY_UNLOCK_STATE",
     "NODE_CLASS_NAMES",
     "SOURCE_CHUNKS",
@@ -181,6 +220,19 @@ STAGE_USMAP: Final = "usmap"
 STAGE_OBJECTS: Final = "objects"
 
 STAGES: Final = (STAGE_COPY, STAGE_HEADER, STAGE_CHUNKS, STAGE_USMAP, STAGE_OBJECTS)
+
+#: Which body reader a load uses. See the module docstring for why this is the
+#: caller's explicit choice rather than a probe of the bytes.
+#:
+#: :data:`BODY_LAYOUT_LEVELLED` is the DEFAULT because it is what a real save
+#: needs, and a default is what a caller gets by not thinking about it. The flat
+#: reader is correct only for the synthetic corpus, so making IT the default
+#: would mean the safe path had to be opted into - which is the arrangement that
+#: produced the defect CS-409 removed.
+BODY_LAYOUT_LEVELLED: Final = "levelled"
+BODY_LAYOUT_FLAT: Final = "flat"
+
+BODY_LAYOUTS: Final = (BODY_LAYOUT_LEVELLED, BODY_LAYOUT_FLAT)
 
 #: Which layer noticed a warning. The same five names, because a caller asking
 #: "where did this come from" is asking about the same layers.
@@ -556,25 +608,110 @@ def _read_unlocks() -> tuple[UnlockState, list[WorldWarning]]:
     return EMPTY_UNLOCK_STATE, [_warning(SOURCE_WORLD, WARN_UNLOCK_GRAMMAR_UNMEASURED)]
 
 
-def load_world_from_bytes(data: bytes, *, property_map: PropertyMap | None = None) -> WorldModel:
+def _checked_layout(body_layout: str) -> str:
+    """Refuse an unrecognised body layout before anything is parsed.
+
+    A caller bug is not a bad save, so this is a ``ValueError`` and NOT a
+    :class:`WorldLoadError` - a caller catching the load error to tolerate a
+    corrupt save must not thereby swallow its own typo.
+
+    The message renders the ALLOWED set and never the supplied value. A layout
+    string is caller-supplied rather than read out of a save, so echoing it is
+    not a leak today; it is withheld because "echo the argument back" is the
+    habit that eventually echoes an argument holding save content, and this
+    module's whole error taxonomy is built on not having that habit.
+
+    Args:
+        body_layout: The caller's choice.
+
+    Returns:
+        The layout, unchanged, when it is one of :data:`BODY_LAYOUTS`.
+
+    Raises:
+        ValueError: It is not.
+    """
+    if body_layout not in BODY_LAYOUTS:
+        raise ValueError(f"body_layout must be one of {BODY_LAYOUTS}")
+    return body_layout
+
+
+def _walk_body(
+    payload: bytes,
+    parsed: SaveHeader,
+    mapping: PropertyMap | None,
+    body_layout: str,
+) -> ObjectTable:
+    """Route the body to the reader the caller chose.
+
+    NO FALLBACK, BY DESIGN. Whichever reader is chosen either produces a table
+    or raises; a second attempt with the other reader would turn a wrong-shape
+    body into a wrong ANSWER, which is the one outcome non-negotiable 7 rules
+    out. See the module docstring.
+
+    Args:
+        payload: The decompressed body, length prefix included.
+        parsed: The header, for the two version scalars.
+        mapping: The property map, or None when none was resolved.
+        body_layout: One of :data:`BODY_LAYOUTS`, already checked.
+
+    Returns:
+        The walked table.
+
+    Raises:
+        ObjectError: The chosen reader refused the body. Includes
+            ``UnsupportedBodyLayoutError`` for a pair with no measured layout,
+            which is the answer for three of the four real pairs today.
+    """
+    # THE SEAM. Both scalars are threaded SEPARATELY into either reader:
+    # header_version drives the body length prefix width and nothing else,
+    # save_version drives the transform delta and nothing else. Deriving either
+    # from the other is correct on every real file and wrong on SAVE_CROSS.
+    reader = parse_body if body_layout == BODY_LAYOUT_LEVELLED else parse_object_headers
+    return reader(
+        payload,
+        save_version=parsed.save_version,
+        header_version=parsed.header_version,
+        known_classes=None if mapping is None else mapping.schemas,
+    )
+
+
+def load_world_from_bytes(
+    data: bytes,
+    *,
+    property_map: PropertyMap | None = None,
+    body_layout: str = BODY_LAYOUT_LEVELLED,
+) -> WorldModel:
     """Parse a whole save out of bytes already in memory.
 
     The composition the module docstring describes, minus the copy: the caller
     has the bytes, so there is nothing to copy and nothing to open.
+
+    ONLY ONE ``(header version, save version)`` PAIR IS READABLE TODAY - header
+    10 with save 36. Every other pair is refused. See the module docstring
+    before reading a green result as "this reads saves".
 
     Args:
         data: A whole save file's bytes.
         property_map: A parsed property mapping to check class paths against.
             None resolves the installed one through ``usmap.cached_usmap``,
             which returns None rather than raising when there is no install.
+        body_layout: Which body reader to use, from :data:`BODY_LAYOUTS`.
+            Defaults to :data:`BODY_LAYOUT_LEVELLED`, the layout a REAL save
+            has. :data:`BODY_LAYOUT_FLAT` reads the synthetic corpus's single
+            flat table and is never right for a real file.
 
     Returns:
         The world model.
 
     Raises:
-        WorldLoadError: Any sibling refused the bytes. The original is attached
-            as the cause.
+        WorldLoadError: Any sibling refused the bytes - including a body whose
+            version pair has no measured layout. The original is attached as
+            the cause.
+        ValueError: ``body_layout`` is not one of :data:`BODY_LAYOUTS`. Raised
+            before anything is parsed, and NOT a ``WorldLoadError``.
     """
+    _checked_layout(body_layout)
+
     try:
         parsed = parse_header(data)
     except HeaderError as exc:
@@ -588,16 +725,7 @@ def load_world_from_bytes(data: bytes, *, property_map: PropertyMap | None = Non
     mapping, warnings = _resolve_property_map(property_map)
 
     try:
-        # THE SEAM. Both scalars are threaded SEPARATELY: header_version drives
-        # the body length prefix width and nothing else, save_version drives the
-        # transform delta and nothing else. Deriving either from the other is
-        # correct on every real file and wrong on SAVE_CROSS.
-        table = parse_object_headers(
-            body.payload,
-            save_version=parsed.save_version,
-            header_version=parsed.header_version,
-            known_classes=None if mapping is None else mapping.schemas,
-        )
+        table = _walk_body(body.payload, parsed, mapping, body_layout)
     except ObjectError as exc:
         raise WorldLoadError(STAGE_OBJECTS, type(exc).__name__) from exc
 
@@ -655,7 +783,12 @@ def _carried(
     return tuple(out)
 
 
-def load_world(path: Path | str, *, property_map: PropertyMap | None = None) -> WorldModel:
+def load_world(
+    path: Path | str,
+    *,
+    property_map: PropertyMap | None = None,
+    body_layout: str = BODY_LAYOUT_LEVELLED,
+) -> WorldModel:
     """Copy a save out of harm's way, then parse it.
 
     THE COPY IS NOT A COURTESY. The game holds handles during autosave, so
@@ -670,13 +803,20 @@ def load_world(path: Path | str, *, property_map: PropertyMap | None = None) -> 
     Args:
         path: The save to load. May be the save in place; it is copied first.
         property_map: As :func:`load_world_from_bytes`.
+        body_layout: As :func:`load_world_from_bytes`.
 
     Returns:
         The world model.
 
     Raises:
         WorldLoadError: The copy failed, or any sibling refused the bytes.
+        ValueError: ``body_layout`` is not one of :data:`BODY_LAYOUTS`. Checked
+            HERE as well as downstream, so a caller's typo is not paid for with
+            a file copy first and is not masked by a copy that fails for its own
+            unrelated reason.
     """
+    _checked_layout(body_layout)
+
     try:
         copy = copy_for_read(Path(path))
     except WorkDirError as exc:
@@ -685,4 +825,4 @@ def load_world(path: Path | str, *, property_map: PropertyMap | None = None) -> 
     with copy.open("rb") as handle:
         data = handle.read()
 
-    return load_world_from_bytes(data, property_map=property_map)
+    return load_world_from_bytes(data, property_map=property_map, body_layout=body_layout)
