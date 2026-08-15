@@ -74,6 +74,85 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-15 - CS-411 - CORRECTION to the CS-411 entry below: two cited tests and one cited config key no longer exist
+Verification: `grep -c "test_no_recorded_gap_is_blocked_by_a_frozen_file" tests/test_mypy_gate.py`
+and the same for `::test_the_exclusion_is_discovery_only_not_containment` both return 0, and
+`pyproject.toml` carries no `exclude` key. This file is append-only and the CS-411 entry is
+not edited, so the correction travels as this pointer - the same mechanism ADR 0007 used to
+correct ADR 0003. WHAT CHANGED AND WHY IT IS NOT A REGRESSION: CS-414 deleted the `exclude`
+key deliberately, which made those two tests subjects without a subject; the
+discovery-versus-containment lesson they carried survives as
+`tests/test_mypy_gate.py::test_exclude_filters_discovery_and_does_not_contain_errors`,
+rebuilt on a throwaway project so it proves a property of mypy rather than depending on
+whichever local file happens to be broken. The CS-411 entry's CLAIM remains true; only three
+of its artifacts moved. Recorded because an entry naming artifacts a reader cannot find is
+an entry that verifies nothing, which is the whole point of the pointer rule above.
+
+### 2026-08-15 - CS-418 - `clockspeed/save/world.py`'s two stale capability claims now derive instead of asserting
+Verification: `clockspeed/save/world.py` plus
+`tests/save/test_world.py::test_no_docstring_below_module_level_restates_a_measured_version_pair`
+and `::test_the_world_layer_states_no_property_capability_it_does_not_own`. The first derives
+its forbidden token set FROM `objects.MEASURED_BODY_LAYOUTS`, so it widens by itself if a
+fifth pair is ever measured; the second is an AST assertion that `world.py` calls neither
+property reader, which is a fact this module owns about itself. THAT SECOND CHOICE IS THE
+LOAD-BEARING ONE: CS-413's decode landed in the same merge and made the old wording's
+CONCLUSION false as well as its reason, and the replacement survived unchanged because it
+asserts what this module does rather than what `objects` can do. An adversary mutation pass
+killed 4 of 6 mutants here; the 2 survivors - a re-capitalised retired phrase, and a reader
+reached through an aliased import - are disclosed in the test's own docstring rather than
+discovered later.
+
+### 2026-08-15 - CS-417 - an unresolvable usmap schema super index is flagged instead of rendering as a genuine no-super schema
+Verification: `clockspeed/save/usmap.py` (`_read_schema`) plus
+`tests/save/test_usmap.py::test_an_out_of_bounds_super_index_is_flagged_rather_than_read_as_no_super`,
+which parses two bodies differing ONLY in the super index and asserts both directions -
+sentinel yields no warning, out-of-bounds yields exactly one `WARN_UNRESOLVED_NAME`. Asserting
+only that a warning fires would also pass an implementation that warned on every schema, so
+the negative control is what makes it a test. This was a non-negotiable 7 violation of the
+"never silently wrong" clause specifically, not the "never fatal" clause. It does not fire on
+the shipped file, so the case had to be constructed. Independently mutation-tested by an
+adversary: deleting the flag and warning-on-every-schema both go red, by the right tests.
+
+### 2026-08-15 - CS-416 - `clockspeed/save/usmap.py` exports its three missing public constants, with a test in the direction that can catch it
+Verification: `clockspeed/save/usmap.py` `__all__` plus
+`tests/save/test_usmap.py::test_every_public_module_level_constant_is_exported`, proven
+load-bearing by deleting each of `MAX_KNOWN_VERSION`, `USMAP_RELATIVE` and
+`WARN_UNKNOWN_VERSION` in turn and observing exit 1, then restoring byte-identical source.
+THE REUSABLE HALF IS THE DIRECTION: the pre-existing shape asserts every `__all__` name
+exists, which is structurally incapable of catching a missing export. The new test reads the
+module via AST rather than `dir()`, because `dir()` cannot separate a defined name from an
+imported one and would have demanded `Path` and `Final` be exported. A repo-wide version was
+scoped OUT deliberately and measured first: 3 of the 15 modules declaring `__all__` still have
+gaps, 42 unexported public names, so that gate goes red on day one and each name needs its own
+decision.
+
+### 2026-08-15 - CS-415 - `tools/` is inside the repo-wide mypy gate, and the frozen commit gate came with it WITHOUT an edit
+Verification: `pyproject.toml` (`files` naming clockspeed, scripts, tests, tools; scoped
+`[[tool.mypy.overrides]]` for `ruff` and `yaml`) plus
+`tests/test_mypy_gate.py::test_the_bare_repo_wide_invocation_reports_no_errors` and
+`::test_the_files_key_names_every_authored_directory`. `python -m mypy` bare: 0 errors, 73
+source files, exit 0. NO FROZEN-FILE GRANT WAS NEEDED AND THAT IS MEASURED, NOT ASSUMED:
+`tools/precommit_gate.py` is now among the checked files at zero errors and is byte-identical
+to its pre-session state - confirmed by an adjudicator against HEAD. Its `import-untyped` for
+`ruff` was cleared from OUTSIDE by the scoped override. The scoping is EXECUTED rather than
+believed: `warn_unused_configs` makes mypy name any overrides block matching nothing, a bogus
+control block is named immediately, and the ruff/yaml block never is. Do not use `strict` in
+an overrides block - it is accepted silently and applied GLOBALLY, and a test now executes
+that trap.
+
+### 2026-08-15 - CS-414 - `scripts/verify_env.py` type-checks clean and the inert mypy `exclude` key is deleted
+Verification: `scripts/verify_env.py` plus `pyproject.toml` (no `exclude` key) and
+`tests/test_mypy_gate.py::test_the_environment_verifier_is_inside_the_gate` and
+`::test_the_gate_config_declares_no_exclude_key`; re-adding the key turns 4 tests red. The 5
+errors were one shape - an `Optional[Path]` proven non-None by a separate boolean rather than
+by a narrowing check - and were fixed by NARROWING at each point of use, not by `cast` or a
+suppression. THE KEY WAS PROVABLY INERT BEFORE IT WAS DELETED, which is why this was not
+tidying: `exclude` governs DISCOVERY and not the import graph, and two tools import
+`verify_env` as a top-level module, so adding `tools/` to `files` cost 9 errors in 5 files
+with the key and 9 in 5 without it. Neither changed function had ANY test coverage, so a green
+suite was not evidence about them; equivalence was established by diffing pre- and post-change
+outputs across 21 scenarios.
+
 ### 2026-08-15 - CS-404 - `build_usmap` gains a shipped-grammar mode and a `version` parameter; parts 1 and 3 were already closed
 Verification: `tests/save/synthetic.py` (`build_usmap` shipped mode, `USMAP_EVIDENCE`),
 `tests/save/test_usmap.py::test_the_builder_reproduces_the_shipped_bytes_it_models` and

@@ -169,6 +169,39 @@ condition.
 **PREP half, workable now:** nothing beyond reading the local API documentation for
 reference. Do not build a lane for a server that does not exist.
 
+### CS-G05 - Save version 60's property payload grammar is under-sampled
+
+**One line:** Measure the property tag grammar inside a save version 60 payload, which the
+grammar measured on the other three version pairs does not accept.
+
+**Unblocked by:** the local library gaining a save of that pair that is STRUCTURALLY
+DIFFERENT from the two already present. Playing the pinned development world forward and
+saving on the current game build is the only thing that produces one.
+
+**Why no work inside the repo can close it, measured rather than argued.** The pair reaches
+a property terminator on 0 of 1832 payloads at every alignment tried, and a single leading
+byte accounts for 669 of 1832 with the rest unexplained. The two files of that pair are
+byte-identical from offset 4 through 150074, so they are ONE observation and not two. This
+is the same shape as the save-52 grid preamble recorded in session 5: reading a file count
+as an independence count is the error, and n=1 there is a CEILING rather than a sampling
+accident that more of the same files would fix.
+
+**This is deliberately NOT filed as a grammar defect**, which is the distinction that makes
+it gated at all. The variable trailing run on the other three pairs IS a grammar question -
+more saves will not fix it, and it stays in `ROADMAP.md` under CS-413. Save 60 is the
+opposite. Filing both as one item would hide a blocked half behind a workable one.
+
+**PREP half, COMPLETE and workable now.** The harness that will grade the DRAIN half already
+exists: `tests/save/test_properties.py::test_save_60_refuses_the_grammar_the_other_pairs_accept`
+pins the refusal as a negative result, guarded by a liveness assertion without which the zero
+also passes when the walker reaches a terminator on nothing at all. That guard is the whole
+value of the test - a bare zero is not a measurement.
+
+**Do not** close this by relaxing that test, by interpolating from the three measured
+neighbours, or by declaring the pair unsupported. Three measured neighbours making a fourth
+look derivable is precisely the refuted arithmetic route ADR 0005 fences, and the test above
+exists to stop it being closed by resemblance.
+
 ---
 
 ## Cross-references

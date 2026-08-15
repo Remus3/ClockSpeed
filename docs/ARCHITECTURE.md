@@ -65,7 +65,7 @@ data/             generated artifacts - GITIGNORED
 | `clockspeed/save/header.py` | Save header parse: the version fields, the string block, and the world token. Owns redaction: **every header string is redacted by default**, because the string ORDER is version dependent and a redactor targeting a named field is defeated by a reordered one. See `docs/adr/0007`. |
 | `clockspeed/save/chunks.py` | Decompression and the chunk walk over the save body after the header. |
 | `clockspeed/save/usmap.py` | Loading and caching the parsed `FactoryGame.usmap` property mapping from the install. |
-| `clockspeed/save/objects.py` | Actor and component deserialization against the property mapping. Owns the "unknown class is logged and skipped, never fatal" rule. |
+| `clockspeed/save/objects.py` | Actor and component deserialization, and the property payload grammar. Owns the "unknown class is logged and skipped, never fatal" rule. The payload is tagged serialization, so this module decodes from the save's own bytes rather than from the property mapping; the mapping is an oracle and a class-name resolver. That module owns the measurement. |
 | `clockspeed/save/world.py` | The world-state model. This is the only save-layer type any higher layer is allowed to hold. |
 | `clockspeed/solve/exact.py` | Exact rational arithmetic primitives. Owns the invariant that no float enters the solve path. |
 | `clockspeed/solve/ratio.py` | Pillar 1 target-rate solve, both directions, including recipe loops and byproduct feedback. |
