@@ -251,7 +251,61 @@ markers = [
 # type checker must judge against the floor or it will accept syntax the floor
 # rejects.
 python_version = "3.13"
-files = ["clockspeed", "tests"]
+
+# WHAT THE GATE LOOKS AT, and this key is the whole of its authority: CI runs
+# `python -m mypy` bare, with no target (.github/workflows/tier1.yml), so a
+# path absent from this list is checked by nothing, anywhere. A file outside it
+# yields no error rather than a failure, so the gate reports green having never
+# read it. "The gate is green" and "the gate looked at this file" are different
+# claims, and only the second is worth anything about a specific file.
+#
+# scripts/ is here as of CS-411. It was outside the gate, which mattered most
+# for scripts/install_hooks.py: the first thing a fresh clone executes, and the
+# one file whose failure leaves a clone unprotected while reporting itself
+# protected (CLAUDE.md section 2.2). Measured before adding it - that file
+# already type-checked clean, so this rung cost no fix. That is the cheap
+# moment to tighten a ratchet: before the code that would violate it is
+# written, not after.
+#
+# The DIRECTORY is named, not the one file, deliberately. A file-by-file list
+# would leave every script added tomorrow outside the gate by default, which is
+# the same defect wearing a later date.
+files = ["clockspeed", "scripts", "tests"]
+
+# THE ONE FILE HELD OUT OF DISCOVERY, named here rather than left to silence,
+# because an omission a reader cannot distinguish from an oversight is an
+# omission nobody ever fixes. scripts/verify_env.py carries 5 pre-existing
+# errors, codes arg-type and operator, all of one shape: an `Optional[Path]`
+# proven non-None by a separate boolean flag instead of by a narrowing check,
+# so mypy cannot see the proof. That is a code fix, not a gate-coverage fix,
+# and it is not this item's - holding all of scripts/ out until someone does it
+# would have kept install_hooks.py uncovered for the duration. Delete this key
+# when those errors are fixed.
+#
+# READ THIS BEFORE ADDING A DIRECTORY TO `files` ABOVE. `exclude` is a
+# DISCOVERY filter, not containment. It stops mypy WALKING to this file. It
+# does not stop a checked file from IMPORTING it, and an imported module is
+# built and reported on in full. CS-411 created that route itself: adding
+# scripts/ to `files` made scripts/ a source base dir, so `verify_env` became
+# resolvable as a top-level module for the first time, and two files already
+# import it exactly that way:
+#     tools/drift_guard.py:312    import verify_env
+#     tools/facts_probe.py:121    import verify_env
+# Both are unchecked today only because tools/ is not in `files`. Measured, on
+# this tree: append "tools" to `files` and mypy reports 9 errors in 5 files
+# WITH this key, and 9 errors in 5 files WITHOUT it. All 5 below are among
+# them either way. This key buys exactly nothing there, so whoever adds tools/
+# is fixing verify_env.py, not extending this exclusion.
+#
+# A regex matched with re.search against forward-slash paths, anchored at both
+# ends: a bare "verify_env.py" would also swallow a future tools/verify_env.py.
+# TOML literal string, so the backslash reaches the regex engine rather than
+# being eaten as a TOML escape.
+#
+# tests/test_mypy_gate.py holds this comment to its claims: it re-measures the
+# count and the codes above, re-derives the importer list, and fails if the
+# file becomes clean. A reason no test reads is a reason that rots.
+exclude = ['(^|/)scripts/verify_env\.py$']
 
 # TARGET PLATFORM, pinned so this config means the same thing on every machine.
 # Without it mypy analyses for the platform it happens to be RUNNING on, and
