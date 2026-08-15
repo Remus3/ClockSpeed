@@ -71,6 +71,7 @@ exception is an echo path (non-negotiable 12).
 
 from __future__ import annotations
 
+import ast
 import struct
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -1060,14 +1061,20 @@ def test_the_shipped_mode_writes_a_uint32_name_index_where_legacy_wrote_a_string
 
 
 def test_a_shipped_schema_with_no_super_writes_the_all_bits_set_sentinel() -> None:
-    """Asserted on the BYTES, because the parsed model cannot tell the difference.
+    """Asserted on the BYTES, because ``super_name`` alone cannot carry it.
 
-    ``super_name is None`` alone does NOT prove the sentinel was written: the
-    loader maps ANY unresolvable super index to None
-    (clockspeed/save/usmap.py:670), so a builder writing 0x0000FFFF instead of
-    0xFFFFFFFF would produce an identical PropertyMap. That mutation was run
-    against an earlier version of this test and survived it - the assertion has
-    to reach the encoding itself.
+    ``super_name is None`` does NOT prove the sentinel was written: None is
+    also what an unresolvable index yields, so a builder writing 0x0000FFFF
+    instead of 0xFFFFFFFF would produce the same ``super_name``. That mutation
+    was run against an earlier version of this test and survived it - the
+    assertion has to reach the encoding itself.
+
+    UPDATED by CS-417, which made those two cases distinguishable through
+    ``warnings`` rather than through ``super_name``. This test is deliberately
+    NOT rewritten onto that signal: asserting the bytes keeps it a check on
+    what the BUILDER encodes, independent of what the loader reports, which is
+    the whole reason it exists. The loader-side behaviour is covered by
+    ``test_an_out_of_bounds_super_index_is_flagged_rather_than_read_as_no_super``.
     """
     names = ["Alpha", "SynthSchema"]
     blob = synthetic.build_usmap(
@@ -1531,6 +1538,243 @@ def test_the_builders_shipped_body_frames_to_the_same_bytes_as_reframe() -> None
     )
 
     assert direct == framed
+
+
+# ---------------------------------------------------------------------------
+# 7 - CS-417: an unresolvable super index is FLAGGED, not read as "no super"
+#
+# Non-negotiable 7 has two halves and these cover the SECOND one. "Never fatal"
+# is easy to satisfy by accident - returning None for anything unreadable
+# satisfies it. "Never silently wrong" has to be satisfied on purpose, because
+# the failure renders as a success.
+#
+# The shipped file carries no out-of-bounds super index, so neither the landing
+# oracle nor the rebuild audit above can reach this path. It is constructed.
+# ---------------------------------------------------------------------------
+
+#: An index no two-name table can resolve, and NOT the all-bits-set sentinel:
+#: the sentinel's low half, which is the encoding mutation a 16-bit-narrowed
+#: writer would produce.
+_UNRESOLVABLE_INDEX = 0x0000FFFF
+
+#: Bytes in the uint32 super index field.
+_SUPER_INDEX_WIDTH = 4
+
+#: Offsets of the schema's other two name indices, relative to the super index.
+#: Name index (4), property count (2), serializable count (2), slot (2) and
+#: array size (1) sit between the super index and the property's name index.
+_SCHEMA_NAME_DELTA = -4
+_PROPERTY_NAME_DELTA = 11
+
+#: What ``_shipped_body`` writes at each of those three sites for the two-name
+#: table below, asserted as the patch anchor.
+_INDEX_OF_SYNTH_SCHEMA = 1
+_INDEX_OF_ALPHA = 0
+
+
+def _super_index_offset(names: list[str]) -> int:
+    """Byte offset of the lone schema's super index inside a ``_shipped_body``.
+
+    Name count, every name, the enum count, the schema count, then the schema's
+    own name index - the super index is the uint32 after that. The same walk
+    ``test_a_shipped_schema_with_no_super_writes_the_all_bits_set_sentinel``
+    does, and it holds only for a body with one schema and no enums.
+    """
+    return 4 + sum(1 + len(text) for text in names) + 4 + 4 + 4
+
+
+def _patched_body(names: list[str], at: int, value: int, anchor: int) -> bytes:
+    """A one-schema body with the uint32 at ``at`` overwritten by ``value``.
+
+    ``anchor`` is what that uint32 must hold BEFORE the overwrite, and it is
+    asserted. A patch that lands on the wrong offset would otherwise leave
+    every test built on it green while testing nothing - CONVENTIONS.md section
+    7.2, "a mutation that fails to apply looks GREEN".
+    """
+    body = bytearray(
+        _shipped_body(
+            names=names,
+            enums=[],
+            schemas=[("SynthSchema", None, [("Alpha", _TYPE_INT)])],
+        )
+    )
+    (found,) = struct.unpack_from("<I", body, at)
+    assert found == anchor, f"byte {at} holds {found}, not the expected anchor {anchor}"
+    struct.pack_into("<I", body, at, value)
+    return bytes(body)
+
+
+def test_an_out_of_bounds_super_index_is_flagged_rather_than_read_as_no_super() -> None:
+    """CS-417. The two bodies differ ONLY inside the four-byte super index.
+
+    One holds the all-bits-set sentinel that genuinely means "no super"; the
+    other holds an index no two-name table can resolve. Both parse, and both
+    leave ``super_name`` None, because None is the only thing either one could
+    say - so whether the unresolvable one was FLAGGED is the entire difference
+    between them.
+
+    That is why both directions are asserted. A test that only checked the
+    warning fires would pass just as happily against an implementation that
+    warned on every schema, sentinel included, and that distinguishes nothing.
+    """
+    names = ["Alpha", "SynthSchema"]
+    at = _super_index_offset(names)
+    framing = synthetic.build_usmap(names=[], enums=[], schemas=[])
+    genuine_body = _patched_body(names, at, _ALL_BITS_SET, _ALL_BITS_SET)
+    unresolvable_body = _patched_body(names, at, _UNRESOLVABLE_INDEX, _ALL_BITS_SET)
+
+    differing = {
+        offset
+        for offset, (left, right) in enumerate(zip(genuine_body, unresolvable_body, strict=True))
+        if left != right
+    }
+    assert differing
+    assert differing <= set(range(at, at + _SUPER_INDEX_WIDTH))
+
+    genuine = usmap.parse_usmap(_reframe(framing, genuine_body))
+    unresolvable = usmap.parse_usmap(_reframe(framing, unresolvable_body))
+
+    # Neither parse can say anything but None about the super type ...
+    assert genuine.schemas["SynthSchema"].super_name is None
+    assert unresolvable.schemas["SynthSchema"].super_name is None
+    # ... so the warnings are the only place the difference can show up.
+    # The sentinel is silent: the negative control that gives the next
+    # assertion its meaning.
+    assert genuine.warnings == ()
+    # And the unresolvable index is flagged, with the same code and the same
+    # structural subject its two siblings already use. Asserted as what IS
+    # there rather than as an absence.
+    assert [(warning.code, warning.subject) for warning in unresolvable.warnings] == [
+        (usmap.WARN_UNRESOLVED_NAME, "schema-0")
+    ]
+
+
+def test_an_out_of_bounds_super_index_keeps_the_schema_and_its_properties() -> None:
+    """Flagged and skipped, never FATAL - the first half of non-negotiable 7.
+
+    Only the super type is unreadable. The schema's own name and every property
+    resolve, so dropping the whole schema would discard readable content to
+    report an unreadable field.
+    """
+    names = ["Alpha", "SynthSchema"]
+    framing = synthetic.build_usmap(names=[], enums=[], schemas=[])
+    body = _patched_body(names, _super_index_offset(names), _UNRESOLVABLE_INDEX, _ALL_BITS_SET)
+
+    parsed = usmap.parse_usmap(_reframe(framing, body))
+
+    schema = parsed.schemas["SynthSchema"]
+    assert schema.name == "SynthSchema"
+    assert [entry.name for entry in schema.properties] == ["Alpha"]
+    assert parsed.body_consumed == parsed.container.compressed_size
+
+
+@pytest.mark.parametrize(
+    ("site", "delta", "anchor"),
+    [
+        ("schema-name", _SCHEMA_NAME_DELTA, _INDEX_OF_SYNTH_SCHEMA),
+        ("super", 0, _ALL_BITS_SET),
+        ("property-name", _PROPERTY_NAME_DELTA, _INDEX_OF_ALPHA),
+    ],
+)
+def test_every_unresolvable_name_index_in_a_schema_raises_the_same_code(
+    site: str, delta: int, anchor: int
+) -> None:
+    """Parity across the three name indices a schema entry carries.
+
+    Before CS-417 the middle row was the odd one out: it mapped an unresolvable
+    index to None and said nothing at all. Parametrized rather than written
+    three times so that flagging one site and forgetting another goes red.
+    """
+    names = ["Alpha", "SynthSchema"]
+    at = _super_index_offset(names) + delta
+    framing = synthetic.build_usmap(names=[], enums=[], schemas=[])
+    body = _patched_body(names, at, _UNRESOLVABLE_INDEX, anchor)
+
+    parsed = usmap.parse_usmap(_reframe(framing, body))
+
+    codes = {warning.code for warning in parsed.warnings}
+    assert codes == {usmap.WARN_UNRESOLVED_NAME}, f"{site} at byte {at}"
+
+
+# ---------------------------------------------------------------------------
+# 8 - CS-416: __all__ agrees with the module, in BOTH directions
+#
+# The forward direction - every exported name exists - is the one that is
+# usually written, and it is structurally incapable of catching a name that was
+# defined and never exported: an ``__all__`` listing nothing at all satisfies
+# it perfectly. The reverse direction is what found the three constants below.
+#
+# Consequence today is limited to ``from ... import *``, which nothing in this
+# repo does, so this is inert rather than broken. It earns a test because
+# ``__all__`` is the module's STATED public surface, and a stated surface that
+# disagrees with the module is a claim that drifts silently.
+# ---------------------------------------------------------------------------
+
+
+def _module_level_public_names() -> tuple[list[str], list[str]]:
+    """Public constants and public classes/functions bound at module level.
+
+    Read from the SOURCE rather than from ``dir(usmap)``, and that choice is
+    what makes this the reverse direction rather than a restatement of
+    ``__all__``. ``dir()`` cannot tell a name the module DEFINES from one it
+    merely imported, so a ``dir()``-based check would demand that ``Path``,
+    ``Final`` and ``redact`` be exported too. An assignment is an ``Assign`` or
+    an ``AnnAssign`` node; an import is neither, and neither is a ``def``.
+
+    Reading as ASCII is a second, free assertion: non-negotiable 4 means this
+    file cannot contain a byte above 0x7E, and a decode error here says so.
+
+    Returns:
+        ``(constants, definitions)``, each in source order.
+    """
+    source_path = usmap.__file__
+    assert source_path is not None, "the module under test has no file on disk"
+    tree = ast.parse(Path(source_path).read_text(encoding="ascii"))
+
+    constants: list[str] = []
+    definitions: list[str] = []
+    for node in tree.body:
+        if isinstance(node, ast.AnnAssign | ast.Assign):
+            targets = [node.target] if isinstance(node, ast.AnnAssign) else node.targets
+            constants.extend(
+                target.id
+                for target in targets
+                if isinstance(target, ast.Name) and not target.id.startswith("_")
+            )
+        elif isinstance(node, ast.ClassDef | ast.FunctionDef) and not node.name.startswith("_"):
+            definitions.append(node.name)
+    return constants, definitions
+
+
+def test_every_public_module_level_constant_is_exported() -> None:
+    """CS-416. The direction that catches a constant nobody exported.
+
+    All three names this found - MAX_KNOWN_VERSION, USMAP_RELATIVE and
+    WARN_UNKNOWN_VERSION - were defined beside constants that WERE exported,
+    which is how they were missed: WARN_UNKNOWN_VERSION sits in the middle of
+    the six-constant WARN_* block and was the only one of the six left out.
+    """
+    constants, _definitions = _module_level_public_names()
+
+    assert constants, "the AST walk found no module-level constants at all"
+    assert [name for name in constants if name not in usmap.__all__] == []
+
+
+def test_every_public_class_and_function_is_exported() -> None:
+    """The same direction over the other half of the public surface."""
+    _constants, definitions = _module_level_public_names()
+
+    assert definitions, "the AST walk found no module-level definitions at all"
+    assert [name for name in definitions if name not in usmap.__all__] == []
+
+
+def test_every_exported_name_resolves() -> None:
+    """The forward direction, kept as the other half of the pair.
+
+    On its own this proves very little - see the section note above - but the
+    two together pin ``__all__`` to the module exactly.
+    """
+    assert [name for name in usmap.__all__ if not hasattr(usmap, name)] == []
 
 
 def test_the_loader_never_writes_to_the_install(

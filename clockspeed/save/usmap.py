@@ -94,12 +94,15 @@ from clockspeed.data.locate import redact, resolve_game_dir
 __all__ = [
     "COMPRESSION_NONE",
     "MAX_KNOWN_PROPERTY_TYPE",
+    "MAX_KNOWN_VERSION",
     "USMAP_MAGIC",
+    "USMAP_RELATIVE",
     "VERSION_PACKAGE_VERSIONING",
     "WARN_DESYNCHRONISED_SECTION",
     "WARN_DUPLICATE_SCHEMA",
     "WARN_TRAILING_SECTION",
     "WARN_UNKNOWN_PROPERTY_TYPE",
+    "WARN_UNKNOWN_VERSION",
     "WARN_UNRESOLVED_NAME",
     "PropertyEntry",
     "PropertyMap",
@@ -332,7 +335,10 @@ class Schema:
 
     Attributes:
         name: The schema name.
-        super_name: The super type's name, or None when it has none.
+        super_name: The super type's name, or None. None means the schema has
+            no super type UNLESS a :data:`WARN_UNRESOLVED_NAME` warning names
+            this schema, in which case the index was outside the name table and
+            the super type is unknown rather than absent.
         properties: The serializable entries, in file order. An entry whose
             type this module does not know is absent and is on
             :attr:`PropertyMap.warnings`.
@@ -654,7 +660,11 @@ def _read_schema(
     """Read one schema and its serializable properties.
 
     An unknown property type is flagged and the entry dropped; the surrounding
-    entries are unaffected.
+    entries are unaffected. All three name indices a schema carries - its own,
+    its super type's and each property's - are flagged when they fall outside
+    the name table, so an unreadable one is never mistaken for an absent one.
+    An unresolvable SUPER index keeps the schema, because its name and its
+    properties are still readable and only the super type is lost.
 
     Args:
         reader: Positioned at the schema's name index.
@@ -667,7 +677,21 @@ def _read_schema(
     """
     schema_name = _resolve(reader.u32("schema_name_index"), names)
     raw_super = reader.u32("schema_super_index")
-    super_name = None if raw_super == _NO_SUPER else _resolve(raw_super, names)
+    super_name = None
+    if raw_super != _NO_SUPER:
+        super_name = _resolve(raw_super, names)
+        if super_name is None:
+            # WITHOUT THIS FLAG THE TWO CASES ARE THE SAME BYTES TO A CALLER.
+            # An unresolvable index and the all-bits-set "no super" sentinel
+            # both leave super_name None, so an unreadable super type would
+            # render as a schema that genuinely has none - flagged is the only
+            # thing that tells them apart (non-negotiable 7, the "never
+            # silently wrong" half).
+            log.add(
+                WARN_UNRESOLVED_NAME,
+                f"schema-{position}",
+                "a schema super index fell outside the name table; the super type was not resolved",
+            )
     reader.u16("schema_property_count")
     serializable = reader.u16("schema_serializable_count")
 
