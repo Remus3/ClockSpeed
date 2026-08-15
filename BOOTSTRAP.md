@@ -332,11 +332,27 @@ the other 11 - the worst available failure shape. Corrected:
 | marker | `0x22222222` | `0x00000000` |
 | int64 max chunk size | 131072 | 131072 |
 | int8 compression algorithm | 3 (zlib) | **absent - no such byte at all** |
-| compressed and uncompressed sizes | each written TWICE | each written TWICE |
+| compressed and uncompressed sizes | each written TWICE, in the order `c, u, c, u` | each written TWICE, in the order `c, u, c, u` |
 | zlib stream begins at | magic + 49 | magic + 48 |
 
-**Also version scoped:** "the decompressed body opens with an int64 length" holds on header
-versions 13 and 14 and does NOT hold on header version 10 / save version 36.
+**The size-block ORDER is measured, not assumed, and the distinction mattered.** The four
+int64s are `compressed, uncompressed, compressed, uncompressed` - NOT
+`compressed, compressed, uncompressed, uncompressed`. Measured across all 14 saves and all
+three header versions: the first and third values agree, the second and fourth agree, the
+first value is the compressed size, and inflating exactly that many bytes yields exactly the
+declared uncompressed size. The alternative reading is ruled out because the first two values
+differ on every real chunk. A parser that guessed the other order would be wrong on every
+real save while passing a synthetic corpus that encoded the same guess.
+
+**Also version scoped, and measured on real bodies rather than on fixtures:** the decompressed
+body opens with an int64 length on header versions 13 and 14, where that int64 equals the
+body length minus 8. On header version 10 / save version 36 it does NOT: there the leading
+**int32** equals the body length minus 4. Both were confirmed by decompressing a real save of
+every version through the shipped walker.
+
+**Real bodies are much larger and much more chunked than any fixture.** Measured: 11 chunks
+and 1,440,651 bytes on the newest save version, and 138 chunks and just over 18 MB on the two
+oldest. A walker validated only against a small corpus has not been shown to handle either.
 
 **UNDETERMINED - whether the framing variant keys on HEADER version or on SAVE version.**
 The two covary across the entire local library (10 with 36, 13 with 42, 14 with 52 and 60),
