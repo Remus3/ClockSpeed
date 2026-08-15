@@ -31,6 +31,96 @@ the line becomes a pointer.
 
 ---
 
+## Session 7 - 2026-08-15 - the CS-413 decode lands and does NOT close; adversaries change the outcome twice
+
+- **Shipped:** **CS-414, CS-415, CS-416, CS-417, CS-418** closed. **CS-413's decode half
+  LANDED and the item STAYS OPEN.** Filed: CS-419, CS-420, CS-421, CS-422, CS-423, CS-424,
+  plus **CS-G05** gated. Suite 1551 -> **1603 passed, 7 skipped**, exit 0. Five commits,
+  `7cbcbac..5d11dc2`. Detail in `docs/LEDGER.md`.
+
+- **THE DECODE WORKS AND THAT IS NOT ENOUGH TO CLOSE CS-413.** `read_properties` returns
+  185382 real values, 11 measured types, every unmeasured type flagged, and a synthetic
+  fixture means the decoder is covered with no game installed. It stays open on EVIDENCE -
+  the merger's ruling, confirmed by an adjudicator that produced none of the work. Two
+  measured reasons: the acceptance clause is a LIVENESS FLOOR that a zero-value-byte decoder
+  clears, because a BoolProperty's value rides in the tag with `size` 0; and **111364 of
+  185382 values, 60.1 per cent, are backed by a declared width and nothing else** - a check
+  the module itself calls "defensive rather than measured". Byte order is checked by NOTHING
+  EXECUTABLE: flipping IntProperty to big-endian ruins 75136 real values and only
+  synthetic-fixture tests go red.
+
+- **In flight:** nothing half-done. Tree committed and pushed, working tree clean.
+
+- **Decisions:** no ADR. No frozen file touched and NO GRANT NEEDED - `tools/precommit_gate.py`
+  came INSIDE the mypy gate with no edit to it, via a scoped override, verified byte-identical
+  to its pre-session state by an adjudicator rather than asserted.
+
+- **Surprises**, each measured rather than reasoned about:
+  1. **THE ADVERSARIAL PASS CHANGED THE OUTCOME TWICE.** Without it this session commits a
+     privacy leak that renders decoded world content in pytest frame arguments, AND closes
+     CS-413 on evidence that does not support it. Both were invisible to a green 1572-test
+     suite. The pass cost roughly what the building did.
+  2. **THE USMAP GATE IN `read_properties` WAS A DEAD END, NOT CAUTION.** The shipped mapping
+     holds ZERO `Build_` schemas of 13792, so every building record resolves to nothing
+     PERMANENTLY, and buildings are exactly what pillar 3 needs. The payload is TAGGED
+     serialization and carries its own names and type words. `docs/ARCHITECTURE.md` said
+     objects.py deserializes "against the property mapping" - corrected; the mapping is an
+     oracle and a class-name resolver, never the decode input.
+  3. **TWO BUILDERS INDEPENDENTLY SHIPPED A TEST THAT MEASURED THE WRONG QUANTITY.** One
+     non-vacuity assertion proved the LIBRARY holds unmeasured tags, not that its own oracle
+     could ever fire. The other rebuilt an oracle against a run that BY CONSTRUCTION excludes
+     what it checks, so it could only pass on a recorded zero. Neither is carelessness; both
+     read as correct until a mutant runs.
+  4. **A REPAIR CREATED A FALSE GUARANTEE, which is worse than the bug it fixed.** `del body`
+     closed `read_properties` and left the exported `parse_properties` open, while the test
+     asserted a GENERAL property ("a clockspeed frame") having exercised ONE entry point.
+     Before: a known leak. After: a leak plus a green test whose own message denies it. Caught
+     by the adjudicator - not by the builder, not by the suite.
+  5. **A TEST WRITTEN TO GUARD NON-NEGOTIABLE 7 WAS A TAUTOLOGY.** Its oracle judged the
+     PYTHON SHAPE of decoded values, which is a closed set for ANY implementation. A mutant
+     fabricating 26950 StructProperty values from raw bytes left the entire suite green.
+  6. **8 OF 11 TYPE DECODERS COULD BE DELETED WITH THE SUITE GREEN.** The equality control was
+     at BUILDING granularity, so one property per building satisfied it. Only 3 types were
+     genuinely covered, and only by accident of this operator's corpus.
+  7. **TWO OF CS-413'S THREE ORACLES EXIST NOWHERE IN THE REPO** - prose only. An adversary
+     re-derived both and they HOLD, and supplied the shift control one of them never had.
+     Filed as CS-420. This is CS-412's failure class landing on CS-413's own evidence.
+  8. **THE SHIPPED ROTATION CONTROL WAS TRIVIAL.** All 24314 buildings collapse inside
+     `_skip_actor_head` before one property tag is read - zero lines of tag grammar and zero
+     of value grammar. The genuine value-start control now ships beside it.
+  9. **FIVE "STALE" WORKTREE BRANCHES CARRIED 9 COMMITS AND `git cherry` FLAGGED EVERY ONE AS
+     NOT-UPSTREAM.** The session note said safe-to-delete; git's own signal said unmerged.
+     CONTENT was the only sound test - every branch-only line was superseded BEFORE text.
+  10. **A CITATION I WROTE MYSELF ROTTED WITHIN THE SAME SESSION.** CS-419 cited
+     `usmap.py:605-607`; CS-416 added three `__all__` lines above it and the citation slid onto
+     the enum NAME resolve - the working case the note contrasts against. A line citation rots
+     exactly like a restated count. Cite the symbol.
+
+- **Failed paths - do not retry:**
+  - **`py -3` as the interpreter.** An adversary lost its ENTIRE executable pass to it and
+    could only report static findings. BOOTSTRAP 2.5 records why; it is still catching agents.
+  - **A synthetic fixture as evidence the grammar matches the GAME.** It packs with the same
+    byte order the reader unpacks with. It proves self-consistency and nothing else.
+  - **`git cherry` as proof a branch holds unmerged work.** This project reworks slices during
+    merge, so neither SHA reachability nor patch-id survives.
+  - **Putting a measured count into `docs/ARCHITECTURE.md`.** CLAUDE.md section 4 names it as
+    a file that never contains counts. Done here while FIXING a fact-ownership violation, and
+    caught by the adjudicator.
+
+- **COMMON-MODE RISK, named and UNRESOLVED:** `_TAG_EXTRA_STRINGS` is transcribed IDENTICALLY
+  into `clockspeed/save/objects.py` and `tests/save/test_properties.py`, and the provenance
+  oracle joins one against the other. If any width is wrong BOTH walkers desynchronise
+  identically, the join agrees perfectly, and the oracle reports perfect health. The
+  terminator check discriminates it on 111 of 129775 payloads. It sits underneath 100 per cent
+  of the 185382 decoded values. CS-420's usmap join is the one oracle that never touches
+  `value_at` and is therefore the fix.
+
+- **Next action:** take **CS-420** - record CS-413's oracles and controls as executable
+  artifacts. It is the cheaper of the two and a PRECONDITION for trusting CS-421's result,
+  since CS-421's verdict depends on oracles that currently exist only as prose. CS-421 is what
+  actually moves CS-413 toward closing. Both are required before CS-413 closes and phase 5
+  opens.
+
 ## Session 6 - 2026-08-15 - the operator rules CS-400 depth-bound; payload extents get attributed
 
 - **Shipped:** **CS-411** and **CS-404** closed. **CS-413** filed and half-landed - attribution
@@ -217,111 +307,3 @@ the line becomes a pointer.
   every body still opaque and the thing pillar 3 needs. **CS-405 is now UNBLOCKED** but note it
   may need the payload grammar first, and saying so is the correct outcome rather than forcing
   a YES or NO.
-
-## Session 4 - 2026-08-14 - ADR 0006 adjudicated, four tier-1 fixes, phase 4 waves 0 and 1
-
-- **Shipped:** ADR 0006 flipped to `accepted`; **CS-204**, **CS-206**, **CS-207** closed;
-  **CS-208 DENIED** and replaced by CS-209; **ADR 0007** written and accepted; and
-  **phase 4 waves 0 and 1** - the version-qualified spec, the synthetic save corpus, and
-  `clockspeed/save/{header,chunks,usmap,workdir}.py`. Suite 734 -> 1067, exit 0. Detail in
-  `docs/LEDGER.md`.
-
-- **Also shipped, after the first `/done` ran:** CS-205, CS-404 part 1, and phase 4 waves 2
-  and 3 in full - `objects.py`, `world.py`, the phase-4 acceptance gate, CS-407 and CS-409.
-  Suite 734 -> **1462 passed, 5 skipped**, exit 0. CI green on `f3f26ba`.
-
-- **A REAL WORLD PARSES.** Verified by the merger against the live library, not taken from a
-  builder report: 3 of 14 real saves load end to end through `load_world` into a `WorldModel`
-  - 25769, 25769 and 25725 records, 202 levels, 2774 nodes - and the other 11 are refused
-  with a clean `WorldLoadError`. All three render the SAME masked token digest with DIFFERENT
-  record counts, which is CS-401's token-stability claim confirmed on the game's own output.
-
-- **In flight:** nothing half-done; the tree is committed and pushed. **CS-400 IS STILL NOT
-  CLOSED, and the gate itself says so.** Clauses 2, 3 and 4 are MET and gated. Clause 1 is met
-  for ONE of four version pairs only - three of the four real pairs cannot be read at all
-  (CS-407), and CS-402 is separately unmet because save version 42's transform delta is
-  unmeasured (CS-408). The open follow-ups are CS-406, CS-407, CS-408 and the remaining parts
-  of CS-404.
-
-- **Decisions:** ADR 0007, `accepted` - the save header layout and the chunk framing are
-  version dependent. Its adjudication returned NEEDS-REVISION and four defects were fixed
-  before the flip. Operator ruled that an INCONCLUSIVE `mInventoryPotential` result is an
-  acceptable outcome, filed as CS-405 rather than converted into an answer.
-
-- **Surprises**, every one measured rather than reasoned about:
-  1. **The chunk framing in `BOOTSTRAP.md` was TRUE ONLY FOR HEADER VERSIONS 13 AND 14.** On
-     header 10 the marker is `0x00000000` and there is NO compression-algorithm byte at all,
-     with zlib at magic+48 rather than +49. A walker built from the unqualified fact fails on
-     3 of 14 saves and looks correct on the other 11. The session prompt called this settled;
-     the probe won. Section 3.1 corrected, ADR 0007 records it.
-  2. **The header string ORDER is header-version dependent, and that is a PII mechanism.**
-     Header 14 carries four leading strings, headers 10 and 13 carry three. So on 10 and 13
-     the THIRD string is the operator's world name and on 14 it is the options string - a
-     redactor targeting a NAMED FIELD is defeated by a version-dependent field ORDER. A
-     planner probe demonstrated it by leaking one world name into its own agent transcript.
-     `header.py` therefore makes the PII strings ABSENT from the returned type, not redacted.
-  3. **`docs/adr/0003` is `accepted` and states the refuted framing verbatim**, so the stale
-     claim held the HIGHER status and a reader searching for "chunk framing" hits it first.
-     Found by the ADR 0007 adjudicator. Corrected by pointer in both directions, since
-     neither an accepted ADR nor an append-only ledger entry may be edited.
-  4. **CS-208 was REFUTED BY MEASUREMENT, not deferred.** 16 matchable world names exist here
-     and the shortest is 4 characters, so any floor at or above 5 drops exactly one REAL name
-     and it then commits. The false positive it feared does not exist - the gate over every
-     tracked file exits 0. And a floor of 4, 5, 6 or 8 turns ZERO of the 65 gate tests red,
-     which proves the suite is BLIND to the change rather than that the change is safe.
-  5. **The int8 after the datetime ticks is not "session visibility".** It reads `0x00` on
-     header 10, 13 and 14/60 and one of `0x10/0x50/0x90/0xD0` on the eight header-14/save-52
-     saves. Position is anchored (the int32 after it reads 40 on all 14); meaning is not.
-  6. **The synthetic corpus diverges from real bytes on the header-10 body prefix**, and a
-     builder reported the FIXTURE value as a measurement. Real header 10 opens with an int32
-     equal to body length minus 4. Filed as CS-404 before it could reach wave 2.
-  7. **The size block is `(c, u, c, u)`, measured** - W1-CHK named the alternative as the one
-     thing that could make its module wrong on every real save while every synthetic test
-     passed. It had guessed right, but it was a guess until the merger measured it.
-  8. **`os.open(p, os.O_WRONLY)` is invisible to a text-level write scan.** The static
-     single-writer check returns empty for it, so the phase-4 AST gate must cover `os.open`
-     and the runtime audit hook is what catches flag-based writes.
-
-- **Failed paths - do not retry:**
-  - **Trusting a builder's measurement of a FIXTURE as a measurement of the FORMAT.** Two
-    separate builders did this, on the body prefix and nearly on the size order. The fix is
-    not more review - it is that any claim about the byte format gets re-measured against a
-    real save before anything is built on it.
-  - **A shape-based check for a leaked token or world name.** A 22-character base64url regex
-    matches `Build_SyntheticSmelter`, and a 3-character-run check against a whole `repr`
-    matches the FIELD NAME `world_token=`. Both produced false positives for the merger this
-    session. Scope the check to the value, never to the rendering.
-  - **`grep -P` as a PII scan on this machine.** It errors with "supports only unibyte and
-    UTF-8 locales", and a `||` fallback then prints a clean result for a grep that never ran.
-    W0-DOC caught its own false pass and wrote a real scanner instead.
-
-- **Two more surprises, both after the first `/done`:**
-  9. **A real save body is a LIST OF LEVELS, not an object table.** Nothing downstream could
-     ever have parsed a real world by fixing an offset - the shape was wrong, not the number.
-     Header 10 / save 36 is now derived and confirmed on all three real files of that pair,
-     each landing on its exact final byte. The other three pairs are refused eagerly.
-  10. **pytest renders the ARGUMENTS of every frame in a failing traceback**, with no
-     `--showlocals` and no opt-in. Measured with a planted marker: it appeared twice. So a
-     test passing real save bytes into a frame that can raise prints the HEAD of the file,
-     which is exactly the PII-bearing header. Three live sites found and guarded. This class
-     is invisible to every green run BY CONSTRUCTION, because it only fires on failure.
-
-- **Also failed and worth not retrying:** interpolating save version 42's transform delta.
-  TWO separate builders reached a plausible number and BOTH discarded it - one because its
-  method failed to recover the known deltas for 36 and 60 when validated against them, the
-  other because the reading needed two unmeasured assumptions propping each other up. With 36
-  giving 4 and 52 giving 8, the value 4 is exactly what "looks derived" produces.
-
-- **Closing note, after the second `/done`:** the phase-4 gate's clause-1 test went from
-  SKIPPED to PASSING. Lifting that skip surfaced a trap worth remembering - the gate author
-  wrote "delete the skip marker and this becomes a real assertion with no other edit", and
-  that would have FAILED, because the test used `latest_save()` and the newest save here is
-  an UNMEASURED pair the reader refuses by design. A correct refusal would have read as a
-  defect. It now selects the newest save of a MEASURED pair. Suite closed at 1463 passed,
-  4 skipped, exit 0.
-
-- **Next action:** **CS-407** - derive the body layout for the remaining three version pairs.
-  Header 14 / save 52 is the nearest: all 134 named levels walk and the persistent level's
-  FIRST COMPONENT record is the single blocker. Each unfinished pair has its stopping point
-  recorded in `LEVELLED_LAYOUT_UNMEASURED` so a slice resumes from evidence rather than from
-  scratch.
