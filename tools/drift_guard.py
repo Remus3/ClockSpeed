@@ -658,10 +658,21 @@ def _reserved_problems(
         return reserved, ["reserved is not a list"]
     for item in entries:
         raw = item.get("port") if isinstance(item, dict) else item
+        unusable = f"reserved entry {item!r} has no usable port number"
+        # THE None CASE IS SPLIT OUT OF THE HANDLER DELIBERATELY. int(None)
+        # raises TypeError and the except below would catch it, so this is not
+        # a behaviour fix - but a caught exception is not a proof the type
+        # checker can read, and `raw` is Any | None here because a dict with no
+        # "port" key is exactly how the None arrives. The handler still covers
+        # everything else: a non-numeric string raises ValueError, a list raises
+        # TypeError, and both still land on the same message.
+        if raw is None:
+            problems.append(unusable)
+            continue
         try:
             port = int(raw)
         except (TypeError, ValueError):
-            problems.append(f"reserved entry {item!r} has no usable port number")
+            problems.append(unusable)
             continue
         if port in reserved:
             problems.append(f"port {port} is reserved twice")

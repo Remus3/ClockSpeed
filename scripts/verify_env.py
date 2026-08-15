@@ -702,40 +702,54 @@ def _game_rows(facts: dict) -> list[dict]:
         )
     )
 
+    # NARROWED RATHER THAN FLAGGED, and the difference is the whole of CS-414.
+    # This block used to carry a separate boolean - `community_ok`, `artifact_ok`,
+    # `usmap_ok` - that PROVED the neighbouring `Path | None` was non-None while
+    # being invisible to the type checker as a proof. Five errors followed, codes
+    # arg-type and operator, and they were held out of the gate by an `exclude`
+    # key rather than fixed. Collapsing each flag into the `is not None` test on
+    # the optional itself makes the proof and the narrowing the SAME expression,
+    # so the two cannot drift apart. Each optional is set to None the moment its
+    # filesystem check fails, which keeps exactly one stat call per path - a
+    # second `is_file()` at the render site would open a window in which the row
+    # says FOUND and renders "absent".
     community = (game_dir / "CommunityResources") if game_dir is not None else None
-    community_ok = community is not None and community.is_dir()
-    locale_count = _locale_file_count(community) if community_ok else 0
+    if community is not None and not community.is_dir():
+        community = None
+    locale_count = _locale_file_count(community) if community is not None else 0
     rows.append(
         _row(
             "SOFT",
             "CommunityResources",
-            community_ok,
+            community is not None,
             f"{redact(community)}  ({locale_count} locale json file(s) in Docs/)"
-            if community_ok
+            if community is not None
             else "absent",
         )
     )
 
     for relative in COMMUNITY_ARTIFACTS:
-        artifact = (community / relative) if community_ok else None
-        artifact_ok = artifact is not None and artifact.is_file()
+        artifact = (community / relative) if community is not None else None
+        if artifact is not None and not artifact.is_file():
+            artifact = None
         rows.append(
             _row(
                 "SOFT",
                 f"  CommunityResources/{relative}",
-                artifact_ok,
-                _size_of(artifact) if artifact_ok else "absent",
+                artifact is not None,
+                _size_of(artifact) if artifact is not None else "absent",
             )
         )
 
-    usmap = (community / USMAP_RELATIVE) if community_ok else None
-    usmap_ok = usmap is not None and usmap.is_file()
+    usmap = (community / USMAP_RELATIVE) if community is not None else None
+    if usmap is not None and not usmap.is_file():
+        usmap = None
     rows.append(
         _row(
             "SOFT",
             "usmap property mappings",
-            usmap_ok,
-            _size_of(usmap) if usmap_ok else "absent",
+            usmap is not None,
+            _size_of(usmap) if usmap is not None else "absent",
             "same file as the CommunityResources row above; called out separately "
             "because the save reader is built around it",
         )

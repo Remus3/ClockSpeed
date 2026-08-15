@@ -168,7 +168,14 @@ def _redact_or_withhold(value: str | None, locate: Any | None) -> str | None:
         return None
     if locate is None:
         return WITHHELD
-    return locate.redact(value)
+    # ANNOTATED AT THE SEAM, not suppressed at the return. `locate` is the
+    # lazily imported data layer and is typed Any, so this call yields Any and
+    # `warn_return_any` rejects handing it straight back as `str | None`. The
+    # annotation records the real contract where the Any enters the function -
+    # clockspeed/data/locate.py:303 declares `def redact(text: object) -> str`,
+    # which is also why the None case cannot arrive here.
+    redacted: str = locate.redact(value)
+    return redacted
 
 
 def _hooks_path(root: Path, configured: str | None, locate: Any | None) -> str | None:
