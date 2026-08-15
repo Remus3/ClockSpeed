@@ -74,6 +74,76 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-15 - CS-404 - `build_usmap` gains a shipped-grammar mode and a `version` parameter; parts 1 and 3 were already closed
+Verification: `tests/save/synthetic.py` (`build_usmap` shipped mode, `USMAP_EVIDENCE`),
+`tests/save/test_usmap.py::test_the_builder_reproduces_the_shipped_bytes_it_models` and
+`::test_the_real_usmap_accounts_for_its_own_length_exactly`, and
+`tests/save/test_synthetic.py`. Suite 1490 -> 1530 in the slice, 1551 merged, exit 0.
+THE PROOF IS AGAINST THE GAME'S BYTES, NOT AGAINST OUR LOADER, and that distinction is the
+whole point of the item. The fixture builder previously wrote inline length-prefixed strings
+where the shipped file writes uint32 name-table indices and emitted no property-type byte;
+a session-4 builder found this and worked around it inside its own test module rather than
+widen a file outside its write-list, so the builder itself was never fixed. Every real enum
+and schema was rebuilt through the new mode and compared byte for byte against the shipped
+file: 57985 of 57985 names, 2603 of 2603 enums, 13697 of 13792 schemas byte-identical, the
+95 exceptions being exactly the schemas where property count and serializable count differ.
+A round trip through `clockspeed/save/usmap.py` could not have established this - it cannot
+distinguish a fixture that matches the game from one that matches our own reader.
+DURABILITY WAS THE REAL FINDING. An adversarial pass produced a grammar contradicting the
+shipped file in 3113 type-26 descriptors across 1873 schemas that passed all 1519 tests,
+because the loader reads that field as u8-then-skip-4 and a small synthetic index leaves a
+valid payload-free type in the low byte - same bytes consumed, same `PropertyMap`, same
+`body_consumed`. It is now killed by the byte-comparison test above. Separately, the control
+the loader cites at `clockspeed/save/usmap.py:46-53` asserted only `body_consumed <=
+compressed_size`, which any early-stopping grammar satisfies; 8 of 9 loader grammar mutations
+passed it. That was true at base `a518b3e` and is fixed here.
+A FALSE ECHO-PATH CLAIM WAS REMOVED. `_usmap_index`'s docstring said keeping a name out of
+the exception message kept it out of the log. pytest renders frame ARGUMENTS and the name is
+an argument - measured, it printed twice. The docstring named the correct mechanism and then
+asserted a mitigation that mechanism defeats, which is worse than silence under
+non-negotiable 12 because it invites the pattern being copied to a frame carrying real save
+bytes. Replaced with the true statement and pinned by a test.
+EVIDENCE IS RECORDED AS DATA, per CS-412's discipline, including which field widths are
+MEASURED and which are merely UNCONTRADICTED on one file. Specifically: the `(slot,
+array_size)` pair is NOT discriminated by the landing oracle at all - swapping them lands
+byte-identically - and is settled only by value distribution. `MAX_KNOWN_PROPERTY_TYPE = 29`
+is an observed maximum, not a constraint. Every "measured" here is n=1 on one build, a
+ceiling rather than a sample.
+PARTS 1 AND 3 NEEDED NO WORK. Part 1 closed in `e4cd97e`. Part 3 - `repr=False` on
+`SyntheticSave.blob` - closed incidentally in `44740e0` under CS-407 and `ROADMAP.md` was
+stale on it; confirmed independently by the slice against the merger's claim.
+
+### 2026-08-15 - CS-411 - `scripts/` is inside the repo-wide mypy gate, and the recorded gaps now carry oracles
+Verification: `pyproject.toml` (`[tool.mypy] files`, `exclude`) and
+`tests/test_mypy_gate.py::test_repo_wide_mypy_checks_the_hook_installer`,
+`::test_every_authored_python_file_is_covered_or_recorded`,
+`::test_no_recorded_gap_is_blocked_by_a_frozen_file`,
+`::test_the_exclusion_is_discovery_only_not_containment`. Suite 1490 -> 1502 in the slice,
+1551 merged, exit 0. `python -m mypy` bare: 63 -> 66 source files, 0 errors.
+NO FROZEN FILE WAS TOUCHED AND NO GRANT WAS NEEDED. `scripts/install_hooks.py` already
+type-checked clean, which was the roadmap's stated precondition and it held. The directory
+is named rather than the one file, so a script added tomorrow is covered by default.
+THE GAP WAS TOTAL, not partial: the old key resolved to 63 files, exactly the count of
+`clockspeed` plus `tests`, so every file under `scripts/` and `tools/` was type-checked by
+nothing, anywhere. CI runs `python -m mypy` bare (`.github/workflows/tier1.yml:250`), so
+that key is the whole of the gate's authority.
+FOUR DEFECTS FOUND BY AN ADVERSARIAL PASS AND FIXED BEFORE MERGE. (1) The recorded reason
+for the `tools/` gap claimed a frozen-file grant was required; it is not - a scoped override
+for `ruff` and `yaml` drops `tools/precommit_gate.py` off the list with no edit to it, and
+mypy reports the block as an unused section when it does not match, which PROVES the scoping
+rather than assuming it. Contrast `strict = true`, which is accepted and applied globally.
+(2) The exclusion is a discovery filter, not containment: `tools/drift_guard.py:312` and
+`tools/facts_probe.py:121` both `import verify_env`, and adding `scripts/` to `files` is what
+made that import resolve, so the `tools/` rung costs 9 errors and not 4 - measured at 9 both
+with and without the exclusion, so the key buys nothing there. (3) The `scripts/` coverage
+test asserted set EQUALITY, forbidding the very property its own comment said the design
+existed for; one clean added script turned it red and the obvious fix would have re-opened
+this item. (4) The test named for the acceptance checked only that a path appeared somewhere,
+so replacing the entire 17-line reason with one bare line still passed.
+Every recorded gap now carries a measured error count checked against a real run.
+Non-vacuity was proven both ways: reverting the `files` key turns 3 tests red naming
+`scripts/install_hooks.py`, and adding a clean script to `scripts/` leaves all 12 green.
+
 ### 2026-08-15 - CS-407 - The body SKELETON grammar closes for all four version pairs, and 14 of 14 real saves load
 Verification: `clockspeed/save/objects.py` (`BODY_LAYOUT_BY_PAIR`, `_read_section_size`,
 `_read_level`, `_read_levelled_record`), `tests/save/synthetic.py` (`LEVELLED_LAYOUTS`), and

@@ -141,3 +141,87 @@ _No entries yet._
 - **Next action:** create the private GitHub repo `Clockspeed`, push a squashed orphan commit
   from the clean tree, and confirm the tier-1 CI run status on it - CI has never executed
   against a hosted branch, so the `--no-verify` mitigation is still unproven.
+
+## Session 3 - 2026-08-14 - phase 2 follow-ups, then the phase 3 solver core
+
+- **Shipped:** CS-105, CS-201, CS-202, CS-203 and **CS-300, the phase 3 gate**, all four
+  waves. `solve/{exact,ratio,power,optimize}.py`, `solve/backends/`, the C1-C9 corpus, the
+  registry seam plus ADR 0006, and the mypy ratchet. Detail in `docs/LEDGER.md`.
+
+- **In flight:** nothing half-done; the working tree is committed and pushed. Phase 3 is
+  CLOSED and phase 4 (CS-400, the save reader) is next and unblocked. Two phase-3 follow-ups
+  were filed rather than absorbed: CS-301 (the variable-power law is unmeasured, so
+  `power.py` refuses to model it, and two branches have no fixture to exercise them) and
+  CS-302 (`ratio.py`'s refusal-path diagnosis is O(rows) extra solves and was never measured
+  at real-registry scale). Five phase-2 follow-ups are also open, CS-204 to CS-208, all
+  found by this session's own process rather than inherited.
+
+- **Decisions:** ADR 0006, status `proposed`, needs an adjudicator to flip it. It records
+  how the un-sharded clock base enters the model, which ADR 0005 specified but could not
+  implement. It supersedes nothing and ADR 0005 is unedited.
+
+- **Surprises**, each measured rather than reasoned about:
+  1. **`strict = true` does not work in a mypy per-module override.** It is accepted with no
+     complaint and applied GLOBALLY - the `clockspeed.solve.*` rung alone produced 25 errors
+     in `tests/data/test_blobs.py`, a file its pattern cannot match. Written out as its
+     twelve scoped constituents instead. Acceptance of a key is not evidence of scoping.
+  2. **`Fraction ** Fraction` returns a FLOAT** for a non-integer exponent, and the defect is
+     DATA-DEPENDENT: the same operator with `Fraction(2,1)` returns a Fraction, so a test
+     written with a whole-number exponent passes while the shipped 1.321929 degrades
+     silently. `**` is banned outright in `solve/`.
+  3. **ADR 0005 contradicted the shipped registry** and a test enforced the contradiction.
+     Resolved in data by S0-REG; see ADR 0006.
+  4. **The planner's C5 chain shared C3's product**, which gave that item a second producer
+     and destroyed C3's uniqueness - a rival plan satisfies every balance at 30 MW against
+     C3's 436/3 MW, so a minimizing solver would have returned it and C3's hand-verified
+     answer would have been wrong. Caught by the fixture slice, fenced with two tests.
+  5. **A shape-only world-token detector is not viable.** Measured over all 99 tracked files:
+     a naive 22-char regex matches 2082 times, and even at its tightest still matches 5 game
+     class names. CS-201 detection is value-based as a result.
+  6. **`.claude/worktrees/` was untracked but UNIGNORED** - one `git add -A` would have
+     committed a duplicate tree - and it inflated local `ruff format` from 38 files to 187,
+     reporting a builder's scratch copy as a main-tree failure. Now gitignored.
+
+- **Failed paths - do not retry:**
+  - **`git reset --hard` to undo a probe commit.** It discarded every tracked modification in
+    the working tree in one step, including four merged slices. Recovered in full because the
+    agent worktrees still held the builder output and the new files were untracked, but it
+    cost a full recovery cycle. Use `git reset --soft HEAD~1`. A trailing `--` does NOT make
+    `--hard` respect a pathspec; it is accepted as a whole-tree reset.
+  - **Slicing `pyproject.toml` at the first literal `[[tool.mypy.overrides]]`.** That string
+    appears in a COMMENT above the real blocks, so every generated test config was truncated
+    mid-comment and silently set the option globally. Six bisect results were measuring the
+    broken fixture rather than the thing under test.
+  - **Trusting a builder's baseline count.** Worktrees are cut from HEAD, so a builder that
+    started before a merge reports a baseline that is real for it and wrong for the tree.
+    Two builders reported honestly that their dependencies were absent; re-run post-merge.
+  - **Auditing a fence with a cruder check than the fence itself.** A first pass at the
+    ADR-0006 audit walked ALL string constants including docstrings and reported four false
+    failures, because the operand names legitimately appear in explanatory prose.
+
+  7. **Flipping the mypy gate to blocking immediately caught a PRE-EXISTING CI failure that
+     `continue-on-error` had been hiding.** mypy analyses for the platform it is RUNNING on,
+     so `if sys.platform != "win32": return` makes the rest of the function unreachable on
+     Linux and not on Windows - three `unreachable` errors in `clockspeed/data/locate.py`
+     off identical source, green locally and red on the runner. The previous CI run reports
+     `success` only because the failed step was allowed to pass the job. Fixed by pinning
+     `platform = "win32"` in the mypy config so the config means the same thing everywhere;
+     the cost, three unchecked non-Windows early returns, is stated in `pyproject.toml`
+     rather than hidden. **A green local gate is not evidence about CI when the tool's
+     behaviour depends on the host.**
+  8. **A merger instruction was refuted by the agent executing it, and the refutation was
+     right.** The wave-4 dispatch required that no solve module pull in
+     `clockspeed.data.docs_extract`. That is unsatisfiable - `registry.py:206` and
+     `version.py` import it at module level and `tests/data/test_phase2_gate.py:775-781`
+     REQUIRES those edges - and `docs/ARCHITECTURE.md:136-138` scopes the raw-docs
+     prohibition to `advisor/`, not to `solve/`, whose clause is "never reads a save".
+     Writing it as dispatched would have made the phase red against correct code.
+
+- **Next action:** get ADR 0006 adjudicated from `proposed` to `accepted` by an agent that
+  did not write it - it is the only unadjudicated artifact from this session - then begin
+  phase 4 (CS-400, the save reader). Phase 4 is unblocked and is where the two oldest
+  deferred questions land: whether `mInventoryPotential` serialization carries the overclock
+  slot count (ADR 0005's one remaining unknown, which would let `power.py` publish a real
+  ceiling), and the world-token half of CS-201, which cannot work until a header parser
+  exists. Note BOOTSTRAP.md section 3.1: the actor header layout is save-version dependent,
+  +8 on save versions 52 and 60 and +4 on version 36, so version-dispatch from day one.

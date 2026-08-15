@@ -31,6 +31,95 @@ the line becomes a pointer.
 
 ---
 
+## Session 6 - 2026-08-15 - the operator rules CS-400 depth-bound; payload extents get attributed
+
+- **Shipped:** **CS-411** and **CS-404** closed. **CS-413** filed and half-landed - attribution
+  yes, decoding no. New items filed: CS-414, CS-415, CS-416, CS-417, CS-418. Suite 1490 ->
+  **1551 passed, 4 skipped**, exit 0. Detail in `docs/LEDGER.md`.
+
+- **THE OPERATOR RULED ON CS-400 AND IT STAYS OPEN ON DEPTH.** A skeleton walk does NOT satisfy
+  "a real world parses". Two mechanical consequences, both recorded rather than implied: the
+  payload grammar became **CS-413**, its own item and the phase-4 depth gate, and **phase 5
+  does not open until a record's properties can be READ**, restated in CS-500's own entry so a
+  reader arriving there does not have to find it in CS-400.
+
+- **In flight:** nothing half-done; the tree is committed and pushed. CS-413 is the live thread.
+
+- **Decisions:** no ADR. No frozen file was touched and no frozen-file grant was needed - the
+  one believed necessary turned out not to be, see surprise 3.
+
+- **Surprises**, each measured rather than reasoned about:
+  1. **THE MERGER'S OWN FRAMING WAS WRONG AND THE BUILDER REFUTED IT.** The dispatch and the
+     CS-413 roadmap entry both said the object data section was UNLOCATED. It was not:
+     `objects.py:1666-1672` says the extents "are located by the walk below" and the seam
+     stayed 0 because the k-th-payload-to-k-th-record pairing "is an ASSUMPTION nothing has
+     measured" - a deliberate refusal to ship a plausible guess. **The real unknown was
+     ALIGNMENT.** Cause: reading a summary at the top of a 2000-line module and not the
+     implementation 1500 lines below it. Same class as session 5's inherited notes naming the
+     wrong unknown; this time it was generated in-session, by the merger, in under an hour.
+     Corrected in `e70598b`.
+  2. **THE PERMUTATION CONTROL IS THE ONE THAT SETTLES ALIGNMENT.** Shifts of +/-1 and +/-2 all
+     give 0, but so would a broken harness. A random WITHIN-LEVEL permutation holding the
+     extent multiset and the tiling fixed and varying only the assignment gives **0 of 29170
+     moved payloads matching and 61 of 61 permutation fixed points matching.** Agreement
+     guaranteed by construction cannot survive that. The builder did not run it; the adversary
+     did, and said plainly it was the control the builder should have run.
+  3. **A FROZEN-FILE BLOCKER DISSOLVED IN CONFIG.** `tools/` was believed to need a grant for
+     `tools/precommit_gate.py`. A scoped override for `ruff` and `yaml` removes the error with
+     no edit to that file - **and the scoping was PROVEN, not assumed**: mypy reports the block
+     as an unused section when it does not match, the opposite of `strict = true`, which is
+     accepted silently and applied globally. The merger was one step from filing a grant item
+     that was never needed.
+  4. **AN EXCLUSION THAT BUYS NOTHING.** mypy's `exclude` governs DISCOVERY, not the import
+     graph. `tools/drift_guard.py:312` and `tools/facts_probe.py:121` both `import verify_env`
+     - an import that resolves only BECAUSE CS-411 made `scripts/` a source base dir. Measured:
+     adding `tools/` gives 9 errors with the exclusion and 9 without. Filed as CS-414.
+  5. **A MUTANT CONTRADICTING THE SHIPPED FILE IN 3113 PLACES PASSED ALL 1519 TESTS.** Writing
+     the usmap type-26 name index before its inner descriptor lands on the IDENTICAL byte -
+     the landing oracle is structurally blind to it - and the loader tolerates it because a
+     small synthetic index leaves a valid payload-free type in the low byte. Killed only by
+     comparing builder output against real shipped bytes. **This is the phase's stated
+     common-mode risk arriving in person.**
+  6. **A DOCSTRING NAMED THE CORRECT MECHANISM AND THEN CLAIMED A MITIGATION THAT MECHANISM
+     DEFEATS.** `_usmap_index` said keeping a name out of the exception MESSAGE kept it out of
+     the log. pytest renders frame ARGUMENTS and the name is an argument; it printed twice.
+     Worse than silence under non-negotiable 12, because it teaches a pattern that fails on a
+     frame carrying real save bytes.
+  7. **A WRONG NUMBER WITH A TRUE CLAIM ATTACHED.** CS-413's first revision put "all 6173
+     levels" into two SHIPPED docstrings. It is 6171 - three instrumentations and the per-pair
+     sum 606+2244+2945+376 agree, and the repo already recorded 6171 in three places. The
+     attached claim was true, which is exactly what would have made it read as verified
+     forever. Deleted rather than corrected: "every level of every real save agrees" says
+     everything the count said and cannot rot.
+  8. **TWO TESTS COULD NOT FAIL FOR THE DEFECT THEY GUARDED**, including one whose own docstring
+     called it "THE HONESTY CONTROL". Both passed with the implementation deleted AND with the
+     alignment rotated. The fix needed EQUALITY, not `> 0`: measured, a `> 0` control still
+     passes rotate-1 at 77257.
+  9. **CI PROVES ALMOST NONE OF CS-413.** Simulated on a save-less box: all four
+     `tests/save/test_properties.py` tests skip and 2 of 5 new `test_objects.py` tests skip.
+     CI verifies seam arithmetic on the synthetic fixture; the alignment, the tag grammar and
+     the zero-zero-length-payload result are this-machine-only.
+  10. **AN ITEM CLOSED INCIDENTALLY BY A NEIGHBOURING COMMIT STAYED OPEN ON THE BOARD.**
+     CS-404 part 3 landed in `44740e0` under CS-407 and nothing announced it, so it sat open
+     and would have cost a slice. Found by the merger before dispatch.
+
+- **Failed paths - do not retry:**
+  - **A round trip through our own loader as proof a fixture matches the GAME.** It cannot
+    distinguish "matches the game" from "matches our reader" - surprise 5 is the proof. Compare
+    against shipped bytes.
+  - **The usmap landing oracle as a discriminator for field ORDER.** Swapping `(slot,
+    array_size)` lands byte-identically; it is settled ONLY by value distribution. Recording a
+    width as "measured by landing" is wrong for that pair.
+  - **A `> 0` liveness control on a real-library sweep.** Passes under a rotated alignment.
+  - **Reading a module docstring as a statement of what the module does.** Surprise 1.
+
+- **Next action:** decide whether to continue **CS-413**'s decode half or take the four cheap
+  tier-1 items now filed. If continuing CS-413, the two open fronts are separate problems: the
+  variable trailing run after the terminator is a GRAMMAR question that more saves will NOT
+  fix and that needs per-type value decoding, and save 60 is the opposite - genuinely
+  under-sampled at 2 byte-identical files, reaching a terminator on 0 of 1832 at every
+  alignment tried.
+
 ## Session 5 - 2026-08-15 - CS-407 closes for all four pairs; the save reader reads the whole library
 
 - **Shipped:** **CS-406**, **CS-407**, **CS-408** and **CS-402**. New items filed: CS-411
@@ -236,87 +325,3 @@ the line becomes a pointer.
   FIRST COMPONENT record is the single blocker. Each unfinished pair has its stopping point
   recorded in `LEVELLED_LAYOUT_UNMEASURED` so a slice resumes from evidence rather than from
   scratch.
-
-## Session 3 - 2026-08-14 - phase 2 follow-ups, then the phase 3 solver core
-
-- **Shipped:** CS-105, CS-201, CS-202, CS-203 and **CS-300, the phase 3 gate**, all four
-  waves. `solve/{exact,ratio,power,optimize}.py`, `solve/backends/`, the C1-C9 corpus, the
-  registry seam plus ADR 0006, and the mypy ratchet. Detail in `docs/LEDGER.md`.
-
-- **In flight:** nothing half-done; the working tree is committed and pushed. Phase 3 is
-  CLOSED and phase 4 (CS-400, the save reader) is next and unblocked. Two phase-3 follow-ups
-  were filed rather than absorbed: CS-301 (the variable-power law is unmeasured, so
-  `power.py` refuses to model it, and two branches have no fixture to exercise them) and
-  CS-302 (`ratio.py`'s refusal-path diagnosis is O(rows) extra solves and was never measured
-  at real-registry scale). Five phase-2 follow-ups are also open, CS-204 to CS-208, all
-  found by this session's own process rather than inherited.
-
-- **Decisions:** ADR 0006, status `proposed`, needs an adjudicator to flip it. It records
-  how the un-sharded clock base enters the model, which ADR 0005 specified but could not
-  implement. It supersedes nothing and ADR 0005 is unedited.
-
-- **Surprises**, each measured rather than reasoned about:
-  1. **`strict = true` does not work in a mypy per-module override.** It is accepted with no
-     complaint and applied GLOBALLY - the `clockspeed.solve.*` rung alone produced 25 errors
-     in `tests/data/test_blobs.py`, a file its pattern cannot match. Written out as its
-     twelve scoped constituents instead. Acceptance of a key is not evidence of scoping.
-  2. **`Fraction ** Fraction` returns a FLOAT** for a non-integer exponent, and the defect is
-     DATA-DEPENDENT: the same operator with `Fraction(2,1)` returns a Fraction, so a test
-     written with a whole-number exponent passes while the shipped 1.321929 degrades
-     silently. `**` is banned outright in `solve/`.
-  3. **ADR 0005 contradicted the shipped registry** and a test enforced the contradiction.
-     Resolved in data by S0-REG; see ADR 0006.
-  4. **The planner's C5 chain shared C3's product**, which gave that item a second producer
-     and destroyed C3's uniqueness - a rival plan satisfies every balance at 30 MW against
-     C3's 436/3 MW, so a minimizing solver would have returned it and C3's hand-verified
-     answer would have been wrong. Caught by the fixture slice, fenced with two tests.
-  5. **A shape-only world-token detector is not viable.** Measured over all 99 tracked files:
-     a naive 22-char regex matches 2082 times, and even at its tightest still matches 5 game
-     class names. CS-201 detection is value-based as a result.
-  6. **`.claude/worktrees/` was untracked but UNIGNORED** - one `git add -A` would have
-     committed a duplicate tree - and it inflated local `ruff format` from 38 files to 187,
-     reporting a builder's scratch copy as a main-tree failure. Now gitignored.
-
-- **Failed paths - do not retry:**
-  - **`git reset --hard` to undo a probe commit.** It discarded every tracked modification in
-    the working tree in one step, including four merged slices. Recovered in full because the
-    agent worktrees still held the builder output and the new files were untracked, but it
-    cost a full recovery cycle. Use `git reset --soft HEAD~1`. A trailing `--` does NOT make
-    `--hard` respect a pathspec; it is accepted as a whole-tree reset.
-  - **Slicing `pyproject.toml` at the first literal `[[tool.mypy.overrides]]`.** That string
-    appears in a COMMENT above the real blocks, so every generated test config was truncated
-    mid-comment and silently set the option globally. Six bisect results were measuring the
-    broken fixture rather than the thing under test.
-  - **Trusting a builder's baseline count.** Worktrees are cut from HEAD, so a builder that
-    started before a merge reports a baseline that is real for it and wrong for the tree.
-    Two builders reported honestly that their dependencies were absent; re-run post-merge.
-  - **Auditing a fence with a cruder check than the fence itself.** A first pass at the
-    ADR-0006 audit walked ALL string constants including docstrings and reported four false
-    failures, because the operand names legitimately appear in explanatory prose.
-
-  7. **Flipping the mypy gate to blocking immediately caught a PRE-EXISTING CI failure that
-     `continue-on-error` had been hiding.** mypy analyses for the platform it is RUNNING on,
-     so `if sys.platform != "win32": return` makes the rest of the function unreachable on
-     Linux and not on Windows - three `unreachable` errors in `clockspeed/data/locate.py`
-     off identical source, green locally and red on the runner. The previous CI run reports
-     `success` only because the failed step was allowed to pass the job. Fixed by pinning
-     `platform = "win32"` in the mypy config so the config means the same thing everywhere;
-     the cost, three unchecked non-Windows early returns, is stated in `pyproject.toml`
-     rather than hidden. **A green local gate is not evidence about CI when the tool's
-     behaviour depends on the host.**
-  8. **A merger instruction was refuted by the agent executing it, and the refutation was
-     right.** The wave-4 dispatch required that no solve module pull in
-     `clockspeed.data.docs_extract`. That is unsatisfiable - `registry.py:206` and
-     `version.py` import it at module level and `tests/data/test_phase2_gate.py:775-781`
-     REQUIRES those edges - and `docs/ARCHITECTURE.md:136-138` scopes the raw-docs
-     prohibition to `advisor/`, not to `solve/`, whose clause is "never reads a save".
-     Writing it as dispatched would have made the phase red against correct code.
-
-- **Next action:** get ADR 0006 adjudicated from `proposed` to `accepted` by an agent that
-  did not write it - it is the only unadjudicated artifact from this session - then begin
-  phase 4 (CS-400, the save reader). Phase 4 is unblocked and is where the two oldest
-  deferred questions land: whether `mInventoryPotential` serialization carries the overclock
-  slot count (ADR 0005's one remaining unknown, which would let `power.py` publish a real
-  ceiling), and the world-token half of CS-201, which cannot work until a header parser
-  exists. Note BOOTSTRAP.md section 3.1: the actor header layout is save-version dependent,
-  +8 on save versions 52 and 60 and +4 on version 36, so version-dispatch from day one.
