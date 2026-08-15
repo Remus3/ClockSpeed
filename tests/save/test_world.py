@@ -39,12 +39,16 @@ subject was produced by the game rather than by this repo.
 
 Nor is a green run evidence that saves in general are readable. CS-409 routes
 the default load to ``objects.parse_body``, which reads only a body whose
-``(header version, save version)`` pair is in ``objects.MEASURED_BODY_LAYOUTS``
-- today the single pair header 10 with save 36. **Three of the four real pairs
-are refused**, and ``test_every_unmeasured_real_pair_is_refused_and_the_measured
-_one_is_not`` asserts that refusal rather than papering over it. A reader who
-takes 60-odd green dots for "the save reader reads saves" has misread this
-module by roughly a factor of four.
+``(header version, save version)`` pair is in ``objects.MEASURED_BODY_LAYOUTS``.
+THAT SET IS NOT RESTATED HERE. It grew under CS-407 and this paragraph did not
+follow it - it went on naming a single readable pair and refusing the rest long
+after every real pair had been measured, which is the same drift CS-418 removed
+from ``world.py`` and from this sentence in one pass. The refusal is asserted
+against the constant rather than against a list written down here, by
+``test_every_fixture_pair_outside_the_measured_set_is_refused``. What a measured
+pair buys is a SKELETON walk, whose limits ``clockspeed/save/world.py``'s module
+docstring states; a reader who takes a green run here for "the save reader reads
+saves" is making a larger mistake than any pair count could express.
 
 The flat-bodied corpus is therefore loaded through ``_load_flat``, which names
 ``world.BODY_LAYOUT_FLAT`` at every call site. That verbosity is the point: a
@@ -53,14 +57,14 @@ green while returning a wrong record count for a real world, which is precisely
 the defect CS-409 removed.
 
 Unlock state is NOT parsed by anything in this project. ADR 0004 measured which
-FIELDS exist; it did not measure their serialized grammar, and
-``objects.read_properties`` decodes no property value at all. So the assertions
-below pin an HONESTLY EMPTY unlock state carrying a warning that says the
-grammar is unmeasured, per non-negotiable 7. An empty unlock set that says so
-is correct; a fabricated one is not, and ADR 0004 requires both a fresh-shaped
-and a mature-shaped world be asserted because a fixture built only from a
-mature world stays green through exactly the defect that reports a mature
-world's state for a fresh one.
+FIELDS exist; it did not measure their serialized grammar, and ``world.py``'s
+one producer of the published state returns its empty constant with no read of
+its own. So the assertions below pin an HONESTLY EMPTY unlock state carrying a
+warning that says that grammar is unmeasured, per non-negotiable 7. An empty
+unlock set that says so is correct; a fabricated one is not, and ADR 0004
+requires both a fresh-shaped and a mature-shaped world be asserted because a
+fixture built only from a mature world stays green through exactly the defect
+that reports a mature world's state for a fresh one.
 
 THE TRACEBACK RENDERING BELOW IS THE ASSERTION, NOT AN EMISSION
 ------------------------------------------------------------------
@@ -91,6 +95,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import inspect
+import re
 import traceback
 from collections.abc import Callable
 from pathlib import Path
@@ -127,10 +132,6 @@ _DELTA_36: Final = 4
 _DELTA_42: Final = 4
 
 _TRIPLE: Final = 3
-
-#: How many (header version, save version) pairs the operator's real library
-#: contains. All four now have a measured body skeleton.
-_FOUR_REAL_PAIRS: Final = 4
 
 #: Enough records that the body exceeds a deliberately tiny chunk size, so two
 #: fixtures can differ in CHUNK COUNT without needing a hundred kilobytes.
@@ -599,11 +600,12 @@ def test_the_empty_unlock_state_says_the_grammar_is_unmeasured() -> None:
 
 
 def test_no_unlock_field_is_ever_fabricated() -> None:
-    """The fence. Every unlock collection is empty because nothing decodes one today.
+    """The fence. Every unlock collection is empty because nothing reads one today.
 
-    ``objects.read_properties`` decodes NO property value - the payload grammar
-    is unmeasured - so there is no path by which a purchased schematic could
-    have been read. A non-empty collection here would mean an invented one.
+    ``world._read_unlocks`` is the only producer of the published state and
+    returns the empty constant with no read of its own, so there is no path by
+    which a purchased schematic could have arrived. A non-empty collection here
+    would mean an invented one.
     """
     for fixture in _LOADABLE_FIXTURES:
         unlocks = _load_flat(fixture.blob).unlocks
@@ -1314,13 +1316,20 @@ def test_a_pair_with_no_measured_body_layout_is_refused_rather_than_guessed() ->
     assert caught.value.stage == world.STAGE_OBJECTS
 
 
-def test_every_unmeasured_real_pair_is_refused_and_the_measured_one_is_not() -> None:
+def test_every_fixture_pair_outside_the_measured_set_is_refused() -> None:
     """The sibling sweep. One refusal proves one branch; the table proves the rule.
 
     Every pair the corpus carries is checked against
     ``objects.MEASURED_BODY_LAYOUTS`` rather than against a list written here,
     so the day a pair is measured this test follows the measurement instead of
     contradicting it.
+
+    RENAMED UNDER CS-418. It was ``..._and_the_measured_one_is_not``, which
+    counted the measured pairs at ONE in its own name and kept saying so after
+    the set grew - and a name is the part of a test nobody re-reads.
+    The body was already tied to the constant and needed no change, which is the
+    whole point: the tied half followed the measurement and the prose half did
+    not.
     """
     for fixture in (*_LOADABLE_FIXTURES, synthetic.SAVE_LEVELLED_V36):
         pair = (fixture.header_version, fixture.save_version)
@@ -1398,14 +1407,22 @@ def test_the_module_docstring_records_which_pairs_can_actually_be_read() -> None
 
     The new limit is a byte ratio, not a pair count: roughly three quarters of
     every real body is opaque property payload the walk steps over by declared
-    length. A reader who takes "all four pairs parse" to mean "the format is
+    length. A reader who takes "every pair parses" to mean "the format is
     understood" is making a larger mistake than the one this test used to
     catch, so the word SKELETON is asserted to be present.
+
+    THE PAIR COUNT LEFT THIS TEST UNDER CS-418. It asserted ``len(measured) ==
+    4``, a number this file restated about a constant it does not own, and one
+    the loop below already covers with a better message: a newly measured pair
+    fails on the docstring that does not name it rather than on an arithmetic
+    mismatch. What remains is the non-empty guard, which is the assertion that
+    actually has to be here - an empty set would make the loop vacuous and this
+    test would pass while checking nothing.
     """
     docstring = world.__doc__ or ""
     measured = sorted(objects.MEASURED_BODY_LAYOUTS)
 
-    assert len(measured) == _FOUR_REAL_PAIRS
+    assert measured, "MEASURED_BODY_LAYOUTS is empty, so the loop below checks nothing"
     for header_version, save_version in measured:
         assert f"header {header_version}" in docstring
         assert f"save {save_version}" in docstring
@@ -1414,6 +1431,149 @@ def test_the_module_docstring_records_which_pairs_can_actually_be_read() -> None
         "a pair count without that word reads as a claim the format is understood"
     )
     assert "MEASURED_BODY_LAYOUTS" in docstring
+
+
+# ---------------------------------------------------------------------------
+# 11 - CS-418: every claim about another module derives from that module
+# ---------------------------------------------------------------------------
+
+#: The claim phrases CS-418 retired from ``world.py``. Each stated, in THIS
+#: layer's voice, why no property value is available - a capability and a reason
+#: that ``clockspeed/save/objects.py`` owns and that CS-413 moved without this
+#: file noticing. They are quoted from the shipped text rather than paraphrased,
+#: so this tuple records what was actually wrong instead of describing it.
+#:
+#: KNOW WHAT THIS HALF DOES NOT DO. It locks the retired WORDING, not the idea:
+#: the same false claim in new words passes it, because an absent grep is a
+#: claim about the pattern and not about the file. The mechanical half is the
+#: AST check below - world.py calls neither reader - and that is what the
+#: replacement prose actually rests on.
+_RETIRED_PROPERTY_CLAIMS: Final = (
+    "never been measured by this project",
+    "no code in this project decodes a property value",
+    "decodes no property value",
+)
+
+#: The two readers in ``objects`` whose capability world.py must not restate,
+#: because what they decode is that module's fact and changes when it does.
+_PROPERTY_READERS: Final = ("read_properties", "parse_properties")
+
+
+def _world_docstrings(*, include_module: bool) -> list[tuple[str, str]]:
+    """Every docstring in world.py, with the name of whatever carries it.
+
+    Args:
+        include_module: Whether to include the module docstring itself.
+
+    Returns:
+        ``(owner, text)`` pairs with each docstring's line wrapping collapsed.
+        THE COLLAPSE IS LOAD-BEARING: a claim that wraps across two source lines
+        is invisible to a substring check run against the raw text, and the
+        claims retired here wrapped in the shipped text.
+    """
+    tree = _world_ast()
+    module_doc = ast.get_docstring(tree) if include_module else None
+    found = [("<module>", " ".join(module_doc.split()))] if module_doc is not None else []
+    found.extend(
+        (node.name, " ".join(doc.split()))
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef)
+        and (doc := ast.get_docstring(node)) is not None
+    )
+    return found
+
+
+def test_no_docstring_below_module_level_restates_a_measured_version_pair() -> None:
+    """CS-418. The pair list has one home, and this file already proved which one.
+
+    THE DIAGNOSIS IS SITTING IN THE SAME MODULE. The module docstring's pair
+    list is checked against ``objects.MEASURED_BODY_LAYOUTS`` by
+    ``test_the_module_docstring_records_which_pairs_can_actually_be_read``, and
+    it followed CS-407 as that set grew.
+    ``load_world_from_bytes`` carried the same list with NOTHING checking it,
+    and went on saying a single pair was readable. The tied claim survived; the
+    untied one rotted. So every docstring below module level names the constant
+    and restates none of its numbers.
+
+    The forbidden set is derived FROM the constant, so this test restates no
+    number either - measure a fifth pair and its scalars join the ban with no
+    edit here. That is the difference between a guard and a second copy.
+
+    The module docstring is exempt BY NAME rather than by a pattern, because the
+    sibling test above requires it to carry exactly what this one forbids
+    everywhere else.
+    """
+    forbidden = {str(scalar) for pair in objects.MEASURED_BODY_LAYOUTS for scalar in pair}
+    assert forbidden, "MEASURED_BODY_LAYOUTS is empty, so this test would check nothing"
+
+    below_module = _world_docstrings(include_module=False)
+    assert "load_world_from_bytes" in {owner for owner, _ in below_module}, (
+        "the collector did not reach the entry point's docstring, so the loop below "
+        "would sweep past the one claim this test was filed for"
+    )
+
+    for owner, docstring in below_module:
+        restated = sorted(forbidden & set(re.findall(r"[0-9]+", docstring)))
+        assert not restated, (
+            f"the docstring of {owner} restates the version scalars {restated} that "
+            "objects.MEASURED_BODY_LAYOUTS owns; name the constant instead"
+        )
+
+    entry = inspect.getdoc(world.load_world_from_bytes) or ""
+    assert "MEASURED_BODY_LAYOUTS" in entry, (
+        "the entry point must name the set that decides which bodies it reads, "
+        "rather than describing that set in its own words"
+    )
+
+
+def test_the_world_layer_states_no_property_capability_it_does_not_own() -> None:
+    """CS-418. Why this layer publishes no property value is ITS fact, not objects'.
+
+    THE DANGEROUS SHAPE, and the one this test exists for: a REASON that has
+    gone wrong carrying a CONCLUSION that is still right. world.py published no
+    property value and said the cause was that the object data section's grammar
+    had never been measured. CS-413 measured it, the conclusion stayed true, and
+    so the sentence went on reading as current.
+
+    THE GROUND TRUTH IS TAKEN FIRST AND FROM THE SYNTHETIC CORPUS, so the
+    refutation runs on a machine with no game installed rather than only where a
+    real library exists: the levelled walk attributes a payload extent to every
+    record it returns, which is precisely what "never located, never measured"
+    denies.
+
+    What replaces the borrowed reason is a fact this module can prove about
+    itself - it calls NEITHER property reader, so no property value can reach a
+    ``WorldModel`` whatever those readers later learn to decode. Asserting that
+    by AST is what keeps the replacement wording true if the decoding half of
+    CS-413 lands: this layer's emptiness stops depending on the other module's
+    capability entirely.
+    """
+    model = world.load_world_from_bytes(synthetic.SAVE_LEVELLED_V36.blob)
+
+    assert model.objects.records, "no records, so this test would measure nothing"
+    assert all(record.body_length > 0 for record in model.objects.records), (
+        "the levelled walk attributed no payload extent, so this test cannot show that "
+        "the data section is located and the retired claims below are not yet refuted"
+    )
+
+    called = {_called_name(node) for node in ast.walk(_world_ast()) if isinstance(node, ast.Call)}
+    assert not called & set(_PROPERTY_READERS), (
+        "world.py calls a property reader, so what it publishes now DOES depend on what "
+        "that reader decodes and its docstrings may no longer say otherwise"
+    )
+
+    everywhere = _world_docstrings(include_module=True)
+    assert "<module>" in {owner for owner, _ in everywhere}, (
+        "the collector did not reach the module docstring, which is where two of the "
+        "three retired claims lived"
+    )
+
+    for owner, docstring in everywhere:
+        restated = [claim for claim in _RETIRED_PROPERTY_CLAIMS if claim in docstring]
+        assert not restated, (
+            f"the docstring of {owner} restates {restated}: a capability and a reason "
+            "objects.py owns, contradicted by the extents measured above"
+        )
 
 
 # ---------------------------------------------------------------------------

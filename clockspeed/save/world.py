@@ -24,13 +24,12 @@ down, where it has its own fixtures and its own error taxonomy.
 TWO DISPATCHES, THREADED SEPARATELY AND NEVER DERIVED
 -------------------------------------------------------
 The body length prefix width follows the HEADER version; the transform delta
-follows the SAVE version. Across the entire real library the two covary - header
-10 with save 36, header 14 with saves 52 and 60 - so a composer that read one
-scalar and derived the other is correct on every real file and on every
-real-shaped fixture. Both are passed through explicitly, and
+follows the SAVE version. Across the entire real library the two covary, so a
+composer that read one scalar and derived the other is correct on every real
+file and on every real-shaped fixture. Both are passed through explicitly, and
 ``tests/save/test_world.py::test_save_cross_proves_the_composer_threads_both_scalars``
-asserts the PAIR against a header-14/save-36 fixture that exists in no real
-file.
+asserts the PAIR against ``synthetic.SAVE_CROSS``, whose pair occurs in no real
+file and which is therefore the only fixture that can separate them.
 
 AN ABSENT PROPERTY MAP IS THE DEFAULT PATH, NOT AN EDGE CASE
 --------------------------------------------------------------
@@ -45,10 +44,21 @@ rather than a world it has not checked.
 ``objects.parse_properties`` takes a NON-OPTIONAL ``PropertyMap``, which is the
 trap in the seam: a composer that called it unconditionally is a ``TypeError``
 on every machine that has never had the game installed. **This module does not
-call it at all**, and the reason is not the None case - it is that
-``objects.read_properties`` decodes no property value whatsoever, because the
-object data section's grammar has never been measured by this project. Calling
-it today would cost a pass over every record and return an empty mapping.
+call it at all**, and the reason is not the None case.
+
+WHAT EITHER PROPERTY READER CAN DECODE IS ``objects``' FACT, and it is stated
+at ``objects.read_properties`` rather than a second time here. A capability
+restated in a second module is one that goes stale in the second module, which
+is precisely what happened to this paragraph: it named a reason - the data
+section's grammar - that had since been measured, while the conclusion it was
+attached to stayed true and kept the whole sentence reading as current.
+
+WHAT THIS MODULE STATES IS NARROWER AND IS ITS OWN. No property value reaches
+:class:`WorldModel`, because nothing here asks for one.
+``tests/save/test_world.py::test_the_world_layer_states_no_property_capability_it_does_not_own``
+asserts that from the AST rather than from this sentence, so it stays true
+whatever the readers one layer down later learn to decode - and the day this
+module wants a value, that test is what turns red and sends the author here.
 
 A mapping that is PRESENT and unreadable is a different thing entirely and does
 raise, because collapsing the two would hide a shipped-format change behind the
@@ -59,10 +69,11 @@ UNLOCK STATE IS HONESTLY EMPTY, AND SAYS SO
 ADR 0004 measured WHICH unlock fields exist in a mature world - 246 schematic
 paths including the alt-recipe purchases, 360 recipe paths, the game phase, the
 research trees, the scanned resources and the feature booleans. It did **not**
-measure their serialized grammar, and no code in this project decodes a property
-value. So :class:`UnlockState` is published EMPTY with a warning saying the
-grammar is unmeasured, per non-negotiable 7 - unknown content is flagged and
-skipped, never fatal and never silently wrong.
+measure their serialized grammar, and :func:`_read_unlocks` - the single
+producer of the published state - returns :data:`EMPTY_UNLOCK_STATE` with no
+read of its own. So :class:`UnlockState` is published EMPTY with a warning
+saying the unlock grammar is unmeasured, per non-negotiable 7 - unknown content
+is flagged and skipped, never fatal and never silently wrong.
 
 That is not a placeholder to be quietly filled in by inference. ADR 0004's
 single most important engineering consequence is that **an absent unlock array
@@ -371,10 +382,11 @@ class UnlockState:
 
     EMPTY ON EVERY PATH TODAY, AND THAT IS A MEASURED POSITION RATHER THAN A
     STUB. ADR 0004 established that unlock state IS recoverable from a save and
-    named the fields; it did not measure their serialized grammar, and
-    ``objects.read_properties`` decodes no property value at all. So there is no
-    path by which a purchased schematic could have been read, and a non-empty
-    collection here would be an invented one.
+    named the fields; it did not measure their serialized grammar. Nor does this
+    module hold a path by which a purchased schematic could arrive:
+    :func:`_read_unlocks` is the only producer of this type and returns
+    :data:`EMPTY_UNLOCK_STATE` with no read of its own. A non-empty collection
+    here would therefore be an invented one.
 
     The load carries :data:`WARN_UNLOCK_GRAMMAR_UNMEASURED` for exactly that
     reason: an empty unlock set with no warning is indistinguishable from a
@@ -704,9 +716,13 @@ def load_world_from_bytes(
     The composition the module docstring describes, minus the copy: the caller
     has the bytes, so there is nothing to copy and nothing to open.
 
-    ONLY ONE ``(header version, save version)`` PAIR IS READABLE TODAY - header
-    10 with save 36. Every other pair is refused. See the module docstring
-    before reading a green result as "this reads saves".
+    WHICH ``(header version, save version)`` PAIRS ARE READABLE IS NOT WRITTEN
+    DOWN HERE. ``objects.MEASURED_BODY_LAYOUTS`` is that set and the only place
+    the pairs are listed; a body whose pair is outside it is refused before the
+    walk. THIS SENTENCE USED TO LIST THEM AND WENT STALE THE DAY THE SET GREW,
+    which is what a second copy of a fact does. See the module docstring before
+    reading a green result as "this reads saves" - what is measured is a
+    SKELETON.
 
     Args:
         data: A whole save file's bytes.
