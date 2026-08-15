@@ -87,6 +87,20 @@ the line becomes a pointer.
      records an operator decision against it. Operator reaffirmed on 2026-08-15: keep
      committing without it. The existing history is not worth rewriting - CS-G03 already
      generates a fresh history at the flip, which strips them.
+  10. **THE PATH-LEAK ORACLE WAS INERT ON POSIX, and CI is what proved it.** `ABSOLUTE_PATH`
+     in `tests/test_exception_rendering.py` was a DRIVE-LETTER regex, so on the Linux runner
+     it could not match an absolute path at all - every `not ABSOLUTE_PATH.search(...)`
+     assertion in that module had been passing VACUOUSLY on every CI run since it was
+     written. **The thing that caught it was the NON-VACUITY assertion added by CS-406** -
+     "the sandbox root really is a path the oracle WOULD match" - which went red on CI while
+     every sibling assertion stayed green. That is exactly the job it exists to do. CI went
+     RED on `a0da3b7` with a green local suite and GREEN on `1ad0db8` after the widening.
+     `docs/LEDGER.md` had already recorded this residual under CS-205 - "POSIX behaviour
+     unobserved, settled only by a Linux runner" - and the runner settled it.
+     Known and deliberately NOT fixed: the Windows branch also matches the `s:/` inside
+     `https:/`, so it over-fires on a URL. That is pre-existing and fail-closed, and
+     tightening it can only make a `not search` assertion pass MORE easily, which is the
+     direction that hides a leak.
 
 - **Failed paths - do not retry:**
   - **The tag-driven collectable rule.** "Present iff the level's data entries are tagged 42"
