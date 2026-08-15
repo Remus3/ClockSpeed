@@ -149,22 +149,65 @@ created 2026-08-13 and is effectively empty, which makes it an ideal first parse
 
 ### 2.4 Save header facts already measured
 
-Measured directly from the pinned world's saves. This substantially de-risks the save
-reader and settles one open design question outright.
+Measured directly from the operator's local save library. This substantially de-risks the
+save reader and settles one open design question outright.
 
-**Header layout, confirmed:**
+**The library is not uniform, and that is the central fact.** Fourteen saves carry four
+distinct combinations of the three leading version fields:
 
-| Offset | Type | Value observed | Meaning |
+| Header ver | Save ver | Build changelist | Saves |
 |---|---|---|---|
-| 0 | int32 | `14` | header version |
-| 4 | int32 | `60` | save version |
-| 8 | int32 | `502094` | build changelist - **matches the installed game exactly** |
-| 12 | length-prefixed string | (an autosave name, 15 characters) | session or save name, int32 length including the null terminator |
-| next | length-prefixed string | `Persistent_Level` | map name |
-| next | length-prefixed string | `?ClientIdentity=...?FallbackAccountNames=...?PlayerInfoSnapshot=...` | options query string, **PII-bearing, redact by default** |
+| 10 | 36 | 211839 | 3 |
+| 13 | 42 | 273254 | 1 |
+| 14 | 52 | 463028 | 8 |
+| 14 | 60 | 502094 | 2 |
+
+**Header layout is HEADER-VERSION DEPENDENT. There is no single fixed layout**, and an
+earlier revision of this section stated one. See `docs/adr/0007`.
+
+Every header version opens with the same three int32 fields:
+
+| Offset | Type | Meaning |
+|---|---|---|
+| 0 | int32 | header version |
+| 4 | int32 | save version |
+| 8 | int32 | build changelist - on the newest saves this matches the installed game exactly |
+
+**The string block that follows differs by header version, in COUNT and in ORDER:**
+
+| Header ver | Strings, in file order | Count | Verified on |
+|---|---|---|---|
+| 10 | map name, map options, session name | 3 | 3 of 3 saves |
+| 13 | map name, map options, session name | 3 | 1 of 1 save |
+| 14 | save name, map name, map options, session name | 4 | 10 of 10 saves |
+
+**How the labelling was established - by property, never by value.** On header versions 10
+and 13 the FIRST string equals `Persistent_Level` and the SECOND contains `?`. On header
+version 14 the SECOND string equals `Persistent_Level` and the THIRD contains `?`. The map
+name is a fixed game constant and the options string is a query string, so each field is
+identifiable without reading a single personal-data value. **Do not identify these fields
+by reading them** - section 2.2 and `docs/adr/0007` explain why the shifting order makes a
+field-name-targeted redactor unsafe.
+
+**After the string block every header version agrees**, in this order: int32 play duration,
+int64 datetime ticks, int8 session visibility, int32 editor object version, a
+length-prefixed mod metadata string, int32 is-modded flag, then the length-prefixed save
+identifier - which is the world token.
+
+**The header tail after the save identifier is version dependent too:**
+
+| Header ver | Tail bytes before the chunk magic |
+|---|---|
+| 10 | 0 - the chunk magic begins immediately |
+| 13 | 28 |
+| 14 | 28 |
+
+**The 28 bytes' internal structure is UNVERIFIED.** Only the total length was measured. Do
+not invent a field breakdown for it - skip it by length, and if a parser ever needs a field
+inside it, measure it first and record the measurement here.
 
 Strings are **length-prefixed with an int32 count that includes the trailing null**.
-Confirmed twice: a 15-character autosave name measured 16, and `Persistent_Level`, which is
+Confirmed twice: a 15-character save name measured 16, and `Persistent_Level`, which is
 16 characters, measured 17.
 
 **The world identity key is SOLVED.** The header carries a 22-character base64url token
@@ -203,14 +246,11 @@ a filename heuristic. A first grouping attempt in session 1 inflated 3 worlds in
 would have produced a false result for spike S8. The token is the only sound key - which
 is exactly what section 5.2 already requires for the ledger.
 
-**The parser must handle multiple save versions.** The operator's own library already
-spans save version 52 (build 463028) and 60 (build 502094), with header version stable at
-14 across both. Version-dispatch is a day-one requirement, not a future concern.
-
-**Re-probe correction:** the library actually spans FOUR builds and three header versions -
-211839 (save 36, header 10), 273254 (save 42, header 13), 463028 (save 52, header 14) and
-502094 (save 60, header 14). Header version is NOT stable at 14; it is 10 on the oldest
-saves. A parser that assumes header version 14 fails on the operator's own files.
+**Version dispatch is a day-one requirement, not a future concern.** The library table at
+the top of this section spans four builds and three header versions. A parser written
+against header version 14 alone fails outright on the operator's own oldest saves - not
+subtly, and not later. An earlier revision of this section claimed header version was
+stable at 14; the re-probe disproved it.
 
 ### 2.5 Interpreter trap - measured session 1
 
@@ -250,7 +290,7 @@ silently become a foundation.
 | **S2** | The docs file is a JSON array of `{NativeClass, Classes[]}` groups, with recipes carrying ingredient/product/duration/produced-in fields and descriptors carrying display name, form, energy and sink-point values | Parse it and dump the distinct `NativeClass` values plus one sample of each | Derive the real schema from the dump; the normalizer is written against what is there, not what was expected |
 | **S3** | Numeric fields are embedded in string blobs needing a secondary parse (Unreal serializes struct arrays as text) | Inspect ingredient and product fields directly | Write a dedicated blob parser with its own test suite |
 | **S4** | **The `.sav` contains resource-node actors with world coordinates** | Parse a save, enumerate actor class names, grep for resource-node classes, and check for a transform on each | **This is the one that matters.** Fall back to extracting node data from the shipped game assets. That fallback is a large task with a third-party-tool license gate on it - see section 8.3 |
-| **S5** | **Mostly settled - see section 2.4.** Header layout, string encoding, version fields and the world key are measured. What remains unmeasured is the BODY: chunked and compressed after the header | Locate chunk boundaries after the known header, confirm the compression and the chunk framing | Follow the actual bytes; `CustomVersions.json` and `Headers.zip` are the local authority. Do not re-derive the header - it is done |
+| **S5** | **Settled, and settled as VERSION DEPENDENT - see sections 2.4 and 3.1.** Header layout, string count and order, the tail size, the world key and the chunk framing are all measured, and each of them varies by version | Done. What remains open is only the 28-byte header tail's internal structure, and whether the framing keys on header or save version | Follow the actual bytes; `CustomVersions.json` and `Headers.zip` are the local authority. **Do not assume any single fixed layout** - that assumption was made once and was wrong |
 | **S6** | Unlock state (milestones, tiers, alt-recipes purchased, scanned resources) is recoverable from the save | Locate the schematic-manager and unlock-subsystem actors | **The advisor cannot ship without this.** Everything in section 5 is gated on knowing what the player has unlocked. If it is unrecoverable, add a manual unlock-state entry surface as a stopgap and file the real fix |
 | **S7** | Power-consumption scaling under overclock follows a fixed exponent found in the docs data | Extract the exponent field from building classes rather than hardcoding a constant | Take the value from data; never hardcode a magic number that the game can patch |
 
@@ -270,10 +310,28 @@ limits are in the ADRs; this is the summary.
 | **S4** | **YES for geometry, NO for semantics.** 626 node actors, 626 with a valid transform. But nodes carry no property payload, and purity / resource type are absent from every save examined. | `docs/adr/0003` |
 | **S6** | **YES.** A mature world carries purchased schematics, 246 schematic paths including alt-recipes, game phase, research trees, scanned resources and the feature-unlock booleans. | `docs/adr/0004` |
 
-**S5 is now fully settled**, not merely mostly. The body framing was the only unmeasured
-part and it is measured: chunks are framed by magic `0x9E2A83C1`, then marker `0x22222222`,
-int64 max chunk size 131072, int8 compression algorithm 3 (zlib), then compressed and
-uncompressed sizes each written TWICE. The decompressed body opens with an int64 length.
+**S5 is measured, and the framing is VERSION DEPENDENT.** An earlier revision of this
+section stated the framing below without a version qualifier. That unqualified claim is
+wrong: a parser built from it fails on 3 of the operator's 14 saves and looks correct on
+the other 11 - the worst available failure shape. Corrected:
+
+| | Header ver 13 and 14 | Header ver 10 |
+|---|---|---|
+| magic | `0x9E2A83C1` | `0x9E2A83C1` |
+| marker | `0x22222222` | `0x00000000` |
+| int64 max chunk size | 131072 | 131072 |
+| int8 compression algorithm | 3 (zlib) | **absent - no such byte at all** |
+| compressed and uncompressed sizes | each written TWICE | each written TWICE |
+| zlib stream begins at | magic + 49 | magic + 48 |
+
+**Also version scoped:** "the decompressed body opens with an int64 length" holds on header
+versions 13 and 14 and does NOT hold on header version 10 / save version 36.
+
+**UNDETERMINED - whether the framing variant keys on HEADER version or on SAVE version.**
+The two covary across the entire local library (10 with 36, 13 with 42, 14 with 52 and 60),
+so **no local file can separate them.** This is recorded as undetermined rather than
+resolved by picking the likelier one. Detect the variant from the marker word, which is
+directly observable, and cross-check it against both version fields. See `docs/adr/0007`.
 
 **The actor header layout is save-version dependent.** The transform block sits at +8 after
 the instance-name string on save versions 52 and 60, and at +4 on version 36. This

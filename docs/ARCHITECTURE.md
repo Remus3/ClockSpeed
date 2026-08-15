@@ -61,7 +61,8 @@ data/             generated artifacts - GITIGNORED
 | `clockspeed/data/docs_extract.py` | Reading the English locale docs file out of the install once, sniffing its encoding, and emitting the normalized registry artifact. Nothing else in the system reads that file. |
 | `clockspeed/data/registry.py` | The normalized item, recipe, building and milestone model - the single in-memory shape every consumer above the data layer sees. |
 | `clockspeed/data/version.py` | The tracked build-string pin and content hash, patch detection, and the drift guard's data-side check. |
-| `clockspeed/save/header.py` | Save header parse: header version, save version, build changelist, session name, map name, options string, and the world token. Owns redaction of the PII-bearing options string. |
+| `clockspeed/save/workdir.py` | Copying a save out to a work directory before anything parses it, and the lifetime of that copy. **This is the only module in the package with a write.** That is a deliberate design choice, not an accident of where the code landed: confining the single write to one named module turns "no other save module can write" into a STATIC, machine-checkable assertion rather than a rule reviewers have to remember. |
+| `clockspeed/save/header.py` | Save header parse: the version fields, the string block, and the world token. Owns redaction: **every header string is redacted by default**, because the string ORDER is version dependent and a redactor targeting a named field is defeated by a reordered one. See `docs/adr/0007`. |
 | `clockspeed/save/chunks.py` | Decompression and the chunk walk over the save body after the header. |
 | `clockspeed/save/usmap.py` | Loading and caching the parsed `FactoryGame.usmap` property mapping from the install. |
 | `clockspeed/save/objects.py` | Actor and component deserialization against the property mapping. Owns the "unknown class is logged and skipped, never fatal" rule. |
@@ -99,7 +100,9 @@ game install (read-only)
     -> data/registry.py      normalized registry  --------+
     -> data/version.py       tracked pin + hash           |
                                                           |
-save file (copied to a work dir first, read-only)         |
+save file (read-only at its source)                       |
+    -> save/workdir.py       copy out first - THE ONLY    |
+                             WRITE IN THE PACKAGE         |
     -> save/header.py        header + world token         |
     -> save/chunks.py        body framing                 |
     -> save/usmap.py         property mapping             |
@@ -120,8 +123,11 @@ save file (copied to a work dir first, read-only)         |
 
 Two flow rules that are not negotiable:
 
-- The save is copied to a work directory before parsing. The game holds handles during
-  autosave, so parsing in place eventually meets a locked or half-written file.
+- The save is copied to a work directory before parsing, and `save/workdir.py` owns that
+  copy. The game holds handles during autosave, so parsing in place eventually meets a
+  locked or half-written file. Because that module is the package's only writer, the
+  never-write-to-the-save-directory invariant is checkable by import graph and by write
+  surface rather than by reviewer vigilance.
 - The registry is built once into the gitignored `data/` directory. Downstream code
   consumes the registry, never the raw docs file.
 
