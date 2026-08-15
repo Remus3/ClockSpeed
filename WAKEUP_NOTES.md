@@ -31,6 +31,76 @@ the line becomes a pointer.
 
 ---
 
+## Session 4 - 2026-08-14 - ADR 0006 adjudicated, four tier-1 fixes, phase 4 waves 0 and 1
+
+- **Shipped:** ADR 0006 flipped to `accepted`; **CS-204**, **CS-206**, **CS-207** closed;
+  **CS-208 DENIED** and replaced by CS-209; **ADR 0007** written and accepted; and
+  **phase 4 waves 0 and 1** - the version-qualified spec, the synthetic save corpus, and
+  `clockspeed/save/{header,chunks,usmap,workdir}.py`. Suite 734 -> 1067, exit 0. Detail in
+  `docs/LEDGER.md`.
+
+- **In flight:** nothing half-done; the tree is committed. **CS-400 IS NOT CLOSED.** Waves 2
+  and 3 are unstarted - `objects.py`, `world.py` and the phase-4 acceptance gate - and NOT
+  ONE of the four acceptance clauses is met, because none can be met without `load_world`.
+  The remaining decomposition is written out on the CS-400 roadmap line, including the
+  three-signal no-write proof.
+
+- **Decisions:** ADR 0007, `accepted` - the save header layout and the chunk framing are
+  version dependent. Its adjudication returned NEEDS-REVISION and four defects were fixed
+  before the flip. Operator ruled that an INCONCLUSIVE `mInventoryPotential` result is an
+  acceptable outcome, filed as CS-405 rather than converted into an answer.
+
+- **Surprises**, every one measured rather than reasoned about:
+  1. **The chunk framing in `BOOTSTRAP.md` was TRUE ONLY FOR HEADER VERSIONS 13 AND 14.** On
+     header 10 the marker is `0x00000000` and there is NO compression-algorithm byte at all,
+     with zlib at magic+48 rather than +49. A walker built from the unqualified fact fails on
+     3 of 14 saves and looks correct on the other 11. The session prompt called this settled;
+     the probe won. Section 3.1 corrected, ADR 0007 records it.
+  2. **The header string ORDER is header-version dependent, and that is a PII mechanism.**
+     Header 14 carries four leading strings, headers 10 and 13 carry three. So on 10 and 13
+     the THIRD string is the operator's world name and on 14 it is the options string - a
+     redactor targeting a NAMED FIELD is defeated by a version-dependent field ORDER. A
+     planner probe demonstrated it by leaking one world name into its own agent transcript.
+     `header.py` therefore makes the PII strings ABSENT from the returned type, not redacted.
+  3. **`docs/adr/0003` is `accepted` and states the refuted framing verbatim**, so the stale
+     claim held the HIGHER status and a reader searching for "chunk framing" hits it first.
+     Found by the ADR 0007 adjudicator. Corrected by pointer in both directions, since
+     neither an accepted ADR nor an append-only ledger entry may be edited.
+  4. **CS-208 was REFUTED BY MEASUREMENT, not deferred.** 16 matchable world names exist here
+     and the shortest is 4 characters, so any floor at or above 5 drops exactly one REAL name
+     and it then commits. The false positive it feared does not exist - the gate over every
+     tracked file exits 0. And a floor of 4, 5, 6 or 8 turns ZERO of the 65 gate tests red,
+     which proves the suite is BLIND to the change rather than that the change is safe.
+  5. **The int8 after the datetime ticks is not "session visibility".** It reads `0x00` on
+     header 10, 13 and 14/60 and one of `0x10/0x50/0x90/0xD0` on the eight header-14/save-52
+     saves. Position is anchored (the int32 after it reads 40 on all 14); meaning is not.
+  6. **The synthetic corpus diverges from real bytes on the header-10 body prefix**, and a
+     builder reported the FIXTURE value as a measurement. Real header 10 opens with an int32
+     equal to body length minus 4. Filed as CS-404 before it could reach wave 2.
+  7. **The size block is `(c, u, c, u)`, measured** - W1-CHK named the alternative as the one
+     thing that could make its module wrong on every real save while every synthetic test
+     passed. It had guessed right, but it was a guess until the merger measured it.
+  8. **`os.open(p, os.O_WRONLY)` is invisible to a text-level write scan.** The static
+     single-writer check returns empty for it, so the phase-4 AST gate must cover `os.open`
+     and the runtime audit hook is what catches flag-based writes.
+
+- **Failed paths - do not retry:**
+  - **Trusting a builder's measurement of a FIXTURE as a measurement of the FORMAT.** Two
+    separate builders did this, on the body prefix and nearly on the size order. The fix is
+    not more review - it is that any claim about the byte format gets re-measured against a
+    real save before anything is built on it.
+  - **A shape-based check for a leaked token or world name.** A 22-character base64url regex
+    matches `Build_SyntheticSmelter`, and a 3-character-run check against a whole `repr`
+    matches the FIELD NAME `world_token=`. Both produced false positives for the merger this
+    session. Scope the check to the value, never to the rendering.
+  - **`grep -P` as a PII scan on this machine.** It errors with "supports only unibyte and
+    UTF-8 locales", and a `||` fallback then prints a clean result for a grep that never ran.
+    W0-DOC caught its own false pass and wrote a real scanner instead.
+
+- **Next action:** dispatch W2-OBJ - `clockspeed/save/objects.py` plus `tests/save/
+  test_objects.py` - and FIRST fix CS-404's header-10 body prefix in the corpus, because
+  W2-OBJ parses the body and the corpus currently models that prefix wrongly.
+
 ## Session 3 - 2026-08-14 - phase 2 follow-ups, then the phase 3 solver core
 
 - **Shipped:** CS-105, CS-201, CS-202, CS-203 and **CS-300, the phase 3 gate**, all four
@@ -168,45 +238,3 @@ the line becomes a pointer.
 - **Next action:** create the private GitHub repo `Clockspeed`, push a squashed orphan commit
   from the clean tree, and confirm the tier-1 CI run status on it - CI has never executed
   against a hosted branch, so the `--no-verify` mitigation is still unproven.
-
-## Session 1 - 2026-08-13 - phase 0 scaffold, then phase 1 spikes
-
-- **Shipped:** CS-001 phase 0 scaffold, CS-002 tier-0 gate proven end to end, CS-003 S8,
-  CS-004 S4, CS-005 S6, CS-006 ground-truth re-probe, CS-104 S5 body framing. S1, S2, S3
-  and S7 also settled - report at `docs/_archive/spike-report-s1-s2-s3-s7.md`, so CS-101,
-  CS-102, CS-103 and CS-105 are answered but their implementation work is still open.
-
-- **In flight:** nothing blocking. Phase 2 has NOT been started, deliberately - the
-  operator's instruction was to stop after phase 1 and report. No remote is configured, so
-  nothing has been pushed; that is an operator decision, not an oversight.
-
-- **Decisions:** ADR 0002 (S8, node data is not seed-dependent), ADR 0003 (S4, save carries
-  node geometry but not node semantics), ADR 0004 (S6, unlock state is recoverable).
-
-- **Surprises**, all four written back into the spec:
-  1. `py -3` resolves to a DIFFERENT 3.14.4 install than `python`, with no pytest, ruff or
-     mypy. Both report the same version, so a version check passes while the gate's lint
-     step degrades and pre-push cannot run. Recorded as `BOOTSTRAP.md` section 2.5; hooks
-     and `.claude/settings.json` now resolve `python` first and `py -3` last.
-  2. S4 half-refuted: the save carries node transforms but NO purity or resource type, so
-     `BOOTSTRAP.md` section 8.3 step 1 was wrong to call that "done". Section 8.3 corrected.
-  3. S7 half-refuted: the overclock exponent IS in the data but is NOT fixed - two distinct
-     values across 62 buildings. The overclock ceiling is absent from the docs entirely.
-  4. Locale count is 55 not 57; the save library holds three worlds not one; header version
-     is not stable at 14 (it is 10 on the oldest saves).
-
-- **Failed paths - do not retry:**
-  - Grouping saves by FILENAME to identify worlds. It inflated 3 worlds into 6 and would
-    have produced a false S8 result. Group by the header world token, always.
-  - A single fixed actor-header layout for the save parser. The transform offset is +8 on
-    save versions 52 and 60 and +4 on version 36. Version-dispatch from day one.
-  - Trial-decode encoding sniffing for the docs file. Python's `utf-16` codec decodes the
-    UTF-8 `io.json` without raising and returns mojibake. Only the BOM-byte test is valid.
-  - Using `AKIAIOSFODNN7EXAMPLE` as a secret-scanner test case. It is AWS's own documented
-    example key and the placeholder allowlist correctly ignores it. A real-looking literal
-    is blocked properly.
-
-- **Next action:** operator ratifies the LICENSE copyright holder (currently the git author
-  name), then decide the BOOTSTRAP.md PII question in `docs/GATED.md` before any public
-  flip. After that, phase 2 (CS-200) begins with the docs extractor, written against the
-  measured schema in `BOOTSTRAP.md` section 3.2 - NOT against the assumed one.

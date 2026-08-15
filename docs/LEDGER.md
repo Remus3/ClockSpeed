@@ -74,6 +74,100 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-14 - CS-400 PARTIAL - Phase 4 waves 0 and 1: the spec correction, the synthetic corpus, and the four independent readers
+Verification: `clockspeed/save/{header,chunks,usmap,workdir}.py` plus
+`tests/save/{synthetic,test_synthetic,test_header,test_chunks,test_usmap,test_workdir}.py`.
+Suite observed at close: 1067 passed, exit 0, from 734 at session start.
+**CS-400 IS NOT CLOSED AND REMAINS OPEN ON THE ROADMAP.** Waves 2 and 3 are unstarted:
+`objects.py`, `world.py`, the phase-4 acceptance gate and the `mInventoryPotential`
+experiment. None of the four acceptance clauses is met yet, because none can be met without
+`load_world`. This entry records the waves that DID land so the next session does not redo
+them; it does not claim the phase.
+WAVE 0. `BOOTSTRAP.md` sections 2.4 and 3.1 are now version qualified, and ADR 0007 records
+why - see its own entry. The synthetic corpus is `tests/save/synthetic.py`, every byte built
+in code, validated by an independent minimal reader written inside the test module rather
+than by any production parser, and anchored against a real save by a shape-only test that RAN
+on this machine rather than skipping. Three kill mutations proved the fixtures discriminate;
+the sharpest - swapping the map-name and options slots - is caught by the ANCHOR ALONE, which
+is the case no synthetic test can reach.
+WAVE 1, four modules on disjoint write-lists, each graded against its own acceptance:
+`header.py` carries NO field holding the save name, options string or session name. Not
+redacted - ABSENT. The default parse never DECODES those bytes, asserted functionally (a
+header carrying 0xFF in the session name parses while `reveal_strings` on the same bytes
+raises) and structurally (an AST count pinning the parse to exactly two decoded strings).
+`chunks.py` detects the framing from the MARKER and warns rather than raising on a
+version disagreement, walks multi-chunk bodies to a clean end of file, and refuses a declared
+decompression bomb BEFORE allocating.
+`usmap.py` derives the inner grammar from the bytes and is verified against the shipped file:
+57,985 names, 2,603 enums, 13,792 schemas landing exactly on a clean `CEXT` tag, with the
+trailing extension container flagged and skipped and `body_consumed` reporting the gap.
+`workdir.py` is the SOLE write-capable call site in the package - one `open("wb")` - which is
+what makes the single-writer property a static assertion. Its refusal PREVENTS the write
+rather than reporting it, isolated by mutation.
+THREE MEASUREMENTS TAKEN BY THE MERGER AGAINST REAL SAVES, because no synthetic test could
+settle them and two builders had reported fixture properties as format properties:
+(1) The four int64 chunk sizes are `(c, u, c, u)`, NOT `(c, c, u, u)` - measured on all 14
+saves across all three header versions. W1-CHK named this as its one genuine common-mode risk
+and had guessed correctly, but it was a guess until measured.
+(2) The decompressed body prefix is version scoped and THE CORPUS IS WHAT DIVERGES: real
+header 13 and 14 bodies open with an int64 equal to body length minus 8, and real header 10
+opens with an int32 equal to body length minus 4. A builder's "first int32 is 2" was a
+measurement of the FIXTURE. `chunks.py` is unaffected because it never interprets the prefix;
+W2-OBJ would have been. Filed as CS-404 before it could reach wave 2.
+(3) Real bodies run to 138 chunks and just over 18 MB against 3 chunks in the largest
+fixture.
+CARRIED FORWARD TO THE PHASE GATE, verified by the merger rather than taken on trust: the
+static single-writer scan returns `[]` for `os.open(p, os.O_WRONLY)`, so it cannot see
+flag-based writes. The W3-GATE AST gate MUST cover `os.open`. The runtime audit hook does
+check flags, so the two halves are complementary and neither is sufficient alone.
+PROCESS FINDING, and it fired on FIVE of the seven builders dispatched: an isolation worktree
+was cut from a STALE commit rather than from the stated HEAD. Every one of them detected it,
+verified ancestry and reconciled before building, rather than reporting a baseline that was
+real for the worktree and wrong for the tree. State the HEAD in every dispatch and require
+the builder to check it.
+
+### 2026-08-14 - ADR 0007 - The save header layout and the chunk framing are VERSION DEPENDENT
+Verification: `docs/adr/0007-header-and-chunk-framing-are-version-dependent.md`, status
+`accepted`, indexed at `docs/adr/README.md`. `BOOTSTRAP.md` sections 2.4 and 3.1 carry the
+version-qualified tables and own those measurements.
+ADR: `docs/adr/0007-header-and-chunk-framing-are-version-dependent.md`.
+Measured across all 14 local saves, independently three times - by a planner, by the merger,
+and by the adjudicator, each with its own read-only probe that reduced every string to a
+boolean or a length before printing. Header version 14 carries FOUR leading strings and
+header versions 10 and 13 carry THREE. Chunk framing on header 13 and 14 uses marker
+`0x22222222` with an int8 algorithm byte and zlib at magic+49; header 10 uses marker
+`0x00000000`, has NO algorithm byte at all, and zlib begins at magic+48. The header tail is
+28 bytes on 13 and 14 and ZERO on 10.
+THE PRIVACY MECHANISM IS THE REASON THIS IS AN ADR AND NOT A FOOTNOTE. On header 10 and 13
+the THIRD string is the operator-chosen SESSION NAME; on header 14 it is the options string.
+So a redactor targeting a NAMED FIELD is defeated by a version-dependent field ORDER. That
+was demonstrated live rather than theorised: a planner probe in this session printed one such
+value into its own agent transcript by labelling the third string "options". Nothing was
+written to any file and nothing entered the repo.
+THE ADJUDICATION RETURNED NEEDS-REVISION, NOT ACCEPT, and the four defects were fixed before
+the status flipped. The load-bearing one was not about the save format at all:
+`docs/adr/0003` is status `accepted` - binding, and citable freely - and its Context states
+the refuted unqualified framing verbatim including the hex constants, so the STALE claim held
+the HIGHER status and a reader searching for the framing would hit it first. Neither an
+accepted ADR nor an append-only ledger entry may be edited, so the correction travels as a
+pointer in both directions; see the CS-104 entry.
+The other three: the int8 after the datetime ticks was labelled "session visibility" and is
+not a flag - it reads `0x00` on header 10, 13 and 14/60 and one of `0x10`, `0x50`, `0x90` or
+`0xD0` on the eight header-14/save-52 saves, so it is now recorded as measured in POSITION
+and unverified in MEANING, its position anchored by the int32 after it reading 40 on all 14.
+The opt-in PII path is now render-site only, because `locate.redact()` holds NO NEEDLE for a
+session name read out of a header - that string is not knowable in advance, so the one
+sanctioned accessor returns a value the project's own redactor cannot neutralize. And
+Decision item 6 is restated as a COMMITMENT rather than a description, because
+`clockspeed/save/` held only `__init__.py` when it was written.
+UNDETERMINED AND RECORDED AS SUCH: whether the framing keys on header version, save version
+or build changelist. All three predict it perfectly because they covary across every local
+file, so no local file separates them. Detection from the marker is immune to which is right.
+STATED LIMIT OF THE ACCEPTANCE: all 14 saves come from one machine, one account and one map,
+with an empty mod metadata field on all 14. The version triple is an unproven discriminator
+against a modded or another-platform save, which would present a KNOWN triple with an
+unmeasured field shape and would NOT trip the unknown-combination guard.
+
 ### 2026-08-14 - CS-104 - CORRECTION: the chunk framing recorded by this item is VERSION DEPENDENT, and the entry as written is true only for header versions 13 and 14
 Verification: `docs/adr/0007-header-and-chunk-framing-are-version-dependent.md` plus
 `BOOTSTRAP.md` section 3.1. This ledger is append-only, so the original CS-104 entry is
