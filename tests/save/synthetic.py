@@ -61,14 +61,29 @@ re-derived by the merger with a second probe, both runs agreeing:
 - ADDED 2026-08-14 (CS-407) the COMPONENT record grammar - four strings, no
   transform block. See :class:`SyntheticComponent`.
 
+- ADDED 2026-08-15 (CS-404) the USMAP SHIPPED INNER GRAMMAR and the version-1
+  VERSIONING BLOCK, both read out of the shipped mapping file. The inner
+  grammar is settled by the only oracle that cannot be argued with: walking the
+  real file's name, enum and schema sections with it lands EXACTLY on the
+  four-character tag that opens the trailing extension container, and all 20
+  single-field perturbations of it - every payload-shape drop, every
+  payload-shape swap, every field width, and driving the entry loop from the
+  property count instead of the serializable count - fail to land there. See
+  :data:`USMAP_PROPERTY_PAYLOAD` and ``build_usmap(shipped=True)``.
+
 MODELLED - a self-consistent construction, NOT a measurement:
 
 - the 28 tail bytes' internal structure (only the WIDTH is measured),
 - the object record's own field layout (only the DELTA is measured),
 - the order within the duplicated size pair,
 - the empty-string encoding,
-- the usmap inner grammar (only the outer 12-byte framing is modelled with
-  any confidence),
+- the usmap inner grammar as written by ``build_usmap(shipped=False)``, which
+  is still the DEFAULT. CS-404 measured the real grammar and added it as a
+  mode rather than replacing this one, because fixtures across the corpus are
+  built on the placeholder. Passing a test built on the default is evidence
+  about a loader's container handling and its name section; it is NOT evidence
+  that anything can read a real mapping file. ``shipped=True`` carries that
+  second claim,
 - the CONTENT of an object payload in the levelled layout (only its int32
   length framing is measured).
 
@@ -90,7 +105,9 @@ from __future__ import annotations
 
 import struct
 import zlib
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Final
 
 # ---------------------------------------------------------------------------
@@ -1946,63 +1963,582 @@ USMAP_COMPRESSION_OODLE: Final = 1
 USMAP_COMPRESSION_BROTLI: Final = 2
 USMAP_COMPRESSION_ZSTD: Final = 3
 
+#: The file version at which the header gains a versioning block. MEASURED
+#: 2026-08-15 (CS-404): the shipped file declares exactly this version.
+USMAP_VERSION_VERSIONING: Final = 1
 
-def build_usmap(
+#: Bytes per custom version record - a 16-byte GUID and an int32. MEASURED: on
+#: the shipped file the count sits at byte 15 and the next field at byte 1799,
+#: which is 89 records of 20 bytes and nothing left over.
+USMAP_CUSTOM_VERSION_BYTES: Final = 20
+
+#: A schema super index with every bit set means "no super type". MEASURED:
+#: 3900 of the shipped file's schemas carry it.
+USMAP_NO_SUPER: Final = 0xFFFFFFFF
+
+#: The three versioning-block integers a reader SKIPS rather than interprets,
+#: plus the filler byte for the custom version records it also skips.
+#:
+#: Every SKIPPED byte is NON-ZERO on purpose - the two engine versions, the
+#: records and the changelist. The bHasVersioning flag and the record count are
+#: meaningful small integers and carry zero bytes, necessarily.
+#:
+#: The reason is mechanical rather than decorative. The compression method is
+#: the byte immediately after this block.
+#: A reader whose skip arithmetic is wrong lands inside the block and reads its
+#: method byte from here - and method 0 is the ONE value that parses. Zero
+#: filler would therefore turn a misaligned skip into a silent success with
+#: garbage sizes; non-zero filler turns it into a clean
+#: UnsupportedUsmapCompressionError naming a nonsense method.
+#:
+#: CORRECTED 2026-08-15: the records were zero-filled while this note claimed
+#: the block was not, so the stated rationale held for 12 of the block's bytes
+#: and failed for the 20N bytes that dominate it. A mutation filling them with
+#: 0xFF changed nothing any test could see.
+#: ``test_every_byte_of_the_versioning_block_is_non_zero`` is the check.
+_USMAP_FILE_VERSION_UE4: Final = 0x5C5C5C5C
+_USMAP_FILE_VERSION_UE5: Final = 0x5D5D5D5D
+_USMAP_NETWORK_CHANGELIST: Final = 0x5E5E5E5E
+_USMAP_CUSTOM_VERSION_FILL: Final = 0x5F
+
+#: What each property type writes AFTER its type byte, as
+#: ``(inner descriptor count, trailing name index)``.
+#:
+#: MEASURED 2026-08-15 (CS-404) from the shipped file, and measured in the only
+#: way that settles it: walking the real name, enum and schema sections with
+#: this table lands EXACTLY on the four-character ASCII tag that opens the
+#: trailing extension container, with every name index in bounds and every type
+#: byte at or below 29. Dropping ANY row below, or swapping ANY row's shape for
+#: any of the other three, desynchronises the walk before it reaches the tag -
+#: all 20 perturbations were run and all 20 broke. A table that is wrong
+#: somewhere does not land on a tag boundary by accident.
+#:
+#: This is a MEASUREMENT OF THE FORMAT, not of a fixture. That distinction is
+#: the whole point of CS-404: the previous inner grammar here was a
+#: self-consistent placeholder, so every usmap fixture in the corpus agreed
+#: with the builder and with nothing else.
+USMAP_PROPERTY_PAYLOAD: Final[Mapping[int, tuple[int, bool]]] = MappingProxyType(
+    {
+        8: (1, False),  # array: one inner descriptor
+        9: (0, True),  # struct: one name-table index
+        24: (2, False),  # map: a key descriptor then a value descriptor
+        25: (1, False),  # set: one inner descriptor
+        26: (1, True),  # enum: an inner descriptor then the enum name
+    }
+)
+
+
+# --- how each fact about the shipped grammar is known, AS DATA ---------------
+#
+# CS-412 discipline. "Measured" is not one thing, and collapsing four different
+# strengths of evidence into that one word is how a later reader promotes a
+# coincidence into a constraint. The landing oracle - walk the real sections and
+# arrive exactly on the trailing tag - is decisive for MOST fields and settles
+# NOTHING for others, and prose cannot be queried for which is which.
+#
+# The strengths, weakest last:
+#
+#   REBUILD         this builder re-emits the real file's own bytes for every
+#                   entity of this kind. The strongest available: it cannot be
+#                   satisfied by a self-consistent wrong answer.
+#   LANDING         a walk using this fact consumes the sections and lands
+#                   exactly on the trailing tag; perturbing it does not.
+#   DISTRIBUTION    the landing does NOT discriminate this. It is settled by
+#                   what the values look like across the whole file.
+#   UNCONTRADICTED  observed range on ONE file of ONE build. Not a constraint -
+#                   a ceiling nothing has yet exceeded.
+#   SYNTHETIC_ONLY  not present in the shipped file at all. The builder can
+#                   emit it; the format may or may not permit it.
+
+USMAP_BASIS_REBUILD: Final = "rebuild"
+USMAP_BASIS_LANDING: Final = "landing"
+USMAP_BASIS_DISTRIBUTION: Final = "distribution"
+USMAP_BASIS_UNCONTRADICTED: Final = "uncontradicted"
+USMAP_BASIS_SYNTHETIC_ONLY: Final = "synthetic-only"
+
+USMAP_BASES: Final = (
+    USMAP_BASIS_REBUILD,
+    USMAP_BASIS_LANDING,
+    USMAP_BASIS_DISTRIBUTION,
+    USMAP_BASIS_UNCONTRADICTED,
+    USMAP_BASIS_SYNTHETIC_ONLY,
+)
+
+
+@dataclass(frozen=True)
+class UsmapEvidence:
+    """How ONE fact about the shipped usmap grammar is known.
+
+    Attributes:
+        subject: The field or property the claim is about.
+        basis: One of :data:`USMAP_BASES`.
+        detail: The measurement, including the number that supports it.
+    """
+
+    subject: str
+    basis: str
+    detail: str
+
+
+#: Measured 2026-08-15 (CS-404) against one file of the pinned build. Every
+#: number below was observed, not carried forward from a document.
+USMAP_EVIDENCE: Final[tuple[UsmapEvidence, ...]] = (
+    UsmapEvidence(
+        "enum section encoding",
+        USMAP_BASIS_REBUILD,
+        "all 2603 real enums re-emit byte-identically from this builder",
+    ),
+    UsmapEvidence(
+        "schema section encoding",
+        USMAP_BASIS_REBUILD,
+        "13697 of 13792 real schemas re-emit byte-identically; the 95 "
+        "exceptions are exactly those with property_count != serializable "
+        "count, which this builder cannot express - see UsmapSchema",
+    ),
+    UsmapEvidence(
+        "type-26 field order (inner descriptor BEFORE the name index)",
+        USMAP_BASIS_REBUILD,
+        "NOT settled by landing: writing the name first consumes identical "
+        "bytes and lands on the same tag at 1896914. It is settled by the "
+        "rebuild, and separately by in-bounds validation - name-first puts a "
+        "type-26 name index outside the 57985-entry table on the real file. "
+        "3113 such descriptors across 1873 schemas, nesting included",
+    ),
+    UsmapEvidence(
+        "name/enum/schema counts and widths, payload shapes",
+        USMAP_BASIS_LANDING,
+        "38 single-field perturbations were run across two sessions and all 38 "
+        "fail to land on the trailing tag; the unperturbed walk consumes "
+        "1896914 with 784830 trailing",
+    ),
+    UsmapEvidence(
+        "entry field ORDER: slot before array_size",
+        USMAP_BASIS_DISTRIBUTION,
+        "landing does NOT discriminate this - swapping the two lands "
+        "byte-identically at 1896914. Settled only by value distribution: slot "
+        "equals the loop index in 9725 of 9795 non-empty schemas, and "
+        "array_size is 1 in 48075 of 48223 entries",
+    ),
+    UsmapEvidence(
+        "MAX_KNOWN_PROPERTY_TYPE = 29",
+        USMAP_BASIS_UNCONTRADICTED,
+        "the observed maximum, NOT a constraint - raising a walker's ceiling "
+        "to 255 lands identically. Type ids 0-15 and 17-29 occur; 16 does not",
+    ),
+    UsmapEvidence(
+        "value ceilings",
+        USMAP_BASIS_UNCONTRADICTED,
+        "one file of one build: name length max 73, enum member count max 114, "
+        "array_size max 61, property_count max 493, slot max 492, descriptor "
+        "nesting depth max 2",
+    ),
+    UsmapEvidence(
+        "bHasVersioning == 0",
+        USMAP_BASIS_SYNTHETIC_ONLY,
+        "the shipped file declares 1 with 89 custom version records; the "
+        "zero branch is reachable only from build_usmap(custom_versions=None)",
+    ),
+    UsmapEvidence(
+        "compression methods other than 0",
+        USMAP_BASIS_SYNTHETIC_ONLY,
+        "the shipped file is uncompressed; 1, 2 and 3 are declared by "
+        "usmap_with_compression over an uncompressed body so a loader can be "
+        "tested for refusing them",
+    ),
+    UsmapEvidence(
+        "descriptor nesting deeper than 2",
+        USMAP_BASIS_SYNTHETIC_ONLY,
+        "the real file nests at most 2 deep; deeper trees are builder-only",
+    ),
+)
+
+
+@dataclass(frozen=True)
+class UsmapType:
+    """One property-type descriptor for :func:`build_usmap`'s shipped mode.
+
+    Attributes:
+        type_id: The raw type byte.
+        name: The trailing name-table index's name, for the types that carry
+            one - struct and enum. Must appear in the name table.
+        inner: Nested descriptors, for the types that carry them - one for an
+            array, a set or an enum, and two for a map (key then value).
+        array_size: The declared fixed-array width. 1 is a scalar.
+    """
+
+    type_id: int
+    name: str | None = None
+    inner: tuple[UsmapType, ...] = ()
+    array_size: int = 1
+
+
+@dataclass(frozen=True)
+class UsmapSchema:
+    """One schema for :func:`build_usmap`'s shipped-grammar mode.
+
+    TWO REAL SHAPES THIS STRUCTURALLY CANNOT EMIT, stated here rather than
+    discovered later. Both are the same 95 schemas of the shipped file's 13792:
+
+    - ``property_count != serializable_count``. This writes the two counts
+      equal, because it has one property list. 95 real schemas declare more
+      properties than they serialize.
+    - NON-SEQUENTIAL SLOTS. This writes ``slot`` as the loop index. 70 real
+      schemas number their slots with gaps - and all 70 are inside those same
+      95, so the two gaps are one gap, not two.
+
+    Nothing above this layer reads either field in a way that cares yet, and
+    inventing a second knob before a caller needs it would be modelling rather
+    than measuring. ``test_the_builder_reproduces_the_shipped_bytes_it_models``
+    asserts the shortfall is EXACTLY those schemas and nothing else, so this
+    stops being an unbounded claim and becomes a counted one.
+
+    Attributes:
+        name: The schema name. Must appear in the name table.
+        super_name: The super type's name, or None for no super, which is
+            written as :data:`USMAP_NO_SUPER`.
+        properties: ``(property name, type)`` in slot order. The type is either
+            a bare type id, which is only valid for a type that carries no
+            payload, or a :class:`UsmapType`.
+    """
+
+    name: str
+    super_name: str | None = None
+    properties: tuple[tuple[str, int | UsmapType], ...] = ()
+
+
+#: What may be handed to ``build_usmap(schemas=...)``. The tuple form is the
+#: legacy grammar's and the dataclass is the shipped grammar's; mixing a form
+#: with the wrong mode is refused rather than guessed at.
+UsmapSchemaSpec = tuple[str, Sequence[str]] | UsmapSchema
+
+
+def _usmap_name(text: str) -> bytes:
+    """Encode one name as a uint8 length and that many UTF-8 bytes.
+
+    MEASURED: this is the name-table encoding in the shipped file, and it is
+    the one section the legacy and shipped grammars agree on. A uint16 length
+    runs the walk off the end of the real file.
+    """
+    raw = text.encode("utf-8")
+    return struct.pack("<B", len(raw)) + raw
+
+
+def _usmap_index(table: Mapping[str, int], text: str) -> bytes:
+    """Pack a uint32 name-table index, refusing a name the table lacks.
+
+    THIS FUNCTION IS AN ECHO PATH AND CANNOT BE MADE OTHERWISE. Keeping ``text``
+    out of the exception MESSAGE does not contain it: pytest renders the
+    ARGUMENTS of every frame in a failing traceback with no ``--showlocals``,
+    and ``text`` and ``table`` are arguments. Measured 2026-08-15 on this
+    machine - a deliberately failing call printed ``text = '...'`` verbatim.
+    ``test_a_failing_builder_call_renders_its_arguments`` pins that behaviour so
+    a future pytest cannot quietly change it.
+
+    An earlier revision of this docstring claimed the opposite, naming the exact
+    mechanism and then asserting a mitigation that mechanism defeats. That is
+    worse than saying nothing: non-negotiable 12 is about echo paths, and a
+    documented mitigation that does not work invites the pattern being copied to
+    a frame that carries real save bytes.
+
+    WHAT ACTUALLY MAKES THIS SAFE is the input, not the code: every caller in
+    the corpus passes invented names. A caller handing REAL names to this
+    builder - the shipped-file rebuild audit in ``tests/save/test_usmap.py`` is
+    the only one - owns containing its own exceptions before they reach pytest,
+    and that one does, reporting counts and an exception TYPE and nothing else.
+    """
+    position = table.get(text)
+    if position is None:
+        raise ValueError(
+            "shipped-grammar mode writes every enum, schema and property name "
+            "as a uint32 index, so each one must appear in the name table"
+        )
+    return _u32(position)
+
+
+def _usmap_descriptor(spec: int | UsmapType, table: Mapping[str, int]) -> bytes:
+    """Write one property-type byte and its payload.
+
+    Refusing an under-specified descriptor is the point rather than a
+    convenience. A builder that wrote the type byte and omitted the payload
+    would emit a fixture whose next entry is read from the wrong offset - which
+    is precisely the silently-wrong corpus CS-404 exists to remove, and no
+    assertion written against such a corpus could see it.
+
+    Args:
+        spec: A bare type id, or a :class:`UsmapType`.
+        table: Name to name-table index.
+
+    Returns:
+        The type byte followed by its payload.
+
+    Raises:
+        ValueError: The descriptor does not carry what its type id requires.
+    """
+    descriptor = spec if isinstance(spec, UsmapType) else UsmapType(spec)
+    inner_count, has_name = USMAP_PROPERTY_PAYLOAD.get(descriptor.type_id, (0, False))
+
+    if len(descriptor.inner) != inner_count:
+        raise ValueError(
+            f"property type {descriptor.type_id} takes {inner_count} inner "
+            f"descriptor(s) and was given {len(descriptor.inner)}; writing the "
+            "type byte without its payload desynchronises the whole section"
+        )
+    if has_name and descriptor.name is None:
+        raise ValueError(
+            f"property type {descriptor.type_id} writes a name index after its "
+            "inner descriptor, so UsmapType.name is required for it"
+        )
+
+    out = [struct.pack("<B", descriptor.type_id)]
+    out.extend(_usmap_descriptor(child, table) for child in descriptor.inner)
+    if has_name and descriptor.name is not None:
+        out.append(_usmap_index(table, descriptor.name))
+    return b"".join(out)
+
+
+def usmap_name_table(names: Sequence[str]) -> Mapping[str, int]:
+    """Build the name-to-index table the shipped grammar writes indices from.
+
+    Public because the shipped-bytes rebuild audit needs to build it ONCE and
+    reuse it across thousands of entries. Duplicate names resolve to the LAST
+    position, which is a real difference from the file for a name table that
+    repeats - the shipped file's 57985 names are all distinct, measured.
+
+    Args:
+        names: The name table, in file order.
+
+    Returns:
+        Name to index.
+    """
+    return {text: position for position, text in enumerate(names)}
+
+
+def build_usmap_enum_entry(name: str, members: Sequence[str], table: Mapping[str, int]) -> bytes:
+    """Write ONE enum in the shipped grammar, with no section count prefix.
+
+    Args:
+        name: The enum name. Must be in ``table``.
+        members: The member names. Each must be in ``table``.
+        table: From :func:`usmap_name_table`.
+
+    Returns:
+        The entry bytes.
+    """
+    out = [_usmap_index(table, name), struct.pack("<B", len(members))]
+    out.extend(_usmap_index(table, member) for member in members)
+    return b"".join(out)
+
+
+def _usmap_enums(
+    enums: Sequence[tuple[str, Sequence[str]]],
+    table: Mapping[str, int],
     *,
-    names: list[str] | tuple[str, ...],
-    enums: list[tuple[str, list[str]]] | tuple[tuple[str, list[str]], ...],
-    schemas: list[tuple[str, list[str]]] | tuple[tuple[str, list[str]], ...],
-    compression_method: int = USMAP_COMPRESSION_NONE,
+    shipped: bool,
 ) -> bytes:
-    """Build a usmap.
+    """Write the enum section in whichever grammar was asked for."""
+    out = [_u32(len(enums))]
+    for enum_name, members in enums:
+        if shipped:
+            out.append(build_usmap_enum_entry(enum_name, members, table))
+        else:
+            out.append(_usmap_name(enum_name))
+            out.append(struct.pack("<B", len(members)))
+            out.extend(_usmap_name(member) for member in members)
+    return b"".join(out)
 
-    MODELLED, not measured, EXCEPT the outer 12-byte framing: magic (uint16),
-    version (uint8), compression method (uint8), compressed size (uint32),
-    decompressed size (uint32). The INNER grammar below - counts and
-    uint8-length-prefixed names - is a self-consistent placeholder. A slice that
-    loads a real usmap owns replacing it, and must not read this as evidence.
 
-    The declared compression method is written verbatim even when the body is
-    not actually compressed. That is deliberate: :func:`usmap_with_compression`
-    exists so a loader can be tested for REJECTING a method it cannot handle,
-    and it can only do that if the declaration is free to lie.
+def build_usmap_schema_entry(schema: UsmapSchema, table: Mapping[str, int]) -> bytes:
+    """Write ONE schema in the shipped grammar, with no section count prefix.
+
+    The property count and the serializable count are written equal, and the
+    slot is written as the loop index. MEASURED: the two counts agree on 13697
+    of the shipped file's 13792 schemas and the slots are sequential in all of
+    those, so both shortfalls are the same 95 schemas - see
+    :class:`UsmapSchema`. The entry loop is driven by the SERIALIZABLE count;
+    walking on the property count instead desynchronises the real file.
+
+    Public because the shipped-bytes rebuild audit compares its output against
+    the game's own bytes, entry by entry.
+
+    Args:
+        schema: The schema to write.
+        table: From :func:`usmap_name_table`.
+
+    Returns:
+        The entry bytes.
+    """
+    out = [
+        _usmap_index(table, schema.name),
+        _u32(USMAP_NO_SUPER)
+        if schema.super_name is None
+        else _usmap_index(table, schema.super_name),
+        struct.pack("<H", len(schema.properties)),
+        struct.pack("<H", len(schema.properties)),
+    ]
+    for slot, (property_name, spec) in enumerate(schema.properties):
+        descriptor = spec if isinstance(spec, UsmapType) else UsmapType(spec)
+        out.append(struct.pack("<H", slot))
+        out.append(struct.pack("<B", descriptor.array_size))
+        out.append(_usmap_index(table, property_name))
+        out.append(_usmap_descriptor(descriptor, table))
+    return b"".join(out)
+
+
+def _usmap_schemas(
+    schemas: Sequence[UsmapSchemaSpec],
+    table: Mapping[str, int],
+    *,
+    shipped: bool,
+) -> bytes:
+    """Write the schema section in whichever grammar was asked for.
+
+    Raises:
+        ValueError: A schema was given in the form the other mode takes.
+    """
+    out = [_u32(len(schemas))]
+    for entry in schemas:
+        if shipped:
+            if not isinstance(entry, UsmapSchema):
+                raise ValueError(
+                    "shipped-grammar mode needs a UsmapSchema per schema - a "
+                    "(name, properties) tuple carries no super type and no "
+                    "property type ids, and neither may be invented here"
+                )
+            out.append(build_usmap_schema_entry(entry, table))
+        else:
+            if isinstance(entry, UsmapSchema):
+                raise ValueError(
+                    "a UsmapSchema describes the shipped grammar; pass "
+                    "shipped=True, or use a (name, properties) tuple"
+                )
+            schema_name, properties = entry
+            out.append(_usmap_name(schema_name))
+            out.append(struct.pack("<H", len(properties)))
+            out.extend(_usmap_name(prop) for prop in properties)
+    return b"".join(out)
+
+
+def build_usmap_body(
+    *,
+    names: Sequence[str],
+    enums: Sequence[tuple[str, Sequence[str]]],
+    schemas: Sequence[UsmapSchemaSpec],
+    shipped: bool = False,
+) -> bytes:
+    """Build a usmap BODY, with no outer framing.
+
+    Exposed separately so a test can damage or extend the body - truncate a
+    section, append a trailing extension block - and then reframe it, which is
+    the only way to exercise a loader's in-body error paths without also
+    tripping the container's own length check.
 
     Args:
         names: The name table.
         enums: ``(enum name, member names)`` pairs.
-        schemas: ``(schema name, property names)`` pairs.
+        schemas: See :data:`UsmapSchemaSpec`.
+        shipped: Write the MEASURED shipped grammar for the enum and schema
+            sections rather than the legacy placeholder. See :func:`build_usmap`.
+
+    Returns:
+        The body bytes.
+    """
+    table = usmap_name_table(names)
+    out = [_u32(len(names))]
+    out.extend(_usmap_name(text) for text in names)
+    out.append(_usmap_enums(enums, table, shipped=shipped))
+    out.append(_usmap_schemas(schemas, table, shipped=shipped))
+    return b"".join(out)
+
+
+def build_usmap(
+    *,
+    names: Sequence[str],
+    enums: Sequence[tuple[str, Sequence[str]]],
+    schemas: Sequence[UsmapSchemaSpec],
+    compression_method: int = USMAP_COMPRESSION_NONE,
+    version: int = USMAP_VERSION,
+    custom_versions: int | None = None,
+    shipped: bool = False,
+) -> bytes:
+    """Build a usmap.
+
+    TWO INNER GRAMMARS, AND THE DIFFERENCE IS THE POINT.
+
+    ``shipped=False`` is the ORIGINAL, MODELLED grammar: enum and schema names
+    are written inline as uint8-length-prefixed strings and a property carries
+    no type byte at all. It is a self-consistent placeholder and it is NOT the
+    shipped format. It is kept, and is still the default, because fixtures
+    across the corpus are built on it and moving them would put a large body of
+    existing assertions on new bytes for no gain.
+
+    ``shipped=True`` is the MEASURED grammar, derived from the shipped file for
+    CS-404 and verified by round-tripping through the real loader:
+
+      names    uint32 count, then a uint8 length and that many UTF-8 bytes
+               each. The one section both grammars agree on.
+      enums    uint32 count, then per enum a uint32 index into the name table,
+               a uint8 member count, and that many uint32 indices.
+      schemas  uint32 count, then per schema a uint32 name index, a uint32
+               super index (:data:`USMAP_NO_SUPER` for none), a uint16 property
+               count and a uint16 serializable count, then that many entries.
+      entry    uint16 slot, uint8 array size, uint32 name index, uint8 type,
+               then the payload in :data:`USMAP_PROPERTY_PAYLOAD`.
+
+    WHY BOTH EXIST RATHER THAN ONE REPLACING THE OTHER: before CS-404 there was
+    only the placeholder, so no fixture anywhere had ever driven the loader's
+    real inner grammar, and every usmap test in the corpus could only agree
+    with whoever wrote the builder. Deleting the placeholder would have been a
+    second, larger change on top of closing that gap.
+
+    THE OUTER FRAMING is measured: magic (uint16), version (uint8), then - from
+    version 1 - a versioning block, then the compression method (uint8) and the
+    compressed and decompressed sizes (uint32 each). The header size is
+    therefore DERIVED by walking the fields, never assumed.
+
+    The declared compression method is written verbatim even when the body is
+    not actually compressed, and the declared custom version count is written
+    verbatim even when it is out of range. Both are deliberate: a loader can
+    only be tested for REJECTING a value if the declaration is free to lie.
+
+    Args:
+        names: The name table.
+        enums: ``(enum name, member names)`` pairs.
+        schemas: See :data:`UsmapSchemaSpec`.
         compression_method: Declared verbatim. 0 is none.
+        version: The file version byte. The default writes no versioning block
+            at all, which is what every pre-CS-404 call site got.
+        custom_versions: Only consulted from version 1. None declares
+            ``bHasVersioning`` 0 and writes nothing further; an int declares
+            the flag set and that many custom version records. The count is
+            declared verbatim, and that many records are written when it is
+            positive.
+        shipped: Write the measured shipped grammar. See above.
 
     Returns:
         The usmap bytes.
     """
+    payload = build_usmap_body(names=names, enums=enums, schemas=schemas, shipped=shipped)
 
-    def _name(text: str) -> bytes:
-        raw = text.encode("utf-8")
-        return struct.pack("<B", len(raw)) + raw
-
-    body = [_u32(len(names))]
-    body.extend(_name(text) for text in names)
-    body.append(_u32(len(enums)))
-    for enum_name, members in enums:
-        body.append(_name(enum_name))
-        body.append(struct.pack("<B", len(members)))
-        body.extend(_name(member) for member in members)
-    body.append(_u32(len(schemas)))
-    for schema_name, properties in schemas:
-        body.append(_name(schema_name))
-        body.append(struct.pack("<H", len(properties)))
-        body.extend(_name(prop) for prop in properties)
-    payload = b"".join(body)
-
-    head = (
-        struct.pack("<H", USMAP_MAGIC)
-        + struct.pack("<B", USMAP_VERSION)
-        + struct.pack("<B", compression_method)
-        + _u32(len(payload))
-        + _u32(len(payload))
-    )
-    return head + payload
+    head = [struct.pack("<H", USMAP_MAGIC), struct.pack("<B", version)]
+    if version >= USMAP_VERSION_VERSIONING:
+        if custom_versions is None:
+            head.append(_i32(0))
+        else:
+            head.append(_i32(1))
+            head.append(_i32(_USMAP_FILE_VERSION_UE4))
+            head.append(_i32(_USMAP_FILE_VERSION_UE5))
+            head.append(_i32(custom_versions))
+            head.append(
+                bytes(
+                    [_USMAP_CUSTOM_VERSION_FILL]
+                    * (max(custom_versions, 0) * USMAP_CUSTOM_VERSION_BYTES)
+                )
+            )
+            head.append(_i32(_USMAP_NETWORK_CHANGELIST))
+    head.append(struct.pack("<B", compression_method))
+    head.append(_u32(len(payload)))
+    head.append(_u32(len(payload)))
+    return b"".join(head) + payload
 
 
 def usmap_with_compression(method: int) -> bytes:

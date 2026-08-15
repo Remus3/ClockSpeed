@@ -60,6 +60,8 @@ from __future__ import annotations
 
 import re
 import struct
+import subprocess
+import sys
 import zlib
 from pathlib import Path
 
@@ -934,6 +936,214 @@ def test_an_uncompressed_usmap_carries_its_names_enums_and_schemas() -> None:
     assert len(body) == decompressed
     (count,) = struct.unpack_from("<I", body, 0)
     assert count == _USMAP_NAME_COUNT
+
+
+# ---------------------------------------------------------------------------
+# usmap - CS-404 part 2 added a shipped-grammar mode and a version parameter.
+#
+# THE ADDITIVE CONSTRAINT, PINNED TO LITERAL BYTES.
+#
+# Those two capabilities went in while another slice was reading this builder
+# concurrently, so "every existing call site keeps working" had to be provable
+# rather than asserted - and a green suite does not prove it. A suite proves the
+# assertions people happened to write still hold; it cannot see a byte that
+# changed somewhere nothing looks.
+#
+# So the bytes below were CAPTURED FROM THE BUILDER BEFORE THE CHANGE, one
+# entry per call shape that existed at the time, and they are compared here as
+# literals. They are not a re-derivation of the builder's grammar and must never
+# be regenerated from it - regenerating them would delete the only evidence in
+# the suite that legacy output never moved. If one of these fails, the default
+# path emitted different bytes and every module built on this corpus is
+# suspect.
+# ---------------------------------------------------------------------------
+
+_USMAP_LEGACY_BYTES: dict[str, str] = {
+    "empty": "c43000000c0000000c000000000000000000000000000000",
+    "one_name": "c430000012000000120000000100000005416c7068610000000000000000",
+    "two_names": "c430000017000000170000000200000005416c70686104426574610000000000000000",
+    "three_names": (
+        "c43000001d0000001d0000000300000005416c70686104426574610547616d6d610000000000000000"
+    ),
+    "compression_0": (
+        "c43000006b0000006b000000020000000d53796e7468657469634e616d651153796e"
+        "74686574696350726f7065727479010000000e4553796e746865746963456e756d02"
+        "05416c7068610442657461010000000f53796e746865746963536368656d61010011"
+        "53796e74686574696350726f7065727479"
+    ),
+    "compression_1": (
+        "c43000016b0000006b000000020000000d53796e7468657469634e616d651153796e"
+        "74686574696350726f7065727479010000000e4553796e746865746963456e756d02"
+        "05416c7068610442657461010000000f53796e746865746963536368656d61010011"
+        "53796e74686574696350726f7065727479"
+    ),
+    "compression_2": (
+        "c43000026b0000006b000000020000000d53796e7468657469634e616d651153796e"
+        "74686574696350726f7065727479010000000e4553796e746865746963456e756d02"
+        "05416c7068610442657461010000000f53796e746865746963536368656d61010011"
+        "53796e74686574696350726f7065727479"
+    ),
+    "compression_3": (
+        "c43000036b0000006b000000020000000d53796e7468657469634e616d651153796e"
+        "74686574696350726f7065727479010000000e4553796e746865746963456e756d02"
+        "05416c7068610442657461010000000f53796e746865746963536368656d61010011"
+        "53796e74686574696350726f7065727479"
+    ),
+}
+
+
+def test_every_legacy_usmap_call_shape_is_byte_identical_to_before_cs_404() -> None:
+    """The proof that the shipped-grammar mode was purely additive."""
+    produced = {
+        "empty": synthetic.build_usmap(names=[], enums=[], schemas=[]),
+        "one_name": synthetic.build_usmap(names=["Alpha"], enums=[], schemas=[]),
+        "two_names": synthetic.build_usmap(names=["Alpha", "Beta"], enums=[], schemas=[]),
+        "three_names": synthetic.build_usmap(
+            names=["Alpha", "Beta", "Gamma"], enums=[], schemas=[]
+        ),
+        "compression_0": synthetic.usmap_with_compression(0),
+        "compression_1": synthetic.usmap_with_compression(1),
+        "compression_2": synthetic.usmap_with_compression(2),
+        "compression_3": synthetic.usmap_with_compression(3),
+    }
+
+    assert set(produced) == set(_USMAP_LEGACY_BYTES)
+    for label, blob in produced.items():
+        assert blob.hex() == _USMAP_LEGACY_BYTES[label], label
+
+
+def test_the_legacy_mode_writes_inline_names_and_no_property_type_byte() -> None:
+    """What legacy mode IS, stated positively, so the divergence stays visible.
+
+    This is deliberately NOT a claim that the legacy grammar is the shipped
+    one. It is not, and CS-404 part 2 exists because a reader could not tell:
+    the shipped file writes uint32 name-table indices here and a type byte per
+    property. Legacy mode is kept because existing fixtures are built on it.
+    """
+    blob = synthetic.build_usmap(
+        names=["Alpha"], enums=[("ESynthEnum", ["Alpha"])], schemas=[], shipped=False
+    )
+    body = blob[12:]
+    at = 4 + 1 + len("Alpha")
+
+    (enum_count,) = struct.unpack_from("<I", body, at)
+    (inline_length,) = struct.unpack_from("<B", body, at + 4)
+
+    assert enum_count == 1
+    # An INLINE LENGTH, not the low byte of a uint32 index - the enum name is
+    # not required to be in the name table at all in this mode.
+    assert inline_length == len("ESynthEnum")
+    assert body[at + 5 : at + 5 + inline_length] == b"ESynthEnum"
+
+
+def test_shipped_mode_and_legacy_mode_produce_different_bytes() -> None:
+    """If these ever matched, one of the two modes would be pointless."""
+    names = ["ESynthEnum", "Alpha"]
+    enums = [("ESynthEnum", ["Alpha"])]
+
+    legacy = synthetic.build_usmap(names=names, enums=enums, schemas=[], shipped=False)
+    shipped = synthetic.build_usmap(names=names, enums=enums, schemas=[], shipped=True)
+
+    assert legacy != shipped
+
+
+# ---------------------------------------------------------------------------
+# The echo path, MEASURED rather than asserted
+#
+# An earlier revision of synthetic._usmap_index carried a docstring claiming
+# the name was "deliberately kept OUT of the message" so it would not be
+# printed - naming the exact mechanism (pytest renders frame ARGUMENTS) and
+# then claiming a mitigation that mechanism defeats. It is harmless there,
+# because every corpus caller passes invented names. It is not harmless as a
+# PATTERN: non-negotiable 12 is about echo paths, and a documented mitigation
+# that does not work invites the pattern being copied to a frame carrying real
+# save bytes.
+#
+# So the behaviour is pinned here instead of described. If a future pytest stops
+# rendering arguments, this test fails and the docstring gets to be relaxed on
+# evidence rather than on hope.
+# ---------------------------------------------------------------------------
+
+
+def test_a_failing_builder_call_renders_its_arguments(tmp_path: Path) -> None:
+    """Frame ARGUMENTS are rendered by pytest with no --showlocals. Measured."""
+    sentinel = "NameThatMustNotEscapeButWill"
+    probe = tmp_path / "test_echo_probe.py"
+    probe.write_text(
+        "from tests.save import synthetic\n"
+        "\n"
+        "def test_probe() -> None:\n"
+        "    synthetic.build_usmap(\n"
+        '        names=["Present"],\n'
+        f'        enums=[("{sentinel}", ["Present"])],\n'
+        "        schemas=[],\n"
+        "        shipped=True,\n"
+        "    )\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", str(probe), "-q", "-p", "no:cacheprovider"],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=Path(synthetic.__file__).parent.parent.parent,
+    )
+
+    assert result.returncode != 0
+    # The frame-argument rendering, which is the whole point: this is the
+    # `table = {...}, text = '...'` line pytest emits above the failing frame.
+    assert f"text = '{sentinel}'" in result.stdout
+
+
+def test_the_builder_docstring_does_not_claim_a_containment_it_lacks() -> None:
+    """Guards the specific false claim that was removed, so it cannot return."""
+    source = Path(synthetic.__file__).read_text(encoding="utf-8")
+
+    assert "deliberately kept OUT of the message" not in source
+    assert "THIS FUNCTION IS AN ECHO PATH AND CANNOT BE MADE OTHERWISE" in source
+
+
+# ---------------------------------------------------------------------------
+# The evidence table - "measured" is not one thing
+# ---------------------------------------------------------------------------
+
+
+def test_every_evidence_row_declares_a_known_basis() -> None:
+    assert synthetic.USMAP_EVIDENCE
+    for item in synthetic.USMAP_EVIDENCE:
+        assert item.basis in synthetic.USMAP_BASES, item.subject
+        assert item.subject
+        assert item.detail
+
+
+def test_the_evidence_table_covers_every_basis_it_defines() -> None:
+    """A basis constant nothing uses is a category that will quietly rot."""
+    used = {item.basis for item in synthetic.USMAP_EVIDENCE}
+
+    assert used == set(synthetic.USMAP_BASES)
+
+
+def test_the_weakest_evidence_is_recorded_rather_than_promoted() -> None:
+    """The three facts a later reader is most likely to over-trust.
+
+    Each is recorded as NOT settled by the landing oracle. That is the whole
+    point of the table: "measured" collapses four different strengths of
+    evidence into one word, and prose cannot be queried for which is which.
+    """
+    by_subject = {item.subject: item for item in synthetic.USMAP_EVIDENCE}
+
+    order = by_subject["type-26 field order (inner descriptor BEFORE the name index)"]
+    assert order.basis == synthetic.USMAP_BASIS_REBUILD
+    assert "NOT settled by landing" in order.detail
+
+    slots = by_subject["entry field ORDER: slot before array_size"]
+    assert slots.basis == synthetic.USMAP_BASIS_DISTRIBUTION
+    assert "does NOT discriminate" in slots.detail
+
+    ceiling = by_subject["MAX_KNOWN_PROPERTY_TYPE = 29"]
+    assert ceiling.basis == synthetic.USMAP_BASIS_UNCONTRADICTED
+    assert "NOT a constraint" in ceiling.detail
 
 
 # ---------------------------------------------------------------------------
