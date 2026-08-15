@@ -74,6 +74,43 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-14 - CS-206 - tools/facts_probe.py redacts hooks_path, and a SECOND unredacted field found by the sweep
+Verification: `tools/facts_probe.py` plus `tests/test_facts_probe.py`, ten new tests. Proven
+by a planted SYNTHETIC home segment asserted absent from the emitted payload - never by
+`redact(x) != x`, which is the redactor-as-its-own-oracle failure class and is blind exactly
+where the redactor is blind.
+Re-verified by the merger in the MAIN checkout, which the builder could not do because its
+`repo_root()` was its worktree and relativization correctly did not fire there: the default
+payload now renders `hooks_path` as `.githooks`, and the serialized payload contains neither
+the `USERPROFILE` literal nor the Windows account name.
+The fix goes REPO-RELATIVE FIRST and `locate.redact()` second. The first pass closes a class
+`redact()` structurally CANNOT reach: it builds its home needles from the environment, so a
+checkout under a directory the environment never names matches none of them.
+A SECOND UNREDACTED FIELD was found by the mandated full-payload sweep and fixed in the same
+change, as an addition to the item's stated scope: `git.branch`. It cannot BE a path - git's
+ref format forbids backslash, colon and space - so it passes a literal "cannot carry a path"
+test, but `<user>/wip` is an everyday branch convention and the Windows account name is
+personal data of the same rank under non-negotiable 3.
+TRADE-OFF ACCEPTED AND RECORDED RATHER THAN HIDDEN: `redact()`'s digit-run backstop will
+rewrite a date-shaped branch such as `release/20260814` into `release/<account-dir>`. That
+label is misleading - it names an account directory where a date stood. The over-redaction
+direction was taken deliberately, per `locate.py`'s own stated principle and because
+fail-closed beats fail-open on PII, and the misleading label is the price.
+The `if not value` guard is load-bearing and is documented as such: `locate.redact()`
+stringifies its argument, so the tempting `redact(x) or None` returns the truthy string
+`"None"` and would turn an UNPROTECTED checkout into one that reads as protected.
+When the data layer does not import there is no redactor, so values are WITHHELD rather than
+emitted raw, and withheld is kept distinct from `None` so that "wired but suppressed" never
+reads as "not wired". Those two guards were mutation-checked: replacing the withheld return
+with the raw value turned both tests red via the independent leak assertion.
+Swept and explicitly cleared: `game.build` and `game.build_via` were traced through every
+probe and every emitted label enumerated - all fixed literals, none derived from a discovered
+path. `git.sha` is deliberately left raw as machine-generated hex, because redacting it would
+let the digit backstop eat an all-numeric abbreviation.
+Honest limits: behaviour on the Linux CI runner is unverified - only Windows was run - and
+the new tests require `git` on PATH and error rather than skip without it, which adds no new
+dependency since the gate suite already requires it.
+
 ### 2026-08-14 - CS-207 - scripts/verify_env.py compares RESOLVED PATHS, so an absolute core.hooksPath is no longer a false MISSING
 Verification: `scripts/verify_env.py` plus `tests/test_verify_env.py`, sixteen named tests.
 Proven live rather than by unit test alone: before, `python scripts/verify_env.py` printed

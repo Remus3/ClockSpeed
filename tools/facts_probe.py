@@ -23,6 +23,19 @@ count is already reported, and the newest save FILENAME, which is a world name
 with a suffix on it. Both appear only under --unredacted, which exists for local
 debugging and which nothing consuming this probe should ever pass.
 
+THE GIT FACTS ARE PART OF THAT, and were not always (CS-206). core.hooksPath is
+whatever the operator configured, which git returns verbatim and which is an
+ABSOLUTE path on this project's own checkout; a branch name is operator-chosen
+free text, and naming a branch after the account that owns it is an everyday
+convention. Both now take the same route as every other field. The branch can
+never BE a path - git's ref format forbids the backslash, the colon and the
+space - and is redacted for the separate reason that the Windows account name
+is personal data in its own right (CLAUDE.md non-negotiable 3).
+
+git.sha is deliberately NOT redacted. A short SHA is machine-generated hex, it
+cannot carry a path, and passing it through the redactor would let the digit-run
+backstop in locate.redact() rewrite an all-numeric abbreviation into a token.
+
 The build string is read from the shipping executable's PE version resource with
 ctypes - no third-party dependency - falling back to the shipping .modules
 manifest, which carries only the changelist. If neither answers, the field reads
@@ -53,6 +66,14 @@ from pathlib import Path
 from typing import Any
 
 GIT_TIMEOUT = 20
+
+# What an operator-controlled value renders as when the redactor itself could
+# not be imported. DISTINCT FROM None, which means "not configured": a reader
+# has to be able to tell a wired checkout whose value is being withheld from an
+# unwired one, and collapsing the two would report an UNPROTECTED repository as
+# a protected one. Emitting the raw value instead is not an option - a probe
+# that leaks whenever its redactor is missing is the defect, not the fallback.
+WITHHELD = "<withheld>"
 
 
 def repo_root() -> Path:
@@ -126,16 +147,90 @@ def _iso(timestamp: float) -> str:
     return datetime.fromtimestamp(timestamp).replace(microsecond=0).isoformat()
 
 
-def _git_facts(root: Path) -> dict:
+def _redact_or_withhold(value: str | None, locate: Any | None) -> str | None:
+    """Redact an operator-controlled string, or withhold it if that is impossible.
+
+    THE EMPTY CHECK IS THE POINT, not a tidiness habit. locate.redact() accepts
+    an ``object`` and stringifies whatever it is handed, so redact(None) returns
+    the truthy string "None". Any caller that wrote ``redact(value) or None``
+    would therefore turn "this is not configured" into a value that reads as
+    configured, which is the one failure mode a fix here must not introduce.
+
+    Args:
+        value: The raw string, or None when git had no answer.
+        locate: The data layer, or None when it did not import.
+
+    Returns:
+        The redacted string, WITHHELD when there is no redactor, or None when
+        there was nothing configured to redact.
+    """
+    if not value:
+        return None
+    if locate is None:
+        return WITHHELD
+    return locate.redact(value)
+
+
+def _hooks_path(root: Path, configured: str | None, locate: Any | None) -> str | None:
+    """Render core.hooksPath so it keeps its meaning without carrying a home path.
+
+    WHY NOT SIMPLY WITHHOLD IT. This field answers exactly one question a
+    SessionStart reader has - are the hooks wired, and to this repository's own
+    .githooks - and a bare token answers none of it. A fresh clone runs zero
+    protection until someone wires it (CLAUDE.md section 2.2), so "no value" and
+    "some value" are genuinely different states worth injecting. The value is
+    therefore REDUCED rather than withheld: the absolute prefix is the personal
+    part, the tail is the informative part, and only the prefix goes.
+
+    REPO-RELATIVE FIRST, REDACTION SECOND. scripts/install_hooks.py writes the
+    relative ".githooks", but git accepts an absolute value too and this
+    project's own checkout carries one, so both shapes occur in practice. An
+    absolute path INSIDE the checkout is rendered relative to it - the same
+    answer with the machine-specific prefix removed - and that also closes a
+    leak class redaction cannot reach, because locate.redact() builds its home
+    needles from the ENVIRONMENT and a checkout under a directory the
+    environment never names matches none of them. Everything else falls through
+    to locate.redact(), which is the project's single redactor
+    (clockspeed/data/locate.py) rather than a second one invented here.
+
+    Both sides are resolved before being compared so the two spellings Windows
+    offers for the same directory - the 8.3 short form and the long form - do
+    not defeat the containment check.
+
+    Args:
+        root: The repository root.
+        configured: Whatever ``git config --get core.hooksPath`` said. None
+            when the key is unset, "" when it is set to an empty string.
+        locate: The data layer, or None when it did not import.
+
+    Returns:
+        The rendering, or None when no hooks path is configured. An unset key
+        and an empty value both wire nothing, so both answer None.
+    """
+    if not configured:
+        return None
+    candidate = Path(configured)
+    if candidate.is_absolute():
+        with contextlib.suppress(OSError, ValueError):
+            return candidate.resolve().relative_to(root.resolve()).as_posix()
+    return _redact_or_withhold(str(candidate), locate)
+
+
+def _git_facts(root: Path, locate: Any | None, unredacted: bool) -> dict:
     head = _git(root, ["rev-parse", "--short", "--verify", "HEAD"])
     branch = _git(root, ["symbolic-ref", "--short", "-q", "HEAD"])
     if not branch:
         branch = _git(root, ["rev-parse", "--abbrev-ref", "HEAD"])
     status = _git(root, ["status", "--porcelain"])
     hooks_path = _git(root, ["config", "--get", "core.hooksPath"])
+    if not unredacted:
+        branch = _redact_or_withhold(branch, locate)
+        hooks_path = _hooks_path(root, hooks_path, locate)
     return {
         "branch": branch or "unknown",
         "head": bool(head),
+        # Left exactly as git gave it - see the module docstring. A short SHA
+        # is machine-generated hex, not personal data, and not a path.
         "sha": head or None,
         "dirty": bool(status) if status is not None else None,
         "hooks_path": hooks_path or None,
@@ -201,9 +296,19 @@ def probe(unredacted: bool = False) -> dict:
     """Collect the live-state snapshot.
 
     Redacted unless unredacted is True. The account directory name, the world
-    name and save filenames are personal data and never appear by default.
+    name, save filenames, the configured hooks path and the branch name are
+    personal data or carry it, and none of them appears raw by default.
     """
     root = repo_root()
+
+    # Resolved BEFORE the git facts, which is a change of order rather than of
+    # output: _git_facts() now needs the redactor too, and a probe that
+    # collected git facts first would have had nothing to redact them with.
+    try:
+        locate: Any | None = _load_locate()
+    except ImportError:
+        locate = None
+
     facts: dict = {
         # 2, not 1: "dir" and "root_path" are now present on the DEFAULT path
         # carrying a redacted rendering, where schema 1 emitted them only
@@ -212,12 +317,10 @@ def probe(unredacted: bool = False) -> dict:
         "schema": 2,
         "redacted": not unredacted,
         "py": ".".join(str(part) for part in sys.version_info[:3]),
-        "git": _git_facts(root),
+        "git": _git_facts(root, locate, unredacted),
     }
 
-    try:
-        locate = _load_locate()
-    except ImportError:
+    if locate is None:
         facts["game"] = {"found": None, "via": "resolver unavailable", "build": "unknown"}
         facts["save"] = {"root": None, "accounts": None, "savs": None, "newest": None}
         facts["probe_error"] = "clockspeed.data.locate not importable"
@@ -242,8 +345,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--unredacted",
         action="store_true",
-        help="LOCAL DEBUGGING ONLY - adds the account directory names, the newest save "
-        "filename and resolved paths. Never pass this in a hook, a log or a report.",
+        help="LOCAL DEBUGGING ONLY - adds the account directory names and the newest save "
+        "filename, and emits the resolved paths, the configured hooks path and the branch "
+        "name raw. Never pass this in a hook, a log or a report.",
     )
     args = parser.parse_args(argv)
 
