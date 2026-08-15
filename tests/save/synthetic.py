@@ -422,15 +422,32 @@ def sizes_offset(framing: str) -> int:
 # The body and its object records
 # ---------------------------------------------------------------------------
 
-#: MEASURED. The byte delta before the transform block, by SAVE version.
+#: MEASURED. The byte delta before the transform block, by SAVE version. THIS
+#: TABLE SERVES THE FLAT CORPUS ONLY - :data:`LEVELLED_LAYOUTS` below carries
+#: the delta for the levelled corpus, keyed on the PAIR.
 #:
-#: SAVE VERSION 42 IS DELIBERATELY ABSENT. Its delta was never measured, and 36
-#: -> 4 with 52 -> 8 makes 4 or 6 look "obviously" right for 42. Interpolating
-#: it would be inventing a measurement because it feels derived - the same
-#: failure class as trusting a fixture built parallel to the code. SAVE_V42
-#: therefore carries an EMPTY object section, and a later slice that measures
-#: the real value owns adding it here.
-TRANSFORM_DELTA_BY_SAVE_VERSION: Final = {36: 4, 52: 8, 60: 8}
+#: SAVE VERSION 42 CARRIES 4, AND WHAT CHANGED UNDER CS-407 IS THE EVIDENCE,
+#: NOT THE VALUE. Two earlier sessions reached 4 and both DISCARDED it, rightly:
+#: one because its method could not recover the known deltas for 36 and 60 when
+#: validated against them, the other because the reading needed two unmeasured
+#: assumptions holding each other up. With 36 giving 4 and 52 giving 8, the
+#: value 4 is exactly what "looks derived" produces, so arriving at it is the
+#: PRIOR OF THE FAILURE MODE rather than corroboration.
+#:
+#: What makes it a measurement now is a corroborator independent of section
+#: arithmetic: every actor rotation is a unit quaternion, and 17763 of 17763
+#: actors in the one real header-13 body give a unit quaternion at shift 4,
+#: while the runner-up shift scores 1027 and falls to 2 once scale plausibility
+#: is included. The method was validated first by recovering 4 for save 36 and 8
+#: for saves 52 and 60.
+#:
+#: This table is VERSION keyed and is the weaker model, kept because the flat
+#: corpus is built on it. :data:`LEVELLED_LAYOUTS` keys the same fact on the
+#: PAIR and is authoritative: header version, save version and build changelist
+#: are all perfect predictors of every grammar difference in the corpus, so the
+#: KEY IS UNDETERMINED, exactly as ``docs/adr/0007`` records for the chunk
+#: marker. The two are held in agreement by a test rather than by a convention.
+TRANSFORM_DELTA_BY_SAVE_VERSION: Final = {36: 4, 42: 4, 52: 8, 60: 8}
 
 #: Rotation (4) + translation (3) + scale (3), all float32.
 TRANSFORM_FLOAT_COUNT: Final = 10
@@ -569,30 +586,231 @@ def build_body(
 # interpolation from this one.
 # ---------------------------------------------------------------------------
 
-#: The (header version, save version) pairs whose whole-body layout is MEASURED.
-#: A pair is added here only after a real body of that pair walks to its exact
-#: final byte.
-LEVELLED_LAYOUT_PAIRS: Final = ((10, 36),)
+# ---------------------------------------------------------------------------
+# The four pairs' SKELETON grammars
+#
+# READ THE WORD SKELETON. Roughly three quarters of every real body is opaque
+# property payload this grammar does not describe - 69.5% to 77.7% across the
+# eight real save-52 files, and 12100463 of 18086289 bytes on the one real
+# save-42 file. What is named below is a 1.8% to 2.7% framing skeleton plus its
+# length-prefixed strings. "The body SKELETON grammar is closed" is the true
+# sentence; "the body grammar is closed" is not, and never becomes true by
+# adding pairs.
+#
+# THE KEY IS THE PAIR, AND THAT IS DELIBERATE. Header version, save version and
+# build changelist are all PERFECT predictors of every difference in the table
+# below, because each header version occurs with exactly one set of save
+# versions in the corpus. Nothing separates them, so nothing here claims one is
+# the key - the same undetermined keying docs/adr/0007 records for the chunk
+# marker. Writing "save 36 uses 4-byte sizes" would assert a key the evidence
+# does not support, and clockspeed/save/objects.py records that this exact
+# mistake was made once already and was corrected under CS-404.
+# ---------------------------------------------------------------------------
 
-#: What is known about the pairs NOT in the tuple above, so that a later slice
-#: starts from the evidence rather than from scratch. Each entry states the
-#: boundary that stopped the derivation - never a guess at what lies past it.
-LEVELLED_LAYOUT_UNMEASURED: Final = {
-    (13, 42): (
-        "the grid preamble is measured; the level grammar is not. No transform "
-        "delta in 0..20 closes level 0's declared header-section size once the "
-        "collectable count is included, so save 42's delta remains UNMEASURED"
+#: A named level closes on nothing after its data section.
+LEVEL_TAIL_NONE: Final = "none"
+
+#: A named level closes on one int32. Position and width only; no meaning.
+LEVEL_TAIL_WORD: Final = "word"
+
+#: A named level closes on 12 constant bytes and then a package summary.
+LEVEL_TAIL_SUMMARY: Final = "summary"
+
+#: CONSTANT BLOBS, SKIPPED BY LENGTH ON BOTH SIDES, exactly as BOOTSTRAP.md
+#: already does for the 28-byte header tail. No boundary inside any of these is
+#: observable in the corpus, so none is claimed.
+#:
+#: The 70-byte run before a package summary's count is the sharpest case: every
+#: candidate split was tried and NONE is supported - not 4+6, not 8+2, not
+#: 16+10. Every head int32 has exactly one distinct value across the corpus and
+#: the trailing run has one, so the interior is unfalsifiable rather than
+#: merely unmeasured. The count at +70 and the 20-byte entry ARE pinned: they
+#: are the unique surviving (F, K) over F in [0,84) x K in [1,256], robust to
+#: three plausibility caps and over-determined by four distinct counts against
+#: four distinct widths.
+#:
+#: THE FIXTURE WRITES ZEROS INTO EVERY ONE OF THESE. It therefore cannot be
+#: evidence about their contents, only about their widths - which is all the
+#: parser reads.
+PACKAGE_SUMMARY_HEAD_BYTES: Final = 70
+CUSTOM_VERSION_ENTRY_BYTES: Final = 20
+SECTION_SIZE_WIDTH_WIDE: Final = 8
+SECTION_SIZE_WIDTH_NARROW: Final = 4
+LEVEL_TAIL_CONSTANT_BYTES: Final = 12
+DATA_ENTRY_LEAD_BYTES: Final = 8
+GRID_OPAQUE_BYTES: Final = 8
+GRID_CELL_OPAQUE_BYTES: Final = 4
+COMPONENT_PRE_WORD_BYTES: Final = 4
+
+
+@dataclass(frozen=True)
+class LevelledLayout:
+    """Every way one measured pair's body skeleton differs from another's.
+
+    Attributes:
+        transform_delta: The opaque run between an actor's instance name and
+            its transform block. A LIVE field, not filler - it takes 8 distinct
+            values with only bits 3, 6, 19, 21 and 32 ever set, which is a bit
+            mask rather than an integer. Only its WIDTH is read.
+        section_size_width: 4 or 8. An 8-byte size is written as an int32 size
+            followed by an int32 reserved word - see :func:`section_size`.
+        package_summary: The body opens with a package summary.
+        grid_preamble: The body carries the grid block before the level count.
+        data_entry_lead: Opaque bytes before each payload's length prefix.
+        data_entry_trailer: Each payload is followed by an int32.
+        component_pre_word: A component carries 4 opaque bytes before its
+            parent path, where the other pairs go straight to the string.
+        level_tail: One of the three ``LEVEL_TAIL_*`` constants, applied to
+            NAMED levels only.
+        second_collectables_named: Named levels close with a second collectable
+            block. The persistent level always does.
+    """
+
+    transform_delta: int
+    section_size_width: int
+    package_summary: bool
+    grid_preamble: bool
+    data_entry_lead: int
+    data_entry_trailer: bool
+    component_pre_word: bool
+    level_tail: str
+    second_collectables_named: bool
+
+
+#: The (header version, save version) pairs whose whole-body SKELETON is
+#: MEASURED, with the grammar each one uses. A pair is added here only after a
+#: real body of that pair walks to its exact final byte with nothing left over.
+#:
+#: Landings behind this table, from the merger's own runs against real files:
+#: (10,36) 3 of 3 exact, (13,42) 1 of 1, (14,52) 8 of 8, (14,60) 2 of 2.
+#:
+#: READ THOSE COUNTS AS FILE COUNTS, NOT AS INDEPENDENCE COUNTS. (13,42) is one
+#: file. (14,60)'s two bodies are byte-identical from offset 4 through 150074,
+#: which is exactly where the persistent level starts, so the preamble, the grid
+#: block, the level tail and all 187 named levels are n=1 and only the
+#: persistent level's contents are genuinely n=2. (14,52)'s eight files share a
+#: byte-identical 69750-byte preamble - it is the static world-partition grid,
+#: so n=1 there is a CEILING rather than a sampling accident - and collapse to
+#: six distinct structural signatures, of which the entire no-header-block
+#: branch lives in ONE file.
+LEVELLED_LAYOUTS: Final = {
+    (10, 36): LevelledLayout(
+        transform_delta=4,
+        section_size_width=4,
+        package_summary=False,
+        grid_preamble=False,
+        data_entry_lead=0,
+        data_entry_trailer=False,
+        component_pre_word=False,
+        level_tail=LEVEL_TAIL_NONE,
+        second_collectables_named=True,
     ),
-    (14, 52): (
-        "the grid preamble is measured, all 134 named levels advance on their "
-        "own declared sizes, and delta 8 closes 54 of 54 populated header "
-        "sections. The walk does NOT reach the end of the body: the first "
-        "component record of the trailing persistent level does not parse"
+    (13, 42): LevelledLayout(
+        transform_delta=4,
+        section_size_width=8,
+        package_summary=False,
+        grid_preamble=True,
+        data_entry_lead=DATA_ENTRY_LEAD_BYTES,
+        data_entry_trailer=False,
+        component_pre_word=False,
+        level_tail=LEVEL_TAIL_NONE,
+        second_collectables_named=True,
     ),
-    (14, 60): (
-        "the leading version block and the grid preamble are measured, and the "
-        "78-byte separator between levels is measured. The walk does NOT reach "
-        "the end of the body"
+    (14, 52): LevelledLayout(
+        transform_delta=8,
+        section_size_width=8,
+        package_summary=False,
+        grid_preamble=True,
+        data_entry_lead=DATA_ENTRY_LEAD_BYTES,
+        data_entry_trailer=False,
+        component_pre_word=True,
+        level_tail=LEVEL_TAIL_WORD,
+        second_collectables_named=True,
+    ),
+    (14, 60): LevelledLayout(
+        transform_delta=8,
+        section_size_width=8,
+        package_summary=True,
+        grid_preamble=True,
+        data_entry_lead=DATA_ENTRY_LEAD_BYTES,
+        data_entry_trailer=True,
+        component_pre_word=True,
+        level_tail=LEVEL_TAIL_SUMMARY,
+        second_collectables_named=False,
+    ),
+}
+
+#: The pairs above, in declaration order.
+LEVELLED_LAYOUT_PAIRS: Final = tuple(LEVELLED_LAYOUTS)
+
+#: EMPTY, and that is the CS-407 result: all four real pairs now have a measured
+#: body skeleton. It is kept rather than deleted because it is the structure a
+#: later slice resumes from, and a fifth pair arriving with an underived layout
+#: belongs here rather than in a sentence somewhere.
+#:
+#: WHAT REMAINS UNMEASURED IS NO LONGER A PAIR - it is a set of SPANS inside
+#: pairs that do parse, and those are recorded in
+#: :data:`LEVELLED_LAYOUT_OPAQUE_SPANS` so a later slice can execute against
+#: them. A partial recorded as prose is not resumable; a partial recorded as a
+#: structure is.
+LEVELLED_LAYOUT_UNMEASURED: Final[dict[tuple[int, int], str]] = {}
+
+#: WHAT THE SKELETON DOES NOT DESCRIBE, as a structure rather than an adjective.
+#: Each entry is a span the walk steps over by LENGTH, with the width that is
+#: pinned and the claim that is NOT made about its interior. A later slice
+#: measuring one of these executes against this table.
+LEVELLED_LAYOUT_OPAQUE_SPANS: Final = {
+    "transform_delta": (
+        "the run between an actor's instance name and its transform block. Its "
+        "WIDTH is pinned per pair by the quaternion check, and by nothing else: "
+        "pre-runs of 0, 4, 8 and 12 bytes ALL land byte-exact on all 8 real "
+        "save-52 files, so byte arithmetic is blind even to the width. Splitting "
+        "it into named int32 fields is refuted outright - it takes 8 distinct "
+        "values with only bits 3, 6, 19, 21 and 32 ever set, which is a bit mask"
+    ),
+    "package_summary_head": (
+        "70 bytes before the custom-version count. NO interior boundary is "
+        "observable - not 4+6, not 8+2, not 16+10. Includes a 44-byte run "
+        "consistent with a length-prefixed string of declared length 40 on all "
+        "188 instances, never exercised with a second length"
+    ),
+    "custom_version_entry": (
+        "20 bytes per entry. The count and the width are jointly pinned as the "
+        "unique surviving (70, 20); the interior of one entry is not"
+    ),
+    "level_tail_constant": (
+        "12 bytes closing a named level on the (14,60) pair. Its START is pinned "
+        "by the declared data-section size; its WIDTH of 12 is pinned only "
+        "transitively - 41 distinct splits survive consumption alone"
+    ),
+    "data_entry_lead": (
+        "8 bytes before each payload's length. On (13,42) they take exactly two "
+        "joint values, (42,0) and (36,1), so a two-int32 split has field 1 "
+        "perfectly determined by field 0; on (14,52) the second word is "
+        "collinear with the first across 29466 entries. An int64 reading closes "
+        "byte-exactly too. The SPLIT is unfalsifiable; the 8-byte width is not"
+    ),
+    "component_pre_word": (
+        "4 bytes before a component's parent path on (14,52) and (14,60). The "
+        "WIDTH is pinned decisively - 0-byte, 8-byte and empty-string rivals all "
+        "land 0 of 8 - and the TYPE is not: a two-int16 reading closes exactly"
+    ),
+    "section_size_reserved": (
+        "the second int32 of an 8-byte section size. Zero in 5890 of 5890 "
+        "instances on (14,52) and in every instance elsewhere, and the largest "
+        "section observed is 0.45% of 2^31, so int64 and int32-plus-reserved are "
+        "undecidable now and permanently. Read as int32-plus-reserved and FLAG a "
+        "non-zero reserved word - see the parser's rationale"
+    ),
+    "grid_opaque": (
+        "8 bytes per grid and 4 per cell. Labels like cell_size and hash are "
+        "unsupported - one observed value is 12798, which is not a plausible "
+        "round cell size"
+    ),
+    "object_data_payload": (
+        "the property payload itself, and it is THREE QUARTERS OF EVERY BODY. "
+        "Only its int32 length framing is measured. This is the largest "
+        "unmeasured span in the format by two orders of magnitude"
     ),
 }
 
@@ -623,14 +841,127 @@ class SyntheticCollectable:
         return fstring(self.level_name) + fstring(self.path_name)
 
 
+def section_size(value: int, width: int, *, reserved: int = 0) -> bytes:
+    """Encode one section size at the pair's width.
+
+    AN 8-BYTE SIZE IS WRITTEN AS AN INT32 SIZE PLUS AN INT32 RESERVED WORD, not
+    as an int64. The two are byte-identical while the reserved word is zero -
+    which it is in every one of the 5890 instances measured on the (14,52)
+    corpus and in every instance elsewhere - so the corpus cannot decide between
+    them and never will: the largest section observed is 0.45% of 2^31, so no
+    save that can physically exist will set the high word by size.
+
+    The tie is broken on asymmetric damage rather than on taste. If the field
+    really is an int64, this reading is correct for every save that can exist.
+    If it is int32-plus-reserved and that word ever goes non-zero, an int64
+    reader silently computes ``lo + hi * 2**32``, gets an astronomical size, and
+    reports a section-size mismatch - a diagnosis pointing at the WRONG FIELD.
+    This reading is never worse and sometimes much better.
+
+    ``reserved`` is a parameter so a fixture can drive the non-zero case, which
+    is the branch non-negotiable 7 governs: it must be FLAGGED, not crashed on.
+
+    Args:
+        value: The section size.
+        width: 4 or 8, from the pair's layout.
+        reserved: The second word of an 8-byte size. Ignored at width 4.
+
+    Returns:
+        The encoded size.
+    """
+    if width == SECTION_SIZE_WIDTH_WIDE:
+        return _i32(value) + _i32(reserved)
+    return _i32(value)
+
+
+@dataclass(frozen=True)
+class SyntheticPackageSummary:
+    """The block a (14,60) body opens with, and that its named levels close on.
+
+    A 70-BYTE CONSTANT RUN, THEN A COUNT, THEN THAT MANY 20-BYTE ENTRIES. The
+    count's position at +70 and the 20-byte entry width are jointly pinned as
+    the unique surviving pair over a brute-force search. The 70 bytes are ONE
+    BLOB: no interior boundary is observable, so this writes zeros and claims
+    nothing about their contents.
+    """
+
+    custom_version_count: int = 3
+
+    def encode(self) -> bytes:
+        """Encode the summary.
+
+        Returns:
+            The constant run, the count, and the entries.
+        """
+        return b"".join(
+            [
+                bytes(PACKAGE_SUMMARY_HEAD_BYTES),
+                _i32(self.custom_version_count),
+                bytes(self.custom_version_count * CUSTOM_VERSION_ENTRY_BYTES),
+            ]
+        )
+
+
+@dataclass(frozen=True)
+class SyntheticGridCell:
+    """One cell of one grid: a name and 4 opaque bytes.
+
+    No label is claimed for the 4 bytes.
+    """
+
+    name: str
+
+    def encode(self) -> bytes:
+        """Encode the cell.
+
+        Returns:
+            The name and the opaque run.
+        """
+        return fstring(self.name) + bytes(GRID_CELL_OPAQUE_BYTES)
+
+
+@dataclass(frozen=True)
+class SyntheticGrid:
+    """One grid of the preamble: a name, 8 opaque bytes, then counted cells.
+
+    The 8 bytes were labelled ``cell_size`` and ``hash`` by an earlier reading
+    and neither label survives: one observed value is 12798, which is not a
+    plausible round cell size. Only the WIDTH is carried here.
+    """
+
+    name: str
+    cells: tuple[SyntheticGridCell, ...] = ()
+
+    def encode(self) -> bytes:
+        """Encode the grid and its cells.
+
+        Returns:
+            The grid bytes.
+        """
+        return b"".join(
+            [
+                fstring(self.name),
+                bytes(GRID_OPAQUE_BYTES),
+                _i32(len(self.cells)),
+                *(cell.encode() for cell in self.cells),
+            ]
+        )
+
+
 @dataclass(frozen=True)
 class SyntheticComponent:
     """One COMPONENT record, in the grammar a real save actually uses.
 
     MEASURED under CS-407, and it is NOT the actor grammar. A component carries
-    a fourth string where an actor carries its filler and transform block. The
+    a parent path where an actor carries its filler and transform block. The
     corpus previously encoded both kinds identically and labelled the component
     branch unverified; this is the measurement that closes that gap.
+
+    THE TWO PAIRS ON HEADER 14 PUT 4 OPAQUE BYTES BEFORE THAT PATH. That width
+    is pinned decisively rather than by consumption alone: a 0-byte rival, an
+    8-byte rival and an empty-string rival all land on 0 of the 8 real save-52
+    files, so the corpus CAN tell them apart. Its TYPE is not pinned - a
+    two-int16 reading closes byte-exactly - so it is written as an opaque run.
 
     :class:`SyntheticObject` above still encodes the actor grammar under either
     discriminator, deliberately, because the fixtures built on it pin offset
@@ -643,11 +974,14 @@ class SyntheticComponent:
     parent_object_root: str = "Persistent_Level:PersistentLevel.SyntheticParent_0"
     object_type: int = 0
 
-    def encode(self) -> bytes:
+    def encode(self, *, pre_word: bool = False) -> bytes:
         """Encode this record.
 
+        Args:
+            pre_word: Emit the 4 opaque bytes before the parent path.
+
         Returns:
-            The record bytes: the discriminator, then four strings.
+            The record bytes.
         """
         return b"".join(
             [
@@ -655,6 +989,7 @@ class SyntheticComponent:
                 fstring(self.class_path),
                 fstring(self.root_object),
                 fstring(self.instance_name),
+                bytes(COMPONENT_PRE_WORD_BYTES) if pre_word else b"",
                 fstring(self.parent_object_root),
             ]
         )
@@ -677,9 +1012,19 @@ class SyntheticLevel:
     name: str | None
     objects: tuple[SyntheticObject, ...] = ()
     components: tuple[SyntheticComponent, ...] = ()
-    collectables: tuple[SyntheticCollectable, ...] = ()
+    #: None means the level's header section ENDS AT THE RECORD TABLE with no
+    #: collectable block at all, which is the shape the size-driven rule exists
+    #: to handle. An empty tuple still emits a block declaring zero entries.
+    collectables: tuple[SyntheticCollectable, ...] | None = ()
     second_collectables: tuple[SyntheticCollectable, ...] = ()
     payload_size: int = 24
+    #: The second word of this level's 8-byte section sizes. Non-zero exercises
+    #: the flag path; it is zero in every real section measured.
+    reserved_word: int = 0
+    #: The named level's closing int32 where the layout carries one. Observed
+    #: constant; position and width only.
+    tail_word: int = 0
+    summary: SyntheticPackageSummary = SyntheticPackageSummary()
 
     @property
     def record_count(self) -> int:
@@ -690,8 +1035,8 @@ class SyntheticLevel:
         """
         return len(self.objects) + len(self.components)
 
-    def encode(self, *, save_version: int) -> bytes:
-        """Encode the whole level.
+    def encode(self, *, layout: LevelledLayout) -> bytes:
+        """Encode the whole level in one pair's grammar.
 
         The two declared sizes are computed from the bytes they cover rather
         than accumulated by hand, so a fixture cannot declare a size that
@@ -699,70 +1044,152 @@ class SyntheticLevel:
         format's duplicated sizes exist to catch.
 
         Args:
-            save_version: Drives the transform delta of the actor records.
+            layout: The pair's grammar. Drives the transform delta, the size
+                width, the data-entry shape, the component shape and the tail.
 
         Returns:
             The level bytes.
 
         Raises:
-            UnmeasuredTransformDeltaError: Actors were supplied for a save
-                version whose delta is unmeasured.
+            ValueError: A named level declares a second collectable block under
+                a layout that does not emit one. A fixture that declares bytes
+                it does not write is the defect class this corpus exists to
+                avoid, so it fails loudly rather than dropping them.
         """
-        delta = transform_delta(save_version) if self.objects else 0
-        records = b"".join(obj.encode(delta) for obj in self.objects)
-        records += b"".join(component.encode() for component in self.components)
-        header_section = (
-            _i32(self.record_count)
-            + records
-            + _i32(len(self.collectables))
-            + b"".join(item.encode() for item in self.collectables)
+        if (
+            self.name is not None
+            and self.second_collectables
+            and not layout.second_collectables_named
+        ):
+            raise ValueError(
+                "this layout emits no second collectable block on a named level,"
+                " so declaring one would silently drop it"
+            )
+
+        records = b"".join(obj.encode(layout.transform_delta) for obj in self.objects)
+        records += b"".join(
+            component.encode(pre_word=layout.component_pre_word) for component in self.components
         )
+        header_section = _i32(self.record_count) + records
+        if self.collectables is not None:
+            header_section += _i32(len(self.collectables)) + b"".join(
+                item.encode() for item in self.collectables
+            )
+
         # One payload per record, matching the real body, where the data
-        # section's count equals the header table's count exactly.
+        # section's count equals the header table's count exactly - 2945 of
+        # 2945 levels on the (14,52) corpus.
         payload = bytes(self.payload_size)
-        data_section = _i32(self.record_count) + (_i32(len(payload)) + payload) * self.record_count
+        entry = (
+            bytes(layout.data_entry_lead)
+            + _i32(len(payload))
+            + payload
+            + (_i32(0) if layout.data_entry_trailer else b"")
+        )
+        data_section = _i32(self.record_count) + entry * self.record_count
 
         out: list[bytes] = []
         if self.name is not None:
             out.append(fstring(self.name))
-        out.append(_i32(len(header_section)))
+        width = layout.section_size_width
+        out.append(section_size(len(header_section), width, reserved=self.reserved_word))
         out.append(header_section)
-        out.append(_i32(len(data_section)))
+        out.append(section_size(len(data_section), width, reserved=self.reserved_word))
         out.append(data_section)
-        out.append(_i32(len(self.second_collectables)))
-        out.extend(item.encode() for item in self.second_collectables)
+        if self.name is not None:
+            if layout.level_tail == LEVEL_TAIL_WORD:
+                out.append(_i32(self.tail_word))
+            elif layout.level_tail == LEVEL_TAIL_SUMMARY:
+                out.append(bytes(LEVEL_TAIL_CONSTANT_BYTES))
+                out.append(self.summary.encode())
+        if self.name is None or layout.second_collectables_named:
+            out.append(_i32(len(self.second_collectables)))
+            out.extend(item.encode() for item in self.second_collectables)
         return b"".join(out)
+
+
+class UnmeasuredBodyLayoutError(LookupError):
+    """Raised when a levelled body is requested for a pair with no measured layout.
+
+    A loud failure rather than a fallback, for the same reason
+    :class:`UnmeasuredTransformDeltaError` is: a default here would emit
+    plausible bytes for an underived pair and every downstream test would agree
+    with them.
+    """
+
+
+def levelled_layout(header_version: int, save_version: int) -> LevelledLayout:
+    """Look up the MEASURED skeleton grammar for a pair.
+
+    Args:
+        header_version: The header version.
+        save_version: The save version.
+
+    Returns:
+        The pair's layout.
+
+    Raises:
+        UnmeasuredBodyLayoutError: The pair has no measured layout. Never
+            interpolated from a neighbouring pair.
+    """
+    try:
+        return LEVELLED_LAYOUTS[(header_version, save_version)]
+    except KeyError:
+        raise UnmeasuredBodyLayoutError(
+            f"no measured body layout for header {header_version} with save {save_version};"
+            " measure it rather than interpolating from another pair"
+        ) from None
 
 
 def build_levelled_body(
     named: tuple[SyntheticLevel, ...],
     persistent: SyntheticLevel,
     *,
+    header_version: int,
     save_version: int,
+    summary: SyntheticPackageSummary | None = None,
+    grids: tuple[SyntheticGrid, ...] = (),
 ) -> bytes:
-    """Build a body in the MEASURED levelled layout.
+    """Build a body in the MEASURED levelled SKELETON layout for one pair.
 
-    This does NOT add the body length prefix, for the same reason
-    :func:`build_body` does not: the prefix follows the HEADER version and
-    everything here follows the SAVE version, and the two are kept in separate
-    functions so they cannot be driven off one field by accident.
+    This does NOT add the body length prefix, matching :func:`build_body`, so
+    that the prefix stays in one function and cannot be driven off the wrong
+    field by accident.
+
+    BOTH VERSION SCALARS ARE TAKEN, because the layout is keyed on the PAIR.
+    Neither one alone selects a grammar in this corpus: each header version
+    occurs with exactly one set of save versions, so both are perfect
+    predictors and neither is established as the key.
 
     Args:
         named: The named levels, in file order.
         persistent: The trailing unnamed level. Its ``name`` must be None.
-        save_version: Drives the transform delta.
+        header_version: Half of the layout key.
+        save_version: The other half.
+        summary: The body's opening package summary, where the layout carries
+            one. Defaults to a fresh one.
+        grids: The grid preamble's grids, where the layout carries one.
 
     Returns:
-        The level count, every level, and the trailing int32.
+        The preamble, the level count, every level, and the trailing int32.
 
     Raises:
         ValueError: ``persistent`` carries a name, which no real body does.
+        UnmeasuredBodyLayoutError: The pair has no measured layout.
     """
     if persistent.name is not None:
         raise ValueError("the persistent level is unnamed in every measured body")
-    out = [_i32(len(named))]
-    out.extend(level.encode(save_version=save_version) for level in named)
-    out.append(persistent.encode(save_version=save_version))
+    layout = levelled_layout(header_version, save_version)
+
+    out: list[bytes] = []
+    if layout.package_summary:
+        out.append((summary or SyntheticPackageSummary()).encode())
+    if layout.grid_preamble:
+        out.append(_i32(len(grids)))
+        out.extend(grid.encode() for grid in grids)
+    out.append(_i32(len(named)))
+    out.extend(level.encode(layout=layout) for level in named)
+    out.append(persistent.encode(layout=layout))
     out.append(_i32(BODY_TRAILING_INT32))
     return b"".join(out)
 
@@ -1071,6 +1498,7 @@ def _assemble_levelled(
     save_version: int,
     named: tuple[SyntheticLevel, ...],
     persistent: SyntheticLevel,
+    grids: tuple[SyntheticGrid, ...] = (),
 ) -> SyntheticSave:
     """Assemble a fixture whose body uses the MEASURED levelled layout.
 
@@ -1082,15 +1510,22 @@ def _assemble_levelled(
     Args:
         name: The fixture's own name.
         header_version: Drives string layout, tail and body length prefix.
-        save_version: Drives the transform delta.
+        save_version: With the header version, selects the body layout.
         named: The named levels.
         persistent: The trailing unnamed level.
+        grids: The grid preamble's grids, where the layout carries one.
 
     Returns:
         The assembled fixture.
     """
     header = build_header(header_version=header_version, save_version=save_version)
-    body = build_levelled_body(named, persistent, save_version=save_version)
+    body = build_levelled_body(
+        named,
+        persistent,
+        header_version=header_version,
+        save_version=save_version,
+        grids=grids,
+    )
     payload = body_with_prefix(body, header_version)
     framing = default_framing(header_version)
     return SyntheticSave(
@@ -1137,7 +1572,7 @@ LEVELLED_PERSISTENT: Final = SyntheticLevel(
 )
 
 #: THE FIRST FIXTURE IN THIS CORPUS SHAPED LIKE A BODY A REAL SAVE CONTAINS.
-#: Header 10 with save 36 - the one pair whose whole-body layout is measured.
+#: Header 10 with save 36 - the first pair whose whole-body layout was measured.
 SAVE_LEVELLED_V36: Final = _assemble_levelled(
     "SAVE_LEVELLED_V36",
     header_version=10,
@@ -1145,6 +1580,105 @@ SAVE_LEVELLED_V36: Final = _assemble_levelled(
     named=LEVELLED_NAMED,
     persistent=LEVELLED_PERSISTENT,
 )
+
+#: The named levels for the two pairs whose header collectable block is
+#: OPTIONAL. The middle level carries NO block at all - its header section ends
+#: at the record table - and that is the shape the size-driven rule exists for.
+#:
+#: It is a real shape, not a constructed one: 1943 of 2244 levels on the one
+#: real (13,42) body have no block, and 1641 of 2945 on the (14,52) corpus. The
+#: two rigid alternatives were run against the real files and both die - "always
+#: read the block" stops at level 0, "never read it" stops at level 64 - so the
+#: optionality is imposed by the format rather than chosen.
+LEVELLED_NAMED_OPTIONAL_BLOCK: Final = (
+    SyntheticLevel(name="Persistent_Level:SyntheticGridCell_0"),
+    SyntheticLevel(
+        name="Persistent_Level:SyntheticGridCell_1",
+        objects=_OBJECTS,
+        collectables=None,
+    ),
+    SyntheticLevel(
+        name="Persistent_Level:SyntheticGridCell_2",
+        objects=(_OBJECTS[0],),
+        components=(
+            SyntheticComponent(
+                "/Synthetic/Parts/Build_SyntheticInput.Build_SyntheticInput_C",
+                "Persistent_Level:PersistentLevel",
+                "SyntheticInput_0",
+            ),
+        ),
+        collectables=(SyntheticCollectable(),),
+    ),
+)
+
+#: The grid preamble the three header-13 and header-14 pairs carry. Uneven on
+#: purpose: an empty grid alongside a populated one, so a walker that mishandles
+#: a zero cell count cannot pass.
+LEVELLED_GRIDS: Final = (
+    SyntheticGrid("SyntheticMainGrid"),
+    SyntheticGrid(
+        "SyntheticLandscapeGrid",
+        cells=(
+            SyntheticGridCell("SyntheticCell_x0_y0"),
+            SyntheticGridCell("SyntheticCell_x1_y0"),
+        ),
+    ),
+)
+
+#: Header 13 with save 42. Transform delta 4, 8-byte section sizes, a grid
+#: preamble, 12-byte data entries, save 36's four-string component and no level
+#: tail. n=1 in the real library: one header-13 save exists on the machine this
+#: was measured against, so every count behind this pair is a property of ONE
+#: artifact until a second appears.
+SAVE_LEVELLED_V42: Final = _assemble_levelled(
+    "SAVE_LEVELLED_V42",
+    header_version=13,
+    save_version=42,
+    named=LEVELLED_NAMED_OPTIONAL_BLOCK,
+    persistent=LEVELLED_PERSISTENT,
+    grids=LEVELLED_GRIDS,
+)
+
+#: Header 14 with save 52. Adds the component's 4-byte opaque pre-word and the
+#: named level's closing int32 to the (13,42) shape, and moves the delta to 8.
+SAVE_LEVELLED_V52: Final = _assemble_levelled(
+    "SAVE_LEVELLED_V52",
+    header_version=14,
+    save_version=52,
+    named=LEVELLED_NAMED_OPTIONAL_BLOCK,
+    persistent=LEVELLED_PERSISTENT,
+    grids=LEVELLED_GRIDS,
+)
+
+#: Header 14 with save 60, the most divergent pair. A package summary opens the
+#: body and closes every named level, data entries carry a trailing int32, and
+#: the second collectable block appears on the PERSISTENT LEVEL ONLY. Its named
+#: levels all carry a header collectable block, matching the real files.
+SAVE_LEVELLED_V60: Final = _assemble_levelled(
+    "SAVE_LEVELLED_V60",
+    header_version=14,
+    save_version=60,
+    named=LEVELLED_NAMED,
+    persistent=LEVELLED_PERSISTENT,
+    grids=LEVELLED_GRIDS,
+)
+
+#: Every levelled fixture, one per measured pair, in pair order.
+LEVELLED_SAVES: Final = (
+    SAVE_LEVELLED_V36,
+    SAVE_LEVELLED_V42,
+    SAVE_LEVELLED_V52,
+    SAVE_LEVELLED_V60,
+)
+
+#: The named levels each levelled fixture was built from, so a test can derive
+#: an expected record count instead of writing one down.
+LEVELLED_NAMED_BY_PAIR: Final = {
+    (10, 36): LEVELLED_NAMED,
+    (13, 42): LEVELLED_NAMED_OPTIONAL_BLOCK,
+    (14, 52): LEVELLED_NAMED_OPTIONAL_BLOCK,
+    (14, 60): LEVELLED_NAMED,
+}
 
 
 # ---------------------------------------------------------------------------

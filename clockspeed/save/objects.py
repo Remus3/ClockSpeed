@@ -32,20 +32,31 @@ in no real file - whose measured pair is (8, 4). It is the only thing that
 separates the two dispatches, and it is why they are looked up through two
 functions here rather than through one.
 
-SAVE VERSION 42 IS DELIBERATELY ABSENT FROM THE DELTA TABLE
--------------------------------------------------------------
-Its delta has never been measured. With 36 -> 4 beside 52 -> 8, a value of 4 or
-6 for 42 looks derived rather than invented, which is exactly what makes it
-dangerous: every input to the interpolation is a genuine measurement, and the
-output is not. ADR 0005 records the same failure shape for the overclock
-exponent and refuses it there for the same reason. An absent key RAISES
-:class:`UnsupportedSaveVersionError`; it never defaults.
+SAVE VERSION 42 WAS MEASURED, NOT INTERPOLATED - AND 4 IS WHAT BOTH WOULD SAY
+-------------------------------------------------------------------------------
+Its delta was absent from the table for exactly as long as it was unmeasured.
+With 36 -> 4 beside 52 -> 8, a value of 4 for 42 looks derived, which is what
+made guessing it dangerous: every input to that interpolation is a genuine
+measurement and the output would not have been. ADR 0005 records the same
+failure shape for the overclock exponent.
 
-The refusal is EAGER, before a single record is read, matching ``header.py``'s
-version prologue. A check placed after the walk would never fire on a save of
-an unmeasured version whose object table happens to be empty, and would fire
-only once a populated one arrived - a version-dependent time bomb rather than a
-version check.
+So the value being 4 settles nothing on its own, and the evidence that settles
+it is deliberately of a different KIND from the arithmetic that would have
+guessed it. Every actor rotation in a real body is a unit quaternion. At shift
+4, all 17763 actors of the one real header-13 body give one; the runner-up
+shift scores 1027 and drops to 2 once scale plausibility is included; and the
+false-accept mode - a shift that produces unit-norm garbage - was constructed
+and shown not to obtain. That is a measurement, not a neighbour's value.
+
+A version with no measured delta still RAISES :class:`UnsupportedSaveVersionError`;
+it never defaults. The refusal is EAGER, before a single record is read,
+matching ``header.py``'s version prologue. A check placed after the walk would
+never fire on a save of an unmeasured version whose object table happens to be
+empty, and would fire only once a populated one arrived - a version-dependent
+time bomb rather than a version check.
+
+THE CORPUS IS n=1 FOR THIS PAIR. One header-13 save exists on this machine, so
+every count behind it is a property of one artifact until a second appears.
 
 UNKNOWN CLASSES ARE THE RELEASE VALVE (non-negotiable 7, BOOTSTRAP.md section 9)
 ---------------------------------------------------------------------------------
@@ -70,13 +81,12 @@ grammar for an actor, and the transform deltas for save versions 36, 52 and 60.
 
 NOT measured, and deliberately not invented:
 
-0. **Where the record table actually STARTS in a real body.** CLOSED FOR ONE OF
-   FOUR PAIRS by CS-407, and the answer was not an offset. A real body carries
-   no single record table: it opens with a version-dependent preamble and then
-   holds a LIST OF LEVELS, each with its own table, collectable list and
-   payload section. :func:`parse_body` walks that layout and, on a real header
-   10 / save 36 body, lands on the exact final byte - 202 levels and 25769
-   records later, nothing left over.
+0. **Where the record table actually STARTS in a real body.** CLOSED FOR ALL
+   FOUR REAL PAIRS by CS-407, and the answer was not an offset. A real body
+   carries no single record table: it opens with a version-dependent preamble
+   and then holds a LIST OF LEVELS, each with its own table, collectable list
+   and payload section. :func:`parse_body` walks that layout and lands on the
+   exact final byte of every real save on this machine.
 
    :func:`parse_object_headers` still reads the FLAT layout the corpus fixtures
    are built on, unchanged, because it is a consumed public surface and those
@@ -84,14 +94,22 @@ NOT measured, and deliberately not invented:
    carries: passing against the flat corpus is evidence about dispatch and is
    NOT evidence that anything can read a save.
 
-   The other three real pairs are refused by :data:`MEASURED_BODY_LAYOUTS`
-   rather than guessed at, and what was established for each before the
-   derivation stopped is recorded in ``tests/save/synthetic.py``. Save version
-   42's transform delta in particular remains UNMEASURED: a candidate reading
-   exists in which its delta is 4, but it holds only if that version's declared
+   **A RECORDED REASON HERE WAS WRONG, AND IS CORRECTED RATHER THAN DELETED.**
+   This docstring previously declined save version 42's delta of 4 on the
+   grounds that the reading "holds only if that version's declared
    header-section size also excludes the collectable count, which both
-   neighbouring versions contradict. Two unmeasured assumptions holding each
-   other up is not a measurement.
+   neighbouring versions contradict" - two unmeasured assumptions holding each
+   other up. THAT OBJECTION IS REFUTED. The grammar it describes was run
+   against the real body and stops inside the FIRST level. The declared
+   header-section size INCLUDES the collectable block in all 301 levels that
+   have one; the other 1943 levels simply have NO BLOCK AT ALL. One thing
+   changed, not two, and the old objection is exactly what falls out of
+   assuming the block is mandatory - which it is on save 36, where all 202
+   levels carry one, and is not anywhere else.
+
+   The delta itself is now measured by a corroborator independent of section
+   arithmetic entirely: every actor rotation is a unit quaternion, and 17763 of
+   17763 actors read as unit quaternions at shift 4.
 
 1. **The object DATA section.** After the record table a real save carries the
    per-object property payloads. No corpus fixture builds one -
@@ -156,9 +174,15 @@ from typing import Final
 from clockspeed.save.usmap import PropertyMap
 
 __all__ = [
+    "BODY_LAYOUT_BY_PAIR",
     "FIELD_NAMES",
     "KIND_ACTOR",
     "KIND_COMPONENT",
+    "LEVEL_TAIL_NONE",
+    "LEVEL_TAIL_SUMMARY",
+    "LEVEL_TAIL_WORD",
+    "MAX_CUSTOM_VERSIONS",
+    "MAX_GRIDS",
     "MAX_LEVELS",
     "MAX_OBJECTS",
     "MAX_OBJECT_DATA_BYTES",
@@ -170,10 +194,12 @@ __all__ = [
     "TRANSFORM_FLOAT_COUNT",
     "UNKNOWN_CLASS_REASONS",
     "WARN_BODY_LENGTH_DISAGREEMENT",
+    "WARN_RESERVED_WORD_SET",
     "WARN_UNMEASURED_HEADER_VERSION",
     "WARN_UNPARSED_DATA_SECTION",
     "WARN_UNPARSED_PROPERTY_PAYLOAD",
     "WARN_UNRESOLVED_SCHEMA",
+    "BodyLayout",
     "ObjectBudgetExceededError",
     "ObjectError",
     "ObjectFormatError",
@@ -221,13 +247,25 @@ HEADER_VERSION_WITH_WIDE_PREFIX: Final = HEADER_VERSION_13
 BODY_PREFIX_WIDTH_WIDE: Final = 8
 BODY_PREFIX_WIDTH_NARROW: Final = 4
 
-#: MEASURED. The filler width between the instance-name string and the
-#: transform block, by SAVE version (ADR 0003).
+#: MEASURED. The width of the opaque run between the instance-name string and
+#: the transform block, by SAVE version (ADR 0003).
 #:
-#: SAVE VERSION 42 IS DELIBERATELY ABSENT - see the module docstring. Adding it
-#: is a MEASUREMENT, taken against a real save of that version, and it is
-#: added in both transcriptions at once.
-TRANSFORM_DELTA_BY_SAVE_VERSION: Final[Mapping[int, int]] = MappingProxyType({36: 4, 52: 8, 60: 8})
+#: SAVE VERSION 42 WAS ADDED BY MEASUREMENT, NOT BY INTERPOLATION, and the
+#: distinction matters because 4 is also what interpolation would have produced.
+#: The evidence is independent of the section arithmetic that consumes the run:
+#: every actor rotation in a real body is a unit quaternion, and at shift 4 all
+#: 17763 actors of the one real header-13 body give one. The runner-up shift
+#: scores 1027 and falls to 2 once scale plausibility is included, and the
+#: false-accept mode was constructed and shown not to obtain.
+#:
+#: IT IS NOT FILLER, despite reading like it. On the (14,52) corpus the run
+#: takes 8 distinct values with only bits 3, 6, 19, 21 and 32 ever set - a bit
+#: mask rather than an integer - and on (13,42) it is valued 0 in 11775 records
+#: and 1 in 5988. Only its WIDTH is read here; see the module docstring for why
+#: it is never split into named fields.
+TRANSFORM_DELTA_BY_SAVE_VERSION: Final[Mapping[int, int]] = MappingProxyType(
+    {36: 4, 42: 4, 52: 8, 60: 8}
+)
 
 #: Rotation (4) + translation (3) + scale (3), all float32.
 TRANSFORM_FLOAT_COUNT: Final = 10
@@ -281,17 +319,166 @@ MAX_LEVELS: Final = 1 << 16
 #: the count ceiling, so the first real save this walk ever saw refused itself.
 MAX_OBJECT_DATA_BYTES: Final = 1 << 26
 
-#: MEASURED (CS-407). The ``(header version, save version)`` pairs whose WHOLE
-#: BODY LAYOUT has been derived - meaning a real body of that pair walks to its
-#: exact final byte with nothing left over.
+# ---------------------------------------------------------------------------
+# The body SKELETON grammar, per pair
+#
+# READ THE WORD SKELETON. Landing on a body's exact final byte proves the
+# FRAMING is right; it does not mean the body is understood. Roughly three
+# quarters of every real body is opaque property payload this grammar steps
+# over by declared length - 69.5% to 77.7% across the eight real (14,52) files,
+# and 12100463 of 18086289 bytes on the one real (13,42) file. What is named
+# below is a 1.8% to 2.7% skeleton plus its length-prefixed strings. Adding
+# pairs does not change that ratio, so "the body grammar is closed" never
+# becomes a true sentence; "the body SKELETON grammar is closed" already is.
+#
+# THE KEY IS THE PAIR, AND THE KEY IS UNDETERMINED. Header version, save
+# version and build changelist are all PERFECT predictors of every difference
+# in this table, because each header version occurs with exactly one set of
+# save versions across the whole real library. Nothing separates them, so this
+# module keys on the PAIR and claims no key - the same undetermined keying
+# ADR 0007 records for the chunk marker. Writing "save 36 uses 4-byte sizes"
+# would assert a key the evidence does not support, and lines 19-22 above
+# record that this exact mistake was made once already, under CS-404.
+# ---------------------------------------------------------------------------
+
+#: A named level closes on nothing after its data section.
+LEVEL_TAIL_NONE: Final = "none"
+
+#: A named level closes on one int32. Position and width only; no meaning.
+LEVEL_TAIL_WORD: Final = "word"
+
+#: A named level closes on 12 constant bytes and then a package summary.
+LEVEL_TAIL_SUMMARY: Final = "summary"
+
+#: CONSTANT BLOBS, SKIPPED BY LENGTH, exactly as BOOTSTRAP.md already does for
+#: the 28-byte header tail. NO INTERIOR BOUNDARY IN ANY OF THESE IS OBSERVABLE,
+#: so none is claimed and none is decoded.
 #:
-#: THE OTHER THREE REAL PAIRS ARE ABSENT AND ARE NOT INTERPOLATED FROM THIS ONE.
-#: What was and was not established for each is recorded beside the corpus in
-#: ``tests/save/synthetic.py`` (``LEVELLED_LAYOUT_UNMEASURED``), so a later
-#: slice resumes from the evidence rather than from a blank page. Adding a pair
-#: here is a MEASUREMENT against a real save, and it is added in both
-#: transcriptions at once.
-MEASURED_BODY_LAYOUTS: Final = frozenset({(HEADER_VERSION_10, 36)})
+#: The 70-byte run is the sharpest case rather than the laziest: every
+#: candidate split was searched and none is supported - not 4+6, not 8+2, not
+#: 16+10. Every head int32 has exactly one distinct value across the corpus and
+#: the trailing run has one, so the interior is UNFALSIFIABLE, not merely
+#: unmeasured. What IS pinned is the pair (70, 20): the count's position at +70
+#: and the 20-byte entry width are the unique survivors of a brute-force search
+#: over F in [0,84) x K in [1,256], robust to three plausibility caps and
+#: over-determined by four distinct counts against four distinct widths.
+_PACKAGE_SUMMARY_HEAD_BYTES: Final = 70
+_CUSTOM_VERSION_ENTRY_BYTES: Final = 20
+_LEVEL_TAIL_CONSTANT_BYTES: Final = 12
+_GRID_OPAQUE_BYTES: Final = 8
+_GRID_CELL_OPAQUE_BYTES: Final = 4
+_COMPONENT_PRE_WORD_BYTES: Final = 4
+
+#: Ceiling on a declared grid or custom-version count, applied before any loop.
+MAX_GRIDS: Final = 1 << 12
+MAX_CUSTOM_VERSIONS: Final = 1 << 12
+
+
+@dataclass(frozen=True)
+class BodyLayout:
+    """Every way one measured pair's body skeleton differs from another's.
+
+    Attributes:
+        transform_delta: Width of the opaque run before an actor's transform
+            block. Keyed here on the PAIR; :data:`TRANSFORM_DELTA_BY_SAVE_VERSION`
+            keys the same measurement on the save version for the flat walk,
+            and a test cross-checks that the two agree on every pair.
+        section_size_width: 4 or 8. An 8-byte size is read as an int32 size
+            plus a named reserved int32 - see :func:`_read_section_size`.
+        package_summary: The body opens with a package summary.
+        grid_preamble: The body carries the grid block before the level count.
+        data_entry_lead: Opaque bytes before each payload's length prefix.
+        data_entry_trailer: Each payload is followed by an int32.
+        component_pre_word: A component carries 4 opaque bytes before its
+            parent path.
+        level_tail: One of the ``LEVEL_TAIL_*`` constants, NAMED levels only.
+        second_collectables_named: Named levels close with a second collectable
+            block. The persistent level always does.
+    """
+
+    transform_delta: int
+    section_size_width: int
+    package_summary: bool
+    grid_preamble: bool
+    data_entry_lead: int
+    data_entry_trailer: bool
+    component_pre_word: bool
+    level_tail: str
+    second_collectables_named: bool
+
+
+#: MEASURED (CS-407). The ``(header version, save version)`` pairs whose whole
+#: body SKELETON has been derived - meaning a real body of that pair walks to
+#: its exact final byte with nothing left over - and the grammar each uses.
+#:
+#: Landings behind this table: (10,36) 3 of 3 real files exact, (13,42) 1 of 1,
+#: (14,52) 8 of 8, (14,60) 2 of 2.
+#:
+#: THOSE ARE FILE COUNTS, NOT INDEPENDENCE COUNTS, and the difference is large.
+#: (13,42) is ONE file. (14,60)'s two bodies are byte-identical from offset 4
+#: through 150074, which is exactly the persistent level's first byte, so the
+#: package summary, the grid block, the level tail and all 187 named levels are
+#: n=1 and only the persistent level's contents are genuinely n=2. (14,52)'s
+#: eight files share a byte-identical 69750-byte preamble - it is the static
+#: world-partition grid, so n=1 there is a CEILING that more saves of this world
+#: cannot raise - they collapse to six distinct structural signatures, and the
+#: entire no-header-block branch lives in ONE of them.
+#:
+#: Adding a pair here is a MEASUREMENT against a real save, never an
+#: interpolation from a neighbour, and it is added in both transcriptions at
+#: once - here and in ``tests/save/synthetic.py``.
+BODY_LAYOUT_BY_PAIR: Final[Mapping[tuple[int, int], BodyLayout]] = MappingProxyType(
+    {
+        (HEADER_VERSION_10, 36): BodyLayout(
+            transform_delta=4,
+            section_size_width=INT32_SIZE,
+            package_summary=False,
+            grid_preamble=False,
+            data_entry_lead=0,
+            data_entry_trailer=False,
+            component_pre_word=False,
+            level_tail=LEVEL_TAIL_NONE,
+            second_collectables_named=True,
+        ),
+        (HEADER_VERSION_13, 42): BodyLayout(
+            transform_delta=4,
+            section_size_width=INT64_SIZE,
+            package_summary=False,
+            grid_preamble=True,
+            data_entry_lead=INT64_SIZE,
+            data_entry_trailer=False,
+            component_pre_word=False,
+            level_tail=LEVEL_TAIL_NONE,
+            second_collectables_named=True,
+        ),
+        (HEADER_VERSION_14, 52): BodyLayout(
+            transform_delta=8,
+            section_size_width=INT64_SIZE,
+            package_summary=False,
+            grid_preamble=True,
+            data_entry_lead=INT64_SIZE,
+            data_entry_trailer=False,
+            component_pre_word=True,
+            level_tail=LEVEL_TAIL_WORD,
+            second_collectables_named=True,
+        ),
+        (HEADER_VERSION_14, 60): BodyLayout(
+            transform_delta=8,
+            section_size_width=INT64_SIZE,
+            package_summary=True,
+            grid_preamble=True,
+            data_entry_lead=INT64_SIZE,
+            data_entry_trailer=True,
+            component_pre_word=True,
+            level_tail=LEVEL_TAIL_SUMMARY,
+            second_collectables_named=False,
+        ),
+    }
+)
+
+#: The pairs :func:`parse_body` will walk. Derived from the table above so the
+#: set and the grammar cannot drift apart.
+MEASURED_BODY_LAYOUTS: Final = frozenset(BODY_LAYOUT_BY_PAIR)
 
 # ---------------------------------------------------------------------------
 # The closed field vocabulary
@@ -326,6 +513,22 @@ FIELD_NAMES: Final = frozenset(
         "collectable_count",
         "collectable",
         "parent_object_root",
+        # The three further pairs (CS-407 wave 2). Every one of these names a
+        # span that is SKIPPED BY LENGTH, not decoded.
+        "section_size_reserved",
+        "package_summary",
+        "custom_version_count",
+        "custom_version",
+        "grid_count",
+        "grid_name",
+        "grid_opaque",
+        "grid_cell_count",
+        "grid_cell_name",
+        "grid_cell_opaque",
+        "object_data_lead",
+        "object_data_trailer",
+        "component_pre_word",
+        "level_tail",
     }
 )
 
@@ -369,6 +572,7 @@ WARN_BODY_LENGTH_DISAGREEMENT: Final = "body-length-disagreement"
 WARN_UNPARSED_DATA_SECTION: Final = "unparsed-data-section"
 WARN_UNRESOLVED_SCHEMA: Final = "unresolved-schema"
 WARN_UNPARSED_PROPERTY_PAYLOAD: Final = "unparsed-property-payload"
+WARN_RESERVED_WORD_SET: Final = "reserved-word-set"
 
 _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
     {
@@ -391,6 +595,12 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
         WARN_UNPARSED_PROPERTY_PAYLOAD: (
             "the class resolved but its property payload was not decoded; the value "
             "grammar is unmeasured and is never guessed at"
+        ),
+        WARN_RESERVED_WORD_SET: (
+            "the second word of an 8-byte section size is non-zero, where every "
+            "section measured carries zero; the low word was used as the size and "
+            "the walk continued, so a section-size mismatch after this warning "
+            "points at this field rather than at the section"
         ),
     }
 )
@@ -1291,18 +1501,121 @@ def _read_bounded_count(cursor: _Cursor, field: str, ceiling: int) -> int:
     return count
 
 
-def _read_levelled_record(cursor: _Cursor, delta: int) -> ObjectRecord:
+def _read_section_size(
+    cursor: _Cursor, layout: BodyLayout, field: str, warnings: list[ObjectWarning]
+) -> int:
+    """Read one section size at the pair's width.
+
+    AN 8-BYTE SIZE IS READ AS AN INT32 SIZE PLUS A NAMED RESERVED INT32, NOT AS
+    AN INT64, and the choice is made on asymmetric damage rather than on taste.
+    The corpus cannot decide between the two readings and never will: the
+    reserved word is zero in all 5890 instances measured on the (14,52) corpus
+    and in every instance on the others, and the largest section observed is
+    0.45% of 2**31, so no save that can physically exist sets a high word by
+    size alone.
+
+    Given that, the two readings differ only in how they FAIL. If the field is
+    really an int64, this reader is correct for every save that can exist. If it
+    is int32-plus-reserved and that word ever goes non-zero, an int64 reader
+    silently computes ``lo + hi * 2**32``, gets an astronomical size, and
+    reports a section-size mismatch - a diagnosis pointing at the WRONG FIELD,
+    which is the expensive kind of wrong. This reader names the field that
+    actually changed.
+
+    A NON-ZERO RESERVED WORD IS FLAGGED, NOT FATAL (non-negotiable 7). Refusing
+    a save over a word whose meaning is unknown would be worse than reading it,
+    and passing it silently would discard the first evidence anyone has ever had
+    about that word.
+
+    Args:
+        cursor: Positioned at the size.
+        layout: The pair's grammar, for the width.
+        field: The section field name, from :data:`FIELD_NAMES`.
+        warnings: Accumulator, appended to when the reserved word is set.
+
+    Returns:
+        The declared size.
+    """
+    if layout.section_size_width == INT32_SIZE:
+        return cursor.int32(field)
+    at = cursor.offset
+    size = cursor.int32(field)
+    if cursor.int32("section_size_reserved") != 0:
+        # The OFFSET is reported and the observed value is not. A word read out
+        # of a personal-data-bearing body is not one of the five channels
+        # non-negotiable 12 allows into a message, and "expected zero" is the
+        # whole of the actionable content anyway.
+        warnings.append(_warning(WARN_RESERVED_WORD_SET, at, expected=0))
+    return size
+
+
+def _read_package_summary(cursor: _Cursor) -> None:
+    """Step over one package summary.
+
+    A 70-BYTE CONSTANT RUN, A COUNT, THEN THAT MANY 20-BYTE ENTRIES. The run is
+    skipped by LENGTH because no interior boundary in it is observable - not
+    4+6, not 8+2, not 16+10 - which makes its interior unfalsifiable rather than
+    merely unmeasured. ``BOOTSTRAP.md`` already takes exactly this approach to
+    the 28-byte header tail.
+
+    The count's position at +70 and the 20-byte entry width ARE pinned, as the
+    unique survivors of a brute-force search over offsets and widths.
+
+    Args:
+        cursor: Positioned at the summary.
+
+    Raises:
+        ObjectBudgetExceededError: The declared count exceeds its ceiling.
+        ObjectTruncatedError: The summary runs past the body.
+    """
+    cursor.skip(_PACKAGE_SUMMARY_HEAD_BYTES, "package_summary")
+    count = _read_bounded_count(cursor, "custom_version_count", MAX_CUSTOM_VERSIONS)
+    cursor.skip(count * _CUSTOM_VERSION_ENTRY_BYTES, "custom_version")
+
+
+def _read_grid_preamble(cursor: _Cursor) -> None:
+    """Step over the grid block that precedes the level count on three pairs.
+
+    Each grid carries a name, 8 opaque bytes and a counted cell list; each cell
+    carries a name and 4 opaque bytes. NO LABEL IS CLAIMED for either opaque
+    run. An earlier reading called the first two words ``cell_size`` and
+    ``hash``, and neither survives contact with the values - one observed
+    ``cell_size`` is 12798, which is not a plausible round cell size.
+
+    Args:
+        cursor: Positioned at the grid count.
+
+    Raises:
+        ObjectBudgetExceededError: A declared count exceeds its ceiling.
+        ObjectTruncatedError: The block runs past the body.
+    """
+    for _ in range(_read_bounded_count(cursor, "grid_count", MAX_GRIDS)):
+        cursor.string("grid_name")
+        cursor.skip(_GRID_OPAQUE_BYTES, "grid_opaque")
+        for _ in range(_read_bounded_count(cursor, "grid_cell_count", MAX_OBJECTS)):
+            cursor.string("grid_cell_name")
+            cursor.skip(_GRID_CELL_OPAQUE_BYTES, "grid_cell_opaque")
+
+
+def _read_levelled_record(cursor: _Cursor, layout: BodyLayout) -> ObjectRecord:
     """Read one record in the MEASURED levelled grammar.
 
     THE TWO KINDS DIVERGE HERE, and that is the correction CS-407 carries. An
-    actor closes with its filler, its transform block and a trailing int32; a
-    COMPONENT closes with a fourth string instead. ``_read_record`` above reads
-    the actor shape under either discriminator, which is correct for the flat
-    corpus and desynchronises a real body at its first component.
+    actor closes with its opaque run, its transform block and a trailing int32;
+    a COMPONENT closes with a parent path instead, preceded on two pairs by 4
+    opaque bytes. ``_read_record`` above reads the actor shape under either
+    discriminator, which is correct for the flat corpus and desynchronises a
+    real body at its first component.
+
+    The component's pre-word WIDTH is pinned decisively rather than by
+    consumption alone: a 0-byte rival, an 8-byte rival and an empty-string rival
+    each land on 0 of the 8 real (14,52) files. Its TYPE is not pinned - a
+    two-int16 reading closes byte-exactly - so it is stepped over rather than
+    decoded.
 
     Args:
         cursor: Positioned at the record's object-type discriminator.
-        delta: The save version's filler width, actors only.
+        layout: The pair's grammar.
 
     Returns:
         The record.
@@ -1328,7 +1641,7 @@ def _read_levelled_record(cursor: _Cursor, delta: int) -> ObjectRecord:
     was_placed_in_level = 0
     if kind == KIND_ACTOR:
         # Opaque by measurement: only the WIDTH of this run is known (ADR 0003).
-        cursor.skip(delta, "transform_delta")
+        cursor.skip(layout.transform_delta, "transform_delta")
         values = cursor.floats(TRANSFORM_FLOAT_COUNT, "transform")
         was_placed_in_level = cursor.int32("was_placed_in_level")
         transform = Transform(
@@ -1337,6 +1650,8 @@ def _read_levelled_record(cursor: _Cursor, delta: int) -> ObjectRecord:
             scale=(values[7], values[8], values[9]),
         )
     else:
+        if layout.component_pre_word:
+            cursor.skip(_COMPONENT_PRE_WORD_BYTES, "component_pre_word")
         parent = cursor.string("parent_object_root")
 
     return ObjectRecord(
@@ -1408,12 +1723,13 @@ def _check_section(cursor: _Cursor, field: str, at: int, base: int, declared: in
 
 def _read_level(
     cursor: _Cursor,
-    delta: int,
+    layout: BodyLayout,
     *,
     named: bool,
     known_classes: Container[str] | None,
     records: list[ObjectRecord],
     unknown: _UnknownLog,
+    warnings: list[ObjectWarning],
 ) -> None:
     """Read one level: its record table, its collectables and its payload section.
 
@@ -1421,13 +1737,47 @@ def _read_level(
     level. That asymmetry is measured: a walk expecting a name there stops with
     hundreds of thousands of bytes unread.
 
+    THE HEADER COLLECTABLE BLOCK IS OPTIONAL, AND THE RULE FOR IT IS SIZE-DRIVEN:
+    if bytes remain inside the declared header section once the record count is
+    exhausted, those bytes are the block. The optionality itself is imposed by
+    the format rather than chosen - both rigid alternatives were run against the
+    real (14,52) corpus and both die, "always read the block" at level 0 and
+    "never read it" at level 64.
+
+    THE SIZE-DRIVEN RULE IS AN A-PRIORI DELIMITER ARGUMENT, NOT A MEASUREMENT,
+    and saying so is the honest statement of what is known. Seven of the eight
+    real (14,52) bodies are landed byte-exactly by an unconditional "always read
+    a block" grammar; only the one 16 MB file distinguishes them, and in that
+    file's version-42 levels every named field is degenerate - legacy content
+    never re-serialized - so it contributes no evidence about any other field.
+    Within it, "no header block", "first entry word is 42" and "second entry
+    word is 1" are perfectly confounded, partitioning the identical 1641 levels
+    with zero exceptions.
+
+    Two rival formulations were considered and both discarded:
+
+    - TAG-DRIVEN, "present iff the level's data entries are tagged 42". It needs
+      a value from a section not yet read, and it is UNDEFINED on 229 of the
+      2244 levels of the real (13,42) body because those levels have no entries
+      to consult - and both outcomes occur among them, 227 with a block and 2
+      without, so no constant completion of the rule is correct.
+    - THE PRE-WORD PROXY, "present iff the records' pre-word is non-zero". It
+      fits all 2945 sections of the (14,52) corpus and desynchronises on the
+      first level whose records all happen to carry zero.
+
+    What the rule buys is RESYNCHRONISATION, not interpretation. 2905 of 2945
+    levels have a header-section leftover of exactly 4 zero bytes, and "a
+    collectable block with count 0" is byte-indistinguishable from a reserved
+    word or a flags word there.
+
     Args:
         cursor: Positioned at the level.
-        delta: The save version's filler width.
+        layout: The pair's grammar.
         named: Whether the level carries a leading name string.
         known_classes: Class names the caller can model, or None.
         records: Accumulator, appended to in file order.
         unknown: Accumulator for unmodelled class paths.
+        warnings: Accumulator for flagged conditions.
 
     Raises:
         ObjectFormatError: A declared section size disagrees with its content,
@@ -1442,31 +1792,50 @@ def _read_level(
         cursor.string("level_name")
 
     at = cursor.offset
-    header_size = cursor.int32("header_section")
+    header_size = _read_section_size(cursor, layout, "header_section", warnings)
     base = cursor.offset
     count = _read_bounded_count(cursor, "object_count", MAX_OBJECTS)
     for _ in range(count):
-        record = _read_levelled_record(cursor, delta)
+        record = _read_levelled_record(cursor, layout)
         index = len(records)
         records.append(record)
         if known_classes is not None and class_name_of(record.type_path) not in known_classes:
             unknown.add(record.type_path, index)
-    _read_collectables(cursor)
+    if cursor.offset - base < header_size:
+        _read_collectables(cursor)
     _check_section(cursor, "header_section", at, base, header_size)
 
     data_at = cursor.offset
-    data_size = cursor.int32("object_data_section")
+    data_size = _read_section_size(cursor, layout, "object_data_section", warnings)
     data_base = cursor.offset
     entries = _read_bounded_count(cursor, "object_count", MAX_OBJECTS)
     for _ in range(entries):
         # The payload GRAMMAR is unmeasured; only its int32 length framing is.
-        # Stepping over it is therefore the honest read, not a shortcut.
+        # Stepping over it is therefore the honest read, not a shortcut - and it
+        # is THREE QUARTERS OF THE BODY being stepped over, not a detail.
+        #
+        # The leading run is skipped whole. On (13,42) its two int32 readings
+        # take exactly two joint values, (42,0) and (36,1), so the second is
+        # perfectly determined by the first; on (14,52) they are collinear
+        # across 29466 entries; and an int64 reading closes byte-exactly on
+        # (14,60). The 8-byte WIDTH is pinned and the split is not.
+        if layout.data_entry_lead:
+            cursor.skip(layout.data_entry_lead, "object_data_lead")
         cursor.skip(
             _read_bounded_count(cursor, "object_data", MAX_OBJECT_DATA_BYTES), "object_data"
         )
+        if layout.data_entry_trailer:
+            cursor.int32("object_data_trailer")
     _check_section(cursor, "object_data_section", data_at, data_base, data_size)
 
-    _read_collectables(cursor)
+    if named:
+        if layout.level_tail == LEVEL_TAIL_WORD:
+            cursor.int32("level_tail")
+        elif layout.level_tail == LEVEL_TAIL_SUMMARY:
+            cursor.skip(_LEVEL_TAIL_CONSTANT_BYTES, "level_tail")
+            _read_package_summary(cursor)
+    if not named or layout.second_collectables_named:
+        _read_collectables(cursor)
 
 
 def parse_body(
@@ -1508,7 +1877,8 @@ def parse_body(
         ObjectTruncatedError: The body ends inside a level.
         ObjectBudgetExceededError: A declared count exceeds its ceiling.
     """
-    if (header_version, save_version) not in MEASURED_BODY_LAYOUTS:
+    layout = BODY_LAYOUT_BY_PAIR.get((header_version, save_version))
+    if layout is None:
         raise UnsupportedBodyLayoutError(
             REASON_UNMEASURED_BODY_LAYOUT,
             field="body_layout",
@@ -1516,12 +1886,19 @@ def parse_body(
             actual=header_version,
             version=save_version,
         )
-    delta = transform_delta(save_version)
+    delta = layout.transform_delta
 
     cursor = _Cursor(body)
     declared, width, warnings = _read_prefix(cursor, header_version)
 
     start = cursor.offset
+    # The preamble, where the pair has one. Both blocks are stepped over rather
+    # than modelled: nothing downstream consumes a world-partition grid today,
+    # and holding one would put world content into the returned model.
+    if layout.package_summary:
+        _read_package_summary(cursor)
+    if layout.grid_preamble:
+        _read_grid_preamble(cursor)
     level_count = _read_bounded_count(cursor, "level_count", MAX_LEVELS)
 
     records: list[ObjectRecord] = []
@@ -1529,20 +1906,22 @@ def parse_body(
     for _ in range(level_count):
         _read_level(
             cursor,
-            delta,
+            layout,
             named=True,
             known_classes=known_classes,
             records=records,
             unknown=unknown,
+            warnings=warnings,
         )
     # Exactly one unnamed persistent level closes every measured body.
     _read_level(
         cursor,
-        delta,
+        layout,
         named=False,
         known_classes=known_classes,
         records=records,
         unknown=unknown,
+        warnings=warnings,
     )
     # MEASURED as present, and observed to be zero. Its MEANING is unmeasured,
     # so it is consumed and not interpreted - a walk without it stops exactly

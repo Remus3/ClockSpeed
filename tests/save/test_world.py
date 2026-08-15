@@ -116,12 +116,21 @@ _SAVE_36: Final = 36
 _SAVE_42: Final = 42
 _SAVE_60: Final = 60
 
+#: A save version in no real file and in no measured table. The refusal cases
+#: below need one, and 42 stopped being one when CS-407 measured its delta.
+_UNMEASURED_SAVE_VERSION: Final = 97
+
 _NARROW_PREFIX: Final = 4
 _WIDE_PREFIX: Final = 8
 
 _DELTA_36: Final = 4
+_DELTA_42: Final = 4
 
 _TRIPLE: Final = 3
+
+#: How many (header version, save version) pairs the operator's real library
+#: contains. All four now have a measured body skeleton.
+_FOUR_REAL_PAIRS: Final = 4
 
 #: Enough records that the body exceeds a deliberately tiny chunk size, so two
 #: fixtures can differ in CHUNK COUNT without needing a hundred kilobytes.
@@ -637,8 +646,21 @@ def _chunk_stream_failure() -> object:
 
 
 def _object_version_failure() -> object:
-    """A save version with no measured transform delta - objects.UnsupportedSaveVersionError."""
-    return _load_flat(_planted_blob(header_version=_HEADER_13, save_version=_SAVE_42, objects_=()))
+    """A save version with no measured transform delta - objects.UnsupportedSaveVersionError.
+
+    THE VERSION USED HERE CHANGED WHEN 42 WAS MEASURED. It used to be save 42,
+    because 42 was the version this project could not read. CS-407 measured its
+    delta at 4 against a real body, so 42 no longer refuses anything and a case
+    still using it would have gone on asserting a refusal that had quietly
+    become a successful parse.
+
+    The replacement is a version that exists in NO real save and in no measured
+    table, which is what this case is actually about: an absent key raises
+    rather than defaulting to a plausible neighbour's value.
+    """
+    return _load_flat(
+        _planted_blob(header_version=_HEADER_13, save_version=_UNMEASURED_SAVE_VERSION, objects_=())
+    )
 
 
 def _object_truncation_failure() -> object:
@@ -727,18 +749,49 @@ def test_the_usmap_family_surfaces_as_a_world_load_error(
 
 
 def test_a_save_version_with_no_measured_delta_is_refused() -> None:
-    """SAVE_V42 cannot load, and that refusal is the format record rather than a gap.
+    """An unmeasured delta refuses, and the refusal is the format record.
 
-    THE FLAT READER IS NAMED HERE ON PURPOSE. Save 42's missing TRANSFORM DELTA
-    is a different unmeasured thing from header 13 / save 42's missing BODY
-    LAYOUT, and the levelled reader refuses on the layout first - so under the
-    default this test would still pass while no longer asserting what it says it
-    asserts. Naming the flat reader keeps the delta the subject.
+    RESTATED UNDER CS-407, AND THE SUBJECT CHANGED. This asserted that SAVE_V42
+    could not load. Save 42's transform delta has now been MEASURED at 4 - by a
+    corroborator independent of the section arithmetic, since every actor
+    rotation is a unit quaternion and 17763 of 17763 give one at shift 4 - so
+    that fixture loads and the claim it carried is retired rather than loosened.
+
+    What survives is the rule the old case existed to pin: a version with no
+    measured delta RAISES instead of defaulting to a neighbour's value. That
+    rule needs a version nobody has measured, so it is asserted against one.
+
+    THE FLAT READER IS NAMED HERE ON PURPOSE. A missing TRANSFORM DELTA is a
+    different unmeasured thing from a missing BODY LAYOUT, and the levelled
+    reader refuses on the layout first - so under the default this test would
+    still pass while no longer asserting what it says it asserts.
     """
+    assert _UNMEASURED_SAVE_VERSION not in objects.TRANSFORM_DELTA_BY_SAVE_VERSION
+
     with pytest.raises(world.WorldLoadError) as caught:
-        _load_flat(synthetic.SAVE_V42.blob)
+        _load_flat(
+            _planted_blob(
+                header_version=_HEADER_13, save_version=_UNMEASURED_SAVE_VERSION, objects_=()
+            )
+        )
 
     assert isinstance(caught.value.__cause__, objects.UnsupportedSaveVersionError)
+
+
+def test_the_previously_unreadable_save_version_now_loads() -> None:
+    """The other half of the correction above, asserted rather than assumed.
+
+    Retiring a refusal is only honest if the thing that used to be refused now
+    works. SAVE_V42 was built with an EMPTY object section precisely because
+    its delta was unmeasured, so this proves the version dispatch reaches the
+    end of the walk - not that a populated header-13 body parses, which is what
+    the levelled fixture and the real-save acceptance carry.
+    """
+    model = _load_flat(synthetic.SAVE_V42.blob)
+
+    assert model.header.save_version == _SAVE_42
+    assert model.objects.transform_delta == _DELTA_42
+    assert model.objects.records == ()
 
 
 def test_no_planted_string_reaches_any_world_load_error_surface(
@@ -1235,14 +1288,27 @@ def test_the_default_load_reads_the_levelled_body_a_real_save_actually_has() -> 
 def test_a_pair_with_no_measured_body_layout_is_refused_rather_than_guessed() -> None:
     """CS-409 acceptance 2, and the whole reason the item exists.
 
-    Header 14 / save 60 is a REAL pair whose whole-body layout has not been
-    derived. Before CS-409 this returned a WorldModel: the flat reader walked a
-    levelled body and reported whatever fell out. A refusal is the only honest
-    answer - an empty world, a wrong count and a crash are all worse, and the
-    first two are worse than the crash because nothing downstream can tell.
+    THE FIXTURE CHANGED UNDER CS-407 BECAUSE THE MEASUREMENT DID. This used
+    header 14 / save 60, which was then a real pair with no derived layout. Its
+    layout has since been measured, so it is no longer evidence about a
+    refusal, and pointing this test at it would have asserted a refusal that had
+    become a successful parse.
+
+    SAVE_CROSS is the honest remaining case and is a sharper one. Header 14 with
+    save 36 occurs in NO real file, so there is no real body of that pair to
+    have been measured and none can be manufactured - which is precisely when a
+    parser is most tempted to derive a layout from a neighbour that shares one
+    of its two version scalars. A refusal is the only honest answer: an empty
+    world, a wrong count and a crash are all worse, and the first two are worse
+    than the crash because nothing downstream can tell.
     """
+    assert (
+        synthetic.SAVE_CROSS.header_version,
+        synthetic.SAVE_CROSS.save_version,
+    ) not in objects.MEASURED_BODY_LAYOUTS
+
     with pytest.raises(world.WorldLoadError) as caught:
-        world.load_world_from_bytes(synthetic.SAVE_V60.blob)
+        world.load_world_from_bytes(synthetic.SAVE_CROSS.blob)
 
     assert isinstance(caught.value.__cause__, objects.UnsupportedBodyLayoutError)
     assert caught.value.stage == world.STAGE_OBJECTS
@@ -1324,18 +1390,29 @@ def test_the_body_layout_vocabulary_is_closed() -> None:
 def test_the_module_docstring_records_which_pairs_can_actually_be_read() -> None:
     """A green suite must not be mistaken for "the save reader reads saves".
 
-    Three of the four real pairs are refused. That is the single most important
-    fact about this module today, so it is asserted rather than left to a
-    reader's goodwill - and asserted against the live measured set, so the
-    sentence cannot outlive the measurement it describes.
+    RESTATED UNDER CS-407, AND THE LIMIT MOVED RATHER THAN VANISHED. This
+    asserted that exactly ONE pair was readable and three were refused. All
+    four real pairs now have a measured body SKELETON, so that sentence is
+    retired - but the thing it was defending against is not, and the docstring
+    is required to carry the new limit instead of quietly dropping the old one.
+
+    The new limit is a byte ratio, not a pair count: roughly three quarters of
+    every real body is opaque property payload the walk steps over by declared
+    length. A reader who takes "all four pairs parse" to mean "the format is
+    understood" is making a larger mistake than the one this test used to
+    catch, so the word SKELETON is asserted to be present.
     """
     docstring = world.__doc__ or ""
     measured = sorted(objects.MEASURED_BODY_LAYOUTS)
 
-    assert len(measured) == 1
+    assert len(measured) == _FOUR_REAL_PAIRS
     for header_version, save_version in measured:
         assert f"header {header_version}" in docstring
         assert f"save {save_version}" in docstring
+    assert "SKELETON" in docstring, (
+        "the docstring no longer states that the measured grammar is a skeleton; "
+        "a pair count without that word reads as a claim the format is understood"
+    )
     assert "MEASURED_BODY_LAYOUTS" in docstring
 
 

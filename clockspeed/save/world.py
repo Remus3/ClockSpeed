@@ -71,26 +71,43 @@ either crashes on a fresh onboarding world or reports a mature world's state for
 a new one, and the second failure produces confident wrong advice. An empty
 unlock set that says so is correct; a fabricated one is not.
 
-WHICH SAVES THIS CAN ACTUALLY READ - ONE PAIR OF FOUR
---------------------------------------------------------
+WHICH SAVES THIS CAN ACTUALLY READ - ALL FOUR PAIRS, AS A SKELETON
+--------------------------------------------------------------------
 **A green test suite here does NOT mean "the save reader reads saves."** Read
-this paragraph before believing one.
+this paragraph before believing one. The limit MOVED under CS-407; it did not
+go away, and the new one is easier to overlook than the old one.
 
 ``load_world`` reads a body whose ``(header version, save version)`` pair is in
-``objects.MEASURED_BODY_LAYOUTS``. Today that set holds exactly one pair:
-**header 10 with save 36.** The other THREE real pairs - header 13 with save 42,
-and header 14 with saves 52 and 60 - are **NOT** readable and are refused
-EAGERLY with a :class:`WorldLoadError` whose cause is
-``objects.UnsupportedBodyLayoutError``, before a byte of the body is walked.
+``objects.MEASURED_BODY_LAYOUTS``. That set now holds all four pairs the
+operator's real library contains, and each walks a real body of its pair to the
+exact final byte with nothing left over:
 
-That refusal is the correct answer for them rather than a gap to be papered
-over. CS-407 measured that a real body is not a flat record table at all: it
+- **header 10** with **save 36**
+- **header 13** with **save 42**
+- **header 14** with **save 52**
+- **header 14** with **save 60**
+
+**WHAT IS MEASURED IS THE SKELETON, NOT THE BODY.** Roughly three quarters of
+every real body is opaque property payload this walk steps over by declared
+length - 69.5% to 77.7% across the eight real save-52 files, and 12100463 of
+18086289 bytes on the one real save-42 file. What the grammar names is a 1.8%
+to 2.7% framing skeleton plus its length-prefixed strings. So a record COUNT
+out of this module is trustworthy and a record's PROPERTIES do not exist yet.
+
+A pair outside the measured set is still refused EAGERLY with a
+:class:`WorldLoadError` whose cause is ``objects.UnsupportedBodyLayoutError``,
+before a byte of the body is walked. ``synthetic.SAVE_CROSS`` - header 14 with
+save 36 - is such a pair, and deliberately: it occurs in no real file, so no
+real body of it can ever be measured, and it is exactly the case where deriving
+a layout from a neighbour sharing one version scalar looks reasonable. A layout
+guessed that way produces a walk that is confidently WRONG rather than one that
+fails, and non-negotiable 7 forbids exactly that: unknown content is flagged
+and skipped, never fatal, and NEVER SILENTLY WRONG. An empty or wrong world is
+worse than a refusal, because nothing downstream can tell.
+
+CS-407 also measured that a real body is not a flat record table at all: it
 opens with a version-dependent preamble and then carries a LIST OF LEVELS, each
-with its own record table, collectable list and payload section. A layout
-guessed from a measured neighbour produces a walk that is confidently WRONG
-rather than one that fails - and non-negotiable 7 forbids exactly that: unknown
-content is flagged and skipped, never fatal, and NEVER SILENTLY WRONG. An empty
-or wrong world is worse than a refusal, because nothing downstream can tell.
+with its own record table, collectable list and payload section.
 
 THE BODY LAYOUT IS AN EXPLICIT CHOICE, AND ITS DEFAULT IS THE REAL ONE
 ------------------------------------------------------------------------
@@ -659,8 +676,9 @@ def _walk_body(
 
     Raises:
         ObjectError: The chosen reader refused the body. Includes
-            ``UnsupportedBodyLayoutError`` for a pair with no measured layout,
-            which is the answer for three of the four real pairs today.
+            ``UnsupportedBodyLayoutError`` for a pair with no measured layout -
+            which since CS-407 means a pair occurring in no real save, every
+            real one having been measured.
     """
     # THE SEAM. Both scalars are threaded SEPARATELY into either reader:
     # header_version drives the body length prefix width and nothing else,

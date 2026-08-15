@@ -90,6 +90,7 @@ import ast
 import struct
 import traceback
 from collections.abc import Callable
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import MappingProxyType
 from typing import Final
@@ -119,7 +120,12 @@ _NARROW_PREFIX: Final = 4
 _WIDE_PREFIX: Final = 8
 
 _DELTA_36: Final = 4
+_DELTA_42: Final = 4
 _DELTA_60: Final = 8
+
+#: A deliberately non-zero reserved word for the flag path. Its VALUE means
+#: nothing - only that it is not the zero every real section carries.
+_RESERVED_WORD_SET: Final = 1
 
 _PAIR: Final = 2
 _TRIPLE: Final = 3
@@ -459,33 +465,65 @@ def test_the_prefix_width_follows_the_header_version_alone() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_the_delta_mapping_is_transcribed_from_the_corpus() -> None:
+def test_the_delta_mapping_agrees_with_the_corpus_on_every_shared_version() -> None:
     """Two independent transcriptions of one measurement, cross-checked.
 
     ``objects.py`` spells its own copy of the delta table rather than importing
     the corpus, matching ``chunks.py``: sharing the constant would make the
     suite a restatement of the module's own opinion instead of a check on it.
-    This is the only place the two encodings are compared.
+
+    THE COMPARISON IS A SUBSET RATHER THAN AN EQUALITY, AND THAT IS NOT A
+    WEAKENING. The corpus's table serves the FLAT fixtures only; the levelled
+    corpus keys its delta on the PAIR, in ``synthetic.LEVELLED_LAYOUTS``, and
+    the pair-keyed cross-check below covers all four measured pairs including
+    save 42. Between them the two assertions compare strictly more than the old
+    equality did - the equality could not have covered a pair-keyed value at
+    all.
     """
-    assert dict(objects.TRANSFORM_DELTA_BY_SAVE_VERSION) == dict(
-        synthetic.TRANSFORM_DELTA_BY_SAVE_VERSION
-    )
+    for save_version, delta in synthetic.TRANSFORM_DELTA_BY_SAVE_VERSION.items():
+        assert objects.TRANSFORM_DELTA_BY_SAVE_VERSION[save_version] == delta
 
 
-def test_save_version_42_is_absent_from_the_delta_mapping() -> None:
-    """The absence is the assertion, and it is deliberate.
+def test_the_pair_keyed_delta_agrees_with_the_version_keyed_one_on_every_pair() -> None:
+    """The two keyings must not disagree, and only a test can say so.
 
-    36 -> 4 beside 52 -> 8 makes 4 or 6 look derived for 42. Interpolating from
-    measured neighbours is exactly ADR 0005's refuted arithmetic route: it
-    feels derived because every input to it was measured. A later slice that
-    MEASURES the value owns adding it, in both transcriptions at once.
+    ``objects.BODY_LAYOUT_BY_PAIR`` keys the delta on the pair because the KEY
+    is undetermined - header version, save version and build changelist are all
+    perfect predictors across the corpus. ``TRANSFORM_DELTA_BY_SAVE_VERSION``
+    keys the same measurement on the save version for the flat walk. Two
+    encodings of one number will drift the moment nothing compares them.
     """
-    assert _SAVE_42 not in objects.TRANSFORM_DELTA_BY_SAVE_VERSION
-    assert _SAVE_42 not in synthetic.TRANSFORM_DELTA_BY_SAVE_VERSION
+    for (_header_version, save_version), parser_layout in objects.BODY_LAYOUT_BY_PAIR.items():
+        assert parser_layout.transform_delta == objects.transform_delta(save_version)
+    for (_header_version, save_version), corpus_layout in synthetic.LEVELLED_LAYOUTS.items():
+        assert (
+            objects.TRANSFORM_DELTA_BY_SAVE_VERSION[save_version] == corpus_layout.transform_delta
+        )
 
 
-@pytest.mark.parametrize("save_version", [_SAVE_42, _UNMEASURED_SAVE_VERSION])
-def test_a_save_version_absent_from_the_delta_mapping_raises(save_version: int) -> None:
+def test_save_version_42_was_measured_rather_than_interpolated() -> None:
+    """RESTATED UNDER CS-407. The absence used to be the assertion; now the KIND is.
+
+    This asserted that 42 was absent from the delta table, so that nobody
+    closed the gap by interpolation. 42 is now present with the value 4 - and
+    4 is exactly what interpolating from 36 -> 4 and 52 -> 8 would have
+    produced, so the value alone cannot distinguish a measurement from the
+    guess this test was built to prevent.
+
+    What distinguishes them is the KIND of evidence, and that is what is
+    asserted here instead. The delta is corroborated INDEPENDENTLY of the
+    section arithmetic that consumes it: every actor rotation in a real body is
+    a unit quaternion, and all 17763 actors of the one real header-13 body give
+    one at shift 4. So the guard that survives is against interpolation as a
+    METHOD - a version with no measurement of any kind still raises.
+    """
+    assert objects.TRANSFORM_DELTA_BY_SAVE_VERSION[_SAVE_42] == _DELTA_42
+    assert _UNMEASURED_SAVE_VERSION not in objects.TRANSFORM_DELTA_BY_SAVE_VERSION
+    with pytest.raises(objects.UnsupportedSaveVersionError):
+        objects.transform_delta(_UNMEASURED_SAVE_VERSION)
+
+
+def test_a_save_version_absent_from_the_delta_mapping_raises() -> None:
     """Acceptance 3. An absent key raises; it never defaults.
 
     The refusal is EAGER - before a single record is read - for the same reason
@@ -497,28 +535,33 @@ def test_a_save_version_absent_from_the_delta_mapping_raises(save_version: int) 
     payload = _payload_for((), save_version=_SAVE_60, header_version=_HEADER_13)
 
     with pytest.raises(objects.UnsupportedSaveVersionError) as caught:
-        objects.parse_object_headers(payload, save_version=save_version, header_version=_HEADER_13)
-    assert caught.value.version == save_version
+        objects.parse_object_headers(
+            payload, save_version=_UNMEASURED_SAVE_VERSION, header_version=_HEADER_13
+        )
+    assert caught.value.version == _UNMEASURED_SAVE_VERSION
 
 
-def test_the_empty_save_version_42_fixture_is_refused_rather_than_parsed() -> None:
-    """The corpus fixture for 42 is empty, and emptiness is not support.
+def test_the_empty_save_version_42_fixture_now_parses_through_the_flat_walk() -> None:
+    """The other half of the correction, asserted rather than assumed.
 
-    ``SAVE_V42`` carries no records precisely because the delta is unmeasured.
-    A lazy parser would walk its zero records without ever consulting the
-    delta and would report a clean parse of a version it cannot read.
+    ``SAVE_V42`` was built with an EMPTY object section precisely because the
+    delta was unmeasured, and this asserted it was refused. Retiring that
+    refusal is only honest if the thing that used to be refused now works, so
+    this asserts the parse instead.
+
+    EMPTINESS IS STILL NOT SUPPORT, and the old test's point survives in the
+    delta assertion: a lazy parser could walk zero records without ever
+    consulting the delta, so the reported delta is what proves the version
+    dispatch actually ran.
     """
     save = synthetic.SAVE_V42
     assert save.objects == ()
 
-    with pytest.raises(objects.UnsupportedSaveVersionError):
-        _table_of(save)
+    table = _table_of(save)
 
-
-def test_no_interpolated_delta_is_reachable_for_save_version_42() -> None:
-    """Neither of the two plausible interpolations is silently accepted."""
-    for guess in (_DELTA_36, (_DELTA_36 + _DELTA_60) // _PAIR, _DELTA_60):
-        assert objects.TRANSFORM_DELTA_BY_SAVE_VERSION.get(_SAVE_42) != guess
+    assert table.records == ()
+    assert table.transform_delta == _DELTA_42
+    assert table.save_version == _SAVE_42
 
 
 # ---------------------------------------------------------------------------
@@ -1327,13 +1370,17 @@ def test_parse_body_reads_a_component_as_four_strings_and_no_transform() -> None
 
 
 def test_parse_body_refuses_a_pair_whose_body_layout_is_unmeasured() -> None:
-    """Three of the four real pairs are NOT derived, and refusal is the honest answer.
+    """A pair outside the measured set is refused, not interpolated.
 
-    Interpolating header 14's layout from header 10's is the same failure class
-    ADR 0005 refuses for the overclock exponent and the delta mapping refuses for
-    save version 42: every input is a measurement and the output is not.
+    All four REAL pairs now have a measured skeleton, so the fixture that
+    carries this branch is the synthetic-only one: header 14 with save 36
+    occurs in no real file and has no real body to have been measured. That is
+    the honest remaining case - refusing it is what stops a later slice from
+    quietly deriving a fifth layout from its neighbours, which is ADR 0005's
+    refuted arithmetic route.
     """
-    for header_version, save_version in ((13, 42), (14, 52), (14, 60)):
+    for header_version, save_version in ((_HEADER_14, _SAVE_36), (_HEADER_10, _SAVE_60)):
+        assert (header_version, save_version) not in objects.MEASURED_BODY_LAYOUTS
         with pytest.raises(objects.UnsupportedBodyLayoutError):
             objects.parse_body(
                 _levelled_payload(),
@@ -1352,6 +1399,248 @@ def test_the_measured_layout_pairs_are_transcribed_from_the_corpus() -> None:
     assert frozenset(synthetic.LEVELLED_LAYOUT_PAIRS) == objects.MEASURED_BODY_LAYOUTS
     for pair in synthetic.LEVELLED_LAYOUT_UNMEASURED:
         assert pair not in objects.MEASURED_BODY_LAYOUTS
+
+
+# ---------------------------------------------------------------------------
+# CS-407 wave 2 - the three remaining real pairs
+#
+# READ THE WORD SKELETON BEFORE READING ANY ASSERTION BELOW. Landing on the
+# final byte of a body proves the FRAMING is right. It does not prove the body
+# is understood: 69.5% to 77.7% of a real save-52 body and 12100463 of 18086289
+# bytes of the real save-42 body are opaque property payload this grammar steps
+# over by declared length. What is named here is a 1.8% to 2.7% skeleton plus
+# its strings.
+#
+# These tests run against the CORPUS. The corpus can only ever agree with
+# whoever wrote it, so the load-bearing evidence for these three pairs is
+# ``test_every_real_save_of_a_measured_pair_walks_to_the_end_of_its_body``
+# below, which skips on any machine without a save library.
+# ---------------------------------------------------------------------------
+
+
+def _levelled_body_of(fixture: synthetic.SyntheticSave) -> bytes:
+    """Decompress one levelled fixture the way a caller would.
+
+    Args:
+        fixture: The levelled fixture.
+
+    Returns:
+        The body, length prefix included.
+    """
+    return chunks.decompress_body(
+        fixture.blob, fixture.chunk_offset, header_version=fixture.header_version
+    ).payload
+
+
+def _expected_record_count(fixture: synthetic.SyntheticSave) -> int:
+    """Derive the record count from the levels the fixture was built from.
+
+    Written as a derivation rather than a literal so the count follows the
+    corpus when a level is added instead of having to be recomputed by hand.
+
+    Args:
+        fixture: The levelled fixture.
+
+    Returns:
+        The count of actors plus components across every level.
+    """
+    named = synthetic.LEVELLED_NAMED_BY_PAIR[(fixture.header_version, fixture.save_version)]
+    return sum(level.record_count for level in (*named, synthetic.LEVELLED_PERSISTENT))
+
+
+@pytest.mark.parametrize("fixture", synthetic.LEVELLED_SAVES, ids=lambda save: save.name)
+def test_every_measured_pair_walks_its_levelled_body_to_the_last_byte(
+    fixture: synthetic.SyntheticSave,
+) -> None:
+    """THE ORACLE, now applied to all four pairs rather than one.
+
+    A grammar that is wrong anywhere does not end on the final byte - it ends
+    early, late, or inside a string. Asserting the record COUNT alone would pass
+    for a walker that read one level and stopped; asserting that nothing is left
+    over is what makes the count mean something.
+    """
+    table = objects.parse_body(
+        _levelled_body_of(fixture),
+        save_version=fixture.save_version,
+        header_version=fixture.header_version,
+    )
+
+    named = synthetic.LEVELLED_NAMED_BY_PAIR[(fixture.header_version, fixture.save_version)]
+    assert len(table.records) == _expected_record_count(fixture)
+    assert table.level_count == len(named) + 1
+    assert not [w for w in table.warnings if w.code == objects.WARN_UNPARSED_DATA_SECTION]
+    assert table.body_consumed == len(fixture.body)
+
+
+@pytest.mark.parametrize("fixture", synthetic.LEVELLED_SAVES, ids=lambda save: save.name)
+def test_every_measured_pair_splits_actors_from_components(
+    fixture: synthetic.SyntheticSave,
+) -> None:
+    """The component branch, which desynchronises a real body when it is wrong.
+
+    A component carries a parent path where an actor carries its opaque run and
+    transform block, and on the two header-14 pairs it carries 4 further opaque
+    bytes first. A walker reading the actor grammar for both, or missing the
+    pre-word, desynchronises every byte after the first component.
+    """
+    table = objects.parse_body(
+        _levelled_body_of(fixture),
+        save_version=fixture.save_version,
+        header_version=fixture.header_version,
+    )
+
+    components = [r for r in table.records if r.kind == objects.KIND_COMPONENT]
+    actors = [r for r in table.records if r.kind == objects.KIND_ACTOR]
+    assert components, "every levelled fixture carries at least one component"
+    assert all(record.transform is None for record in components)
+    assert all(record.parent is not None for record in components)
+    assert all(record.transform is not None for record in actors)
+    assert all(record.parent is None for record in actors)
+
+
+@pytest.mark.parametrize("fixture", synthetic.LEVELLED_SAVES, ids=lambda save: save.name)
+def test_every_measured_pair_reports_its_own_transform_delta(
+    fixture: synthetic.SyntheticSave,
+) -> None:
+    """The delta the walk actually used, per pair, not per neighbour.
+
+    Save 42's delta is 4 and save 52's is 8 even though 42 sits between 36 and
+    52 - which is exactly why it had to be measured rather than interpolated.
+    """
+    table = objects.parse_body(
+        _levelled_body_of(fixture),
+        save_version=fixture.save_version,
+        header_version=fixture.header_version,
+    )
+    layout = synthetic.LEVELLED_LAYOUTS[(fixture.header_version, fixture.save_version)]
+
+    assert table.transform_delta == layout.transform_delta
+
+
+def test_the_layout_table_is_transcribed_from_the_corpus_field_by_field() -> None:
+    """Two independent transcriptions of one grammar, compared element by element.
+
+    ``objects.py`` spells its own copy rather than importing the corpus, so the
+    suite is a check on the parser instead of a restatement of it. Comparing the
+    PAIR SET alone would miss a mistyped field inside a pair that still parses
+    the fixture the same slice wrote, which is the whole failure class this
+    corpus exists to avoid.
+    """
+    mine = {
+        pair: (
+            layout.transform_delta,
+            layout.section_size_width,
+            layout.package_summary,
+            layout.grid_preamble,
+            layout.data_entry_lead,
+            layout.data_entry_trailer,
+            layout.component_pre_word,
+            layout.level_tail,
+            layout.second_collectables_named,
+        )
+        for pair, layout in synthetic.LEVELLED_LAYOUTS.items()
+    }
+    theirs = {
+        pair: (
+            layout.transform_delta,
+            layout.section_size_width,
+            layout.package_summary,
+            layout.grid_preamble,
+            layout.data_entry_lead,
+            layout.data_entry_trailer,
+            layout.component_pre_word,
+            layout.level_tail,
+            layout.second_collectables_named,
+        )
+        for pair, layout in objects.BODY_LAYOUT_BY_PAIR.items()
+    }
+
+    assert mine == theirs
+
+
+def test_the_delta_is_keyed_on_the_pair_and_not_on_either_version_alone() -> None:
+    """The KEY is undetermined, so the parser must not key on one field.
+
+    Header version, save version and build changelist are all perfect
+    predictors of every difference in the corpus, because each header version
+    occurs with exactly one set of save versions. ADR 0007 records the same
+    undetermined keying for the chunk marker. This asserts the parser agrees
+    with the corpus PER PAIR, which is the only claim the evidence supports.
+    """
+    for (header_version, save_version), layout in synthetic.LEVELLED_LAYOUTS.items():
+        table = objects.parse_body(
+            _levelled_body_of(
+                next(
+                    save
+                    for save in synthetic.LEVELLED_SAVES
+                    if (save.header_version, save.save_version) == (header_version, save_version)
+                )
+            ),
+            save_version=save_version,
+            header_version=header_version,
+        )
+        assert table.transform_delta == layout.transform_delta
+        assert table.header_version == header_version
+        assert table.save_version == save_version
+
+
+def test_a_non_zero_reserved_word_in_a_section_size_is_flagged_not_fatal() -> None:
+    """Non-negotiable 7 on the one field the corpus can never decide.
+
+    An 8-byte section size is read as an int32 size plus an int32 reserved word
+    asserted zero, rather than as an int64. The two are byte-identical on every
+    save that can physically exist - the largest real section is 0.45% of 2^31 -
+    so the corpus cannot separate them and never will. The reading is chosen on
+    asymmetric damage: an int64 reader meeting a non-zero high word computes an
+    astronomical size and then reports a mismatch against the WRONG FIELD, while
+    this one names the field that actually changed.
+
+    The flag is the point. A crash here would refuse a save over a word whose
+    meaning is unknown, and a silent pass would hide the first evidence anyone
+    has ever had about it.
+    """
+    fixture = synthetic.SAVE_LEVELLED_V52
+    layout = synthetic.LEVELLED_LAYOUTS[(fixture.header_version, fixture.save_version)]
+    assert layout.section_size_width == synthetic.SECTION_SIZE_WIDTH_WIDE
+
+    named = tuple(
+        replace(level, reserved_word=_RESERVED_WORD_SET)
+        for level in synthetic.LEVELLED_NAMED_BY_PAIR[
+            (fixture.header_version, fixture.save_version)
+        ]
+    )
+    body = synthetic.build_levelled_body(
+        named,
+        synthetic.LEVELLED_PERSISTENT,
+        header_version=fixture.header_version,
+        save_version=fixture.save_version,
+        grids=synthetic.LEVELLED_GRIDS,
+    )
+
+    table = objects.parse_body(
+        synthetic.body_with_prefix(body, fixture.header_version),
+        save_version=fixture.save_version,
+        header_version=fixture.header_version,
+    )
+
+    flagged = [w for w in table.warnings if w.code == objects.WARN_RESERVED_WORD_SET]
+    assert flagged, "a non-zero reserved word was consumed without being flagged"
+    assert len(table.records) == _expected_record_count(fixture)
+    assert not [w for w in table.warnings if w.code == objects.WARN_UNPARSED_DATA_SECTION]
+
+
+def test_the_opaque_spans_are_recorded_as_a_structure_a_later_slice_can_resume_from() -> None:
+    """A partial recorded as prose is not resumable, so it is recorded as data.
+
+    The pair map is now EMPTY - every real pair has a measured skeleton - and
+    that is exactly when a project starts believing the format is understood.
+    What remains unmeasured is no longer a pair but a set of spans inside pairs
+    that do parse, and the largest of them is three quarters of every body.
+    """
+    assert synthetic.LEVELLED_LAYOUT_UNMEASURED == {}
+    assert synthetic.LEVELLED_LAYOUT_OPAQUE_SPANS
+    assert "object_data_payload" in synthetic.LEVELLED_LAYOUT_OPAQUE_SPANS
+    assert "transform_delta" in synthetic.LEVELLED_LAYOUT_OPAQUE_SPANS
 
 
 def test_the_flat_walk_is_untouched_by_the_levelled_walk() -> None:
@@ -1411,6 +1700,136 @@ def _one_real_save_of_a_measured_pair() -> tuple[int, int, bytes] | None:
             continue
         return (parsed.header_version, parsed.save_version, body.payload)
     return None
+
+
+@dataclass(frozen=True)
+class _RealSweep:
+    """What a sweep of the real library observed, as scalars and nothing else.
+
+    EVERY FIELD IS SAFE TO RENDER, and that is the point of the type. A save
+    body holds the world's contents and a save header holds the account id and
+    the world name, so non-negotiables 11 and 12 make any structure carrying
+    them an echo path. This carries counts, version scalars and exception TYPE
+    NAMES - no bytes, no strings from a save, no paths.
+
+    Attributes:
+        files: Saves whose header parsed.
+        measured: Of those, saves whose pair has a measured body layout.
+        walked: Of those, saves whose body walked to its exact final byte.
+        pairs: The distinct pairs walked, as version scalars.
+        failures: Exception type names from any save that did not walk.
+    """
+
+    files: int
+    measured: int
+    walked: int
+    pairs: tuple[tuple[int, int], ...]
+    failures: tuple[str, ...]
+
+
+def _sweep_the_real_library() -> _RealSweep | None:
+    """Walk every real save on this machine and return COUNTS ONLY.
+
+    NOTHING RAISES WITH BYTES IN FLIGHT, and the containment is deliberate
+    rather than habitual. pytest renders the ARGUMENTS of every frame in a
+    failing traceback - no ``--showlocals``, no opt-in - so an exception
+    escaping ``parse_body(body, ...)`` prints the head of a real save body into
+    the test log. Measured on this machine by planting a marker in a bytes
+    argument of a raising frame: it appeared twice in pytest's output.
+
+    So every step is wrapped and every failure is reduced to a type NAME here,
+    inside the helper, before it can reach a frame anyone renders. The broad
+    catch is what makes that total: a narrower one would let an unexpected
+    exception type escape carrying the bytes, which is the exact leak the guard
+    exists to close. The type name is preserved, so a genuine defect is still
+    diagnosable - it surfaces as ``walked`` short of ``measured`` with the type
+    named, rather than as a traceback nobody may print.
+
+    Returns:
+        The sweep, or None when no save library is reachable. Never returns or
+        logs a path, a body, or any decoded string.
+    """
+    root = locate.resolve_save_root()
+    account = locate.resolve_account_dir(root) if root is not None else None
+    if account is None:
+        return None
+
+    files = measured = walked = 0
+    pairs: set[tuple[int, int]] = set()
+    failures: list[str] = []
+    for path in sorted(account.glob("*.sav")):
+        try:
+            data = path.read_bytes()
+            parsed = header.parse_header(data)
+        except (OSError, header.HeaderError):
+            continue
+        files += 1
+        pair = (parsed.header_version, parsed.save_version)
+        if pair not in objects.MEASURED_BODY_LAYOUTS:
+            continue
+        measured += 1
+        try:
+            body = chunks.decompress_body(
+                data, parsed.body_offset, header_version=parsed.header_version
+            ).payload
+            table = objects.parse_body(
+                body, save_version=parsed.save_version, header_version=parsed.header_version
+            )
+            exact = table.body_consumed == len(body) - table.body_prefix_width
+        # BROAD BY DESIGN - see the docstring. A narrower catch would let an
+        # unexpected exception type escape carrying the save bytes, which is the
+        # leak this helper exists to close. The type NAME is preserved.
+        except Exception as exc:
+            failures.append(type(exc).__name__)
+            continue
+        if exact:
+            walked += 1
+            pairs.add(pair)
+        else:
+            failures.append("IncompleteWalk")
+    return _RealSweep(
+        files=files,
+        measured=measured,
+        walked=walked,
+        pairs=tuple(sorted(pairs)),
+        failures=tuple(sorted(set(failures))),
+    )
+
+
+def test_every_real_save_of_a_measured_pair_walks_to_the_end_of_its_body() -> None:
+    """THE ACCEPTANCE FOR CS-407, and the only evidence here the corpus cannot fake.
+
+    The synthetic corpus can only ever agree with whoever wrote it. These bytes
+    were produced by the game, so this is the assertion that decides whether the
+    grammar is right - and it sweeps the WHOLE library rather than one file,
+    because a single file passing is what the previous wave already had.
+
+    WHAT A GREEN RUN HERE MEANS, EXACTLY. Every real save walks its framing to
+    the final byte with nothing left over. It does NOT mean the bodies are
+    understood: roughly three quarters of every one of them is opaque property
+    payload stepped over by declared length.
+
+    Skip-if-absent, because CI has no save library, and COUNTS ONLY.
+    """
+    sweep = _sweep_the_real_library()
+    if sweep is None:
+        pytest.skip("no save library on this machine - the real-save sweep is not gradeable here")
+
+    assert sweep.files > 0, "a save library was found but no header in it parsed"
+    assert sweep.measured == sweep.files, (
+        f"{sweep.files - sweep.measured} of {sweep.files} real saves have a pair with no "
+        "measured body layout; every pair in the real library was measured under CS-407"
+    )
+    assert sweep.failures == (), (
+        f"{len(sweep.failures)} distinct failure kinds walking real bodies: {sweep.failures}"
+    )
+    assert sweep.walked == sweep.measured, (
+        f"only {sweep.walked} of {sweep.measured} real saves walked to their final byte"
+    )
+    assert len(sweep.pairs) == len(objects.MEASURED_BODY_LAYOUTS), (
+        f"the sweep exercised {len(sweep.pairs)} of "
+        f"{len(objects.MEASURED_BODY_LAYOUTS)} measured pairs: {sweep.pairs}"
+    )
 
 
 def test_a_real_save_of_a_measured_pair_walks_to_the_end_of_its_body() -> None:

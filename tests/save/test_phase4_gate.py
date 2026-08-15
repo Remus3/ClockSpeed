@@ -12,26 +12,39 @@ absent. The status of each clause, as this module measures it:
     CLAUSE 3  a truncated save produces a clean error ......... MET
     CLAUSE 4  the save directory is never opened for write .... MET
 
-**CLAUSE 1 IS PARTIAL, AND PARTIAL IS NOT MET.** A real world DOES now parse end
-to end through the single entry point - ``test_a_real_world_parses_end_to_end``
-runs and asserts rather than skipping. It holds for ONE of the four real
-(header version, save version) pairs.
+**CLAUSE 1 IS STILL PARTIAL, AND THE REASON CHANGED COMPLETELY UNDER CS-407.**
+Read the new reason rather than assuming it is the old one, because the old one
+is gone and the replacement is much easier to overlook.
 
-The other three are refused BY DESIGN and cannot be read at all. A real body is
-not an object table with a preamble in front of it: it is a LIST OF LEVELS, each
-carrying its own record table, collectable list and payload section. CS-407
-derived that layout for header 10 / save 36 and confirmed it on all three real
-files of that pair, each landing on its exact final byte. The remaining pairs
-raise ``UnsupportedBodyLayoutError`` eagerly, which is non-negotiable 7 working -
-flagged and refused, never a silently wrong world.
+It used to be partial on COVERAGE: only one of the four real (header version,
+save version) pairs had a derived body layout, the other three were refused by
+design, and eleven of the fourteen saves on this machine could not be loaded at
+all. That is fixed. All four pairs are measured, and
+``test_every_real_save_in_the_library_loads_through_the_one_entry_point``
+sweeps the whole library through ``load_world`` rather than sampling one file.
 
-So the test deliberately selects the newest save OF A MEASURED PAIR rather than
-the newest save. Using ``latest_save`` alone would be a bug here: on a library
-whose newest file is an unmeasured pair, the reader refuses it exactly as
-specified and the test would fail while nothing was wrong.
+It is now partial on DEPTH. **What CS-407 measured is the body SKELETON, not
+the body.** Roughly three quarters of every real body is opaque property
+payload the walk steps over by its declared length - 69.5% to 77.7% across the
+eight real save-52 files, and 12100463 of 18086289 bytes on the one real
+save-42 file. The framing is consumed to the exact final byte and the CONTENTS
+of the objects are not read at all. So a real world "parses" in the sense that
+its structure is fully accounted for, and does not parse in the sense a
+consumer of this data will eventually need.
 
-CS-400 MUST NOT CLOSE ON THIS. Eleven of the fourteen saves on the machine this
-was written against cannot be loaded, and CS-402 is separately unmet.
+A pair outside the measured set is still refused eagerly with
+``UnsupportedBodyLayoutError``, which is non-negotiable 7 working - flagged and
+refused, never a silently wrong world. Since CS-407 that means a pair occurring
+in no real save; ``synthetic.SAVE_CROSS`` is the fixture that carries the case.
+
+``test_a_real_world_parses_end_to_end`` still selects the newest save OF A
+MEASURED PAIR rather than the newest save. That is no longer load-bearing on
+this library, where every pair is measured, and it is kept because the property
+it defends against - a library whose newest file is an unmeasured pair failing a
+test while the reader behaves exactly as specified - returns the moment a new
+game build ships a fifth pair.
+
+CS-400 MUST NOT CLOSE ON THIS, and the skeleton limit above is why.
 
 What IS provable against a real save today is asserted by
 ``test_a_real_save_reaches_the_body_partial``, and it is named a partial
@@ -41,13 +54,19 @@ non-empty payload over at least one chunk. The object walk is not attempted.
 That test is skip-if-absent: CI has no save library, and a clause that cannot
 be graded in CI is stated as such rather than implied to have passed.
 
-**CS-402 IS NOT MET AND CANNOT BE MET HERE.** Three of the four save versions
-in the operator's library parse. The fourth, save version 42, is REFUSED BY
-DESIGN because its transform delta is unmeasured (CS-408), and
-``objects.transform_delta(42)`` raises rather than interpolating a plausible
-number from 36 and 60. ``test_the_loadable_version_set_is_three_of_four``
-asserts that true shape - including the refusal - rather than a comfortable
-"every fixture loads".
+**CS-402 IS STILL NOT MET, AND ITS REASON ALSO CHANGED.** All four save
+versions in the operator's library now parse. Save version 42 used to be
+refused by design because its transform delta was unmeasured; CS-407 measured
+it at 4, against a real body, using a corroborator independent of the section
+arithmetic - every actor rotation is a unit quaternion, and 17763 of 17763
+actors give one at shift 4. ``test_the_loadable_version_set_is_four_of_four``
+asserts that shape.
+
+What keeps CS-402 open is the same skeleton limit as clause 1, plus the rule
+the old refusal existed to protect: a version with no measured delta must still
+RAISE rather than default to a plausible neighbour's value. That rule is now
+pinned against a version nobody has measured, so it survives the example that
+used to carry it.
 
 WHAT THE NO-WRITE CLAUSE NEEDS, AND WHY ONE SIGNAL IS NOT ENOUGH
 ================================================================
@@ -356,24 +375,24 @@ def _real_save_of_a_measured_pair_or_skip() -> Path:
             candidates.append((path.stat().st_mtime, path))
     if not candidates:
         pytest.skip(
-            "no save of a MEASURED body-layout pair on this machine - three of the four "
-            "real pairs are still underived (CS-407), so clause 1 is not gradeable here"
+            "no save of a MEASURED body-layout pair on this machine, so clause 1 is not "
+            "gradeable here"
         )
     return max(candidates)[1]
 
 
 def test_a_real_world_parses_end_to_end() -> None:
-    """CLAUSE 1 - MET for a measured body-layout pair, and only for one.
+    """CLAUSE 1 - MET for a measured body-layout pair.
 
     This was skipped when the gate was written, because nothing could locate a
-    real body's object table. CS-407 derived the levelled layout for header 10 /
-    save 36 and CS-409 routed ``load_world`` to it, so the assertion is now real.
+    real body's object table. CS-407 derived the levelled layout and CS-409
+    routed ``load_world`` to it, so the assertion is real.
 
-    READ THE LIMIT BEFORE CITING THIS AS CS-400 CLOSED. Three of the four real
-    version pairs are STILL underived and are refused by design, and this test
-    deliberately selects a save of a MEASURED pair rather than the newest file.
-    Passing here means the seam works end to end on the pair it can read - not
-    that the save reader reads saves.
+    READ THE LIMIT BEFORE CITING THIS AS CS-400 CLOSED. It has MOVED, not gone:
+    all four real pairs now parse, but what is measured is the body SKELETON,
+    and roughly three quarters of every real body is opaque property payload
+    the walk steps over by declared length. Passing here means the seam works
+    end to end - not that the reader understands a save.
 
     COUNTS ONLY. It binds derived scalars to locals and asserts on those; it
     renders no token, no map name, no instance name and no path. The load is
@@ -397,6 +416,71 @@ def test_a_real_world_parses_end_to_end() -> None:
     assert token_length == header.WORLD_TOKEN_LENGTH
     assert model.header.header_version in header.SUPPORTED_HEADER_VERSIONS
     assert level_count > 1, "a real body carries a list of levels, not a single table"
+
+
+def _load_every_real_save() -> tuple[int, int, tuple[str, ...]] | None:
+    """Load every real save through the ONE entry point and return COUNTS ONLY.
+
+    NOTHING RAISES WITH A PATH OR BYTES IN FLIGHT. pytest renders the ARGUMENTS
+    of every frame in a failing traceback, and here the argument is a PATH that
+    sits under a home directory and carries both the account id and the world
+    name - so the containment matters even before the body is read. Every
+    failure is reduced to an exception type name inside this helper, and the
+    broad catch is what makes that total rather than nearly total.
+
+    Returns:
+        ``(saves found, saves loaded, failure type names)``, or None when no
+        save library is reachable. Never returns a path or a decoded string.
+    """
+    root = locate.resolve_save_root()
+    account = locate.resolve_account_dir(root) if root is not None else None
+    if account is None:
+        return None
+
+    found = loaded = 0
+    failures: list[str] = []
+    for path in sorted(account.glob("*.sav")):
+        found += 1
+        try:
+            model = world.load_world(path)
+        # BROAD BY DESIGN - see the docstring. The argument in flight is a PATH
+        # carrying the account id and the world name, so no exception type may
+        # reach a frame pytest would render. The type NAME is preserved.
+        except Exception as exc:
+            failures.append(type(exc).__name__)
+            continue
+        if model.objects.level_count > 1:
+            loaded += 1
+        else:
+            failures.append("FlatLevelCount")
+    return (found, loaded, tuple(sorted(set(failures))))
+
+
+def test_every_real_save_in_the_library_loads_through_the_one_entry_point() -> None:
+    """CLAUSE 1 AT LIBRARY SCALE - the assertion the previous wave could not make.
+
+    ``test_a_real_world_parses_end_to_end`` above loads ONE save, deliberately
+    chosen from a measured pair. That was the strongest claim available while
+    three of the four pairs were underived, and it is weak in a specific way: a
+    library where thirteen of fourteen files refuse would pass it.
+
+    This sweeps every save in the library through ``load_world``. It is the
+    difference between "the reader can read a save" and "the reader can read
+    this operator's saves", and only the second is what CS-400 clause 1 asks.
+
+    STILL NOT CS-400 CLOSED. Every byte of framing being consumed says nothing
+    about the property payload that is three quarters of each file.
+
+    Skip-if-absent and COUNTS ONLY.
+    """
+    swept = _load_every_real_save()
+    if swept is None:
+        pytest.skip("no save library on this machine - clause 1 is not gradeable here")
+    found, loaded, failures = swept
+
+    assert found > 0, "a save library was found but holds no .sav file"
+    assert failures == (), f"{len(failures)} distinct failure kinds loading real saves: {failures}"
+    assert loaded == found, f"only {loaded} of {found} real saves loaded end to end"
 
 
 def test_a_real_save_reaches_the_body_partial(tmp_path: Path) -> None:
@@ -445,36 +529,51 @@ def test_a_real_save_reaches_the_body_partial(tmp_path: Path) -> None:
     assert payload_length > 0
 
 
-# The fixtures that load through the one entry point. SAVE_V42 is absent because
-# save version 42's transform delta is UNMEASURED, and the corpus builds that
-# fixture with an EMPTY object section for the same reason.
+# The FLAT fixtures that load through the one entry point. SAVE_V42 joined this
+# tuple when CS-407 measured save version 42's transform delta at 4; it was
+# absent while that delta was unmeasured, and the corpus still builds it with an
+# EMPTY object section, so it exercises the header-13 prefix and nothing else.
 LOADABLE_FIXTURES: Final = (
     synthetic.SAVE_V36,
+    synthetic.SAVE_V42,
     synthetic.SAVE_V52,
     synthetic.SAVE_V60,
     synthetic.SAVE_CROSS,
 )
 
-#: The save version that is refused by design. CS-408 owns measuring its delta.
-UNMEASURED_SAVE_VERSION: Final = 42
+#: A save version in no real file and in no measured table. The refusal below
+#: needs one, and 42 stopped being one when its delta was measured.
+UNMEASURED_SAVE_VERSION: Final = 97
 
 
-def test_the_loadable_version_set_is_three_of_four() -> None:
-    """CS-402's TRUE shape: three of four save versions parse, and one is refused.
+def test_the_loadable_version_set_is_four_of_four() -> None:
+    """RESTATED UNDER CS-407. Every save version in the real library now parses.
 
-    Asserting "every fixture loads" would be a comfortable lie. Save version 42
-    is refused BY DESIGN because its transform delta has never been measured,
-    and an absent key raises rather than defaulting to a plausible neighbour's
-    value. Both halves are asserted here so a future reader cannot mistake the
-    green suite for CS-402 being met.
+    This was ``..._is_three_of_four``, and it asserted that save version 42 was
+    refused BY DESIGN because its transform delta had never been measured. That
+    delta has now been measured at 4 - by a corroborator independent of the
+    section arithmetic, since every actor rotation is a unit quaternion and
+    17763 of 17763 give one at shift 4 - so the refusal is retired rather than
+    loosened, and the version set is restated to what it actually is.
+
+    THE GUARD THE OLD TEST CARRIED SURVIVES, pointed at a version nobody has
+    measured. Its subject was never 42 in particular: it was that an absent key
+    RAISES instead of defaulting to a plausible neighbour's value. Pointing it
+    at a still-unmeasured version keeps that alive; deleting it would have
+    thrown the rule away with the example.
+
+    CS-402 IS STILL NOT MET ON THIS EVIDENCE ALONE. Four of four save versions
+    parsing is a statement about the SKELETON grammar - roughly three quarters
+    of every real body remains opaque property payload - so a green run here is
+    not the reader understanding a save.
     """
     loadable = {fixture.save_version for fixture in LOADABLE_FIXTURES}
-    assert loadable == {36, 52, 60}, (
+    assert loadable == {36, 42, 52, 60}, (
         "the loadable save-version set changed; CS-402's status must be re-stated"
     )
     assert UNMEASURED_SAVE_VERSION not in objects.TRANSFORM_DELTA_BY_SAVE_VERSION, (
-        "save version 42 gained a transform delta; CS-408 has landed and this gate, "
-        "CS-402 and the module docstring above all need updating together"
+        "the version chosen to stand for 'unmeasured' gained a delta; pick one that "
+        "is still unmeasured rather than deleting the refusal this test pins"
     )
     with pytest.raises(objects.UnsupportedSaveVersionError):
         objects.transform_delta(UNMEASURED_SAVE_VERSION)
@@ -498,35 +597,46 @@ def test_every_loadable_fixture_parses_through_the_one_entry_point(
     assert len(model.objects.records) == len(fixture.objects)
 
 
-#: The header version that CANNOT be exercised end to end today. It appears in
-#: exactly one fixture, SAVE_V42, and that fixture is refused at the object
-#: stage because save version 42's transform delta is unmeasured.
+#: The header version that WAS unreachable end to end until CS-407 measured
+#: save version 42's transform delta. Kept as a named constant rather than
+#: deleted: the gap it marks is the one this gate now asserts is CLOSED, and a
+#: closed gap that loses its name is a gap that can silently reopen.
 HEADER_VERSION_GATED_BY_CS_408: Final = 13
 
 
-def test_header_version_coverage_through_the_entry_point_is_two_of_three() -> None:
-    """MEASURED, and it contradicts the comfortable claim - so the measurement wins.
+def test_header_version_coverage_through_the_entry_point_is_three_of_three() -> None:
+    """THE DESIGNED RED, FIRED AND RESTATED. It went red exactly as it was built to.
 
-    ROADMAP CS-402 records that "header version dispatch IS fully covered, on
-    all three header versions". That is true at the HEADER LAYER, where
-    ``tests/save/test_header.py`` parses all three directly. It is NOT true
-    through the composed ``load_world`` entry point, and this gate says so:
+    This was ``..._is_two_of_three``, and it asserted that header 13 was
+    UNREACHABLE through ``load_world``. Its own docstring recorded why it was
+    written as an assertion rather than as a comment: so that CS-408 landing
+    would make it RED and force the claim to be restated instead of quietly
+    decaying into a false sentence. CS-407 measured save version 42's transform
+    delta, SAVE_V42 became loadable, and the test went red on schedule.
+
+    RESTATED, NOT LOOSENED. The old shape was:
 
         header 10  reachable (SAVE_V36)
         header 13  UNREACHABLE - its only fixture is SAVE_V42, refused at the
-                   object stage because save 42's delta is unmeasured (CS-408)
+                   object stage because save 42's delta was unmeasured
         header 14  reachable (SAVE_V52, SAVE_V60, SAVE_CROSS)
 
-    So the header-13 BODY PREFIX WIDTH - the wide int64 prefix that versions 13
-    and 14 share - is exercised end to end only through header 14. That is a
-    real coverage gap, not a naming quibble, and it is asserted rather than
-    described so that CS-408 landing makes this test RED and forces the claim to
-    be restated.
+    and the new one is that all three are reachable, asserted as an EQUALITY
+    against the supported set so it cannot pass by a fixture disappearing.
+
+    READ WHAT HEADER 13's COVERAGE ACTUALLY IS. SAVE_V42 carries an EMPTY object
+    section, so through the flat reader it exercises the wide int64 prefix and
+    zero records. The coverage that carries records is the LEVELLED fixture for
+    the same pair, which is why both tuples are unioned below rather than only
+    the flat one - a reachability claim resting on an empty body would be thin
+    enough to mislead.
     """
-    reachable = {fixture.header_version for fixture in LOADABLE_FIXTURES}
+    reachable = {
+        fixture.header_version for fixture in (*LOADABLE_FIXTURES, *synthetic.LEVELLED_SAVES)
+    }
     supported = set(header.SUPPORTED_HEADER_VERSIONS)
 
-    assert reachable == supported - {HEADER_VERSION_GATED_BY_CS_408}, (
+    assert reachable == supported, (
         "the set of header versions reachable through load_world changed; CS-402's status "
         "and this gate's module docstring must be restated together"
     )
@@ -535,14 +645,14 @@ def test_header_version_coverage_through_the_entry_point_is_two_of_three() -> No
         "test is about"
     )
 
-    gated_fixtures = [
+    with_records = [
         fixture.name
-        for fixture in synthetic.ALL_SAVES
-        if fixture.header_version == HEADER_VERSION_GATED_BY_CS_408
+        for fixture in synthetic.LEVELLED_SAVES
+        if fixture.header_version == HEADER_VERSION_GATED_BY_CS_408 and fixture.objects
     ]
-    assert gated_fixtures == ["SAVE_V42"], (
-        "header 13 now appears in a fixture other than SAVE_V42. If that fixture carries a "
-        "measured save version, header 13 has become reachable and this gap has closed"
+    assert with_records == ["SAVE_LEVELLED_V42"], (
+        "header 13's end-to-end coverage no longer includes a fixture carrying records. "
+        "Without one the claim collapses back to a prefix-width check on an empty body"
     )
 
 

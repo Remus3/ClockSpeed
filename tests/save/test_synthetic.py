@@ -117,8 +117,16 @@ _BASE64URL = re.compile(r"\A[A-Za-z0-9_-]+\Z")
 
 _NOT_FOUND = -1
 
-#: The save version whose transform delta was never measured.
-_UNMEASURED_SAVE_VERSION = 42
+#: The save version whose delta CS-407 measured, and that measured value.
+_SAVE_42 = 42
+_SAVE_42_DELTA = 4
+
+#: A save version nobody has measured. REPOINTED under CS-407: this was 42
+#: until save 42's delta was measured at 4, and leaving it there would have kept
+#: the refusal RULE green while its EXAMPLE had become false - the stale-example
+#: failure class. The rule under test is "an unmeasured version raises rather
+#: than defaulting", and that rule needs an example that is still unmeasured.
+_UNMEASURED_SAVE_VERSION = 97
 
 #: One past the highest 7-bit code point.
 _ASCII_CEILING = 128
@@ -588,7 +596,18 @@ def test_the_fixture_matrix_is_the_one_the_phase_was_dispatched_with() -> None:
     }
 
 
-def test_save_v42_has_an_empty_object_section_because_its_delta_is_unmeasured() -> None:
+def test_an_unmeasured_save_version_raises_rather_than_defaulting() -> None:
+    """The refusal rule, pinned against a version that is still unmeasured.
+
+    RENAMED under CS-407. This test used to be about save version 42, which was
+    the unmeasured one; 42's delta is now measured at 4, so the example moved to
+    a version nobody has measured while the RULE it pins is unchanged. An absent
+    key must raise, never default - a defaulted delta reads a real save at the
+    wrong offset and reports a plausible wrong world rather than an error.
+
+    ``SAVE_V42`` keeps an empty object section, which is now a property of the
+    FIXTURE rather than a consequence of the delta.
+    """
     assert synthetic.SAVE_V42.objects == ()
     assert _UNMEASURED_SAVE_VERSION not in synthetic.TRANSFORM_DELTA_BY_SAVE_VERSION
     one_object = [synthetic.SyntheticObject("C", "R", "I")]
@@ -596,14 +615,32 @@ def test_save_v42_has_an_empty_object_section_because_its_delta_is_unmeasured() 
         synthetic.build_body(one_object, save_version=_UNMEASURED_SAVE_VERSION)
 
 
-def test_the_unmeasured_delta_was_not_interpolated_from_its_neighbours() -> None:
-    """36 -> 4 and 52 -> 8 would make 42 "obviously" 4 or 6. It is neither, it is absent.
+def test_save_42_was_measured_rather_than_interpolated_from_its_neighbours() -> None:
+    """RESTATED under CS-407, and the restatement is the point.
 
-    Deriving a number from measured neighbours because it feels derived is the
-    same failure class as trusting a fixture built parallel to the code. The
-    only correct value here is "not measured yet".
+    This test previously asserted that save 42's delta was ABSENT, on the
+    reasoning that 36 -> 4 beside 52 -> 8 makes 4 exactly what "looks derived"
+    produces. That reasoning was right and the conclusion has since been earned
+    rather than overturned: TWO earlier sessions reached 4 and both discarded
+    it, because neither had a method that could recover the known deltas when
+    validated against them.
+
+    So the value did not change - the KIND OF EVIDENCE did. 42 is present at 4
+    because a corroborator independent of section arithmetic says so: 17763 of
+    17763 actors in the one real header-13 body give a unit quaternion at shift
+    4, the runner-up shift falls to 2 once scale plausibility is included, and
+    the method recovered 4, 8 and 8 for the three already-known versions before
+    it was pointed at 42.
+
+    The fence this test carries is therefore NOT "42 must be absent". It is
+    "arriving at a number that looks derived is not evidence; a validated method
+    plus an independent corroborator is".
     """
-    assert set(synthetic.TRANSFORM_DELTA_BY_SAVE_VERSION) == {36, 52, 60}
+    assert set(synthetic.TRANSFORM_DELTA_BY_SAVE_VERSION) == {36, 42, 52, 60}
+    assert synthetic.TRANSFORM_DELTA_BY_SAVE_VERSION[_SAVE_42] == _SAVE_42_DELTA
+    # The interpolation fence still bites where it should: a version between two
+    # measured neighbours is not given a value just because one is available.
+    assert _UNMEASURED_SAVE_VERSION not in synthetic.TRANSFORM_DELTA_BY_SAVE_VERSION
 
 
 def test_the_body_length_prefix_follows_the_header_version() -> None:
