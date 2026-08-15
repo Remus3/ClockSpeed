@@ -144,12 +144,20 @@ NOT measured, and deliberately not invented:
    shape under either discriminator - correct for those fixtures, which encode
    both kinds identically, and wrong for a real body, which is exactly why the
    levelled walk does not share it.
-3. **Property VALUE decoding.** :func:`read_properties` resolves a class path to
-   a usmap schema and reports whether the mapping models it. It decodes no
-   value. What blocks that is no longer LOCATING the payload - CS-413 located
-   every one of them - but the value grammar inside it, which is unmeasured
-   here. A payload with a non-zero extent is flagged as unparsed rather than
-   guessed at.
+3. **Property VALUE decoding.** PARTIAL, and the partial is recorded as data
+   rather than as an adjective. :func:`read_properties` resolves a class path
+   to a usmap schema and DECODES every value whose type is in
+   :data:`MEASURED_VALUE_TYPES`. Every other type is flagged and skipped, and
+   the regions still opaque are named in :data:`UNMEASURED_PAYLOAD_REGIONS`
+   with what is pinned and what is not claimed about each - so a later slice
+   executes against that table instead of re-deriving it.
+
+   TWO LIMITS ARE WORTH STATING AT THE TOP, because both are easy to misread
+   as closed. The walk is TERMINATOR-exact and NOT boundary-exact: a variable
+   trailing run follows the property terminator on every payload in the
+   library, and it is the ``trailing_run`` entry of that table. And the
+   (14,60) pair reads under this grammar on NO payload at all, so it reports
+   exactly what it reported before any of this landed.
 
 An unrecognised object-type discriminator is refused rather than skipped, and
 that is not a contradiction of non-negotiable 7. That rule covers unknown
@@ -196,6 +204,7 @@ from clockspeed.save.usmap import PropertyMap
 __all__ = [
     "BODY_LAYOUT_BY_PAIR",
     "FIELD_NAMES",
+    "GUID_BYTES",
     "KIND_ACTOR",
     "KIND_COMPONENT",
     "LEVEL_TAIL_NONE",
@@ -209,14 +218,18 @@ __all__ = [
     "MAX_STRING_BYTES",
     "MEASURED_BODY_LAYOUTS",
     "MEASURED_HEADER_VERSIONS",
+    "MEASURED_VALUE_TYPES",
     "TRANSFORM_BYTES",
     "TRANSFORM_DELTA_BY_SAVE_VERSION",
     "TRANSFORM_FLOAT_COUNT",
     "UNKNOWN_CLASS_REASONS",
+    "UNMEASURED_PAYLOAD_REGIONS",
     "WARN_BODY_LENGTH_DISAGREEMENT",
+    "WARN_MEASURED_VALUE_DISAGREED",
     "WARN_PAYLOAD_COUNT_DISAGREEMENT",
     "WARN_RESERVED_WORD_SET",
     "WARN_UNMEASURED_HEADER_VERSION",
+    "WARN_UNMEASURED_PROPERTY_TYPE",
     "WARN_UNPARSED_DATA_SECTION",
     "WARN_UNPARSED_PROPERTY_PAYLOAD",
     "WARN_UNRESOLVED_SCHEMA",
@@ -595,6 +608,8 @@ WARN_UNRESOLVED_SCHEMA: Final = "unresolved-schema"
 WARN_UNPARSED_PROPERTY_PAYLOAD: Final = "unparsed-property-payload"
 WARN_RESERVED_WORD_SET: Final = "reserved-word-set"
 WARN_PAYLOAD_COUNT_DISAGREEMENT: Final = "payload-count-disagreement"
+WARN_UNMEASURED_PROPERTY_TYPE: Final = "unmeasured-property-type"
+WARN_MEASURED_VALUE_DISAGREED: Final = "measured-value-disagreed"
 
 _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
     {
@@ -629,6 +644,19 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
             "a level declared a different number of payload entries than it has "
             "records, so no payload was attributed to any record in it; the "
             "extents were still walked and the section still closed"
+        ),
+        WARN_UNMEASURED_PROPERTY_TYPE: (
+            "the payload read, and some of its properties carry a type whose value "
+            "encoding this project has not measured; those were skipped rather than "
+            "guessed at, and the regions are named in UNMEASURED_PAYLOAD_REGIONS"
+        ),
+        WARN_MEASURED_VALUE_DISAGREED: (
+            "the payload read, and some of its properties carry a type whose value "
+            "encoding IS measured but whose bytes disagreed with the tag's declared "
+            "size; those were skipped rather than published from an offset the walk "
+            "may not be at. THIS IS NOT UNKNOWN CONTENT - it means the reader is not "
+            "where it believes it is, so every value decoded after it in the same "
+            "payload is suspect"
         ),
     }
 )
@@ -1012,22 +1040,62 @@ class ObjectTable:
         )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class PropertyResult:
     """What :func:`read_properties` could and could not do with one record.
 
+    ``repr`` is hand written and withholds every string, for the reason given
+    on :class:`ObjectRecord`. THAT BECAME LOAD-BEARING WHEN THIS TYPE STARTED
+    CARRYING DECODED VALUES. While ``properties`` was empty on every return
+    path the default repr was defensible; it is not now. The VALUES include
+    player-authored strings and the KEYS are property names read out of the
+    save's own bytes, so both halves of every entry are world content, and
+    ``schema_name`` is a fragment of the class path :class:`ObjectRecord`
+    already withholds. A test runner reprs a value before a human chooses what
+    to print - pytest renders it as a frame local - so the safe rendering has
+    to be the only one available.
+
     Attributes:
-        properties: The decoded properties. ALWAYS empty today - the value
-            grammar is unmeasured and this module never guesses one.
+        properties: The decoded properties, by name. Carries values of the
+            types in :data:`MEASURED_VALUE_TYPES` and NO OTHER - a type whose
+            value encoding is unmeasured is absent here and counted in
+            ``unmeasured_value_count`` instead, so an absent name never means
+            "this property is not set". DECODED WORLD CONTENT: a caller that
+            renders it is an echo path under non-negotiable 12.
         schema_name: The class name the type path resolved to.
         resolved: Whether the property map models that class at all.
         warnings: What was flagged and skipped.
+        unmeasured_value_count: How many tags carried a type whose value
+            encoding is unmeasured. DEFAULTED so that adding it could not
+            change the construction of any existing caller.
+        disagreeing_value_count: How many tags carried a type whose value
+            encoding IS measured but whose bytes disagreed with the declared
+            size. COUNTED APART FROM THE FIELD ABOVE because the two mean
+            opposite things - see :func:`_decode_payload`. Non-zero here is a
+            reason to distrust this record's other values; non-zero above is
+            not. Defaulted for the same reason.
     """
 
     properties: Mapping[str, object]
     schema_name: str
     resolved: bool
     warnings: tuple[ObjectWarning, ...]
+    unmeasured_value_count: int = 0
+    disagreeing_value_count: int = 0
+
+    def __repr__(self) -> str:
+        """Render counts and flags, and withhold every string.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(properties={len(self.properties)}, "
+            f"resolved={self.resolved}, "
+            f"warnings={len(self.warnings)}, "
+            f"unmeasured_value_count={self.unmeasured_value_count}, "
+            f"disagreeing_value_count={self.disagreeing_value_count})"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -2077,22 +2145,567 @@ def parse_body(
 
 
 # ---------------------------------------------------------------------------
+# The property payload grammar
+#
+# MEASURED BY CS-413 AGAINST THE REAL LIBRARY, NOT INHERITED FROM PRIOR
+# KNOWLEDGE OF HOW UNREAL SERIALIZES. Prior knowledge generated the hypotheses
+# below; every one of them was then required to survive a check the shipped
+# bytes could have failed, and the checks are named on each constant. Three
+# oracles carried the weight, each independent of this module's own opinion:
+#
+#   SHIPPED REDUNDANCY - a string-bearing value carries its own length prefix,
+#   which must equal the tag's declared size. Those are two separate numbers in
+#   the file and they agree on EVERY string-bearing tag in the library, with no
+#   exception. The count that used to stand here is deleted rather than
+#   corrected: two independent re-derivations disagreed with it, and the
+#   disagreement is definitional - the figure is only meaningful alongside a
+#   statement of which type words count as string-bearing, which was never
+#   written down beside it. The claim that carries the weight is the RATE, and
+#   the rate is 100%. tests/save/test_properties.py::test_the_shipped_
+#   redundancy_oracle_collapses_when_only_the_value_read_is_rotated re-derives
+#   both halves from the library on every run, so this is now machine-checked
+#   rather than transcribed.
+#
+#   CROSS-SECTION - an ObjectProperty names a record, and the record table is
+#   parsed by a different pass over a different section. 26146 references
+#   resolved; the rest name assets rather than saved objects, which is why that
+#   oracle is reported as a rate and never as a total.
+#
+#   DIFFERENT FILE - the usmap is generated from the game's assets and carries
+#   a raw type byte per property. The save's type WORD proved to be a function
+#   of that byte: 13 words, each mapping to exactly one id, no id claimed by
+#   two words, zero contradictions.
+#
+# AND THE ROTATION CONTROL, which is what makes the above evidence about
+# ALIGNMENT rather than about self-consistency. Re-read at VALUE-START offsets
+# of -2, -1, +1 and +2 - the tag walk left synchronised, only the value read
+# moved - the shipped-redundancy oracle collapses from every string-bearing tag
+# to a handful, and the cross-section oracle to nothing. Delta 0 is uniquely
+# exact. A result that does not collapse when moved is not evidence, and a
+# `> 0` liveness floor would have passed several of these rotations.
+#
+# THE VALUE-START ROTATION IS THE ONE THAT EXERCISES THE VALUE GRAMMAR, and it
+# is worth naming apart from the coarser control that moves a whole payload's
+# START by one byte. That coarser one collapses inside the actor-head read,
+# before a single property tag is examined, so it is evidence about the payload
+# attribution and about nothing below it. Both now ship as tests rather than as
+# this paragraph - see tests/save/test_properties.py.
+# ---------------------------------------------------------------------------
+
+#: Type words carrying extra tag data before the guid flag, and how many
+#: length-prefixed strings of it. MEASURED: with these widths the tag walk
+#: reaches its terminator on every payload of every real save of a measured
+#: pair, and mis-stating any one of them desynchronises the walk immediately.
+_TAG_EXTRA_STRINGS: Final[Mapping[str, int]] = MappingProxyType(
+    {
+        "ByteProperty": 1,
+        "EnumProperty": 1,
+        "ArrayProperty": 1,
+        "SetProperty": 1,
+        "MapProperty": 2,
+        "StructProperty": 1,
+    }
+)
+
+#: Fixed-width value types and their measured widths. The WIDTH is measured -
+#: every instance in the library declares exactly this size and no other. The
+#: ENCODING is measured too, and separately, because a width does not imply a
+#: byte order: across 75136 int32 values the most significant byte under a
+#: little-endian reading is zero 94.05% of the time while the least
+#: significant is zero 10.55% of the time, which is the signature of small
+#: magnitudes stored little-endian and is reversed under the other reading.
+#: For float32, a little-endian reading is finite on 100% and of plausible
+#: world magnitude on 98.96%, against 67.30% plausible big-endian.
+_FIXED_WIDTH_VALUES: Final[Mapping[str, tuple[int, str]]] = MappingProxyType(
+    {
+        "IntProperty": (4, "<i"),
+        "UInt32Property": (4, "<I"),
+        "FloatProperty": (4, "<f"),
+        "Int8Property": (1, "<b"),
+    }
+)
+
+#: Value types that are exactly one length-prefixed string.
+_ONE_STRING_VALUES: Final = frozenset({"StrProperty", "NameProperty", "EnumProperty"})
+
+#: Value types that are a level reference followed by an object path.
+_TWO_STRING_VALUES: Final = frozenset({"ObjectProperty", "SoftObjectProperty"})
+
+#: The trailing int32 a SoftObjectProperty carries after its two strings. Its
+#: WIDTH is pinned by exact consumption on all 116 instances; its meaning is
+#: not claimed, which is why it is skipped rather than named.
+_SOFT_OBJECT_TAIL_BYTES: Final = 4
+
+#: A guid, wherever one appears in a tag - after a set guid flag, and inside a
+#: StructProperty's tag data. Both are stepped over rather than read: their
+#: WIDTH is pinned by the walk, which desynchronises immediately at any other,
+#: and this module has no use for the value.
+GUID_BYTES: Final = 16
+
+#: The type words whose VALUE encoding is measured and is therefore decoded.
+#: EVERY OTHER TYPE IS FLAGGED AND SKIPPED - non-negotiable 7 - and the ones
+#: seen in the library are recorded in :data:`UNMEASURED_PAYLOAD_REGIONS`
+#: rather than guessed at from a neighbouring type's shape.
+MEASURED_VALUE_TYPES: Final = (
+    frozenset(_FIXED_WIDTH_VALUES)
+    | _ONE_STRING_VALUES
+    | _TWO_STRING_VALUES
+    | frozenset({"BoolProperty", "ByteProperty"})
+)
+
+#: WHAT IS STILL OPAQUE INSIDE A PAYLOAD, as a structure rather than an
+#: adjective, per CS-412. Each entry names what IS pinned and what is NOT
+#: claimed, so a later slice executes against this table instead of
+#: re-deriving it. A partial recorded as prose is not resumable.
+UNMEASURED_PAYLOAD_REGIONS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "trailing_run": (
+            "the run between a payload's property terminator and its declared "
+            "final byte. It is UNIVERSAL - not one payload in the library ends "
+            "at its terminator - and its width is 4 on the large majority and "
+            "variable above that, spanning 4 to 5008 bytes on the (10,36) and "
+            "(13,42) pairs and 4 to 1053802 on (14,52), across roughly 235 "
+            "distinct widths per pair. A 4-byte floor holding on every payload "
+            "of every pair is the one regularity; whether it is one field or "
+            "the head of a longer structure is NOT claimed, and no reading of "
+            "its interior is offered. This is the region that keeps the walk "
+            "terminator-exact rather than boundary-exact"
+        ),
+        "StructProperty": (
+            "45208 instances, the largest opaque region by count. The tag's "
+            "declared size DOES bound it, so it is stepped over exactly and "
+            "costs no synchronisation - the interior is what is unmeasured. "
+            "The struct's own type word is present in the tag and the observed "
+            "vocabulary is led by FactoryCustomizationData, InventoryStack, "
+            "Box and LinearColor. InventoryStack is the one pillar 3 needs "
+            "for inventory, so it is the natural next measurement"
+        ),
+        "ArrayProperty": (
+            "31983 instances. NOT decoded here, and the reason is that the "
+            "evidence is weaker than for the scalars rather than absent: an "
+            "int32 count followed by elements consumes the declared size "
+            "exactly on all 11976 arrays whose inner type word is IntProperty, "
+            "Int64Property, ObjectProperty or SoftObjectProperty, but that was "
+            "measured at the shipped alignment ONLY and never put through the "
+            "rotation control the scalar types survived. THREE OF THOSE FOUR "
+            "WORDS ARE IN MEASURED_VALUE_TYPES AND Int64Property IS NOT, which "
+            "is why it has its own entry below rather than being described here "
+            "as measured - it was the one word this module named and placed in "
+            "neither half of its own classification. The remaining 20007 are "
+            "chiefly arrays of StructProperty, whose element framing carries an "
+            "inner tag header this project has not measured"
+        ),
+        "Int64Property": (
+            "NAMED BY THE ArrayProperty ENTRY ABOVE as an array inner type, and "
+            "recorded here so that every type word this table mentions sits on "
+            "one side of the measured/unmeasured split rather than in neither. "
+            "Nothing about its VALUE encoding is claimed: not a width, not a "
+            "byte order, not an instance count. It is decoded nowhere - not at "
+            "top level, and not inside an array, since arrays are not decoded "
+            "at all - so a top-level instance is flagged and skipped like any "
+            "other unmeasured type. How often one occurs is deliberately not "
+            "stated, because nothing here has measured that either"
+        ),
+        "SetProperty": (
+            "81 instances. Same framing question as ArrayProperty and a sample "
+            "far too small to separate the answers"
+        ),
+        "MapProperty": (
+            "72 instances. The tag carries TWO extra type words rather than "
+            "one, which is measured, and the key/value element framing is not"
+        ),
+        "TextProperty": (
+            "10 instances, all of declared size 45. Unreal's text serialization "
+            "is a tagged union over history types and 10 instances of one size "
+            "cannot distinguish its cases"
+        ),
+    }
+)
+
+#: The tag's index field, read as a fixed-array element index. It is 0 on all
+#: but a few dozen tags in the library, the exceptions being 1 and 2.
+#:
+#: THE COUNTS THAT USED TO BE HERE ARE DELETED RATHER THAN CORRECTED. The
+#: sentence read "all but N of M tags", and re-derivation shows M was the
+#: count of tags AT zero - the numerator - while the true total is M plus N.
+#: So the figure presented as the denominator was the numerator, and the
+#: sentence contradicted itself as written. Shipping both numbers is worse than
+#: shipping neither: a wrong number with a true claim attached reads as
+#: verified forever. Correcting one would only reset the clock, since the
+#: operator plays this game and any absolute count here goes red on the next
+#: autosave. The claim that carries weight needs no figure at all - the field
+#: is carried past rather than interpreted, so nothing here depends on its
+#: value.
+_TAG_INDEX_FIELD_BYTES: Final = 4
+
+#: A payload cannot carry more tags than this. A bound, not a measurement -
+#: the largest real payload holds far fewer, and this only stops a corrupt
+#: length from spinning.
+_MAX_TAGS_PER_PAYLOAD: Final = 1 << 14
+
+
+def _payload_text(body: bytes, at: int, end: int) -> tuple[str, int] | None:
+    """Read one length-prefixed string, returning None rather than raising.
+
+    IT DOES NOT REUSE :meth:`_Cursor.string`, and the difference is the point.
+    That reader RAISES, which is right for the record table, whose grammar is
+    measured - a failure there is a real defect. Inside a payload an unreadable
+    run is expected: it means this project has not measured that value type
+    yet, and non-negotiable 7 requires flagging and skipping it rather than
+    failing the load of an otherwise readable world.
+
+    Args:
+        body: The decompressed body.
+        at: Where the length prefix starts.
+        end: The first byte past this payload.
+
+    Returns:
+        The text and the offset after it, or None if it does not read.
+    """
+    if at < 0 or at + INT32_SIZE > end:
+        return None
+    (count,) = struct.unpack_from("<i", body, at)
+    if count == 0:
+        return ("", at + INT32_SIZE)
+    if count < 0:
+        byte_count, terminator, encoding = -count * UTF16_CHAR_SIZE, UTF16_CHAR_SIZE, "utf-16-le"
+    else:
+        byte_count, terminator, encoding = count, 1, "utf-8"
+    if byte_count > MAX_STRING_BYTES or at + INT32_SIZE + byte_count > end:
+        return None
+    start = at + INT32_SIZE
+    try:
+        return (body[start : start + byte_count - terminator].decode(encoding), start + byte_count)
+    except UnicodeDecodeError:
+        # Returned, never raised: a UnicodeDecodeError QUOTES the offending
+        # bytes and exception context is an echo path (non-negotiable 12).
+        return None
+
+
+def _skip_actor_head(body: bytes, at: int, end: int) -> int | None:
+    """Step over an actor payload's parent reference and component list.
+
+    An ACTOR payload opens with a parent object reference and a list of the
+    components it owns; a COMPONENT payload opens directly with its tags. That
+    asymmetry is measured - reading an actor as a component desynchronises on
+    the first tag - and is the same list CS-413 used to prove payload
+    attribution against the component records' own parent fields.
+
+    Args:
+        body: The decompressed body.
+        at: The payload's first byte.
+        end: The first byte past the payload.
+
+    Returns:
+        Where the property tags begin, or None if the head does not read.
+    """
+    for _ in range(2):
+        step = _payload_text(body, at, end)
+        if step is None:
+            return None
+        at = step[1]
+    if at + INT32_SIZE > end:
+        return None
+    (count,) = struct.unpack_from("<i", body, at)
+    at += INT32_SIZE
+    if count < 0 or count > MAX_OBJECTS:
+        return None
+    for _ in range(2 * count):
+        step = _payload_text(body, at, end)
+        if step is None:
+            return None
+        at = step[1]
+    return at
+
+
+def _skip_tag_extra(body: bytes, at: int, end: int, type_word: str) -> int | None:
+    """Step over the tag data whose shape depends on the property type.
+
+    Args:
+        body: The decompressed body.
+        at: Just past the tag's index field.
+        end: The first byte past the payload.
+        type_word: The tag's type word.
+
+    Returns:
+        Where the guid flag begins, or None if it does not read.
+    """
+    for _ in range(_TAG_EXTRA_STRINGS.get(type_word, 0)):
+        step = _payload_text(body, at, end)
+        if step is None:
+            return None
+        at = step[1]
+    if type_word == "StructProperty":
+        at += GUID_BYTES
+        if at > end:
+            return None
+    return at
+
+
+def _skip_guid_flag(body: bytes, at: int, end: int) -> int | None:
+    """Step over a tag's optional property guid.
+
+    Args:
+        body: The decompressed body.
+        at: The flag byte's offset.
+        end: The first byte past the payload.
+
+    Returns:
+        Where the value begins, or None if the flag is neither 0 nor 1.
+    """
+    if at + 1 > end:
+        return None
+    flag = body[at]
+    if flag == 1:
+        return at + 1 + GUID_BYTES
+    return at + 1 if flag == 0 else None
+
+
+def _read_tag_header(body: bytes, at: int, end: int) -> tuple[str, int, int, int | None] | None:
+    """Read one tag past its name, stopping at its value.
+
+    Args:
+        body: The decompressed body.
+        at: Just past the tag's name.
+        end: The first byte past the payload.
+
+    Returns:
+        The type word, where the value starts, its declared size and the byte a
+        BoolProperty carries in the tag. None if the tag does not read.
+    """
+    type_read = _payload_text(body, at, end)
+    if type_read is None:
+        return None
+    type_word, after = type_read
+    if after + INT32_SIZE + _TAG_INDEX_FIELD_BYTES > end:
+        return None
+    (size,) = struct.unpack_from("<i", body, after)
+    extra_at = after + INT32_SIZE + _TAG_INDEX_FIELD_BYTES
+
+    in_tag_byte: int | None = None
+    flag_at: int | None
+    if type_word == "BoolProperty":
+        if extra_at + 1 > end:
+            return None
+        in_tag_byte = body[extra_at]
+        flag_at = extra_at + 1
+    else:
+        flag_at = _skip_tag_extra(body, extra_at, end, type_word)
+        if flag_at is None:
+            return None
+
+    value_at = _skip_guid_flag(body, flag_at, end)
+    if value_at is None or size < 0 or value_at + size > end:
+        return None
+    return (type_word, value_at, size, in_tag_byte)
+
+
+def _decode_fixed_width(body: bytes, at: int, size: int, spec: tuple[int, str]) -> object | None:
+    """Decode one fixed-width numeric value.
+
+    Args:
+        body: The decompressed body.
+        at: The value's first byte.
+        size: The value's declared extent.
+        spec: The measured width and its struct code.
+
+    Returns:
+        The value, or None when the declared size is not the measured width.
+    """
+    width, code = spec
+    # EQUALITY, not a floor. No save in the library declares any other size for
+    # these types, so this branch is defensive rather than measured - loosening
+    # it to `size < width` survives the whole suite, which is recorded here so
+    # nobody mistakes it for a checked discriminator.
+    if size != width or at + size > len(body):
+        return None
+    (value,) = struct.unpack_from(code, body, at)
+    return float(value) if code == "<f" else int(value)
+
+
+def _decode_object_reference(body: bytes, type_word: str, at: int, end: int) -> object | None:
+    """Decode a level reference and object path pair.
+
+    Args:
+        body: The decompressed body.
+        type_word: The tag's type word.
+        at: The value's first byte.
+        end: The first byte past the value.
+
+    Returns:
+        The pair, or None when it does not consume the value exactly.
+    """
+    parts: list[str] = []
+    cursor = at
+    for _ in range(2):
+        step = _payload_text(body, cursor, end)
+        if step is None:
+            return None
+        parts.append(step[0])
+        cursor = step[1]
+    if type_word == "SoftObjectProperty":
+        cursor += _SOFT_OBJECT_TAIL_BYTES
+    return (parts[0], parts[1]) if cursor == end else None
+
+
+def _decode_text_value(body: bytes, type_word: str, at: int, size: int) -> object | None:
+    """Decode a value that is one or more length-prefixed strings.
+
+    Args:
+        body: The decompressed body.
+        type_word: The tag's type word.
+        at: The value's first byte.
+        size: The value's declared extent.
+
+    Returns:
+        The decoded value, or None when the type is unmeasured or the strings
+        disagree with the declared size.
+    """
+    end = at + size
+    if type_word in _TWO_STRING_VALUES:
+        return _decode_object_reference(body, type_word, at, end)
+    if type_word == "ByteProperty" and size == 1:
+        # A raw byte, which is the shape when the tag's enum word is the
+        # literal None. The enum-name shape falls through to the branch below.
+        return None if end > len(body) else int(body[at])
+    if type_word in _ONE_STRING_VALUES or type_word == "ByteProperty":
+        step = _payload_text(body, at, end)
+        return None if step is None or step[1] != end else step[0]
+    return None
+
+
+def _decode_value(
+    body: bytes, type_word: str, at: int, size: int, in_tag_byte: int | None
+) -> object | None:
+    """Decode one property value, or return None when its type is unmeasured.
+
+    NONE MEANS "NOT MEASURED", NEVER "EMPTY". A caller distinguishing the two
+    matters: an unmeasured type is flagged so the world model can say it does
+    not model something, where a genuinely absent value would be silence.
+
+    Every branch VERIFIES the declared size rather than trusting it. That is
+    the shipped-redundancy oracle running in production, not only in the
+    measurement: a string whose own prefix disagrees with the tag's declared
+    size means the walk is not where it believes it is, and returning None
+    there flags it instead of publishing a value read from the wrong offset.
+
+    Args:
+        body: The decompressed body.
+        type_word: The tag's type word.
+        at: The value's first byte.
+        size: The value's declared extent.
+        in_tag_byte: The byte carried in a BoolProperty's tag, or None.
+
+    Returns:
+        The decoded value, or None when the type is unmeasured or the bytes
+        disagree with the declaration.
+    """
+    if type_word == "BoolProperty":
+        # The value rides in the TAG and the declared size is 0. Measured: the
+        # byte takes only 0 and 1 across all 4077 instances in the library.
+        return None if in_tag_byte is None or in_tag_byte > 1 else bool(in_tag_byte)
+    fixed = _FIXED_WIDTH_VALUES.get(type_word)
+    if fixed is not None:
+        return _decode_fixed_width(body, at, size, fixed)
+    # ByteProperty has TWO measured shapes, a raw byte and an enum member name;
+    # both are handled below and 5359 instances consume their size exactly.
+    return _decode_text_value(body, type_word, at, size)
+
+
+def _decode_payload(
+    body: bytes, at: int, end: int
+) -> tuple[dict[str, object], int, int, bool] | None:
+    """Walk one payload's property tags and decode every measured value.
+
+    THE TWO REASONS A VALUE DOES NOT COME BACK ARE COUNTED SEPARATELY, and
+    that separation is the point rather than a refinement. ``_decode_value``
+    returns None for two conditions that mean opposite things:
+
+    UNMEASURED TYPE - this project has never measured that type's value
+    encoding. Expected, benign, and exactly what non-negotiable 7 says to flag
+    and skip. It says nothing about whether the walk is correct.
+
+    MEASURED TYPE, BYTES DISAGREED - the shipped-redundancy oracle running in
+    production. The type IS measured, and the value's own length prefix did not
+    account for the tag's declared size, which means the reader is not where it
+    believes it is. Every value decoded after it in the same payload is suspect.
+
+    Collapsing the two makes a desynchronised walk look like unmodelled
+    content, which is "silently wrong" - the half of non-negotiable 7 that has
+    no second chance. It is the same conflation CS-417 records one module over.
+
+    Args:
+        body: The decompressed body.
+        at: Where the first tag begins.
+        end: The first byte past the payload.
+
+    Returns:
+        The decoded properties, how many tags carried an unmeasured type, how
+        many carried a measured type whose bytes disagreed, and whether the
+        walk reached its terminator. None when the walk broke, which is every
+        payload of an unmeasured pair.
+    """
+    decoded: dict[str, object] = {}
+    unmeasured = 0
+    disagreed = 0
+    for _ in range(_MAX_TAGS_PER_PAYLOAD):
+        name = _payload_text(body, at, end)
+        if name is None:
+            return None
+        if name[0] == "None":
+            return (decoded, unmeasured, disagreed, True)
+        tag = _read_tag_header(body, name[1], end)
+        if tag is None:
+            return None
+        type_word, value_start, size, in_tag_byte = tag
+        value = _decode_value(body, type_word, value_start, size, in_tag_byte)
+        if value is not None:
+            decoded[name[0]] = value
+        elif type_word in MEASURED_VALUE_TYPES:
+            disagreed += 1
+        else:
+            unmeasured += 1
+        at = value_start + size
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Property resolution
 # ---------------------------------------------------------------------------
 
 
 def read_properties(body: bytes, record: ObjectRecord, property_map: PropertyMap) -> PropertyResult:
-    """Resolve one record against the property mapping and report what is missing.
+    """Decode one record's measured properties and report what was skipped.
 
-    WHAT THIS DOES AND DOES NOT DO. It resolves the record's class path to a
-    usmap schema and reports whether the mapping models that class. It decodes
-    NO property value. Since CS-413 the reason is narrower than it was: the
-    payload is now LOCATED for every record of a real save, and what remains
-    unmeasured here is the value grammar inside it. A payload with a non-zero
-    extent is FLAGGED as unparsed rather than guessed at.
+    DECODING DOES NOT DEPEND ON THE SCHEMA RESOLVING, and that is a measurement
+    rather than a convenience. A payload is TAGGED serialization - every
+    property's name and type word are in the save's own bytes - so the mapping
+    is not an input to the decode at all. It was the ORACLE the value grammar
+    was validated against, which is a different job.
 
-    Nothing here raises for unknown content. A class the mapping cannot resolve
-    is a reported state, not a failure (non-negotiable 7).
+    Gating the decode on resolution would in fact decode nothing that matters:
+    the shipped mapping carries NO ``Build_*`` schema and only 2 blueprint
+    generated schemas out of 13792, so every one of the 24314 building records
+    in this library resolves to nothing. Buildings are exactly what pillar 3
+    audits, and a reader that refused them would be permanently empty where it
+    is most needed.
+
+    So ``resolved`` and the decode are reported INDEPENDENTLY. An unresolved
+    class is still flagged - non-negotiable 7 - and its self-describing
+    properties are still read; a property whose TYPE is unmeasured is skipped
+    and counted whether the class resolved or not.
+
+    Nothing here raises for unknown content.
+
+    THE STRUCTURAL CHECK RUNS FIRST, AND IT RUNS FOR EVERY RECORD. It used to
+    sit after an early return for an unresolved class, which - on this project's
+    own measurement, where essentially no building resolves - meant it ran on
+    almost nothing. Reaching it for every record is the correct direction and is
+    deliberate: an extent running past the body is NOT the unknown CONTENT
+    non-negotiable 7 covers. It is a record claiming bytes that do not exist,
+    which is the same class as the unknown-grammar case in the module docstring,
+    and reporting it as merely unparsed would let a truncated or misattributed
+    body pass as a world this project simply does not model.
 
     Args:
         body: The decompressed body the record was walked out of.
@@ -2107,40 +2720,106 @@ def read_properties(body: bytes, record: ObjectRecord, property_map: PropertyMap
         ObjectTruncatedError: The record's declared payload extent runs past
             the body. A structural impossibility rather than unknown content.
     """
-    name = class_name_of(record.type_path)
-    if name not in property_map.schemas:
-        return PropertyResult(
-            properties=MappingProxyType({}),
-            schema_name=name,
-            resolved=False,
-            warnings=(_warning(WARN_UNRESOLVED_SCHEMA, record.body_offset),),
+    if record.body_length != 0 and (
+        record.body_offset < 0 or record.body_offset + record.body_length > len(body)
+    ):
+        available = max(len(body) - record.body_offset, 0)
+        # THE BODY AND THE MAPPING ARE DROPPED FROM THIS FRAME BEFORE THE RAISE,
+        # and that is a mechanism rather than a courtesy. The error MESSAGE was
+        # always clean; the channel is the FRAME. A traceback renderer that
+        # shows locals - pytest does - prints `body` verbatim, head and tail,
+        # which is the whole decompressed world (non-negotiable 12). A clean
+        # message with a leaking frame is a mitigation the mechanism defeats.
+        # `del` is what a renderer cannot get around: a deleted fast local is
+        # simply absent from `frame.f_locals`. The mapping goes for a weaker but
+        # real reason - it is not personal data, it is the whole shipped usmap
+        # name table under a default repr, and this branch has no use for it.
+        # tests/save/test_properties.py::test_no_clockspeed_frame_holds_the_body_
+        # when_the_extent_raises walks the raised traceback and asserts this,
+        # so a NEW raise site added to this function is red rather than silent.
+        del body, property_map
+        raise ObjectTruncatedError(
+            REASON_SHORT_BUFFER,
+            field="property_payload",
+            offset=record.body_offset,
+            expected=record.body_length,
+            actual=available,
         )
+
+    name = class_name_of(record.type_path)
+    resolved = name in property_map.schemas
+    schema_warnings: tuple[ObjectWarning, ...] = (
+        () if resolved else (_warning(WARN_UNRESOLVED_SCHEMA, record.body_offset),)
+    )
 
     if record.body_length == 0:
         # Every record from the FLAT walk, which attributes no extent, and no
         # record at all from a real save - CS-413 measured zero zero-length
         # payloads across all 14 of them. Not unknown content either way.
         return PropertyResult(
-            properties=MappingProxyType({}), schema_name=name, resolved=True, warnings=()
+            properties=MappingProxyType({}),
+            schema_name=name,
+            resolved=resolved,
+            warnings=schema_warnings,
         )
 
     end = record.body_offset + record.body_length
-    if record.body_offset < 0 or end > len(body):
-        raise ObjectTruncatedError(
-            REASON_SHORT_BUFFER,
-            field="property_payload",
-            offset=record.body_offset,
-            expected=record.body_length,
-            actual=max(len(body) - record.body_offset, 0),
+    start: int | None = record.body_offset
+    if record.kind == KIND_ACTOR:
+        start = _skip_actor_head(body, record.body_offset, end)
+    walked = None if start is None else _decode_payload(body, start, end)
+    if walked is None:
+        # The payload does not read under the measured grammar at all - which
+        # is every payload of the (14,60) pair. Flagged exactly as before, so
+        # nothing this slice added changed what that pair reports.
+        return PropertyResult(
+            properties=MappingProxyType({}),
+            schema_name=name,
+            resolved=resolved,
+            warnings=(
+                *schema_warnings,
+                _warning(
+                    WARN_UNPARSED_PROPERTY_PAYLOAD, record.body_offset, actual=record.body_length
+                ),
+            ),
         )
 
+    decoded, unmeasured, disagreed, _terminated = walked
+    warnings = schema_warnings
+    if disagreed:
+        # A SEPARATE CODE FROM THE ONE BELOW, because the two mean opposite
+        # things - see :func:`_decode_payload`. A caller that cannot tell
+        # unmodelled content from a walk that has lost its place cannot decide
+        # whether to trust anything else this payload returned.
+        warnings = (
+            *warnings,
+            _warning(WARN_MEASURED_VALUE_DISAGREED, record.body_offset, actual=disagreed),
+        )
+    if unmeasured:
+        # ONE warning per record rather than per tag. Per tag it would be one
+        # warning for every unmeasured-type tag in the world, which is a channel
+        # nobody reads.
+        #
+        # A COUNT USED TO STAND HERE AND IS DELETED RATHER THAN CORRECTED. It
+        # gave a per-tag figure SMALLER than the instance counts in
+        # UNMEASURED_PAYLOAD_REGIONS sum to, which cannot be: a per-tag warning
+        # cannot be rarer than the tags that trigger it. Re-measured, the
+        # per-tag figure is exactly that sum - the figure written here was
+        # simply wrong, and the region table was right. Writing the corrected
+        # number here would put a second copy of a count that table already
+        # owns into a comment no test reads, which is the drift class
+        # CLAUDE.md section 4 exists to stop. The region table is the owner.
+        warnings = (
+            *warnings,
+            _warning(WARN_UNMEASURED_PROPERTY_TYPE, record.body_offset, actual=unmeasured),
+        )
     return PropertyResult(
-        properties=MappingProxyType({}),
+        properties=MappingProxyType(decoded),
         schema_name=name,
-        resolved=True,
-        warnings=(
-            _warning(WARN_UNPARSED_PROPERTY_PAYLOAD, record.body_offset, actual=record.body_length),
-        ),
+        resolved=resolved,
+        warnings=warnings,
+        unmeasured_value_count=unmeasured,
+        disagreeing_value_count=disagreed,
     )
 
 
@@ -2154,13 +2833,50 @@ def parse_properties(
     an empty mapping alone cannot tell "this class has no properties" from
     "this class is not modelled".
 
+    WHAT CAN BE DECODED IS :func:`read_properties`' FACT AND IS STATED THERE.
+    This clause used to restate it - "always empty today" - and it went stale
+    the day the value grammar was measured, in the dangerous direction: it told
+    the next consumer the return was safe to print. A capability restated at a
+    second site is one that rots at the second site, and this function owns
+    only the discarding.
+
+    A THIN WRAPPER IS STILL A FRAME. :func:`read_properties` drops the body
+    before it raises, which closes ITS frame and nothing else - this one holds
+    the same bytes while that error travels through, so a renderer showing
+    locals prints the whole decompressed body from here instead. Every exported
+    way into the reader has to be closed, not the one the first test happened
+    to exercise.
+
     Args:
         body: The decompressed body the record was walked out of.
         record: The record to resolve.
         property_map: The parsed mapping.
 
     Returns:
-        The decoded properties. Always empty today - see
-        :func:`read_properties`.
+        Whatever :func:`read_properties` decoded, with its diagnostics dropped.
+        DECODED WORLD CONTENT - both the names and the values come out of the
+        save's own bytes, so a caller that renders this mapping is an echo path
+        under non-negotiable 12.
+
+    Raises:
+        ObjectTruncatedError: Propagated from :func:`read_properties`, whose
+            ``Raises`` clause states when. It leaves this frame carrying no
+            body - see the handler below.
     """
-    return read_properties(body, record, property_map).properties
+    try:
+        return read_properties(body, record, property_map).properties
+    except BaseException:
+        # THE HANDLER CHANGES NOTHING ABOUT WHAT PROPAGATES. It catches, scrubs
+        # this frame and re-raises the same exception with the same traceback;
+        # its only effect is that `body` is gone from the frame's fast locals
+        # by the time any renderer reads them (non-negotiable 12). The mapping
+        # goes with it for the reason given in read_properties.
+        #
+        # IT IS NOT NARROWER ON PURPOSE. A frame carries the body out on ANY
+        # unwind, not only on the one error this function currently documents,
+        # so catching `ObjectTruncatedError` would re-open the frame for every
+        # exception type a later edit introduces - which is exactly how this
+        # site was missed the first time. Because the re-raise is unconditional
+        # there is nothing for a broad catch to swallow.
+        del body, property_map
+        raise

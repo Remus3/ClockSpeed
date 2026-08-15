@@ -1,14 +1,19 @@
 """What is and is not known about the grammar INSIDE one property payload.
 
-WHY THIS MODULE EXISTS AT ALL, AND WHY IT SHIPS NO DECODER
-------------------------------------------------------------
-CS-413 located and attributed every payload in every real save, which is the
-seam ``clockspeed/save/objects.py`` now populates. The layer above that - what
-the bytes INSIDE a payload mean - was measured far enough to be worth keeping
-and NOT far enough to ship, and the gap between those two states is exactly the
-thing a project loses when a measurement lives only in a session transcript. A
-prior session recorded that a preamble "is measured" and recorded the
-measurement nowhere, and the next slice paid for the re-derivation.
+WHAT CHANGED, AND WHAT DELIBERATELY DID NOT
+---------------------------------------------
+This module once existed to hold a measurement that was NOT shipped. The
+measurement has now shipped: the tag grammar lives in
+``clockspeed/save/objects.py`` as production code, and ``read_properties``
+returns decoded values for the types whose encoding was measured. A grammar
+that lives only in a test file cannot be used by ``world.py``, which was the
+point of the item.
+
+WHAT DID NOT CHANGE IS THE LIMIT. The walk is TERMINATOR-exact and still not
+BOUNDARY-exact - a variable trailing run follows the terminator on every
+payload in the library - and save version 60 still refuses this grammar
+outright. Both are asserted below rather than described, because a comment
+does not fail.
 
 So this module is the ARTIFACT for that measurement. It re-derives the result
 from the real library on every run rather than restating a number, and it
@@ -41,36 +46,71 @@ WHAT IS NOT MEASURED, AND IS THEREFORE NOT CLAIMED
    reaches a terminator. A single leading byte accounts for some of the gap and
    nothing like all of it, so no offset is claimed here. Save 60's payload
    grammar is its own measurement and has not been made.
-3. **Any property VALUE.** Nothing here decodes one, and nothing here is wired
-   into ``clockspeed/save/``.
+3. **The value grammar of the types NOT in :data:`_MEASURED_VALUE_TYPES`** -
+   struct, array, set, map and text. Each is named in
+   ``objects.UNMEASURED_PAYLOAD_REGIONS`` with what is pinned and what is not
+   claimed, and :func:`test_every_unmeasured_type_the_library_holds_is_recorded_as_data`
+   asserts that table stays complete against the library rather than against a
+   list somebody remembered to update.
 
-PRIVACY. A payload is world content, so every helper below RETURNS on failure
-rather than raising - pytest renders the arguments of every frame in a failing
-traceback, and the cheapest way to guarantee no body reaches a log is to have no
-failure path that unwinds through a frame holding one.
+AND THE HALF THAT NEEDS NO SAVE LIBRARY
+-----------------------------------------
+Everything above ran only on the one machine that has the operator's saves. On
+CI, on a fresh clone, on a reviewer's laptop, every one of those tests skipped
+and the ~450-line decoder executed ZERO lines. CLAUDE.md section 7 settles that
+the rule suite must run with no game installed, so the second half of this
+module is a payload assembled byte by byte in the repo and pushed through the
+SHIPPED decoder.
 
-**Counts only come out, and that is now structural rather than argued.** The
-sweep returns integers; it holds no decoded string to return. The first
-revision of this module DID return the distinct property type words, defended
-as format vocabulary rather than world content - which is true exactly while
-the walk is synchronised, and false in the one case the assertion using them
-fires in. An adversary measured it: misaligned by one record across this
-library, the walk yields a word that is not a type word at all. The words are
-now judged inside the sweep and only the counts leave it.
+It proves SELF-CONSISTENCY and never conformance: a fixture built from the same
+belief as the reader agrees with the reader by construction. The real-library
+sweeps stay the only evidence about the format, and the rotation control inside
+them stays the only evidence about the alignment.
+
+PRIVACY. A payload is world content, so every helper reading a REAL save
+RETURNS on failure rather than raising - pytest renders the arguments and the
+locals of every frame in a failing traceback, and the cheapest way to guarantee
+no body reaches a log is to have no failure path that unwinds through a frame
+holding one. That now covers the DISCOVERY calls too: ``resolve_save_root``,
+``resolve_account_dir``, the save glob and ``cached_usmap`` all used to run
+before any handler, so a failure in one unwound through a frame holding the
+account directory. Every assertion about a sweep is also reduced to a scalar
+before it is written, because pytest prints the operands it compared.
+
+**Only counts and repo literals come out, and both are mechanisms rather than
+arguments.** The sweeps return integers, plus two kinds of word set - the
+measured type words and the recorded region keys - and each of those is
+INTERSECTED WITH A LITERAL ALREADY IN TRACKED SOURCE inside the sweep, so no
+word that is not already written down can leave. That distinction is not
+cosmetic: an earlier revision returned the distinct type words raw, defended as
+format vocabulary rather than world content, which is true exactly while the
+walk is synchronised and false in the one case the assertion using them fires
+in. Misaligned by one record across this library, the walk yields a word that
+is not a type word at all - and the intersection drops exactly those.
+
+The one thing the sweeps DO hold internally is the property name to type-word
+map, without which the non-negotiable-7 assertion is a tautology: the shipped
+decoder returns a name-keyed mapping carrying no type word, so with nothing to
+join on, the only checkable property of a decoded value is its Python shape,
+which every implementation satisfies. The map never leaves the judging frame.
 """
 
 from __future__ import annotations
 
+import re
 import struct
+from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
-from types import MappingProxyType
+from functools import lru_cache
+from pathlib import Path
+from types import FrameType, MappingProxyType
 from typing import Final
 
 import pytest
 
 from clockspeed.data import locate
-from clockspeed.save import chunks, header, objects
+from clockspeed.save import chunks, header, objects, usmap
 
 #: Pairs whose payloads this grammar reads to a terminator, measured.
 TAGGED_PAIRS: Final = ((10, 36), (13, 42), (14, 52))
@@ -179,7 +219,7 @@ def _skip_tag_extra(body: bytes, at: int, end: int, type_word: str) -> int | Non
     return at
 
 
-def _read_one_tag(body: bytes, at: int, end: int) -> tuple[int, str] | None:
+def _read_one_tag(body: bytes, at: int, end: int) -> tuple[int, str, int, int] | None:
     """Read one tag past its name, value included.
 
     Args:
@@ -188,7 +228,10 @@ def _read_one_tag(body: bytes, at: int, end: int) -> tuple[int, str] | None:
         end: The first byte past the payload.
 
     Returns:
-        The offset after the value and the type word, or None if it breaks.
+        The offset after the value, the type word, where the value starts and
+        its declared size. None if the tag breaks. The value extent is carried
+        out because the value-start rotation control needs to move the value
+        read while leaving the tag walk exactly where it is.
     """
     type_read = _text(body, at, end)
     if type_read is None:
@@ -208,32 +251,102 @@ def _read_one_tag(body: bytes, at: int, end: int) -> tuple[int, str] | None:
         return None
     if size < 0 or nxt + size > end:
         return None
-    return (nxt + size, type_word)
+    return (nxt + size, type_word, nxt, size)
 
 
-def _walk_tags(body: bytes, at: int, end: int, seen: set[str]) -> int | None:
-    """Walk property tags to the ``None`` terminator.
+#: The type words whose value is one or more length-prefixed strings, so the
+#: value carries its OWN length and the tag's declared size is a second,
+#: independent statement of it. That redundancy is what the rotation control
+#: below re-reads at moved offsets. ByteProperty is deliberately out: it has
+#: two measured shapes and only one of them is string-bearing, so including it
+#: would make the denominator depend on a judgement rather than on a type word.
+_STRING_BEARING_TYPES: Final = frozenset(
+    {"StrProperty", "NameProperty", "EnumProperty", "ObjectProperty", "SoftObjectProperty"}
+)
+
+#: The value-start offsets the control re-reads at. 0 is the shipped alignment
+#: and must be the only one that holds.
+_VALUE_ROTATIONS: Final = (-2, -1, 0, 1, 2)
+
+#: The collapse the rotations must show, as a FACTOR rather than as a count -
+#: an absolute count here would go red on the operator's next autosave. A
+#: rotated offset must agree on under a hundredth of what the shipped one does.
+_COLLAPSE_FACTOR: Final = 100
+
+
+def _tally_value_rotation(
+    body: bytes, type_word: str, value_start: int, size: int, rotation: Counter[int]
+) -> None:
+    """Re-read one string-bearing value at each rotated offset, and tally.
+
+    THE TAG WALK IS NOT MOVED. Only the offset the VALUE is read from is, which
+    is what makes this evidence about the value grammar rather than about
+    payload attribution. The judgement is the SHIPPED decoder's own: it returns
+    a value only when the bytes account for the declared size exactly, so a
+    non-None here is the shipped-redundancy oracle agreeing.
+
+    Args:
+        body: The decompressed body.
+        type_word: The tag's type word.
+        value_start: Where the value really begins.
+        size: The value's declared extent.
+        rotation: The accumulator, keyed by delta and mutated in place.
+    """
+    rotation[_ROTATION_DENOMINATOR] += 1
+    for delta in _VALUE_ROTATIONS:
+        decoded = objects._decode_value(body, type_word, value_start + delta, size, None)  # noqa: SLF001
+        if decoded is not None:
+            rotation[delta] += 1
+
+
+#: The key the string-bearing denominator is tallied under. Chosen outside the
+#: delta range so it cannot collide with one.
+_ROTATION_DENOMINATOR: Final = 1000
+
+
+def _walk_tags(
+    body: bytes, at: int, end: int, rotation: Counter[int] | None = None
+) -> tuple[int, Mapping[str, str]] | None:
+    """Walk property tags to the ``None`` terminator, keeping name to type.
+
+    IT RETURNS THE NAME-TO-TYPE MAP RATHER THAN A BARE SET OF WORDS, and that
+    is what makes the unmeasured-type assertion able to fail at all. The
+    shipped decoder returns a mapping keyed by property NAME; the tag's type
+    word is not in it. Without a join on the name there is nothing to test a
+    decoded value's PROVENANCE against, and the only thing left to check is its
+    Python shape - which is the closed set of shapes any implementation can
+    return, so the check is true by construction.
+
+    The map holds property names, which are world content. It never leaves the
+    judging frame: :func:`_tally_one_record` reduces it to counts and to words
+    intersected with a repo literal, and :func:`_sweep_payload_tags` keeps only
+    its values.
 
     Args:
         body: The decompressed body.
         at: Where the first tag begins.
         end: The first byte past the payload.
-        seen: Accumulator for the type words encountered.
+        rotation: When supplied, the value-start rotation accumulator. Only the
+            tag sweep passes one, so the tally is over the library exactly once.
 
     Returns:
-        The offset just past the terminator, or None if the walk breaks.
+        The offset just past the terminator and the record's property name to
+        type-word map, or None if the walk breaks.
     """
+    types: dict[str, str] = {}
     for _ in range(_TAG_CAP):
         name = _text(body, at, end)
         if name is None:
             return None
         if name[0] == "None":
-            return name[1]
+            return (name[1], types)
         tag = _read_one_tag(body, name[1], end)
         if tag is None:
             return None
-        at, type_word = tag
-        seen.add(type_word)
+        at, type_word, value_start, size = tag
+        types[name[0]] = type_word
+        if rotation is not None and type_word in _STRING_BEARING_TYPES:
+            _tally_value_rotation(body, type_word, value_start, size, rotation)
     return None
 
 
@@ -260,6 +373,21 @@ class _TagSweep:
         malformed_type_words: How many of those are not shaped like an Unreal
             property type word. The judgement is made in the sweep; only the
             count comes out.
+        unrecorded_type_words: How many distinct type words are neither
+            decoded nor named in ``objects.UNMEASURED_PAYLOAD_REGIONS``.
+            Judged in the sweep for the same reason as the field above.
+        region_keys_the_library_holds: Which keys of
+            ``objects.UNMEASURED_PAYLOAD_REGIONS`` were actually seen as a
+            top-level type word. THIS ONE CARRIES WORDS AND IS STILL CONTAINED,
+            by a mechanism rather than by an argument: it is intersected with
+            that table's own keys INSIDE the sweep, so every word that can
+            leave is provably a literal already in tracked source. A
+            desynchronised walk yields words outside the table, and those are
+            dropped by the intersection rather than reported.
+        string_bearing_tags: How many tags carry a value that states its own
+            length, and so can be checked against the tag's declared size.
+        redundancy_agreements: How many of those agreed, by VALUE-START delta.
+            Delta 0 is the shipped alignment. The others are the control.
         failures: Exception type names from any save that did not walk.
     """
 
@@ -268,7 +396,53 @@ class _TagSweep:
     exact: Mapping[tuple[int, int], int]
     distinct_type_words: int
     malformed_type_words: int
+    unrecorded_type_words: int
+    region_keys_the_library_holds: frozenset[str]
+    string_bearing_tags: int
+    redundancy_agreements: Mapping[int, int]
     failures: tuple[str, ...]
+
+
+def _library_save_paths() -> tuple[Path, ...]:
+    """Every save file on this machine, or an empty tuple. IT NEVER RAISES.
+
+    THE DISCOVERY CALLS USED TO SIT OUTSIDE EVERY ``try`` IN BOTH SWEEPS, which
+    is the one shape this module's containment discipline cannot survive: the
+    account directory's NAME is the platform account id, and a failure in
+    ``resolve_account_dir`` or in the glob unwinds through a frame holding it,
+    where a traceback renderer showing locals prints it (CLAUDE.md section 2,
+    non-negotiable 3). Every one of those calls is inside the ``try`` here, and
+    ``root`` and ``account`` are bound in THIS frame and nowhere else, so there
+    is no failure path that unwinds through a frame holding either.
+
+    Nothing is reported about the failure - not even a type name, which the
+    per-save handlers below do collect. A type name is safe; a frame that has
+    to unwind to produce one is not.
+
+    Returns:
+        The save paths, sorted, or an empty tuple when there is no library.
+    """
+    try:
+        root = locate.resolve_save_root()
+        account = locate.resolve_account_dir(root) if root is not None else None
+        return () if account is None else tuple(sorted(account.glob("*.sav")))
+    except Exception:  # a narrower catch lets the account id unwind
+        return ()
+
+
+def _cached_usmap_or_none() -> usmap.PropertyMap | None:
+    """Load the shipped property mapping, or None. IT NEVER RAISES.
+
+    The other call the decode sweep made outside every ``try``. It resolves the
+    game install, so the same argument as :func:`_library_save_paths` applies.
+
+    Returns:
+        The mapping, or None when there is none or it did not load.
+    """
+    try:
+        return usmap.cached_usmap()
+    except Exception:  # see _library_save_paths
+        return None
 
 
 def _sweep_payload_tags() -> _TagSweep | None:
@@ -282,17 +456,17 @@ def _sweep_payload_tags() -> _TagSweep | None:
     Returns:
         The sweep, or None when no save library is reachable.
     """
-    root = locate.resolve_save_root()
-    account = locate.resolve_account_dir(root) if root is not None else None
-    if account is None:
+    saves = _library_save_paths()
+    if not saves:
         return None
 
     payloads: dict[tuple[int, int], int] = {}
     walked: dict[tuple[int, int], int] = {}
     exact: dict[tuple[int, int], int] = {}
     words: set[str] = set()
+    rotation: Counter[int] = Counter()
     failures: list[str] = []
-    for path in sorted(account.glob("*.sav")):
+    for path in saves:
         try:
             data = path.read_bytes()
             parsed = header.parse_header(data)
@@ -318,9 +492,11 @@ def _sweep_payload_tags() -> _TagSweep | None:
                     start = _skip_actor_head(body, record.body_offset, end)
                 if start is None:
                     continue
-                landed = _walk_tags(body, start, end, words)
-                if landed is None:
+                walk = _walk_tags(body, start, end, rotation)
+                if walk is None:
                     continue
+                landed, types = walk
+                words.update(types.values())
                 walked[pair] = walked.get(pair, 0) + 1
                 if landed == end:
                     exact[pair] = exact.get(pair, 0) + 1
@@ -336,6 +512,14 @@ def _sweep_payload_tags() -> _TagSweep | None:
         distinct_type_words=len(words),
         malformed_type_words=sum(
             1 for word in words if not (word.isascii() and word.endswith("Property"))
+        ),
+        unrecorded_type_words=len(
+            (words - _MEASURED_VALUE_TYPES) - set(objects.UNMEASURED_PAYLOAD_REGIONS)
+        ),
+        region_keys_the_library_holds=frozenset(words & set(objects.UNMEASURED_PAYLOAD_REGIONS)),
+        string_bearing_tags=rotation[_ROTATION_DENOMINATOR],
+        redundancy_agreements=MappingProxyType(
+            {delta: rotation[delta] for delta in _VALUE_ROTATIONS}
         ),
         failures=tuple(sorted(set(failures))),
     )
@@ -463,6 +647,580 @@ def test_the_run_after_the_terminator_is_unmeasured() -> None:
         )
 
 
+#: The type words whose VALUE encoding this project has measured, transcribed
+#: here rather than imported from :mod:`clockspeed.save.objects`. Sharing the
+#: constant would make this suite a restatement of that module's opinion
+#: instead of a check on it, which is the same reasoning that module records
+#: above its own ``Measured layout constants`` block. THE CITATION IS BY NAME
+#: RATHER THAN BY LINE: a line number is the same rot as a restated count, and
+#: correcting one only resets the clock - this one had already drifted.
+_MEASURED_VALUE_TYPES: Final = frozenset(
+    {
+        "BoolProperty",
+        "ByteProperty",
+        "EnumProperty",
+        "FloatProperty",
+        "Int8Property",
+        "IntProperty",
+        "NameProperty",
+        "ObjectProperty",
+        "SoftObjectProperty",
+        "StrProperty",
+        "UInt32Property",
+    }
+)
+
+#: How a building's class path is recognised in a type path.
+_BUILDING_MARKERS: Final = (".Build_", "/Build_")
+
+#: An object reference decodes to a level name and an object path.
+_OBJECT_REFERENCE_PARTS: Final = 2
+
+
+@dataclass(frozen=True)
+class _DecodeSweep:
+    """What the DECODE sweep observed, as scalars and nothing else.
+
+    Same containment as :class:`_TagSweep` and for the same reason: a decoded
+    property VALUE is world content in a way a type word only becomes when the
+    walk desynchronises. Nothing here holds one. The judgements - is this
+    record a building, did it carry a measured type, did the shipped decoder
+    return anything - are all made INSIDE the sweep, and only integers leave.
+
+    Attributes:
+        buildings: Building records whose payload reached a terminator.
+        buildings_with_a_measured_tag: Of those, ones carrying at least one tag
+            whose type is in :data:`_MEASURED_VALUE_TYPES`, judged by THIS
+            module's walker rather than by the shipped one.
+        buildings_yielding_a_value: Of those, ones the SHIPPED decoder returned
+            at least one property for.
+        records_with_no_tag_at_all: Records whose property list is empty. Not a
+            defect - it is why the count above is not every building.
+        buildings_yielding_a_value_rotated: The same decode run against a
+            payload extent moved one byte forward. THE CONTROL - see
+            :func:`test_the_decode_collapses_when_the_payload_start_is_rotated`.
+        unmeasured_tags: Tags whose type word is outside the measured set.
+        values_off_type: Decoded values whose Python type is not one the
+            measured set can produce. A WEAK CHECK, kept with its limit stated:
+            the measured set spans bool, int, float, str and a 2-tuple of str,
+            which is very nearly the whole space of things any decoder would
+            return, so this cannot see a value fabricated from an unmeasured
+            type. The field below is what does.
+        decoded_values: How many values the shipped decoder returned in total.
+            The liveness floor for the two fields below.
+        decoded_values_from_an_unmeasured_type: Decoded values whose TAG TYPE
+            WORD is outside :data:`_MEASURED_VALUE_TYPES`. Non-negotiable 7's
+            actual claim, and it is only checkable because
+            :func:`_walk_tags` carries the name-to-type join.
+        decoded_names_this_walk_never_saw: Decoded names this module's own walk
+            found no tag for. Separated from the field above so a disagreement
+            between the two walkers reads as a disagreement rather than as a
+            provenance failure.
+        measured_types_present: Which measured type words the library actually
+            carries at top level. Intersected with :data:`_MEASURED_VALUE_TYPES`
+            INSIDE the sweep, so every word that can leave is provably one of
+            the literals in this file.
+        measured_types_yielding: Of those, the ones the shipped decoder
+            returned at least one value for. Contained identically.
+        rotated_actor_buildings: Of the buildings the rotation control moves,
+            how many are actors - the ones whose payload opens with a head.
+        rotated_actor_buildings_failing_in_the_head: Of those, how many
+            collapse inside :func:`_skip_actor_head`, before one property tag
+            is examined. THIS IS THE FIELD THAT NAMES WHAT THAT CONTROL
+            ACTUALLY TESTS.
+        failures: Exception type names from any save that did not sweep.
+    """
+
+    buildings: int
+    buildings_with_a_measured_tag: int
+    buildings_yielding_a_value: int
+    records_with_no_tag_at_all: int
+    buildings_yielding_a_value_rotated: int
+    unmeasured_tags: int
+    values_off_type: int
+    decoded_values: int
+    decoded_values_from_an_unmeasured_type: int
+    decoded_names_this_walk_never_saw: int
+    measured_types_present: frozenset[str]
+    measured_types_yielding: frozenset[str]
+    rotated_actor_buildings: int
+    rotated_actor_buildings_failing_in_the_head: int
+    failures: tuple[str, ...]
+
+
+@dataclass
+class _DecodeTally:
+    """The decode sweep's running accumulators, gathered so the folder takes one.
+
+    Attributes:
+        counts: Integer tallies, by key.
+        measured_present: Measured type words seen at top level.
+        measured_yielding: Measured type words that produced a value.
+    """
+
+    counts: Counter[str]
+    measured_present: set[str]
+    measured_yielding: set[str]
+
+
+def _is_measured_shape(value: object) -> bool:
+    """Whether a decoded value has a shape the measured types can produce.
+
+    The measured types yield exactly four Python shapes: ``bool`` from
+    BoolProperty, ``int`` from the integer widths and a raw ByteProperty,
+    ``float`` from FloatProperty, ``str`` from the one-string types, and a
+    2-tuple of ``str`` from the object references. Anything else means a
+    decoder returned something no measured branch can produce.
+
+    Args:
+        value: One decoded property value.
+
+    Returns:
+        True when the shape is one a measured type produces.
+    """
+    if isinstance(value, tuple):
+        return len(value) == _OBJECT_REFERENCE_PARTS and all(
+            isinstance(part, str) for part in value
+        )
+    return isinstance(value, (bool, int, float, str))
+
+
+def _is_building(type_path: str) -> bool:
+    """Whether a class path names a built structure.
+
+    Args:
+        type_path: The record's class path.
+
+    Returns:
+        True when the path carries a building marker.
+    """
+    return any(marker in type_path for marker in _BUILDING_MARKERS)
+
+
+def _tally_decoded_values(
+    decoded: Mapping[str, object], types: Mapping[str, str], tally: _DecodeTally
+) -> None:
+    """Judge one record's decoded values against the tags they came out of.
+
+    THE JOIN ON ``name`` IS THE WHOLE POINT. The shipped decoder returns a
+    mapping keyed by property name and carries no type word, so without this
+    join there is nothing to check a value's PROVENANCE against and the only
+    remaining oracle is its Python shape - which every implementation satisfies.
+
+    Args:
+        decoded: What the shipped decoder returned for one record.
+        types: The record's property name to type-word map, from this module's
+            own walk of the same payload.
+        tally: The accumulator, mutated in place.
+    """
+    tally.counts["decoded"] += len(decoded)
+    for name, value in decoded.items():
+        word = types.get(name)
+        if word is None:
+            tally.counts["decoded_unseen"] += 1
+        elif word in _MEASURED_VALUE_TYPES:
+            tally.measured_yielding.add(word)
+        else:
+            tally.counts["from_unmeasured"] += 1
+        if not _is_measured_shape(value):
+            tally.counts["off_type"] += 1
+
+
+def _tally_one_record(
+    body: bytes,
+    record: objects.ObjectRecord,
+    property_map: usmap.PropertyMap,
+    tally: _DecodeTally,
+) -> None:
+    """Fold one record's decode result into the running counts.
+
+    THE JUDGEMENTS HAPPEN HERE and only integers and repo-literal words leave,
+    which is the same containment :class:`_TagSweep` uses. This frame is the
+    only one that ever holds a decoded value or a property name, and it holds
+    either no longer than the predicate it reduces it to.
+
+    EVERY RECORD IS DECODED, not only the buildings. The building counters
+    below still answer CS-413's own clause, but the per-type coverage the
+    non-negotiable-7 assertions rest on has to be gathered over the whole
+    library: a type carried by no building would otherwise be reported as
+    covered by a sweep that never looked at one.
+
+    Args:
+        body: The decompressed body.
+        record: The record to decode.
+        property_map: The parsed mapping.
+        tally: The accumulator, mutated in place.
+    """
+    end = record.body_offset + record.body_length
+    start: int | None = record.body_offset
+    if record.kind == objects.KIND_ACTOR:
+        start = _skip_actor_head(body, record.body_offset, end)
+    if start is None:
+        return
+    walk = _walk_tags(body, start, end)
+    if walk is None:
+        return
+    types = walk[1]
+    words = set(types.values())
+    if not words:
+        tally.counts["no_tags"] += 1
+    tally.counts["unmeasured"] += len(words - _MEASURED_VALUE_TYPES)
+    tally.measured_present |= words & _MEASURED_VALUE_TYPES
+
+    decoded = objects.read_properties(body, record, property_map).properties
+    _tally_decoded_values(decoded, types, tally)
+
+    if not _is_building(record.type_path):
+        return
+    tally.counts["buildings"] += 1
+    if not words & _MEASURED_VALUE_TYPES:
+        return
+    tally.counts["with_measured"] += 1
+    if decoded:
+        tally.counts["yielding"] += 1
+    moved = record.with_payload(record.body_offset + 1, record.body_length - 1)
+    if objects.read_properties(body, moved, property_map).properties:
+        tally.counts["rotated"] += 1
+    # WHERE the rotated read actually dies, which is what makes the name of
+    # the test consuming this honest rather than aspirational.
+    if record.kind == objects.KIND_ACTOR:
+        tally.counts["rotated_actors"] += 1
+        moved_end = moved.body_offset + moved.body_length
+        if _skip_actor_head(body, moved.body_offset, moved_end) is None:
+            tally.counts["rotated_head_failed"] += 1
+
+
+@lru_cache(maxsize=1)
+def _sweep_decoded_values() -> _DecodeSweep | None:
+    """Run the SHIPPED decoder over every real payload and return COUNTS ONLY.
+
+    Contained exactly as :func:`_sweep_payload_tags` is - see that docstring.
+    The one addition is that decoded VALUES pass through this frame, so it
+    holds none of them beyond the predicate it reduces them to.
+
+    Cached because four tests consume it and the sweep reads every save on the
+    machine; the tag sweep above predates the cache and re-reads per test.
+
+    Returns:
+        The sweep, or None when no save library is reachable.
+    """
+    saves = _library_save_paths()
+    property_map = _cached_usmap_or_none()
+    if not saves or property_map is None:
+        return None
+
+    tally = _DecodeTally(counts=Counter(), measured_present=set(), measured_yielding=set())
+    failures: list[str] = []
+    for path in saves:
+        try:
+            data = path.read_bytes()
+            parsed = header.parse_header(data)
+        except (OSError, header.HeaderError):
+            continue
+        if (parsed.header_version, parsed.save_version) not in TAGGED_PAIRS:
+            continue
+        # BROAD BY DESIGN, for the reason given in _sweep_payload_tags.
+        try:
+            body = chunks.decompress_body(
+                data, parsed.body_offset, header_version=parsed.header_version
+            ).payload
+            table = objects.parse_body(
+                body, save_version=parsed.save_version, header_version=parsed.header_version
+            )
+            for record in table.records:
+                _tally_one_record(body, record, property_map, tally)
+        except Exception as exc:
+            failures.append(type(exc).__name__)
+            continue
+    return _DecodeSweep(
+        buildings=tally.counts["buildings"],
+        buildings_with_a_measured_tag=tally.counts["with_measured"],
+        buildings_yielding_a_value=tally.counts["yielding"],
+        records_with_no_tag_at_all=tally.counts["no_tags"],
+        buildings_yielding_a_value_rotated=tally.counts["rotated"],
+        unmeasured_tags=tally.counts["unmeasured"],
+        values_off_type=tally.counts["off_type"],
+        decoded_values=tally.counts["decoded"],
+        decoded_values_from_an_unmeasured_type=tally.counts["from_unmeasured"],
+        decoded_names_this_walk_never_saw=tally.counts["decoded_unseen"],
+        # Intersected with this module's own literal, so no word that is not
+        # already written down in tracked source can leave the sweep.
+        measured_types_present=frozenset(tally.measured_present & _MEASURED_VALUE_TYPES),
+        measured_types_yielding=frozenset(tally.measured_yielding & _MEASURED_VALUE_TYPES),
+        rotated_actor_buildings=tally.counts["rotated_actors"],
+        rotated_actor_buildings_failing_in_the_head=tally.counts["rotated_head_failed"],
+        failures=tuple(sorted(set(failures))),
+    )
+
+
+def _decode_sweep_or_skip() -> _DecodeSweep:
+    """Fetch the decode sweep, skipping the test when there is no library.
+
+    Returns:
+        The sweep.
+    """
+    sweep = _sweep_decoded_values()
+    if sweep is None:
+        pytest.skip("no save library or no property mapping on this machine")
+    assert sweep.failures == (), f"failures decoding real bodies: {sweep.failures}"
+    return sweep
+
+
+def test_a_real_building_yields_at_least_one_decoded_property_value() -> None:
+    """CS-413's decode clause, asserted as an EQUALITY rather than as a floor.
+
+    ``> 0`` would be satisfied by a decoder that works on one building and
+    fails on every other, which is the shape the project has already been
+    bitten by - a liveness floor still passes a rotated alignment. So the claim
+    is that EVERY building carrying a measured type decodes, and the floor is
+    kept only to stop the equality passing vacuously at 0 == 0.
+
+    NOTE WHAT IS DELIBERATELY NOT ASSERTED: that every building decodes. It
+    does not, and that is measured rather than excused - some carry only types
+    whose value grammar is unmeasured, and :data:`_DecodeSweep.records_with_no_tag_at_all`
+    counts records whose property list is empty outright. An equality against
+    ``buildings`` would be false, and writing it would have been the failure
+    this project calls guessing.
+    """
+    sweep = _decode_sweep_or_skip()
+
+    assert sweep.buildings_with_a_measured_tag > 0, (
+        "no building on this machine carries a measured property type, so the "
+        "equality below would pass vacuously at 0 == 0"
+    )
+    assert sweep.buildings_yielding_a_value == sweep.buildings_with_a_measured_tag, (
+        f"the decoder returned a value for {sweep.buildings_yielding_a_value} of "
+        f"{sweep.buildings_with_a_measured_tag} buildings that carry a type it claims to "
+        "have measured; a decoder that works on some is a decoder that is wrong about "
+        "which types it has measured"
+    )
+
+
+def test_the_decode_collapses_when_the_payload_start_is_rotated() -> None:
+    """THE PAYLOAD-ATTRIBUTION CONTROL, and it is NOT evidence about values.
+
+    IT WAS NAMED FOR SOMETHING IT DOES NOT TEST. Moving a record's payload
+    start forward by one byte does collapse the decode, but the collapse
+    happens inside :func:`_skip_actor_head` - the second assertion below
+    measures that rather than describing it, and on this library it is EVERY
+    actor building, not most of them. Not one property tag is examined, so this
+    exercises zero lines of the tag grammar and zero lines of the value
+    grammar. What it genuinely rules out is a payload attribution that would
+    work equally well one byte over, which is worth having and is all it is.
+
+    THE CONTROL THAT DOES COVER THE VALUE GRAMMAR IS
+    :func:`test_the_shipped_redundancy_oracle_collapses_when_only_the_value_read_is_rotated`,
+    which leaves the tag walk exactly where it is and moves only the offset a
+    value is read from. Read the two together; neither substitutes for the
+    other.
+
+    The liveness floor stays, because an equality against zero is passable by a
+    decoder that does nothing at all.
+    """
+    sweep = _decode_sweep_or_skip()
+
+    assert sweep.buildings_yielding_a_value > 0, (
+        "the decoder yielded nothing at the shipped alignment, so the collapse "
+        "asserted below is the collapse of something that never worked"
+    )
+    assert sweep.buildings_yielding_a_value_rotated == 0, (
+        f"{sweep.buildings_yielding_a_value_rotated} buildings still decode with their "
+        "payload moved one byte forward. A grammar that reads the same world through a "
+        "rotated window is not aligned to anything, and the decoded values are then not "
+        "evidence about this save format"
+    )
+    assert sweep.rotated_actor_buildings > 0, (
+        "no actor building was rotated at all, so the scope claim below is vacuous"
+    )
+    assert sweep.rotated_actor_buildings_failing_in_the_head == sweep.rotated_actor_buildings, (
+        f"{sweep.rotated_actor_buildings_failing_in_the_head} of "
+        f"{sweep.rotated_actor_buildings} rotated actor payloads fail in the actor head. "
+        "If that is no longer ALL of them, this control has started reaching the tag "
+        "grammar and its name and docstring are understating it - widen them rather "
+        "than deleting this assertion"
+    )
+
+
+def test_the_shipped_redundancy_oracle_collapses_when_only_the_value_read_is_rotated() -> None:
+    """THE CONTROL THAT ACTUALLY EXERCISES THE VALUE GRAMMAR.
+
+    A string-bearing value states its own length, and the tag states the same
+    length again a few bytes earlier. Those are two independent numbers in the
+    shipped file, so their agreement is evidence the reader is where it thinks
+    it is - but only if the agreement COLLAPSES when the read is moved. An
+    oracle that holds at every offset is measuring self-consistency and calling
+    it alignment.
+
+    THE TAG WALK IS NOT MOVED HERE. It stays exactly where the shipped grammar
+    puts it and only the offset the VALUE is read from shifts, which is what
+    separates this from the payload-start control above - that one dies in the
+    actor head before any of this runs. The judgement is the SHIPPED decoder's,
+    not a copy of it: ``objects._decode_value`` returns a value only when the
+    bytes account for the declared size exactly.
+
+    ASSERTED AS A RATE AND A FACTOR, never as counts. The operator plays this
+    game, so an absolute figure here is red on the next autosave for no defect
+    at all - which is the same reason the count this replaces was deleted from
+    ``objects.py`` rather than corrected.
+    """
+    sweep = _sweep_or_skip()
+    _assert_walker_is_live(sweep)
+
+    assert sweep.string_bearing_tags > 0, (
+        "no string-bearing tag was seen anywhere in the library, so every rate below "
+        "would be vacuous"
+    )
+    assert sweep.redundancy_agreements[0] == sweep.string_bearing_tags, (
+        f"the tag's declared size and the value's own length prefix agree on only "
+        f"{sweep.redundancy_agreements[0]} of {sweep.string_bearing_tags} string-bearing "
+        "tags at the SHIPPED alignment. The oracle the value grammar rests on does not "
+        "hold, so the collapse asserted below would be the collapse of nothing"
+    )
+    for delta in _VALUE_ROTATIONS:
+        if delta == 0:
+            continue
+        agreed = sweep.redundancy_agreements[delta]
+        assert agreed * _COLLAPSE_FACTOR < sweep.string_bearing_tags, (
+            f"read at a value-start offset of {delta:+d}, the redundancy oracle still "
+            f"agrees on {agreed} of {sweep.string_bearing_tags} tags. An oracle that "
+            "survives being moved is not evidence about alignment, and the value "
+            "grammar would then rest on nothing"
+        )
+
+
+def test_no_value_of_an_unmeasured_type_is_ever_decoded() -> None:
+    """Non-negotiable 7 at the value seam - flagged and skipped, never guessed.
+
+    THE ORACLE IS PROVENANCE, NOT SHAPE, and the difference is the whole test.
+    The first revision asserted that no decoded value had a Python type outside
+    bool, int, float, str and a 2-tuple of str - which is very nearly the whole
+    space of things any decoder can return, so it was true by construction. An
+    adversary measured it: wrapping ``objects._decode_value`` to return
+    ``body[at:at + size].decode("latin-1")`` for StructProperty, an unmeasured
+    type, fabricated tens of thousands of values out of unread bytes and left
+    every assertion in this file green.
+
+    What can fail is a join on the tag's TYPE WORD, which the shipped decoder's
+    name-keyed mapping does not carry and :func:`_walk_tags` now supplies. The
+    shape check is kept below it, weak and labelled, because it still catches a
+    branch returning something structurally impossible.
+    """
+    sweep = _decode_sweep_or_skip()
+
+    assert sweep.unmeasured_tags > 0, (
+        "no tag of an unmeasured type was seen anywhere in the library, so the "
+        "skip-rather-than-guess assertion below would be vacuous"
+    )
+    assert sweep.decoded_values > 0, (
+        "the decoder returned no value at all on a host that has a library, so every "
+        "zero below is the zero of a decoder that did nothing"
+    )
+    assert sweep.decoded_names_this_walk_never_saw == 0, (
+        f"{sweep.decoded_names_this_walk_never_saw} decoded properties have no tag in "
+        "this module's own walk of the same payload. The two walkers disagree, so the "
+        "provenance assertion below is judging against a map that does not describe "
+        "what the shipped decoder read"
+    )
+    assert sweep.decoded_values_from_an_unmeasured_type == 0, (
+        f"{sweep.decoded_values_from_an_unmeasured_type} decoded values came from a tag "
+        "whose type word is outside the measured set, which is a value read out of "
+        "bytes this project has never measured (non-negotiable 7). The values and the "
+        "names are deliberately not rendered - they are world content"
+    )
+    assert sweep.values_off_type == 0, (
+        f"{sweep.values_off_type} decoded values have a shape no measured type can "
+        "produce, which means a branch is returning something it did not measure. The "
+        "values are deliberately not rendered - they are world content"
+    )
+
+
+def test_every_measured_type_the_library_exercises_yields_at_least_one_value() -> None:
+    """Coverage stated PER TYPE, because the building equality is not per type.
+
+    :func:`test_a_real_building_yields_at_least_one_decoded_property_value`
+    counts a building as covered the moment ONE of its properties decodes, so a
+    decoder honouring three of its eleven declared types satisfies it. Measured
+    on the merged tree: deleting the decode of BoolProperty, EnumProperty,
+    Int8Property, IntProperty, NameProperty, SoftObjectProperty, StrProperty
+    and UInt32Property - all eight at once - suppressed thousands of real
+    decodes and left the whole suite green. Only ByteProperty, FloatProperty
+    and ObjectProperty were genuinely covered, and only because they happen to
+    be near universal in this operator's world. That is coverage by accident of
+    the corpus.
+
+    THE UNEXERCISED SET IS ASSERTED EMPTY RATHER THAN IGNORED. A type the
+    library does not carry is not covered by anything here, and a silent gap is
+    the thing this assertion exists to refuse - so it fails loudly and says
+    which type, rather than quietly proving less than it appears to.
+
+    Every word rendered below came out of :data:`_MEASURED_VALUE_TYPES`, a
+    literal in this file, never out of a save.
+    """
+    sweep = _decode_sweep_or_skip()
+
+    assert sweep.measured_types_present, (
+        "the library carries no measured property type at top level, so every "
+        "per-type claim below would be vacuous"
+    )
+    uncovered = sorted(sweep.measured_types_present - sweep.measured_types_yielding)
+    assert not uncovered, (
+        f"{uncovered} appear as top-level tags in this library and the shipped decoder "
+        "returned no value for any of them. A type in MEASURED_VALUE_TYPES that never "
+        "decodes is a type the module is wrong about having measured"
+    )
+    unexercised = sorted(_MEASURED_VALUE_TYPES - sweep.measured_types_present)
+    assert not unexercised, (
+        f"{unexercised} are declared measured but no save on this machine carries one "
+        "at top level, so nothing here covers them. Record that gap deliberately - do "
+        "not let it pass as coverage"
+    )
+
+
+def test_the_shipped_measured_set_matches_this_module_transcription() -> None:
+    """The two transcriptions of the measured set must agree.
+
+    This suite states the measured type set independently rather than importing
+    it, for the reason that module records above its ``Measured layout
+    constants`` block: a suite that imports the constant it is checking asserts
+    only that the module equals itself. The cost of transcribing is that the
+    two can drift, and this is what catches the drift.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+    """
+    assert objects.MEASURED_VALUE_TYPES == _MEASURED_VALUE_TYPES
+
+
+def test_every_unmeasured_type_the_library_holds_is_recorded_as_data() -> None:
+    """CS-412's shape, applied to the payload interior.
+
+    A partial recorded as an adjective is not resumable. So every type word the
+    decoder SKIPS must appear by name in
+    :data:`objects.UNMEASURED_PAYLOAD_REGIONS`, which is the structure a later
+    slice executes against. The trailing run is in that table too, and is the
+    reason the walk is terminator-exact rather than boundary-exact.
+
+    THE ASSERTION RUNS AGAINST THE LIBRARY, not against a hardcoded list, so a
+    game update introducing a new property type turns this red instead of
+    letting it drift out of date silently. The word itself is never rendered -
+    the judgement happens inside the sweep, exactly as it does for the
+    malformed-word count, because the case where a word is NOT vocabulary is
+    the desynchronised walk.
+    """
+    sweep = _sweep_or_skip()
+    _assert_walker_is_live(sweep)
+
+    assert sweep.unrecorded_type_words == 0, (
+        f"{sweep.unrecorded_type_words} property type words are neither decoded nor "
+        "recorded as an unmeasured region, so a later slice inherits a sentence instead "
+        "of evidence. Add each to objects.UNMEASURED_PAYLOAD_REGIONS with what is pinned "
+        "and what is not claimed, rather than widening the measured set to silence this"
+    )
+    assert "trailing_run" in objects.UNMEASURED_PAYLOAD_REGIONS, (
+        "the run after the property terminator is the region that keeps this walk "
+        "terminator-exact rather than boundary-exact, and it must stay recorded"
+    )
+
+
 def test_every_type_word_is_format_vocabulary_and_never_world_content() -> None:
     """A structural invariant on the vocabulary, not a hardcoded list of it.
 
@@ -492,3 +1250,1138 @@ def test_every_type_word_is_format_vocabulary_and_never_world_content() -> None:
         "reading something that is not a tag. The words themselves are deliberately not "
         "rendered here - a desynchronised walk yields world content, not vocabulary"
     )
+
+
+# ---------------------------------------------------------------------------
+# THE SYNTHETIC PAYLOAD - the half of this module that needs no save library
+#
+# WHY IT EXISTS. Every assertion above this line reads the operator's own save
+# library, so on any machine without one - CI, a fresh clone, a reviewer's
+# laptop - they all skip and the decoder at ``objects.py`` executes ZERO lines.
+# CLAUDE.md section 7 settles that the rule suite must run on a machine with no
+# game installed, and that fixtures are small synthetic registries hand
+# authored in the repo. These bytes are hand authored here.
+#
+# WHAT IT PROVES AND WHAT IT CANNOT. It proves the shipped decoder is SELF
+# CONSISTENT: given bytes laid out the way this project SAYS a payload is laid
+# out, it returns the values that were encoded, skips the types it says it does
+# not measure, and stops at the terminator. IT IS NOT EVIDENCE THAT THE GRAMMAR
+# MATCHES THE GAME - a fixture built from the same belief as the reader agrees
+# with the reader by construction. The real-library sweeps above are the only
+# evidence about the format, and the rotation control inside them is the only
+# evidence about the alignment. Neither claim may ever be transferred to this
+# fixture.
+#
+# NO PRIVACY COST. Every byte below was typed here. Nothing was sliced out of a
+# save, so these names and values may be rendered freely in a failure message,
+# which is exactly why the assertions here can be specific where the sweeps
+# above can only be counts.
+# ---------------------------------------------------------------------------
+
+#: Bytes ahead of the payload inside the synthetic body, so the fixture
+#: exercises a non-zero ``body_offset`` rather than the degenerate 0.
+_BODY_PREFIX: Final = bytes(range(24))
+
+#: Bytes past the payload, so an over-read is detectable rather than benign.
+_BODY_SUFFIX: Final = bytes(range(200, 208))
+
+#: Stands in for the variable run that follows the terminator on every real
+#: payload. Its presence is what makes the fixture prove TERMINATOR exactness
+#: rather than accidentally proving boundary exactness.
+_TRAILING_RUN: Final = b"\xde\xad\xbe\xef\x01\x02\x03\x04"
+
+_SYNTHETIC_CLASS_PATH: Final = "/Synthetic/Build_SyntheticThing.Build_SyntheticThing_C"
+_SYNTHETIC_SCHEMA: Final = "Build_SyntheticThing_C"
+_SYNTHETIC_LEVEL: Final = "Persistent_Level"
+_SYNTHETIC_ROOT: Final = "Persistent_Level:PersistentLevel"
+_SYNTHETIC_INSTANCE: Final = "Persistent_Level:PersistentLevel.Build_SyntheticThing_C_0"
+_SYNTHETIC_COMPONENT: Final = "Persistent_Level:PersistentLevel.SyntheticComponent_0"
+_SYNTHETIC_TARGET: Final = "Persistent_Level:PersistentLevel.SyntheticTarget_0"
+_SYNTHETIC_ASSET: Final = "/Synthetic/Assets/SyntheticAsset.SyntheticAsset_C"
+
+_SYNTHETIC_INT: Final = -1234567
+_SYNTHETIC_UINT32: Final = 4000000000
+_SYNTHETIC_FLOAT: Final = 1.5
+_SYNTHETIC_INT8: Final = -42
+_SYNTHETIC_BYTE: Final = 200
+_SYNTHETIC_STR: Final = "SyntheticStrValue"
+_SYNTHETIC_NAME: Final = "SyntheticNameValue"
+_SYNTHETIC_ENUM_WORD: Final = "ESyntheticEnum"
+_SYNTHETIC_ENUM_MEMBER: Final = "ESyntheticEnum::Second"
+_SYNTHETIC_BYTE_ENUM_WORD: Final = "ESyntheticByteEnum"
+_SYNTHETIC_BYTE_ENUM_MEMBER: Final = "ESyntheticByteEnum::Third"
+_SYNTHETIC_STRUCT_WORD: Final = "SyntheticStructPayload"
+_SYNTHETIC_ARRAY_INNER: Final = "IntProperty"
+
+#: How many tags of an UNMEASURED type the fixture payload carries. Named so
+#: the expected warning count is not a bare literal in three assertions.
+_SYNTHETIC_UNMEASURED_TAGS: Final = 2
+
+#: The object-type discriminator for an actor, carried by the record rather
+#: than interpreted by :func:`objects.read_properties`.
+_OBJECT_TYPE_ACTOR: Final = 1
+_OBJECT_TYPE_COMPONENT: Final = 0
+
+
+def _i32(value: int) -> bytes:
+    """Encode one little-endian int32.
+
+    Args:
+        value: The number.
+
+    Returns:
+        Its four bytes.
+    """
+    return struct.pack("<i", value)
+
+
+def _fstring(text: str) -> bytes:
+    """Encode one length-prefixed UTF-8 string, its NUL terminator included.
+
+    Args:
+        text: ASCII text.
+
+    Returns:
+        The prefix and the bytes, in the shape ``objects._payload_text`` reads.
+    """
+    raw = text.encode("ascii") + b"\x00"
+    return _i32(len(raw)) + raw
+
+
+def _tag_head(name: str, type_word: str, size: int, extra: bytes) -> bytes:
+    """Build one property tag up to but not including its value.
+
+    Args:
+        name: The property name.
+        type_word: The tag's type word.
+        size: The value's declared extent.
+        extra: The type-specific tag data between the index field and the
+            property-guid flag.
+
+    Returns:
+        The tag header, ending with a CLEAR property-guid flag.
+    """
+    return _fstring(name) + _fstring(type_word) + _i32(size) + _i32(0) + extra + b"\x00"
+
+
+def _scalar_tag(name: str, type_word: str, value: bytes) -> bytes:
+    """A tag whose value is a fixed-width number or a single bare string.
+
+    Args:
+        name: The property name.
+        type_word: The tag's type word.
+        value: The encoded value.
+
+    Returns:
+        The whole tag.
+    """
+    return _tag_head(name, type_word, len(value), b"") + value
+
+
+def _bool_tag(name: str, raised: bool) -> bytes:
+    """A BoolProperty, whose value rides in the tag and whose size is 0.
+
+    Args:
+        name: The property name.
+        raised: The value.
+
+    Returns:
+        The whole tag.
+    """
+    return _tag_head(name, "BoolProperty", 0, bytes([int(raised)]))
+
+
+def _enum_tag(name: str, type_word: str, enum_word: str, member: str) -> bytes:
+    """An EnumProperty, or the enum-named shape of a ByteProperty.
+
+    Args:
+        name: The property name.
+        type_word: ``EnumProperty`` or ``ByteProperty``.
+        enum_word: The enum named in the tag data.
+        member: The member name carried as the value.
+
+    Returns:
+        The whole tag.
+    """
+    value = _fstring(member)
+    return _tag_head(name, type_word, len(value), _fstring(enum_word)) + value
+
+
+def _raw_byte_tag(name: str, value: int) -> bytes:
+    """The other measured ByteProperty shape - one raw byte, enum word ``None``.
+
+    Args:
+        name: The property name.
+        value: The byte.
+
+    Returns:
+        The whole tag.
+    """
+    return _tag_head(name, "ByteProperty", 1, _fstring("None")) + bytes([value])
+
+
+def _reference_tag(name: str, type_word: str, level: str, path: str) -> bytes:
+    """An ObjectProperty or SoftObjectProperty - a level reference and a path.
+
+    Args:
+        name: The property name.
+        type_word: ``ObjectProperty`` or ``SoftObjectProperty``.
+        level: The level reference.
+        path: The object path.
+
+    Returns:
+        The whole tag.
+    """
+    value = _fstring(level) + _fstring(path)
+    if type_word == "SoftObjectProperty":
+        value += _i32(0)
+    return _tag_head(name, type_word, len(value), b"") + value
+
+
+def _struct_tag(name: str, struct_word: str, opaque: bytes) -> bytes:
+    """An UNMEASURED StructProperty, present so the fixture proves it is skipped.
+
+    Args:
+        name: The property name.
+        struct_word: The struct's own type word, carried in the tag data.
+        opaque: The interior, which this project does not read.
+
+    Returns:
+        The whole tag.
+    """
+    extra = _fstring(struct_word) + bytes(objects.GUID_BYTES)
+    return _tag_head(name, "StructProperty", len(opaque), extra) + opaque
+
+
+def _array_tag(name: str, inner_word: str, opaque: bytes) -> bytes:
+    """An UNMEASURED ArrayProperty, present for the same reason.
+
+    Args:
+        name: The property name.
+        inner_word: The element type word, carried in the tag data.
+        opaque: The elements, which this project does not read.
+
+    Returns:
+        The whole tag.
+    """
+    return _tag_head(name, "ArrayProperty", len(opaque), _fstring(inner_word)) + opaque
+
+
+#: Padding appended past a string value so the tag's DECLARED size exceeds what
+#: the string's own length prefix accounts for. That is the shipped-redundancy
+#: oracle failing on a MEASURED type, which means the reader is not where it
+#: believes it is - a different thing entirely from an unmeasured type.
+_DISAGREEMENT_PADDING: Final = 6
+
+#: One report per skip reason - unmeasured type, and measured-but-disagreeing.
+_DISTINCT_SKIP_REPORTS: Final = 2
+
+
+def _disagreeing_string_tag(name: str, text: str) -> bytes:
+    """A MEASURED type whose bytes do not account for its declared size.
+
+    The walk still steps over it correctly, because it steps by the DECLARED
+    size - which is exactly why this condition is silent unless it is reported.
+
+    Args:
+        name: The property name.
+        text: The string actually encoded.
+
+    Returns:
+        The whole tag.
+    """
+    value = _fstring(text) + bytes(_DISAGREEMENT_PADDING)
+    return _tag_head(name, "StrProperty", len(value), b"") + value
+
+
+def _actor_head(components: tuple[str, ...]) -> bytes:
+    """The parent reference and component list an ACTOR payload opens with.
+
+    Args:
+        components: Component object paths, each paired with the level.
+
+    Returns:
+        The head, ending where the first tag begins.
+    """
+    out = _fstring(_SYNTHETIC_LEVEL) + _fstring(_SYNTHETIC_ROOT)
+    out += _i32(len(components))
+    for path in components:
+        out += _fstring(_SYNTHETIC_LEVEL) + _fstring(path)
+    return out
+
+
+#: Every measured type word, encoded once - twice for ByteProperty, which has
+#: two measured shapes. The falsy cases are deliberate: a False bool and an
+#: empty string are the values a decoder that confuses "absent" with "empty"
+#: silently drops, and the expected mapping below asserts they are present.
+_MEASURED_TAGS: Final = (
+    _scalar_tag("mSyntheticInt", "IntProperty", struct.pack("<i", _SYNTHETIC_INT)),
+    _scalar_tag("mSyntheticUInt32", "UInt32Property", struct.pack("<I", _SYNTHETIC_UINT32)),
+    _scalar_tag("mSyntheticFloat", "FloatProperty", struct.pack("<f", _SYNTHETIC_FLOAT)),
+    _scalar_tag("mSyntheticInt8", "Int8Property", struct.pack("<b", _SYNTHETIC_INT8)),
+    _scalar_tag("mSyntheticStr", "StrProperty", _fstring(_SYNTHETIC_STR)),
+    _scalar_tag("mSyntheticEmptyStr", "StrProperty", _i32(0)),
+    _scalar_tag("mSyntheticName", "NameProperty", _fstring(_SYNTHETIC_NAME)),
+    _bool_tag("mSyntheticBool", True),
+    _bool_tag("mSyntheticBoolFalse", False),
+    _raw_byte_tag("mSyntheticByteRaw", _SYNTHETIC_BYTE),
+    _enum_tag(
+        "mSyntheticByteNamed",
+        "ByteProperty",
+        _SYNTHETIC_BYTE_ENUM_WORD,
+        _SYNTHETIC_BYTE_ENUM_MEMBER,
+    ),
+    _enum_tag("mSyntheticEnum", "EnumProperty", _SYNTHETIC_ENUM_WORD, _SYNTHETIC_ENUM_MEMBER),
+    _reference_tag("mSyntheticObject", "ObjectProperty", _SYNTHETIC_LEVEL, _SYNTHETIC_TARGET),
+    _reference_tag(
+        "mSyntheticSoftObject", "SoftObjectProperty", _SYNTHETIC_LEVEL, _SYNTHETIC_ASSET
+    ),
+)
+
+#: The two UNMEASURED regions the fixture carries, so "flagged and skipped" is
+#: exercised rather than described.
+_UNMEASURED_TAGS: Final = (
+    _struct_tag("mSyntheticStruct", _SYNTHETIC_STRUCT_WORD, bytes(range(32))),
+    _array_tag("mSyntheticArray", _SYNTHETIC_ARRAY_INNER, _i32(2) + _i32(7) + _i32(9)),
+)
+
+#: What the shipped decoder must return for the payload above. Written out in
+#: full rather than derived from the builders, so an encoder bug and a decoder
+#: bug cannot cancel.
+_EXPECTED_PROPERTIES: Final[Mapping[str, object]] = MappingProxyType(
+    {
+        "mSyntheticInt": _SYNTHETIC_INT,
+        "mSyntheticUInt32": _SYNTHETIC_UINT32,
+        "mSyntheticFloat": _SYNTHETIC_FLOAT,
+        "mSyntheticInt8": _SYNTHETIC_INT8,
+        "mSyntheticStr": _SYNTHETIC_STR,
+        "mSyntheticEmptyStr": "",
+        "mSyntheticName": _SYNTHETIC_NAME,
+        "mSyntheticBool": True,
+        "mSyntheticBoolFalse": False,
+        "mSyntheticByteRaw": _SYNTHETIC_BYTE,
+        "mSyntheticByteNamed": _SYNTHETIC_BYTE_ENUM_MEMBER,
+        "mSyntheticEnum": _SYNTHETIC_ENUM_MEMBER,
+        "mSyntheticObject": (_SYNTHETIC_LEVEL, _SYNTHETIC_TARGET),
+        "mSyntheticSoftObject": (_SYNTHETIC_LEVEL, _SYNTHETIC_ASSET),
+    }
+)
+
+
+def _synthetic_payload(*, actor: bool) -> bytes:
+    """Assemble one whole payload, terminator and trailing run included.
+
+    Args:
+        actor: Whether to open with the ACTOR head. A COMPONENT payload opens
+            directly with its tags, and reading one as the other
+            desynchronises on the first tag - which is what
+            :func:`test_the_synthetic_component_payload_needs_no_actor_head`
+            pins.
+
+    Returns:
+        The payload bytes.
+    """
+    head = _actor_head((_SYNTHETIC_COMPONENT,)) if actor else b""
+    tags = b"".join((*_MEASURED_TAGS, *_UNMEASURED_TAGS))
+    return head + tags + _fstring("None") + _TRAILING_RUN
+
+
+def _synthetic_record(payload: bytes, *, actor: bool = True, **extra: int) -> objects.ObjectRecord:
+    """Build the record that attributes ``payload`` inside the synthetic body.
+
+    Args:
+        payload: The payload the body will carry.
+        actor: Whether the record is an actor.
+        **extra: ``body_offset`` or ``body_length`` overrides, for the
+            out-of-range cases.
+
+    Returns:
+        The record.
+    """
+    fields: dict[str, int] = {
+        "body_offset": len(_BODY_PREFIX),
+        "body_length": len(payload),
+        **extra,
+    }
+    return objects.ObjectRecord(
+        kind=objects.KIND_ACTOR if actor else objects.KIND_COMPONENT,
+        type_path=_SYNTHETIC_CLASS_PATH,
+        root_object=_SYNTHETIC_ROOT,
+        instance_name=_SYNTHETIC_INSTANCE,
+        transform=None,
+        parent=None,
+        object_type=_OBJECT_TYPE_ACTOR if actor else _OBJECT_TYPE_COMPONENT,
+        was_placed_in_level=0,
+        body_offset=fields["body_offset"],
+        body_length=fields["body_length"],
+    )
+
+
+def _synthetic_body(payload: bytes) -> bytes:
+    """Wrap a payload in leading and trailing bytes that are not part of it.
+
+    Args:
+        payload: The payload.
+
+    Returns:
+        The body.
+    """
+    return _BODY_PREFIX + payload + _BODY_SUFFIX
+
+
+def _synthetic_map(*schema_names: str) -> usmap.PropertyMap:
+    """Build a property map from usmap's own public types, with no file.
+
+    Args:
+        *schema_names: The schema names the map resolves.
+
+    Returns:
+        The map.
+    """
+    container = usmap.UsmapContainer(
+        magic=usmap.USMAP_MAGIC,
+        version=0,
+        compression_method=usmap.COMPRESSION_NONE,
+        compressed_size=0,
+        decompressed_size=0,
+        header_size=0,
+    )
+    schemas = {
+        name: usmap.Schema(name=name, super_name=None, properties=()) for name in schema_names
+    }
+    return usmap.PropertyMap(
+        names=tuple(schema_names),
+        enums=MappingProxyType({}),
+        schemas=MappingProxyType(schemas),
+        warnings=(),
+        container=container,
+        body_consumed=0,
+    )
+
+
+# ---------------------------------------------------------------------------
+# The decoder, exercised end to end with no save library anywhere
+# ---------------------------------------------------------------------------
+
+
+def test_the_synthetic_actor_payload_decodes_to_exactly_the_values_encoded() -> None:
+    """Every measured type word, round tripped through the SHIPPED decoder.
+
+    This is the whole of CS-413's decode claim that CI can defend. It is
+    self-consistency and nothing more - see the section comment above.
+    """
+    payload = _synthetic_payload(actor=True)
+    body = _synthetic_body(payload)
+    record = _synthetic_record(payload)
+
+    result = objects.read_properties(body, record, _synthetic_map(_SYNTHETIC_SCHEMA))
+
+    assert dict(result.properties) == dict(_EXPECTED_PROPERTIES)
+    assert result.resolved
+    assert result.schema_name == _SYNTHETIC_SCHEMA
+
+
+def test_the_synthetic_fixture_exercises_every_measured_type_word() -> None:
+    """The fixture's own non-vacuity control - a round trip of three types proves three.
+
+    Written against the module's transcription of the measured set rather than
+    against a count, so adding a measured type without extending the fixture is
+    red instead of silently uncovered.
+    """
+    payload = _synthetic_payload(actor=True)
+    words = set()
+    for tag in _MEASURED_TAGS:
+        # The type word is the SECOND length-prefixed string of a tag.
+        after_name = _payload_text_or_fail(tag, 0)[1]
+        words.add(_payload_text_or_fail(tag, after_name)[0])
+
+    assert words == set(_MEASURED_VALUE_TYPES), (
+        "the synthetic fixture does not carry one tag of every measured type; "
+        f"missing {sorted(set(_MEASURED_VALUE_TYPES) - words)}, "
+        f"unexpected {sorted(words - set(_MEASURED_VALUE_TYPES))}"
+    )
+    assert len(payload) > len(_TRAILING_RUN), "the fixture payload is empty"
+
+
+def _payload_text_or_fail(data: bytes, at: int) -> tuple[str, int]:
+    """Read one length-prefixed string out of SYNTHETIC bytes, or fail loudly.
+
+    Safe to fail loudly precisely because the bytes are hand authored here -
+    the containment the sweeps above need does not apply to a fixture.
+
+    Args:
+        data: The synthetic bytes.
+        at: Where the length prefix starts.
+
+    Returns:
+        The text and the offset after it.
+    """
+    step = objects._payload_text(data, at, len(data))  # noqa: SLF001
+    assert step is not None, f"the synthetic fixture does not read at offset {at}"
+    return step
+
+
+def test_the_synthetic_component_payload_needs_no_actor_head() -> None:
+    """The measured asymmetry: a component's payload opens directly with tags."""
+    payload = _synthetic_payload(actor=False)
+    body = _synthetic_body(payload)
+    record = _synthetic_record(payload, actor=False)
+
+    result = objects.read_properties(body, record, _synthetic_map(_SYNTHETIC_SCHEMA))
+
+    assert dict(result.properties) == dict(_EXPECTED_PROPERTIES)
+
+
+def test_reading_a_component_payload_as_an_actor_desynchronises() -> None:
+    """The control for the test above - without it, the head could be ignored.
+
+    A reader that skipped the actor head unconditionally, or never, would pass
+    one of the two shapes. This asserts the wrong choice FAILS rather than
+    quietly returning a subset.
+    """
+    payload = _synthetic_payload(actor=False)
+    body = _synthetic_body(payload)
+    mismatched = _synthetic_record(payload, actor=True)
+
+    result = objects.read_properties(body, mismatched, _synthetic_map(_SYNTHETIC_SCHEMA))
+
+    assert result.properties == {}
+    assert [warning.code for warning in result.warnings] == [objects.WARN_UNPARSED_PROPERTY_PAYLOAD]
+
+
+def test_the_synthetic_payload_flags_and_skips_every_unmeasured_type() -> None:
+    """Non-negotiable 7 at the value seam, provable with no save library.
+
+    The two unmeasured tags are stepped over by their DECLARED size, so their
+    presence must cost the walk nothing and must be counted rather than guessed.
+    """
+    payload = _synthetic_payload(actor=True)
+    body = _synthetic_body(payload)
+    record = _synthetic_record(payload)
+
+    result = objects.read_properties(body, record, _synthetic_map(_SYNTHETIC_SCHEMA))
+
+    assert result.unmeasured_value_count == _SYNTHETIC_UNMEASURED_TAGS
+    assert "mSyntheticStruct" not in result.properties
+    assert "mSyntheticArray" not in result.properties
+    assert [warning.code for warning in result.warnings] == [objects.WARN_UNMEASURED_PROPERTY_TYPE]
+    assert result.warnings[0].actual == _SYNTHETIC_UNMEASURED_TAGS
+
+
+def test_the_synthetic_walk_stops_at_the_terminator_and_not_at_the_boundary() -> None:
+    """The fixture models the trailing run, so terminator exactness is testable.
+
+    The payload's declared extent runs past its ``None`` terminator by exactly
+    :data:`_TRAILING_RUN`, and the decode must be unaffected by its contents.
+    Shortening the extent to end AT the terminator must decode identically -
+    which is what proves the trailing run is stepped over rather than read.
+    """
+    payload = _synthetic_payload(actor=True)
+    body = _synthetic_body(payload)
+    full = _synthetic_record(payload)
+    clipped = _synthetic_record(payload, body_length=len(payload) - len(_TRAILING_RUN))
+
+    property_map = _synthetic_map(_SYNTHETIC_SCHEMA)
+    with_run = objects.read_properties(body, full, property_map)
+    without_run = objects.read_properties(body, clipped, property_map)
+
+    assert dict(with_run.properties) == dict(without_run.properties)
+    assert dict(with_run.properties) == dict(_EXPECTED_PROPERTIES)
+
+
+def _disagreement_payload() -> bytes:
+    """A payload carrying one of EACH skip reason, plus one value that decodes.
+
+    Returns:
+        The payload bytes.
+    """
+    return (
+        _actor_head(())
+        + _scalar_tag("mSyntheticInt", "IntProperty", struct.pack("<i", _SYNTHETIC_INT))
+        + _struct_tag("mSyntheticStruct", _SYNTHETIC_STRUCT_WORD, bytes(8))
+        + _disagreeing_string_tag("mSyntheticTornStr", _SYNTHETIC_STR)
+        + _fstring("None")
+        + _TRAILING_RUN
+    )
+
+
+def test_a_measured_value_that_disagrees_is_reported_apart_from_unknown_content() -> None:
+    """The two reasons a value is skipped mean OPPOSITE things and must differ.
+
+    An unmeasured TYPE is expected and benign - it is what non-negotiable 7
+    exists to flag and skip, and it says nothing about whether the walk is
+    correct. A MEASURED type whose bytes do not account for the tag's declared
+    size is the shipped-redundancy oracle failing in production: the reader is
+    not where it believes it is, and every value decoded after it in the same
+    payload is suspect.
+
+    Both used to increment one counter and emit one warning code, so a caller
+    could not tell a world holding content this project does not model from a
+    parse that had lost its place. That is "silently wrong", the half of
+    non-negotiable 7 with no second chance, and it is the same conflation
+    CS-417 records one module over.
+
+    THIS IS TESTABLE ONLY AGAINST A SYNTHETIC PAYLOAD, and that is a finding
+    rather than a convenience: re-measured, the real library produces ZERO
+    disagreements today, so a real-library assertion here would be vacuous in
+    exactly the way that hides a regression.
+    """
+    payload = _disagreement_payload()
+    body = _synthetic_body(payload)
+    record = _synthetic_record(payload)
+
+    result = objects.read_properties(body, record, _synthetic_map(_SYNTHETIC_SCHEMA))
+
+    assert result.unmeasured_value_count == 1, "the StructProperty is the unmeasured one"
+    assert result.disagreeing_value_count == 1, "the torn StrProperty is the disagreement"
+    by_code = {warning.code: warning.actual for warning in result.warnings}
+    # TWO SEPARATE REPORTS, not one report carrying a sum. Asserting the size
+    # of the mapping is what catches a "split" that gave both conditions the
+    # same code - a direct equality between the two constants is a fact the
+    # type checker collapses statically, so it would assert nothing at runtime.
+    assert len(by_code) == _DISTINCT_SKIP_REPORTS, (
+        f"the two skip reasons produced {len(by_code)} distinct warning code(s); a "
+        "caller cannot separate unmodelled content from a walk that has lost its place"
+    )
+    assert by_code[objects.WARN_MEASURED_VALUE_DISAGREED] == 1
+    assert by_code[objects.WARN_UNMEASURED_PROPERTY_TYPE] == 1
+    # Neither skipped value is published, and the walk still finished: stepping
+    # by the DECLARED size is why a disagreement is silent without this report.
+    assert "mSyntheticTornStr" not in result.properties
+    assert "mSyntheticStruct" not in result.properties
+    assert result.properties["mSyntheticInt"] == _SYNTHETIC_INT
+
+
+def test_an_unmeasured_type_alone_raises_no_disagreement_report() -> None:
+    """The negative control - without it the split could be a second name for one thing.
+
+    The main fixture carries two unmeasured tags and no torn value, so it must
+    report the first and NOT the second. A conflated implementation that simply
+    renamed the counter would fail here.
+    """
+    payload = _synthetic_payload(actor=True)
+    body = _synthetic_body(payload)
+    record = _synthetic_record(payload)
+
+    result = objects.read_properties(body, record, _synthetic_map(_SYNTHETIC_SCHEMA))
+
+    assert result.unmeasured_value_count == _SYNTHETIC_UNMEASURED_TAGS
+    assert result.disagreeing_value_count == 0
+    assert objects.WARN_MEASURED_VALUE_DISAGREED not in [
+        warning.code for warning in result.warnings
+    ]
+
+
+def test_an_unresolved_schema_still_decodes_and_is_still_flagged() -> None:
+    """Resolution and decode are reported INDEPENDENTLY, per the shipped reader.
+
+    The shipped mapping carries no ``Build_*`` schema, so this is the state
+    essentially every real building is in. A reader that gated the decode on
+    resolution would be permanently empty exactly where pillar 3 needs it.
+    """
+    payload = _synthetic_payload(actor=True)
+    body = _synthetic_body(payload)
+    record = _synthetic_record(payload)
+
+    result = objects.read_properties(body, record, _synthetic_map("SomeOtherSchema_C"))
+
+    assert not result.resolved
+    assert dict(result.properties) == dict(_EXPECTED_PROPERTIES)
+    assert objects.WARN_UNRESOLVED_SCHEMA in [warning.code for warning in result.warnings]
+
+
+def test_the_synthetic_decode_touches_no_save_locator(monkeypatch) -> None:
+    """THE PROOF THAT THIS HALF NEEDS NO LIBRARY, rather than the claim of it.
+
+    Every locator entry point is replaced with one that raises, so a decode
+    path that quietly reached for the machine's save directory would fail here
+    instead of passing on this operator's machine and skipping on CI.
+    """
+
+    def _refuse(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("the synthetic decode path must not reach for a save library")
+
+    monkeypatch.setattr(locate, "resolve_save_root", _refuse)
+    monkeypatch.setattr(locate, "resolve_account_dir", _refuse)
+    monkeypatch.setattr(usmap, "cached_usmap", _refuse)
+
+    payload = _synthetic_payload(actor=True)
+    result = objects.read_properties(
+        _synthetic_body(payload), _synthetic_record(payload), _synthetic_map(_SYNTHETIC_SCHEMA)
+    )
+
+    assert dict(result.properties) == dict(_EXPECTED_PROPERTIES)
+
+
+# ---------------------------------------------------------------------------
+# Non-negotiable 12 at this seam - what a repr and a raising frame may hold
+# ---------------------------------------------------------------------------
+
+#: Planted in a synthetic value, a synthetic property NAME and a synthetic
+#: schema name. Nothing real is ever used for this: the assertion is that the
+#: marker does NOT come out, so a real string would be the one thing that
+#: cannot be used to prove it.
+_LEAK_MARKER: Final = "SYNTHETIC_WORLD_CONTENT_MARKER"
+
+
+def _renderings(value: object) -> tuple[str, ...]:
+    """Every text rendering a logger, a test runner or a formatter would take.
+
+    Args:
+        value: The object under test.
+
+    Returns:
+        The renderings.
+    """
+    return (
+        repr(value),
+        str(value),
+        f"{value}",
+        f"{value!r}",
+        f"{value!s}",
+        format(value),
+        repr([value]),
+        repr({"entry": value}),
+    )
+
+
+def test_a_property_result_repr_renders_no_decoded_name_value_or_schema() -> None:
+    """Non-negotiable 12, at the type that now carries decoded save values.
+
+    :class:`objects.ObjectRecord` and :class:`objects.ObjectTable` have hand
+    written reprs that render structure and withhold every string, because a
+    test runner and most loggers repr an object before a human chooses what to
+    print. :class:`objects.PropertyResult` was exempt only while its
+    ``properties`` mapping was empty on every path. It is not any more: the
+    VALUES are player-authored strings and the KEYS are property names decoded
+    out of the save's own bytes, so both halves of every entry are world
+    content, and ``schema_name`` is a class-path fragment ``ObjectRecord``
+    already withholds.
+    """
+    result = objects.PropertyResult(
+        properties=MappingProxyType({f"{_LEAK_MARKER}_KEY": f"{_LEAK_MARKER}_VALUE"}),
+        schema_name=f"{_LEAK_MARKER}_SCHEMA",
+        resolved=False,
+        warnings=(),
+        unmeasured_value_count=3,
+    )
+
+    for rendering in _renderings(result):
+        assert _LEAK_MARKER not in rendering, (
+            "a PropertyResult rendering carries a decoded property name, a decoded "
+            f"value or the schema name it resolved to:\n  {rendering}"
+        )
+    # Non-vacuity: a repr that rendered nothing at all would pass the loop
+    # above while telling an operator nothing. Structure must still come out.
+    assert "properties=1" in repr(result)
+    assert "resolved=False" in repr(result)
+    assert "unmeasured_value_count=3" in repr(result)
+
+
+def _frames_beneath_the_caller(exc: BaseException) -> tuple[FrameType, ...]:
+    """Every frame the exception passed through BELOW the frame that called in.
+
+    The caller's own frame is excluded deliberately: in this module that frame
+    is the test, and the test is the thing holding the fixture body on purpose.
+    What is asserted is what ``clockspeed`` itself leaves behind.
+
+    Args:
+        exc: The raised exception, taken as a PARAMETER rather than rendered.
+
+    Returns:
+        The frames, outermost first.
+    """
+    frames: list[FrameType] = []
+    entry = exc.__traceback__
+    walk = entry.tb_next if entry is not None else None
+    while walk is not None:
+        frames.append(walk.tb_frame)
+        walk = walk.tb_next
+    return tuple(frames)
+
+
+def _leaking_locals(frame: FrameType, marker: str) -> tuple[str, ...]:
+    """Names in one frame whose RENDERING carries the marker.
+
+    Rendering is the oracle rather than identity, because that is exactly what
+    a traceback formatter showing locals prints.
+
+    Args:
+        frame: The frame to inspect.
+        marker: The planted marker.
+
+    Returns:
+        The offending local names.
+    """
+    return tuple(name for name, value in frame.f_locals.items() if marker in _safe_repr(value))
+
+
+def _safe_repr(value: object) -> str:
+    """Repr a frame local without letting a hostile repr break the sweep.
+
+    Args:
+        value: The local.
+
+    Returns:
+        Its repr, or a placeholder if repr itself raised.
+    """
+    try:
+        return repr(value)
+    except Exception:  # a broken repr is not this test's subject
+        return ""
+
+
+def test_an_out_of_range_payload_extent_raises_for_an_unresolved_class_too() -> None:
+    """The reachability this merge widened, PINNED as deliberate.
+
+    Before the decode landed, an unresolved class returned before the extent
+    was ever checked - so on this project's own measurement, where essentially
+    no building resolves, the structural check ran on almost nothing. Reaching
+    it for every record is the correct direction and is kept: an extent running
+    past the body is not unknown CONTENT that non-negotiable 7 covers, it is a
+    record claiming bytes that do not exist, and collapsing the two would
+    report a truncated or misattributed body as merely unmodelled.
+    """
+    payload = _synthetic_payload(actor=True)
+    body = _synthetic_body(payload)
+    overrun = _synthetic_record(payload, body_length=len(body))
+
+    with pytest.raises(objects.ObjectTruncatedError) as caught:
+        objects.read_properties(body, overrun, _synthetic_map())
+
+    assert caught.value.field == "property_payload"
+    assert caught.value.offset == len(_BODY_PREFIX)
+
+
+#: EVERY exported way into the property readers, so the frame assertion below
+#: covers the module's stated public surface rather than one entry point of it.
+#: Both names are in ``objects.__all__``; ``parse_properties`` is the one
+#: ``world.py`` points a caller at, and it propagates the same error.
+#:
+#: THE ENTRY POINTS ARE ENUMERATED RATHER THAN LISTED BY HAND WHERE POSSIBLE -
+#: a hand-list goes stale between being written and being worked. What keeps
+#: this one honest is :func:`test_the_frame_assertion_covers_every_exported_
+#: property_reader`, which derives the same set from ``objects.__all__`` and
+#: fails if a third reader is exported without arriving here.
+_PROPERTY_READERS: Final = ("read_properties", "parse_properties")
+
+
+def _raise_through(entry_point: str, body: bytes, record: objects.ObjectRecord) -> BaseException:
+    """Call one exported reader with an out-of-range extent and return the error.
+
+    Args:
+        entry_point: The name of the reader, from :data:`_PROPERTY_READERS`.
+        body: The synthetic body.
+        record: A record whose declared extent runs past it.
+
+    Returns:
+        The raised exception, so the caller can walk its traceback.
+    """
+    reader = getattr(objects, entry_point)
+    with pytest.raises(objects.ObjectTruncatedError) as caught:
+        reader(body, record, _synthetic_map())
+    return caught.value
+
+
+@pytest.mark.parametrize("entry_point", _PROPERTY_READERS)
+def test_no_clockspeed_frame_holds_the_body_when_the_extent_raises(entry_point: str) -> None:
+    """The leak the widened reachability opened, closed at EVERY exported way in.
+
+    The ``ObjectTruncatedError`` MESSAGE is clean and always was; that is not
+    the channel. A renderer showing locals - ``pytest -l`` is one - prints the
+    whole decompressed body verbatim from any frame that still holds it, which
+    is a mitigation the mechanism defeats.
+
+    IT IS PARAMETRIZED OVER THE ENTRY POINTS BECAUSE ITS FIRST REVISION WAS NOT,
+    and that is the more important half of this fix. It asserted a general
+    property - "a clockspeed frame in the raised traceback still holds the save
+    body" - while exercising ``read_properties`` alone, and
+    :func:`_frames_beneath_the_caller` drops the entry frame. So it passed green
+    while its own failure message was FALSE for ``parse_properties``, whose
+    frame held the body across the raise it documents itself as propagating.
+    A green test whose name denies a live leak is worse than no test, because
+    the next author reads the name and stops looking.
+
+    The record is deliberately not asserted against: its own ``__repr__``
+    withholds every string it carries, which is this module's existing control
+    and is checked elsewhere.
+
+    Args:
+        entry_point: The exported reader under test.
+    """
+    payload = _synthetic_payload(actor=True)
+    body = _synthetic_body(payload) + _LEAK_MARKER.encode("ascii")
+    overrun = _synthetic_record(payload, body_length=len(body))
+
+    raised = _raise_through(entry_point, body, overrun)
+
+    leaks = {
+        frame.f_code.co_name: _leaking_locals(frame, _LEAK_MARKER)
+        for frame in _frames_beneath_the_caller(raised)
+        if _leaking_locals(frame, _LEAK_MARKER)
+    }
+    assert not leaks, (
+        f"entered through objects.{entry_point}, a clockspeed frame in the raised "
+        "traceback still holds the save body. A renderer showing locals prints it "
+        "verbatim, head and tail (non-negotiable 12). Offending frame(s) and local "
+        f"name(s): {leaks}"
+    )
+    # NON-VACUITY. Without this the sweep passes just as happily when the
+    # marker was never in any frame to begin with, which is the ABSOLUTE_PATH
+    # failure this project has already been bitten by. The frame that CALLED in
+    # - _raise_through, which the sweep drops - genuinely holds the body, and
+    # the sweep must be able to see it.
+    entry = raised.__traceback__
+    assert entry is not None
+    assert _leaking_locals(entry.tb_frame, _LEAK_MARKER), (
+        "the marker is not visible in the calling frame either, so the assertion "
+        "above proves nothing about what was removed"
+    )
+
+
+def test_the_frame_assertion_covers_every_exported_property_reader() -> None:
+    """A hand-written entry-point list is a list that goes stale. This is the guard.
+
+    ``objects.__all__`` is the module's STATED public surface. Any exported
+    name that takes a body and hands it to the reader below it is another frame
+    that can hold the body across a raise, so it belongs in
+    :data:`_PROPERTY_READERS`. Deriving the set here rather than trusting the
+    tuple is what makes a third reader red instead of silently uncovered.
+
+    NEEDS NO SAVE LIBRARY - it is a claim about the repo.
+    """
+    exported_readers = {
+        name
+        for name in objects.__all__
+        if name.endswith("_properties") and callable(getattr(objects, name, None))
+    }
+    assert exported_readers, "no property reader is exported at all; this is vacuous"
+    assert exported_readers == set(_PROPERTY_READERS), (
+        f"objects.__all__ exports {sorted(exported_readers)} as property readers but the "
+        f"frame assertion is parametrized over {sorted(_PROPERTY_READERS)}. Every "
+        "exported reader holds the body in its own frame while the one below it raises, "
+        "so each one has to be exercised - a general claim proved at one entry point is "
+        "a claim about that entry point"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The module's own two-way classification of property type words
+# ---------------------------------------------------------------------------
+
+#: An Unreal property type word as it appears inside prose - capitalised, ASCII
+#: and suffixed ``Property``.
+_TYPE_WORD_IN_PROSE: Final = re.compile(r"\b[A-Z][A-Za-z0-9_]*Property\b")
+
+
+def _type_words_named_by_the_region_table() -> frozenset[str]:
+    """Every property type word the unmeasured-region table NAMES in its prose.
+
+    Returns:
+        The words. Safe to render in a failure message: every one of them came
+        out of a literal in tracked source, never out of a save.
+    """
+    named: set[str] = set()
+    for text in objects.UNMEASURED_PAYLOAD_REGIONS.values():
+        named.update(_TYPE_WORD_IN_PROSE.findall(text))
+    return frozenset(named)
+
+
+def _type_words_named_by_other_entries(key: str) -> frozenset[str]:
+    """The same, excluding one entry's own text so it cannot justify itself.
+
+    Args:
+        key: The entry to exclude.
+
+    Returns:
+        The words every OTHER entry names.
+    """
+    named: set[str] = set()
+    for other, text in objects.UNMEASURED_PAYLOAD_REGIONS.items():
+        if other != key:
+            named.update(_TYPE_WORD_IN_PROSE.findall(text))
+    return frozenset(named)
+
+
+def test_every_type_word_the_module_names_is_on_one_side_of_its_own_split() -> None:
+    """A type word in neither half of a two-way classification is a gap, not a note.
+
+    ``MEASURED_VALUE_TYPES`` and ``UNMEASURED_PAYLOAD_REGIONS`` are that split.
+    A word the module NAMES and places in neither is one nobody can act on:
+    the library sweep's completeness check would go red the first time a real
+    payload carried it, and only on a machine that has a library.
+
+    NEEDS NO SAVE LIBRARY - it is a claim about the repo.
+    """
+    named = _type_words_named_by_the_region_table()
+    assert named, "the region table names no type word at all, so this is vacuous"
+
+    unclassified = (
+        named - set(objects.MEASURED_VALUE_TYPES) - set(objects.UNMEASURED_PAYLOAD_REGIONS)
+    )
+    assert not unclassified, (
+        f"{sorted(unclassified)} are named by objects.UNMEASURED_PAYLOAD_REGIONS and "
+        "appear in neither half of that module's own two-way classification. Record "
+        "each as a region with what is pinned and what is not claimed, or state why "
+        "it belongs in MEASURED_VALUE_TYPES - do not delete the word"
+    )
+
+
+def test_the_region_table_holds_no_key_nothing_justifies() -> None:
+    """The OTHER direction of the completeness check, which was checked one way.
+
+    :func:`test_every_unmeasured_type_the_library_holds_is_recorded_as_data`
+    asserts every unmeasured word the library holds has an entry. Measured
+    against the merged tree, the reverse did not hold: adding a bogus
+    ``NoSuchProperty`` entry passed. So a key must be justified by something -
+    the library holding it at top level, or another entry naming it. An entry's
+    own text is excluded, because a claim that cites itself is not a citation.
+
+    Every name rendered below is a key of a table in tracked source, so naming
+    them costs nothing that the source does not already say.
+    """
+    sweep = _sweep_or_skip()
+    _assert_walker_is_live(sweep)
+
+    unjustified = sorted(
+        key
+        for key in objects.UNMEASURED_PAYLOAD_REGIONS
+        if key != "trailing_run"
+        and key not in sweep.region_keys_the_library_holds
+        and key not in _type_words_named_by_other_entries(key)
+    )
+    assert not unjustified, (
+        f"{unjustified} are recorded as unmeasured payload regions, but this library "
+        "holds no top-level tag of them and no other entry names them. An entry for a "
+        "type nothing has ever produced is a record of a measurement that was never "
+        "made"
+    )
+
+
+# ---------------------------------------------------------------------------
+# parse_properties states no capability it does not own
+# ---------------------------------------------------------------------------
+
+#: The clause CS-418 fixed in ``world.py`` and left standing here.
+_STALE_EMPTINESS_CLAIM: Final = "Always empty"
+
+
+def test_parse_properties_claims_no_emptiness_read_properties_has_refuted() -> None:
+    """The CS-418 defect, at the second site in the same merge.
+
+    ``parse_properties`` is in ``objects.__all__`` and is what ``world.py``
+    points a caller at, and its docstring said the mapping is "Always empty
+    today". That is false in the DANGEROUS direction: it tells the next
+    consumer the return is safe to print, when it is decoded world content.
+
+    THE BEHAVIOUR IS ASSERTED FIRST so the prose check below is a refutation
+    rather than a spelling preference. The limit is stated rather than hidden:
+    this pins one phrase, so a differently worded false claim would still get
+    through. What stops that is the rule the fix follows - do not restate a
+    capability this function does not own; point at the owner.
+    """
+    payload = _synthetic_payload(actor=True)
+    decoded = objects.parse_properties(
+        _synthetic_body(payload), _synthetic_record(payload), _synthetic_map(_SYNTHETIC_SCHEMA)
+    )
+
+    assert dict(decoded) == dict(_EXPECTED_PROPERTIES), (
+        "parse_properties no longer returns what read_properties decoded, so the "
+        "docstring assertion below is about the wrong function"
+    )
+    doc = objects.parse_properties.__doc__ or ""
+    assert _STALE_EMPTINESS_CLAIM not in doc, (
+        "objects.parse_properties still documents its return as always empty, which "
+        "the decode immediately above refutes. Point at read_properties as the owner "
+        "of what can be decoded rather than restating it here"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Discovery containment - no frame holding the account directory may unwind
+# ---------------------------------------------------------------------------
+
+
+def _explode(*_args: object, **_kwargs: object) -> object:
+    """Fail the way a locator can fail, without naming anything real.
+
+    Args:
+        *_args: Ignored.
+        **_kwargs: Ignored.
+
+    Raises:
+        RuntimeError: Always.
+    """
+    raise RuntimeError("synthetic locator failure")
+
+
+def _assert_both_sweeps_decline() -> None:
+    """Both sweeps must return None rather than let the failure unwind.
+
+    EVERY SUBJECT IS REDUCED TO A SCALAR BEFORE IT IS ASSERTED ON. pytest
+    rewrites an assertion to render the operands it compared, so
+    ``assert _library_save_paths() == ()`` prints the discovered save paths on
+    failure - the account directory, which is the exact thing these tests
+    exist to keep out of a log. The assertions below can only ever print an
+    integer or a boolean.
+    """
+    _sweep_decoded_values.cache_clear()
+    try:
+        discovered = len(_library_save_paths())
+        assert discovered == 0, "the discovery raised instead of returning nothing"
+        tag_sweep_declined = _sweep_payload_tags() is None
+        assert tag_sweep_declined, "the tag sweep did not decline"
+        decode_sweep_declined = _sweep_decoded_values() is None
+        assert decode_sweep_declined, "the decode sweep did not decline"
+    finally:
+        # The sweep is cached and four other tests consume it, so a None
+        # cached under a monkeypatched locator would skip them all silently.
+        _sweep_decoded_values.cache_clear()
+
+
+def test_a_failing_save_root_lookup_does_not_unwind_through_either_sweep(monkeypatch) -> None:
+    """The discovery calls used to sit outside every ``try`` in both sweeps.
+
+    ``resolve_save_root`` and ``resolve_account_dir`` were called before the
+    broad handler that contains everything else, so a failure in either
+    unwound through a frame holding ``account`` - a path carrying both the
+    Windows account name and the numeric platform account id (CLAUDE.md
+    section 2). Every one of the module's own privacy arguments rests on
+    "there is no failure path that unwinds through a frame holding one", and
+    that was the path.
+    """
+    monkeypatch.setattr(locate, "resolve_save_root", _explode)
+    _assert_both_sweeps_decline()
+
+
+def test_a_failing_account_directory_lookup_does_not_unwind_either(monkeypatch) -> None:
+    """The second of the two, and the one whose frame holds the account id."""
+    monkeypatch.setattr(locate, "resolve_save_root", lambda: Path("synthetic-root"))
+    monkeypatch.setattr(locate, "resolve_account_dir", _explode)
+    _assert_both_sweeps_decline()
+
+
+def test_a_failing_save_glob_does_not_unwind_either(monkeypatch) -> None:
+    """The third uncontained call - it was in the ``for`` statement itself."""
+    monkeypatch.setattr(Path, "glob", _explode)
+    _assert_both_sweeps_decline()
+
+
+def test_a_failing_usmap_load_does_not_unwind_through_the_decode_sweep(monkeypatch) -> None:
+    """The call the DECODE sweep added that the older tag sweep never had.
+
+    ``cached_usmap`` resolves the game install, so it fails for the same
+    reasons the locators do and it sat outside the same ``try``.
+    """
+    monkeypatch.setattr(usmap, "cached_usmap", _explode)
+    _sweep_decoded_values.cache_clear()
+    try:
+        # Reduced to a boolean first, for the reason on _assert_both_sweeps_
+        # decline: usmap.PropertyMap has the DEFAULT repr and renders its whole
+        # name table, so a failure comparing one would print the shipped usmap.
+        loader_declined = _cached_usmap_or_none() is None
+        assert loader_declined, "the contained usmap loader let the failure unwind"
+        sweep_declined = _sweep_decoded_values() is None
+        assert sweep_declined, "the decode sweep did not decline"
+    finally:
+        _sweep_decoded_values.cache_clear()
