@@ -129,6 +129,14 @@ UNGUARDED_TRACEBACK_RESIDUALS = {
         "none of them carries personal data. The rendering is the subject under "
         "test, and the exception is a parameter rather than a caught object."
     ),
+    "tests/save/test_objects.py": (
+        "Same shape as the test_header.py entry above, and found by this sweep at "
+        "the MERGE rather than by either slice alone - which is the guard working. "
+        "The planted-marker test formats the traceback of every raised ObjectError "
+        "so it can assert no fixture class path, instance name or root object "
+        "reaches any surface. Rendering it IS the assertion; suppressing it would "
+        "delete the check."
+    ),
 }
 
 # Sites the sweep flags that are NOT leaks, each with the reason, and each

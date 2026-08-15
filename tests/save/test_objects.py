@@ -1,0 +1,1296 @@
+"""The object-header walk and the property resolution, proven fixture by fixture.
+
+THE THREE FAILURE SHAPES THIS MODULE EXISTS TO CATCH
+------------------------------------------------------
+Each one produces a green suite and a wrong answer, which is why each has a
+named discriminator here rather than a general assertion.
+
+1. **One dispatch driving two decisions.** The body length prefix follows the
+   HEADER version and the transform delta follows the SAVE version. Across the
+   real library the two covary perfectly - header 10 with save 36 is (4, 4) and
+   header 14 with save 60 is (8, 8) - so a parser reading both off one field
+   passes every real-shaped fixture. ``synthetic.SAVE_CROSS`` is header 14 with
+   save 36, a combination in no real file, and it is (8, 4). It is the only
+   fixture that separates them, and
+   ``test_save_cross_proves_the_two_dispatches_are_independent`` asserts the
+   PAIR rather than either half, because either half alone is satisfied by a
+   single-field parser.
+
+2. **A prefix width assumed rather than dispatched.** ``CS-404`` corrected the
+   corpus this session: header 10 opens the body with an int32, not with
+   nothing. The direction that hides is a parser hardcoding the int64 and
+   meeting a header-14 body with a 4-byte read - it recovers a plausible
+   declared length from the low half and then reads the object count out of the
+   HIGH half, which is zero. It reports an empty world and raises nothing.
+   ``test_the_body_length_prefix_is_consumed_on_both_measured_widths`` asserts
+   the record COUNT for that reason; asserting only the declared length would
+   pass.
+
+3. **An unmeasured save version defaulted instead of refused.** Save version 42
+   is absent from the delta mapping deliberately, and 36 -> 4 beside 52 -> 8
+   makes 4 or 6 look derived for it. That is ADR 0005's arithmetic route, which
+   feels sound precisely because it uses only measured neighbours.
+   ``test_a_save_version_absent_from_the_delta_mapping_raises`` pins the
+   refusal, and ``test_the_delta_mapping_is_transcribed_from_the_corpus``
+   pins the absence itself so nobody closes the gap by interpolation.
+
+WHAT IS PROVEN AND WHAT IS ONLY EXERCISED, STATED PLAINLY
+-----------------------------------------------------------
+The transform DELTA is measured: ADR 0003 read 626 node actors with 626 valid
+transforms out of real saves. Everything below is nonetheless proven against
+the CORPUS and not against a real file, and two limits follow.
+
+First, where the record table BEGINS. Every test here hands the walk a body
+whose first byte after the length prefix is the record count, because that is
+what ``synthetic.build_body`` writes - and the corpus labels its own body
+layout MODELLED. A probe against all four real version pairs this session shows
+a real body opens with a version-dependent preamble instead, so a green run
+here is NOT evidence that the walk can read a real save. See item 0 of the
+``clockspeed/save/objects.py`` docstring.
+
+Second, the PROPERTY PAYLOAD. No fixture carries an object-data section at all
+- ``synthetic.SyntheticObject.encode`` emits a header record and stops - so the
+tests below prove SCHEMA RESOLUTION and the flag-and-skip contract around it,
+and prove nothing whatsoever about decoding a property value.
+
+Neither limit is papered over, and neither is a reason to weaken an assertion:
+the corpus is the stated contract for this wave, and a walk that is exactly
+right about the corpus is the precondition for one that is right about a real
+save.
+
+THE PROPERTY MAP IS BUILT FROM ITS OWN PUBLIC TYPES, NOT FROM CORPUS BYTES
+---------------------------------------------------------------------------
+``synthetic.build_usmap``'s inner grammar for enums and schemas is a modelled
+placeholder that does NOT match the shipped file - its own docstring says so,
+and ``tests/save/test_usmap.py`` had to write a second encoder to reach the
+real grammar. This slice consumes a :class:`usmap.PropertyMap`, never usmap
+bytes, so it constructs that model directly from the public dataclasses.
+Re-encoding the byte grammar here would be a third copy of a measurement this
+module does not own.
+
+NO REAL SAVE DATA, AND THE ECHO PATHS ARE PINNED MECHANICALLY
+---------------------------------------------------------------
+Every byte parsed here comes from ``tests/save/synthetic.py``. A save body
+carries the world's contents and its actor names, so non-negotiable 12 makes
+every exception an echo path.
+``test_no_planted_fixture_string_reaches_any_exception_surface`` plants three
+marker strings into a body, drives sixteen distinct failure paths through it,
+and asserts the markers are absent from ``str``, ``args``, ``repr``,
+``__notes__`` and the fully formatted traceback of every exception raised.
+"""
+
+from __future__ import annotations
+
+import ast
+import struct
+import traceback
+from collections.abc import Callable
+from pathlib import Path
+from types import MappingProxyType
+from typing import Final
+
+import pytest
+
+from clockspeed.save import chunks, objects, usmap
+from tests.save import synthetic
+
+# ---------------------------------------------------------------------------
+# Local constants, so no assertion compares against a bare literal
+# ---------------------------------------------------------------------------
+
+_HEADER_10: Final = 10
+_HEADER_13: Final = 13
+_HEADER_14: Final = 14
+_UNMEASURED_HEADER_VERSION: Final = 99
+
+_SAVE_36: Final = 36
+_SAVE_42: Final = 42
+_SAVE_52: Final = 52
+_SAVE_60: Final = 60
+_UNMEASURED_SAVE_VERSION: Final = 97
+
+_NARROW_PREFIX: Final = 4
+_WIDE_PREFIX: Final = 8
+
+_DELTA_36: Final = 4
+_DELTA_60: Final = 8
+
+_PAIR: Final = 2
+_TRIPLE: Final = 3
+_ONCE: Final = 1
+_TWICE: Final = 2
+
+#: Offset of the first record's class-path length prefix inside a body:
+#: int32 object count, then the record's own int32 object type.
+_FIRST_CLASS_PATH_LENGTH_AT: Final = 8
+
+_ABSURD_STRING_LENGTH: Final = 1 << 30
+_NEGATIVE_STRING_LENGTH: Final = -(1 << 30)
+_UNMEASURED_OBJECT_TYPE: Final = 7
+
+#: A UTF-16 character count UNDER the byte cap and a byte count OVER it. The
+#: only band in which "cap the characters" and "cap the bytes" disagree.
+_UTF16_CHARS_OVER_THE_BYTE_CAP: Final = 10_000
+
+#: The union of every attribute an exception in this module may carry. A field
+#: name, a byte offset, an expected/actual length or count, a version scalar
+#: and a fixed reason string - nothing else.
+_ALLOWED_ERROR_ATTRIBUTES: Final = frozenset(
+    {"reason", "field", "offset", "expected", "actual", "version"}
+)
+
+#: Sibling save modules this one must NOT import. ``usmap`` is absent from the
+#: list on purpose: docs/ARCHITECTURE.md makes the property mapping this
+#: module's declared dependency. Reaching for the header parser or the chunk
+#: walker instead of taking bytes and scalars would be the seam violation.
+_FORBIDDEN_SIBLINGS: Final = ("header", "chunks", "workdir", "world")
+
+# ---------------------------------------------------------------------------
+# Planted markers. Invented, obviously synthetic, and asserted ABSENT from
+# every exception surface - so naming them here is the test, not a leak.
+# ---------------------------------------------------------------------------
+
+_PLANTED_CLASS_PATH: Final = (
+    "/Synthetic/Planted/Build_PlantedClassMarker.Build_PlantedClassMarker_C"
+)
+_PLANTED_ROOT: Final = "PlantedRootMarker:PersistentLevel"
+_PLANTED_INSTANCE: Final = "PlantedInstanceMarker_0"
+_PLANTED_TOKENS: Final = ("PlantedClassMarker", "PlantedRootMarker", "PlantedInstanceMarker")
+
+#: A namespaced, mod-shaped path. BOOTSTRAP.md section 9: modded content is
+#: tolerated, flagged, and never fatal.
+_MOD_CLASS_PATH: Final = "/Mods/SyntheticMod/Build_SyntheticModded.Build_SyntheticModded_C"
+
+#: A path carrying MORE THAN ONE dot. Every other path in this module has
+#: exactly one, where splitting on the first dot and splitting on the last give
+#: the same answer - so this is the only shape that separates them.
+_NESTED_CLASS_PATH: Final = "/Mods/SyntheticMod/Pack.Outer.Build_SyntheticNested_C"
+
+_KNOWN_CLASS_PATH_A: Final = "/Synthetic/Parts/Build_SyntheticSmelter.Build_SyntheticSmelter_C"
+_KNOWN_CLASS_PATH_B: Final = "/Synthetic/Parts/Build_SyntheticBelt.Build_SyntheticBelt_C"
+
+_ROOT: Final = "Persistent_Level:PersistentLevel"
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _actor(class_path: str, instance_name: str, **extra: object) -> synthetic.SyntheticObject:
+    """Build one synthetic record.
+
+    Args:
+        class_path: The record's class path.
+        instance_name: The record's instance name.
+        **extra: Forwarded to :class:`synthetic.SyntheticObject`.
+
+    Returns:
+        The record.
+    """
+    return synthetic.SyntheticObject(class_path, _ROOT, instance_name, **extra)  # type: ignore[arg-type]
+
+
+def _payload_for(
+    records: tuple[synthetic.SyntheticObject, ...], *, save_version: int, header_version: int
+) -> bytes:
+    """Build a body and prepend the version-appropriate length prefix.
+
+    Goes through the corpus's own two functions rather than assembling a whole
+    save, because most assertions below are about the record walk and a chunk
+    round trip would only add a second thing that can fail.
+
+    Args:
+        records: The records to encode.
+        save_version: Drives the transform delta.
+        header_version: Drives the length prefix width.
+
+    Returns:
+        The payload, exactly as ``chunks.decompress_body`` would hand it over.
+    """
+    body = synthetic.build_body(records, save_version=save_version)
+    return synthetic.body_with_prefix(body, header_version)
+
+
+def _payload_of(save: synthetic.SyntheticSave) -> bytes:
+    """Decompress a whole fixture through the real chunk walker.
+
+    Args:
+        save: The fixture.
+
+    Returns:
+        The decompressed payload, length prefix included.
+    """
+    walked = chunks.decompress_body(
+        save.blob, save.chunk_offset, header_version=save.header_version
+    )
+    return walked.payload
+
+
+def _table_of(save: synthetic.SyntheticSave, **extra: object) -> objects.ObjectTable:
+    """Walk a whole fixture end to end: blob, chunk walk, object walk.
+
+    Args:
+        save: The fixture.
+        **extra: Forwarded to :func:`objects.parse_object_headers`.
+
+    Returns:
+        The object table.
+    """
+    return objects.parse_object_headers(
+        _payload_of(save),
+        save_version=save.save_version,
+        header_version=save.header_version,
+        **extra,  # type: ignore[arg-type]
+    )
+
+
+def _splice(blob: bytes, offset: int, replacement: bytes) -> bytes:
+    """Overwrite bytes in place without changing the length.
+
+    Args:
+        blob: The source.
+        offset: Where to write.
+        replacement: The new bytes.
+
+    Returns:
+        The spliced blob.
+    """
+    return blob[:offset] + replacement + blob[offset + len(replacement) :]
+
+
+def _known(*class_paths: str) -> frozenset[str]:
+    """Build a known-class container from full class paths.
+
+    Args:
+        *class_paths: The paths whose class names are modelled.
+
+    Returns:
+        The class names, in the shape a property map's schema keys take.
+    """
+    return frozenset(objects.class_name_of(path) for path in class_paths)
+
+
+def _property_map(*schema_names: str) -> usmap.PropertyMap:
+    """Build a property map from its own public types.
+
+    See the module docstring: ``synthetic.build_usmap`` models an inner grammar
+    that does not match the shipped file, and this module consumes the parsed
+    model rather than usmap bytes.
+
+    Args:
+        *schema_names: The schema names the map resolves.
+
+    Returns:
+        The property map.
+    """
+    container = usmap.UsmapContainer(
+        magic=usmap.USMAP_MAGIC,
+        version=0,
+        compression_method=usmap.COMPRESSION_NONE,
+        compressed_size=0,
+        decompressed_size=0,
+        header_size=0,
+    )
+    schemas = {
+        name: usmap.Schema(
+            name=name,
+            super_name=None,
+            properties=(usmap.PropertyEntry(name="mSynthetic", slot=0, array_size=1, type_id=0),),
+        )
+        for name in schema_names
+    }
+    return usmap.PropertyMap(
+        names=tuple(schema_names),
+        enums=MappingProxyType({}),
+        schemas=MappingProxyType(schemas),
+        warnings=(),
+        container=container,
+        body_consumed=0,
+    )
+
+
+# ---------------------------------------------------------------------------
+# 1 - the walk yields the expected records and transforms on every fixture
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "save",
+    [synthetic.SAVE_V36, synthetic.SAVE_V52, synthetic.SAVE_V60, synthetic.SAVE_CROSS],
+    ids=lambda save: save.name,
+)
+def test_the_walk_yields_the_expected_records_and_transforms(save: synthetic.SyntheticSave) -> None:
+    """Acceptance 1, end to end: blob, chunk walk, object walk, per fixture.
+
+    The transform values the corpus encodes are chosen to be exactly
+    representable in float32, so an equality comparison here cannot fail for a
+    rounding reason that merely looks like a parser bug.
+    """
+    table = _table_of(save)
+
+    assert len(table.records) == len(save.objects)
+    assert table.records != ()
+    for expected, record in zip(save.objects, table.records, strict=True):
+        assert record.type_path == expected.class_path
+        assert record.root_object == expected.root_object
+        assert record.instance_name == expected.instance_name
+        assert record.kind == objects.KIND_ACTOR
+        assert record.transform is not None
+        assert record.transform.rotation == expected.rotation
+        assert record.transform.translation == expected.translation
+        assert record.transform.scale == expected.scale
+
+
+@pytest.mark.parametrize(
+    "save",
+    [synthetic.SAVE_V36, synthetic.SAVE_V52, synthetic.SAVE_V60, synthetic.SAVE_CROSS],
+    ids=lambda save: save.name,
+)
+def test_the_walk_consumes_the_whole_body_on_every_fixture(save: synthetic.SyntheticSave) -> None:
+    """A walk that stops early yields the right prefix of the right records.
+
+    Asserting the record count alone would pass a parser that read one record
+    and stopped on a one-record fixture, so the byte accounting is asserted
+    too: the table must account for every byte of the body it was handed.
+    """
+    table = _table_of(save)
+    assert table.body_consumed == table.declared_body_length
+    assert table.warnings == ()
+
+
+def test_the_multichunk_fixture_walks_through_the_concatenated_body() -> None:
+    """The body prefix counts every chunk, not this chunk.
+
+    ``SAVE_MULTICHUNK`` is the only fixture whose body spans the real
+    131072-byte split, so it is the only one where "this chunk's payload minus
+    eight" and "the whole body" are different numbers.
+    """
+    save = synthetic.SAVE_MULTICHUNK
+    assert save.chunk_count > _ONCE
+
+    table = _table_of(save)
+    assert len(table.records) == synthetic.MULTICHUNK_OBJECT_COUNT
+    assert table.body_consumed == table.declared_body_length
+
+
+# ---------------------------------------------------------------------------
+# 2 - SAVE_CROSS proves the two dispatches are independent
+# ---------------------------------------------------------------------------
+
+
+def test_save_cross_proves_the_two_dispatches_are_independent() -> None:
+    """Acceptance 2. How this fixture discriminates, stated exactly.
+
+    ``SAVE_CROSS`` is header version 14 with save version 36, a combination
+    present in NO real file. The two dispatches it separates are:
+
+    - the body length prefix WIDTH, which follows the HEADER version, so 8;
+    - the transform DELTA, which follows the SAVE version, so 4.
+
+    The measured pair is therefore ``(8, 4)``. Every other fixture is
+    ``(4, 4)`` or ``(8, 8)``, so a parser driving both decisions off the header
+    version yields ``(8, 8)`` and one driving both off the save version yields
+    ``(4, 4)`` - each passes every other fixture in the corpus and each fails
+    here. Asserting the PAIR is what matters: either half on its own is
+    satisfied by one of the two single-field parsers.
+    """
+    save = synthetic.SAVE_CROSS
+    assert save.header_version == _HEADER_14
+    assert save.save_version == _SAVE_36
+
+    table = _table_of(save)
+    assert (table.body_prefix_width, table.transform_delta) == (_WIDE_PREFIX, _DELTA_36)
+
+    # The pair is unique to this fixture, which is the whole reason it exists.
+    for other in (synthetic.SAVE_V36, synthetic.SAVE_V52, synthetic.SAVE_V60):
+        table_other = _table_of(other)
+        assert (table_other.body_prefix_width, table_other.transform_delta) != (
+            _WIDE_PREFIX,
+            _DELTA_36,
+        )
+
+    # And the records still decode, which is what a misdispatch would destroy.
+    assert len(table.records) == len(save.objects)
+    assert table.records[0].transform is not None
+    assert table.records[0].transform.rotation == save.objects[0].rotation
+
+
+def test_the_transform_delta_follows_the_save_version_alone() -> None:
+    """The same body bytes, read under two header versions, give one delta.
+
+    A parser that consulted the header version for the delta would disagree
+    between these two calls; the delta is a function of the save version only.
+    """
+    records = (_actor(_KNOWN_CLASS_PATH_A, "SyntheticSmelter_0"),)
+    deltas = {
+        objects.parse_object_headers(
+            _payload_for(records, save_version=_SAVE_36, header_version=header_version),
+            save_version=_SAVE_36,
+            header_version=header_version,
+        ).transform_delta
+        for header_version in (_HEADER_10, _HEADER_13, _HEADER_14)
+    }
+    assert deltas == {_DELTA_36}
+
+
+def test_the_prefix_width_follows_the_header_version_alone() -> None:
+    """The same save version, read under two header versions, gives two widths."""
+    records = (_actor(_KNOWN_CLASS_PATH_A, "SyntheticSmelter_0"),)
+    widths = {
+        header_version: objects.parse_object_headers(
+            _payload_for(records, save_version=_SAVE_36, header_version=header_version),
+            save_version=_SAVE_36,
+            header_version=header_version,
+        ).body_prefix_width
+        for header_version in (_HEADER_10, _HEADER_14)
+    }
+    assert widths == {_HEADER_10: _NARROW_PREFIX, _HEADER_14: _WIDE_PREFIX}
+
+
+# ---------------------------------------------------------------------------
+# 3 - an unmeasured save version raises rather than defaulting
+# ---------------------------------------------------------------------------
+
+
+def test_the_delta_mapping_is_transcribed_from_the_corpus() -> None:
+    """Two independent transcriptions of one measurement, cross-checked.
+
+    ``objects.py`` spells its own copy of the delta table rather than importing
+    the corpus, matching ``chunks.py``: sharing the constant would make the
+    suite a restatement of the module's own opinion instead of a check on it.
+    This is the only place the two encodings are compared.
+    """
+    assert dict(objects.TRANSFORM_DELTA_BY_SAVE_VERSION) == dict(
+        synthetic.TRANSFORM_DELTA_BY_SAVE_VERSION
+    )
+
+
+def test_save_version_42_is_absent_from_the_delta_mapping() -> None:
+    """The absence is the assertion, and it is deliberate.
+
+    36 -> 4 beside 52 -> 8 makes 4 or 6 look derived for 42. Interpolating from
+    measured neighbours is exactly ADR 0005's refuted arithmetic route: it
+    feels derived because every input to it was measured. A later slice that
+    MEASURES the value owns adding it, in both transcriptions at once.
+    """
+    assert _SAVE_42 not in objects.TRANSFORM_DELTA_BY_SAVE_VERSION
+    assert _SAVE_42 not in synthetic.TRANSFORM_DELTA_BY_SAVE_VERSION
+
+
+@pytest.mark.parametrize("save_version", [_SAVE_42, _UNMEASURED_SAVE_VERSION])
+def test_a_save_version_absent_from_the_delta_mapping_raises(save_version: int) -> None:
+    """Acceptance 3. An absent key raises; it never defaults.
+
+    The refusal is EAGER - before a single record is read - for the same reason
+    ``header.py`` checks its version before the string block: a check placed
+    after the walk would let an empty-bodied save of an unmeasured version
+    parse "successfully" and would fire only on a populated one, which is a
+    version-dependent time bomb rather than a version check.
+    """
+    payload = _payload_for((), save_version=_SAVE_60, header_version=_HEADER_13)
+
+    with pytest.raises(objects.UnsupportedSaveVersionError) as caught:
+        objects.parse_object_headers(payload, save_version=save_version, header_version=_HEADER_13)
+    assert caught.value.version == save_version
+
+
+def test_the_empty_save_version_42_fixture_is_refused_rather_than_parsed() -> None:
+    """The corpus fixture for 42 is empty, and emptiness is not support.
+
+    ``SAVE_V42`` carries no records precisely because the delta is unmeasured.
+    A lazy parser would walk its zero records without ever consulting the
+    delta and would report a clean parse of a version it cannot read.
+    """
+    save = synthetic.SAVE_V42
+    assert save.objects == ()
+
+    with pytest.raises(objects.UnsupportedSaveVersionError):
+        _table_of(save)
+
+
+def test_no_interpolated_delta_is_reachable_for_save_version_42() -> None:
+    """Neither of the two plausible interpolations is silently accepted."""
+    for guess in (_DELTA_36, (_DELTA_36 + _DELTA_60) // _PAIR, _DELTA_60):
+        assert objects.TRANSFORM_DELTA_BY_SAVE_VERSION.get(_SAVE_42) != guess
+
+
+# ---------------------------------------------------------------------------
+# 4 and 5 - unknown and mod-shaped classes are flagged, and the walk continues
+# ---------------------------------------------------------------------------
+
+
+def test_an_unknown_type_path_is_flagged_and_the_walk_continues_past_it() -> None:
+    """Acceptance 4. The unknown record sits in the MIDDLE, deliberately.
+
+    ``synthetic.unknown_actor_class()`` puts its unknown record LAST, so a
+    parser that stopped at the first unknown class would still return every
+    earlier record and would pass a count assertion against it. Placing the
+    unknown between two known records makes "the walk continued" an assertion
+    about a record that could only exist if the walk resumed.
+    """
+    records = (
+        _actor(_KNOWN_CLASS_PATH_A, "SyntheticSmelter_0"),
+        _actor(synthetic.UNKNOWN_ACTOR_CLASS_PATH, "SyntheticUnknown_0"),
+        _actor(_KNOWN_CLASS_PATH_B, "SyntheticBelt_0"),
+    )
+    payload = _payload_for(records, save_version=_SAVE_60, header_version=_HEADER_14)
+
+    table = objects.parse_object_headers(
+        payload,
+        save_version=_SAVE_60,
+        header_version=_HEADER_14,
+        known_classes=_known(_KNOWN_CLASS_PATH_A, _KNOWN_CLASS_PATH_B),
+    )
+
+    assert table.contains_unmodeled_content
+    flagged = {unknown.type_path: unknown for unknown in table.unknown_classes}
+    assert set(flagged) == {synthetic.UNKNOWN_ACTOR_CLASS_PATH}
+    assert flagged[synthetic.UNKNOWN_ACTOR_CLASS_PATH].count == _ONCE
+    assert flagged[synthetic.UNKNOWN_ACTOR_CLASS_PATH].reason in objects.UNKNOWN_CLASS_REASONS
+
+    # The walk reached the end of the table: three records, and the LAST one -
+    # which only exists if parsing resumed after the unknown - decoded.
+    assert len(table.records) == _TRIPLE
+    assert table.records[-1].instance_name == "SyntheticBelt_0"
+    assert table.records[-1].transform is not None
+
+
+def test_the_corpus_unknown_actor_fixture_is_flagged_and_never_fatal() -> None:
+    """The corpus's own unknown-class fixture, walked end to end.
+
+    Its record is structurally VALID - the unknown-ness is in the class path
+    alone - so a parser that rejected it would be rejecting it for the wrong
+    reason while still looking correct.
+    """
+    save = synthetic.unknown_actor_class()
+    table = _table_of(save, known_classes=_known(_KNOWN_CLASS_PATH_A))
+
+    assert len(table.records) == len(save.objects)
+    assert table.contains_unmodeled_content
+    assert [unknown.type_path for unknown in table.unknown_classes] == [
+        synthetic.UNKNOWN_ACTOR_CLASS_PATH
+    ]
+
+
+def test_a_namespaced_mod_class_path_is_flagged_and_never_fatal() -> None:
+    """Acceptance 5, BOOTSTRAP.md section 9.
+
+    A modded save must never produce a crash or a silently wrong number. It may
+    produce an explicit "this world contains content I do not model", which is
+    what ``contains_unmodeled_content`` is. The mod path is namespaced under
+    ``/Mods/`` so it cannot collide with vanilla, and the walk treats it exactly
+    as it treats any other unresolvable path - no mod-specific branch exists.
+    """
+    records = (
+        _actor(_MOD_CLASS_PATH, "SyntheticModded_0"),
+        _actor(_KNOWN_CLASS_PATH_A, "SyntheticSmelter_0"),
+    )
+    payload = _payload_for(records, save_version=_SAVE_60, header_version=_HEADER_14)
+
+    table = objects.parse_object_headers(
+        payload,
+        save_version=_SAVE_60,
+        header_version=_HEADER_14,
+        known_classes=_known(_KNOWN_CLASS_PATH_A),
+    )
+
+    assert table.contains_unmodeled_content
+    assert [unknown.type_path for unknown in table.unknown_classes] == [_MOD_CLASS_PATH]
+    assert len(table.records) == _PAIR
+    assert table.records[-1].instance_name == "SyntheticSmelter_0"
+
+
+def test_repeated_unknown_classes_aggregate_into_one_entry_with_a_count() -> None:
+    """A world with two hundred unmodeled belts has one problem, not two hundred."""
+    records = (
+        _actor(_MOD_CLASS_PATH, "SyntheticModded_0"),
+        _actor(_MOD_CLASS_PATH, "SyntheticModded_1"),
+        _actor(_KNOWN_CLASS_PATH_A, "SyntheticSmelter_0"),
+    )
+    payload = _payload_for(records, save_version=_SAVE_60, header_version=_HEADER_14)
+
+    table = objects.parse_object_headers(
+        payload,
+        save_version=_SAVE_60,
+        header_version=_HEADER_14,
+        known_classes=_known(_KNOWN_CLASS_PATH_A),
+    )
+
+    assert len(table.unknown_classes) == _ONCE
+    assert table.unknown_classes[0].count == _TWICE
+    assert len(table.records) == _TRIPLE
+
+
+def test_no_known_class_container_claims_nothing_is_unknown() -> None:
+    """Absence of a registry is not evidence of unknown-ness.
+
+    With no property map on the machine ``usmap.cached_usmap()`` returns None,
+    and a walk that then flagged EVERY class as unmodeled would report a world
+    of pure unknown content rather than a world it has not checked.
+    """
+    records = (_actor(_MOD_CLASS_PATH, "SyntheticModded_0"),)
+    payload = _payload_for(records, save_version=_SAVE_60, header_version=_HEADER_14)
+
+    table = objects.parse_object_headers(
+        payload, save_version=_SAVE_60, header_version=_HEADER_14, known_classes=None
+    )
+
+    assert table.unknown_classes == ()
+    assert not table.contains_unmodeled_content
+    assert len(table.records) == _ONCE
+
+
+def test_a_property_map_can_be_passed_straight_in_as_the_known_class_container() -> None:
+    """The seam that makes the unknown-class rule free.
+
+    ``PropertyMap.schemas`` is a mapping keyed by schema name, so it satisfies
+    the container the walk wants without an adapter. If this stopped being
+    true, the world layer would have to build a parallel registry.
+    """
+    property_map = _property_map(objects.class_name_of(_KNOWN_CLASS_PATH_A))
+    records = (
+        _actor(_KNOWN_CLASS_PATH_A, "SyntheticSmelter_0"),
+        _actor(_MOD_CLASS_PATH, "SyntheticModded_0"),
+    )
+    payload = _payload_for(records, save_version=_SAVE_60, header_version=_HEADER_14)
+
+    table = objects.parse_object_headers(
+        payload,
+        save_version=_SAVE_60,
+        header_version=_HEADER_14,
+        known_classes=property_map.schemas,
+    )
+
+    assert [unknown.type_path for unknown in table.unknown_classes] == [_MOD_CLASS_PATH]
+
+
+# ---------------------------------------------------------------------------
+# 6 - a payload the map cannot resolve is skipped and flagged, never raised
+# ---------------------------------------------------------------------------
+
+
+def test_a_type_path_the_property_map_cannot_resolve_is_flagged_never_raised() -> None:
+    """Acceptance 6. Unresolvable is a reported state, not a failure."""
+    property_map = _property_map(objects.class_name_of(_KNOWN_CLASS_PATH_A))
+    records = (_actor(_MOD_CLASS_PATH, "SyntheticModded_0"),)
+    payload = _payload_for(records, save_version=_SAVE_60, header_version=_HEADER_14)
+    table = objects.parse_object_headers(payload, save_version=_SAVE_60, header_version=_HEADER_14)
+
+    result = objects.read_properties(payload, table.records[0], property_map)
+
+    assert not result.resolved
+    assert result.properties == {}
+    assert result.warnings != ()
+    assert result.warnings[0].code == objects.WARN_UNRESOLVED_SCHEMA
+    assert objects.parse_properties(payload, table.records[0], property_map) == {}
+
+
+def test_a_resolvable_type_path_reports_the_schema_it_resolved_to() -> None:
+    """The positive control for the test above.
+
+    Without it, a resolver that returned "unresolved" for every input would
+    pass the flag-and-skip test vacuously.
+    """
+    schema_name = objects.class_name_of(_KNOWN_CLASS_PATH_A)
+    property_map = _property_map(schema_name)
+    records = (_actor(_KNOWN_CLASS_PATH_A, "SyntheticSmelter_0"),)
+    payload = _payload_for(records, save_version=_SAVE_60, header_version=_HEADER_14)
+    table = objects.parse_object_headers(payload, save_version=_SAVE_60, header_version=_HEADER_14)
+
+    result = objects.read_properties(payload, table.records[0], property_map)
+
+    assert result.resolved
+    assert result.schema_name == schema_name
+
+
+def test_a_record_with_no_payload_extent_yields_no_properties_and_no_warning() -> None:
+    """Every corpus record has a zero-length payload, and that is not an error.
+
+    ADR 0003's negative result: node actors carry NO serialized property
+    payload at all, because a save stores deltas from level defaults. An empty
+    payload is the NORMAL case for a large share of a real world's actors, so
+    it must not be reported as unknown content.
+    """
+    schema_name = objects.class_name_of(_KNOWN_CLASS_PATH_A)
+    property_map = _property_map(schema_name)
+    records = (_actor(_KNOWN_CLASS_PATH_A, "SyntheticSmelter_0"),)
+    payload = _payload_for(records, save_version=_SAVE_60, header_version=_HEADER_14)
+    table = objects.parse_object_headers(payload, save_version=_SAVE_60, header_version=_HEADER_14)
+
+    assert table.records[0].body_length == 0
+    result = objects.read_properties(payload, table.records[0], property_map)
+    assert result.resolved
+    assert result.properties == {}
+    assert result.warnings == ()
+
+
+def test_class_name_resolution_takes_the_object_name_after_the_final_dot() -> None:
+    """The one rule that joins a class path to a usmap schema key.
+
+    THE MULTI-DOT CASE IS THE ONLY DISCRIMINATING ONE, and it was added after a
+    mutation survived without it. Every ordinary path carries exactly one dot,
+    where taking the FIRST dot and taking the LAST are the same answer - so a
+    parser splitting on the first passes every single-dot assertion and returns
+    ``Outer.Build_Thing_C`` for a nested path, which resolves against no schema
+    and would report a modded world as entirely unmodelled.
+    """
+    assert objects.class_name_of(_KNOWN_CLASS_PATH_A) == "Build_SyntheticSmelter_C"
+    assert objects.class_name_of(_MOD_CLASS_PATH) == "Build_SyntheticModded_C"
+    assert objects.class_name_of(_NESTED_CLASS_PATH) == "Build_SyntheticNested_C"
+    assert objects.class_name_of("Build_Bare_C") == "Build_Bare_C"
+    assert objects.class_name_of("") == ""
+
+
+def test_a_nested_class_path_still_resolves_against_the_property_map() -> None:
+    """The gap above, closed at the seam that actually consumes the rule."""
+    property_map = _property_map("Build_SyntheticNested_C")
+    records = (_actor(_NESTED_CLASS_PATH, "SyntheticNested_0"),)
+    payload = _payload_for(records, save_version=_SAVE_60, header_version=_HEADER_14)
+
+    table = objects.parse_object_headers(
+        payload,
+        save_version=_SAVE_60,
+        header_version=_HEADER_14,
+        known_classes=property_map.schemas,
+    )
+
+    assert table.unknown_classes == ()
+    assert objects.read_properties(payload, table.records[0], property_map).resolved
+
+
+# ---------------------------------------------------------------------------
+# 7 - truncation inside the object table is one clean error
+# ---------------------------------------------------------------------------
+
+
+def test_truncation_inside_the_object_table_raises_object_truncated_error() -> None:
+    """Acceptance 7. Every cut point, not a sampled few.
+
+    The length prefix is rewritten to the truncated length at each cut, so the
+    payload stays self-consistent and the damage is reachable ONLY inside the
+    record walk - otherwise this would be re-testing the framing.
+    ``pytest.raises`` on the module's own class is what proves no
+    ``struct.error`` and no ``IndexError`` escapes: neither is a subclass.
+    """
+    records = (
+        _actor(_KNOWN_CLASS_PATH_A, "SyntheticSmelter_0"),
+        _actor(_KNOWN_CLASS_PATH_B, "SyntheticBelt_0"),
+    )
+    body = synthetic.build_body(records, save_version=_SAVE_60)
+    assert len(body) > _PAIR
+
+    for cut in range(len(body)):
+        payload = synthetic.body_with_prefix(body[:cut], _HEADER_14)
+        with pytest.raises(objects.ObjectTruncatedError):
+            objects.parse_object_headers(payload, save_version=_SAVE_60, header_version=_HEADER_14)
+
+    # The positive control: the uncut body parses. Without it every assertion
+    # above would pass on a parser that raised unconditionally.
+    whole = synthetic.body_with_prefix(body, _HEADER_14)
+    assert (
+        len(
+            objects.parse_object_headers(
+                whole, save_version=_SAVE_60, header_version=_HEADER_14
+            ).records
+        )
+        == _PAIR
+    )
+
+
+def test_the_corpus_pinned_body_truncation_point_raises_a_truncation() -> None:
+    """The corpus names one cut point as body-scope; this is it.
+
+    ``synthetic.TRUNCATION_BOUNDARIES`` pins
+    ``one-byte-short-of-an-object-record`` at body scope precisely because an
+    object record lives inside the compressed stream and the damage cannot be
+    expressed as a file offset at all.
+    """
+    pinned = next(
+        point for point in synthetic.TRUNCATION_BOUNDARIES if point.scope == synthetic.SCOPE_BODY
+    )
+    save = synthetic.SAVE_V60
+    payload = synthetic.body_with_prefix(save.body[: pinned.offset], save.header_version)
+
+    with pytest.raises(objects.ObjectTruncatedError):
+        objects.parse_object_headers(
+            payload, save_version=save.save_version, header_version=save.header_version
+        )
+
+
+def test_a_truncated_length_prefix_is_a_truncation_not_a_struct_error() -> None:
+    """The prefix itself is the first thing that can run short."""
+    for keep in range(_WIDE_PREFIX):
+        with pytest.raises(objects.ObjectTruncatedError):
+            objects.parse_object_headers(
+                bytes(keep), save_version=_SAVE_60, header_version=_HEADER_14
+            )
+
+
+def test_a_declared_string_length_above_the_cap_is_a_format_error() -> None:
+    """Bound the DECLARATION, before the slice.
+
+    A body declaring a gigabyte for one class path must be refused on the
+    declaration rather than after an allocation attempt.
+    """
+    records = (_actor(_KNOWN_CLASS_PATH_A, "SyntheticSmelter_0"),)
+    body = synthetic.build_body(records, save_version=_SAVE_60)
+    damaged = _splice(body, _FIRST_CLASS_PATH_LENGTH_AT, struct.pack("<i", _ABSURD_STRING_LENGTH))
+    payload = synthetic.body_with_prefix(damaged, _HEADER_14)
+
+    with pytest.raises(objects.ObjectFormatError):
+        objects.parse_object_headers(payload, save_version=_SAVE_60, header_version=_HEADER_14)
+
+
+def test_a_negative_declared_string_length_is_refused_on_the_utf16_path() -> None:
+    """A negative count selects UTF-16 and doubles the magnitude before the read.
+
+    Not merely the previous case with a sign flipped: the multiply is what a
+    parser does before it checks anything, so the cap has to be applied to the
+    BYTE count rather than to the declared character count.
+    """
+    records = (_actor(_KNOWN_CLASS_PATH_A, "SyntheticSmelter_0"),)
+    body = synthetic.build_body(records, save_version=_SAVE_60)
+    damaged = _splice(body, _FIRST_CLASS_PATH_LENGTH_AT, struct.pack("<i", _NEGATIVE_STRING_LENGTH))
+    payload = synthetic.body_with_prefix(damaged, _HEADER_14)
+
+    with pytest.raises(objects.ObjectFormatError):
+        objects.parse_object_headers(payload, save_version=_SAVE_60, header_version=_HEADER_14)
+
+
+def test_the_utf16_cap_is_applied_to_the_byte_count_not_the_character_count() -> None:
+    """The discriminating magnitude, added after a mutation survived without it.
+
+    ``_UTF16_CHARS_OVER_THE_BYTE_CAP`` characters is UNDER the cap read as a
+    character count and OVER it read as a byte count, which is the only band
+    where the two differ. The test above uses a magnitude so large that both
+    readings refuse, so it passed a parser that checked the wrong quantity.
+
+    The cap has to bind the BYTE count because bytes are what gets allocated.
+    A parser checking characters is refused here on the class it raises, not
+    merely on whether it raises: the wrong-quantity variant sails past the cap
+    and then trips the buffer bound, reporting a truncation - a short file -
+    where the truth is a declaration above the stated ceiling.
+    """
+    records = (_actor(_KNOWN_CLASS_PATH_A, "SyntheticSmelter_0"),)
+    body = synthetic.build_body(records, save_version=_SAVE_60)
+    declared = -_UTF16_CHARS_OVER_THE_BYTE_CAP
+    assert _UTF16_CHARS_OVER_THE_BYTE_CAP <= objects.MAX_STRING_BYTES
+    assert _UTF16_CHARS_OVER_THE_BYTE_CAP * _PAIR > objects.MAX_STRING_BYTES
+
+    damaged = _splice(body, _FIRST_CLASS_PATH_LENGTH_AT, struct.pack("<i", declared))
+    payload = synthetic.body_with_prefix(damaged, _HEADER_14)
+
+    with pytest.raises(objects.ObjectFormatError) as caught:
+        objects.parse_object_headers(payload, save_version=_SAVE_60, header_version=_HEADER_14)
+    assert caught.value.actual == _UTF16_CHARS_OVER_THE_BYTE_CAP * _PAIR
+    assert caught.value.expected == objects.MAX_STRING_BYTES
+
+
+def test_a_record_count_above_the_ceiling_is_refused_before_any_allocation() -> None:
+    """A save is untrusted binary input; the count is bounded on the declaration."""
+    body = struct.pack("<i", objects.MAX_OBJECTS + 1)
+    payload = synthetic.body_with_prefix(body, _HEADER_14)
+
+    with pytest.raises(objects.ObjectBudgetExceededError):
+        objects.parse_object_headers(payload, save_version=_SAVE_60, header_version=_HEADER_14)
+
+
+def test_a_negative_record_count_is_a_format_error() -> None:
+    """A negative count would be read by a range as empty and by a slice as a tail."""
+    body = struct.pack("<i", -1)
+    payload = synthetic.body_with_prefix(body, _HEADER_14)
+
+    with pytest.raises(objects.ObjectFormatError):
+        objects.parse_object_headers(payload, save_version=_SAVE_60, header_version=_HEADER_14)
+
+
+def test_an_unmeasured_object_type_discriminator_is_refused_rather_than_guessed() -> None:
+    """A record whose GRAMMAR is unknown cannot be skipped, so it is refused.
+
+    Non-negotiable 7 covers unknown CONTENT - a class this project does not
+    model - and the walk flags and skips that. An unrecognised object-type
+    discriminator is different in kind: the record carries no length, so there
+    is no way to step over it and resume. Guessing the actor grammar for it
+    would desynchronise the rest of the table silently.
+    """
+    records = (_actor(_KNOWN_CLASS_PATH_A, "Synth_0", object_type=_UNMEASURED_OBJECT_TYPE),)
+    payload = _payload_for(records, save_version=_SAVE_60, header_version=_HEADER_14)
+
+    with pytest.raises(objects.ObjectFormatError):
+        objects.parse_object_headers(payload, save_version=_SAVE_60, header_version=_HEADER_14)
+
+
+# ---------------------------------------------------------------------------
+# 8 - the body length prefix is consumed correctly on BOTH widths
+# ---------------------------------------------------------------------------
+
+
+def test_the_body_length_prefix_is_consumed_on_both_measured_widths() -> None:
+    """Acceptance 8. CS-404's correction, and the direction that hides.
+
+    Header 10 opens the body with an int32 equal to the body length; headers 13
+    and 14 open it with an int64. Save version 36 is used for both sides so the
+    transform delta is held constant and the prefix width is the only variable.
+
+    The RECORD COUNT is the load-bearing assertion. A parser hardcoding the
+    int64 and meeting a header-14 body reads correctly. The same parser meeting
+    a HEADER 10 body reads the count out of the middle of the first record and
+    fails loudly, which is the easy direction. The dangerous direction is the
+    reverse: a parser hardcoding the int32 against a header-14 body recovers a
+    plausible declared length from the low four bytes and then reads the object
+    count from the HIGH four bytes, which are zero. It returns an empty table
+    and raises nothing. Only the count assertion catches that.
+    """
+    records = (
+        _actor(_KNOWN_CLASS_PATH_A, "SyntheticSmelter_0"),
+        _actor(_KNOWN_CLASS_PATH_B, "SyntheticBelt_0"),
+    )
+    body = synthetic.build_body(records, save_version=_SAVE_36)
+
+    for header_version, expected_width in (
+        (_HEADER_10, _NARROW_PREFIX),
+        (_HEADER_13, _WIDE_PREFIX),
+        (_HEADER_14, _WIDE_PREFIX),
+    ):
+        payload = synthetic.body_with_prefix(body, header_version)
+        assert synthetic.body_prefix_width(header_version) == expected_width
+
+        table = objects.parse_object_headers(
+            payload, save_version=_SAVE_36, header_version=header_version
+        )
+
+        assert table.body_prefix_width == expected_width
+        assert table.declared_body_length == len(payload) - expected_width
+        assert table.declared_body_length == len(body)
+        assert len(table.records) == _PAIR
+        assert table.records[-1].instance_name == "SyntheticBelt_0"
+
+
+def test_the_header_10_and_header_14_walks_agree_record_for_record() -> None:
+    """The same records under both prefix widths decode identically.
+
+    A width bug cannot survive this: the two walks read different byte offsets
+    for everything after the prefix, so agreement across both is only possible
+    when each width is right.
+    """
+    records = (
+        _actor(_KNOWN_CLASS_PATH_A, "SyntheticSmelter_0"),
+        _actor(_KNOWN_CLASS_PATH_B, "SyntheticBelt_0"),
+    )
+    body = synthetic.build_body(records, save_version=_SAVE_36)
+
+    narrow = objects.parse_object_headers(
+        synthetic.body_with_prefix(body, _HEADER_10),
+        save_version=_SAVE_36,
+        header_version=_HEADER_10,
+    )
+    wide = objects.parse_object_headers(
+        synthetic.body_with_prefix(body, _HEADER_14),
+        save_version=_SAVE_36,
+        header_version=_HEADER_14,
+    )
+
+    assert narrow.records == wide.records
+    assert narrow.body_prefix_width != wide.body_prefix_width
+
+
+def test_an_unmeasured_header_version_is_flagged_and_never_fatal() -> None:
+    """ADR 0007 decision 3: an unattested combination is flagged, never guessed.
+
+    ``chunks.py`` sets the precedent - it warns rather than raising when a
+    supplied header version is outside the measured set, because raising would
+    assert that the header version is the key the framing follows, which the
+    ADR explicitly refuses to claim.
+    """
+    records = (_actor(_KNOWN_CLASS_PATH_A, "SyntheticSmelter_0"),)
+    payload = _payload_for(
+        records, save_version=_SAVE_60, header_version=_UNMEASURED_HEADER_VERSION
+    )
+
+    table = objects.parse_object_headers(
+        payload, save_version=_SAVE_60, header_version=_UNMEASURED_HEADER_VERSION
+    )
+
+    assert len(table.records) == _ONCE
+    assert [warning.code for warning in table.warnings] == [objects.WARN_UNMEASURED_HEADER_VERSION]
+
+
+def test_a_body_length_prefix_that_disagrees_is_flagged_and_never_fatal() -> None:
+    """A disagreement is reported, not raised - the records are still there."""
+    records = (_actor(_KNOWN_CLASS_PATH_A, "SyntheticSmelter_0"),)
+    body = synthetic.build_body(records, save_version=_SAVE_60)
+    payload = struct.pack("<q", len(body) - 1) + body
+
+    table = objects.parse_object_headers(payload, save_version=_SAVE_60, header_version=_HEADER_14)
+
+    assert len(table.records) == _ONCE
+    assert objects.WARN_BODY_LENGTH_DISAGREEMENT in {warning.code for warning in table.warnings}
+
+
+def test_bytes_left_after_the_record_table_are_flagged_as_unparsed() -> None:
+    """The object DATA section is unmeasured, so its presence is reported.
+
+    No corpus fixture carries one, which is exactly why its absence must not be
+    mistaken for proof that the walk handles it. Trailing bytes are flagged and
+    skipped rather than parsed against a grammar nobody here has measured.
+    """
+    records = (_actor(_KNOWN_CLASS_PATH_A, "SyntheticSmelter_0"),)
+    body = synthetic.build_body(records, save_version=_SAVE_60) + bytes(16)
+    payload = synthetic.body_with_prefix(body, _HEADER_14)
+
+    table = objects.parse_object_headers(payload, save_version=_SAVE_60, header_version=_HEADER_14)
+
+    assert len(table.records) == _ONCE
+    assert objects.WARN_UNPARSED_DATA_SECTION in {warning.code for warning in table.warnings}
+
+
+# ---------------------------------------------------------------------------
+# 9 - no fixture string reaches any exception surface
+# ---------------------------------------------------------------------------
+
+
+def _planted_records() -> tuple[synthetic.SyntheticObject, ...]:
+    """Records whose three strings are all planted markers.
+
+    Returns:
+        The records.
+    """
+    return (
+        synthetic.SyntheticObject(_PLANTED_CLASS_PATH, _PLANTED_ROOT, _PLANTED_INSTANCE),
+        synthetic.SyntheticObject(_PLANTED_CLASS_PATH, _PLANTED_ROOT, _PLANTED_INSTANCE + "_1"),
+    )
+
+
+def _planted_failures() -> list[Callable[[], object]]:
+    """Every failure path reachable with planted strings in the buffer.
+
+    Returns:
+        Callables that each raise.
+    """
+    records = _planted_records()
+    body = synthetic.build_body(records, save_version=_SAVE_60)
+
+    def walk(payload: bytes, *, save_version: int = _SAVE_60) -> Callable[[], object]:
+        def call() -> object:
+            return objects.parse_object_headers(
+                payload, save_version=save_version, header_version=_HEADER_14
+            )
+
+        return call
+
+    cases: list[Callable[[], object]] = [
+        walk(synthetic.body_with_prefix(body, _HEADER_14), save_version=_SAVE_42),
+        walk(synthetic.body_with_prefix(body, _HEADER_14), save_version=_UNMEASURED_SAVE_VERSION),
+        walk(
+            synthetic.body_with_prefix(
+                _splice(
+                    body, _FIRST_CLASS_PATH_LENGTH_AT, struct.pack("<i", _ABSURD_STRING_LENGTH)
+                ),
+                _HEADER_14,
+            )
+        ),
+        walk(
+            synthetic.body_with_prefix(
+                _splice(
+                    body, _FIRST_CLASS_PATH_LENGTH_AT, struct.pack("<i", _NEGATIVE_STRING_LENGTH)
+                ),
+                _HEADER_14,
+            )
+        ),
+        walk(synthetic.body_with_prefix(struct.pack("<i", -1) + body[4:], _HEADER_14)),
+        walk(
+            synthetic.body_with_prefix(
+                struct.pack("<i", objects.MAX_OBJECTS + 1) + body[4:], _HEADER_14
+            )
+        ),
+        walk(
+            _payload_for(
+                (
+                    synthetic.SyntheticObject(
+                        _PLANTED_CLASS_PATH,
+                        _PLANTED_ROOT,
+                        _PLANTED_INSTANCE,
+                        object_type=_UNMEASURED_OBJECT_TYPE,
+                    ),
+                ),
+                save_version=_SAVE_60,
+                header_version=_HEADER_14,
+            )
+        ),
+    ]
+    # Ten truncation points spread across the planted body, so the markers are
+    # partially present in the buffer at each one.
+    step = max(len(body) // 10, 1)
+    cases.extend(
+        walk(synthetic.body_with_prefix(body[:cut], _HEADER_14))
+        for cut in range(0, len(body), step)
+    )
+    return cases
+
+
+def test_the_planted_failure_cases_all_actually_raise() -> None:
+    """The positive control for the leak test below.
+
+    A leak test over cases that silently succeed asserts nothing at all, and
+    that is the exact shape of a test about nothing.
+    """
+    cases = _planted_failures()
+    assert len(cases) > _TRIPLE
+    for call in cases:
+        with pytest.raises(objects.ObjectError):
+            call()
+
+
+def test_no_planted_fixture_string_reaches_any_exception_surface() -> None:
+    """Acceptance 9. Non-negotiable 12, asserted over five surfaces.
+
+    A save body holds the world's contents and its actor names, so an exception
+    is an echo path. ``str``, ``args``, ``repr``, ``__notes__`` and the fully
+    formatted traceback are checked, because a message can be clean while
+    ``args`` carries the value and a traceback renders the chained cause.
+    """
+    for call in _planted_failures():
+        with pytest.raises(objects.ObjectError) as caught:
+            call()
+        error = caught.value
+
+        surfaces = [
+            str(error),
+            repr(error),
+            repr(error.args),
+            "".join(getattr(error, "__notes__", []) or []),
+            "".join(traceback.format_exception(type(error), error, error.__traceback__)),
+        ]
+        for surface in surfaces:
+            for token in _PLANTED_TOKENS:
+                assert token not in surface
+            assert surface.isascii()
+
+
+@pytest.mark.parametrize("call", _planted_failures())
+def test_every_raised_error_carries_only_taxonomy_fields(call: Callable[[], object]) -> None:
+    """The attribute SET is pinned, not the values.
+
+    Anything else on the instance is a channel through which save content could
+    travel, so the set is asserted mechanically rather than by reading the code.
+    """
+    with pytest.raises(objects.ObjectError) as caught:
+        call()
+    assert set(vars(caught.value)) <= _ALLOWED_ERROR_ATTRIBUTES
+    for name in ("offset", "expected", "actual", "version"):
+        value = getattr(caught.value, name)
+        assert value is None or isinstance(value, int)
+    assert isinstance(caught.value.field, str)
+
+
+@pytest.mark.parametrize("call", _planted_failures())
+def test_every_raised_reason_is_a_declared_constant(call: Callable[[], object]) -> None:
+    """A reason cannot carry content if it is never built from content."""
+    declared = {
+        value
+        for name, value in vars(objects).items()
+        if name.startswith("REASON_") and isinstance(value, str)
+    }
+    assert declared, "the module must declare its reason strings as constants"
+    with pytest.raises(objects.ObjectError) as caught:
+        call()
+    assert caught.value.reason in declared
+
+
+@pytest.mark.parametrize("call", _planted_failures())
+def test_no_raised_message_previews_the_bytes_that_caused_it(call: Callable[[], object]) -> None:
+    """A hex preview in an exception is a disclosure, so the rendering is pinned."""
+    with pytest.raises(objects.ObjectError) as caught:
+        call()
+    message = str(caught.value)
+
+    assert message.isascii()
+    assert "\\x" not in message
+    assert "b'" not in message
+    assert 'b"' not in message
+    assert "0x" not in message.lower()
+
+
+def test_every_error_class_descends_from_the_base() -> None:
+    """One catch clause covers the whole layer."""
+    for cls in (
+        objects.ObjectFormatError,
+        objects.ObjectTruncatedError,
+        objects.ObjectBudgetExceededError,
+        objects.UnsupportedSaveVersionError,
+    ):
+        assert issubclass(cls, objects.ObjectError)
+    assert issubclass(objects.ObjectError, Exception)
+
+
+def test_the_record_repr_withholds_every_string_it_carries() -> None:
+    """A repr is an echo path, and a test runner reprs objects into the log.
+
+    ``header.py`` sets the precedent: the safe rendering has to stay safe even
+    when the parse is wrong, so it emits structure and withholds content.
+    """
+    records = _planted_records()
+    payload = _payload_for(records, save_version=_SAVE_60, header_version=_HEADER_14)
+
+    # An EMPTY registry, so every planted class lands in unknown_classes and
+    # the table's rendering of that collection is exercised rather than skipped.
+    table = objects.parse_object_headers(
+        payload,
+        save_version=_SAVE_60,
+        header_version=_HEADER_14,
+        known_classes=frozenset(),
+    )
+    assert table.unknown_classes != ()
+
+    for rendering in (repr(table), repr(table.records[0]), repr(table.records)):
+        for token in _PLANTED_TOKENS:
+            assert token not in rendering
+        assert rendering.isascii()
+
+
+# ---------------------------------------------------------------------------
+# Seam discipline
+# ---------------------------------------------------------------------------
+
+
+def test_the_objects_module_reaches_for_no_sibling_but_the_property_map() -> None:
+    """This module takes bytes, two version scalars and a parsed property map.
+
+    Asserted on the parsed import graph rather than on a substring search, so
+    ``from clockspeed.save.header import parse_header`` is caught as an import
+    and a mention inside a docstring is not.
+    """
+    tree = ast.parse(Path(objects.__file__).read_text(encoding="utf-8"))
+
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            imported.add(node.module)
+            imported.update(f"{node.module}.{alias.name}" for alias in node.names)
+
+    for sibling in _FORBIDDEN_SIBLINGS:
+        assert f"clockspeed.save.{sibling}" not in imported
+
+
+def test_the_module_never_opens_a_file() -> None:
+    """Bytes in, model out. ``workdir.py`` is the only writer, and this reads none.
+
+    ADR 0007 decision item 6 makes "no other save module writes" a static
+    assertion; a module that never opens anything at all is trivially inside
+    it, and this pins that property against a future convenience helper.
+    """
+    tree = ast.parse(Path(objects.__file__).read_text(encoding="utf-8"))
+    called = {
+        node.func.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    } | {
+        node.func.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    for banned in ("open", "read_bytes", "write_bytes", "read_text", "write_text"):
+        assert banned not in called
