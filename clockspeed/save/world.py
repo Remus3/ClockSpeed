@@ -1,0 +1,688 @@
+"""The world-state model, and the one entry point that produces it.
+
+WHAT THIS MODULE OWNS
+-----------------------
+``docs/ARCHITECTURE.md`` section 1.1: **the world model is the only save-layer
+type any higher layer is allowed to hold.** ``audit/`` and ``progress/`` consume
+it; nothing above this layer sees save bytes, a chunk frame or a property map.
+
+It owns one more thing that nothing else can own: **the two version scalars.**
+``chunks.decompress_body`` discards both the header version and the save
+version, and ``objects.parse_object_headers`` needs both. This module is the
+only place that holds them at once, so threading them is not plumbing - it is
+the seam, and getting it wrong is the defect the corpus was built to catch.
+
+THE COMPOSITION, IN ORDER
+---------------------------
+``workdir.copy_for_read`` -> ``header.parse_header`` -> ``chunks.decompress_body``
+-> ``usmap.cached_usmap`` -> ``objects.parse_object_headers`` -> :class:`WorldModel`.
+
+Nothing here re-implements any of them. Each sibling was proven separately and
+this module is deliberately thin: every byte-level decision lives one layer
+down, where it has its own fixtures and its own error taxonomy.
+
+TWO DISPATCHES, THREADED SEPARATELY AND NEVER DERIVED
+-------------------------------------------------------
+The body length prefix width follows the HEADER version; the transform delta
+follows the SAVE version. Across the entire real library the two covary - header
+10 with save 36, header 14 with saves 52 and 60 - so a composer that read one
+scalar and derived the other is correct on every real file and on every
+real-shaped fixture. Both are passed through explicitly, and
+``tests/save/test_world.py::test_save_cross_proves_the_composer_threads_both_scalars``
+asserts the PAIR against a header-14/save-36 fixture that exists in no real
+file.
+
+AN ABSENT PROPERTY MAP IS THE DEFAULT PATH, NOT AN EDGE CASE
+--------------------------------------------------------------
+``usmap.cached_usmap()`` returns None on a machine with no install and NEVER
+raises for absence. CI and every fresh clone run in exactly that state, so the
+None branch is the common one. It is recorded as a warning and the load
+continues with no property map: ``objects.parse_object_headers`` takes
+``known_classes=None`` to mean "no registry was supplied", and a walk that
+flagged every class in that state would report a world of pure unknown content
+rather than a world it has not checked.
+
+``objects.parse_properties`` takes a NON-OPTIONAL ``PropertyMap``, which is the
+trap in the seam: a composer that called it unconditionally is a ``TypeError``
+on every machine that has never had the game installed. **This module does not
+call it at all**, and the reason is not the None case - it is that
+``objects.read_properties`` decodes no property value whatsoever, because the
+object data section's grammar has never been measured by this project. Calling
+it today would cost a pass over every record and return an empty mapping.
+
+A mapping that is PRESENT and unreadable is a different thing entirely and does
+raise, because collapsing the two would hide a shipped-format change behind the
+same value that means "no install".
+
+UNLOCK STATE IS HONESTLY EMPTY, AND SAYS SO
+---------------------------------------------
+ADR 0004 measured WHICH unlock fields exist in a mature world - 246 schematic
+paths including the alt-recipe purchases, 360 recipe paths, the game phase, the
+research trees, the scanned resources and the feature booleans. It did **not**
+measure their serialized grammar, and no code in this project decodes a property
+value. So :class:`UnlockState` is published EMPTY with a warning saying the
+grammar is unmeasured, per non-negotiable 7 - unknown content is flagged and
+skipped, never fatal and never silently wrong.
+
+That is not a placeholder to be quietly filled in by inference. ADR 0004's
+single most important engineering consequence is that **an absent unlock array
+means EMPTY, never missing and never an error.** A reader that assumes presence
+either crashes on a fresh onboarding world or reports a mature world's state for
+a new one, and the second failure produces confident wrong advice. An empty
+unlock set that says so is correct; a fabricated one is not.
+
+WHAT THIS MODULE CANNOT DO YET, STATED PLAINLY
+------------------------------------------------
+**It cannot read a real save's object table.** CS-407 records that a real body
+opens with a version-dependent preamble between the length prefix and the record
+table which nothing yet locates - the measured first int32 after the prefix is
+201, 6, 6 and 0 across the four real version pairs. ``objects.py`` therefore
+starts the table at body offset 0, which is the CORPUS layout only. The header
+parse and the chunk walk below are correct against real files; the object stage
+is correct against the corpus. Deriving that preamble is separate, measured
+work and is not closed by guessing an offset here.
+
+Resource-node SEMANTICS are likewise unavailable, and that is a measurement
+rather than a gap. ADR 0003: a save stores deltas from level defaults, so a
+node's purity and resource type - which never change from the level asset - are
+never written to the save at all. Geometry is exact and free; semantics need
+the asset-extraction path. :class:`ResourceNode` carries placement and nothing
+else, and says so.
+
+THE ERROR TAXONOMY, AND THE COUPLING THAT MAKES IT SAFE
+---------------------------------------------------------
+Every sibling failure is wrapped in :class:`WorldLoadError` with
+``raise ... from exc``. That chain makes the CAUSE's own text part of this
+module's formatted traceback, so wrapping WIDENS the echo path that
+non-negotiable 12 governs.
+
+**It is safe here only because every sibling already guarantees its exception
+text is clean** - a field name from a closed vocabulary, a byte offset, an
+expected and an actual length, a version scalar, a fixed reason, and nothing
+else. ``header.py``, ``chunks.py``, ``objects.py`` and ``usmap.py`` each state
+that guarantee and each pin it with a planted-marker test;
+``workdir.py`` renders a path only through ``locate.redact()``. **Weakening any
+one of those taxonomies silently converts every wrapped error here into a
+leak**, and this paragraph is the record of what that guarantee is holding up,
+so nobody relaxes one without seeing the load it carries.
+
+This module adds no message content of its own beyond a stage name from a
+closed set and the cause's CLASS NAME, both of which are module-defined
+vocabulary rather than anything read out of a save.
+
+THE WORLD TOKEN IS PERSONAL DATA
+----------------------------------
+It identifies a world, and the advice ledger keys on it. It is legal in memory
+and in the gitignored ledger, and FORBIDDEN in every tracked file, every log
+line and every error message. :class:`WorldModel` therefore hand-writes its
+``__repr__`` to emit counts and version scalars with the token MASKED through
+``header.masked_token`` - the mask that already exists, rather than a second
+one. This is the widest repr in the layer, because every consumer above holds
+one of these.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from dataclasses import dataclass
+from pathlib import Path
+from types import MappingProxyType
+from typing import Final
+
+from clockspeed.save.chunks import ChunkError, DecompressedBody, decompress_body
+from clockspeed.save.header import HeaderError, SaveHeader, masked_token, parse_header
+from clockspeed.save.objects import (
+    ObjectError,
+    ObjectRecord,
+    ObjectTable,
+    class_name_of,
+    parse_object_headers,
+)
+from clockspeed.save.usmap import PropertyMap, UsmapError, cached_usmap
+from clockspeed.save.workdir import WorkDirError, copy_for_read
+
+__all__ = [
+    "EMPTY_UNLOCK_STATE",
+    "NODE_CLASS_NAMES",
+    "SOURCE_CHUNKS",
+    "SOURCE_HEADER",
+    "SOURCE_OBJECTS",
+    "SOURCE_USMAP",
+    "SOURCE_WORLD",
+    "STAGES",
+    "STAGE_CHUNKS",
+    "STAGE_COPY",
+    "STAGE_HEADER",
+    "STAGE_OBJECTS",
+    "STAGE_USMAP",
+    "WARN_NODE_SEMANTICS_UNAVAILABLE",
+    "WARN_NO_PROPERTY_MAP",
+    "WARN_UNLOCK_GRAMMAR_UNMEASURED",
+    "ResourceNode",
+    "UnlockState",
+    "WorldLoadError",
+    "WorldModel",
+    "WorldWarning",
+    "load_world",
+    "load_world_from_bytes",
+]
+
+# ---------------------------------------------------------------------------
+# The closed vocabularies
+# ---------------------------------------------------------------------------
+
+#: The stage a load failed at. A closed set, because a stage name travels into
+#: an exception message and anything built from file content would be an echo
+#: path.
+STAGE_COPY: Final = "copy"
+STAGE_HEADER: Final = "header"
+STAGE_CHUNKS: Final = "chunks"
+STAGE_USMAP: Final = "usmap"
+STAGE_OBJECTS: Final = "objects"
+
+STAGES: Final = (STAGE_COPY, STAGE_HEADER, STAGE_CHUNKS, STAGE_USMAP, STAGE_OBJECTS)
+
+#: Which layer noticed a warning. The same five names, because a caller asking
+#: "where did this come from" is asking about the same layers.
+SOURCE_HEADER: Final = STAGE_HEADER
+SOURCE_CHUNKS: Final = STAGE_CHUNKS
+SOURCE_USMAP: Final = STAGE_USMAP
+SOURCE_OBJECTS: Final = STAGE_OBJECTS
+SOURCE_WORLD: Final = "world"
+
+WARN_NO_PROPERTY_MAP: Final = "no-property-map"
+WARN_UNLOCK_GRAMMAR_UNMEASURED: Final = "unlock-grammar-unmeasured"
+WARN_NODE_SEMANTICS_UNAVAILABLE: Final = "node-semantics-unavailable"
+
+#: One fixed line per warning code. Keyed rather than formatted, so a detail can
+#: never be built from something read out of a save.
+_WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        WARN_NO_PROPERTY_MAP: (
+            "no property mapping is available, so no class was checked against a registry;"
+            " absence of a registry claims nothing about unmodelled content"
+        ),
+        WARN_UNLOCK_GRAMMAR_UNMEASURED: (
+            "unlock state is empty because its serialized grammar has never been measured;"
+            " ADR 0004 measured which fields exist and not how they are written"
+        ),
+        WARN_NODE_SEMANTICS_UNAVAILABLE: (
+            "resource nodes carry placement only; purity and resource type are level"
+            " defaults that a save never writes, so node semantics need asset extraction"
+        ),
+    }
+)
+
+#: The resource-node actor classes ADR 0003 MEASURED in a real world - 459, 118,
+#: 31, 17 and 1 instance of them respectively, every one carrying a valid
+#: transform. Matched on the CLASS NAME rather than on the full path, so a
+#: namespaced or mod-authored path reaches the same branch.
+NODE_CLASS_NAMES: Final = frozenset(
+    {
+        "BP_ResourceNode_C",
+        "BP_FrackingSatellite_C",
+        "BP_ResourceNodeGeyser_C",
+        "BP_FrackingCore_C",
+        "BP_ResourceDeposit_C",
+    }
+)
+
+
+# ---------------------------------------------------------------------------
+# Errors
+# ---------------------------------------------------------------------------
+
+
+class WorldLoadError(Exception):
+    """A save could not be loaded, named by the stage that refused it.
+
+    Deliberately NOT a subclass of any sibling error: a caller that catches this
+    to tolerate a bad save must not thereby swallow a ``HeaderError`` raised by
+    some other path.
+
+    The original is attached with ``raise ... from`` rather than dropped,
+    because the sibling taxonomies carry the structural detail - the field, the
+    offset, the expected and actual lengths - and re-deriving it here would mean
+    inventing it. See the module docstring for the guarantee that makes chaining
+    safe, and for what breaks if a sibling relaxes it.
+
+    Attributes:
+        stage: One of :data:`STAGES`.
+        cause_type: The class name of the wrapped error. Module-defined
+            vocabulary, never a value read out of a save.
+    """
+
+    def __init__(self, stage: str, cause_type: str) -> None:
+        """Build the one-line message from the two closed-vocabulary fields.
+
+        Args:
+            stage: One of :data:`STAGES`.
+            cause_type: The wrapped error's class name.
+        """
+        self.stage = stage
+        self.cause_type = cause_type
+        super().__init__(f"save load failed at the {stage} stage: {cause_type}")
+
+
+# ---------------------------------------------------------------------------
+# The models
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class WorldWarning:
+    """One thing a layer flagged and carried anyway.
+
+    Every layer's advisories are normalised into this one stream so a consumer
+    never has to reach into a sub-model to find a flag - which would be exactly
+    the reach-past-your-neighbour the seam discipline forbids.
+
+    Only the CODE and the fixed detail travel up. The scalars a sub-warning
+    carries - a version pair, a byte offset, a type id - stay on the sub-warning
+    and are reachable through :attr:`WorldModel.header` and
+    :attr:`WorldModel.objects`, because promoting them would mean giving one
+    field four different meanings depending on which layer filled it in.
+
+    Attributes:
+        source: Which layer noticed it, from the ``SOURCE_*`` constants.
+        code: The originating layer's own warning code.
+        detail: One fixed line naming the consequence. Never built from content.
+        count: How many occurrences this aggregates.
+    """
+
+    source: str
+    code: str
+    detail: str
+    count: int = 1
+
+
+@dataclass(frozen=True)
+class UnlockState:
+    """What the player has unlocked.
+
+    EMPTY ON EVERY PATH TODAY, AND THAT IS A MEASURED POSITION RATHER THAN A
+    STUB. ADR 0004 established that unlock state IS recoverable from a save and
+    named the fields; it did not measure their serialized grammar, and
+    ``objects.read_properties`` decodes no property value at all. So there is no
+    path by which a purchased schematic could have been read, and a non-empty
+    collection here would be an invented one.
+
+    The load carries :data:`WARN_UNLOCK_GRAMMAR_UNMEASURED` for exactly that
+    reason: an empty unlock set with no warning is indistinguishable from a
+    world that genuinely has nothing unlocked, and the difference between those
+    two is the difference between honest silence and confident wrong advice.
+
+    When the grammar is measured, the absent-array rule is the one to preserve:
+    an array that is not present in the file is EMPTY, never missing and never
+    an error. Arrays that are still empty are simply not written.
+
+    Attributes:
+        purchased_schematics: Schematic paths bought, including the
+            ``Schematic_Alternate_*`` entries that are pillar 2's alt-recipe
+            purchase state.
+        recipes: Unlocked recipe paths, including ``Recipe_Alternate_*``.
+        current_game_phase: The phase index, or None when it was not read.
+        feature_flags: Feature-level unlocks as discrete booleans - blueprints,
+            building overclock, building efficiency, the map, the customizer.
+            Overclock availability is a direct precondition for power and clock
+            advice, so a rule requiring it declares the flag and cannot fire
+            without it.
+        scanned_resources: The scanned-resource state, which is the input that
+            keeps ADR 0003's degraded node mode viable.
+    """
+
+    purchased_schematics: frozenset[str]
+    recipes: frozenset[str]
+    current_game_phase: int | None
+    feature_flags: Mapping[str, bool]
+    scanned_resources: frozenset[str]
+
+    @property
+    def is_empty(self) -> bool:
+        """Whether nothing at all was recovered.
+
+        Returns:
+            True when every collection is empty and no phase was read.
+        """
+        return not (
+            self.purchased_schematics
+            or self.recipes
+            or self.feature_flags
+            or self.scanned_resources
+            or self.current_game_phase is not None
+        )
+
+
+#: The one shape any load produces today. A module-level constant rather than a
+#: fresh instance per load, because it is immutable and identical every time.
+EMPTY_UNLOCK_STATE: Final = UnlockState(
+    purchased_schematics=frozenset(),
+    recipes=frozenset(),
+    current_game_phase=None,
+    feature_flags=MappingProxyType({}),
+    scanned_resources=frozenset(),
+)
+
+
+@dataclass(frozen=True, repr=False)
+class ResourceNode:
+    """One resource-node actor: where it is, and nothing about what it holds.
+
+    ADR 0003 measured both halves of that sentence. 626 node actors with 626
+    valid transforms - geometry is exact and free. And ``mPurity``,
+    ``mResourceNodeType`` and ``mResourceClass`` occur ZERO times in any save
+    examined across three worlds and four game builds, because a save stores
+    deltas from level defaults and a node's resource type never changes from
+    the level asset. Semantics are not missing from this type by omission; they
+    are not in the file.
+
+    ``repr`` withholds the instance name, which is world content, and renders
+    the class name, which is a game constant ADR 0003 already publishes.
+
+    Attributes:
+        class_name: The actor class, from :data:`NODE_CLASS_NAMES`.
+        instance_name: The instance name, verbatim.
+        translation: World coordinates, from the record's transform.
+    """
+
+    class_name: str
+    instance_name: str
+    translation: tuple[float, float, float]
+
+    def __repr__(self) -> str:
+        """Render the class and the coordinates, and withhold the instance name.
+
+        Returns:
+            The safe rendering.
+        """
+        return f"{type(self).__name__}(class_name={self.class_name!r}, at={self.translation})"
+
+
+@dataclass(frozen=True, repr=False)
+class WorldModel:
+    """Everything above the save layer is allowed to know about a world.
+
+    THE ONLY SAVE-LAYER TYPE A HIGHER LAYER HOLDS (``docs/ARCHITECTURE.md``
+    section 1.1). ``audit/`` and ``progress/`` consume this and never save
+    bytes.
+
+    Attributes:
+        token: The header's save identifier - the stable, filename-independent
+            world key the advice ledger is keyed by. PERSONAL DATA: legal in
+            memory and in the gitignored ledger, forbidden in every tracked
+            file, log line and error message.
+        header: The parsed header, carrying its own warnings and scalars.
+        objects: The walked record table, carrying its own warnings and the two
+            version scalars the walk was dispatched on.
+        unlocks: What the player has unlocked. Empty on every path today - see
+            :class:`UnlockState`.
+        nodes: Resource-node actors with their placement. Geometry only.
+        warnings: Every layer's advisories, normalised into one stream.
+    """
+
+    token: str
+    header: SaveHeader
+    objects: ObjectTable
+    unlocks: UnlockState
+    nodes: tuple[ResourceNode, ...]
+    warnings: tuple[WorldWarning, ...]
+
+    @property
+    def contains_unmodeled_content(self) -> bool:
+        """Whether this world holds content the project does not model.
+
+        Delegated rather than recomputed, so the answer cannot drift from the
+        table it is about. False when no registry was supplied: absence of a
+        registry claims nothing.
+
+        Returns:
+            True when at least one class path went unresolved.
+        """
+        return self.objects.contains_unmodeled_content
+
+    def __repr__(self) -> str:
+        """Render counts and version scalars, with the token MASKED.
+
+        The widest repr in the layer - every consumer above holds one of these,
+        and a test runner or a logger reprs an object before a human chooses
+        what to print. The map name is omitted for the same reason
+        ``SaveHeader`` omits it: its POSITION is version dependent, so a
+        dispatch bug would put an operator-authored string in it, and this
+        rendering has to stay safe even when the parse is wrong.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(token={masked_token(self.token)!r}, "
+            f"header_version={self.header.header_version}, "
+            f"save_version={self.header.save_version}, "
+            f"objects={len(self.objects.records)}, "
+            f"nodes={len(self.nodes)}, "
+            f"unmodelled_classes={len(self.objects.unknown_classes)}, "
+            f"warnings={len(self.warnings)})"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Assembly
+# ---------------------------------------------------------------------------
+
+
+def _warning(source: str, code: str, count: int = 1) -> WorldWarning:
+    """Build one world warning from this module's own fixed detail table.
+
+    Args:
+        source: One of the ``SOURCE_*`` constants.
+        code: One of this module's ``WARN_*`` constants.
+        count: How many occurrences it aggregates.
+
+    Returns:
+        The warning.
+    """
+    return WorldWarning(source=source, code=code, detail=_WARNING_DETAIL[code], count=count)
+
+
+def _resolve_property_map(
+    supplied: PropertyMap | None,
+) -> tuple[PropertyMap | None, list[WorldWarning]]:
+    """Take the caller's mapping, or find the installed one.
+
+    Args:
+        supplied: A mapping to use as-is, or None to resolve one.
+
+    Returns:
+        The mapping or None, and any warnings raised in getting there.
+
+    Raises:
+        WorldLoadError: A mapping file exists but could not be read or parsed.
+            Absence is NOT this case and never raises.
+    """
+    if supplied is not None:
+        return supplied, []
+    try:
+        found = cached_usmap()
+    except UsmapError as exc:
+        raise WorldLoadError(STAGE_USMAP, type(exc).__name__) from exc
+    if found is None:
+        return None, [_warning(SOURCE_USMAP, WARN_NO_PROPERTY_MAP)]
+    return found, []
+
+
+def _nodes_from(table: ObjectTable) -> tuple[ResourceNode, ...]:
+    """Pick the resource-node actors out of a walked record table.
+
+    Args:
+        table: The walked table.
+
+    Returns:
+        One :class:`ResourceNode` per matching record, in file order. A record
+        whose class matches but which carried no transform is skipped rather
+        than published with invented coordinates.
+    """
+    return tuple(node for record in table.records if (node := _node_or_none(record)) is not None)
+
+
+def _node_or_none(record: ObjectRecord) -> ResourceNode | None:
+    """Convert one record to a node, or return None when it is not one.
+
+    Args:
+        record: The record to inspect.
+
+    Returns:
+        The node, or None when the class is not a measured node class or the
+        record carried no transform.
+    """
+    name = class_name_of(record.type_path)
+    if name not in NODE_CLASS_NAMES or record.transform is None:
+        return None
+    return ResourceNode(
+        class_name=name,
+        instance_name=record.instance_name,
+        translation=record.transform.translation,
+    )
+
+
+def _read_unlocks() -> tuple[UnlockState, list[WorldWarning]]:
+    """Recover the unlock state, which today means reporting that it cannot be.
+
+    A function rather than a constant reference at the call site, so the place
+    the real reader goes is already named and the warning cannot be dropped
+    without deleting a line that says why it exists.
+
+    Returns:
+        The empty state and the warning that makes the emptiness honest.
+    """
+    return EMPTY_UNLOCK_STATE, [_warning(SOURCE_WORLD, WARN_UNLOCK_GRAMMAR_UNMEASURED)]
+
+
+def load_world_from_bytes(data: bytes, *, property_map: PropertyMap | None = None) -> WorldModel:
+    """Parse a whole save out of bytes already in memory.
+
+    The composition the module docstring describes, minus the copy: the caller
+    has the bytes, so there is nothing to copy and nothing to open.
+
+    Args:
+        data: A whole save file's bytes.
+        property_map: A parsed property mapping to check class paths against.
+            None resolves the installed one through ``usmap.cached_usmap``,
+            which returns None rather than raising when there is no install.
+
+    Returns:
+        The world model.
+
+    Raises:
+        WorldLoadError: Any sibling refused the bytes. The original is attached
+            as the cause.
+    """
+    try:
+        parsed = parse_header(data)
+    except HeaderError as exc:
+        raise WorldLoadError(STAGE_HEADER, type(exc).__name__) from exc
+
+    try:
+        body = decompress_body(data, parsed.body_offset, header_version=parsed.header_version)
+    except ChunkError as exc:
+        raise WorldLoadError(STAGE_CHUNKS, type(exc).__name__) from exc
+
+    mapping, warnings = _resolve_property_map(property_map)
+
+    try:
+        # THE SEAM. Both scalars are threaded SEPARATELY: header_version drives
+        # the body length prefix width and nothing else, save_version drives the
+        # transform delta and nothing else. Deriving either from the other is
+        # correct on every real file and wrong on SAVE_CROSS.
+        table = parse_object_headers(
+            body.payload,
+            save_version=parsed.save_version,
+            header_version=parsed.header_version,
+            known_classes=None if mapping is None else mapping.schemas,
+        )
+    except ObjectError as exc:
+        raise WorldLoadError(STAGE_OBJECTS, type(exc).__name__) from exc
+
+    unlocks, unlock_warnings = _read_unlocks()
+    nodes = _nodes_from(table)
+
+    warnings.extend(unlock_warnings)
+    if nodes:
+        warnings.append(_warning(SOURCE_WORLD, WARN_NODE_SEMANTICS_UNAVAILABLE, len(nodes)))
+
+    return WorldModel(
+        token=parsed.world_token,
+        header=parsed,
+        objects=table,
+        unlocks=unlocks,
+        nodes=nodes,
+        warnings=(*_carried(parsed, body, mapping, table), *warnings),
+    )
+
+
+def _carried(
+    parsed: SaveHeader,
+    body: DecompressedBody,
+    mapping: PropertyMap | None,
+    table: ObjectTable,
+) -> tuple[WorldWarning, ...]:
+    """Normalise every sub-layer's advisories into the one stream.
+
+    Args:
+        parsed: The header, for its warnings.
+        body: The decompressed body, for its warnings.
+        mapping: The property map, for its warnings. May be None.
+        table: The object table, for its warnings.
+
+    Returns:
+        Every carried warning, header first and in layer order.
+    """
+    out: list[WorldWarning] = [
+        WorldWarning(source=SOURCE_HEADER, code=item.code, detail=item.detail)
+        for item in parsed.warnings
+    ]
+    out.extend(
+        WorldWarning(source=SOURCE_CHUNKS, code=item.code, detail=item.detail, count=item.count)
+        for item in body.warnings
+    )
+    if mapping is not None:
+        out.extend(
+            WorldWarning(source=SOURCE_USMAP, code=item.code, detail=item.detail, count=item.count)
+            for item in mapping.warnings
+        )
+    out.extend(
+        WorldWarning(source=SOURCE_OBJECTS, code=item.code, detail=item.detail)
+        for item in table.warnings
+    )
+    return tuple(out)
+
+
+def load_world(path: Path | str, *, property_map: PropertyMap | None = None) -> WorldModel:
+    """Copy a save out of harm's way, then parse it.
+
+    THE COPY IS NOT A COURTESY. The game holds handles during autosave, so
+    parsing in place eventually meets a locked or half-written file.
+    ``workdir.copy_for_read`` owns that copy and is the ONLY module in this
+    package with a write - which is what makes "no other save module writes" a
+    static assertion rather than a rule reviewers have to remember.
+
+    This function opens for READ ONLY, in binary, and nothing else. The save
+    directory is never opened for write for any reason (non-negotiable 1).
+
+    Args:
+        path: The save to load. May be the save in place; it is copied first.
+        property_map: As :func:`load_world_from_bytes`.
+
+    Returns:
+        The world model.
+
+    Raises:
+        WorldLoadError: The copy failed, or any sibling refused the bytes.
+    """
+    try:
+        copy = copy_for_read(Path(path))
+    except WorkDirError as exc:
+        raise WorldLoadError(STAGE_COPY, type(exc).__name__) from exc
+
+    with copy.open("rb") as handle:
+        data = handle.read()
+
+    return load_world_from_bytes(data, property_map=property_map)

@@ -137,6 +137,16 @@ UNGUARDED_TRACEBACK_RESIDUALS = {
         "reaches any surface. Rendering it IS the assertion; suppressing it would "
         "delete the check."
     ),
+    "tests/save/test_world.py": (
+        "Same shape again, and the sharpest case of the three. world.py is the "
+        "layer that WRAPS its siblings with `raise ... from exc`, so the formatted "
+        "traceback is the ONLY surface on which a cause's text becomes this "
+        "layer's output - the channel this layer introduces and no other layer "
+        "has. The planted-marker test renders it precisely to assert that no save "
+        "name, options string, session name, class path, instance name or world "
+        "token reaches any surface. Suppressing it would delete the only check of "
+        "that channel."
+    ),
 }
 
 # Sites the sweep flags that are NOT leaks, each with the reason, and each
