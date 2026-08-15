@@ -45,7 +45,11 @@ re-derived by the merger with a second probe, both runs agreeing:
 - the 28-byte header tail on 13 and 14, and its absence on 10,
 - both chunk framings, including the zlib stream landing at magic+49 with the
   algorithm byte and magic+48 without it,
-- the int64 body length prefix on 13 and 14 and its absence on 10,
+- the body length prefix: an int64 equal to body length minus 8 on headers 13
+  and 14, and an int32 equal to body length minus 4 on header 10. CORRECTED
+  2026-08-14 (CS-404) - an earlier revision recorded the prefix as ABSENT on
+  header 10, which was a property of this fixture and not of the format,
+
 - the transform deltas for save versions 36, 52 and 60.
 
 MODELLED - a self-consistent construction, NOT a measurement:
@@ -539,6 +543,54 @@ def build_body(
 #: tells the two apart.
 HEADER_VERSION_WITH_BODY_LENGTH: Final = 13
 
+#: Width of the body length prefix, per header version. MEASURED against real
+#: saves of every version by decompressing them through the shipped walker.
+BODY_PREFIX_WIDTH_WIDE: Final = 8
+BODY_PREFIX_WIDTH_NARROW: Final = 4
+
+
+def body_prefix_width(header_version: int) -> int:
+    """How many bytes the body length prefix occupies on this header version.
+
+    CORRECTED 2026-08-14 (CS-404). An earlier revision of this corpus wrote the
+    int64 prefix on headers 13 and 14 and NO PREFIX AT ALL on header 10. That
+    was wrong, and it was wrong in the direction that is hardest to notice: a
+    parser written against it reads the object count where a real header-10 save
+    carries a length, and every synthetic test still passes.
+
+    Measured on real bodies of all four save versions: headers 13 and 14 open
+    with an int64 equal to the body length minus 8, and header 10 opens with an
+    int32 equal to the body length minus 4. Both are the length of the ENTIRE
+    concatenated body across every chunk, excluding the prefix itself.
+
+    Args:
+        header_version: 10, 13 or 14.
+
+    Returns:
+        8 on headers 13 and 14, 4 on header 10.
+    """
+    if header_version >= HEADER_VERSION_WITH_BODY_LENGTH:
+        return BODY_PREFIX_WIDTH_WIDE
+    return BODY_PREFIX_WIDTH_NARROW
+
+
+def body_with_prefix(body: bytes, header_version: int) -> bytes:
+    """Prepend the version-appropriate body length prefix.
+
+    One function so the two assembly sites cannot drift apart. The prefix
+    follows the HEADER version; the transform delta follows the SAVE version.
+
+    Args:
+        body: The object section.
+        header_version: 10, 13 or 14.
+
+    Returns:
+        The prefixed body.
+    """
+    if body_prefix_width(header_version) == BODY_PREFIX_WIDTH_WIDE:
+        return _i64(len(body)) + body
+    return _i32(len(body)) + body
+
 
 def default_framing(header_version: int) -> str:
     """The framing a header version ships with.
@@ -623,7 +675,7 @@ def build_save(
     save_version = _int_kwarg(kwargs, "save_version", 60)
     header = build_header(**kwargs)  # type: ignore[arg-type]
     body = build_body(objects, save_version=save_version)
-    payload = _i64(len(body)) + body if header_version >= HEADER_VERSION_WITH_BODY_LENGTH else body
+    payload = body_with_prefix(body, header_version)
     return header + build_chunks(payload, framing=framing or default_framing(header_version))
 
 
@@ -662,7 +714,7 @@ def _assemble(
     header = build_header(**header_kwargs)  # type: ignore[arg-type]
     chosen = framing or default_framing(header_version)
     body = build_body(objects, save_version=save_version)
-    payload = _i64(len(body)) + body if header_version >= HEADER_VERSION_WITH_BODY_LENGTH else body
+    payload = body_with_prefix(body, header_version)
     parts = split_payload(payload, max_chunk_size)
     blob = header + build_chunks(payload, framing=chosen, max_chunk_size=max_chunk_size)
     return SyntheticSave(

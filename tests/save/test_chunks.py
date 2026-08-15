@@ -212,7 +212,8 @@ def test_read_frame_reads_the_zero_marker_variant_with_no_algorithm_byte() -> No
     assert frame.header_size == chunks.FRAME_SIZE_WITHOUT_ALGORITHM
     assert frame.payload_offset == save.chunk_offset + chunks.FRAME_SIZE_WITHOUT_ALGORITHM
     assert frame.framing == chunks.FRAMING_WITHOUT_ALGORITHM
-    assert frame.uncompressed_size == len(save.body)
+    # CS-404: header 10 carries an int32 body length prefix, not no prefix.
+    assert frame.uncompressed_size == synthetic.body_prefix_width(10) + len(save.body)
 
 
 def test_the_byte_at_magic_plus_16_is_size_data_on_the_zero_marker_variant() -> None:
@@ -251,12 +252,12 @@ def test_every_corpus_fixture_decompresses_to_its_own_body(
     """The payload is the fixture's body, prefix included where the version has one.
 
     Header 13 and 14 open the decompressed body with an int64 length and header
-    10 does not, so the expected total is version dependent. This module never
-    interprets that prefix - the body layer owns it - but the LENGTH is still
-    the only honest assertion of a complete walk.
+    10 opens with an int32 one, so the expected total is version dependent. This
+    module never interprets that prefix - the body layer owns it - but the
+    LENGTH is still the only honest assertion of a complete walk.
     """
     body = chunks.decompress_body(save.blob, save.chunk_offset)
-    prefix = _INT64_WIDTH if save.header_version >= synthetic.HEADER_VERSION_WITH_BODY_LENGTH else 0
+    prefix = synthetic.body_prefix_width(save.header_version)
     assert len(body.payload) == prefix + len(save.body)
     assert body.payload[prefix:] == save.body
     assert body.chunk_count == save.chunk_count

@@ -92,6 +92,11 @@ _ZLIB_AT_WITHOUT_ALGO = 48
 _TAIL_SIZE = 28
 _HEADER_10 = 10
 _HEADER_13 = 13
+
+#: Body length prefix widths, per header version. CS-404: header 10 carries a
+#: NARROW prefix rather than none at all.
+_BODY_PREFIX_WIDE = 8
+_BODY_PREFIX_NARROW = 4
 _HEADER_14 = 14
 
 _STRINGS_WITH_SAVE_NAME = 4
@@ -300,7 +305,7 @@ def _read_body(payload: bytes, header_version: int, save_version: int) -> list[s
     Returns:
         The instance name of every record, in order.
     """
-    pos = 8 if header_version >= _HEADER_13 else 0
+    pos = _BODY_PREFIX_WIDE if header_version >= _HEADER_13 else _BODY_PREFIX_NARROW
     (count,) = struct.unpack_from("<i", payload, pos)
     pos += 4
     names: list[str] = []
@@ -391,9 +396,10 @@ def _shape_of(blob: bytes) -> tuple[int, ...]:
     marker, algo_present, stream_at, payload, _chunks = _read_all_chunks(blob, magic_at)
     if header_version >= _HEADER_13:
         (declared,) = struct.unpack_from("<q", payload, 0)
-        prefix_ok = declared == len(payload) - 8
+        prefix_ok = declared == len(payload) - _BODY_PREFIX_WIDE
     else:
-        prefix_ok = True
+        (declared,) = struct.unpack_from("<i", payload, 0)
+        prefix_ok = declared == len(payload) - _BODY_PREFIX_NARROW
     return (
         len(texts),
         _index_of_equal(texts, _MAP_NAME),
@@ -601,14 +607,27 @@ def test_the_unmeasured_delta_was_not_interpolated_from_its_neighbours() -> None
 
 
 def test_the_body_length_prefix_follows_the_header_version() -> None:
+    """CS-404. Both widths carry a LENGTH; header 10 does not omit the prefix.
+
+    An earlier revision of this corpus asserted that header 10 opened straight
+    on the object count. That was a property of the fixture, not of the format:
+    measured against real bodies of every version, header 10 opens with an
+    int32 equal to the body length minus 4, exactly as headers 13 and 14 open
+    with an int64 equal to the body length minus 8.
+
+    The old assertion is why this matters. It would have passed forever while a
+    parser read the object count out of the length field on every real
+    header-10 save.
+    """
     for save in synthetic.ALL_SAVES:
         _m, _a, _at, payload = _read_chunk(save.blob, save.chunk_offset)
-        if save.header_version >= _HEADER_13:
-            (declared,) = struct.unpack_from("<q", payload, 0)
-            assert declared == len(payload) - 8
-        else:
-            (count,) = struct.unpack_from("<i", payload, 0)
-            assert count == len(save.objects)
+        width = synthetic.body_prefix_width(save.header_version)
+        fmt = "<q" if width == _BODY_PREFIX_WIDE else "<i"
+        (declared,) = struct.unpack_from(fmt, payload, 0)
+        assert declared == len(payload) - width
+        # The object count sits AFTER the prefix, never at offset zero.
+        (count,) = struct.unpack_from("<i", payload, width)
+        assert count == len(save.objects)
 
 
 # ---------------------------------------------------------------------------
