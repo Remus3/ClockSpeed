@@ -2,7 +2,32 @@
 
 ## Status
 
-`proposed` - 2026-08-14.
+`accepted` - 2026-08-14.
+
+Written by the slice that took the measurement, and accepted by an adjudicator that did
+not write it, per `docs/adr/0001`. Every claim was independently re-derived against all
+14 local saves by a third read-only probe that reduced each string to a boolean or a
+length before printing: the four version combinations, the string count per header
+version by structural walk rather than by inspection, the positional labelling proof,
+the 22-character identifier on 14 of 14, the 0-byte and 28-byte tails, and both chunk
+framings confirmed by decompressing every chunk of every save to a clean end of file.
+The undetermined key was re-tested formally - the framing is a function of the header
+version, of the save version and of the build changelist alike, so no local file
+separates them and the record stands as undetermined.
+
+That adjudication returned NEEDS-REVISION rather than ACCEPT, and named four defects.
+All four were applied by the merger at the adjudicator's direction before this status
+was written, and the adjudicator's own text is used verbatim above: ADR 0003 and ledger
+item CS-104 are now named as corrected rather than silently contradicted; the int8 after
+the datetime ticks is recorded as unverified in MEANING rather than labelled "session
+visibility"; Decision item 4 gained the render-site-only clause; and Decision item 6 is
+restated as a commitment rather than as a description of code that does not yet exist.
+
+Known limit of that acceptance: every measured save comes from one machine, one account
+and one map, with an empty mod metadata field on all 14. The version triple is therefore
+an unproven discriminator against a save from another platform or a modded save, which
+would present a KNOWN triple with an unmeasured field shape and would not trip the
+unknown-combination guard in Decision item 3..
 
 Written by the slice that took the measurement. Per `docs/adr/0001` the author of a thing
 does not grade it, so an adjudicator that did not write this flips the status.
@@ -34,6 +59,17 @@ The labelling was established **by property and never by value**: the map name i
 game constant and the options string is a query string containing a distinctive separator,
 so each field's position is identifiable without reading any operator-authored text. This
 matters beyond method hygiene - see the PII mechanism below.
+
+**This ADR corrects two earlier records, and NAMES them rather than editing them.**
+`docs/adr/0003-s4-node-actors-in-save.md` is status `accepted` - binding, and citable
+freely - and its Context item 1 states the unqualified framing verbatim, including the
+compression-algorithm byte and the int64 body length. `docs/LEDGER.md` CS-104 records the
+same claim. Both are corrected on that point by this ADR and on no other point. Per
+`docs/adr/README.md` an accepted ADR's text is never edited and the ledger is append-only,
+so the correction travels as a pointer: a reader who searches for the framing and lands on
+0003 first - it is the entry carrying the hex constants - is routed forward to here. A
+matching correction entry is recorded in `docs/LEDGER.md` against CS-104. Leaving the
+refuted text holding the higher status was the defect this paragraph closes.
 
 **Finding 2 - the chunk framing varies.** On header versions 13 and 14 the frame carries a
 non-zero marker and an explicit compression-algorithm byte. On header version 10 the marker
@@ -95,14 +131,43 @@ Specifically:
 3. The header-versus-save-version key stays **recorded as undetermined** until a file that
    separates them exists. A parser that meets a combination outside the measured set flags
    it as unknown content and skips, per non-negotiable 7 - it never guesses a layout.
+   There are **three** unrefuted candidate keys, not two: the build changelist predicts the
+   framing on this corpus exactly as well as the two version fields do. Naming only two
+   would understate the ambiguity. The remedy in item 2 is immune to which one is right,
+   which is precisely why it is the remedy.
 4. **The header parser redacts EVERY header string by default**, positionally, without
    reference to what any field is called. The PII-bearing strings are **not fields on the
    default returned type at all**, so rendering one requires deliberately reaching for an
    opt-in path rather than merely forgetting to redact.
+   **The opt-in path is render-site only: never stored, never logged, never placed in
+   exception context, and never held on a long-lived object.** This clause is load-bearing
+   and is not defensive verbosity. `clockspeed.data.locate.redact()` strips the home path,
+   the account name, the account directory and the save filename - it holds **no needle for
+   a session name read out of a header**, because that string is not knowable in advance.
+   So the one sanctioned way to obtain the value returns a string the project's own
+   redactor cannot neutralize. Without this clause the friction in the sentence above is
+   defeated by the first debugging session.
+   Note also what item 4 does NOT cover: an ad hoc probe reading header bytes directly never
+   touches the returned type. The leak that produced this ADR was exactly that - a probe,
+   not the parser - so the type-level design would not by itself have prevented the incident
+   it cites as its own proof. Probes carry the same obligation and nothing enforces it for
+   them.
 5. The 28-byte header tail on versions 13 and 14 is skipped **by length**. Its internal
    structure is unverified and no field breakdown is invented for it.
-6. `clockspeed/save/workdir.py` is the only module in the save package with a write, so
-   that "no other save module writes" is a static, machine-checkable assertion.
+   The same restraint applies one field earlier, and it was nearly missed: the int8 between
+   the datetime ticks and the editor object version is **measured in POSITION and unverified
+   in MEANING**. Its position is proven by the editor object version reading 40 on all 14
+   saves immediately after it. Its value is `0x00` on header versions 10 and 13 and on
+   header 14 save 60, and one of `0x10`, `0x50`, `0x90` or `0xD0` on the eight header-14
+   save-52 saves. It is therefore NOT a 0/1 flag, and a parser treating it as one is wrong
+   on 8 of 14 saves. `BOOTSTRAP.md` section 2.4 records it as unverified for that reason.
+6. `clockspeed/save/workdir.py` **will be** the only module in the save package with a
+   write, so that "no other save module writes" becomes a static, machine-checkable
+   assertion. This item is a COMMITMENT, not a description: at the time this ADR was
+   written `clockspeed/save/` held only `__init__.py`, neither `workdir.py` nor `header.py`
+   existed, and no check enforced the property. The phase-4 gate is what converts it from
+   an intention into an assertion, and until that gate exists this item states an intent
+   that a later reader must not mistake for shipped code.
 
 **Do not re-pitch:**
 

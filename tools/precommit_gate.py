@@ -1591,20 +1591,124 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# --------------------------------------------------------------------------
+# The render boundary
+# --------------------------------------------------------------------------
+#
+# A label is VERDICT-BEARING. The extension is derived from it and selects
+# which checks run; it becomes SyntaxError.filename via compile(); it names
+# the staging copy ruff actually lints; it keys the ruff output mapping; it is
+# scanned for non-ASCII with the column reported as label.index(...) + 1; and
+# it is interpolated into `git show :<label>`. Changing what a label IS would
+# therefore change verdicts. So label_for() and Unit.label keep returning the
+# path exactly as before, and the redaction happens HERE, on the way to the
+# terminal, as a pure function of the label.
+#
+# The rule never consults the environment: a label that is not repo-relative
+# is reduced to its basename. Keying on "is this under the home directory"
+# would render differently depending on where that directory sits, which is
+# how a test ends up green in CI and red locally - pytest's tmp_path is under
+# the home directory on Windows and under /tmp on Linux.
+
+OUTSIDE_REPO_PREFIX = "<outside-repo>/"
+
+
+def label_is_outside_repo(label: str) -> bool:
+    """True when a label is not a repo-relative path.
+
+    Pure string inspection: no filesystem access, no environment lookup and no
+    home directory. Both platform spellings are recognised on both platforms,
+    because this runs on Windows and in CI on Linux and must render the same
+    shape on each.
+    """
+    norm = label.replace("\\", "/")
+    if norm.startswith("/"):
+        # POSIX absolute, and UNC once the separators are normalised.
+        return True
+    if norm[1:2] == ":" and norm[:1].isalpha():
+        # A drive-letter prefix. Sliced rather than indexed so a one-character
+        # label cannot raise here.
+        return True
+    return norm == ".." or norm.startswith("../")
+
+
+def display_label(label: str) -> str:
+    """Render a label for output, dropping every directory above the basename.
+
+    The basename survives VERBATIM: it identifies the file to the operator and
+    carries no personal data, while anything above it can carry the account
+    name. A repo-relative label is returned unchanged, and so is a non-path
+    label such as `<stdin>` or `<pii:world>`.
+    """
+    if not label_is_outside_repo(label):
+        return label
+    base = PurePosixPath(label.replace("\\", "/")).name
+    return OUTSIDE_REPO_PREFIX + base if base else OUTSIDE_REPO_PREFIX
+
+
+def label_replacements(report: Report) -> list[tuple[str, str]]:
+    """Every label this run carries, paired with its redacted form.
+
+    Longest raw label first, so a path that is a prefix of another cannot be
+    partly replaced and leave a fragment of the directory behind.
+    """
+    raw: set[str] = {label for label, _origin, _size in report.checked}
+    raw.update(label for label, _why in report.skipped)
+    raw.update(diag.path for diag in report.diagnostics)
+    pairs = [(item, display_label(item)) for item in raw if display_label(item) != item]
+    pairs.sort(key=lambda pair: len(pair[0]), reverse=True)
+    return pairs
+
+
+def display_note(note: str, replacements: list[tuple[str, str]]) -> str:
+    """Redact the labels interpolated into a free-text note.
+
+    A note is a sentence with a label built into it rather than a field that
+    can be redacted on its own, and the label sits at the start in three of
+    the four shapes and mid-string in the ruff one. Two passes cover both.
+    The exact-label pass handles a path containing spaces, which no token
+    split could put back together. The token pass is the safety net: the ruff
+    output mapping falls back to ruff's OWN filename when a lookup misses, and
+    that filename is the temp staging copy, which sits under the home
+    directory on Windows and appears in no label list.
+    """
+    for raw, shown in replacements:
+        note = note.replace(raw, shown)
+    return " ".join(display_label(token) for token in note.split(" "))
+
+
+def display_diagnostic(diag: Diagnostic) -> str:
+    """Render a diagnostic with the label redacted and the verdict intact.
+
+    Line, column and code are untouched - they ARE the verdict. Deduplication
+    in emit() runs on the raw render and never on this one, because two
+    out-of-repo files can share a basename, and collapsing them here would
+    silently drop a finding and change the blocking count.
+    """
+    return Diagnostic(
+        display_label(diag.path),
+        diag.line,
+        diag.col,
+        diag.code,
+        diag.reason,
+    ).render()
+
+
 def emit(report: Report, verbose: bool, list_skipped: bool) -> int:
     """Print the report and return the process exit code."""
     out = sys.stdout
+    replacements = label_replacements(report)
     if verbose:
         out.write("%s: checked %d unit(s)\n" % (GATE_NAME, len(report.checked)))
         for label, origin, size in report.checked:
-            out.write("  checked  %s  [%s, %d bytes]\n" % (label, origin, size))
+            out.write("  checked  %s  [%s, %d bytes]\n" % (display_label(label), origin, size))
     if verbose or list_skipped:
         out.write("%s: skipped %d unit(s)\n" % (GATE_NAME, len(report.skipped)))
         for label, why in report.skipped:
-            out.write(f"  skipped  {label}  -  {why}\n")
+            out.write(f"  skipped  {display_label(label)}  -  {why}\n")
     if verbose:
         for note in report.notes:
-            out.write(f"  note     {note}\n")
+            out.write(f"  note     {display_note(note, replacements)}\n")
     out.flush()
 
     if not report.diagnostics:
@@ -1619,16 +1723,20 @@ def emit(report: Report, verbose: bool, list_skipped: bool) -> int:
     err.write(f"{GATE_NAME}: BLOCKED\n")
     seen: set[str] = set()
     for diag in report.diagnostics:
+        # Deduplicate on the RAW render, display the redacted one. Two
+        # out-of-repo files can share a basename, so deduplicating on the
+        # redacted text would drop a real finding and change len(seen),
+        # which is the blocking count reported below.
         rendered = diag.render()
         if rendered in seen:
             continue
         seen.add(rendered)
-        err.write(rendered + "\n")
+        err.write(display_diagnostic(diag) + "\n")
     if not verbose:
         for note in report.notes:
             if note.startswith("ruff (style"):
                 continue
-            err.write(f"  note     {note}\n")
+            err.write(f"  note     {display_note(note, replacements)}\n")
     err.write(
         "%s: BLOCKED - %d diagnostic(s) across %d checked unit(s). "
         "Nothing was committed.\n" % (GATE_NAME, len(seen), len(report.checked))

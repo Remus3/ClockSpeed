@@ -190,9 +190,20 @@ by reading them** - section 2.2 and `docs/adr/0007` explain why the shifting ord
 field-name-targeted redactor unsafe.
 
 **After the string block every header version agrees**, in this order: int32 play duration,
-int64 datetime ticks, int8 session visibility, int32 editor object version, a
-length-prefixed mod metadata string, int32 is-modded flag, then the length-prefixed save
+int64 datetime ticks, **one int8 whose MEANING is unverified**, int32 editor object version,
+a length-prefixed mod metadata string, int32 is-modded flag, then the length-prefixed save
 identifier - which is the world token.
+
+**That int8 is measured in POSITION and unverified in MEANING, and the distinction is not
+pedantic.** An earlier revision of this section labelled it "session visibility", which
+implies a flag. It is not one. Measured across all 14 saves: the value is `0x00` on header
+versions 10 and 13 and on header 14 / save 60, and one of `0x10`, `0x50`, `0x90` or `0xD0`
+on the eight header 14 / save 52 saves. A parser treating it as a 0/1 flag is wrong on 8 of
+14 of the operator's own files. Its POSITION is nonetheless solid, and independently
+anchored: the int32 immediately after it reads `40` on all 14 saves, so the alignment either
+side of it is confirmed rather than assumed. Read it, carry it, do not interpret it. The
+local authority for settling what it means is `CustomVersions.json` or `Headers.zip`, per
+the note at the end of section 3.
 
 **The header tail after the save identifier is version dependent too:**
 

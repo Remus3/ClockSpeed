@@ -30,8 +30,10 @@ non-negotiables 3 and 11 and neither is negotiable:
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -88,9 +90,20 @@ TOKEN_SHAPED_BUT_HARMLESS = (
     "most-recently-modified",
 )
 
-# A directory component that appears nowhere else, so counting it in stderr
-# separates the diagnostic LABEL channel from an exception rendering. The
-# label legitimately carries the path once; a leaking exception adds a second.
+# A component that appears nowhere else, so counting it in stderr separates
+# the diagnostic LABEL channel from an exception rendering. The label
+# legitimately carries it once; a leaking exception adds a second.
+#
+# CS-204 re-pointed this from the DIRECTORY to the BASENAME, and the reason is
+# the point rather than a detail. The label channel is now redacted to the
+# basename at the render boundary, so a directory-component marker vanishes
+# from every line and the anti-vacuity assertion in
+# assert_path_is_rendered_once_per_line stops being able to fire. Re-pointing
+# it at a component that SURVIVES redaction keeps these tests non-vacuous;
+# loosening the redaction to keep the old marker visible would have been the
+# wrong repair, because the marker sits in the directory precisely where the
+# operator's account name sits. leak_target places it in BOTH, so a rendering
+# that echoes the raw path still counts two and still fails.
 LEAK_MARKER = "zzleakmarkerdirzz"
 
 TIMEOUT = 180
@@ -151,12 +164,14 @@ def run_gate(
     *args: str,
     stdin: bytes | None = None,
     env: dict[str, str] | None = None,
+    cwd: Path | None = None,
 ) -> subprocess.CompletedProcess[str]:
     proc = subprocess.run(
         [sys.executable, str(GATE), *args],
         input=stdin,
         capture_output=True,
         env=env,
+        cwd=None if cwd is None else str(cwd),
         timeout=TIMEOUT,
         check=False,
     )
@@ -1154,8 +1169,13 @@ def test_the_same_commit_succeeds_when_no_world_value_is_discoverable(
 
 
 def leak_target(tmp_path: Path, name: str, text: str | None = None) -> Path:
-    """Place a file under a uniquely named directory, for occurrence counting."""
-    target = tmp_path / LEAK_MARKER / name
+    """Place a file under a uniquely named directory, for occurrence counting.
+
+    The marker goes in BOTH the directory and the basename. The basename copy
+    is what survives the CS-204 label redaction and keeps the count assertion
+    non-vacuous; the directory copy is what makes a raw-path echo count two.
+    """
+    target = tmp_path / LEAK_MARKER / (LEAK_MARKER + "_" + name)
     target.parent.mkdir(parents=True, exist_ok=True)
     if text is not None:
         target.write_bytes(text.encode("utf-8"))
@@ -1337,3 +1357,295 @@ def test_the_unreadable_path_verdict_is_unchanged(tmp_path: Path) -> None:
     assert result.returncode == 1
     assert "IO" in result.stderr
     assert "could not read the file" in result.stderr
+
+
+# ==========================================================================
+# CS-204 - the LABEL channel is redacted at the render boundary
+# ==========================================================================
+#
+# label_for() deliberately returns an out-of-repo path AS GIVEN, because the
+# label is VERDICT-BEARING: it selects which checks run (the extension is
+# derived from it), it becomes SyntaxError.filename via compile(), it keys the
+# ruff output mapping, it names the staging copy, it is scanned for non-ASCII
+# with the column reported as label.index(...) + 1, and it is handed to
+# `git show :<label>`. Redacting it there would change verdicts. So the
+# redaction lives in emit(), as a pure function of the label, and these tests
+# pin BOTH halves: the label keeps its value, the rendered line loses the
+# directory.
+#
+# The oracle is the directory THIS FILE created, never the gate's own redactor
+# (module docstring, rule 2) and never a spelled-out home path (CLAUDE.md
+# non-negotiable 3). On Windows tmp_path sits under the home directory and on
+# Linux under /tmp; both are outside the repository, so the assertions below
+# hold identically on either - which is the point of condition 4.
+
+OUTSIDE_DIR = "zzoutsidedirzz"
+OUTSIDE_BASE = "zzbasenamezz"
+
+# The literal emit() formats, one per channel.
+CHANNEL_CHECKED = "  checked  "
+CHANNEL_SKIPPED = "  skipped  "
+CHANNEL_NOTE = "  note     "
+CHANNEL_DIAGNOSTIC = " CHARSET "
+
+
+def outside_target(tmp_path: Path, suffix: str, data: bytes | None = None) -> Path:
+    """A path outside any repository, marked in BOTH directory and basename.
+
+    Two distinct markers, because the whole point is that one survives the
+    redaction and the other does not.
+    """
+    target = tmp_path / OUTSIDE_DIR / (OUTSIDE_BASE + suffix)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if data is not None:
+        target.write_bytes(data)
+    return target
+
+
+def assert_channel_is_clean(
+    stream: str,
+    needle: str,
+    tmp_path: Path,
+    basename: str,
+) -> None:
+    """One emit channel names the basename and no directory above it."""
+    lines = [line for line in stream.splitlines() if needle in line]
+    assert lines, f"no {needle!r} line was emitted; this channel test is vacuous"
+    joined = "\n".join(lines)
+    assert basename in joined, joined
+    assert OUTSIDE_DIR not in joined, joined
+    assert str(tmp_path) not in joined, joined
+    assert str(tmp_path).replace("\\", "/") not in joined, joined
+
+
+def test_checked_channel_drops_the_out_of_repo_directory(tmp_path: Path) -> None:
+    """Channel 1 of 4: report.checked, printed by emit under --verbose."""
+    target = outside_target(tmp_path, ".py", b'"""Doc."""\n\nVALUE = 1\n')
+    result = run_gate("--files", str(target), "--verbose", env=base_env(tmp_path))
+
+    assert result.returncode == 0
+    assert_channel_is_clean(result.stdout, CHANNEL_CHECKED, tmp_path, OUTSIDE_BASE + ".py")
+
+
+def test_skipped_channel_drops_the_out_of_repo_directory(tmp_path: Path) -> None:
+    """Channel 2 of 4: report.skipped, printed by emit under --list-skipped."""
+    target = outside_target(tmp_path, ".png", b"not really a png\n")
+    result = run_gate("--files", str(target), "--list-skipped", env=base_env(tmp_path))
+
+    assert result.returncode == 0
+    assert_channel_is_clean(result.stdout, CHANNEL_SKIPPED, tmp_path, OUTSIDE_BASE + ".png")
+
+
+def test_notes_channel_drops_the_out_of_repo_directory(tmp_path: Path) -> None:
+    """Channel 3 of 4: report.notes - the channel the acceptance criterion missed.
+
+    Provoked WITHOUT ruff, so this cannot go vacuous on a machine where ruff is
+    absent: invalid UTF-8 in a text file makes decode_for_report return a note,
+    which emit prints on the blocked path.
+    """
+    target = outside_target(tmp_path, ".md", b"alpha \xff beta\n")
+    result = run_gate("--files", str(target), env=base_env(tmp_path))
+
+    assert result.returncode == 1
+    assert "decoded as latin-1" in result.stderr
+    assert_channel_is_clean(result.stderr, CHANNEL_NOTE, tmp_path, OUTSIDE_BASE + ".md")
+
+
+def test_ruff_style_note_drops_the_out_of_repo_directory(tmp_path: Path) -> None:
+    """Channel 3 again, second shape: the label is EMBEDDED mid-string here.
+
+    `ruff (style, not blocking) <label>:<row>:<col>: ...` puts the label after
+    a fixed prefix rather than at the start, so a fix that only handles the
+    leading-label shape passes the test above and fails this one.
+    """
+    target = outside_target(tmp_path, ".py", b"import os\nVALUE = 1\n")
+    result = run_gate("--files", str(target), "--verbose", env=base_env(tmp_path))
+
+    if "ruff (style" not in result.stdout:
+        pytest.skip("ruff produced no style finding; nothing to assert here")
+    assert result.returncode == 0
+    assert_channel_is_clean(result.stdout, "ruff (style", tmp_path, OUTSIDE_BASE + ".py")
+
+
+def test_diagnostics_channel_drops_the_out_of_repo_directory(tmp_path: Path) -> None:
+    """Channel 4 of 4: Diagnostic.render(), printed to stderr."""
+    body = ("# T\n\nAlpha " + EM_DASH + " beta\n").encode("utf-8")
+    target = outside_target(tmp_path, ".md", body)
+    result = run_gate("--files", str(target), env=base_env(tmp_path))
+
+    assert result.returncode == 1
+    assert ":3:7: CHARSET" in result.stderr
+    assert_channel_is_clean(result.stderr, CHANNEL_DIAGNOSTIC, tmp_path, OUTSIDE_BASE + ".md")
+
+
+def test_label_for_still_returns_the_out_of_repo_path_unchanged(tmp_path: Path) -> None:
+    """Condition 1, the boundary: the VALUE is untouched, the RENDERING is not.
+
+    This is the test that would catch a fix applied in the wrong place. If
+    someone moves the redaction into label_for or Unit.label, the eight
+    verdict-bearing call sites start seeing a different string and this goes
+    red - which is the entire reason the grant put the redaction in emit.
+    """
+    gate = load_gate()
+    target = outside_target(tmp_path, ".py", b"VALUE = 1\n")
+
+    label = gate.label_for(str(target))
+
+    assert label == str(target).replace("\\", "/")
+    assert OUTSIDE_DIR in label
+    assert OUTSIDE_BASE + ".py" in label
+    assert gate.display_label(label) != label
+
+
+def test_display_label_does_not_depend_on_the_home_directory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Condition 4, determinism.
+
+    A home-keyed redactor renders differently depending on where the machine's
+    home directory sits, which makes a tmp_path-based test green in CI and red
+    locally, or the reverse. The rendered shape is pinned against a constant
+    here, under three different home directories and both path spellings.
+    """
+    gate = load_gate()
+    posix_absolute = "/var/somewhere/" + OUTSIDE_DIR + "/" + OUTSIDE_BASE + ".py"
+    windows_absolute = "D:/Somewhere/" + OUTSIDE_DIR + "/" + OUTSIDE_BASE + ".py"
+    expected = gate.OUTSIDE_REPO_PREFIX + OUTSIDE_BASE + ".py"
+
+    # Assembled, never spelled out. A home path literal in this file is the
+    # very thing the gate blocks, and this file is checked by the gate - which
+    # is itself a small proof that the redaction matters (non-negotiable 3).
+    homes = (
+        "/" + "home" + "/one",
+        "/" + "home" + "/two",
+        "D:" + "/" + "Users" + "/three",
+    )
+
+    for home in homes:
+        monkeypatch.setenv("HOME", home)
+        monkeypatch.setenv("USERPROFILE", home)
+        assert gate.display_label(posix_absolute) == expected
+        assert gate.display_label(windows_absolute) == expected
+
+
+def test_display_label_leaves_a_repo_relative_label_alone() -> None:
+    """Condition 5: the in-repo label - the common case - is byte-identical."""
+    gate = load_gate()
+
+    for label in ("tools/precommit_gate.py", "README.md", "docs/adr/0001-x.md"):
+        assert gate.display_label(label) == label
+
+
+def test_display_label_leaves_the_stdin_label_alone() -> None:
+    """Condition 6: the literal <stdin> is not a path and is not redacted."""
+    gate = load_gate()
+
+    assert gate.display_label("<stdin>") == "<stdin>"
+
+
+def test_text_stdin_still_reports_the_stdin_label(tmp_path: Path) -> None:
+    """Condition 6, end to end rather than by unit."""
+    result = run_gate(
+        "--text-stdin",
+        "--list-skipped",
+        stdin=b"clean ascii text\n",
+        env=base_env(tmp_path),
+    )
+
+    assert result.returncode == 0
+    assert "<stdin>" in result.stdout
+
+
+def test_a_repo_under_a_home_directory_keeps_its_labels_repo_relative(tmp_path: Path) -> None:
+    """The common-mode gap every other test in this file leaves open.
+
+    They all put the FILE outside the repository while the REPOSITORY itself
+    stays at a path that is not under any home directory. So the one
+    combination that matters most - a repo-relative label whose ABSOLUTE form
+    contains the account name - is exercised by nothing. Here HOME and
+    USERPROFILE are pointed at the temporary directory and a throwaway repo is
+    created inside it, so the repository genuinely sits under a home directory
+    on Windows and on Linux alike.
+
+    What must hold: labels stay repo-relative and UNREDACTED, because being
+    inside a repository is the whole test, and no absolute path is rendered.
+
+    MEASURED, not assumed: a home-keyed redactor does NOT turn this test red.
+    label_for has already made these labels relative, so they do not start
+    with the home directory and a home-keyed rule leaves them alone. The one
+    test that catches that mistake is
+    test_display_label_does_not_depend_on_the_home_directory, verified by
+    swapping the real implementation for a home-keyed one and watching exactly
+    that test - and only that test - go red. This test covers the other half:
+    that a repository sitting under a home directory is still rendered
+    relative rather than absolute.
+    """
+    if shutil.which("git") is None:
+        pytest.skip("git is not on PATH")
+
+    repo = tmp_path / "throwaway"
+    repo.mkdir()
+    for argv in (
+        ["git", "init", "-q"],
+        ["git", "config", "user.email", "t@example.invalid"],
+        ["git", "config", "user.name", "t"],
+    ):
+        subprocess.run(argv, cwd=str(repo), check=True, capture_output=True, timeout=TIMEOUT)
+
+    write(repo / "pkg" / "charset.md", "# T\n\nAlpha " + EM_DASH + " beta\n")
+    write(repo / "pkg" / "broken.py", "def broken(:\n    return 1\n")
+
+    env = base_env(tmp_path)
+    env["HOME"] = str(tmp_path)
+    env["USERPROFILE"] = str(tmp_path)
+
+    result = run_gate(
+        "--files",
+        "pkg/charset.md",
+        "pkg/broken.py",
+        "--verbose",
+        env=env,
+        cwd=repo,
+    )
+    combined = result.stdout + result.stderr
+
+    # Non-vacuous: the run really did produce findings to render.
+    assert result.returncode == 1
+    assert "SYNTAX" in result.stderr
+
+    # The label is repo-relative and untouched.
+    assert "pkg/charset.md:3:7: CHARSET" in result.stderr
+    assert load_gate().OUTSIDE_REPO_PREFIX not in combined
+
+    # And no absolute path is rendered anywhere, in any channel.
+    assert str(tmp_path) not in combined, combined
+    assert str(tmp_path).replace("\\", "/") not in combined, combined
+
+
+def test_the_gate_imports_only_the_standard_library() -> None:
+    """Condition 7: no new dependency, proven from the import graph.
+
+    Running the gate puts tools/ on sys.path, not the repo root, so an
+    `import clockspeed` would not even resolve. Asserted against the parsed
+    AST rather than the text, because the docstrings name the package.
+    """
+    tree = ast.parse(GATE.read_bytes().decode("utf-8"))
+
+    def roots(nodes: list[ast.stmt] | list[ast.AST]) -> set[str]:
+        found: set[str] = set()
+        for node in nodes:
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    found.add(alias.name.split(".")[0])
+            elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+                found.add(node.module.split(".")[0])
+        return found
+
+    # Nothing anywhere in the file may reach into the package.
+    assert "clockspeed" not in roots(list(ast.walk(tree)))
+
+    # MODULE SCOPE is the rung that matters for a dependency: those imports run
+    # at startup, so a missing one stops the gate from starting at all. `ruff`
+    # is imported inside ruff_command() as a guarded probe and is deliberately
+    # not counted here - the gate treats a machine without ruff as fail-open.
+    assert roots(tree.body) <= set(sys.stdlib_module_names), sorted(roots(tree.body))

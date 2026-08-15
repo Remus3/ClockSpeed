@@ -74,6 +74,76 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-14 - CS-104 - CORRECTION: the chunk framing recorded by this item is VERSION DEPENDENT, and the entry as written is true only for header versions 13 and 14
+Verification: `docs/adr/0007-header-and-chunk-framing-are-version-dependent.md` plus
+`BOOTSTRAP.md` section 3.1. This ledger is append-only, so the original CS-104 entry is
+left exactly as written and this entry is the correction pointer.
+CS-104 recorded the body framing as magic `0x9E2A83C1`, marker `0x22222222`, int64 max chunk
+size 131072, int8 compression algorithm 3, sizes written twice, and a decompressed body
+opening with an int64 length. Measured this session against all 14 local saves and confirmed
+independently by two agents plus the merger: that holds on header versions 13 and 14 and is
+FALSE on header version 10, where the marker is `0x00000000`, there is NO compression
+algorithm byte at all, the zlib stream begins at magic+48 rather than magic+49, and the
+decompressed body does NOT open with an int64 length.
+Proven rather than asserted: on the 11 header-13-and-14 saves zlib decompresses at +49 and
+FAILS at +48; on the 3 header-10 saves it decompresses at +48 and FAILS at +49. The byte at
+magic+16 on header 10 takes the values 2, 2 and 3 across those three saves - it VARIES,
+which is positive evidence it is the low byte of the compressed size and not an algorithm
+byte. Every chunk of every save was walked to a clean end of file with both duplicated size
+pairs agreeing.
+`docs/adr/0003-s4-node-actors-in-save.md` Context item 1 carries the same unqualified claim
+and is status `accepted`, so the refuted text held the higher status until now. Per
+`docs/adr/README.md` an accepted ADR's text is never edited; ADR 0007 NAMES it instead, so a
+reader searching for the framing is routed forward rather than stopping at the stale copy.
+
+### 2026-08-14 - CS-204 - The diagnostic label channel is redacted at the render boundary, across FOUR channels rather than the three the item named
+Verification: `tools/precommit_gate.py` and `tests/test_precommit_gate.py`, plus a new
+`tests/test_edit_lint_check.py` exercising the second tool as a subprocess. Merged under the
+frozen-file grant recorded above, whose ten conditions were all discharged.
+Re-verified by the merger independently of the builder: a `--files` run over a path under
+the home directory emits no home path and no account name, the out-of-repo DIRECTORY name is
+stripped, both basenames survive verbatim, the CHARSET diagnostic still fires and the exit
+code is still 1. The tracked-tree rehearsal is unchanged at PASS, 118 checked, 1 skipped, 0
+blocking, exit 0.
+THE ACCEPTANCE CRITERION WAS WRONG AND WAS OVERRIDDEN BY ADJUDICATION. It named three
+channels; there are FOUR, because `report.notes` also carries labels. All four are fixed and
+each has its own test on both tools. The ruff-note test deliberately embeds the label
+MID-STRING, so a fix that only redacts a leading label fails it.
+Condition 1 was proven MECHANICALLY rather than by inspection: an AST byte-comparison against
+HEAD shows `label_for`, `Unit`, `check_path`, `mode_files`, `mode_staged`, `stage_for_lint`,
+`record_ruff_findings`, `check_python_syntax`, `check_charset` and `Diagnostic` are all
+IDENTICAL, so nothing verdict-bearing moved. Every diff hunk sits inside `emit` or the new
+render-boundary block above it.
+Condition 7 was discharged by NOT importing rather than by a fail-closed test: zero imports
+were added and `test_the_gate_imports_only_the_standard_library` asserts it by AST, so the
+`except Exception` clause the grant required never becomes reachable.
+Condition 4 was proven DISCRIMINATING by mutation: swapping in a home-keyed redactor turns
+exactly one named test red and nothing else.
+Condition 9's anti-vacuity repair was applied as authorised - `LEAK_MARKER` moved from a
+directory component to the basename - and proven still non-vacuous by mutation: removing the
+redaction fires the `<= 1` assertion on all three consuming tests.
+`tools/edit_lint_check.py` REQUIRED NO EDIT. Fixing `gate.emit` covered it, and that is
+proven by the new subprocess test rather than by inspection, which is what the grant demanded.
+Verdict invariance was measured against a NON-VACUOUS corpus, which is the part that is easy
+to fake: the tracked-tree run alone is a 0-versus-0 comparison and proves nothing, so a
+six-file violation repository was built UNDER A HOME DIRECTORY carrying BINARY, CHARSET,
+LINT, PII, SECRET and SYNTAX violations, and the exit code and the full diagnostic set are
+byte-identical before and after, labels included.
+The common-mode risk flagged at dispatch is CLOSED by a test that `git init`s a throwaway
+repository with `HOME` and `USERPROFILE` pointed at a temporary directory. That test also
+CORRECTED A CLAIM THE BUILDER HAD WRITTEN: it had asserted the test guards condition 4, and
+mutation showed it does not, because labels in that repository are already relative so a
+home-keyed rule leaves them alone. The docstring records the measured truth instead.
+The gate caught the builder's own test file mid-slice with four `PII absolute POSIX home
+path` diagnostics; the values are runtime-assembled now, and no literal entered a tracked file.
+UNCLOSED AND EXPLICITLY NOT CLAIMED: `tools/edit_lint_check.py:113` renders
+`f"could not read the file: {exc}"` raw where the gate uses `safe_exc_text`, so the label is
+redacted and the REASON still leaks a path. That is CS-205's scope and is left to it rather
+than colliding with a concurrent slice. Also unverified: POSIX behaviour, argued structurally
+and pinned by the determinism test but never observed on a Linux runner; and `--staged` mode,
+whose labels are always repo-relative so redaction is a no-op there by reasoning, not by
+measurement.
+
 ### 2026-08-14 - CS-206 - tools/facts_probe.py redacts hooks_path, and a SECOND unredacted field found by the sweep
 Verification: `tools/facts_probe.py` plus `tests/test_facts_probe.py`, ten new tests. Proven
 by a planted SYNTHETIC home segment asserted absent from the emitted payload - never by
