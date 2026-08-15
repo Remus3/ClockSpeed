@@ -39,11 +39,22 @@ the line becomes a pointer.
   `clockspeed/save/{header,chunks,usmap,workdir}.py`. Suite 734 -> 1067, exit 0. Detail in
   `docs/LEDGER.md`.
 
-- **In flight:** nothing half-done; the tree is committed. **CS-400 IS NOT CLOSED.** Waves 2
-  and 3 are unstarted - `objects.py`, `world.py` and the phase-4 acceptance gate - and NOT
-  ONE of the four acceptance clauses is met, because none can be met without `load_world`.
-  The remaining decomposition is written out on the CS-400 roadmap line, including the
-  three-signal no-write proof.
+- **Also shipped, after the first `/done` ran:** CS-205, CS-404 part 1, and phase 4 waves 2
+  and 3 in full - `objects.py`, `world.py`, the phase-4 acceptance gate, CS-407 and CS-409.
+  Suite 734 -> **1462 passed, 5 skipped**, exit 0. CI green on `f3f26ba`.
+
+- **A REAL WORLD PARSES.** Verified by the merger against the live library, not taken from a
+  builder report: 3 of 14 real saves load end to end through `load_world` into a `WorldModel`
+  - 25769, 25769 and 25725 records, 202 levels, 2774 nodes - and the other 11 are refused
+  with a clean `WorldLoadError`. All three render the SAME masked token digest with DIFFERENT
+  record counts, which is CS-401's token-stability claim confirmed on the game's own output.
+
+- **In flight:** nothing half-done; the tree is committed and pushed. **CS-400 IS STILL NOT
+  CLOSED, and the gate itself says so.** Clauses 2, 3 and 4 are MET and gated. Clause 1 is met
+  for ONE of four version pairs only - three of the four real pairs cannot be read at all
+  (CS-407), and CS-402 is separately unmet because save version 42's transform delta is
+  unmeasured (CS-408). The open follow-ups are CS-406, CS-407, CS-408 and the remaining parts
+  of CS-404.
 
 - **Decisions:** ADR 0007, `accepted` - the save header layout and the chunk framing are
   version dependent. Its adjudication returned NEEDS-REVISION and four defects were fixed
@@ -97,9 +108,28 @@ the line becomes a pointer.
     UTF-8 locales", and a `||` fallback then prints a clean result for a grep that never ran.
     W0-DOC caught its own false pass and wrote a real scanner instead.
 
-- **Next action:** dispatch W2-OBJ - `clockspeed/save/objects.py` plus `tests/save/
-  test_objects.py` - and FIRST fix CS-404's header-10 body prefix in the corpus, because
-  W2-OBJ parses the body and the corpus currently models that prefix wrongly.
+- **Two more surprises, both after the first `/done`:**
+  9. **A real save body is a LIST OF LEVELS, not an object table.** Nothing downstream could
+     ever have parsed a real world by fixing an offset - the shape was wrong, not the number.
+     Header 10 / save 36 is now derived and confirmed on all three real files of that pair,
+     each landing on its exact final byte. The other three pairs are refused eagerly.
+  10. **pytest renders the ARGUMENTS of every frame in a failing traceback**, with no
+     `--showlocals` and no opt-in. Measured with a planted marker: it appeared twice. So a
+     test passing real save bytes into a frame that can raise prints the HEAD of the file,
+     which is exactly the PII-bearing header. Three live sites found and guarded. This class
+     is invisible to every green run BY CONSTRUCTION, because it only fires on failure.
+
+- **Also failed and worth not retrying:** interpolating save version 42's transform delta.
+  TWO separate builders reached a plausible number and BOTH discarded it - one because its
+  method failed to recover the known deltas for 36 and 60 when validated against them, the
+  other because the reading needed two unmeasured assumptions propping each other up. With 36
+  giving 4 and 52 giving 8, the value 4 is exactly what "looks derived" produces.
+
+- **Next action:** CS-409 is done, so the highest-value item is **CS-407** - derive the body
+  layout for the remaining three version pairs. Header 14 / save 52 is the nearest: all 134
+  named levels walk and the persistent level's FIRST COMPONENT record is the single blocker.
+  Each unfinished pair has its stopping point recorded in `LEVELLED_LAYOUT_UNMEASURED` so a
+  slice resumes from evidence rather than from scratch.
 
 ## Session 3 - 2026-08-14 - phase 2 follow-ups, then the phase 3 solver core
 
