@@ -31,6 +31,90 @@ the line becomes a pointer.
 
 ---
 
+## Session 5 - 2026-08-15 - CS-407 closes for all four pairs; the save reader reads the whole library
+
+- **Shipped:** **CS-406**, **CS-407**, **CS-408** and **CS-402**. New items filed: CS-411
+  (repo-wide mypy does not cover `scripts/`) and CS-412 (record the remaining opaque spans as
+  data, not prose). Suite 1463 -> **1490 passed, 4 skipped**, exit 0. Detail in
+  `docs/LEDGER.md`.
+
+- **ALL 14 OF 14 REAL SAVES NOW LOAD END TO END.** It was 3 of 14. Verified by the merger
+  against the live library, not taken from a builder report: 14 found, 14 loaded, zero
+  failures, zero warnings, 131607 records across 6171 levels, 3 distinct masked world tokens -
+  which independently confirms the recorded fact that this library holds exactly three worlds.
+
+- **In flight:** nothing half-done; the tree is committed and pushed. **CS-400 STILL MUST NOT
+  CLOSE, and the reason CHANGED from coverage to DEPTH.** Coverage is now complete; what
+  closed is a SKELETON grammar. 69.5 to 77.7 per cent of every body is opaque property payload
+  and `read_properties` decodes NO property value, so the reader reaches every record and can
+  read nothing inside one. Pillar 3 needs inventory, clock speed and connection state, and all
+  three live in the payload. **Whether "a real world parses" is satisfied by a skeleton walk
+  is an OPERATOR DECISION and was deliberately not taken by the merger.**
+
+- **Decisions:** no ADR this session. A frozen-file GRANT for `scripts/install_hooks.py` was
+  adjudicated and recorded in `docs/LEDGER.md` BEFORE the edit, per CLAUDE.md section 6.
+
+- **Surprises**, each measured rather than reasoned about:
+  1. **The inherited resume notes named the WRONG UNKNOWN on two of three pairs.** Save 42's
+     note blamed the transform delta; the delta was never wrong, its LEVEL GRAMMAR differed.
+     Save 60's note described a fixed 78-byte separator; it is a variable-width counted
+     structure taking three widths. Every prior attempt swept the parameter it had been told
+     was unknown while holding the wrong thing fixed.
+  2. **ALL THREE ADVERSARIES RETURNED REFUTED - AS WRITTEN, NOT IN SUBSTANCE.** No rival broke
+     a byte landing or a skeleton. They killed over-claiming, and the shipped grammar is
+     narrower and better than the measured one.
+  3. **One narrowing was a REGRESSION AGAINST A SHIPPED ADR, caught just in time.** Actor
+     pre-runs of 0, 4, 8 and 12 bytes ALL land 8 of 8 on save 52 - byte arithmetic is blind
+     even to that run's width. `objects.py` already modelled it correctly as one opaque span
+     per ADR 0003. Splitting it into named fields would have been a step backwards.
+  4. **A recorded reason was refuted by RUNNING it.** `objects.py` said delta 4 was declined
+     because it held only if save 42's declared header size also excluded the collectable
+     count. That grammar stops inside level 0. One thing changed, not two.
+  5. **A test was GREEN WHILE FALSE.** The corpus still named save 42 as its unmeasured save
+     version, so a refusal test kept passing while its own example had stopped being true.
+     Green because the corpus table was incomplete, not because the claim held.
+  6. **`ROADMAP.md` claimed both CS-406 leak sites were on the sweep's live residual list.**
+     Measured FALSE for the wiring line by running `scan_repo()` directly - it appears in
+     neither list and was guarded by nothing at all.
+  7. **`redact()` is a NO-OP on the pinned project root.** It maps `C:\Clockspeed` to itself,
+     because that root is not under a home directory while the test oracle still matches it.
+     A redaction-based CS-406 fix would have passed on a clone under a home directory and
+     silently failed on this machine.
+  8. **The stale-worktree problem RECURRED and the mandated check caught it.** The CS-407
+     integration builder's worktree was cut from its base's parent; it reported ANCESTOR-FAIL,
+     fast-forwarded, and re-measured before building.
+  9. **18 of 28 commits carry an agent co-authorship trailer** although `docs/GATED.md` CS-G03
+     records an operator decision against it. Operator reaffirmed on 2026-08-15: keep
+     committing without it. The existing history is not worth rewriting - CS-G03 already
+     generates a fresh history at the flip, which strips them.
+
+- **Failed paths - do not retry:**
+  - **The tag-driven collectable rule.** "Present iff the level's data entries are tagged 42"
+    is UNDEFINED on 229 of 2244 levels of the very file it came from, and both outcomes occur
+    among them. Use the SIZE-DRIVEN rule - and know that it is an a-priori delimiter argument
+    rather than a measurement, because "always read a block" also lands byte-exact on 7 of 8
+    save-52 files.
+  - **Reading an 8-byte section size as an int64.** Undecidable now and permanently. An int64
+    reader silently computes an astronomical size if that word ever goes non-zero, then
+    misdiagnoses the WRONG FIELD.
+  - **Claiming a breakdown inside a constant blob.** Save 60's 70-byte run has no observable
+    boundary at all - not 4+6, not 8+2, not 16+10.
+  - **Reading "8 real files" as an independence count.** The save-52 preamble is byte-identical
+    across all 8 and is the static world-partition grid, so n=1 is a CEILING, not a sampling
+    accident more saves would fix.
+
+- **A measurement that leaves no artifact is not resumable.** The prior session's note said the
+  (13,42) grid preamble "is measured"; that measurement was recorded NOWHERE in the tree, so
+  the resuming slice re-derived it from scratch. Filed as CS-412. Record the GRAMMAR, never an
+  adjective about it.
+
+- **Next action:** get an operator ruling on **CS-400** - coverage is met and depth is not, and
+  the merger deliberately did not take that decision. If CS-400 stays open, the natural
+  successor to CS-407 is measuring the OBJECT PAYLOAD GRAMMAR, which is the three quarters of
+  every body still opaque and the thing pillar 3 needs. **CS-405 is now UNBLOCKED** but note it
+  may need the payload grammar first, and saying so is the correct outcome rather than forcing
+  a YES or NO.
+
 ## Session 4 - 2026-08-14 - ADR 0006 adjudicated, four tier-1 fixes, phase 4 waves 0 and 1
 
 - **Shipped:** ADR 0006 flipped to `accepted`; **CS-204**, **CS-206**, **CS-207** closed;
@@ -222,57 +306,3 @@ the line becomes a pointer.
   ceiling), and the world-token half of CS-201, which cannot work until a header parser
   exists. Note BOOTSTRAP.md section 3.1: the actor header layout is save-version dependent,
   +8 on save versions 52 and 60 and +4 on version 36, so version-dispatch from day one.
-
-## Session 2 - 2026-08-14 - three operator decisions, then phase 2 data layer
-
-- **Shipped:** CS-007 (LICENSE holder ratified), CS-100, CS-101, CS-102, CS-103 (phase 1
-  implementation work), CS-200 (phase 2 gate, all three acceptance criteria met and verified
-  independently). Detail in `docs/LEDGER.md`.
-
-- **In flight:** nothing half-done. Working tree is committed. **No remote exists yet** - the
-  operator chose a private GitHub repo named `Clockspeed` receiving a SQUASHED orphan commit
-  from the clean tree, NOT the existing history. That push had not been performed when this
-  note was written; check `git remote -v` before assuming.
-
-- **Decisions:**
-  - ADR 0005, `accepted` - the overclock ceiling is NOT in `Headers.zip`, and the mechanism
-    says it never will be: every relevant property is `EditDefaultsOnly`, so the value lives
-    in a data asset, and the zip ships headers with no `.cpp`. It IS a schema oracle. The
-    probe recovered the equation and the field name `mExtraPotential` (0.5, in the docs data
-    all along), reducing the unknown to one integer, `mDefaultPotentialShardSlots`.
-  - Operator decision recorded in `docs/GATED.md` CS-G03: the public flip ships from a FRESH
-    history, with three preconditions - PII, author identity, and no agent co-authorship
-    trailer.
-
-- **Surprises**, all written back into the spec:
-  1. **The spike report was wrong about a SIDE.** It said the fractional-fluid recipe "takes"
-     water at 1500. Live re-probe: the water is a PRODUCT. Counts were right, side was wrong.
-     `BOOTSTRAP.md` section 3.2 corrected and made authoritative; the report carries a
-     correction block. This mattered - a fixture written from the original wording tests
-     ingredient rounding only and never touches the product side.
-  2. **The registry shipped a wrong number before adversarial review caught it.** Three
-     biofuel recipes published litres where the contract said cubic metres, because a
-     four-group descriptor whitelist missed `FGItemDescriptorBiomass`. Fixed by deriving the
-     namespace from field presence instead of a name list.
-  3. **`redact()` had a latent PII leak** that predated this session - it stripped home
-     prefixes but not the account-id path segment. Fixing it revealed the fix itself was
-     scoped to the 17-digit Steam shape only.
-  4. **Two misspelled game keys confirmed live** and used verbatim.
-
-- **Failed paths - do not retry:**
-  - **Skipping worktree isolation because write-lists were proven disjoint.** The proof
-    bounds DECLARED writes and says nothing about transient ones. Two builders broke files
-    outside their lists to watch a test go red - correct TDD, restored correctly - and turned
-    an unrelated suite red mid-verification. If a shared tree is used again, the dispatch
-    must say every break-revert-observe cycle happens on a scratchpad COPY.
-  - **`git ls-files | xargs grep` as evidence that a scrub is complete.** It reads
-    WORKING-TREE contents, so it goes clean the instant you edit and proves nothing about
-    what git stores. Use `git grep <pattern> HEAD` or `git log -S`.
-  - **Trusting per-file `ruff`/`mypy` green.** CI runs them repo-wide; per-file green is a
-    weaker and different claim, and it produced a false green this session.
-  - **A redactor used as its own test oracle.** `redact(x) != x` as the test for "x holds
-    PII" is blind exactly where the redactor is blind.
-
-- **Next action:** create the private GitHub repo `Clockspeed`, push a squashed orphan commit
-  from the clean tree, and confirm the tier-1 CI run status on it - CI has never executed
-  against a hosted branch, so the `--no-verify` mitigation is still unproven.

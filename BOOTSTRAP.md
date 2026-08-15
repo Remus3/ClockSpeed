@@ -361,7 +361,7 @@ resolved by picking the likelier one. Detect the variant from the marker word, w
 directly observable, and cross-check it against both version fields. See `docs/adr/0007`.
 
 **The actor header layout is save-version dependent.** The transform block sits at +8 after
-the instance-name string on save versions 52 and 60, and at +4 on version 36. This
+the instance-name string on save versions 52 and 60, and at +4 on versions 36 and 42. This
 confirms section 2.4's warning that version dispatch is a day-one requirement.
 
 ### 3.2 Data-layer spike results - session 1

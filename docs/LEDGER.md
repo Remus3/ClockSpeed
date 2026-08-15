@@ -74,6 +74,98 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-15 - CS-407 - The body SKELETON grammar closes for all four version pairs, and 14 of 14 real saves load
+Verification: `clockspeed/save/objects.py` (`BODY_LAYOUT_BY_PAIR`, `_read_section_size`,
+`_read_level`, `_read_levelled_record`), `tests/save/synthetic.py` (`LEVELLED_LAYOUTS`), and
+`tests/save/test_objects.py` plus `tests/save/test_phase4_gate.py`. Suite 1470 -> 1490, exit 0.
+Re-verified by the merger against the LIVE LIBRARY independently of every builder: 14 found,
+14 loaded through `load_world`, zero failures, zero warnings, 131607 records across 6171
+levels, 3 distinct masked world tokens. It was 3 of 14 before this item.
+METHOD, and it is the reason to trust the result. Three measurement slices derived one pair
+each in worktrees. The merger then RE-IMPLEMENTED every claimed grammar from its prose in code
+sharing no line with any slice probe, and reproduced each byte-exact landing independently.
+Three adversaries then attacked the results with distinct lenses.
+ALL THREE ADVERSARIES RETURNED REFUTED - AS WRITTEN, NOT IN SUBSTANCE. No rival broke a byte
+landing or a skeleton. What they killed was over-claiming, and the SHIPPED grammar is narrower
+and better than the measured one:
+(1) The actor's leading run stays ONE OPAQUE SPAN. Pre-runs of 0, 4, 8 and 12 bytes all land
+8 of 8 on save 52, so byte arithmetic is blind even to its width - only the unit-quaternion
+check pins the transform. Splitting it into named fields would have been A REGRESSION AGAINST
+ACCEPTED ADR 0003.
+(2) An 8-byte section size reads as an int32 size plus a NAMED RESERVED int32, never an int64.
+The reserved word is zero in 5890 of 5890 instances and the largest section is 0.45 per cent
+of 2^31, so the question is undecidable now and permanently. An int64 reader would silently
+compute `lo + hi * 2**32` if that word ever went non-zero and then misdiagnose the WRONG
+FIELD. A non-zero reserved word FLAGS rather than crashes (non-negotiable 7).
+(3) Constant blobs are skipped BY LENGTH with no claimed interior, as `BOOTSTRAP.md` already
+treats the 28-byte header tail. Save 60's 70-byte run has NO observable boundary inside it -
+not 4+6, not 8+2, not 16+10.
+(4) The grammar is keyed on the PAIR. Header version, save version and build changelist are
+all perfect predictors of every difference, so the KEY IS UNDETERMINED - the same finding
+`docs/adr/0007` records for the chunk marker.
+THE COLLECTABLE RULE WAS REFUTED AND REPLACED. The tag-driven rule ("present iff the level's
+data entries are tagged 42") is UNDEFINED on 229 of 2244 levels of the file it was derived
+from, because those levels have zero data entries, and BOTH outcomes occur among them - 227
+carry a block, 2 do not. The shipped rule is SIZE-DRIVEN and needs no lookahead. Recorded
+honestly in the module: it is an a-priori delimiter argument rather than a measurement,
+because "always read a block" also lands byte-exact on 7 of the 8 save-52 files.
+A RECORDED REASON WAS REFUTED BY RUNNING IT. `objects.py` said save 42's delta 4 was declined
+because it held only if that version's declared header size ALSO excluded the collectable
+count. That grammar was executed and it stops inside level 0. The size INCLUDES the block in
+all 301 levels that have one; 1943 levels simply have none. One thing changed, not two.
+Corrected in place rather than deleted.
+THE HEADLINE IS A SKELETON AND IS WRITTEN AS ONE. Between 69.5 and 77.7 per cent of every body
+is opaque property payload this grammar does not describe, and up to 81 per cent is skipped
+rather than described. That is enough to WALK a save and is not the same claim as READING one.
+GREEN WHILE FALSE, found by the merger at merge time: the corpus still named save 42 as its
+UNMEASURED save version, so a refusal test kept passing while its own example had stopped
+being true. The sentinel moved to a version nobody has measured and the rule it pins is
+unchanged. Proven load-bearing rather than cosmetic: `build_body` at save version 42 now
+BUILDS, so leaving the sentinel would have turned that test red.
+CORPUS INDEPENDENCE, stated rather than buried: (13,42) is n=1. (14,60) is nominally n=2 but
+its two bodies are byte-identical through the persistent level's first byte, so the preamble,
+grid, level tail and ALL named-level framing are effectively n=1. (14,52) has 8 files but a
+byte-identical preamble that is a CEILING rather than a sampling accident, three structural
+twins, and a version-42 branch living in ONE file.
+ALSO FIXED: `ROADMAP.md` still carried CS-409 as open although it closed on 2026-08-14 and is
+ledgered above. Stale entry removed.
+
+### 2026-08-15 - CS-408 - Save version 42's transform delta is 4, behind a VALIDATED method, and the component grammar is measured
+Verification: `clockspeed/save/objects.py` `TRANSFORM_DELTA_BY_SAVE_VERSION`, and
+`tests/save/test_synthetic.py::test_save_42_was_measured_rather_than_interpolated_from_its_neighbours`
+plus the component coverage in `tests/save/test_objects.py`.
+THE VALUE DID NOT CHANGE - THE KIND OF EVIDENCE DID, and that is the whole entry. Two earlier
+sessions reached 4 and BOTH DISCARDED IT, rightly: with save 36 giving 4 and save 52 giving 8,
+arriving at 4 is the PRIOR OF THE FAILURE MODE rather than corroboration. It is a measurement
+now because a method that FIRST recovered 4, 8 and 8 for the three already-known versions was
+then pointed at 42, and because 17763 of 17763 actors in the one real header-13 body give a
+unit quaternion at shift 4 while the runner-up shift falls to 2 once scale plausibility is
+included. An adversary attacked the method specifically, found its candidate sampler biased
+toward the head of the body, replaced it with a full-population sweep, and the answer held.
+THE FRAMING THAT BLOCKED THIS FOR TWO SESSIONS WAS WRONG. The inherited note said save 42's
+DELTA was the unknown; the delta was never wrong. Its LEVEL GRAMMAR differed - section sizes
+are 8 bytes wide, not 4, and each data entry carries three int32s, not one. Every prior
+attempt swept deltas while holding the level grammar fixed, so no sweep could have found it.
+COMPONENT GRAMMAR MEASURED across all four pairs: saves 36 and 42 encode a component as four
+strings; saves 52 and 60 add an int32 before the parent string. Negative control on save 52:
+with the four-string shape NO level containing a component ever closes, so this is refused by
+the parse rather than preferred. The 4-byte width is pinned; its TYPE is not, because a
+two-int16 reading closes byte-exactly.
+
+### 2026-08-15 - CS-402 - All four save versions and all three header versions parse through the single entry point
+Verification: `tests/save/test_phase4_gate.py::test_header_version_coverage_through_the_entry_point_is_three_of_three`,
+and the merger's live-library run - 14 of 14 saves loaded through `clockspeed.save.world.load_world`
+across pairs (10,36) x3, (13,42) x1, (14,52) x8 and (14,60) x2.
+Unblocked by CS-408. Header version 13 was previously unreachable through the entry point
+because it lives only with save version 42, which the object stage refused by design.
+THE GATE TEST WAS A DELIBERATE TRIPWIRE AND IT FIRED AS DESIGNED. Its predecessor asserted
+"two of three" and its docstring said it was "asserted rather than described so that CS-408
+landing makes this test RED and forces the claim to be restated". It went red exactly when
+expected and was RESTATED to three of three rather than loosened. Header 13's coverage now
+rests on a fixture CARRYING RECORDS rather than on an empty body, which is a stronger claim
+than the one it replaced.
+
+
 ### 2026-08-15 - CS-406 - FROZEN-FILE GRANT ISSUED for `scripts/install_hooks.py`, two sites, with conditions
 Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit, not a
 completion record. Ruled by an adjudicator that wrote none of `scripts/install_hooks.py`, the

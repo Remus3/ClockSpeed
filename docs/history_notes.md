@@ -87,3 +87,57 @@ _No entries yet._
   name), then decide the BOOTSTRAP.md PII question in `docs/GATED.md` before any public
   flip. After that, phase 2 (CS-200) begins with the docs extractor, written against the
   measured schema in `BOOTSTRAP.md` section 3.2 - NOT against the assumed one.
+
+## Session 2 - 2026-08-14 - three operator decisions, then phase 2 data layer
+
+- **Shipped:** CS-007 (LICENSE holder ratified), CS-100, CS-101, CS-102, CS-103 (phase 1
+  implementation work), CS-200 (phase 2 gate, all three acceptance criteria met and verified
+  independently). Detail in `docs/LEDGER.md`.
+
+- **In flight:** nothing half-done. Working tree is committed. **No remote exists yet** - the
+  operator chose a private GitHub repo named `Clockspeed` receiving a SQUASHED orphan commit
+  from the clean tree, NOT the existing history. That push had not been performed when this
+  note was written; check `git remote -v` before assuming.
+
+- **Decisions:**
+  - ADR 0005, `accepted` - the overclock ceiling is NOT in `Headers.zip`, and the mechanism
+    says it never will be: every relevant property is `EditDefaultsOnly`, so the value lives
+    in a data asset, and the zip ships headers with no `.cpp`. It IS a schema oracle. The
+    probe recovered the equation and the field name `mExtraPotential` (0.5, in the docs data
+    all along), reducing the unknown to one integer, `mDefaultPotentialShardSlots`.
+  - Operator decision recorded in `docs/GATED.md` CS-G03: the public flip ships from a FRESH
+    history, with three preconditions - PII, author identity, and no agent co-authorship
+    trailer.
+
+- **Surprises**, all written back into the spec:
+  1. **The spike report was wrong about a SIDE.** It said the fractional-fluid recipe "takes"
+     water at 1500. Live re-probe: the water is a PRODUCT. Counts were right, side was wrong.
+     `BOOTSTRAP.md` section 3.2 corrected and made authoritative; the report carries a
+     correction block. This mattered - a fixture written from the original wording tests
+     ingredient rounding only and never touches the product side.
+  2. **The registry shipped a wrong number before adversarial review caught it.** Three
+     biofuel recipes published litres where the contract said cubic metres, because a
+     four-group descriptor whitelist missed `FGItemDescriptorBiomass`. Fixed by deriving the
+     namespace from field presence instead of a name list.
+  3. **`redact()` had a latent PII leak** that predated this session - it stripped home
+     prefixes but not the account-id path segment. Fixing it revealed the fix itself was
+     scoped to the 17-digit Steam shape only.
+  4. **Two misspelled game keys confirmed live** and used verbatim.
+
+- **Failed paths - do not retry:**
+  - **Skipping worktree isolation because write-lists were proven disjoint.** The proof
+    bounds DECLARED writes and says nothing about transient ones. Two builders broke files
+    outside their lists to watch a test go red - correct TDD, restored correctly - and turned
+    an unrelated suite red mid-verification. If a shared tree is used again, the dispatch
+    must say every break-revert-observe cycle happens on a scratchpad COPY.
+  - **`git ls-files | xargs grep` as evidence that a scrub is complete.** It reads
+    WORKING-TREE contents, so it goes clean the instant you edit and proves nothing about
+    what git stores. Use `git grep <pattern> HEAD` or `git log -S`.
+  - **Trusting per-file `ruff`/`mypy` green.** CI runs them repo-wide; per-file green is a
+    weaker and different claim, and it produced a false green this session.
+  - **A redactor used as its own test oracle.** `redact(x) != x` as the test for "x holds
+    PII" is blind exactly where the redactor is blind.
+
+- **Next action:** create the private GitHub repo `Clockspeed`, push a squashed orphan commit
+  from the clean tree, and confirm the tier-1 CI run status on it - CI has never executed
+  against a hosted branch, so the `--no-verify` mitigation is still unproven.
