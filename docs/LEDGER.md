@@ -74,6 +74,25 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-15 - CS-400 - Clause 1 goes from SKIPPED to PASSING, and the gate now says PARTIAL rather than NOT MET
+Verification: `tests/save/test_phase4_gate.py::test_a_real_world_parses_end_to_end`, which
+RUNS and asserts rather than skipping. Suite at close: 1463 passed, 4 skipped, exit 0.
+The gate was authored before CS-409 landed, so its clause-1 skip reason - "nothing locates it
+yet" - went stale inside the same session. It is corrected rather than left, because a stale
+skip reason is exactly the acting-on-a-stale-doc failure this project exists to prevent.
+A TRAP WAS FOUND WHILE LIFTING THE SKIP, and it is the reason this entry exists rather than a
+one-line edit. The gate author wrote "delete the skip marker and this becomes a real assertion
+with no other edit". That would have FAILED: the test called `workdir.latest_save()`, which
+returns the NEWEST file, and the newest save on this machine is header 14 / save 52 - an
+UNMEASURED pair that `load_world` refuses BY DESIGN. The test would have gone red while the
+reader behaved exactly as specified. It now selects the newest save OF A MEASURED PAIR and
+skips with a reason when none exists, so the assertion is real and the refusal is not mistaken
+for a defect.
+CS-400 STILL MAY NOT CLOSE, and the module docstring now says PARTIAL rather than MET on
+clause 1. Eleven of the fourteen saves on this machine cannot be loaded at all, and CS-402 is
+separately unmet. Passing means the seam works end to end on the ONE pair it can read - not
+that the save reader reads saves.
+
 ### 2026-08-14 - PII - pytest renders a failing frame's ARGUMENTS, so passing real save bytes into a raising frame is an echo path
 Verification: `tests/save/test_objects.py`, `tests/save/test_phase4_gate.py` and
 `tests/save/test_synthetic.py`, each real-save read now guarded. MEASURED, not reasoned

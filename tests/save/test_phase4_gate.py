@@ -7,21 +7,31 @@ acceptance clauses is blocked on work that has not been done, and this module
 is written so that the blocked clause is visibly skipped rather than quietly
 absent. The status of each clause, as this module measures it:
 
-    CLAUSE 1  a real world parses ............................. NOT MET
+    CLAUSE 1  a real world parses ............................. PARTIAL
     CLAUSE 2  a corrupted save produces a clean error ......... MET
     CLAUSE 3  a truncated save produces a clean error ......... MET
     CLAUSE 4  the save directory is never opened for write .... MET
 
-**CLAUSE 1 IS BLOCKED BY CS-407 AND NOTHING HERE PRETENDS OTHERWISE.** A real
-save body opens with a version-dependent preamble sitting between the length
-prefix and the object table. Nothing in this project locates it - the measured
-first int32 after the prefix is 201, 6, 6 and 0 across the four real
-(header version, save version) pairs - so ``objects.py`` starts the record
-table at body offset 0, which is the CORPUS layout and not the real one.
-``test_a_real_world_parses_end_to_end`` therefore SKIPS with CS-407 named in
-the skip reason. It is written as a complete test whose only missing piece is
-the assertion, so when CS-407 lands the skip is deleted and the body is already
-there.
+**CLAUSE 1 IS PARTIAL, AND PARTIAL IS NOT MET.** A real world DOES now parse end
+to end through the single entry point - ``test_a_real_world_parses_end_to_end``
+runs and asserts rather than skipping. It holds for ONE of the four real
+(header version, save version) pairs.
+
+The other three are refused BY DESIGN and cannot be read at all. A real body is
+not an object table with a preamble in front of it: it is a LIST OF LEVELS, each
+carrying its own record table, collectable list and payload section. CS-407
+derived that layout for header 10 / save 36 and confirmed it on all three real
+files of that pair, each landing on its exact final byte. The remaining pairs
+raise ``UnsupportedBodyLayoutError`` eagerly, which is non-negotiable 7 working -
+flagged and refused, never a silently wrong world.
+
+So the test deliberately selects the newest save OF A MEASURED PAIR rather than
+the newest save. Using ``latest_save`` alone would be a bug here: on a library
+whose newest file is an unmeasured pair, the reader refuses it exactly as
+specified and the test would fail while nothing was wrong.
+
+CS-400 MUST NOT CLOSE ON THIS. Eleven of the fourteen saves on the machine this
+was written against cannot be loaded, and CS-402 is separately unmet.
 
 What IS provable against a real save today is asserted by
 ``test_a_real_save_reaches_the_body_partial``, and it is named a partial
@@ -170,6 +180,7 @@ from typing import Final
 
 import pytest
 
+from clockspeed.data import locate
 from clockspeed.data.locate import (
     ENV_ACCOUNT_DIR,
     ENV_GAME_DIR,
@@ -302,7 +313,7 @@ def test_the_writer_is_on_the_scanned_set_and_is_the_only_exemption() -> None:
 
 
 # ===========================================================================
-# Clause 1 - A REAL WORLD PARSES.  NOT MET, blocked on CS-407.
+# Clause 1 - A REAL WORLD PARSES.  PARTIAL - met for ONE measured pair only.
 # ===========================================================================
 
 
@@ -319,40 +330,73 @@ def _real_save_or_skip() -> Path:
     return source
 
 
-@pytest.mark.skip(
-    reason=(
-        "CS-407: a real save body opens with a version-dependent preamble between the "
-        "length prefix and the object table, and nothing locates it yet. objects.py "
-        "starts the record table at body offset 0, which is the CORPUS layout only. "
-        "This clause of CS-400 is NOT MET and CS-400 must not close while this skips."
-    )
-)
-def test_a_real_world_parses_end_to_end() -> None:
-    """CLAUSE 1. Skipped, not passing, and CS-407 is named in the skip reason.
+def _real_save_of_a_measured_pair_or_skip() -> Path:
+    """Return the newest real save whose BODY LAYOUT this project has measured.
 
-    The body below is the finished test. When CS-407 lands, delete the skip
-    marker above and this becomes a real assertion with no other edit: a real
-    save loads through the single entry point and yields a record table with at
-    least one actor in it.
+    ``latest_save`` alone is not enough and using it here would be a bug rather
+    than a simplification: it returns the newest file, and on a library whose
+    newest file is an UNMEASURED pair that save is refused by design. The test
+    would then fail while the reader was behaving exactly as specified.
 
-    Everything it needs already exists and is cited so the reader can check that
-    this is a complete test rather than a placeholder:
-    ``workdir.latest_save`` (clockspeed/save/workdir.py:397),
-    ``world.load_world`` (clockspeed/save/world.py:658), and
-    ``ObjectTable.records`` (clockspeed/save/objects.py:617).
-
-    COUNTS ONLY when it does run. It binds derived scalars to locals and asserts
-    on those; it renders no token, no map name, no instance name and no path.
+    Returns:
+        The save path. NEVER rendered into an assertion message - it sits under
+        a home directory and carries both the account id and the world name.
     """
-    source = _real_save_or_skip()
+    root = locate.resolve_save_root()
+    account = locate.resolve_account_dir(root) if root is not None else None
+    if account is None:
+        pytest.skip("no save library on this machine - clause 1 is not gradeable here")
+    candidates: list[tuple[float, Path]] = []
+    for path in account.glob("*.sav"):
+        try:
+            parsed = header.read_header(path)
+        except (header.HeaderError, OSError):
+            continue
+        if (parsed.header_version, parsed.save_version) in objects.MEASURED_BODY_LAYOUTS:
+            candidates.append((path.stat().st_mtime, path))
+    if not candidates:
+        pytest.skip(
+            "no save of a MEASURED body-layout pair on this machine - three of the four "
+            "real pairs are still underived (CS-407), so clause 1 is not gradeable here"
+        )
+    return max(candidates)[1]
 
-    model = world.load_world(source)
+
+def test_a_real_world_parses_end_to_end() -> None:
+    """CLAUSE 1 - MET for a measured body-layout pair, and only for one.
+
+    This was skipped when the gate was written, because nothing could locate a
+    real body's object table. CS-407 derived the levelled layout for header 10 /
+    save 36 and CS-409 routed ``load_world`` to it, so the assertion is now real.
+
+    READ THE LIMIT BEFORE CITING THIS AS CS-400 CLOSED. Three of the four real
+    version pairs are STILL underived and are refused by design, and this test
+    deliberately selects a save of a MEASURED pair rather than the newest file.
+    Passing here means the seam works end to end on the pair it can read - not
+    that the save reader reads saves.
+
+    COUNTS ONLY. It binds derived scalars to locals and asserts on those; it
+    renders no token, no map name, no instance name and no path. The load is
+    GUARDED because pytest renders the ARGUMENTS of a failing frame, and the
+    frame inside the reader holds the whole save.
+    """
+    source = _real_save_of_a_measured_pair_or_skip()
+
+    try:
+        model = world.load_world(source)
+    except world.WorldLoadError as exc:
+        pytest.fail(
+            f"a real save of a measured pair did not load: {type(exc).__name__}",
+            pytrace=False,
+        )
 
     record_count = len(model.objects.records)
     token_length = len(model.token)
+    level_count = model.objects.level_count
     assert record_count > 0, "a real world parsed to an empty record table"
     assert token_length == header.WORLD_TOKEN_LENGTH
     assert model.header.header_version in header.SUPPORTED_HEADER_VERSIONS
+    assert level_count > 1, "a real body carries a list of levels, not a single table"
 
 
 def test_a_real_save_reaches_the_body_partial(tmp_path: Path) -> None:

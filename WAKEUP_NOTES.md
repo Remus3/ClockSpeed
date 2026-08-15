@@ -125,11 +125,19 @@ the line becomes a pointer.
   other because the reading needed two unmeasured assumptions propping each other up. With 36
   giving 4 and 52 giving 8, the value 4 is exactly what "looks derived" produces.
 
-- **Next action:** CS-409 is done, so the highest-value item is **CS-407** - derive the body
-  layout for the remaining three version pairs. Header 14 / save 52 is the nearest: all 134
-  named levels walk and the persistent level's FIRST COMPONENT record is the single blocker.
-  Each unfinished pair has its stopping point recorded in `LEVELLED_LAYOUT_UNMEASURED` so a
-  slice resumes from evidence rather than from scratch.
+- **Closing note, after the second `/done`:** the phase-4 gate's clause-1 test went from
+  SKIPPED to PASSING. Lifting that skip surfaced a trap worth remembering - the gate author
+  wrote "delete the skip marker and this becomes a real assertion with no other edit", and
+  that would have FAILED, because the test used `latest_save()` and the newest save here is
+  an UNMEASURED pair the reader refuses by design. A correct refusal would have read as a
+  defect. It now selects the newest save of a MEASURED pair. Suite closed at 1463 passed,
+  4 skipped, exit 0.
+
+- **Next action:** **CS-407** - derive the body layout for the remaining three version pairs.
+  Header 14 / save 52 is the nearest: all 134 named levels walk and the persistent level's
+  FIRST COMPONENT record is the single blocker. Each unfinished pair has its stopping point
+  recorded in `LEVELLED_LAYOUT_UNMEASURED` so a slice resumes from evidence rather than from
+  scratch.
 
 ## Session 3 - 2026-08-14 - phase 2 follow-ups, then the phase 3 solver core
 
