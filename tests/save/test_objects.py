@@ -40,13 +40,18 @@ The transform DELTA is measured: ADR 0003 read 626 node actors with 626 valid
 transforms out of real saves. Everything below is nonetheless proven against
 the CORPUS and not against a real file, and two limits follow.
 
-First, where the record table BEGINS. Every test here hands the walk a body
-whose first byte after the length prefix is the record count, because that is
-what ``synthetic.build_body`` writes - and the corpus labels its own body
-layout MODELLED. A probe against all four real version pairs this session shows
-a real body opens with a version-dependent preamble instead, so a green run
-here is NOT evidence that the walk can read a real save. See item 0 of the
-``clockspeed/save/objects.py`` docstring.
+First, where the record table BEGINS. Every test ABOVE the CS-407 section hands
+the walk a body whose first byte after the length prefix is the record count,
+because that is what ``synthetic.build_body`` writes - and no real body is
+shaped that way. A real body opens with a version-dependent preamble and then
+carries a list of levels. So a green run in that part of this module is
+evidence about DISPATCH and offset arithmetic, and is not evidence that
+anything can read a save. The CS-407 section is what carries that second
+claim, for the one pair whose layout is measured, and
+``test_a_real_save_of_a_measured_pair_walks_to_the_end_of_its_body`` is the one
+assertion here whose subject was produced by the game rather than by this
+repository. It SKIPS with a reason on a machine with no save, which is every
+CI machine.
 
 Second, the PROPERTY PAYLOAD. No fixture carries an object-data section at all
 - ``synthetic.SyntheticObject.encode`` emits a header record and stops - so the
@@ -91,7 +96,8 @@ from typing import Final
 
 import pytest
 
-from clockspeed.save import chunks, objects, usmap
+from clockspeed.data import locate
+from clockspeed.save import chunks, header, objects, usmap
 from tests.save import synthetic
 
 # ---------------------------------------------------------------------------
@@ -1247,6 +1253,183 @@ def test_the_record_repr_withholds_every_string_it_carries() -> None:
         for token in _PLANTED_TOKENS:
             assert token not in rendering
         assert rendering.isascii()
+
+
+# ---------------------------------------------------------------------------
+# CS-407 - the LEVELLED body layout, which is what a real body actually is
+#
+# Everything above this line hands the walk a body whose first int32 after the
+# length prefix is a record count. CS-407 measured that no real body is shaped
+# that way, so everything above proves dispatch and offset arithmetic and
+# proves nothing about reading a save. These tests carry that second claim, and
+# only for the pairs in ``synthetic.LEVELLED_LAYOUT_PAIRS``.
+# ---------------------------------------------------------------------------
+
+
+def _levelled_payload() -> bytes:
+    """Decompress the levelled fixture the way a caller would.
+
+    Returns:
+        The body, length prefix included.
+    """
+    return chunks.decompress_body(
+        synthetic.SAVE_LEVELLED_V36.blob,
+        synthetic.SAVE_LEVELLED_V36.chunk_offset,
+        header_version=synthetic.SAVE_LEVELLED_V36.header_version,
+    ).payload
+
+
+def test_parse_body_consumes_the_levelled_layout_to_the_last_byte() -> None:
+    """THE ORACLE, and the only assertion here that is hard to satisfy by accident.
+
+    A grammar that is wrong anywhere does not end on the final byte - it ends
+    early, late, or inside a string. Asserting the record COUNT alone would pass
+    for a walker that read one level and stopped; asserting no unparsed
+    remainder is what makes the count mean something.
+    """
+    fixture = synthetic.SAVE_LEVELLED_V36
+    table = objects.parse_body(
+        _levelled_payload(),
+        save_version=fixture.save_version,
+        header_version=fixture.header_version,
+    )
+
+    expected = sum(
+        level.record_count for level in (*synthetic.LEVELLED_NAMED, synthetic.LEVELLED_PERSISTENT)
+    )
+    assert len(table.records) == expected
+    assert table.level_count == len(synthetic.LEVELLED_NAMED) + 1
+    assert not [w for w in table.warnings if w.code == objects.WARN_UNPARSED_DATA_SECTION]
+    assert table.body_consumed == len(fixture.body)
+
+
+def test_parse_body_reads_a_component_as_four_strings_and_no_transform() -> None:
+    """The component branch, which was UNVERIFIED against a real file until CS-407.
+
+    A component carries a parent path where an actor carries its filler and
+    transform block. A walker that read the actor grammar for both desynchronises
+    every byte after the first component, which is exactly how the real header-14
+    walk fails today.
+    """
+    table = objects.parse_body(
+        _levelled_payload(),
+        save_version=synthetic.SAVE_LEVELLED_V36.save_version,
+        header_version=synthetic.SAVE_LEVELLED_V36.header_version,
+    )
+
+    components = [r for r in table.records if r.kind == objects.KIND_COMPONENT]
+    assert len(components) == 1
+    assert components[0].transform is None
+    assert components[0].parent is not None
+    actors = [r for r in table.records if r.kind == objects.KIND_ACTOR]
+    assert all(record.transform is not None for record in actors)
+    assert all(record.parent is None for record in actors)
+
+
+def test_parse_body_refuses_a_pair_whose_body_layout_is_unmeasured() -> None:
+    """Three of the four real pairs are NOT derived, and refusal is the honest answer.
+
+    Interpolating header 14's layout from header 10's is the same failure class
+    ADR 0005 refuses for the overclock exponent and the delta mapping refuses for
+    save version 42: every input is a measurement and the output is not.
+    """
+    for header_version, save_version in ((13, 42), (14, 52), (14, 60)):
+        with pytest.raises(objects.UnsupportedBodyLayoutError):
+            objects.parse_body(
+                _levelled_payload(),
+                save_version=save_version,
+                header_version=header_version,
+            )
+
+
+def test_the_measured_layout_pairs_are_transcribed_from_the_corpus() -> None:
+    """The parser's opinion and the corpus's opinion have to be the same opinion.
+
+    Transcribed rather than imported, matching the delta mapping, so the suite
+    is a check on the parser instead of a restatement of it. This is the only
+    thing proving neither slice mistyped the set.
+    """
+    assert frozenset(synthetic.LEVELLED_LAYOUT_PAIRS) == objects.MEASURED_BODY_LAYOUTS
+    for pair in synthetic.LEVELLED_LAYOUT_UNMEASURED:
+        assert pair not in objects.MEASURED_BODY_LAYOUTS
+
+
+def test_the_flat_walk_is_untouched_by_the_levelled_walk() -> None:
+    """``parse_object_headers`` is a consumed public surface and must not shift.
+
+    A concurrent slice reads it. The levelled walk is ADDITIVE - a new entry
+    point - and this pins that the old one still answers exactly as before on
+    the flat corpus body.
+    """
+    payload = chunks.decompress_body(
+        synthetic.SAVE_V36.blob,
+        synthetic.SAVE_V36.chunk_offset,
+        header_version=synthetic.SAVE_V36.header_version,
+    ).payload
+    table = objects.parse_object_headers(payload, save_version=36, header_version=10)
+    assert len(table.records) == len(synthetic.SAVE_V36.objects)
+    assert table.level_count == 0
+
+
+# ---------------------------------------------------------------------------
+# The real-save acceptance
+#
+# SKIPS WITH A REASON when no save is present. CI runs with no game install and
+# no save directory, and the whole suite must stay green there (BOOTSTRAP.md
+# section 5.4). Nothing below prints, asserts on, or otherwise renders a decoded
+# string: a save body holds the world's contents and non-negotiables 11 and 12
+# make every echo path a disclosure.
+# ---------------------------------------------------------------------------
+
+
+def _one_real_save_of_a_measured_pair() -> tuple[int, int, bytes] | None:
+    """Find a real save whose body layout this project has measured.
+
+    Returns:
+        ``(header version, save version, decompressed body)``, or None when no
+        such file is reachable. Never returns or logs a path.
+    """
+    root = locate.resolve_save_root()
+    if root is None:
+        return None
+    account = locate.resolve_account_dir(root)
+    if account is None:
+        return None
+    for path in sorted(account.glob("*.sav")):
+        try:
+            data = path.read_bytes()
+            parsed = header.parse_header(data)
+        except (OSError, header.HeaderError):
+            continue
+        if (parsed.header_version, parsed.save_version) not in objects.MEASURED_BODY_LAYOUTS:
+            continue
+        try:
+            body = chunks.decompress_body(
+                data, parsed.body_offset, header_version=parsed.header_version
+            )
+        except chunks.ChunkError:
+            continue
+        return (parsed.header_version, parsed.save_version, body.payload)
+    return None
+
+
+def test_a_real_save_of_a_measured_pair_walks_to_the_end_of_its_body() -> None:
+    """The acceptance CS-400 states and no synthetic fixture can supply.
+
+    The corpus can only ever agree with whoever wrote it. This is the one
+    assertion in the module whose subject was produced by the game.
+    """
+    found = _one_real_save_of_a_measured_pair()
+    if found is None:
+        pytest.skip("no real save of a measured body-layout pair is present on this machine")
+    header_version, save_version, body = found
+
+    table = objects.parse_body(body, save_version=save_version, header_version=header_version)
+
+    assert table.records != ()
+    assert table.level_count > 1
+    assert not [w for w in table.warnings if w.code == objects.WARN_UNPARSED_DATA_SECTION]
+    assert table.body_consumed == len(body) - table.body_prefix_width
 
 
 # ---------------------------------------------------------------------------

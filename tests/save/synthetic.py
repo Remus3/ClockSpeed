@@ -50,7 +50,16 @@ re-derived by the merger with a second probe, both runs agreeing:
   2026-08-14 (CS-404) - an earlier revision recorded the prefix as ABSENT on
   header 10, which was a property of this fixture and not of the format,
 
-- the transform deltas for save versions 36, 52 and 60.
+- the transform deltas for save versions 36, 52 and 60,
+
+- ADDED 2026-08-14 (CS-407) the LEVELLED BODY LAYOUT for header 10 / save 36 -
+  a level count, then that many named levels, then one unnamed persistent
+  level, then a trailing int32. Measured against a real body by the only
+  oracle that cannot be argued with: the walk lands on its exact final byte,
+  202 levels and 25769 records later. See LEVELLED_LAYOUT_PAIRS.
+
+- ADDED 2026-08-14 (CS-407) the COMPONENT record grammar - four strings, no
+  transform block. See :class:`SyntheticComponent`.
 
 MODELLED - a self-consistent construction, NOT a measurement:
 
@@ -59,9 +68,22 @@ MODELLED - a self-consistent construction, NOT a measurement:
 - the order within the duplicated size pair,
 - the empty-string encoding,
 - the usmap inner grammar (only the outer 12-byte framing is modelled with
-  any confidence).
+  any confidence),
+- the CONTENT of an object payload in the levelled layout (only its int32
+  length framing is measured).
 
 Each is flagged again where it is built.
+
+THE FLAT BODY LAYOUT IS NOT A REAL LAYOUT, AND STAYS ANYWAY
+-------------------------------------------------------------
+``build_body`` writes an int32 record count followed by records, with no
+preamble. CS-407 measured that NO real body is shaped that way. It is kept, and
+every fixture built on it is kept, because those fixtures pin offset arithmetic
+and version dispatch - SAVE_CROSS in particular - and moving them would put a
+large body of existing assertions on new bytes for no gain. What changed is the
+CLAIM: passing a test built on ``build_body`` is evidence about dispatch, and is
+not evidence that anything can read a real save. ``build_levelled_body`` is what
+carries that second claim, and only for the pairs in LEVELLED_LAYOUT_PAIRS.
 """
 
 from __future__ import annotations
@@ -525,6 +547,227 @@ def build_body(
 
 
 # ---------------------------------------------------------------------------
+# The LEVELLED body layout - what a real body actually is
+#
+# MEASURED under CS-407 against a real header-10 / save-36 body, and measured by
+# the only oracle that cannot be argued with: the walk below consumes the body
+# and lands EXACTLY on its final byte, 202 levels and 25769 records later, with
+# nothing left over. A grammar that is wrong anywhere does not end on the last
+# byte; it ends early, late, or inside a string.
+#
+# It replaces the assumption every earlier phase-4 slice inherited - that a body
+# opens with an int32 object count. It does not. A real body opens with a
+# version-dependent preamble and then carries a LIST OF LEVELS, each with its
+# own record table. That is why `build_body` above produces bytes no real save
+# has ever contained, and why the fixtures built from it prove offset arithmetic
+# and version dispatch and nothing else.
+#
+# THIS LAYOUT IS MEASURED FOR HEADER 10 / SAVE 36 AND FOR NO OTHER PAIR. The
+# other three real pairs are recorded in LEVELLED_LAYOUT_UNMEASURED below with
+# what was and was not established about each. Widening this builder to cover
+# one of them is a MEASUREMENT against a real save of that version, never an
+# interpolation from this one.
+# ---------------------------------------------------------------------------
+
+#: The (header version, save version) pairs whose whole-body layout is MEASURED.
+#: A pair is added here only after a real body of that pair walks to its exact
+#: final byte.
+LEVELLED_LAYOUT_PAIRS: Final = ((10, 36),)
+
+#: What is known about the pairs NOT in the tuple above, so that a later slice
+#: starts from the evidence rather than from scratch. Each entry states the
+#: boundary that stopped the derivation - never a guess at what lies past it.
+LEVELLED_LAYOUT_UNMEASURED: Final = {
+    (13, 42): (
+        "the grid preamble is measured; the level grammar is not. No transform "
+        "delta in 0..20 closes level 0's declared header-section size once the "
+        "collectable count is included, so save 42's delta remains UNMEASURED"
+    ),
+    (14, 52): (
+        "the grid preamble is measured, all 134 named levels advance on their "
+        "own declared sizes, and delta 8 closes 54 of 54 populated header "
+        "sections. The walk does NOT reach the end of the body: the first "
+        "component record of the trailing persistent level does not parse"
+    ),
+    (14, 60): (
+        "the leading version block and the grid preamble are measured, and the "
+        "78-byte separator between levels is measured. The walk does NOT reach "
+        "the end of the body"
+    ),
+}
+
+#: The body's final int32. MEASURED as present and zero on the real header-10
+#: body; a walk without it stops four bytes short of the end. Only its PRESENCE
+#: and its observed value are measured - nothing here claims to know its meaning.
+BODY_TRAILING_INT32: Final = 0
+
+
+@dataclass(frozen=True)
+class SyntheticCollectable:
+    """One entry in a level's collectable list.
+
+    MEASURED as a PAIR OF STRINGS, and measured only in the sense that reading
+    it as two strings is what makes the whole-body walk land on the final byte.
+    No meaning is claimed for either half.
+    """
+
+    level_name: str = "Persistent_Level"
+    path_name: str = "Persistent_Level:PersistentLevel.SyntheticCollectable_0"
+
+    def encode(self) -> bytes:
+        """Encode this collectable.
+
+        Returns:
+            The two length-prefixed strings, in file order.
+        """
+        return fstring(self.level_name) + fstring(self.path_name)
+
+
+@dataclass(frozen=True)
+class SyntheticComponent:
+    """One COMPONENT record, in the grammar a real save actually uses.
+
+    MEASURED under CS-407, and it is NOT the actor grammar. A component carries
+    a fourth string where an actor carries its filler and transform block. The
+    corpus previously encoded both kinds identically and labelled the component
+    branch unverified; this is the measurement that closes that gap.
+
+    :class:`SyntheticObject` above still encodes the actor grammar under either
+    discriminator, deliberately, because the fixtures built on it pin offset
+    arithmetic and must not shift underneath the tests that already assert them.
+    """
+
+    class_path: str
+    root_object: str
+    instance_name: str
+    parent_object_root: str = "Persistent_Level:PersistentLevel.SyntheticParent_0"
+    object_type: int = 0
+
+    def encode(self) -> bytes:
+        """Encode this record.
+
+        Returns:
+            The record bytes: the discriminator, then four strings.
+        """
+        return b"".join(
+            [
+                _i32(self.object_type),
+                fstring(self.class_path),
+                fstring(self.root_object),
+                fstring(self.instance_name),
+                fstring(self.parent_object_root),
+            ]
+        )
+
+
+@dataclass(frozen=True)
+class SyntheticLevel:
+    """One level: a record table, a collectable list, and a payload section.
+
+    ``name`` is None for the PERSISTENT level, which a real body carries once,
+    unnamed, after every named level. That asymmetry is measured: a walk that
+    expects a name there stops with four hundred thousand bytes unread.
+
+    MODELLED, not measured: the CONTENT of each object payload. Only the framing
+    around it - an int32 length then that many bytes - is measured, so the
+    payloads here are opaque filler and any slice decoding a field out of one is
+    decoding an invention.
+    """
+
+    name: str | None
+    objects: tuple[SyntheticObject, ...] = ()
+    components: tuple[SyntheticComponent, ...] = ()
+    collectables: tuple[SyntheticCollectable, ...] = ()
+    second_collectables: tuple[SyntheticCollectable, ...] = ()
+    payload_size: int = 24
+
+    @property
+    def record_count(self) -> int:
+        """How many records this level's table declares.
+
+        Returns:
+            The count of actors plus components.
+        """
+        return len(self.objects) + len(self.components)
+
+    def encode(self, *, save_version: int) -> bytes:
+        """Encode the whole level.
+
+        The two declared sizes are computed from the bytes they cover rather
+        than accumulated by hand, so a fixture cannot declare a size that
+        disagrees with its own content - which is the exact defect the real
+        format's duplicated sizes exist to catch.
+
+        Args:
+            save_version: Drives the transform delta of the actor records.
+
+        Returns:
+            The level bytes.
+
+        Raises:
+            UnmeasuredTransformDeltaError: Actors were supplied for a save
+                version whose delta is unmeasured.
+        """
+        delta = transform_delta(save_version) if self.objects else 0
+        records = b"".join(obj.encode(delta) for obj in self.objects)
+        records += b"".join(component.encode() for component in self.components)
+        header_section = (
+            _i32(self.record_count)
+            + records
+            + _i32(len(self.collectables))
+            + b"".join(item.encode() for item in self.collectables)
+        )
+        # One payload per record, matching the real body, where the data
+        # section's count equals the header table's count exactly.
+        payload = bytes(self.payload_size)
+        data_section = _i32(self.record_count) + (_i32(len(payload)) + payload) * self.record_count
+
+        out: list[bytes] = []
+        if self.name is not None:
+            out.append(fstring(self.name))
+        out.append(_i32(len(header_section)))
+        out.append(header_section)
+        out.append(_i32(len(data_section)))
+        out.append(data_section)
+        out.append(_i32(len(self.second_collectables)))
+        out.extend(item.encode() for item in self.second_collectables)
+        return b"".join(out)
+
+
+def build_levelled_body(
+    named: tuple[SyntheticLevel, ...],
+    persistent: SyntheticLevel,
+    *,
+    save_version: int,
+) -> bytes:
+    """Build a body in the MEASURED levelled layout.
+
+    This does NOT add the body length prefix, for the same reason
+    :func:`build_body` does not: the prefix follows the HEADER version and
+    everything here follows the SAVE version, and the two are kept in separate
+    functions so they cannot be driven off one field by accident.
+
+    Args:
+        named: The named levels, in file order.
+        persistent: The trailing unnamed level. Its ``name`` must be None.
+        save_version: Drives the transform delta.
+
+    Returns:
+        The level count, every level, and the trailing int32.
+
+    Raises:
+        ValueError: ``persistent`` carries a name, which no real body does.
+    """
+    if persistent.name is not None:
+        raise ValueError("the persistent level is unnamed in every measured body")
+    out = [_i32(len(named))]
+    out.extend(level.encode(save_version=save_version) for level in named)
+    out.append(persistent.encode(save_version=save_version))
+    out.append(_i32(BODY_TRAILING_INT32))
+    return b"".join(out)
+
+
+# ---------------------------------------------------------------------------
 # Whole saves
 # ---------------------------------------------------------------------------
 
@@ -620,7 +863,7 @@ class SyntheticSave:
     save_version: int
     framing: str
     objects: tuple[SyntheticObject, ...]
-    blob: bytes
+    blob: bytes = field(repr=False)
     chunk_offset: int
     body: bytes = field(repr=False, default=b"")
     #: How many chunks the body was framed as. One for every fixture except
@@ -818,6 +1061,89 @@ SAVE_MULTICHUNK: Final = _assemble(
     header_version=14,
     save_version=60,
     objects=_multichunk_objects(),
+)
+
+
+def _assemble_levelled(
+    name: str,
+    *,
+    header_version: int,
+    save_version: int,
+    named: tuple[SyntheticLevel, ...],
+    persistent: SyntheticLevel,
+) -> SyntheticSave:
+    """Assemble a fixture whose body uses the MEASURED levelled layout.
+
+    Separate from :func:`_assemble` rather than a flag on it. Every fixture
+    already built by that function is asserted on by tests that exist, and a
+    body-layout switch threaded through it would put those assertions one
+    default value away from silently testing a different shape.
+
+    Args:
+        name: The fixture's own name.
+        header_version: Drives string layout, tail and body length prefix.
+        save_version: Drives the transform delta.
+        named: The named levels.
+        persistent: The trailing unnamed level.
+
+    Returns:
+        The assembled fixture.
+    """
+    header = build_header(header_version=header_version, save_version=save_version)
+    body = build_levelled_body(named, persistent, save_version=save_version)
+    payload = body_with_prefix(body, header_version)
+    framing = default_framing(header_version)
+    return SyntheticSave(
+        name=name,
+        header_version=header_version,
+        save_version=save_version,
+        framing=framing,
+        objects=tuple(obj for level in (*named, persistent) for obj in level.objects),
+        blob=header + build_chunks(payload, framing=framing),
+        chunk_offset=len(header),
+        body=body,
+        chunk_count=len(split_payload(payload)),
+    )
+
+
+#: The named levels of the levelled fixture. Deliberately UNEVEN: an empty
+#: level, a level with actors only, and a level mixing actors with a component.
+#: A uniform corpus would let a walker that mishandles an empty table, or that
+#: reads the actor grammar for a component, pass anyway - and both are real
+#: shapes in the measured body, where 165 of 201 named levels carry exactly one
+#: record and one carries 14935.
+LEVELLED_NAMED: Final = (
+    SyntheticLevel(name="Persistent_Level:SyntheticGridCell_0"),
+    SyntheticLevel(name="Persistent_Level:SyntheticGridCell_1", objects=_OBJECTS),
+    SyntheticLevel(
+        name="Persistent_Level:SyntheticGridCell_2",
+        objects=(_OBJECTS[0],),
+        components=(
+            SyntheticComponent(
+                "/Synthetic/Parts/Build_SyntheticInput.Build_SyntheticInput_C",
+                "Persistent_Level:PersistentLevel",
+                "SyntheticInput_0",
+            ),
+        ),
+        collectables=(SyntheticCollectable(),),
+    ),
+)
+
+#: The trailing unnamed level, which every measured body carries exactly once.
+LEVELLED_PERSISTENT: Final = SyntheticLevel(
+    name=None,
+    objects=_OBJECTS,
+    second_collectables=(SyntheticCollectable(),),
+)
+
+#: THE FIRST FIXTURE IN THIS CORPUS SHAPED LIKE A BODY A REAL SAVE CONTAINS.
+#: Header 10 with save 36 - the one pair whose whole-body layout is measured.
+SAVE_LEVELLED_V36: Final = _assemble_levelled(
+    "SAVE_LEVELLED_V36",
+    header_version=10,
+    save_version=36,
+    named=LEVELLED_NAMED,
+    persistent=LEVELLED_PERSISTENT,
 )
 
 

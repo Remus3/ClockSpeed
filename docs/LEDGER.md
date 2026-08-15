@@ -74,6 +74,59 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-14 - CS-407 PARTIAL - A real save body is a LIST OF LEVELS, not an object table, and one of four version pairs is now derived
+Verification: `clockspeed/save/objects.py` `parse_body` plus `tests/save/synthetic.py`
+`build_levelled_body` and `tests/save/test_objects.py`. Re-verified by the merger against the
+LIVE LIBRARY independently of the builder: 3 of 14 real saves parse to 202 levels with 0
+unknown classes and 0 warnings, and the other 11 are REFUSED EAGERLY with
+`UnsupportedBodyLayoutError` rather than crashing or returning a wrong number.
+THE FINDING THAT REFRAMES THE PHASE. A real body does not open with an object table at all.
+It opens with a version-dependent preamble and then carries a LIST OF LEVELS, each with its
+own record table, collectable list and payload section. So "start the table at body offset 0"
+could never have worked - the fix was not an offset, and no amount of tuning one would have
+found it.
+DERIVED AND ORACLE-CONFIRMED: header 10 / save 36. Grammar: an int32 level count, then that
+many NAMED levels, then one UNNAMED persistent level, then a trailing int32. Each level
+carries a name, a header section size, a record count, its records, a collectable count and
+its pairs, a data section size, an entry count, a length-prefixed payload per entry, and a
+second collectable block. Confirmed on ALL THREE real files of that pair, each landing on its
+EXACT final byte with zero warnings - and one of the three carries different world state,
+25725 records against 25769, so it is independent confirmation rather than the same file read
+three times.
+THE REFUTATION IS THE MOST VALUABLE PART OF THIS ENTRY. The builder briefly had save version
+42's transform delta at 4: with delta 4, exactly 12 records close level 0 on its declared
+size, and every other value from 0 to 20 fails. IT DID NOT SHIP IT. That reading holds only
+if save 42's header section size ALSO excludes the collectable count, which both neighbouring
+versions contradict - two unmeasured assumptions propping each other up. And 36 giving 4
+beside 52 giving 8 makes 4 exactly the value that LOOKS derived. Save 42's delta remains
+UNMEASURED. This is the second time this session a builder discarded a plausible number
+rather than publish one a shaky method produced.
+A REAL SAVE REFUSED ITSELF, and no synthetic fixture could have caused it: a count ceiling
+`MAX_OBJECTS` had been applied to a payload BYTE LENGTH, so the first real save the walk ever
+saw raised `ObjectBudgetExceededError` at byte 8124002. Fixed with a separate
+`MAX_OBJECT_DATA_BYTES`. That defect was invisible to every fixture and visible immediately to
+one real file.
+THE FLAT LAYOUT IS KEPT DELIBERATELY, WITH ITS CLAIM CORRECTED. `build_body` writes a shape no
+real save has. Its fixtures stay, because they pin offset arithmetic and version dispatch -
+`SAVE_CROSS` above all - and moving them would put a large body of existing assertions onto
+new bytes for no gain. What changed is what passing them PROVES: evidence about dispatch, and
+NOT evidence that anything can read a real save.
+ALSO MEASURED: the component record grammar is four strings with no transform block, which
+confirms the prior belief rather than replacing it; save 36's delta is 4 across 201 of 201
+populated sections and save 52's is 8 across 54 of 54.
+UNCLOSED, and each recorded with what stopped it so a later slice resumes from evidence
+rather than from scratch: header 13 / save 42 (level grammar not closed, preamble ends at a
+measured offset), header 14 / save 52 (all 134 named levels walk; the persistent level's first
+COMPONENT record is the single blocker, and this is the nearest pair to completion), and
+header 14 / save 60 (level 0 walks, a 78-byte inter-level separator is measured, and the full
+walker landed 8 bytes off - not chased to ground). `ObjectRecord.body_offset` and
+`body_length` remain 0, because that the k-th payload belongs to the k-th record is an
+assumption nothing measured, and a plausible pairing was deliberately not carried.
+CREATES CS-409, a LIVE DEFECT rather than unfinished work: `world.py` still calls
+`parse_object_headers`, which reads the flat layout, so `load_world` against a real body
+returns an empty or wrong world rather than an error - the one outcome non-negotiable 7
+forbids. The builder flagged this as a seam decision it would not make unilaterally.
+
 ### 2026-08-14 - CS-205 - A MECHANIZED repo-wide sweep asserts no tracked module renders an exception OBJECT into a message
 Verification: `tests/test_exception_rendering.py` plus `scripts/install_hooks.py`,
 `tools/precommit_gate.py`, `tools/edit_lint_check.py`, `tools/memory_sync.py` and

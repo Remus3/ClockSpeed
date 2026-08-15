@@ -70,22 +70,28 @@ grammar for an actor, and the transform deltas for save versions 36, 52 and 60.
 
 NOT measured, and deliberately not invented:
 
-0. **Where the record table actually STARTS in a real body.** This module walks
-   the table from the first byte after the length prefix, which is the layout
-   ``tests/save/synthetic.py`` builds - and that corpus labels its own body
-   layout MODELLED rather than measured. A probe run against all four real
-   version pairs this session shows the assumption does NOT hold on a real
-   save: the first int32 after the prefix is 201 on header 10 save 36, 6 on
-   header 13 save 42 and header 14 save 52, and 0 on header 14 save 60, and on
-   several of those it is immediately followed by a printable null-terminated
-   run rather than by a record. A real body evidently opens with a
-   version-dependent preamble that this module does not locate, so
-   **the walk below is correct against the corpus and cannot yet read a real
-   save.** Locating that preamble is a separate, measured piece of work; it is
-   NOT closed by guessing an offset here. The same probe did confirm the
-   prefix rule itself against every real pair - declared length equals the body
-   length exactly on all four, header 10's int32 included, which is independent
-   confirmation of the CS-404 correction.
+0. **Where the record table actually STARTS in a real body.** CLOSED FOR ONE OF
+   FOUR PAIRS by CS-407, and the answer was not an offset. A real body carries
+   no single record table: it opens with a version-dependent preamble and then
+   holds a LIST OF LEVELS, each with its own table, collectable list and
+   payload section. :func:`parse_body` walks that layout and, on a real header
+   10 / save 36 body, lands on the exact final byte - 202 levels and 25769
+   records later, nothing left over.
+
+   :func:`parse_object_headers` still reads the FLAT layout the corpus fixtures
+   are built on, unchanged, because it is a consumed public surface and those
+   fixtures pin dispatch and offset arithmetic. What changed is the claim it
+   carries: passing against the flat corpus is evidence about dispatch and is
+   NOT evidence that anything can read a save.
+
+   The other three real pairs are refused by :data:`MEASURED_BODY_LAYOUTS`
+   rather than guessed at, and what was established for each before the
+   derivation stopped is recorded in ``tests/save/synthetic.py``. Save version
+   42's transform delta in particular remains UNMEASURED: a candidate reading
+   exists in which its delta is 4, but it holds only if that version's declared
+   header-section size also excludes the collectable count, which both
+   neighbouring versions contradict. Two unmeasured assumptions holding each
+   other up is not a measurement.
 
 1. **The object DATA section.** After the record table a real save carries the
    per-object property payloads. No corpus fixture builds one -
@@ -94,13 +100,14 @@ NOT measured, and deliberately not invented:
    an unparsed section and skipped. :attr:`ObjectRecord.body_offset` and
    :attr:`ObjectRecord.body_length` are the seam that will locate a payload
    once that grammar is measured, and they are 0 on every path today.
-2. **The component record grammar.** In the corpus a record encodes identically
-   whatever its object-type discriminator says, so this module reads one
-   grammar and takes ``kind`` from the discriminator. A real save's component
-   header is believed to carry an outer/parent path where an actor carries a
-   transform; nothing here has measured that, so :attr:`ObjectRecord.parent` is
-   None on every path and the component branch is UNVERIFIED against a real
-   file.
+2. **The component record grammar.** MEASURED by CS-407, and the belief
+   recorded here previously was right: a component carries a parent path where
+   an actor carries its filler and transform block. :func:`_read_levelled_record`
+   implements that split and populates :attr:`ObjectRecord.parent`.
+   :func:`_read_record`, which serves the flat corpus, still reads the actor
+   shape under either discriminator - correct for those fixtures, which encode
+   both kinds identically, and wrong for a real body, which is exactly why the
+   levelled walk does not share it.
 3. **Property VALUE decoding.** :func:`read_properties` resolves a class path to
    a usmap schema and reports whether the mapping models it. It decodes no
    value, because the payload grammar is unmeasured. A payload with a non-zero
@@ -152,8 +159,11 @@ __all__ = [
     "FIELD_NAMES",
     "KIND_ACTOR",
     "KIND_COMPONENT",
+    "MAX_LEVELS",
     "MAX_OBJECTS",
+    "MAX_OBJECT_DATA_BYTES",
     "MAX_STRING_BYTES",
+    "MEASURED_BODY_LAYOUTS",
     "MEASURED_HEADER_VERSIONS",
     "TRANSFORM_BYTES",
     "TRANSFORM_DELTA_BY_SAVE_VERSION",
@@ -174,8 +184,10 @@ __all__ = [
     "PropertyResult",
     "Transform",
     "UnknownClass",
+    "UnsupportedBodyLayoutError",
     "UnsupportedSaveVersionError",
     "class_name_of",
+    "parse_body",
     "parse_object_headers",
     "parse_properties",
     "read_properties",
@@ -258,6 +270,29 @@ MAX_OBJECTS: Final = 1 << 20
 #: Ceiling on any single declared string length, matching header.py.
 MAX_STRING_BYTES: Final = 16_384
 
+#: Ceiling on the declared LEVEL count in the levelled layout. The measured real
+#: body carries 201 named levels; this is generous against that and finite.
+MAX_LEVELS: Final = 1 << 16
+
+#: Ceiling on one object payload's declared BYTE LENGTH. Distinct from
+#: :data:`MAX_OBJECTS` on purpose - that one bounds a COUNT of records, and
+#: reusing it here is a category error that a synthetic fixture cannot expose.
+#: The measured real body carries a single payload of 1056207 bytes, just over
+#: the count ceiling, so the first real save this walk ever saw refused itself.
+MAX_OBJECT_DATA_BYTES: Final = 1 << 26
+
+#: MEASURED (CS-407). The ``(header version, save version)`` pairs whose WHOLE
+#: BODY LAYOUT has been derived - meaning a real body of that pair walks to its
+#: exact final byte with nothing left over.
+#:
+#: THE OTHER THREE REAL PAIRS ARE ABSENT AND ARE NOT INTERPOLATED FROM THIS ONE.
+#: What was and was not established for each is recorded beside the corpus in
+#: ``tests/save/synthetic.py`` (``LEVELLED_LAYOUT_UNMEASURED``), so a later
+#: slice resumes from the evidence rather than from a blank page. Adding a pair
+#: here is a MEASUREMENT against a real save, and it is added in both
+#: transcriptions at once.
+MEASURED_BODY_LAYOUTS: Final = frozenset({(HEADER_VERSION_10, 36)})
+
 # ---------------------------------------------------------------------------
 # The closed field vocabulary
 #
@@ -280,6 +315,17 @@ FIELD_NAMES: Final = frozenset(
         "was_placed_in_level",
         "save_version",
         "property_payload",
+        # The levelled layout (CS-407).
+        "body_layout",
+        "level_count",
+        "level_name",
+        "level_trailer",
+        "header_section",
+        "object_data_section",
+        "object_data",
+        "collectable_count",
+        "collectable",
+        "parent_object_root",
     }
 )
 
@@ -303,6 +349,13 @@ REASON_UNMEASURED_TRANSFORM_DELTA: Final = (
 )
 REASON_UNDECODABLE_TEXT: Final = "declares text that is not decodable"
 REASON_CLASS_NOT_MODELLED: Final = "is not a class the supplied registry models"
+REASON_UNMEASURED_BODY_LAYOUT: Final = (
+    "names a header and save version pair whose body layout has not been measured,"
+    " and a layout is never interpolated from another version's"
+)
+REASON_SECTION_SIZE_DISAGREEMENT: Final = (
+    "declares a section size that disagrees with the bytes the section actually spans"
+)
 
 #: The reasons a class path can land in :attr:`ObjectTable.unknown_classes`.
 UNKNOWN_CLASS_REASONS: Final = frozenset({REASON_CLASS_NOT_MODELLED})
@@ -497,6 +550,17 @@ class UnsupportedSaveVersionError(ObjectError):
     """
 
 
+class UnsupportedBodyLayoutError(ObjectError):
+    """The header and save version pair has no MEASURED whole-body layout.
+
+    Raised EAGERLY by :func:`parse_body`, before a byte of the body is read.
+    Three of the four real pairs land here today and that is the correct
+    answer for them: a layout guessed from a neighbouring version produces a
+    walk that is confidently wrong rather than one that fails, and every
+    downstream module then gets written against it.
+    """
+
+
 # ---------------------------------------------------------------------------
 # The models
 # ---------------------------------------------------------------------------
@@ -632,6 +696,10 @@ class ObjectTable:
         transform_delta: The filler width this save version dictates.
         save_version: The save version the walk was dispatched on.
         header_version: The header version the walk was dispatched on.
+        level_count: How many LEVELS the walk consumed, the trailing persistent
+            level included. 0 from :func:`parse_object_headers`, which reads a
+            single flat table and knows nothing of levels. DEFAULTED so that
+            adding it could not change the construction of any existing caller.
     """
 
     records: tuple[ObjectRecord, ...]
@@ -643,6 +711,7 @@ class ObjectTable:
     transform_delta: int
     save_version: int
     header_version: int
+    level_count: int = 0
 
     @property
     def contains_unmodeled_content(self) -> bool:
@@ -661,6 +730,7 @@ class ObjectTable:
         """
         return (
             f"{type(self).__name__}(records={len(self.records)}, "
+            f"levels={self.level_count}, "
             f"unknown_classes={len(self.unknown_classes)}, "
             f"warnings={len(self.warnings)}, "
             f"save_version={self.save_version}, header_version={self.header_version}, "
@@ -1175,6 +1245,327 @@ def parse_object_headers(
         transform_delta=delta,
         save_version=save_version,
         header_version=header_version,
+    )
+
+
+# ---------------------------------------------------------------------------
+# The LEVELLED walk - CS-407
+#
+# A real body does NOT open with an object count. It opens with a
+# version-dependent preamble and then carries a LIST OF LEVELS, each with its
+# own record table, its own collectable list and its own payload section. The
+# walk below is the layout MEASURED for header 10 / save 36, and its oracle is
+# the only one that cannot be argued with: on a real body it lands on the exact
+# final byte, 202 levels and 25769 records later.
+#
+# It is a SEPARATE entry point rather than a change to parse_object_headers. A
+# concurrent slice consumes that function, and every existing fixture is built
+# on the flat layout; switching them over would put a large body of live
+# assertions onto new bytes for no gain.
+# ---------------------------------------------------------------------------
+
+
+def _read_bounded_count(cursor: _Cursor, field: str, ceiling: int) -> int:
+    """Read a count and refuse an impossible one before anything is allocated.
+
+    Args:
+        cursor: Positioned at the count.
+        field: The field being read, from :data:`FIELD_NAMES`.
+        ceiling: The stated maximum.
+
+    Returns:
+        The count.
+
+    Raises:
+        ObjectFormatError: The count is negative.
+        ObjectBudgetExceededError: The count exceeds ``ceiling``.
+    """
+    at = cursor.offset
+    count = cursor.int32(field)
+    if count < 0:
+        raise ObjectFormatError(REASON_NEGATIVE_COUNT, field=field, offset=at, actual=count)
+    if count > ceiling:
+        raise ObjectBudgetExceededError(
+            REASON_ABOVE_CEILING, field=field, offset=at, expected=ceiling, actual=count
+        )
+    return count
+
+
+def _read_levelled_record(cursor: _Cursor, delta: int) -> ObjectRecord:
+    """Read one record in the MEASURED levelled grammar.
+
+    THE TWO KINDS DIVERGE HERE, and that is the correction CS-407 carries. An
+    actor closes with its filler, its transform block and a trailing int32; a
+    COMPONENT closes with a fourth string instead. ``_read_record`` above reads
+    the actor shape under either discriminator, which is correct for the flat
+    corpus and desynchronises a real body at its first component.
+
+    Args:
+        cursor: Positioned at the record's object-type discriminator.
+        delta: The save version's filler width, actors only.
+
+    Returns:
+        The record.
+
+    Raises:
+        ObjectFormatError: The discriminator has no measured record grammar.
+        ObjectTruncatedError: The record runs past the body.
+    """
+    at = cursor.offset
+    object_type = cursor.int32("object_type")
+    kind = _KIND_BY_OBJECT_TYPE.get(object_type)
+    if kind is None:
+        raise ObjectFormatError(
+            REASON_UNMEASURED_OBJECT_TYPE, field="object_type", offset=at, actual=object_type
+        )
+
+    type_path = cursor.string("type_path")
+    root_object = cursor.string("root_object")
+    instance_name = cursor.string("instance_name")
+
+    transform: Transform | None = None
+    parent: str | None = None
+    was_placed_in_level = 0
+    if kind == KIND_ACTOR:
+        # Opaque by measurement: only the WIDTH of this run is known (ADR 0003).
+        cursor.skip(delta, "transform_delta")
+        values = cursor.floats(TRANSFORM_FLOAT_COUNT, "transform")
+        was_placed_in_level = cursor.int32("was_placed_in_level")
+        transform = Transform(
+            rotation=(values[0], values[1], values[2], values[3]),
+            translation=(values[4], values[5], values[6]),
+            scale=(values[7], values[8], values[9]),
+        )
+    else:
+        parent = cursor.string("parent_object_root")
+
+    return ObjectRecord(
+        kind=kind,
+        type_path=type_path,
+        root_object=root_object,
+        instance_name=instance_name,
+        transform=transform,
+        parent=parent,
+        object_type=object_type,
+        was_placed_in_level=was_placed_in_level,
+        # NOT attributed, deliberately. Each level's payload section carries
+        # exactly as many entries as its record table has records, and their
+        # extents are located by the walk below - but that the k-th payload
+        # belongs to the k-th record is an ASSUMPTION nothing has measured, so
+        # the seam stays 0 rather than carrying a plausible pairing.
+        body_offset=0,
+        body_length=0,
+    )
+
+
+def _read_collectables(cursor: _Cursor) -> int:
+    """Read one collectable list.
+
+    MEASURED as a count followed by that many PAIRS OF STRINGS - measured in
+    the sense that reading it any other way stops the whole-body walk short of
+    the final byte. No meaning is claimed for either string.
+
+    Args:
+        cursor: Positioned at the count.
+
+    Returns:
+        How many entries were read.
+    """
+    count = _read_bounded_count(cursor, "collectable_count", MAX_OBJECTS)
+    for _ in range(count):
+        cursor.string("collectable")
+        cursor.string("collectable")
+    return count
+
+
+def _check_section(cursor: _Cursor, field: str, at: int, base: int, declared: int) -> None:
+    """Assert a section spanned exactly the bytes it declared.
+
+    THIS IS THE WALK'S OWN ORACLE, applied at every level rather than once at
+    the end. A drift of a single byte is caught by the level that contains it,
+    which is what makes a failure point at a grammar rather than at a total.
+
+    Args:
+        cursor: Positioned at the end of the section.
+        field: The section field name, from :data:`FIELD_NAMES`.
+        at: Where the size was declared.
+        base: The first byte the size covers.
+        declared: The declared size.
+
+    Raises:
+        ObjectFormatError: The walked extent differs from the declared one.
+    """
+    walked = cursor.offset - base
+    if walked != declared:
+        raise ObjectFormatError(
+            REASON_SECTION_SIZE_DISAGREEMENT,
+            field=field,
+            offset=at,
+            expected=declared,
+            actual=walked,
+        )
+
+
+def _read_level(
+    cursor: _Cursor,
+    delta: int,
+    *,
+    named: bool,
+    known_classes: Container[str] | None,
+    records: list[ObjectRecord],
+    unknown: _UnknownLog,
+) -> None:
+    """Read one level: its record table, its collectables and its payload section.
+
+    ``named`` is False for exactly one level per body - the trailing persistent
+    level. That asymmetry is measured: a walk expecting a name there stops with
+    hundreds of thousands of bytes unread.
+
+    Args:
+        cursor: Positioned at the level.
+        delta: The save version's filler width.
+        named: Whether the level carries a leading name string.
+        known_classes: Class names the caller can model, or None.
+        records: Accumulator, appended to in file order.
+        unknown: Accumulator for unmodelled class paths.
+
+    Raises:
+        ObjectFormatError: A declared section size disagrees with its content,
+            or a count or discriminator is structurally impossible.
+        ObjectTruncatedError: The level runs past the body.
+        ObjectBudgetExceededError: A declared count exceeds its ceiling.
+    """
+    if named:
+        # Read and DISCARDED. A level name is not needed by any consumer today
+        # and holding one would put world content into the returned model and
+        # into its repr, which non-negotiable 12 makes an echo path.
+        cursor.string("level_name")
+
+    at = cursor.offset
+    header_size = cursor.int32("header_section")
+    base = cursor.offset
+    count = _read_bounded_count(cursor, "object_count", MAX_OBJECTS)
+    for _ in range(count):
+        record = _read_levelled_record(cursor, delta)
+        index = len(records)
+        records.append(record)
+        if known_classes is not None and class_name_of(record.type_path) not in known_classes:
+            unknown.add(record.type_path, index)
+    _read_collectables(cursor)
+    _check_section(cursor, "header_section", at, base, header_size)
+
+    data_at = cursor.offset
+    data_size = cursor.int32("object_data_section")
+    data_base = cursor.offset
+    entries = _read_bounded_count(cursor, "object_count", MAX_OBJECTS)
+    for _ in range(entries):
+        # The payload GRAMMAR is unmeasured; only its int32 length framing is.
+        # Stepping over it is therefore the honest read, not a shortcut.
+        cursor.skip(
+            _read_bounded_count(cursor, "object_data", MAX_OBJECT_DATA_BYTES), "object_data"
+        )
+    _check_section(cursor, "object_data_section", data_at, data_base, data_size)
+
+    _read_collectables(cursor)
+
+
+def parse_body(
+    body: bytes,
+    *,
+    save_version: int,
+    header_version: int,
+    known_classes: Container[str] | None = None,
+) -> ObjectTable:
+    """Walk a WHOLE real body, every level of it, in the MEASURED layout.
+
+    This is the entry point a caller holding an actual save wants.
+    :func:`parse_object_headers` reads the flat single-table shape the corpus
+    fixtures are built on, which CS-407 measured to be a shape no real body has.
+
+    THE REFUSAL IS EAGER AND IS THE POINT. A pair outside
+    :data:`MEASURED_BODY_LAYOUTS` raises before a byte is read. Three of the
+    four real pairs land there today, and their partial derivations are recorded
+    beside the corpus rather than rounded up into a layout.
+
+    Args:
+        body: The decompressed body exactly as ``chunks.decompress_body``
+            returns it, length prefix included.
+        save_version: From the header. Drives the transform delta.
+        header_version: From the header. Drives the length prefix width.
+        known_classes: Class NAMES the caller can model. None means no registry
+            was supplied and nothing is claimed unknown.
+
+    Returns:
+        Every record from every level, in file order, with the level count and
+        everything flagged on the way.
+
+    Raises:
+        UnsupportedBodyLayoutError: The pair has no measured body layout.
+        UnsupportedSaveVersionError: The save version has no measured transform
+            delta.
+        ObjectFormatError: A declared size, count or discriminator is
+            structurally impossible.
+        ObjectTruncatedError: The body ends inside a level.
+        ObjectBudgetExceededError: A declared count exceeds its ceiling.
+    """
+    if (header_version, save_version) not in MEASURED_BODY_LAYOUTS:
+        raise UnsupportedBodyLayoutError(
+            REASON_UNMEASURED_BODY_LAYOUT,
+            field="body_layout",
+            offset=0,
+            actual=header_version,
+            version=save_version,
+        )
+    delta = transform_delta(save_version)
+
+    cursor = _Cursor(body)
+    declared, width, warnings = _read_prefix(cursor, header_version)
+
+    start = cursor.offset
+    level_count = _read_bounded_count(cursor, "level_count", MAX_LEVELS)
+
+    records: list[ObjectRecord] = []
+    unknown = _UnknownLog()
+    for _ in range(level_count):
+        _read_level(
+            cursor,
+            delta,
+            named=True,
+            known_classes=known_classes,
+            records=records,
+            unknown=unknown,
+        )
+    # Exactly one unnamed persistent level closes every measured body.
+    _read_level(
+        cursor,
+        delta,
+        named=False,
+        known_classes=known_classes,
+        records=records,
+        unknown=unknown,
+    )
+    # MEASURED as present, and observed to be zero. Its MEANING is unmeasured,
+    # so it is consumed and not interpreted - a walk without it stops exactly
+    # four bytes short of the end of a real body.
+    cursor.int32("level_trailer")
+
+    consumed = cursor.offset - start
+    if cursor.remaining:
+        warnings.append(
+            _warning(WARN_UNPARSED_DATA_SECTION, cursor.offset, actual=cursor.remaining)
+        )
+
+    return ObjectTable(
+        records=tuple(records),
+        unknown_classes=unknown.emit(),
+        warnings=tuple(warnings),
+        declared_body_length=declared,
+        body_consumed=consumed,
+        body_prefix_width=width,
+        transform_delta=delta,
+        save_version=save_version,
+        header_version=header_version,
+        level_count=level_count + 1,
     )
 
 
