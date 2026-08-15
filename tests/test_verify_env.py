@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Tests for scripts/verify_env.py - the exception-rendering echo paths.
+"""Tests for scripts/verify_env.py - the echo paths and the core.hooksPath verdict.
+
+TWO SUBJECTS, and the second one is at the bottom of the file. The first is the
+exception-rendering echo paths, described immediately below. The second is the
+core.hooksPath row: which values it reports FOUND, which it reports MISSING,
+and the fact that the value it prints is redacted before it is printed. The two
+share this file because they share a module and a privacy rule, not because
+they are the same defect.
 
 WHY THIS FILE EXISTS. ``str()`` on an OSError appends the filename the call
 failed on - "[Errno 13] Permission denied: '<a path>'" - while ``strerror``
@@ -39,6 +46,7 @@ import errno
 import importlib.util
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
 
@@ -484,3 +492,441 @@ def test_this_test_module_is_seven_bit_ascii() -> None:
     offending = [index for index, byte in enumerate(raw) if byte > MAX_ASCII_BYTE]
 
     assert not offending, f"{len(offending)} byte(s) above 0x{MAX_ASCII_BYTE:02X}"
+
+
+# ---------------------------------------------------------------------------
+# The core.hooksPath verdict - CS-207
+# ---------------------------------------------------------------------------
+#
+# THE DEFECT. install_hooks.py writes the relative string ".githooks", and git
+# hands it back ABSOLUTE - "<repo>\.githooks" - on read. The check compared
+# that value against the literal ".githooks", so it reported a HARD dependency
+# MISSING on a repository whose hooks demonstrably fire, and the script exited
+# non-zero saying so. That is the hook-presence-is-not-hook-firing failure
+# class INVERTED, and it is the more corrosive direction: a false RED on the
+# one script whose job is verifying the safety net teaches the operator to
+# ignore that script, and the next genuine missing dependency is ignored too.
+#
+# THREE HALVES, and the third is the one that is easy to lose. Absolute must be
+# FOUND, relative must STILL be FOUND, and a value pointing anywhere else must
+# STILL be MISSING - because a fix that normalises too eagerly, or that merely
+# asks whether the string ends with ".githooks", accepts some other tree's hook
+# directory and the check becomes decorative.
+#
+# NO SUBPROCESS, NO GIT REPOSITORY, NO GAME AND NO SAVE DIRECTORY. Every test
+# below drives collect_rows() with verify_env._run replaced, so the value the
+# check sees is chosen by the test rather than by whatever this machine's git
+# config happens to hold - which is the only way the wrong-directory case can
+# be exercised at all. The game and save resolvers are stubbed for the same
+# reason every other test here builds under tmp_path: the suite must pass on a
+# machine with neither.
+
+EXPECTED_HOOKS_DIR_NAME = ".githooks"
+
+# The row is selected by PREFIX rather than by its full label, so renaming the
+# label - "==" became inaccurate the moment the absolute form was accepted -
+# does not silently select nothing and pass.
+HOOKS_ROW_PREFIX = "core.hooksPath"
+
+
+def canned_run(
+    configured: str | None, git_common_dir: str | None = None
+) -> Callable[..., str | None]:
+    """Answer every command verify_env shells out for, without shelling out.
+
+    Args:
+        configured: What ``git config --get core.hooksPath`` should answer.
+            None is the real shape of an UNSET key - _run returns None on a
+            non-zero exit.
+        git_common_dir: What ``git rev-parse --git-common-dir`` should answer.
+
+    Returns:
+        A stand-in for verify_env._run.
+    """
+
+    def run(cmd: list[str], *_args: object, **_kwargs: object) -> str | None:
+        if "--is-inside-work-tree" in cmd:
+            return "true"
+        if "--git-common-dir" in cmd:
+            return git_common_dir
+        if "core.hooksPath" in cmd:
+            return configured
+        # Every remaining call is a "--version" probe for a tool row this file
+        # asserts nothing about.
+        return "canned 1.0"
+
+    return run
+
+
+def hooks_row(
+    root: Path,
+    configured: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+    git_common_dir: str | None = None,
+) -> tuple[dict, dict]:
+    """Collect the core.hooksPath row and the facts block for one scenario.
+
+    Driven through the PUBLIC collect_rows() rather than the private row
+    builder, so the tests pin the behaviour the script actually reports and
+    stay free of the implementation's internal shape.
+
+    Args:
+        root: The repository root to verify.
+        configured: The core.hooksPath value git should report.
+        monkeypatch: The patcher, scoped to the calling test.
+        git_common_dir: The git common directory, for the linked-worktree case.
+
+    Returns:
+        The single core.hooksPath row, and the facts dict collect_rows built.
+    """
+    monkeypatch.setattr(verify_env, "_run", canned_run(configured, git_common_dir))
+    monkeypatch.setattr(verify_env, "resolve_game_dir", lambda: (None, "stubbed"))
+    monkeypatch.setattr(verify_env, "resolve_save_root", lambda: None)
+    monkeypatch.setattr(verify_env, "numeric_account_dirs", lambda _root: [])
+
+    rows, _port_rows, facts = verify_env.collect_rows(root)
+
+    matching = [entry for entry in rows if entry["name"].startswith(HOOKS_ROW_PREFIX)]
+    assert len(matching) == 1, (
+        f"expected exactly one row named {HOOKS_ROW_PREFIX}..., found {len(matching)}; "
+        "a test that selects no row asserts nothing"
+    )
+    return matching[0], facts
+
+
+def checkout_with_hooks(tmp_path: Path, name: str = "clone") -> Path:
+    """Build a checkout root holding a populated .githooks directory.
+
+    Args:
+        tmp_path: The per-test temporary directory.
+        name: The directory name, so two checkouts can coexist.
+
+    Returns:
+        The checkout root.
+    """
+    root = tmp_path / name
+    hooks = root / EXPECTED_HOOKS_DIR_NAME
+    hooks.mkdir(parents=True)
+    (hooks / "pre-commit").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    return root
+
+
+def assert_redacted_before_printing(rendered: str, configured: str) -> None:
+    """Assert a printed core.hooksPath was redacted and stayed diagnostic.
+
+    Args:
+        rendered: What the script would print.
+        configured: The raw value it was given.
+    """
+    # Reduced to booleans and the strings dropped BEFORE either assertion runs,
+    # for the reason stated in assert_reported_without_the_path: the planted
+    # segment is synthetic but the surrounding tmp_path is not, and a failing
+    # assert is an echo path into a CI log like any other.
+    leaked = SYNTHETIC_HOME_SEGMENT in rendered
+    diagnostic_kept = EXPECTED_HOOKS_DIR_NAME in rendered
+    routed_through_redact = rendered == redact(configured)
+    rendered = ""
+    configured = ""
+    assert not leaked, (
+        "the core.hooksPath row printed the planted home segment; on a checkout under a "
+        "user profile that is the Windows account name (CLAUDE.md non-negotiable 12)"
+    )
+    assert diagnostic_kept, (
+        "the hooks directory name vanished along with the home path, so the row no longer "
+        "tells the operator what was configured - a silent reporter is the worse failure"
+    )
+    assert routed_through_redact, (
+        "the printed value is not what redact() produces for it, so the value reaches the "
+        "table by some path that does not redact"
+    )
+
+
+def test_the_planted_home_is_redactable_once_it_is_the_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The mirror image of test_the_planted_segments_survive_the_redactor.
+
+    That test pins that the redactor CANNOT remove the planted segments in the
+    ambient environment, which is what lets the exception tests above prove
+    their call sites never emitted them. The hooks-path row is the OPPOSITE
+    requirement - the value is printed on purpose and must be redacted on the
+    way out - so its privacy tests point USERPROFILE at the planted home to
+    make that segment genuinely redactable. This asserts the patch works, so a
+    green hooks-path privacy test is green because redact() ran rather than
+    because the segment was unmatchable either way.
+    """
+    home = tmp_path / SYNTHETIC_HOME_SEGMENT
+    home.mkdir()
+    monkeypatch.setenv("USERPROFILE", str(home))
+
+    survived = SYNTHETIC_HOME_SEGMENT in redact(str(home / "clone" / EXPECTED_HOOKS_DIR_NAME))
+
+    assert not survived, (
+        "USERPROFILE was patched to the planted home and redact() still left the segment "
+        "standing, so the hooks-path privacy tests below would prove nothing"
+    )
+
+
+def test_a_hooks_path_in_another_directory_is_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The half that is easy to lose: some other tree's .githooks is NOT ours.
+
+    The planted directory is named ".githooks" and really exists, so a fix that
+    compares the trailing segment, or that asks whether the configured string
+    ends with ".githooks", reports FOUND here and the whole check becomes
+    decorative.
+    """
+    root = checkout_with_hooks(tmp_path)
+    elsewhere = tmp_path / "some-other-tree" / EXPECTED_HOOKS_DIR_NAME
+    elsewhere.mkdir(parents=True)
+
+    row, _facts = hooks_row(root, str(elsewhere), monkeypatch)
+
+    assert row["status"] == "MISSING", (
+        "a .githooks directory belonging to an unrelated tree was accepted; the hooks that "
+        "would run are not this repository's, so the safety net is not wired"
+    )
+
+
+def test_an_absolute_hooks_path_at_the_repo_is_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reproduced defect: the shape a real repository actually has."""
+    root = checkout_with_hooks(tmp_path)
+
+    row, _facts = hooks_row(root, str(root / EXPECTED_HOOKS_DIR_NAME), monkeypatch)
+
+    assert row["status"] == "FOUND", (
+        "core.hooksPath in ABSOLUTE form was reported MISSING on a correctly wired "
+        "checkout; install_hooks.py writes the relative string and git reads it back "
+        "absolute, so this is the value the check will meet on every real repository"
+    )
+
+
+def test_a_relative_hooks_path_is_still_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The relative form must not be traded away for the absolute one."""
+    root = checkout_with_hooks(tmp_path)
+
+    row, _facts = hooks_row(root, EXPECTED_HOOKS_DIR_NAME, monkeypatch)
+
+    assert row["status"] == "FOUND", (
+        "the relative form stopped being accepted; it is what install_hooks.py writes and "
+        "what a fresh clone will hold"
+    )
+
+
+def test_an_absolute_hooks_path_with_forward_slashes_is_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Separator style is not a verdict. Windows git reports either."""
+    root = checkout_with_hooks(tmp_path)
+    configured = str(root / EXPECTED_HOOKS_DIR_NAME).replace("\\", "/")
+
+    row, _facts = hooks_row(root, configured, monkeypatch)
+
+    assert row["status"] == "FOUND", "the separator style changed the verdict"
+
+
+def test_an_absolute_hooks_path_with_a_trailing_separator_is_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A trailing separator names the same directory."""
+    root = checkout_with_hooks(tmp_path)
+    configured = str(root / EXPECTED_HOOKS_DIR_NAME) + "/"
+
+    row, _facts = hooks_row(root, configured, monkeypatch)
+
+    assert row["status"] == "FOUND", "a trailing separator changed the verdict"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="drive letters exist only on Windows")
+def test_an_absolute_hooks_path_with_a_swapped_drive_case_is_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Drive-letter case is not a verdict on Windows.
+
+    Windows-only on purpose. A case-sensitive filesystem has no drive letter
+    and two paths differing in case there are genuinely two directories, which
+    is exactly why the comparison must fold case through the platform's own
+    mechanism instead of a hand-rolled lowercase.
+    """
+    root = checkout_with_hooks(tmp_path)
+    configured = str(root / EXPECTED_HOOKS_DIR_NAME)
+    swapped = configured[0].swapcase() + configured[1:]
+
+    row, _facts = hooks_row(root, swapped, monkeypatch)
+
+    assert row["status"] == "FOUND", (
+        "the drive-letter case changed the verdict; git and the shell both render it "
+        "either way and they name one directory"
+    )
+
+
+def test_a_hooks_path_that_does_not_exist_is_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Identity is not enough - the directory has to be there.
+
+    The configured value is exactly the path the check expects, and nothing is
+    at it. Path.resolve() is non-strict and returns the right string anyway, so
+    a fix that compares resolved paths WITHOUT an existence check reports FOUND
+    for hooks that cannot possibly run.
+    """
+    root = tmp_path / "clone"
+    root.mkdir()
+
+    row, _facts = hooks_row(root, str(root / EXPECTED_HOOKS_DIR_NAME), monkeypatch)
+
+    assert row["status"] == "MISSING", (
+        "a hooks path that resolves correctly but does not exist was reported FOUND; "
+        "resolve() is lexical for a missing path, so identity alone proves nothing"
+    )
+
+
+def test_a_hooks_path_naming_a_file_is_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A FILE at the hooks path runs no hooks, so exists() is not the check."""
+    root = tmp_path / "clone"
+    root.mkdir()
+    (root / EXPECTED_HOOKS_DIR_NAME).write_text("not a directory\n", encoding="utf-8")
+
+    row, _facts = hooks_row(root, str(root / EXPECTED_HOOKS_DIR_NAME), monkeypatch)
+
+    assert row["status"] == "MISSING", (
+        "a regular file at the hooks path was accepted; git needs a DIRECTORY of hook "
+        "scripts, so the check is is_dir() and not exists()"
+    )
+
+
+def test_an_unset_hooks_path_is_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The fresh-clone state: the key is not set and nothing protects the clone."""
+    root = checkout_with_hooks(tmp_path)
+
+    row, facts = hooks_row(root, None, monkeypatch)
+
+    assert row["status"] == "MISSING", "an unset core.hooksPath is the unprotected state"
+    assert row["value"] == "unset", "an unset key must still say so in the table"
+    assert facts["hooks_path"] == "", "an unset key must not invent a value in the JSON"
+
+
+def test_a_blank_hooks_path_is_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Whitespace is not a path, and must not anchor to the repository root."""
+    root = checkout_with_hooks(tmp_path)
+
+    row, _facts = hooks_row(root, "   ", monkeypatch)
+
+    assert row["status"] == "MISSING", (
+        "a whitespace core.hooksPath was accepted; anchoring an empty relative path at the "
+        "root resolves to the root itself, which holds no hooks"
+    )
+
+
+def test_a_linked_worktree_accepts_the_main_checkout_hooks_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """core.hooksPath is SHARED config, so a worktree reads the main value.
+
+    Every slice in this project runs in a linked worktree, and git config is
+    common across them - so a worktree reads the absolute path that was set for
+    the main checkout, and git runs THOSE hooks rather than the worktree's own
+    checked-out copy. Comparing only against the worktree's own .githooks would
+    move the false RED rather than remove it.
+    """
+    main = checkout_with_hooks(tmp_path, "main-checkout")
+    worktree = checkout_with_hooks(tmp_path, "linked-worktree")
+
+    row, _facts = hooks_row(
+        worktree,
+        str(main / EXPECTED_HOOKS_DIR_NAME),
+        monkeypatch,
+        git_common_dir=str(main / ".git"),
+    )
+
+    assert row["status"] == "FOUND", (
+        "a linked worktree reported the shared core.hooksPath MISSING; the hooks it names "
+        "are the ones git actually runs for a commit made in that worktree"
+    )
+
+
+def test_a_linked_worktree_still_rejects_an_unrelated_hooks_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Accepting the main checkout must not widen into accepting anything."""
+    main = checkout_with_hooks(tmp_path, "main-checkout")
+    worktree = checkout_with_hooks(tmp_path, "linked-worktree")
+    elsewhere = tmp_path / "some-other-tree" / EXPECTED_HOOKS_DIR_NAME
+    elsewhere.mkdir(parents=True)
+
+    row, _facts = hooks_row(
+        worktree,
+        str(elsewhere),
+        monkeypatch,
+        git_common_dir=str(main / ".git"),
+    )
+
+    assert row["status"] == "MISSING", (
+        "the worktree allowance widened into accepting an unrelated .githooks directory"
+    )
+
+
+def test_a_missing_hooks_path_row_does_not_print_a_home_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The MISSING row prints the configured value, so it must be redacted.
+
+    Harmless while the checkout sits at a drive root, and a home-path leak on
+    any checkout under a user profile - which is where the value carries the
+    Windows account name. CLAUDE.md non-negotiable 12 counts a printed table as
+    an echo path exactly like a debug dump.
+    """
+    home = tmp_path / SYNTHETIC_HOME_SEGMENT
+    configured_dir = home / "someones-clone" / EXPECTED_HOOKS_DIR_NAME
+    configured_dir.mkdir(parents=True)
+    monkeypatch.setenv("USERPROFILE", str(home))
+    root = checkout_with_hooks(tmp_path)
+
+    row, _facts = hooks_row(root, str(configured_dir), monkeypatch)
+
+    assert row["status"] == "MISSING", "the planted directory is not this repository's"
+    assert_redacted_before_printing(row["value"], str(configured_dir))
+
+
+def test_the_hooks_path_fact_does_not_carry_a_home_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--json is the second echo path, and it publishes the facts block.
+
+    Asserted separately from the table row because they are two renderings. A
+    fix applied only where the table is built leaves the machine-readable
+    output - the one most likely to be pasted into an issue - carrying the
+    home path.
+    """
+    home = tmp_path / SYNTHETIC_HOME_SEGMENT
+    configured_dir = home / "someones-clone" / EXPECTED_HOOKS_DIR_NAME
+    configured_dir.mkdir(parents=True)
+    monkeypatch.setenv("USERPROFILE", str(home))
+    root = checkout_with_hooks(tmp_path)
+
+    _row, facts = hooks_row(root, str(configured_dir), monkeypatch)
+
+    assert_redacted_before_printing(facts["hooks_path"], str(configured_dir))
+
+
+def test_a_found_hooks_path_row_still_names_the_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Redaction must not blank the value on the passing path either.
+
+    A row that reports FOUND and shows nothing is how an operator loses the
+    ability to tell a correctly wired repository from a mis-wired one.
+    """
+    root = checkout_with_hooks(tmp_path)
+
+    row, facts = hooks_row(root, str(root / EXPECTED_HOOKS_DIR_NAME), monkeypatch)
+
+    assert EXPECTED_HOOKS_DIR_NAME in row["value"], "the FOUND row stopped naming anything"
+    assert EXPECTED_HOOKS_DIR_NAME in facts["hooks_path"], "the JSON fact was blanked"

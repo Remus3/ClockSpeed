@@ -2,11 +2,38 @@
 
 ## Status
 
-`proposed` - 2026-08-14
+`accepted` - 2026-08-14
 
-Written by the slice that implemented it. Per `CLAUDE.md` section 5 the producing agent does
-not grade its own output, so this stays `proposed` until an adjudicator that did not write
-the code flips it.
+Written by the slice that implemented it, which correctly left it `proposed` because per
+`CLAUDE.md` section 5 the producing agent does not grade its own output.
+
+**Flipped to `accepted` by an adjudicator that wrote no part of this ADR, of the registry
+change, or of the tests.** That adjudication re-derived every factual claim here from the
+tree rather than from this document: it read the key constant and the `Building` field in
+`clockspeed/data/registry.py`, recovered the DELETED assertions from `git show` rather than
+trusting the description of them, and re-ran the corpus mutation itself through the real
+`build_registry` seam with the read path forced to a folded `Fraction(1)` - under which both
+mutation assertions fail while every non-mutating assertion still passes, which is exactly
+the property claimed for them below. ADR 0005 was confirmed byte-identical to its creation
+commit.
+
+Three imprecisions found and left standing as harmless. None is on a fence:
+
+- "forbids strictly more than the one it deletes" holds for the field names and for the four
+  ceiling operands, and NOT for one assertion: the old fence forbade `mMaxPotential` among
+  this module's string constants and the new one requires it. That reversal IS this
+  decision, and the Context states it plainly, so the sentence overclaims rather than
+  misleads.
+- "No other operand of the ceiling equation is read, named or stored here" - the registry's
+  module docstring names all four. That text is the prohibition rather than a breach of it,
+  and the re-pitch list already scopes the test to the module's string constants.
+- "the roadmap item" in the Context is not cited by item ID, and no open item in
+  `ROADMAP.md` matches it today.
+
+One route is fenced by name and re-pitch list only, recorded rather than closed here:
+nothing mechanical stops a future caller reading `Building.unsharded_clock_base` directly
+and clamping without going through `clamp_to_unsharded_base`. This ADR claims the name and
+the docstring as that fence and claims no more.
 
 **This ADR does not supersede ADR 0005 and changes no word of it.** 0005 decided WHERE the
 ceiling comes from and concluded that no file on this machine carries it. 0006 decides HOW

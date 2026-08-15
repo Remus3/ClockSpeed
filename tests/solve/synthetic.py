@@ -223,10 +223,10 @@ POWER_EXPONENT: Final = Fraction(1321929, 1000000)
 #: (ADR 0005, ADR 0006); reading it as one caps every solve at 100 percent. It is
 #: carried in the corpus text so a slice that reads it has synthetic data to read.
 #:
-#: NOT ASSERTED against Building.unsharded_clock_base in test_synthetic.py: that
-#: attribute does not exist on the Building this worktree builds against, so an
-#: assertion on it would be scaffolding against an API that is not there. The
-#: slice that lands the field owns that assertion.
+#: ASSERTED against Building.unsharded_clock_base in test_synthetic.py by
+#: test_every_building_carries_the_unsharded_clock_base. The field landed in
+#: clockspeed/data/registry.py under ADR 0006, so the assertion this comment
+#: once deferred is now owed and paid.
 UNSHARDED_CLOCK_BASE_TEXT: Final = "1.000000"
 UNSHARDED_CLOCK_BASE: Final = Fraction(1)
 

@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import socket
@@ -413,6 +414,141 @@ def probe_port(port: int) -> tuple[str, str]:
         sock.close()
 
 
+# --- core.hooksPath ---------------------------------------------------------
+
+
+def _normalized(path: Path) -> str:
+    """Render a resolved path as a comparison key, folded the way the platform folds.
+
+    ``os.path.normcase`` is the mechanism rather than a hand-rolled ``.lower()``
+    because it is correct in BOTH directions. On Windows it lowercases and
+    rewrites every forward slash as the native separator, so one directory
+    spelled with either separator style and either drive-letter case compares
+    equal - which it must, because git, the shell and the config file all
+    render it either way and they name the same place. On a case-sensitive
+    filesystem it is the identity, so two directories differing only in case
+    stay correctly DISTINCT. A hand-rolled lowercase would silently equate them
+    there, which is the same over-eager normalisation that turns this check
+    decorative.
+
+    Args:
+        path: An already-resolved path.
+
+    Returns:
+        The comparison key.
+    """
+    return os.path.normcase(str(path))
+
+
+def _resolved_key(path: Path) -> str | None:
+    """Resolve a path and render it as a comparison key.
+
+    Args:
+        path: The path to resolve.
+
+    Returns:
+        The key, or None when the path cannot be resolved at all - which fails
+        CLOSED at every call site, because an unresolvable path is not
+        evidence that the hooks are wired.
+    """
+    try:
+        return _normalized(path.resolve())
+    except OSError:
+        return None
+
+
+def expected_hooks_dirs(root: Path, git_common_dir: str | None = None) -> list[Path]:
+    """Every directory a correctly wired core.hooksPath may name.
+
+    The repository's own ``.githooks`` is the whole answer in an ordinary
+    checkout. A LINKED WORKTREE needs the second entry: ``core.hooksPath`` is
+    shared config rather than per-worktree, so every worktree reads the value
+    that was set for the main checkout, and git runs THOSE hook scripts rather
+    than the worktree's own checked-out copy. Comparing only against the
+    worktree's own ``.githooks`` would relocate the false RED this module was
+    fixed to remove instead of removing it, and every slice in this project
+    runs in a worktree.
+
+    Args:
+        root: The repository root being verified.
+        git_common_dir: What ``git rev-parse --git-common-dir`` answered, or
+            None when git could not be asked. It is relative (``.git``) in a
+            main checkout and absolute in a linked worktree, so both are
+            handled.
+
+    Returns:
+        The acceptable directories, the repository's own first, with the
+        worktree entry appended only when it names somewhere different.
+    """
+    dirs = [root / EXPECTED_HOOKS_PATH]
+    if git_common_dir:
+        common = Path(git_common_dir)
+        if not common.is_absolute():
+            common = root / common
+        main_hooks = common.parent / EXPECTED_HOOKS_PATH
+        if main_hooks != dirs[0]:
+            dirs.append(main_hooks)
+    return dirs
+
+
+def hooks_path_is_wired(
+    root: Path, configured: str | None, git_common_dir: str | None = None
+) -> bool:
+    """Report whether core.hooksPath NAMES the repository's hooks directory.
+
+    RESOLVED PATHS ARE COMPARED, NOT STRINGS, and that is the defect this
+    function exists for. install_hooks.py writes the relative string
+    ``.githooks`` and git hands it back ABSOLUTE on read, so a literal compare
+    against ``.githooks`` reported a correctly wired repository as MISSING and
+    the script exited non-zero saying a HARD dependency was absent while the
+    hooks demonstrably fired. A false RED on the one script that verifies the
+    safety net is worse than no check: it teaches the operator to ignore the
+    script, and the next genuine missing dependency is ignored with it.
+    Resolving both sides absorbs the absolute and the relative form, either
+    separator, a trailing separator, and - through _normalized - drive-letter
+    case.
+
+    EXISTENCE IS CHECKED AS WELL AS IDENTITY, and the existence check is
+    ``is_dir`` rather than ``exists``. ``Path.resolve`` is non-strict: for a
+    directory that was never created, or was deleted, it still returns exactly
+    the right string, so identity ALONE would report FOUND for hooks that
+    cannot run. ``is_dir`` rather than ``exists`` because git needs a directory
+    of hook scripts at that path - a regular file there runs nothing.
+
+    What it deliberately does NOT do is match on the trailing segment. A check
+    that asked whether the value ends with ``.githooks`` would accept an
+    unrelated tree's hook directory, and the hooks that then run are not this
+    repository's.
+
+    Args:
+        root: The repository root being verified.
+        configured: The raw ``core.hooksPath`` value, or None when it is unset.
+        git_common_dir: What ``git rev-parse --git-common-dir`` answered, or
+            None when git could not be asked.
+
+    Returns:
+        True only when the configured path exists as a directory AND resolves
+        to one of the directories expected_hooks_dirs allows.
+    """
+    if not configured or not configured.strip():
+        return False
+
+    candidate = Path(configured.strip())
+    if not candidate.is_absolute():
+        # git runs a hook from the top of the working tree, so a relative
+        # core.hooksPath is anchored THERE rather than at the caller's cwd.
+        candidate = root / candidate
+    if not candidate.is_dir():
+        return False
+
+    key = _resolved_key(candidate)
+    if key is None:
+        return False
+    return any(
+        key == _resolved_key(expected) for expected in expected_hooks_dirs(root, git_common_dir)
+    )
+
+
 # --- checks -----------------------------------------------------------------
 
 
@@ -483,14 +619,29 @@ def _hard_rows(root: Path, facts: dict) -> list[dict]:
     configured = (
         _run(["git", "-C", str(root), "config", "--get", "core.hooksPath"]) if git_ok else None
     )
-    hooks_path_ok = (configured or "").replace("\\", "/").strip("/") == EXPECTED_HOOKS_PATH
-    facts["hooks_path"] = configured or ""
+    common_dir = _run(["git", "-C", str(root), "rev-parse", "--git-common-dir"]) if git_ok else None
+    hooks_path_ok = hooks_path_is_wired(root, configured, common_dir)
+
+    # PRIVACY. The configured value is a DISCOVERED absolute path, so on a
+    # checkout under a user profile it carries the Windows account name, and
+    # CLAUDE.md non-negotiable 12 counts a printed table as an echo path
+    # exactly like a debug dump. It reaches TWO renderings - this row and the
+    # --json facts block - so it is redacted once, here, and both read the
+    # redacted form. Redacting only where the table is built would leave the
+    # machine-readable output, the one most likely to be pasted into an issue,
+    # carrying the home path.
+    shown = redact(configured) if configured else ""
+    facts["hooks_path"] = shown
+
+    # The label says "->" and not "==" because the check is no longer a string
+    # equality against the literal: an absolute path that RESOLVES to the
+    # repository's hooks directory is what a real repository holds.
     rows.append(
         _row(
             "HARD",
-            f"core.hooksPath == {EXPECTED_HOOKS_PATH}",
+            f"core.hooksPath -> {EXPECTED_HOOKS_PATH}",
             hooks_path_ok,
-            configured or "unset",
+            shown or "unset",
             ""
             if hooks_path_ok
             else "a fresh clone runs ZERO protection until install_hooks.py sets this",

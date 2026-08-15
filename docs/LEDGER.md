@@ -74,6 +74,185 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-14 - CS-207 - scripts/verify_env.py compares RESOLVED PATHS, so an absolute core.hooksPath is no longer a false MISSING
+Verification: `scripts/verify_env.py` plus `tests/test_verify_env.py`, sixteen named tests.
+Proven live rather than by unit test alone: before, `python scripts/verify_env.py` printed
+`HARD core.hooksPath == .githooks MISSING` and `VERDICT: FAIL` at exit 1 while the hooks
+demonstrably fired; after, it prints `core.hooksPath -> .githooks FOUND`, `HARD: 7/7`,
+`VERDICT: PASS` at exit 0. Confirmed PRE-EXISTING before the fix: `git log -L 483,498` on
+that file returns the initial commit alone, so the lines were never touched and CS-202 did
+not introduce it.
+All three acceptance halves are covered separately, and the third is the one that is easy to
+lose: an absolute form is FOUND, the relative form is STILL FOUND, and a value pointing
+anywhere else is STILL MISSING. The comparison is `os.path.normcase` over resolved paths,
+chosen over a hand-rolled lowercase (wrong on a case-sensitive filesystem) and over
+`Path.samefile` (whose `st_ino` can be 0 on some filesystems and would then equate different
+directories). Existence is checked SEPARATELY and BEFORE identity, using `is_dir()` rather
+than `exists()`, because `Path.resolve()` is non-strict and identity alone would report FOUND
+for a hooks directory that was never created, and because a file there runs nothing.
+FOUND AND FIXED BEYOND THE STATED SCOPE, and it would have defeated the fix: `core.hooksPath`
+is SHARED git config, so inside a linked worktree it holds the MAIN checkout's absolute path.
+Comparing only against `<root>/.githooks` would have RELOCATED the false red into every
+worktree rather than removing it - and every builder in this project runs in a worktree.
+`expected_hooks_dirs()` therefore also accepts the main checkout's `.githooks`, derived from
+`git rev-parse --git-common-dir`. Criterion 3 is not weakened: both entries are specific
+resolved directories, pinned by `test_a_linked_worktree_still_rejects_an_unrelated_hooks_dir`.
+PII: the row and `facts["hooks_path"]` both go through `redact()` now. Fixing only the table
+would have left `--json` publishing the home path. The module docstring already CLAIMED that
+every path it prints goes through `redact()` first; that claim was false and is now true.
+THE GUARD TESTS WERE PROVEN TO DISCRIMINATE rather than assumed to: four mutations were
+applied to the fix in turn - matching on the trailing segment, dropping the existence check,
+`exists()` for `is_dir()`, and dropping relative anchoring - and each turned a NAMED test red.
+Honest limits, recorded rather than omitted: the drive-letter-case test is skipped off
+Windows and was never observed to run; the `_resolved_key` `OSError` branch has no test and
+fails closed by inspection rather than by measurement; and the builder verified the CHECK's
+verdict, not that the hooks fire - that end-to-end proof remains session 3's.
+
+### 2026-08-14 - CS-208 - Frozen-file grant DENIED, and the item is refuted by measurement rather than deferred
+Verification: adjudicated under `CLAUDE.md` section 6 by an agent that authored no part of
+the proposal and did not find the original defect. The grant sought an edit to
+`tools/precommit_gate.py:570` (`MIN_ACCOUNT_NAME_CHARS = 3`), through which world names route
+at `:852` and account names at `:960`. DENIED, and the denial rests on measurements that
+refute the item's own premise rather than on a judgement call.
+MEASURED, values never printed, lengths only: 16 distinct matchable world names are
+discoverable on this machine, the shortest being 4 characters. A floor of 4 drops nothing; a
+floor of 5, 6 or 8 drops EXACTLY ONE currently-matchable real world name, which then stops
+being blocked and WILL COMMIT. The item as worded - raise the floor ABOVE the measured
+shortest real world name - therefore SPECIFIES a fail-open hole.
+MEASURED, and this is what refutes the premise: the feared false positive does not exist.
+The gate over all 117 tracked files with live discovery exits 0 - "117 checked, 1 skipped, 0
+blocking". Sixteen real world names, one of them 4 characters, collide with nothing in the
+tree today. And when a collision does occur it is not a hunt: a planted synthetic
+4-character world name against ordinary prose produces file, line, COLUMN, rule and
+citation on the first block. `ROADMAP.md`'s "blocks every commit until the operator finds
+the cause" was overstated.
+MEASURED: a floor of 4, 5, 6 or 8 turns ZERO of the 65 gate tests red, because every world
+value declared in the suite is either 16, 15 or 2 characters. "No tests break" is therefore
+NOT evidence of safety here - it is proof the change is untested and the suite is blind to
+it.
+The (a)/(b) design question was ruled on rather than left open. (b), raising the single
+shared floor, is rejected outright: two fail-open holes bought with one hypothetical false
+positive, and it silently narrows ACCOUNT-name matching on every machine so that a 3- or
+4-character login stops being matched with nothing in the suite noticing. (a), splitting the
+constant, is sound hygiene but insufficient reason to edit a frozen file at equal values,
+and a split whose purpose is to raise the world half is (b) with a tidier blast radius.
+The governing asymmetry is already recorded in this file under CS-201: the gate must be
+WIDER than the resolver. Narrowing a PII blocklist by default, on every machine, to pre-empt
+a collision that has not occurred and that diagnoses itself to line and column when it does,
+trades a certain fail-open for a diagnosable fail-closed.
+SUPERSEDED BY CS-209, which carries the correct fix: a per-value exclusion surface applied
+after discovery, a remedy clause in the world-name reason, and the separately-found defect
+that `.githooks/pre-commit` passes neither `--verbose` nor `--list-skipped`, so the skip
+channel that CONVENTIONS section 15.1 relies on to keep a drop visible does not print at all
+on the authoritative path.
+
+### 2026-08-14 - CS-205 - Frozen-file GRANT B WITH CONDITIONS: the single `traceback.print_exc()` site in tools/precommit_gate.py
+Verification: adjudicated under `CLAUDE.md` section 6 by an agent that authored no part of
+the proposal; recorded here BEFORE any edit. Scoped as its own grant line because it is a
+different frozen file from grant A and because CS-205's own stated scope is "outside the two
+CS-202 files", of which the gate is one - so it falls outside grant A twice over.
+RULING: a traceback CANNOT be honestly redacted. It renders an absolute path per frame - a
+home path on any checkout under a user profile - and its final line is `str(exc)`, the exact
+rendering CS-202 removed everywhere else. Frame paths can be rewritten, but re-implementing
+per-type redaction at the crash handler duplicates `safe_exc_text` at the least testable
+point in the program.
+The granted alternative is the pattern non-negotiable 12 already mandates for the save
+header options string: SUPPRESS BY DEFAULT, opt in explicitly. Four conditions. (1) Default
+crash output is the exception class name, `safe_exc_text(exc)`, the existing fail-closed
+sentence, and the NAME of the flag that reveals the rest; a test provokes a crash and
+asserts no absolute path in the default output. (2) EXIT CODE STAYS 1, proven by test,
+together with the "gate itself raised / failing CLOSED" message - a gate that crashes open
+is worse than no gate. (3) The opt-in is a `CLOCKSPEED_`-prefixed environment name,
+documented in the module docstring beside the existing five, default OFF, and its ON path is
+tested to still exit 1. (4) No new import into the gate.
+The grant permits reformatting the crash report and NEVER swallowing it, and reaches nothing
+in `tools/precommit_gate.py` other than that one site at `:1670` and its adjoining crash
+message.
+
+### 2026-08-14 - CS-205 - Frozen-file GRANT A WITH CONDITIONS: scripts/install_hooks.py may have its exception renderings redacted
+Verification: adjudicated under `CLAUDE.md` section 6 by an agent that authored no part of
+the proposal; recorded here BEFORE any edit. The frozen list is unchanged and no agent
+self-granted.
+The dispatch invited a NOT-NEEDED denial if `scripts/install_hooks.py` carried zero
+unredacted renderings. It carries SIX - `:65`, `:67`, `:85`, `:170`, `:227` and `:240` - so
+the grant is genuinely necessary. `:67` and `:227` are the argv-plus-exception shape CS-202
+already fixed in the gate, and `:170` is on the POSIX-only branch that CI tier 2 executes.
+FOUND ADJACENT AND NAMED RATHER THAN LEFT SILENT: `:70-76` renders git's decoded stderr
+verbatim, and `:149` renders an absolute path directly. Both are the same leak class and
+NEITHER is an exception rendering, so the mechanized sweep this item mandates will not see
+them. Condition 8 requires they be fixed under this grant or recorded as an explicit named
+residual.
+THE ROADMAP'S OWN FILE LIST WAS ALREADY STALE, which is the exact failure the mechanized
+acceptance was written to prevent. An independent AST sweep across all tracked `*.py` found
+13 real object renderings in 4 files, and surfaced a fifth file -
+`clockspeed/data/docs_extract.py:443` and `:589` - which is a FALSE POSITIVE: those render
+`exc.reason`, `exc.msg` and `exc.lineno`, which are named fields rather than the object. A
+naive detector will flag them, and someone will then either "fix" correct code or loosen the
+test.
+Nine conditions carry the grant; the load-bearing ones are 2, 4 and 5. (1) Per exception
+TYPE allowlist, never a strerror-shaped helper, per the CS-202 precedent recorded above.
+(2) THE INSTALLER STAYS DEPENDENCY-FREE - it is the first thing a fresh clone runs, so if
+the builder imports rather than duplicates, a test must prove `install_hooks.py` still runs
+and still exits correctly with `clockspeed/` and `tools/` absent or syntactically broken.
+(3) The detector ENUMERATES tracked files and never hardcodes a module list. (4) The
+detector distinguishes the exception OBJECT from a FIELD of it, with a NEGATIVE control
+asserting the `docs_extract.py` shape is not flagged and a positive control asserting the
+`{exc}` shape is. (5) A POSITIVE CONTROL IS MANDATORY - the mechanized test must be shown
+capable of failing against a synthetic leaky module, or it is a green light with nothing
+behind it. (6) No self-exemption; the detector covers its own module. (7) Exit codes
+unchanged, the `core.hooksPath` readback check at `:154-159` untouched, and a second run
+still prints byte-identical output. (8) The two adjacent non-exception leaks are fixed or
+named. (9) The authoritative scope is the mechanized enumeration, NOT the four-file list on
+the roadmap line.
+The grant does NOT permit changing the installer's wiring logic, the readback check, the
+hook inspection rules, or any exit code.
+
+### 2026-08-14 - CS-204 - Frozen-file GRANT WITH CONDITIONS: tools/precommit_gate.py may redact the diagnostic LABEL channel at the render boundary
+Verification: adjudicated under `CLAUDE.md` section 6 by an agent that authored no part of
+the proposal and did not find the original defect; recorded here BEFORE any edit. The frozen
+list is unchanged and no agent self-granted. The prior adjudicator's recusal is honoured -
+it found the defect and did not grant it.
+THE SIX VERDICT-BEARING CALL SITES ARE CONFIRMED AND UNDERSTATED. Enumerated at `:1471`,
+`:1520` (`check_path` in staged and files mode), `:1136` (`compile` -> `SyntaxError.filename`),
+`:1239` (the staging-copy filename ruff actually lints), `:1234`/`:1241` (the ruff output
+mapping) and `:1477` (`git show :<label>`). TWO MORE were found: `:1469` and `:1518` derive
+the EXTENSION from the label rather than from the given path, and that extension selects
+WHICH CHECKS RUN - `classify_for_read`, the NUL rule, the `check_content` dispatch and ruff
+target selection; and `:1111-1117` scans the label itself for non-ASCII and reports
+`label.index(offending) + 1` as the column. The prior adjudicator's risk classification is
+correct and if anything conservative.
+THE ACCEPTANCE CRITERION WAS WRONG AND IS OVERRIDDEN HERE. It names three channels;
+there are FOUR. `report.notes` carries labels at `:350`, `:360`, `:1268` and `:1346` and is
+printed by `emit` at `:1605-1607` and `:1627-1631`. Demonstrated live: a `--files` run over
+an out-of-repo path leaks the home path through checked, skipped, notes AND diagnostics.
+Fixing exactly the three named channels MOVES the leak into notes, which is precisely what
+the item's own "fix all channels at once" condition exists to prevent.
+"ZERO TESTS TURN RED" IS ALSO REFUTED. `tests/test_precommit_gate.py:1174` is a SECOND
+label-shape assertion - `LEAK_MARKER` is a DIRECTORY component of an out-of-repo path, and
+any redaction stripping directory components above the repo root deletes it. Three tests
+consume it, at `:1191`, `:1201` and `:1226`.
+Ten conditions carry the grant. The load-bearing ones are 1, 2, 4, 7 and 9. (1) Redact
+inside `emit` via a pure function of the label; `label_for` and `Unit.label` return
+byte-identical values to HEAD, proven by test. (2) FOUR channels, one test each, each
+provoked by an out-of-repo target. (3) Both tools covered by test, `tools/edit_lint_check.py`
+exercised as a subprocess - inspection does not discharge it. (4) DETERMINISM: the rendered
+label must not depend on where the machine's home directory is, because `tmp_path` is under
+the home directory on Windows and under `/tmp` on Linux, so a home-keyed redactor is green
+in CI and red locally. (5) The basename stays verbatim. (6) `--text-stdin`'s literal
+`<stdin>` is untouched. (7) NO NEW DEPENDENCY - and if a shared redactor is imported, the
+handler must catch `Exception`, NOT `ImportError`, because a staged em-dash in
+`clockspeed/data/locate.py` raises `SyntaxError`, which `except ImportError` does not catch,
+and the gate would crash instead of printing the CHARSET diagnostic it exists to print.
+(8) Verdict invariance measured over every tracked file, not asserted. (9) THE ANTI-VACUITY
+REPAIR IS EXPLICITLY AUTHORISED AND THE ROADMAP IS OVERRIDDEN ON THIS POINT: if `:1174` goes
+red the correct repair is to re-point `LEAK_MARKER` at a component that survives redaction,
+NOT to weaken the redaction; the roadmap's blanket "a red test there means the redaction
+went too far" applies only to `test_verbose_lists_every_checked_unit`. (10) No literal
+introduced.
+The grant does NOT permit editing `label_for`, `Unit.label`, `check_path`, the `compile`
+call, the staging-copy naming, the ruff mapping or the `git show` argument, changing any exit
+code or diagnostic code/line/column, or adding a path allowlist.
+
 ### 2026-08-14 - CS-300 - Phase 3 gate: pillar 1 exact ratio solve, then pillar 2 behind the pluggable optimizer interface
 Verification, all three acceptance criteria checked independently of the agents that built
 them.

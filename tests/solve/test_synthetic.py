@@ -649,3 +649,18 @@ def test_every_building_carries_the_clock_exponent(registry: Registry) -> None:
         exponent = registry.buildings[building].power_exponent
         assert exponent == synthetic.POWER_EXPONENT
         _assert_exact(exponent)
+
+
+def test_every_building_carries_the_unsharded_clock_base(registry: Registry) -> None:
+    # The corpus carries mMaxPotential as text, so the registry must publish it
+    # as an exact Fraction on every solve building. This assertion was deferred
+    # by a worktree-era comment in synthetic.py while the field did not yet
+    # exist; it exists at HEAD (ADR 0006), so the debt is paid here.
+    #
+    # It pins the BASE, never a ceiling. ADR 0006 is explicit that a caller
+    # reading this as an achievable maximum caps every solve at 100 percent and
+    # looks correct on every building nobody has overclocked.
+    for building in synthetic.SOLVE_BUILDINGS:
+        base = registry.buildings[building].unsharded_clock_base
+        assert base == synthetic.UNSHARDED_CLOCK_BASE
+        _assert_exact(base)

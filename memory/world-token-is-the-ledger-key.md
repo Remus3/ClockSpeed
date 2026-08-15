@@ -18,11 +18,16 @@ completed) hang off the token, so state survives a reload, a rename and a new sa
 
 **The honest limit on the claim, which must travel with it:**
 
-- The sample is four saves across three worlds. That is strong evidence the token is
-  world-scoped; it is not proof.
-- It has NOT been proven to survive a game version upgrade of the same world. The library
-  that was measured spans two save versions across different worlds, not one world before
-  and after an upgrade.
+- The original sample was four saves across three worlds. That is strong evidence the token
+  is world-scoped; it is not proof.
+- **Token survival across a game version upgrade is now MEASURED, not open.** Corrected
+  2026-08-14: this leaf previously said it had NOT been proven, and that went stale. The
+  session 1 re-probe grouped the FULL local library by token rather than by filename and
+  found exactly 3 distinct worlds across 14 saves, one of them carrying an identical token
+  across 5 saves spanning THREE different game builds and three different save versions.
+  Re-confirmed 2026-08-14 against the live library: 14 saves across four
+  (header version, save version, build) combinations, 3 distinct token candidates.
+  `BOOTSTRAP.md` section 2.4 is the owner of that measurement; this line points at it.
 - Whether the token is a world seed or a session GUID is unknown, and does not matter for
   the ledger's purposes.
 - Phase 4 must assert token stability across a save/reload cycle as a test. That test is
