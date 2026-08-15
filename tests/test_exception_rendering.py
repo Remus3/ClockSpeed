@@ -87,11 +87,35 @@ GATE = REPO_ROOT / "tools" / "precommit_gate.py"
 HOOK_NAMES = ("pre-commit", "commit-msg", "pre-push")
 SUBPROCESS_TIMEOUT = 120
 
-# Any Windows absolute path, in either slash direction. Used as the oracle for
-# "did this output leak a path", independently of the redactor being tested -
-# a redactor is blind exactly where it is blind, so it can never be its own
-# oracle.
-ABSOLUTE_PATH = re.compile(r"[A-Za-z]:[\\/]")
+# The oracle for "did this output leak a path", independently of the redactor
+# being tested - a redactor is blind exactly where it is blind, so it can never
+# be its own oracle.
+#
+# WIDENED 2026-08-15 (CS-406) TO COVER POSIX, AND THE REASON IS A MEASURED
+# VACUITY RATHER THAN A TIDINESS ARGUMENT. This pattern was
+# ``[A-Za-z]:[\\/]`` alone - a DRIVE-LETTER regex - so on the Linux CI runner it
+# could not match an absolute path at all. Every ``not ABSOLUTE_PATH.search(...)``
+# assertion below was therefore passing VACUOUSLY on every CI run since it was
+# written: the oracle returned None for a POSIX temp-directory or home-directory
+# path exactly as it would for clean output, and the two are indistinguishable
+# from a green run.
+#
+# It was caught by the NON-VACUITY assertion in
+# ``test_installer_wiring_line_renders_no_absolute_path``, which asserts the
+# probe's own sandbox root is something the oracle WOULD match. That assertion
+# went red on CI while every sibling stayed green, which is precisely the job it
+# exists to do. `docs/LEDGER.md` had already recorded the residual - "POSIX
+# behaviour of the remedy is unobserved ... settled only by a Linux runner".
+#
+# STATED LIMIT, because this is a heuristic and not a parser: the POSIX branch
+# names the roots under which a leaked path on a runner or a developer machine
+# actually lands. It will NOT match an absolute path under an unusual root, so a
+# green here is weaker on POSIX than on Windows. The value-based assertions that
+# accompany it - `str(root) not in text` and `root.name not in text` - are the
+# platform-independent half and are what actually pin the remedy.
+_WINDOWS_ABSOLUTE = r"[A-Za-z]:[\\/]"
+_POSIX_ABSOLUTE = r"(?<![\w.~-])/(?:tmp|home|root|Users|var|usr|opt|mnt|media|srv)(?:/|\b)"
+ABSOLUTE_PATH = re.compile(_WINDOWS_ABSOLUTE + "|" + _POSIX_ABSOLUTE)
 
 # Builtins that render their whole argument as text.
 TEXT_BUILTINS = frozenset({"str", "repr", "ascii", "format"})
