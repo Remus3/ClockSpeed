@@ -111,13 +111,31 @@ NOT measured, and deliberately not invented:
    arithmetic entirely: every actor rotation is a unit quaternion, and 17763 of
    17763 actors read as unit quaternions at shift 4.
 
-1. **The object DATA section.** After the record table a real save carries the
-   per-object property payloads. No corpus fixture builds one -
-   ``SyntheticObject.encode`` emits a header record and stops - so this module
-   has never seen the grammar. Bytes remaining after the table are FLAGGED as
-   an unparsed section and skipped. :attr:`ObjectRecord.body_offset` and
-   :attr:`ObjectRecord.body_length` are the seam that will locate a payload
-   once that grammar is measured, and they are 0 on every path today.
+1. **The object DATA section.** LOCATED AND ATTRIBUTED. Its framing was
+   measured by CS-407 - each level's data section is a count followed by that
+   many length-framed payloads, and :func:`_check_section` proves those extents
+   tile the section to its exact declared byte on all four real pairs. CS-413
+   then settled the remaining question, which was never the framing but the
+   ALIGNMENT: WHICH record each payload belongs to.
+   :attr:`ObjectRecord.body_offset` and :attr:`ObjectRecord.body_length` now
+   carry it, from :func:`parse_body` only - the flat walk leaves them 0,
+   because the flat shape is one no real body has.
+
+   THE k-TH PAIRING IS MEASURED, NOT ASSUMED, and the distinction is the whole
+   point of the item. An actor's payload opens with its component reference
+   list, and each reference names a component record whose own ``parent`` field
+   points back at that actor - so the record table and the data section are
+   parsed INDEPENDENTLY and then checked against each other. Across all 14 real
+   saves the k-th alignment satisfies that cross-check on 9838 of 9838 testable
+   actors and both neighbouring alignments satisfy it on 0. The corpus cannot
+   corroborate any of this: its payloads are opaque filler, so it pins the
+   tiling arithmetic and nothing about the grammar.
+
+   Where a level's entry count and record count disagree the pairing is
+   UNDEFINED, so none is invented - the level is flagged with
+   :data:`WARN_PAYLOAD_COUNT_DISAGREEMENT` and its records keep 0. Every level
+   of every real save on this machine agrees, so that branch is reached by no
+   real save and is covered by a body built for it in the test module.
 2. **The component record grammar.** MEASURED by CS-407, and the belief
    recorded here previously was right: a component carries a parent path where
    an actor carries its filler and transform block. :func:`_read_levelled_record`
@@ -128,8 +146,10 @@ NOT measured, and deliberately not invented:
    levelled walk does not share it.
 3. **Property VALUE decoding.** :func:`read_properties` resolves a class path to
    a usmap schema and reports whether the mapping models it. It decodes no
-   value, because the payload grammar is unmeasured. A payload with a non-zero
-   extent is flagged as unparsed rather than guessed at.
+   value. What blocks that is no longer LOCATING the payload - CS-413 located
+   every one of them - but the value grammar inside it, which is unmeasured
+   here. A payload with a non-zero extent is flagged as unparsed rather than
+   guessed at.
 
 An unrecognised object-type discriminator is refused rather than skipped, and
 that is not a contradiction of non-negotiable 7. That rule covers unknown
@@ -194,6 +214,7 @@ __all__ = [
     "TRANSFORM_FLOAT_COUNT",
     "UNKNOWN_CLASS_REASONS",
     "WARN_BODY_LENGTH_DISAGREEMENT",
+    "WARN_PAYLOAD_COUNT_DISAGREEMENT",
     "WARN_RESERVED_WORD_SET",
     "WARN_UNMEASURED_HEADER_VERSION",
     "WARN_UNPARSED_DATA_SECTION",
@@ -573,6 +594,7 @@ WARN_UNPARSED_DATA_SECTION: Final = "unparsed-data-section"
 WARN_UNRESOLVED_SCHEMA: Final = "unresolved-schema"
 WARN_UNPARSED_PROPERTY_PAYLOAD: Final = "unparsed-property-payload"
 WARN_RESERVED_WORD_SET: Final = "reserved-word-set"
+WARN_PAYLOAD_COUNT_DISAGREEMENT: Final = "payload-count-disagreement"
 
 _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
     {
@@ -585,22 +607,28 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
             "followed the bytes present rather than the declaration"
         ),
         WARN_UNPARSED_DATA_SECTION: (
-            "bytes follow the object record table and were not read; the object data "
-            "section grammar is unmeasured and is never guessed at"
+            "bytes remain after the walk and were not read; the flat record table has "
+            "no measured data section, and a levelled body reaching this has ended "
+            "somewhere the grammar does not account for"
         ),
         WARN_UNRESOLVED_SCHEMA: (
             "the class path does not resolve to a schema in the supplied property map, "
             "so its property payload was skipped"
         ),
         WARN_UNPARSED_PROPERTY_PAYLOAD: (
-            "the class resolved but its property payload was not decoded; the value "
-            "grammar is unmeasured and is never guessed at"
+            "the class resolved and its property payload was located, but no value in "
+            "it was decoded; the value grammar is unmeasured and is never guessed at"
         ),
         WARN_RESERVED_WORD_SET: (
             "the second word of an 8-byte section size is non-zero, where every "
             "section measured carries zero; the low word was used as the size and "
             "the walk continued, so a section-size mismatch after this warning "
             "points at this field rather than at the section"
+        ),
+        WARN_PAYLOAD_COUNT_DISAGREEMENT: (
+            "a level declared a different number of payload entries than it has "
+            "records, so no payload was attributed to any record in it; the "
+            "extents were still walked and the section still closed"
         ),
     }
 )
@@ -817,8 +845,11 @@ class ObjectRecord:
         object_type: The raw discriminator, carried rather than interpreted.
         was_placed_in_level: The trailing int32, carried verbatim.
         body_offset: Where this object's PROPERTY PAYLOAD begins in the body.
-            0 today: the object data section grammar is unmeasured.
-        body_length: How many bytes that payload spans. 0 today, same reason.
+            Populated by :func:`parse_body` (CS-413); 0 from
+            :func:`parse_object_headers`, whose flat shape carries no data
+            section, and 0 in a level whose entry and record counts disagree.
+        body_length: How many bytes that payload spans, on the same terms. A
+            payload is never zero-length in any real save on this machine.
     """
 
     kind: str
@@ -831,6 +862,38 @@ class ObjectRecord:
     was_placed_in_level: int
     body_offset: int
     body_length: int
+
+    def with_payload(self, offset: int, length: int) -> ObjectRecord:
+        """Return this record carrying the extent of its own property payload.
+
+        WHY THIS IS SPELLED OUT RATHER THAN ``dataclasses.replace``. ADR 0007's
+        write gate scans this package's AST for write-capable call sites by
+        NAME, and ``replace`` is on that list because ``Path.replace`` is how an
+        atomic write lands. The scanner cannot tell the two apart without
+        resolving the binding, and the conservative reading is the right one for
+        a gate whose whole job is refusing unproven writes - so the honest fix
+        is to not reach for the name here, rather than to teach the gate an
+        exception it would then carry forever.
+
+        Args:
+            offset: The payload's first byte in the body.
+            length: The payload's declared extent.
+
+        Returns:
+            A new record; this one is frozen and is not mutated.
+        """
+        return ObjectRecord(
+            kind=self.kind,
+            type_path=self.type_path,
+            root_object=self.root_object,
+            instance_name=self.instance_name,
+            transform=self.transform,
+            parent=self.parent,
+            object_type=self.object_type,
+            was_placed_in_level=self.was_placed_in_level,
+            body_offset=offset,
+            body_length=length,
+        )
 
     def __repr__(self) -> str:
         """Render structure and withhold every string.
@@ -1663,11 +1726,10 @@ def _read_levelled_record(cursor: _Cursor, layout: BodyLayout) -> ObjectRecord:
         parent=parent,
         object_type=object_type,
         was_placed_in_level=was_placed_in_level,
-        # NOT attributed, deliberately. Each level's payload section carries
-        # exactly as many entries as its record table has records, and their
-        # extents are located by the walk below - but that the k-th payload
-        # belongs to the k-th record is an ASSUMPTION nothing has measured, so
-        # the seam stays 0 rather than carrying a plausible pairing.
+        # Attributed by `_read_level` once the data section has been read, via
+        # `with_payload`. It cannot happen here: the payload extents live after
+        # the whole record table in the file, so nothing at this point in the
+        # walk knows them yet.
         body_offset=0,
         body_length=0,
     )
@@ -1718,6 +1780,87 @@ def _check_section(cursor: _Cursor, field: str, at: int, base: int, declared: in
             offset=at,
             expected=declared,
             actual=walked,
+        )
+
+
+def _read_data_entries(cursor: _Cursor, layout: BodyLayout) -> list[tuple[int, int]]:
+    """Walk one level's object data section and LOCATE every payload in it.
+
+    The payload's VALUE grammar is not decoded here; only its framing is, and
+    the framing is what locates it. It is THREE QUARTERS OF THE BODY being
+    located, not a detail.
+
+    The leading run is skipped whole. On (13,42) its two int32 readings take
+    exactly two joint values, (42,0) and (36,1), so the second is perfectly
+    determined by the first; on (14,52) they are collinear across 29466
+    entries; and an int64 reading closes byte-exactly on (14,60). The 8-byte
+    WIDTH is pinned and the split is not, so no split is claimed.
+
+    Args:
+        cursor: Positioned at the section's entry count.
+        layout: The pair's grammar.
+
+    Returns:
+        One ``(offset, length)`` per entry, in file order.
+
+    Raises:
+        ObjectTruncatedError: An entry runs past the body.
+        ObjectBudgetExceededError: A declared count or length exceeds its cap.
+    """
+    extents: list[tuple[int, int]] = []
+    for _ in range(_read_bounded_count(cursor, "object_count", MAX_OBJECTS)):
+        if layout.data_entry_lead:
+            cursor.skip(layout.data_entry_lead, "object_data_lead")
+        length = _read_bounded_count(cursor, "object_data", MAX_OBJECT_DATA_BYTES)
+        extents.append((cursor.offset, length))
+        cursor.skip(length, "object_data")
+        if layout.data_entry_trailer:
+            cursor.int32("object_data_trailer")
+    return extents
+
+
+def _attribute_payloads(
+    records: list[ObjectRecord],
+    first: int,
+    count: int,
+    extents: list[tuple[int, int]],
+    *,
+    at: int,
+    warnings: list[ObjectWarning],
+) -> None:
+    """Give each of a level's records the extent of its own payload (CS-413).
+
+    THE k-TH PAYLOAD BELONGS TO THE k-TH RECORD, AND THAT IS MEASURED. An
+    actor's payload opens with its component reference list, and every one of
+    those references names a component record whose own ``parent`` field points
+    back at that actor - so the record table and the data section are parsed
+    independently and then checked against each other. Across all 14 real saves
+    the k-th alignment satisfies that cross-check on 9838 of 9838 testable
+    actors and both neighbouring alignments satisfy it on 0. The corpus cannot
+    corroborate it: its payloads are opaque filler.
+
+    THE COUNT GUARD IS NOT DECORATION. Attribution is only DEFINED when the two
+    counts agree. Where they do not, no pairing is invented - a walker that
+    zipped the shorter list would pair some records with another record's
+    payload and report it as fact, which is the silently wrong answer
+    non-negotiable 7 forbids. The level is flagged instead and its records keep
+    0. No real save reaches that branch - every level of every real save on this
+    machine agrees on the two counts.
+
+    Args:
+        records: The accumulator, mutated in place.
+        first: Index in ``records`` where this level's records begin.
+        count: How many records this level's table declared.
+        extents: What :func:`_read_data_entries` located.
+        at: Where the data section was declared, for the warning's offset.
+        warnings: Accumulator for flagged conditions.
+    """
+    if len(extents) == count:
+        for index, (payload_at, payload_length) in enumerate(extents):
+            records[first + index] = records[first + index].with_payload(payload_at, payload_length)
+    elif extents or count:
+        warnings.append(
+            _warning(WARN_PAYLOAD_COUNT_DISAGREEMENT, at, expected=count, actual=len(extents))
         )
 
 
@@ -1791,6 +1934,7 @@ def _read_level(
         # into its repr, which non-negotiable 12 makes an echo path.
         cursor.string("level_name")
 
+    first = len(records)
     at = cursor.offset
     header_size = _read_section_size(cursor, layout, "header_section", warnings)
     base = cursor.offset
@@ -1808,25 +1952,9 @@ def _read_level(
     data_at = cursor.offset
     data_size = _read_section_size(cursor, layout, "object_data_section", warnings)
     data_base = cursor.offset
-    entries = _read_bounded_count(cursor, "object_count", MAX_OBJECTS)
-    for _ in range(entries):
-        # The payload GRAMMAR is unmeasured; only its int32 length framing is.
-        # Stepping over it is therefore the honest read, not a shortcut - and it
-        # is THREE QUARTERS OF THE BODY being stepped over, not a detail.
-        #
-        # The leading run is skipped whole. On (13,42) its two int32 readings
-        # take exactly two joint values, (42,0) and (36,1), so the second is
-        # perfectly determined by the first; on (14,52) they are collinear
-        # across 29466 entries; and an int64 reading closes byte-exactly on
-        # (14,60). The 8-byte WIDTH is pinned and the split is not.
-        if layout.data_entry_lead:
-            cursor.skip(layout.data_entry_lead, "object_data_lead")
-        cursor.skip(
-            _read_bounded_count(cursor, "object_data", MAX_OBJECT_DATA_BYTES), "object_data"
-        )
-        if layout.data_entry_trailer:
-            cursor.int32("object_data_trailer")
+    extents = _read_data_entries(cursor, layout)
     _check_section(cursor, "object_data_section", data_at, data_base, data_size)
+    _attribute_payloads(records, first, count, extents, at=data_at, warnings=warnings)
 
     if named:
         if layout.level_tail == LEVEL_TAIL_WORD:
@@ -1958,9 +2086,10 @@ def read_properties(body: bytes, record: ObjectRecord, property_map: PropertyMap
 
     WHAT THIS DOES AND DOES NOT DO. It resolves the record's class path to a
     usmap schema and reports whether the mapping models that class. It decodes
-    NO property value, because the object data section's grammar has never been
-    measured by this project and no fixture carries one. A payload with a
-    non-zero extent is FLAGGED as unparsed rather than guessed at.
+    NO property value. Since CS-413 the reason is narrower than it was: the
+    payload is now LOCATED for every record of a real save, and what remains
+    unmeasured here is the value grammar inside it. A payload with a non-zero
+    extent is FLAGGED as unparsed rather than guessed at.
 
     Nothing here raises for unknown content. A class the mapping cannot resolve
     is a reported state, not a failure (non-negotiable 7).
@@ -1988,9 +2117,9 @@ def read_properties(body: bytes, record: ObjectRecord, property_map: PropertyMap
         )
 
     if record.body_length == 0:
-        # The NORMAL case for a large share of a real world. ADR 0003: a save
-        # stores deltas from level defaults, so an actor whose properties are
-        # all defaults carries no payload at all. Not unknown content.
+        # Every record from the FLAT walk, which attributes no extent, and no
+        # record at all from a real save - CS-413 measured zero zero-length
+        # payloads across all 14 of them. Not unknown content either way.
         return PropertyResult(
             properties=MappingProxyType({}), schema_name=name, resolved=True, warnings=()
         )

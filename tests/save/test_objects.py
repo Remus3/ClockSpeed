@@ -53,10 +53,17 @@ assertion here whose subject was produced by the game rather than by this
 repository. It SKIPS with a reason on a machine with no save, which is every
 CI machine.
 
-Second, the PROPERTY PAYLOAD. No fixture carries an object-data section at all
-- ``synthetic.SyntheticObject.encode`` emits a header record and stops - so the
-tests below prove SCHEMA RESOLUTION and the flag-and-skip contract around it,
-and prove nothing whatsoever about decoding a property value.
+Second, the PROPERTY PAYLOAD. The FLAT fixtures carry no object-data section -
+``synthetic.SyntheticObject.encode`` emits a header record and stops - so every
+test above the CS-407 section proves SCHEMA RESOLUTION and the flag-and-skip
+contract around it, and nothing whatsoever about decoding a property value.
+
+The LEVELLED fixture does carry a data section, and its CONTENT is opaque
+filler rather than anything the game wrote. So it pins the extent arithmetic
+CS-413 added - that the payloads tile their section and land on the right
+record index - and it is incapable of corroborating the payload grammar
+itself. Everything claimed about that grammar rests on the real-library sweeps,
+which skip on a CI machine.
 
 Neither limit is papered over, and neither is a reason to weaken an assertion:
 the corpus is the stated contract for this wave, and a walk that is exactly
@@ -87,9 +94,10 @@ and asserts the markers are absent from ``str``, ``args``, ``repr``,
 from __future__ import annotations
 
 import ast
+import itertools
 import struct
 import traceback
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 from types import MappingProxyType
@@ -754,12 +762,15 @@ def test_a_resolvable_type_path_reports_the_schema_it_resolved_to() -> None:
 
 
 def test_a_record_with_no_payload_extent_yields_no_properties_and_no_warning() -> None:
-    """Every corpus record has a zero-length payload, and that is not an error.
+    """A record with no attributed extent yields nothing, and that is not an error.
 
-    ADR 0003's negative result: node actors carry NO serialized property
-    payload at all, because a save stores deltas from level defaults. An empty
-    payload is the NORMAL case for a large share of a real world's actors, so
-    it must not be reported as unknown content.
+    Every record from the FLAT walk is in this state, because that shape has no
+    data section to attribute from. CS-413 narrowed what this test may claim:
+    it once said an empty payload is "the NORMAL case for a large share of a
+    real world's actors", and the real library disagrees - zero of the payloads
+    in all 14 real saves are zero-length. So this pins the flag-and-skip
+    contract for an unattributed record and says nothing about how common that
+    is in a real world.
     """
     schema_name = objects.class_name_of(_KNOWN_CLASS_PATH_A)
     property_map = _property_map(schema_name)
@@ -1915,3 +1926,429 @@ def test_the_module_never_opens_a_file() -> None:
     }
     for banned in ("open", "read_bytes", "write_bytes", "read_text", "write_text"):
         assert banned not in called
+
+
+# ---------------------------------------------------------------------------
+# CS-413 - ATTRIBUTING EACH PAYLOAD TO ITS RECORD
+#
+# CS-407 already LOCATED every payload: ``_read_level`` reads the object data
+# section entry by entry and ``_check_section`` proves the extents tile it to
+# the exact declared byte on all four real pairs. What it deliberately did NOT
+# do is say WHICH record each extent belongs to, and it said so in as many
+# words - "that the k-th payload belongs to the k-th record is an ASSUMPTION
+# nothing has measured, so the seam stays 0 rather than carrying a plausible
+# pairing".
+#
+# So the open question was never the framing. It was the ALIGNMENT, and the
+# tests below are what turn it from an assumption into a measurement.
+# ---------------------------------------------------------------------------
+
+
+def test_every_record_carries_the_extent_of_its_own_payload() -> None:
+    """The seam is populated, and the extents TILE the section without overlap.
+
+    Corpus-only, so it pins the ARITHMETIC and claims nothing about the
+    grammar - no fixture payload has real content in it. The tiling assertion
+    is what makes this more than "the field is non-zero": a walker that handed
+    every record the same extent, or extents in the wrong order, satisfies a
+    non-zero check and fails here.
+    """
+    fixture = synthetic.SAVE_LEVELLED_V36
+    body = _levelled_payload()
+    table = objects.parse_body(
+        body, save_version=fixture.save_version, header_version=fixture.header_version
+    )
+
+    assert table.records, "the levelled fixture must carry records"
+    for record in table.records:
+        assert record.body_length > 0, "every corpus payload has a non-zero declared extent"
+        assert record.body_offset > 0, "a payload never starts at the body's first byte"
+        assert record.body_offset + record.body_length <= len(body)
+
+    extents = [(r.body_offset, r.body_length) for r in table.records]
+    assert len(set(extents)) == len(extents), "no two records may share one payload"
+    for (offset, length), (nxt, _) in itertools.pairwise(extents):
+        assert offset + length <= nxt, "payload extents must not overlap and must ascend"
+
+
+def _text(value: str) -> bytes:
+    """Encode one length-prefixed UTF-8 string the way a body carries it.
+
+    Local rather than borrowed from ``synthetic`` on purpose: the fixture this
+    serves has to declare a count that DISAGREES with the bytes it writes, and
+    ``SyntheticLevel.encode`` computes every size from its own content
+    specifically so a fixture cannot do that.
+
+    Args:
+        value: The text.
+
+    Returns:
+        The int32 byte count, the text, and the null terminator.
+    """
+    raw = value.encode("ascii") + b"\x00"
+    return struct.pack("<i", len(raw)) + raw
+
+
+def _mismatched_entry_count_body(instance_name: str = "SyntheticThing_0") -> bytes:
+    """A (10,36) body whose one level declares 1 record and 0 payload entries.
+
+    THE SHAPE NO REAL SAVE HAS. Every level of every real save agrees on the two
+    counts, so this is reachable only by construction - which is exactly why it
+    is built here rather than left to a fixture. A level like this makes the
+    k-th pairing UNDEFINED, and the walk must flag it rather than invent one.
+
+    NO COUNT IS QUOTED HERE ON PURPOSE. An earlier revision of this docstring
+    said "all 6173 levels", which was wrong by two and would have read as
+    verified forever - CLAUDE.md section 4's "a hardcoded count in a doc is a
+    lie with a timestamp on it", caught by an adversary. "Every level agrees" is
+    the stronger claim anyway and it cannot go stale.
+
+    Args:
+        instance_name: The planted instance name. Varying it is what lets a
+            caller prove the warning's detail does not depend on body content.
+
+    Returns:
+        The body, length prefix included.
+    """
+    record = (
+        struct.pack("<i", 1)  # object_type: actor
+        + _text("/Script/Synthetic.Build_Thing_C")
+        + _text("SyntheticLevel")
+        + _text(instance_name)
+        + bytes(4)  # the save-36 transform delta
+        + bytes(objects.TRANSFORM_BYTES)
+        + struct.pack("<i", 0)  # was_placed_in_level
+    )
+    header_section = struct.pack("<i", 1) + record
+    data_section = struct.pack("<i", 0)  # ZERO entries against ONE record
+    level = (
+        struct.pack("<i", len(header_section))
+        + header_section
+        + struct.pack("<i", len(data_section))
+        + data_section
+        + struct.pack("<i", 0)  # the persistent level's closing collectable block
+    )
+    body = struct.pack("<i", 0) + level + struct.pack("<i", 0)  # no named levels, then the trailer
+    return struct.pack("<i", len(body)) + body
+
+
+def test_a_level_whose_counts_disagree_is_flagged_and_attributes_nothing() -> None:
+    """Undefined attribution is flagged and skipped, never invented (non-negotiable 7).
+
+    The failure mode this closes is the quiet one. A walker that zipped the two
+    lists would pair the records it could and drop the rest, reporting a world
+    where some machines carry another machine's payload - a wrong answer with no
+    warning on it. Refusing to pair at all is the only honest read, and it must
+    not raise either, because the section still closes and the rest of the body
+    is still walkable.
+    """
+    body = _mismatched_entry_count_body()
+
+    table = objects.parse_body(body, save_version=_SAVE_36, header_version=_HEADER_10)
+
+    assert len(table.records) == 1
+    flagged = [w for w in table.warnings if w.code == objects.WARN_PAYLOAD_COUNT_DISAGREEMENT]
+    assert len(flagged) == 1, "the level must be flagged exactly once"
+    assert (flagged[0].expected, flagged[0].actual) == (1, 0)
+    assert table.records[0].body_offset == 0, "an undefined pairing attributes nothing"
+    assert table.records[0].body_length == 0
+    assert not [w for w in table.warnings if w.code == objects.WARN_UNPARSED_DATA_SECTION], (
+        "the body must still walk to its final byte"
+    )
+
+
+def test_the_payload_count_warning_detail_does_not_depend_on_body_content() -> None:
+    """The new warning is an echo path like every other, so its text is pinned.
+
+    ASSERTED AS INVARIANCE, NOT AS A SUBSTRING SEARCH. An earlier revision
+    checked that the planted names were absent from the detail, which an
+    adversary correctly called decoration: the detail is a module constant
+    fetched by code, so that check can only fail if somebody edits the constant
+    to contain the literal. Running the SAME level twice with DIFFERENT planted
+    content and requiring an identical detail is a mechanism instead - it goes
+    red for any detail built from the body, whatever the body happens to hold.
+    """
+    details = []
+    for name in ("SyntheticThing_0", "CompletelyDifferentPlantedName_9"):
+        table = objects.parse_body(
+            _mismatched_entry_count_body(name),
+            save_version=_SAVE_36,
+            header_version=_HEADER_10,
+        )
+        # Selected by CODE, not by position: a warning appended ahead of this
+        # one later would otherwise move the assertion onto a different string.
+        # The unpacking is also the liveness control - it raises if the warning
+        # never fired, so this cannot pass against a walk that flags nothing.
+        (detail,) = [
+            w.detail for w in table.warnings if w.code == objects.WARN_PAYLOAD_COUNT_DISAGREEMENT
+        ]
+        details.append(detail)
+
+    assert details[0] == details[1], (
+        "the warning detail changed when only the body content changed, so it is "
+        "built from the body rather than from the fixed table - that is an echo path"
+    )
+    assert details[0].isascii()
+
+
+def _read_text(body: bytes, at: int, end: int) -> tuple[str, int] | None:
+    """Read one length-prefixed string, returning None rather than RAISING.
+
+    A returning reader instead of a raising one is a privacy control, not a
+    style choice. An exception raised mid-payload puts a frame holding the real
+    save body on the traceback, and pytest renders the ARGUMENTS of every frame
+    - so the cheapest way to guarantee no body reaches a log is to have no
+    failure path that unwinds through one.
+
+    Args:
+        body: The decompressed body.
+        at: Where the length prefix starts.
+        end: The first byte past this payload.
+
+    Returns:
+        The text and the offset after it, or None if it does not read.
+    """
+    if at + 4 > end:
+        return None
+    (count,) = struct.unpack_from("<i", body, at)
+    if count == 0:
+        return ("", at + 4)
+    if count < 0:
+        width, terminator, encoding = -count * 2, 2, "utf-16-le"
+    else:
+        width, terminator, encoding = count, 1, "utf-8"
+    if width > objects.MAX_STRING_BYTES or at + 4 + width > end:
+        return None
+    try:
+        return (body[at + 4 : at + 4 + width - terminator].decode(encoding), at + 4 + width)
+    except UnicodeDecodeError:
+        return None
+
+
+def _component_refs(body: bytes, offset: int, length: int) -> tuple[str, ...] | None:
+    """Read the component reference list an ACTOR's payload opens with.
+
+    MEASURED, not assumed: across the real library every actor payload opens
+    ``[str][str][int32 n][n x (str, str)]``, and what follows is either the
+    literal ``None`` terminator or a name paired with an Unreal property type
+    word - 2481 of 2481 payloads in the two files this was first read on.
+
+    Args:
+        body: The decompressed body.
+        offset: The payload's first byte.
+        length: The payload's declared extent.
+
+    Returns:
+        The referenced instance names, or None if the head does not read.
+    """
+    end = offset + length
+    at = offset
+    # The parent reference: two strings, read only to step over them.
+    for _ in range(2):
+        step = _read_text(body, at, end)
+        if step is None:
+            return None
+        at = step[1]
+    if at + 4 > end:
+        return None
+    (count,) = struct.unpack_from("<i", body, at)
+    at += 4
+    if count < 0 or count > objects.MAX_OBJECTS:
+        return None
+    # Each reference is a PAIR of strings and only the second is the instance
+    # name, so the pairs are read flat and the names sliced back out.
+    flat: list[str] = []
+    for _ in range(2 * count):
+        step = _read_text(body, at, end)
+        if step is None:
+            return None
+        flat.append(step[0])
+        at = step[1]
+    return tuple(flat[1::2])
+
+
+@dataclass(frozen=True)
+class _AttributionSweep:
+    """What the attribution sweep observed, as scalars and nothing else.
+
+    Every field is safe to render, for the reason :class:`_RealSweep` gives.
+
+    Attributes:
+        files: Saves of a measured pair whose body walked.
+        records: Records seen across them.
+        attributed: Of those, records carrying a payload extent inside the body.
+        testable: Actor payloads that named at least one component, per shift.
+        matched: Of those, ones whose every reference checks out, per shift.
+        failures: Exception type names from any save that did not walk.
+    """
+
+    files: int
+    records: int
+    attributed: int
+    testable: Mapping[int, int]
+    matched: Mapping[int, int]
+    failures: tuple[str, ...]
+
+
+_SHIFTS: Final = (-1, 0, 1)
+
+
+def _score_one_save(
+    body: bytes,
+    records: tuple[objects.ObjectRecord, ...],
+    testable: dict[int, int],
+    matched: dict[int, int],
+) -> int:
+    """Score one save's attribution at every shift, accumulating into the tallies.
+
+    Args:
+        body: The decompressed body.
+        records: What the walk attributed.
+        testable: Per-shift tally of actor payloads that named a component.
+        matched: Per-shift tally of those whose references all check out.
+
+    Returns:
+        How many records carry an extent lying inside the body.
+    """
+    # Name to the SET of parents claiming it, so a reference only counts when
+    # that set is exactly the one actor - a name claimed by two different
+    # parents is ambiguous and must not resolve. Set-valued rather than
+    # last-one-wins because two component records in the real library do share
+    # a name (with the same parent), and collapsing them either way misreports.
+    parents: dict[str, set[str | None]] = {}
+    for record in records:
+        if record.kind == objects.KIND_COMPONENT:
+            parents.setdefault(record.instance_name, set()).add(record.parent)
+
+    attributed = 0
+    for index, record in enumerate(records):
+        if record.body_offset > 0 and record.body_offset + record.body_length <= len(body):
+            attributed += 1
+        if record.kind != objects.KIND_ACTOR:
+            continue
+        for shift in _SHIFTS:
+            other = index + shift
+            if not 0 <= other < len(records):
+                continue
+            refs = _component_refs(body, records[other].body_offset, records[other].body_length)
+            if not refs:
+                continue
+            testable[shift] += 1
+            if all(parents.get(name) == {record.instance_name} for name in refs):
+                matched[shift] += 1
+    return attributed
+
+
+def _sweep_payload_attribution() -> _AttributionSweep | None:
+    """Cross-check the attributed alignment against the record table, per shift.
+
+    THE ORACLE, and it is a cross-check between two regions of the file parsed
+    INDEPENDENTLY of one another. The record table says which actor each
+    component belongs to; the data section says which components each actor's
+    payload lists. Neither derives from the other, so their agreement is
+    evidence rather than a restatement - and running it at shifts -1 and +1 is
+    what turns "the k-th pairing is consistent" into "the bytes REJECT every
+    neighbouring pairing".
+
+    Contained exactly as :func:`_sweep_the_real_library` is: every step wrapped,
+    every failure reduced to a type NAME before it can reach a rendered frame,
+    counts only out.
+
+    Returns:
+        The sweep, or None when no save library is reachable.
+    """
+    root = locate.resolve_save_root()
+    account = locate.resolve_account_dir(root) if root is not None else None
+    if account is None:
+        return None
+
+    files = seen = attributed = 0
+    testable = dict.fromkeys(_SHIFTS, 0)
+    matched = dict.fromkeys(_SHIFTS, 0)
+    failures: list[str] = []
+    for path in sorted(account.glob("*.sav")):
+        try:
+            data = path.read_bytes()
+            parsed = header.parse_header(data)
+        except (OSError, header.HeaderError):
+            continue
+        if (parsed.header_version, parsed.save_version) not in objects.MEASURED_BODY_LAYOUTS:
+            continue
+        # BROAD BY DESIGN, for the reason `_sweep_the_real_library` states: a
+        # narrower catch lets an unexpected type escape carrying the bytes.
+        try:
+            body = chunks.decompress_body(
+                data, parsed.body_offset, header_version=parsed.header_version
+            ).payload
+            records = objects.parse_body(
+                body, save_version=parsed.save_version, header_version=parsed.header_version
+            ).records
+            attributed += _score_one_save(body, records, testable, matched)
+            seen += len(records)
+            files += 1
+        except Exception as exc:
+            failures.append(type(exc).__name__)
+            continue
+    return _AttributionSweep(
+        files=files,
+        records=seen,
+        attributed=attributed,
+        testable=MappingProxyType(testable),
+        matched=MappingProxyType(matched),
+        failures=tuple(sorted(set(failures))),
+    )
+
+
+def test_every_real_save_attributes_a_payload_extent_to_every_record() -> None:
+    """THE FLOOR. Every record in every real save now points at its own payload.
+
+    The corpus cannot carry this claim - its payloads are opaque filler - so
+    this is the assertion that decides whether the seam is populated against
+    bytes the game wrote.
+
+    Skip-if-absent, because CI has no save library, and COUNTS ONLY.
+    """
+    sweep = _sweep_payload_attribution()
+    if sweep is None:
+        pytest.skip("no save library on this machine - the attribution sweep is not gradeable here")
+
+    assert sweep.failures == (), (
+        f"{len(sweep.failures)} distinct failure kinds walking real bodies: {sweep.failures}"
+    )
+    assert sweep.files > 0, "a save library was found but no measured pair walked"
+    assert sweep.records > 0, "the real saves walked but produced no records"
+    assert sweep.attributed == sweep.records, (
+        f"only {sweep.attributed} of {sweep.records} real records carry a payload extent "
+        "inside the body; the seam is populated for every record or the attribution is wrong"
+    )
+
+
+def test_the_payload_to_record_alignment_is_the_one_the_bytes_choose() -> None:
+    """The alignment is MEASURED, and the neighbouring alignments are REJECTED.
+
+    Without the shift controls this test says only "the pairing I chose is
+    self-consistent", which is exactly the assumption CS-407 declined to make.
+    With them it says the bytes discriminate: the k-th pairing satisfies the
+    cross-check universally and both neighbours satisfy it never.
+
+    A shift of one crosses a level boundary at each level's edges, so a stray
+    match there would be honest noise rather than a defect - the assertion is
+    written as zero because zero is what was observed, and a later save that
+    produced one should be looked at rather than rounded away.
+    """
+    sweep = _sweep_payload_attribution()
+    if sweep is None:
+        pytest.skip("no save library on this machine - the attribution sweep is not gradeable here")
+
+    assert sweep.testable[0] > 0, "no actor payload named a component, so nothing was tested"
+    assert sweep.matched[0] == sweep.testable[0], (
+        f"the k-th alignment checks out on only {sweep.matched[0]} of {sweep.testable[0]} "
+        "actor payloads; it is the alignment the walk attributes, so it must hold universally"
+    )
+    for shift in (-1, 1):
+        assert sweep.testable[shift] > 0, f"shift {shift:+d} tested nothing, so it is not a control"
+        assert sweep.matched[shift] == 0, (
+            f"shift {shift:+d} checks out on {sweep.matched[shift]} of {sweep.testable[shift]} "
+            "actor payloads; a neighbouring alignment that also fits means the oracle does "
+            "not discriminate and the attribution is not measured"
+        )
