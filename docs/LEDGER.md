@@ -73,6 +73,33 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-16 - CS-436 - FROZEN-FILE GRANT ISSUED by the OPERATOR for `tools/precommit_gate.py`
+Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit, not a
+completion record. Nothing has been edited under it at the time of writing. The item it serves is
+filed in `ROADMAP.md` as CS-436; this entry does not close it.
+GRANTED BY THE OPERATOR DIRECTLY, not by an adjudicator, and the distinction is recorded so a
+later reader does not read this as an agent self-granting. The operator was offered the
+adjudicator route of CLAUDE.md section 6 and chose to issue the grant directly, which matches
+every prior grant on record in this file.
+SCOPE: `tools/precommit_gate.py`, for CS-436 ALONE. THE 2026-08-15 GRANT IN THIS FILE IS SPENT -
+all three of its items, CS-403, CS-209 and CS-204, are closed - and this grant does not revive it,
+widen it, or extend to any other frozen path. CS-436's three parts all live inside this one file:
+the `_save_root_dirs` cap reporting through the skip channel, `SAVE_HEADER_BUDGET_SECONDS` either
+bounding a single slow open or being removed with its claim deleted, and the `PiiMatchers`
+construction on the `--text-stdin` path.
+CONDITIONS ARE THE ONES ALREADY WRITTEN IN CS-436'S ROADMAP ENTRY and are deliberately NOT
+restated here, per the ruling recorded in the 2026-08-15 grant entry below: restating a condition
+is how a condition drifts.
+TWO CONDITIONS ARE ADDED HERE because they bind this grant rather than any clause already written.
+FIRST, the `PiiMatchers` part may not be solved by dropping the construction, because
+`PiiMatchers(report)` is what RECORDS THE COVERAGE SKIPS and dropping it strips the coverage
+warning from that path on an unconfigured machine - that is a coverage reduction, which the CS-425
+grant forbids; solve it without losing the skip, or record that it cannot be. SECOND, the gate is
+proven END TO END - stage a real violation, attempt a real `git commit`, assert exit 1 and HEAD
+unchanged - rather than by passing flags explicitly to the gate, and no edit under this grant may
+introduce a new way for the gate to fail to START, because a gate that cannot start does not
+block.
+
 ### 2026-08-16 - CS-403 - CORRECTION: the package-unreachable test was reachable on CI, and CI caught it
 Verification: `tests/test_precommit_gate.py`, `run_gate_copy` and `isolated_gate_copy`. Gated by
 `tests/test_precommit_gate.py::test_the_gate_starts_and_skips_when_the_package_cannot_be_imported`.
