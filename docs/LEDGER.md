@@ -73,6 +73,42 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-16 - CS-204 - CORRECTION: the ROADMAP entry outlived the closure by two days, and the 2026-08-15 grant inherited its error
+Verification: no code changed. This entry corrects the RECORD. CS-204 closed 2026-08-14 in commit
+`e17ba59`, whose completion entry is already in this file; `ROADMAP.md` line 30 was never removed,
+so the item sat in two owner files for two days and a session plan dispatched a builder to
+re-implement shipped work. That line is now deleted. Nothing above is edited - this file is
+append-only and the correction travels as a forward pointer, the mechanism already used by the
+2026-08-15 CS-411 correction.
+RULED CLOSED by an adjudicator that produced none of the work, and re-derived by the merger rather
+than relayed. The disambiguating fact is that `e17ba59` carries the implementation, its tests AND
+its own ledger entry in ONE commit, so the 2026-08-14 record is not a claim about work - it is the
+commit containing the work. The 2026-08-15 grant is a separate later commit, `dfa69b5`.
+MEASURED, not asserted: a `--files` run of BOTH tools over a six-file violation corpus in an
+out-of-repo directory under the home directory renders every path as an out-of-repo basename, with
+zero hits for the home path in either separator spelling, the Windows account name, or the marker
+directory component, across all FOUR channels - diagnostics, `report.checked`, `report.skipped` and
+`report.notes` - at exit 1. Proven DISCRIMINATING by mutation on an exported copy: neutering the
+label redactor turns 15 of 86 red, including all four channel tests on both tools. The adjudicator
+additionally measured a relative out-of-repo path, a nested second repository, and `--staged` inside
+it, which closes the residual the 2026-08-14 entry flagged as argued by reasoning rather than
+measurement. POSIX remains unobserved.
+SCOPE CORRECTION TO THE GRANT ENTRY OF 2026-08-15 IN THIS FILE: its phrase "the three OPEN items"
+was true of CS-403 and CS-209 and FALSE of CS-204, which had closed the day before under its own
+2026-08-14 grant, also recorded here. THE OTHER TWO THIRDS REMAIN LIVE AND UNSPENT - measured, not
+assumed: `world_name_exclusions` appears 0 times in `tools/precommit_gate.py`, and the gate imports
+only the standard library, so neither CS-209 nor CS-403 is built.
+HOW THE ERROR PROPAGATED, recorded because it is the argument for CS-211. The grant's scope list is
+exactly `grep -c "NEEDS ITS OWN FROZEN-FILE GRANT" ROADMAP.md` returning 3, and the grant says in
+its own words that its conditions are "the ones already written in each roadmap entry". It also
+repeats the roadmap's recusal sentence, which line 1100 of this file had already superseded. So the
+grant was assembled from the stale document rather than from the tree. `WAKEUP_NOTES.md` inherited
+the same three-item list into CS-425's reasoning. One stale line, read three times, by three
+readers who each had reason to believe the previous one had checked.
+NOT CLOSED BY THIS ENTRY: CS-403 and CS-209. FILED BY IT: CS-211, the mechanical one-owner guard
+whose absence allowed this, since CLAUDE.md section 4 states the rule in prose and the only consumer
+of `ROADMAP.md` under `tools/` measures its SIZE and never its content.
+
 ### 2026-08-16 - CS-420 - CORRECTION: THE CLOSURE ABOVE WAS WRONG. THE ITEM IS REOPENED
 Verification: `tests/save/test_decode_oracles.py` lines cited below, each refuted by execution against the
 live library on the unmutated tree. This entry corrects the CS-420 closure recorded earlier today, per this
