@@ -107,13 +107,31 @@ the line becomes a pointer.
     a file that never contains counts. Done here while FIXING a fact-ownership violation, and
     caught by the adjudicator.
 
-- **COMMON-MODE RISK, named and UNRESOLVED:** `_TAG_EXTRA_STRINGS` is transcribed IDENTICALLY
-  into `clockspeed/save/objects.py` and `tests/save/test_properties.py`, and the provenance
-  oracle joins one against the other. If any width is wrong BOTH walkers desynchronise
-  identically, the join agrees perfectly, and the oracle reports perfect health. The
-  terminator check discriminates it on 111 of 129775 payloads. It sits underneath 100 per cent
-  of the 185382 decoded values. CS-420's usmap join is the one oracle that never touches
-  `value_at` and is therefore the fix.
+- **COMMON-MODE RISK - CORRECTED 2026-08-15 (session 8) BY MEASUREMENT. THE RISK WAS ALREADY
+  GUARDED, AND THE PROPOSED FIX WAS NOT ONE.** What follows is the original claim and what
+  measurement did to it, kept together because the correction is worth more than the claim.
+  ORIGINALLY WRITTEN: `_TAG_EXTRA_STRINGS` is transcribed identically into
+  `clockspeed/save/objects.py` and `tests/save/test_properties.py`; if any width is wrong BOTH
+  walkers desynchronise identically, the join agrees perfectly, and the oracle reports perfect
+  health - so CS-420's usmap join, the one oracle that never touches `value_at`, "is therefore
+  the fix".
+  **BOTH HALVES ARE FALSE, each refuted by a mutant observed red.** FIRST, the risk was already
+  guarded and had been for a session: `tests/save/test_properties.py` carries its OWN EQUALITY
+  reach oracle over the real library, so under a genuine common-mode fault the copy-based walker
+  desynchronises against the REAL BYTES exactly as the shipped one does. Mutating each width in
+  BOTH copies identically and deleting both new oracle modules leaves the pre-existing suite red
+  on 7 of 7 widths, against a pristine control that exits 0. SECOND, the usmap join is not the
+  fix and cannot be: its 13-to-13 bijection survives every width mutant with zero violations,
+  byte-identically under `ByteProperty 1->0`. The mechanism is the whole lesson - **a wrong width
+  BREAKS the walk, a broken walk contributes NO pairs, so a bijection computed over a shrinking
+  population of correct pairs stays pristine while the grammar rots.** A join is evidence about
+  the pairs it sees, never about the ones a fault removed.
+  The "111 of 129775" figure is deleted rather than corrected, per CLAUDE.md section 4: it is now
+  owned and re-derived by
+  `tests/save/test_decode_oracles.py::test_the_shipped_walker_reaches_a_terminator_on_every_real_payload`.
+  **THE GENERAL LESSON, which outlives this item: an inherited risk stated confidently in a
+  resume note was never re-measured, and a whole item was scoped to solve it.** Re-measure the
+  premise before building against it - that is cheaper than the item was.
 
 - **Next action:** take **CS-420** - record CS-413's oracles and controls as executable
   artifacts. It is the cheaper of the two and a PRECONDITION for trusting CS-421's result,
