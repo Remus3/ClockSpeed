@@ -63,12 +63,22 @@ import struct
 import subprocess
 import sys
 import zlib
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
+from typing import Final
 
 import pytest
 
 from clockspeed.data import locate
-from tests.save import synthetic
+
+# `test_properties` is imported for its CONTAINMENT and GRADING machinery only -
+# the contained discovery, the two forced-failure pairs and the reach guard. No
+# format constant and no builder opinion crosses this import, so control 1's
+# independence claim in the module docstring is untouched. See the CS-429
+# section at the foot of this file.
+from tests.save import synthetic, test_properties
 
 # ---------------------------------------------------------------------------
 # The independent minimal reader.
@@ -1182,24 +1192,94 @@ def test_the_corpus_is_seven_bit_ascii() -> None:
 def _real_save_path() -> Path | None:
     """Find one real save, or None when the machine has none.
 
-    Routed through ``clockspeed.data.locate`` rather than through a path
-    literal, so the four ``CLOCKSPEED_*`` overrides point this at a nonexistent
-    directory in CI and on any machine with no game installed - which is what
-    makes the skip below reachable rather than theoretical.
+    Routed through ``test_properties._library_save_paths`` rather than through
+    the raw locators, and that is the CONTAINMENT rather than a tidy-up. The
+    locators and the glob used to sit here outside every ``try``, so a failure
+    in any of them unwound through a frame holding the account directory -
+    whose NAME is the platform account id (CLAUDE.md section 2, non-negotiable
+    3). Forcing the glob to raise rendered it under ``-q`` alone.
+
+    The contained discovery is IMPORTED rather than transcribed, for the reason
+    the CS-429 section at the foot of this file gives. It is still routed
+    through ``clockspeed.data.locate`` underneath, so the four ``CLOCKSPEED_*``
+    overrides still point this at a nonexistent directory in CI and on any
+    machine with no game installed - which is what keeps the skip below
+    reachable rather than theoretical.
+
+    IT HOLDS EVERY ``Exception`` AND EVERY ``SystemExit``, stated that way
+    rather than as "it never raises" because that absolute is false: a
+    ``KeyboardInterrupt`` still unwinds, deliberately, so a walk over a real
+    library stays abortable.
 
     Returns:
         A save path, or None.
     """
-    save_root = locate.resolve_save_root()
-    if save_root is None or not save_root.is_dir():
+    try:
+        for candidate in test_properties._library_save_paths():  # noqa: SLF001
+            # `is_file` and `stat` are inside the `try` too. They are the
+            # cheapest possible calls to believe cannot fail, and a save that
+            # vanishes between the glob and the stat makes them fail with the
+            # path in the frame.
+            if candidate.is_file() and candidate.stat().st_size > 0:
+                return candidate
+    # `SystemExit` is named because it is NOT an `Exception`, so `except
+    # Exception` alone lets it through carrying the same frames.
+    except (Exception, SystemExit):
         return None
-    account = locate.resolve_account_dir(save_root)
-    if account is None or not account.is_dir():
-        return None
-    for candidate in sorted(account.glob("*.sav")):
-        if candidate.is_file() and candidate.stat().st_size > 0:
-            return candidate
     return None
+
+
+@dataclass(frozen=True)
+class _RealSaveShape:
+    """What the shape anchor could learn from a real save - SCALARS ONLY.
+
+    No field can hold a path, a blob or a decoded string, which is what makes
+    this type safe to return across the containment boundary and safe for pytest
+    to render.
+
+    Attributes:
+        header_version: The declared header version, or 0 when the read or the
+            walk failed before one was known.
+        shape: The scalar shape tuple, empty on failure.
+        failure: The contained failure's type NAME, or None on success. A type
+            name is safe; a frame that has to unwind to produce one is not.
+    """
+
+    header_version: int
+    shape: tuple[int, ...]
+    failure: str | None
+
+
+def _real_save_shape_or_none() -> _RealSaveShape | None:
+    """Read one real save and reduce it to scalars, containing every failure.
+
+    THE READ USED TO SIT IN THE TEST BODY WITH NO ``try`` AT ALL. ``read_bytes``
+    unwinds through a bound method whose ``self`` IS the save path, and pytest
+    renders the ARGUMENTS of every frame it unwinds with no opt-in flag - so one
+    rendered line carried the Windows account name, the platform account id and
+    the world name together. Measured, not theorised: both a ``MemoryError`` and
+    a ``SystemExit`` forced out of that read rendered all six probed markers
+    under ``-q`` alone.
+
+    The blob is bound HERE and nowhere else, and every step that touches it is
+    inside the ``try``, so no frame holding save bytes can unwind to a caller.
+
+    Returns:
+        The scalars, or None when no save library is reachable.
+    """
+    path = _real_save_path()
+    if path is None:
+        return None
+    try:
+        blob = path.read_bytes()
+        (header_version,) = struct.unpack_from("<i", blob, 0)
+        return _RealSaveShape(header_version=header_version, shape=_shape_of(blob), failure=None)
+    # BROAD BY DESIGN, and `SystemExit` is named beside `Exception` because it
+    # is a `BaseException` and `except Exception` does not hold it. A narrower
+    # catch lets an unexpected type escape carrying the save bytes and the save
+    # path, which is the leak this containment closes.
+    except (Exception, SystemExit) as exc:
+        return _RealSaveShape(header_version=0, shape=(), failure=type(exc).__name__)
 
 
 def test_the_builder_matches_the_shape_of_a_real_save() -> None:
@@ -1212,33 +1292,221 @@ def test_the_builder_matches_the_shape_of_a_real_save() -> None:
     It asserts nothing about content. The comparison is a tuple of ints and
     bools, so a failure repr cannot carry a world name, a session name, an
     account id or a token (non-negotiable 12).
+
+    THAT PROMISE WAS ONCE FALSE, AND CS-429 IS WHY IT IS NOW TRUE. It was always
+    true of the comparison, which really does only hold scalars, and false of
+    the two steps that produced the operands: the discovery and the read both
+    sat outside every ``try`` and both were measured leaking. Neither runs in
+    this frame any more - :func:`_real_save_shape_or_none` performs both behind
+    a containment and hands back scalars - so the docstring now describes the
+    whole test rather than only its last line.
     """
-    path = _real_save_path()
-    if path is None:
+    found = _real_save_shape_or_none()
+    if found is None:
         pytest.skip(
             "no save file on this machine - the anchor needs a real save to compare against"
         )
+    assert found.failure is None, f"the real save did not yield a shape: {found.failure}"
 
-    blob = path.read_bytes()
-    (header_version,) = struct.unpack_from("<i", blob, 0)
     counterpart = {
         _HEADER_10: synthetic.SAVE_V36,
         _HEADER_13: synthetic.SAVE_V42,
         _HEADER_14: synthetic.SAVE_V60,
-    }.get(header_version)
+    }.get(found.header_version)
     if counterpart is None:
         pytest.skip("real save carries a header version the corpus does not model")
 
-    # GUARDED. pytest renders the ARGUMENTS of every frame in a failing
-    # traceback, with no opt-in, so `_shape_of(blob)` raising would print the
-    # head of a REAL SAVE - which is the PII-bearing header carrying the options
-    # string and the session name (non-negotiables 11 and 12). Measured on this
-    # machine, not assumed: a marker planted in a bytes argument of a raising
-    # frame appeared twice in pytest's output. The comparison below is safe
-    # because _shape_of returns scalars and booleans only.
-    try:
-        real_shape = _shape_of(blob)
-    except Exception as exc:
-        pytest.fail(f"the real save did not yield a shape: {type(exc).__name__}", pytrace=False)
     synthetic_shape = _shape_of(counterpart.blob)
-    assert real_shape == synthetic_shape
+    assert found.shape == synthetic_shape
+
+
+# ---------------------------------------------------------------------------
+# CS-429 - the discovery and the read behind control 2 are CONTAINED, and both
+# sites are GRADED
+#
+# Control 2 is the only test in this module that touches a real file, and until
+# this section existed neither half of it was contained. Both leaks were
+# MEASURED under `-q` alone on a machine with a real library, not reasoned
+# about:
+#
+#   THE READ. ``path.read_bytes()`` sat in the test body with NO ``try`` around
+#   it at all. Forcing a ``MemoryError`` out of it rendered the Windows account
+#   name, the platform account id, the account directory, the save root and the
+#   save filename - every marker probed. ``SystemExit`` rendered the same six.
+#
+#   THE DISCOVERY. ``_real_save_path`` called both locators and the glob outside
+#   every ``try``. Forcing the glob to raise rendered the account directory
+#   itself, whose NAME is the platform account id (CLAUDE.md section 2,
+#   non-negotiable 3).
+#
+# THIS SITE WAS THE WORST OF THE FOUR CS-429 NAMES, because the docstring of
+# ``test_the_builder_matches_the_shape_of_a_real_save`` PROMISED that "a failure
+# repr cannot carry a world name, a session name, an account id or a token
+# (non-negotiable 12)" - and that promise measured FALSE. The promise was true
+# of the COMPARISON, which really does only hold scalars, and false of the two
+# steps that produce the operands. A false guarantee is worse than an unguarded
+# bug: it is the reason nobody looked.
+#
+# THE CONTAINMENT IS IMPORTED, NOT TRANSCRIBED. ``test_properties``
+# already owns a contained discovery, the two forced-failure pairs and the
+# reach guard, all with their own graders. A third transcription of a
+# containment is a third place to get it subtly wrong, so this module imports
+# them. That does NOT weaken control 1: what is imported is discovery and
+# grading machinery, never a format constant or a builder opinion, and the
+# module docstring's independence claim is about the latter.
+# ---------------------------------------------------------------------------
+
+#: This module's library-reaching helpers, name to why each reaches.
+_GRADED_LIBRARY_REACH: Final = MappingProxyType(
+    {
+        "_real_save_path": "holds the contained locators and the save glob",
+        "_real_save_shape_or_none": "reads one real save and reduces it to scalars",
+    }
+)
+
+#: Touches a primitive WITHOUT consuming a real save path, name to why.
+#: Asserted still reaching, so an exemption cannot outlive its reason.
+_EXEMPT_LIBRARY_REACH: Final = MappingProxyType(
+    {
+        "test_the_corpus_is_seven_bit_ascii": (
+            "a test rather than a helper, and its read_bytes is on this repo's "
+            "own tracked source files rather than on a discovered save"
+        ),
+    }
+)
+
+
+def test_every_library_reaching_function_here_is_declared() -> None:
+    """The reach guard, keyed on the RISKY primitives rather than the safe route.
+
+    Keyed that way because the inverted alternative has already shipped here
+    once: a guard keyed on the CONTAINED entry point detects safe helpers and is
+    blind to unsafe ones, so every assertion in it stays true while the module
+    leaks. The guard is owned by ``test_properties`` and consumed here, so the
+    three sibling modules share one implementation rather than three
+    transcriptions.
+    """
+    test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+        Path(__file__), graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
+    )
+
+
+def test_the_guard_catches_a_spliced_uncontained_helper(tmp_path: Path) -> None:
+    """The guard's POWER, forced rather than asserted about.
+
+    The splice is this module's OWN pre-repair shape - the locators and the glob
+    outside every ``try`` - wired in exactly as ``_real_save_path`` carried it.
+    Run against a COPY in ``tmp_path``, so nothing tracked is mutated and no
+    restore is needed.
+    """
+    spliced = tmp_path / "spliced.py"
+    spliced.write_text(
+        Path(__file__).read_text(encoding="utf-8") + "\n\ndef _spliced_uncontained_helper():\n"
+        '    """A helper carrying the known-bad shape."""\n'
+        "    save_root = locate.resolve_save_root()\n"
+        "    account = locate.resolve_account_dir(save_root)\n"
+        '    for candidate in sorted(account.glob("*.sav")):\n'
+        "        return candidate.read_bytes()\n"
+        "    return None\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError) as caught:
+        test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+            spliced, graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
+        )
+    assert "_spliced_uncontained_helper" in str(caught.value)
+
+    # The positive control: the same guard on the unspliced source passes, so
+    # the red above is the splice rather than the guard rejecting everything.
+    test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+        Path(__file__), graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
+    )
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_DISCOVERY_FAILURES,  # noqa: SLF001
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_failing_save_root_lookup_does_not_unwind_through_the_anchor(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., object]
+) -> None:
+    """The first of the finder's three discovery calls that sat outside its ``try``."""
+    monkeypatch.setattr(locate, "resolve_save_root", raiser)
+    test_properties._assert_sweep_declines("shape-anchor finder", _real_save_path)  # noqa: SLF001
+    test_properties._assert_sweep_declines(  # noqa: SLF001
+        "shape-anchor reader", _real_save_shape_or_none
+    )
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_DISCOVERY_FAILURES,  # noqa: SLF001
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_failing_account_directory_lookup_does_not_unwind_through_the_anchor(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., object]
+) -> None:
+    """The second, and the one whose frame holds the platform account id."""
+    monkeypatch.setattr(locate, "resolve_save_root", lambda: Path("synthetic-root"))
+    monkeypatch.setattr(locate, "resolve_account_dir", raiser)
+    test_properties._assert_sweep_declines("shape-anchor finder", _real_save_path)  # noqa: SLF001
+    test_properties._assert_sweep_declines(  # noqa: SLF001
+        "shape-anchor reader", _real_save_shape_or_none
+    )
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_DISCOVERY_FAILURES,  # noqa: SLF001
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_failing_save_glob_does_not_unwind_through_the_anchor(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., object]
+) -> None:
+    """The third - it was in the ``for`` statement itself, and it MEASURED a leak.
+
+    Forcing this one rendered the account directory, the save root and the
+    Windows account name under ``-q`` alone.
+    """
+    monkeypatch.setattr(Path, "glob", raiser)
+    test_properties._assert_sweep_declines("shape-anchor finder", _real_save_path)  # noqa: SLF001
+    test_properties._assert_sweep_declines(  # noqa: SLF001
+        "shape-anchor reader", _real_save_shape_or_none
+    )
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_READ_FAILURES,  # noqa: SLF001
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_an_unexpected_read_failure_does_not_unwind_through_the_anchor(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., bytes]
+) -> None:
+    """The read that had NO ``try`` at all - the worst of the four CS-429 sites.
+
+    Parametrized over both forced failures because ``SystemExit`` is a
+    ``BaseException``: a containment written as ``except Exception`` holds
+    ``MemoryError`` and leaks on ``SystemExit``, and one forced type cannot tell
+    those two apart. Both were measured to render all six markers here.
+
+    THE SAVE LIST IS SYNTHETIC, so this runs on a machine with no game
+    installed and never puts a real path into the frame under test.
+    """
+    monkeypatch.setattr(
+        "tests.save.test_synthetic._real_save_path",
+        lambda: test_properties._SYNTHETIC_SAVE,  # noqa: SLF001
+    )
+    monkeypatch.setattr(Path, "read_bytes", raiser)
+    escaped, value = test_properties._contained_call(_real_save_shape_or_none)  # noqa: SLF001
+    assert escaped is None, (
+        f"{escaped} escaped the shape-anchor reader instead of being reduced to a type "
+        "name inside it, and the frame it unwound through held the save path"
+    )
+    reported = getattr(value, "failure", None)
+    assert reported == _forced, (
+        f"the shape-anchor reader reported {reported} rather than the one contained "
+        f"{_forced}, so the unexpected read failure was not recorded as a type name"
+    )

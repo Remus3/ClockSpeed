@@ -193,8 +193,10 @@ import re
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import Final
 
 import pytest
@@ -207,7 +209,11 @@ from clockspeed.data.locate import (
     ENV_SAVE_ROOT,
 )
 from clockspeed.save import chunks, header, objects, workdir, world
-from tests.save import synthetic
+
+# `test_properties` supplies the CONTAINED discovery, the two forced-failure
+# pairs and the library-reach guard, all imported rather than transcribed - see
+# the CS-429 section at the foot of this file.
+from tests.save import synthetic, test_properties
 
 # ---------------------------------------------------------------------------
 # Paths, derived rather than written down
@@ -339,11 +345,28 @@ def test_the_writer_is_on_the_scanned_set_and_is_the_only_exemption() -> None:
 def _real_save_or_skip() -> Path:
     """Return the newest save in the operator's library, or skip.
 
+    ``workdir.latest_save`` resolves the account directory, so a failure inside
+    it unwinds through a frame holding a path whose own NAME is the platform
+    account id. Its docstring promises it never raises for an absent, empty or
+    unresolvable directory - which is a promise about those three states and not
+    about every state, and this module may not rest a privacy claim on another
+    module's promise. The call is therefore contained here regardless.
+
+    ``KeyboardInterrupt`` is deliberately still free to unwind, so a walk over a
+    real library stays abortable; it renders nothing without ``--full-trace``.
+
     Returns:
         The save path. Never rendered into an assertion message - it sits under
         a home directory and carries both the account id and the world name.
     """
-    source = workdir.latest_save()
+    try:
+        source = workdir.latest_save()
+    # `SystemExit` is named beside `Exception` because it is a `BaseException`
+    # and `except Exception` does not hold one. Nothing about the failure is
+    # reported - not even a type name, because a frame that has to unwind to
+    # produce one is exactly what this contains.
+    except (Exception, SystemExit):
+        source = None
     if source is None:
         pytest.skip("no save library on this machine - clause 1 is not gradeable here")
     return source
@@ -357,28 +380,113 @@ def _real_save_of_a_measured_pair_or_skip() -> Path:
     newest file is an UNMEASURED pair that save is refused by design. The test
     would then fail while the reader was behaving exactly as specified.
 
+    THE DISCOVERY IS IMPORTED, NOT TRANSCRIBED. Both locators and the glob used
+    to sit here outside every ``try``; forcing the glob to raise rendered the
+    account directory itself under ``-q`` alone.
+    ``test_properties._library_save_paths`` already contains exactly this
+    sequence and is graded where it lives, so a third transcription of it would
+    be a third place to get it subtly wrong.
+
+    THE PER-SAVE CATCH NOW HAS A BACKSTOP. ``except (HeaderError, OSError)``
+    names the two failures somebody predicted; ``header.read_header(path)``
+    takes the save path as its ARGUMENT, so every other type rendered an
+    absolute path under a home directory on the way out.
+
     Returns:
         The save path. NEVER rendered into an assertion message - it sits under
         a home directory and carries both the account id and the world name.
     """
-    root = locate.resolve_save_root()
-    account = locate.resolve_account_dir(root) if root is not None else None
-    if account is None:
+    saves = test_properties._library_save_paths()  # noqa: SLF001
+    if not saves:
         pytest.skip("no save library on this machine - clause 1 is not gradeable here")
     candidates: list[tuple[float, Path]] = []
-    for path in account.glob("*.sav"):
+    for path in saves:
         try:
             parsed = header.read_header(path)
         except (header.HeaderError, OSError):
+            # The two EXPECTED failures - an unreadable file and a save of a
+            # version this project does not parse - stay silent skips, because
+            # the library legitimately holds both.
             continue
-        if (parsed.header_version, parsed.save_version) in objects.MEASURED_BODY_LAYOUTS:
-            candidates.append((path.stat().st_mtime, path))
+        # THE BACKSTOP, and `SystemExit` is named because it is not an
+        # `Exception`. Nothing about the failure is reported - not even a type
+        # name - because this helper returns a path or skips and has nowhere to
+        # put one.
+        except (Exception, SystemExit):  # noqa: S112 - reporting it IS the leak
+            continue
+        # `path.stat()` gets its own containment: a save that vanishes between
+        # the glob and the stat fails with the path in the frame.
+        try:
+            if (parsed.header_version, parsed.save_version) in objects.MEASURED_BODY_LAYOUTS:
+                candidates.append((path.stat().st_mtime, path))
+        except (Exception, SystemExit):  # noqa: S112 - reporting it IS the leak
+            continue
     if not candidates:
         pytest.skip(
             "no save of a MEASURED body-layout pair on this machine, so clause 1 is not "
             "gradeable here"
         )
     return max(candidates)[1]
+
+
+@dataclass(frozen=True)
+class _MeasuredPairScalars:
+    """What loading one real save of a measured pair yielded - SCALARS ONLY.
+
+    No field can hold a path, a blob, a token or a decoded string, which is what
+    makes this type safe to return across the containment boundary and safe for
+    pytest to render.
+
+    Attributes:
+        record_count: Records in the parsed table, or 0 on failure.
+        token_length: The world token's LENGTH - never the token.
+        level_count: Levels in the body, or 0 on failure.
+        header_version: The declared header version, or 0 on failure.
+        failure: The contained failure's type NAME, or None on success.
+    """
+
+    record_count: int
+    token_length: int
+    level_count: int
+    header_version: int
+    failure: str | None
+
+
+def _measured_pair_scalars_or_skip() -> _MeasuredPairScalars:
+    """Load one real save of a measured pair and reduce it to scalars.
+
+    ``world.load_world(source)`` takes the save path as its ARGUMENT, and the
+    catch around it named ``world.WorldLoadError`` alone - the narrowest of the
+    three catches in this module and the widest gap. Any type outside that one
+    family rendered an absolute path under a home directory the moment pytest
+    unwound the call, and a forced ``MemoryError`` through the reader was
+    measured rendering all six probed markers.
+
+    The model is bound HERE and nowhere else and never crosses back to a caller,
+    so no frame holding a real world can unwind out of this function.
+
+    Returns:
+        The scalars. Never a path, a token or a decoded string.
+    """
+    source = _real_save_of_a_measured_pair_or_skip()
+    try:
+        model = world.load_world(source)
+        return _MeasuredPairScalars(
+            record_count=len(model.objects.records),
+            token_length=len(model.token),
+            level_count=model.objects.level_count,
+            header_version=model.header.header_version,
+            failure=None,
+        )
+    # BROAD BY DESIGN, `SystemExit` named because it is not an `Exception`.
+    except (Exception, SystemExit) as exc:
+        return _MeasuredPairScalars(
+            record_count=0,
+            token_length=0,
+            level_count=0,
+            header_version=0,
+            failure=type(exc).__name__,
+        )
 
 
 def test_a_real_world_parses_end_to_end() -> None:
@@ -394,28 +502,18 @@ def test_a_real_world_parses_end_to_end() -> None:
     the walk steps over by declared length. Passing here means the seam works
     end to end - not that the reader understands a save.
 
-    COUNTS ONLY. It binds derived scalars to locals and asserts on those; it
-    renders no token, no map name, no instance name and no path. The load is
-    GUARDED because pytest renders the ARGUMENTS of a failing frame, and the
-    frame inside the reader holds the whole save.
+    COUNTS ONLY. Every subject is reduced to a scalar inside
+    :func:`_measured_pair_scalars_or_skip` before it crosses back here, so this
+    frame holds no token, no map name, no instance name, no path and no save
+    bytes - there is nothing here for a failing assertion to render.
     """
-    source = _real_save_of_a_measured_pair_or_skip()
+    found = _measured_pair_scalars_or_skip()
 
-    try:
-        model = world.load_world(source)
-    except world.WorldLoadError as exc:
-        pytest.fail(
-            f"a real save of a measured pair did not load: {type(exc).__name__}",
-            pytrace=False,
-        )
-
-    record_count = len(model.objects.records)
-    token_length = len(model.token)
-    level_count = model.objects.level_count
-    assert record_count > 0, "a real world parsed to an empty record table"
-    assert token_length == header.WORLD_TOKEN_LENGTH
-    assert model.header.header_version in header.SUPPORTED_HEADER_VERSIONS
-    assert level_count > 1, "a real body carries a list of levels, not a single table"
+    assert found.failure is None, f"a real save of a measured pair did not load: {found.failure}"
+    assert found.record_count > 0, "a real world parsed to an empty record table"
+    assert found.token_length == header.WORLD_TOKEN_LENGTH
+    assert found.header_version in header.SUPPORTED_HEADER_VERSIONS
+    assert found.level_count > 1, "a real body carries a list of levels, not a single table"
 
 
 def _load_every_real_save() -> tuple[int, int, tuple[str, ...]] | None:
@@ -428,25 +526,36 @@ def _load_every_real_save() -> tuple[int, int, tuple[str, ...]] | None:
     failure is reduced to an exception type name inside this helper, and the
     broad catch is what makes that total rather than nearly total.
 
+    THE DISCOVERY IS IMPORTED, NOT TRANSCRIBED. Both locators and the glob used
+    to sit above the loop outside every ``try``, and forcing the glob to raise
+    rendered the account directory itself under ``-q`` alone.
+    ``test_properties._library_save_paths`` contains exactly that sequence and
+    is graded where it lives.
+
     Returns:
         ``(saves found, saves loaded, failure type names)``, or None when no
         save library is reachable. Never returns a path or a decoded string.
     """
-    root = locate.resolve_save_root()
-    account = locate.resolve_account_dir(root) if root is not None else None
-    if account is None:
+    saves = test_properties._library_save_paths()  # noqa: SLF001
+    if not saves:
         return None
 
     found = loaded = 0
     failures: list[str] = []
-    for path in sorted(account.glob("*.sav")):
+    for path in saves:
         found += 1
         try:
             model = world.load_world(path)
         # BROAD BY DESIGN - see the docstring. The argument in flight is a PATH
         # carrying the account id and the world name, so no exception type may
         # reach a frame pytest would render. The type NAME is preserved.
-        except Exception as exc:
+        #
+        # `SystemExit` IS NAMED BECAUSE IT IS NOT AN `Exception`, and that was
+        # not a theoretical gap here: this catch read `except Exception` alone,
+        # and a forced `SystemExit` escaped it and rendered all six probed
+        # markers under `-q`. `KeyboardInterrupt` is deliberately left free to
+        # unwind so a walk over a real library stays abortable.
+        except (Exception, SystemExit) as exc:
             failures.append(type(exc).__name__)
             continue
         if model.objects.level_count > 1:
@@ -483,6 +592,69 @@ def test_every_real_save_in_the_library_loads_through_the_one_entry_point() -> N
     assert loaded == found, f"only {loaded} of {found} real saves loaded end to end"
 
 
+@dataclass(frozen=True)
+class _BodyPartialScalars:
+    """What the newest real save yielded as far as the chunk layer - SCALARS ONLY.
+
+    Attributes:
+        header_version: The declared header version, or 0 on failure.
+        token_length: The world token's LENGTH - never the token.
+        payload_length: Decompressed payload length, or 0 on failure.
+        chunk_count: Chunks walked, or 0 on failure.
+        failure: The contained failure's type NAME, or None on success.
+    """
+
+    header_version: int
+    token_length: int
+    payload_length: int
+    chunk_count: int
+    failure: str | None
+
+
+def _body_partial_scalars_or_skip() -> _BodyPartialScalars:
+    """Walk the newest real save to the chunk layer and reduce it to scalars.
+
+    THE GUARD HERE CLOSES A LEAK MEASURED ON THIS MACHINE rather than reasoned
+    about. pytest renders the ARGUMENTS of every frame in a failing traceback -
+    no ``--showlocals`` needed, no opt-in. ``source.read_bytes()`` unwinds
+    through a bound method whose ``self`` IS the save path, and passing real
+    save bytes into a frame that can raise prints the HEAD of the file, which is
+    precisely the PII-bearing header: the save name, the options string carrying
+    platform, account id and player display name, and the session name, which is
+    the operator's world name (non-negotiables 11 and 12).
+
+    The catch used to name ``(HeaderError, ChunkError, OSError)`` - three
+    predicted families - and a forced ``MemoryError`` walked straight out of it
+    and rendered the account directory. The blob and the parsed header are bound
+    HERE and nowhere else, so nothing holding either can unwind to a caller.
+
+    Returns:
+        The scalars. Never a path, a token or save bytes.
+    """
+    source = _real_save_or_skip()
+    try:
+        parsed = header.read_header(source)
+        body = chunks.decompress_body(
+            source.read_bytes(), parsed.body_offset, header_version=parsed.header_version
+        )
+        return _BodyPartialScalars(
+            header_version=parsed.header_version,
+            token_length=len(parsed.world_token),
+            payload_length=len(body.payload),
+            chunk_count=body.chunk_count,
+            failure=None,
+        )
+    # BROAD BY DESIGN, `SystemExit` named because it is not an `Exception`.
+    except (Exception, SystemExit) as exc:
+        return _BodyPartialScalars(
+            header_version=0,
+            token_length=0,
+            payload_length=0,
+            chunk_count=0,
+            failure=type(exc).__name__,
+        )
+
+
 def test_a_real_save_reaches_the_body_partial(tmp_path: Path) -> None:
     """CLAUSE 1, PARTIAL - and it is named a partial because that is what it is.
 
@@ -499,34 +671,13 @@ def test_a_real_save_reaches_the_body_partial(tmp_path: Path) -> None:
     off the repo should any future edit introduce a copy.
     """
     assert tmp_path.exists()
-    source = _real_save_or_skip()
+    found = _body_partial_scalars_or_skip()
 
-    # GUARDED, and the guard closes a leak measured on this machine rather than
-    # reasoned about. pytest renders the ARGUMENTS of every frame in a failing
-    # traceback - no --showlocals needed, no opt-in. Passing real save bytes into
-    # a frame that can raise therefore prints the HEAD of the file, and the head
-    # of a save is precisely the PII-bearing header: the save name, the options
-    # string carrying platform, account id and player display name, and the
-    # session name, which is the operator's world name (non-negotiables 11, 12).
-    # Nothing may raise with those bytes in flight.
-    try:
-        parsed = header.read_header(source)
-        body = chunks.decompress_body(
-            source.read_bytes(), parsed.body_offset, header_version=parsed.header_version
-        )
-    except (header.HeaderError, chunks.ChunkError, OSError) as exc:
-        pytest.fail(
-            f"the newest real save did not reach a body: {type(exc).__name__}", pytrace=False
-        )
-
-    token_length = len(parsed.world_token)
-    payload_length = len(body.payload)
-    chunk_count = body.chunk_count
-
-    assert parsed.header_version in header.SUPPORTED_HEADER_VERSIONS
-    assert token_length == header.WORLD_TOKEN_LENGTH
-    assert chunk_count >= 1
-    assert payload_length > 0
+    assert found.failure is None, f"the newest real save did not reach a body: {found.failure}"
+    assert found.header_version in header.SUPPORTED_HEADER_VERSIONS
+    assert found.token_length == header.WORLD_TOKEN_LENGTH
+    assert found.chunk_count >= 1
+    assert found.payload_length > 0
 
 
 # The FLAT fixtures that load through the one entry point. SAVE_V42 joined this
@@ -2423,6 +2574,256 @@ def test_no_save_module_defines_its_own_redactor(relative: str) -> None:
     )
 
 
+# --- CS-423: a module that calls no redactor states WHY, and it is checked ----
+#
+# THE SWEEP ABOVE USED TO SKIP, AND THE SKIP WAS THE BUG. Four of the seven
+# scanned modules emitted `SKIPPED ... calls no redactor` on every run, one of
+# them the module holding decoded world content. That is the unrun-gate failure
+# class: a skip is invisible in a green summary line, and this one had been
+# visible-but-ignored since before the module it most mattered for grew its leak
+# surface.
+#
+# THE HONEST COMPLICATION IS WHY THIS IS NOT SIMPLY A BUG. "Calls no redactor"
+# is arguably CORRECT for all four. `clockspeed.data.locate.redact()` strips
+# PATHS, account names and account ids; a module that never receives a path has
+# nothing for it to strip, and calling it anyway would be cargo cult. So the
+# skip was defensible and the SILENCE was not.
+#
+# WHAT IS GENERALISED HERE IS THE QUESTION, NOT THE ANSWER. The question asked
+# of every module in the scanned set is the same one - "if you do not redact,
+# what stops you rendering personal data?" - and the four answers genuinely
+# differ. A single blanket assertion over all four would be the thing that reads
+# as coverage and is not. Each module therefore declares one or more mitigation
+# KINDS from a closed set, and each kind has its own checker that is asserted
+# LIVE against the shipped source.
+#
+# EVERY KIND IS DISCRIMINATING RATHER THAN UNIVERSAL, and that is checked:
+# `test_each_absence_checker_rejects_the_violation_it_describes` splices the
+# matching violation into a copy of a real module and asserts the checker goes
+# red. A checker that passed on everything would be worse than the skip it
+# replaced, because it would look like a grade.
+#
+# `redact()` IS ALSO A MEASURED NO-OP ON THE PINNED PROJECT ROOT, so an oracle
+# built on "the redacted rendering differs from the raw one" would pass here and
+# fail on a clone under a home directory. Nothing below depends on redact()
+# transforming anything.
+
+#: The module defines no function and no class, so it has no surface that could
+#: raise or render in the first place.
+_MITIGATION_NO_CODE: Final = "defines-no-code"
+
+#: No path ever reaches the module - no pathlib import, no ``Path`` annotation
+#: and no filesystem primitive - so the redactor would have nothing to strip.
+_MITIGATION_NO_PATH: Final = "no-path-reaches-it"
+
+#: The module parses save bytes but RETAINS none of them: no dataclass field it
+#: exposes is annotated ``bytes``. Records reference the caller's buffer by
+#: offset and length instead. THIS IS THE ONE CS-423 NAMES - absence of the
+#: value rather than redaction of it - and it is the assertion that goes red the
+#: day the module starts holding one.
+_MITIGATION_RETAINS_NO_SAVE_BYTES: Final = "retains-no-save-bytes"
+
+#: The module DOES take a path, but no ``raise`` in it names one: every failure
+#: is reported as a stage constant plus an exception type name, and the path
+#: handling is delegated to a module that does redact.
+_MITIGATION_PATH_IS_NEVER_RAISED: Final = "path-is-never-raised"
+
+#: Attribute or bare names through which a path can enter a module. ``rglob``
+#: and ``read_text`` are included here even though the reach guard for the test
+#: modules excludes them, because the subject differs: a SAVE module has no
+#: legitimate reason to walk the tree or read a file at all.
+_FILESYSTEM_PRIMITIVES: Final = frozenset(
+    (
+        "open",
+        "read_bytes",
+        "read_text",
+        "write_bytes",
+        "write_text",
+        "glob",
+        "rglob",
+        "iterdir",
+        "resolve",
+        "expanduser",
+        "home",
+        "cwd",
+        "stat",
+    )
+)
+
+
+def _defines_no_code(tree: ast.Module) -> list[str]:
+    """Violations of :data:`_MITIGATION_NO_CODE`.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        The names of any functions or classes defined, empty when there are none.
+    """
+    return [
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef)
+    ]
+
+
+def _path_reaches(tree: ast.Module) -> list[str]:
+    """Violations of :data:`_MITIGATION_NO_PATH`.
+
+    Three ways a path gets in, and all three are checked: imported, annotated,
+    or produced by a filesystem call.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        Short labels for each way a path reaches the module.
+    """
+    found: list[str] = []
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.ImportFrom) and node.module == "pathlib") or (
+            isinstance(node, ast.Import) and any(a.name == "pathlib" for a in node.names)
+        ):
+            found.append("imports pathlib")
+        elif isinstance(node, ast.arg) and node.annotation is not None:
+            if "Path" in ast.unparse(node.annotation):
+                found.append(f"parameter {node.arg}")
+        elif isinstance(node, ast.FunctionDef) and node.returns is not None:
+            if "Path" in ast.unparse(node.returns):
+                found.append(f"returns from {node.name}")
+        elif isinstance(node, ast.Call):
+            func = node.func
+            if isinstance(func, ast.Attribute) and func.attr in _FILESYSTEM_PRIMITIVES:
+                found.append(f"calls .{func.attr}")
+            elif isinstance(func, ast.Name) and func.id in _FILESYSTEM_PRIMITIVES:
+                found.append(f"calls {func.id}")
+    return sorted(set(found))
+
+
+def _retained_bytes_fields(tree: ast.Module) -> list[str]:
+    """Violations of :data:`_MITIGATION_RETAINS_NO_SAVE_BYTES`.
+
+    A dataclass field annotated ``bytes`` is the module HOLDING save content
+    rather than pointing at the caller's copy of it. That is the precise sense
+    in which the mitigation is absence-of-value, and the precise thing that
+    would stop being true.
+
+    NOT A UNIVERSAL PROPERTY, which is what makes it a grade rather than a
+    decoration: ``chunks.DecompressedBody.payload`` is annotated ``bytes``,
+    correctly and by design, so ``chunks.py`` cannot and does not claim this
+    kind.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        ``Class.field`` for each bytes-typed dataclass field.
+    """
+    found: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        if not any(ast.unparse(d).startswith("dataclass") for d in node.decorator_list):
+            continue
+        found.extend(
+            f"{node.name}.{stmt.target.id}"
+            for stmt in node.body
+            if isinstance(stmt, ast.AnnAssign)
+            and isinstance(stmt.target, ast.Name)
+            and "bytes" in ast.unparse(stmt.annotation)
+        )
+    return found
+
+
+def _raises_naming_a_path(tree: ast.Module) -> list[str]:
+    """Violations of :data:`_MITIGATION_PATH_IS_NEVER_RAISED`.
+
+    The needles are DERIVED from the module's own signatures - every parameter
+    it annotates as a ``Path`` - rather than written down, so the check cannot
+    drift from the names it is about. A module that renames its path parameter
+    is still checked; a module that adds a second one is checked on that too.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        The unparsed raise expressions that mention a path-annotated name.
+    """
+    needles = {
+        node.arg
+        for node in ast.walk(tree)
+        if isinstance(node, ast.arg)
+        and node.annotation is not None
+        and "Path" in ast.unparse(node.annotation)
+    }
+    if not needles:
+        return []
+    found: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Raise) or node.exc is None:
+            continue
+        mentioned = {
+            inner.id for inner in ast.walk(node.exc) if isinstance(inner, ast.Name)
+        } & needles
+        if mentioned:
+            found.append(f"line {node.lineno} raises naming {sorted(mentioned)}")
+    return found
+
+
+#: Kind to the checker that decides whether it holds. Each returns the
+#: VIOLATIONS it found, so an empty list means the mitigation holds.
+_MITIGATION_CHECKERS: Final = MappingProxyType(
+    {
+        _MITIGATION_NO_CODE: _defines_no_code,
+        _MITIGATION_NO_PATH: _path_reaches,
+        _MITIGATION_RETAINS_NO_SAVE_BYTES: _retained_bytes_fields,
+        _MITIGATION_PATH_IS_NEVER_RAISED: _raises_naming_a_path,
+    }
+)
+
+_MITIGATION_KINDS: Final = frozenset(_MITIGATION_CHECKERS)
+
+#: Every scanned module that calls NO redactor, to the mitigation kinds that
+#: make that correct there and the reason each is the right answer FOR THAT
+#: MODULE. This is the shipped data CS-423 asks for, in place of a skip and in
+#: place of a comment: a comment cannot be asserted and cannot go red.
+_ABSENCE_MITIGATIONS: Final = MappingProxyType(
+    {
+        "__init__.py": (
+            (_MITIGATION_NO_CODE,),
+            "a re-export surface with no statements of its own, so there is no "
+            "frame, no message and no repr in it that could render anything",
+        ),
+        "chunks.py": (
+            (_MITIGATION_NO_PATH,),
+            "it works on a blob handed to it by a caller and never learns where "
+            "that blob came from. It DOES retain save bytes - DecompressedBody."
+            "payload is the decompressed body and is its whole purpose - so it "
+            "deliberately does not claim retains-no-save-bytes",
+        ),
+        "objects.py": (
+            (_MITIGATION_NO_PATH, _MITIGATION_RETAINS_NO_SAVE_BYTES),
+            "THE MODULE CS-423 IS ABOUT. Its mitigation is absence rather than "
+            "redaction, in two independent senses. No path reaches it, so the "
+            "redactor - which strips paths, account names and account ids - "
+            "would have nothing to strip. And it parses the body without "
+            "RETAINING it: every record points into the caller's buffer by "
+            "offset and length, so no field of any type it returns is bytes. "
+            "The decoded values it does hold live behind hand-written reprs "
+            "that withhold every string, which is a separate guarantee graded "
+            "by tests/save/test_properties.py rather than restated here",
+        ),
+        "world.py": (
+            (_MITIGATION_PATH_IS_NEVER_RAISED,),
+            "the one of the four that DOES take a path, so no-path-reaches-it "
+            "is unavailable to it and would be a false claim. It refuses by "
+            "raising WorldLoadError(stage constant, exception type name) and "
+            "delegates every path-handling step to workdir, which redacts",
+        ),
+    }
+)
+
+
 def _redact_call_lines(source: str) -> list[int]:
     """Find every line that actually CALLS a redactor, prose excluded.
 
@@ -2459,13 +2860,130 @@ def test_every_redact_call_resolves_to_the_locate_redactor(relative: str) -> Non
     """
     source = (SAVE_PACKAGE / relative).read_text(encoding="utf-8")
     if not _redact_call_lines(source):
-        pytest.skip(f"clockspeed/save/{relative} calls no redactor")
+        # NOT A SKIP ANY MORE, AND THAT IS CS-423. This line used to read
+        # `pytest.skip(f"clockspeed/save/{relative} calls no redactor")`, and it
+        # fired on FOUR of the seven scanned modules - including the one with
+        # the largest leak surface in the package. A privacy oracle that skips
+        # is the unrun-gate class from memory/test-quality-failure-classes.md:
+        # a skipped suite is not a passing suite, and the skip was visible in
+        # every single run for as long as it existed. The module is handed to
+        # the absence grader below instead, which is where the real work is.
+        assert relative in _ABSENCE_MITIGATIONS, (
+            f"clockspeed/save/{relative} calls no redactor and declares no mitigation "
+            "either, so nothing in this suite grades how it avoids rendering personal "
+            f"data; add it to _ABSENCE_MITIGATIONS with a kind from {sorted(_MITIGATION_KINDS)}"
+        )
+        return
 
+    assert relative not in _ABSENCE_MITIGATIONS, (
+        f"clockspeed/save/{relative} declares an absence mitigation but now calls "
+        "redact(), so the declaration describes code that no longer exists"
+    )
     imports_directly = "from clockspeed.data.locate import" in source and "redact" in source
     imports_module = "from clockspeed.data import locate" in source
     assert imports_directly or imports_module, (
         f"clockspeed/save/{relative} calls redact() without importing it from "
         "clockspeed.data.locate, so it is calling something else"
+    )
+
+
+@pytest.mark.parametrize("relative", sorted(_ABSENCE_MITIGATIONS))
+def test_every_declared_absence_mitigation_actually_holds(relative: str) -> None:
+    """CS-423 - the four modules that call no redactor are GRADED, not skipped.
+
+    This is the assertion that replaces ``SKIPPED ... calls no redactor``. Each
+    module's declared kinds are run against its SHIPPED source, so the
+    declaration is a claim about code rather than a note about intent.
+
+    IT CAN GO RED, WHICH IS THE POINT. For ``objects.py`` the claim is
+    absence-of-value, and it fails the moment the module starts holding one: add
+    a ``bytes`` field to any of its dataclasses and
+    ``retains-no-save-bytes`` reports it; give any function a ``Path``
+    parameter and ``no-path-reaches-it`` reports that.
+    """
+    kinds, reason = _ABSENCE_MITIGATIONS[relative]
+    assert reason.strip(), f"{relative} declares a mitigation with no reason"
+    assert kinds, f"{relative} declares no mitigation kind at all"
+    unknown = sorted(set(kinds) - _MITIGATION_KINDS)
+    assert not unknown, f"{relative} declares unknown mitigation kinds {unknown}"
+
+    tree = ast.parse((SAVE_PACKAGE / relative).read_text(encoding="utf-8"))
+    for kind in kinds:
+        violations = _MITIGATION_CHECKERS[kind](tree)
+        assert not violations, (
+            f"clockspeed/save/{relative} declares the mitigation {kind!r} and no longer "
+            f"satisfies it: {violations}. Either the module changed and its declared "
+            "mitigation is now false, or the declaration was wrong when it was written"
+        )
+
+
+def test_the_declared_absences_are_exactly_the_modules_that_call_no_redactor() -> None:
+    """The declaration set is DERIVED-CHECKED against the scanned set, both ways.
+
+    Both directions matter and they fail differently. A module that stops
+    calling the redactor and is not declared would silently fall out of every
+    grade - the original CS-423 defect - and a declaration that outlives the
+    module it describes is a note about code that no longer exists.
+    """
+    silent = {
+        relative
+        for relative in SAVE_SOURCES
+        if not _redact_call_lines((SAVE_PACKAGE / relative).read_text(encoding="utf-8"))
+    }
+
+    assert silent == frozenset(_ABSENCE_MITIGATIONS), (
+        f"undeclared modules that call no redactor: "
+        f"{sorted(silent - frozenset(_ABSENCE_MITIGATIONS))}; declarations that no "
+        f"longer describe a silent module: {sorted(frozenset(_ABSENCE_MITIGATIONS) - silent)}"
+    )
+    # NON-VACUITY. If every module called the redactor this test would pass by
+    # comparing two empty sets, and so would every grade above it.
+    assert silent, "no module calls the redactor-free path, so the absence graders are vacuous"
+
+
+@pytest.mark.parametrize(
+    ("kind", "splice"),
+    [
+        (_MITIGATION_NO_CODE, "\n\ndef _spliced_surface():\n    return 1\n"),
+        (
+            _MITIGATION_NO_PATH,
+            "\n\nfrom pathlib import Path\n\n\ndef _spliced(p: Path):\n    return p.read_bytes()\n",
+        ),
+        (
+            _MITIGATION_RETAINS_NO_SAVE_BYTES,
+            "\n\n@dataclass(frozen=True)\nclass _Spliced:\n    payload: bytes\n",
+        ),
+        (
+            _MITIGATION_PATH_IS_NEVER_RAISED,
+            "\n\ndef _spliced(path: Path):\n    raise ValueError(path)\n",
+        ),
+    ],
+    ids=lambda value: value if value in _MITIGATION_KINDS else "",
+)
+def test_each_absence_checker_rejects_the_violation_it_describes(kind: str, splice: str) -> None:
+    """THE CHECKERS' POWER, forced rather than asserted about.
+
+    A checker that returned an empty list on everything would pass every grade
+    above and would be strictly worse than the skip it replaced, because it
+    would look like a grade. Each violation is spliced into a copy of the
+    module that declares that kind, in memory, and the checker must report it.
+
+    The positive control runs in the same test: the same checker on the
+    UNSPLICED source of the same module must stay clean, so a red above is the
+    splice rather than a checker that rejects everything.
+    """
+    relative = next(
+        name for name, (kinds, _reason) in _ABSENCE_MITIGATIONS.items() if kind in kinds
+    )
+    checker = _MITIGATION_CHECKERS[kind]
+    source = (SAVE_PACKAGE / relative).read_text(encoding="utf-8")
+
+    assert not checker(ast.parse(source)), (
+        f"the positive control failed: {relative} does not satisfy {kind!r} unspliced"
+    )
+    assert checker(ast.parse(source + splice)), (
+        f"the {kind!r} checker passed a module carrying the exact violation it names, "
+        "so it grades nothing"
     )
 
 
@@ -2496,3 +3014,349 @@ def test_the_redactor_call_finder_separates_calls_from_prose() -> None:
     assert _redact_definitions("from clockspeed.data.locate import redact\n") == []
     assert _redact_definitions("from clockspeed.data import locate\n") == []
     assert _redact_definitions("def f(p):\n    return redact(p)\n") == []
+
+
+# ---------------------------------------------------------------------------
+# CS-429 - the three real-library helpers here are CONTAINED, and every site is
+# GRADED
+#
+# Three helpers in this module reach the operator's save library, and until this
+# section existed nothing forced a failure through any of them. Which ones they
+# are is DERIVED rather than counted here - ``test_every_library_reaching_
+# function_here_is_declared`` reads this module's own AST - so adding one cannot
+# falsify this paragraph.
+#
+# EVERY LEAK BELOW WAS MEASURED UNDER `-q` ALONE on a machine with a real
+# library, by forcing one failure and probing the output for markers. Six
+# markers were probed: the Windows account name, the account directory NAME
+# (which is the platform account id), the save root, the account directory path,
+# the save filename stem and the full save path.
+#
+#   THE DISCOVERY. ``locate.resolve_save_root``, ``locate.resolve_account_dir``
+#   and the save glob sat outside every ``try`` in two of the three helpers.
+#   Forcing the glob to raise rendered FOUR of the six markers, the account
+#   directory among them (CLAUDE.md section 2, non-negotiable 3).
+#
+#   THE READ. ``header.read_header(path)`` sat under ``except (HeaderError,
+#   OSError)`` and ``world.load_world(path)`` under ``except Exception``. Both
+#   name the failures somebody predicted. Forcing a ``MemoryError`` through the
+#   first rendered ALL SIX markers; forcing a ``SystemExit`` through the second
+#   rendered ALL SIX as well, because ``SystemExit`` is a ``BaseException`` and
+#   ``except Exception`` does not hold one.
+#
+#   TWO TYPES FORCE IT, AND ONE HANDLER SHAPE DOES NOT HOLD BOTH. That
+#   ``SystemExit`` result is the whole reason every read grader below is
+#   parametrized over both forced failures rather than one. ``KeyboardInterrupt``
+#   is deliberately left free to unwind so that a walk over a real library stays
+#   abortable; it renders nothing without ``--full-trace``.
+#
+# EVERY SUBJECT BELOW IS SYNTHETIC. The graders run on a machine with no game
+# installed and no save library, never put a real path into the frame under
+# test, and reduce every assertion to a type NAME, an integer or a boolean
+# first - a test that grades a leak must not be the leak.
+# ---------------------------------------------------------------------------
+
+#: The helpers whose containment the graders below force a failure through.
+_GRADED_LIBRARY_REACH: Final = MappingProxyType(
+    {
+        "_real_save_or_skip": "wraps workdir.latest_save",
+        "_real_save_of_a_measured_pair_or_skip": "reads the header of every save in the library",
+        "_load_every_real_save": "loads every save in the library",
+        "_body_partial_scalars_or_skip": "reads the newest save whole",
+        "_measured_pair_scalars_or_skip": "loads a real save through world.load_world",
+    }
+)
+
+#: Reaches or touches a primitive without being a grader-able library helper,
+#: name to why. Asserted still reaching, so none outlives its reason.
+_EXEMPT_LIBRARY_REACH: Final = MappingProxyType(
+    {
+        "_fingerprint": (
+            "reads bytes under a pretend save root supplied by the caller as "
+            "tmp_path, never a discovered save directory"
+        ),
+        "test_the_fingerprint_detects_a_single_changed_byte": (
+            "a test rather than a helper, and its read_bytes is on a synthetic "
+            "save written into tmp_path"
+        ),
+    }
+)
+
+
+def _assert_contained_outcome(label: str, expected: str, call: Callable[[], object]) -> None:
+    """Assert a helper ended in the named CONTAINED outcome rather than unwinding.
+
+    Both operands are exception type NAMES, so a failure here renders two class
+    names and the label and nothing else. That is deliberate: the helpers under
+    test hold a save path, and a grader that rendered one would be the leak it
+    grades.
+
+    Args:
+        label: What to call the helper in a failure message.
+        expected: The type name of the outcome the containment must produce.
+        call: The helper.
+    """
+    escaped, _value = test_properties._contained_call(call)  # noqa: SLF001
+    assert escaped == expected, (
+        f"the {label} ended in {escaped} rather than {expected}, so the failure was not "
+        "contained and every frame it unwound through held a save path"
+    )
+
+
+def test_every_library_reaching_function_here_is_declared() -> None:
+    """The reach guard, keyed on the RISKY primitives rather than the safe route.
+
+    Keyed that way because the inverted alternative has already shipped in this
+    package once: a guard keyed on the CONTAINED entry point detects safe
+    helpers and is blind to unsafe ones, so every assertion in it stays true
+    while the module leaks. The guard is owned by ``test_properties`` and
+    consumed here, so the sibling modules share one implementation rather than
+    several transcriptions.
+    """
+    test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+        Path(__file__), graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
+    )
+
+
+def test_the_guard_catches_a_spliced_uncontained_helper(tmp_path: Path) -> None:
+    """The guard's POWER, forced rather than asserted about.
+
+    The splice is this module's OWN pre-repair shape - the locators and the glob
+    outside every ``try``, under a catch naming two families - wired in exactly
+    as ``_real_save_of_a_measured_pair_or_skip`` carried it. Run against a COPY
+    in ``tmp_path``, so nothing tracked is mutated and no restore is needed.
+    """
+    spliced = tmp_path / "spliced.py"
+    spliced.write_text(
+        Path(__file__).read_text(encoding="utf-8") + "\n\ndef _spliced_uncontained_helper():\n"
+        '    """A helper carrying the known-bad shape."""\n'
+        "    root = locate.resolve_save_root()\n"
+        "    account = locate.resolve_account_dir(root)\n"
+        '    for path in sorted(account.glob("*.sav")):\n'
+        "        try:\n"
+        "            return header.read_header(path)\n"
+        "        except (OSError, header.HeaderError):\n"
+        "            continue\n"
+        "    return None\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError) as caught:
+        test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+            spliced, graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
+        )
+    assert "_spliced_uncontained_helper" in str(caught.value)
+
+    # The positive control: the same guard on the unspliced source passes, so
+    # the red above is the splice rather than the guard rejecting everything.
+    test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+        Path(__file__), graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
+    )
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_DISCOVERY_FAILURES,  # noqa: SLF001
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_failing_newest_save_lookup_does_not_unwind_through_clause_one(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., object]
+) -> None:
+    """``workdir.latest_save`` resolves the account directory and sat outside any ``try``.
+
+    Its own docstring promises it never raises for an absent, empty or
+    unresolvable directory - a promise about those three states and not about
+    every state, and this module cannot rest a privacy claim on another
+    module's promise.
+    """
+    monkeypatch.setattr(workdir, "latest_save", raiser)
+    _assert_contained_outcome(
+        "newest-save helper", pytest.skip.Exception.__name__, _real_save_or_skip
+    )
+    _assert_contained_outcome(
+        "body-partial helper", pytest.skip.Exception.__name__, _body_partial_scalars_or_skip
+    )
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_DISCOVERY_FAILURES,  # noqa: SLF001
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_failing_save_root_lookup_does_not_unwind_through_either_library_walk(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., object]
+) -> None:
+    """The first of the three discovery calls both library walks made bare."""
+    monkeypatch.setattr(locate, "resolve_save_root", raiser)
+    _assert_contained_outcome(
+        "measured-pair finder",
+        pytest.skip.Exception.__name__,
+        _real_save_of_a_measured_pair_or_skip,
+    )
+    test_properties._assert_sweep_declines("library sweep", _load_every_real_save)  # noqa: SLF001
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_DISCOVERY_FAILURES,  # noqa: SLF001
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_failing_account_directory_lookup_does_not_unwind_through_either_library_walk(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., object]
+) -> None:
+    """The second, and the one whose frame holds the platform account id."""
+    monkeypatch.setattr(locate, "resolve_save_root", lambda: Path("synthetic-root"))
+    monkeypatch.setattr(locate, "resolve_account_dir", raiser)
+    _assert_contained_outcome(
+        "measured-pair finder",
+        pytest.skip.Exception.__name__,
+        _real_save_of_a_measured_pair_or_skip,
+    )
+    test_properties._assert_sweep_declines("library sweep", _load_every_real_save)  # noqa: SLF001
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_DISCOVERY_FAILURES,  # noqa: SLF001
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_failing_save_glob_does_not_unwind_through_either_library_walk(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., object]
+) -> None:
+    """The third - it was in the ``for`` statement itself, and it MEASURED a leak.
+
+    Forcing this one rendered the account directory itself, the save root and
+    the Windows account name under ``-q`` alone, through both walks.
+    """
+    monkeypatch.setattr(Path, "glob", raiser)
+    _assert_contained_outcome(
+        "measured-pair finder",
+        pytest.skip.Exception.__name__,
+        _real_save_of_a_measured_pair_or_skip,
+    )
+    test_properties._assert_sweep_declines("library sweep", _load_every_real_save)  # noqa: SLF001
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_READ_FAILURES,  # noqa: SLF001
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_an_unexpected_header_read_failure_does_not_unwind_through_the_measured_pair_finder(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., object]
+) -> None:
+    """``except (HeaderError, OSError)`` names the two failures somebody predicted.
+
+    ``header.read_header(path)`` takes the save path as its ARGUMENT, so any
+    other type renders an absolute path under a home directory the moment pytest
+    unwinds the call. Measured: a forced ``MemoryError`` here rendered all six
+    probed markers.
+
+    The finder has nowhere to record a type name - it returns a path or skips -
+    so containment here means skipping.
+    """
+    monkeypatch.setattr(
+        test_properties,
+        "_library_save_paths",
+        lambda: (test_properties._SYNTHETIC_SAVE,),  # noqa: SLF001
+    )
+    monkeypatch.setattr(header, "read_header", raiser)
+    _assert_contained_outcome(
+        "measured-pair finder",
+        pytest.skip.Exception.__name__,
+        _real_save_of_a_measured_pair_or_skip,
+    )
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_READ_FAILURES,  # noqa: SLF001
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_an_unexpected_load_failure_does_not_unwind_through_the_library_sweep(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., object]
+) -> None:
+    """``except Exception`` held the ``MemoryError`` and leaked on the ``SystemExit``.
+
+    This is the site that proves the parametrization earns its keep rather than
+    doubling the count: the sweep's catch was ``except Exception``, so the first
+    forced failure was already contained and only the second one was red. A
+    grader forcing ``MemoryError`` alone would have passed on leaking code.
+    """
+    monkeypatch.setattr(
+        test_properties,
+        "_library_save_paths",
+        lambda: (test_properties._SYNTHETIC_SAVE,),  # noqa: SLF001
+    )
+    monkeypatch.setattr(world, "load_world", raiser)
+    escaped, value = test_properties._contained_call(_load_every_real_save)  # noqa: SLF001
+    assert escaped is None, (
+        f"{escaped} escaped the library sweep instead of being reduced to a type name "
+        "inside it, and the frame it unwound through held the save path"
+    )
+    # Reduced to scalars before the assertion, so a failure renders integers and
+    # exception type names and nothing else - never a path and never a save.
+    assert isinstance(value, tuple), (
+        "the library sweep declined instead of recording the contained failure"
+    )
+    assert value == (1, 0, (_forced,)), (
+        f"the library sweep reported {value} rather than the one contained {_forced}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_READ_FAILURES,  # noqa: SLF001
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_an_unexpected_read_failure_does_not_unwind_through_the_body_partial(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., object]
+) -> None:
+    """``source.read_bytes()`` sat under a catch naming three predicted families.
+
+    Forced through ``header.read_header`` rather than through ``read_bytes``
+    because ``read_header`` runs first and opens the file itself: a synthetic
+    path makes it raise before the ``read_bytes`` line is ever reached, so
+    patching ``read_bytes`` alone would grade nothing.
+    """
+    monkeypatch.setattr(workdir, "latest_save", lambda: test_properties._SYNTHETIC_SAVE)  # noqa: SLF001
+    monkeypatch.setattr(header, "read_header", raiser)
+    escaped, value = test_properties._contained_call(_body_partial_scalars_or_skip)  # noqa: SLF001
+    assert escaped is None, (
+        f"{escaped} escaped the body-partial helper instead of being reduced to a type "
+        "name inside it, and the frame it unwound through held the save path"
+    )
+    reported = getattr(value, "failure", None)
+    assert reported == _forced, (
+        f"the body-partial helper reported {reported} rather than the one contained {_forced}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_READ_FAILURES,  # noqa: SLF001
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_an_unexpected_load_failure_does_not_unwind_through_the_measured_pair_load(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., object]
+) -> None:
+    """``except world.WorldLoadError`` is the narrowest catch of the three, and the widest gap.
+
+    ``world.load_world(source)`` takes the save path as its ARGUMENT, so any
+    type outside that one family renders an absolute path under a home
+    directory the moment pytest unwinds the call.
+    """
+    monkeypatch.setattr(
+        "tests.save.test_phase4_gate._real_save_of_a_measured_pair_or_skip",
+        lambda: test_properties._SYNTHETIC_SAVE,  # noqa: SLF001
+    )
+    monkeypatch.setattr(world, "load_world", raiser)
+    escaped, value = test_properties._contained_call(_measured_pair_scalars_or_skip)  # noqa: SLF001
+    assert escaped is None, (
+        f"{escaped} escaped the measured-pair loader instead of being reduced to a type "
+        "name inside it, and the frame it unwound through held the save path"
+    )
+    reported = getattr(value, "failure", None)
+    assert reported == _forced, (
+        f"the measured-pair loader reported {reported} rather than the one contained {_forced}"
+    )
