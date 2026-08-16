@@ -782,10 +782,27 @@ def _read_schema(
     An unresolvable SUPER index keeps the schema, because its name and its
     properties are still readable and only the super type is lost.
 
+    THE THREE FAILURES GET DISTINCT WARNING KEYS, and that is load bearing
+    rather than tidy - the same fact :func:`_read_enums` records one section
+    away, and this function is where CS-431 measured it a second time.
+    :class:`_WarningLog` aggregates by ``(code, subject)`` and keeps the FIRST
+    detail it was given, so two conditions sharing a key do not produce two
+    warnings: the first one's sentence stands for both and the second is reduced
+    to a count. While all three shared the bare ``schema-N`` subject, a schema
+    whose own name AND super index were unresolvable surfaced only the super
+    index's sentence - a statement about the super type of a schema that in that
+    case is ABSENT from the mapping entirely. That is not an under-report, it is
+    a TRUE sentence replaced by a FALSE one, which is the "never silently wrong"
+    half of non-negotiable 7 rather than the "never fatal" half.
+
+    The bare ``schema-N`` stays with the schema's OWN name because that is the
+    condition deciding whether the schema survives at all; each sub-site
+    qualifies it, exactly as ``enum-N`` and ``enum-N-member`` do.
+
     Args:
         reader: Positioned at the schema's name index.
         names: The name table.
-        position: Index of this schema, used as a warning subject.
+        position: Index of this schema, used to build its warning subjects.
         log: Where flagged content is recorded.
 
     Returns:
@@ -805,7 +822,7 @@ def _read_schema(
             # silently wrong" half).
             log.add(
                 WARN_UNRESOLVED_NAME,
-                f"schema-{position}",
+                f"schema-{position}-super",
                 "a schema super index fell outside the name table; the super type was not resolved",
             )
     reader.u16("schema_property_count")
@@ -831,7 +848,7 @@ def _read_schema(
         if property_name is None:
             log.add(
                 WARN_UNRESOLVED_NAME,
-                f"schema-{position}",
+                f"schema-{position}-property",
                 "a property name index fell outside the name table; the property was skipped",
             )
             continue

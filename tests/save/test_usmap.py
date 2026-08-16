@@ -1641,11 +1641,15 @@ def test_an_out_of_bounds_super_index_is_flagged_rather_than_read_as_no_super() 
     # The sentinel is silent: the negative control that gives the next
     # assertion its meaning.
     assert genuine.warnings == ()
-    # And the unresolvable index is flagged, with the same code and the same
-    # structural subject its two siblings already use. Asserted as what IS
-    # there rather than as an absence.
+    # And the unresolvable index is flagged, with the same code its two siblings
+    # use and a subject naming which of the three sites failed. Asserted as what
+    # IS there rather than as an absence.
+    #
+    # THE SUBJECT WAS THE BARE ``schema-0`` UNTIL CS-431, shared with the schema
+    # name and the property name. Section 13 records what that cost; the change
+    # here is the one line of this test it touched.
     assert [(warning.code, warning.subject) for warning in unresolvable.warnings] == [
-        (usmap.WARN_UNRESOLVED_NAME, "schema-0")
+        (usmap.WARN_UNRESOLVED_NAME, "schema-0-super")
     ]
 
 
@@ -2426,3 +2430,289 @@ def test_the_real_usmap_repr_quotes_nothing() -> None:
     _assert_quotes_nothing(repr(richest), "the real Schema")
     _assert_quotes_nothing(repr(richest.properties), "the real Schema.properties")
     _assert_quotes_nothing(repr(richest.properties[0]), "the real PropertyEntry")
+
+
+# ---------------------------------------------------------------------------
+# 13 - CS-431: the schema section's three failures get three SUBJECTS
+#
+# THE SAME AGGREGATION-KEY COLLISION CS-419 CLOSED ONE SECTION OVER, in code
+# that predates it. ``_read_schema`` logged all three of its unresolvable-index
+# conditions under one ``(WARN_UNRESOLVED_NAME, "schema-N")`` key, and
+# ``_WarningLog`` keeps the FIRST detail it was given - so a schema failing two
+# ways surfaced ONE warning carrying the sentence of whichever condition ran
+# first, with the other reduced to a count nobody can attribute.
+#
+# THAT IS NOT AN UNDER-REPORT, IT IS A FALSE REPORT, and the measured case is
+# the sharp one: with the schema name AND the super index unresolvable the
+# schema is ABSENT from the mapping, and the one surviving sentence said its
+# super type was not resolved - a statement about the super type of a schema
+# that is not there. A true sentence replaced by a false one is the "never
+# silently wrong" half of non-negotiable 7, and it is the exact regression
+# CS-419's first round shipped and an adversary caught.
+#
+# THE SUBJECTS FOLLOW THE ENUM SECTION'S SHAPE DELIBERATELY: the bare
+# ``schema-N`` stays with the schema's OWN name - the condition that decides
+# whether the schema survives at all - and each sub-site qualifies it, exactly
+# as ``enum-N`` and ``enum-N-member`` do.
+# ---------------------------------------------------------------------------
+
+#: Bytes a schema entry spends before its first property: name index, super
+#: index, property count, serializable count.
+_SCHEMA_FIXED_BYTES = 12
+
+#: Bytes one property entry spends for a type that carries no payload: slot,
+#: array size, name index, type byte.
+_SCHEMA_PROPERTY_BYTES = 8
+
+_OTHER_SCHEMA = "OtherSchema"
+
+#: Name tables for the one- and two-schema fixtures below.
+_SCHEMA_NAMES = ["Alpha", "SynthSchema"]
+_TWO_SCHEMA_NAMES = ["Alpha", "SynthSchema", _OTHER_SCHEMA]
+
+#: The schema lists, in ``_shipped_body``'s own argument shape.
+_ONE_SCHEMA: list[tuple[str, str | None, list[tuple[str, int]]]] = [
+    ("SynthSchema", None, [("Alpha", _TYPE_INT)])
+]
+_TWO_SCHEMAS: list[tuple[str, str | None, list[tuple[str, int]]]] = [
+    ("SynthSchema", None, [("Alpha", _TYPE_INT)]),
+    (_OTHER_SCHEMA, None, [("Alpha", _TYPE_INT)]),
+]
+
+#: What ``_shipped_body`` writes at the second schema's own name index.
+_INDEX_OF_OTHER_SCHEMA = 2
+
+#: Three conditions must produce three DIFFERENT sentences. Sharing one would
+#: be the collision this section removes wearing three subjects.
+_TRIPLE_DISTINCT_DETAILS = 3
+
+
+def _schema_super_offset(
+    names: list[str],
+    schemas: list[tuple[str, str | None, list[tuple[str, int]]]],
+    position: int,
+) -> int:
+    """Byte offset of one schema's super index inside a ``_shipped_body``.
+
+    The generalisation of :func:`_super_index_offset`, which holds only for a
+    body with one schema and no enums. Every earlier schema's encoded length is
+    walked rather than assumed, so a second schema can be reached. Both are
+    kept: the older one is the anchor the CS-417 tests are already written
+    against, and it is asserted equal to this one at position 0 below.
+    """
+    at = 4 + sum(1 + len(text) for text in names) + 4 + 4
+    for earlier in schemas[:position]:
+        at += _SCHEMA_FIXED_BYTES + _SCHEMA_PROPERTY_BYTES * len(earlier[2])
+    return at + 4
+
+
+def _patched_schema_body(
+    names: list[str],
+    schemas: list[tuple[str, str | None, list[tuple[str, int]]]],
+    patches: list[tuple[int, int]],
+) -> bytes:
+    """``schemas`` as a body, with every ``(offset, anchor)`` made unresolvable.
+
+    ``anchor`` is what that uint32 must hold BEFORE the overwrite, and it is
+    asserted, for the reason :func:`_patched_body` gives: a patch that lands on
+    the wrong offset leaves every test built on it green while testing nothing.
+
+    Takes a LIST of sites for the reason :func:`_patched_enum_body` does - the
+    interesting case for the aggregation key is two failures inside ONE schema,
+    which the single-site helper cannot build - and it exists alongside that
+    helper rather than replacing it, exactly as the enum section's does.
+    """
+    body = bytearray(_shipped_body(names=names, enums=[], schemas=schemas))
+    for at, anchor in patches:
+        (found,) = struct.unpack_from("<I", body, at)
+        assert found == anchor, f"byte {at} holds {found}, not the expected anchor {anchor}"
+        struct.pack_into("<I", body, at, _UNRESOLVABLE_INDEX)
+    return bytes(body)
+
+
+def _parse_schema_body(body: bytes) -> usmap.PropertyMap:
+    """Frame a schema-section body in the builder's outer framing and parse it."""
+    return usmap.parse_usmap(_reframe(synthetic.build_usmap(names=[], enums=[], schemas=[]), body))
+
+
+def test_the_two_schema_offset_walks_agree_where_both_are_defined() -> None:
+    """The new offset helper against the one CS-417's tests are written on.
+
+    They must agree at position 0 or one of the two sections is patching bytes
+    the other is not, and every anchor assertion downstream would still pass
+    because each helper is self-consistent.
+    """
+    assert _schema_super_offset(_SCHEMA_NAMES, _ONE_SCHEMA, 0) == _super_index_offset(_SCHEMA_NAMES)
+
+
+def test_a_failed_super_index_does_not_swallow_the_schema_skipped_warning() -> None:
+    """CS-431 acceptance. Two conditions in one schema, two warnings, both true.
+
+    ``_WarningLog`` aggregates by ``(code, subject)`` and KEEPS THE FIRST DETAIL
+    SEEN, and the super-index check runs before the schema-name check. Sharing
+    one subject therefore let the super index's detail win and buried the
+    schema-skipped warning behind a count of 2 - and the surviving sentence
+    described the super type of a schema that was in fact ABSENT.
+
+    No literal sentence is asserted. Each condition's detail is compared against
+    the detail THAT SAME CONDITION produces when it happens alone, so the test
+    pins the behaviour and cannot be satisfied by rewording, nor go red because
+    of it.
+    """
+    super_at = (_schema_super_offset(_SCHEMA_NAMES, _ONE_SCHEMA, 0), _ALL_BITS_SET)
+    name_at = (
+        _schema_super_offset(_SCHEMA_NAMES, _ONE_SCHEMA, 0) + _SCHEMA_NAME_DELTA,
+        _INDEX_OF_SYNTH_SCHEMA,
+    )
+
+    super_only = _parse_schema_body(_patched_schema_body(_SCHEMA_NAMES, _ONE_SCHEMA, [super_at]))
+    name_only = _parse_schema_body(_patched_schema_body(_SCHEMA_NAMES, _ONE_SCHEMA, [name_at]))
+    both = _parse_schema_body(_patched_schema_body(_SCHEMA_NAMES, _ONE_SCHEMA, [name_at, super_at]))
+
+    # The schema really is gone in both cases that break its name, which is what
+    # makes a sentence about ITS super type false.
+    assert name_only.schemas == {}
+    assert both.schemas == {}
+    # The super-only case keeps the schema, so the two conditions are genuinely
+    # different losses rather than two names for one.
+    assert sorted(super_only.schemas) == ["SynthSchema"]
+
+    # Two conditions, two warnings, neither one's detail displaced by the other.
+    assert [(w.code, w.subject) for w in both.warnings] == [
+        (usmap.WARN_UNRESOLVED_NAME, "schema-0-super"),
+        (usmap.WARN_UNRESOLVED_NAME, "schema-0"),
+    ]
+    assert _detail_for(both, usmap.WARN_UNRESOLVED_NAME, "schema-0") == _detail_for(
+        name_only, usmap.WARN_UNRESOLVED_NAME, "schema-0"
+    )
+    assert _detail_for(both, usmap.WARN_UNRESOLVED_NAME, "schema-0-super") == _detail_for(
+        super_only, usmap.WARN_UNRESOLVED_NAME, "schema-0-super"
+    )
+    # And each is counted once, not merged into a single entry counted twice.
+    assert [w.count for w in both.warnings] == [1, 1]
+
+
+def test_a_failed_property_name_does_not_swallow_the_schema_skipped_warning() -> None:
+    """The sibling condition sharing the same key, found by the same mechanism.
+
+    The property-name check also logged under the bare ``schema-N``, so a schema
+    whose name AND one property name were unresolvable surfaced only "the
+    property was skipped" - again while the whole schema was absent, and again
+    with the true sentence displaced rather than merely missing. Fixing one of
+    the two sub-sites and leaving the other is what this test refuses.
+    """
+    property_at = (
+        _schema_super_offset(_SCHEMA_NAMES, _ONE_SCHEMA, 0) + _PROPERTY_NAME_DELTA,
+        _INDEX_OF_ALPHA,
+    )
+    name_at = (
+        _schema_super_offset(_SCHEMA_NAMES, _ONE_SCHEMA, 0) + _SCHEMA_NAME_DELTA,
+        _INDEX_OF_SYNTH_SCHEMA,
+    )
+
+    property_only = _parse_schema_body(
+        _patched_schema_body(_SCHEMA_NAMES, _ONE_SCHEMA, [property_at])
+    )
+    name_only = _parse_schema_body(_patched_schema_body(_SCHEMA_NAMES, _ONE_SCHEMA, [name_at]))
+    both = _parse_schema_body(
+        _patched_schema_body(_SCHEMA_NAMES, _ONE_SCHEMA, [name_at, property_at])
+    )
+
+    assert both.schemas == {}
+    assert sorted(property_only.schemas) == ["SynthSchema"]
+
+    assert [(w.code, w.subject) for w in both.warnings] == [
+        (usmap.WARN_UNRESOLVED_NAME, "schema-0-property"),
+        (usmap.WARN_UNRESOLVED_NAME, "schema-0"),
+    ]
+    assert _detail_for(both, usmap.WARN_UNRESOLVED_NAME, "schema-0") == _detail_for(
+        name_only, usmap.WARN_UNRESOLVED_NAME, "schema-0"
+    )
+    assert _detail_for(both, usmap.WARN_UNRESOLVED_NAME, "schema-0-property") == _detail_for(
+        property_only, usmap.WARN_UNRESOLVED_NAME, "schema-0-property"
+    )
+    assert [w.count for w in both.warnings] == [1, 1]
+
+
+def test_all_three_schema_failures_at_once_produce_three_distinct_subjects() -> None:
+    """Every name index a schema carries, broken together. Nothing may be lost.
+
+    The two tests above each pin one pair, and a fix that gave the super site
+    its own subject while leaving the property site on the bare one would pass
+    the first. This is the whole-entry control: three conditions, three
+    subjects, three counts of one - and the ORDER is asserted too, because the
+    schema's own name is decided last and its warning is therefore the last one
+    logged.
+    """
+    base = _schema_super_offset(_SCHEMA_NAMES, _ONE_SCHEMA, 0)
+    patches = [
+        (base + _SCHEMA_NAME_DELTA, _INDEX_OF_SYNTH_SCHEMA),
+        (base, _ALL_BITS_SET),
+        (base + _PROPERTY_NAME_DELTA, _INDEX_OF_ALPHA),
+    ]
+
+    parsed = _parse_schema_body(_patched_schema_body(_SCHEMA_NAMES, _ONE_SCHEMA, patches))
+
+    assert parsed.schemas == {}
+    assert [(w.code, w.subject) for w in parsed.warnings] == [
+        (usmap.WARN_UNRESOLVED_NAME, "schema-0-super"),
+        (usmap.WARN_UNRESOLVED_NAME, "schema-0-property"),
+        (usmap.WARN_UNRESOLVED_NAME, "schema-0"),
+    ]
+    assert [w.count for w in parsed.warnings] == [1, 1, 1]
+    assert len({w.detail for w in parsed.warnings}) == _TRIPLE_DISTINCT_DETAILS
+
+
+def test_the_flagged_schema_is_named_by_its_own_position_not_the_first() -> None:
+    """The subject tracks the schema, which one schema at position 0 cannot show.
+
+    Every other fixture in this file builds a single schema, so a mutant that
+    hardcoded the subject to the literal ``schema-0`` produced byte-identical
+    suite results - the same gap CS-419 found and closed on the enum side. The
+    broken schema here is the SECOND one, and the healthy first schema is
+    asserted intact so the warning cannot be read as covering it.
+    """
+    at = _schema_super_offset(_TWO_SCHEMA_NAMES, _TWO_SCHEMAS, 1)
+
+    parsed = _parse_schema_body(
+        _patched_schema_body(_TWO_SCHEMA_NAMES, _TWO_SCHEMAS, [(at, _ALL_BITS_SET)])
+    )
+
+    assert sorted(parsed.schemas) == [_OTHER_SCHEMA, "SynthSchema"]
+    assert [(w.code, w.subject) for w in parsed.warnings] == [
+        (usmap.WARN_UNRESOLVED_NAME, "schema-1-super")
+    ]
+
+
+def test_the_second_schemas_own_name_is_flagged_at_its_own_position() -> None:
+    """The same positional claim for the subject that keeps the bare token.
+
+    ``schema-N`` is the one subject CS-431 does NOT qualify, so it needs its own
+    positional control: a fix that qualified the two sub-sites and left the bare
+    subject hardcoded would be caught here and nowhere else.
+    """
+    at = _schema_super_offset(_TWO_SCHEMA_NAMES, _TWO_SCHEMAS, 1) + _SCHEMA_NAME_DELTA
+
+    parsed = _parse_schema_body(
+        _patched_schema_body(_TWO_SCHEMA_NAMES, _TWO_SCHEMAS, [(at, _INDEX_OF_OTHER_SCHEMA)])
+    )
+
+    assert sorted(parsed.schemas) == ["SynthSchema"]
+    assert [(w.code, w.subject) for w in parsed.warnings] == [
+        (usmap.WARN_UNRESOLVED_NAME, "schema-1")
+    ]
+
+
+def test_a_healthy_schema_section_stays_silent() -> None:
+    """The negative control for every subject this section split.
+
+    Two distinctly named schemas with resolvable indices must produce NOTHING.
+    Without it, a fix that flagged unconditionally would satisfy every assertion
+    above.
+    """
+    parsed = _parse_schema_body(
+        _shipped_body(names=_TWO_SCHEMA_NAMES, enums=[], schemas=_TWO_SCHEMAS)
+    )
+
+    assert sorted(parsed.schemas) == [_OTHER_SCHEMA, "SynthSchema"]
+    assert parsed.warnings == ()

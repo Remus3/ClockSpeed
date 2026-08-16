@@ -176,6 +176,15 @@ _NODE_CLASS_PATH: Final = "/Synthetic/World/BP_ResourceNode.BP_ResourceNode_C"
 _NODE_CLASS_NAME: Final = "BP_ResourceNode_C"
 _NODE_TRANSLATION: Final = (128.0, 256.0, 0.5)
 
+#: A second measured node class, so the CS-430 count below cannot be satisfied
+#: by a helper that de-duplicates on the class name.
+_SECOND_NODE_CLASS_PATH: Final = "/Synthetic/World/BP_ResourceDeposit.BP_ResourceDeposit_C"
+_SECOND_NODE_CLASS_NAME: Final = "BP_ResourceDeposit_C"
+
+#: A class that is NOT a measured node class. Used as the unmodelled record the
+#: CS-430 acceptance requires the flagged one to be distinguishable from.
+_NON_NODE_CLASS_PATH: Final = "/Synthetic/Parts/Build_SyntheticInput.Build_SyntheticInput_C"
+
 # ---------------------------------------------------------------------------
 # Planted markers. Invented, obviously synthetic, and asserted ABSENT from
 # every exception surface - so naming them here is the test, not a leak.
@@ -1064,6 +1073,232 @@ def test_node_semantics_are_reported_as_unavailable_rather_than_guessed() -> Non
     assert world.WARN_NODE_SEMANTICS_UNAVAILABLE in codes
     assert not hasattr(model.nodes[0], "purity")
     assert not hasattr(model.nodes[0], "resource_class")
+
+
+# ---------------------------------------------------------------------------
+# CS-430 - a measured node class carrying NO transform is FLAGGED, not dropped
+#
+# THE SKIP IS CORRECT AND IS NOT WHAT THIS SECTION CHANGES. ``world.py`` states
+# that such a record is "skipped rather than published with invented
+# coordinates", and publishing one would be the confident-wrong-answer outcome
+# non-negotiable 7 rules out. Only the SILENCE was the defect: the record left
+# the node list with nothing in the warning stream to say a measured node class
+# had been lost, so a world short one node was indistinguishable from a world
+# that genuinely has that many.
+#
+# THE ONLY PATH THAT PRODUCES ``transform is None`` TODAY IS A COMPONENT RECORD
+# IN THE LEVELLED WALK - ``objects.parse_object_headers`` builds a transform
+# unconditionally, and ``objects``' levelled reader builds one only on the ACTOR
+# branch. So every fixture here is levelled, and the record under test is a
+# component whose class name is one ADR 0003 measured.
+#
+# EVERY LOAD BELOW SUPPLIES A PROPERTY MAP. That is not decoration: it pins
+# ``unknown_classes`` on both sides of the distinction the acceptance requires,
+# and it keeps the world-source warning list identical on a machine with an
+# install and on one without, where ``cached_usmap`` contributes warnings of its
+# own.
+# ---------------------------------------------------------------------------
+
+
+def _levelled_blob(
+    *,
+    objects_: tuple[synthetic.SyntheticObject, ...] = (),
+    components: tuple[synthetic.SyntheticComponent, ...] = (),
+) -> bytes:
+    """A whole save whose body uses the MEASURED levelled layout of one pair.
+
+    Composed from the public synthetic primitives for the reason :func:`_blob`
+    gives - ``synthetic._assemble_levelled`` is private and that module is
+    outside this slice's write-list. Header 10 with save 36 is the pair
+    ``synthetic.SAVE_LEVELLED_V36`` is built on, so the layout is a measured one
+    and the load takes the DEFAULT levelled route rather than the flat one.
+
+    Args:
+        objects_: Actor records for the persistent level.
+        components: Component records for the persistent level. These are the
+            records that arrive carrying no transform.
+
+    Returns:
+        The save bytes.
+    """
+    persistent = synthetic.SyntheticLevel(
+        name=None,
+        objects=objects_,
+        components=components,
+        second_collectables=(synthetic.SyntheticCollectable(),),
+    )
+    body = synthetic.build_levelled_body(
+        (),
+        persistent,
+        header_version=_HEADER_10,
+        save_version=_SAVE_36,
+    )
+    head = synthetic.build_header(header_version=_HEADER_10, save_version=_SAVE_36)
+    payload = synthetic.body_with_prefix(body, _HEADER_10)
+    framing = synthetic.default_framing(_HEADER_10)
+    return head + synthetic.build_chunks(payload, framing=framing)
+
+
+def _untransformed_node(class_path: str, instance: str) -> synthetic.SyntheticComponent:
+    """One component record - hence no transform - of the given class."""
+    return synthetic.SyntheticComponent(class_path, _ROOT, instance)
+
+
+def _world_codes(model: world.WorldModel) -> list[str]:
+    """The codes this MODULE raised, in order, with every carried one dropped.
+
+    Filtered on the source rather than asserted over the whole stream, so the
+    assertions below say the same thing on a machine with a game install as on
+    one without - ``cached_usmap`` contributes warnings of its own on the first.
+    """
+    return [warning.code for warning in model.warnings if warning.source == world.SOURCE_WORLD]
+
+
+def test_a_node_class_record_carrying_no_transform_is_flagged_rather_than_dropped() -> None:
+    """CS-430. The loss is real, the skip is right, and the silence was the defect.
+
+    The fixture asserts its own premise first: the record reaches the table, its
+    class name IS one ADR 0003 measured, and its transform IS None. Without
+    those three the test could pass against a walk that never produced the
+    record at all, which is a different thing entirely and would prove nothing
+    about the filter.
+    """
+    model = world.load_world_from_bytes(
+        _levelled_blob(components=(_untransformed_node(_NODE_CLASS_PATH, "SyntheticNode_0"),)),
+        property_map=_property_map(_NODE_CLASS_NAME),
+    )
+
+    # The premise: the record is here, it is a measured node class, and it
+    # carries no transform.
+    (record,) = model.objects.records
+    assert objects.class_name_of(record.type_path) in world.NODE_CLASS_NAMES
+    assert record.transform is None
+    # The skip is PRESERVED. Publishing invented coordinates is the outcome
+    # non-negotiable 7 forbids, and this item does not change it.
+    assert model.nodes == ()
+    # And the loss is now named.
+    assert world.WARN_NODE_TRANSFORM_ABSENT in _world_codes(model)
+
+
+def test_a_lost_node_is_distinguished_from_a_record_of_an_unmodelled_class() -> None:
+    """CS-430 acceptance. Both are dropped by the same filter; only one is a LOSS.
+
+    ``_node_or_none`` returns None for two unrelated reasons and the generator
+    filter cannot tell them apart. A record of a class this project does not
+    model is not a lost node - it is already reported through
+    ``unknown_classes``, which is the channel that exists for it - so flagging
+    it here would turn every non-node record in a world into a node warning.
+
+    The two parses differ in ONE class path and are asserted to differ in the
+    warning stream by EXACTLY the new code, which is what makes this a
+    distinction rather than a pair of independent observations. A test that
+    merely showed some warning fired would be satisfied by an implementation
+    that flagged both.
+    """
+    lost_node = world.load_world_from_bytes(
+        _levelled_blob(components=(_untransformed_node(_NODE_CLASS_PATH, "SyntheticNode_0"),)),
+        property_map=_property_map(_NODE_CLASS_NAME),
+    )
+    unmodelled = world.load_world_from_bytes(
+        _levelled_blob(components=(_untransformed_node(_NON_NODE_CLASS_PATH, "SyntheticInput_0"),)),
+        property_map=_property_map(_NODE_CLASS_NAME),
+    )
+
+    # Neither yields a node, so the node list cannot be where they differ.
+    assert lost_node.nodes == ()
+    assert unmodelled.nodes == ()
+    # The unmodelled one is reported through the channel that owns it, and the
+    # lost node is NOT unmodelled content - its class is one this project names.
+    assert unmodelled.contains_unmodeled_content is True
+    assert lost_node.contains_unmodeled_content is False
+    # Asserted as what IS there on both sides, not as an absence on one.
+    assert _world_codes(lost_node) == [
+        world.WARN_UNLOCK_GRAMMAR_UNMEASURED,
+        world.WARN_NODE_TRANSFORM_ABSENT,
+    ]
+    assert _world_codes(unmodelled) == [world.WARN_UNLOCK_GRAMMAR_UNMEASURED]
+
+
+def test_a_node_actor_that_does_carry_a_transform_raises_no_absence_warning() -> None:
+    """The negative control. Without it, warning on every node class passes above.
+
+    Same levelled fixture, same class, an ACTOR instead of a component - so the
+    record carries a transform and the node is published. The two node warnings
+    are mutually exclusive here, and asserting both directions is what stops a
+    fix that flags the whole class.
+    """
+    model = world.load_world_from_bytes(
+        _levelled_blob(objects_=(synthetic.SyntheticObject(_NODE_CLASS_PATH, _ROOT, "Node_0"),)),
+        property_map=_property_map(_NODE_CLASS_NAME),
+    )
+
+    assert [node.class_name for node in model.nodes] == [_NODE_CLASS_NAME]
+    assert _world_codes(model) == [
+        world.WARN_UNLOCK_GRAMMAR_UNMEASURED,
+        world.WARN_NODE_SEMANTICS_UNAVAILABLE,
+    ]
+
+
+def test_the_absence_warning_counts_every_lost_node_rather_than_firing_once() -> None:
+    """The count is the only thing that says HOW MUCH geometry is missing.
+
+    Two lost nodes of two DIFFERENT measured classes, so neither a hardcoded
+    count of 1 nor a de-duplication on the class name survives. The published
+    node in the same world is asserted intact, so the count cannot be read as
+    covering it.
+    """
+    model = world.load_world_from_bytes(
+        _levelled_blob(
+            objects_=(synthetic.SyntheticObject(_NODE_CLASS_PATH, _ROOT, "Node_0"),),
+            components=(
+                _untransformed_node(_NODE_CLASS_PATH, "SyntheticNode_1"),
+                _untransformed_node(_SECOND_NODE_CLASS_PATH, "SyntheticDeposit_0"),
+            ),
+        ),
+        property_map=_property_map(_NODE_CLASS_NAME, _SECOND_NODE_CLASS_NAME),
+    )
+
+    assert [node.class_name for node in model.nodes] == [_NODE_CLASS_NAME]
+    absent = [w for w in model.warnings if w.code == world.WARN_NODE_TRANSFORM_ABSENT]
+    assert [warning.count for warning in absent] == [2]
+    semantics = [w for w in model.warnings if w.code == world.WARN_NODE_SEMANTICS_UNAVAILABLE]
+    assert [warning.count for warning in semantics] == [1]
+
+
+def test_a_levelled_world_with_no_node_records_raises_neither_node_warning() -> None:
+    """The silent control for the whole section.
+
+    A component of a non-node class is the ordinary shape - every real body
+    carries them - and a walk that flagged it would report a warning per
+    component on every world ever loaded.
+    """
+    model = world.load_world_from_bytes(
+        _levelled_blob(components=(_untransformed_node(_NON_NODE_CLASS_PATH, "SyntheticInput_0"),)),
+        property_map=_property_map(_KNOWN_CLASS_NAME_A),
+    )
+
+    assert model.nodes == ()
+    assert _world_codes(model) == [world.WARN_UNLOCK_GRAMMAR_UNMEASURED]
+
+
+def test_the_absence_warning_detail_is_fixed_text_that_names_the_condition() -> None:
+    """A code with a detail borrowed from another code names nothing.
+
+    The three shipped world codes each carry their own fixed line, and the
+    failure this guards is a new code wired to an existing detail - which reads
+    as flagged and reports the wrong loss, the same true-sentence-replaced-by-a-
+    false-one failure CS-419 shipped one module over.
+    """
+    model = world.load_world_from_bytes(
+        _levelled_blob(components=(_untransformed_node(_NODE_CLASS_PATH, "SyntheticNode_0"),)),
+        property_map=_property_map(_NODE_CLASS_NAME),
+    )
+
+    (absent,) = [w for w in model.warnings if w.code == world.WARN_NODE_TRANSFORM_ABSENT]
+    others = {w.detail for w in model.warnings if w.code != world.WARN_NODE_TRANSFORM_ABSENT}
+    assert absent.detail not in others
+    assert absent.detail.isascii()
+    assert "transform" in absent.detail
 
 
 # ---------------------------------------------------------------------------

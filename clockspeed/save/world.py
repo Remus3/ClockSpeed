@@ -152,6 +152,24 @@ never written to the save at all. Geometry is exact and free; semantics need
 the asset-extraction path. :class:`ResourceNode` carries placement and nothing
 else, and says so.
 
+Geometry is free only for a record that HAS a transform, and CS-430 is the case
+where one does not. A record whose class is a measured node class but which
+carries no transform is skipped - inventing coordinates for it would be the
+confident wrong answer non-negotiable 7 forbids - and it is now also FLAGGED
+with :data:`WARN_NODE_TRANSFORM_ABSENT`. The skip was always right; the silence
+was the defect, because a node list short by one is indistinguishable from a
+world that holds one fewer node.
+
+IT IS A RECURRING SHAPE IN THIS PACKAGE rather than a one-off, which is the
+reason to state it here rather than in a comment: a check that was missing
+(CS-417), a check that discarded without flagging (CS-419), and a filter that
+dropped without flagging (CS-430) are the same defect wearing three
+mechanisms. Every one of them satisfies the "never fatal" half of
+non-negotiable 7 - which is the half satisfied by accident - and fails the
+"never silently wrong" half, which has to be satisfied on purpose because the
+failure renders as a success. No count is written here on purpose; the shape is
+what a reader needs, and a tally in prose is a number with no owner.
+
 THE ERROR TAXONOMY, AND THE COUPLING THAT MAKES IT SAFE
 ---------------------------------------------------------
 Every sibling failure is wrapped in :class:`WorldLoadError` with
@@ -223,6 +241,7 @@ __all__ = [
     "STAGE_OBJECTS",
     "STAGE_USMAP",
     "WARN_NODE_SEMANTICS_UNAVAILABLE",
+    "WARN_NODE_TRANSFORM_ABSENT",
     "WARN_NO_PROPERTY_MAP",
     "WARN_UNLOCK_GRAMMAR_UNMEASURED",
     "ResourceNode",
@@ -273,6 +292,7 @@ SOURCE_WORLD: Final = "world"
 WARN_NO_PROPERTY_MAP: Final = "no-property-map"
 WARN_UNLOCK_GRAMMAR_UNMEASURED: Final = "unlock-grammar-unmeasured"
 WARN_NODE_SEMANTICS_UNAVAILABLE: Final = "node-semantics-unavailable"
+WARN_NODE_TRANSFORM_ABSENT: Final = "node-transform-absent"
 
 #: One fixed line per warning code. Keyed rather than formatted, so a detail can
 #: never be built from something read out of a save.
@@ -289,6 +309,11 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
         WARN_NODE_SEMANTICS_UNAVAILABLE: (
             "resource nodes carry placement only; purity and resource type are level"
             " defaults that a save never writes, so node semantics need asset extraction"
+        ),
+        WARN_NODE_TRANSFORM_ABSENT: (
+            "a record of a measured resource-node class carried no transform, so it was"
+            " skipped rather than published with invented coordinates; the node list is"
+            " short by this many and their placement is unrecoverable from this save"
         ),
     }
 )
@@ -590,18 +615,43 @@ def _resolve_property_map(
     return found, []
 
 
-def _nodes_from(table: ObjectTable) -> tuple[ResourceNode, ...]:
+def _nodes_from(table: ObjectTable) -> tuple[tuple[ResourceNode, ...], list[WorldWarning]]:
     """Pick the resource-node actors out of a walked record table.
+
+    THE SKIP IS CORRECT AND THE SILENCE WAS NOT (CS-430). A record whose class
+    IS a measured node class but which carries no transform is still skipped -
+    publishing it would mean inventing coordinates, which is the confident-wrong
+    answer non-negotiable 7 exists to forbid. What changed is that the loss is
+    now NAMED. Dropped silently, a world short one node is indistinguishable
+    from a world that genuinely holds that many, and nothing downstream can tell
+    which it is holding.
+
+    :func:`_node_or_none` answers one question - is this a publishable node -
+    and returns None for two unrelated reasons. The condition this warning names
+    is therefore re-derived from the record by :func:`_untransformed_node_class`
+    rather than inferred from that None, so a third future reason for None
+    cannot be quietly reported as a missing transform.
 
     Args:
         table: The walked table.
 
     Returns:
-        One :class:`ResourceNode` per matching record, in file order. A record
-        whose class matches but which carried no transform is skipped rather
-        than published with invented coordinates.
+        One :class:`ResourceNode` per publishable record, in file order, and the
+        warning naming how many measured node records were skipped for want of a
+        transform. The warning list is empty when none were.
     """
-    return tuple(node for record in table.records if (node := _node_or_none(record)) is not None)
+    nodes: list[ResourceNode] = []
+    untransformed = 0
+    for record in table.records:
+        node = _node_or_none(record)
+        if node is not None:
+            nodes.append(node)
+        elif _untransformed_node_class(record):
+            untransformed += 1
+    warnings = (
+        [_warning(SOURCE_WORLD, WARN_NODE_TRANSFORM_ABSENT, untransformed)] if untransformed else []
+    )
+    return tuple(nodes), warnings
 
 
 def _node_or_none(record: ObjectRecord) -> ResourceNode | None:
@@ -622,6 +672,25 @@ def _node_or_none(record: ObjectRecord) -> ResourceNode | None:
         instance_name=record.instance_name,
         translation=record.transform.translation,
     )
+
+
+def _untransformed_node_class(record: ObjectRecord) -> bool:
+    """Whether this record is a measured node class that carried no transform.
+
+    The exact condition :data:`WARN_NODE_TRANSFORM_ABSENT` names, stated once
+    and asked of the record directly. A record of a class this project does not
+    model is NOT this case: it is already reported through
+    ``ObjectTable.unknown_classes``, and counting it here would turn every
+    ordinary record in a world into a lost-node warning.
+
+    Args:
+        record: The record to inspect.
+
+    Returns:
+        True when the class name is in :data:`NODE_CLASS_NAMES` and the record
+        carries no transform.
+    """
+    return class_name_of(record.type_path) in NODE_CLASS_NAMES and record.transform is None
 
 
 def _read_unlocks() -> tuple[UnlockState, list[WorldWarning]]:
@@ -764,11 +833,12 @@ def load_world_from_bytes(
         raise WorldLoadError(STAGE_OBJECTS, type(exc).__name__) from exc
 
     unlocks, unlock_warnings = _read_unlocks()
-    nodes = _nodes_from(table)
+    nodes, node_warnings = _nodes_from(table)
 
     warnings.extend(unlock_warnings)
     if nodes:
         warnings.append(_warning(SOURCE_WORLD, WARN_NODE_SEMANTICS_UNAVAILABLE, len(nodes)))
+    warnings.extend(node_warnings)
 
     return WorldModel(
         token=parsed.world_token,
