@@ -33,6 +33,7 @@ under test.
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import tempfile
@@ -410,6 +411,179 @@ def test_local_config_default_path_is_the_tracked_config_directory(
 
     assert path.name == "local.json"
     assert path.parent.name == "config"
+
+
+# ---------------------------------------------------------------------------
+# config/local.json - a discarded declaration is REPORTED, not swallowed (CS-443)
+# ---------------------------------------------------------------------------
+#
+# THE OPERATOR-FACING DEFECT. Every branch below used to return {} without a
+# word, so a local config the operator had genuinely written was discarded and
+# the tool then advised them to write the very declaration they had already
+# written. "Never raises" is a promise about control flow; it was being read as
+# a licence to lose configuration in silence, which is a different thing.
+#
+# ABSENCE IS NOT ONE OF THESE CASES and must stay silent. Every machine is
+# expected to have no config/local.json - it is gitignored and the normal state
+# is not to have one. A warning on absence would fire on every clean checkout
+# and train the operator to ignore the channel, which is how a real report gets
+# missed. The distinction between "absent" and "present and discarded" is the
+# whole item.
+
+
+def _collect(payload: object, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[
+    dict[str, str], list[locate.LocalConfigWarning]
+]:
+    """Read a written-out local config, capturing whatever it reported."""
+    _write_local_config(monkeypatch, tmp_path, payload)
+    warnings: list[locate.LocalConfigWarning] = []
+    return locate.local_config(warnings=warnings), warnings
+
+
+def test_absent_local_config_reports_nothing_because_absence_is_normal() -> None:
+    # The autouse fixture points the override at a path that does not exist.
+    warnings: list[locate.LocalConfigWarning] = []
+
+    assert locate.local_config(warnings=warnings) == {}
+    assert warnings == []
+
+
+def test_a_well_formed_local_config_reports_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    values, warnings = _collect({locate.CONFIG_GAME_DIR: str(tmp_path)}, monkeypatch, tmp_path)
+
+    assert values == {locate.CONFIG_GAME_DIR: str(tmp_path)}
+    assert warnings == []
+
+
+def test_oversize_local_config_is_reported_rather_than_discarded_in_silence(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    oversize = {locate.CONFIG_GAME_DIR: "x" * (locate.MAX_LOCAL_CONFIG_BYTES + 100)}
+
+    values, warnings = _collect(oversize, monkeypatch, tmp_path)
+
+    assert values == {}
+    assert [item.code for item in warnings] == [locate.WARN_LOCAL_CONFIG_OVERSIZE]
+
+
+def test_unreadable_local_config_is_reported_rather_than_discarded_in_silence(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _write_local_config(monkeypatch, tmp_path, {locate.CONFIG_GAME_DIR: str(tmp_path)})
+
+    def unreadable(self: Path, *_args: object, **_kwargs: object) -> str:
+        raise OSError(errno.EACCES, "Permission denied", str(self))
+
+    monkeypatch.setattr(Path, "read_text", unreadable)
+    warnings: list[locate.LocalConfigWarning] = []
+
+    assert locate.local_config(warnings=warnings) == {}
+    assert [item.code for item in warnings] == [locate.WARN_LOCAL_CONFIG_UNREADABLE]
+
+
+def test_malformed_local_config_is_reported_rather_than_discarded_in_silence(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    values, warnings = _collect("{ this is not json", monkeypatch, tmp_path)
+
+    assert values == {}
+    assert [item.code for item in warnings] == [locate.WARN_LOCAL_CONFIG_MALFORMED]
+
+
+def test_non_mapping_local_config_is_reported_rather_than_discarded_in_silence(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    values, warnings = _collect(["not", "an", "object"], monkeypatch, tmp_path)
+
+    assert values == {}
+    assert [item.code for item in warnings] == [locate.WARN_LOCAL_CONFIG_NOT_A_MAPPING]
+
+
+def test_undecodable_local_config_is_reported_rather_than_raising(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Invalid UTF-8 must not escape as UnicodeDecodeError.
+
+    read_text(encoding="utf-8") raises UnicodeDecodeError, which is a
+    ValueError and NOT an OSError - so the OSError handler never saw it and it
+    propagated out of a function whose docstring promises it never raises. The
+    fix reports it; it does NOT pass errors="replace", because silently
+    mangling an operator's declared path is the same defect class this item
+    exists to remove.
+    """
+    path = tmp_path / "local.json"
+    path.write_bytes(b'{"' + locate.CONFIG_GAME_DIR.encode() + b'": "\xff\xfe"}')
+    monkeypatch.setenv(locate.ENV_LOCAL_CONFIG, str(path))
+    warnings: list[locate.LocalConfigWarning] = []
+
+    assert locate.local_config(warnings=warnings) == {}
+    assert [item.code for item in warnings] == [locate.WARN_LOCAL_CONFIG_UNDECODABLE]
+
+
+def test_a_non_string_value_is_reported_per_key_rather_than_dropped_in_silence(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The quietest of the loss paths: the comprehension drops one key at a time.
+
+    An operator who wrote a number, a list or a null where a path belongs got
+    an empty mapping and no indication which key was at fault. The surviving
+    string-valued keys must still be returned - one bad key is not a reason to
+    discard the rest.
+    """
+    values, warnings = _collect(
+        {locate.CONFIG_GAME_DIR: 17, locate.CONFIG_SAVE_ROOT: str(tmp_path)},
+        monkeypatch,
+        tmp_path,
+    )
+
+    assert values == {locate.CONFIG_SAVE_ROOT: str(tmp_path)}
+    assert [item.code for item in warnings] == [locate.WARN_LOCAL_CONFIG_NON_STRING_VALUE]
+    assert locate.CONFIG_GAME_DIR in warnings[0].subject
+
+
+def test_every_discard_path_names_a_reason_without_echoing_the_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A skip record is an echo path (CLAUDE.md non-negotiable 12).
+
+    The subject carries the config location, so it goes through redact() like
+    every other path this module can put into a message. The oracle is derived
+    from the operating system rather than from redact() itself, so a redactor
+    with a blind spot cannot grade itself clean.
+    """
+    _, warnings = _collect("{ this is not json", monkeypatch, tmp_path)
+
+    rendered = " ".join(f"{item.code} {item.subject} {item.detail}" for item in warnings)
+    leaked = sorted(name for name in account_name_renderings() if name in rendered)
+
+    assert not leaked, "a local-config skip record carried an account name rendering"
+    assert warnings, "the discard produced no skip record at all"
+    assert warnings[0].detail, "a skip record named no reason at all"
+
+
+def test_reporting_channel_does_not_change_resolution_behaviour(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """_override() calls local_config() with no collector and must be unaffected.
+
+    Resolution is the hot path and the one an operator actually depends on;
+    adding a report channel to the reader underneath it must not move a single
+    resolution outcome. A malformed config still resolves to auto-detection
+    exactly as before, and a good one still overrides.
+    """
+    good = tmp_path / "install"
+    good.mkdir()
+    _write_local_config(monkeypatch, tmp_path, {locate.CONFIG_GAME_DIR: str(good)})
+
+    assert locate.resolve_game_dir() == (good, f"config:{locate.CONFIG_GAME_DIR}")
+
+    _write_local_config(monkeypatch, tmp_path, "{ this is not json")
+    monkeypatch.setattr(locate, "_steam_library_paths", list)
+    monkeypatch.setattr(locate, "_drive_roots", lambda: [tmp_path])
+
+    assert locate.resolve_game_dir() == (None, "unresolved")
 
 
 # ---------------------------------------------------------------------------

@@ -39,6 +39,7 @@ running interpreter rather than whatever a bare name would resolve to on PATH.
 from __future__ import annotations
 
 import ast
+import dataclasses
 import json
 import os
 import re
@@ -299,6 +300,15 @@ def test_the_resolver_set_matches_locates_public_surface() -> None:
     the privacy helper, it resolves nothing, and patching it to raise would
     break the very redaction the failure messages depend on. Re-exported
     names such as ``Path`` are filtered by ``__module__``.
+
+    RECORD TYPES ARE EXEMPT, DERIVED RATHER THAN LISTED. A public frozen
+    dataclass such as the skip record CS-443 added is callable, defined here,
+    and resolves nothing, so naming each one would make this a hand-maintained
+    allowlist - and a hand-maintained list is the thing that rots. The
+    exemption is taken from the OBJECT instead. It is also CONTROLLED, because
+    "skip every class" would let a resolver implemented as a callable class
+    leave the import-time probes silently uncovered: every exempted class must
+    be a frozen dataclass, which a resolver is not.
     """
     public = {
         name
@@ -307,7 +317,22 @@ def test_the_resolver_set_matches_locates_public_surface() -> None:
         and callable(getattr(locate, name))
         and getattr(getattr(locate, name), "__module__", None) == locate.__name__
     }
-    assert public - {"redact"} == set(RESOLVER_NAMES), (
+    record_types = {name for name in public if isinstance(getattr(locate, name), type)}
+    for name in sorted(record_types):
+        candidate = getattr(locate, name)
+        # getattr rather than a direct attribute read: typeshed's dataclass
+        # protocol does not declare __dataclass_params__, so reading it
+        # directly is a mypy union-attr error on a true statement.
+        params = getattr(candidate, "__dataclass_params__", None)
+        frozen = dataclasses.is_dataclass(candidate) and bool(getattr(params, "frozen", False))
+        assert frozen, (
+            f"locate.{name} is a public class that is not a frozen dataclass, so it does "
+            "not qualify for the record-type exemption. Either it is a resolver the "
+            "import-time probes must cover and belongs in RESOLVER_NAMES, or the "
+            "exemption in this test needs rethinking - do not widen it silently"
+        )
+
+    assert public - {"redact"} - record_types == set(RESOLVER_NAMES), (
         "locate's public resolver surface moved; RESOLVER_NAMES must be updated or the "
         "import-time probes silently stop covering the new resolver"
     )

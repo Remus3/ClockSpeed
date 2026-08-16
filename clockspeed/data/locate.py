@@ -70,7 +70,9 @@ import json
 import os
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Final
 
 # --- override surface -------------------------------------------------------
 
@@ -388,33 +390,170 @@ def local_config_path() -> Path:
     return _repo_root().joinpath(*LOCAL_CONFIG_RELATIVE)
 
 
-def local_config() -> dict[str, str]:
+WARN_LOCAL_CONFIG_OVERSIZE: Final = "local-config-oversize"
+WARN_LOCAL_CONFIG_UNREADABLE: Final = "local-config-unreadable"
+WARN_LOCAL_CONFIG_UNDECODABLE: Final = "local-config-undecodable"
+WARN_LOCAL_CONFIG_MALFORMED: Final = "local-config-malformed"
+WARN_LOCAL_CONFIG_NOT_A_MAPPING: Final = "local-config-not-a-mapping"
+WARN_LOCAL_CONFIG_NON_STRING_VALUE: Final = "local-config-non-string-value"
+
+
+@dataclass(frozen=True)
+class LocalConfigWarning:
+    """An operator declaration that was discarded, and why (CS-443).
+
+    Attributes:
+        code: One of this module's WARN_LOCAL_CONFIG_* constants.
+        subject: What was discarded - the redacted config location for a
+            whole-file refusal, or the key name for a single dropped entry.
+            Redacted here rather than at the render seam, because a skip
+            record is an echo path exactly like a log line (CLAUDE.md
+            non-negotiable 12) and redact() is idempotent.
+        detail: A fixed line keyed by code, naming the consequence. NEVER
+            built from file content: the values in this file are paths, and a
+            reason that quoted the value it rejected would publish one.
+    """
+
+    code: str
+    subject: str
+    detail: str
+
+
+def _note(
+    warnings: list[LocalConfigWarning] | None, code: str, subject: object, detail: str
+) -> None:
+    """Append one discard record, if the caller asked for a channel.
+
+    Args:
+        warnings: The caller's collector, or None when it did not want one.
+        code: A WARN_LOCAL_CONFIG_* constant.
+        subject: What was discarded. Redacted before it is stored.
+        detail: The fixed consequence line for ``code``.
+    """
+    if warnings is None:
+        return
+    warnings.append(LocalConfigWarning(code=code, subject=redact(subject), detail=detail))
+
+
+def _read_local_config(path: Path, warnings: list[LocalConfigWarning] | None) -> str | None:
+    """Read the local config file's text, reporting whatever stopped it.
+
+    Split out from :func:`local_config` so the three ways READING can fail
+    stay separate from the two ways PARSING can, and so neither function has
+    to be read as one long ladder of returns.
+
+    Args:
+        path: The configuration location.
+        warnings: The caller's collector, or None.
+
+    Returns:
+        The file's text, or None when there is nothing to parse. None covers
+        two different facts on purpose - absence, which is silent, and a
+        discard, which has already been reported through ``warnings`` by the
+        time this returns.
+    """
+    try:
+        if not path.is_file():
+            return None
+        if path.stat().st_size > MAX_LOCAL_CONFIG_BYTES:
+            _note(
+                warnings,
+                WARN_LOCAL_CONFIG_OVERSIZE,
+                path,
+                "the file is larger than a local config plausibly is; it was not read",
+            )
+            return None
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        _note(
+            warnings,
+            WARN_LOCAL_CONFIG_UNREADABLE,
+            path,
+            "the file could not be read; every declaration in it was discarded",
+        )
+        return None
+    except UnicodeDecodeError:
+        # NOT an OSError - UnicodeDecodeError is a ValueError, so the handler
+        # above never saw it and it propagated out of a function documented as
+        # never raising. Reported rather than decoded with errors="replace":
+        # mangling an operator's declared path into U+FFFD would hand back a
+        # value that cannot resolve, which is the silent-wrong-answer failure
+        # non-negotiable 7 forbids.
+        _note(
+            warnings,
+            WARN_LOCAL_CONFIG_UNDECODABLE,
+            path,
+            "the file is not valid UTF-8; every declaration in it was discarded",
+        )
+        return None
+
+
+def local_config(*, warnings: list[LocalConfigWarning] | None = None) -> dict[str, str]:
     """Read the gitignored local configuration file, if there is one.
 
     The file is machine-specific and holds the paths that must never be
     tracked, which is why it is gitignored and why every machine is expected
-    to be without one. Absence is the normal case and is not an error. A file
-    that cannot be read or parsed is treated as absent for the same reason
-    auto-detection is fail-soft: a corrupt local config must not be able to
-    stop the tool from starting.
+    to be without one. Absence is the normal case and is not an error.
+
+    ABSENCE AND DISCARD ARE DIFFERENT FACTS, and conflating them was CS-443.
+    A file that could not be read, sized, decoded or parsed used to return the
+    same empty mapping as no file at all, in silence. The operator-facing
+    consequence was not merely quiet: having recovered no declarations, the
+    tool went on to advise the operator to write the very declaration they had
+    already written and that had just been thrown away. Every discard is
+    therefore reported through ``warnings`` while absence stays silent - a
+    channel that fires on every clean checkout is a channel nobody reads.
+
+    Reporting is the ONLY thing that changed. Each branch returns exactly what
+    it returned before, because resolution runs underneath every entry point
+    and this reader must not move an outcome. ``_override`` passes no
+    collector and is unaffected.
+
+    Args:
+        warnings: Optional collector, appended to in place. Omit it to read
+            the configuration without asking what was thrown away.
 
     Returns:
         The string-valued entries, or an empty mapping. Never raises.
     """
     path = local_config_path()
-    try:
-        if not path.is_file() or path.stat().st_size > MAX_LOCAL_CONFIG_BYTES:
-            return {}
-        raw = path.read_text(encoding="utf-8")
-    except OSError:
+    raw = _read_local_config(path, warnings)
+    if raw is None:
         return {}
     try:
         payload = json.loads(raw)
     except ValueError:
+        _note(
+            warnings,
+            WARN_LOCAL_CONFIG_MALFORMED,
+            path,
+            "the file is not valid JSON; every declaration in it was discarded",
+        )
         return {}
     if not isinstance(payload, dict):
+        _note(
+            warnings,
+            WARN_LOCAL_CONFIG_NOT_A_MAPPING,
+            path,
+            "the file is valid JSON but not an object; no declaration could be read",
+        )
         return {}
-    return {str(key): value for key, value in payload.items() if isinstance(value, str)}
+    values: dict[str, str] = {}
+    for key, value in payload.items():
+        name = str(key)
+        if isinstance(value, str):
+            values[name] = value
+        else:
+            # The quietest path of all: one key at a time, with the surviving
+            # keys still returned, so the mapping looks well-formed and merely
+            # incomplete.
+            _note(
+                warnings,
+                WARN_LOCAL_CONFIG_NON_STRING_VALUE,
+                name,
+                "the value is not a string; this one entry was dropped",
+            )
+    return values
 
 
 def _override(env_name: str, config_key: str) -> tuple[str, str] | None:
