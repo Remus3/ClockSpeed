@@ -2190,13 +2190,17 @@ def parse_body(
 #   shifted control on every run.
 #
 #   THAT JOIN CARRIES TWO QUANTITIES AND THEY DO NOT GRADE THE TAG WIDTHS
-#   BELOW ALIKE - one mechanism read at two quantities, and collapsing them
+#   BELOW ALIKE - one population read at two quantities, and collapsing them
 #   into a single verdict about "the join" is the expensive mistake. A wrong
-#   width breaks the walk, a broken walk contributes no pairs at all, so every
-#   pair that survives is a correct one: a BIJECTION over that shrinking
-#   population stays pristine, while a COUNT of the distinct type words the
-#   population spans falls with it. Which width either quantity notices is NOT
-#   recorded here. It is derived by
+#   width breaks the walk and a broken walk contributes no pairs, so a pair
+#   that survives is a correct one and a BIJECTION over that shrinking
+#   population stays pristine. THE DISTINCT-WORD COUNT IS NOT THE MIRROR OF
+#   THAT, and the sentence that said it falls with the population was measured
+#   false: a width was found that rots thousands of payloads while leaving the
+#   count exactly where it was, because that width contributes none of the
+#   joined words, and thinning the join directly through the tag cap drops
+#   thousands of tags with the count again unmoved. Which width either quantity
+#   notices is NOT recorded here. It is derived by
 #   tests/save/test_decode_oracles.py::test_every_tag_width_
 #   is_caught_by_a_library_backed_oracle, which mutates each width in
 #   _TAG_EXTRA_STRINGS in this module alone - on every run that has the two

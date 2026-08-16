@@ -38,9 +38,10 @@ LABEL for the failure message, never a gate. It used to be a gate, and that
 made the classifier a partial function with a silent third bucket: a paragraph
 indented like an entry but headed ``Fourth oracle`` rather than ``FOURTH
 ORACLE`` was neither oracle nor narrative, so its citation was never required.
-The shipped commentary already had such a paragraph - the one beginning ``THAT
-JOIN IS NOT A CHECK ON THE TAG WIDTHS BELOW,``, whose heading the old regex
-rejected at the comma - and deleting its citation was invisible. The classifier
+The shipped commentary carried such a paragraph, headed with a comma the old
+regex rejected, and deleting its citation was invisible. That heading has since
+been rewritten, so the live example is the control corpus rather than the
+shipped file - see :data:`_CONTROL_HEADING_CASES`. The classifier
 is now TOTAL: every paragraph is an oracle or narrative, never neither. Both
 classes are asserted non-empty, which is the classifier's own liveness control:
 deleting the commentary block, reflowing it so the indentation is lost, or
@@ -726,8 +727,8 @@ def test_an_indented_paragraph_is_an_oracle_whatever_the_heading_case() -> None:
         "an indented paragraph was not classified as an oracle. Missing the "
         "sentence-case one means contract 2 has been reverted to gating on an "
         "ALL-CAPS heading; missing the comma one means it has been reverted to "
-        "gating on a heading at all, which is what left the shipped paragraph "
-        "beginning 'THAT JOIN IS NOT A CHECK' in neither class; missing the "
+        "gating on a heading at all, which is the shape that once left a real "
+        "paragraph of the shipped commentary in neither class; missing the "
         "two-space one means the indent threshold has been narrowed past the "
         "shallowest indent an entry may use. Each reopens an uncited oracle."
     )

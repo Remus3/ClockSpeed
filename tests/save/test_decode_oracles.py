@@ -7,78 +7,33 @@ That is the right shape for what it does, because a transcription that
 disagrees with the module under test is exactly what its synthetic fixtures are
 built to expose.
 
-**THE COMMON MODE THIS MODULE WAS FOUNDED ON DOES NOT EXIST, AND A MEASUREMENT
-IS WHAT SAYS SO.** The founding claim, written here in capitals, was that a
-width wrong in BOTH copies is wrong in NEITHER test. Mutating each width in
-``clockspeed/save/objects.py`` and in ``tests/save/test_properties.py`` to the
-same wrong value - the genuine common-mode fault, one width at a time, judged
-by ``test_properties`` alone with neither oracle module running - leaves that
-module RED on every one of them. Not one survivor.
+WHAT THIS MODULE ADDS IS PROVENANCE. Two copies of one belief are not two
+pieces of evidence - CLAUDE.md section 5 names it - so the walk here holds no
+width of its own. Names come from ``objects._payload_text``, tag headers from
+``objects._read_tag_header``, and the cursor advances by the value extent that
+shipped header read reports, so an assertion here grades the shipped grammar
+rather than a copy of it. One literal IS transcribed, the terminator word, and
+that exception is argued where the constant is defined rather than left for a
+reader to notice.
 
-The mechanism is structural rather than lucky, which is why it should be
-trusted past the single measurement: ``test_properties`` carries its OWN
-equality reach oracle over the real library. Under a fault both copies share,
-its copy-based walker desynchronises against THE BYTES exactly as the shipped
-one does. The bytes are a third party that neither copy controls, and no amount
-of agreement between two transcriptions buys agreement with them.
-
-THE SINGLE-COPY CASE WAS MIS-STATED TOO, and in the opposite direction. The old
-text said that mis-stating ``ArrayProperty`` in ``clockspeed/save/objects.py``
-left every assertion in ``test_properties`` passing, "because that module never
-reads the shipped constant". It reads it pervasively - just indirectly.
-``test_properties`` calls the shipped ``objects.read_properties`` throughout, so
-that mutant turns the module red without a single assertion in THIS file
-running, and several of the red ones are ``test_the_synthetic_*`` cases that
-need no game and no save library at all. A bare CI box catches it.
-
-WHAT SURVIVES IS THE NARROWER AND STILL-TRUE HALF: two copies of one belief are
-not two pieces of evidence. CLAUDE.md section 5 names it, and it is still why
-the walk here holds no width of its own - names come from
-``objects._payload_text``, tag headers from ``objects._read_tag_header``, and
-the cursor advances by the value extent that shipped header read reports. What
-that buys is PROVENANCE: an assertion here grades the shipped grammar rather
-than a copy of it. Whether it also buys DETECTION is not argued in prose here -
-see ``test_every_tag_width_is_caught_by_a_library_backed_oracle``, which
-derives it for the tag widths. This module does transcribe ONE literal, the
-terminator word, and that exception is argued where the constant is defined
-rather than left for a reader to notice.
+WHETHER PROVENANCE ALSO BUYS DETECTION IS NOT ARGUED IN THIS PROSE. For the tag
+widths the relation is derived at runtime by
+``test_every_tag_width_is_caught_by_a_library_backed_oracle``. ADR 0008 is why
+it is derived rather than stated: a detection claim is a measured fact, and
+CLAUDE.md section 4 puts a measured fact in one machine-checked place instead
+of in a sentence. The mechanical fence over the wider class of unbounded claim
+in this file's prose is ``tests/save/test_absolute_claims.py``, which requires
+a sentence like this one to name a test that resolves.
 
 THE THREE ORACLES ARE NOT INTERCHANGEABLE, and what each is FOR is written
-below. WHICH ONE CATCHES WHICH TAG-WIDTH FAULT IS NOT WRITTEN DOWN - it is
-derived at runtime, on any run holding the inputs, by
-``test_every_tag_width_is_caught_by_a_library_backed_oracle``. DETECTION CLAIMS
-OLDER THAN THIS RULE SURVIVE IN PROSE BOTH ABOVE AND BELOW IT - the two-copy
-common-mode measurement this module was founded on is one - and none of them is
-re-derived by anything. They are NOT inventoried here: an inventory is itself a
-count that goes stale, and a sentence saying "one claim remains" stood in this
-spot and was already false when it was written. The rule instead: READ ANY
-SENTENCE IN THIS FILE THAT SAYS A TEST CATCHES A FAULT AS A PAST MEASUREMENT
-UNLESS IT NAMES THE TEST THAT DERIVES IT. The rule that put the rest under a
-test:
+below. What each CATCHES is not.
 
-  A DETECTION CLAIM IS A MEASURED FACT. "Test X catches fault Y" is coverage,
-  and CLAUDE.md section 4 requires a measured quantity - it names coverage
-  among them - to live in one machine-checked place rather than in prose. Three
-  consecutive rounds of repair here each shipped a false detection sentence,
-  one written expressly to correct its predecessor, and the last was falsified
-  by the commit that wrote it: adding ``_JOIN_WORD_FLOOR`` changed what the
-  join test measures, so sentences about what that join does and does not catch
-  stopped being true without one of them being edited. A UNIVERSALLY-QUANTIFIED
-  detection claim - "the only one that", "nothing else catches" - has the whole
-  suite for all time as its falsification surface, so no local edit can be
-  reviewed against it and an unrelated ADDITION breaks it. Those are deleted
-  and are not to be written again. An EXISTENTIAL one is derived by the suite
-  instead of being stated. A MECHANISTIC claim about the code beside it stays
-  prose, because it rots only when that code changes and a reader can check it
-  by reading.
-
-  THE SHIPPED-WALK REACH is checked as EQUALITY - every payload of every tagged
-  pair reaches its terminator - because a ``> 0`` floor is known to survive a
-  rotated alignment on this project's own corpus. Equality is NECESSARY AND NOT
-  SUFFICIENT, which an earlier draft of this file got wrong: it is also
-  satisfied by a walker that returns no tags at all, since every payload then
-  trivially "reaches". So the reach test carries a liveness floor BESIDE the
-  equality. Both, not either.
+  THE SHIPPED-WALK REACH is checked as EQUALITY rather than as a ``> 0`` floor,
+  because a floor was measured to survive a rotated alignment on this project's
+  own corpus. Equality is NECESSARY AND NOT SUFFICIENT: a walker that returns
+  no tags satisfies it trivially, so the reach test carries a liveness floor
+  BESIDE the equality. Both halves are asserted in
+  ``test_the_shipped_walker_reaches_a_terminator_on_every_real_payload``.
 
   THE CROSS-SECTION and THE USMAP JOIN are EXTERNAL evidence: one about the
   reference-to-record pairing, read out of a section a different cursor pass
@@ -88,26 +43,31 @@ test:
 
   THE SHARED-LOCATOR LIMIT, recorded here rather than left for a reader to
   discover. Oracles 1 and 2 are NOT two independent measurements. Oracle 2's
-  population is a strict SUBSET of oracle 1's: a reference cannot resolve
-  unless it first decoded, and it cannot decode unless its own length prefix
-  accounted for the declared size, which is the reach oracle's own condition.
-  On top of that containment, both take ``value_at`` from ONE
-  ``objects._read_tag_header`` call per tag, so a fault in the locator moves
-  the two in the same direction by construction. Their agreement is ONE
-  measurement reported twice at two strengths - not two measurements that
-  agree. Oracle 2's rotation control moves only the offset the value is read
-  from, holding the tag walk fixed, so what it varies is the value grammar
-  rather than the payload attribution.
+  population is a strict SUBSET of oracle 1's: a reference resolves only after
+  it decoded, and it decodes only if its own length prefix accounted for the
+  declared size, which is the reach oracle's own condition. On top of that
+  containment, both take ``value_at`` from ONE ``objects._read_tag_header``
+  call per tag, so a fault in the locator moves the two in the same direction
+  by construction. Their agreement is ONE measurement reported twice at two
+  strengths - not two measurements that agree. Oracle 2's rotation control
+  moves only the offset the value is read from, holding the tag walk fixed, so
+  what it varies is the value grammar rather than the payload attribution.
 
-  THE JOIN'S BIJECTION AND ITS DIVERSITY FLOOR READ ONE MECHANISM AT TWO
-  QUANTITIES, and collapsing them into a single verdict about "the join" is
-  what produced the last false sentence. A wrong width breaks the walk, a
-  broken walk contributes no pairs at all, and every pair that does survive is
-  still a correct pair. A BIJECTION over a shrinking population of correct
-  pairs stays pristine, so it can hold while the grammar rots. A COUNT of the
-  distinct type words that population spans cannot: the thinning is the whole
-  of what such a count measures. The mechanism argument was right and was
-  OVER-APPLIED from the bijection to the join as a whole.
+  THE JOIN'S BIJECTION AND ITS WORD COUNT ARE TWO QUANTITIES OVER ONE
+  POPULATION, AND THEY DO NOT MOVE TOGETHER. A wrong width breaks the walk, a
+  broken walk contributes no pairs, and the pairs that survive are correct
+  ones - so a BIJECTION over that shrinking population stays pristine and can
+  hold while the grammar rots. That half is asserted directly by
+  ``test_every_tag_width_is_caught_by_a_library_backed_oracle``.
+
+  THE DISTINCT-WORD COUNT IS NOT THE COMPLEMENT OF THAT HALF, and a sentence
+  saying it falls with the population stood here and was measurably false. A
+  thinning population does not imply a falling word count: a width was measured
+  that rots thousands of payloads while leaving the count exactly where it was,
+  because that width contributes none of the joined words, and thinning the
+  join directly through the tag cap drops thousands of tags with the count
+  again unmoved. What the same derived test asserts is the honest existential -
+  that AT LEAST ONE width moves the count. Do not restore the general form.
 
 THE JOIN IS FLAT - a tag name is joined to a ``type_id`` in the record's OWN
 schema and the super chain is not walked. Walking the chain was measured too:
@@ -116,49 +76,47 @@ claiming two ids and no id claimed by two words. The flat join is kept because
 it is the narrower claim of the two, not because the chain refuted anything.
 
 PRIVACY, non-negotiables 11 and 12, WRITTEN AS WHAT THE CODE DELIVERS RATHER
-THAN AS WHAT WOULD BE REASSURING. Every call that touches a real path or a real
+THAN AS WHAT WOULD BE REASSURING. A call that touches a real path or a real
 body sits inside a ``try`` that reduces whatever comes out of it to an exception
 type NAME: the read and the header parse under the pair of handlers in the
 sweep, the mapping load under its own, the per-save walk under the broad
 handler below them, and discovery inside
 ``test_properties._library_save_paths``, which holds its own. A save path, a
-body, an instance name and a decoded value are all things pytest renders out of
-a frame it unwinds - and it renders the ARGUMENTS of those frames with no
-opt-in flag, which is why the containment has to be total rather than merely
-present. ``path.read_bytes()`` is a bound method whose ``self`` IS the save
-path, so a single uncontained type escaping that line prints the Windows
-account name, the platform account id and the world name together.
+body, an instance name and a decoded value are things pytest renders out of a
+frame it unwinds - and it renders the ARGUMENTS of those frames with no opt-in
+flag, which is why the containment has to be total rather than merely present.
+``path.read_bytes()`` is a bound method whose ``self`` IS the save path, so a
+single uncontained type escaping that line prints the Windows account name, the
+platform account id and the world name together. The containment is exercised
+by ``test_an_unexpected_read_failure_does_not_unwind_through_the_oracle_sweep``.
 
-WHAT "COUNTS ONLY" GOVERNS, said precisely because a later test made the short
-version ambiguous. It is a rule about CORPUS DATA: a property name, a type word
-or a value read out of a real save is judged INSIDE the sweep and discarded
-there, and no frame below that line holds one to render. It is NOT a ban on
-integers-and-nothing-else in this file. A failure message may name a key of a
-shipped constant or one of this module's own function names, because neither
-came from anybody's save.
+THE CONTAINMENT STOPS AT ``BaseException``, AND THAT EDGE IS DELIBERATE RATHER
+THAN OVERLOOKED. Both cases were measured by forcing the type out of the read
+under ``-q`` alone - no ``-l``, no ``--tb``, no ``--full-trace``.
+``SystemExit`` IS CAUGHT: it is not an ``Exception``, it escaped, and it
+rendered the path under those default flags, so the handlers name it
+explicitly, at no cost to what a read path legitimately does.
+``KeyboardInterrupt`` is left to escape AND IT DOES ESCAPE - out of the read,
+and out of the discovery call that sits outside any ``try`` in
+``_sweep_decode_oracles``. Under the same flags it rendered no path at all -
+pytest prints its crash line, plus a hint that ``--full-trace`` would show
+more - and swallowing it would cost the ability to abort a walk over a real
+library. That is the trade, made in the direction the measurement supports
+rather than the direction that reads well.
 
-THE RESIDUAL, NAMED RATHER THAN PAPERED OVER, AND THE TWO CASES BEHAVE
-DIFFERENTLY - an earlier version of this paragraph had them exactly backwards,
-which mattered because it understated the one that leaks. Both are measured
-by forcing each type out of the read under ``-q`` alone, no ``-l``, no
-``--tb``, no ``--full-trace``. ``SystemExit`` IS NOW CAUGHT: it is not an
-``Exception``, it escaped, and it rendered the path under those default flags
-with no opt-in of any kind - so the handlers name it explicitly. Nothing in a
-read path legitimately raises it, so containing it costs nothing.
-``KeyboardInterrupt`` still escapes and is left to: under the same flags it
-rendered no path at all - pytest prints only its crash line, plus a hint that
-``--full-trace`` would show more - and swallowing it would cost the ability to
-abort a walk over a real library. That is the trade, and it is made in the
-direction the measurement supports rather than the direction that reads well.
+WHAT "COUNTS ONLY" GOVERNS. It is a rule about CORPUS DATA: a property name, a
+type word or a value read out of a real save is judged INSIDE the sweep and
+discarded there, and no frame below that line holds one to render. It does not
+ban integers-and-other-things in this file - a failure message may name a key
+of a shipped constant or one of this module's own function names, because
+neither came from anybody's save.
 
-Every assertion here is a shape, a rate or a factor, with ONE bounded
-exception - ``_JOIN_WORD_FLOOR``, argued where it is defined. Saying the file
-writes down no absolute count would be the same species of false guarantee the
-privacy note above was rewritten to stop making, and it was false the moment
-that floor was added. The rule the exception is measured against is narrower
-and holds: NO CORPUS-SIZED QUANTITY is written down, because the corpus is the
-operator's own live library and it grows on every autosave, so a payload total,
-a tag total or a reference total is stale before it can be committed.
+``_JOIN_WORD_FLOOR`` is an absolute count written down in this file, argued
+where it is defined and reopened there as a false-red risk by CS-432. The rule
+it is an exception to: NO CORPUS-SIZED QUANTITY is written down, because the
+corpus is the operator's own live library and it grows on each autosave, so a
+payload total, a tag total or a reference total is stale before it can be
+committed.
 """
 
 from __future__ import annotations
@@ -175,23 +133,22 @@ import pytest
 
 from clockspeed.save import chunks, header, objects, usmap
 
-# IMPORTED, NEVER COPIED. ``_library_save_paths`` and ``_cached_usmap_or_none``
-# each close a leak their own docstrings describe - the discovery calls that
-# resolve the account directory sit inside their ``try`` - and a third
-# transcription of that containment is a third place to get it subtly wrong.
-# The module is imported whole rather than its names lifted, so that every use
-# site says out loud which module the value came from. That matters most for
-# the two transcribed constants, which are the SUBJECT of the last test here.
+# IMPORTED RATHER THAN COPIED. ``_library_save_paths`` and
+# ``_cached_usmap_or_none`` each close a leak their own docstrings describe -
+# the discovery calls that resolve the account directory sit inside their
+# ``try`` - and a third transcription of that containment is a third place to
+# get it subtly wrong. The module is imported whole rather than its names
+# lifted, so that a use site says out loud which module the value came from.
+# That matters most for the two transcribed constants, which are the SUBJECT of
+# the last test here.
 from tests.save import test_properties
 
 #: The property terminator, as the shipped walk spells it.
 #:
-#: THIS IS A TRANSCRIPTION, AND THE ONE THIS MODULE HOLDS. Saying the module
-#: copies nothing would be the same species of false guarantee the privacy note
-#: above was rewritten to stop making, so the exception is stated instead.
-#: ``objects`` exports no name for the terminator - the literal is bare at its
-#: only site, the ``name[0] == "None"`` test inside the shipped payload walk -
-#: so there is nothing here to import without editing that module.
+#: THIS IS A TRANSCRIPTION, AND THE ONE THIS MODULE HOLDS. ``objects`` exports
+#: no name for the terminator - the literal is bare at its only site, the
+#: ``name[0] == "None"`` test inside the shipped payload walk - so there is no
+#: name here to import without editing that module.
 #:
 #: The exposure is BOUNDED rather than absent, which is why a fourth copy is
 #: tolerable where a fourth width would not be. Both walks stop on the same
@@ -199,11 +156,11 @@ from tests.save import test_properties
 #: its terminator - a divergence that shows up as a walk running on rather than
 #: as a quietly wrong measurement.
 #:
-#: THAT IS REASONING, NOT A MEASUREMENT, and it is marked as such because
-#: nothing in the suite mutates it. The shipped literal is bare rather than a
+#: THAT IS REASONING, NOT A MEASUREMENT, and it is marked as such because no
+#: test in the suite mutates it. The shipped literal is bare rather than a
 #: module attribute, so there is no name to monkeypatch and the width
-#: derivation below cannot reach it. Do not upgrade this to a claim about which
-#: test would catch it without first making something able to.
+#: derivation below is unable to reach it. Do not upgrade this to a claim about
+#: which test would catch it without first making something able to.
 _TERMINATOR: Final = "None"
 
 #: The type word whose value names a saved object. SoftObjectProperty carries
@@ -227,35 +184,31 @@ _TRUE_OFFSET: Final = 0
 _TRUE_JOIN: Final = "true"
 _SHIFTED_JOIN: Final = "shifted"
 
-#: How many distinct type words the true join must span. THE ONE NUMBER IN THIS
-#: FILE READ OFF A MEASUREMENT OF THE LIBRARY rather than off the shape of the
-#: grammar - ``_REFERENCE_PARTS`` and the rotation deltas are the latter - and
-#: the exception is argued rather than assumed.
-#:
-#: The no-absolute-counts rule exists because this project's corpus is the
-#: operator's own live save library, which grows on every autosave - so a
-#: payload total, a tag total or a reference total is stale the moment it is
-#: written. THAT REASONING DOES NOT REACH THIS NUMBER. The type words are the
-#: property GRAMMAR the engine serialises with; their number is fixed by the
-#: engine, not by how much factory has been built. Playing the game moves the
-#: tag count and leaves this alone.
-#:
-#: It is a FLOOR, in the only direction that can move: new content can
-#: introduce a word never seen before and the floor still holds, while the
-#: number falling means the join population thinned - which is exactly the
-#: degradation this guards. Measured at the full observed width, so a thinned
-#: join cannot satisfy it.
+#: How many distinct type words the true join must span. A NUMBER IN THIS FILE
+#: READ OFF A MEASUREMENT OF THE LIBRARY rather than off the shape of the
+#: grammar - ``_REFERENCE_PARTS`` and the rotation deltas are the latter.
 #:
 #: WHY A FLOOR AT ALL: ``join.tags > 0`` bounds volume and not diversity. The
 #: bijection assertions below are vacuously true over a degenerate join, and
 #: were measured GREEN with the join collapsed to a single word and a single
 #: id. Volume alone does not notice that.
+#:
+#: THE JUSTIFICATION THAT USED TO STAND HERE IS REFUTED AND IS DELETED RATHER
+#: THAN REWORDED. It argued that the count is an engine constant untouched by
+#: play, and that a thinned join could not satisfy the floor. Both were
+#: measured false: per-save distinct joined word counts run below this number,
+#: which is a UNION over a growing library, and a join thinned by thousands of
+#: tags through the tag cap still spans the full count and clears the floor. So
+#: this floor can go RED ON A CORRECT GRAMMAR if autosave rotation retires the
+#: saves contributing a rare word. CS-432 owns the repair and the constant is
+#: deliberately left alone here; the attribution test below avoids the hazard
+#: already by comparing against a pristine baseline measured in the same run.
 _JOIN_WORD_FLOOR: Final = 13
 
 
 @dataclass(frozen=True)
 class _JoinShape:
-    """One join's shape, as counts only - never the words or the ids.
+    """One join's shape, as counts only - not the words and not the ids.
 
     Attributes:
         tags: How many tags joined.
@@ -281,8 +234,9 @@ class _OracleSweep:
         reached: Records whose payload reached its terminator under the
             SHIPPED reader, by version pair.
         walked_tags: Tags the SHIPPED walk actually yielded, by version pair.
-            Carried because ``reached`` alone cannot tell a complete walk from
-            a walk that returned nothing - see the reach test's liveness floor.
+            Carried because ``reached`` alone does not separate a complete walk
+            from one that returned zero tags - see the reach test's liveness
+            floor.
         references: Reference tags that decoded at all, by value-start delta.
         resolutions: Those whose object path named a record in the table, by
             the same delta.
@@ -296,7 +250,7 @@ class _OracleSweep:
             assertion that gates on the library alone FAILS on that machine
             instead of skipping. Recorded rather than inferred from
             ``join.tags == 0``, which a real fault also produces.
-        failures: Exception type NAMES, never the exceptions.
+        failures: Exception type NAMES, not the exceptions themselves.
     """
 
     payloads: Mapping[tuple[int, int], int]
@@ -312,11 +266,11 @@ class _OracleSweep:
 
 @dataclass
 class _Accumulators:
-    """Everything one sweep folds into, mutated in place.
+    """What one sweep folds into, mutated in place.
 
     Bundled rather than passed as loose arguments so that the per-save walker
     keeps a signature a reader can hold, and so that adding a measurement does
-    not change every call site.
+    not change the call sites.
 
     Attributes:
         payloads: Records seen, by version pair.
@@ -349,9 +303,7 @@ def _walk_with_the_shipped_reader(
     the cursor advance is computed from what the shipped header read returned
     rather than from any width stated here. What this function contributes is
     the loop, that advance, and ONE transcribed literal - the ``_TERMINATOR``
-    comparison, whose only use site in this module is the line below. An
-    earlier docstring said this function transcribes NOTHING and then listed
-    the parts, and the terminator is the part the list left out.
+    comparison, whose only use site in this module is the line below.
 
     Args:
         body: The decompressed body.
@@ -359,7 +311,7 @@ def _walk_with_the_shipped_reader(
         end: The first byte past the payload.
 
     Returns:
-        Every tag as name, type word, value start and declared size, or None
+        Each tag as name, type word, value start and declared size, or None
         when the walk broke before reaching a terminator.
     """
     tags: list[tuple[str, str, int, int]] = []
@@ -385,7 +337,7 @@ def _tally_references(
     names: frozenset[str],
     into: _Accumulators,
 ) -> None:
-    """Resolve every reference tag against the record table, true and rotated.
+    """Resolve each reference tag against the record table, true and rotated.
 
     The judgement is the SHIPPED decoder's own: ``_decode_value`` returns a
     pair only when the two strings account for the declared size exactly.
@@ -393,7 +345,7 @@ def _tally_references(
     Args:
         body: The decompressed body.
         tags: The payload's tags, from the unrotated walk.
-        names: Every instance name in the table, from ``parse_body``.
+        names: The instance names in the table, from ``parse_body``.
         into: The accumulators, mutated in place.
     """
     for _name, type_word, value_at, size in tags:
@@ -419,7 +371,7 @@ def _tally_join(
 
     THE SHIFTED PAIRING IS THE CONTROL. A join that is a genuine function of
     the type word must stop being one when the word is taken from the wrong
-    tag; if it survives that, it was never measuring the pairing at all.
+    tag; if it survives that, it was not measuring the pairing at all.
 
     Args:
         tags: The payload's tags, from the unrotated walk.
@@ -440,8 +392,8 @@ def _tally_join(
 def _shape_of(pairs: set[tuple[str, int]], tags: int) -> _JoinShape:
     """Reduce a set of pairs to counts, DISCARDING the words and the ids.
 
-    Nothing downstream of this function can render a type word, which is what
-    makes the module's "counts only" a mechanism rather than a promise.
+    No frame downstream of this function holds a type word to render, which is
+    what makes the module's "counts only" a mechanism rather than a promise.
 
     Args:
         pairs: The observed type word and raw type id pairs.
@@ -530,9 +482,19 @@ def _sweep_one_save(data: bytes, parsed: header.SaveHeader, into: _Accumulators)
 
 @lru_cache(maxsize=1)
 def _sweep_decode_oracles() -> _OracleSweep | None:
-    """Walk every real save once and return COUNTS ONLY. IT NEVER RAISES.
+    """Walk each real save once and return COUNTS ONLY.
 
-    Cached because every library-backed test here shares it and the walk is the
+    IT CONTAINS ``Exception`` AND ``SystemExit``, AND STOPS THERE. That is
+    stated as the two types it holds rather than as an absolute, because the
+    absolute is false: a ``KeyboardInterrupt`` unwinds straight out of this
+    function, from the read below and also from the
+    ``test_properties._library_save_paths`` call that sits outside any ``try``
+    here. Both escapes were forced and observed. The module docstring argues
+    why that gap is the trade worth making, and the containment that IS claimed
+    is exercised by
+    ``test_an_unexpected_read_failure_does_not_unwind_through_the_oracle_sweep``.
+
+    Cached because the library-backed tests here share it and the walk is the
     expensive part. The width derivation clears the cache between mutants, so
     the cache is a within-run optimisation rather than a guarantee that the
     walk happens once per session.
@@ -575,15 +537,15 @@ def _sweep_decode_oracles() -> _OracleSweep | None:
             # THE BACKSTOP, for the reason the handler below states: anything
             # unexpected escaping here unwinds through `path.read_bytes()`,
             # whose bound `self` IS the save path, and pytest renders the
-            # arguments of every frame it unwinds with no opt-in flag.
+            # arguments of an unwound frame with no opt-in flag.
             #
             # SystemExit IS NAMED because it is not an Exception and it was
             # MEASURED to render that path under default flags - `-q` alone,
             # no `-l`, no `--tb`, no `--full-trace`. KeyboardInterrupt is left
-            # to escape: it renders NOTHING under those same flags, and
+            # to escape: it rendered no path under those same flags, and
             # swallowing it would cost the ability to abort a walk over a real
-            # library. Nothing in a read path legitimately raises SystemExit,
-            # so containing it costs nothing that argument protects.
+            # library. A read path has no legitimate reason to raise
+            # SystemExit, so containing it costs none of what that buys.
             failures.append(type(exc).__name__)
             continue
         if (parsed.header_version, parsed.save_version) not in test_properties.TAGGED_PAIRS:
@@ -624,7 +586,7 @@ def _sweep_or_skip() -> _OracleSweep:
 
 
 def _join_sweep_or_skip() -> _OracleSweep:
-    """Fetch the sweep for a JOIN-dependent assertion, skipping when it cannot run.
+    """Fetch the sweep for a JOIN-dependent assertion, skipping when it is not gradeable.
 
     TWO INPUTS, TWO GATES, AND THE SECOND WAS MISSING. A join assertion needs
     the save library AND the property mapping, and those come from different
@@ -661,14 +623,13 @@ def test_the_shipped_walker_reaches_a_terminator_on_every_real_payload() -> None
     """THE REACH ORACLE WITH NO TRANSCRIPTION ANYWHERE IN ITS CHAIN.
 
     WHAT THIS TEST IS FOR, AND THE ANSWER IS NOT A LIST OF WHAT IT CATCHES.
-    Three drafts of this docstring tried to earn the test its place by naming
-    faults it caught and other tests missed, and each of those sentences was
-    later measured false - the last of them by an assertion added elsewhere in
-    this same file, which no reader of this docstring could have seen coming.
-    The relation is derived instead, on every run that has its inputs, by
+    The relation is derived instead, on a run that has its inputs, by
     ``test_every_tag_width_is_caught_by_a_library_backed_oracle``. Do not
-    restore a sentence here that says what this test uniquely catches; that is
-    the exact shape that has now been wrong three times.
+    restore a sentence here naming what this test uniquely catches: a claim
+    about which test reddens under which fault depends on assertions elsewhere,
+    so an addition made in another file falsifies it without anyone editing it.
+    ADR 0008 is the rule and ``tests/save/test_absolute_claims.py`` is the
+    fence.
 
     WHAT IS DURABLE IS THE PROVENANCE, and it is a property of this test's own
     body rather than of the rest of the suite. The name read, the tag header
@@ -684,10 +645,9 @@ def test_the_shipped_walker_reaches_a_terminator_on_every_real_payload() -> None
     THE EQUALITY IS NECESSARY AND NOT SUFFICIENT. Equality rather than a ``> 0``
     floor is what rules out a rotated alignment, which leaves the reach SHORT of
     the payload count rather than at zero, so it stays. But equality alone is
-    satisfied by a walker that returns NO TAGS: every payload then trivially
-    reaches, and this assertion was measured GREEN under exactly that mutant.
-    The liveness floor below closes it - and it is a floor, so the old sentence
-    dismissing floors was wrong in both of its halves.
+    satisfied by a walker that returns NO TAGS - a payload then trivially
+    "reaches" - and this assertion was measured GREEN under exactly that mutant.
+    The liveness floor below closes it.
     """
     sweep = _sweep_or_skip()
     present = _pairs_present(sweep)
@@ -698,36 +658,36 @@ def test_the_shipped_walker_reaches_a_terminator_on_every_real_payload() -> None
     for pair in present:
         # LIVENESS, and it is not redundant with the equality below. A walk that
         # yields no tags satisfies that equality perfectly - reached == payloads
-        # because nothing had to be walked to "reach" - and did so when it was
-        # measured. A floor on the tags actually yielded is the only thing here
-        # that separates a complete walk from an absent one.
+        # because there was no tag to walk before "reaching" - and did so when
+        # it was measured. A floor on the tags actually yielded is what
+        # separates a complete walk from an absent one.
         assert sweep.walked_tags.get(pair, 0) > 0, (
             f"the SHIPPED walk yielded no tags at all on the {sweep.payloads[pair]} "
             f"payloads of pair {pair}, so the equality below is satisfied by a walk "
-            "that never happened rather than by one that reached every terminator"
+            "that did not happen rather than by one that reached its terminators"
         )
         assert sweep.reached.get(pair, 0) == sweep.payloads[pair], (
             f"the SHIPPED reader reaches a terminator on only {sweep.reached.get(pair, 0)} "
             f"of {sweep.payloads[pair]} payloads of pair {pair}; under the measured "
-            "grammar it reaches one on every payload of every tagged pair, so a "
+            "grammar the reach equals the payload count on a tagged pair, so a "
             "shortfall means a shipped width no longer matches the bytes"
         )
 
 
 def test_object_references_resolve_against_the_record_table_and_collapse_when_rotated() -> None:
-    """THE CROSS-SECTION ORACLE - evidence from a section this walk never reads.
+    """THE CROSS-SECTION ORACLE - evidence from a section this walk does not read.
 
     An ObjectProperty's value is a level reference and an object path, and the
     path names a record in the object table. That table is parsed by
     ``parse_body`` in a different pass over a different section of the body, so
-    a reference resolving against it is a claim the payload walk cannot make
-    true by itself - the two have to agree about where things are.
+    a reference resolving against it is a claim the payload walk is unable to
+    make true by itself - the two have to agree about where things are.
 
     THE CONTROL RE-READS THE VALUE AT PLUS AND MINUS ONE BYTE WITH THE TAG WALK
     HELD FIXED, so what moves is the value grammar alone and not the
     attribution. Resolutions must go to zero at both. The liveness floor above
-    it is what stops those zeros being vacuous: a sweep that resolved nothing
-    at the true offset would satisfy the collapse trivially.
+    it is what stops those zeros being vacuous: a sweep that resolved zero
+    references at the true offset would satisfy the collapse trivially.
 
     NO CROSS-SAVE CONTROL SHIPS HERE, deliberately. Resolving one save's
     references against a DIFFERENT save's record index was measured and does
@@ -763,49 +723,50 @@ def test_the_usmap_type_id_join_is_a_bijection_and_collapses_under_a_one_tag_shi
     schema pairs the save's type WORD with the asset's type ID, and the pairing
     is one-to-one in both directions: no word claims two ids, no id is claimed
     by two words. That is genuine external evidence about the WORD-to-ID
-    pairing, from a file this module never otherwise reads.
+    pairing, from a file this module does not otherwise read.
 
-    THIS TEST ASSERTS TWO DIFFERENT THINGS ABOUT ONE POPULATION, and the
-    difference decides what each can notice. A wrong width in
-    ``objects._TAG_EXTRA_STRINGS`` breaks the walk, a broken walk yields no
-    pairs, and the pairs that remain are all correct - so a BIJECTION over that
-    shrinking population stays clean, while a COUNT of the distinct type words
-    it spans falls with the population. Reading the second as though it behaved
-    like the first is what put a false sentence here for three rounds. Which
-    width either quantity notices is not recorded in this docstring; it is
-    derived by ``test_every_tag_width_is_caught_by_a_library_backed_oracle``,
-    which also asserts the bijection half of that mechanism rather than
-    trusting this paragraph for it.
+    THIS TEST ASSERTS TWO DIFFERENT THINGS ABOUT ONE POPULATION, and the two do
+    not move together. A wrong width in ``objects._TAG_EXTRA_STRINGS`` breaks
+    the walk, a broken walk yields no pairs, and the pairs that remain are
+    correct - so a BIJECTION over that shrinking population stays clean.
+    THE DISTINCT-WORD COUNT DOES NOT SIMPLY TRACK THE THINNING, which is the
+    error a sentence in this spot made for several rounds: a width was measured
+    that rots thousands of payloads and leaves the word count exactly where it
+    was. Which width either quantity notices is not recorded in this docstring;
+    it is derived by
+    ``test_every_tag_width_is_caught_by_a_library_backed_oracle``, which also
+    asserts the bijection half rather than trusting this paragraph for it.
 
     THE SHIFT CONTROL is what makes the bijection mean anything: pair each
     tag's name with the NEXT tag's type word and the one-to-one property has to
     break in both directions. It does. The shifted join is asserted live for
     the same reason the cross-section oracle carries a floor - a control that
-    joined nothing would "break" the bijection by being empty.
+    joined zero tags would "break" the bijection by being empty.
 
     AND A LIVENESS FLOOR ON VOLUME IS NOT ONE ON DIVERSITY, which was measured
     rather than reasoned about. With ``join.tags`` left large and the joined
-    pairs collapsed to a single word and a single id, every assertion this test
+    pairs collapsed to a single word and a single id, the assertions this test
     shipped at the time passed - a one-element map is trivially one-to-one in
     both directions. So the tag floor is joined by a floor on the distinct type
-    words spanned; see ``_JOIN_WORD_FLOOR`` for why that one number is allowed
-    to be written down.
+    words spanned; see ``_JOIN_WORD_FLOOR``, and see CS-432 for the false-red
+    risk that floor carries.
     """
     sweep = _join_sweep_or_skip()
     assert sweep.join.tags > 0, (
         "no tag joined the shipped mapping, so the bijection asserted below holds "
-        "over an empty set and grades nothing"
+        "over an empty set and grades zero pairs"
     )
-    # DIVERSITY, which the tag floor above does not bound. See _JOIN_WORD_FLOOR
-    # for why a measured number is legitimate at this one assertion: the type
-    # words are the engine's grammar, so this quantity does not move when the
-    # operator plays the game. Do not "fix" it back out for the
-    # no-absolute-counts rule - that rule is about corpus-sized quantities.
+    # DIVERSITY, which the tag floor above does not bound. THIS ASSERTION IS THE
+    # ONE CS-432 IS OPEN AGAINST: the floor sits at a UNION over a growing
+    # library rather than at an engine constant, so autosave rotation retiring
+    # the saves that contribute a rare word turns it RED ON A CORRECT GRAMMAR.
+    # It is loud rather than silent, which is why it ships while CS-432 is open.
     assert sweep.join.words >= _JOIN_WORD_FLOOR, (
         f"the join's distinct type word count is {sweep.join.words}, under the "
-        f"{_JOIN_WORD_FLOOR} the grammar is known to carry; the bijection below is "
-        "one-to-one over whatever survives, so a thinned join passes it while "
-        "grading almost nothing"
+        f"floor of {_JOIN_WORD_FLOOR}; the bijection below is one-to-one over "
+        "whatever survives, so a thinned join passes it while grading little. "
+        "Check CS-432 before treating this as a grammar fault - the floor is "
+        "known to be able to redden on a correct grammar"
     )
     assert sweep.join.words_to_many_ids == 0, (
         f"{sweep.join.words_to_many_ids} type words each pair with more than one raw "
@@ -816,7 +777,7 @@ def test_the_usmap_type_id_join_is_a_bijection_and_collapses_under_a_one_tag_shi
         "one type word, so the mapping is not injective"
     )
     assert sweep.shifted.tags > 0, (
-        "the shifted control joined nothing, so its violations below would be absent "
+        "the shifted control joined zero tags, so its violations below would be absent "
         "for want of data rather than because the shift is detectable"
     )
     assert sweep.shifted.words_to_many_ids > 0, (
@@ -839,10 +800,10 @@ def test_both_tag_grammar_transcriptions_agree() -> None:
     module's evidence about a grammar the shipped code no longer uses.
 
     BUT AGREEMENT HERE IS NOT EVIDENCE THAT EITHER IS RIGHT. It is one belief
-    written in two places, and two copies agreeing says nothing about whether
-    the belief matches the bytes. Only a third party neither copy controls can
-    say that, and the bytes are the third party - which is why the reach test
-    in this module walks with the SHIPPED constants and grades them against a
+    written in two places, and two copies agreeing is silent about whether the
+    belief matches the bytes. Only a third party neither copy controls settles
+    that, and the bytes are the third party - which is why the reach test in
+    this module walks with the SHIPPED constants and grades them against a
     terminator the file either does or does not contain.
 
     Needs no save library and no game install, so it runs on a bare box.
@@ -863,7 +824,7 @@ def test_an_unexpected_read_failure_does_not_unwind_through_the_oracle_sweep(
 ) -> None:
     """The read and the header parse sat under ``except (OSError, HeaderError)``.
 
-    That catch names the two failures somebody predicted and lets every other
+    That catch names the two failures somebody predicted and lets any other
     type escape the sweep entirely - three lines above a broad handler whose own
     comment says a narrower catch is the leak. pytest renders the arguments of
     the frames it unwinds with NO opt-in flag, and ``path.read_bytes()`` unwinds
@@ -873,9 +834,9 @@ def test_an_unexpected_read_failure_does_not_unwind_through_the_oracle_sweep(
     default pytest flags.
 
     THE SAVE LIST IS SYNTHETIC, so this runs on a machine with no game installed
-    and no real path is ever put into the frame under test. Every helper is
-    imported from ``test_properties`` rather than copied, for the reason given
-    at this module's own import of it.
+    and no real path is put into the frame under test. The helpers are imported
+    from ``test_properties`` rather than copied, for the reason given at this
+    module's own import of it.
     """
     monkeypatch.setattr(
         test_properties,
@@ -893,8 +854,8 @@ def test_an_unexpected_read_failure_does_not_unwind_through_the_oracle_sweep(
 
 
 # ---------------------------------------------------------------------------
-# The mutant-to-detector relation, DERIVED. Everything below this line exists
-# so that no sentence above it has to say which oracle catches which fault.
+# The mutant-to-detector relation, DERIVED. What is below this line exists so
+# that no sentence above it has to say which oracle catches which fault.
 # ---------------------------------------------------------------------------
 
 
@@ -913,46 +874,46 @@ _WIDTH_MUTATION_DELTA: Final = -1
 #: one more place for the same belief to be written, and this module exists
 #: because two copies of one belief are not two pieces of evidence.
 #:
-#: MEMBERSHIP IS EARNED AND CHECKED. Every member is asserted to detect at
-#: least one width, which is what makes GUTTING one visible: an earlier draft
-#: folded the members through ``any()``, and because the reach oracle is first
-#: and red on every width the other two were never called at all - the two
-#: could be replaced by empty function bodies and the test still passed. A
-#: per-member liveness assertion is the repair, and it is only sound over
-#: members that actually detect something.
+#: MEMBERSHIP IS EARNED AND CHECKED. A member is asserted to detect at least
+#: one width, which is what makes GUTTING one visible: an earlier draft folded
+#: the members through ``any()``, and because the reach oracle is first and
+#: reddened on the widths tried, the other two went uninvoked - they could be
+#: replaced by empty function bodies and the test still passed. A per-member
+#: liveness assertion is the repair, and it is sound only over members measured
+#: to detect something.
 #:
 #: THE CROSS-SECTION ORACLE IS NOT A MEMBER, and that is a measurement rather
-#: than a preference: evaluated against every width with no short-circuit
-#: anywhere, it detects ZERO. Its assertions are a liveness floor and a
-#: collapse-under-rotation, and both survive a thinned population for the same
-#: reason the bijection does. It could not satisfy a liveness assertion, and
+#: than a preference: evaluated against the shipped widths with no
+#: short-circuit anywhere, it detects ZERO. Its assertions are a liveness floor
+#: and a collapse-under-rotation, and both survive a thinned population for the
+#: same reason the bijection does, so it would fail a liveness assertion and
 #: including a non-detector would overstate what is being derived. It is still
-#: evaluated under every mutant, and asserted blind - see
+#: evaluated under the mutants, and asserted blind - see
 #: :data:`_MEASURED_BLIND`.
 #:
 #: ``test_both_tag_grammar_transcriptions_agree`` IS NOT A MEMBER EITHER, and
 #: its exclusion needs no measurement because arithmetic settles it: mutating
-#: one copy makes the two copies unequal, so it fails on every width by
+#: one copy makes the two copies unequal, so it reddens on a mutated width by
 #: construction without a byte of the library being read. Including it would
-#: make "every width is caught" true by arithmetic. An earlier draft ASSERTED
-#: that blanket sensitivity; the assertion could not fail, so it was deleted
-#: rather than kept as decoration.
+#: make the no-survivor shape true by arithmetic. An earlier draft ASSERTED
+#: that blanket sensitivity; the assertion was unable to fail, so it was
+#: deleted rather than kept as decoration.
 _DERIVED_AGAINST: Final = (
     test_the_shipped_walker_reaches_a_terminator_on_every_real_payload,
     test_the_usmap_type_id_join_is_a_bijection_and_collapses_under_a_one_tag_shift,
 )
 
-#: Oracles evaluated under every mutant and asserted to detect NOTHING. This is
-#: the honest half of the membership decision: an oracle is excluded because it
-#: was measured blind, and the exclusion stays under test, so strengthening one
-#: turns this red and says "move it into the derived set" rather than letting
-#: it drift out of the relation unnoticed.
+#: Oracles evaluated under the mutants and asserted to detect ZERO widths. This
+#: is the honest half of the membership decision: an oracle is excluded because
+#: it was measured blind, and the exclusion stays under test, so strengthening
+#: one turns this red and says "move it into the derived set" rather than
+#: letting it drift out of the relation unnoticed.
 #:
-#: THIS DOES NOT PROTECT THEM FROM GUTTING. An oracle that detects nothing
-#: cannot be guarded by an attribution test - gutting it to a green no-op and
+#: THIS DOES NOT PROTECT THEM FROM GUTTING. An oracle that detects zero widths
+#: is beyond the reach of an attribution test - gutting it to a green no-op and
 #: measuring it blind look identical from here. Whatever guards the
 #: cross-section oracle has to come from the fault class it IS sensitive to,
-#: which is the value-start rotation rather than a tag width.
+#: which is the value-start rotation rather than a tag width. CS-432 owns that.
 _MEASURED_BLIND: Final = (
     test_object_references_resolve_against_the_record_table_and_collapse_when_rotated,
 )
@@ -987,59 +948,61 @@ def test_every_tag_width_is_caught_by_a_library_backed_oracle(
     """DERIVES which oracle notices which tag width instead of stating it.
 
     THIS TEST IS THE STRUCTURAL FIX, and the fault it repairs is not a decoding
-    fault. Three consecutive rounds of prose repair in this file each shipped a
-    false sentence about which test catches which fault, one written expressly
-    to correct its predecessor. The cause was never carelessness: a detection
+    fault. Round after round of prose repair in this file shipped a false
+    sentence about which test catches which fault, one written expressly to
+    correct its predecessor. The cause was not carelessness: a detection
     claim's truth depends on assertions elsewhere, so ADDING an assertion
-    falsifies a sentence nobody edited. The relation is derived here on every
-    run and written down nowhere.
+    falsifies a sentence that was not edited. The relation is derived here
+    instead of being written down.
 
     HOW. Each width in ``objects._TAG_EXTRA_STRINGS`` is mutated in the SHIPPED
-    module and nowhere else - the constant is read as a module global inside
-    ``objects._skip_tag_extra``, so replacing the attribute is a real fault in
-    the real reader, with no subprocess, no second checkout and no bytecode
-    cache to go stale. The sweep is re-run from scratch and EVERY oracle is
-    then CALLED under EVERY mutant, filling a full per-pair table.
+    module and in no other place - the constant is read as a module global
+    inside ``objects._skip_tag_extra``, so replacing the attribute is a real
+    fault in the real reader, with no subprocess, no second checkout and no
+    bytecode cache to go stale. The sweep is re-run from scratch and each
+    oracle is CALLED under each mutant, filling a full per-pair table.
 
     THE FULL TABLE IS THE POINT, and an earlier draft did not build one. It
     asked ``any(_goes_red(o) for o in ...)``, which SHORT-CIRCUITS: the reach
-    oracle is first and red on every width, so no other oracle was ever
-    invoked. An invocation census proved it, and so did two counter-examples -
-    cutting the tuple to the reach oracle alone still passed, and replacing the
-    other two with green no-op bodies still passed. What that draft derived was
-    a disjunction whose first term saturates, not a relation. No short-circuit
-    survives here.
+    oracle is first and reddened on the widths it was tried against, leaving
+    the others uninvoked. An invocation census showed that, and so did two
+    counter-examples - cutting the tuple to the reach oracle alone still
+    passed, and replacing the other two with green no-op bodies still passed.
+    What that draft derived was a disjunction whose first term saturates, not a
+    relation. No short-circuit survives here.
 
-    WHAT IT ASSERTS, and each one is a shape rather than a tally:
+    WHAT IT ASSERTS. Each item describes an assertion in the body below rather
+    than making a standing claim about the suite:
 
-      NO SURVIVOR. Every shipped width is caught by at least one member. This
-      is the invariant the deleted prose was groping at, in a form an unrelated
-      assertion being added elsewhere cannot falsify - an addition can only
-      ever add detections, never take one away.
+      NO SURVIVOR. A shipped width that no member catches fails this test. An
+      addition made elsewhere is unable to falsify that shape, because an
+      addition adds detections rather than removing one.
 
-      EVERY MEMBER DETECTS. Each member catches at least one width. This is
-      what makes gutting a member visible, and it is why membership is
+      EACH MEMBER DETECTS. A member that catches zero widths fails this test.
+      That is what makes gutting a member visible, and it is why membership is
       restricted to oracles measured to detect something.
 
-      THE EXCLUDED ORACLE DETECTS NOTHING. The measured justification for
-      leaving the cross-section oracle out, kept under test so that
-      strengthening it says so instead of drifting.
+      THE EXCLUDED ORACLE IS BLIND. The cross-section oracle catching a width
+      fails this test, so the measured justification for leaving it out stays
+      under test rather than drifting.
 
-      THE BIJECTION NOTICES NONE OF THEM, over a population asserted NON-EMPTY
-      first. That is the mechanism argument above made executable: a wrong
-      width breaks the walk, a broken walk contributes no pairs, so every
+      THE BIJECTION HOLDS UNDER THE MUTANTS, over a population asserted
+      NON-EMPTY first. That is the mechanism argument above made executable: a
+      wrong width breaks the walk, a broken walk contributes no pairs, so a
       surviving pair is still correct and a one-to-one map over a shrinking
       population of correct pairs stays clean. The liveness guard is not
-      optional - a fault that drove the join to zero pairs would satisfy
-      "notices none" over the empty set, and faults that do exactly that were
-      measured. Red here means the mechanism is wrong, not that the grammar is.
+      optional - a fault that drove the join to zero pairs would satisfy the
+      shape over the empty set, and faults that do exactly that were measured.
+      Red here means the mechanism is wrong, not that the grammar is.
 
       THE JOIN'S WORD COUNT MOVES ON AT LEAST ONE WIDTH, measured against the
       PRISTINE count from this same run rather than against a written-down
-      floor. The same thinning that leaves the bijection pristine is the whole
-      content of a distinct-word count. Relative, so corpus growth cannot turn
-      it red on a correct grammar - an absolute would, once the library spanned
-      more words than the floor names.
+      floor. AN EXISTENTIAL IS THE STRONGEST HONEST FORM HERE. The general
+      version - that the word count tracks the thinning - was measured false: a
+      width was found that rots thousands of payloads with the count unmoved,
+      and thinning the join through the tag cap drops thousands of tags with
+      the count unmoved again. Being relative rather than absolute also keeps
+      corpus growth from reddening it on a correct grammar.
 
     WHAT IT COMPARES IS READ AT RUNTIME - the widths from the shipped
     constant's own keys, the word count from a sweep taken in this same run. It
@@ -1058,8 +1021,8 @@ def test_every_tag_width_is_caught_by_a_library_backed_oracle(
     """
     shipped = dict(objects._TAG_EXTRA_STRINGS)  # noqa: SLF001
     assert shipped, (
-        "objects._TAG_EXTRA_STRINGS is empty, so the loop below would mutate nothing "
-        "and every assertion in this test would hold over no widths at all"
+        "objects._TAG_EXTRA_STRINGS is empty, so the loop below would mutate no width "
+        "and the assertions in this test would hold over an empty set"
     )
     equivalent = sorted(word for word, n in shipped.items() if n + _WIDTH_MUTATION_DELTA < 0)
     assert not equivalent, (
@@ -1070,20 +1033,20 @@ def test_every_tag_width_is_caught_by_a_library_backed_oracle(
 
     # The pristine control, taken before anything is mutated and while the
     # baseline sweep is still the cached one. A red from an oracle that was
-    # already red says nothing about the mutant it was collected under, and
-    # would be counted below as a detection it did not make. _join_sweep_or_skip
-    # is what makes this test SKIP rather than fail when either input is absent.
+    # already red is silent about the mutant it was collected under, and would
+    # be counted below as a detection it did not make. _join_sweep_or_skip is
+    # what makes this test SKIP rather than fail when either input is absent.
     baseline = _join_sweep_or_skip()
     graded = (*_DERIVED_AGAINST, *_MEASURED_BLIND)
     already_red = tuple(oracle.__name__ for oracle in graded if _goes_red(oracle))
     assert not already_red, (
         f"{list(already_red)} fail with the shipped constant UNMUTATED, so a failure "
-        "under any mutant below would say nothing about that mutant and the relation "
+        "under any mutant below would be silent about that mutant and the relation "
         "derived here would credit these oracles with detections they did not make"
     )
 
     # THE TABLE. detected[oracle name] collects the widths that oracle caught,
-    # and it is filled for EVERY oracle under EVERY width - no any(), no
+    # and the loop below fills a row per oracle per width - no any(), no
     # short-circuit, no early exit. The per-oracle rows are what a disjunction
     # threw away.
     detected: dict[str, list[str]] = {oracle.__name__: [] for oracle in graded}
@@ -1100,8 +1063,8 @@ def test_every_tag_width_is_caught_by_a_library_backed_oracle(
             sweep = _sweep_decode_oracles()
             assert sweep is not None, (
                 f"the sweep found no save library under the {width} mutant though it "
-                "found one moments earlier, so discovery broke mid-test and every "
-                "width after this one would be graded against nothing"
+                "found one moments earlier, so discovery broke mid-test and the widths "
+                "after this one would be graded against an absent library"
             )
             # A CRASH IS NOT A DETECTION. _sweep_or_skip folds a recorded failure
             # into an AssertionError, which _goes_red would read as an oracle
@@ -1126,28 +1089,28 @@ def test_every_tag_width_is_caught_by_a_library_backed_oracle(
                 words_fell.append(width)
     finally:
         # Order matters. The constant is restored FIRST and the cache dropped
-        # SECOND, so nothing can repopulate it from a mutated global; leaving
-        # either behind would silently corrupt every test that runs after this
-        # one in the same session.
+        # SECOND, so the cache has no mutated global left to repopulate from;
+        # leaving either behind would silently corrupt the tests that run after
+        # this one in the same session.
         monkeypatch.undo()
         _sweep_decode_oracles.cache_clear()
 
     # Type words below are keys of a constant shipped in a tracked file and
     # oracle names are this module's own function names - neither is corpus
     # data, so a failure message may render them. The counts-only rule governs
-    # what the SWEEP carries out of a real save, and nothing here came from one.
+    # what the SWEEP carries out of a real save, and no value here came from one.
     assert not survivors, (
         f"{survivors} survive a single-copy {_WIDTH_MUTATION_DELTA} mutation with "
-        "every member of the derived set green. A width nothing here notices is a "
-        "width the shipped grammar can rot in without this module saying so - widen "
-        "the coverage rather than this assertion"
+        "each member of the derived set green. A width that no oracle here notices "
+        "is a width the shipped grammar can rot in without this module saying so - "
+        "widen the coverage rather than this assertion"
     )
     idle = sorted(oracle.__name__ for oracle in _DERIVED_AGAINST if not detected[oracle.__name__])
     assert not idle, (
         f"{idle} are members of the derived set and caught NO width. A member that "
-        "detects nothing is indistinguishable from a member gutted to a green no-op, "
-        "which is the failure this assertion exists to make visible. Either the oracle "
-        "has been weakened, or it belongs in _MEASURED_BLIND instead"
+        "detects zero widths is indistinguishable from a member gutted to a green "
+        "no-op, which is the failure this assertion exists to make visible. Either "
+        "the oracle has been weakened, or it belongs in _MEASURED_BLIND instead"
     )
     busy = sorted(oracle.__name__ for oracle in _MEASURED_BLIND if detected[oracle.__name__])
     assert not busy, (
@@ -1157,19 +1120,21 @@ def test_every_tag_width_is_caught_by_a_library_backed_oracle(
         "detection is asserted, rather than leaving the relation understated"
     )
     assert not join_went_empty, (
-        f"the join population collapsed to nothing under {join_went_empty}, so the "
+        f"the join population collapsed to zero pairs under {join_went_empty}, so the "
         "bijection assertion below holds over an empty set. 'Notices none' and 'had "
-        "nothing to notice' are the same green without this guard"
+        "no pair to notice' are the same green without this guard"
     )
     assert not bijection_moved, (
         f"the join's bijection broke under {bijection_moved}, contradicting the "
-        "mechanism recorded above it: a broken walk contributes no pairs, so every "
+        "mechanism recorded above it: a broken walk contributes no pairs, so a "
         "surviving pair should still be correct and a one-to-one map over a shrinking "
         "population of correct pairs should stay clean. Re-derive the mechanism before "
         "editing the prose - this run is evidence the argument is incomplete"
     )
     assert words_fell, (
         f"no width moved the join's distinct type word count below the {baseline.join.words} "
-        "this same run measured unmutated, so the thinning the mechanism above rests on "
-        "did not happen anywhere and a count of distinct words grades nothing here"
+        "this same run measured unmutated. This is an EXISTENTIAL and it is the strongest "
+        "honest form: the general claim that the count tracks the thinning was measured "
+        "false. A red here means no width at all moves the count, so the count grades "
+        "zero faults in this run"
     )
