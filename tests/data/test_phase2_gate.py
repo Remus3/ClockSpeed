@@ -305,10 +305,18 @@ def test_the_resolver_set_matches_locates_public_surface() -> None:
     dataclass such as the skip record CS-443 added is callable, defined here,
     and resolves nothing, so naming each one would make this a hand-maintained
     allowlist - and a hand-maintained list is the thing that rots. The
-    exemption is taken from the OBJECT instead. It is also CONTROLLED, because
-    "skip every class" would let a resolver implemented as a callable class
-    leave the import-time probes silently uncovered: every exempted class must
-    be a frozen dataclass, which a resolver is not.
+    exemption is taken from the OBJECT instead.
+
+    IT IS CONTROLLED ON TWO PROPERTIES, AND THE FIRST ONE ALONE WAS NOT ENOUGH.
+    "Frozen dataclass" was the original test, justified in this docstring by
+    the claim that a resolver is not one. An adversary refuted that by planting
+    a frozen dataclass carrying ``__call__`` - an entirely ordinary resolver
+    shape, and one this codebase is moving toward - which walked straight
+    through while the gate stayed green. That sentence was a false universal of
+    exactly the kind ADR 0008 forecloses, so it is deleted rather than hedged.
+    What is checked now is frozen dataclass AND instances that are not
+    callable, both derived from the object, and the planted callable record is
+    what grades the second half.
     """
     public = {
         name
@@ -325,11 +333,24 @@ def test_the_resolver_set_matches_locates_public_surface() -> None:
         # directly is a mypy union-attr error on a true statement.
         params = getattr(candidate, "__dataclass_params__", None)
         frozen = dataclasses.is_dataclass(candidate) and bool(getattr(params, "frozen", False))
+        # Instances callable => the class can act as a resolver, whatever else
+        # it is. Read off the MRO rather than dir(), because every class has a
+        # __call__ through its metaclass and dir() would report all of them.
+        instances_callable = any(
+            "__call__" in vars(base) for base in candidate.__mro__ if base is not object
+        )
+        exemption_note = (
+            "Either it is a resolver the import-time probes must cover and belongs in "
+            "RESOLVER_NAMES, or the exemption in this test needs rethinking - do not "
+            "widen it silently"
+        )
         assert frozen, (
             f"locate.{name} is a public class that is not a frozen dataclass, so it does "
-            "not qualify for the record-type exemption. Either it is a resolver the "
-            "import-time probes must cover and belongs in RESOLVER_NAMES, or the "
-            "exemption in this test needs rethinking - do not widen it silently"
+            f"not qualify for the record-type exemption. {exemption_note}"
+        )
+        assert not instances_callable, (
+            f"locate.{name} is a frozen dataclass whose INSTANCES ARE CALLABLE, which is "
+            f"an ordinary resolver shape, so it does not qualify either. {exemption_note}"
         )
 
     assert public - {"redact"} - record_types == set(RESOLVER_NAMES), (

@@ -44,6 +44,99 @@ Where current truth actually lives:
 
 <!-- Newest first. Each block: date archived, source file, then the content. -->
 
+### Archived 2026-08-16 from `ROADMAP.md` - CS-420, CS-425 and CS-413 superseded detail
+
+Second relocate pass of session 12, after four new items and two amendments pushed
+`ROADMAP.md` back over its WARN budget. **Nothing here is current.** Each block was
+superseded by a later dated block in its own entry, or by a closure elsewhere, before it
+moved. Every item named below is still OPEN in `ROADMAP.md`, which remains its one owner.
+
+**From CS-420 - the session-9 REOPENED block. F1, F2 and the dead paragraph citation were
+all FIXED in session 10 and re-verified by an adversary that wrote none of the repair:**
+
+> **REOPENED 2026-08-16 (session 9). THE ARTIFACTS ARE SOUND AND THE ORIGINAL FOUR
+> SENTENCES ARE FIXED; THE REPAIR SHIPPED THREE NEW FALSE ONES.** A final adversary
+> auditing merged `main` re-derived and CONFIRMED the derived test's structure, the
+> two-copy common-mode claim, the bare-CI-box claim, the SystemExit residual and the
+> repaired no-install gating - then refuted the prose. **F1: `IT NEVER RAISES` on
+> `_sweep_decode_oracles` is FALSE** - a forced `KeyboardInterrupt` raises, and
+> `_library_save_paths()` sits outside every `try` so a second site raises too; the same
+> file states the opposite twice. CS-427 repaired this exact absolute in THREE sibling
+> docstrings the same day and the fourth survived. **F2: the join mechanism sentence is
+> false under both readings** - `ByteProperty -1` rots 5359 payloads while `join.tags`
+> stays at exactly 55496 and `join.words` at exactly 13, because ByteProperty IS NOT ONE
+> OF THE 13 JOINED WORDS; and thinning directly via `_MAX_TAGS_PER_PAYLOAD = 4` drops 3447
+> tags with the word count unmoved. The causal account is wrong: the count measures whether
+> the MUTATED WORD'S OWN TAGS still parse, not the thinning - MapProperty thins 0.12 per
+> cent and costs two words, ByteProperty rots 4.1 per cent and costs none. **F3 is now
+> CS-432's, sharpened there.** Also fix the DEAD PARAGRAPH CITATION this session created:
+> `tests/save/test_oracle_citations.py` names the objects.py paragraph "beginning ``THAT
+> JOIN IS NOT A CHECK ON THE TAG WIDTHS BELOW,``", which `662432d` renamed - the checker
+> passes because it resolves `tests/<path>.py::<name>` citations and NOT paragraph names,
+> which is a real gap in that checker.
+
+**From CS-420 - the drifted sentence-count figures. These are archived as the RECORD OF A
+DRIFT INCIDENT, not as numbers to reuse. Derive the ratio; do not read it here:**
+
+> Sized - **AND THIS SENTENCE'S OWN NUMBERS DRIFTED, WHICH IS THE ITEM'S THESIS LANDING ON
+> THE ITEM: it read "573 sentences ... 571 of 573" and BOTH FIGURES ARE WRONG.** Re-derived
+> 2026-08-16 by the adjudicator and INDEPENDENTLY by the merger, using the fence module's
+> own `sentence_count` against byte-identical files: `test_decode_oracles.py` holds 367
+> sentences and `test_absolute_claims.py` holds 204, so the two fenced modules hold
+> **571**, 2 carry a marker, and **569 of 571 are unread**. For THIS ITEM'S OWN SUBJECT,
+> which is the single module named in its title, the figure is **366 of 367 unread**. A
+> measured count restated in prose, drifted, inside the entry that exists to stop exactly
+> that - CLAUDE.md section 4, live.
+
+**From CS-420 - the acceptance-tension adjudication, settled and not to be reopened:**
+
+> An adjudicator that wrote no part of ADR 0008 or of any implementing slice ruled that the
+> two texts govern DIFFERENT AXES and that neither mentions the other's. ADR 0008 SCOPE
+> governs BREADTH - which files the fence scans. This item's acceptance governs DEPTH -
+> "every declarative sentence IN THE MODULE", singular, the one module named in this item's
+> own title. **That module is ALREADY in `FENCED_MODULES`, so on breadth the two texts
+> AGREE.** The apparent conflict was manufactured by the entry itself, which mixed the axes
+> by sizing a TWO-module total against a ONE-module acceptance.
+
+**From CS-425 - the session-8 measurement detail behind "the hook does nothing":**
+
+> Three measurements, each executed. (1) **The hook cannot DENY.** Claude Code's
+> `PreToolUse` protocol denies a tool call on exit code **2**; anything else is surfaced and
+> non-blocking. The gate exits **1** on a violation. (2) **The hook probably cannot SEE the
+> command.** Fed the JSON envelope a hook actually receives on stdin - `{"tool_name": ...,
+> "tool_input": {"command": ...}}` - the gate returns **rc=0, PASS**, because JSON escapes a
+> non-ASCII character to a `\uXXXX` sequence that is pure ASCII, so the charset scan finds
+> nothing. It is named `--text-stdin` and expects raw text. (3) **END-TO-END PROOF, which is
+> the only kind that counts here:** a PowerShell tool call carrying a literal em-dash RAN
+> UNBLOCKED. Either of (1) or (2) alone is sufficient to cause that.
+
+**From CS-422 - the session-8 amendment detail. The amendment's CONCLUSION stays in the
+open entry; only the supporting detail moved:**
+
+> `tests/save/test_decode_oracles.py::test_the_shipped_walker_reaches_a_terminator_on_every_real_payload`
+> reads both, by asserting terminator-reach EQUALITY per pair, and goes red on both mutants
+> - confirmed by an adjudicator and by an adversary independently.
+
+**From CS-405 - the superseded revision of its own note, which the entry corrected:**
+
+> A previous revision of this note said the walk was a SKELETON and `read_properties`
+> decoded no property VALUE, so a slot count was unreadable. CS-413's decode half landed
+> and that is no longer true. Its blocker was the object walk reaching a real building; the
+> walk now reaches 131607 records across all 14 real saves.
+
+**From CS-413 - the per-type evidence figures, which CS-421 OWNS. Archived because one
+measured fact living in two open entries is the drift CLAUDE.md section 4 exists to stop:**
+
+> of the 185382 values, 68659 are backed by a shipped redundancy - the value's own length
+> prefix must equal the declared size - and 111364, or **60.1 per cent**, are backed by a
+> declared width and nothing else, a check the module itself records as "defensive rather
+> than measured". Byte order and signedness are checked by NOTHING EXECUTABLE: flipping
+> `IntProperty` to big-endian turns 75136 real values into garbage and the only tests that
+> go red are synthetic-fixture tests whose own fixture packs with the same byte order the
+> reader unpacks with.
+
+---
+
 ### Archived 2026-08-16 from `ROADMAP.md` - CS-400 and CS-413 superseded dated STATUS blocks
 
 Relocated by the session-12 merger under the `tools/doc_budget.py` relocate guidance, with

@@ -73,6 +73,71 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-16 - CS-444 - code shipped, claim refuted; CS-444 STAYS OPEN
+Verification: `tests/save/test_workdir.py::test_a_forbidden_root_that_does_not_resolve_is_still_reported`,
+and reverting only the consumer in `clockspeed/save/workdir.py` reddens four tests while reverting only
+the producer reddens five - both byte-verified by an adversary that wrote none of it.
+This record does not close CS-444. A frozen `ForbiddenRoot` with a nullable resolved path shipped and
+the refusal fires, but two claims were refuted the same day: "the fail-open is closed" is too wide and
+must read "closed INSIDE `_forbidden_roots`", because the sibling in `locate.resolve_save_root()` is
+now MEASURED reachable and is CS-449; and the new refusal message is a personal-data echo path whose
+control is vacuous, which is CS-454. Removing the redactor from that branch left the workdir suite
+green, because the control's fixture uses an all-digit account name - the one shape the backstop
+catches unconditionally.
+
+### 2026-08-16 - CS-443 - unfrozen half shipped, acceptance not met end to end; CS-443 STAYS OPEN
+Verification: `tests/data/test_locate.py`, where each of the six `WARN_LOCAL_CONFIG_*` codes is pinned
+by its own reddening test; dropping any one `_note` call reddens exactly one named test.
+This record does not close CS-443. Six loss paths in `clockspeed/data/locate.py::local_config` now
+report, and a SEVENTH was found that crashed rather than discarded - `UnicodeDecodeError` is a
+`ValueError`, not an `OSError`, so it escaped a function whose docstring promises it never raises,
+confirmed independently against the pre-fix blob. Absence and a valid file stayed silent across 1500
+measured invocations. The acceptance is still unmet because THE CHANNEL HAS NO PRODUCTION CONSUMER:
+no caller in `clockspeed/`, `tools/` or `scripts/` passes the collector, so `scripts/verify_env.py`
+against a malformed config still exits 0 saying nothing. The `detail` sentence is also uncontrolled -
+replacing all six with a nonsense sentence left the module suite green. The frozen
+`tools/precommit_gate.py` copy was READ and NOT edited; it holds no grant.
+
+### 2026-08-16 - CS-441 - detector extended, 26 of 46 spliced shapes still escape; CS-441 STAYS OPEN
+Verification: `tests/test_exception_rendering.py`; a helper rendering a suffix-annotated exception
+parameter whole is now flagged, and gutting the parameter scope reddens six tests.
+This record does not close CS-441. The sanctioned-helper half survived every attack, including two
+combined mutants aimed at the non-vacuity proofs, which are live. The flagging half was refuted: the
+annotation predicate keys on a NAME SUFFIX, so it misses 19 builtin exception types, one this repo's
+own gate names as a leak type, and five exception classes this repo already defines carrying
+`noqa: N818`; an unannotated parameter is invisible; and the exemption is reachable by a negated
+isinstance, by an `or` short-circuit, and by a locally defined `OSError` subclass. Measured against
+7165 annotations, zero real helpers sit in the blind spot today, so this is coverage rather than a
+live leak.
+
+### 2026-08-16 - CS-440 - subject threaded, acceptance unmet on both clauses; CS-440 STAYS OPEN
+Verification: `tests/save/test_world.py`; forcing the registry-loss flag constant reddens three tests
+and dropping the subject reddens five, both byte-verified.
+This record does not close CS-440. `WorldWarning` carries a subject and
+`REASON_REGISTRY_INCOMPLETE` joined `UNKNOWN_CLASS_REASONS`, and no aggregation regression was
+introduced. Both acceptance clauses were refuted the same day: the subject is a usmap POSITION rather
+than a class, and the class name is the datum destroyed; and the reason is a per-LOAD flag rendered as
+a per-ENTRY attribute, so one injected warning gave the weaker reason to every entry and the stronger
+to none. The key is also under-inclusive in the dangerous direction - an unknown property type and a
+newer usmap version each drop a declared class while the flag stays false.
+
+### 2026-08-16 - CS-448 - root cause found; it is the checkout location, not contention; CS-448 STAYS OPEN
+Verification: clone this repo to a directory UNDER the system temp root and run
+`python -m pytest tests -q -n auto`; the gate fails with `Interrupted: 1 error during collection` in
+its level-3 child. Run the same command in a checkout that does NOT share a large ancestor with the
+temp root and it passes. `tools/precommit_gate.py` is the creator and deleter of the
+`clockspeed_gate_*` temp directories the collection walk trips over.
+This record does not close CS-448. The merger measured 32 runs with zero failures and concluded it
+did not reproduce; AN ADVERSARY REFUTED THAT AND REPRODUCED IT SIX TIMES, at both cited revisions,
+because every one of the merger's runs was taken in a location where the failure is structurally
+impossible. Measured chain: a checkout sharing a large ancestor with the temp root makes pytest's
+rootdir for the innermost probe climb to that root, so collection walks the entire temp tree - 0.4s
+from three ordinary locations against 42.7s from a clone under the temp root, with only the cwd
+varied - and a sibling worker deleting a temp directory mid-walk makes `os.lstat` raise, interrupting
+collection. xdist supplies only the concurrent deleter; the walk itself is single-process, so this is
+NOT CPU contention and the merger's first mechanism account was wrong. What remains open is whether
+a hosted runner's workspace shares that ancestor; measure `rootdir` inside a tier-2 job.
+
 ### 2026-08-16 - CS-428 - CORRECTION: a control that could prove nothing on CI failed instead of skipping
 Verification: `tests/test_tmp_path_privacy.py::test_the_parallel_lane_renders_no_worker_interpreter_path`.
 Locally the control still establishes the leak and the arm PASSES with no skip - 15 passed in that
