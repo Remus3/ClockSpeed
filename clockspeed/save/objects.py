@@ -586,6 +586,17 @@ REASON_UNMEASURED_TRANSFORM_DELTA: Final = (
 )
 REASON_UNDECODABLE_TEXT: Final = "declares text that is not decodable"
 REASON_CLASS_NOT_MODELLED: Final = "is not a class the supplied registry models"
+#: WORDED AROUND THE CONSEQUENCE RATHER THAN THE MECHANISM, and that is not
+#: vagueness (CS-440). Two conditions reach it - a schema whose own name did not
+#: resolve, and a schema section that stopped mid-entry - and a sentence naming
+#: either mechanism would be FALSE whenever the other one fired. That is CS-430
+#: exactly: a flag that fires correctly beside a sentence that does not hold.
+#: WHICH mechanism it was is recoverable, from the SUBJECT of the usmap warning
+#: carried on ``world.WorldWarning`` for the same load.
+REASON_REGISTRY_INCOMPLETE: Final = (
+    "could not be checked against a complete registry: part of the supplied"
+    " registry did not parse, so how much of the world it models is unknown"
+)
 REASON_UNMEASURED_BODY_LAYOUT: Final = (
     "names a header and save version pair whose body layout has not been measured,"
     " and a layout is never interpolated from another version's"
@@ -595,7 +606,17 @@ REASON_SECTION_SIZE_DISAGREEMENT: Final = (
 )
 
 #: The reasons a class path can land in :attr:`ObjectTable.unknown_classes`.
-UNKNOWN_CLASS_REASONS: Final = frozenset({REASON_CLASS_NOT_MODELLED})
+#:
+#: TWO, NOT ONE, AND THE SECOND IS WHY (CS-440). While
+#: :data:`REASON_CLASS_NOT_MODELLED` was the only member, a class the registry
+#: DOES model - but whose schema was dropped because its own name did not
+#: resolve - was published under a sentence that is false for that input. The
+#: warning fired correctly and the answer beside it was confidently wrong,
+#: which is the "never silently wrong" half of non-negotiable 7 rather than the
+#: "never fatal" half.
+UNKNOWN_CLASS_REASONS: Final = frozenset(
+    {REASON_CLASS_NOT_MODELLED, REASON_REGISTRY_INCOMPLETE}
+)
 
 # ---------------------------------------------------------------------------
 # Warning codes and their fixed detail lines
@@ -949,14 +970,21 @@ class ObjectRecord:
 
 @dataclass(frozen=True)
 class UnknownClass:
-    """One class path the supplied registry does not model.
+    """One class path that did not resolve against the supplied registry.
 
     Unlike an exception, this IS the reporting channel: naming the class is its
     entire purpose, because BOOTSTRAP.md section 9 requires an explicit "this
     world contains content I do not model" rather than a quiet partial answer.
 
+    "DID NOT RESOLVE" IS NOT "IS NOT MODELLED", and reading :attr:`reason` is
+    the only way to tell which of the two this entry is (CS-440). A registry
+    that lost part of itself while parsing is incomplete by an unknown amount,
+    so for that load the stronger claim is unsupportable and every entry carries
+    :data:`REASON_REGISTRY_INCOMPLETE` instead. Treating the two as one is the
+    exact confusion this attribute exists to prevent.
+
     Attributes:
-        type_path: The unmodelled class path.
+        type_path: The class path that did not resolve.
         count: How many records carried it. A world with two hundred unmodelled
             belts has one problem, not two hundred.
         reason: One of :data:`UNKNOWN_CLASS_REASONS`.
@@ -1506,17 +1534,31 @@ class _UnknownLog:
             self._first[type_path] = index
         self._count[type_path] += 1
 
-    def emit(self) -> tuple[UnknownClass, ...]:
-        """Publish in first-seen order.
+    def emit(self, *, registry_incomplete: bool = False) -> tuple[UnknownClass, ...]:
+        """Publish in first-seen order, under the reason the registry supports.
+
+        THE WEAKER REASON APPLIES TO EVERY ENTRY, AND THAT WIDTH IS DELIBERATE
+        (CS-440). What an incomplete registry lost is by construction not
+        attributable to a class path - a name that did not resolve and a section
+        that stopped early both lose exactly the identity that would say which -
+        so there is no path to single out as the affected one. Downgrading all
+        of them under-claims for a path that really is unmodelled, and that is
+        the safe direction; naming one would be the confident wrong answer.
+
+        Args:
+            registry_incomplete: Whether the caller's registry is known to have
+                lost part of itself while being parsed. See
+                :func:`parse_object_headers`.
 
         Returns:
             The aggregated entries.
         """
+        reason = REASON_REGISTRY_INCOMPLETE if registry_incomplete else REASON_CLASS_NOT_MODELLED
         return tuple(
             UnknownClass(
                 type_path=path,
                 count=self._count[path],
-                reason=REASON_CLASS_NOT_MODELLED,
+                reason=reason,
                 first_index=self._first[path],
             )
             for path in self._order
@@ -1529,6 +1571,7 @@ def parse_object_headers(
     save_version: int,
     header_version: int,
     known_classes: Container[str] | None = None,
+    registry_incomplete: bool = False,
 ) -> ObjectTable:
     """Walk the object record table out of a decompressed save body.
 
@@ -1549,6 +1592,15 @@ def parse_object_headers(
         known_classes: Class NAMES the caller can model - a property map's
             ``schemas`` mapping satisfies this directly. None means no registry
             was supplied and nothing is claimed unknown.
+        registry_incomplete: Whether the caller knows its registry lost part of
+            itself while being parsed. THIS MODULE CANNOT DERIVE IT AND MUST NOT
+            TRY: ``known_classes`` is a container of names, and an entry that
+            was dropped is indistinguishable from an entry that was never there,
+            so only the caller that parsed the registry knows. True weakens
+            every unknown-class reason to :data:`REASON_REGISTRY_INCOMPLETE`; it
+            never adds or removes an entry, and with ``known_classes=None`` it
+            claims nothing at all, because a check that never ran cannot produce
+            a finding.
 
     Returns:
         The walked table, with everything flagged and carried.
@@ -1588,7 +1640,7 @@ def parse_object_headers(
 
     return ObjectTable(
         records=tuple(records),
-        unknown_classes=unknown.emit(),
+        unknown_classes=unknown.emit(registry_incomplete=registry_incomplete),
         warnings=tuple(warnings),
         declared_body_length=declared,
         body_consumed=consumed,
@@ -2050,6 +2102,7 @@ def parse_body(
     save_version: int,
     header_version: int,
     known_classes: Container[str] | None = None,
+    registry_incomplete: bool = False,
 ) -> ObjectTable:
     """Walk a WHOLE real body, every level of it, in the MEASURED layout.
 
@@ -2069,6 +2122,10 @@ def parse_body(
         header_version: From the header. Drives the length prefix width.
         known_classes: Class NAMES the caller can model. None means no registry
             was supplied and nothing is claimed unknown.
+        registry_incomplete: As :func:`parse_object_headers`. THIS IS THE READER
+            A REAL SAVE GOES THROUGH (CS-409), so a fix applied only to the flat
+            reader would leave every real world carrying the reason CS-440
+            exists to withdraw.
 
     Returns:
         Every record from every level, in file order, with the level count and
@@ -2142,7 +2199,7 @@ def parse_body(
 
     return ObjectTable(
         records=tuple(records),
-        unknown_classes=unknown.emit(),
+        unknown_classes=unknown.emit(registry_incomplete=registry_incomplete),
         warnings=tuple(warnings),
         declared_body_length=declared,
         body_consumed=consumed,

@@ -104,6 +104,7 @@ import inspect
 import re
 import traceback
 from collections.abc import Callable
+from dataclasses import fields
 from pathlib import Path
 from types import MappingProxyType
 from typing import Final
@@ -121,7 +122,7 @@ from clockspeed.save import chunks, header, objects, usmap, workdir, world
 # is a piece of a containment grader. A third transcription of either is a
 # third place to get it subtly wrong. The module is imported whole so every use
 # site says out loud where the value came from.
-from tests.save import synthetic, test_properties
+from tests.save import synthetic, test_properties, test_usmap
 
 # ---------------------------------------------------------------------------
 # Local constants, so no assertion compares against a bare literal
@@ -1642,15 +1643,52 @@ def test_the_world_model_carries_every_layer_s_warnings() -> None:
     assert header.WARN_UNMEASURED_VERSION_PAIR in codes
 
 
+def _rendered_channels(warning: world.WorldWarning) -> str:
+    """Every string-valued channel on one warning, DERIVED from the dataclass.
+
+    Derived rather than listed, and CS-440 is why that is not academic: this
+    type grew a ``subject`` field, and the hand-listed rendering that used to
+    stand here went on reading three fields and reporting green about a fourth
+    it could not see. A field added tomorrow is read here the day it is added.
+
+    Args:
+        warning: The warning to render.
+
+    Returns:
+        Every string field joined, with a None subject contributing nothing.
+    """
+    values = [getattr(warning, field.name) for field in fields(warning)]
+    return " ".join(value for value in values if isinstance(value, str))
+
+
 def test_no_world_warning_carries_a_string_read_out_of_the_save() -> None:
-    """A warning is an echo path like any other. Every detail is fixed text."""
+    """A warning is an echo path like any other. Every string channel is fixed text."""
     model = _load_flat(_planted_blob(header_version=_HEADER_14))
 
+    assert model.warnings, "the fixture must raise a warning for this to grade anything"
     for warning in model.warnings:
-        rendered = f"{warning.source} {warning.code} {warning.detail}"
+        rendered = _rendered_channels(warning)
         for token in _PLANTED_TOKENS:
             assert token not in rendered
         assert rendered.isascii()
+
+
+def test_the_warning_leak_guard_opens_the_subject_channel_too() -> None:
+    """The control, without which the guard above passes for a helper reading nothing.
+
+    A leak test is only worth what its rendering covers, and the way that test
+    fails is silently: it keeps passing while a new channel goes unread. The
+    planted marker goes in the field CS-440 added, so this is red if
+    :func:`_rendered_channels` ever stops deriving.
+    """
+    planted = world.WorldWarning(
+        source=world.SOURCE_USMAP,
+        code=usmap.WARN_UNDECODABLE_NAME,
+        detail="a synthetic detail that carries no marker of its own",
+        subject=_PLANTED_INSTANCE,
+    )
+
+    assert _PLANTED_INSTANCE in _rendered_channels(planted)
 
 
 def test_the_world_module_imports_no_layer_above_it() -> None:
@@ -2549,3 +2587,281 @@ def test_an_unexpected_load_failure_does_not_unwind_through_the_real_save_loader
     _assert_contained_outcome(
         "real-save loader", pytest.fail.Exception.__name__, _load_real_save_or_skip
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-440 - WHICH thing was flagged, and how confident the answer about it is
+#
+# CS-435 closed on its written acceptance and left two downstream halves open,
+# both of them here rather than in ``usmap.py``.
+#
+# THE FIRST IS THE SUBJECT. Every sub-warning that HAS a subject was carried up
+# with the subject stripped off, so a consumer at this layer learned that some
+# name did not decode and could not learn WHICH. ``header.HeaderWarning`` and
+# ``usmap.UsmapWarning`` both declare one; ``chunks.ChunkWarning`` and
+# ``objects.ObjectWarning`` declare none, and the difference is asserted below
+# rather than assumed, because "no subject" and "an empty subject" are two
+# different facts and collapsing them is the same class of defect as the
+# substituted name CS-435 removed.
+#
+# THE SECOND IS THE REASON. A usmap schema whose own name index does not
+# resolve is DROPPED from ``PropertyMap.schemas``, so the class it modelled
+# reaches ``objects`` as a path absent from ``known_classes`` and was published
+# as "is not a class the supplied registry models" - false for that input. This
+# layer is the only one that can see both facts at once, so it is where the
+# condition is derived and handed to the walk.
+#
+# THE KEY IS THE SUBJECT PAIR, AND IT IS A CROSS-MODULE CONTRACT RATHER THAN A
+# LOCAL CONVENTION. ``usmap._read_schema`` gives its three failures three
+# distinct subjects on purpose (CS-431), and only the bare ``schema-<N>`` one
+# drops the schema. A fixture hand-built here would agree with whatever this
+# module chose to key on and would prove nothing about the real parser, so
+# ``test_a_real_usmap_whose_schema_name_did_not_decode_downgrades_the_reason``
+# below runs the REAL ``usmap.parse_usmap`` over patched synthetic bytes and is
+# the only test here that grades the key against its actual producer.
+# ---------------------------------------------------------------------------
+
+#: The subject shape the usmap layer uses for a schema DROPPED for want of a
+#: resolvable name of its own, and the two neighbours that keep their schema.
+_DROPPED_SCHEMA_SUBJECT: Final = "schema-0"
+_SURVIVING_SCHEMA_SUBJECTS: Final = ("schema-0-super", "schema-0-property")
+
+#: The subject the usmap layer uses when the schema section stops mid-entry and
+#: the remaining schemas are never read.
+_STOPPED_SECTION_SUBJECT: Final = "schemas"
+
+#: usmap conditions that flag something real and lose no CLASS NAME. Each is
+#: asserted NOT to downgrade, because a key that caught them would withdraw a
+#: true claim from most mappings.
+_COMPLETE_REGISTRY_CODES: Final = (
+    usmap.WARN_DUPLICATE_SCHEMA,
+    usmap.WARN_TRAILING_SECTION,
+    usmap.WARN_UNKNOWN_PROPERTY_TYPE,
+)
+
+#: A subject the usmap layer really emits for an undecodable NAME-table entry.
+_UNDECODABLE_NAME_SUBJECT: Final = "name-0"
+
+#: Sources whose originating warning type declares no subject field at all.
+_SUBJECTLESS_SOURCES: Final = (world.SOURCE_CHUNKS, world.SOURCE_OBJECTS, world.SOURCE_WORLD)
+
+
+def _map_with_warning(code: str, subject: str, *class_names: str) -> usmap.PropertyMap:
+    """A mapping that models ``class_names`` and carries one flagged condition.
+
+    Args:
+        code: A ``usmap.WARN_*`` constant.
+        subject: The structural token the usmap layer would have flagged.
+        *class_names: Class names the mapping still models.
+
+    Returns:
+        The mapping.
+    """
+    base = _property_map(*class_names)
+    return usmap.PropertyMap(
+        names=base.names,
+        enums=base.enums,
+        schemas=base.schemas,
+        warnings=(
+            usmap.UsmapWarning(
+                code=code,
+                subject=subject,
+                detail="a synthetic condition, so no sentence from the usmap layer is copied here",
+            ),
+        ),
+        container=base.container,
+        body_consumed=base.body_consumed,
+    )
+
+
+def _reasons_of(model: world.WorldModel) -> set[str]:
+    """The distinct reasons a loaded world publishes for its unmodelled classes.
+
+    Args:
+        model: The loaded world.
+
+    Returns:
+        The distinct reasons.
+    """
+    return {unknown.reason for unknown in model.objects.unknown_classes}
+
+
+def test_a_carried_usmap_warning_keeps_the_subject_the_usmap_layer_flagged() -> None:
+    """CS-440 acceptance, first clause, on the layer the item names.
+
+    ``UsmapWarning`` declares a subject and the world stream dropped it, so
+    ``name-0`` reached nobody. The assertion is on the PAIR - a subject carried
+    onto the wrong code would be worse than no subject at all.
+    """
+    supplied = _map_with_warning(
+        usmap.WARN_UNDECODABLE_NAME, _UNDECODABLE_NAME_SUBJECT, _KNOWN_CLASS_NAME_A
+    )
+
+    model = _load_flat(synthetic.SAVE_V60.blob, property_map=supplied)
+
+    carried = [(w.code, w.subject) for w in model.warnings if w.source == world.SOURCE_USMAP]
+    assert (usmap.WARN_UNDECODABLE_NAME, _UNDECODABLE_NAME_SUBJECT) in carried
+
+
+def test_a_carried_header_warning_keeps_the_subject_the_header_layer_flagged() -> None:
+    """The sibling type that also declares a subject, derived from the header itself.
+
+    Expected pairs are read off ``model.header.warnings`` rather than written
+    down, so a header fixture whose warnings change cannot leave this asserting
+    nothing.
+    """
+    model = _load_flat(_blob(header_version=_HEADER_14, save_version=_SAVE_36))
+
+    expected = [(w.code, w.subject) for w in model.header.warnings]
+    carried = [(w.code, w.subject) for w in model.warnings if w.source == world.SOURCE_HEADER]
+    assert expected, "the fixture must raise a header warning for this to grade anything"
+    assert carried == expected
+
+
+def test_a_source_whose_warning_type_declares_no_subject_carries_none() -> None:
+    """"No subject" and "the empty subject" are different facts, kept different.
+
+    ``ChunkWarning`` and ``ObjectWarning`` declare no subject field, and this
+    module's own warnings have nothing structural to name. Rendering that as
+    ``""`` would make a missing channel indistinguishable from a present but
+    empty one - the same collapse ``usmap._NameTable`` refuses for a name that
+    did not decode.
+    """
+    supplied = _map_with_warning(
+        usmap.WARN_UNDECODABLE_NAME, _UNDECODABLE_NAME_SUBJECT, _KNOWN_CLASS_NAME_A
+    )
+
+    model = _load_flat(
+        _blob(header_version=_HEADER_14, save_version=_SAVE_36), property_map=supplied
+    )
+
+    subjectless = [w for w in model.warnings if w.source in _SUBJECTLESS_SOURCES]
+    assert subjectless, "the fixture must carry at least one subjectless warning"
+    assert all(w.subject is None for w in subjectless)
+    assert all(
+        w.subject is not None
+        for w in model.warnings
+        if w.source in (world.SOURCE_HEADER, world.SOURCE_USMAP)
+    )
+
+
+def test_a_registry_that_dropped_a_schema_name_downgrades_the_unknown_class_reason() -> None:
+    """CS-440 acceptance, second clause, through the composer that owns the seam.
+
+    The mapping models nothing the save carries AND says one of its own schema
+    names did not resolve. "Not modelled" is then a claim the mapping cannot
+    support, and publishing it anyway is the confident wrong answer.
+    """
+    dropped = _map_with_warning(usmap.WARN_UNRESOLVED_NAME, _DROPPED_SCHEMA_SUBJECT)
+
+    model = _load_flat(synthetic.unknown_actor_class().blob, property_map=dropped)
+
+    assert model.contains_unmodeled_content is True
+    assert _reasons_of(model) == {objects.REASON_REGISTRY_INCOMPLETE}
+
+
+def test_a_registry_whose_schema_names_all_resolved_keeps_the_not_modelled_reason() -> None:
+    """The control. Without it the test above passes for a walk that downgrades always.
+
+    A downgrade that fired unconditionally would withdraw a TRUE claim from
+    every world, which trades one wrong answer for a permanently useless one.
+    """
+    model = _load_flat(
+        synthetic.unknown_actor_class().blob, property_map=_property_map(_KNOWN_CLASS_NAME_A)
+    )
+
+    assert model.contains_unmodeled_content is True
+    assert _reasons_of(model) == {objects.REASON_CLASS_NOT_MODELLED}
+
+
+def test_a_registry_whose_schema_section_stopped_early_downgrades_the_reason() -> None:
+    """The sibling condition, found by grepping the root cause rather than the symptom.
+
+    ``usmap._read_schemas`` catches a desynchronised entry, flags
+    ``WARN_DESYNCHRONISED_SECTION`` against ``schemas`` and RETURNS WHAT IT HAS.
+    Every schema after that entry is missing from the mapping, so "is not a
+    class the supplied registry models" is false for all of them - the same
+    false sentence as the dropped-name case, reached by a different route. A fix
+    that keyed only on the unresolved NAME would leave this half of the defect
+    standing, which is how CS-435 came to have a downstream half at all.
+    """
+    stopped = _map_with_warning(usmap.WARN_DESYNCHRONISED_SECTION, _STOPPED_SECTION_SUBJECT)
+
+    model = _load_flat(synthetic.unknown_actor_class().blob, property_map=stopped)
+
+    assert model.contains_unmodeled_content is True
+    assert _reasons_of(model) == {objects.REASON_REGISTRY_INCOMPLETE}
+
+
+@pytest.mark.parametrize("code", _COMPLETE_REGISTRY_CODES)
+def test_a_usmap_condition_that_loses_no_class_name_does_not_downgrade(code: str) -> None:
+    """The other side of the same grep, and the reason the key is a pair.
+
+    A duplicate schema keeps the later definition under the SAME key, so no
+    class name leaves the mapping. Trailing bytes sit past a schema section
+    whose declared count was honoured. An unknown property type costs a
+    property, not a class. None of the three makes "not modelled" unsupportable,
+    and downgrading on them would withdraw a true claim from most real
+    mappings.
+    """
+    supplied = _map_with_warning(code, _DROPPED_SCHEMA_SUBJECT)
+
+    model = _load_flat(synthetic.unknown_actor_class().blob, property_map=supplied)
+
+    assert _reasons_of(model) == {objects.REASON_CLASS_NOT_MODELLED}
+
+
+@pytest.mark.parametrize("subject", _SURVIVING_SCHEMA_SUBJECTS)
+def test_a_schema_subject_that_drops_no_schema_does_not_downgrade_the_reason(subject: str) -> None:
+    """CS-431's three subjects exist because they are three different conditions.
+
+    An unresolved SUPER index keeps the schema, and an unresolved PROPERTY name
+    drops one property. Neither removes a class from ``schemas``, so neither
+    makes "not modelled" unsupportable. Keying on the code alone - or on any
+    prefix of the subject - would downgrade both and quietly withdraw a claim
+    that was true.
+    """
+    supplied = _map_with_warning(usmap.WARN_UNRESOLVED_NAME, subject)
+
+    model = _load_flat(synthetic.unknown_actor_class().blob, property_map=supplied)
+
+    assert _reasons_of(model) == {objects.REASON_CLASS_NOT_MODELLED}
+
+
+def test_a_real_usmap_whose_schema_name_did_not_decode_downgrades_the_reason() -> None:
+    """The only test here that grades the key against its actual producer.
+
+    Every other case in this section builds the ``UsmapWarning`` by hand, so it
+    agrees with whatever this module decided to key on and is evidence about
+    nothing else. This one patches five bytes of a synthetic mapping body,
+    parses it with the REAL ``usmap.parse_usmap``, and feeds the result
+    straight into the loader - so if the subject vocabulary ever moves, the
+    world layer stops recognising it HERE rather than in a real world.
+
+    Synthetic throughout: the bytes come from the shared builder in
+    ``tests/save/test_usmap.py`` and no install and no save library is touched,
+    which is what lets this run on a bare CI box.
+    """
+    names = list(test_usmap._UNDECODABLE_FIRST)  # noqa: SLF001
+    schemas: list[tuple[str, str | None, list[tuple[str, int]]]] = [
+        (names[0], None, []),
+    ]
+    body = test_usmap._with_undecodable_name(  # noqa: SLF001
+        test_usmap._shipped_body(names=names, enums=[], schemas=schemas),  # noqa: SLF001
+        names,
+        0,
+    )
+    parsed = test_usmap._parse_schema_body(body)  # noqa: SLF001
+
+    # The premise, asserted rather than assumed: the real parser really did
+    # drop the schema, and really did flag it under the pair keyed on.
+    assert parsed.schemas == {}
+    flagged = [(w.code, w.subject) for w in parsed.warnings]
+    assert (usmap.WARN_UNDECODABLE_NAME, _UNDECODABLE_NAME_SUBJECT) in flagged
+    assert (usmap.WARN_UNRESOLVED_NAME, _DROPPED_SCHEMA_SUBJECT) in flagged
+
+    model = _load_flat(synthetic.unknown_actor_class().blob, property_map=parsed)
+
+    assert _reasons_of(model) == {objects.REASON_REGISTRY_INCOMPLETE}
+    carried = [(w.code, w.subject) for w in model.warnings if w.source == world.SOURCE_USMAP]
+    assert (usmap.WARN_UNDECODABLE_NAME, _UNDECODABLE_NAME_SUBJECT) in carried

@@ -250,7 +250,14 @@ from clockspeed.save.objects import (
     parse_body,
     parse_object_headers,
 )
-from clockspeed.save.usmap import PropertyMap, UsmapError, cached_usmap
+from clockspeed.save.usmap import (
+    WARN_DESYNCHRONISED_SECTION,
+    WARN_UNRESOLVED_NAME,
+    PropertyMap,
+    UsmapError,
+    UsmapWarning,
+    cached_usmap,
+)
 from clockspeed.save.workdir import WorkDirError, copy_for_read
 
 __all__ = [
@@ -318,6 +325,13 @@ SOURCE_CHUNKS: Final = STAGE_CHUNKS
 SOURCE_USMAP: Final = STAGE_USMAP
 SOURCE_OBJECTS: Final = STAGE_OBJECTS
 SOURCE_WORLD: Final = "world"
+
+#: The usmap subjects that mean a CLASS NAME left the mapping. The first is a
+#: PREFIX completed by a digit run and nothing else; the second is exact. See
+#: :func:`_drops_a_class_name` for why the bare forms are the only ones that
+#: count, and for the three neighbouring conditions that must NOT be added here.
+_DROPPED_SCHEMA_PREFIX: Final = "schema-"
+_STOPPED_SCHEMA_SECTION: Final = "schemas"
 
 WARN_NO_PROPERTY_MAP: Final = "no-property-map"
 WARN_UNLOCK_GRAMMAR_UNMEASURED: Final = "unlock-grammar-unmeasured"
@@ -413,22 +427,40 @@ class WorldWarning:
     never has to reach into a sub-model to find a flag - which would be exactly
     the reach-past-your-neighbour the seam discipline forbids.
 
-    Only the CODE and the fixed detail travel up. The scalars a sub-warning
-    carries - a version pair, a byte offset, a type id - stay on the sub-warning
-    and are reachable through :attr:`WorldModel.header` and
+    The code, the fixed detail and the SUBJECT travel up. The scalars a
+    sub-warning carries - a byte offset, a type id - stay on the sub-warning and
+    are reachable through :attr:`WorldModel.header` and
     :attr:`WorldModel.objects`, because promoting them would mean giving one
     field four different meanings depending on which layer filled it in.
+
+    THE SUBJECT IS THE EXCEPTION TO THAT, AND CS-440 IS WHY. It means the same
+    thing in every layer that has one - the structural token naming WHICH thing
+    was flagged - so it is the one field that does not change meaning on the way
+    up. Without it a consumer learned that some usmap name did not decode and
+    could not learn which position, which leaves a flag nothing can act on.
+
+    NONE IS NOT THE EMPTY STRING HERE. ``chunks.ChunkWarning`` and
+    ``objects.ObjectWarning`` declare no subject field at all, and rendering
+    that as ``""`` would make an absent channel indistinguishable from a present
+    but empty one - the collapse ``usmap._NameTable`` refuses for a name that
+    did not decode, re-introduced one layer up.
 
     Attributes:
         source: Which layer noticed it, from the ``SOURCE_*`` constants.
         code: The originating layer's own warning code.
         detail: One fixed line naming the consequence. Never built from content.
+        subject: The originating layer's structural token for WHAT was flagged,
+            or None when that layer's warning type carries no subject. A
+            structural token only - never a name read out of a file, which is
+            the guarantee ``header.HeaderWarning`` and ``usmap.UsmapWarning``
+            each make about their own.
         count: How many occurrences this aggregates.
     """
 
     source: str
     code: str
     detail: str
+    subject: str | None = None
     count: int = 1
 
 
@@ -618,6 +650,79 @@ def _warning(source: str, code: str, count: int = 1) -> WorldWarning:
         The warning.
     """
     return WorldWarning(source=source, code=code, detail=_WARNING_DETAIL[code], count=count)
+
+
+def _drops_a_class_name(warning: UsmapWarning) -> bool:
+    """Whether one usmap warning means a CLASS NAME left the mapping.
+
+    TWO CONDITIONS, FOUND BY GREPPING THE ROOT CAUSE RATHER THAN THE SYMPTOM.
+    ``usmap._read_schema`` drops a schema whose own name index does not resolve,
+    and ``usmap._read_schemas`` catches a desynchronised entry and returns the
+    schemas it has, losing every one after it. Both leave a class the registry
+    DOES model absent from ``schemas``; only the first is the one CS-435 named,
+    and a fix keyed to it alone would have left the second standing.
+
+    THE KEY IS THE ``(code, subject)`` PAIR AND NOT EITHER HALF ALONE.
+    ``usmap._read_schema`` gives its three failures three distinct subjects
+    deliberately (CS-431), and only the bare ``schema-<N>`` one drops the
+    schema: ``schema-<N>-super`` keeps the schema and loses its super type, and
+    ``schema-<N>-property`` keeps it and loses one property. Matching the code
+    alone - or matching the prefix without checking what follows it - would
+    withdraw a TRUE claim on both of those, trading one wrong answer for a
+    weaker one everywhere.
+
+    THE CONDITIONS THAT LOOK RELATED AND ARE NOT are on the same grep and are
+    named here so nobody re-adds them: a DUPLICATE schema keeps the later
+    definition under the same key, so no name leaves the mapping; a TRAILING
+    section sits past a schema count that was honoured in full; an unknown
+    PROPERTY TYPE costs a property rather than a class.
+    ``tests/save/test_world.py::test_a_usmap_condition_that_loses_no_class_name_does_not_downgrade``
+    holds all three on the false side.
+
+    THIS IS A CROSS-MODULE STRING CONTRACT, stated plainly because it is the
+    fragile part of this function.
+    ``tests/save/test_world.py::test_a_real_usmap_whose_schema_name_did_not_decode_downgrades_the_reason``
+    runs the REAL parser over patched synthetic bytes and grades the key against
+    its actual producer, so the vocabulary moving turns that test red rather
+    than turning this check silently inert.
+
+    Args:
+        warning: One warning from a parsed mapping.
+
+    Returns:
+        True when the condition it reports removed a class name.
+    """
+    if warning.code == WARN_DESYNCHRONISED_SECTION:
+        return warning.subject == _STOPPED_SCHEMA_SECTION
+    if warning.code != WARN_UNRESOLVED_NAME:
+        return False
+    position = warning.subject.removeprefix(_DROPPED_SCHEMA_PREFIX)
+    return position != warning.subject and position.isdigit()
+
+
+def _registry_incomplete(mapping: PropertyMap | None) -> bool:
+    """Whether the mapping lost part of itself while being parsed.
+
+    THIS IS THE HALF OF CS-435 THAT LIVES HERE (CS-440). A class the registry
+    models but whose schema was lost reaches ``objects`` as a path absent from
+    ``known_classes``, and was published as "is not a class the supplied
+    registry models" - a sentence that is false for exactly that input. Neither
+    neighbour can see the pair: ``usmap`` does not know which save is being
+    read, and ``objects`` is handed a container of names in which a dropped
+    entry and an absent one are the same bytes. This is the seam where both
+    facts are in scope at once.
+
+    Args:
+        mapping: The resolved property map, or None when none was resolved.
+
+    Returns:
+        True when at least one class name is known to have left the mapping.
+        False for an absent mapping: no registry claims nothing, which is the
+        position ``known_classes=None`` already takes downstream.
+    """
+    if mapping is None:
+        return False
+    return any(_drops_a_class_name(warning) for warning in mapping.warnings)
 
 
 def _resolve_property_map(
@@ -810,6 +915,12 @@ def _walk_body(
         save_version=parsed.save_version,
         header_version=parsed.header_version,
         known_classes=None if mapping is None else mapping.schemas,
+        # THE SECOND SEAM, and it goes with the first. Handing over the schema
+        # NAMES without saying that the registry lost some of its own is what
+        # let a modelled class be published as unmodelled (CS-440): the two
+        # facts only exist together here, and either alone is an answer nobody
+        # can audit.
+        registry_incomplete=_registry_incomplete(mapping),
     )
 
 
@@ -897,6 +1008,14 @@ def _carried(
 ) -> tuple[WorldWarning, ...]:
     """Normalise every sub-layer's advisories into the one stream.
 
+    THE SUBJECT IS CARRIED FROM THE TWO LAYERS THAT HAVE ONE and left None for
+    the two that do not. ``header.HeaderWarning`` and ``usmap.UsmapWarning``
+    each declare a ``subject``; ``chunks.ChunkWarning`` and
+    ``objects.ObjectWarning`` declare none, so there is nothing to carry and
+    None says exactly that. Inventing a token for them - the class path, the
+    offset, the empty string - would put a value in a field whose whole purpose
+    is that the ORIGINATING layer chose it.
+
     Args:
         parsed: The header, for its warnings.
         body: The decompressed body, for its warnings.
@@ -907,7 +1026,9 @@ def _carried(
         Every carried warning, header first and in layer order.
     """
     out: list[WorldWarning] = [
-        WorldWarning(source=SOURCE_HEADER, code=item.code, detail=item.detail)
+        WorldWarning(
+            source=SOURCE_HEADER, code=item.code, detail=item.detail, subject=item.subject
+        )
         for item in parsed.warnings
     ]
     out.extend(
@@ -916,7 +1037,13 @@ def _carried(
     )
     if mapping is not None:
         out.extend(
-            WorldWarning(source=SOURCE_USMAP, code=item.code, detail=item.detail, count=item.count)
+            WorldWarning(
+                source=SOURCE_USMAP,
+                code=item.code,
+                detail=item.detail,
+                subject=item.subject,
+                count=item.count,
+            )
             for item in mapping.warnings
         )
     out.extend(

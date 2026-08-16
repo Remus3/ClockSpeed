@@ -3005,3 +3005,192 @@ def test_an_unexpected_walk_failure_does_not_unwind_through_either_sweep(
     test_properties._assert_read_failure_is_contained(  # noqa: SLF001
         "attribution sweep", _sweep_payload_attribution, forced
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-440 - the reason an unresolved class path carries, and the two conditions
+# it must not conflate
+#
+# CS-435 stopped an undecodable usmap name from being SUBSTITUTED. What it left
+# standing downstream is this: the schema that name belonged to is DROPPED from
+# the mapping, so a class the registry does model arrives here as a path absent
+# from ``known_classes`` and is published with ``REASON_CLASS_NOT_MODELLED`` -
+# "is not a class the supplied registry models" - which for that input is a
+# FALSE sentence sitting behind a true warning. That is the "never silently
+# wrong" half of non-negotiable 7 rather than the "never fatal" half, and it is
+# the half that has to be satisfied on purpose, because the failure renders as
+# a success.
+#
+# THIS LAYER CANNOT SEE THE USMAP AND MUST NOT. ``known_classes`` is a
+# ``Container[str]`` and nothing else, and docs/ARCHITECTURE.md makes the
+# property MAPPING this module's declared dependency rather than the mapping's
+# PARSE. Only the caller that resolved the registry knows whether resolving it
+# lost anything, so the condition arrives as an argument.
+#
+# THE WIDTH OF THE WEAKER CLAIM IS THE HONEST ONE AND IS NOT AN OVERSIGHT. What
+# an incomplete registry lost is by construction not attributable to a class
+# path - an unresolved name and a section that stopped early each lose exactly
+# the identity that would say which - so no single path can be singled out as
+# the affected one. Every unresolved path in that walk therefore carries the
+# weaker reason. Under-claiming for a path that really is unmodelled is the
+# safe direction; over-claiming for the one that is not is the defect this item
+# exists to close.
+#
+# WHICH CONDITIONS COUNT AS INCOMPLETE IS NOT DECIDED HERE. This module is
+# handed the answer, and ``tests/save/test_world.py`` grades the derivation
+# against the layer that produces it.
+# ---------------------------------------------------------------------------
+
+
+def _unknown_reasons(**extra: object) -> set[str]:
+    """Reasons the FLAT walk publishes for one unmodelled record.
+
+    Args:
+        **extra: Forwarded to :func:`objects.parse_object_headers`.
+
+    Returns:
+        The distinct reasons, which for this fixture is one.
+    """
+    payload = _payload_for(
+        (
+            _actor(_KNOWN_CLASS_PATH_A, "SyntheticSmelter_0"),
+            _actor(synthetic.UNKNOWN_ACTOR_CLASS_PATH, "SyntheticUnknown_0"),
+        ),
+        save_version=_SAVE_60,
+        header_version=_HEADER_14,
+    )
+    table = objects.parse_object_headers(
+        payload,
+        save_version=_SAVE_60,
+        header_version=_HEADER_14,
+        known_classes=_known(_KNOWN_CLASS_PATH_A),
+        **extra,  # type: ignore[arg-type]
+    )
+    return {unknown.reason for unknown in table.unknown_classes}
+
+
+def test_an_incomplete_registry_changes_the_reason_the_flat_walk_publishes() -> None:
+    """CS-440 acceptance, second clause. The two conditions get two reasons.
+
+    NO LITERAL SENTENCE IS ASSERTED, for the reason
+    ``tests/save/test_usmap.py::test_a_failed_super_index_does_not_swallow_the_schema_skipped_warning``
+    gives about its own subject: the reason produced under the condition is
+    compared against the reason THAT SAME WALK produces with the condition
+    absent, so the assertion pins the behaviour and is neither satisfied by a
+    rewording nor reddened by one.
+
+    The default half is asserted here rather than in a test of its own, because
+    a walk that downgraded unconditionally would satisfy the second assertion
+    alone while destroying the distinction the item asks for.
+    """
+    default = _unknown_reasons()
+    unresolved = _unknown_reasons(registry_incomplete=True)
+
+    assert default == {objects.REASON_CLASS_NOT_MODELLED}
+    assert unresolved == {objects.REASON_REGISTRY_INCOMPLETE}
+    assert default != unresolved
+
+
+def test_an_incomplete_registry_changes_the_reason_the_levelled_walk_publishes() -> None:
+    """The sibling site. ``parse_body`` builds a second ``_UnknownLog`` of its own.
+
+    THE FLAT READER IS NOT THE ONE A REAL SAVE GOES THROUGH. CS-409 routes the
+    default load to ``parse_body``, so a fix applied only to
+    ``parse_object_headers`` would leave every real world carrying the false
+    reason while the test above stayed green.
+    """
+    payload = _levelled_payload()
+    fixture = synthetic.SAVE_LEVELLED_V36
+
+    default = objects.parse_body(
+        payload,
+        save_version=fixture.save_version,
+        header_version=fixture.header_version,
+        known_classes=frozenset(),
+    )
+    unresolved = objects.parse_body(
+        payload,
+        save_version=fixture.save_version,
+        header_version=fixture.header_version,
+        known_classes=frozenset(),
+        registry_incomplete=True,
+    )
+
+    assert default.unknown_classes, "the fixture must publish something to carry a reason"
+    assert {u.reason for u in default.unknown_classes} == {objects.REASON_CLASS_NOT_MODELLED}
+    assert {u.reason for u in unresolved.unknown_classes} == {
+        objects.REASON_REGISTRY_INCOMPLETE
+    }
+    # Only the REASON moves. A downgrade that also changed WHAT was flagged
+    # would be reporting a different world rather than a different confidence
+    # in the same one.
+    assert [u.type_path for u in default.unknown_classes] == [
+        u.type_path for u in unresolved.unknown_classes
+    ]
+    assert [u.count for u in default.unknown_classes] == [
+        u.count for u in unresolved.unknown_classes
+    ]
+    assert [u.first_index for u in default.unknown_classes] == [
+        u.first_index for u in unresolved.unknown_classes
+    ]
+
+
+def test_both_unknown_class_reasons_are_published_in_the_declared_set() -> None:
+    """The set is the published contract, and a reason outside it is unannounced.
+
+    Derived from what the two conditions actually emit rather than from a list
+    written down here, so a third condition added later with no set entry is
+    red instead of quietly unannounced.
+    """
+    emitted = _unknown_reasons() | _unknown_reasons(registry_incomplete=True)
+
+    assert emitted <= objects.UNKNOWN_CLASS_REASONS
+    assert len(emitted) == _PAIR
+    assert objects.REASON_CLASS_NOT_MODELLED in objects.UNKNOWN_CLASS_REASONS
+    assert objects.REASON_REGISTRY_INCOMPLETE in objects.UNKNOWN_CLASS_REASONS
+
+
+def test_the_weaker_reason_does_not_repeat_the_claim_it_exists_to_withdraw() -> None:
+    """CS-430's shape applied here: a distinct key with the same sentence is no distinction.
+
+    The defect was a reason that FIRES correctly while SAYING something false.
+    A second constant that still asserted non-modelling would reproduce it under
+    a new name, so the withdrawn sentence is asserted ABSENT from the
+    replacement rather than the two merely asserted unequal.
+
+    THE INEQUALITY IS NOT ASSERTED DIRECTLY, and that is mypy's finding rather
+    than a preference. Both names are ``Final``, so ``!=`` between them compares
+    two literal types and can never be False - a line that reads like a check
+    and grades nothing. The SET SIZE proves the same thing from values built at
+    runtime, which is a claim a comparison of literals cannot make.
+    """
+    assert objects.REASON_CLASS_NOT_MODELLED not in objects.REASON_REGISTRY_INCOMPLETE
+    assert objects.REASON_REGISTRY_INCOMPLETE not in objects.REASON_CLASS_NOT_MODELLED
+    assert len(objects.UNKNOWN_CLASS_REASONS) == _PAIR
+    assert objects.REASON_REGISTRY_INCOMPLETE.isascii()
+
+
+def test_an_incomplete_registry_claims_nothing_when_no_registry_was_supplied() -> None:
+    """Absence of a registry still claims nothing, whatever the flag says.
+
+    ``known_classes=None`` means no class was checked against anything. A flag
+    about the registry's OWN completeness cannot manufacture a finding out of a
+    check that never ran, and a walk that let it would report a world of pure
+    unknown content on a machine with no install.
+    """
+    payload = _payload_for(
+        (_actor(synthetic.UNKNOWN_ACTOR_CLASS_PATH, "SyntheticUnknown_0"),),
+        save_version=_SAVE_60,
+        header_version=_HEADER_14,
+    )
+
+    table = objects.parse_object_headers(
+        payload,
+        save_version=_SAVE_60,
+        header_version=_HEADER_14,
+        known_classes=None,
+        registry_incomplete=True,
+    )
+
+    assert table.unknown_classes == ()
+    assert table.contains_unmodeled_content is False
