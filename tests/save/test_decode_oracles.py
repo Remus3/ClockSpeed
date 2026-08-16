@@ -5,21 +5,40 @@ module transcribes the tag grammar - its own ``_TAG_EXTRA_STRINGS``, its own
 ``_STRUCT_GUID_BYTES``, its own reader - and walks the library with the copy.
 That is the right shape for what it does, because a transcription that
 disagrees with the module under test is exactly what its synthetic fixtures are
-built to expose. But it has one consequence no test inside it can reach:
+built to expose.
 
-**A WIDTH THAT IS WRONG IN BOTH COPIES IS WRONG IN NEITHER TEST.** Mis-state
-``ArrayProperty`` in ``clockspeed/save/objects.py`` and every assertion in
-``test_properties`` still passes, because that module never reads the shipped
-constant. Two copies of one belief are not two pieces of evidence - they are
-one belief written twice, and the provenance oracles are blind to a fault they
-share. CLAUDE.md section 5 names this directly: agreement between two agents is
-not evidence when both derive from the same source.
+**THE COMMON MODE THIS MODULE WAS FOUNDED ON DOES NOT EXIST, AND A MEASUREMENT
+IS WHAT SAYS SO.** The founding claim, written here in capitals, was that a
+width wrong in BOTH copies is wrong in NEITHER test. Mutating each width in
+``clockspeed/save/objects.py`` and in ``tests/save/test_properties.py`` to the
+same wrong value - the genuine common-mode fault, one width at a time, judged
+by ``test_properties`` alone with neither oracle module running - leaves that
+module RED on every one of them. Not one survivor.
 
-So every walk in THIS module runs on the shipped reader. It holds no width of
-its own: names come from ``objects._payload_text``, tag headers from
-``objects._read_tag_header``, and the cursor advances by the value extent that
-shipped header read reports. Break a shipped width and this module goes red.
-It does transcribe ONE literal, the terminator word, and that exception is
+The mechanism is structural rather than lucky, which is why it should be
+trusted past the single measurement: ``test_properties`` carries its OWN
+equality reach oracle over the real library. Under a fault both copies share,
+its copy-based walker desynchronises against THE BYTES exactly as the shipped
+one does. The bytes are a third party that neither copy controls, and no amount
+of agreement between two transcriptions buys agreement with them.
+
+THE SINGLE-COPY CASE WAS MIS-STATED TOO, and in the opposite direction. The old
+text said that mis-stating ``ArrayProperty`` in ``clockspeed/save/objects.py``
+left every assertion in ``test_properties`` passing, "because that module never
+reads the shipped constant". It reads it pervasively - just indirectly.
+``test_properties`` calls the shipped ``objects.read_properties`` throughout, so
+that mutant turns the module red without a single assertion in THIS file
+running, and several of the red ones are ``test_the_synthetic_*`` cases that
+need no game and no save library at all. A bare CI box catches it.
+
+WHAT SURVIVES IS THE NARROWER AND STILL-TRUE HALF: two copies of one belief are
+not two pieces of evidence. CLAUDE.md section 5 names it, and it is still why
+the walk here holds no width of its own - names come from
+``objects._payload_text``, tag headers from ``objects._read_tag_header``, and
+the cursor advances by the value extent that shipped header read reports. What
+that buys is PROVENANCE, not extra detection, and each test below states which
+of the two it is claiming rather than leaving a reader to assume the stronger
+one. It does transcribe ONE literal, the terminator word, and that exception is
 argued where the constant is defined rather than left for a reader to notice.
 
 THE THREE ORACLES ARE NOT INTERCHANGEABLE, and the difference is measured
@@ -28,12 +47,29 @@ rather than assumed:
   THE SHIPPED-WALK REACH is the only one of the three that discriminates the
   widths. It is checked as EQUALITY - every payload of every tagged pair
   reaches its terminator - because a ``> 0`` floor is known to survive a
-  rotated alignment on this project's own corpus.
+  rotated alignment on this project's own corpus. Equality is NECESSARY AND NOT
+  SUFFICIENT, which an earlier draft of this file got wrong: it is also
+  satisfied by a walker that returns no tags at all, since every payload then
+  trivially "reaches". So the reach test carries a liveness floor BESIDE the
+  equality. Both, not either.
 
   THE CROSS-SECTION and THE USMAP JOIN are EXTERNAL evidence: one about the
   reference-to-record pairing, read out of a section a different cursor pass
   parsed; one about the name-to-type-word pairing, read out of a different FILE
   the game ships. Both are worth having and neither is a width check.
+
+  THE SHARED-LOCATOR LIMIT, recorded here rather than left for a reader to
+  discover. Oracles 1 and 2 are NOT two independent measurements. Oracle 2's
+  population is a strict SUBSET of oracle 1's: a reference cannot resolve
+  unless it first decoded, and it cannot decode unless its own length prefix
+  accounted for the declared size, which is the reach oracle's own condition.
+  On top of that containment, both take ``value_at`` from ONE
+  ``objects._read_tag_header`` call per tag, so a fault in the locator moves
+  the two in the same direction by construction. Their agreement is ONE
+  measurement reported twice at two strengths - not two measurements that
+  agree. Only the cross-section's rotation control, which moves the value read
+  while holding that shared locator fixed, says anything the reach test has not
+  already said.
 
   IN PARTICULAR THE USMAP JOIN DOES NOT GUARD THE COMMON MODE, and believing it
   did would be the more dangerous error. Its bijection was measured against a
@@ -139,6 +175,29 @@ _TRUE_OFFSET: Final = 0
 _TRUE_JOIN: Final = "true"
 _SHIFTED_JOIN: Final = "shifted"
 
+#: How many distinct type words the true join must span. THE ONE ABSOLUTE COUNT
+#: IN THIS FILE, and the exception is argued rather than assumed.
+#:
+#: The no-absolute-counts rule exists because this project's corpus is the
+#: operator's own live save library, which grows on every autosave - so a
+#: payload total, a tag total or a reference total is stale the moment it is
+#: written. THAT REASONING DOES NOT REACH THIS NUMBER. The type words are the
+#: property GRAMMAR the engine serialises with; their number is fixed by the
+#: engine, not by how much factory has been built. Playing the game moves the
+#: tag count and leaves this alone.
+#:
+#: It is a FLOOR, in the only direction that can move: new content can
+#: introduce a word never seen before and the floor still holds, while the
+#: number falling means the join population thinned - which is exactly the
+#: degradation this guards. Measured at the full observed width, so a thinned
+#: join cannot satisfy it.
+#:
+#: WHY A FLOOR AT ALL: ``join.tags > 0`` bounds volume and not diversity. The
+#: bijection assertions below are vacuously true over a degenerate join, and
+#: were measured GREEN with the join collapsed to a single word and a single
+#: id. Volume alone does not notice that.
+_JOIN_WORD_FLOOR: Final = 13
+
 
 @dataclass(frozen=True)
 class _JoinShape:
@@ -167,6 +226,9 @@ class _OracleSweep:
         payloads: Records seen, by version pair.
         reached: Records whose payload reached its terminator under the
             SHIPPED reader, by version pair.
+        walked_tags: Tags the SHIPPED walk actually yielded, by version pair.
+            Carried because ``reached`` alone cannot tell a complete walk from
+            a walk that returned nothing - see the reach test's liveness floor.
         references: Reference tags that decoded at all, by value-start delta.
         resolutions: Those whose object path named a record in the table, by
             the same delta.
@@ -177,6 +239,7 @@ class _OracleSweep:
 
     payloads: Mapping[tuple[int, int], int]
     reached: Mapping[tuple[int, int], int]
+    walked_tags: Mapping[tuple[int, int], int]
     references: Mapping[int, int]
     resolutions: Mapping[int, int]
     join: _JoinShape
@@ -195,6 +258,7 @@ class _Accumulators:
     Attributes:
         payloads: Records seen, by version pair.
         reached: Records whose payload reached a terminator, by version pair.
+        walked_tags: Tags the shipped walk yielded, by version pair.
         references: Reference tags that decoded, by value-start delta.
         resolutions: Reference tags that resolved, by the same delta.
         joined: Distinct type word and raw type id pairs, truly paired.
@@ -204,6 +268,7 @@ class _Accumulators:
 
     payloads: Counter[tuple[int, int]] = field(default_factory=Counter)
     reached: Counter[tuple[int, int]] = field(default_factory=Counter)
+    walked_tags: Counter[tuple[int, int]] = field(default_factory=Counter)
     references: Counter[int] = field(default_factory=Counter)
     resolutions: Counter[int] = field(default_factory=Counter)
     joined: set[tuple[str, int]] = field(default_factory=set)
@@ -390,6 +455,7 @@ def _sweep_one_save(data: bytes, parsed: header.SaveHeader, into: _Accumulators)
         if tags is None:
             continue
         into.reached[pair] += 1
+        into.walked_tags[pair] += len(tags)
         _tally_references(body, tags, names, into)
         flat = _schema_property_ids(property_map, record.type_path)
         if flat is not None:
@@ -442,6 +508,7 @@ def _sweep_decode_oracles() -> _OracleSweep | None:
     return _OracleSweep(
         payloads=MappingProxyType(dict(into.payloads)),
         reached=MappingProxyType(dict(into.reached)),
+        walked_tags=MappingProxyType(dict(into.walked_tags)),
         references=MappingProxyType(dict(into.references)),
         resolutions=MappingProxyType(dict(into.resolutions)),
         join=_shape_of(into.joined, into.join_tags[_TRUE_JOIN]),
@@ -476,22 +543,44 @@ def _pairs_present(sweep: _OracleSweep) -> tuple[tuple[int, int], ...]:
 
 
 def test_the_shipped_walker_reaches_a_terminator_on_every_real_payload() -> None:
-    """THE COMMON-MODE GUARD - the one oracle here that grades the widths.
+    """THE REACH ORACLE WITH NO TRANSCRIPTION ANYWHERE IN ITS CHAIN.
 
-    ``test_properties`` asserts the same reach against its OWN transcription of
-    the tag grammar, so it stays green when a shipped width is wrong. This
-    asserts it against the shipped reader, and that is the entire difference.
+    WHAT THIS TEST IS FOR, STATED AS MEASURED RATHER THAN AS FLATTERING. An
+    earlier docstring here credited it with catching the SetProperty and
+    MapProperty widths "HERE AND NOWHERE ELSE in the suite". That is refuted:
+    both are caught in several places, and
+    ``test_both_tag_grammar_transcriptions_agree`` - in this same file, needing
+    no save library and no game - goes red on every single-copy width mutant by
+    itself. On the widths, this test detects nothing the suite would otherwise
+    miss, and saying otherwise inflated it.
 
-    THE CONTROL IS EQUALITY, NOT A FLOOR, and that is measured rather than
-    stylistic: this project has already established that a ``> 0`` sweep passes
-    under a rotated alignment, which leaves the reach SHORT of the payload
-    count rather than at zero. Only equality separates the two.
+    IT IS NOT CONTAINED IN THAT TEST, THOUGH, AND THAT IS MEASURED. Mutating
+    the shipped tag cap ``objects._MAX_TAGS_PER_PAYLOAD`` and, separately, the
+    shipped actor-head component step, each turns THIS red while the
+    transcription-agreement test stays green - that test compares only the two
+    copied constants and is blind to every other shipped-reader internal. A
+    walk built from shipped symbols reaches internals a constant comparison
+    cannot see, and those two are the demonstration.
 
-    Every width in ``objects._TAG_EXTRA_STRINGS`` and the shipped
-    ``GUID_BYTES`` was mutated one at a time and this assertion went red for
-    every one of them. Two of those mutants - the SetProperty and MapProperty
-    widths - are caught HERE AND NOWHERE ELSE in the suite, because they move
-    so few payloads that every rate-based oracle absorbs them.
+    IT IS CONTAINED IN ``test_properties`` ON EVERY MUTANT MEASURED SO FAR, and
+    that is recorded rather than quietly omitted, because it is the fact most
+    likely to be re-discovered by someone deciding whether this file earns its
+    place. That module calls the shipped ``objects.read_properties`` throughout,
+    so a shipped-reader fault reddens it too - including under both internals
+    above. What this test contributes is therefore DIAGNOSTIC SEPARATION rather
+    than additional detection: the agreement test says the two copies match,
+    this says the shipped reader matches THE BYTES. Red here with that one green
+    localises the fault to the shipped grammar; green here with that one red
+    localises it to the transcription. Neither statement is available from
+    either test alone, and that - not a unique catch - is the reason to keep it.
+
+    THE EQUALITY IS NECESSARY AND NOT SUFFICIENT. Equality rather than a ``> 0``
+    floor is what rules out a rotated alignment, which leaves the reach SHORT of
+    the payload count rather than at zero, so it stays. But equality alone is
+    satisfied by a walker that returns NO TAGS: every payload then trivially
+    reaches, and this assertion was measured GREEN under exactly that mutant.
+    The liveness floor below closes it - and it is a floor, so the old sentence
+    dismissing floors was wrong in both of its halves.
     """
     sweep = _sweep_or_skip()
     present = _pairs_present(sweep)
@@ -500,6 +589,16 @@ def test_the_shipped_walker_reaches_a_terminator_on_every_real_payload() -> None
         "vacuous; it refuses to pass unexamined"
     )
     for pair in present:
+        # LIVENESS, and it is not redundant with the equality below. A walk that
+        # yields no tags satisfies that equality perfectly - reached == payloads
+        # because nothing had to be walked to "reach" - and did so when it was
+        # measured. A floor on the tags actually yielded is the only thing here
+        # that separates a complete walk from an absent one.
+        assert sweep.walked_tags.get(pair, 0) > 0, (
+            f"the SHIPPED walk yielded no tags at all on the {sweep.payloads[pair]} "
+            f"payloads of pair {pair}, so the equality below is satisfied by a walk "
+            "that never happened rather than by one that reached every terminator"
+        )
         assert sweep.reached.get(pair, 0) == sweep.payloads[pair], (
             f"the SHIPPED reader reaches a terminator on only {sweep.reached.get(pair, 0)} "
             f"of {sweep.payloads[pair]} payloads of pair {pair}; under the measured "
@@ -573,11 +672,30 @@ def test_the_usmap_type_id_join_is_a_bijection_and_collapses_under_a_one_tag_shi
     break in both directions. It does. The shifted join is asserted live for
     the same reason the cross-section oracle carries a floor - a control that
     joined nothing would "break" the bijection by being empty.
+
+    AND A LIVENESS FLOOR ON VOLUME IS NOT ONE ON DIVERSITY, which was measured
+    rather than reasoned about. With ``join.tags`` left large and the joined
+    pairs collapsed to a single word and a single id, every assertion this test
+    shipped at the time passed - a one-element map is trivially one-to-one in
+    both directions. So the tag floor is joined by a floor on the distinct type
+    words spanned; see ``_JOIN_WORD_FLOOR`` for why that one number is allowed
+    to be absolute when nothing else in this file is.
     """
     sweep = _sweep_or_skip()
     assert sweep.join.tags > 0, (
         "no tag joined the shipped mapping, so the bijection asserted below holds "
         "over an empty set and grades nothing"
+    )
+    # DIVERSITY, which the tag floor above does not bound. See _JOIN_WORD_FLOOR
+    # for why a fixed number is legitimate here and nowhere else in this file:
+    # the type words are the engine's grammar, so this quantity does not move
+    # when the operator plays the game. Do not "fix" it back out for the
+    # no-absolute-counts rule - that rule is about corpus-sized quantities.
+    assert sweep.join.words >= _JOIN_WORD_FLOOR, (
+        f"the join's distinct type word count is {sweep.join.words}, under the "
+        f"{_JOIN_WORD_FLOOR} the grammar is known to carry; the bijection below is "
+        "one-to-one over whatever survives, so a thinned join passes it while "
+        "grading almost nothing"
     )
     assert sweep.join.words_to_many_ids == 0, (
         f"{sweep.join.words_to_many_ids} type words each pair with more than one raw "

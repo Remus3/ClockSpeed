@@ -2151,7 +2151,11 @@ def parse_body(
 # KNOWLEDGE OF HOW UNREAL SERIALIZES. Prior knowledge generated the hypotheses
 # below; every one of them was then required to survive a check the shipped
 # bytes could have failed, and the checks are named on each constant. Three
-# oracles carried the weight, each independent of this module's own opinion:
+# oracles carried the weight, each drawing on evidence from outside this
+# module's own grammar - though only the third is independent of this module's
+# opinion, since the cross-section oracle takes its value locator from
+# _read_tag_header and its record table from parse_body, so what differs there
+# is the SECTION being read and not the opinion doing the reading:
 #
 #   SHIPPED REDUNDANCY - a string-bearing value carries its own length prefix,
 #   which must equal the tag's declared size. Those are two separate numbers in
