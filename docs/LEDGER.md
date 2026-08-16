@@ -74,6 +74,50 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-15 - CS-403, CS-209, CS-204 - FROZEN-FILE GRANT ISSUED by the OPERATOR for `tools/precommit_gate.py`
+Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit, not a
+completion record. Nothing has been edited under it at the time of writing.
+GRANTED BY THE OPERATOR DIRECTLY, not by an adjudicator, and the distinction is recorded so a
+later reader does not read this as an agent self-granting. CLAUDE.md section 6 names operator
+approval as the thing the frozen list requires; the adjudicator route is the mechanism for an
+AGENT proposing an edit, and it is not the higher authority. The operator was asked which of two
+readings the grant covered and answered BOTH - the other half is the CS-425 entry below.
+SCOPE: `tools/precommit_gate.py`, for the three OPEN items that each state they need their own
+grant - CS-403 (the world-TOKEN half of CS-201), CS-209 (the world-name exclusion surface and the
+skip channel), CS-204 (the diagnostic LABEL channel, which also covers `tools/edit_lint_check.py`,
+a file that is NOT frozen and needs no grant).
+CONDITIONS ARE THE ONES ALREADY WRITTEN IN EACH ROADMAP ENTRY and are deliberately NOT restated
+here. CS-204's came from the adjudicator that found it and then RECUSED itself from granting it;
+CS-403's lazy-import design and its fallback-on-any-exception rule are stated inside the frozen
+file itself; CS-209 carries the measured denial of CS-208 that produced it. Restating a condition
+is how a condition drifts, and this file has ruled that way before.
+ONE CONDITION IS ADDED HERE because it binds all three rather than any one: a gate that cannot
+START does not block, so no edit under this grant may introduce a new way for the gate to fail to
+start, and each item is proven END TO END - stage a real violation, attempt a real `git commit`,
+assert exit 1 and HEAD unchanged - rather than by passing flags explicitly to the gate, which is
+what every test in the suite does today and is precisely the hole CS-209 exists to close.
+
+### 2026-08-15 - CS-425 - FROZEN-FILE GRANT ISSUED by the OPERATOR for `.claude/settings.json`
+Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit, not a
+completion record. Nothing has been edited under it at the time of writing. The item it serves is
+filed in `ROADMAP.md` as CS-425; this entry does not close it.
+SCOPE: the hook configuration in `.claude/settings.json`, to stop console windows flashing during
+a session. MEASURED CAUSE, not a guess: the `PreToolUse` hook runs `python tools/precommit_gate.py
+--text-stdin` on matcher `Bash|PowerShell`, so it spawns a console-subsystem `python.exe` on EVERY
+shell tool call, timed at ~106 ms; Claude Code is a GUI parent with no console, so Windows
+allocates one per child. `PostToolUse` and the wired git hooks are the same mechanism at lower
+frequency. The `statusLine` in the operator's user-level settings already carries
+`-WindowStyle Hidden`, which is evidence this was hit and patched once before.
+CONDITIONS, imposed by the merger and not by the operator, because the file is a tier-0 protection
+path and the defect is COSMETIC: (1) the gate's coverage may not be reduced - narrowing the
+matcher or the scanned surface is forbidden, since a flashing window never justifies less secret
+and PII scanning; (2) the blocking behaviour is proven END TO END both BEFORE and AFTER the edit,
+per CLAUDE.md section 2.2 - hook presence is not hook firing; (3) if the chosen mechanism cannot be
+PROVEN to preserve stdout and exit-code delivery to the harness, it is abandoned and the file is
+left byte-identical, which is a legitimate outcome and is recorded as one rather than worked
+around; (4) the real fix may be the parent's `CREATE_NO_WINDOW` spawn flag, which belongs to Claude
+Code and not to this repo - if so, that is the finding, and this grant closes unused.
+
 ### 2026-08-15 - CS-411 - CORRECTION to the CS-411 entry below: two cited tests and one cited config key no longer exist
 Verification: `grep -c "test_no_recorded_gap_is_blocked_by_a_frozen_file" tests/test_mypy_gate.py`
 and the same for `::test_the_exclusion_is_discovery_only_not_containment` both return 0, and
