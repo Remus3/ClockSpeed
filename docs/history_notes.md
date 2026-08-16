@@ -629,3 +629,97 @@ _No entries yet._
   since CS-421's verdict depends on oracles that currently exist only as prose. CS-421 is what
   actually moves CS-413 toward closing. Both are required before CS-413 closes and phase 5
   opens.
+
+## Session 8 - 2026-08-15 - CS-420's artifacts land; the inherited premise turns out to be false
+
+- **Shipped: NO ITEM CLOSED.** CS-420's artifacts landed and it STAYS OPEN on four false prose
+  sentences. Filed **CS-425**, **CS-426**, **CS-427**. Two FROZEN-FILE GRANTS recorded, neither
+  file edited. Suite 1603 -> **1619 passed, 7 skipped**, exit 0. mypy 75 files, 0 errors.
+
+- **THE HEADLINE IS A REFUTED PREMISE, NOT A DELIVERABLE.** Session 7 handed this session a
+  common-mode risk described as UNRESOLVED and sitting underneath 100 per cent of the decoded
+  values, and named CS-420's usmap join as "therefore the fix". **BOTH HALVES ARE FALSE.** The
+  risk was ALREADY GUARDED and had been for a session - `tests/save/test_properties.py` carries
+  its own EQUALITY reach oracle over the real library, and mutating each width in BOTH copies
+  leaves the pre-existing suite red on 7 of 7 against a pristine control that exits 0. And the
+  join cannot be a width guard: **a wrong width BREAKS the walk, a broken walk contributes NO
+  pairs, so a bijection over a shrinking population of correct pairs stays pristine while the
+  grammar rots.** An item was scoped to solve a solved problem. Re-measure an inherited premise
+  before building against it; it is far cheaper than the item.
+
+- **In flight:** nothing half-done in code. CS-420 is OPEN on PROSE only - four sentences listed
+  verbatim in its `ROADMAP.md` entry. Tree clean, no worktrees, no stale branches.
+
+- **Decisions:** no ADR. **TWO OPERATOR FROZEN-FILE GRANTS recorded in `docs/LEDGER.md` BEFORE
+  any edit, per CLAUDE.md section 6, and NEITHER FILE WAS TOUCHED** - `tools/precommit_gate.py`
+  (unblocking CS-403, CS-209, CS-204) and `.claude/settings.json` (CS-425). Recorded as coming
+  from the OPERATOR directly rather than an adjudicator, so no reader mistakes either for an
+  agent self-granting.
+
+- **Surprises**, each measured rather than reasoned about:
+  1. **THE ADVERSARIAL PASS CHANGED THE OUTCOME THREE TIMES.** An adjudicator ruled CS-420 CLOSES;
+     three adversaries running in parallel returned REFUTED on privacy, on clause 4, and on
+     control validity. The merger held both and overruled the close. Without the pass this session
+     ships a privacy leak, three clause-4 escapes, and a module whose stated reason for existing
+     is false.
+  2. **A REAL PRIVACY LEAK UNDER DEFAULT FLAGS.** A narrow `except (OSError, HeaderError)` let a
+     `MemoryError` escape and pytest rendered a `WindowsPath` carrying the Windows account name,
+     the platform account id and a world name - three non-negotiable-3 items in one line, no `-l`,
+     no `--tb=long`. Fixed. **It is an INHERITED pattern** - `test_objects.py` and `test_world.py`
+     leak identically and are now CS-427.
+  3. **NOTHING GRADED THE CONTAINMENT.** Splicing the known-bad discovery shape into the new sweep
+     left the suite byte-identically green at 1610/7. After the repair it goes red. An
+     equivalent-mutant test is the only thing that proves a containment claim.
+  4. **A FIX FALSIFIED ITS OWN COMMIT'S PROSE.** Adding the `_JOIN_WORD_FLOOR = 13` diversity floor
+     made the usmap join discriminate 5 of 6 widths, which falsified four sentences saying the
+     reach test is the only width discriminator - sentences written in the SAME COMMIT. Three
+     consecutive rounds of prose repair each shipped a false sentence, one written specifically to
+     correct its predecessor. **The pattern is structural: this module states DETECTION CLAIMS in
+     prose, and every assertion change silently invalidates them.**
+  5. **A BUILDER REFUSED A FALSE SENTENCE THE MERGER GAVE IT, TWICE OVER TWO BUILDERS.** One
+     declined to write a count into a module, citing CLAUDE.md section 4 - an adjudicator GRANTED
+     the refusal. Another measured that the merger's replacement justification was itself false and
+     wrote the measured claim instead. **Both times the merger had paraphrased an agent's measured
+     claim into a stronger one.** A paraphrase is a new claim and needs its own measurement.
+  6. **FIVE BUILDERS OUT OF FIVE WERE CUT FROM A STALE BASE**, 1 to 5 commits behind. All five
+     caught it only because the dispatch ORDERED the check. Session 5 saw this once and read it as
+     a fluke. Saved to harness memory as `worktree-agents-start-stale`.
+  7. **THE PreToolUse HOOK CANNOT BLOCK AND CANNOT SEE THE COMMAND.** It exits 1 where the protocol
+     requires 2, and fed the hook JSON envelope it returns PASS because JSON escapes non-ASCII to
+     ASCII. Proven end to end: a tool call carrying an em-dash RAN UNBLOCKED. **The authoritative
+     `.githooks` path was separately proven GOOD** - real commit attempt, BLOCKED, HEAD unchanged.
+     CLAUDE.md's "the Claude hooks are a convenience layer" is exactly right; the layer just
+     provides no convenience while costing a spawn per shell call. Filed CS-425.
+  8. **CLAUSE 3 OF CS-420 WAS MET BY THE COMMIT THAT FILED CS-420.** The value-start rotation
+     control shipped in `5d11dc2`, the same commit that wrote "the rotation control in the repo is
+     TRIVIAL". An item created to convert stale prose into executable artifacts was itself stale
+     prose at the instant it was committed.
+  9. **A STALE `__pycache__` POISONED AN ADVERSARY'S FIRST RUN.** A mutant constant was
+     byte-identical in LENGTH to the original, so the `.pyc` was reused and the restore looked
+     clean. Use `PYTHONDONTWRITEBYTECODE=1` for all mutation work.
+  10. **A VERIFIER CAUGHT ITS OWN TOOLING DEFECT.** Python's `write_text` emitted CRLF on Windows,
+     so its restores were content-equal but byte-unequal, and its own `read_text` assertion was
+     blind to it under universal newlines. Caught on an md5sum.
+
+- **Failed paths - do not retry:**
+  - **`pythonw.exe` alone as the CS-425 fix.** It IS a faithful drop-in - identical rc, stdout and
+    BLOCKED diagnostic through a real pipe-and-wait - but shipping it alone kills the flash while
+    preserving a hook that silently does nothing. That is the false-guarantee class.
+  - **A PowerShell invocation as a test of a GUI-subsystem binary.** PowerShell does not wait on
+    one, so it reports no output and no exit code. Use `subprocess` with pipes.
+  - **A cross-save resolution control for the cross-section oracle.** Measured: 19834 against 26146
+    own-index, ratio 1.32. It does NOT collapse, because the library is many snapshots of ONE world.
+  - **Rewriting a false detection sentence in prose.** Three rounds, three false sentences. See
+    surprise 4 - the next attempt should decide whether such a claim may be prose AT ALL.
+
+- **COMMON-MODE RISK, named and STILL LIVE but correctly scoped:** the CI half. Every discriminating
+  test CS-420 shipped is library-backed and skips with no game installed, so on a clone
+  `SetProperty 1 to 0` is invisible to the ENTIRE suite. That is **CS-426** and it is genuinely
+  open, unlike the real-library half, which was already guarded. Also live and unfixable in-repo:
+  every number in this session comes from ONE operator's ONE world on ONE machine.
+
+- **Next action:** take **CS-420**'s remaining prose work, and take it as a DESIGN question rather
+  than an edit - decide whether a detection claim may live in prose at all, or must be
+  machine-checked or deleted. Then **CS-425**, whose grant is recorded and whose operator ruling is
+  "make it actually work" - parse the hook envelope and exit 2 - noting it WILL start refusing real
+  tool calls. Then CS-403, CS-209, CS-204 under the recorded gate grant.

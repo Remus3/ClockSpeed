@@ -2,12 +2,35 @@
 
 ## Status
 
-`proposed` - 2026-08-16
+`accepted` - 2026-08-16, WITH THE FOUR CONDITIONS BELOW, which are applied in this file.
 
 Written by the merger that made the decision. Per `CLAUDE.md` section 5 the producing agent
-does not grade its own output, so this stays `proposed` until an adjudicator that wrote no
-part of it, and no part of the slices implementing it, re-derives the claims below from the
-tree and flips it.
+does not grade its own output, so this stayed `proposed` until an adjudicator that wrote no
+part of it, and no part of the slices implementing it, re-derived the claims below from the
+tree. That adjudication ran on 2026-08-16 against `76f6c82` and returned ACCEPT WITH
+CONDITIONS. The DECISION is unamended. What the conditions correct is this file's account of
+its own reach, and every one of them came from a measurement rather than from a reading:
+
+- **C1 - tier 3's stated ground was refuted and is replaced below.** The claim was that a
+  mechanistic claim "rots only when that code changes" and that "a reader checks them by
+  reading". Two tier-3 sentences in `clockspeed/save/objects.py` were measured FALSE, and
+  neither had rotted - both shipped false, and reading did not catch either. They are
+  `CS-437`'s and `CS-422`'s to repair; what they establish here is that tier 3 is UNGUARDED,
+  which is a different sentence from the one this ADR first wrote.
+- **C2 - `WAKEUP_NOTES.md` was misclassified and the rule now keys on the dated heading.** It
+  was listed as an immutable record that "cannot rot". It is rewritten in place by design -
+  `CLAUDE.md` section 4 gives it "the last two to three sessions at full fidelity" and
+  forbids anything older - so under this ADR's own test it fails, because deleting from it is
+  required practice rather than falsifying a record.
+- **C3 - the living-text refinement relocates its residual rather than dissolving it**, and
+  now says so. It makes the ARTIFACT CLASS decidable, which is a real gain. It leaves the
+  PHRASING half - "legibly scoped to that moment rather than phrased as a standing property"
+  - to a reader's judgement, and that half is not mechanically checkable.
+- **C4 - the Consequences section overstated and is narrowed below.** It claimed a detection
+  claim "can no longer silently rot, because there is no longer a place to write one that
+  nothing checks". The adjudicator inserted three tier-1 universal detection claims into the
+  fenced module in phrasings the marker set does not list, byte-verified them applied, and
+  measured an IDENTICAL suite result against a pristine control.
 
 ## Context
 
@@ -88,8 +111,18 @@ Three tiers, discriminated by quantifier scope:
 2. **EXISTENTIAL detection claims are DERIVED BY THE SUITE, never stated.** The
    mutant-to-detector relation is computed at runtime and asserted structurally - "every
    width is caught by at least one detector" - with no absolute count written anywhere.
-3. **MECHANISTIC claims about the code beside them REMAIN PROSE.** They rot only when that
-   code changes, they sit next to what they describe, and a reader checks them by reading.
+3. **MECHANISTIC claims about the code beside them REMAIN PROSE, AND ARE UNGUARDED.** They
+   sit next to what they describe, and no mechanism in this repo checks one. That is the
+   whole of what tier 3 says. **Corrected 2026-08-16 by the adjudication (condition C1):
+   this tier first justified itself on the grounds that such a claim "rots only when that
+   code changes" and that "a reader checks them by reading". BOTH HALVES WERE REFUTED BY
+   MEASUREMENT.** Two tier-3 sentences in `clockspeed/save/objects.py` were measured false
+   against the live library - the `parent` field documented as holding None on every path,
+   and a walk claimed to desynchronise "immediately" on a mis-stated width. NEITHER HAD
+   ROTTED. Both shipped false, so the change-coupling story does not describe them, and
+   both survived repeated careful reading, so the reader story does not either. Tier 3 is
+   therefore a SCOPE BOUNDARY - the class this ADR declines to mechanize - and not a class
+   that is safe. Those two sentences belong to `CS-437` and `CS-422`.
 
 A derived detection test carries the vacuity controls this project already requires: it
 asserts its own population is non-empty, and it distinguishes a mutant that was DETECTED
@@ -97,10 +130,19 @@ from one that merely CRASHED.
 
 ## Consequences
 
-EASIER. A detection claim can no longer silently rot, because there is no longer a place to
-write one that nothing checks. Adding a width extends the derived loop instead of
-invalidating a paragraph. The commit that adds an assertion cannot falsify its own prose,
-because the prose no longer states what the assertions detect.
+EASIER. Adding a width extends the derived loop instead of invalidating a paragraph. Where a
+detection claim has actually been converted to a derived test, the commit that adds an
+assertion cannot falsify its own prose, because the prose no longer states what the
+assertions detect.
+
+**NARROWED 2026-08-16 by the adjudication (condition C4).** This section first claimed a
+detection claim "can no longer silently rot, because there is no longer a place to write one
+that nothing checks". **THAT IS FALSE AND WAS MEASURED FALSE.** The adjudicator inserted
+three tier-1 universal detection claims into the fenced module, in phrasings the marker set
+does not list, byte-verified them applied, and measured a suite result IDENTICAL to a
+pristine control. The rule binds AUTHORS repository-wide; the MECHANISM reaches a small
+fraction of one module's prose. Do not read this ADR as evidence that the fence is
+sufficient - `CS-420` owns the gap and is open on exactly it.
 
 HARDER. A derived detection test costs a real mutation sweep, so it is library-backed
 wherever the oracle is. On a clone with no game installed it SKIPS. **This ADR does not close
@@ -125,15 +167,36 @@ The line is what the text is READ AS, because that is what decides whether it ca
 - **LIVING TEXT** - a docstring, a comment, a roadmap entry, a doc, a memory leaf - is read
   as a statement about the CURRENT tree. It is where this ADR binds, in full.
 - **AN IMMUTABLE, TIMESTAMPED RECORD** - a commit message, a `docs/LEDGER.md` entry, an ADR
-  Context section, a `WAKEUP_NOTES.md` entry - is read as an observation about the tree AS
-  IT WAS. It cannot rot, because it never claimed to be current. A superlative there is
+  Context section, an entry under a DATED HEADING - is read as an observation about the tree
+  AS IT WAS. It cannot rot, because it never claimed to be current. A superlative there is
   permitted PROVIDED it is legibly scoped to that moment rather than phrased as a standing
   property: "under the mutants measured here, only X fired" is a record; "X is the only
   detector" is a standing claim wearing a date.
 
+**THE CLASSIFICATION KEYS ON THE DATED HEADING, NEVER ON THE FILENAME - corrected 2026-08-16
+by the adjudication (condition C2).** This list first named `WAKEUP_NOTES.md` as an immutable
+record on the strength of its filename, and that was wrong by this ADR's own test. That file
+is REWRITTEN IN PLACE by design: `CLAUDE.md` section 4 grants it "the last two to three
+sessions at full fidelity" and forbids anything older, so deleting from it is required
+practice rather than falsifying a record. Measured across its twelve most recent commits, it
+loses lines on almost every one, while `docs/LEDGER.md` over the same span is insertions
+only. Keying on the heading rather than the file also matches `CLAUDE.md` section 4's
+existing rule that a doc heading carrying an explicit date marks its own section historical,
+so this is one doctrine rather than two. A file is not a record; a dated entry is.
+
 The test to apply is not the grammatical form but the tense the reader supplies. If deleting
 the sentence a year later would be a correction, it was living text. If deleting it would be
 falsifying the record, it was a record.
+
+**WHAT THIS REFINEMENT DOES NOT DO - stated 2026-08-16 by the adjudication (condition C3), so
+nobody builds a fence against it and reports it closed.** It makes the ARTIFACT CLASS
+decidable, which is a real gain and is why it survives. It does NOT make the PHRASING half
+decidable. "Legibly scoped to that moment rather than phrased as a standing property" rests
+on a judgement about the tense a reader supplies, and that judgement is exactly the one
+`tests/save/test_absolute_claims.py` records that it refuses to make. The residual is
+RELOCATED from the artifact to the phrasing, not dissolved. The phrasing half is an author
+obligation and an adversary's target; it is not machine-checkable and no one should ship a
+check claiming it is.
 
 This is a REFINEMENT of the decision rather than a change to it: nothing above is weakened,
 and the derived-or-deleted rule for living text is untouched.
