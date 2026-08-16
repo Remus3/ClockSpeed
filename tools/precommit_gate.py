@@ -54,6 +54,7 @@ only grows. A shape-only detector would refuse nearly every commit here.
 from __future__ import annotations
 
 import argparse
+import heapq
 import json
 import os
 import re
@@ -633,15 +634,35 @@ MIN_ACCOUNT_DIR_CHARS = 8
 # A declared world token is matched verbatim, so it needs a floor of its own.
 MIN_WORLD_TOKEN_CHARS = 8
 
-# The save root is listed one level deep and no deeper, and the listing stops
-# here. A gate that hangs is a gate that gets turned off.
+# Two SEPARATE bounds on listing one save directory, and keeping them apart is
+# the CS-209-B repair. One number used to do both jobs: the listing stopped at
+# 512 entries taken in name or filesystem order, so the cap decided WHICH saves
+# survived by name rather than by recency and discarded the newest - the exact
+# outcome _save_files' own docstring said had to be avoided - and one entry
+# past the cap an undiscovered world value reached a commit unblocked.
+#
+# MAX_SAVE_ROOT_ENTRIES bounds RETENTION: the most saves kept from one
+# directory, selected NEWEST FIRST. MAX_SAVE_ROOT_SCAN bounds EXAMINATION, and
+# it exists only so the gate cannot hang - a gate that hangs is a gate that
+# gets turned off. Ranking by recency requires seeing every candidate, so the
+# examination bound is set far above any directory the game produces: measured
+# through os.scandir at about 1.5 microseconds per entry, so the largest
+# listing it admits costs a fraction of a second.
+#
+# _save_root_dirs lists ACCOUNT DIRECTORIES rather than saves and still uses
+# MAX_SAVE_ROOT_ENTRIES as a plain examination bound. That site was outside
+# this repair and already reported its truncation; the two readings of the
+# constant are noted here so a later reader does not mistake them for one.
 MAX_SAVE_ROOT_ENTRIES = 512
+MAX_SAVE_ROOT_SCAN = 100_000
 
 # The two bounds on the header scan CS-403 added, and they exist for the same
-# reason as the entry cap above. The game keeps a rotating autosave set, so a
-# long-running world leaves dozens of .sav files in one directory; parsing all
-# of them on every commit would turn a gate into a bulk reader. Whichever bound
-# trips first, the remainder is REPORTED rather than silently dropped.
+# reason as the listing bounds above. The game keeps a rotating autosave set,
+# so a long-running world leaves dozens of .sav files in one directory, and
+# parsing all of them on every commit would turn a gate into a bulk reader.
+# Each of THESE TWO reports through the skip channel when it trips. That claim
+# is about these two and does not reach the listing bounds above, which is the
+# over-extension the sentence that stood here used to invite.
 MAX_SAVE_HEADER_FILES = 24
 SAVE_HEADER_BUDGET_SECONDS = 5.0
 
@@ -915,7 +936,7 @@ def discover_world_names(report: Report | None = None) -> list[str]:
     """
     candidates = list(declared_values(ENV_WORLD_NAMES, CONFIG_WORLD_NAMES))
     for directory in [*_save_root_dirs(None), *_declared_account_dirs()]:
-        candidates.extend(_world_names_from_saves(directory))
+        candidates.extend(_world_names_from_saves(directory, report))
 
     excluded = _world_name_exclusions()
     dropped_by_exclusion = False
@@ -989,28 +1010,147 @@ def _declared_account_dirs() -> list[Path]:
     return resolved
 
 
-def _world_names_from_saves(directory: Path) -> list[str]:
+def _entry_mtime(entry: os.DirEntry[str]) -> float:
+    """One directory entry's mtime, or 0.0 when it cannot be read.
+
+    follow_symlinks=False deliberately. A commit gate must not walk a symlink
+    loop under the save root, and the LINK's own timestamp orders it for this
+    purpose just as well as the target's would.
+    """
+    try:
+        return entry.stat(follow_symlinks=False).st_mtime
+    except OSError:
+        return 0.0
+
+
+def _entry_is_file(entry: os.DirEntry[str]) -> bool:
+    """Whether one entry is a regular file; False when that cannot be decided."""
+    try:
+        return entry.is_file()
+    except OSError:
+        return False
+
+
+def _bounded_newest_saves(
+    directory: Path, report: Report | None, subject: str, *, files_only: bool
+) -> list[tuple[str, Path]]:
+    """The `.sav` entries in one directory, NEWEST FIRST, bounded twice.
+
+    READ-ONLY. This reads directory entries and opens no file; the save
+    directory is never written to (CLAUDE.md non-negotiable 1).
+
+    THE ORDERING IS THE POINT rather than a detail. Both callers truncate what
+    they get back, so whatever this drops is something the gate will not match
+    on, and dropping the RECENT saves inverts the check: the worlds whose name
+    or token might be pasted into a commit are the ones just played. Selection
+    is therefore by mtime and it happens BEFORE the cap, never after it.
+
+    os.scandir rather than iterdir, which is a measurement rather than a style
+    preference. scandir carries the entry type and the timestamp out of the
+    directory enumeration itself, so ranking every entry by recency costs no
+    extra syscall per entry on Windows; the iterdir-plus-is_file shape this
+    replaced took about twenty times longer over the same directory while
+    examining strictly fewer entries. That is what makes examining everything
+    affordable, and examining everything is what lets the cap keep the newest.
+
+    Args:
+        directory: The directory to list. Need not exist.
+        report: Where a truncation is recorded, or None to discard it.
+        subject: What the caller matches on, named in the skip line so a
+            reader learns WHICH check degraded. Never a discovered value.
+        files_only: Require a regular file. The caller that reads headers does;
+            the caller that reads basenames does not, and applying the test
+            before the cap keeps the retained count meaningful for both.
+
+    Returns:
+        (name, path) pairs, newest first, tie-broken by name ascending. Empty
+        on a directory that cannot be listed at all, which is the same
+        situation as a machine with no game installed. Never raises.
+    """
+    # A min-heap of the newest MAX_SAVE_ROOT_ENTRIES seen so far, so memory
+    # stays bounded however large the directory is while the SELECTION still
+    # ranges over every entry examined. Names are unique within a directory,
+    # so the (mtime, name) prefix totally orders these and no comparison ever
+    # reaches the path.
+    kept: list[tuple[float, str, str]] = []
+    matched = 0
+    examined = 0
+    overscanned = False
+    try:
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                if examined >= MAX_SAVE_ROOT_SCAN:
+                    overscanned = True
+                    break
+                examined += 1
+                if _SAVE_FILE_RE.match(entry.name) is None:
+                    continue
+                if files_only and not _entry_is_file(entry):
+                    continue
+                matched += 1
+                item = (_entry_mtime(entry), entry.name, entry.path)
+                if len(kept) < MAX_SAVE_ROOT_ENTRIES:
+                    heapq.heappush(kept, item)
+                elif item > kept[0]:
+                    heapq.heapreplace(kept, item)
+    except OSError:
+        # Partial results are kept deliberately. A directory that becomes
+        # unreadable part way through still told us about the entries it did
+        # yield, and discarding those would narrow the blocklist for free.
+        pass
+
+    if overscanned:
+        _report_skip(
+            report,
+            PII_WORLD_LABEL,
+            "a save directory holds more than %d entries; the listing stopped there, "
+            "so a %s past that point is not matchable" % (MAX_SAVE_ROOT_SCAN, subject),
+        )
+    if matched > len(kept):
+        _report_skip(
+            report,
+            PII_WORLD_LABEL,
+            "more than %d save files in one save directory; only the %d most recent "
+            "were listed, so a %s from an older save is not matchable"
+            % (MAX_SAVE_ROOT_ENTRIES, MAX_SAVE_ROOT_ENTRIES, subject),
+        )
+
+    return [
+        (name, Path(path))
+        for _mtime, name, path in sorted(kept, key=lambda item: (-item[0], item[1]))
+    ]
+
+
+def _world_names_from_saves(directory: Path, report: Report | None) -> list[str]:
     """Read world names out of the `.sav` basenames in one directory.
 
-    READ-ONLY: this lists entry names and opens nothing. Any failure returns an
-    empty list, because a save directory that cannot be listed is the same
-    situation as a machine with no game installed.
+    READ-ONLY: this lists entry names and opens nothing.
+
+    The listing is ORDERED and bounded by _bounded_newest_saves. It used to
+    walk an unsorted iterdir() and stop at a fixed count, so which names it
+    dropped depended on the order the filesystem happened to return them in -
+    the same directory could yield a different blocklist on two runs, and a
+    PII gate that blocks a value once and passes it the next time is worse
+    than one that never blocked it, because the first run teaches trust. It
+    ranks by recency, the same rule _save_files uses, and one rule at both
+    sites is deliberate: two orderings here would be two answers waiting to
+    disagree.
+
+    Entries are matched on NAME only, with no is_file test, and that is wider
+    than _save_files on purpose. This site only widens what the gate REFUSES
+    to commit, so a directory named like a save costs a spurious blocklist
+    entry and never a missed one.
     """
     names: list[str] = []
-    try:
-        for index, entry in enumerate(directory.iterdir()):
-            if index >= MAX_SAVE_ROOT_ENTRIES:
-                break
-            match = _SAVE_FILE_RE.match(entry.name)
-            if match is None:
-                continue
-            stem = match.group("stem")
-            names.append(stem)
-            bare = _ROTATION_SUFFIX_RE.sub("", stem)
-            if bare != stem:
-                names.append(bare)
-    except OSError:
-        return names
+    for name, _path in _bounded_newest_saves(directory, report, "world name", files_only=False):
+        match = _SAVE_FILE_RE.match(name)
+        if match is None:
+            continue
+        stem = match.group("stem")
+        names.append(stem)
+        bare = _ROTATION_SUFFIX_RE.sub("", stem)
+        if bare != stem:
+            names.append(bare)
     return names
 
 
@@ -1063,37 +1203,39 @@ def _load_header_reader() -> object:
     return read_header
 
 
-def _save_files(directory: Path) -> list[Path]:
+def _save_files(directory: Path, report: Report | None) -> list[Path]:
     """The `.sav` paths in one directory. READ-ONLY, name-listing only.
 
     NEWEST FIRST, tie-broken by name. The ordering is load bearing rather than
     cosmetic: MAX_SAVE_HEADER_FILES truncates this list, and the worlds most
     likely to have their token pasted into a commit are the ones just played.
-    Truncating alphabetically would silently drop the recent ones. The name is
-    the tie-break so the order is deterministic when two files share an mtime,
-    which is the normal case in a test and the rare case on a real machine.
+    Truncating alphabetically would silently drop the recent ones.
 
-    Any failure yields what was collected so far: a save directory that cannot
-    be listed is the same situation as a machine with no game installed.
+    THIS FUNCTION USED TO DO EXACTLY THAT while saying it must not, which is
+    why the warning above now names the repair rather than standing alone. It
+    sorted by NAME, applied the entry cap to that order, and only then ranked
+    what survived by mtime - so the ranking never saw the entries the cap had
+    already cut, and past the cap the newest save was the one guaranteed to be
+    dropped. Ranking and truncation both live in _bounded_newest_saves now,
+    which ranks BEFORE it truncates and reports when it truncates.
+
+    The name is the tie-break so the order is deterministic when two files
+    share an mtime, which is the normal case in a test and the rare case on a
+    real machine.
+
+    Args:
+        directory: The directory to list. Need not exist.
+        report: Where a truncation is recorded, or None to discard it.
+
+    Returns:
+        The save paths, newest first. Empty on a directory that cannot be
+        listed, which is the same situation as a machine with no game
+        installed. Never raises.
     """
-    found: list[Path] = []
-    try:
-        for index, entry in enumerate(sorted(directory.iterdir(), key=lambda item: item.name)):
-            if index >= MAX_SAVE_ROOT_ENTRIES:
-                break
-            if _SAVE_FILE_RE.match(entry.name) and entry.is_file():
-                found.append(entry)
-    except OSError:
-        return found
-
-    def sort_key(path: Path) -> tuple[float, str]:
-        try:
-            modified = path.stat().st_mtime
-        except OSError:
-            modified = 0.0
-        return (-modified, path.name)
-
-    return sorted(found, key=sort_key)
+    return [
+        path
+        for _name, path in _bounded_newest_saves(directory, report, "world token", files_only=True)
+    ]
 
 
 def _world_tokens_from_headers(report: Report | None) -> list[str]:
@@ -1131,7 +1273,7 @@ def _world_tokens_from_headers(report: Report | None) -> list[str]:
 
     paths: list[Path] = []
     for directory in [*_save_root_dirs(None), *_declared_account_dirs()]:
-        paths.extend(_save_files(directory))
+        paths.extend(_save_files(directory, report))
 
     if len(paths) > MAX_SAVE_HEADER_FILES:
         _report_skip(

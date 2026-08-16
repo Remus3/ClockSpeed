@@ -36,6 +36,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from types import ModuleType
 
@@ -2352,3 +2353,293 @@ def test_the_package_import_is_function_local_and_never_at_module_scope() -> Non
     # importing the package at all, which would silently drop the CS-403
     # surface. There must be at least one, and it must be function-local.
     assert package_imports >= 1, "the gate no longer reaches the header parser at all"
+
+
+# ==========================================================================
+# CS-209-B - the entry cap keeps the NEWEST saves, and says when it truncates
+# ==========================================================================
+#
+# MAX_SAVE_ROOT_ENTRIES bounds three listings. Before this section it was
+# reported at one of the three and silent at the other two, and the silence
+# was only half the defect. _save_files ordered the listing BY NAME, applied
+# the cap to that order, and only then sorted newest-first - so the truncation
+# was alphabetical and the saves it discarded were exactly the recent ones its
+# own docstring said had to survive. _world_names_from_saves enumerated an
+# UNSORTED iterdir(), so which basename it discarded was whatever order the
+# filesystem happened to return.
+#
+# The consequence was a FAIL-OPEN, which is the one direction a PII gate may
+# not fail in: past the cap the gate exits 0 and the commit lands carrying an
+# undiscovered world value. It needs no attacker, only time - the game rotates
+# autosaves into one directory and the count only grows.
+#
+# Every value below is synthetic and built in this file. The fixture writes
+# more entries than the cap into ONE directory, and the two facts that make
+# the tests discriminating are that the real save is the NEWEST and sorts
+# alphabetically LAST. A cap that truncates by name drops it; a cap that keeps
+# the newest retains it. A test built on a save that sorts early would pass
+# against both behaviours and prove nothing.
+
+OVER_CAP_WORLD_TOKEN = "Ovc4Jm" + "8Pz3Rk" + "6Tq1Yb" + "5Nd"
+
+# Sorts after every decoy, and is not a substring of any staged token text, so
+# a block can be attributed to the value under test and not to its neighbour.
+OVER_CAP_SAVE_STEM = "zzzz" + "Umbral" + "Reach"
+OVER_CAP_DECOY_PREFIX = "aaaa_decoy_"
+
+
+def make_over_cap_save_root(root: Path, token: str) -> Path:
+    """A save root whose account directory holds one MORE entry than the cap.
+
+    The real save is written last and then has its mtime pushed forward
+    EXPLICITLY. Relying on write order would not be sound: mtime resolution is
+    coarse enough that several hundred files written in a fraction of a second
+    can share a timestamp, and the test would then turn on a race.
+    """
+    cap = load_gate().MAX_SAVE_ROOT_ENTRIES
+    save_root = make_save_root(root, FAKE_ACCOUNT_ID)
+    account = save_root / FAKE_ACCOUNT_ID
+    for index in range(cap):
+        (account / (OVER_CAP_DECOY_PREFIX + "%05d.sav" % index)).write_bytes(b"not a save")
+    real = account / (OVER_CAP_SAVE_STEM + ".sav")
+    real.write_bytes(synthetic_save_bytes(token))
+    stamp = time.time() + 3600
+    os.utime(real, (stamp, stamp))
+    assert len(list(account.iterdir())) == cap + 1
+    return save_root
+
+
+@pytest.fixture(scope="module")
+def over_cap_save_root(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Built once and only ever READ - the gate never writes to a save root."""
+    return make_over_cap_save_root(tmp_path_factory.mktemp("overcap"), OVER_CAP_WORLD_TOKEN)
+
+
+def test_a_token_in_the_newest_save_past_the_entry_cap_is_still_blocked(
+    over_cap_save_root: Path, tmp_path: Path
+) -> None:
+    """The fail-open, at the unit rung. Past the cap the token must still match."""
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(over_cap_save_root)
+
+    target = write(tmp_path / "ledger.md", "keyed by " + OVER_CAP_WORLD_TOKEN + "\n")
+    result = run_gate("--files", str(target), env=env)
+
+    assert result.returncode == 1, "FAIL-OPEN: the gate passed a staged world token\n" + (
+        result.stdout + result.stderr
+    )
+    assert "world token" in result.stderr, result.stderr
+
+
+def test_a_world_name_in_the_newest_save_past_the_entry_cap_is_still_blocked(
+    over_cap_save_root: Path, tmp_path: Path
+) -> None:
+    """The same fail-open on the NAME path, which reads basenames rather than headers.
+
+    This one is the worse of the two to leave standing. The cap discards a
+    basename with no skip line at all, and the discovery still returns the
+    several hundred decoy names, so nothing in any channel is even empty -
+    the gate reports a healthy world-name check that has dropped the one name
+    that mattered.
+    """
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(over_cap_save_root)
+
+    target = write(tmp_path / "world.md", "played " + OVER_CAP_SAVE_STEM + " tonight\n")
+    result = run_gate("--files", str(target), env=env)
+
+    assert result.returncode == 1, "FAIL-OPEN: the gate passed a staged world name\n" + (
+        result.stdout + result.stderr
+    )
+    assert "world name" in result.stderr, result.stderr
+
+
+def test_an_over_cap_listing_reports_the_truncation(
+    over_cap_save_root: Path, tmp_path: Path
+) -> None:
+    """The silence half. A cap that trips has to say so, per CONVENTIONS 15.1."""
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(over_cap_save_root)
+
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+    result = run_gate("--files", str(target), "--list-skipped", env=env)
+
+    assert "most recent were listed" in result.stdout, result.stdout
+
+
+def test_the_over_cap_truncation_is_reported_with_no_flags_at_all(
+    over_cap_save_root: Path, tmp_path: Path
+) -> None:
+    """CS-209's own property, applied to this cap.
+
+    .githooks/pre-commit passes neither --verbose nor --list-skipped, so a
+    reduction in coverage that only renders under a flag is a reduction nobody
+    is ever shown. PII_WORLD_LABEL is a COVERAGE_SKIP_LABEL precisely so this
+    class of line survives the flagless invocation.
+    """
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(over_cap_save_root)
+
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+    result = run_gate("--files", str(target), env=env)
+
+    assert "most recent were listed" in result.stdout, result.stdout
+
+
+def test_the_truncation_report_echoes_no_path_and_no_filename(
+    over_cap_save_root: Path, tmp_path: Path
+) -> None:
+    """The skip reason carries COUNTS only.
+
+    A message naming the directory it truncated would print the account id,
+    and one naming a dropped save would print the world name - the gate would
+    leak, through its own diagnostic, the two values it exists to keep out of
+    a commit (CLAUDE.md non-negotiables 3 and 12).
+    """
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(over_cap_save_root)
+
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+    result = run_gate("--files", str(target), "--list-skipped", env=env)
+
+    truncation = [line for line in result.stdout.splitlines() if "most recent were listed" in line]
+    assert truncation, result.stdout
+    for line in truncation:
+        assert FAKE_ACCOUNT_ID not in line, line
+        assert OVER_CAP_SAVE_STEM not in line, line
+        assert str(over_cap_save_root) not in line, line
+        assert OVER_CAP_DECOY_PREFIX not in line, line
+
+
+def test_a_token_past_the_entry_cap_is_blocked_by_a_real_commit(
+    over_cap_save_root: Path, hooked_repo: Path, tmp_path: Path
+) -> None:
+    """The acceptance criterion, END TO END, through a real `git commit`.
+
+    This is the shape the adversary used to pin the fail-open: at the cap the
+    commit was refused, one entry past it the same commit LANDED. A hook's
+    presence is never proof it fires, and passing flags to the gate by hand
+    proves something weaker than the hook path does.
+    """
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(over_cap_save_root)
+    env["HOME"] = str(tmp_path)
+    env["USERPROFILE"] = str(tmp_path)
+
+    before = git("rev-parse", "HEAD", cwd=hooked_repo).stdout.strip()
+    assert before
+
+    write(hooked_repo / "ledger.md", "keyed by " + OVER_CAP_WORLD_TOKEN + "\n")
+    assert git("add", "ledger.md", cwd=hooked_repo).returncode == 0
+
+    attempt = git_with_env("commit", "-m", "add a ledger note", cwd=hooked_repo, env=env)
+    after = git("rev-parse", "HEAD", cwd=hooked_repo).stdout.strip()
+    combined = attempt.stdout + attempt.stderr
+
+    assert attempt.returncode != 0, "FAIL-OPEN: the commit LANDED\n" + combined
+    assert "world token" in attempt.stderr, combined
+    assert after == before, "HEAD MOVED - the commit was not blocked"
+    assert str(tmp_path) not in combined, combined
+
+
+def test_an_over_cap_directory_does_not_stop_the_gate_starting(
+    over_cap_save_root: Path, tmp_path: Path
+) -> None:
+    """The binding condition on the grant: a gate that cannot START does not block.
+
+    The control for every test above. A clean file under the same over-cap
+    save root has to PASS, exit 0, and produce no traceback - otherwise the
+    blocking tests could be green because the gate is crashing rather than
+    because it is detecting.
+    """
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(over_cap_save_root)
+
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+    result = run_gate("--files", str(target), env=env)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Traceback" not in result.stderr, result.stderr
+    assert "crashed" not in result.stderr, result.stderr
+
+
+# --------------------------------------------------------------------------
+# The retention rule at the unit rung, called directly rather than by subprocess
+# --------------------------------------------------------------------------
+
+
+def test_the_listing_retains_the_newest_and_discards_the_oldest(tmp_path: Path) -> None:
+    """The ORDERING half, isolated from the reporting half.
+
+    Asserted on WHICH entries survive rather than on how many, because a cap
+    that kept the right number of the wrong files would satisfy a count.
+    """
+    gate = load_gate()
+    account = tmp_path / "account"
+    account.mkdir()
+
+    cap = gate.MAX_SAVE_ROOT_ENTRIES
+    surplus = 8
+    # Names and mtimes ascend TOGETHER, which is what makes this corpus able
+    # to tell the two candidate behaviours apart. A name-ordered cap keeps
+    # save_00000 upward - the OLDEST - and a recency-ordered one keeps the
+    # last `cap` names, the NEWEST. The two retained sets are disjoint in
+    # exactly the `surplus` entries at each end.
+    stamp = time.time()
+    for index in range(cap + surplus):
+        path = account / ("save_%05d.sav" % index)
+        path.write_bytes(b"x")
+        os.utime(path, (stamp + index, stamp + index))
+
+    # SLF001 flags a layer reaching past its neighbour. Here the module under
+    # test IS the neighbour, and the retention rule has no public surface: the
+    # subprocess tests above reach it only through a verdict, which cannot say
+    # WHICH entries survived. That distinction is the whole defect.
+    kept = gate._save_files(account, None)  # noqa: SLF001
+    names = [path.name for path in kept]
+
+    assert len(kept) == cap
+    # Newest first: the highest-numbered save is the most recent.
+    assert names[0] == ("save_%05d.sav" % (cap + surplus - 1)), names[:3]
+    assert names == sorted(names, reverse=True), "the retained set is not newest-first"
+    for index in range(surplus):
+        assert ("save_%05d.sav" % index) not in names, (
+            "an OLDER save displaced a newer one - the cap is still truncating by name"
+        )
+
+
+def test_the_scan_bound_is_reported_when_it_trips(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The second bound, and it is separate from the retention bound.
+
+    Examining every entry is what makes the retention bound able to keep the
+    newest, so a bound on examination is the only remaining way this listing
+    can drop a save it never saw. It is set far above any directory the game
+    produces, which is why it is provoked here by lowering it rather than by
+    writing a directory that large.
+    """
+    gate = load_gate()
+    account = tmp_path / "account"
+    account.mkdir()
+    for index in range(12):
+        (account / ("save_%05d.sav" % index)).write_bytes(b"x")
+
+    monkeypatch.setattr(gate, "MAX_SAVE_ROOT_SCAN", 4)
+    report = gate.Report()
+    gate._save_files(account, report)  # noqa: SLF001
+
+    reasons = [why for _, why in report.skipped]
+    assert any("listing stopped there" in why for why in reasons), reasons
+
+
+def test_the_scan_bound_sits_above_the_retention_bound() -> None:
+    """A scan bound at or below the retention bound would re-fuse the two.
+
+    The whole repair is that one number stopped doing two jobs. If these ever
+    met again the listing would truncate before it could rank by recency and
+    the fail-open would return, so the relationship is asserted rather than
+    left to a reader of two adjacent constants.
+    """
+    gate = load_gate()
+    assert gate.MAX_SAVE_ROOT_SCAN > gate.MAX_SAVE_ROOT_ENTRIES
