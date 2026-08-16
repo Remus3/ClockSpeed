@@ -74,6 +74,43 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-15 - CS-420 - MEASUREMENT RECORD, not a completion record. THE ITEM DID NOT CLOSE
+Verification: `tests/save/test_decode_oracles.py` and `tests/save/test_oracle_citations.py` exist and
+run; suite 1603 -> 1619 passed, 7 skipped, exit 0; `python -m mypy` 75 source files, 0 errors. This
+entry exists because three measurements below would otherwise cost a future session a slice to
+re-derive, and CS-412 already recorded that a measurement leaving no artifact is not resumable. The
+OPEN status and the four false sentences blocking it live in `ROADMAP.md` CS-420, not here.
+**MEASUREMENT 1 - THE INHERITED COMMON-MODE RISK WAS ALREADY GUARDED, AND THE PROPOSED FIX WAS NOT
+ONE.** Session 7 recorded the risk as unresolved and named CS-420's usmap join as "therefore the
+fix". Both halves are false. `tests/save/test_properties.py` carries its own EQUALITY reach oracle
+over the real library, so under a genuine common-mode fault the copy-based walker desynchronises
+against the real bytes exactly as the shipped one does: mutating each width in BOTH copies and
+deleting both new oracle modules leaves the pre-existing suite red on 7 of 7, against a pristine
+control that exits 0. And the join cannot be the fix - a wrong width BREAKS the walk, a broken walk
+contributes NO pairs, so a bijection over a shrinking population of correct pairs stays pristine
+while the grammar rots. Found by a planner, reproduced by a builder, confirmed by an adjudicator and
+by two adversaries independently.
+**MEASUREMENT 2 - THE 30591 / 31032 DISAGREEMENT IS RESOLVED AND NEITHER PARTY WAS WRONG.** The
+one-tag-shift join is **30591 under the FLAT join** and **31032 under the SUPER-CHAIN join**, 441
+tags apart, and both produce the IDENTICAL shape 8 words / 12 ids / 7 words-to-many / 6 ids-to-many.
+The flat join is 55496 and the chain join is 62228, both 13-to-13 bijections with zero violations.
+The shipped test asserts the SHAPE and not the count, which is correct precisely because the two
+constructions differ by 441 and agree on shape - the shape is the invariant, the count is the
+artifact. Do not re-open this as a two-agent disagreement; it is settled.
+**MEASUREMENT 3 - `objref` 52573 versus 52457 is a type-split, not an error.** The difference is
+exactly the 116 SoftObjectProperty values, and SoftObjectProperty resolves against
+`ObjectRecord.instance_name` at exactly ZERO, so excluding it drops nothing that was failing and
+corroborates the module's statement that those references name assets rather than saved objects.
+**A DELIBERATE DEVIATION FROM A MERGER INSTRUCTION WAS ADJUDICATED AND UPHELD.** A builder was told
+to write the figure 62228 into a `clockspeed/save/objects.py` docstring and REFUSED, citing
+`CLAUDE.md` section 4 and the fact that the paragraph it was editing exists because two prior counts
+there were deleted rather than corrected. An adjudicator that produced none of the work GRANTED the
+refusal and ruled the figure belongs here, in a dated append-only file, and not in a module. The
+merger instruction was self-contradictory and the builder resolved it in the only direction the
+doctrine permits. Recorded because the deviation was SUBTRACTIVE - declining to add a byte - which
+is why landing it before adjudication was tolerable; an ADDITIVE deviation from a direct instruction
+routes through an adjudicator BEFORE it lands.
+
 ### 2026-08-15 - CS-403, CS-209, CS-204 - FROZEN-FILE GRANT ISSUED by the OPERATOR for `tools/precommit_gate.py`
 Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit, not a
 completion record. Nothing has been edited under it at the time of writing.

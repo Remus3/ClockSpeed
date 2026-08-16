@@ -31,6 +31,100 @@ the line becomes a pointer.
 
 ---
 
+## Session 8 - 2026-08-15 - CS-420's artifacts land; the inherited premise turns out to be false
+
+- **Shipped: NO ITEM CLOSED.** CS-420's artifacts landed and it STAYS OPEN on four false prose
+  sentences. Filed **CS-425**, **CS-426**, **CS-427**. Two FROZEN-FILE GRANTS recorded, neither
+  file edited. Suite 1603 -> **1619 passed, 7 skipped**, exit 0. mypy 75 files, 0 errors.
+
+- **THE HEADLINE IS A REFUTED PREMISE, NOT A DELIVERABLE.** Session 7 handed this session a
+  common-mode risk described as UNRESOLVED and sitting underneath 100 per cent of the decoded
+  values, and named CS-420's usmap join as "therefore the fix". **BOTH HALVES ARE FALSE.** The
+  risk was ALREADY GUARDED and had been for a session - `tests/save/test_properties.py` carries
+  its own EQUALITY reach oracle over the real library, and mutating each width in BOTH copies
+  leaves the pre-existing suite red on 7 of 7 against a pristine control that exits 0. And the
+  join cannot be a width guard: **a wrong width BREAKS the walk, a broken walk contributes NO
+  pairs, so a bijection over a shrinking population of correct pairs stays pristine while the
+  grammar rots.** An item was scoped to solve a solved problem. Re-measure an inherited premise
+  before building against it; it is far cheaper than the item.
+
+- **In flight:** nothing half-done in code. CS-420 is OPEN on PROSE only - four sentences listed
+  verbatim in its `ROADMAP.md` entry. Tree clean, no worktrees, no stale branches.
+
+- **Decisions:** no ADR. **TWO OPERATOR FROZEN-FILE GRANTS recorded in `docs/LEDGER.md` BEFORE
+  any edit, per CLAUDE.md section 6, and NEITHER FILE WAS TOUCHED** - `tools/precommit_gate.py`
+  (unblocking CS-403, CS-209, CS-204) and `.claude/settings.json` (CS-425). Recorded as coming
+  from the OPERATOR directly rather than an adjudicator, so no reader mistakes either for an
+  agent self-granting.
+
+- **Surprises**, each measured rather than reasoned about:
+  1. **THE ADVERSARIAL PASS CHANGED THE OUTCOME THREE TIMES.** An adjudicator ruled CS-420 CLOSES;
+     three adversaries running in parallel returned REFUTED on privacy, on clause 4, and on
+     control validity. The merger held both and overruled the close. Without the pass this session
+     ships a privacy leak, three clause-4 escapes, and a module whose stated reason for existing
+     is false.
+  2. **A REAL PRIVACY LEAK UNDER DEFAULT FLAGS.** A narrow `except (OSError, HeaderError)` let a
+     `MemoryError` escape and pytest rendered a `WindowsPath` carrying the Windows account name,
+     the platform account id and a world name - three non-negotiable-3 items in one line, no `-l`,
+     no `--tb=long`. Fixed. **It is an INHERITED pattern** - `test_objects.py` and `test_world.py`
+     leak identically and are now CS-427.
+  3. **NOTHING GRADED THE CONTAINMENT.** Splicing the known-bad discovery shape into the new sweep
+     left the suite byte-identically green at 1610/7. After the repair it goes red. An
+     equivalent-mutant test is the only thing that proves a containment claim.
+  4. **A FIX FALSIFIED ITS OWN COMMIT'S PROSE.** Adding the `_JOIN_WORD_FLOOR = 13` diversity floor
+     made the usmap join discriminate 5 of 6 widths, which falsified four sentences saying the
+     reach test is the only width discriminator - sentences written in the SAME COMMIT. Three
+     consecutive rounds of prose repair each shipped a false sentence, one written specifically to
+     correct its predecessor. **The pattern is structural: this module states DETECTION CLAIMS in
+     prose, and every assertion change silently invalidates them.**
+  5. **A BUILDER REFUSED A FALSE SENTENCE THE MERGER GAVE IT, TWICE OVER TWO BUILDERS.** One
+     declined to write a count into a module, citing CLAUDE.md section 4 - an adjudicator GRANTED
+     the refusal. Another measured that the merger's replacement justification was itself false and
+     wrote the measured claim instead. **Both times the merger had paraphrased an agent's measured
+     claim into a stronger one.** A paraphrase is a new claim and needs its own measurement.
+  6. **FIVE BUILDERS OUT OF FIVE WERE CUT FROM A STALE BASE**, 1 to 5 commits behind. All five
+     caught it only because the dispatch ORDERED the check. Session 5 saw this once and read it as
+     a fluke. Saved to harness memory as `worktree-agents-start-stale`.
+  7. **THE PreToolUse HOOK CANNOT BLOCK AND CANNOT SEE THE COMMAND.** It exits 1 where the protocol
+     requires 2, and fed the hook JSON envelope it returns PASS because JSON escapes non-ASCII to
+     ASCII. Proven end to end: a tool call carrying an em-dash RAN UNBLOCKED. **The authoritative
+     `.githooks` path was separately proven GOOD** - real commit attempt, BLOCKED, HEAD unchanged.
+     CLAUDE.md's "the Claude hooks are a convenience layer" is exactly right; the layer just
+     provides no convenience while costing a spawn per shell call. Filed CS-425.
+  8. **CLAUSE 3 OF CS-420 WAS MET BY THE COMMIT THAT FILED CS-420.** The value-start rotation
+     control shipped in `5d11dc2`, the same commit that wrote "the rotation control in the repo is
+     TRIVIAL". An item created to convert stale prose into executable artifacts was itself stale
+     prose at the instant it was committed.
+  9. **A STALE `__pycache__` POISONED AN ADVERSARY'S FIRST RUN.** A mutant constant was
+     byte-identical in LENGTH to the original, so the `.pyc` was reused and the restore looked
+     clean. Use `PYTHONDONTWRITEBYTECODE=1` for all mutation work.
+  10. **A VERIFIER CAUGHT ITS OWN TOOLING DEFECT.** Python's `write_text` emitted CRLF on Windows,
+     so its restores were content-equal but byte-unequal, and its own `read_text` assertion was
+     blind to it under universal newlines. Caught on an md5sum.
+
+- **Failed paths - do not retry:**
+  - **`pythonw.exe` alone as the CS-425 fix.** It IS a faithful drop-in - identical rc, stdout and
+    BLOCKED diagnostic through a real pipe-and-wait - but shipping it alone kills the flash while
+    preserving a hook that silently does nothing. That is the false-guarantee class.
+  - **A PowerShell invocation as a test of a GUI-subsystem binary.** PowerShell does not wait on
+    one, so it reports no output and no exit code. Use `subprocess` with pipes.
+  - **A cross-save resolution control for the cross-section oracle.** Measured: 19834 against 26146
+    own-index, ratio 1.32. It does NOT collapse, because the library is many snapshots of ONE world.
+  - **Rewriting a false detection sentence in prose.** Three rounds, three false sentences. See
+    surprise 4 - the next attempt should decide whether such a claim may be prose AT ALL.
+
+- **COMMON-MODE RISK, named and STILL LIVE but correctly scoped:** the CI half. Every discriminating
+  test CS-420 shipped is library-backed and skips with no game installed, so on a clone
+  `SetProperty 1 to 0` is invisible to the ENTIRE suite. That is **CS-426** and it is genuinely
+  open, unlike the real-library half, which was already guarded. Also live and unfixable in-repo:
+  every number in this session comes from ONE operator's ONE world on ONE machine.
+
+- **Next action:** take **CS-420**'s remaining prose work, and take it as a DESIGN question rather
+  than an edit - decide whether a detection claim may live in prose at all, or must be
+  machine-checked or deleted. Then **CS-425**, whose grant is recorded and whose operator ruling is
+  "make it actually work" - parse the hook envelope and exit 2 - noting it WILL start refusing real
+  tool calls. Then CS-403, CS-209, CS-204 under the recorded gate grant.
+
 ## Session 7 - 2026-08-15 - the CS-413 decode lands and does NOT close; adversaries change the outcome twice
 
 - **Shipped:** **CS-414, CS-415, CS-416, CS-417, CS-418** closed. **CS-413's decode half
@@ -228,100 +322,3 @@ the line becomes a pointer.
   under-sampled at 2 byte-identical files, reaching a terminator on 0 of 1832 at every
   alignment tried.
 
-## Session 5 - 2026-08-15 - CS-407 closes for all four pairs; the save reader reads the whole library
-
-- **Shipped:** **CS-406**, **CS-407**, **CS-408** and **CS-402**. New items filed: CS-411
-  (repo-wide mypy does not cover `scripts/`) and CS-412 (record the remaining opaque spans as
-  data, not prose). Suite 1463 -> **1490 passed, 4 skipped**, exit 0. Detail in
-  `docs/LEDGER.md`.
-
-- **ALL 14 OF 14 REAL SAVES NOW LOAD END TO END.** It was 3 of 14. Verified by the merger
-  against the live library, not taken from a builder report: 14 found, 14 loaded, zero
-  failures, zero warnings, 131607 records across 6171 levels, 3 distinct masked world tokens -
-  which independently confirms the recorded fact that this library holds exactly three worlds.
-
-- **In flight:** nothing half-done; the tree is committed and pushed. **CS-400 STILL MUST NOT
-  CLOSE, and the reason CHANGED from coverage to DEPTH.** Coverage is now complete; what
-  closed is a SKELETON grammar. 69.5 to 77.7 per cent of every body is opaque property payload
-  and `read_properties` decodes NO property value, so the reader reaches every record and can
-  read nothing inside one. Pillar 3 needs inventory, clock speed and connection state, and all
-  three live in the payload. **Whether "a real world parses" is satisfied by a skeleton walk
-  is an OPERATOR DECISION and was deliberately not taken by the merger.**
-
-- **Decisions:** no ADR this session. A frozen-file GRANT for `scripts/install_hooks.py` was
-  adjudicated and recorded in `docs/LEDGER.md` BEFORE the edit, per CLAUDE.md section 6.
-
-- **Surprises**, each measured rather than reasoned about:
-  1. **The inherited resume notes named the WRONG UNKNOWN on two of three pairs.** Save 42's
-     note blamed the transform delta; the delta was never wrong, its LEVEL GRAMMAR differed.
-     Save 60's note described a fixed 78-byte separator; it is a variable-width counted
-     structure taking three widths. Every prior attempt swept the parameter it had been told
-     was unknown while holding the wrong thing fixed.
-  2. **ALL THREE ADVERSARIES RETURNED REFUTED - AS WRITTEN, NOT IN SUBSTANCE.** No rival broke
-     a byte landing or a skeleton. They killed over-claiming, and the shipped grammar is
-     narrower and better than the measured one.
-  3. **One narrowing was a REGRESSION AGAINST A SHIPPED ADR, caught just in time.** Actor
-     pre-runs of 0, 4, 8 and 12 bytes ALL land 8 of 8 on save 52 - byte arithmetic is blind
-     even to that run's width. `objects.py` already modelled it correctly as one opaque span
-     per ADR 0003. Splitting it into named fields would have been a step backwards.
-  4. **A recorded reason was refuted by RUNNING it.** `objects.py` said delta 4 was declined
-     because it held only if save 42's declared header size also excluded the collectable
-     count. That grammar stops inside level 0. One thing changed, not two.
-  5. **A test was GREEN WHILE FALSE.** The corpus still named save 42 as its unmeasured save
-     version, so a refusal test kept passing while its own example had stopped being true.
-     Green because the corpus table was incomplete, not because the claim held.
-  6. **`ROADMAP.md` claimed both CS-406 leak sites were on the sweep's live residual list.**
-     Measured FALSE for the wiring line by running `scan_repo()` directly - it appears in
-     neither list and was guarded by nothing at all.
-  7. **`redact()` is a NO-OP on the pinned project root.** It maps `C:\Clockspeed` to itself,
-     because that root is not under a home directory while the test oracle still matches it.
-     A redaction-based CS-406 fix would have passed on a clone under a home directory and
-     silently failed on this machine.
-  8. **The stale-worktree problem RECURRED and the mandated check caught it.** The CS-407
-     integration builder's worktree was cut from its base's parent; it reported ANCESTOR-FAIL,
-     fast-forwarded, and re-measured before building.
-  9. **18 of 28 commits carry an agent co-authorship trailer** although `docs/GATED.md` CS-G03
-     records an operator decision against it. Operator reaffirmed on 2026-08-15: keep
-     committing without it. The existing history is not worth rewriting - CS-G03 already
-     generates a fresh history at the flip, which strips them.
-  10. **THE PATH-LEAK ORACLE WAS INERT ON POSIX, and CI is what proved it.** `ABSOLUTE_PATH`
-     in `tests/test_exception_rendering.py` was a DRIVE-LETTER regex, so on the Linux runner
-     it could not match an absolute path at all - every `not ABSOLUTE_PATH.search(...)`
-     assertion in that module had been passing VACUOUSLY on every CI run since it was
-     written. **The thing that caught it was the NON-VACUITY assertion added by CS-406** -
-     "the sandbox root really is a path the oracle WOULD match" - which went red on CI while
-     every sibling assertion stayed green. That is exactly the job it exists to do. CI went
-     RED on `a0da3b7` with a green local suite and GREEN on `1ad0db8` after the widening.
-     `docs/LEDGER.md` had already recorded this residual under CS-205 - "POSIX behaviour
-     unobserved, settled only by a Linux runner" - and the runner settled it.
-     Known and deliberately NOT fixed: the Windows branch also matches the `s:/` inside
-     `https:/`, so it over-fires on a URL. That is pre-existing and fail-closed, and
-     tightening it can only make a `not search` assertion pass MORE easily, which is the
-     direction that hides a leak.
-
-- **Failed paths - do not retry:**
-  - **The tag-driven collectable rule.** "Present iff the level's data entries are tagged 42"
-    is UNDEFINED on 229 of 2244 levels of the very file it came from, and both outcomes occur
-    among them. Use the SIZE-DRIVEN rule - and know that it is an a-priori delimiter argument
-    rather than a measurement, because "always read a block" also lands byte-exact on 7 of 8
-    save-52 files.
-  - **Reading an 8-byte section size as an int64.** Undecidable now and permanently. An int64
-    reader silently computes an astronomical size if that word ever goes non-zero, then
-    misdiagnoses the WRONG FIELD.
-  - **Claiming a breakdown inside a constant blob.** Save 60's 70-byte run has no observable
-    boundary at all - not 4+6, not 8+2, not 16+10.
-  - **Reading "8 real files" as an independence count.** The save-52 preamble is byte-identical
-    across all 8 and is the static world-partition grid, so n=1 is a CEILING, not a sampling
-    accident more saves would fix.
-
-- **A measurement that leaves no artifact is not resumable.** The prior session's note said the
-  (13,42) grid preamble "is measured"; that measurement was recorded NOWHERE in the tree, so
-  the resuming slice re-derived it from scratch. Filed as CS-412. Record the GRAMMAR, never an
-  adjective about it.
-
-- **Next action:** get an operator ruling on **CS-400** - coverage is met and depth is not, and
-  the merger deliberately did not take that decision. If CS-400 stays open, the natural
-  successor to CS-407 is measuring the OBJECT PAYLOAD GRAMMAR, which is the three quarters of
-  every body still opaque and the thing pillar 3 needs. **CS-405 is now UNBLOCKED** but note it
-  may need the payload grammar first, and saying so is the correct outcome rather than forcing
-  a YES or NO.

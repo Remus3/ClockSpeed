@@ -333,3 +333,102 @@ _No entries yet._
   FIRST COMPONENT record is the single blocker. Each unfinished pair has its stopping point
   recorded in `LEVELLED_LAYOUT_UNMEASURED` so a slice resumes from evidence rather than from
   scratch.
+
+<!-- Relocated from WAKEUP_NOTES.md by the session 8 /done ritual, 2026-08-15. -->
+## Session 5 - 2026-08-15 - CS-407 closes for all four pairs; the save reader reads the whole library
+
+- **Shipped:** **CS-406**, **CS-407**, **CS-408** and **CS-402**. New items filed: CS-411
+  (repo-wide mypy does not cover `scripts/`) and CS-412 (record the remaining opaque spans as
+  data, not prose). Suite 1463 -> **1490 passed, 4 skipped**, exit 0. Detail in
+  `docs/LEDGER.md`.
+
+- **ALL 14 OF 14 REAL SAVES NOW LOAD END TO END.** It was 3 of 14. Verified by the merger
+  against the live library, not taken from a builder report: 14 found, 14 loaded, zero
+  failures, zero warnings, 131607 records across 6171 levels, 3 distinct masked world tokens -
+  which independently confirms the recorded fact that this library holds exactly three worlds.
+
+- **In flight:** nothing half-done; the tree is committed and pushed. **CS-400 STILL MUST NOT
+  CLOSE, and the reason CHANGED from coverage to DEPTH.** Coverage is now complete; what
+  closed is a SKELETON grammar. 69.5 to 77.7 per cent of every body is opaque property payload
+  and `read_properties` decodes NO property value, so the reader reaches every record and can
+  read nothing inside one. Pillar 3 needs inventory, clock speed and connection state, and all
+  three live in the payload. **Whether "a real world parses" is satisfied by a skeleton walk
+  is an OPERATOR DECISION and was deliberately not taken by the merger.**
+
+- **Decisions:** no ADR this session. A frozen-file GRANT for `scripts/install_hooks.py` was
+  adjudicated and recorded in `docs/LEDGER.md` BEFORE the edit, per CLAUDE.md section 6.
+
+- **Surprises**, each measured rather than reasoned about:
+  1. **The inherited resume notes named the WRONG UNKNOWN on two of three pairs.** Save 42's
+     note blamed the transform delta; the delta was never wrong, its LEVEL GRAMMAR differed.
+     Save 60's note described a fixed 78-byte separator; it is a variable-width counted
+     structure taking three widths. Every prior attempt swept the parameter it had been told
+     was unknown while holding the wrong thing fixed.
+  2. **ALL THREE ADVERSARIES RETURNED REFUTED - AS WRITTEN, NOT IN SUBSTANCE.** No rival broke
+     a byte landing or a skeleton. They killed over-claiming, and the shipped grammar is
+     narrower and better than the measured one.
+  3. **One narrowing was a REGRESSION AGAINST A SHIPPED ADR, caught just in time.** Actor
+     pre-runs of 0, 4, 8 and 12 bytes ALL land 8 of 8 on save 52 - byte arithmetic is blind
+     even to that run's width. `objects.py` already modelled it correctly as one opaque span
+     per ADR 0003. Splitting it into named fields would have been a step backwards.
+  4. **A recorded reason was refuted by RUNNING it.** `objects.py` said delta 4 was declined
+     because it held only if save 42's declared header size also excluded the collectable
+     count. That grammar stops inside level 0. One thing changed, not two.
+  5. **A test was GREEN WHILE FALSE.** The corpus still named save 42 as its unmeasured save
+     version, so a refusal test kept passing while its own example had stopped being true.
+     Green because the corpus table was incomplete, not because the claim held.
+  6. **`ROADMAP.md` claimed both CS-406 leak sites were on the sweep's live residual list.**
+     Measured FALSE for the wiring line by running `scan_repo()` directly - it appears in
+     neither list and was guarded by nothing at all.
+  7. **`redact()` is a NO-OP on the pinned project root.** It maps `C:\Clockspeed` to itself,
+     because that root is not under a home directory while the test oracle still matches it.
+     A redaction-based CS-406 fix would have passed on a clone under a home directory and
+     silently failed on this machine.
+  8. **The stale-worktree problem RECURRED and the mandated check caught it.** The CS-407
+     integration builder's worktree was cut from its base's parent; it reported ANCESTOR-FAIL,
+     fast-forwarded, and re-measured before building.
+  9. **18 of 28 commits carry an agent co-authorship trailer** although `docs/GATED.md` CS-G03
+     records an operator decision against it. Operator reaffirmed on 2026-08-15: keep
+     committing without it. The existing history is not worth rewriting - CS-G03 already
+     generates a fresh history at the flip, which strips them.
+  10. **THE PATH-LEAK ORACLE WAS INERT ON POSIX, and CI is what proved it.** `ABSOLUTE_PATH`
+     in `tests/test_exception_rendering.py` was a DRIVE-LETTER regex, so on the Linux runner
+     it could not match an absolute path at all - every `not ABSOLUTE_PATH.search(...)`
+     assertion in that module had been passing VACUOUSLY on every CI run since it was
+     written. **The thing that caught it was the NON-VACUITY assertion added by CS-406** -
+     "the sandbox root really is a path the oracle WOULD match" - which went red on CI while
+     every sibling assertion stayed green. That is exactly the job it exists to do. CI went
+     RED on `a0da3b7` with a green local suite and GREEN on `1ad0db8` after the widening.
+     `docs/LEDGER.md` had already recorded this residual under CS-205 - "POSIX behaviour
+     unobserved, settled only by a Linux runner" - and the runner settled it.
+     Known and deliberately NOT fixed: the Windows branch also matches the `s:/` inside
+     `https:/`, so it over-fires on a URL. That is pre-existing and fail-closed, and
+     tightening it can only make a `not search` assertion pass MORE easily, which is the
+     direction that hides a leak.
+
+- **Failed paths - do not retry:**
+  - **The tag-driven collectable rule.** "Present iff the level's data entries are tagged 42"
+    is UNDEFINED on 229 of 2244 levels of the very file it came from, and both outcomes occur
+    among them. Use the SIZE-DRIVEN rule - and know that it is an a-priori delimiter argument
+    rather than a measurement, because "always read a block" also lands byte-exact on 7 of 8
+    save-52 files.
+  - **Reading an 8-byte section size as an int64.** Undecidable now and permanently. An int64
+    reader silently computes an astronomical size if that word ever goes non-zero, then
+    misdiagnoses the WRONG FIELD.
+  - **Claiming a breakdown inside a constant blob.** Save 60's 70-byte run has no observable
+    boundary at all - not 4+6, not 8+2, not 16+10.
+  - **Reading "8 real files" as an independence count.** The save-52 preamble is byte-identical
+    across all 8 and is the static world-partition grid, so n=1 is a CEILING, not a sampling
+    accident more saves would fix.
+
+- **A measurement that leaves no artifact is not resumable.** The prior session's note said the
+  (13,42) grid preamble "is measured"; that measurement was recorded NOWHERE in the tree, so
+  the resuming slice re-derived it from scratch. Filed as CS-412. Record the GRAMMAR, never an
+  adjective about it.
+
+- **Next action:** get an operator ruling on **CS-400** - coverage is met and depth is not, and
+  the merger deliberately did not take that decision. If CS-400 stays open, the natural
+  successor to CS-407 is measuring the OBJECT PAYLOAD GRAMMAR, which is the three quarters of
+  every body still opaque and the thing pillar 3 needs. **CS-405 is now UNBLOCKED** but note it
+  may need the payload grammar first, and saying so is the correct outcome rather than forcing
+  a YES or NO.
