@@ -73,6 +73,73 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-16 - ROADMAP.md relocate pass - 119 per cent of budget to 57 per cent, nothing deleted
+Verification: `python tools/doc_budget.py` prints `ROADMAP.md 34.1 KB against a 60.0 KB budget, 57%, OK`
+and exits 0 with `VERDICT: PASS`; before the pass it printed `71.7 KB, 119%, OVER` and
+`VERDICT: WARN - 1 soft budget failure(s), relocate pass due`. Every pointer resolves: 21 `**CS-nnn -
+detail**` pointers in `ROADMAP.md` against 21 `### CS-nnn - detail` anchors in `docs/history_notes.md`,
+zero dangling.
+The cause was structural, as session 12 recorded: entries had become essays while the doc topology table
+says one line per item. Each oversized entry keeps its item line, acceptance, tier, a one-sentence lead
+and a pointer; the full body is relocated VERBATIM to `docs/history_notes.md`. Nothing was deleted. The
+five entries whose CURRENT STATE is the load-bearing fact - CS-440, CS-441, CS-443, CS-444 and CS-448 -
+had their leads hand-written so a cold session cannot read a refuted item as an unstarted one. The
+relocated block is marked in `docs/history_notes.md` as the one exception to that file's
+"nothing current" rule, because those entries are open work sitting there for budget reasons alone.
+
+### 2026-08-16 - CS-421 - evidence table and byte-order oracles ship; CS-421 STAYS OPEN
+Verification: `clockspeed/save/objects.py` plus
+`tests/save/test_properties.py::test_every_measured_value_type_names_the_oracle_that_backs_it`,
+`tests/save/test_properties.py::test_the_magnitude_oracle_covers_exactly_the_types_marked_with_it`,
+`tests/save/test_properties.py::test_the_int32_byte_order_is_discriminated_by_the_stored_high_byte`,
+`tests/save/test_properties.py::test_the_float32_byte_order_is_discriminated_by_plausible_magnitude`.
+Patching `"IntProperty": (4, "<i")` to `">i"` reddens the int oracle at 7926 of 75136 and leaves the
+float oracle green; patching `"FloatProperty"` to `">f"` reverses that at 4425 of 31318. Six mutants
+against the evidence table were caught 6 of 6.
+This record does not close CS-421. Clauses 1 and 2 are met: `EVIDENCE_FOR_VALUE_TYPE` records which
+oracle backs each decoded type and `WIDTH_ONLY_VALUE_TYPES` is DERIVED from it, so the width-only types
+are marked in shipped data rather than in prose. Clause 3 is met for `IntProperty` and `FloatProperty`
+only - the two pillar 3 needs - and `BoolProperty`, `Int8Property` and `UInt32Property` remain
+width-only. The oracles escape the fixture circularity because their premise is a fact about the GAME
+(save int32s are counts and indices, so the stored high byte is usually zero) and they read only real
+saves; the pivot is half the population, so no measured constant appears in an assertion. The unbacked
+four-percentage comment above the width table was DELETED per ADR 0008: its int figures reproduced
+exactly and its float figures did not, because the predicate behind them was written down nowhere.
+Two defects were found and fixed on the way. `_decode_fixed_width` chose its return branch with
+`code == "<f"`, keyed on a byte-order SPELLING, so a float read in any other order fell into the integer
+branch where `int` of a NaN raises out of a decoder contracted to return None - that is what made the
+`">f"` mutant unreachable, so fixing it is what allowed the float oracle to be proven at all. Guarded by
+`tests/save/test_properties.py::test_no_fixed_width_decode_depends_on_the_byte_order_of_its_format_code`,
+which derives its population from the shipped table and runs with no game installed. The sibling sweep
+found no second site. **NO ADVERSARY AND NO ADJUDICATOR RAN on any of this**, and the residual the work
+measured against itself is filed as CS-455.
+
+### 2026-08-16 - CS-422 - one width rule ships and the false adverb is deleted; CS-422 STAYS OPEN
+Verification: `clockspeed/save/objects.py` plus
+`tests/save/test_properties.py::test_a_cursor_width_is_discriminated_and_never_on_a_majority_of_payloads`,
+`tests/save/test_properties.py::test_an_extent_width_cannot_desynchronise_and_is_caught_by_disagreement`,
+`tests/save/test_properties.py::test_the_width_rule_partitions_every_shipped_width_and_declines_no_decoded_one`.
+Five mutants were caught 5 of 5, including a harness no-op proving the census actually applies its
+mutation; `tests/save/test_oracle_citations.py` reddens on a planted dead name in the new citations.
+This record does not close CS-422. `WIDTH_SHIPPING_RULE` states one rule; `CURSOR_WIDTHS` and
+`EXTENT_WIDTHS` are derived from the shipped tables and asserted to partition every shipped width;
+`DECLINED_VALUE_READINGS` records the exceptions against the rule. The measured finding that makes the
+rule honest is that widths fall into two classes needing two oracles: a CURSOR width moves
+`value_start` and is graded by terminator reach, while an EXTENT width cannot move the cursor at all
+because `clockspeed/save/objects.py` advances by `at = value_start + size`, so it is graded by the
+disagreement count. Grading the second class by the first oracle reports it undetectable when it is in
+fact detected, which is how one file came to hold two standards. **SAMPLE SIZE WAS NEVER THE OPERATIVE
+CRITERION** - that dissolves the ships-at-n=9 against declines-at-n=11976 inconsistency rather than
+excusing it. The `immediately` adverb was deleted rather than hedged: measured per width, every cursor
+width mis-stated by one leaves a MAJORITY of payloads still reaching their terminator, so it was false
+for all six and not only the two CS-422 named. Two of this work's own errors are recorded rather than
+quietly fixed - `ArrayProperty` legitimately ships a tag-extra width while its VALUE reading is
+declined, so the first draft's shared key read as though the whole word were declined (renamed, and the
+invariant is now asserted); and the first draft's citations sat in `#:` doc-comments, which the citation
+checker cannot read, so four citations naming real tests resolved to truncated dead names and the
+checker PASSED. That blind channel is filed as CS-457, and `TextProperty`'s unmeasured decline as
+CS-456. **NO ADVERSARY AND NO ADJUDICATOR RAN.**
+
 ### 2026-08-16 - CS-444 - code shipped, claim refuted; CS-444 STAYS OPEN
 Verification: `tests/save/test_workdir.py::test_a_forbidden_root_that_does_not_resolve_is_still_reported`,
 and reverting only the consumer in `clockspeed/save/workdir.py` reddens four tests while reverting only

@@ -119,7 +119,8 @@ import ast
 import re
 import struct
 from collections import Counter
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -718,6 +719,45 @@ _BUILDING_MARKERS: Final = (".Build_", "/Build_")
 #: An object reference decodes to a level name and an object path.
 _OBJECT_REFERENCE_PARTS: Final = 2
 
+#: The band an ordinary world float32 falls in, as a DOMAIN bound rather than a
+#: value fitted to this corpus: a coordinate, a clock speed, a power figure or a
+#: fraction sits between a thousandth and a billion in absolute value. It is
+#: deliberately loose. What it has to separate is ordinary magnitudes from the
+#: 1e-38-and-1e38 debris a byte-swapped read produces, and that separation
+#: survives moving either end by orders of magnitude.
+_FLOAT_PLAUSIBLE_LOW: Final = 1e-3
+_FLOAT_PLAUSIBLE_HIGH: Final = 1e9
+
+#: The delta applied to one shipped width at a time. A MUTATION rather than a
+#: measurement, which is why a number is written here where a count would not
+#: be. Minus one is the smallest fault that is not an equivalent mutant: widths
+#: are stepped through ``range()``, which treats a negative exactly as it treats
+#: zero, and every shipped width is at least one so none can go negative.
+_WIDTH_MUTATION: Final = -1
+
+#: The unmutated configuration's key in the census accumulators. Not a width
+#: name, and chosen to collide with none.
+_SHIPPED: Final = "<shipped>"
+
+#: The two widths that live outside the two tables, named so the census can
+#: address them the same way. Both are attributes of the shipped module.
+_GUID_WIDTH_NAME: Final = "GUID_BYTES"
+_SOFT_TAIL_NAME: Final = "_SOFT_OBJECT_TAIL_BYTES"
+
+#: The type words the two byte-order oracles in this module actually score.
+#: Transcribed rather than imported, for the reason the measured-set
+#: transcription gives: importing the constant under test asserts only that the
+#: module equals itself. Keep in step with :func:`_tally_decoded_values`.
+_MAGNITUDE_SCORED_TYPES: Final = frozenset({"FloatProperty", "IntProperty"})
+
+#: Byte positions within a stored 4-byte scalar, named so the two readings are
+#: not two anonymous shifts. Index 3 is the most significant byte under the
+#: declared little-endian order; index 0 becomes the most significant one when
+#: the same bytes are read the other way.
+_HIGH_BYTE_AS_READ_SHIFT: Final = 24
+_ONE_BYTE_MASK: Final = 0xFF
+_FOUR_BYTE_MASK: Final = 0xFFFFFFFF
+
 
 @dataclass(frozen=True)
 class _DecodeSweep:
@@ -771,6 +811,20 @@ class _DecodeSweep:
             is examined. THIS IS THE FIELD THAT NAMES WHAT THAT CONTROL
             ACTUALLY TESTS.
         failures: Exception type names from any save that did not sweep.
+        int32_values: Decoded values whose TAG TYPE WORD is IntProperty. The
+            liveness floor for the two fields below.
+        int32_high_byte_zero_as_read: Of those, how many carry a zero in the
+            most significant STORED byte under the declared order.
+        int32_high_byte_zero_if_swapped: Of those, how many would carry a zero
+            in that position if the four bytes were read the other way. It is
+            the SAME population scored the other way, so the two exchange
+            values under a byte-order mutant rather than drifting apart.
+        float32_values: Decoded values whose tag type word is FloatProperty.
+        float32_plausible_as_read: Of those, how many are finite, non-zero and
+            inside :data:`_FLOAT_PLAUSIBLE_LOW` to :data:`_FLOAT_PLAUSIBLE_HIGH`
+            in absolute value.
+        float32_plausible_if_swapped: The same judgement applied to the same
+            bytes read the other way.
     """
 
     buildings: int
@@ -788,6 +842,12 @@ class _DecodeSweep:
     rotated_actor_buildings: int
     rotated_actor_buildings_failing_in_the_head: int
     failures: tuple[str, ...]
+    int32_values: int = 0
+    int32_high_byte_zero_as_read: int = 0
+    int32_high_byte_zero_if_swapped: int = 0
+    float32_values: int = 0
+    float32_plausible_as_read: int = 0
+    float32_plausible_if_swapped: int = 0
 
 
 @dataclass
@@ -839,6 +899,62 @@ def _is_building(type_path: str) -> bool:
     return any(marker in type_path for marker in _BUILDING_MARKERS)
 
 
+def _is_plausible_magnitude(value: float) -> bool:
+    """Whether a float32 sits in the ordinary-world band.
+
+    IT RELIES ON COMPARISON SEMANTICS FOR THE NON-FINITE CASES rather than on a
+    finiteness call, and that is deliberate - do not "fix" it by adding one. A
+    comparison against a NaN is False either way, ``abs`` of an infinity exceeds
+    the upper bound, and an exact zero falls under the lower one, so all three
+    are excluded by the band itself. Zero has to be excluded rather than counted
+    plausible because its bit pattern is symmetric: it reads as zero under both
+    byte orders and so discriminates nothing, while inflating both sides of the
+    comparison that rests on this.
+
+    Args:
+        value: One decoded float32.
+
+    Returns:
+        True when the magnitude is an ordinary one.
+    """
+    return _FLOAT_PLAUSIBLE_LOW <= abs(value) <= _FLOAT_PLAUSIBLE_HIGH
+
+
+def _tally_int32_byte_order(value: int, tally: _DecodeTally) -> None:
+    """Score one int32 for the small-magnitude signature under both readings.
+
+    The byte positions are derived by masking rather than by re-packing, so this
+    is total over any Python int and cannot raise on a value a mutated decoder
+    put out of int32 range.
+
+    Args:
+        value: One decoded int32, as the shipped reader returned it.
+        tally: The accumulator, mutated in place.
+    """
+    stored = value & _FOUR_BYTE_MASK
+    tally.counts["int32"] += 1
+    if (stored >> _HIGH_BYTE_AS_READ_SHIFT) & _ONE_BYTE_MASK == 0:
+        tally.counts["int32_high_zero"] += 1
+    if stored & _ONE_BYTE_MASK == 0:
+        tally.counts["int32_high_zero_swapped"] += 1
+
+
+def _tally_float32_byte_order(value: float, tally: _DecodeTally) -> None:
+    """Score one float32 for ordinary magnitude under both readings.
+
+    Args:
+        value: One decoded float32, as the shipped reader returned it.
+        tally: The accumulator, mutated in place.
+    """
+    tally.counts["float32"] += 1
+    stored = struct.pack("<f", value)
+    (swapped,) = struct.unpack(">f", stored)
+    if _is_plausible_magnitude(value):
+        tally.counts["float32_plausible"] += 1
+    if _is_plausible_magnitude(swapped):
+        tally.counts["float32_plausible_swapped"] += 1
+
+
 def _tally_decoded_values(
     decoded: Mapping[str, object], types: Mapping[str, str], tally: _DecodeTally
 ) -> None:
@@ -866,6 +982,13 @@ def _tally_decoded_values(
             tally.counts["from_unmeasured"] += 1
         if not _is_measured_shape(value):
             tally.counts["off_type"] += 1
+        # KEYED ON THE TAG TYPE WORD, never on the Python type, because `bool`
+        # is a subclass of `int` and a BoolProperty would otherwise be scored
+        # as an int32 whose bytes were never stored as one.
+        if word == "IntProperty" and isinstance(value, int) and not isinstance(value, bool):
+            _tally_int32_byte_order(value, tally)
+        elif word == "FloatProperty" and isinstance(value, float):
+            _tally_float32_byte_order(value, tally)
 
 
 def _tally_one_record(
@@ -1004,6 +1127,12 @@ def _sweep_decoded_values() -> _DecodeSweep | None:
         rotated_actor_buildings=tally.counts["rotated_actors"],
         rotated_actor_buildings_failing_in_the_head=tally.counts["rotated_head_failed"],
         failures=tuple(sorted(set(failures))),
+        int32_values=tally.counts["int32"],
+        int32_high_byte_zero_as_read=tally.counts["int32_high_zero"],
+        int32_high_byte_zero_if_swapped=tally.counts["int32_high_zero_swapped"],
+        float32_values=tally.counts["float32"],
+        float32_plausible_as_read=tally.counts["float32_plausible"],
+        float32_plausible_if_swapped=tally.counts["float32_plausible_swapped"],
     )
 
 
@@ -1018,6 +1147,215 @@ def _decode_sweep_or_skip() -> _DecodeSweep:
         pytest.skip("no save library or no property mapping on this machine")
     assert sweep.failures == (), f"failures decoding real bodies: {sweep.failures}"
     return sweep
+
+
+@dataclass(frozen=True)
+class _WidthCensus:
+    """What each shipped width is worth, as COUNTS ONLY.
+
+    Same containment as the sweeps above. The keys are the shipped tables' own
+    keys, which are literals in tracked source rather than anything read out of
+    a save, so no world content can leave through them.
+
+    Attributes:
+        payloads: Payload extents enumerated across the tagged pairs.
+        reach_shipped: Of those, how many reach a terminator unmutated.
+        disagreements_shipped: Measured values whose bytes disagreed, unmutated.
+        reach_by_cursor_width: Width name to how many payloads still reach a
+            terminator with that width alone mis-stated.
+        disagreements_by_extent_width: Width name to how many values disagreed
+            with that width alone mis-stated.
+        reach_by_extent_width: The same extent mutants scored by REACH, which is
+            what shows they do not move the cursor.
+        failures: Exception type names from any save that did not sweep.
+    """
+
+    payloads: int
+    reach_shipped: int
+    disagreements_shipped: int
+    reach_by_cursor_width: Mapping[str, int]
+    disagreements_by_extent_width: Mapping[str, int]
+    reach_by_extent_width: Mapping[str, int]
+    failures: tuple[str, ...]
+
+
+@contextmanager
+def _width_mutated(word: str) -> Iterator[None]:
+    """Mis-state ONE shipped width for the duration of the block.
+
+    The four shipped widths live in four different shapes - two mapping values
+    and two bare module attributes - so the dispatch below is over WHERE the
+    width lives rather than over what it means. Every branch restores in a
+    ``finally``, including the one that raises.
+
+    Args:
+        word: A width name, from either shipped table or the two module
+            attributes named in this file's constants.
+
+    Yields:
+        Nothing. The module is mutated for the body of the block.
+    """
+    if word == _GUID_WIDTH_NAME:
+        original = objects.GUID_BYTES
+        objects.GUID_BYTES = original + _WIDTH_MUTATION  # type: ignore[misc]
+        try:
+            yield
+        finally:
+            objects.GUID_BYTES = original  # type: ignore[misc]
+    elif word == _SOFT_TAIL_NAME:
+        tail = objects._SOFT_OBJECT_TAIL_BYTES  # noqa: SLF001
+        objects._SOFT_OBJECT_TAIL_BYTES = tail + _WIDTH_MUTATION  # type: ignore[misc]  # noqa: SLF001
+        try:
+            yield
+        finally:
+            objects._SOFT_OBJECT_TAIL_BYTES = tail  # type: ignore[misc]  # noqa: SLF001
+    elif word in objects._TAG_EXTRA_STRINGS:  # noqa: SLF001
+        shipped = dict(objects._TAG_EXTRA_STRINGS)  # noqa: SLF001
+        bent = dict(shipped)
+        bent[word] = shipped[word] + _WIDTH_MUTATION
+        objects._TAG_EXTRA_STRINGS = MappingProxyType(bent)  # type: ignore[misc]  # noqa: SLF001
+        try:
+            yield
+        finally:
+            objects._TAG_EXTRA_STRINGS = MappingProxyType(shipped)  # type: ignore[misc]  # noqa: SLF001
+    else:
+        widths = dict(objects._FIXED_WIDTH_VALUES)  # noqa: SLF001
+        width, code = widths[word]
+        bent_widths = dict(widths)
+        bent_widths[word] = (width + _WIDTH_MUTATION, code)
+        objects._FIXED_WIDTH_VALUES = MappingProxyType(bent_widths)  # type: ignore[misc]  # noqa: SLF001
+        try:
+            yield
+        finally:
+            objects._FIXED_WIDTH_VALUES = MappingProxyType(widths)  # type: ignore[misc]  # noqa: SLF001
+
+
+def _walk_extents(extents: list[tuple[bytes, int, int]]) -> tuple[int, int]:
+    """Run the SHIPPED payload walker over one save's extents.
+
+    Args:
+        extents: Body, first tag offset and payload end, per record.
+
+    Returns:
+        How many reached a terminator, and how many values disagreed.
+    """
+    reached = disagreed = 0
+    for body, start, end in extents:
+        walked = objects._decode_payload(body, start, end)  # noqa: SLF001
+        if walked is not None:
+            disagreed += walked[2]
+            reached += 1 if walked[3] else 0
+    return reached, disagreed
+
+
+def _extents_of(body: bytes, table: objects.ObjectTable) -> list[tuple[bytes, int, int]]:
+    """Every payload extent in one parsed body.
+
+    Args:
+        body: The decompressed body.
+        table: Its parsed record table.
+
+    Returns:
+        Body, first tag offset and payload end, per record whose head resolved.
+    """
+    out: list[tuple[bytes, int, int]] = []
+    for record in table.records:
+        end = record.body_offset + record.body_length
+        start: int | None = record.body_offset
+        if record.kind == objects.KIND_ACTOR:
+            start = _skip_actor_head(body, record.body_offset, end)
+        if start is not None:
+            out.append((body, start, end))
+    return out
+
+
+@lru_cache(maxsize=1)
+def _sweep_width_census() -> _WidthCensus | None:
+    """Score every shipped width by what mis-stating it costs. COUNTS ONLY.
+
+    Contained exactly as :func:`_sweep_decoded_values` is - see that docstring.
+    ONE DECOMPRESSION PER SAVE, with every configuration walked while that
+    body is alive, so the peak cost is one body rather than the whole library.
+
+    THE MUTATION IS APPLIED TO THE SHIPPED MODULE and to nothing else. Each
+    width is read as a module global inside the reader, so replacing the
+    attribute is a real fault in the real walker - no subprocess, no second
+    checkout, no stale bytecode. Every one is restored in a ``finally``.
+
+    Returns:
+        The census, or None when no save library is reachable.
+    """
+    saves = _library_save_paths()
+    if not saves:
+        return None
+
+    cursor = dict.fromkeys(objects._TAG_EXTRA_STRINGS, _WIDTH_MUTATION)  # noqa: SLF001
+    cursor[_GUID_WIDTH_NAME] = _WIDTH_MUTATION
+    extent = dict.fromkeys(objects._FIXED_WIDTH_VALUES, _WIDTH_MUTATION)  # noqa: SLF001
+    extent[_SOFT_TAIL_NAME] = _WIDTH_MUTATION
+
+    reach: Counter[str] = Counter()
+    disagree: Counter[str] = Counter()
+    payloads = 0
+    failures: list[str] = []
+    for path in saves:
+        try:
+            data = path.read_bytes()
+            parsed = header.parse_header(data)
+        except (OSError, header.HeaderError):
+            continue
+        except (Exception, SystemExit) as exc:  # see _sweep_decoded_values
+            failures.append(type(exc).__name__)
+            continue
+        if (parsed.header_version, parsed.save_version) not in TAGGED_PAIRS:
+            continue
+        # BROAD BY DESIGN, for the reason given in _sweep_payload_tags.
+        try:
+            body = chunks.decompress_body(
+                data, parsed.body_offset, header_version=parsed.header_version
+            ).payload
+            table = objects.parse_body(
+                body, save_version=parsed.save_version, header_version=parsed.header_version
+            )
+            assert not (cursor.keys() & extent.keys()), (
+                "a width name is in both classes, so one class's count would "
+                "silently be the other's"
+            )
+            extents = _extents_of(body, table)
+            payloads += len(extents)
+            base = _walk_extents(extents)
+            reach[_SHIPPED] += base[0]
+            disagree[_SHIPPED] += base[1]
+            for word in {**cursor, **extent}:
+                with _width_mutated(word):
+                    got = _walk_extents(extents)
+                reach[word] += got[0]
+                disagree[word] += got[1]
+        except (Exception, SystemExit) as exc:
+            failures.append(type(exc).__name__)
+            continue
+    return _WidthCensus(
+        payloads=payloads,
+        reach_shipped=reach[_SHIPPED],
+        disagreements_shipped=disagree[_SHIPPED],
+        reach_by_cursor_width=MappingProxyType({word: reach[word] for word in cursor}),
+        disagreements_by_extent_width=MappingProxyType({word: disagree[word] for word in extent}),
+        reach_by_extent_width=MappingProxyType({word: reach[word] for word in extent}),
+        failures=tuple(sorted(set(failures))),
+    )
+
+
+def _width_census_or_skip() -> _WidthCensus:
+    """Fetch the width census, skipping the test when there is no library.
+
+    Returns:
+        The census.
+    """
+    census = _sweep_width_census()
+    if census is None:
+        pytest.skip("no save library on this machine")
+    assert census.failures == (), f"failures walking real bodies: {census.failures}"
+    return census
 
 
 def test_a_real_building_yields_at_least_one_decoded_property_value() -> None:
@@ -1228,6 +1566,372 @@ def test_every_measured_type_the_library_exercises_yields_at_least_one_value() -
         "at top level, so nothing here covers them. Record that gap deliberately - do "
         "not let it pass as coverage"
     )
+
+
+def test_the_int32_byte_order_is_discriminated_by_the_stored_high_byte() -> None:
+    """THE BYTE ORDER, SETTLED AGAINST THE GAME'S DATA RATHER THAN OUR WRITER.
+
+    CS-421's sharpest finding is that flipping ``IntProperty`` to ``">i"``
+    reddens only synthetic-fixture tests - fixtures this project packs with the
+    same byte order the reader unpacks with, so they agree by construction and
+    are evidence about nothing. Reproduced on the merged tree before this test
+    was written: the mutant reddened 8 tests and all 8 were synthetic.
+
+    THE ORACLE'S PREMISE IS A FACT ABOUT THE GAME, WHICH IS WHY IT ESCAPES THAT
+    CIRCULARITY. A save's int32 fields are counts, indices and enum ordinals,
+    so their magnitudes are small, so the most significant of the four STORED
+    bytes is zero far more often than not. Under the opposite reading that same
+    position holds what was the least significant byte, where zero is uncommon.
+    Nothing in the argument refers to how this project writes a fixture.
+
+    THE PIVOT IS ONE HALF OF THE POPULATION AND NO MEASURED CONSTANT APPEARS
+    HERE. A threshold sitting at an observed value is what makes
+    ``_JOIN_WORD_FLOOR`` red on a correct grammar once the corpus moves, which
+    is CS-432. Majority against minority is structural, and the two counters
+    exchange values under the mutant rather than drifting, so the margin does
+    not have to be guessed at.
+
+    STATED LIMIT, AND IT IS MEASURED RATHER THAN REASONED. This discriminates
+    BYTE ORDER and not fabrication: replacing the whole fixed-width decode with
+    a constant 1 leaves both oracles here GREEN, because a small positive
+    constant carries a zero high byte exactly as a real small value does. A
+    constant 0 and a large constant both go red, so the blind spot is narrow -
+    and it is real.
+
+    THE FIRST DRAFT OF THIS PARAGRAPH NAMED THE ROTATION CONTROL AS THE TEST
+    THAT COVERS THAT GAP, AND THAT WAS FALSE. Measured against the constant-1
+    mutant across the save suite: 8 tests red, 7 of them synthetic-fixture
+    tests and the eighth the nested gate that runs them, while
+    :func:`test_the_decode_collapses_when_the_payload_start_is_rotated` stayed
+    green. It could not have done otherwise - it perturbs the WALK, and a
+    fabricated value does not move the walk. So no library-backed control in
+    this suite catches a fixed-width decoder that fabricates plausible small
+    constants; only fixtures this project packs do, which is the very
+    circularity CS-421 exists to name, one layer along. Recorded here as an open
+    residual rather than attributed to a test that does not do it.
+
+    It is library-backed and skips with no game installed, which is the CI gap
+    CS-426 owns. A synthetic fixture cannot close it: one packed from the same
+    belief the reader unpacks with is the circularity above, in a new costume.
+    """
+    sweep = _decode_sweep_or_skip()
+
+    assert sweep.int32_values > 0, (
+        "no int32 value decoded anywhere in this library, so both comparisons "
+        "below would be claims about an empty population"
+    )
+    assert sweep.int32_high_byte_zero_as_read * 2 > sweep.int32_values, (
+        f"the stored high byte is zero on only {sweep.int32_high_byte_zero_as_read} "
+        f"of {sweep.int32_values} int32 values as read. Small magnitudes stored in "
+        "the declared order put a zero there on most of them, so a minority means "
+        "the declared order is not the stored one"
+    )
+    assert sweep.int32_high_byte_zero_if_swapped * 2 < sweep.int32_values, (
+        f"reading the same bytes the other way puts a zero in the high position on "
+        f"{sweep.int32_high_byte_zero_if_swapped} of {sweep.int32_values}, which is a "
+        "majority. Both readings cannot carry the small-magnitude signature, so this "
+        "one has stopped discriminating and the test above proves less than it says"
+    )
+
+
+def test_the_float32_byte_order_is_discriminated_by_plausible_magnitude() -> None:
+    """The same question for float32, measured separately rather than inferred.
+
+    IT WOULD BE CHEAPER TO ARGUE THAT ONE SERIALIZER WRITES ONE BYTE ORDER, so
+    settling int32 settles this too. That inference is probably true and it is
+    still an inference, and session 11 recorded four separate slices whose only
+    defect was measuring one thing and stating a wider one. So float32 carries
+    its own oracle over its own population.
+
+    THE DISCRIMINATOR IS MAGNITUDE PLAUSIBILITY, NOT FINITENESS. Finiteness
+    looks like the natural choice and was measured useless before this was
+    written: as read it holds on 100 per cent and byte-swapped on 99.77, because
+    a swapped float32 is nearly always still a finite number - just an absurd
+    one. The band below is a DOMAIN bound on what a coordinate, a clock speed or
+    a power figure can be, not a value fitted to this corpus, and the margin
+    either side of the half-population pivot is wide.
+
+    Exact zero is excluded from both counts rather than assigned to either: its
+    bit pattern is symmetric, so it reads as zero under both orders and can
+    discriminate nothing. Counting it as plausible would inflate both sides by
+    the same amount and narrow the very margin this test rests on.
+    """
+    sweep = _decode_sweep_or_skip()
+
+    assert sweep.float32_values > 0, (
+        "no float32 value decoded anywhere in this library, so both comparisons "
+        "below would be claims about an empty population"
+    )
+    assert sweep.float32_plausible_as_read * 2 > sweep.float32_values, (
+        f"only {sweep.float32_plausible_as_read} of {sweep.float32_values} float32 "
+        "values land in the plausible band as read. A world's floats are mostly "
+        "ordinary magnitudes, so a minority means the declared order is not the "
+        "stored one"
+    )
+    assert sweep.float32_plausible_if_swapped * 2 < sweep.float32_values, (
+        f"reading the same bytes the other way is plausible on "
+        f"{sweep.float32_plausible_if_swapped} of {sweep.float32_values}, a majority. "
+        "Both readings cannot be the ordinary-magnitude one, so this test has stopped "
+        "discriminating between them"
+    )
+
+
+def test_no_fixed_width_decode_depends_on_the_byte_order_of_its_format_code() -> None:
+    """The shipped dispatch must key on the TYPE, not on a spelling.
+
+    FOUND BY THE BYTE-ORDER ORACLES ABOVE, which could not be proven against a
+    ``">f"`` mutant because the shipped decoder raised before either assertion
+    ran. ``_decode_fixed_width`` chose its return branch by comparing the format
+    code to the literal ``"<f"``, so a float read in the other order fell into
+    the integer branch, where ``int`` of a NaN raises ``ValueError``.
+
+    NOTHING WAS BROKEN ON THE SHIPPED TABLE and this is not a bug report about
+    today's behaviour - it is an unstated invariant. The module required its
+    float entry to be spelled with one particular byte-order prefix and said so
+    nowhere, which is the CS-422 shape: a rule the file relies on and does not
+    state. The remedy is to ask the question the branch actually means.
+
+    THE POPULATION IS DERIVED FROM THE SHIPPED TABLE rather than listed here, so
+    an entry added later is covered without anyone remembering to add it. The
+    byte pattern is hand-authored and this test reads no save, so it runs on a
+    machine with no game installed - which the oracles above do not.
+    """
+    # A pattern that is an ordinary small integer read one way and a NaN read
+    # the other, so the float row exercises the branch that used to raise.
+    pattern = b"\x7f\xc0\x00\x00"
+
+    assert objects._FIXED_WIDTH_VALUES, "no fixed-width entry to check"  # noqa: SLF001
+    for word, (width, code) in objects._FIXED_WIDTH_VALUES.items():  # noqa: SLF001
+        body = pattern[:width]
+        for order in ("<", ">"):
+            spec = (width, order + code[1:])
+            (expected,) = struct.unpack(spec[1], body)
+            decoded = objects._decode_fixed_width(body, 0, width, spec)  # noqa: SLF001
+            assert type(decoded) is type(expected), (
+                f"{word} decoded to {type(decoded).__name__} under byte order "
+                f"{order!r} while struct yields {type(expected).__name__}. The "
+                "branch is keyed on the format code's spelling rather than on "
+                "the value it produced"
+            )
+
+
+def test_every_measured_value_type_names_the_oracle_that_backs_it() -> None:
+    """CS-421 clause 1, and the scope is DERIVED rather than listed.
+
+    The evidence table's key set is compared against
+    :data:`objects.MEASURED_VALUE_TYPES` computed in the same run, so a type
+    added to the measured set without recording what backs it reddens here
+    instead of inheriting the last entry's credibility by silence. Listing the
+    expected keys in this file would make the check an allowlist with the sign
+    flipped, which is the shape CS-420 clause 2 exists to refuse.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+    """
+    recorded = frozenset(objects.EVIDENCE_FOR_VALUE_TYPE)
+    missing = sorted(objects.MEASURED_VALUE_TYPES - recorded)
+    assert not missing, (
+        f"{missing} are decoded but nothing records what backs the decode. A type "
+        "whose evidence is unstated reads as evidenced"
+    )
+    extra = sorted(recorded - objects.MEASURED_VALUE_TYPES)
+    assert not extra, (
+        f"{extra} carry an evidence entry and are not decoded at all, so the table "
+        "describes a decode that does not happen"
+    )
+
+    known = {
+        objects.EVIDENCE_DECLARED_WIDTH,
+        objects.EVIDENCE_REDUNDANCY,
+        objects.EVIDENCE_CROSS_SECTION,
+        objects.EVIDENCE_MAGNITUDE,
+    }
+    for word, oracles in objects.EVIDENCE_FOR_VALUE_TYPE.items():
+        assert oracles, f"{word} names an empty evidence set, which claims nothing"
+        unknown = sorted(oracles - known)
+        assert not unknown, f"{word} cites {unknown}, which is no declared evidence class"
+
+
+def test_the_magnitude_oracle_covers_exactly_the_types_marked_with_it() -> None:
+    """CS-421 clause 2's live half - the table is TIED to the running controls.
+
+    The rest of the evidence table records a class and is checked for
+    completeness rather than for truth. This entry is different: the two
+    byte-order oracles in this module score exactly two type words, and if the
+    table claims a third the claim is unbacked, while if it claims one fewer a
+    shipped control has stopped being credited.
+
+    :data:`_MAGNITUDE_SCORED_TYPES` is this module's transcription of what those
+    oracles score, kept here for the reason
+    :func:`test_the_shipped_measured_set_matches_this_module_transcription`
+    gives: a suite that imports the constant it is checking asserts only that
+    the module equals itself.
+    """
+    marked = frozenset(
+        word
+        for word, oracles in objects.EVIDENCE_FOR_VALUE_TYPE.items()
+        if objects.EVIDENCE_MAGNITUDE in oracles
+    )
+    assert marked == _MAGNITUDE_SCORED_TYPES, (
+        f"the table credits {sorted(marked)} with a magnitude oracle while this "
+        f"module scores {sorted(_MAGNITUDE_SCORED_TYPES)}. One of the two moved "
+        "without the other"
+    )
+
+    width_only = frozenset(objects.WIDTH_ONLY_VALUE_TYPES)
+    assert not width_only & marked, (
+        f"{sorted(width_only & marked)} are recorded as backed by a declared width "
+        "alone and as carrying a magnitude oracle, which cannot both be true"
+    )
+    assert width_only, (
+        "no type is recorded as width-only. That would mean every decoded type "
+        "gained a second oracle, which is a claim worth making deliberately"
+    )
+
+
+def test_a_cursor_width_is_discriminated_and_never_on_a_majority_of_payloads() -> None:
+    """CS-422's 'immediately', replaced by a per-width derivation.
+
+    ``objects._TAG_EXTRA_STRINGS`` claimed that mis-stating any one of its
+    widths "desynchronises the walk immediately". That is FALSE for every one of
+    them, not merely for the two CS-422 named, and this test is what says so in
+    a form that cannot rot: the whole relation is computed from the shipped
+    table in the same run.
+
+    TWO ASSERTIONS, AND THE SECOND IS THE ONE THAT REFUTES THE ADVERB. Each
+    width, mis-stated, must cost at least one payload - otherwise nothing in the
+    suite could tell that width from a wrong one. And each must leave a MAJORITY
+    of payloads still reaching their terminator, which is the measured shape and
+    the opposite of "immediately".
+
+    THE SECOND ASSERTION PINS A WEAKNESS, DELIBERATELY. If a later change makes
+    a mis-stated width break most payloads, this goes red on an improvement -
+    and the correct response is to update the claim in ``objects.py``, which is
+    the whole point. A claim nobody can falsify is what four rounds of hand
+    repair produced.
+
+    `GUID_BYTES` is graded here rather than with the value widths because it
+    MOVES THE CURSOR - it is stepped over inside a tag - so a wrong value
+    desynchronises the walk exactly as a tag-extra count does.
+    """
+    census = _width_census_or_skip()
+
+    assert census.payloads > 0, "no payload enumerated, so every claim below is vacuous"
+    assert census.reach_shipped == census.payloads, (
+        f"the shipped widths take only {census.reach_shipped} of {census.payloads} "
+        "payloads to a terminator, so the baseline this census compares against is "
+        "already broken"
+    )
+    scope = frozenset(objects._TAG_EXTRA_STRINGS) | {_GUID_WIDTH_NAME}  # noqa: SLF001
+    assert frozenset(census.reach_by_cursor_width) == scope, (
+        "the census scope and the shipped cursor widths disagree, so a width "
+        "exists that nothing here grades"
+    )
+
+    for word, reached in sorted(census.reach_by_cursor_width.items()):
+        assert reached < census.reach_shipped, (
+            f"mis-stating {word} costs no payload at all, so no reach oracle can "
+            "tell the shipped width from a wrong one"
+        )
+        assert reached * 2 > census.reach_shipped, (
+            f"mis-stating {word} leaves only {reached} of {census.reach_shipped} "
+            "payloads reaching, which is a minority. The module records that a "
+            "mis-stated width is discriminated on a minority of payloads and that "
+            "is no longer true - fix the claim there, not this assertion"
+        )
+
+
+def test_an_extent_width_cannot_desynchronise_and_is_caught_by_disagreement() -> None:
+    """The OTHER half of CS-422's rule, and why one oracle could not serve both.
+
+    A width that only bounds a VALUE cannot move the walk: the cursor advances
+    by the tag's own declared size, so a wrong value width drops the value and
+    is reported as a disagreement instead. Grading these by terminator reach -
+    the oracle the tag-extra widths are graded by - reports them as undetectable
+    when they are in fact detected, which is how one file came to hold two
+    evidence standards with no rule between them.
+
+    THE BASELINE IS ZERO AND THAT IS WHAT MAKES THE COUNTS READABLE. The shipped
+    configuration disagrees with itself on no value anywhere in the library, so
+    every count here is attributable to the mutation rather than to a background
+    rate.
+
+    Note what this does NOT claim: that the width is the RIGHT one. A
+    disagreement count proves the declared size is load-bearing, not that the
+    bytes are read the right way round - see the two byte-order oracles above,
+    which are a different question over the same widths.
+    """
+    census = _width_census_or_skip()
+
+    assert census.payloads > 0, "no payload enumerated, so every claim below is vacuous"
+    assert census.disagreements_shipped == 0, (
+        f"the shipped widths already disagree on {census.disagreements_shipped} values, "
+        "so a mutation's count cannot be attributed to the mutation"
+    )
+    scope = frozenset(objects._FIXED_WIDTH_VALUES) | {_SOFT_TAIL_NAME}  # noqa: SLF001
+    assert frozenset(census.disagreements_by_extent_width) == scope, (
+        "the census scope and the shipped extent widths disagree, so a width "
+        "exists that nothing here grades"
+    )
+
+    for word, disagreed in sorted(census.disagreements_by_extent_width.items()):
+        assert disagreed > 0, (
+            f"mis-stating {word} produces no disagreement, so nothing distinguishes "
+            "the shipped width from a wrong one"
+        )
+        reached = census.reach_by_extent_width[word]
+        assert reached == census.payloads, (
+            f"mis-stating {word} cost {census.payloads - reached} payloads their "
+            "terminator, so it moves the cursor after all and belongs with the "
+            "cursor widths rather than here"
+        )
+
+
+def test_the_width_rule_partitions_every_shipped_width_and_declines_no_decoded_one() -> None:
+    """CS-422's rule, applied to EVERY entry rather than per entry.
+
+    Three claims, all derived from the shipped tables in the same run. The two
+    width classes must be disjoint, because a width graded by both oracles would
+    let a failure under one be excused by a pass under the other. Together they
+    must cover every width the module ships, so no width sits outside the rule.
+    And a type word whose VALUE reading is declined must not also be decoded,
+    which is the invariant that caught the first draft of this work: the
+    declined table was keyed by bare type word while `ArrayProperty` legitimately
+    ships a TAG-EXTRA width, so the name read as though the whole word were
+    declined.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+    """
+    cursor = objects.CURSOR_WIDTHS
+    extent = objects.EXTENT_WIDTHS
+
+    overlap = sorted(cursor & extent)
+    assert not overlap, (
+        f"{overlap} are graded as both a cursor width and an extent width, so a "
+        "failure under one oracle could be excused by a pass under the other"
+    )
+
+    shipped = (
+        frozenset(objects._TAG_EXTRA_STRINGS)  # noqa: SLF001
+        | frozenset(objects._FIXED_WIDTH_VALUES)  # noqa: SLF001
+        | {_GUID_WIDTH_NAME, _SOFT_TAIL_NAME}
+    )
+    ungoverned = sorted(shipped - (cursor | extent))
+    assert not ungoverned, (
+        f"{ungoverned} are shipped widths that the rule's two classes do not "
+        "cover, so nothing states what evidence let them ship"
+    )
+    phantom = sorted((cursor | extent) - shipped)
+    assert not phantom, (
+        f"{phantom} are classified and are not shipped widths, so the rule "
+        "describes an entry that does not exist"
+    )
+
+    both = sorted(frozenset(objects.DECLINED_VALUE_READINGS) & objects.MEASURED_VALUE_TYPES)
+    assert not both, (
+        f"{both} are recorded as declined value readings and are decoded anyway, "
+        "so the module contradicts itself about its own evidence"
+    )
+    assert objects.WIDTH_SHIPPING_RULE.strip(), "the rule is empty, so nothing governs"
 
 
 def test_the_shipped_measured_set_matches_this_module_transcription() -> None:
@@ -2955,6 +3659,7 @@ _GRADED_LIBRARY_REACH: Final = MappingProxyType(
         "_library_save_paths": "holds the locators and the save glob",
         "_sweep_payload_tags": "reads every save in the library",
         "_sweep_decoded_values": "reads every save in the library",
+        "_sweep_width_census": "reads every save in the library",
     }
 )
 

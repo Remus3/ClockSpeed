@@ -203,6 +203,14 @@ from clockspeed.save.usmap import PropertyMap
 
 __all__ = [
     "BODY_LAYOUT_BY_PAIR",
+    "CURSOR_WIDTHS",
+    "DECLINED_VALUE_READINGS",
+    "EVIDENCE_CROSS_SECTION",
+    "EVIDENCE_DECLARED_WIDTH",
+    "EVIDENCE_FOR_VALUE_TYPE",
+    "EVIDENCE_MAGNITUDE",
+    "EVIDENCE_REDUNDANCY",
+    "EXTENT_WIDTHS",
     "FIELD_NAMES",
     "GUID_BYTES",
     "KIND_ACTOR",
@@ -233,6 +241,8 @@ __all__ = [
     "WARN_UNPARSED_DATA_SECTION",
     "WARN_UNPARSED_PROPERTY_PAYLOAD",
     "WARN_UNRESOLVED_SCHEMA",
+    "WIDTH_ONLY_VALUE_TYPES",
+    "WIDTH_SHIPPING_RULE",
     "BodyLayout",
     "ObjectBudgetExceededError",
     "ObjectError",
@@ -2279,6 +2289,31 @@ def parse_body(
 #   is asserted directly, and it walks with THESE constants rather than with a
 #   test-side copy of them.
 #
+#   AND WHAT MIS-STATING A WIDTH ACTUALLY COSTS, which is CS-422's question and
+#   is answered per width rather than by one adverb. A cursor width mis-stated
+#   by one costs some payloads their terminator and leaves a MAJORITY still
+#   reaching it, so "desynchronises immediately" was false for every one of
+#   them. tests/save/test_properties.py::test_a_cursor_width_is_
+#   discriminated_and_never_on_a_majority_of_payloads derives the whole relation
+#   in one run. Its counterpart for the other class -
+#   tests/save/test_properties.py::test_an_extent_width_cannot_
+#   desynchronise_and_is_caught_by_disagreement - shows why one oracle cannot
+#   grade both, and
+#   tests/save/test_properties.py::test_the_width_rule_partitions_
+#   every_shipped_width_and_declines_no_decoded_one holds every shipped width
+#   inside the stated rule.
+#
+#   AND THE BYTE ORDER, which a width does not imply and which is a separate
+#   question over the same entries.
+#   tests/save/test_properties.py::test_the_int32_byte_order_is_
+#   discriminated_by_the_stored_high_byte and
+#   tests/save/test_properties.py::test_the_float32_byte_order_is_
+#   discriminated_by_plausible_magnitude score the real population's magnitudes
+#   under both readings, and
+#   tests/save/test_properties.py::test_the_magnitude_oracle_covers_
+#   exactly_the_types_marked_with_it ties EVIDENCE_FOR_VALUE_TYPE to the two of
+#   them, so the table cannot credit an oracle that does not run.
+#
 # AND THE ROTATION CONTROL, which is what makes the above evidence about
 # ALIGNMENT rather than about self-consistency. Re-read at VALUE-START offsets
 # of -2, -1, +1 and +2 - the tag walk left synchronised, only the value read
@@ -2298,7 +2333,18 @@ def parse_body(
 #: Type words carrying extra tag data before the guid flag, and how many
 #: length-prefixed strings of it. MEASURED: with these widths the tag walk
 #: reaches its terminator on every payload of every real save of a measured
-#: pair, and mis-stating any one of them desynchronises the walk immediately.
+#: pair.
+#:
+#: MIS-STATING ONE DOES NOT DESYNCHRONISE THE WALK "IMMEDIATELY", WHICH THIS
+#: COMMENT USED TO CLAIM AND WHICH IS FALSE FOR EVERY ONE OF THEM. Each width,
+#: mis-stated by one, costs some payloads their terminator and leaves a MAJORITY
+#: of them still reaching it. The per-width figures are deliberately not written
+#: here - they are derived in the same run by the per-width census cited in the
+#: commentary block above, which is what turns this from an adverb into a
+#: measurement. Read the counts off a run of that test.
+#:
+#: These are CURSOR widths - see :data:`WIDTH_SHIPPING_RULE` for what that means
+#: and for the other class, which a reach oracle cannot grade at all.
 _TAG_EXTRA_STRINGS: Final[Mapping[str, int]] = MappingProxyType(
     {
         "ByteProperty": 1,
@@ -2311,14 +2357,23 @@ _TAG_EXTRA_STRINGS: Final[Mapping[str, int]] = MappingProxyType(
 )
 
 #: Fixed-width value types and their measured widths. The WIDTH is measured -
-#: every instance in the library declares exactly this size and no other. The
-#: ENCODING is measured too, and separately, because a width does not imply a
-#: byte order: across 75136 int32 values the most significant byte under a
-#: little-endian reading is zero 94.05% of the time while the least
-#: significant is zero 10.55% of the time, which is the signature of small
-#: magnitudes stored little-endian and is reversed under the other reading.
-#: For float32, a little-endian reading is finite on 100% and of plausible
-#: world magnitude on 98.96%, against 67.30% plausible big-endian.
+#: every instance in the library declares exactly this size and no other.
+#:
+#: THE BYTE ORDER IS A SEPARATE QUESTION AND IS ANSWERED BY A TEST, NOT HERE. A
+#: width rules out a wrong size and says nothing about which end a value starts
+#: at. What settles it is the pair of byte-order oracles cited in the
+#: commentary block above, which score the whole real population's magnitudes
+#: under both readings. Each is proven by a mutant that flips one entry's order,
+#: and neither can be satisfied by a fixture this project packs, because both
+#: read the game's own saves.
+#:
+#: The figures those oracles compute are deliberately NOT restated here. An
+#: earlier revision of this comment carried four of them and claimed the
+#: encoding was measured while nothing executable checked it; one pair did not
+#: reproduce, because the predicate behind the percentage was written down
+#: nowhere. Read the counts off a run of the tests instead - and note that the
+#: two remaining entries below carry no such oracle, which is recorded in
+#: :data:`WIDTH_ONLY_VALUE_TYPES` rather than in a sentence.
 _FIXED_WIDTH_VALUES: Final[Mapping[str, tuple[int, str]]] = MappingProxyType(
     {
         "IntProperty": (4, "<i"),
@@ -2345,6 +2400,61 @@ _SOFT_OBJECT_TAIL_BYTES: Final = 4
 #: and this module has no use for the value.
 GUID_BYTES: Final = 16
 
+#: THE ONE RULE GOVERNING WHEN A WIDTH MAY SHIP - CS-422. This file used to
+#: apply two standards to itself with nothing stated between them: it shipped a
+#: width on nine instances and declined one on eleven thousand.
+#:
+#: SAMPLE SIZE WAS NEVER THE OPERATIVE CRITERION, which is what dissolves that
+#: apparent inconsistency rather than excusing it. Nine instances are enough
+#: when all nine are discriminated, and eleven thousand are not enough when the
+#: reading was never put through a discrimination test at all.
+WIDTH_SHIPPING_RULE: Final = (
+    "A width may ship when mis-stating it changes an observable outcome on at "
+    "least one real payload. Which outcome depends on what the width moves, "
+    "which is why one oracle cannot grade both classes."
+)
+
+#: Widths that ADVANCE THE CURSOR. Mis-stating one desynchronises the walk, so
+#: it is graded by how many payloads still reach a terminator.
+CURSOR_WIDTHS: Final = frozenset(_TAG_EXTRA_STRINGS) | {"GUID_BYTES"}
+
+#: Widths that only BOUND A VALUE'S EXTENT. The cursor advances by the tag's own
+#: declared size, so mis-stating one CANNOT desynchronise the walk - it drops the
+#: value, which is reported as a disagreement. Grading these by terminator reach
+#: reports them undetectable when they are in fact detected, and that mistake is
+#: how the two standards got into one file.
+EXTENT_WIDTHS: Final = frozenset(_FIXED_WIDTH_VALUES) | {"_SOFT_OBJECT_TAIL_BYTES"}
+
+#: VALUE readings DECLINED under the rule above, each recorded against the rule
+#: rather than decided on its own terms. This records WHY, so a later slice
+#: re-opening one knows what would settle it.
+#:
+#: IT IS ABOUT VALUE READINGS AND NOT ABOUT TAG-EXTRA WIDTHS, which matters
+#: because one type word can carry both. `ArrayProperty` appears here AND in
+#: :data:`CURSOR_WIDTHS`: its tag-extra count of 1 ships and is discriminated,
+#: while its VALUE reading is declined. Keying this by the bare type word once
+#: read as though the whole word were declined, which is why the distinction is
+#: stated rather than left to the name.
+DECLINED_VALUE_READINGS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "ArrayProperty": (
+            "consumes its declared size exactly on the arrays whose inner word "
+            "this module measures - see UNMEASURED_PAYLOAD_REGIONS for that "
+            "count - but at the SHIPPED ALIGNMENT ONLY, never under a rotation. "
+            "Consumption at one alignment is not discrimination, so the rule "
+            "declines it. What would settle it is a control showing a wrong "
+            "reading costs something, not a larger sample"
+        ),
+        "TextProperty": (
+            "declined on SAMPLE SIZE, which is a criterion the rule above does "
+            "not use, so this entry is an exception to the rule rather than an "
+            "application of it. Whether a wrong width for it is discriminated "
+            "at all is UNMEASURED. Recorded honestly rather than re-justified: "
+            "the decline may well be right, and the reason given for it is not"
+        ),
+    }
+)
+
 #: The type words whose VALUE encoding is measured and is therefore decoded.
 #: EVERY OTHER TYPE IS FLAGGED AND SKIPPED - non-negotiable 7 - and the ones
 #: seen in the library are recorded in :data:`UNMEASURED_PAYLOAD_REGIONS`
@@ -2354,6 +2464,62 @@ MEASURED_VALUE_TYPES: Final = (
     | _ONE_STRING_VALUES
     | _TWO_STRING_VALUES
     | frozenset({"BoolProperty", "ByteProperty"})
+)
+
+#: The evidence classes a decoded value's correctness can rest on, named so the
+#: table below records a KIND of backing rather than a sentence about one.
+#:
+#: `EVIDENCE_DECLARED_WIDTH` is the weakest and says the least: every instance
+#: in the library declared the width this module expects. It rules out a wrong
+#: width and says NOTHING about the bytes being read the right way round.
+#: `EVIDENCE_REDUNDANCY` means the value carries its own length prefix, so a
+#: mis-read desynchronises the walk instead of returning a wrong answer.
+#: `EVIDENCE_CROSS_SECTION` means the value resolves against a structure
+#: elsewhere in the same body. `EVIDENCE_MAGNITUDE` means the population's
+#: magnitudes discriminate the byte order against the opposite reading.
+EVIDENCE_DECLARED_WIDTH: Final = "declared_width"
+EVIDENCE_REDUNDANCY: Final = "redundancy"
+EVIDENCE_CROSS_SECTION: Final = "cross_section"
+EVIDENCE_MAGNITUDE: Final = "magnitude_distribution"
+
+#: WHICH ORACLE BACKS EACH MEASURED TYPE'S VALUE DECODE - CS-421, as shipped
+#: DATA so a later slice reads it rather than re-deriving it from a comment.
+#:
+#: WHAT AN ENTRY CLAIMS AND WHAT IT DOES NOT. It names the evidence CLASS that
+#: applies to that type. It does not assert that a named oracle has been shown
+#: to discriminate every fault for that type, and reading it that way is the
+#: over-statement this table exists to make harder rather than easier. The one
+#: entry tied mechanically to a live control is `EVIDENCE_MAGNITUDE`, tied by
+#: the coupling test cited in the commentary block above.
+#:
+#: A TYPE WHOSE SET IS `EVIDENCE_DECLARED_WIDTH` ALONE IS THE THING TO NOTICE -
+#: see :data:`WIDTH_ONLY_VALUE_TYPES`, which is derived from this table rather
+#: than restated. That is a type whose bytes could be read backwards and no
+#: shipped check would say so.
+EVIDENCE_FOR_VALUE_TYPE: Final[Mapping[str, frozenset[str]]] = MappingProxyType(
+    {
+        "BoolProperty": frozenset({EVIDENCE_DECLARED_WIDTH}),
+        "ByteProperty": frozenset({EVIDENCE_REDUNDANCY}),
+        "EnumProperty": frozenset({EVIDENCE_REDUNDANCY}),
+        "FloatProperty": frozenset({EVIDENCE_DECLARED_WIDTH, EVIDENCE_MAGNITUDE}),
+        "Int8Property": frozenset({EVIDENCE_DECLARED_WIDTH}),
+        "IntProperty": frozenset({EVIDENCE_DECLARED_WIDTH, EVIDENCE_MAGNITUDE}),
+        "NameProperty": frozenset({EVIDENCE_REDUNDANCY}),
+        "ObjectProperty": frozenset({EVIDENCE_REDUNDANCY, EVIDENCE_CROSS_SECTION}),
+        "SoftObjectProperty": frozenset({EVIDENCE_REDUNDANCY}),
+        "StrProperty": frozenset({EVIDENCE_REDUNDANCY}),
+        "UInt32Property": frozenset({EVIDENCE_DECLARED_WIDTH}),
+    }
+)
+
+#: The types whose only backing is that the declared size matched, DERIVED from
+#: the table above so the two cannot disagree. A type entering or leaving this
+#: set is a change in what this module can honestly claim, and deriving it is
+#: what stops that change being made by editing a sentence.
+WIDTH_ONLY_VALUE_TYPES: Final = frozenset(
+    word
+    for word, oracles in EVIDENCE_FOR_VALUE_TYPE.items()
+    if oracles == frozenset({EVIDENCE_DECLARED_WIDTH})
 )
 
 #: WHAT IS STILL OPAQUE INSIDE A PAYLOAD, as a structure rather than an
@@ -2623,7 +2789,15 @@ def _decode_fixed_width(body: bytes, at: int, size: int, spec: tuple[int, str]) 
     if size != width or at + size > len(body):
         return None
     (value,) = struct.unpack_from(code, body, at)
-    return float(value) if code == "<f" else int(value)
+    # KEYED ON WHAT WAS UNPACKED, not on how the code is spelled. This read
+    # `code == "<f"`, which made the branch depend on a byte-order prefix: the
+    # float entry spelled any other way fell into the integer branch, where a
+    # NaN raises `ValueError` out of a decoder whose contract is to return None
+    # on anything it cannot read. Nothing was wrong with the shipped table - the
+    # invariant "the float code is spelled exactly this way" was simply never
+    # stated, which is the defect. `struct` already returns the right Python
+    # type for every code in the table, so asking it is both narrower and total.
+    return float(value) if isinstance(value, float) else int(value)
 
 
 def _decode_object_reference(body: bytes, type_word: str, at: int, end: int) -> object | None:
