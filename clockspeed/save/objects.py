@@ -614,9 +614,7 @@ REASON_SECTION_SIZE_DISAGREEMENT: Final = (
 #: warning fired correctly and the answer beside it was confidently wrong,
 #: which is the "never silently wrong" half of non-negotiable 7 rather than the
 #: "never fatal" half.
-UNKNOWN_CLASS_REASONS: Final = frozenset(
-    {REASON_CLASS_NOT_MODELLED, REASON_REGISTRY_INCOMPLETE}
-)
+UNKNOWN_CLASS_REASONS: Final = frozenset({REASON_CLASS_NOT_MODELLED, REASON_REGISTRY_INCOMPLETE})
 
 # ---------------------------------------------------------------------------
 # Warning codes and their fixed detail lines

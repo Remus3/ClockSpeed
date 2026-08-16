@@ -957,8 +957,7 @@ def test_a_render_guarded_by_a_foreign_type_does_not_earn_the_exemption():
     assert [finding.shape for finding in visitor.param_found] == ["str(exc)"], (
         "an isinstance-guarded render of a type the module does NOT define was "
         "exempted. str() on an OSError appends the filename it failed on, so "
-        "this is the leak the exemption exists to stay clear of:\n"
-        + describe(visitor.param_found)
+        "this is the leak the exemption exists to stay clear of:\n" + describe(visitor.param_found)
     )
 
 
@@ -1021,8 +1020,7 @@ def test_parameter_renders_are_only_the_recorded_residuals():
         "a function renders an exception it received as a PARAMETER. The object "
         "reached it intact, so str() appends the same filename it would have "
         "inside the handler (CLAUDE.md non-negotiable 12). Render a named "
-        "FIELD, or route it through a per-type redaction allowlist:\n"
-        + describe(unexpected)
+        "FIELD, or route it through a per-type redaction allowlist:\n" + describe(unexpected)
     )
     # Non-vacuous: every recorded residual must still be a real, live site.
     live = {site.path for site in found}

@@ -431,9 +431,9 @@ def test_local_config_default_path_is_the_tracked_config_directory(
 # whole item.
 
 
-def _collect(payload: object, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[
-    dict[str, str], list[locate.LocalConfigWarning]
-]:
+def _collect(
+    payload: object, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> tuple[dict[str, str], list[locate.LocalConfigWarning]]:
     """Read a written-out local config, capturing whatever it reported."""
     _write_local_config(monkeypatch, tmp_path, payload)
     warnings: list[locate.LocalConfigWarning] = []

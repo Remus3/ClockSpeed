@@ -3118,9 +3118,7 @@ def test_an_incomplete_registry_changes_the_reason_the_levelled_walk_publishes()
 
     assert default.unknown_classes, "the fixture must publish something to carry a reason"
     assert {u.reason for u in default.unknown_classes} == {objects.REASON_CLASS_NOT_MODELLED}
-    assert {u.reason for u in unresolved.unknown_classes} == {
-        objects.REASON_REGISTRY_INCOMPLETE
-    }
+    assert {u.reason for u in unresolved.unknown_classes} == {objects.REASON_REGISTRY_INCOMPLETE}
     # Only the REASON moves. A downgrade that also changed WHAT was flagged
     # would be reporting a different world rather than a different confidence
     # in the same one.

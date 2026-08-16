@@ -2719,7 +2719,7 @@ def test_a_carried_header_warning_keeps_the_subject_the_header_layer_flagged() -
 
 
 def test_a_source_whose_warning_type_declares_no_subject_carries_none() -> None:
-    """"No subject" and "the empty subject" are different facts, kept different.
+    """A missing subject and an empty subject are different facts, kept different.
 
     ``ChunkWarning`` and ``ObjectWarning`` declare no subject field, and this
     module's own warnings have nothing structural to name. Rendering that as

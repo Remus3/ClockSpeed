@@ -1026,9 +1026,7 @@ def _carried(
         Every carried warning, header first and in layer order.
     """
     out: list[WorldWarning] = [
-        WorldWarning(
-            source=SOURCE_HEADER, code=item.code, detail=item.detail, subject=item.subject
-        )
+        WorldWarning(source=SOURCE_HEADER, code=item.code, detail=item.detail, subject=item.subject)
         for item in parsed.warnings
     ]
     out.extend(
