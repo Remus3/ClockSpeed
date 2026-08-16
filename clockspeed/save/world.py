@@ -160,6 +160,36 @@ with :data:`WARN_NODE_TRANSFORM_ABSENT`. The skip was always right; the silence
 was the defect, because a node list short by one is indistinguishable from a
 world that holds one fewer node.
 
+WHAT THE FLAG MAY SAY ABOUT THAT LOSS IS NARROWER THAN CS-430 CLAIMED, and
+CS-433 is the correction. Its detail closed "their placement is unrecoverable
+from this save", which the save refutes. ``objects``' levelled reader builds a
+transform on the ACTOR branch and closes a COMPONENT with a parent path
+instead, so the one record shape that reaches this branch is the one shape that
+arrives carrying a parent path - and across the real library that path names a
+placed record for the large majority of transform-less records, measured rather
+than assumed. UNRECOVERED BY THIS READER, NOT UNRECOVERABLE FROM THE SAVE.
+
+The distinction matters because :attr:`WorldWarning.detail` is a finished
+operator-facing sentence rather than an internal note. :data:`_WARNING_DETAIL`
+authors it, :func:`_warning` attaches it unaltered and it reaches
+:class:`WorldModel` verbatim, so the wording chosen here is the wording that
+ships and an overstated loss is shipped text rather than a comment. It is also
+the defect CS-430 was written to remove, moved from the subject key into the
+detail text: a silent drop and a misdescribed one are both losses the operator
+cannot audit.
+``tests/save/test_world.py::test_the_absence_warning_detail_claims_no_loss_the_raising_record_refutes``
+grades the sentence against the record that raised it, which no check in
+CS-430 did.
+
+REACH: this branch is driven by the synthetic levelled fixtures in
+``tests/save/test_world.py`` and by nothing else on the corpus this project has
+measured - a sweep of the real library found records carrying no transform in
+quantity and not one of a measured node class. ADR 0003's node classes were
+counted in a real world as ACTORS carrying valid transforms, and the actor
+branch is the one that builds a transform - so the flag guards a shape the
+reader must survive rather than reporting one it meets. Do not read the sweep
+as permanent: it is a property of the saves measured, not of the format.
+
 IT IS A RECURRING SHAPE IN THIS PACKAGE rather than a one-off, which is the
 reason to state it here rather than in a comment: a check that was missing
 (CS-417), a check that discarded without flagging (CS-419), and a filter that
@@ -313,7 +343,8 @@ _WARNING_DETAIL: Final[Mapping[str, str]] = MappingProxyType(
         WARN_NODE_TRANSFORM_ABSENT: (
             "a record of a measured resource-node class carried no transform, so it was"
             " skipped rather than published with invented coordinates; the node list is"
-            " short by this many and their placement is unrecoverable from this save"
+            " short by this many, and this reader does not recover their placement from"
+            " the parent path such a record carries"
         ),
     }
 )
@@ -631,6 +662,14 @@ def _nodes_from(table: ObjectTable) -> tuple[tuple[ResourceNode, ...], list[Worl
     is therefore re-derived from the record by :func:`_untransformed_node_class`
     rather than inferred from that None, so a third future reason for None
     cannot be quietly reported as a missing transform.
+
+    WHAT THE WARNING MAY CLAIM IS BOUNDED BY WHAT THE RECORD HOLDS (CS-433).
+    Such a record reaches here from the COMPONENT branch of ``objects``' levelled
+    reader, which closes with a parent path in place of a transform block - so
+    it arrives carrying a route this function does not follow. The detail
+    therefore reports the loss as UNRECOVERED HERE rather than as unrecoverable
+    from the save, and following that route is separate work rather than a thing
+    this warning may quietly imply has been ruled out.
 
     Args:
         table: The walked table.

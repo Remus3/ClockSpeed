@@ -1139,9 +1139,24 @@ def _levelled_blob(
     return head + synthetic.build_chunks(payload, framing=framing)
 
 
-def _untransformed_node(class_path: str, instance: str) -> synthetic.SyntheticComponent:
-    """One component record - hence no transform - of the given class."""
-    return synthetic.SyntheticComponent(class_path, _ROOT, instance)
+def _untransformed_node(
+    class_path: str, instance: str, *, parent: str | None = None
+) -> synthetic.SyntheticComponent:
+    """One component record - hence no transform - of the given class.
+
+    Args:
+        class_path: The record's class path.
+        instance: Its instance name.
+        parent: The parent path it closes with. Defaulted by the synthetic
+            builder when omitted; supplied by the detail-truth oracle below,
+            which needs the path to name a record in the SAME table.
+
+    Returns:
+        The component record.
+    """
+    if parent is None:
+        return synthetic.SyntheticComponent(class_path, _ROOT, instance)
+    return synthetic.SyntheticComponent(class_path, _ROOT, instance, parent_object_root=parent)
 
 
 def _world_codes(model: world.WorldModel) -> list[str]:
@@ -1271,12 +1286,24 @@ def test_a_levelled_world_with_no_node_records_raises_neither_node_warning() -> 
     A component of a non-node class is the ordinary shape - every real body
     carries them - and a walk that flagged it would report a warning per
     component on every world ever loaded.
+
+    ITS PREMISE IS ASSERTED because the payload of the test is two ABSENCES, and
+    absences are what a fixture that stopped producing a record would deliver
+    for free. A silent control that passes on an empty table controls for
+    nothing: it would report both warnings quiet because there was nothing to
+    warn about, which is the vacuous green rather than the property.
     """
     model = world.load_world_from_bytes(
         _levelled_blob(components=(_untransformed_node(_NON_NODE_CLASS_PATH, "SyntheticInput_0"),)),
         property_map=_property_map(_KNOWN_CLASS_NAME_A),
     )
 
+    # The premise: the record IS here, it DOES carry no transform, and its class
+    # is NOT a measured node class. Those three are what make the two absences
+    # below a statement about the filter rather than about an empty table.
+    (record,) = model.objects.records
+    assert record.transform is None
+    assert objects.class_name_of(record.type_path) not in world.NODE_CLASS_NAMES
     assert model.nodes == ()
     assert _world_codes(model) == [world.WARN_UNLOCK_GRAMMAR_UNMEASURED]
 
@@ -1299,6 +1326,152 @@ def test_the_absence_warning_detail_is_fixed_text_that_names_the_condition() -> 
     assert absent.detail not in others
     assert absent.detail.isascii()
     assert "transform" in absent.detail
+
+
+# ---------------------------------------------------------------------------
+# CS-433 - the detail SENTENCE is graded against the record that raised it
+#
+# WHAT WAS MISSING, AND IT IS THE DEFECT CS-430 EXISTS TO REMOVE WEARING A
+# DIFFERENT MECHANISM. Every check in the section above asks WHICH warning
+# fired. None asks whether the warning's SENTENCE is true of the input that
+# raised it - and the sentence CS-430 shipped was not. It closed "their
+# placement is unrecoverable from this save", and a record reaching that branch
+# carries a PARENT PATH: ``objects``' levelled reader builds a transform only on
+# the ACTOR branch and closes a COMPONENT with ``parent_object_root`` instead,
+# so the one record shape that arrives with no transform is the one shape that
+# arrives WITH a route to a placement. Unrecovered by this reader, not
+# unrecoverable from the save.
+#
+# THE DETAIL IS FINISHED OPERATOR-FACING TEXT rather than an internal note:
+# ``_WARNING_DETAIL`` authors the sentence, ``_warning`` attaches it unaltered
+# and it travels the stream verbatim, so the wording here is shipped text. The
+# layer that will display it is a stub today, which changes where the sentence
+# is read and not whether it is true.
+#
+# WHAT THE ORACLE BELOW BUYS, AT ITS REAL STRENGTH. It grades ONE claim class -
+# unrecoverability - against ONE measured property of the raising record, on
+# ONE warning code. It is not a general truth check on warning prose, and a
+# false sentence of any other shape passes it. What it does deliver is that the
+# specific claim CS-430 got wrong is now measured against the fixture rather
+# than read approvingly, and the measurement is end to end: the route is built,
+# parsed back out and asserted present before the sentence is scanned at all.
+# ---------------------------------------------------------------------------
+
+#: The instance name of the parent actor the oracle's component points at.
+_PARENT_ACTOR_INSTANCE: Final = "Node_0"
+
+#: Phrases asserting the placement cannot be got back OUT OF THE SAVE. A
+#: measured parent route refutes the whole class, so the class is banned rather
+#: than one wording of it - a detail narrowed to what this READER does needs
+#: none of these words, and matching on the exact shipped string would pass the
+#: moment someone reworded it and kept the claim.
+_UNRECOVERABILITY_CLAIMS: Final = (
+    "unrecoverable",
+    "irrecoverable",
+    "not recoverable",
+    "cannot be recovered",
+    "can not be recovered",
+    "no way to recover",
+    "lost for good",
+    "gone for good",
+)
+
+
+def test_the_absence_warning_detail_claims_no_loss_the_raising_record_refutes() -> None:
+    """CS-433. The sentence is graded against the record, not against itself.
+
+    THE PREMISE IS MEASURED BEFORE THE SENTENCE IS READ, which is the whole
+    point - a scan of the detail alone proves nothing about what the save holds.
+    The fixture builds a node-class ACTOR carrying a transform and a node-class
+    COMPONENT whose parent path names that actor, then asserts, off the parsed
+    table: the raising record has no transform, it carries a parent path, and
+    that path ends in the instance name of a record in the SAME table that DOES
+    carry a transform. Only then is the shipped detail scanned.
+
+    So the route out of the save is demonstrated rather than argued, and a
+    detail calling the placement unrecoverable is refuted by the fixture that
+    raised it. THIS READER DOES NOT FOLLOW THE ROUTE, and saying so is the
+    honest sentence; the skip itself is untouched and is still correct.
+    """
+    model = world.load_world_from_bytes(
+        _levelled_blob(
+            objects_=(synthetic.SyntheticObject(_NODE_CLASS_PATH, _ROOT, _PARENT_ACTOR_INSTANCE),),
+            components=(
+                _untransformed_node(
+                    _NODE_CLASS_PATH,
+                    "SyntheticNode_1",
+                    parent=f"{_ROOT}.{_PARENT_ACTOR_INSTANCE}",
+                ),
+            ),
+        ),
+        property_map=_property_map(_NODE_CLASS_NAME),
+    )
+
+    # Premise 1 - the raising record is here and it is the flagged condition.
+    (raising,) = [
+        record
+        for record in model.objects.records
+        if record.transform is None
+        and objects.class_name_of(record.type_path) in world.NODE_CLASS_NAMES
+    ]
+    # Premise 2 - the save carried a parent path for it. This is the route.
+    assert raising.parent, (
+        "the record that raised the warning carried no parent path, so the "
+        "oracle has not measured a recovery route and its verdict on the "
+        "sentence would be vacuous."
+    )
+    # Premise 3 - that path names a record in the same table that IS placed.
+    reachable = [
+        record
+        for record in model.objects.records
+        if record.transform is not None and raising.parent.endswith(f".{record.instance_name}")
+    ]
+    assert reachable, (
+        "the parent path named no placed record in the same table. The fixture "
+        "is meant to demonstrate the route end to end, and without a placed "
+        "parent it demonstrates only that a string was written."
+    )
+
+    (absent,) = [w for w in model.warnings if w.code == world.WARN_NODE_TRANSFORM_ABSENT]
+    claimed = [phrase for phrase in _UNRECOVERABILITY_CLAIMS if phrase in absent.detail.lower()]
+    assert not claimed, (
+        f"the shipped detail claims {claimed} of a record whose placement the "
+        f"save demonstrably still routes to, through the parent path asserted "
+        f"present above. Detail: {absent.detail!r}. The skip is correct and is "
+        "not what this grades - what the operator is told about the loss has to "
+        "match the record, and 'this reader does not recover it' is the true "
+        "form of the claim. A detail that says nothing about recoverability "
+        "passes too."
+    )
+
+
+def test_both_node_warnings_keep_a_fixed_order_when_both_fire() -> None:
+    """Mutant W7. The two node warnings are only orderable when both are present.
+
+    The section above pins the order of each node warning against the unlock
+    warning, and never with BOTH node warnings in one stream - so hoisting the
+    absence warning above the semantics warning reordered the published stream
+    and no test moved. One world carrying a placed node AND a lost one is the
+    only fixture that can see it.
+    """
+    model = world.load_world_from_bytes(
+        _levelled_blob(
+            objects_=(synthetic.SyntheticObject(_NODE_CLASS_PATH, _ROOT, _PARENT_ACTOR_INSTANCE),),
+            components=(_untransformed_node(_NODE_CLASS_PATH, "SyntheticNode_1"),),
+        ),
+        property_map=_property_map(_NODE_CLASS_NAME),
+    )
+
+    # The premise: both warnings really are in the stream, so the order below
+    # is an ordering rather than a pair of absences agreeing with each other.
+    codes = _world_codes(model)
+    assert world.WARN_NODE_SEMANTICS_UNAVAILABLE in codes
+    assert world.WARN_NODE_TRANSFORM_ABSENT in codes
+    assert codes == [
+        world.WARN_UNLOCK_GRAMMAR_UNMEASURED,
+        world.WARN_NODE_SEMANTICS_UNAVAILABLE,
+        world.WARN_NODE_TRANSFORM_ABSENT,
+    ]
 
 
 # ---------------------------------------------------------------------------

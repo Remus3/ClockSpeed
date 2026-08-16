@@ -2684,6 +2684,37 @@ def test_the_flagged_schema_is_named_by_its_own_position_not_the_first() -> None
     ]
 
 
+def test_the_flagged_property_is_named_by_its_own_schemas_position() -> None:
+    """The third positional control, and the one CS-431 wrote the other two of.
+
+    ``schema-N-super`` and the bare ``schema-N`` each got a two-schema control
+    above, on the stated reasoning that a single schema at position 0 cannot
+    tell ``position`` from the literal 0. ``schema-N-property`` is built by the
+    same interpolation and was left without one, so replacing it with the
+    literal ``schema-0-property`` changed no test result while attributing a
+    lost property to the WRONG SCHEMA - a report the operator cannot act on and
+    cannot detect, which is the failure mode this whole section exists for.
+
+    The break is on the SECOND schema's property. Both schemas are asserted to
+    survive, and the first one's property is asserted intact, so the warning
+    cannot be read as covering it.
+    """
+    at = _schema_super_offset(_TWO_SCHEMA_NAMES, _TWO_SCHEMAS, 1) + _PROPERTY_NAME_DELTA
+
+    parsed = _parse_schema_body(
+        _patched_schema_body(_TWO_SCHEMA_NAMES, _TWO_SCHEMAS, [(at, _INDEX_OF_ALPHA)])
+    )
+
+    # Both schemas survive - only a property was lost - so the subject is the
+    # only thing in the result that says WHICH schema lost it.
+    assert sorted(parsed.schemas) == [_OTHER_SCHEMA, "SynthSchema"]
+    assert [entry.name for entry in parsed.schemas["SynthSchema"].properties] == ["Alpha"]
+    assert parsed.schemas[_OTHER_SCHEMA].properties == ()
+    assert [(w.code, w.subject) for w in parsed.warnings] == [
+        (usmap.WARN_UNRESOLVED_NAME, "schema-1-property")
+    ]
+
+
 def test_the_second_schemas_own_name_is_flagged_at_its_own_position() -> None:
     """The same positional claim for the subject that keeps the bare token.
 
