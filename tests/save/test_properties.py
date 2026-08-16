@@ -2561,8 +2561,13 @@ def test_a_failing_usmap_load_does_not_unwind_through_the_decode_sweep(
     _sweep_decoded_values.cache_clear()
     try:
         # Reduced to a boolean first, for the reason on _assert_every_sweep_
-        # declines: usmap.PropertyMap has the DEFAULT repr and renders its whole
-        # name table, so a failure comparing one would print the shipped usmap.
+        # declines. That reason used to be that usmap.PropertyMap carried the
+        # DEFAULT repr and rendered its whole name table; CS-424 replaced that
+        # repr with structure and counts, so the echo is gone from the type
+        # itself. The reduction stays because it is the stronger guarantee: a
+        # quiet repr is a promise a later edit can withdraw, while a comparison
+        # whose operands are booleans has no mapping to render in the first
+        # place.
         loader_declined = _cached_usmap_or_none() is None
         assert loader_declined, "the contained usmap loader let the failure unwind"
         sweep_declined = _sweep_decoded_values() is None
