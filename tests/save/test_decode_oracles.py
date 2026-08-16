@@ -143,6 +143,23 @@ from clockspeed.save import chunks, header, objects, usmap
 # the last test here.
 from tests.save import test_properties
 
+#: CS-420 contract markers, read by ``tests/save/test_absolute_claims.py``.
+#:
+#: THE FENCE DERIVES ITS SCOPE BY WALKING THE TREE FOR THESE RATHER THAN BY
+#: READING A LIST. A hand-written scope tuple is an allowlist with the sign
+#: flipped: deleting the entry naming this module would leave the suite green
+#: and the prose here ungoverned. With the marker declared HERE and the tuple
+#: asserted equal to what the walk finds, dropping either one alone disagrees
+#: with the other and reddens. Unfencing this module takes two edits, and
+#: neither is silent.
+#:
+#: ``CS420_FENCED`` subjects this module's prose to the unbounded-quantifier
+#: rule. ``CS420_CENSUSED`` additionally requires that the fence account for
+#: the string literals and the comment tokens here, so a prose channel the
+#: extractor does not see unbalances a count rather than passing unread.
+CS420_FENCED: Final = True
+CS420_CENSUSED: Final = True
+
 #: The property terminator, as the shipped walk spells it.
 #:
 #: THIS IS A TRANSCRIPTION, AND THE ONE THIS MODULE HOLDS. ``objects`` exports

@@ -123,6 +123,14 @@ from tests.save import test_oracle_citations as citations
 # Grammar
 # ---------------------------------------------------------------------------
 
+#: This module declares itself fenced, and the declaration is what the scope
+#: derivation reads. A fence written in prose that would fail itself is a fence
+#: its author did not believe.
+#:
+#: It does NOT declare itself CENSUSED, and that is a measured limit rather
+#: than an oversight - see the census residual in the module docstring.
+CS420_FENCED: Final = True
+
 #: Modules whose prose this fence governs, as repo-relative POSIX paths.
 #:
 #: The fenced module is CS-420's subject. This module is fenced too, and that
@@ -130,9 +138,41 @@ from tests.save import test_oracle_citations as citations
 #: fence its author did not believe. Widening the tuple is how the rule spreads;
 #: see the scoping residual in the module docstring for why it stops here.
 FENCED_MODULES: Final = (
-    "tests/save/test_decode_oracles.py",
     "tests/save/test_absolute_claims.py",
+    "tests/save/test_decode_oracles.py",
 )
+
+#: Modules whose string literals and comment tokens the fence has to ACCOUNT
+#: FOR - contract 6. A strict subset of the fenced set, and the reason it is a
+#: subset is stated in the residual rather than implied away.
+CENSUSED_MODULES: Final = ("tests/save/test_decode_oracles.py",)
+
+#: The module-scope names a module declares to opt itself into each contract.
+#: The tuples above are asserted EQUAL to what a walk of the tree finds, so a
+#: deleted tuple entry and a deleted marker are each caught on their own.
+_FENCE_MARKER: Final = "CS420_FENCED"
+_CENSUS_MARKER: Final = "CS420_CENSUSED"
+
+#: Kind labels a string literal may carry. A PROSE kind is read by
+#: :func:`prose_paragraphs` and graded; an EXEMPT kind is not read, and an
+#: exempt kind carries a control pinning its BOUNDARY rather than its centre.
+_PROSE_KINDS: Final = ("docstring", "assert", "argument")
+
+#: The one exempt kind. A module-scope assignment whose value is a bare Python
+#: IDENTIFIER is a token the module computes with - a terminator word, a
+#: counter key, an attribute name - and not a sentence. The exemption turns on
+#: WHAT THE STRING IS rather than on where it sits, which is what stops it
+#: swallowing prose: the same assignment holding a sentence is not an
+#: identifier, so it is not exempt, and no prose channel reads a bare
+#: assignment either, so it lands UNACCOUNTED and reddens.
+_MODULE_CONSTANT: Final = "module-constant"
+_EXEMPT_KINDS: Final = (_MODULE_CONSTANT,)
+
+#: Kind labels a comment token may carry. ``rule`` and ``blank`` are the two
+#: comment exemptions: a horizontal rule and a line that decomments to an
+#: empty string carry no prose, and the grouper drops both before paragraphs
+#: are cut.
+_COMMENT_KINDS: Final = ("comment", "rule", "blank")
 
 #: Markers of an UNBOUNDED QUANTIFIER, as label mapped to pattern, matched
 #: case-insensitively against one sentence.
@@ -215,6 +255,56 @@ class ProseParagraph:
     text: str
 
 
+def _string_constant(node: ast.AST | None) -> ast.Constant | None:
+    """The node itself when it is a string literal, and ``None`` otherwise.
+
+    Narrowing happens HERE, where the isinstance chain is the proof, so a
+    caller gets a typed node back instead of needing a cast.
+
+    Args:
+        node: Any syntax node, or ``None`` for an absent optional field.
+
+    Returns:
+        The node when it is a ``str`` constant, else ``None``.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node
+    return None
+
+
+def _string_constants(tree: ast.Module) -> list[ast.Constant]:
+    """The string literals of a module, in a stable order.
+
+    Args:
+        tree: A parsed module.
+
+    Returns:
+        The nodes, sorted by position, which is the census population.
+    """
+    found = [node for node in ast.walk(tree) if _string_constant(node) is not None]
+    return sorted(found, key=lambda node: (node.lineno, node.col_offset))
+
+
+def _docstring_nodes(tree: ast.Module) -> list[ast.Constant]:
+    """The docstring literal of each documentable node.
+
+    Args:
+        tree: A parsed module.
+
+    Returns:
+        One node per docstring, in walk order.
+    """
+    found: list[ast.Constant] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+        first = node.body[0] if node.body else None
+        literal = _string_constant(first.value) if isinstance(first, ast.Expr) else None
+        if literal is not None:
+            found.append(literal)
+    return found
+
+
 def _docstring_literals(tree: ast.Module) -> list[tuple[int, str]]:
     """The docstring of each documentable node, with where it starts.
 
@@ -226,21 +316,7 @@ def _docstring_literals(tree: ast.Module) -> list[tuple[int, str]]:
         because ``ast.get_docstring`` discards position, and a finding without
         one sends the reader hunting.
     """
-    found: list[tuple[int, str]] = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
-            continue
-        first = node.body[0] if node.body else None
-        if (
-            isinstance(first, ast.Expr)
-            and isinstance(first.value, ast.Constant)
-            and isinstance(first.value.value, str)
-        ):
-            # Narrowed HERE, where the isinstance chain is the proof, rather
-            # than at the use site - a returned node loses the narrowing and
-            # the caller would need a cast to get it back.
-            found.append((first.value.lineno, first.value.value))
-    return found
+    return [(node.lineno, node.value) for node in _docstring_nodes(tree)]
 
 
 def _assert_messages(tree: ast.Module) -> list[tuple[int, str]]:
@@ -266,6 +342,37 @@ def _assert_messages(tree: ast.Module) -> list[tuple[int, str]]:
         ]
         if chunks:
             found.append((node.lineno, "".join(chunks)))
+    return found
+
+
+def _argument_nodes(tree: ast.Module) -> list[ast.Constant]:
+    """String literals passed DIRECTLY as an argument of a call.
+
+    This is contract 5's fourth prose kind. ``pytest.skip("...")`` carries a
+    sentence shipped to the OPERATOR to explain a loss, and no docstring,
+    comment or assert message holds it - a reason CS-435 shipped a false
+    universal in this exact position, in a warning detail, which the fence
+    could not see at all.
+
+    The rule is DIRECT arguments only. A string nested inside a dict, a tuple
+    or a set that is itself an argument is a data structure being passed, not a
+    sentence being written, and reading those would make this module fail
+    itself on its own grammar table.
+
+    Args:
+        tree: A parsed module.
+
+    Returns:
+        The argument nodes, in walk order.
+    """
+    found: list[ast.Constant] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        for arg in (*node.args, *(keyword.value for keyword in node.keywords)):
+            literal = _string_constant(arg)
+            if literal is not None:
+                found.append(literal)
     return found
 
 
@@ -344,6 +451,7 @@ def prose_paragraphs(source: str) -> list[ProseParagraph]:
         SyntaxError: If the source does not parse.
     """
     tree = ast.parse(source)
+    kinds = _string_kinds(tree)
     out: list[ProseParagraph] = []
     for start, docstring in _docstring_literals(tree):
         numbered = [(start + offset, line) for offset, line in enumerate(docstring.splitlines())]
@@ -358,6 +466,15 @@ def prose_paragraphs(source: str) -> list[ProseParagraph]:
         text = citations.normalise_lines(message.splitlines())
         if text:
             out.append(ProseParagraph(lineno=lineno, kind="assert", text=text))
+    for node in _argument_nodes(tree):
+        # An argument that sits INSIDE an assert message is already read as one,
+        # and the kind map is what decides that, so a sentence in that position
+        # is reported once rather than twice under two labels.
+        if kinds.get(id(node)) != "argument":
+            continue
+        text = citations.normalise_lines(node.value.splitlines())
+        if text:
+            out.append(ProseParagraph(lineno=node.lineno, kind="argument", text=text))
     return out
 
 
@@ -517,6 +634,243 @@ def sentence_count(source: str) -> int:
 
 
 # ---------------------------------------------------------------------------
+# The census - contract 6
+# ---------------------------------------------------------------------------
+
+
+def _string_kinds(tree: ast.Module) -> dict[int, str]:
+    """Classify a module's string literals in ONE parse, by node identity.
+
+    Each pass is a POSITIVE rule, and the first pass to claim a node keeps it,
+    so the result is a partition rather than an overlap. A node no pass claims
+    is absent from the mapping, which is what :func:`string_census` reports as
+    unaccounted.
+
+    Args:
+        tree: A parsed module.
+
+    Returns:
+        ``id(node)`` mapped to a kind label. A label in :data:`_PROSE_KINDS` is
+        read as prose; a label in :data:`_EXEMPT_KINDS` is not.
+    """
+    kinds: dict[int, str] = {}
+    for node in _docstring_nodes(tree):
+        kinds.setdefault(id(node), "docstring")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assert) and node.msg is not None:
+            for part in ast.walk(node.msg):
+                if _string_constant(part) is not None:
+                    kinds.setdefault(id(part), "assert")
+    for node in _argument_nodes(tree):
+        kinds.setdefault(id(node), "argument")
+    for node in tree.body:
+        if not isinstance(node, ast.Assign | ast.AnnAssign):
+            continue
+        value = _string_constant(node.value)
+        if value is not None and value.value.isidentifier():
+            kinds.setdefault(id(value), _MODULE_CONSTANT)
+    return kinds
+
+
+@dataclass(frozen=True)
+class StringCensus:
+    """The conservation account for one module's string literals.
+
+    Attributes:
+        extracted: Nodes a prose channel reads, as ``(lineno, kind)``.
+        exempt: Nodes an exemption matched, as ``(lineno, kind)``.
+        unaccounted: Nodes no rule claimed, as ``(lineno, text)``. Non-empty
+            means a string sits in a position no rule here covers.
+    """
+
+    extracted: tuple[tuple[int, str], ...]
+    exempt: tuple[tuple[int, str], ...]
+    unaccounted: tuple[tuple[int, str], ...]
+
+    @property
+    def total(self) -> int:
+        """How many string literals the module holds."""
+        return len(self.extracted) + len(self.exempt) + len(self.unaccounted)
+
+
+def string_census(source: str) -> StringCensus:
+    """Account for a module's string literals, from ONE parse.
+
+    Args:
+        source: A module's full text.
+
+    Returns:
+        The census. ``len(extracted) + len(exempt) == total`` exactly when the
+        unaccounted set is empty, which is what the fenced test asserts.
+
+    Raises:
+        SyntaxError: If the source does not parse.
+    """
+    tree = ast.parse(source)
+    kinds = _string_kinds(tree)
+    extracted: list[tuple[int, str]] = []
+    exempt: list[tuple[int, str]] = []
+    unaccounted: list[tuple[int, str]] = []
+    for node in _string_constants(tree):
+        kind = kinds.get(id(node))
+        if kind in _PROSE_KINDS:
+            extracted.append((node.lineno, kind))
+        elif kind in _EXEMPT_KINDS:
+            exempt.append((node.lineno, kind))
+        else:
+            unaccounted.append((node.lineno, node.value[:_QUOTE_WIDTH]))
+    return StringCensus(tuple(extracted), tuple(exempt), tuple(unaccounted))
+
+
+def comment_census(source: str) -> dict[str, tuple[int, ...]]:
+    """Account for a module's comment tokens.
+
+    The total is taken from :mod:`tokenize` directly rather than from the run
+    grouper, so a token the grouper drops shows up as a shortfall rather than
+    going uncounted.
+
+    Args:
+        source: A module's full text.
+
+    Returns:
+        A kind label mapped to the line numbers carrying it: ``comment`` for a
+        token :func:`prose_paragraphs` reads, ``rule`` for a horizontal rule,
+        ``blank`` for one that decomments to an empty string, and
+        ``unaccounted`` for a token the run grouper did not yield.
+
+    Raises:
+        tokenize.TokenError: If the source does not tokenize.
+    """
+    seen: dict[int, str] = {}
+    for run in _comment_runs(source):
+        for lineno, text in run:
+            if citations._RULE_RE.match(text):  # noqa: SLF001
+                seen[lineno] = "rule"
+            elif citations._decomment(text):  # noqa: SLF001
+                seen[lineno] = "comment"
+            else:
+                seen[lineno] = "blank"
+    out: dict[str, list[int]] = {label: [] for label in (*_COMMENT_KINDS, "unaccounted")}
+    for token in tokenize.generate_tokens(io.StringIO(source).readline):
+        if token.type == tokenize.COMMENT:
+            out[seen.get(token.start[0], "unaccounted")].append(token.start[0])
+    return {label: tuple(lines) for label, lines in out.items()}
+
+
+def string_position_mutants(source: str, claim: str) -> list[tuple[int, str, str]]:
+    """One mutant per string literal, carrying the claim in that position.
+
+    The positions are ENUMERATED FROM THE PARSE rather than written down, so a
+    position added to the module tomorrow is probed without anyone remembering
+    to list it. The mutant is rendered with :func:`ast.unparse` rather than by
+    splicing text: CPython merges adjacent literal chunks of an implicitly
+    concatenated f-string into ONE node whose source span crosses the quote
+    characters between them, and a text splice over that span produces a module
+    that does not parse.
+
+    Args:
+        source: A module's full text.
+        claim: The sentence to write into each position. It carries a marker
+            and cites no test, so a channel that reads it has to report it.
+
+    Returns:
+        ``(lineno, kind, mutant_source)`` per position, the kind taken from
+        :func:`_string_kinds` so a caller knows which disposition is due.
+        Rendering drops comments, which is why the comment positions are probed
+        separately by :func:`comment_position_mutants`.
+
+    Raises:
+        SyntaxError: If the source does not parse.
+    """
+    tree = ast.parse(source)
+    kinds = _string_kinds(tree)
+    out: list[tuple[int, str, str]] = []
+    for node in _string_constants(tree):
+        original = node.value
+        node.value = claim
+        try:
+            out.append((node.lineno, kinds.get(id(node), "unaccounted"), ast.unparse(tree)))
+        finally:
+            node.value = original
+    return out
+
+
+def comment_position_mutants(source: str, claim: str) -> list[tuple[int, str]]:
+    """One mutant per comment token, the claim written over that comment.
+
+    THE CLAIM IS PREFIXED WITH A SENTENCE TERMINATOR, and that is load-bearing
+    rather than cosmetic. A comment line in the middle of a paragraph is a
+    fragment of a sentence that starts on an earlier line, so a claim written
+    over it CONTINUES that sentence instead of being one. It then inherits any
+    citation the sentence already carried, and a sentence naming a resolving
+    test satisfies contract 1 whatever else it says - measured against the
+    paragraph excluding ``test_both_tag_grammar_transcriptions_agree`` from the
+    derived set, where three consecutive positions absorbed the claim that way.
+    That is contract 3's stated limit reached from a new direction, not a fresh
+    gap: a resolving citation is not evidence that the test backs the
+    sentence. The terminator closes the preceding fragment so the probe asks
+    the question it means to ask, which is whether a claim written AT this
+    position is read.
+
+    Args:
+        source: A module's full text.
+        claim: The sentence to write into each position.
+
+    Returns:
+        ``(lineno, mutant_source)`` per comment token. A comment span ends at
+        the end of its line, so overwriting one is a safe text edit where
+        overwriting a string literal is not.
+
+    Raises:
+        tokenize.TokenError: If the source does not tokenize.
+    """
+    offsets = [0]
+    for line in source.splitlines(keepends=True):
+        offsets.append(offsets[-1] + len(line))
+    out: list[tuple[int, str]] = []
+    for token in tokenize.generate_tokens(io.StringIO(source).readline):
+        if token.type != tokenize.COMMENT:
+            continue
+        begin = offsets[token.start[0] - 1] + token.start[1]
+        end = offsets[token.end[0] - 1] + token.end[1]
+        out.append((token.start[0], f"{source[:begin]}# . {claim}{source[end:]}"))
+    return out
+
+
+def modules_declaring(marker: str, sources: Mapping[str, str]) -> tuple[str, ...]:
+    """The modules that declare a contract marker at module scope.
+
+    Args:
+        marker: The marker name, as :data:`_FENCE_MARKER` spells it.
+        sources: Repo-relative POSIX path mapped to module text.
+
+    Returns:
+        The declaring paths, sorted. A module that does not parse is skipped
+        rather than reported here - the fenced modules are parsed by the scan
+        itself, which reports a SyntaxError.
+    """
+    found: list[str] = []
+    for path, source in sorted(sources.items()):
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            continue
+        for node in tree.body:
+            if isinstance(node, ast.AnnAssign):
+                targets: list[ast.expr] = [node.target]
+            elif isinstance(node, ast.Assign):
+                targets = list(node.targets)
+            else:
+                continue
+            names = {t.id for t in targets if isinstance(t, ast.Name)}
+            declared = isinstance(node.value, ast.Constant) and node.value.value is True
+            if marker in names and declared:
+                found.append(path)
+                break
+    return tuple(found)
+
+
+# ---------------------------------------------------------------------------
 # Paragraph references - contract 4
 # ---------------------------------------------------------------------------
 
@@ -653,6 +1007,45 @@ _CONTROL_RED_DOCSTRING_FINDINGS: Final = 2
 #: citation form, which is what pins both forms in the same run.
 _CONTROL_UNRESOLVED_CITATIONS: Final = 2
 
+#: One string in each position the census discriminates between. The pairs are
+#: what pin the exemption BOUNDARIES: a token and a sentence in the SAME
+#: module-scope assignment slot, and a direct call argument beside a string
+#: nested one level inside one. A control that only showed the exempted thing
+#: exempted would pin neither edge.
+_CONTROL_CENSUS = '''\
+"""A synthetic module docstring."""
+
+TOKEN = "identifier"
+SENTENCE = "a module-scope assignment holding a sentence rather than a token."
+TABLE = {"nested": "a string inside a dict that is not a direct argument."}
+
+
+def check(value: int) -> None:
+    """A function docstring."""
+    inner = "a function-scope assignment, which is not module scope."
+    skip("a call argument carrying an operator-facing sentence.")
+    wrap({"nested": "a string inside a dict passed as an argument."})
+    assert value, "an assert message."
+'''
+
+#: Comment lines, one per class the grouper discriminates between. The last two
+#: are the boundary: a line opening like a horizontal rule but carrying text is
+#: prose, and a trailing comment beside code is prose too.
+_CONTROL_COMMENT_CENSUS = """\
+# ---------------------------------------------------------------------------
+# A comment line carrying prose.
+#
+#: A Sphinx attribute-doc line.
+# --- a line that opens like a rule and then carries text.
+VALUE = "token"  # a trailing comment beside code.
+"""
+
+#: The sentence contract 6's mutation control writes into each position the
+#: censused module's parse admits. It carries a listed marker and cites no
+#: test, so a channel that READS it has to report it. Held in a module-level
+#: assignment, which is not a prose channel, so it stays inert where it sits.
+_MARKED_CLAIM: Final = "CONTROLPROBE - every payload reaches its terminator."
+
 _CONTROL_PARAGRAPH_INDEX: Final = (
     "THAT JOIN CARRIES TWO QUANTITIES AND THEY DO NOT GRADE THE TAG WIDTHS "
     "BELOW ALIKE - one mechanism read at two quantities.",
@@ -707,6 +1100,131 @@ def test_the_fenced_prose_carries_no_unbacked_absolute_claim(repo_root: Path) ->
         "made to name a test that resolves. Adding it to an exemption list is "
         "not a third option - see contract 1."
     )
+
+
+def test_the_fenced_and_censused_scopes_are_derived_from_the_tree(repo_root: Path) -> None:
+    sources = _sources_under(repo_root, "tests")
+
+    for marker, declared in ((_FENCE_MARKER, FENCED_MODULES), (_CENSUS_MARKER, CENSUSED_MODULES)):
+        derived = modules_declaring(marker, sources)
+        assert derived, (
+            f"no module under tests/ declares {marker}, so the scope was derived "
+            "from an empty walk and the tuple beside it is once again a "
+            "hand-written allowlist. The walk has broken, or the markers have "
+            "been deleted."
+        )
+        assert derived == tuple(sorted(declared)), (
+            f"the {marker} scope declared in the tuple is {sorted(declared)} and "
+            f"the walk of the tree found {list(derived)}. These are two "
+            "independent records of one scope, so a disagreement means either a "
+            "tuple entry was deleted while its module still declares itself, or "
+            "a module's marker was deleted while the tuple still names it. "
+            "Narrowing the scope takes both edits, and this is the test that "
+            "makes each one alone visible."
+        )
+        assert len(derived) < len(sources), (
+            f"{marker} selected the whole of tests/, so the derivation "
+            "discriminates between no modules and would agree with any tuple."
+        )
+
+    assert set(CENSUSED_MODULES) <= set(FENCED_MODULES), (
+        f"{sorted(set(CENSUSED_MODULES) - set(FENCED_MODULES))} is censused "
+        "without being fenced, so its strings would be accounted for and then "
+        "left ungraded."
+    )
+
+
+def test_every_string_and_comment_in_a_censused_module_is_read_or_exempt(repo_root: Path) -> None:
+    sources = _sources_under(repo_root, "tests")
+    for path in CENSUSED_MODULES:
+        assert path in sources, f"{path} is censused and no such module was read"
+        census = string_census(sources[path])
+
+        assert census.extracted, (
+            f"the census read no prose at all out of {path}. A census whose "
+            "extracted set is empty balances by exempting the rest, which is "
+            "the vacuous green contract 6 exists to prevent."
+        )
+        assert not census.unaccounted, (
+            f"string literals in {path} that no prose channel reads and no "
+            f"exemption claims: {list(census.unaccounted)}. Contract 6 admits "
+            "two dispositions and no third: read it as prose, or match it with "
+            "an exemption that carries a control pinning its boundary. Leaving "
+            "it here means a sentence written in that position is invisible to "
+            "the fence, which is the hole CS-420 measured rather than guessed."
+        )
+        assert len(census.extracted) + len(census.exempt) == census.total, (
+            f"the census of {path} does not balance: {len(census.extracted)} "
+            f"read plus {len(census.exempt)} exempt against {census.total} total."
+        )
+
+        comments = comment_census(sources[path])
+        assert comments["comment"], (
+            f"the census read no comment token at all out of {path}, so the "
+            "comment half of contract 6 would pass on an empty scan."
+        )
+        assert not comments["unaccounted"], (
+            f"comment tokens in {path} the run grouper did not yield, at lines "
+            f"{list(comments['unaccounted'])}. tokenize found them and the "
+            "extractor did not, so prose is being dropped between the two."
+        )
+
+
+def test_a_marked_claim_at_each_parse_derived_position_is_caught(repo_root: Path) -> None:
+    sources = _sources_under(repo_root, "tests")
+    for path in CENSUSED_MODULES:
+        source = sources[path]
+        rendered = ast.unparse(ast.parse(source))
+
+        assert not unbacked_absolutes(path, rendered, sources), (
+            f"{path} reports a finding with NO claim inserted, so the "
+            "comparison below would credit the fence with catching a claim it "
+            "did not catch. Rendering drops comments and leaves the rest as it "
+            "was, so a finding here means the pristine module is already red."
+        )
+
+        by_scan: list[int] = []
+        by_census: list[int] = []
+        missed: list[str] = []
+        for lineno, kind, mutant in string_position_mutants(source, _MARKED_CLAIM):
+            reported = bool(unbacked_absolutes(path, mutant, sources))
+            unaccounted = bool(string_census(mutant).unaccounted)
+            if kind in _PROSE_KINDS and reported:
+                by_scan.append(lineno)
+            elif kind in _EXEMPT_KINDS and unaccounted:
+                by_census.append(lineno)
+            else:
+                missed.append(f"line {lineno} ({kind}) scan={reported} census={unaccounted}")
+
+        assert not missed, (
+            f"a claim written into these positions of {path} was caught by "
+            f"neither the scan nor the census: {missed}. A prose position has "
+            "to be REPORTED, and an exempt position has to fall out of the "
+            "census - an exemption that stays quiet when a sentence is written "
+            "into it is a hole with a control bolted to it."
+        )
+        assert by_scan, (
+            f"no position in {path} was caught by the SCAN, so the prose half "
+            "of this control graded an empty population."
+        )
+        assert by_census, (
+            f"no position in {path} was caught by the CENSUS, so the exemption "
+            "half of this control graded an empty population and the boundary "
+            "of the exempt class is unpinned."
+        )
+
+        comment_missed = [
+            lineno
+            for lineno, mutant in comment_position_mutants(source, _MARKED_CLAIM)
+            if not unbacked_absolutes(path, mutant, sources)
+        ]
+        assert not comment_missed, (
+            f"a claim written over the comment at these lines of {path} was "
+            f"not reported: {comment_missed}. The dropped-as-blank and "
+            "dropped-as-rule comment classes are exemptions too, so a comment "
+            "position that swallows a sentence is the same hole in the other "
+            "channel."
+        )
 
 
 def test_every_full_citation_in_the_fenced_prose_resolves(repo_root: Path) -> None:
@@ -826,6 +1344,88 @@ def test_prose_is_read_from_the_three_kinds_and_not_from_a_data_literal() -> Non
         "assignments, so a reader that treated an assignment as prose would make "
         "this module fail itself, and the corpora would have to be moved out "
         "behind a scope rule - which is the artifact contract 1 refuses."
+    )
+
+
+def _corpus_line(corpus: str, needle: str) -> int:
+    """Where a fragment sits in a control corpus, so no line number is written.
+
+    Args:
+        corpus: One of the corpora authored in this module.
+        needle: Text identifying the line.
+
+    Returns:
+        The 1-indexed line number.
+
+    Raises:
+        AssertionError: If the fragment is absent, so editing a corpus out from
+            under a control fails loudly rather than shifting what it grades.
+    """
+    for number, line in enumerate(corpus.splitlines(), start=1):
+        if needle in line:
+            return number
+    raise AssertionError(f"the control corpus no longer carries {needle!r}")
+
+
+def test_the_module_constant_exemption_stops_at_a_sentence_and_at_function_scope() -> None:
+    census = string_census(_CONTROL_CENSUS)
+    exempt = {lineno for lineno, kind in census.exempt if kind == _MODULE_CONSTANT}
+    unaccounted = {lineno for lineno, _ in census.unaccounted}
+
+    assert exempt == {_corpus_line(_CONTROL_CENSUS, "TOKEN =")}, (
+        f"the module-scope token was not the one string exempted: {census.exempt}. "
+        "The exemption is what lets a terminator word and a counter key stay out "
+        "of the prose scan."
+    )
+    assert _corpus_line(_CONTROL_CENSUS, "SENTENCE =") in unaccounted, (
+        "a module-scope assignment holding a SENTENCE was exempted alongside the "
+        "token beside it. That is the write-anything channel: an exemption keyed "
+        "on the slot rather than on what the string is would swallow any "
+        "sentence an author put there, and the scan would not see it."
+    )
+    assert _corpus_line(_CONTROL_CENSUS, "inner =") in unaccounted, (
+        "a FUNCTION-scope assignment holding a token was exempted. The exemption "
+        "is bounded to module scope because that is where the constants it "
+        "covers are declared; widening it silently is how a scope rule grows."
+    )
+
+
+def test_the_census_reads_a_direct_call_argument_and_not_one_nested_inside_a_literal() -> None:
+    census = string_census(_CONTROL_CENSUS)
+    argument = {lineno for lineno, kind in census.extracted if kind == "argument"}
+    unaccounted = {lineno for lineno, _ in census.unaccounted}
+    nested = {
+        _corpus_line(_CONTROL_CENSUS, "TABLE ="),
+        _corpus_line(_CONTROL_CENSUS, "wrap("),
+    }
+
+    assert _corpus_line(_CONTROL_CENSUS, "skip(") in argument, (
+        f"the sentence passed DIRECTLY to a call was not read as prose: "
+        f"{census.extracted}. That position is where pytest.skip carries a "
+        "reason to the operator, and CS-435 shipped a false universal in its "
+        "sibling, a warning detail, which no channel could see."
+    )
+    assert nested <= unaccounted, (
+        f"a string nested inside a dict was read as a direct argument: "
+        f"{census.extracted}. Reading those would make this module fail itself "
+        "on its own grammar table, which is a list of regexes inside a dict "
+        "inside a call - so the boundary is load-bearing rather than tidy."
+    )
+
+
+def test_the_comment_census_separates_prose_from_a_rule_and_a_blank() -> None:
+    census = comment_census(_CONTROL_COMMENT_CENSUS)
+
+    assert census == {
+        "comment": (2, 4, 5, 6),
+        "rule": (1,),
+        "blank": (3,),
+        "unaccounted": (),
+    }, (
+        f"the comment classifier put a token in the wrong class: {census}. Line "
+        "5 opens like a horizontal rule and carries text, so it is prose; line "
+        "6 is a trailing comment beside code, which is prose too. Widening "
+        "either exemption to cover them would drop authored text on the floor."
     )
 
 
