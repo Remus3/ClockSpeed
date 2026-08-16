@@ -201,8 +201,7 @@ _SHIFTED_JOIN: Final = "shifted"
 #: tags through the tag cap still spans the full count and clears the floor. So
 #: this floor can go RED ON A CORRECT GRAMMAR if autosave rotation retires the
 #: saves contributing a rare word. CS-432 owns the repair and the constant is
-#: deliberately left alone here; the attribution test below avoids the hazard
-#: already by comparing against a pristine baseline measured in the same run.
+#: deliberately left alone here.
 _JOIN_WORD_FLOOR: Final = 13
 
 

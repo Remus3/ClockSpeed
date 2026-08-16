@@ -88,7 +88,7 @@ stated in contract 3:
   ``_TAG_EXTRA_STRINGS`` docstring is CS-422's to repair and a fence that
   reddens on another item's file would be reverted rather than obeyed. ADR 0008
   scopes its own mechanical fence the same way and calls widening it separate
-  work. No claim in this module covers that file.
+  work.
 - A SYNONYM ESCAPES, and this is the residual most likely to be mistaken for a
   stronger result than it is. Swapping a universal determiner for a
   distributive one - "each" in place of the listed marker - satisfies the fence
@@ -175,8 +175,7 @@ LOCAL_CITATION_RE: Final = re.compile(r"``(test_\w+)``")
 #: A sentence boundary: a terminator followed by whitespace. See the residual.
 _SENTENCE_SPLIT_RE: Final = re.compile(r"(?<=[.!?])\s+")
 
-#: A reference to a prose paragraph by its opening words, in either quoting
-#: style the tree uses.
+#: A reference to a prose paragraph by its opening words.
 _PARAGRAPH_REFERENCE_RE: Final = re.compile(r"beginning\s+(?:``([^`]+)``|'([^']+)')")
 
 #: The token that makes "beginning <quoted>" a PARAGRAPH reference rather than
@@ -184,8 +183,8 @@ _PARAGRAPH_REFERENCE_RE: Final = re.compile(r"beginning\s+(?:``([^`]+)``|'([^']+
 _PARAGRAPH_ANCHOR: Final = "paragraph"
 
 #: How many whitespace-separated tokens before "beginning" are searched for the
-#: anchor. Measured against the tree: the widest real gap is three tokens, and
-#: the base64url sentence in ``synthetic.py`` has the anchor absent entirely.
+#: anchor. The base64url sentence in ``synthetic.py`` has the anchor absent
+#: entirely.
 _PARAGRAPH_LOOKBACK_TOKENS: Final = 6
 
 #: Directories whose modules supply the paragraph index that contract 4
@@ -386,7 +385,6 @@ class Finding:
     Attributes:
         path: Repo-relative POSIX path of the module it sits in.
         lineno: Where its paragraph starts.
-        kind: ``docstring`` or ``comment``.
         markers: Which entries of :data:`ABSOLUTE_PATTERNS` matched.
         sentence: The sentence, truncated for a failure message.
     """
