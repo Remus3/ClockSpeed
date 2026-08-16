@@ -33,6 +33,10 @@ has NO path allowlist of any kind. It checks its own source, its own tests and
 its own hooks exactly like anything else, and `--verbose` / `--list-skipped`
 print every path it did not check together with the reason it did not.
 
+A COVERAGE skip - one saying this gate's own DETECTION was reduced, rather than
+that a unit went unread - prints with NO flag at all, because the git hook
+passes none. See COVERAGE_SKIP_LABELS.
+
 Nothing personal is hardcoded here. The Windows account name comes from the
 environment, the platform account id from listing the save root, and the world
 names from the `.sav` basenames under it plus an operator declaration - all at
@@ -56,6 +60,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import traceback
 import unicodedata
 from dataclasses import dataclass, field
@@ -558,14 +563,31 @@ ENV_LOCAL_CONFIG = "CLOCKSPEED_LOCAL_CONFIG"
 ENV_WORLD_NAMES = "CLOCKSPEED_WORLD_NAMES"
 ENV_WORLD_TOKENS = "CLOCKSPEED_WORLD_TOKENS"
 
-# The sixth name, and the only one that is not an override of a discovered
-# value: it opts IN to printing the crash traceback that the handler at the
-# foot of this file suppresses by default. See the module docstring.
+# The sixth override, and the only SUBTRACTIVE one: it names world values that
+# were discovered correctly and that the operator has decided not to block on.
+# See EXCLUSION SURFACE below for why subtracting per value is the only shape
+# that was allowed.
+ENV_WORLD_NAME_EXCLUSIONS = "CLOCKSPEED_WORLD_NAME_EXCLUSIONS"
+
+# The seventh name, and the only one that is not about a discovered value at
+# all: it opts IN to printing the crash traceback that the handler at the foot
+# of this file suppresses by default. See the module docstring.
 ENV_CRASH_TRACEBACK = "CLOCKSPEED_CRASH_TRACEBACK"
 
 CONFIG_ACCOUNT_DIR = "account_dir"
 CONFIG_WORLD_NAMES = "world_names"
 CONFIG_WORLD_TOKENS = "world_tokens"
+
+# EXCLUSION SURFACE (CS-209), and the shape of it is a measurement rather than
+# a preference. CS-208 proposed raising the world-name length floor to suppress
+# a false positive and was DENIED BY MEASUREMENT on 2026-08-14: 16 matchable
+# world names exist on the operator's machine and the shortest is 4 characters,
+# so any floor at or above 5 drops a REAL world name and it then commits.
+# Narrowing a PII blocklist BY DEFAULT trades a diagnosable fail-closed for a
+# certain fail-open. This key does the opposite: it subtracts ONE value the
+# operator named, leaving every sibling matching, and it announces the
+# subtraction through the skip channel on every run.
+CONFIG_WORLD_NAME_EXCLUSIONS = "world_name_exclusions"
 
 # config/local.json is gitignored, by `config/local.json` and again by the
 # `*.local.json` pattern beside it. That is what makes it the right place for
@@ -578,6 +600,23 @@ MAX_LOCAL_CONFIG_BYTES = 64_000
 PII_ACCOUNT_ID_LABEL = "<pii:account-id>"
 PII_ACCOUNT_NAME_LABEL = "<pii:account-name>"
 PII_WORLD_LABEL = "<pii:world>"
+
+# COVERAGE SKIPS versus VOLUME SKIPS, and the split is what makes the promise
+# above true rather than merely written down (CS-209).
+#
+# The three labels here mean "this gate's own DETECTION was reduced" - a value
+# was discovered and then dropped, or was never discoverable at all. Every
+# other skip means "this UNIT was not read", which is volume: its count is
+# already on the PASS line and the paths are one flag away.
+#
+# emit() prints the coverage skips UNCONDITIONALLY, because .githooks/pre-commit
+# runs the gate with neither --verbose nor --list-skipped. Until CS-209 the
+# skipped channel printed under those flags only, every test in the suite
+# passed them explicitly, and so the claim that a dropped value stays visible
+# was FALSE on the one path that actually gates a commit. Printing the volume
+# skips there too would put a line per unchecked asset in front of the operator
+# on every commit, and a gate that becomes noise is a gate that gets turned off.
+COVERAGE_SKIP_LABELS = frozenset({PII_ACCOUNT_ID_LABEL, PII_ACCOUNT_NAME_LABEL, PII_WORLD_LABEL})
 
 # Shorter than this and a whole-word match on the account name would flag
 # ordinary prose more often than it would catch a leak. World names route
@@ -597,6 +636,14 @@ MIN_WORLD_TOKEN_CHARS = 8
 # The save root is listed one level deep and no deeper, and the listing stops
 # here. A gate that hangs is a gate that gets turned off.
 MAX_SAVE_ROOT_ENTRIES = 512
+
+# The two bounds on the header scan CS-403 added, and they exist for the same
+# reason as the entry cap above. The game keeps a rotating autosave set, so a
+# long-running world leaves dozens of .sav files in one directory; parsing all
+# of them on every commit would turn a gate into a bulk reader. Whichever bound
+# trips first, the remainder is REPORTED rather than silently dropped.
+MAX_SAVE_HEADER_FILES = 24
+SAVE_HEADER_BUDGET_SECONDS = 5.0
 
 # Directory names that sit BESIDE an account directory without being one.
 # Separate from GENERIC_ACCOUNT_NAMES because the two lists answer different
@@ -711,9 +758,10 @@ def _matchable(value: str, minimum: int, generic: frozenset[str]) -> str | None:
     Returns:
         None when the value is fine, otherwise the reason it was dropped. The
         reason NEVER contains the value: a skip line that prints what it
-        skipped is itself an echo path (CLAUDE.md non-negotiable 12), and
-        --list-skipped prints on a PASSING run, which is the output nobody
-        reads closely.
+        skipped is itself an echo path (CLAUDE.md non-negotiable 12). That
+        constraint got STRICTER with CS-209, not looser - these reasons now
+        print on every commit rather than only under --list-skipped, so a
+        reason that echoed its value would leak on the busiest path there is.
     """
     if len(value) < minimum:
         return "a discovered value of %d character(s) is too short to match safely" % len(value)
@@ -857,26 +905,69 @@ def discover_world_names(report: Report | None = None) -> list[str]:
     protect the account name - a length floor and the generic-name list -
     because a world called "test" must not blocklist the word "test" across the
     whole repository. A dropped name is reported, never silently ignored.
+
+    A FOURTH filter runs LAST and subtracts rather than narrows: a name the
+    operator listed under CONFIG_WORLD_NAME_EXCLUSIONS is dropped AFTER it has
+    been discovered. After, not during, and the ordering is the whole design.
+    Narrowing discovery to pre-empt a collision was CS-208 and was denied by
+    measurement; subtracting one named value leaves every sibling matching and
+    leaves the drop visible.
     """
     candidates = list(declared_values(ENV_WORLD_NAMES, CONFIG_WORLD_NAMES))
     for directory in [*_save_root_dirs(None), *_declared_account_dirs()]:
         candidates.extend(_world_names_from_saves(directory))
 
+    excluded = _world_name_exclusions()
+    dropped_by_exclusion = False
     found: list[str] = []
     for value in candidates:
         reason = _matchable(value, MIN_ACCOUNT_NAME_CHARS, GENERIC_ACCOUNT_NAMES)
-        if reason is None:
-            found.append(value)
-        else:
+        if reason is not None:
             _report_skip(report, PII_WORLD_LABEL, "world name: " + reason)
+            continue
+        if value.casefold() in excluded:
+            dropped_by_exclusion = True
+            _report_skip(
+                report,
+                PII_WORLD_LABEL,
+                "a discovered world name is excluded by the %s key; remove it from "
+                "there to block on that name again" % CONFIG_WORLD_NAME_EXCLUSIONS,
+            )
+            continue
+        found.append(value)
 
-    if report is not None and not found:
+    # `not dropped_by_exclusion` is load bearing and was found by reading a
+    # real transcript rather than by reasoning. When every discovered name is
+    # excluded, `found` is empty but the ADVICE below is false: the operator
+    # has already declared a name, and this line would sit directly under the
+    # exclusion skip contradicting it. Two skip lines that disagree teach a
+    # reader to stop reading the channel - which CS-209 cannot afford, since
+    # printing this channel on the authoritative path IS the item.
+    if report is not None and not found and not dropped_by_exclusion:
         report.skip(
             PII_WORLD_LABEL,
             "no world name is discoverable on this machine; set %s or add %s to "
             "config/local.json to enable this check" % (ENV_WORLD_NAMES, CONFIG_WORLD_NAMES),
         )
     return sorted(set(found))
+
+
+def _world_name_exclusions() -> frozenset[str]:
+    """The world names the operator has opted OUT of blocking on.
+
+    CASE FOLDED, because the matcher these exempt is built with re.IGNORECASE.
+    An exclusion that compared case-sensitively would read as working and do
+    nothing whenever the operator typed the name with different capitalisation
+    than the `.sav` basename carries - which is the normal case, since one is
+    typed and the other is generated.
+
+    Returns:
+        The folded exclusions. Empty is the normal case and is not an error.
+    """
+    return frozenset(
+        value.casefold()
+        for value in declared_values(ENV_WORLD_NAME_EXCLUSIONS, CONFIG_WORLD_NAME_EXCLUSIONS)
+    )
 
 
 def _declared_account_dirs() -> list[Path]:
@@ -923,20 +1014,183 @@ def _world_names_from_saves(directory: Path) -> list[str]:
     return names
 
 
+def _load_header_reader() -> object:
+    """Import the save-header reader LAZILY, and never at module scope.
+
+    THIS FUNCTION IS THE ENTIRE RISK OF CS-403, so the reasoning lives here
+    rather than in a document that will drift away from it.
+
+    The seam direction is fine and was settled by reading the line rather than
+    by assuming: docs/ARCHITECTURE.md prohibits clockspeed/ importing tools/,
+    and NOT the reverse. tools/drift_guard.py already lazily imports
+    clockspeed.data.* and records that same direction as correct.
+
+    What is NOT fine is importing a product module at STARTUP. This gate has to
+    run in a checkout where nothing is installed and where the package may be
+    mid-edit and not importable at all, and A GATE THAT CANNOT START DOES NOT
+    BLOCK - it is the one failure a gate must not have. So the import sits
+    inside a function that main() reaches long after the module body has
+    finished executing, and every caller treats failure as an ordinary skip.
+
+    The path insertion is needed because the gate runs as
+    `python tools/precommit_gate.py`, which puts tools/ on sys.path and not the
+    repository root, so `clockspeed` does not resolve on its own. The entry is
+    removed again immediately, so the shadowing window is this one import - and
+    the repository root holds no top-level module that could shadow a standard
+    library name anyway.
+
+    Returns:
+        The ``read_header`` callable.
+
+    Raises:
+        BaseException: Whatever the import raised. Callers catch it; nothing is
+            handled here, because a partial recovery would hide which of the
+            several failure modes actually occurred.
+    """
+    root = str(_repo_root())
+    inserted = root not in sys.path
+    if inserted:
+        sys.path.insert(0, root)
+    try:
+        # The suppression below is the entire point of this function.
+        # Hoisting this import to module scope is the one edit it exists to
+        # prevent, so the rule that would demand exactly that is silenced HERE
+        # and nowhere else in the file.
+        from clockspeed.save.header import read_header  # noqa: PLC0415
+    finally:
+        if inserted and root in sys.path:
+            sys.path.remove(root)
+    return read_header
+
+
+def _save_files(directory: Path) -> list[Path]:
+    """The `.sav` paths in one directory. READ-ONLY, name-listing only.
+
+    NEWEST FIRST, tie-broken by name. The ordering is load bearing rather than
+    cosmetic: MAX_SAVE_HEADER_FILES truncates this list, and the worlds most
+    likely to have their token pasted into a commit are the ones just played.
+    Truncating alphabetically would silently drop the recent ones. The name is
+    the tie-break so the order is deterministic when two files share an mtime,
+    which is the normal case in a test and the rare case on a real machine.
+
+    Any failure yields what was collected so far: a save directory that cannot
+    be listed is the same situation as a machine with no game installed.
+    """
+    found: list[Path] = []
+    try:
+        for index, entry in enumerate(sorted(directory.iterdir(), key=lambda item: item.name)):
+            if index >= MAX_SAVE_ROOT_ENTRIES:
+                break
+            if _SAVE_FILE_RE.match(entry.name) and entry.is_file():
+                found.append(entry)
+    except OSError:
+        return found
+
+    def sort_key(path: Path) -> tuple[float, str]:
+        try:
+            modified = path.stat().st_mtime
+        except OSError:
+            modified = 0.0
+        return (-modified, path.name)
+
+    return sorted(found, key=sort_key)
+
+
+def _world_tokens_from_headers(report: Report | None) -> list[str]:
+    """Read world tokens out of the save headers under the save root.
+
+    CS-403, and it closes the gap the docstring below used to record as an
+    honest limit. No second parser was grown here: this calls the one in
+    clockspeed/save/header.py, which reads a bounded prefix, opens READ ONLY,
+    and steps over the personal-data strings rather than decoding them.
+
+    EVERY failure mode is a skip and none of them is fatal. The reader may be
+    unimportable, the save root may be absent, a `.sav` may be truncated,
+    half-written by an autosave in progress, or not a save at all. The scan is
+    bounded twice, by MAX_SAVE_HEADER_FILES and by SAVE_HEADER_BUDGET_SECONDS,
+    and whichever bound trips says so.
+
+    Returns:
+        The tokens read, unfiltered. Never raises.
+    """
+    started = time.monotonic()
+    try:
+        read_header = _load_header_reader()
+    # BaseException, not Exception, and deliberately: a mid-edit module that
+    # calls sys.exit() at import time raises SystemExit, and letting that
+    # through would end the gate with the wrong exit code - the exact
+    # fail-to-start the grant forbids.
+    except BaseException as exc:
+        _report_skip(
+            report,
+            PII_WORLD_LABEL,
+            "the save-header reader is not importable from this checkout, so a "
+            "token is matchable only when declared (" + safe_exc_text(exc) + ")",
+        )
+        return []
+
+    paths: list[Path] = []
+    for directory in [*_save_root_dirs(None), *_declared_account_dirs()]:
+        paths.extend(_save_files(directory))
+
+    if len(paths) > MAX_SAVE_HEADER_FILES:
+        _report_skip(
+            report,
+            PII_WORLD_LABEL,
+            "more save files than the %d-file cap; the headers past it were not "
+            "read and their tokens are not matchable" % MAX_SAVE_HEADER_FILES,
+        )
+        paths = paths[:MAX_SAVE_HEADER_FILES]
+
+    found: list[str] = []
+    unreadable = 0
+    for path in paths:
+        if time.monotonic() - started > SAVE_HEADER_BUDGET_SECONDS:
+            _report_skip(
+                report,
+                PII_WORLD_LABEL,
+                "the %.1f second save-header budget was spent; the remaining "
+                "headers were not read" % SAVE_HEADER_BUDGET_SECONDS,
+            )
+            break
+        try:
+            found.append(read_header(path).world_token)  # type: ignore[operator]
+        except BaseException:
+            # A bad save is the NORMAL case, never fatal (non-negotiable 7).
+            # The exception text is NOT rendered. Every header exception in
+            # that module carries a redacted path, but "redacted by the code
+            # under test" is not an oracle a PII gate may rely on, and the
+            # filename it would name embeds the world name.
+            unreadable += 1
+
+    if unreadable:
+        _report_skip(
+            report,
+            PII_WORLD_LABEL,
+            "%d save header(s) under the save root could not be parsed; their "
+            "tokens are not matchable" % unreadable,
+        )
+    return found
+
+
 def discover_world_tokens(report: Report | None = None) -> list[str]:
-    """Discover this machine's world tokens, at runtime.
+    """Discover this machine's world tokens, at runtime, from three sources.
 
-    THE HONEST LIMIT, recorded at the mechanism rather than in a document that
-    will drift away from it: A WORLD TOKEN IS MATCHABLE HERE ONLY WHEN THE
-    OPERATOR DECLARES IT. The token lives inside the save HEADER, and this gate
-    holds no header parser. Growing one would duplicate CS-400, which is still
-    open, and two parsers of the same bytes are two answers waiting to
-    disagree. A world NAME can be recovered from a filename; a world TOKEN
-    cannot, so until CS-400 lands the `.sav` basenames contribute nothing to
-    this list and an UNDECLARED TOKEN IS UNMATCHED AND WILL COMMIT.
+    Sources, highest precedence first:
 
-    That gap is real and it is not papered over: the skip naming it is printed
-    by --list-skipped on every run where no token is declared.
+      1. CLOCKSPEED_WORLD_TOKENS, comma separated.
+      2. "world_tokens" in config/local.json, which is gitignored.
+      3. The save HEADERS under the save root, read through the parser in
+         clockspeed/save/header.py.
+
+    Source 3 is CS-403 and it is what makes an UNDECLARED token matchable. It
+    replaces the honest limit this docstring used to record - that a token
+    lives in the header, that this gate held no parser, and that an undeclared
+    token was therefore unmatched and would commit. The limit is not gone so
+    much as moved: on a checkout where the package cannot be imported the gate
+    degrades to sources 1 and 2, exactly as before, and SAYS SO through the
+    skip channel. Sources 1 and 2 keep working in that state - the fallback
+    degrades the header source alone and never the whole check.
 
     Matching is case SENSITIVE, unlike a world name. A token is generated
     rather than typed, so a case-folded match would only widen the false
@@ -950,12 +1204,18 @@ def discover_world_tokens(report: Report | None = None) -> list[str]:
         else:
             _report_skip(report, PII_WORLD_LABEL, "world token: " + reason)
 
+    for value in _world_tokens_from_headers(report):
+        reason = _matchable(value, MIN_WORLD_TOKEN_CHARS, GENERIC_ACCOUNT_NAMES)
+        if reason is None:
+            found.append(value)
+        else:
+            _report_skip(report, PII_WORLD_LABEL, "world token from a save header: " + reason)
+
     if report is not None and not found:
         report.skip(
             PII_WORLD_LABEL,
-            "no world token is declared; a token lives in the save header, which "
-            "this gate does not parse, so set %s or add %s to config/local.json"
-            % (ENV_WORLD_TOKENS, CONFIG_WORLD_TOKENS),
+            "no world token is discoverable on this machine; set %s or add %s to "
+            "config/local.json" % (ENV_WORLD_TOKENS, CONFIG_WORLD_TOKENS),
         )
     return sorted(set(found))
 
@@ -1063,6 +1323,12 @@ def _discovered_rules(matchers: PiiMatchers) -> list[tuple[list[re.Pattern[str]]
     a terminal and pasted into issues, so a diagnostic that echoes the personal
     data it found is the same leak in a different costume (CLAUDE.md
     non-negotiable 12). The LABEL and the line:column say where to look.
+
+    The world-name reason carries a REMEDY (CS-209), and naming the key is the
+    point of it. A diagnostic that says "this is personal data" and stops
+    leaves an operator with a red gate, a true positive they cannot act on and
+    a false positive they cannot clear, and the move available to them then is
+    --no-verify. The remedy names the key and never the value.
     """
     return [
         (matchers.name_res, "this machine's account name appears as a whole word"),
@@ -1073,11 +1339,17 @@ def _discovered_rules(matchers: PiiMatchers) -> list[tuple[list[re.Pattern[str]]
         (
             matchers.world_name_res,
             "a world name discovered on this machine appears as a whole word "
-            "(CLAUDE.md non-negotiable 3)",
+            "(CLAUDE.md non-negotiable 3); if that is a false positive, add the "
+            "name to the %s key in config/local.json, which is gitignored"
+            % CONFIG_WORLD_NAME_EXCLUSIONS,
         ),
         (
             matchers.world_token_res,
-            "a world token declared for this machine appears (CLAUDE.md non-negotiable 3)",
+            # Not "declared": since CS-403 a token is also read out of a save
+            # header, so a reason naming only the declaration source would
+            # send a reader looking in config/local.json for a value that is
+            # not there.
+            "a world token for this machine appears (CLAUDE.md non-negotiable 3)",
         ),
     ]
 
@@ -1709,6 +1981,29 @@ def display_diagnostic(diag: Diagnostic) -> str:
     ).render()
 
 
+def skipped_lines(report: Report, verbose: bool, list_skipped: bool) -> list[str]:
+    """Render the skipped channel, splitting coverage skips from volume skips.
+
+    Under either flag the count header and every skip render, exactly as they
+    did before CS-209. With NEITHER flag - which is how .githooks/pre-commit
+    invokes this gate, and therefore the only invocation that gates a commit -
+    the COVERAGE skips still render, because a reduction in this gate's own
+    detection that nobody is ever shown is not an exemption, it is a silent
+    hole (CONVENTIONS.md section 15.1). See COVERAGE_SKIP_LABELS.
+
+    Returns:
+        The lines to write, each already newline-terminated.
+    """
+    lines: list[str] = []
+    if verbose or list_skipped:
+        lines.append("%s: skipped %d unit(s)\n" % (GATE_NAME, len(report.skipped)))
+        shown = list(report.skipped)
+    else:
+        shown = [pair for pair in report.skipped if pair[0] in COVERAGE_SKIP_LABELS]
+    lines.extend(f"  skipped  {display_label(label)}  -  {why}\n" for label, why in shown)
+    return lines
+
+
 def emit(report: Report, verbose: bool, list_skipped: bool) -> int:
     """Print the report and return the process exit code."""
     out = sys.stdout
@@ -1717,10 +2012,8 @@ def emit(report: Report, verbose: bool, list_skipped: bool) -> int:
         out.write("%s: checked %d unit(s)\n" % (GATE_NAME, len(report.checked)))
         for label, origin, size in report.checked:
             out.write("  checked  %s  [%s, %d bytes]\n" % (display_label(label), origin, size))
-    if verbose or list_skipped:
-        out.write("%s: skipped %d unit(s)\n" % (GATE_NAME, len(report.skipped)))
-        for label, why in report.skipped:
-            out.write(f"  skipped  {display_label(label)}  -  {why}\n")
+    for line in skipped_lines(report, verbose, list_skipped):
+        out.write(line)
     if verbose:
         for note in report.notes:
             out.write(f"  note     {display_note(note, replacements)}\n")

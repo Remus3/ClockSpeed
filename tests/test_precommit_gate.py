@@ -750,13 +750,14 @@ def test_autosave_basename_yields_the_bare_world_name(tmp_path: Path) -> None:
 
 
 def test_world_token_declared_in_the_environment_is_blocked(tmp_path: Path) -> None:
-    """C2: the token half.
+    """C2: the token half, declaration source.
 
-    HONEST LIMIT, and it is the reason this test has no .sav-derived sibling:
-    a world token lives inside the save HEADER, not in any filename. The gate
-    holds no header parser and must not grow one - that is CS-400, and a
-    second parser would be a second answer. Until it lands, a token is
-    matchable only when the operator declares it.
+    A world token lives inside the save HEADER, not in any filename, so a
+    declaration was the ONLY source until CS-403 - which added a second, by
+    reading the header through the parser CS-400 shipped rather than by
+    growing a second one here. The declaration source is unchanged and this
+    test pins that it stayed unchanged; the header source has its own tests at
+    the foot of this file.
     """
     env = base_env(tmp_path)
     env["CLOCKSPEED_WORLD_TOKENS"] = SYNTHETIC_WORLD_ID
@@ -766,7 +767,7 @@ def test_world_token_declared_in_the_environment_is_blocked(tmp_path: Path) -> N
 
     assert result.returncode == 1, result.stdout
     assert "PII" in result.stderr
-    assert "world token declared for this machine" in result.stderr
+    assert "world token for this machine" in result.stderr
 
 
 def test_the_gate_source_carries_no_world_value_of_its_own(tmp_path: Path) -> None:
@@ -982,12 +983,30 @@ def test_unreadable_save_root_is_a_skip_not_a_crash(tmp_path: Path) -> None:
 # --------------------------------------------------------------------------
 
 
-def test_gate_imports_nothing_from_the_clockspeed_package() -> None:
-    """C9. The gate is the one tool that has to run in a checkout with nothing set up."""
-    source = GATE.read_bytes().decode("utf-8")
+def test_gate_imports_nothing_from_the_package_at_module_scope() -> None:
+    """C9. The gate is the one tool that has to run in a checkout with nothing set up.
 
-    assert "import clockspeed" not in source
-    assert "from clockspeed" not in source
+    CS-403 NARROWED THIS, and the narrowing is the point rather than a
+    concession. The original assertion was textual - the string "import
+    clockspeed" appears nowhere - which was the right shape while the gate
+    reached the package not at all. It now reaches the header parser through
+    ONE function-local import, so the property that actually protects startup
+    is MODULE SCOPE, not absence: a module-scope import runs before main() and
+    takes the gate down with the package, while a function-local one cannot.
+    test_the_package_import_is_function_local_and_never_at_module_scope pins
+    the same boundary from the other side and refuses a vacuous pass.
+    """
+    tree = ast.parse(GATE.read_bytes().decode("utf-8"))
+
+    module_scope: list[str] = []
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            module_scope.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+            module_scope.append(node.module)
+
+    offenders = [name for name in module_scope if name.split(".")[0] == "clockspeed"]
+    assert not offenders, offenders
 
 
 def test_gate_still_runs_and_blocks_with_the_package_out_of_reach(tmp_path: Path) -> None:
@@ -1125,7 +1144,7 @@ def test_a_staged_world_token_is_blocked_by_a_real_commit(
     after = git("rev-parse", "HEAD", cwd=hooked_repo).stdout.strip()
 
     assert attempt.returncode != 0, attempt.stdout
-    assert "world token declared for this machine" in attempt.stderr
+    assert "world token for this machine" in attempt.stderr
     assert after == before, "HEAD MOVED - the commit was not blocked"
 
 
@@ -1626,8 +1645,17 @@ def test_the_gate_imports_only_the_standard_library() -> None:
     """Condition 7: no new dependency, proven from the import graph.
 
     Running the gate puts tools/ on sys.path, not the repo root, so an
-    `import clockspeed` would not even resolve. Asserted against the parsed
-    AST rather than the text, because the docstrings name the package.
+    `import clockspeed` does not even resolve until the lazy loader puts the
+    root there itself. Asserted against the parsed AST rather than the text,
+    because the docstrings name the package.
+
+    CS-403 REMOVED the walk-level "clockspeed appears nowhere" assertion that
+    used to sit here, because the gate now reaches the header parser through
+    one function-local import. What replaced it is not weaker, it is more
+    specific: the module-scope rung below still admits stdlib only, and
+    test_the_package_import_is_function_local_and_never_at_module_scope
+    asserts every package import sits inside a function body AND that at least
+    one exists, so the surface cannot silently vanish either.
     """
     tree = ast.parse(GATE.read_bytes().decode("utf-8"))
 
@@ -1641,11 +1669,686 @@ def test_the_gate_imports_only_the_standard_library() -> None:
                 found.add(node.module.split(".")[0])
         return found
 
-    # Nothing anywhere in the file may reach into the package.
-    assert "clockspeed" not in roots(list(ast.walk(tree)))
-
     # MODULE SCOPE is the rung that matters for a dependency: those imports run
     # at startup, so a missing one stops the gate from starting at all. `ruff`
     # is imported inside ruff_command() as a guarded probe and is deliberately
     # not counted here - the gate treats a machine without ruff as fail-open.
     assert roots(tree.body) <= set(sys.stdlib_module_names), sorted(roots(tree.body))
+
+
+# ==========================================================================
+# CS-209 - a per-value world-name exclusion surface, and a skip channel that
+#          prints on the path .githooks/pre-commit actually runs
+# ==========================================================================
+#
+# CS-208 asked for a raised length floor and was DENIED BY MEASUREMENT on
+# 2026-08-14: 16 matchable world names exist on the operator's machine and the
+# shortest is 4 characters, so any floor at or above 5 drops a REAL world name
+# and it then commits. Narrowing a PII blocklist by default is the refuted
+# approach. The replacement is an EXPLICIT per-value exclusion the operator
+# opts into, one value at a time, in a file that cannot be committed.
+#
+# Every value below is synthetic and built in this file, per the module
+# docstring: the operator's real world name is never written into any
+# repository, throwaway or not, and never asserted on.
+
+SECOND_WORLD_NAME = "Qvarnholt" + "Basin"
+
+# The exclusion key and the environment override that shadows it. Named here
+# so a rename in the gate turns these tests red instead of silently leaving
+# the remedy sentence pointing at a key that no longer exists.
+EXCLUSIONS_CONFIG_KEY = "world_name_exclusions"
+EXCLUSIONS_ENV = "CLOCKSPEED_WORLD_NAME_EXCLUSIONS"
+
+
+def local_config_env(tmp_path: Path, payload: str) -> dict[str, str]:
+    """base_env plus a real config/local.json holding `payload`."""
+    config = tmp_path / "local.json"
+    write(config, payload)
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_LOCAL_CONFIG"] = str(config)
+    return env
+
+
+def test_an_excluded_world_name_is_dropped_after_discovery(tmp_path: Path) -> None:
+    """CS-209 acceptance, first clause.
+
+    The value is DISCOVERED - it reaches the gate through the same
+    `world_names` source as any other - and is then dropped by name. The drop
+    happens after discovery rather than by narrowing the discovery filter,
+    which is exactly the distinction CS-208's denial turned on.
+    """
+    env = local_config_env(
+        tmp_path,
+        '{"world_names": "%s", "%s": "%s"}\n'
+        % (SYNTHETIC_WORLD_NAME, EXCLUSIONS_CONFIG_KEY, SYNTHETIC_WORLD_NAME),
+    )
+    target = write(tmp_path / "note.md", "the " + SYNTHETIC_WORLD_NAME + " save\n")
+
+    result = run_gate("--files", str(target), "--list-skipped", env=env)
+
+    assert result.returncode == 0, result.stderr
+    assert EXCLUSIONS_CONFIG_KEY in result.stdout, result.stdout
+
+
+def test_the_exclusion_is_per_value_and_leaves_its_siblings_matching(tmp_path: Path) -> None:
+    """The non-vacuity control, and it is what makes the test above mean anything.
+
+    Without it, an exclusion surface that dropped EVERY world name would pass
+    the first test while silently disabling the check - which is the failure
+    mode CS-208 was denied for. Two names are declared, one is excluded, and
+    the other must still block.
+    """
+    env = local_config_env(
+        tmp_path,
+        '{"world_names": "%s,%s", "%s": "%s"}\n'
+        % (
+            SYNTHETIC_WORLD_NAME,
+            SECOND_WORLD_NAME,
+            EXCLUSIONS_CONFIG_KEY,
+            SYNTHETIC_WORLD_NAME,
+        ),
+    )
+    target = write(tmp_path / "note.md", "the " + SECOND_WORLD_NAME + " save\n")
+
+    result = run_gate("--files", str(target), env=env)
+
+    assert result.returncode == 1, result.stdout
+    assert "world name discovered on this machine" in result.stderr
+
+
+def test_the_exclusion_skip_never_echoes_the_excluded_value(tmp_path: Path) -> None:
+    """CS-209 acceptance: reported WITHOUT echoing the value.
+
+    A world name is personal data (CLAUDE.md non-negotiable 3) and a skip line
+    that prints what it skipped is an echo path exactly like a debug dump
+    (non-negotiable 12). The oracle is independent of the gate: the value is
+    built in this file, so what it is is known before the gate ever sees it.
+    """
+    env = local_config_env(
+        tmp_path,
+        '{"world_names": "%s", "%s": "%s"}\n'
+        % (SYNTHETIC_WORLD_NAME, EXCLUSIONS_CONFIG_KEY, SYNTHETIC_WORLD_NAME),
+    )
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+
+    result = run_gate("--files", str(target), "--verbose", "--list-skipped", env=env)
+    combined = result.stdout + result.stderr
+
+    assert result.returncode == 0, result.stderr
+    assert EXCLUSIONS_CONFIG_KEY in combined
+    assert SYNTHETIC_WORLD_NAME not in combined, combined
+    assert SYNTHETIC_WORLD_NAME.lower() not in combined.lower(), combined
+
+
+def test_the_exclusion_matches_case_insensitively_like_the_matcher(tmp_path: Path) -> None:
+    """An exclusion that is case SENSITIVE does not actually exclude.
+
+    World names are matched with re.IGNORECASE, so a blocklist entry differing
+    only in case still blocks. An exclusion surface that folded differently
+    from the matcher it is exempting would read as working and do nothing.
+    """
+    env = local_config_env(
+        tmp_path,
+        '{"world_names": "%s", "%s": "%s"}\n'
+        % (SYNTHETIC_WORLD_NAME, EXCLUSIONS_CONFIG_KEY, SYNTHETIC_WORLD_NAME.upper()),
+    )
+    target = write(tmp_path / "note.md", "the " + SYNTHETIC_WORLD_NAME + " save\n")
+
+    result = run_gate("--files", str(target), env=env)
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_the_exclusion_reads_the_environment_like_every_other_surface(tmp_path: Path) -> None:
+    """The override precedence every other declared value already has.
+
+    declared_values reads the environment first and the config second. An
+    exclusion that read only one of the two would be the single surface in
+    this file behaving differently from its five siblings.
+    """
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_WORLD_NAMES"] = SYNTHETIC_WORLD_NAME
+    env[EXCLUSIONS_ENV] = SYNTHETIC_WORLD_NAME
+    target = write(tmp_path / "note.md", "the " + SYNTHETIC_WORLD_NAME + " save\n")
+
+    result = run_gate("--files", str(target), env=env)
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_excluding_every_name_does_not_advise_declaring_one(tmp_path: Path) -> None:
+    """Found by reading a real end-to-end transcript, not by reasoning.
+
+    When the only discovered name is excluded, `found` is empty and the
+    "nothing is discoverable, set CLOCKSPEED_WORLD_NAMES" skip used to fire
+    directly beneath the exclusion skip. Its ADVICE is false in that state -
+    the operator HAS declared a name, and following the advice would change
+    nothing. Two skip lines that contradict each other teach a reader to stop
+    reading the channel, which is the one thing CS-209 cannot afford, since
+    printing that channel on the authoritative path is the whole item.
+    """
+    env = local_config_env(
+        tmp_path,
+        '{"world_names": "%s", "%s": "%s"}\n'
+        % (SYNTHETIC_WORLD_NAME, EXCLUSIONS_CONFIG_KEY, SYNTHETIC_WORLD_NAME),
+    )
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+
+    result = run_gate("--files", str(target), "--list-skipped", env=env)
+
+    assert result.returncode == 0, result.stderr
+    assert EXCLUSIONS_CONFIG_KEY in result.stdout, result.stdout
+    assert "no world name is discoverable" not in result.stdout, result.stdout
+
+
+def test_the_undiscoverable_advice_still_fires_when_nothing_was_excluded(
+    tmp_path: Path,
+) -> None:
+    """The control. Suppressing that line unconditionally would hide a real gap.
+
+    On a machine with no game, no override and no config the advice is correct
+    and is the only thing telling the operator the world check is inert.
+    """
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+
+    result = run_gate("--files", str(target), "--list-skipped", env=base_env(tmp_path))
+
+    assert result.returncode == 0, result.stderr
+    assert "no world name is discoverable" in result.stdout, result.stdout
+
+
+def test_the_world_name_diagnostic_names_the_exclusion_key_as_the_remedy(
+    tmp_path: Path,
+) -> None:
+    """CS-209 acceptance, second clause.
+
+    A diagnostic that says "this is personal data" and stops leaves the
+    operator with a red gate and no move. The remedy names the key, and it
+    must not name the VALUE.
+    """
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_WORLD_NAMES"] = SYNTHETIC_WORLD_NAME
+    target = write(tmp_path / "note.md", "the " + SYNTHETIC_WORLD_NAME + " save\n")
+
+    result = run_gate("--files", str(target), env=env)
+
+    assert result.returncode == 1, result.stdout
+    assert "world name discovered on this machine" in result.stderr
+    assert EXCLUSIONS_CONFIG_KEY in result.stderr, result.stderr
+
+
+def test_a_coverage_skip_prints_with_neither_verbose_nor_list_skipped(tmp_path: Path) -> None:
+    """CS-209 acceptance, third clause, at the unit rung.
+
+    .githooks/pre-commit runs the gate with NEITHER flag. Until now `emit`
+    printed the skipped channel only under one of them, so the gate's own
+    claim that a dropped value stays visible per CONVENTIONS section 15.1 was
+    FALSE on the authoritative path. The end-to-end proof is below; this pins
+    the same property without a repository in the way.
+    """
+    env = local_config_env(
+        tmp_path,
+        '{"world_names": "%s", "%s": "%s"}\n'
+        % (SYNTHETIC_WORLD_NAME, EXCLUSIONS_CONFIG_KEY, SYNTHETIC_WORLD_NAME),
+    )
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+
+    result = run_gate("--files", str(target), env=env)
+
+    assert result.returncode == 0, result.stderr
+    assert EXCLUSIONS_CONFIG_KEY in result.stdout, result.stdout
+
+
+def test_a_file_level_skip_still_needs_a_flag(tmp_path: Path) -> None:
+    """The other half of the rule, and it is what keeps the change honest.
+
+    Only COVERAGE skips - the ones saying the gate's own detection was
+    reduced - print unconditionally. A per-file skip says a unit was not read,
+    its count is already on the PASS line, and printing every one of them on
+    every commit is how a gate becomes noise and then gets turned off.
+    """
+    target = write(tmp_path / "picture.png", "not really a png\n")
+
+    quiet = run_gate("--files", str(target), env=base_env(tmp_path))
+    loud = run_gate("--files", str(target), "--list-skipped", env=base_env(tmp_path))
+
+    assert quiet.returncode == 0, quiet.stderr
+    assert loud.returncode == 0, loud.stderr
+    assert "picture.png" in loud.stdout, loud.stdout
+    assert "picture.png" not in quiet.stdout, quiet.stdout
+
+
+def test_the_coverage_skip_channel_prints_through_a_real_commit(
+    hooked_repo: Path, tmp_path: Path
+) -> None:
+    """CS-209 acceptance, third clause, END TO END and with NO flags passed.
+
+    This is the hole CS-209 exists to close. Every other test in this suite
+    hands the gate --verbose or --list-skipped explicitly, so nothing in the
+    tree asserted what the hook actually prints. The hook here runs `--staged`
+    and nothing else, exactly as .githooks/pre-commit does.
+
+    Both halves are asserted through one commit because they are one claim:
+    the excluded name does NOT block (HEAD moves), and the exemption is still
+    VISIBLE (the skip reason is printed) rather than silently applied.
+
+    HOME and USERPROFILE point at the temporary directory, so the throwaway
+    repository genuinely sits under a home directory on Windows and on Linux
+    alike and no absolute path may be rendered.
+    """
+    config = tmp_path / "local.json"
+    write(
+        config,
+        '{"world_names": "%s", "%s": "%s"}\n'
+        % (SYNTHETIC_WORLD_NAME, EXCLUSIONS_CONFIG_KEY, SYNTHETIC_WORLD_NAME),
+    )
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_LOCAL_CONFIG"] = str(config)
+    env["HOME"] = str(tmp_path)
+    env["USERPROFILE"] = str(tmp_path)
+
+    before = git("rev-parse", "HEAD", cwd=hooked_repo).stdout.strip()
+    assert before
+
+    write(hooked_repo / "world.md", "played " + SYNTHETIC_WORLD_NAME + " tonight\n")
+    assert git("add", "world.md", cwd=hooked_repo).returncode == 0
+
+    attempt = git_with_env("commit", "-m", "add a world note", cwd=hooked_repo, env=env)
+    after = git("rev-parse", "HEAD", cwd=hooked_repo).stdout.strip()
+    combined = attempt.stdout + attempt.stderr
+
+    assert attempt.returncode == 0, combined
+    assert after != before, "HEAD did not move; the exclusion did not take"
+    assert EXCLUSIONS_CONFIG_KEY in combined, combined
+    assert SYNTHETIC_WORLD_NAME not in combined, combined
+    assert str(tmp_path) not in combined, combined
+
+
+def test_the_same_commit_is_blocked_without_the_exclusion(
+    hooked_repo: Path, tmp_path: Path
+) -> None:
+    """The control for the commit above. Same repo, same hook, same content.
+
+    Without this, an exclusion surface that did nothing at all - or a hook
+    that never ran - would make that test green while proving nothing.
+    """
+    config = tmp_path / "local.json"
+    write(config, '{"world_names": "%s"}\n' % SYNTHETIC_WORLD_NAME)
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_LOCAL_CONFIG"] = str(config)
+
+    before = git("rev-parse", "HEAD", cwd=hooked_repo).stdout.strip()
+    write(hooked_repo / "world.md", "played " + SYNTHETIC_WORLD_NAME + " tonight\n")
+    assert git("add", "world.md", cwd=hooked_repo).returncode == 0
+
+    attempt = git_with_env("commit", "-m", "add a world note", cwd=hooked_repo, env=env)
+    after = git("rev-parse", "HEAD", cwd=hooked_repo).stdout.strip()
+
+    assert attempt.returncode != 0, attempt.stdout
+    assert "world name discovered on this machine" in attempt.stderr
+    assert after == before, "HEAD MOVED - the commit was not blocked"
+
+
+# ==========================================================================
+# CS-403 - the world-TOKEN half of CS-201, now that a header parser exists
+# ==========================================================================
+#
+# A world token lives inside the save HEADER and cannot be recovered from a
+# filename, so until CS-400 landed the gate could only match a token the
+# operator had DECLARED, and an undeclared one committed unblocked. The gate
+# now reads the header - through a LAZY, function-local import that falls back
+# to a printed skip on ANY exception.
+#
+# THE CONSTRAINT THAT SHAPES ALL OF IT, from the grant: a gate that cannot
+# START does not block, so nothing here may add a new way for the gate to fail
+# to start. That is why the import is function-local, why it is wrapped, and
+# why four of the tests below are about the gate SURVIVING rather than about
+# it blocking.
+#
+# The seam is not violated: docs/ARCHITECTURE.md:144 prohibits clockspeed/
+# importing tools/ and NOT the reverse, and tools/drift_guard.py already
+# lazily imports clockspeed.data.* and records that direction as correct.
+
+# 22 characters, the measured token length, assembled rather than spelled out
+# and existing on no real machine.
+HEADER_WORLD_TOKEN = "Hdr7Kq" + "2Xn9Tb" + "4Lm6Wz" + "8Rc"
+
+# The .sav basename the synthetic save is written under. Deliberately NOT a
+# substring of any staged content below, so a block can only be attributed to
+# the TOKEN read out of the header and never to the world NAME the basename
+# also yields.
+HEADER_SAVE_STEM = "Bramblewick" + "Hollow"
+
+
+def synthetic_save_bytes(world_token: str) -> bytes:
+    """A parseable save carrying `world_token`, built by the shared builder.
+
+    tests/save/synthetic.py is the repository's one save builder and it imports
+    only the standard library, so reusing it adds no dependency here. Building
+    a second header layout inline would be a second answer waiting to disagree
+    with clockspeed/save/header.py - the exact duplication the honest-limit
+    note in the gate used to warn about.
+
+    The four magic bytes matter: parse_header refuses a header with fewer than
+    four bytes left at body_offset, because the seam it promises would then be
+    unverifiable.
+    """
+    # Both imports are kept function-local, and the top-level-import rule is
+    # suppressed on each: importing this module must still cost nothing on a
+    # machine where tests/save is unavailable, which is the standalone
+    # property the module docstring claims for this suite.
+    import struct  # noqa: PLC0415
+
+    from tests.save import synthetic  # noqa: PLC0415
+
+    return synthetic.build_header(world_token=world_token) + struct.pack(
+        "<I", synthetic.CHUNK_MAGIC
+    )
+
+
+def make_header_save_root(tmp_path: Path, *tokens: str) -> Path:
+    """A save root holding one parseable synthetic save per token."""
+    save_root = make_save_root(tmp_path, FAKE_ACCOUNT_ID)
+    for index, token in enumerate(tokens):
+        stem = HEADER_SAVE_STEM if index == 0 else "%s%d" % (HEADER_SAVE_STEM, index)
+        (save_root / FAKE_ACCOUNT_ID / (stem + ".sav")).write_bytes(synthetic_save_bytes(token))
+    return save_root
+
+
+def test_an_undeclared_token_from_a_save_header_is_blocked(tmp_path: Path) -> None:
+    """CS-403's core claim at the unit rung: UNDECLARED, and still matched.
+
+    CLOCKSPEED_WORLD_TOKENS is cleared by base_env, so the only route from the
+    save on disk to a blocking diagnostic runs through the header parser.
+    """
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(make_header_save_root(tmp_path, HEADER_WORLD_TOKEN))
+
+    target = write(tmp_path / "ledger.md", "keyed by " + HEADER_WORLD_TOKEN + "\n")
+    result = run_gate("--files", str(target), env=env)
+
+    assert result.returncode == 1, result.stdout
+    assert "PII" in result.stderr
+    assert "world token" in result.stderr
+
+
+def test_a_token_read_from_a_save_header_is_blocked_by_a_real_commit(
+    hooked_repo: Path, tmp_path: Path
+) -> None:
+    """CS-403 acceptance, END TO END through a real `git commit`.
+
+    Stage a file carrying a token that exists only inside a synthetic save
+    header, attempt the real commit, and assert exit non-zero with HEAD
+    unchanged. A hook's presence is never proof it fires; this is the only
+    test shape that proves the block.
+
+    HOME and USERPROFILE point at the temporary directory so the throwaway
+    repository sits under a home directory, and no absolute path may be
+    rendered into any channel.
+    """
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(make_header_save_root(tmp_path, HEADER_WORLD_TOKEN))
+    env["HOME"] = str(tmp_path)
+    env["USERPROFILE"] = str(tmp_path)
+
+    before = git("rev-parse", "HEAD", cwd=hooked_repo).stdout.strip()
+    assert before
+
+    write(hooked_repo / "ledger.md", "keyed by " + HEADER_WORLD_TOKEN + "\n")
+    assert git("add", "ledger.md", cwd=hooked_repo).returncode == 0
+
+    attempt = git_with_env("commit", "-m", "add a ledger note", cwd=hooked_repo, env=env)
+    after = git("rev-parse", "HEAD", cwd=hooked_repo).stdout.strip()
+    combined = attempt.stdout + attempt.stderr
+
+    assert attempt.returncode != 0, attempt.stdout
+    assert "world token" in attempt.stderr, combined
+    assert after == before, "HEAD MOVED - the commit was not blocked"
+    assert str(tmp_path) not in combined, combined
+
+
+def test_the_same_commit_succeeds_with_no_save_root(hooked_repo: Path, tmp_path: Path) -> None:
+    """The control. Without it a hook failing for ANY reason reads as a block."""
+    env = base_env(tmp_path)
+
+    before = git("rev-parse", "HEAD", cwd=hooked_repo).stdout.strip()
+    write(hooked_repo / "ledger.md", "keyed by " + HEADER_WORLD_TOKEN + "\n")
+    assert git("add", "ledger.md", cwd=hooked_repo).returncode == 0
+
+    attempt = git_with_env("commit", "-m", "add a ledger note", cwd=hooked_repo, env=env)
+    after = git("rev-parse", "HEAD", cwd=hooked_repo).stdout.strip()
+
+    assert attempt.returncode == 0, attempt.stdout + attempt.stderr
+    assert after != before, "HEAD did not move; the hook blocked a clean commit"
+
+
+def isolated_gate_copy(tmp_path: Path) -> Path:
+    """A copy of the gate whose derived repo root holds no clockspeed package.
+
+    The gate derives its root from its OWN location, so a copy two levels down
+    a temporary directory resolves a root that has no package in it. That is
+    what makes the package genuinely out of reach rather than merely absent
+    from the current working directory.
+    """
+    isolated = tmp_path / "isolated"
+    isolated.mkdir(exist_ok=True)
+    copy = isolated / "gate_copy.py"
+    copy.write_bytes(GATE.read_bytes())
+    return copy
+
+
+def run_gate_copy(copy: Path, *args: str, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    proc = subprocess.run(
+        [sys.executable, str(copy), *args],
+        cwd=str(copy.parent),
+        capture_output=True,
+        env=env,
+        timeout=TIMEOUT,
+        check=False,
+    )
+    return subprocess.CompletedProcess(
+        proc.args,
+        proc.returncode,
+        proc.stdout.decode("utf-8", "replace"),
+        proc.stderr.decode("utf-8", "replace"),
+    )
+
+
+def test_the_gate_starts_and_skips_when_the_package_cannot_be_imported(
+    tmp_path: Path,
+) -> None:
+    """CS-403 acceptance, second clause, and the one the grant cares about most.
+
+    A gate that cannot START does not block. With the package out of reach the
+    gate must still run, still exit 0 on a clean file, and PRINT the honest
+    skip saying the header was not read - rather than crash, hang, or silently
+    pretend the token surface is covered.
+    """
+    copy = isolated_gate_copy(tmp_path)
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(make_header_save_root(tmp_path, HEADER_WORLD_TOKEN))
+
+    target = write(tmp_path / "isolated" / "clean.md", "nothing to see\n")
+    result = run_gate_copy(copy, "--files", str(target), "--list-skipped", env=env)
+
+    assert result.returncode == 0, result.stderr
+    assert "<pii:world>" in result.stdout, result.stdout
+    assert "crashed" not in result.stderr, result.stderr
+
+
+def test_a_package_that_raises_on_import_is_caught_like_an_absent_one(
+    tmp_path: Path,
+) -> None:
+    """ANY exception, not merely ImportError - stated in the grant that way.
+
+    A half-installed or mid-edit package can raise anything at all while being
+    imported. Here the package the gate would reach is a module that raises a
+    RuntimeError at import time, which no `except ImportError` would catch.
+    """
+    copy = isolated_gate_copy(tmp_path)
+    write(
+        tmp_path / "clockspeed.py",
+        "raise RuntimeError('mid-edit package, deliberately unimportable')\n",
+    )
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(make_header_save_root(tmp_path, HEADER_WORLD_TOKEN))
+
+    target = write(tmp_path / "isolated" / "clean.md", "nothing to see\n")
+    result = run_gate_copy(copy, "--files", str(target), "--list-skipped", env=env)
+
+    assert result.returncode == 0, result.stderr
+    assert "<pii:world>" in result.stdout, result.stdout
+    assert "crashed" not in result.stderr, result.stderr
+
+
+def test_a_declared_token_still_blocks_with_the_package_out_of_reach(
+    tmp_path: Path,
+) -> None:
+    """The fallback degrades the header source ONLY, never the whole check.
+
+    Without this, a fallback that returned an empty token list AND discarded
+    the declared ones would pass both tests above while disabling the surface
+    CS-201 already shipped.
+    """
+    copy = isolated_gate_copy(tmp_path)
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_WORLD_TOKENS"] = SYNTHETIC_WORLD_ID
+
+    target = write(tmp_path / "isolated" / "ledger.md", "world " + SYNTHETIC_WORLD_ID + "\n")
+    result = run_gate_copy(copy, "--files", str(target), env=env)
+
+    assert result.returncode == 1, result.stdout
+    assert "world token" in result.stderr
+
+
+def test_a_corrupt_save_leaves_the_gate_passing_on_a_clean_file(tmp_path: Path) -> None:
+    """CS-403 acceptance, third clause.
+
+    A truncated, half-written or foreign .sav under the save root is the
+    NORMAL case, not an error: the game writes during autosave and the gate
+    reads whatever is there. Non-negotiable 7 - flagged and skipped, never
+    fatal and never silently wrong.
+    """
+    save_root = make_header_save_root(tmp_path, HEADER_WORLD_TOKEN)
+    (save_root / FAKE_ACCOUNT_ID / "Corrupted.sav").write_bytes(b"\x00\xff" * 64)
+    (save_root / FAKE_ACCOUNT_ID / "Truncated.sav").write_bytes(
+        synthetic_save_bytes(HEADER_WORLD_TOKEN)[:31]
+    )
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(save_root)
+
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+    result = run_gate("--files", str(target), "--list-skipped", env=env)
+
+    assert result.returncode == 0, result.stderr
+    assert "crashed" not in result.stderr, result.stderr
+
+
+def test_a_corrupt_save_does_not_stop_a_readable_sibling_from_blocking(
+    tmp_path: Path,
+) -> None:
+    """The control for the test above.
+
+    A fallback that abandoned the whole scan on the first unreadable save
+    would make that test green while quietly turning the header source off for
+    any operator with one stale .sav in the directory. The corrupt file sorts
+    BEFORE the readable one by name, so it is hit first.
+    """
+    save_root = make_header_save_root(tmp_path, HEADER_WORLD_TOKEN)
+    (save_root / FAKE_ACCOUNT_ID / "Aardvark.sav").write_bytes(b"\x00\xff" * 64)
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(save_root)
+
+    target = write(tmp_path / "ledger.md", "keyed by " + HEADER_WORLD_TOKEN + "\n")
+    result = run_gate("--files", str(target), env=env)
+
+    assert result.returncode == 1, result.stdout
+    assert "world token" in result.stderr
+
+
+def test_the_header_scan_is_bounded_by_a_file_cap(tmp_path: Path) -> None:
+    """The bound the grant asked for, proven by crossing it.
+
+    A directory holding hundreds of rotated autosaves must not turn the commit
+    gate into a bulk parser. The cap is read from the gate rather than
+    restated here, so raising it in the module does not leave a stale number
+    in this file (CLAUDE.md section 4).
+    """
+    cap = load_gate().MAX_SAVE_HEADER_FILES
+    tokens = ["Cap%02dKq2Xn9Tb4Lm6Wz8R" % index for index in range(cap + 2)]
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(make_header_save_root(tmp_path, *tokens))
+
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+    result = run_gate("--files", str(target), "--list-skipped", env=env)
+
+    assert result.returncode == 0, result.stderr
+    assert "<pii:world>" in result.stdout
+    assert "cap" in result.stdout.lower(), result.stdout
+
+
+def test_the_header_scan_is_bounded_by_a_wall_clock_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The other bound. A gate that hangs is a gate that gets turned off.
+
+    Exercised in process with the budget set to zero, because a real timeout
+    cannot be provoked deterministically without making the suite slow and
+    flaky - and what is under test here is a bound, not a verdict. The verdict
+    is covered end to end above.
+    """
+    gate = load_gate()
+    monkeypatch.setattr(gate, "SAVE_HEADER_BUDGET_SECONDS", 0.0)
+    monkeypatch.setenv(
+        "CLOCKSPEED_SAVE_ROOT", str(make_header_save_root(tmp_path, HEADER_WORLD_TOKEN))
+    )
+    monkeypatch.setenv("CLOCKSPEED_LOCAL_CONFIG", str(tmp_path / "absent.json"))
+    monkeypatch.delenv("CLOCKSPEED_WORLD_TOKENS", raising=False)
+
+    report = gate.Report()
+    tokens = gate.discover_world_tokens(report)
+    reasons = " ".join(why for _label, why in report.skipped)
+
+    assert HEADER_WORLD_TOKEN not in tokens
+    assert "budget" in reasons.lower(), reasons
+
+
+def test_the_package_import_is_function_local_and_never_at_module_scope() -> None:
+    """The failure-to-start guarantee, structurally.
+
+    An `import clockspeed` at MODULE scope runs before main() and takes the
+    gate down with the package - which is the one failure a gate must not
+    have, and the reason the CS-201 grant was ruled not to extend to this.
+    Asserted against the parsed AST rather than the text, because the
+    docstrings name the package and always have.
+    """
+    tree = ast.parse(GATE.read_bytes().decode("utf-8"))
+
+    inside_a_function: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            for inner in ast.walk(node):
+                inside_a_function.add(id(inner))
+
+    package_imports = 0
+    for node in ast.walk(tree):
+        # The `else: continue` is what narrows `node` for the .lineno below;
+        # ast.walk yields bare ast.AST, which carries no line number.
+        if isinstance(node, ast.Import):
+            names = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            names = [node.module] if node.module and node.level == 0 else []
+        else:
+            continue
+        if not any(name.split(".")[0] == "clockspeed" for name in names):
+            continue
+        package_imports += 1
+        assert id(node) in inside_a_function, (
+            "an import of the package sits outside a function body, at line %d" % node.lineno
+        )
+
+    # Non-vacuous: the assertion above passes trivially if the gate stopped
+    # importing the package at all, which would silently drop the CS-403
+    # surface. There must be at least one, and it must be function-local.
+    assert package_imports >= 1, "the gate no longer reaches the header parser at all"
