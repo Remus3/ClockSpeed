@@ -44,7 +44,63 @@ Where current truth actually lives:
 
 <!-- Newest first. Each block: date archived, source file, then the content. -->
 
-_No entries yet._
+### Archived 2026-08-16 from `ROADMAP.md` - CS-400 and CS-413 superseded dated STATUS blocks
+
+Relocated by the session-12 merger under the `tools/doc_budget.py` relocate guidance, with
+`ROADMAP.md` at 98 per cent of its 60 KB budget. **Nothing here is current.** All of it was
+superseded by a later dated STATUS block in the same entry before it was moved, and in one
+case the entry's own text already said so. Both items remain OPEN in `ROADMAP.md`, which
+is still their one owner file; these are the retired paragraphs, not the items.
+
+**From CS-400 - the session-5 coverage STATUS, and the session-6 skeleton paragraph the
+entry itself marked as no longer the state:**
+
+> STATUS 2026-08-15 (session 5): clause 1's COVERAGE half is MET and clauses 2, 3 and 4
+> remain MET, all gated by `tests/save/test_phase4_gate.py`. ALL FOUR real (header version,
+> save version) pairs now parse and ALL 14 OF 14 real saves load end to end through
+> `load_world` - verified by the merger against the live library rather than taken from a
+> builder report: 14 found, 14 loaded, zero failures, zero warnings, 131607 records across
+> 6171 levels, 3 distinct masked world tokens. It was 3 of 14 at the start of the session.
+> **CS-400 STILL MUST NOT CLOSE, AND THE REASON HAS CHANGED FROM COVERAGE TO DEPTH.** What
+> closed is a SKELETON grammar: measured by an adversary across all 8 save-52 bodies, 69.5
+> to 77.7 per cent of every body is opaque property payload the grammar does not describe,
+> and up to 81 per cent is skipped rather than described. `read_properties` resolved a
+> record's class against the usmap and decoded NO property VALUE, so the reader reached
+> every record and could read nothing INSIDE one. **THAT SENTENCE DESCRIBES SESSION 6 AND IS
+> NO LONGER THE STATE - see CS-413's session-7 status.** The decode landed; what CS-413 and
+> this gate now wait on is the EVIDENCE for it, not its existence. The stale REASON that
+> used to sit here - "because the payload grammar has never been measured by this project" -
+> was removed rather than corrected: it survived a session with its conclusion still true,
+> which is precisely what makes a wrong reason read as current.
+
+**From CS-413 - the session-6 STATUS, superseded by the session-7 STATUS that records the
+decode landing, together with the correction record of the entry's own wrong unknown:**
+
+> **THIS ENTRY FIRST SAID "UNLOCATED" AND THAT WAS WRONG - corrected 2026-08-15 by the
+> slice that measured it, against the merger who wrote it.** The merger read the module
+> docstring at `clockspeed/save/objects.py:114-120` ("`body_offset` and `body_length` are 0
+> on every path today") and did not read the implementation 1500 lines below it, where
+> `objects.py:1666-1672` says the extents "are located by the walk below" and the seam stays
+> 0 because "the k-th payload belongs to the k-th record is an ASSUMPTION nothing has
+> measured" - a deliberate refusal to ship a plausible pairing, not a missing walk. **The
+> real unknown was ALIGNMENT.** This is the project's own recurring failure class landing on
+> the merger: a docstring trusted over the code, and an inherited note naming the WRONG
+> UNKNOWN, which is exactly what session 5 recorded about two of its three resume notes. The
+> lesson generalises past this item - a summary at the top of a 2000-line module is a claim
+> about the module, not a reading of it.
+
+> **STATUS 2026-08-15 (session 6): the ATTRIBUTION half is MET and the DECODING half is
+> not, so this stays OPEN and so does CS-400.** `body_offset` and `body_length` now locate a
+> real payload on all four pairs and 131607 of 131607 records, and the data section walks
+> byte-exact. The pairing was proven by FOUR independent oracles: the component reference
+> list against the component `parent` field, read from different sections by different cursor
+> passes, 9838 of 9838 at shift 0 and 0 at shifts -2, -1, +1, +2 and two within-level
+> rotations; a **random within-level permutation holding the extent multiset and the tiling
+> fixed and varying only the assignment - 0 of 29170 moved payloads match and 61 of 61
+> permutation fixed points do**, which is what rules out agreement-by-construction
+> empirically rather than by argument; `type_path` against property tag names, monotone on
+> all three tagged pairs; and bidirectional set equality over all 103742 actors, where two
+> failure categories are empty at the shipped alignment and populated at rotate-1.
 
 ## Session 1 - 2026-08-13 - phase 0 scaffold, then phase 1 spikes
 
