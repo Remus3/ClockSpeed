@@ -115,6 +115,29 @@ message or a roadmap entry; and rewording a universal claim into a hedge ("belie
 the only", "so far the only") rather than deleting it - the hedge has the same falsification
 surface and reads as evidence.
 
+LIVING TEXT VERSUS AN IMMUTABLE RECORD, added 2026-08-16 because the first slice to apply
+this ADR found the rule contradicting itself and said so. FORECLOSED names commit messages
+while SCOPE permits "what a measurement found at a stated time", and a power-control
+transcript is BOTH - so as first written the rule both banned and allowed the same sentence.
+
+The line is what the text is READ AS, because that is what decides whether it can rot:
+
+- **LIVING TEXT** - a docstring, a comment, a roadmap entry, a doc, a memory leaf - is read
+  as a statement about the CURRENT tree. It is where this ADR binds, in full.
+- **AN IMMUTABLE, TIMESTAMPED RECORD** - a commit message, a `docs/LEDGER.md` entry, an ADR
+  Context section, a `WAKEUP_NOTES.md` entry - is read as an observation about the tree AS
+  IT WAS. It cannot rot, because it never claimed to be current. A superlative there is
+  permitted PROVIDED it is legibly scoped to that moment rather than phrased as a standing
+  property: "under the mutants measured here, only X fired" is a record; "X is the only
+  detector" is a standing claim wearing a date.
+
+The test to apply is not the grammatical form but the tense the reader supplies. If deleting
+the sentence a year later would be a correction, it was living text. If deleting it would be
+falsifying the record, it was a record.
+
+This is a REFINEMENT of the decision rather than a change to it: nothing above is weakened,
+and the derived-or-deleted rule for living text is untouched.
+
 REVISIT IF. The premise that a shipped grammar constant is monkeypatchable in process stops
 holding - if a constant is inlined, frozen at import, or read into a local at module load,
 the cheap in-process mutant disappears and tier 2 gets materially more expensive. Re-measure
