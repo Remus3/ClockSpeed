@@ -73,6 +73,131 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-16 - CS-420 - MEASUREMENT RECORD. THE FENCE SHIPPED AND THE ITEM STAYS OPEN
+Verification: `tests/save/test_absolute_claims.py` (new), `tests/save/test_decode_oracles.py`,
+`tests/save/test_oracle_citations.py`, `clockspeed/save/objects.py` (comments only, AST-identical).
+Gated by `tests/save/test_absolute_claims.py::test_the_scanned_prose_carries_no_unbacked_absolute_claim`
+and its control `::test_the_scanner_reddens_on_a_reinserted_absolute`.
+NOT A COMPLETION RECORD. The three named falsehoods ARE fixed and were re-verified by an adversary
+that wrote none of the repair: F1 (`IT NEVER RAISES` - a forced `KeyboardInterrupt` raises at both
+named sites), F2 (the join mechanism sentence), and the dead paragraph citation `662432d` created.
+WHAT SHIPPED: a fence reading prose from docstrings via `ast`, comments via `tokenize` AND assert
+messages via `ast.Assert.msg`. The assert-message channel was added AFTER MEASURING that docstrings
+and comments alone caught only one of the two dead paragraph references. Proven to fire against the
+real tree, not only controls, with each mutant byte-verified applied first - and that verification
+earned its keep: the first paragraph-mutation predicate reported NOT APPLIED for a mutant that had
+landed. Gutting is visible. `objects.py` is comments-only by AST dump and CS-422's docstring is
+untouched.
+WHY IT STAYS OPEN, measured by the adversary and re-derived independently by the merger: THREE
+genuine ADR-0008 tier-1 universal claims were inserted into the fenced module, byte-verified, and
+the full suite stayed byte-identically green. 19 of 22 real universal phrasings carry no listed
+marker and ten prose channels are never read. 571 of 573 sentences are unread by the rule.
+`FENCED_MODULES` is a hand-written tuple whose deletion leaves the suite green. The detail is in
+the ROADMAP entry, which stays open; it is not restated here.
+ROUND FIVE ALSO SHIPPED FALSE SENTENCES - five, deleted rather than rewritten per ADR 0008's own
+remedy, in the commit `Delete five false sentences`. Two were contradicted by the module's own
+passing tests. The fence flagged 0 of the 5 both before and after, which is the load-bearing
+observation for the item staying open.
+
+### 2026-08-16 - CS-434 - The node warning stops claiming a loss the save refutes
+Verification: `clockspeed/save/world.py`, `tests/save/test_world.py`, `tests/save/test_usmap.py`.
+Gated by `tests/save/test_world.py::test_the_absence_warning_detail_claims_no_loss_the_raising_record_refutes`.
+An adversary refuted CS-430's shipped detail and the merger confirmed it independently. The detail
+said a skipped node record's "placement is unrecoverable from this save". FALSE: `transform is None`
+implies a levelled COMPONENT and a component closes with a parent path. Measured over the whole
+local library rather than relayed: 27865 of 131607 records carry no transform, 27865 OF 27865 carry
+a non-empty parent, and 27420 of those name a record in the same table that has a transform. The
+builder's first join key was wrong, it caught that itself, and the corrected measurement holds.
+THE DEFECT CS-430 EXISTS TO FIX, REPRODUCED INSIDE CS-430'S OWN FIX - a warning that fires is not a
+warning that says something true, moved from the subject key to the detail text where nothing was
+looking. The replacement names the READER as the limit and names the route it declines to follow.
+DETAIL-TRUTH IS ONLY PARTLY GRADED and the new test says so: it measures the route end to end on the
+fixture and then scans for one banned claim class on one code. A false sentence of another shape
+still passes. Also closes the surviving positional mutant at the property subject site.
+ID NOTE: this work self-allocated CS-433, which a concurrent repair had already taken; reallocated
+to CS-434, confirmed free across all four owner files. IDs are permanent and never reused.
+
+### 2026-08-16 - CS-433 - A false absence grade deleted, and eight holes closed in the reach guard
+Verification: `tests/save/test_properties.py`, `tests/save/test_phase4_gate.py`. Gated by
+`tests/save/test_properties.py::test_the_reach_guard_catches_every_spliced_shape` and the
+retention checker's own mutation controls.
+An adversary refuted CS-423's grading half and the merger confirmed both findings mechanically.
+FINDING 1, A SHIPPED FALSE GUARANTEE: `objects.py` was graded `retains-no-save-bytes` while
+`_Cursor.__init__` binds the decompressed body to `self._data`, constructed at two sites. The
+checker missed it because it inspected only `@dataclass` fields and `_Cursor` is not one. This
+project rates a false guarantee worse than the bug - a green oracle asserting a property the module
+lacks is worse than the silent skip CS-423 was filed to remove. The kind was SPLIT rather than
+patched, and the new one reports a violation when a module retains NOTHING, so deleting `_Cursor`
+cannot leave it passing vacuously. Four mutants killed, each byte-verified applied.
+FINDING 2, THE GUARD WAS BLIND TO ONE KEYWORD: `ast.AsyncFunctionDef` is not a subclass of
+`ast.FunctionDef`, so an `async def` helper with a body BYTE-IDENTICAL to the existing splice
+control passed cleanly. Seven of eight spliced shapes escaped. All eight are now caught, and the
+two primitive lists became one with a partition asserted TOTAL rather than a second hand-maintained
+list. The builder's own first draft of four splice shapes was self-defeating - they named the
+locator, so the guard caught them on that instead of on the gap - and it found and fixed that.
+UNRESOLVED AND RECORDED AS SUCH: the builder measured early-return gutting as ALREADY VISIBLE while
+the adversary measured it identical to a pristine control. Plausible cause is scan scope. Not
+settled.
+
+### 2026-08-16 - CS-430, CS-431 - Three silent drops in the save layer are flagged
+Verification: `clockspeed/save/world.py`, `clockspeed/save/usmap.py`, `tests/save/test_world.py`,
+`tests/save/test_usmap.py`. Gated by
+`tests/save/test_world.py::test_a_node_class_record_carrying_no_transform_is_flagged_rather_than_dropped`.
+CS-430: `_node_or_none` dropped a record whose class IS a measured node class but whose transform is
+None, covered by none of the module's three warning codes. The SKIP was correct and deliberate; only
+the silence was the defect. A test DISTINGUISHES it from an unmodelled class, which is the
+acceptance rather than merely proving a warning fired. CS-431: `_read_schema` collapsed two
+conditions into one warning; `_WarningLog` keeps the FIRST detail, so a second condition sharing the
+key REPLACED a true sentence with a false one. A sibling at the property-name site was found and
+fixed in the same pass. Downstream reliance was verified ABSENT rather than assumed.
+HONEST LIMITS, both from the adversary: `node-transform-absent` fires ZERO times across all 14 real
+saves, so CS-430's branch is synthetic-only on today's corpus; and the "only consumer" sweep claim
+was FALSE - `PropertyMap.__repr__` reads `.warnings` too. The consequential half stands. The
+detail-text defect this pair shipped is corrected in CS-434 above.
+
+### 2026-08-16 - CS-429, CS-423 - Four read sites contained, four redactor skips graded
+Verification: `tests/save/test_synthetic.py`, `tests/save/test_phase4_gate.py`. Gated by the
+per-site equivalent-mutant tests and the `_ABSENCE_MITIGATIONS` checkers.
+CS-429 contained the four named sites plus TWO consumers the item did not name, which held what the
+named helpers returned - containing a helper whose caller then reads uncontained achieves nothing.
+Every site is graded over BOTH a non-`OSError` Exception AND `SystemExit`, and that parametrisation
+is load-bearing rather than thorough: `_load_every_real_save`'s `except Exception` already held
+`MemoryError` and leaked only on `SystemExit`, so a one-type grader would have passed on leaking
+code. Machinery is imported rather than transcribed.
+CS-423 took the second route - naming in shipped data WHY absence of value is correct - because
+grading `objects.py` against a redaction oracle would assert something false, since `redact()`
+strips paths and no path reaches that module. THE SILENCE HAD FOUR INSTANCES, NOT THE ONE THE ITEM
+NAMED, found by the merger reading the suite's own skip list. The QUESTION was generalised over all
+four and the ANSWERS kept distinct, because the modules do not share a justification. The redactor
+oracle moved from 11 passed / 4 skipped to 24 passed / 0 skipped.
+CS-423'S GRADING HALF WAS SUBSEQUENTLY REFUTED AND REPAIRED - see CS-433 above. It closes on the
+repaired form, not on the form first merged.
+
+### 2026-08-16 - CS-403, CS-209 - The commit gate reaches a real save header, and the skip prints
+Verification: `tools/precommit_gate.py`, `tests/test_precommit_gate.py`. Merged under the operator
+frozen-file grant of 2026-08-15 recorded below, whose CS-204 third was already spent - see the
+CS-204 correction below. Gated by the end-to-end hooked-repository tests.
+**CORRECTS AN ENTRY BELOW IN THIS FILE.** The 2026-08-14 CS-201 entry states that this gate "holds
+no header parser and must not grow one (CS-400 is open), so an UNDECLARED TOKEN IS UNMATCHED AND
+WILL COMMIT." CS-403 falsifies that sentence. This file is append-only, so the correction travels
+as this forward pointer.
+CS-403 proven END TO END rather than by passing flags: before the fix, staging a file carrying an
+undeclared token discovered from a real save header COMMITTED SUCCESSFULLY. After, exit 1 with HEAD
+unchanged. The import is function-local and the call site catches `BaseException`, not `Exception`,
+because a mid-edit module calling `sys.exit()` at import raises `SystemExit` - the exact
+fail-to-start the grant forbids. Verified with `clockspeed` broken five ways.
+CS-209's skip is proven to print on the flagless path `.githooks/pre-commit` actually runs, which is
+the hole it existed to close.
+**REFUTED ONCE AND REPAIRED BEFORE CLOSING.** An adversary found `MAX_SAVE_ROOT_ENTRIES` truncating
+SILENTLY at two of its three sites, alphabetically, before the newest-first sort - so at 513 entries
+the gate exited 0, an undeclared token committed, and the operator was told "no world token is
+discoverable on this machine", which is not silence but a false statement. The merger reproduced the
+boundary independently. Repaired in `CS-209-B`: retention and examination are now separate bounds,
+both reporting in counts only, with the newest kept. The merger verified past the cap by its own
+probe. The design was chosen by measurement - `os.scandir` examined 60000 entries in 87 ms against
+2.079 s for the previous shape - which is what made keeping the newest affordable.
+CS-208 is not revisited; its floor raise stays denied by measurement.
+
 ### 2026-08-16 - CS-204 - CORRECTION: the ROADMAP entry outlived the closure by two days, and the 2026-08-15 grant inherited its error
 Verification: no code changed. This entry corrects the RECORD. CS-204 closed 2026-08-14 in commit
 `e17ba59`, whose completion entry is already in this file; `ROADMAP.md` line 30 was never removed,

@@ -521,3 +521,111 @@ _No entries yet._
   fix and that needs per-type value decoding, and save 60 is the opposite - genuinely
   under-sampled at 2 byte-identical files, reaching a terminator on 0 of 1832 at every
   alignment tried.
+
+## Session 7 - 2026-08-15 - the CS-413 decode lands and does NOT close; adversaries change the outcome twice
+
+- **Shipped:** **CS-414, CS-415, CS-416, CS-417, CS-418** closed. **CS-413's decode half
+  LANDED and the item STAYS OPEN.** Filed: CS-419, CS-420, CS-421, CS-422, CS-423, CS-424,
+  plus **CS-G05** gated. Suite 1551 -> **1603 passed, 7 skipped**, exit 0. Five commits,
+  `7cbcbac..5d11dc2`. Detail in `docs/LEDGER.md`.
+
+- **THE DECODE WORKS AND THAT IS NOT ENOUGH TO CLOSE CS-413.** `read_properties` returns
+  185382 real values, 11 measured types, every unmeasured type flagged, and a synthetic
+  fixture means the decoder is covered with no game installed. It stays open on EVIDENCE -
+  the merger's ruling, confirmed by an adjudicator that produced none of the work. Two
+  measured reasons: the acceptance clause is a LIVENESS FLOOR that a zero-value-byte decoder
+  clears, because a BoolProperty's value rides in the tag with `size` 0; and **111364 of
+  185382 values, 60.1 per cent, are backed by a declared width and nothing else** - a check
+  the module itself calls "defensive rather than measured". Byte order is checked by NOTHING
+  EXECUTABLE: flipping IntProperty to big-endian ruins 75136 real values and only
+  synthetic-fixture tests go red.
+
+- **In flight:** nothing half-done. Tree committed and pushed, working tree clean.
+
+- **Decisions:** no ADR. No frozen file touched and NO GRANT NEEDED - `tools/precommit_gate.py`
+  came INSIDE the mypy gate with no edit to it, via a scoped override, verified byte-identical
+  to its pre-session state by an adjudicator rather than asserted.
+
+- **Surprises**, each measured rather than reasoned about:
+  1. **THE ADVERSARIAL PASS CHANGED THE OUTCOME TWICE.** Without it this session commits a
+     privacy leak that renders decoded world content in pytest frame arguments, AND closes
+     CS-413 on evidence that does not support it. Both were invisible to a green 1572-test
+     suite. The pass cost roughly what the building did.
+  2. **THE USMAP GATE IN `read_properties` WAS A DEAD END, NOT CAUTION.** The shipped mapping
+     holds ZERO `Build_` schemas of 13792, so every building record resolves to nothing
+     PERMANENTLY, and buildings are exactly what pillar 3 needs. The payload is TAGGED
+     serialization and carries its own names and type words. `docs/ARCHITECTURE.md` said
+     objects.py deserializes "against the property mapping" - corrected; the mapping is an
+     oracle and a class-name resolver, never the decode input.
+  3. **TWO BUILDERS INDEPENDENTLY SHIPPED A TEST THAT MEASURED THE WRONG QUANTITY.** One
+     non-vacuity assertion proved the LIBRARY holds unmeasured tags, not that its own oracle
+     could ever fire. The other rebuilt an oracle against a run that BY CONSTRUCTION excludes
+     what it checks, so it could only pass on a recorded zero. Neither is carelessness; both
+     read as correct until a mutant runs.
+  4. **A REPAIR CREATED A FALSE GUARANTEE, which is worse than the bug it fixed.** `del body`
+     closed `read_properties` and left the exported `parse_properties` open, while the test
+     asserted a GENERAL property ("a clockspeed frame") having exercised ONE entry point.
+     Before: a known leak. After: a leak plus a green test whose own message denies it. Caught
+     by the adjudicator - not by the builder, not by the suite.
+  5. **A TEST WRITTEN TO GUARD NON-NEGOTIABLE 7 WAS A TAUTOLOGY.** Its oracle judged the
+     PYTHON SHAPE of decoded values, which is a closed set for ANY implementation. A mutant
+     fabricating 26950 StructProperty values from raw bytes left the entire suite green.
+  6. **8 OF 11 TYPE DECODERS COULD BE DELETED WITH THE SUITE GREEN.** The equality control was
+     at BUILDING granularity, so one property per building satisfied it. Only 3 types were
+     genuinely covered, and only by accident of this operator's corpus.
+  7. **TWO OF CS-413'S THREE ORACLES EXIST NOWHERE IN THE REPO** - prose only. An adversary
+     re-derived both and they HOLD, and supplied the shift control one of them never had.
+     Filed as CS-420. This is CS-412's failure class landing on CS-413's own evidence.
+  8. **THE SHIPPED ROTATION CONTROL WAS TRIVIAL.** All 24314 buildings collapse inside
+     `_skip_actor_head` before one property tag is read - zero lines of tag grammar and zero
+     of value grammar. The genuine value-start control now ships beside it.
+  9. **FIVE "STALE" WORKTREE BRANCHES CARRIED 9 COMMITS AND `git cherry` FLAGGED EVERY ONE AS
+     NOT-UPSTREAM.** The session note said safe-to-delete; git's own signal said unmerged.
+     CONTENT was the only sound test - every branch-only line was superseded BEFORE text.
+  10. **A CITATION I WROTE MYSELF ROTTED WITHIN THE SAME SESSION.** CS-419 cited
+     `usmap.py:605-607`; CS-416 added three `__all__` lines above it and the citation slid onto
+     the enum NAME resolve - the working case the note contrasts against. A line citation rots
+     exactly like a restated count. Cite the symbol.
+
+- **Failed paths - do not retry:**
+  - **`py -3` as the interpreter.** An adversary lost its ENTIRE executable pass to it and
+    could only report static findings. BOOTSTRAP 2.5 records why; it is still catching agents.
+  - **A synthetic fixture as evidence the grammar matches the GAME.** It packs with the same
+    byte order the reader unpacks with. It proves self-consistency and nothing else.
+  - **`git cherry` as proof a branch holds unmerged work.** This project reworks slices during
+    merge, so neither SHA reachability nor patch-id survives.
+  - **Putting a measured count into `docs/ARCHITECTURE.md`.** CLAUDE.md section 4 names it as
+    a file that never contains counts. Done here while FIXING a fact-ownership violation, and
+    caught by the adjudicator.
+
+- **COMMON-MODE RISK - CORRECTED 2026-08-15 (session 8) BY MEASUREMENT. THE RISK WAS ALREADY
+  GUARDED, AND THE PROPOSED FIX WAS NOT ONE.** What follows is the original claim and what
+  measurement did to it, kept together because the correction is worth more than the claim.
+  ORIGINALLY WRITTEN: `_TAG_EXTRA_STRINGS` is transcribed identically into
+  `clockspeed/save/objects.py` and `tests/save/test_properties.py`; if any width is wrong BOTH
+  walkers desynchronise identically, the join agrees perfectly, and the oracle reports perfect
+  health - so CS-420's usmap join, the one oracle that never touches `value_at`, "is therefore
+  the fix".
+  **BOTH HALVES ARE FALSE, each refuted by a mutant observed red.** FIRST, the risk was already
+  guarded and had been for a session: `tests/save/test_properties.py` carries its OWN EQUALITY
+  reach oracle over the real library, so under a genuine common-mode fault the copy-based walker
+  desynchronises against the REAL BYTES exactly as the shipped one does. Mutating each width in
+  BOTH copies identically and deleting both new oracle modules leaves the pre-existing suite red
+  on 7 of 7 widths, against a pristine control that exits 0. SECOND, the usmap join is not the
+  fix and cannot be: its 13-to-13 bijection survives every width mutant with zero violations,
+  byte-identically under `ByteProperty 1->0`. The mechanism is the whole lesson - **a wrong width
+  BREAKS the walk, a broken walk contributes NO pairs, so a bijection computed over a shrinking
+  population of correct pairs stays pristine while the grammar rots.** A join is evidence about
+  the pairs it sees, never about the ones a fault removed.
+  The "111 of 129775" figure is deleted rather than corrected, per CLAUDE.md section 4: it is now
+  owned and re-derived by
+  `tests/save/test_decode_oracles.py::test_the_shipped_walker_reaches_a_terminator_on_every_real_payload`.
+  **THE GENERAL LESSON, which outlives this item: an inherited risk stated confidently in a
+  resume note was never re-measured, and a whole item was scoped to solve it.** Re-measure the
+  premise before building against it - that is cheaper than the item was.
+
+- **Next action:** take **CS-420** - record CS-413's oracles and controls as executable
+  artifacts. It is the cheaper of the two and a PRECONDITION for trusting CS-421's result,
+  since CS-421's verdict depends on oracles that currently exist only as prose. CS-421 is what
+  actually moves CS-413 toward closing. Both are required before CS-413 closes and phase 5
+  opens.

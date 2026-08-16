@@ -31,6 +31,113 @@ the line becomes a pointer.
 
 ---
 
+## Session 10 - 2026-08-16 - eight items close; three of four slices refuted; CS-420 fails a fifth time
+
+- **Shipped: CS-403, CS-209, CS-423, CS-429, CS-430, CS-431 CLOSED, plus CS-433 and CS-434 which
+  are repairs of this session's own refuted work. CS-204's RECORD corrected - it had closed on
+  2026-08-14 and its ROADMAP line outlived it by two days. CS-420 STAYS OPEN.** Filed CS-211,
+  CS-435, CS-436, CS-437, CS-438. Suite 1733 -> **1846 passed, 3 skipped**, exit 0; skips fell
+  from 7 to 3 because CS-423 removed four silent ones. mypy 78 files clean, ruff clean, drift
+  guard CLEAN 8/8, doc budget PASS. Nine commits, `995cf0b..4e6b19a`. Detail in `docs/LEDGER.md`.
+
+- **THE HEADLINE IS THE HIT RATE AGAIN, AND IT DID NOT IMPROVE. THREE OF FOUR SLICES WERE REFUTED
+  BY INDEPENDENT ADVERSARIES, EVERY FINDING INVISIBLE TO A GREEN 1819-TEST SUITE.** Not one was a
+  style quibble:
+  1. **The commit gate FAILED OPEN AT 513 ENTRIES.** `MAX_SAVE_ROOT_ENTRIES` truncated SILENTLY at
+     two of its three sites, ALPHABETICALLY, before the newest-first sort - so the saves dropped
+     were exactly the recently-played ones. At 511 and 512 the gate blocked an undeclared world
+     token; at 513 it exited 0, the commit landed with the token in the blob, and the operator was
+     told "no world token is discoverable on this machine". Not silence - a false statement. The
+     function's own docstring said "Truncating alphabetically would silently drop the recent ones"
+     while doing exactly that. Test coverage of the constant was zero. **It needs no attacker,
+     only time**: autosave rotation grows one directory forever.
+  2. **CS-423 SHIPPED A FALSE GUARANTEE.** `objects.py` was graded `retains-no-save-bytes` while
+     `_Cursor.__init__` binds the decompressed body to `self._data`. The checker inspected only
+     `@dataclass` fields. A green oracle asserting a property the module lacks is worse than the
+     silent skip the item was filed to remove.
+  3. **THE CONTAINMENT GUARD WAS BLIND TO ONE KEYWORD.** `ast.AsyncFunctionDef` is not a subclass
+     of `ast.FunctionDef`, so an `async def` helper with a body BYTE-IDENTICAL to the existing
+     splice control passed cleanly. Seven of eight spliced shapes escaped. **The same commit
+     enumerated the path-bearing primitives in a neighbouring file** while the reach guard listed
+     none of them - guard inversion re-shipping inside the guard built to prevent it, two sessions
+     running.
+  4. **CS-430's WARNING DETAIL WAS FALSE.** It said a skipped node record's "placement is
+     unrecoverable from this save". `transform is None` implies a levelled COMPONENT, and a
+     component closes with a parent path: 27865 of 27865 transform-less records carry a non-empty
+     parent, 27420 of those naming a placed record. **The defect the item exists to fix, reproduced
+     inside its own fix** - moved from the subject key to the detail text, where nothing looked.
+
+- **CS-420 FAILED FOR THE FIFTH CONSECUTIVE ROUND, and the fence it shipped is why it stays open.**
+  The mechanical check exists, reads three prose channels, is proven to fire against the real tree,
+  and gutting it is visible. It still does not fence: an adversary inserted three genuine ADR-0008
+  tier-1 universal claims into the fenced module, byte-verified, and the suite stayed
+  byte-identically green. 19 of 22 real universal phrasings carry no listed marker; ten prose
+  channels are unread; **571 of 573 sentences (99.7 per cent) are not read by the rule**;
+  `FENCED_MODULES` is a hand-written tuple whose deletion leaves the suite green. Round five also
+  shipped five false sentences, two contradicted by the module's own passing tests, and **the fence
+  flagged 0 of the 5**. They were DELETED rather than rewritten, per ADR 0008's own remedy.
+
+- **Decisions:** no new ADR. **ADR 0008 REMAINS `proposed` and STILL NEEDS AN ADJUDICATOR** - none
+  was run this session. A NEW TENSION IS RECORDED FOR IT: ADR 0008 SCOPE says the mechanical fence
+  "is scoped to where such claims actually cluster, and widening that scan is separate work", which
+  the shipped fence matches word for word, while CS-420's acceptance says EVERY DECLARATIVE
+  SENTENCE. Both readings are evidenced; neither was resolved. **A FROZEN-FILE GRANT WAS USED AND
+  NOT WIDENED:** `tools/precommit_gate.py` under the 2026-08-15 grant, with zero exposure of any
+  other frozen path, verified by diff on every merge.
+
+- **Surprises**, each measured rather than reasoned about:
+  1. **AN ITEM ON THE SESSION PLAN WAS ALREADY CLOSED, AND THE PLAN INHERITED THAT FROM A STALE
+     LINE.** CS-204 closed 2026-08-14 in `e17ba59` - one commit carrying implementation, tests AND
+     its own ledger entry - and its ROADMAP line was never removed. The 2026-08-15 operator grant
+     then scoped itself to "the three OPEN items", which is exactly
+     `grep -c "NEEDS ITS OWN FROZEN-FILE GRANT" ROADMAP.md` returning 3. **One stale line, read
+     three times, by three readers who each had reason to think the previous one had checked.**
+     Filed as CS-211: nothing in `tools/` reads ROADMAP.md's content at all.
+  2. **SEVEN OF SEVEN WORKTREE AGENTS STARTED STALE**, up to five commits behind. Every one caught
+     it only because the dispatch ORDERED the check. This is now unambiguous, not a fluke.
+  3. **THE MERGER'S OWN `cd` PERSISTED AND PUT A MERGE ON THE WRONG BRANCH.** A squash-merge of
+     slice D landed on slice B's branch. Nothing was lost - D's work was safe on its own branch and
+     B's uncommitted work survived a `--mixed` reset plus a targeted checkout - but the fix cost a
+     detour. Use `git -C <path>` for every git call; the shell's cwd is not a safe assumption.
+  4. **AN ADVERSARY DISCARDED ITS OWN FIRST MEASUREMENT** after finding its extraction had silently
+     produced head content in the base directory. A second discarded a gutting run after finding a
+     stray `.git` in the control tree. Both caught it by hashing rather than by trusting the copy.
+  5. **A BUILDER CHECKED THE MERGER AND WAS RIGHT TO.** Told a second sentence was probably also
+     false, it measured, found it TRUE as written, and left it alone - noting that deleting a true
+     sentence to be safe is its own defect.
+  6. **A BUILDER'S FIRST SPLICE SHAPES DEFEATED THEMSELVES.** Four of eight named the locator, so
+     the guard caught them on that rather than on the gap they were written for; it found and fixed
+     that before reporting.
+  7. **TWO REPAIRS SELF-ALLOCATED THE SAME NEW ID.** Both chose CS-433. Resolved by giving the
+     merged one CS-433 and the other CS-434 at merge time. IDs are permanent and never reused, so
+     an agent inventing one is a collision waiting to happen.
+  8. **A PER-SITE MEASUREMENT NARROWED A RELAYED CLAIM.** "Both positional mutants survive" became
+     three of five die, two survive - measured site by site rather than accepted.
+  9. **THE MERGER STATED A SEVERITY THAT WAS WRONG AND A BUILDER CAUGHT THE SAME ERROR IN ITS OWN
+     PROSE.** Both said CS-430's false detail is "rendered verbatim to the operator by the
+     advisor". The advisor is a 32-line stub; that render path does not exist. The string reaches
+     `WorldModel` verbatim and would surface once pillar 5 ships - latent, not live.
+
+- **Failed paths - do not retry:**
+  - **A hand-written marker list as a prose fence.** It misses 19 of 22 real universals. The list
+    is the thing that rots, which is what the artifact was built to stop.
+  - **Scoping a fence to a hand-written module tuple.** That is an allowlist with the sign flipped;
+    deleting the entry deletes the coverage silently.
+  - **Grading a module against a redaction oracle when no path reaches it.** It asserts something
+    false. Name why absence-of-value is the mitigation and assert THAT.
+  - **A blanket assertion over modules that do not share a justification.** Generalise the QUESTION,
+    keep the ANSWERS distinct.
+  - **Reading a verdict from an interpreter or a tree you did not verify.** Two adversaries lost a
+    full pass to a silently wrong extraction this session.
+
+- **Next action:** **CS-211**, the mechanical one-owner guard. It is cheap, it is tier 1, and it is
+  the only item this session that would have PREVENTED a defect this session actually suffered -
+  a builder dispatched to re-implement shipped work. Then **CS-435**, the fourth instance of the
+  silent-loss family, which is the strongest argument that family needs mechanical detection rather
+  than a fifth hand-fix. **Do NOT take CS-420 next** unless the ADR 0008 adjudication happens first:
+  its acceptance and its governing ADR now disagree in writing, and building against an unresolved
+  disagreement is how this item has failed five times.
+
 ## Session 9 - 2026-08-16 - four items close, and every single first build was refuted
 
 - **Shipped: CS-419, CS-424, CS-425, CS-427 CLOSED. CS-420 WAS CLOSED AND THEN REOPENED THE SAME
@@ -256,111 +363,3 @@ the line becomes a pointer.
   machine-checked or deleted. Then **CS-425**, whose grant is recorded and whose operator ruling is
   "make it actually work" - parse the hook envelope and exit 2 - noting it WILL start refusing real
   tool calls. Then CS-403, CS-209, CS-204 under the recorded gate grant.
-
-## Session 7 - 2026-08-15 - the CS-413 decode lands and does NOT close; adversaries change the outcome twice
-
-- **Shipped:** **CS-414, CS-415, CS-416, CS-417, CS-418** closed. **CS-413's decode half
-  LANDED and the item STAYS OPEN.** Filed: CS-419, CS-420, CS-421, CS-422, CS-423, CS-424,
-  plus **CS-G05** gated. Suite 1551 -> **1603 passed, 7 skipped**, exit 0. Five commits,
-  `7cbcbac..5d11dc2`. Detail in `docs/LEDGER.md`.
-
-- **THE DECODE WORKS AND THAT IS NOT ENOUGH TO CLOSE CS-413.** `read_properties` returns
-  185382 real values, 11 measured types, every unmeasured type flagged, and a synthetic
-  fixture means the decoder is covered with no game installed. It stays open on EVIDENCE -
-  the merger's ruling, confirmed by an adjudicator that produced none of the work. Two
-  measured reasons: the acceptance clause is a LIVENESS FLOOR that a zero-value-byte decoder
-  clears, because a BoolProperty's value rides in the tag with `size` 0; and **111364 of
-  185382 values, 60.1 per cent, are backed by a declared width and nothing else** - a check
-  the module itself calls "defensive rather than measured". Byte order is checked by NOTHING
-  EXECUTABLE: flipping IntProperty to big-endian ruins 75136 real values and only
-  synthetic-fixture tests go red.
-
-- **In flight:** nothing half-done. Tree committed and pushed, working tree clean.
-
-- **Decisions:** no ADR. No frozen file touched and NO GRANT NEEDED - `tools/precommit_gate.py`
-  came INSIDE the mypy gate with no edit to it, via a scoped override, verified byte-identical
-  to its pre-session state by an adjudicator rather than asserted.
-
-- **Surprises**, each measured rather than reasoned about:
-  1. **THE ADVERSARIAL PASS CHANGED THE OUTCOME TWICE.** Without it this session commits a
-     privacy leak that renders decoded world content in pytest frame arguments, AND closes
-     CS-413 on evidence that does not support it. Both were invisible to a green 1572-test
-     suite. The pass cost roughly what the building did.
-  2. **THE USMAP GATE IN `read_properties` WAS A DEAD END, NOT CAUTION.** The shipped mapping
-     holds ZERO `Build_` schemas of 13792, so every building record resolves to nothing
-     PERMANENTLY, and buildings are exactly what pillar 3 needs. The payload is TAGGED
-     serialization and carries its own names and type words. `docs/ARCHITECTURE.md` said
-     objects.py deserializes "against the property mapping" - corrected; the mapping is an
-     oracle and a class-name resolver, never the decode input.
-  3. **TWO BUILDERS INDEPENDENTLY SHIPPED A TEST THAT MEASURED THE WRONG QUANTITY.** One
-     non-vacuity assertion proved the LIBRARY holds unmeasured tags, not that its own oracle
-     could ever fire. The other rebuilt an oracle against a run that BY CONSTRUCTION excludes
-     what it checks, so it could only pass on a recorded zero. Neither is carelessness; both
-     read as correct until a mutant runs.
-  4. **A REPAIR CREATED A FALSE GUARANTEE, which is worse than the bug it fixed.** `del body`
-     closed `read_properties` and left the exported `parse_properties` open, while the test
-     asserted a GENERAL property ("a clockspeed frame") having exercised ONE entry point.
-     Before: a known leak. After: a leak plus a green test whose own message denies it. Caught
-     by the adjudicator - not by the builder, not by the suite.
-  5. **A TEST WRITTEN TO GUARD NON-NEGOTIABLE 7 WAS A TAUTOLOGY.** Its oracle judged the
-     PYTHON SHAPE of decoded values, which is a closed set for ANY implementation. A mutant
-     fabricating 26950 StructProperty values from raw bytes left the entire suite green.
-  6. **8 OF 11 TYPE DECODERS COULD BE DELETED WITH THE SUITE GREEN.** The equality control was
-     at BUILDING granularity, so one property per building satisfied it. Only 3 types were
-     genuinely covered, and only by accident of this operator's corpus.
-  7. **TWO OF CS-413'S THREE ORACLES EXIST NOWHERE IN THE REPO** - prose only. An adversary
-     re-derived both and they HOLD, and supplied the shift control one of them never had.
-     Filed as CS-420. This is CS-412's failure class landing on CS-413's own evidence.
-  8. **THE SHIPPED ROTATION CONTROL WAS TRIVIAL.** All 24314 buildings collapse inside
-     `_skip_actor_head` before one property tag is read - zero lines of tag grammar and zero
-     of value grammar. The genuine value-start control now ships beside it.
-  9. **FIVE "STALE" WORKTREE BRANCHES CARRIED 9 COMMITS AND `git cherry` FLAGGED EVERY ONE AS
-     NOT-UPSTREAM.** The session note said safe-to-delete; git's own signal said unmerged.
-     CONTENT was the only sound test - every branch-only line was superseded BEFORE text.
-  10. **A CITATION I WROTE MYSELF ROTTED WITHIN THE SAME SESSION.** CS-419 cited
-     `usmap.py:605-607`; CS-416 added three `__all__` lines above it and the citation slid onto
-     the enum NAME resolve - the working case the note contrasts against. A line citation rots
-     exactly like a restated count. Cite the symbol.
-
-- **Failed paths - do not retry:**
-  - **`py -3` as the interpreter.** An adversary lost its ENTIRE executable pass to it and
-    could only report static findings. BOOTSTRAP 2.5 records why; it is still catching agents.
-  - **A synthetic fixture as evidence the grammar matches the GAME.** It packs with the same
-    byte order the reader unpacks with. It proves self-consistency and nothing else.
-  - **`git cherry` as proof a branch holds unmerged work.** This project reworks slices during
-    merge, so neither SHA reachability nor patch-id survives.
-  - **Putting a measured count into `docs/ARCHITECTURE.md`.** CLAUDE.md section 4 names it as
-    a file that never contains counts. Done here while FIXING a fact-ownership violation, and
-    caught by the adjudicator.
-
-- **COMMON-MODE RISK - CORRECTED 2026-08-15 (session 8) BY MEASUREMENT. THE RISK WAS ALREADY
-  GUARDED, AND THE PROPOSED FIX WAS NOT ONE.** What follows is the original claim and what
-  measurement did to it, kept together because the correction is worth more than the claim.
-  ORIGINALLY WRITTEN: `_TAG_EXTRA_STRINGS` is transcribed identically into
-  `clockspeed/save/objects.py` and `tests/save/test_properties.py`; if any width is wrong BOTH
-  walkers desynchronise identically, the join agrees perfectly, and the oracle reports perfect
-  health - so CS-420's usmap join, the one oracle that never touches `value_at`, "is therefore
-  the fix".
-  **BOTH HALVES ARE FALSE, each refuted by a mutant observed red.** FIRST, the risk was already
-  guarded and had been for a session: `tests/save/test_properties.py` carries its OWN EQUALITY
-  reach oracle over the real library, so under a genuine common-mode fault the copy-based walker
-  desynchronises against the REAL BYTES exactly as the shipped one does. Mutating each width in
-  BOTH copies identically and deleting both new oracle modules leaves the pre-existing suite red
-  on 7 of 7 widths, against a pristine control that exits 0. SECOND, the usmap join is not the
-  fix and cannot be: its 13-to-13 bijection survives every width mutant with zero violations,
-  byte-identically under `ByteProperty 1->0`. The mechanism is the whole lesson - **a wrong width
-  BREAKS the walk, a broken walk contributes NO pairs, so a bijection computed over a shrinking
-  population of correct pairs stays pristine while the grammar rots.** A join is evidence about
-  the pairs it sees, never about the ones a fault removed.
-  The "111 of 129775" figure is deleted rather than corrected, per CLAUDE.md section 4: it is now
-  owned and re-derived by
-  `tests/save/test_decode_oracles.py::test_the_shipped_walker_reaches_a_terminator_on_every_real_payload`.
-  **THE GENERAL LESSON, which outlives this item: an inherited risk stated confidently in a
-  resume note was never re-measured, and a whole item was scoped to solve it.** Re-measure the
-  premise before building against it - that is cheaper than the item was.
-
-- **Next action:** take **CS-420** - record CS-413's oracles and controls as executable
-  artifacts. It is the cheaper of the two and a PRECONDITION for trusting CS-421's result,
-  since CS-421's verdict depends on oracles that currently exist only as prose. CS-421 is what
-  actually moves CS-413 toward closing. Both are required before CS-413 closes and phase 5
-  opens.
