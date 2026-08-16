@@ -73,6 +73,81 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-16 - CS-421 - ADJUDICATED AND REFUTED. The int32 endianness result does not hold
+Verification: rebind `clockspeed/save/objects.py::_decode_fixed_width` in process so `IntProperty` alone
+reads at `at + 4`, then run
+`tests/save/test_properties.py::test_the_int32_byte_order_is_discriminated_by_the_stored_high_byte`.
+It PASSES. No file is edited; the rebind is an in-process assignment.
+This record does not close CS-421 and it withdraws the evidence the previous CS-421 record offered for
+clause 3. An adjudicator and an adversary ran, neither having written any part of it, which is the pass
+the earlier record declared missing by name.
+**WHAT SURVIVED.** Both cited mutants reproduce exactly, digit for digit, under real pytest: `">i"`
+reddens the int oracle at 7926 of 75136 and leaves the float oracle green, `">f"` reverses it at 4425 of
+31318, and the counters exchange rather than drift. The non-circularity defence also survived three
+independent attacks: the oracles reach only `locate.resolve_save_root`, `resolve_account_dir`, a `.sav`
+glob and the installed mapping, so nothing this repo packs enters their input, and forcing discovery
+empty makes both skip rather than fall back. Clauses 1 and 2 are MET. `WIDTH_ONLY_VALUE_TYPES` being
+DERIVED from `EVIDENCE_FOR_VALUE_TYPE` rather than transcribed beside it is the right shape and is not
+in question.
+**WHAT WAS REFUTED, and it is clause 3's whole substance for `IntProperty`.** The oracle reduces each
+decoded value to two bits - is the high byte zero, is the low byte zero - and owns no control tying
+those bits to the value's own four bytes. Displacing the `IntProperty` value start by +4, so the decode
+reads the NEXT tag's name-length prefix and never touches the int32, leaves the oracle green at 75136 of
+75136 against the correct read's 70669 of 75136. It scores BETTER on bytes that are not the value,
+because a name-length prefix is a small little-endian count and carries a cleaner signature than the
+values do. Under that displacement the whole suite reddens 8 tests and every one is a synthetic-fixture
+test. Zero library-backed tests catch it, which is the exact pathology the oracle's own docstring says
+CS-421 exists to escape. The as-read majority survives at -2, -1, +2, +3 and +4, collapsing only at +1
+and +8, so a rotation control testing only plus or minus one would pass and prove nothing.
+**THE `FloatProperty` HALF IS NOT REFUTED.** It collapsed at every non-zero delta attempted, including
++4. That asymmetry is a finding rather than noise: float32 is anchored to its value start and int32 is
+not. Its residual is that it turns on two band constants, `_FLOAT_PLAUSIBLE_LOW` and
+`_FLOAT_PLAUSIBLE_HIGH`, so the claim that no measured constant appears in an assertion is true of the
+int32 pivot only.
+**BYTE ORDER IS NARROWED TO TWO CANDIDATES, NOT ONE.** Of the 24 permutations of the four stored bytes
+the int oracle accepts 6 and the float oracle accepts 6; together they accept 2, the identity and the
+middle-swap `0213`, under which the int counters are bit-identical to shipped because only the extreme
+byte positions are ever inspected. "Settled" overshoots what was measured.
+**AN ADDED NARROWING THAT SHRINKS THE REMAINING WORK.** `Int8Property` is one byte and `BoolProperty`'s
+value is one byte in the tag, so byte order is VACUOUS for both rather than unsettled. `UInt32Property`
+is the only live 4-byte question left. The shipped data does not distinguish vacuous from open, so it
+currently reads as three open questions where there is one.
+The sync guard between the evidence table and the oracles is ONE-DIRECTIONAL and that is filed as
+CS-459. CS-455's stated premise was measured FALSE here and its entry is corrected in `ROADMAP.md`.
+
+### 2026-08-16 - CS-422 - ADJUDICATED AND REFUTED. The partition it asserts is a set compared with itself
+Verification: `python -c "from clockspeed.save import objects as o; print((o.CURSOR_WIDTHS |
+o.EXTENT_WIDTHS) == (frozenset(o._TAG_EXTRA_STRINGS) | frozenset(o._FIXED_WIDTH_VALUES) |
+{'GUID_BYTES','_SOFT_OBJECT_TAIL_BYTES'}))"` prints `True`, and that right-hand expression is how
+`tests/save/test_properties.py::test_the_width_rule_partitions_every_shipped_width_and_declines_no_decoded_one`
+builds its own `shipped` set.
+This record does not close CS-422 and it withdraws the previous record's reading that the acceptance was
+met on every clause. An adjudicator and an adversary ran, neither having written any part of it.
+**THE PARTITION ASSERTIONS CANNOT FAIL.** `ungoverned` is `shipped - (cursor | extent)` and `phantom` is
+its converse, over two sets that are provably equal because both are built from the same four sources.
+Neither can be non-empty for any edit to either table.
+**FIVE CURSOR-ADVANCING WIDTHS ARE UNGOVERNED**, and the asymmetry that removes the "private constants
+are out of scope" defence is that `_SOFT_OBJECT_TAIL_BYTES` is private and IS classified while
+`_TAG_INDEX_FIELD_BYTES` is private and is NOT. Filed as CS-458.
+**THE RULE AND THE EXCEPTION RECORD HAVE NO EXECUTABLE CONSEQUENCE.** Replacing `WIDTH_SHIPPING_RULE`
+with "ship any width you feel like, no evidence needed" leaves the save suite green; so does emptying
+`DECLINED_VALUE_READINGS` entirely, and so does renaming one of its keys. The only assertion touching
+the rule is `.strip()` truthiness and the only one touching the table is an emptiness-of-intersection
+check that garbage keys satisfy more easily than real ones. Neither symbol has a production consumer.
+**ALL THREE CITED TESTS ARE DECORATION.** Replacing each body with a docstring leaves the save suite
+green. `tests/save/test_oracle_citations.py` resolves citations by NAME, so it catches deletion and is
+blind to gutting.
+**TWO OF THE THREE DO NOT RUN WITHOUT A SAVE LIBRARY**, and the survivor is the tautology, so on CI and
+on any fresh clone the rule is graded by nothing at all.
+**TextProperty IS NOT THE ONE HONEST EXCEPTION.** Four type words ship a tag-extra width while their
+value reading is unmeasured - `ArrayProperty`, `MapProperty`, `SetProperty`, `StructProperty` - and only
+`ArrayProperty` is recorded in `DECLINED_VALUE_READINGS`. The other three are declined in
+`UNMEASURED_PAYLOAD_REGIONS` on sample size, the criterion `WIDTH_SHIPPING_RULE` disclaims. CS-456 was
+filed against `TextProperty` alone and is rewritten in `ROADMAP.md` to the family.
+**WHAT SURVIVED, and it is the item's one real result.** `clockspeed/save/objects.py:2945` is
+`at = value_start + size` and it is the only tag-walk advance in the package, so an EXTENT width
+genuinely cannot move the cursor. The word "cannot" stands, attacked and unbroken by both passes.
+
 ### 2026-08-16 - ROADMAP.md relocate pass - 119 per cent of budget to 57 per cent, nothing deleted
 Verification: `python tools/doc_budget.py` prints `ROADMAP.md 34.1 KB against a 60.0 KB budget, 57%, OK`
 and exits 0 with `VERDICT: PASS`; before the pass it printed `71.7 KB, 119%, OVER` and
