@@ -1220,3 +1220,111 @@ decode landing, together with the correction record of the entry's own wrong unk
   machine-checked or deleted. Then **CS-425**, whose grant is recorded and whose operator ruling is
   "make it actually work" - parse the hook envelope and exit 2 - noting it WILL start refusing real
   tool calls. Then CS-403, CS-209, CS-204 under the recorded gate grant.
+
+## Session 11 - 2026-08-16 - six items close; FIVE OF FIVE slices refuted; ADR 0008 accepted
+
+- **Shipped: CS-211, CS-428, CS-435, CS-436, CS-437, CS-438 CLOSED.** ADR 0008 ACCEPTED with four
+  conditions, all applied. CS-420's acceptance RESTATED. Filed CS-439 through CS-448. Suite
+  1846 -> **1952 passed, 3 skipped**, exit 0, serial AND under `-n auto`. mypy 79 files clean, ruff
+  clean, drift guard **CLEAN 9/9** (a ninth guard now exists), doc budget PASS. Eight commits,
+  `76f6c82..b5cad1a`. Detail in `docs/LEDGER.md`.
+
+- **THE HEADLINE IS THE HIT RATE AND IT GOT WORSE: FIVE OF FIVE FIRST BUILDS WERE REFUTED, plus
+  merged `main` itself.** But the useful finding is that FOUR OF THE FIVE HAD ONE SHAPE - a builder
+  MEASURED SOMETHING TRUE AND STATED SOMETHING WIDER:
+  1. **CS-436:** the budget cannot bound one slow open, therefore it is decorative. It is 5.0s and
+     breaks the loop - at 0.4s/read it stops the scan at 13 of 24 while the removal read all 24.
+     Removing it was a COVERAGE REDUCTION the grant forbids.
+  2. **CS-438:** the handler is unreachable on 3.14, therefore it was unreachable. The DECLARED
+     FLOOR is 3.13, where `PathBase.is_file` re-raises outside the ignored errnos, and CI pins 3.14
+     at four sites so nothing here would catch it.
+  3. **CS-435:** five happy-path indices are flagged, therefore every index is. False at FOUR sites,
+     two of which make `parse_usmap` raise and publish NOTHING.
+  4. **CS-211:** the parse works on the current sentence, therefore the set is derived. Its fixture
+     restated the real doctrine sentence VERBATIM, so the derived and hardcoded paths agreed BY
+     CONSTRUCTION and the mutant produced a byte-identical suite result.
+  **THAT IS ADR 0008's OWN THESIS ARRIVING IN CODE RATHER THAN PROSE.** The ADR fences the
+  sentences; nothing fences the INFERENCE, and the inference is where it landed five times.
+
+- **CS-428's was different and is the one to remember: A PRIVACY CONTROL THAT FAILS OPEN, TRIGGERED
+  BY THIS REPO'S OWN TEST SUITE.** Its redaction rules were `lru_cache`d and seeded LAZILY by the
+  first report carrying content. `tests/data/test_locate.py:432` patches `USERPROFILE` to a temp dir
+  named `home`, so "home" became a session-wide token AND THE REAL SPELLINGS WERE LOST. The grading
+  module could not see it: every arm was a cold subprocess with an empty cache. Fixed by building
+  the rules once at import.
+
+- **A LIVE CI LEAK WAS FOUND AND CLOSED.** Tier-2 runs `-n auto`; xdist composes its worker line
+  AFTER the worker's `makereport`, so the parallel lane leaked a home path on EVERY failure. Fixed
+  controller-side - 259 force-failed tests give 259 worker lines and 0 markers against a control
+  showing 518.
+
+- **THE FINAL AUDIT REFUTED MERGED `main`, AND ONE FINDING WAS THE MERGER'S.** Three false sentences
+  in `tests/conftest.py`. The count "195 test functions" measures **247** by AST and **341** by the
+  claim's own wording, and was 325 when written - it was NEVER true, copied from a stale roadmap
+  note. **THE MERGER THEN RESTATED IT A THIRD TIME in the ledger entry closing the item, in the same
+  session in which it twice flagged other agents for exactly that.** A number arriving inside a
+  well-evidenced report reads as evidence rather than as a claim needing its own measurement.
+  Deleted, not corrected. The scope list was also wrong in the dangerous direction: it claimed a
+  child process's output is NOT reached, and inherited stdout IS.
+
+- **Decisions: ADR 0008 is `accepted`**, adjudicated by an agent that wrote no part of it, with four
+  conditions all applied: tier 3's stated ground was REFUTED (two measured-false sentences that
+  never rotted - they shipped false); `WAKEUP_NOTES.md` was misclassified as an immutable record and
+  the rule now keys on a DATED HEADING, not a filename; the living-text refinement RELOCATES its
+  residual to phrasing rather than dissolving it; and Consequences overstated and is narrowed.
+  **CS-420's "tension" WAS A MISDIAGNOSIS - do not reopen it.** ADR 0008 SCOPE governs BREADTH,
+  CS-420's acceptance governs DEPTH in one module, and that module is already fenced, so the two
+  texts never disagreed. Five rounds were spent against a dilemma that was not there. Its acceptance
+  is restated on a coverage axis, with its weakest clause LABELLED weaker.
+  **A FROZEN-FILE GRANT was issued by the operator for CS-436 alone**, recorded BEFORE any edit;
+  `git diff --name-only` confirms no other frozen path on every merge.
+
+- **Surprises**, each measured:
+  1. **THE NEW GUARD WENT RED ON THE MERGER'S OWN DOC EDIT, MINUTES AFTER MERGING.** CS-211's
+     ownership guard read the CS-420 correction record as a closure, because a record that declines
+     to close an item must say so BY NAME and that one did not. Its failure message prescribed the
+     fix. Real input, not a planted duplicate.
+  2. **THE COMMIT GATE BLOCKED THE MERGER** for writing a literal Linux home path into CS-447 - the
+     entry describing a home-path leak. Recorded in the entry rather than quietly fixed.
+  3. **THREE REPAIRS APPLIED ADR 0008 TO THEMSELVES**, each deleting detection claims or restated
+     counts its OWN repair had just written, one of them three lines below the constants deciding
+     the numbers.
+  4. **A REPAIR FOUND ITS FINDING WORSE THAN THE ADVERSARY DID, TWICE.** CS-435 found two further
+     counter-examples, which changed the fix from reordering to deletion. CS-438 found the same
+     false-detail defect at a sibling site nobody had named. CS-211 found F2 covered three clauses,
+     not one.
+  5. **AN ADVERSARY WAS PARTLY WRONG AND THE REPAIR SAID SO.** CS-428's rule-count figures did not
+     reproduce (6/4 not 4/2) while the substance was confirmed and SHARPENED. A "four control
+     assertions" figure the merger ordered corrected turned out never to exist in a tracked file.
+  6. **CS-435's KEY FOR MECHANICAL SILENT-LOSS DETECTION FAILED ITS FIRST MEASUREMENT AND SAID SO.**
+     Keying on a reporting verb anywhere in scope matches 292 of 298 functions. The narrower key
+     gets 298 -> 12 and independently rediscovers CS-438, filed by a DIFFERENT agent. That is
+     CS-439 and it is evidence rather than argument.
+  7. **THE WRITE-LIST BOUNDARY HELD ON EVERY SLICE.** Every agent that found a defect outside its
+     list reported it; ten became filed items.
+
+- **Failed paths - do not retry:**
+  - **Generalising a narrow measurement into a universal.** Four of five. State the scope you
+    measured, including the interpreter and the platform.
+  - **A fixture that restates the real input verbatim.** It makes the derived and hardcoded paths
+    agree by construction. Declare fixture values DISJOINT from the real ones and test that.
+  - **Lazily caching a privacy rule set.** Whatever runs first defines it, and a test that patches
+    the environment poisons it. Build at import.
+  - **Grading a fence by a constant's NAME.** A renamed equivalent mutant walks through. Find the
+    construct by AST and learn the name from it.
+  - **Grading session state with cold subprocesses.** Structurally blind to it.
+  - **Writing a measured count into prose.** Third instance this session, one of them the merger's.
+
+- **HOUSEKEEPING THAT WILL BLOCK YOU: `ROADMAP.md` IS AT 97 PER CENT OF ITS HARD BUDGET.** It
+  PASSES today and `tools/doc_budget.py` FAILS CI above 60 KB, so the next roadmap edit of any size
+  goes red. Relocate before you file anything: the superseded dated STATUS blocks inside CS-400 and
+  CS-413 are the candidates, and CS-400's entry already marks one of them as no longer the state.
+  Relocate to `docs/history_notes.md`, never delete, and leave a one-line pointer.
+
+- **Next action:** **CS-448**, the `-n auto` flake in the no-install save-suite gate - tier-2 CI
+  runs that lane and it fails 1 run in 3, measured at BOTH this session's base and head, so it is
+  pre-existing and unfiled rather than new. Then **CS-439**, mechanical silent-loss detection, whose
+  key is already measured. **CS-420 is now takeable** - its acceptance is restated and its governing
+  ADR is accepted, and the two never conflicted; read CS-435's two new derived fences in
+  `clockspeed/save/usmap.py` first, they are a worked example of what its clause (2) asks for.
+

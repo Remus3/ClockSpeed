@@ -73,6 +73,45 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-16 - CS-420 - CLOSED. Coverage is conserved, scope is derived, and the probe is parse-derived
+Verification: `tests/save/test_absolute_claims.py` plus
+`tests/save/test_absolute_claims.py::test_a_marked_claim_at_each_parse_derived_position_is_caught`,
+`tests/save/test_absolute_claims.py::test_the_fenced_and_censused_scopes_are_derived_from_the_tree`,
+`tests/save/test_absolute_claims.py::test_the_module_constant_exemption_stops_at_a_sentence_and_at_function_scope`,
+`tests/save/test_absolute_claims.py::test_the_comment_census_separates_prose_from_a_rule_and_a_blank`,
+and `tests/save/test_decode_oracles.py`, which declares the two contract markers the scope walk reads.
+Adding `if True: continue` to the comment-token loop in `comment_position_mutants` reddens the first of
+those; it left the full suite green before the repair.
+**THIS FILE NOW OWNS CS-420's ROUND COUNT**, because the fence deliberately stops restating it and
+`ROADMAP.md` holds open work only. `ROADMAP.md` recorded FIVE failed rounds of hand repair before this
+session. This session's build was a sixth and was REFUTED; its repair was a seventh and passed. Every
+one of the first six shipped at least one false sentence, several written by the commit correcting the
+previous one - which is the failure the item exists to stop and the reason it took seven.
+**THE MECHANISM.** One `ast.parse` classifies every `ast.Constant` of type `str` and every
+`tokenize.COMMENT` by a POSITIVE rule into a prose kind or a single exempt kind; anything no rule claims
+lands in `unaccounted` and reddens. Scope is derived by walking the tree for two markers each module
+declares, with the tuples asserted equal to the walk, so unfencing takes two edits and neither is
+silent - all seven deletion trials redden. The probe enumerates its positions from the same parse, and
+the enumeration is asserted equal to the census population, which is what closes the truncation hole.
+**THE RULES DO NOT TILE THE LANGUAGE, WHICH IS WHY THE ACCOUNT IS NOT TAUTOLOGICAL.** The same four
+rules leave 95 of `test_absolute_claims.py`'s own 260 string literals unaccounted. They happen to tile
+the censused module.
+**GRADED TWICE BY AN ADVERSARY THAT WROTE NONE OF IT.** The first pass REFUTED clause 3 - the comment
+half of the position control had no liveness floor and could be reduced to probing nothing with the
+full suite green - and its prose audit found two measurably false sentences, one of them CREATED by the
+commit whose stated purpose was stripping false measurements. The repair DELETED rather than reworded,
+found a third false sentence neither the adversary nor the merger had listed, and tied both probes to
+the census. The second pass could not break clauses 1 to 4 across 25 injection shapes, 7 deletion
+trials, 13 mutants and a 279-position attribution sweep, and found every checkable replacement sentence
+true. Clause 5 is satisfied by that pass.
+**RESIDUALS, neither a live defect, both filed:** the census covers one module and the tie between
+census and probe is RELATIVE rather than absolute (CS-461); and a pre-existing false sentence in the
+censused module survives the fence because its phrasing carries no listed marker (CS-460).
+**ONE EDIT WAS MADE AT MERGE TIME AND WAS NOT INDEPENDENTLY GRADED**, recorded here rather than left to
+be found: closing this item removes its `ROADMAP.md` entry, which would have stranded the fence's
+sentence "the count belongs to `ROADMAP.md`". That pointer was DELETED rather than repointed, and the
+count moved to this record. The fence module is green on the edit.
+
 ### 2026-08-16 - CS-421 - ADJUDICATED AND REFUTED. The int32 endianness result does not hold
 Verification: rebind `clockspeed/save/objects.py::_decode_fixed_width` in process so `IntProperty` alone
 reads at `at + 4`, then run

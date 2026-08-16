@@ -18,8 +18,7 @@ sentences is the artifact that rots - the repeated rounds of hand repair on the
 fenced module, each shipping a fresh false sentence, are what that rot looks
 like, and a list of forgiven sentences would have hidden the lot. NO ROUND
 COUNT IS WRITTEN HERE: the figure that stood in this sentence was stale, and
-the count belongs to ``ROADMAP.md`` rather than to a docstring that a further
-round would falsify again.
+a count in a docstring is a claim that the next round falsifies again.
 
 THE MARKER SET IS A LIST TOO, AND ITS FAILURE DIRECTION IS THE OPPOSITE ONE.
 :data:`ABSOLUTE_PATTERNS` is hand-written, so a sentence phrased around a
