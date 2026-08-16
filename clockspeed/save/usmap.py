@@ -74,6 +74,14 @@ bytes, a hex preview, a name decoded out of the file, or an unredacted path -
 paths go through :func:`clockspeed.data.locate.redact`. That keeps every echo
 path clean by construction rather than by review.
 
+A RELATED BUT WEAKER DISCIPLINE COVERS ``__repr__``. :class:`PropertyMap`,
+:class:`Schema` and :class:`PropertyEntry` render structure and counts and
+withhold every name, because the generated repr prints the whole shipped name
+table and a test runner reprs an object before a human chooses what to print.
+The reason is DIAGNOSTIC NOISE AND AN ASSET ECHO, not privacy - these are
+publisher-owned asset names, and calling that a non-negotiable 12 breach would
+overstate it. Weaker than the taxonomy above, and still worth having.
+
 SEAM. This module reads the install and nothing else. It does not touch a save
 file, it never writes anywhere, and it imports only from
 ``clockspeed.data.locate`` (docs/ARCHITECTURE.md section 3).
@@ -99,6 +107,7 @@ __all__ = [
     "USMAP_RELATIVE",
     "VERSION_PACKAGE_VERSIONING",
     "WARN_DESYNCHRONISED_SECTION",
+    "WARN_DUPLICATE_ENUM",
     "WARN_DUPLICATE_SCHEMA",
     "WARN_TRAILING_SECTION",
     "WARN_UNKNOWN_PROPERTY_TYPE",
@@ -179,6 +188,7 @@ _MAX_DESCRIPTOR_DEPTH: Final = 16
 # --- warning codes ----------------------------------------------------------
 
 WARN_DESYNCHRONISED_SECTION: Final = "desynchronised-section"
+WARN_DUPLICATE_ENUM: Final = "duplicate-enum"
 WARN_DUPLICATE_SCHEMA: Final = "duplicate-schema"
 WARN_TRAILING_SECTION: Final = "trailing-section"
 WARN_UNKNOWN_PROPERTY_TYPE: Final = "unknown-property-type"
@@ -312,9 +322,12 @@ class UsmapContainer:
     header_size: int
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class PropertyEntry:
     """One serializable property of one schema.
+
+    ``repr`` is hand written and withholds the name, for the reason given on
+    :class:`PropertyMap`.
 
     Attributes:
         name: The property name, resolved through the name table.
@@ -328,10 +341,26 @@ class PropertyEntry:
     array_size: int
     type_id: int
 
+    def __repr__(self) -> str:
+        """Render the slot, the width and the type, and withhold the name.
 
-@dataclass(frozen=True)
+        Returns:
+            The quiet rendering.
+        """
+        return (
+            f"{type(self).__name__}(slot={self.slot}, "
+            f"array_size={self.array_size}, type_id={self.type_id})"
+        )
+
+
+@dataclass(frozen=True, repr=False)
 class Schema:
     """One class or struct and the properties it serializes.
+
+    ``repr`` renders counts and structure only, for the reason given on
+    :class:`PropertyMap`. It reaches the same nesting the mapping does: a tuple
+    reprs its elements, so a schema rendering its own name would put one back
+    into every rendering of :attr:`PropertyMap.schemas`.
 
     Attributes:
         name: The schema name.
@@ -348,14 +377,46 @@ class Schema:
     super_name: str | None
     properties: tuple[PropertyEntry, ...]
 
+    def __repr__(self) -> str:
+        """Render the property count and whether a super type resolved.
 
-@dataclass(frozen=True)
+        Returns:
+            The quiet rendering.
+        """
+        return (
+            f"{type(self).__name__}(properties={len(self.properties)}, "
+            f"super={'present' if self.super_name is not None else 'absent'})"
+        )
+
+
+@dataclass(frozen=True, repr=False)
 class PropertyMap:
     """The parsed property mapping.
 
+    ``repr`` IS HAND WRITTEN AND RENDERS COUNTS, and every name-bearing type
+    reachable from here does the same. The generated repr prints the entire
+    name table, and a test runner and most loggers repr an object BEFORE a
+    human chooses what to print, so the quiet rendering has to be the default
+    one.
+
+    THE REASON IS NOT PRIVACY, AND OVERSTATING IT WOULD BE ITS OWN DEFECT.
+    These are publisher-owned GAME ASSET names, not personal data: non-negotiable
+    12 does not reach them and this is not the control that
+    ``clockspeed/save/header.py`` implements. It is diagnostic noise and an
+    asset echo, which is reason enough on its own - an assertion that opens
+    with the whole name table tells a reader nothing and buries what failed.
+
     Attributes:
         names: The name table, in file order.
-        enums: Enum name to its member names, in file order.
+        enums: Enum name to its member names, in file order. TWO LOSSES ARE
+            POSSIBLE HERE AND BOTH ARE FLAGGED RATHER THAN SILENT. An enum may
+            hold FEWER members than the file declared, when a member's index
+            fell outside the name table; a :data:`WARN_UNRESOLVED_NAME` warning
+            against ``enum-<position>-member`` is the only thing separating
+            that from an enum genuinely that short. And an enum name that
+            repeats keeps only the LATER definition, flagged as
+            :data:`WARN_DUPLICATE_ENUM`, so a mapping smaller than the declared
+            enum count always says why.
         schemas: Schema name to its :class:`Schema`.
         warnings: Everything flagged and skipped.
         container: The outer framing.
@@ -370,6 +431,23 @@ class PropertyMap:
     warnings: tuple[UsmapWarning, ...]
     container: UsmapContainer
     body_consumed: int
+
+    def __repr__(self) -> str:
+        """Render section counts and the framing, and withhold every name.
+
+        The container is rendered in full because it carries nothing but
+        integers, so it is exactly the part of a mapping worth seeing first.
+
+        Returns:
+            The quiet rendering.
+        """
+        return (
+            f"{type(self).__name__}(names={len(self.names)}, "
+            f"enums={len(self.enums)}, schemas={len(self.schemas)}, "
+            f"warnings={len(self.warnings)}, "
+            f"body_consumed={self.body_consumed}, "
+            f"container={self.container!r})"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -583,7 +661,15 @@ def _resolve(index: int, names: tuple[str, ...]) -> str | None:
 def _read_enums(
     reader: _Reader, names: tuple[str, ...], log: _WarningLog
 ) -> dict[str, tuple[str, ...]]:
-    """Read the enum table, flagging any entry whose names do not resolve.
+    """Read the enum table, flagging every entry whose names do not resolve.
+
+    THE FAILURES HERE GET DISTINCT WARNING KEYS, and that is load bearing
+    rather than tidy. :class:`_WarningLog` aggregates by ``(code, subject)``
+    and keeps the FIRST detail it was given, so two conditions sharing a key do
+    not produce two warnings - the first one's sentence stands for both and the
+    second is reduced to a count. While the member loop and the enum-name check
+    shared one subject, an enum failing both ways surfaced only the member's
+    sentence, which describes an enum that in that case does not exist at all.
 
     Args:
         reader: Positioned at the enum count.
@@ -609,8 +695,27 @@ def _read_enums(
         members: list[str] = []
         for _ in range(member_count):
             member = _resolve(reader.u32("enum_member_index"), names)
-            if member is not None:
-                members.append(member)
+            if member is None:
+                # WITHOUT THIS FLAG A TRUNCATED ENUM IS A SHORTER ENUM. Dropping
+                # the member silently yields a mapping that is well formed,
+                # fully consumed and WRONG - and a shorter enum is an ordinary
+                # thing for the shipped file to hold, so nothing downstream can
+                # tell the two apart. Same root cause as the super index in
+                # _read_schema and the same half of non-negotiable 7: "never
+                # silently wrong" is the half that has to be satisfied on
+                # purpose, because the failure renders as a success.
+                #
+                # THE DETAIL STATES ONLY WHAT IS KNOWN HERE. Whether the enum
+                # survives at all is decided below, so a sentence about the
+                # enum's resulting length would be a claim this function can
+                # still go on to contradict.
+                log.add(
+                    WARN_UNRESOLVED_NAME,
+                    f"enum-{position}-member",
+                    "an enum member index fell outside the name table; the member was skipped",
+                )
+                continue
+            members.append(member)
         if enum_name is None:
             log.add(
                 WARN_UNRESOLVED_NAME,
@@ -618,6 +723,17 @@ def _read_enums(
                 "an enum name index fell outside the name table; the enum was skipped",
             )
             continue
+        if enum_name in enums:
+            # The same loss _read_schemas already flags, one section away, and
+            # deliberately the same shape: a repeated name silently collapses
+            # two definitions into one, and the count of enums a caller gets
+            # back is then smaller than the file declared with nothing to say
+            # why.
+            log.add(
+                WARN_DUPLICATE_ENUM,
+                f"enum-{position}",
+                "an enum name repeated; the later definition replaced the earlier",
+            )
         enums[enum_name] = tuple(members)
     return enums
 

@@ -1795,3 +1795,634 @@ def test_the_loader_never_writes_to_the_install(
 
     assert target.read_bytes() == payload
     assert sorted(p.name for p in community.iterdir()) == before
+
+
+# ---------------------------------------------------------------------------
+# 11 - CS-419: an unresolvable enum MEMBER index is flagged, not dropped
+#
+# The same non-negotiable 7 half as section 7 above and the same
+# ``_resolve``-returns-None root cause, but a DIFFERENT MECHANISM. CS-417 was a
+# missing check; this is a check that DISCARDS without flagging - the member
+# loop tested ``is not None`` and simply did not append, while the enum-name
+# check three lines away in the same loop did log.
+#
+# That difference is why it needs its own control. A truncated enum renders as
+# a shorter enum, and a shorter enum is a perfectly ordinary thing for the
+# shipped file to contain, so the failure arrives wearing the costume of a
+# success. The shipped file carries no out-of-bounds member index, so neither
+# the landing oracle nor the rebuild audit can reach this path either.
+# ---------------------------------------------------------------------------
+
+#: The enum fixture, invented like every other name in this file. The member
+#: names are ordered so that a positional drop is visible in the result tuple.
+_SYNTH_ENUM = "ESynthEnum"
+_OTHER_ENUM = "ESynthOther"
+_MEMBER_ZERO = "Member0"
+_MEMBER_ONE = "Member1"
+
+#: The one-enum table, and the indices ``build_usmap_body`` writes for it.
+#: Spelled as literals rather than computed with ``list.index``, so that the
+#: anchor is an independent statement about the bytes and not a restatement of
+#: the builder's own opinion of them.
+_ENUM_NAMES = [_SYNTH_ENUM, _MEMBER_ZERO, _MEMBER_ONE]
+_INDEX_OF_SYNTH_ENUM = 0
+_INDEX_OF_MEMBER_ZERO = 1
+_INDEX_OF_MEMBER_ONE = 2
+
+#: The two-enum table, for the cases that must not sit at position 0. Its
+#: indices differ from the table above because a name was inserted at 1.
+_TWO_ENUM_NAMES = [_SYNTH_ENUM, _OTHER_ENUM, _MEMBER_ZERO, _MEMBER_ONE]
+_PAIR_INDEX_OF_MEMBER_ZERO = 2
+_PAIR_INDEX_OF_MEMBER_ONE = 3
+
+_BOTH_MEMBERS = [_MEMBER_ZERO, _MEMBER_ONE]
+_ONE_ENUM = [(_SYNTH_ENUM, _BOTH_MEMBERS)]
+
+#: Widths inside the enum section: the enum count (4), each enum's own name
+#: index (4), its uint8 member count (1) and each member index (4).
+_ENUM_COUNT_WIDTH = 4
+_ENUM_NAME_WIDTH = 4
+_MEMBER_COUNT_WIDTH = 1
+_MEMBER_INDEX_WIDTH = 4
+
+
+def _enum_body(names: list[str], enums: list[tuple[str, list[str]]]) -> bytes:
+    """A body holding ``enums`` and no schemas.
+
+    Built through ``build_usmap(shipped=True)`` rather than :func:`_shipped_body`
+    for the reason the module docstring gives: the corpus module owns the
+    measurement, and its enum encoding is the one the rebuild control grades
+    against the game's own bytes.
+    """
+    return synthetic.build_usmap_body(names=names, enums=list(enums), schemas=[], shipped=True)
+
+
+def _enum_name_offset(names: list[str], enums: list[tuple[str, list[str]]], position: int) -> int:
+    """Byte offset of enum ``position``'s own uint32 name index.
+
+    The name count, then every name, then the enum count, then each PRECEDING
+    enum's fixed head and its member indices. Walking the preceding enums is
+    what lets a fixture put the broken enum somewhere other than position 0.
+    """
+    at = 4 + sum(1 + len(text) for text in names) + _ENUM_COUNT_WIDTH
+    for _name, members in enums[:position]:
+        at += _ENUM_NAME_WIDTH + _MEMBER_COUNT_WIDTH + len(members) * _MEMBER_INDEX_WIDTH
+    return at
+
+
+def _enum_member_offset(
+    names: list[str], enums: list[tuple[str, list[str]]], position: int, member: int
+) -> int:
+    """Byte offset of member ``member``'s uint32 index inside enum ``position``."""
+    return (
+        _enum_name_offset(names, enums, position)
+        + _ENUM_NAME_WIDTH
+        + _MEMBER_COUNT_WIDTH
+        + member * _MEMBER_INDEX_WIDTH
+    )
+
+
+def _patched_enum_body(
+    names: list[str],
+    enums: list[tuple[str, list[str]]],
+    patches: list[tuple[int, int]],
+) -> bytes:
+    """``enums`` as a body, with every ``(offset, anchor)`` made unresolvable.
+
+    ``anchor`` is what that uint32 must hold BEFORE the overwrite, and it is
+    asserted, for the reason :func:`_patched_body` gives: a patch that lands on
+    the wrong offset leaves every test built on it green while testing nothing.
+
+    Takes a LIST of sites because the interesting case for the aggregation key
+    is two failures inside one enum, which a single-site helper cannot build.
+    """
+    body = bytearray(_enum_body(names, enums))
+    for at, anchor in patches:
+        (found,) = struct.unpack_from("<I", body, at)
+        assert found == anchor, f"byte {at} holds {found}, not the expected anchor {anchor}"
+        struct.pack_into("<I", body, at, _UNRESOLVABLE_INDEX)
+    return bytes(body)
+
+
+def _parse_enum_body(body: bytes) -> usmap.PropertyMap:
+    """Frame a body in the builder's own outer framing and parse it."""
+    return usmap.parse_usmap(_reframe(synthetic.build_usmap(names=[], enums=[], schemas=[]), body))
+
+
+def _detail_for(parsed: usmap.PropertyMap, code: str, subject: str) -> str:
+    """The detail line of the one warning with ``(code, subject)``.
+
+    Returns the detail rather than asserting a literal sentence anywhere. A
+    test that restated the module's prose would go red on a wording change and
+    green on a wording LIE; comparing one parse's detail against another
+    parse's pins the thing that actually matters - that the true sentence for a
+    condition is still the sentence that condition produces.
+    """
+    matching = [w.detail for w in parsed.warnings if w.code == code and w.subject == subject]
+    assert len(matching) == 1, f"expected exactly one {code}/{subject}, got {len(matching)}"
+    return matching[0]
+
+
+def test_a_truncated_enum_is_flagged_rather_than_passing_as_a_genuinely_short_one() -> None:
+    """CS-419. The exact confusion the finder demonstrated, pinned both ways.
+
+    One body declares ONE member. The other declares TWO and holds an index no
+    three-name table can resolve in the second, so the second member is
+    dropped. Both therefore yield the identical one-member enum, the identical
+    name table and a fully consumed body - so whether the dropped member was
+    FLAGGED is the entire difference between them, exactly as it was between
+    CS-417's two schemas.
+
+    Both directions are asserted. A test that only checked the warning fires
+    would pass just as happily against an implementation that warned on every
+    enum, the genuinely-short one included, and that distinguishes nothing.
+    """
+    genuine = _parse_enum_body(_enum_body(_ENUM_NAMES, [(_SYNTH_ENUM, [_MEMBER_ZERO])]))
+    truncated = _parse_enum_body(
+        _patched_enum_body(
+            _ENUM_NAMES,
+            _ONE_ENUM,
+            [(_enum_member_offset(_ENUM_NAMES, _ONE_ENUM, 0, 1), _INDEX_OF_MEMBER_ONE)],
+        )
+    )
+
+    # Everything a caller can read about the enum is identical ...
+    assert genuine.enums == {_SYNTH_ENUM: (_MEMBER_ZERO,)}
+    assert truncated.enums == genuine.enums
+    assert truncated.names == genuine.names
+    assert truncated.schemas == genuine.schemas
+    assert truncated.body_consumed == truncated.container.compressed_size
+    # ... so the warnings are the only place the difference can show up. The
+    # genuinely-short enum is silent: the negative control that gives the next
+    # assertion its meaning.
+    assert genuine.warnings == ()
+    # And the dropped member is flagged, naming its enum by POSITION and its
+    # own site within that enum. Asserted as what IS there, not as an absence.
+    assert [(warning.code, warning.subject) for warning in truncated.warnings] == [
+        (usmap.WARN_UNRESOLVED_NAME, "enum-0-member")
+    ]
+
+
+def test_an_unresolvable_enum_member_keeps_the_enum_and_every_readable_member() -> None:
+    """Flagged and SKIPPED, never fatal - the first half of non-negotiable 7.
+
+    The FIRST member is the unreadable one here, where the test above breaks
+    the last. A fix that only noticed a trailing member would be green there
+    and red here, and the surviving member proves the drop is positional rather
+    than the whole enum being discarded to report one bad index.
+    """
+    parsed = _parse_enum_body(
+        _patched_enum_body(
+            _ENUM_NAMES,
+            _ONE_ENUM,
+            [(_enum_member_offset(_ENUM_NAMES, _ONE_ENUM, 0, 0), _INDEX_OF_MEMBER_ZERO)],
+        )
+    )
+
+    assert parsed.enums == {_SYNTH_ENUM: (_MEMBER_ONE,)}
+    assert parsed.body_consumed == parsed.container.compressed_size
+    assert [(warning.code, warning.subject) for warning in parsed.warnings] == [
+        (usmap.WARN_UNRESOLVED_NAME, "enum-0-member")
+    ]
+
+
+@pytest.mark.parametrize(
+    ("site", "member_position", "anchor"),
+    [
+        ("enum-name", None, _INDEX_OF_SYNTH_ENUM),
+        ("member-0", 0, _INDEX_OF_MEMBER_ZERO),
+        ("member-1", 1, _INDEX_OF_MEMBER_ONE),
+    ],
+)
+def test_every_unresolvable_name_index_in_an_enum_raises_the_same_code(
+    site: str, member_position: int | None, anchor: int
+) -> None:
+    """Parity across every name index the enum section carries.
+
+    Before CS-419 the two member rows were the odd ones out: they mapped an
+    unresolvable index to None and said nothing at all, while the first row -
+    the same ``_resolve`` call, three lines away, inside the same loop - logged.
+    Parametrized rather than written three times so that flagging one site and
+    forgetting another goes red, which is the control section 7's equivalent
+    test provides for schemas and which this section did not have.
+    """
+    at = (
+        _enum_name_offset(_ENUM_NAMES, _ONE_ENUM, 0)
+        if member_position is None
+        else _enum_member_offset(_ENUM_NAMES, _ONE_ENUM, 0, member_position)
+    )
+
+    parsed = _parse_enum_body(_patched_enum_body(_ENUM_NAMES, _ONE_ENUM, [(at, anchor)]))
+
+    codes = {warning.code for warning in parsed.warnings}
+    assert codes == {usmap.WARN_UNRESOLVED_NAME}, f"{site} at byte {at}"
+    assert parsed.body_consumed == parsed.container.compressed_size, "the parse did not complete"
+
+
+def test_a_failed_member_does_not_swallow_the_enum_skipped_warning() -> None:
+    """The aggregation key must not merge two different conditions.
+
+    ``_WarningLog`` aggregates by ``(code, subject)`` and KEEPS THE FIRST
+    DETAIL SEEN, and the member loop runs before the enum-name check. Sharing
+    one subject therefore let the member's detail win and buried the enum-name
+    warning behind a count of 2 - and the surviving sentence said the enum was
+    "shorter than the file declares" while the enum was in fact ABSENT. A true
+    warning replaced by a false one is the same "never silently wrong" half of
+    non-negotiable 7 that CS-419 exists to enforce.
+
+    No literal sentence is asserted here. Each condition's detail is compared
+    against the detail THAT SAME CONDITION produces when it happens alone, so
+    the test pins the behaviour and cannot be satisfied by rewording, nor go
+    red because of it.
+    """
+    name_at = (_enum_name_offset(_ENUM_NAMES, _ONE_ENUM, 0), _INDEX_OF_SYNTH_ENUM)
+    member_at = (_enum_member_offset(_ENUM_NAMES, _ONE_ENUM, 0, 1), _INDEX_OF_MEMBER_ONE)
+
+    name_only = _parse_enum_body(_patched_enum_body(_ENUM_NAMES, _ONE_ENUM, [name_at]))
+    member_only = _parse_enum_body(_patched_enum_body(_ENUM_NAMES, _ONE_ENUM, [member_at]))
+    both = _parse_enum_body(_patched_enum_body(_ENUM_NAMES, _ONE_ENUM, [name_at, member_at]))
+
+    # The enum really is gone in both cases that break its name, which is what
+    # makes a "shorter than declared" sentence about it false.
+    assert name_only.enums == {}
+    assert both.enums == {}
+
+    # Two conditions, two warnings, neither one's detail displaced by the other.
+    assert [(w.code, w.subject) for w in both.warnings] == [
+        (usmap.WARN_UNRESOLVED_NAME, "enum-0-member"),
+        (usmap.WARN_UNRESOLVED_NAME, "enum-0"),
+    ]
+    assert _detail_for(both, usmap.WARN_UNRESOLVED_NAME, "enum-0") == _detail_for(
+        name_only, usmap.WARN_UNRESOLVED_NAME, "enum-0"
+    )
+    assert _detail_for(both, usmap.WARN_UNRESOLVED_NAME, "enum-0-member") == _detail_for(
+        member_only, usmap.WARN_UNRESOLVED_NAME, "enum-0-member"
+    )
+    # And each is counted once, not merged into a single entry counted twice.
+    assert [w.count for w in both.warnings] == [1, 1]
+
+
+def test_the_flagged_enum_is_named_by_its_own_position_not_the_first() -> None:
+    """The subject tracks the enum, which one enum at position 0 cannot show.
+
+    Every other fixture in this section builds a single enum, so a mutant that
+    hardcoded the subject to the literal ``enum-0`` produced byte-identical
+    suite results. The broken enum here is the SECOND one, and the healthy
+    first enum is asserted intact so the warning cannot be read as covering it.
+    """
+    enums = [(_SYNTH_ENUM, [_MEMBER_ZERO]), (_OTHER_ENUM, _BOTH_MEMBERS)]
+    at = _enum_member_offset(_TWO_ENUM_NAMES, enums, 1, 1)
+
+    parsed = _parse_enum_body(
+        _patched_enum_body(_TWO_ENUM_NAMES, enums, [(at, _PAIR_INDEX_OF_MEMBER_ONE)])
+    )
+
+    assert parsed.enums == {_SYNTH_ENUM: (_MEMBER_ZERO,), _OTHER_ENUM: (_MEMBER_ZERO,)}
+    assert [(w.code, w.subject) for w in parsed.warnings] == [
+        (usmap.WARN_UNRESOLVED_NAME, "enum-1-member")
+    ]
+
+
+def test_a_one_member_enum_whose_only_member_is_unresolvable_is_flagged() -> None:
+    """The single-member case, which is the CS-419 defect at its smallest.
+
+    Both of the other member fixtures declare two members, so a mutant guarding
+    the flag with ``member_count > 1`` restored the entire defect undetected:
+    an enum arriving EMPTY, fully consumed, with no warning at all. An empty
+    enum is not something a caller can distinguish from a genuinely empty one
+    any more than a short one was.
+    """
+    enums = [(_SYNTH_ENUM, [_MEMBER_ZERO])]
+    at = _enum_member_offset(_ENUM_NAMES, enums, 0, 0)
+
+    parsed = _parse_enum_body(_patched_enum_body(_ENUM_NAMES, enums, [(at, _INDEX_OF_MEMBER_ZERO)]))
+
+    assert parsed.enums == {_SYNTH_ENUM: ()}
+    assert parsed.body_consumed == parsed.container.compressed_size
+    assert [(w.code, w.subject) for w in parsed.warnings] == [
+        (usmap.WARN_UNRESOLVED_NAME, "enum-0-member")
+    ]
+
+
+def test_a_repeated_enum_name_is_flagged_the_way_a_repeated_schema_name_is() -> None:
+    """The sibling that survived inside the function CS-419 edited.
+
+    ``_read_enums`` ended with a bare ``enums[enum_name] = ...``, so two enums
+    sharing a name collapsed into one with NO warning - while ``_read_schemas``
+    at the same commit flagged the identical loss. That is the same
+    one-branch-logs-one-does-not asymmetry that produced CS-419, one section
+    away, and the shape of the fix is taken from the schema side deliberately.
+
+    The surviving definition is asserted as the LATER one, so the warning's
+    account of what happened is checked rather than just its existence.
+    """
+    enums = [(_SYNTH_ENUM, [_MEMBER_ZERO]), (_SYNTH_ENUM, [_MEMBER_ONE])]
+
+    parsed = _parse_enum_body(_enum_body(_ENUM_NAMES, enums))
+
+    assert parsed.enums == {_SYNTH_ENUM: (_MEMBER_ONE,)}
+    assert parsed.body_consumed == parsed.container.compressed_size
+    assert [(w.code, w.subject) for w in parsed.warnings] == [(usmap.WARN_DUPLICATE_ENUM, "enum-1")]
+
+
+def test_a_healthy_enum_section_stays_silent() -> None:
+    """The negative control for every warning this section added.
+
+    Two distinctly named enums with resolvable members must produce NOTHING.
+    Without this, a fix that flagged unconditionally would satisfy every
+    assertion above.
+    """
+    enums = [(_SYNTH_ENUM, [_MEMBER_ZERO]), (_OTHER_ENUM, _BOTH_MEMBERS)]
+
+    parsed = _parse_enum_body(_enum_body(_TWO_ENUM_NAMES, enums))
+
+    assert parsed.enums == {_SYNTH_ENUM: (_MEMBER_ZERO,), _OTHER_ENUM: tuple(_BOTH_MEMBERS)}
+    assert parsed.warnings == ()
+
+
+# ---------------------------------------------------------------------------
+# 12 - CS-424: the parsed mapping's reprs render structure, not the name table
+#
+# SEVERITY, STATED EXACTLY. This is NOT a non-negotiable 12 breach. The strings
+# withheld here are PUBLISHER-OWNED GAME ASSET names, not personal data, and
+# calling it a privacy defect would overstate it - which this project treats as
+# its own defect. It is diagnostic noise and an asset echo: the default
+# dataclass repr renders the whole name table, which on the pinned build is
+# five figures of strings in front of whatever a reader was actually looking
+# for. It was filed off a mutant run whose assertion opened with the first
+# entries of that table; those entries are NOT reproduced here, because this
+# file is tracked and the module it tests says the mapping is never copied or
+# committed (non-negotiable 2).
+#
+# The discipline is not new here. clockspeed/save/objects.py already applies
+# exactly it to ObjectRecord and ObjectTable, for the reason that generalises
+# to any of them: a test runner and most loggers repr an object BEFORE a human
+# chooses what to print, so the safe rendering has to be the default one.
+#
+# TWO ORACLES, BECAUSE ONE OF THEM CANNOT RUN EVERYWHERE.
+#   presence  - no FIXTURE name appears in the rendering. Runs anywhere. Sound
+#               only because the fixture names below are distinctive; it would
+#               be worthless against the real table, whose short entries
+#               collide with this module's own field labels.
+#   quoting   - a withholding repr emits NO string literal at all, so the
+#               rendering must contain no quote character. Independent of what
+#               the names ARE, which is what lets it run against the real
+#               install, and it does not restate the repr's format, which is
+#               what stops it going red the day a field is added.
+# ---------------------------------------------------------------------------
+
+#: A body exercising all three name-bearing collections at once: the name
+#: table, an enum with members, and a schema with a super type and properties.
+#: Every name is invented, like every other name in this file, and each is
+#: distinctive enough not to collide with a field label in any repr below.
+_REPR_NAMES = ["Alpha", "Beta", "ESynthEnum", "Member0", "Member1", "SynthSchema", "SynthBase"]
+
+#: Quote characters a Python repr would use to open a string literal.
+_QUOTE_CHARACTERS = "'\""
+
+
+def _parsed_for_repr() -> usmap.PropertyMap:
+    """Parse a mapping whose every name-bearing collection is populated."""
+    framing = synthetic.build_usmap(names=[], enums=[], schemas=[])
+    body = _shipped_body(
+        names=_REPR_NAMES,
+        enums=[(_SYNTH_ENUM, [_MEMBER_ZERO, _MEMBER_ONE])],
+        schemas=[("SynthSchema", "SynthBase", [("Alpha", _TYPE_INT), ("Beta", _TYPE_BOOL)])],
+    )
+    parsed = usmap.parse_usmap(_reframe(framing, body))
+    # FIXTURE LIVENESS. Every presence assertion below iterates this table, so
+    # an empty one turns all of them into zero-iteration loops that pass while
+    # testing nothing - CONVENTIONS.md section 7.2, "a mutation that fails to
+    # apply looks GREEN". Asserted once here rather than in each test.
+    assert len(parsed.names) == len(_REPR_NAMES), "the fixture lost its name table"
+    assert parsed.schemas, "the fixture lost its schemas"
+    assert parsed.enums, "the fixture lost its enums"
+    return parsed
+
+
+def _assert_withholds(rendering: str, names: tuple[str, ...], what: str) -> None:
+    """Assert no FIXTURE name appears in ``rendering``.
+
+    The names are the invented ones this file builds its bodies from, NOT names
+    out of the install - the distinction matters because this module uses
+    "shipped" everywhere else to mean the latter, and the real table cannot be
+    checked this way at all (see :func:`test_the_real_usmap_repr_quotes_nothing`).
+
+    Iterates the parse's OWN name table rather than a restated literal, so a
+    fixture that grows a name cannot outrun the assertion.
+    """
+    for name in names:
+        assert name not in rendering, f"{what} renders the fixture name {name!r}"
+
+
+def _assert_quotes_nothing(rendering: str, what: str) -> None:
+    """Assert ``rendering`` opens no string literal.
+
+    A repr that withholds every string has no reason to emit a quote, so this
+    holds whatever the strings happen to BE. That independence is the whole
+    point: it is the only one of the two oracles that can be pointed at the
+    install.
+    """
+    found = [character for character in rendering if character in _QUOTE_CHARACTERS]
+    assert not found, f"{what} emitted {len(found)} quote characters, so it rendered a string"
+
+
+def test_the_property_map_repr_renders_structure_rather_than_its_name_table() -> None:
+    """CS-424. The acceptance: counts and structure, no name table.
+
+    Both halves are asserted. Presence-only on its own would be satisfied by a
+    repr that rendered nothing at all, so the STRUCTURE is asserted as what IS
+    there - a withholding repr still has to be worth reading, and every field
+    it is supposed to carry is named so that one quietly disappearing goes red.
+    """
+    parsed = _parsed_for_repr()
+
+    rendered = repr(parsed)
+
+    _assert_withholds(rendered, parsed.names, "PropertyMap")
+    _assert_quotes_nothing(rendered, "PropertyMap")
+    assert type(parsed).__name__ in rendered
+    assert f"names={len(parsed.names)}" in rendered
+    assert f"enums={len(parsed.enums)}" in rendered
+    assert f"schemas={len(parsed.schemas)}" in rendered
+    assert f"warnings={len(parsed.warnings)}" in rendered
+    assert f"body_consumed={parsed.body_consumed}" in rendered
+    # The framing is structure too, and it is the part a reader wants first.
+    # Named explicitly because a repr that silently stopped carrying it still
+    # satisfied every other assertion here.
+    assert "container=" in rendered
+    assert repr(parsed.container) in rendered
+
+
+def test_a_schema_and_its_property_entries_render_structure_rather_than_names() -> None:
+    """The two SIBLINGS of the same defect, found by grepping this module.
+
+    ``PropertyMap`` was the one filed, but ``Schema`` and ``PropertyEntry`` are
+    the same construct - a frozen dataclass carrying name strings under the
+    default repr - and a caller reaches both of them straight off the mapping.
+    Fixing only the one named would leave the identical echo one attribute
+    away, which is exactly how CS-419 came to exist.
+
+    The CONTAINER renderings are asserted too, because a tuple reprs its
+    elements: a fix applied to the element type is what makes the collection
+    safe, and asserting only the element would miss a regression that
+    reintroduced a name at the collection level.
+    """
+    parsed = _parsed_for_repr()
+    schema = parsed.schemas["SynthSchema"]
+    entry = schema.properties[0]
+
+    for what, rendering in (
+        ("Schema", repr(schema)),
+        ("a tuple of Schema", repr(tuple(parsed.schemas.values()))),
+        ("PropertyEntry", repr(entry)),
+        ("Schema.properties", repr(schema.properties)),
+    ):
+        _assert_withholds(rendering, parsed.names, what)
+        _assert_quotes_nothing(rendering, what)
+
+    assert f"properties={len(schema.properties)}" in repr(schema)
+    # Whether a super type resolved is the one bit of structure Schema has
+    # beyond its count, and CS-417 turned it into load-bearing information.
+    assert "super=" in repr(schema)
+    assert f"slot={entry.slot}" in repr(entry)
+    assert f"array_size={entry.array_size}" in repr(entry)
+    assert f"type_id={entry.type_id}" in repr(entry)
+
+
+def test_every_warning_this_module_can_raise_carries_a_structural_subject() -> None:
+    """``_WarningLog.add``'s stated invariant, measured across every code.
+
+    NARROWED DELIBERATELY FROM WHAT THIS TEST FIRST CLAIMED. It previously said
+    ``UsmapWarning`` was safe "by construction" and that it guarded "the whole
+    returned surface". There IS no construction - no type, no gate, nothing
+    stops a future edit interpolating a name - and a fixture that reaches one
+    warning site cannot speak for the others. So the claim is now exactly the
+    measurement: every code this module defines is provoked here, and every
+    subject and detail is checked against the fixture names that produced it.
+
+    The liveness assertion is what keeps that honest. Without it a refactor
+    that stopped raising a code would silently shrink the test's reach.
+    """
+    observed: dict[str, list[usmap.UsmapWarning]] = {}
+    fixture_names: set[str] = set()
+
+    def collect(mapping: usmap.PropertyMap) -> None:
+        fixture_names.update(mapping.names)
+        for warning in mapping.warnings:
+            observed.setdefault(warning.code, []).append(warning)
+
+    # An unresolvable enum name, an unresolvable enum member, and a repeat.
+    collect(
+        _parse_enum_body(
+            _patched_enum_body(
+                _ENUM_NAMES,
+                _ONE_ENUM,
+                [
+                    (_enum_name_offset(_ENUM_NAMES, _ONE_ENUM, 0), _INDEX_OF_SYNTH_ENUM),
+                    (_enum_member_offset(_ENUM_NAMES, _ONE_ENUM, 0, 1), _INDEX_OF_MEMBER_ONE),
+                ],
+            )
+        )
+    )
+    collect(
+        _parse_enum_body(
+            _enum_body(_ENUM_NAMES, [(_SYNTH_ENUM, [_MEMBER_ZERO]), (_SYNTH_ENUM, [_MEMBER_ONE])])
+        )
+    )
+    # All three of a schema's name indices, and a repeated schema name.
+    schema_names = ["Alpha", "SynthSchema"]
+    for delta, anchor in (
+        (_SCHEMA_NAME_DELTA, _INDEX_OF_SYNTH_SCHEMA),
+        (0, _ALL_BITS_SET),
+        (_PROPERTY_NAME_DELTA, _INDEX_OF_ALPHA),
+    ):
+        at = _super_index_offset(schema_names) + delta
+        collect(_parse_enum_body(_patched_body(schema_names, at, _UNRESOLVABLE_INDEX, anchor)))
+    collect(
+        _parse_enum_body(
+            _shipped_body(
+                names=schema_names,
+                enums=[],
+                schemas=[
+                    ("SynthSchema", None, [("Alpha", _TYPE_INT)]),
+                    ("SynthSchema", None, [("Alpha", _TYPE_INT)]),
+                ],
+            )
+        )
+    )
+    # An unknown property type, and a trailing section after the schemas.
+    collect(
+        _parse_enum_body(
+            _shipped_body(
+                names=["Only", "SynthSchema"],
+                enums=[],
+                schemas=[("SynthSchema", None, [("Only", _UNKNOWN_TYPE)])],
+            )
+        )
+    )
+    collect(_parse_enum_body(_shipped_body(names=["Alpha"], enums=[], schemas=[]) + b"CEXT"))
+    # A schema section cut short mid-entry, which desynchronises the walk.
+    short = _shipped_body(
+        names=["Alpha", "First", "Second"],
+        enums=[],
+        schemas=[
+            ("First", None, [("Alpha", _TYPE_INT)]),
+            ("Second", None, [("Alpha", _TYPE_INT)]),
+        ],
+    )
+    collect(_parse_enum_body(short[: len(short) - 6]))
+    # A file version nobody here has read.
+    collect(
+        usmap.parse_usmap(
+            synthetic.build_usmap(names=[], enums=[], schemas=[], version=_VERSION_UNKNOWN)
+        )
+    )
+
+    # LIVENESS: every WARN_* the module defines was actually provoked. Without
+    # this the assertions below could pass by reaching nothing.
+    expected_codes = {
+        value
+        for name, value in vars(usmap).items()
+        if name.startswith("WARN_") and isinstance(value, str)
+    }
+    assert set(observed) == expected_codes, f"unreached: {sorted(expected_codes - set(observed))}"
+
+    # SECOND LIVENESS GUARD, for the same reason _parsed_for_repr carries one:
+    # the sweep below iterates these names, so an empty set would turn it into
+    # a loop over nothing that passes while checking nothing.
+    assert _SYNTH_ENUM in fixture_names
+    assert "SynthSchema" in fixture_names
+
+    # And no subject or detail carries a name out of the body that produced it.
+    for code, warnings in observed.items():
+        for warning in warnings:
+            _assert_withholds(warning.subject, tuple(fixture_names), f"{code} subject")
+            _assert_withholds(warning.detail, tuple(fixture_names), f"{code} detail")
+
+
+def test_the_real_usmap_repr_quotes_nothing() -> None:
+    """The withholding claim, run against the INSTALL rather than a fixture.
+
+    Skipped with a reason where there is no game, like every other test in this
+    file that opens the shipped file. The oracle is quoting rather than
+    presence because presence cannot work here: the real table holds short
+    entries that are substrings of this module's own field labels, so a
+    presence sweep reports hits on a provably clean rendering. It is also not a
+    restatement of the repr's format, so adding a field does not break it.
+
+    Asserts SHAPES ONLY and prints nothing (non-negotiable 2).
+    """
+    parsed = usmap.cached_usmap()
+    if parsed is None:
+        pytest.skip("no game install resolved on this machine, or it carries no usmap")
+
+    assert parsed.names, "the install parsed to an empty name table"
+    richest = max(parsed.schemas.values(), key=lambda schema: len(schema.properties))
+    assert richest.properties, "no schema in the install carried a property"
+
+    _assert_quotes_nothing(repr(parsed), "the real PropertyMap")
+    _assert_quotes_nothing(repr(parsed.container), "the real UsmapContainer")
+    _assert_quotes_nothing(repr(richest), "the real Schema")
+    _assert_quotes_nothing(repr(richest.properties), "the real Schema.properties")
+    _assert_quotes_nothing(repr(richest.properties[0]), "the real PropertyEntry")
