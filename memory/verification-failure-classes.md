@@ -63,6 +63,20 @@ against the source of truth rather than a stale doc or another agent's output.
   failure against code that is provably correct. Clear `__pycache__` before believing a
   surprising red.
 
+- **A null result on ONE axis is a control, not a null.** If the defect can depend on a
+  variable you held fixed, repetition measures the wrong axis and the count is worthless
+  however large. Measured 2026-08-16: 32 runs chasing a flake across three parallelism
+  profiles and two revisions, all in checkouts where it was structurally impossible; an
+  adversary reproduced it six times by varying the one thing nobody varied - the checkout
+  path. **Before reporting "N runs, zero failures", say what you varied and what you held
+  fixed**, and vary something new rather than more of the same.
+- **A probe that cannot separate the two outcomes it was run to tell apart is not
+  evidence.** `git log -1` on a worktree cannot tell "cut correctly" from "cut stale and
+  self-corrected" - identical at HEAD; the reflog separates them. Ask what the FAILING case
+  looks like through your probe; if it looks like the passing one, the probe is decorative.
+- **Never take the deciding suite run while other agents mutate the tree.** It produces
+  phantom failures. Check `git status` and run on a quiet tree.
+
 Ground truth when the tool pipe is unreliable is `git status`, Edit success or failure, test
 output written to a FILE, and an explicit exit sentinel - not raw stdout, which can replay
 stale or out-of-order results.
