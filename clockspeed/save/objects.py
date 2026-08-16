@@ -2189,16 +2189,26 @@ def parse_body(
 #   bijection_and_collapses_under_a_one_tag_shift re-derives the shape and its
 #   shifted control on every run.
 #
-#   THAT JOIN IS NOT A CHECK ON THE TAG WIDTHS BELOW, and assuming it were
-#   would be the expensive mistake. Mutating each width in _TAG_EXTRA_STRINGS
-#   one at a time leaves the bijection intact with zero violations, and under
-#   one of those mutants it is byte-identical to the unmutated result. The
-#   mechanism: a wrong width breaks the walk, a broken walk contributes no
-#   pairs at all, so every pair that survives is a correct one. What does
-#   discriminate the widths is the shipped-walk reach -
+#   THAT JOIN CARRIES TWO QUANTITIES AND THEY DO NOT GRADE THE TAG WIDTHS
+#   BELOW ALIKE - one mechanism read at two quantities, and collapsing them
+#   into a single verdict about "the join" is the expensive mistake. A wrong
+#   width breaks the walk, a broken walk contributes no pairs at all, so every
+#   pair that survives is a correct one: a BIJECTION over that shrinking
+#   population stays pristine, while a COUNT of the distinct type words the
+#   population spans falls with it. Which width either quantity notices is NOT
+#   recorded here. It is derived by
+#   tests/save/test_decode_oracles.py::test_every_tag_width_
+#   is_caught_by_a_library_backed_oracle, which mutates each width in
+#   _TAG_EXTRA_STRINGS in this module alone - on every run that has the two
+#   inputs it needs, a save library and a property mapping, and it SKIPS rather
+#   than fails without them. Sentences recording that relation instead were
+#   written false three rounds running, the last falsified by the commit that
+#   added the floor, which is why the relation is derived and no longer
+#   written. The reach oracle -
 #   tests/save/test_decode_oracles.py::test_the_shipped_walker_reaches_a_
-#   terminator_on_every_real_payload - which walks with THESE constants rather
-#   than with a test-side copy of them.
+#   terminator_on_every_real_payload - is where the completeness of that walk
+#   is asserted directly, and it walks with THESE constants rather than with a
+#   test-side copy of them.
 #
 # AND THE ROTATION CONTROL, which is what makes the above evidence about
 # ALIGNMENT rather than about self-consistency. Re-read at VALUE-START offsets
