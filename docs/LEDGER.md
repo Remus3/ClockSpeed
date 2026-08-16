@@ -73,6 +73,46 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-16 - CS-420 - CORRECTION: THE CLOSURE ABOVE WAS WRONG. THE ITEM IS REOPENED
+Verification: `tests/save/test_decode_oracles.py` lines cited below, each refuted by execution against the
+live library on the unmutated tree. This entry corrects the CS-420 closure recorded earlier today, per this
+file's rule that a wrong record gets a NEW, later record rather than an edit.
+**A FINAL ADVERSARY THAT WROTE NONE OF THE WORK AUDITED MERGED `main` AND FOUND SIX FALSE SENTENCES, THREE OF
+THEM WRITTEN BY THIS SESSION'S OWN COMMITS.** The four sentences the item was held open on ARE fixed and the
+artifacts ARE sound - the derived test's structure survived a full attack, as did the common-mode claim, the
+bare-CI-box claim, the SystemExit residual and the repaired no-install gating. What failed is the same thing
+that has now failed FOUR CONSECUTIVE ROUNDS: the repair shipped new false prose.
+**F1 - `IT NEVER RAISES` on `_sweep_decode_oracles` is FALSE.** A forced `KeyboardInterrupt` gives
+`_sweep_decode_oracles RAISED KeyboardInterrupt`, and a second site raises too because
+`test_properties._library_save_paths()` sits outside every `try`. The same file states the opposite twice, in
+text this session wrote. **CS-427 repaired this exact absolute in THREE sibling docstrings in the same
+session** - `test_properties.py`, `test_objects.py`, `test_world.py` each now say the absolute is false - and
+the fourth survived, in the file this session rewrote most heavily.
+**F2 - the join mechanism sentence is false under both readings.** It says a bijection can stay pristine over
+a shrinking population while a distinct-word COUNT cannot. Measured: `ByteProperty -1` rots 5359 payloads and
+leaves `join.tags` at EXACTLY 55496 and `join.words` at EXACTLY 13 - because ByteProperty is not one of the
+13 joined words at all. And thinning directly with `_MAX_TAGS_PER_PAYLOAD = 4` drops the join by 3447 tags
+with the word count unmoved. **The stated causal account is simply wrong: the count does not measure the
+thinning, it measures whether the mutated word's own tags still parse.** MapProperty thins 0.12 per cent and
+costs TWO words; ByteProperty rots 4.1 per cent and costs none.
+**F3 - `_JOIN_WORD_FLOOR = 13`'s justification is false, and the floor is corpus-coupled.** Per-save distinct
+joined words across the live library run 8 to 12 and **NOT ONE SAVE REACHES 13** - it is a UNION over a
+growing library, never an engine constant. Within the SAME version pair, 1239 records gives 8 words and 19837
+gives 11, so "playing the game leaves this alone" is exactly backwards. `NameProperty` is contributed by only
+3 of 12 tagged saves, so autosave rotation retiring those three turns `assert sweep.join.words >= 13` RED ON
+A CORRECT GRAMMAR. The related claim "a thinned join cannot satisfy it" is refuted by the thinning run above.
+**ADR 0008 is also implicated in its own Context section**, which states the same over-applied mechanism as
+F2, and its refinement's claim that "nothing above is weakened" is inaccurate because permitting a scoped
+superlative in a commit message narrows FORECLOSED. Worse, the refinement classifies `WAKEUP_NOTES.md` as an
+immutable record while `CLAUDE.md` defines it as a rolling two-to-three-session window that the next session
+reads AS CURRENT STATE - that is a new loophole, not a closed one, and it is mine.
+**A DEAD CITATION THIS SESSION CREATED:** `tests/save/test_oracle_citations.py` still names the objects.py
+paragraph "beginning ``THAT JOIN IS NOT A CHECK ON THE TAG WIDTHS BELOW,``", which commit `662432d` renamed.
+The citation checker passes because it resolves `tests/<path>.py::<name>` citations and not paragraph names.
+**The merger's own dispatch quoted the dead name**, which is the harm demonstrating itself.
+CS-419, CS-424 and CS-427 are NOT reopened by this: the audit re-derived their facts and they held, and the
+`IT NEVER RAISES` finding is against the one file CS-427 did not own.
+
 ### 2026-08-16 - CS-420 - Detection claims are DERIVED by the suite; the four false sentences are gone
 Verification: `tests/save/test_decode_oracles.py::test_every_tag_width_is_caught_by_a_library_backed_oracle`
 builds a per-(width, oracle) attribution table at runtime by mutating each width in the SHIPPED

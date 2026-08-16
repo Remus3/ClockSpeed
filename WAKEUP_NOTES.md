@@ -33,9 +33,11 @@ the line becomes a pointer.
 
 ## Session 9 - 2026-08-16 - four items close, and every single first build was refuted
 
-- **Shipped: CS-419, CS-420, CS-424, CS-427 CLOSED.** ADR 0008 recorded (`proposed`). Filed
-  CS-428, CS-429, CS-430, CS-431, CS-432, CS-701. Suite 1619 -> **1674 passed, 7 skipped**, exit 0.
-  mypy 75 files 0 errors, drift guard CLEAN 8/8, doc budget PASS. Detail in `docs/LEDGER.md`.
+- **Shipped: CS-419, CS-424, CS-425, CS-427 CLOSED. CS-420 WAS CLOSED AND THEN REOPENED THE SAME
+  SESSION** - see the final audit below. ADR 0008 recorded (`proposed`). Filed CS-428, CS-429,
+  CS-430, CS-431, CS-432, CS-701. Suite 1619 -> **1733 passed, 7 skipped**, exit 0. mypy clean,
+  drift guard CLEAN 8/8, doc budget PASS. Detail in `docs/LEDGER.md`, including the CORRECTION
+  entry that supersedes the CS-420 closure.
 
 - **THE HEADLINE IS NOT A DELIVERABLE, IT IS A HIT RATE. FOUR OF FOUR FIRST BUILDS WERE REFUTED
   BY AN INDEPENDENT ADVERSARY, AND EVERY REFUTATION WAS INVISIBLE TO A GREEN SUITE.** Not one
@@ -57,17 +59,31 @@ the line becomes a pointer.
      shape into a new helper left **13 graders passing while it leaked all three markers** - the
      ungraded-containment defect re-shipped inside the guard built to prevent it.
 
-- **In flight, and NEITHER IS FINISHED - do not assume either result:**
-  - **CS-425** was dispatched and had not reported when this note was written. Its worktree is
-    `worktree-agent-ac8907b95df03dfee`, correctly based at `667a9a9`. Design constraint given to
-    it: a NEW unfrozen file under `tools/` parses the hook envelope, reuses the gate's scan BY
-    IMPORT, and exits 2; `.claude/settings.json` is repointed at it. **`tools/precommit_gate.py`
-    must stay byte-identical** - see Decisions.
-  - **A FINAL PROSE ADVERSARY** was reading merged `main` at `667a9a9` against ADR 0008 and had
-    not reported. It exists because the builders repaired their own prose and then SELF-AUDITED
-    it, which is precisely the failure mode that has beaten four consecutive rounds. If it
-    returns findings, they are new work under ADR 0008 rather than a reopening of the four
-    closed items, whose stated acceptance was independently verified.
+- **BOTH IN-FLIGHT AGENTS LANDED. Neither result was what the optimistic reading expected.**
+  - **CS-425 CLOSED, and the main session proved the half the builder could not.** The builder built a
+    NEW unfrozen `tools/pretooluse_gate.py` that parses the hook envelope, walks EVERY string in
+    `tool_input` rather than an allowlist, and runs the frozen gate's charset and secret checks BY
+    IMPORT. `tools/precommit_gate.py` is byte-identical - sha256 equal at base, worktree and HEAD, and
+    `git diff --name-only` over every frozen path returns zero lines - so the grant it did NOT hold was
+    never needed. **I then made the harness fire its own hook, which no subagent can do: a Bash call
+    carrying a literal em dash was DENIED, naming the character and the column, and did not run.**
+  - **`pythonw` IS PROVEN SAFE AND IS SHIPPED.** The builder measured it byte-identical across 13 probe
+    cases but deliberately declined to ship it, because whether Claude Code's own spawn WAITS on a
+    GUI-subsystem child was an inference rather than a measurement - and it was right to refuse. I
+    settled it directly: under `pythonw` the em-dash probe is still DENIED with an identical diagnostic,
+    and a clean ASCII call still runs. So the console flash goes away with the gate intact. **That
+    judgement call - refusing to trade a verified gate for an unverified cosmetic win - was correct
+    even though the answer came back favourable.**
+  - **THE FINAL PROSE ADVERSARY RETURNED REFUTED, AND CS-420 IS REOPENED.** Six false sentences on
+    merged `main`, THREE WRITTEN BY THIS SESSION'S OWN COMMITS. `IT NEVER RAISES` is false by execution
+    on a forced `KeyboardInterrupt` - and CS-427 repaired that exact absolute in three sibling
+    docstrings the same day while the fourth survived. The join mechanism sentence is false under both
+    readings: `ByteProperty -1` rots 5359 payloads with `join.tags` at exactly 55496 and `join.words` at
+    exactly 13, because **ByteProperty is not one of the 13 joined words at all**. And
+    `_JOIN_WORD_FLOOR = 13` is a UNION over a growing library, not an engine constant - per-save counts
+    run 8 to 12 and NOT ONE SAVE REACHES 13, so the floor can go red on a correct grammar. What the
+    audit could NOT break: the derived test's structure, the two-copy common-mode claim, the
+    bare-CI-box claim, the SystemExit residual, and the repaired no-install gating.
 
 - **Decisions: ADR 0008, `proposed`** - a detection claim is DERIVED by the suite, never written.
   Three tiers by quantifier scope: universal claims DELETED (unverifiable by construction),
@@ -139,11 +155,13 @@ the line becomes a pointer.
     the implementation's own field labels as standalone names.
   - **Repairing prose and self-auditing it.** Four consecutive rounds, fourteen false sentences.
 
-- **Next action:** land **CS-425** and the final prose adversary, both in flight. Then **CS-403,
-  CS-209, CS-204** as ONE slice under the recorded `tools/precommit_gate.py` grant - they all edit
-  that one file, so they are one slice and not three, and the binding condition is that no edit
-  may introduce a new way for the gate to FAIL TO START, proven end to end with a real `git
-  commit` rather than by passing flags explicitly.
+- **Next action:** **CS-420, and NOT by hand.** Four rounds of prose repair have now each shipped a
+  false sentence, several written by the commit correcting the previous one, and round four was caught
+  only because an adversary read merged `main` after the items were closed and pushed. ADR 0008 states
+  the rule and the artifacts exist to enforce it; what is missing is a MECHANICAL check that a
+  declarative sentence in that module is backed by execution, plus a fix for the paragraph-citation gap
+  that let a renamed heading go on being cited. Delete every sentence such a check cannot back. Then
+  **CS-403, CS-209, CS-204** as ONE slice under the recorded `tools/precommit_gate.py` grant.
 
 ## Session 8 - 2026-08-15 - CS-420's artifacts land; the inherited premise turns out to be false
 
