@@ -73,6 +73,156 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-16 - SESSION 11 - FIVE OF FIVE FIRST BUILDS WERE REFUTED, AND THE FAILURE HAD ONE SHAPE
+Verification: the five squash commits `d0d6f87`, `ea4ed3e`, `0ab2007`, `7478b35`, `ee36d0d`, each
+of which is a build PLUS its repair and each of whose message records what was refuted.
+THIS ENTRY IS A RECORD, NOT A CLOSURE. It exists because the shape repeated and the shape is more
+useful than the five instances. In four of the five, a builder MEASURED SOMETHING TRUE AND STATED
+SOMETHING WIDER: the budget cannot bound one slow open, therefore it is decorative; the handler is
+unreachable on 3.14, therefore it was unreachable; five happy-path indices are flagged, therefore
+every index is. The fifth is the same error one level down - CS-211's fixture restated the real
+doctrine sentence verbatim, so the derived path and a hardcoded path agreed BY CONSTRUCTION and the
+mutant that should have separated them produced a byte-identical suite result.
+THAT IS ADR 0008's OWN THESIS ARRIVING IN CODE RATHER THAN IN PROSE. A universal has a
+falsification surface no local check covers. The ADR fenced the sentences; nothing fences the
+INFERENCE, and the inference is where it landed five times in one session.
+NOT ONE FINDING WAS VISIBLE TO A GREEN SUITE. Two were reachable only by leaving the builder's
+frame entirely - reading `pyproject.toml` for the declared floor interpreter rather than trusting
+the interpreter present, and reading the actual call order rather than the cited line range.
+
+### 2026-08-16 - CS-211 - The one-owner rule on work-item IDs is enforced mechanically, not stated
+Verification: `tools/drift_guard.py` guard (i), gated by `tests/data/test_drift_guard_data.py`,
+specifically `test_a_planted_duplicate_is_reported_as_drift` and
+`test_a_ledger_record_that_says_the_item_did_not_close_leaves_it_open`. `python tools/drift_guard.py`
+reports 9 guards on the real tree.
+The guard fails when an ID is OPEN in `ROADMAP.md` while carrying a closure heading in this file,
+and when an ID is owned by more than one of the four owner files. It keys on a CLOSURE, not on any
+mention, because a grant record legitimately names an item before it closes - and this file
+contains four such records, so that is a live control rather than a synthetic one.
+REFUTED ON FIRST BUILD, five findings, all confirmed and two wider than reported. The forgiveness
+predicate was a document-wide phrase search, so a closure record carrying one true sentence about a
+DIFFERENT item was forgiven; 25 of the 53 closure records in this file already cite another ID, so
+roughly half the population was one ordinary sentence from a false green. Rewording the doctrine
+sentence silently removed an owner file from the scan - OPEN, GATED and ASPIRATIONAL each. The
+fixture restated the real four paths verbatim, so the hardcode mutant was byte-identical to its
+control. All repaired; 13 of 13 mutants now detected, one of which restores the refuted predicate.
+
+### 2026-08-16 - CS-435 - An undecodable usmap name is flagged, not silently substituted
+Verification: `clockspeed/save/usmap.py`, gated by `tests/save/test_usmap.py`, specifically
+`test_an_undecodable_name_is_flagged_rather_than_silently_substituted` and
+`test_a_name_table_that_decodes_cleanly_stays_silent`.
+`_Reader.text` decoded with `errors="replace"`, so a name whose bytes are not valid UTF-8 became a
+DIFFERENT name, the schema published a property under the fabricated key, the body consumed
+cleanly, and `warnings` was empty. It now decodes strictly and the position is flagged.
+RAISE WAS REJECTED FOR A MEASURED REASON, and the first build's reason was FALSE. It cited
+`world._resolve_usmap`, which `git log -S` shows has never existed in any commit, and claimed the
+usmap resolves before the save's own bytes are read, which the measured call order refutes. The
+decision stands on a mechanism that is true and execution-verified: `cached_usmap` holds a
+module-level cache, so one bad byte ends every later load that supplies no mapping.
+THE ACCEPTANCE IS MET AND THE ITEM'S STATED DEFECT IS NOT FULLY CLOSED, recorded here rather than
+left for a reader to discover. A modelled class whose usmap name is undecodable STILL reports as
+unmodelled; what changed is that it is no longer silent. The two sites that blunt the correlation
+are in `clockspeed/save/world.py` and `clockspeed/save/objects.py`, outside this item's scope, and
+are filed as CS-440. Closing on the written acceptance while naming the remainder is the honest
+reading; closing silently would not be.
+
+### 2026-08-16 - CS-437 - Two positional warning subjects, and a field documented as what it holds
+Verification: `clockspeed/save/usmap.py` and `clockspeed/save/objects.py`, gated by
+`tests/save/test_usmap.py::test_the_flagged_enum_name_is_flagged_at_its_own_position`,
+`tests/save/test_usmap.py::test_the_repeated_schema_name_is_flagged_at_its_own_position`, and
+`tests/save/test_objects.py::test_the_parent_field_documentation_states_what_the_walk_puts_there`.
+THE FILED CLAIM WAS HALF RIGHT AND WAS NARROWED BY PER-SITE MEASUREMENT, twice. It named five
+interpolated subject sites with two survivors; there are SEVEN, and the two extra already had
+controls and already died. Both survivors now have a control and all eight sites die.
+The `parent` field was documented as "None on every path today". The save library refutes that on
+every component record. The sentence is DELETED rather than hedged, per ADR 0008, and the
+replacement states what the walk binds without writing a count.
+
+### 2026-08-16 - CS-438 - The save listing reports an entry it cannot read
+Verification: `clockspeed/save/workdir.py`, gated by `tests/save/test_workdir.py`, specifically
+`test_a_directory_that_cannot_be_listed_is_reported_not_silently_empty` and
+`test_an_empty_directory_lists_nothing_and_reports_no_problem`.
+A short list caused by a read failure is now distinguishable from one caused by an empty directory.
+THE FILED MECHANISM WAS WRONG AND THE CORRECTION MATTERS FOR THE WHOLE FAMILY. On Python 3.14
+`Path.is_file()` delegates to `os.path.isfile`, which swallows every `OSError`, so the named
+handler could not fire and the entry was dropped with no exception to catch. But the DECLARED FLOOR
+is 3.13, where `PathBase.is_file` re-raises outside `(ENOENT, ENOTDIR, EBADF, ELOOP)`, and CI pins
+3.14 at four sites - so the difference is real and nothing in this repo would have caught it. The
+shipped prose now states the scope per version and per platform.
+REFUTED ON FIRST BUILD on four findings. The one worth carrying: the new detail folded absent,
+not-a-directory and refused into one sentence true only of refused, and the ABSENT case fires on
+every machine with no game installed. That is CS-430's defect reproduced inside the fix that cites
+CS-430 as its lesson. Both sites are now split by errno and the refused case went from zero tests
+to three.
+
+### 2026-08-16 - CS-428 - pytest no longer renders the account name or a home path through `tmp_path`
+Verification: `tests/conftest.py`, gated by `tests/test_tmp_path_privacy.py`, specifically
+`test_a_forced_memory_error_renders_no_home_path_and_no_account_name`,
+`test_a_forced_system_exit_renders_no_home_path_and_no_account_name` and
+`test_the_control_run_proves_this_harness_can_see_a_leak`.
+195 test functions across 19 files take `tmp_path` or a fixture derived from it. `FormattedExcinfo`
+is constructed with `funcargs=True` unconditionally, so frame arguments render under the DEFAULT
+traceback style and `-l` was never required - which is why this was repo-wide rather than one
+module's defect. A basetemp redirect was rejected on measurement: the temp root already resolves
+inside the user profile, so redirecting within it changes nothing.
+REFUTED ON FIRST BUILD, and the primary finding is the one to remember. The rule set was
+`lru_cache`d and seeded LAZILY by the first report carrying content, so a test that SHIPS IN THIS
+REPO - one that patches `USERPROFILE` to a temp directory named `home` - installed "home" as a
+session-wide redaction token AND lost the real spellings. A privacy control that FAILS OPEN,
+triggered by the repo's own suite, with no attacker involved. The rules are now built once at
+import, monotone by construction. The grading module could not observe it, because every arm was a
+cold subprocess with an empty cache; it now runs the poisoning shape and a victim in one session.
+A LIVE CI LEAK WAS FOUND AND CLOSED, not recorded as a residual: CI runs `-n auto`, and xdist
+composes its worker line AFTER the worker's `makereport`, so the parallel lane leaked on every
+failure. Fixed controller-side and proven on the real suite - 259 force-failed tests render 259
+worker lines and zero markers, against a control showing 518 occurrences.
+
+### 2026-08-16 - CS-436 - The two unguarded gate bounds get a report and a control
+Verification: `tools/precommit_gate.py`, gated by `tests/test_precommit_gate.py`, specifically
+`test_the_account_cap_reports_on_the_world_token_channel` and
+`test_the_header_scan_advertises_no_bound_it_cannot_enforce`.
+EDITED UNDER THE OPERATOR FROZEN-FILE GRANT recorded in this file BEFORE the edit, scoped to CS-436
+alone. `git diff --name-only 76f6c82 ee36d0d` touches no other frozen path, verified on every merge.
+`_save_root_dirs` failed open past its cap; all three degraded checks now report on their own
+channel, and the gate is proven to still BLOCK end to end - staged violation, real commit attempt,
+exit 1, HEAD unchanged - with the running gate copy discriminated by sha rather than assumed.
+REFUTED ON FIRST BUILD, and one of the two findings CORRECTS THIS ITEM'S OWN ACCEPTANCE.
+FIRST, the false statement SURVIVED the fix: a true truncation line was added and the false
+sentence left standing beside it, so over the cap the gate exited 0 on a file carrying a world name
+and token while telling the operator neither was discoverable. Renaming only the account directory,
+identical bytes, made the same gate exit 1. The file already held the remedy - a guard preventing
+two skip lines that disagree - and it is now extended.
+SECOND, THE ACCEPTANCE WAS A FALSE DICHOTOMY. It said the budget "either bounds a single slow open
+or is removed and its claim deleted". Neither is right, and the removal was a COVERAGE REDUCTION
+the grant forbids: the constant is 5.0 seconds and the check breaks the loop, so at 0.40s per read
+the bound stops the scan at 13 of 24 files while the removal read all 24. The third option, which
+the item did not anticipate, is what shipped - THE BOUND IS REAL BUT BOUNDS SOMETHING OTHER THAN
+WHAT ITS DOCSTRING CLAIMED. It is restored, and the claim now says it bounds the AGGREGATE scan and
+cannot abort a read in flight.
+
+### 2026-08-16 - CS-420 - CORRECTION: this file cited a test name that does not exist
+Verification: `grep -c test_the_scanned_prose_carries_no_unbacked_absolute_claim
+tests/save/test_absolute_claims.py` returns 0; the real name is
+`test_the_fenced_prose_carries_no_unbacked_absolute_claim`, which returns 1.
+CS-420 STAYS OPEN and this entry does not close it - it is a correction to a dead verification
+pointer and a measurement record, not a completion record. Its acceptance was RESTATED on the
+coverage axis by the ADR 0008 adjudication the same day and the item remains in `ROADMAP.md`.
+THIS SENTENCE EXISTS BECAUSE THE GUARD SHIPPED IN THIS SESSION DEMANDED IT. `tools/drift_guard.py`
+guard (i) read this record as a closure, reported CS-420 as owned by two files, and went RED on the
+merger's own doc edit within minutes of being merged. That is CS-211 working on its first real
+input rather than on a planted one, and the ambiguity was genuine: a record that declines to close
+an item must say so ABOUT THAT ITEM BY NAME, which this one did not.
+THE 2026-08-16 CS-420 ENTRY BELOW CARRIES A DEAD VERIFICATION POINTER. This file is append-only, so
+the repair is this record rather than an edit to that one. A reader following that pointer finds
+nothing and cannot confirm the item.
+THE STRUCTURAL FACT IS WORTH MORE THAN THE TYPO, and it is why this is a record rather than a
+one-line fix. NOTHING IN THIS REPOSITORY RESOLVES A CITATION WRITTEN IN `docs/`.
+`tests/save/test_oracle_citations.py` scans `clockspeed/`, `tests/save/test_absolute_claims.py`
+scans `tests/`, and neither reads `docs/` - so a verification pointer, which is the one field this
+file makes MANDATORY, is the least guarded prose in the project. Filed as CS-442.
+Found by the CS-211 builder while working inside its own write-list, reported rather than widened
+into.
+
 ### 2026-08-16 - CS-436 - FROZEN-FILE GRANT ISSUED by the OPERATOR for `tools/precommit_gate.py`
 Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit, not a
 completion record. Nothing has been edited under it at the time of writing. The item it serves is
