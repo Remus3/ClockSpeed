@@ -44,6 +44,147 @@ Where current truth actually lives:
 
 <!-- Newest first. Each block: date archived, source file, then the content. -->
 
+### Archived 2026-08-16 from `WAKEUP_NOTES.md` - session 9 at full fidelity
+
+Aged out when session 12 landed and `WAKEUP_NOTES.md` keeps only the last three sessions.
+**Nothing here is current.** Note in particular that this entry lists CS-425 as CLOSED; it is
+NOT - its only ledger record is a frozen-file grant that declines to close it, and it remains
+OPEN in `ROADMAP.md`. That error was inherited forward for three sessions.
+
+## Session 9 - 2026-08-16 - four items close, and every single first build was refuted
+
+- **Shipped: CS-419, CS-424, CS-425, CS-427 CLOSED. CS-420 WAS CLOSED AND THEN REOPENED THE SAME
+  SESSION** - see the final audit below. ADR 0008 recorded (`proposed`). Filed CS-428, CS-429,
+  CS-430, CS-431, CS-432, CS-701. Suite 1619 -> **1733 passed, 7 skipped**, exit 0. mypy clean,
+  drift guard CLEAN 8/8, doc budget PASS. Detail in `docs/LEDGER.md`, including the CORRECTION
+  entry that supersedes the CS-420 closure.
+
+- **THE HEADLINE IS NOT A DELIVERABLE, IT IS A HIT RATE. FOUR OF FOUR FIRST BUILDS WERE REFUTED
+  BY AN INDEPENDENT ADVERSARY, AND EVERY REFUTATION WAS INVISIBLE TO A GREEN SUITE.** Not one
+  was a style quibble; each was a defect that would have shipped:
+  1. **CS-420's derived test derived nothing.** Its attribution folded through `any()`, which
+     short-circuits. With the reach oracle first and red on all six widths, the other two were
+     consulted ONLY in the pristine control - invocation census 7/7/1/1 - and **gutting both to
+     green no-ops left the suite passing.**
+  2. **CS-419's fix introduced a behaviour regression.** The new warning reused the enum-name
+     warning's `(code, subject)` key and was added first; `_WarningLog` keeps the FIRST detail,
+     so a true "the enum was skipped" was REPLACED by a false "the enum is shorter than the file
+     declares" while the enum was absent entirely.
+  3. **CS-424 satisfied its acceptance against seven invented names**, and its tests said
+     "shipped name" while meaning fixture name - **the acceptance READ as met because the test
+     borrowed the acceptance's own word.** Its positive assertions were also a zero-iteration
+     loop under an empty name table.
+  4. **CS-427's new privacy guards were INVERTED.** They keyed on the CONTAINED routes, so a
+     helper using an uncontained route never entered the graded set. Splicing the known-bad
+     shape into a new helper left **13 graders passing while it leaked all three markers** - the
+     ungraded-containment defect re-shipped inside the guard built to prevent it.
+
+- **BOTH IN-FLIGHT AGENTS LANDED. Neither result was what the optimistic reading expected.**
+  - **CS-425 CLOSED, and the main session proved the half the builder could not.** The builder built a
+    NEW unfrozen `tools/pretooluse_gate.py` that parses the hook envelope, walks EVERY string in
+    `tool_input` rather than an allowlist, and runs the frozen gate's charset and secret checks BY
+    IMPORT. `tools/precommit_gate.py` is byte-identical - sha256 equal at base, worktree and HEAD, and
+    `git diff --name-only` over every frozen path returns zero lines - so the grant it did NOT hold was
+    never needed. **I then made the harness fire its own hook, which no subagent can do: a Bash call
+    carrying a literal em dash was DENIED, naming the character and the column, and did not run.**
+  - **`pythonw` IS PROVEN SAFE AND IS SHIPPED.** The builder measured it byte-identical across 13 probe
+    cases but deliberately declined to ship it, because whether Claude Code's own spawn WAITS on a
+    GUI-subsystem child was an inference rather than a measurement - and it was right to refuse. I
+    settled it directly: under `pythonw` the em-dash probe is still DENIED with an identical diagnostic,
+    and a clean ASCII call still runs. So the console flash goes away with the gate intact. **That
+    judgement call - refusing to trade a verified gate for an unverified cosmetic win - was correct
+    even though the answer came back favourable.**
+  - **THE FINAL PROSE ADVERSARY RETURNED REFUTED, AND CS-420 IS REOPENED.** Six false sentences on
+    merged `main`, THREE WRITTEN BY THIS SESSION'S OWN COMMITS. `IT NEVER RAISES` is false by execution
+    on a forced `KeyboardInterrupt` - and CS-427 repaired that exact absolute in three sibling
+    docstrings the same day while the fourth survived. The join mechanism sentence is false under both
+    readings: `ByteProperty -1` rots 5359 payloads with `join.tags` at exactly 55496 and `join.words` at
+    exactly 13, because **ByteProperty is not one of the 13 joined words at all**. And
+    `_JOIN_WORD_FLOOR = 13` is a UNION over a growing library, not an engine constant - per-save counts
+    run 8 to 12 and NOT ONE SAVE REACHES 13, so the floor can go red on a correct grammar. What the
+    audit could NOT break: the derived test's structure, the two-copy common-mode claim, the
+    bare-CI-box claim, the SystemExit residual, and the repaired no-install gating.
+
+- **Decisions: ADR 0008, `proposed`** - a detection claim is DERIVED by the suite, never written.
+  Three tiers by quantifier scope: universal claims DELETED (unverifiable by construction),
+  existential claims DERIVED at runtime, mechanistic claims about adjacent code may stay prose.
+  **It needs an adjudicator that wrote no part of it and no part of the implementing slices.**
+  **A FROZEN-FILE BOUNDARY WAS ENFORCED RATHER THAN ASSUMED:** the recorded grant for
+  `tools/precommit_gate.py` is scoped to CS-403/CS-209/CS-204 and **does NOT extend to CS-425**,
+  per CS-204's own precedent. CS-425 was designed around it instead of self-granting.
+
+- **Surprises**, each measured rather than reasoned about:
+  1. **AN ADVERSARY WAS WRONG, AND I RELAYED IT AS FACT.** The CS-424 adversary reported a live
+     invariant violation - `subject='post-schema-Object'` on the real usmap. The builder refuted
+     it; I measured directly and the real file yields `subject='post-schema'`, with `names[0] ==
+     'Object'` NOT a suffix of any subject. It had read its own name-interpolating mutant's
+     output as pristine. **An adversary's quoted command output needs re-measurement exactly as
+     much as a builder's claim.** I passed it on because it looked like evidence.
+  2. **I CITED A DOCUMENT THAT DID NOT EXIST.** ADR 0008 was authored in the main checkout and
+     left uncommitted, then cited as "in force" to three builders working in worktrees that
+     could not see it. A builder ran `git log --all`, found nothing, and said so. Committed as
+     `921e6d6`.
+  3. **THE ADR CONTRADICTED ITSELF AND A BUILDER FOUND IT.** FORECLOSED banned superlatives in
+     commit messages while SCOPE permitted recording "what a measurement found at a stated time"
+     - and a power-control transcript is both. Resolved in `eeabbd2` on a principle: the ADR
+     binds LIVING TEXT (read as describing the current tree, can rot) and not an IMMUTABLE
+     TIMESTAMPED RECORD (commit message, ledger entry, wakeup note). The test is the tense the
+     reader supplies - if deleting the sentence later would be a CORRECTION it was living text;
+     if it would be FALSIFYING THE RECORD it was a record.
+  4. **A BUILDER REFUSED MY GLOSS OF MY OWN ADR AS SELF-GRADING**, read the committed file, and
+     audited against four requirements the gloss omitted. All four already passed - one of them
+     only because an adversary had earlier forced it.
+  5. **MY OWN DISPATCH SPECIFIED A VACUOUS ASSERTION.** I told a builder to assert "every width
+     is caught by at least one detector". Taken literally that is TRUE BY ARITHMETIC, because
+     `test_both_tag_grammar_transcriptions_agree` compares the two constant copies and reddens on
+     any single-copy mutant without reading a byte of library. The builder excluded it and
+     asserted its sensitivity separately.
+  6. **A CLEVER ARGUMENT FOR WHY A CHECK COULD NOT BE BUILT WAS REFUTED BY BUILDING IT.** CS-424
+     argued no sound install-gated repr oracle existed. An adversary wrote one in a single pass:
+     **a withholding repr emits no string literal at all, so the oracle is "the rendering quotes
+     nothing"** - neither substring nor skeleton, live against the real 57985-name table.
+  7. **A MUTANT THAT FAILS TO APPLY LOOKS EXACTLY LIKE A TEST THAT FAILS TO CATCH.** A harness
+     "reverted" a repr by deleting `repr=False`, which does NOT overwrite a `__repr__` defined in
+     the class body, and reported three mutants SURVIVED when the mutation never landed. Harnesses
+     must now prove the text actually changed before trusting a verdict.
+  8. **`SystemExit` IS A NON-`OSError` AND WAS LIVE DISCLOSURE.** It escaped every repaired site
+     and rendered the REAL Windows account name under `-q` alone. `KeyboardInterrupt` renders
+     NOTHING without `--full-trace`. **The inherited residual note had the two exactly backwards,
+     in the dangerous direction** - the abortability defence was protecting the type that does
+     not disclose while the type that does got none.
+  9. **A REAL BUG HID BEHIND FALSE PROSE.** Library-backed tests gated their skip on the SAVE
+     library while the usmap comes from the INSTALL, so on a machine with saves and no install
+     they FAILED rather than skipped. Nobody had run that configuration.
+  10. **A FIX FALSIFIED PROSE IN TWO FILES IT DID NOT OWN.** CS-424's repr change made the stated
+     reason for two `del` statements false. Both were REPORTED rather than widened into, and
+     repaired by the merger once the owning slices had landed. This is ADR 0008 tier 3 behaving
+     exactly as predicted - a mechanistic claim rots precisely when the code beside it changes.
+  11. **THE BOUNDARY HELD EVERY TIME IT WAS TESTED.** Four separate builders found defects outside
+     their write-lists and reported instead of widening. Every one became a filed item.
+
+- **Failed paths - do not retry:**
+  - **`any()` in a derived attribution.** It short-circuits, so a saturating first term hides
+    every later one. Evaluate all members, then reduce.
+  - **Keying a containment guard on the SAFE routes.** It detects safe helpers and is blind to
+    unsafe ones - it is inverted by construction. Key on the RISKY primitives, plus a rule that
+    follows return annotations for helpers that call no primitive themselves.
+  - **A hand-maintained list of helpers to grade.** The list is what rots; derive it.
+  - **Rewording a universal detection claim into a hedge.** ADR 0008 FORECLOSED names it: the
+    hedge has the same falsification surface and reads as evidence.
+  - **Substring matching to prove a repr withholds names.** Unsound - the shipped table contains
+    the implementation's own field labels as standalone names.
+  - **Repairing prose and self-auditing it.** Four consecutive rounds, fourteen false sentences.
+
+- **Next action:** **CS-420, and NOT by hand.** Four rounds of prose repair have now each shipped a
+  false sentence, several written by the commit correcting the previous one, and round four was caught
+  only because an adversary read merged `main` after the items were closed and pushed. ADR 0008 states
+  the rule and the artifacts exist to enforce it; what is missing is a MECHANICAL check that a
+  declarative sentence in that module is backed by execution, plus a fix for the paragraph-citation gap
+  that let a renamed heading go on being cited. Delete every sentence such a check cannot back. Then
+  **CS-403, CS-209, CS-204** as ONE slice under the recorded `tools/precommit_gate.py` grant.
+
+---
+
 ### Archived 2026-08-16 from `ROADMAP.md` - CS-420, CS-425 and CS-413 superseded detail
 
 Second relocate pass of session 12, after four new items and two amendments pushed
