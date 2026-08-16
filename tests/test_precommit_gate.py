@@ -2128,9 +2128,16 @@ def isolated_gate_copy(tmp_path: Path) -> Path:
     """A copy of the gate whose derived repo root holds no clockspeed package.
 
     The gate derives its root from its OWN location, so a copy two levels down
-    a temporary directory resolves a root that has no package in it. That is
-    what makes the package genuinely out of reach rather than merely absent
-    from the current working directory.
+    a temporary directory resolves a root that has no package in it.
+
+    THAT IS NECESSARY AND IT IS NOT SUFFICIENT, which this docstring asserted
+    for one session and CI falsified. It used to say the copy makes the package
+    "genuinely out of reach"; it does not, because an EDITABLE INSTALL puts
+    clockspeed in site-packages and site-packages is reachable from every
+    directory. The suite passed on a developer machine with no install and
+    failed on CI, which installs the package with `pip install -e`. Reaching
+    past the derived root is why :func:`run_gate_copy` runs the copy under
+    ``-S``; see the reason recorded there.
     """
     isolated = tmp_path / "isolated"
     isolated.mkdir(exist_ok=True)
@@ -2140,8 +2147,24 @@ def isolated_gate_copy(tmp_path: Path) -> Path:
 
 
 def run_gate_copy(copy: Path, *args: str, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    """Run an isolated gate copy with SITE-PACKAGES OUT OF REACH.
+
+    ``-S`` is what makes the isolation real rather than nominal. Without it the
+    package-unreachable tests assert nothing on any machine that has clockspeed
+    installed: the import they expect to fail SUCCEEDS from site-packages, no
+    skip is printed, and the assertion that a skip appears is the thing that
+    fails. That is not hypothetical - it is how CI went red while the same
+    suite was green locally, the difference being `pip install -e`.
+
+    It is safe here because the gate's module-scope imports are standard
+    library only, which `test_the_gate_imports_only_the_standard_library`
+    asserts by AST. ruff is located on PATH and run as a subprocess rather than
+    imported, so it is unaffected. A shadow planted on PYTHONPATH or in the
+    working directory still imports under ``-S``, which is what the
+    raises-on-import sibling needs.
+    """
     proc = subprocess.run(
-        [sys.executable, str(copy), *args],
+        [sys.executable, "-S", str(copy), *args],
         cwd=str(copy.parent),
         capture_output=True,
         env=env,

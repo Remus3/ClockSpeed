@@ -73,6 +73,28 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-16 - CS-403 - CORRECTION: the package-unreachable test was reachable on CI, and CI caught it
+Verification: `tests/test_precommit_gate.py`, `run_gate_copy` and `isolated_gate_copy`. Gated by
+`tests/test_precommit_gate.py::test_the_gate_starts_and_skips_when_the_package_cannot_be_imported`.
+CI WENT RED ON `ddc5fe0` WHILE THE SAME SUITE WAS GREEN LOCALLY, and the divergence is the whole
+lesson. `isolated_gate_copy` claimed in its own docstring that copying the gate outside the repo
+made the package "genuinely out of reach". That is NECESSARY AND NOT SUFFICIENT: CI runs
+`python -m pip install -e ".[dev]"`, an editable install puts clockspeed in site-packages, and
+site-packages is reachable from every directory. So the import the test expects to FAIL SUCCEEDED,
+no skip was printed, and the assertion that a skip appears is what failed. Locally the package is
+not installed, so the test passed for a reason it did not state.
+FIXED by running the isolated copy under `-S`. Proven mechanically rather than argued: with default
+flags site-packages is on `sys.path`, and under `-S` it is not - and `-S` is what disables the
+`site` module that processes the `.pth` file an editable install writes. It is safe because the
+gate's module-scope imports are standard library only, asserted by AST in
+`test_the_gate_imports_only_the_standard_library`, and ruff is located on PATH and run as a
+subprocess rather than imported. A shadow planted on PYTHONPATH or in the working directory still
+imports under `-S`, which the raises-on-import sibling needs.
+THE BUILDER PREDICTED THIS AND LABELLED IT UNVERIFIED: its report said the test "would go red, not
+silently green, on a machine where clockspeed is pip-installed. I did not test that machine state."
+It was right, and the honest label is what made the diagnosis immediate. The false docstring is
+replaced with the measurement rather than deleted.
+
 ### 2026-08-16 - CS-420 - MEASUREMENT RECORD. THE FENCE SHIPPED AND THE ITEM STAYS OPEN
 Verification: `tests/save/test_absolute_claims.py` (new), `tests/save/test_decode_oracles.py`,
 `tests/save/test_oracle_citations.py`, `clockspeed/save/objects.py` (comments only, AST-identical).
