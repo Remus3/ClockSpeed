@@ -861,15 +861,25 @@ class ObjectRecord:
 
     Attributes:
         kind: :data:`KIND_ACTOR` or :data:`KIND_COMPONENT`, from the
-            discriminator. The COMPONENT branch is unverified against a real
-            save - see the module docstring.
+            discriminator. The two read different record grammars, which is
+            what :func:`_read_levelled_record` splits on - see item 2 of the
+            module docstring for where that split came from.
         type_path: The class path, namespaced and mod tolerant, verbatim.
         root_object: The record's root object path.
         instance_name: The instance name, verbatim.
-        transform: The placement. Present whenever the record carried a
-            transform block, which in the corpus is every record.
-        parent: Reserved for the component grammar's outer path. None on every
-            path today, because that grammar is unmeasured.
+        transform: An ACTOR's placement, bound by
+            :func:`_read_levelled_record` from the record's own transform
+            block. None on a COMPONENT, which carries a parent path where an
+            actor carries that block. Always present from
+            :func:`parse_object_headers`, whose flat walk reads the actor shape
+            under either discriminator.
+        parent: A COMPONENT's parent object path, verbatim, bound by
+            :func:`_read_levelled_record` from the record's own
+            ``parent_object_root`` field. None on an ACTOR, which carries a
+            transform block where a component carries this string; and None on
+            every record :func:`parse_object_headers` returns, because the flat
+            walk reads the actor shape under either discriminator and never
+            binds it.
         object_type: The raw discriminator, carried rather than interpreted.
         was_placed_in_level: The trailing int32, carried verbatim.
         body_offset: Where this object's PROPERTY PAYLOAD begins in the body.

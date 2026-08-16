@@ -1388,6 +1388,344 @@ def test_parse_body_reads_a_component_as_four_strings_and_no_transform() -> None
     assert all(record.parent is None for record in actors)
 
 
+# ---------------------------------------------------------------------------
+# CS-437 - the field's prose is graded against the walk, not against a sibling
+# sentence
+# ---------------------------------------------------------------------------
+#
+# WHAT WENT WRONG. ``ObjectRecord.parent`` was documented as "Reserved for the
+# component grammar's outer path. None on every path today, because that
+# grammar is unmeasured" - a pre-CS-407 belief left in place after CS-407
+# measured the grammar. The module's OWN docstring already said the opposite
+# three hundred lines above, so the module contradicted itself about its own
+# field and neither sentence was checked by anything.
+#
+# The remedy is not a better sentence. It is grading the sentence against an
+# OBSERVATION: walk a body, look at what lands in the field, and refuse a
+# docstring that claims otherwise.
+
+#: The exact clause CS-437 deletes. ADR 0008 forecloses rewording it into a
+#: hedge - a hedge has the same falsification surface and reads as evidence -
+#: so the assertion is on its ABSENCE, not on its softening.
+_REFUTED_PARENT_CLAIM: Final = "None on every path"
+
+#: The sibling clause on ``kind``, three lines up in the same docstring and
+#: from the same stale belief.
+_REFUTED_KIND_CLAIM: Final = "unverified against a real"
+
+#: The clause on ``transform``, one line up from ``parent`` in the same block.
+#: It said the field was populated "whenever the record carried a transform
+#: block, which in the corpus is every record", and the suite ALREADY refuted
+#: it - the component assertions in
+#: ``test_every_measured_pair_splits_actors_from_components`` are exactly the
+#: counter-example. The guard is on the CORPUS-SCOPED FORM rather than on that
+#: one wording, because a prose claim about what a measurement over the corpus
+#: found is a restated measurement (CLAUDE.md section 4) whatever its adverbs:
+#: "nearly every record" would rot the same way.
+_REFUTED_TRANSFORM_CLAIM: Final = "in the corpus"
+
+#: A fragment of the module docstring's standing statement about the component
+#: grammar. Asserted present so the ``kind`` check below cannot pass merely
+#: because the module stopped saying anything.
+_MEASURED_COMPONENT_GRAMMAR: Final = "MEASURED by CS-407"
+
+
+def _attribute_entry(doc: str | None, field: str) -> str:
+    """Return one field's entry from a Google-style ``Attributes:`` block.
+
+    Args:
+        doc: The class docstring.
+        field: The attribute name.
+
+    Returns:
+        The entry, continuation lines joined onto it, or an empty string when
+        the field is not documented.
+    """
+    collected: list[str] = []
+    indent = -1
+    for line in (doc or "").splitlines():
+        stripped = line.strip()
+        here = len(line) - len(line.lstrip())
+        if indent < 0:
+            if stripped.startswith(f"{field}:"):
+                indent = here
+                collected.append(stripped)
+            continue
+        if not stripped or here <= indent:
+            break
+        collected.append(stripped)
+    return " ".join(collected)
+
+
+def _assigned_names(function_name: str) -> frozenset[str]:
+    """Every local name a module-level function ASSIGNS, from the shipped AST.
+
+    Read from the source rather than written down, so the docstring claim
+    "``_read_levelled_record`` populates this" is checked against the function
+    rather than against another sentence. A keyword argument in a call is not
+    an assignment, which is exactly what separates the levelled walk - where
+    ``parent`` is bound to a decoded string - from the flat walk, where it is
+    only ever passed as ``parent=None``.
+
+    Args:
+        function_name: The module-level function to inspect.
+
+    Returns:
+        The assigned names, empty when there is no such function.
+    """
+    tree = ast.parse(Path(objects.__file__).read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == function_name:
+            return frozenset(
+                target.id
+                for inner in ast.walk(node)
+                if isinstance(inner, ast.Assign)
+                for target in inner.targets
+                if isinstance(target, ast.Name)
+            )
+    return frozenset()
+
+
+def test_the_parent_field_documentation_states_what_the_walk_puts_there() -> None:
+    """THE CS-437 ACCEPTANCE. The prose is graded against the observation above it."""
+    table = objects.parse_body(
+        _levelled_payload(),
+        save_version=synthetic.SAVE_LEVELLED_V36.save_version,
+        header_version=synthetic.SAVE_LEVELLED_V36.header_version,
+    )
+    components = [r for r in table.records if r.kind == objects.KIND_COMPONENT]
+    actors = [r for r in table.records if r.kind == objects.KIND_ACTOR]
+    # NON-VACUITY. A body carrying only one kind grades half of this and looks
+    # like it graded all of it.
+    assert components, "the fixture body carries no component; the walk proves nothing"
+    assert actors, "the fixture body carries no actor; the walk proves nothing"
+
+    populated = [record for record in components if record.parent]
+    assert populated, "no component came back with a parent; re-check before editing prose"
+    assert all(record.parent is None for record in actors)
+
+    entry = _attribute_entry(objects.ObjectRecord.__doc__, "parent")
+    assert entry, "ObjectRecord no longer documents parent at all"
+    assert _REFUTED_PARENT_CLAIM not in entry, (
+        f"parent is documented as '{_REFUTED_PARENT_CLAIM}', and the walk above just "
+        f"populated it on {len(populated)} of {len(components)} component records. "
+        "DELETE the claim rather than hedging it - a hedge has the same falsification "
+        f"surface and reads as evidence (docs/adr/0008):\n  {entry}"
+    )
+    # DERIVED, not restated: the prose names a function, and that function is
+    # really the one that binds the field.
+    assert "_read_levelled_record" in entry, f"the prose names no populating function:\n  {entry}"
+    assert "parent" in _assigned_names("_read_levelled_record")
+    assert "parent" not in _assigned_names("_read_record"), (
+        "the flat walk now assigns parent as well, so naming only the levelled walk is "
+        "no longer the whole truth"
+    )
+
+
+def test_the_transform_field_documentation_states_what_the_walk_puts_there() -> None:
+    """THE IMMEDIATE SIBLING OF ``parent``, one line up, same block, same failure class.
+
+    The first CS-437 build made ``parent`` precise and left ``transform`` saying
+    the field was present "whenever the record carried a transform block, which
+    in the corpus is every record". It is not: the levelled walk leaves it None
+    on every COMPONENT, which
+    ``test_every_measured_pair_splits_actors_from_components`` was already
+    asserting when that sentence shipped. The suite held the refutation the
+    whole time, which is the argument for grading prose against a walk rather
+    than against a careful reading.
+    """
+    table = objects.parse_body(
+        _levelled_payload(),
+        save_version=synthetic.SAVE_LEVELLED_V36.save_version,
+        header_version=synthetic.SAVE_LEVELLED_V36.header_version,
+    )
+    components = [r for r in table.records if r.kind == objects.KIND_COMPONENT]
+    actors = [r for r in table.records if r.kind == objects.KIND_ACTOR]
+    # NON-VACUITY, on the same terms as the parent test above.
+    assert components, "the fixture body carries no component; the walk proves nothing"
+    assert actors, "the fixture body carries no actor; the walk proves nothing"
+
+    without = [record for record in components if record.transform is None]
+    assert without, "every component came back WITH a transform; re-check before editing prose"
+    assert all(record.transform is not None for record in actors)
+
+    entry = _attribute_entry(objects.ObjectRecord.__doc__, "transform")
+    assert entry, "ObjectRecord no longer documents transform at all"
+    assert _REFUTED_TRANSFORM_CLAIM not in entry, (
+        "transform is documented with a corpus-scoped claim, and the walk above just "
+        f"returned {len(without)} of {len(components)} components with none. State what "
+        "the field holds and write no count - DELETE the claim rather than hedging it "
+        f"(CLAUDE.md section 4, docs/adr/0008):\n  {entry}"
+    )
+    # DERIVED, not restated: the prose names a function, and that function is
+    # really the one that binds the field.
+    assert "_read_levelled_record" in entry, f"the prose names no populating function:\n  {entry}"
+    assert "transform" in _assigned_names("_read_levelled_record")
+    assert "transform" not in _assigned_names("_read_record"), (
+        "the flat walk now assigns transform conditionally as well, so the entry's claim "
+        "that it is always present from parse_object_headers is no longer safe"
+    )
+
+
+def test_the_flat_walk_binds_a_transform_under_either_discriminator() -> None:
+    """THE OTHER HALF OF THAT SENTENCE, observed rather than inferred from the AST.
+
+    ``transform``'s entry claims the flat walk always fills it and ``parent``'s
+    claims the flat walk never fills it - both because ``parse_object_headers``
+    reads the ACTOR shape whatever the discriminator says. Every stock flat
+    fixture carries actors only, so the discriminator half of that claim is
+    unexercised by them; this walks a body that carries one of each.
+    """
+    payload = _payload_for(
+        (
+            _actor(_KNOWN_CLASS_PATH_A, "SyntheticSmelter_0", object_type=1),
+            _actor(_KNOWN_CLASS_PATH_B, "SyntheticBelt_0", object_type=0),
+        ),
+        save_version=_SAVE_60,
+        header_version=_HEADER_14,
+    )
+
+    table = objects.parse_object_headers(payload, save_version=_SAVE_60, header_version=_HEADER_14)
+
+    kinds = [record.kind for record in table.records]
+    assert kinds == [objects.KIND_ACTOR, objects.KIND_COMPONENT], (
+        f"the fixture no longer carries one of each discriminator: {kinds}"
+    )
+    assert all(record.transform is not None for record in table.records)
+    assert all(record.parent is None for record in table.records)
+
+
+def test_the_kind_field_documentation_does_not_contradict_the_module_it_sits_in() -> None:
+    """The sibling clause, same docstring, same stale belief, same root cause.
+
+    ``kind`` said the COMPONENT branch was "unverified against a real save" -
+    which the module docstring three hundred lines above already contradicts.
+    A synthetic body cannot settle a claim about REAL saves, so this grades the
+    two sentences against each other rather than pretending the fixture does.
+    """
+    module_doc = objects.__doc__ or ""
+    assert _MEASURED_COMPONENT_GRAMMAR in module_doc, (
+        "the module docstring no longer records the component grammar as measured, so "
+        "the field entry below has to be re-examined rather than graded against it"
+    )
+
+    entry = _attribute_entry(objects.ObjectRecord.__doc__, "kind")
+    assert entry, "ObjectRecord no longer documents kind at all"
+    assert _REFUTED_KIND_CLAIM not in entry, (
+        "the kind field calls the COMPONENT branch unverified while the module "
+        "docstring calls that same grammar measured. One module, two answers:\n  " + entry
+    )
+
+
+@dataclass(frozen=True)
+class _ParentSweep:
+    """What a parent sweep of the real library observed, as scalars and nothing else.
+
+    EVERY FIELD IS SAFE TO RENDER, on the same terms as :class:`_RealSweep`. A
+    component's parent IS a decoded world string, so none of them leaves this
+    type - only how many there were.
+
+    Attributes:
+        components: Component records seen across every walked body.
+        with_parent: Of those, how many carried a non-empty parent.
+        actors: Actor records seen.
+        actors_with_parent: Of those, how many carried a parent at all.
+        failures: Exception type names from any save that did not walk.
+    """
+
+    components: int
+    with_parent: int
+    actors: int
+    actors_with_parent: int
+    failures: tuple[str, ...]
+
+
+def _sweep_parent_over_the_real_library() -> _ParentSweep | None:
+    """Tally what lands in ``parent`` across every real save. COUNTS ONLY.
+
+    Contained exactly as :func:`_sweep_the_real_library` is, and for the same
+    measured reason: pytest renders the ARGUMENTS of every frame in a failing
+    traceback with no opt-in, so an exception escaping ``parse_body(body, ...)``
+    prints the head of a real save body into the test log. Every step is
+    wrapped and every failure is reduced to a type NAME inside this helper.
+
+    Returns:
+        The sweep, or None when no save library is reachable. Never returns or
+        logs a path, a body, or any decoded string.
+    """
+    saves = test_properties._library_save_paths()  # noqa: SLF001
+    if not saves:
+        return None
+
+    components = with_parent = actors = actors_with_parent = 0
+    failures: list[str] = []
+    for path in saves:
+        try:
+            data = path.read_bytes()
+            parsed = header.parse_header(data)
+        except (OSError, header.HeaderError):
+            continue
+        except (Exception, SystemExit) as exc:  # the backstop; see _sweep_the_real_library
+            failures.append(type(exc).__name__)
+            continue
+        if (parsed.header_version, parsed.save_version) not in objects.MEASURED_BODY_LAYOUTS:
+            continue
+        try:
+            body = chunks.decompress_body(
+                data, parsed.body_offset, header_version=parsed.header_version
+            ).payload
+            table = objects.parse_body(
+                body, save_version=parsed.save_version, header_version=parsed.header_version
+            )
+        # BROAD BY DESIGN - a narrower catch lets an unexpected type escape
+        # carrying the save bytes, which is the leak this containment closes.
+        except (Exception, SystemExit) as exc:
+            failures.append(type(exc).__name__)
+            continue
+        for record in table.records:
+            if record.kind == objects.KIND_COMPONENT:
+                components += 1
+                with_parent += bool(record.parent)
+            else:
+                actors += 1
+                actors_with_parent += record.parent is not None
+    return _ParentSweep(
+        components=components,
+        with_parent=with_parent,
+        actors=actors,
+        actors_with_parent=actors_with_parent,
+        failures=tuple(sorted(set(failures))),
+    )
+
+
+def test_the_real_library_agrees_with_what_the_parent_field_documentation_claims() -> None:
+    """RE-MEASURED here rather than relayed, and asserted as a RELATION not a count.
+
+    The synthetic fixture can only agree with whoever wrote it. These bytes came
+    from the game, so this is the evidence that decides. No number is written
+    down: the assertions are ``with_parent == components`` and
+    ``actors_with_parent == 0``, which stay true as the library grows and would
+    be a restated measurement if either were spelled out (CLAUDE.md section 4).
+
+    Skip-if-absent, because CI has no save library, and COUNTS ONLY.
+    """
+    sweep = _sweep_parent_over_the_real_library()
+    if sweep is None:
+        pytest.skip("no save library on this machine - the parent sweep is not gradeable here")
+
+    assert not sweep.failures, f"a real save did not walk: {sweep.failures}"
+    assert sweep.components > 0, "no component record in the whole library; this grades nothing"
+    assert sweep.actors > 0, "no actor record in the whole library; this grades nothing"
+    assert sweep.with_parent == sweep.components, (
+        f"{sweep.components - sweep.with_parent} component records carry no parent, so "
+        "'a component's parent object path' is not what the field holds"
+    )
+    assert sweep.actors_with_parent == 0, (
+        f"{sweep.actors_with_parent} actor records carry a parent, so 'None on an actor' "
+        "is not what the field holds"
+    )
+
+
 def test_parse_body_refuses_a_pair_whose_body_layout_is_unmeasured() -> None:
     """A pair outside the measured set is refused, not interpolated.
 
@@ -2411,10 +2749,11 @@ def test_the_payload_to_record_alignment_is_the_one_the_bytes_choose() -> None:
 # ---------------------------------------------------------------------------
 # CS-427 - the discovery and the read are contained, and every site is GRADED
 #
-# The three helpers above are the module's only reach into the real library,
-# and until this section existed nothing graded either half of their
-# containment. Both halves have a measured leak behind them rather than a
-# theorised one:
+# `_REAL_LIBRARY_HELPERS` below is the module's whole reach into the real
+# library - stated as that list rather than as a count, so growing one cannot
+# leave a number here wrong - and until this section existed nothing graded
+# either half of their containment. Both halves have a measured leak behind
+# them rather than a theorised one:
 #
 #   THE DISCOVERY. ``resolve_save_root``, ``resolve_account_dir`` and the save
 #   glob each sat outside every ``try``, so a failure in any of them unwound
@@ -2450,6 +2789,7 @@ _REAL_LIBRARY_HELPERS: Final = (
     ("measured-pair finder", _one_real_save_of_a_measured_pair),
     ("real-library sweep", _sweep_the_real_library),
     ("attribution sweep", _sweep_payload_attribution),
+    ("parent sweep", _sweep_parent_over_the_real_library),
 )
 
 _GRADED_LIBRARY_REACH: Final = MappingProxyType(
@@ -2581,11 +2921,11 @@ def test_an_unexpected_read_failure_does_not_unwind_through_any_helper(
     ``BaseException``; forcing it here before the handlers named it rendered the
     save path at every site under default flags.
 
-    The two sweeps must REDUCE the escape to a type name and carry on, because
+    Every sweep must REDUCE the escape to a type name and carry on, because
     each reports ``failures`` and its caller treats a recorded failure as fatal
     - a silent skip there would hide a real defect. The finder returns a value
     rather than a report and has nowhere to record a type name, so containment
-    there is declining. The sweeps above it do record one, and their callers
+    there is declining instead. The sweeps do record one, and their callers
     assert ``failures`` is empty.
     """
     monkeypatch.setattr(
@@ -2600,6 +2940,9 @@ def test_an_unexpected_read_failure_does_not_unwind_through_any_helper(
     )
     test_properties._assert_read_failure_is_contained(  # noqa: SLF001
         "attribution sweep", _sweep_payload_attribution, forced
+    )
+    test_properties._assert_read_failure_is_contained(  # noqa: SLF001
+        "parent sweep", _sweep_parent_over_the_real_library, forced
     )
     test_properties._assert_sweep_declines(  # noqa: SLF001
         "measured-pair finder", _one_real_save_of_a_measured_pair

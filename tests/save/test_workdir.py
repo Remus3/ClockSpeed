@@ -37,6 +37,7 @@ actually watching a function that actually ran.
 
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import os
@@ -509,6 +510,687 @@ def test_latest_save_is_stable_across_two_runs(
     assert first == second, "two runs over one directory disagreed"
     assert first is not None
     assert first.name == "Alpha.sav", "the tiebreak is not the documented one"
+
+
+# ===========================================================================
+# 4b. The listing REPORTS what it could not read (CS-438)
+# ===========================================================================
+#
+# THE DEFECT. ``_save_files`` returned a bare list, so a SHORT list had two
+# indistinguishable causes: the directory really held nothing, or something in
+# the way of reading it was swallowed. Its own docstring said "absent content is
+# reported, never fatal" while nothing was reported anywhere. The fix is the
+# report, not the raise - fail-soft is deliberate here (docs/ARCHITECTURE.md,
+# and tests/save/test_phase4_gate.py depends on it for its audit spy).
+#
+# THE SECOND DEFECT, FOUND BY THE ADVERSARY THAT REFUTED THE FIRST BUILD. A
+# report that FIRES is not a report that says something TRUE. One code and one
+# fixed sentence covered absent, not-a-directory and refused together, and that
+# sentence - "an empty result is not evidence that it holds no saves" - is FALSE
+# of the first two. Absence IS evidence that there are no saves, and absence is
+# the case that fires on every machine with no game installed, so the common
+# path carried the false line. That is the CS-430 failure class reproduced
+# inside the fix that cited CS-430. The conditions are therefore split by errno,
+# each carries a sentence true of itself, and the tests below assert on the
+# sentence's CONTENT rather than merely on a problem having appeared.
+#
+# WHICH FAULTS HERE ARE REAL AND WHICH ARE INJECTED, stated because the two are
+# worth different amounts. REAL, needing no monkeypatch: a broken symlink named
+# like a save is an entry ``Path.stat()`` refuses; a plain file is a path
+# ``Path.iterdir()`` refuses; an absent path is another. INJECTED: the REFUSED
+# cases, because no condition producing a non-ignored errno inside a listable
+# directory was reproducible on this platform - see
+# ``test_stat_reports_the_broken_symlink_fault_that_is_file_hides`` for what
+# that costs and what it does not.
+
+
+def make_broken_symlink(path: Path) -> Path:
+    """Create a symlink to a target that does not exist, or skip the test.
+
+    Skips with a reason where the platform will not create one - Windows needs
+    Developer Mode or an elevated process - on the same terms as
+    ``test_a_destination_reaching_the_save_root_by_symlink_is_refused``.
+    """
+    try:
+        path.symlink_to(path.parent / "no-such-target")
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"this platform will not create a symlink here: {type(exc).__name__}")
+    return path
+
+
+def refuse(monkeypatch: pytest.MonkeyPatch, method: str, target: Path) -> None:
+    """Make one ``Path`` method fail with EACCES for exactly one path.
+
+    THIS FAULT IS INJECTED AND THE OTHERS ARE NOT, which is worth saying out
+    loud. A directory or an entry that is PRESENT and REFUSED is the only
+    condition under which the reports below claim ignorance rather than
+    absence, and it is trivial to produce on POSIX and was not reproducible
+    here. Injecting it tests the classification and the wording, which is what
+    the reports are; it does not establish that Windows ever produces it.
+
+    The raised error carries the real path in ``filename``, ``strerror`` and
+    ``args`` on purpose, so the privacy tests below are rendering something
+    that genuinely had a path in it.
+
+    Args:
+        monkeypatch: The pytest fixture, which undoes this after the test.
+        method: The ``Path`` method to refuse - ``iterdir`` or ``stat``.
+        target: The one path that gets the refusal. Everything else is
+            forwarded to the real method, so the rest of the scan still runs.
+    """
+    real = getattr(Path, method)
+
+    def refusing(self: Path, *args: object, **kwargs: object) -> object:
+        if self == target:
+            raise PermissionError(errno.EACCES, "Permission denied", str(self))
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, method, refusing)
+
+
+def only_with_errno(listing: workdir.SaveListing, code: int) -> workdir.ListingProblem:
+    """Return the one problem carrying ``code``, and assert there is exactly one.
+
+    Selecting by ERRNO rather than by position, because a directory listing's
+    order is the filesystem's business and an index would silently grade the
+    wrong entry - which is exactly what one draft of these tests did.
+    """
+    matching = [problem for problem in listing.problems if problem.errno == code]
+    assert len(matching) == EXPECT_AT_LEAST_ONE, (
+        f"expected exactly one problem with errno {code}, got "
+        f"{[problem.errno for problem in listing.problems]}"
+    )
+    return matching[0]
+
+
+def test_an_empty_directory_lists_nothing_and_reports_no_problem(
+    pretend_account_dir: Path,
+) -> None:
+    """The baseline the failure cases below have to be distinguishable FROM."""
+    listing = workdir._save_files(pretend_account_dir)  # noqa: SLF001
+
+    assert listing.saves == ()
+    assert listing.problems == (), "an empty directory is not a failure and must report none"
+    assert listing.is_complete
+
+
+def test_a_directory_that_can_be_listed_reports_nothing(
+    pretend_account_dir: Path, save_bytes: bytes
+) -> None:
+    """NON-VACUITY. A reporter that reported always would pass every test below."""
+    write_with_mtime(pretend_account_dir / "World.sav", save_bytes, 1_600_000_000_000_000_000)
+
+    listing = workdir._save_files(pretend_account_dir)  # noqa: SLF001
+
+    assert len(listing.saves) == EXPECT_AT_LEAST_ONE
+    assert listing.problems == ()
+    assert listing.is_complete
+
+
+def test_a_directory_named_like_a_save_is_skipped_without_a_report(
+    pretend_account_dir: Path,
+) -> None:
+    """A skip that is UNDERSTOOD is not a problem, and must not be reported as one.
+
+    A directory called ``Fake.sav`` stats cleanly and is simply not a regular
+    file. Reporting it would make the report mean "something was skipped"
+    instead of "something could not be read", which is the weaker claim.
+    """
+    (pretend_account_dir / "Fake.sav").mkdir()
+
+    listing = workdir._save_files(pretend_account_dir)  # noqa: SLF001
+
+    assert listing.saves == ()
+    assert listing.problems == ()
+    assert listing.is_complete
+
+
+def test_a_directory_that_cannot_be_listed_is_reported_not_silently_empty(
+    pretend_account_dir: Path, save_bytes: bytes
+) -> None:
+    """THE CS-438 ACCEPTANCE. A read failure and an empty directory stop being one answer.
+
+    Both produce zero saves. Before the report existed that was the whole
+    answer, so a caller had no way to tell "there are no saves here" from "I
+    could not look".
+    """
+    not_a_directory = pretend_account_dir / "World.sav"
+    not_a_directory.write_bytes(save_bytes)
+    genuinely_empty = pretend_account_dir / "empty"
+    genuinely_empty.mkdir()
+
+    failed = workdir._save_files(not_a_directory)  # noqa: SLF001
+    empty = workdir._save_files(genuinely_empty)  # noqa: SLF001
+
+    # The two agree on the saves and DISAGREE on the report. That disagreement
+    # is the entire point of the item.
+    assert failed.saves == empty.saves == ()
+    assert [problem.code for problem in failed.problems] == [workdir.LISTING_DIRECTORY_ABSENT]
+    assert empty.problems == ()
+    assert failed.problems[0].errno is not None, "the report carries no errno to act on"
+
+
+def test_the_three_directory_conditions_do_not_report_the_same_thing(
+    pretend_account_dir: Path, save_bytes: bytes, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE CS-430 LESSON APPLIED. Three conditions, three answers, none borrowed.
+
+    Absent, not-a-directory and refused all produce zero saves and all reported
+    one identical sentence before this. Two of them were false: absence and a
+    file-where-a-directory-should-be each SETTLE that there are no saves, and
+    only a refusal leaves it open.
+    """
+    not_a_directory = pretend_account_dir / "World.sav"
+    not_a_directory.write_bytes(save_bytes)
+    refused = pretend_account_dir / "refused"
+    refused.mkdir()
+    refuse(monkeypatch, "iterdir", refused)
+
+    absent = workdir._save_files(pretend_account_dir / "no-such-directory")  # noqa: SLF001
+    a_file = workdir._save_files(not_a_directory)  # noqa: SLF001
+    denied = workdir._save_files(refused)  # noqa: SLF001
+
+    assert absent.problems[0].errno == errno.ENOENT
+    assert a_file.problems[0].errno == errno.ENOTDIR
+    assert denied.problems[0].errno == errno.EACCES
+    # The two SETTLED errnos agree with each other, and neither agrees with the
+    # one that settles nothing.
+    assert absent.problems[0].detail == a_file.problems[0].detail
+    assert denied.problems[0].detail != absent.problems[0].detail
+    assert denied.problems[0].code != absent.problems[0].code
+
+
+def test_a_directory_that_is_not_there_says_the_empty_result_is_the_whole_answer(
+    tmp_path: Path,
+) -> None:
+    """THE CASE THAT FIRES ON EVERY MACHINE WITH NO GAME, so its sentence has to be true.
+
+    Absence IS evidence that there are no saves. The report still arrives -
+    nothing is dropped - but it says what absence means rather than borrowing
+    the wording of a refusal.
+    """
+    listing = workdir._save_files(tmp_path / "no-such-directory")  # noqa: SLF001
+
+    assert [problem.code for problem in listing.problems] == [workdir.LISTING_DIRECTORY_ABSENT]
+    detail = listing.problems[0].detail
+    assert "names no directory" in detail, detail
+    assert "the whole answer" in detail, detail
+    assert "not evidence" not in detail, detail
+    assert listing.is_complete, "absence settles the question, so the empty result is trustworthy"
+
+
+def test_a_path_that_is_a_file_says_the_same_as_one_that_is_not_there(
+    pretend_account_dir: Path, save_bytes: bytes
+) -> None:
+    """A file is not a directory, so it holds no saves - and that is KNOWN, not feared.
+
+    Shares the absent case's code deliberately: one sentence, "the path names no
+    directory", is true of both, and inventing a third for a distinction no
+    caller acts on would be sentences for their own sake.
+    """
+    not_a_directory = pretend_account_dir / "World.sav"
+    not_a_directory.write_bytes(save_bytes)
+
+    listing = workdir._save_files(not_a_directory)  # noqa: SLF001
+
+    assert [problem.code for problem in listing.problems] == [workdir.LISTING_DIRECTORY_ABSENT]
+    assert "not evidence" not in listing.problems[0].detail
+    assert listing.is_complete
+
+
+def test_a_directory_that_refuses_to_list_says_the_empty_result_is_not_evidence(
+    pretend_account_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE ONLY CASE THE ORIGINAL SENTENCE WAS TRUE OF, and it had no test at all.
+
+    A directory that is there and would not list may hold any number of saves.
+    This is the one condition where an empty result proves nothing, and the one
+    condition the first build's three tests never exercised.
+    """
+    refused = pretend_account_dir / "refused"
+    refused.mkdir()
+    refuse(monkeypatch, "iterdir", refused)
+
+    listing = workdir._save_files(refused)  # noqa: SLF001
+
+    assert [problem.code for problem in listing.problems] == [workdir.LISTING_DIRECTORY_UNREADABLE]
+    detail = listing.problems[0].detail
+    assert "not evidence" in detail, detail
+    assert "leaves open" in detail, detail
+    assert listing.problems[0].errno == errno.EACCES
+    assert not listing.is_complete, "nothing was learned, so the empty result is not trustworthy"
+
+
+def test_an_unrecognised_failure_is_reported_as_could_not_tell(
+    pretend_account_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE DEFAULT LEANS THE SAFE WAY, which is the half a happy-path test misses.
+
+    An errno this module has no reading of must not be classified as "nothing
+    there" - that would license a caller to trust an empty result on the
+    strength of a failure nobody has interpreted. Default to could-not-tell.
+    """
+    real = Path.iterdir
+    target = pretend_account_dir / "strange"
+    target.mkdir()
+
+    def strange(self: Path, *args: object, **kwargs: object) -> object:
+        if self == target:
+            raise OSError(errno.EIO, "Input/output error", str(self))
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "iterdir", strange)
+
+    listing = workdir._save_files(target)  # noqa: SLF001
+
+    assert [problem.code for problem in listing.problems] == [workdir.LISTING_DIRECTORY_UNREADABLE]
+    assert not listing.is_complete
+
+
+def test_an_entry_that_cannot_be_classified_is_reported_rather_than_dropped(
+    pretend_account_dir: Path, save_bytes: bytes
+) -> None:
+    """CS-438 proper. The entry still leaves the listing - but it no longer leaves quietly.
+
+    The fault here is a broken symlink, whose ``stat()`` fails with ENOENT.
+    ``Path.is_file()`` ignores that errno on every interpreter this project
+    supports and answers False, so the old ``except OSError`` could not have
+    caught THIS entry on any version - which is exactly why it vanished. That
+    is a fact about ENOENT and NOT about every unreadable entry; see
+    ``_save_files`` for what ``is_file()`` does with an errno pathlib does not
+    ignore.
+    """
+    real = write_with_mtime(
+        pretend_account_dir / "World.sav", save_bytes, 1_600_000_000_000_000_000
+    )
+    make_broken_symlink(pretend_account_dir / "Unreadable.sav")
+
+    listing = workdir._save_files(pretend_account_dir)  # noqa: SLF001
+
+    assert listing.saves == (real,), "the readable save must still be listed"
+    assert [problem.code for problem in listing.problems] == [workdir.LISTING_ENTRY_ABSENT]
+
+
+def test_an_entry_that_vanished_and_one_that_refused_do_not_report_the_same_thing(
+    pretend_account_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE SIBLING OF THE DIRECTORY SPLIT, same root cause, found by the same grep.
+
+    A broken symlink names no file, so it is KNOWABLY not a save. An entry that
+    refused to stat might be one. Folding both into "whether it is a save is
+    unknown" is the same over-claim as the directory case, one level down.
+    """
+    make_broken_symlink(pretend_account_dir / "Vanished.sav")
+    denied_entry = pretend_account_dir / "Denied.sav"
+    denied_entry.write_bytes(b"x")
+    refuse(monkeypatch, "stat", denied_entry)
+
+    listing = workdir._save_files(pretend_account_dir)  # noqa: SLF001
+
+    vanished = only_with_errno(listing, errno.ENOENT)
+    denied = only_with_errno(listing, errno.EACCES)
+    assert vanished.code == workdir.LISTING_ENTRY_ABSENT
+    assert denied.code == workdir.LISTING_ENTRY_UNREADABLE
+    assert "names no file" in vanished.detail, vanished.detail
+    assert "unknown" not in vanished.detail, vanished.detail
+    assert "unknown" in denied.detail, denied.detail
+    assert not listing.is_complete, "the refused entry might have been a save"
+
+
+def test_the_entry_report_is_true_of_every_entry_that_can_raise_it(
+    pretend_account_dir: Path,
+) -> None:
+    """THE SENTENCE IS CHECKED, not merely the firing (the CS-430 lesson).
+
+    Both entry details say the entry was NAMED AS A SAVE. That is only true
+    because the suffix test short-circuits ahead of the stat, so an unstattable
+    entry named anything else is never reached and never reported. Both halves
+    are asserted here; without the second, the sentence would be a guess about
+    the input.
+    """
+    make_broken_symlink(pretend_account_dir / "notes.txt")
+
+    other_suffix = workdir._save_files(pretend_account_dir)  # noqa: SLF001
+    assert other_suffix.problems == (), (
+        "an entry NOT named as a save reached the classification step, so the report's "
+        "sentence is not true of everything that can raise it"
+    )
+
+    make_broken_symlink(pretend_account_dir / "Unreadable.sav")
+    named_as_a_save = workdir._save_files(pretend_account_dir)  # noqa: SLF001
+
+    assert len(named_as_a_save.problems) == EXPECT_AT_LEAST_ONE
+    detail = named_as_a_save.problems[0].detail
+    assert "named as a save" in detail, detail
+    assert "absent from this listing" in detail, detail
+
+
+@pytest.mark.parametrize(
+    ("condition", "trusted"),
+    [
+        ("clean", True),
+        ("directory-absent", True),
+        ("directory-not-a-directory", True),
+        ("directory-refused", False),
+        ("entry-vanished", True),
+        ("entry-refused", False),
+    ],
+)
+def test_is_complete_says_whether_an_empty_result_can_be_trusted(
+    condition: str,
+    trusted: bool,
+    pretend_account_dir: Path,
+    save_bytes: bytes,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ONE BOOLEAN, ONE MEANING, GRADED ON EVERY CONDITION THAT CAN PRODUCE IT.
+
+    ``is_complete`` is the absence of an INCONCLUSIVE problem, not the absence
+    of every problem. A directory that is not there reports itself AND answers
+    True, because "no such directory" and "no saves in it" are one fact. Only a
+    condition that left the question open answers False.
+    """
+    target = pretend_account_dir
+    if condition == "directory-absent":
+        target = pretend_account_dir / "no-such-directory"
+    elif condition == "directory-not-a-directory":
+        target = pretend_account_dir / "World.sav"
+        target.write_bytes(save_bytes)
+    elif condition == "directory-refused":
+        target = pretend_account_dir / "refused"
+        target.mkdir()
+        refuse(monkeypatch, "iterdir", target)
+    elif condition == "entry-vanished":
+        make_broken_symlink(pretend_account_dir / "Vanished.sav")
+    elif condition == "entry-refused":
+        denied = pretend_account_dir / "Denied.sav"
+        denied.write_bytes(b"x")
+        refuse(monkeypatch, "stat", denied)
+
+    listing = workdir._save_files(target)  # noqa: SLF001
+
+    assert listing.saves == (), "this parametrisation is about the EMPTY result"
+    assert listing.is_complete is trusted
+    if condition != "clean":
+        assert listing.problems, "every condition here reports, whether or not it is complete"
+
+
+def test_latest_save_hands_the_listing_problems_to_a_caller_that_asks(
+    pretend_account_dir: Path, save_bytes: bytes
+) -> None:
+    """The report reaches the public surface, and the return value is unchanged.
+
+    ``latest_save`` still answers None for a directory it could not read, and
+    still does not raise for one - the report is what is added, not a new
+    failure mode.
+    """
+    not_a_directory = pretend_account_dir / "World.sav"
+    not_a_directory.write_bytes(save_bytes)
+    problems: list[workdir.ListingProblem] = []
+
+    assert workdir.latest_save(not_a_directory, problems=problems) is None
+    assert [problem.code for problem in problems] == [workdir.LISTING_DIRECTORY_ABSENT]
+
+
+def test_latest_save_tells_a_directory_that_is_not_there_from_one_that_refused(
+    pretend_account_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE DOCSTRING'S PROMISE, GRADED. It used to promise a distinction it did not make.
+
+    ``latest_save``'s ``problems`` argument is documented as the way a caller
+    tells a machine with no game from a directory that refused to list. Both
+    still return None; the CODES are what differ, and before this they did not.
+    """
+    refused = pretend_account_dir / "refused"
+    refused.mkdir()
+    refuse(monkeypatch, "iterdir", refused)
+    absent_problems: list[workdir.ListingProblem] = []
+    refused_problems: list[workdir.ListingProblem] = []
+
+    assert workdir.latest_save(pretend_account_dir / "gone", problems=absent_problems) is None
+    assert workdir.latest_save(refused, problems=refused_problems) is None
+
+    assert [problem.code for problem in absent_problems] == [workdir.LISTING_DIRECTORY_ABSENT]
+    assert [problem.code for problem in refused_problems] == [workdir.LISTING_DIRECTORY_UNREADABLE]
+
+
+def test_latest_save_reports_nothing_for_a_directory_it_could_read(
+    pretend_account_dir: Path, save_bytes: bytes
+) -> None:
+    """NON-VACUITY for the sink above, and the default stays a plain call."""
+    newest = write_with_mtime(
+        pretend_account_dir / "World.sav", save_bytes, 1_600_000_000_000_000_000
+    )
+    problems: list[workdir.ListingProblem] = []
+
+    assert workdir.latest_save(pretend_account_dir, problems=problems) == newest
+    assert problems == []
+    # The sink is optional; every existing caller passes nothing.
+    assert workdir.latest_save(pretend_account_dir) == newest
+
+
+# ---------------------------------------------------------------------------
+# 4c. What is_file() hides, and what this module therefore may not claim
+# ---------------------------------------------------------------------------
+#
+# THE FIRST BUILD SHIPPED A FALSE REACHABILITY CLAIM, in this file and in
+# ``_save_files``: that the ORIGINAL ``except OSError`` around ``is_file()`` was
+# unreachable because ``is_file()`` swallows everything. That is true on this
+# machine's interpreter and NOT true on the floor this project declares in
+# pyproject.toml and scripts/verify_env.py, where ``Path`` inherits
+# ``PathBase.is_file`` and re-raises any errno outside pathlib's ignored set.
+# Established from the CPython source for that branch, NOT executed - no such
+# interpreter is installed here - and corroborated by executing the same shape
+# on the older interpreter that IS installed.
+#
+# What survives is narrower and is what the test below asserts: the ENOENT of a
+# broken symlink is ignored on every supported version, so the fixture case
+# really was invisible to the old handler. That is a fact about ENOENT, not a
+# universal about unreadable entries.
+
+
+def test_stat_reports_the_broken_symlink_fault_that_is_file_hides(
+    pretend_account_dir: Path,
+) -> None:
+    """THE MECHANISM THE CLASSIFICATION RESTS ON, executed rather than asserted about.
+
+    ``stat()`` raises where ``is_file()`` answers a bare False. That difference
+    is the whole reason the scan reads the mode directly, and it is checked
+    here against the interpreter actually running rather than against a
+    sentence about interpreters.
+    """
+    link = make_broken_symlink(pretend_account_dir / "Unreadable.sav")
+
+    with pytest.raises(FileNotFoundError) as caught:
+        link.stat()
+
+    assert caught.value.errno == errno.ENOENT, (
+        "the broken-symlink fixture stopped producing ENOENT, so the narrow claim in "
+        "_save_files about which errno is ignored has to be re-derived"
+    )
+    assert link.is_file() is False, "is_file() let an exception out for an IGNORED errno"
+
+
+def test_the_save_listing_does_not_claim_an_unreadable_entry_raises_nothing() -> None:
+    """THE REFUTED SENTENCE, asserted absent rather than reworded.
+
+    "there is no exception to catch" was a universal, and the floor interpreter
+    refutes it. ADR 0008 forecloses hedging a refuted claim into "believed to
+    be" - the hedge has the same falsification surface and reads as evidence -
+    so this grades the absence of the clause, not its softening.
+    """
+    doc = workdir._save_files.__doc__ or ""  # noqa: SLF001
+
+    assert "there is no exception to catch" not in doc
+    assert "indistinguishable" not in doc, (
+        "the sentence claiming is_file() cannot distinguish an unreadable entry is back"
+    )
+    # NON-VACUITY: the paragraph that replaced it is still there to be read.
+    assert "varies across the interpreter range" in doc
+
+
+# ---------------------------------------------------------------------------
+# 4d. The redaction boundary, tested where it actually is
+# ---------------------------------------------------------------------------
+#
+# WHY THESE EXIST. ``_listing_problem`` takes the exception as a PARAMETER
+# rather than catching it, so it sits outside every ``except ... as NAME`` body
+# and is a redaction BOUNDARY in its own right - the place where an object
+# carrying a path is turned into fields that carry none. A boundary is tested
+# at the boundary.
+#
+# The precedent is ``safe_exc_text``, the same shape one layer over: it renders
+# its own argument, and it carries dedicated redaction tests in
+# tests/test_precommit_gate.py rather than being covered incidentally. These
+# are that, for this helper.
+#
+# NO CLAIM IS MADE HERE ABOUT WHICH OTHER TEST DOES OR DOES NOT CATCH A LEAK IN
+# THIS FUNCTION. A sentence of that shape is a detection claim, and ADR 0008
+# says a detection claim is derived by the suite or deleted - never written -
+# because it is falsified by any change anywhere, including a change that
+# widens some other sweep to reach this. The tests below are the guard; they do
+# not describe one.
+
+#: Leak bait. Shaped like the things a real OSError from this scan would carry
+#: - a directory segment, a platform account id and a world name - and none of
+#: them is real. Deliberately NOT rooted under a user profile: an absolute home
+#: path in a tracked file is refused outright by
+#: ``test_no_absolute_home_paths_in_authored_files``, fictional account name or
+#: not, and that guard is right. What these tests need is separators and
+#: identifier-shaped segments, which a non-home root supplies just as well.
+_BAIT_WORLD = "BaitWorldName"
+_BAIT_SEGMENT = "BaitDirectory"
+_BAIT_PATH = f"Z:\\{_BAIT_SEGMENT}\\{PRETEND_ACCOUNT}\\{_BAIT_WORLD}_010101-020202.sav"
+
+
+def problem_surfaces(problem: workdir.ListingProblem) -> str:
+    """Every way this object can reach a log line, a message or a repr, joined."""
+    return str(problem) + repr(problem) + problem.code + problem.detail + str(problem.errno)
+
+
+def test_the_problem_builder_copies_no_field_of_the_exception_but_the_errno() -> None:
+    """The boundary itself, called directly, with the path in every field it has.
+
+    ``filename``, ``strerror``, ``args`` and ``str()`` all carry the path on a
+    real OSError from this scan. Only the errno may cross.
+    """
+    exc = PermissionError(errno.EACCES, f"Permission denied: {_BAIT_PATH}", _BAIT_PATH)
+
+    problem = workdir._listing_problem(  # noqa: SLF001
+        workdir.LISTING_ENTRY_ABSENT, workdir.LISTING_ENTRY_UNREADABLE, exc
+    )
+    surfaces = problem_surfaces(problem)
+
+    assert _BAIT_WORLD not in surfaces, "the world name reached the report"
+    assert PRETEND_ACCOUNT not in surfaces, "the account id reached the report"
+    assert _BAIT_PATH not in surfaces
+    assert _BAIT_SEGMENT not in surfaces, "a directory segment reached the report"
+    assert "\\" not in surfaces, "a path separator reached the report"
+    assert "/" not in surfaces, "a path separator reached the report"
+    assert ".sav" not in surfaces, "a filename reached the report"
+    assert problem.errno == errno.EACCES, "the one field that MAY cross did not"
+
+
+def test_the_problem_builder_answers_a_detail_from_the_table_and_not_from_the_exception() -> None:
+    """The detail is keyed by CODE, so no input can steer it into rendering anything.
+
+    Two exceptions differing in every string they carry produce the identical
+    detail, which is what "fixed line, keyed by code" means operationally.
+    """
+    one = PermissionError(errno.EACCES, f"Permission denied: {_BAIT_PATH}", _BAIT_PATH)
+    two = PermissionError(errno.EACCES, "denied", "elsewhere.sav")
+
+    first = workdir._listing_problem(  # noqa: SLF001
+        workdir.LISTING_DIRECTORY_ABSENT, workdir.LISTING_DIRECTORY_UNREADABLE, one
+    )
+    second = workdir._listing_problem(  # noqa: SLF001
+        workdir.LISTING_DIRECTORY_ABSENT, workdir.LISTING_DIRECTORY_UNREADABLE, two
+    )
+
+    assert first == second
+    assert first.detail in workdir._LISTING_DETAILS.values()  # noqa: SLF001
+
+
+def test_the_problem_builder_picks_the_settled_code_only_for_a_settled_errno() -> None:
+    """The classification, exercised at the boundary rather than only through a scan.
+
+    Every errno the scan can meet is graded here, including one carrying no
+    errno at all - which must not be read as "nothing there".
+    """
+    settled = workdir.LISTING_DIRECTORY_ABSENT
+    open_question = workdir.LISTING_DIRECTORY_UNREADABLE
+
+    def code_for(exc: OSError) -> str:
+        return workdir._listing_problem(settled, open_question, exc).code  # noqa: SLF001
+
+    assert code_for(FileNotFoundError(errno.ENOENT, "nope", "x")) == settled
+    assert code_for(NotADirectoryError(errno.ENOTDIR, "nope", "x")) == settled
+    assert code_for(PermissionError(errno.EACCES, "nope", "x")) == open_question
+    assert code_for(OSError(errno.EIO, "nope", "x")) == open_question
+    assert code_for(OSError()) == open_question, (
+        "an exception carrying no errno was read as 'nothing there', which would let a "
+        "caller trust an empty result on the strength of a failure nobody classified"
+    )
+
+
+def test_the_problem_builder_carries_no_errno_through_as_none() -> None:
+    """An OSError without an errno is reported, not crashed on."""
+    problem = workdir._listing_problem(  # noqa: SLF001
+        workdir.LISTING_ENTRY_ABSENT, workdir.LISTING_ENTRY_UNREADABLE, OSError()
+    )
+
+    assert problem.errno is None
+    assert problem.code == workdir.LISTING_ENTRY_UNREADABLE
+    assert problem.detail
+
+
+def test_every_listing_code_has_a_detail_and_every_detail_a_code() -> None:
+    """No code can ship without a sentence, and no sentence without a code.
+
+    A missing entry in the table is a ``KeyError`` at the exact moment the scan
+    is trying not to fail, which is the worst possible time for one.
+    """
+    codes = {
+        workdir.LISTING_DIRECTORY_ABSENT,
+        workdir.LISTING_DIRECTORY_UNREADABLE,
+        workdir.LISTING_ENTRY_ABSENT,
+        workdir.LISTING_ENTRY_UNREADABLE,
+    }
+
+    assert set(workdir._LISTING_DETAILS) == codes  # noqa: SLF001
+    assert len({*workdir._LISTING_DETAILS.values()}) == len(codes), (  # noqa: SLF001
+        "two codes share one sentence, so at least one of them is described by a line "
+        "written for a different condition - the CS-430 shape"
+    )
+    assert codes > workdir._INCONCLUSIVE_CODES  # noqa: SLF001
+
+
+def test_the_listing_report_carries_no_path_no_name_and_no_exception_text(
+    pretend_account_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """PRIVACY END TO END. A save's filename carries the world name, its directory the id.
+
+    The helper above is tested directly; this proves the whole scan reaches it
+    rather than building a report some other way. Both entry paths are covered
+    - the real broken symlink and the injected refusal - because they are two
+    different ``except`` sites.
+    """
+    make_broken_symlink(pretend_account_dir / "SecretWorldName.sav")
+    denied = pretend_account_dir / "OtherSecretName.sav"
+    denied.write_bytes(b"x")
+    refuse(monkeypatch, "stat", denied)
+
+    listing = workdir._save_files(pretend_account_dir)  # noqa: SLF001
+    surfaces = "".join(problem_surfaces(problem) for problem in listing.problems)
+
+    expected_problems = 2
+    assert len(listing.problems) == expected_problems, "nothing was rendered; this proves nothing"
+    assert "SecretWorldName" not in surfaces, "the report leaks the entry name"
+    assert "OtherSecretName" not in surfaces, "the report leaks the entry name"
+    assert PRETEND_ACCOUNT not in surfaces, "the report leaks the account directory"
+    assert str(pretend_account_dir) not in surfaces
+    assert "\\" not in surfaces, "a path reached the report"
+    assert "/" not in surfaces, "a path reached the report"
 
 
 # ===========================================================================

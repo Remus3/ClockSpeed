@@ -70,7 +70,11 @@ from __future__ import annotations
 
 import os
 import time
+from dataclasses import dataclass
+from errno import ENOENT, ENOTDIR
 from pathlib import Path
+from stat import S_ISREG
+from typing import Final
 
 from clockspeed.data import locate
 
@@ -136,6 +140,143 @@ class DestinationRefusedError(WorkDirError):
     This is the code-level half of the never-write rule. It is raised BEFORE
     anything is created, so catching it means nothing was written.
     """
+
+
+# --- what the listing could not read ----------------------------------------
+
+#: The errnos that SETTLE the question instead of leaving it open: the path
+#: names nothing at all, or names something that is not a directory. Every
+#: other errno - including one this module has no reading of - falls through to
+#: the ``UNREADABLE`` codes, so an unrecognised failure is reported as "could
+#: not tell" rather than as "nothing there". Only one of those two answers
+#: licenses a caller to trust an empty result, and that is the one that has to
+#: be earned.
+_SETTLED_ERRNOS: Final = (ENOENT, ENOTDIR)
+
+#: No directory is there to hold saves - the path is absent, or names a file.
+LISTING_DIRECTORY_ABSENT: Final = "listing-directory-absent"
+
+#: The directory did not list, for a reason that settles nothing.
+LISTING_DIRECTORY_UNREADABLE: Final = "listing-directory-unreadable"
+
+#: An entry named as a save names no file - a broken symlink, or one that went
+#: away between the listing and the stat.
+LISTING_ENTRY_ABSENT: Final = "listing-entry-absent"
+
+#: One entry inside a directory that DID list could not be classified.
+LISTING_ENTRY_UNREADABLE: Final = "listing-entry-unreadable"
+
+#: The codes that leave the question open, which is what
+#: :attr:`SaveListing.is_complete` tests for. A settled problem is still
+#: REPORTED - nothing is dropped - but it does not make an empty result
+#: untrustworthy, because it says there was nothing there to find.
+_INCONCLUSIVE_CODES: Final = frozenset({LISTING_DIRECTORY_UNREADABLE, LISTING_ENTRY_UNREADABLE})
+
+#: Keyed by code and fixed. Never built from an entry name, a path or an
+#: exception, for the reason :class:`ListingProblem` states.
+#:
+#: EACH LINE IS TRUE OF ITS OWN CODE AND OF NOTHING ELSE. One line covering
+#: absent, not-a-directory and refused together is what CS-430 already cost
+#: this project once: absence IS evidence that there are no saves, and it is
+#: the case that fires on every machine with no game installed, so a shared
+#: sentence saying otherwise would be false on the common path.
+_LISTING_DETAILS: Final[dict[str, str]] = {
+    LISTING_DIRECTORY_ABSENT: (
+        "the path names no directory, so it holds no saves and an empty result is the whole answer"
+    ),
+    LISTING_DIRECTORY_UNREADABLE: (
+        "the directory did not list, for a reason that leaves open whether it "
+        "holds saves, so an empty result is not evidence that it holds none"
+    ),
+    LISTING_ENTRY_ABSENT: (
+        "an entry named as a save names no file, so it is not a save and is "
+        "absent from this listing"
+    ),
+    LISTING_ENTRY_UNREADABLE: (
+        "an entry named as a save could not be read, so whether it is a save "
+        "is unknown and it is absent from this listing"
+    ),
+}
+
+
+@dataclass(frozen=True)
+class ListingProblem:
+    """One thing the save listing could not read.
+
+    WHY THIS CARRIES NO NAME AND NO PATH. A save's filename is
+    ``<world>_<...>.sav`` and the directory holding it is named for the platform
+    account id, so an entry name and the path to it are both personal data
+    (CLAUDE.md non-negotiables 3, 11 and 12). An ``OSError`` carries that path
+    in several places at once - ``str()`` appends it, and ``filename``,
+    ``strerror`` and ``args`` reach it directly - so nothing derived from the
+    exception is copied into this type except the errno, which is lifted out as
+    a NAMED FIELD.
+
+    Attributes:
+        code: One of :data:`LISTING_DIRECTORY_ABSENT`,
+            :data:`LISTING_DIRECTORY_UNREADABLE`,
+            :data:`LISTING_ENTRY_ABSENT` or :data:`LISTING_ENTRY_UNREADABLE`.
+        detail: The fixed line for that code, from :data:`_LISTING_DETAILS`.
+        errno: The failure's errno, or None when the exception carried none.
+    """
+
+    code: str
+    detail: str
+    errno: int | None
+
+
+@dataclass(frozen=True)
+class SaveListing:
+    """What one directory scan found, and what it could not read.
+
+    THE PAIR IS THE POINT. A bare list of paths has two indistinguishable
+    causes for being short - the directory really holds that many saves, or
+    something was swallowed on the way - and this layer is deliberately
+    fail-soft, so the second cause used to vanish. Carrying the problems beside
+    the saves is what makes "absent content is reported, never fatal" true of
+    the code rather than only of its docstring.
+
+    Attributes:
+        saves: The ``.sav`` files that were confirmed to be regular files.
+        problems: Everything the scan could not read. Empty on a clean scan.
+    """
+
+    saves: tuple[Path, ...]
+    problems: tuple[ListingProblem, ...]
+
+    @property
+    def is_complete(self) -> bool:
+        """Whether an empty ``saves`` can be taken at face value.
+
+        This is the absence of an INCONCLUSIVE problem rather than the absence
+        of every problem. A directory that is simply not there answers True
+        while still reporting itself, because "there is no such directory" and
+        "there are no saves in it" are the same fact; a directory that refused
+        to list answers False, because nothing was learned either way.
+
+        Returns:
+            True when nothing went unread that might have been a save.
+        """
+        return not any(problem.code in _INCONCLUSIVE_CODES for problem in self.problems)
+
+
+def _listing_problem(settled: str, open_question: str, exc: OSError) -> ListingProblem:
+    """Report one failure under whichever of two codes its errno earns.
+
+    Args:
+        settled: The code for a failure whose errno establishes that there was
+            nothing there to find.
+        open_question: The code for every other errno, including one this
+            module has no reading of.
+        exc: The caught failure. Only its ``errno`` is read - a NAMED FIELD -
+            because the object and its other attributes carry the path it
+            failed on.
+
+    Returns:
+        The problem, carrying the fixed detail belonging to the chosen code.
+    """
+    code = settled if exc.errno in _SETTLED_ERRNOS else open_question
+    return ListingProblem(code=code, detail=_LISTING_DETAILS[code], errno=exc.errno)
 
 
 # --- resolution -------------------------------------------------------------
@@ -364,8 +505,8 @@ def _mtime_ns(path: Path) -> int:
         return 0
 
 
-def _save_files(directory: Path) -> list[Path]:
-    """List the save files directly inside ``directory``.
+def _save_files(directory: Path) -> SaveListing:
+    """List the save files directly inside ``directory``, and what did not read.
 
     ONE FLAT SCAN COVERS BOTH KINDS. A manual save and an autosave are siblings
     in the account directory that differ only by filename -
@@ -373,28 +514,61 @@ def _save_files(directory: Path) -> list[Path]:
     (BOOTSTRAP.md section 2) - so there is nothing to recurse into. If a future
     probe finds a nested layout, this is the function that grows.
 
+    IT REPORTS RATHER THAN RAISES, and that is deliberate rather than lazy: a
+    machine with no game installed is a supported state, and the audit spy in
+    ``tests/save/test_phase4_gate.py`` depends on this layer swallowing
+    ``OSError`` rather than propagating it. What changed under CS-438 is that a
+    swallowed failure now leaves a record in the return value instead of
+    leaving nothing at all.
+
+    CLASSIFICATION GOES THROUGH ``stat()`` AND NOT THROUGH ``is_file()``, and
+    the difference is the whole item. ``Path.is_file()`` collapses two answers
+    into one False: an entry that is genuinely not a regular file, and an entry
+    it could not read at all. What it does with the underlying ``OSError``
+    varies across the interpreter range this project supports - a broken
+    symlink's ENOENT is swallowed on every one of them, while an errno pathlib
+    does not ignore escapes on some versions and not on others - so a handler
+    wrapped around ``is_file()`` is not a place where a failure can be reliably
+    noticed. ``stat()`` raises on every failure, which is what makes one
+    reportable. A directory named like a save still stats cleanly and is still
+    skipped in silence, because that skip is understood.
+
+    THE SUFFIX TEST COMES FIRST, and the entry report's wording depends on it:
+    only an entry already named as a save is ever stat'ed, so an entry that
+    cannot be read under any other name is never reached and never reported.
+
     Args:
         directory: The directory to scan.
 
     Returns:
-        Every ``.sav`` file in it. Empty when the directory is missing or
-        unreadable - absent content is reported, never fatal.
+        The confirmed ``.sav`` files, and one problem for each thing the scan
+        could not read - absent content is reported, never fatal. The problem's
+        CODE says whether what it could not read leaves any doubt that the
+        result is complete.
     """
     try:
         entries = list(directory.iterdir())
-    except OSError:
-        return []
+    except OSError as exc:
+        problem = _listing_problem(LISTING_DIRECTORY_ABSENT, LISTING_DIRECTORY_UNREADABLE, exc)
+        return SaveListing((), (problem,))
     found: list[Path] = []
+    problems: list[ListingProblem] = []
     for entry in entries:
-        try:
-            if entry.suffix.lower() == SAVE_SUFFIX and entry.is_file():
-                found.append(entry)
-        except OSError:
+        if entry.suffix.lower() != SAVE_SUFFIX:
             continue
-    return found
+        try:
+            mode = entry.stat().st_mode
+        except OSError as exc:
+            problems.append(_listing_problem(LISTING_ENTRY_ABSENT, LISTING_ENTRY_UNREADABLE, exc))
+            continue
+        if S_ISREG(mode):
+            found.append(entry)
+    return SaveListing(tuple(found), tuple(problems))
 
 
-def latest_save(account_dir: Path | None = None) -> Path | None:
+def latest_save(
+    account_dir: Path | None = None, *, problems: list[ListingProblem] | None = None
+) -> Path | None:
     """Return the most-recently-modified save, across manual saves and autosaves.
 
     Ordering is by modification time descending with the FILENAME as a
@@ -406,6 +580,11 @@ def latest_save(account_dir: Path | None = None) -> Path | None:
     Args:
         account_dir: The directory to search. Resolved from the environment,
             config/local.json and auto-detection when omitted.
+        problems: A list to extend with whatever the scan could not read, or
+            None to discard it. The return value is None both for a machine
+            with no game and for a directory that refused to list; a caller
+            that needs to tell those apart passes a list and reads the CODE,
+            which differs between the two.
 
     Returns:
         The newest save, or None when the directory is absent, empty, or
@@ -417,11 +596,13 @@ def latest_save(account_dir: Path | None = None) -> Path | None:
         directory = locate.resolve_account_dir(locate.resolve_save_root())
     if directory is None:
         return None
-    saves = _save_files(directory)
-    if not saves:
+    listing = _save_files(directory)
+    if problems is not None:
+        problems.extend(listing.problems)
+    if not listing.saves:
         return None
-    saves.sort(key=lambda path: (-_mtime_ns(path), path.name))
-    return saves[0]
+    ranked = sorted(listing.saves, key=lambda path: (-_mtime_ns(path), path.name))
+    return ranked[0]
 
 
 def copy_for_read(source: Path, *, work_root: Path | None = None) -> Path:
