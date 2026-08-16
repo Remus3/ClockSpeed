@@ -39,6 +39,16 @@ directory is created and once after - because the first check is what prevents
 the mkdir, and the second is what closes the window between deciding and
 writing.
 
+A ROOT THAT WILL NOT RESOLVE REFUSES RATHER THAN VANISHING (CS-444). Resolution
+is what the comparison above is built on, so a forbidden root whose resolution
+fails leaves the check with nothing to compare against. That root used to be
+dropped from the list, which meant the copy proceeded unchecked against it - a
+fail-open in the direction of a write, inside the module the architecture picked
+precisely so this invariant would be checkable in one place. It is now carried
+as a :class:`ForbiddenRoot` with no resolved path and refuses on sight. A root
+the resolvers report as ABSENT is a different fact and still forbids nothing:
+having no game installed is a supported state.
+
 ORDER MATTERS MORE THAN THE CHECK DOES. A refusal raised after the directory
 had been created would be a report of a violation rather than a prevention of
 one, which is why ``test_a_refused_destination_is_not_created`` asserts on the
@@ -341,7 +351,45 @@ def _resolved(path: Path) -> Path | None:
         return None
 
 
-def _forbidden_roots() -> list[tuple[Path, str]]:
+#: The fixed English labels for the three roots. Fixed, and never built from a
+#: path, because a message naming WHICH root refused must not render the root
+#: itself: the save root's own subdirectory is a platform account id (CLAUDE.md
+#: non-negotiable 3).
+LABEL_SAVE_ROOT: Final = "the save root"
+LABEL_ACCOUNT_DIR: Final = "the account directory"
+LABEL_GAME_INSTALL: Final = "the game install"
+
+
+@dataclass(frozen=True)
+class ForbiddenRoot:
+    """One directory a copy must not land in, and whether it could be resolved.
+
+    ``resolved`` IS NULLABLE AND THAT IS THE WHOLE OF CS-444. This type used to
+    be a plain ``(Path, str)`` pair, which left no way to express a root that is
+    THERE and would not resolve, so that root was dropped from the list instead
+    - and a dropped root is a root the destination check never compares against.
+    The failure direction was a write into the directory the check exists to
+    protect, so the state is now carried rather than discarded.
+
+    TWO DIFFERENT FACTS SHARE THE VALUE None AND THIS TYPE ONLY CARRIES ONE OF
+    THEM. A resolver in ``clockspeed.data.locate`` answering None means there is
+    no such root on this machine - a supported state, and nothing to forbid, so
+    no ``ForbiddenRoot`` is built at all. A resolver answering a path that then
+    fails to resolve means the root is there and could not be checked, which is
+    what a None ``resolved`` records.
+
+    Attributes:
+        label: A fixed English string from the three above, so a refusal can say
+            which root it could not clear without rendering a path.
+        resolved: The fully resolved directory, or None when the root is present
+            and its resolution failed.
+    """
+
+    label: str
+    resolved: Path | None
+
+
+def _forbidden_roots() -> list[ForbiddenRoot]:
     """List the directories a copy must never land in, each with a safe label.
 
     The account directory is included alongside the save root even though it
@@ -350,23 +398,36 @@ def _forbidden_roots() -> list[tuple[Path, str]]:
     exactly that case - and a copy written into a relocated account directory is
     the same mistake.
 
+    A ROOT THAT WOULD NOT RESOLVE IS REPORTED HERE RATHER THAN DROPPED, which is
+    CS-444. Dropping it was a fail-OPEN: the caller then had nothing to compare
+    a destination against for that root and let the copy through, which is the
+    one direction this module's refusals may not fail in. Deduplication is
+    applied to resolved roots only - an unresolved one has no path to compare,
+    so it has nothing to be a duplicate of.
+
     Returns:
-        (resolved directory, label) pairs. The label is a fixed English string
-        so a message can say WHICH root refused without rendering a path.
+        One entry per root that is present, in save-root, account-directory,
+        install order. An entry whose ``resolved`` is None is a root that could
+        not be resolved, which :func:`_refuse_if_forbidden` treats as still
+        forbidden.
     """
     save_root = locate.resolve_save_root()
     candidates: list[tuple[Path | None, str]] = [
-        (save_root, "the save root"),
-        (locate.resolve_account_dir(save_root), "the account directory"),
-        (locate.resolve_game_dir()[0], "the game install"),
+        (save_root, LABEL_SAVE_ROOT),
+        (locate.resolve_account_dir(save_root), LABEL_ACCOUNT_DIR),
+        (locate.resolve_game_dir()[0], LABEL_GAME_INSTALL),
     ]
-    roots: list[tuple[Path, str]] = []
+    roots: list[ForbiddenRoot] = []
+    seen: list[Path] = []
     for candidate, label in candidates:
         if candidate is None:
             continue
         resolved = _resolved(candidate)
-        if resolved is not None and all(resolved != known for known, _ in roots):
-            roots.append((resolved, label))
+        if resolved is None:
+            roots.append(ForbiddenRoot(label=label, resolved=None))
+        elif all(resolved != known for known in seen):
+            seen.append(resolved)
+            roots.append(ForbiddenRoot(label=label, resolved=resolved))
     return roots
 
 
@@ -378,12 +439,31 @@ def _refuse_if_forbidden(destination: Path) -> None:
     outside the save root, and the project's rule when a check is uncertain is
     to refuse.
 
+    THE SAME RULE APPLIES TO THE OTHER OPERAND, which is CS-444. A forbidden
+    root that is present and would not resolve leaves the comparison with
+    nothing to compare against, so the destination cannot be shown to sit
+    outside THAT root either, and the refusal follows for the identical reason.
+    This is one rule read symmetrically rather than a second policy.
+
+    THE UNRESOLVED ROOT IS NOT COMPARED AGAINST ITS UNRESOLVED PATH, and
+    declining that is deliberate. A string comparison against a path that has
+    not been resolved is what the module docstring already rejects: a relative
+    path, a ``..`` traversal and a symlink each name a directory the comparison
+    says is outside the save root and the filesystem says is inside it. Such a
+    comparison would answer False for a destination that really is inside, so it
+    would fail in the write direction while looking like a check.
+
+    ROOTS ARE TAKEN IN THE ORDER :func:`_forbidden_roots` returns them, which is
+    the fixed order of its candidate list. A destination inside a root that DID
+    resolve therefore reports that specific root even when a later root did not
+    resolve, so the more precise message is the one that survives.
+
     Args:
         destination: The directory a copy would be written into.
 
     Raises:
-        DestinationRefusedError: It resolves inside a forbidden root, or it
-            cannot be resolved at all.
+        DestinationRefusedError: It resolves inside a forbidden root, it cannot
+            be resolved at all, or a forbidden root could not be resolved.
     """
     resolved = _resolved(destination)
     if resolved is None:
@@ -391,10 +471,16 @@ def _refuse_if_forbidden(destination: Path) -> None:
             "the destination cannot be resolved, so it cannot be shown to sit outside the "
             f"save root and the game install: {locate.redact(destination)}"
         )
-    for root, label in _forbidden_roots():
-        if resolved.is_relative_to(root):
+    for root in _forbidden_roots():
+        if root.resolved is None:
             raise DestinationRefusedError(
-                f"refusing to write inside {label}: {locate.redact(resolved)}. Clockspeed "
+                f"{root.label} is present and did not resolve, so no destination can be shown "
+                f"to sit outside it: {locate.redact(resolved)}. Clockspeed never writes to the "
+                "game install or the save directory."
+            )
+        if resolved.is_relative_to(root.resolved):
+            raise DestinationRefusedError(
+                f"refusing to write inside {root.label}: {locate.redact(resolved)}. Clockspeed "
                 "never writes to the game install or the save directory."
             )
 

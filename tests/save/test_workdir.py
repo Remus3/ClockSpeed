@@ -44,6 +44,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -375,6 +376,186 @@ def test_the_refusal_message_carries_no_raw_account_directory(
     message = str(caught.value)
     assert PRETEND_ACCOUNT not in message, "the refusal message leaks the account directory"
     assert "\\" not in message, "the message was not passed through redact()"
+
+
+# ===========================================================================
+# 3a. CS-444 - a forbidden root that is there and will not resolve
+# ===========================================================================
+#
+# THE DEFECT. ``_forbidden_roots`` used to append a candidate only when
+# ``_resolved`` handed back a path, so a root the resolver had already
+# confirmed - and which therefore exists - left the refuse list entirely when
+# its resolution failed. The guard then had nothing to compare against and the
+# copy proceeded. The failure direction is a WRITE, and it is a write into the
+# one place non-negotiable 1 names, reached through the module the architecture
+# picked as the package's single writer.
+#
+# WHY THESE TESTS PATCH THE RESOLVER INSTEAD OF BUILDING AN UNRESOLVABLE PATH.
+# The failures ``_resolved`` catches - a symlink loop, an embedded NUL, a path
+# past the platform's length limit - are raised or swallowed differently across
+# operating systems and across interpreter versions, and this project's
+# declared floor is not the interpreter these tests were measured on. A test
+# built on one of them would be asserting something about this machine while
+# reading as an assertion about the guard. What CS-444 is about is what the two
+# functions DO once a resolution has come back None, so that is forced
+# directly.
+#
+# THE STAND-IN IS SURGICAL, AND THAT IS LOAD-BEARING RATHER THAN TIDY.
+# ``_refuse_if_forbidden`` resolves the DESTINATION through the same helper and
+# already refused when that came back None, so a stand-in answering None for
+# everything would refuse for the pre-existing reason and pass against the very
+# code these tests exist to fail against.
+# ``test_the_unresolvable_root_harness_refuses_nothing_by_itself`` grades that.
+
+
+def resolver_that_fails_only_for(target: Path) -> Callable[[Path], Path | None]:
+    """Return a ``_resolved`` stand-in that answers None for one path only.
+
+    Args:
+        target: The single path whose resolution fails.
+
+    Returns:
+        A callable with ``_resolved``'s signature that hands every other path
+        to the real implementation.
+    """
+    real = workdir._resolved  # noqa: SLF001
+
+    def resolver(path: Path) -> Path | None:
+        return None if Path(path) == target else real(path)
+
+    return resolver
+
+
+def test_a_forbidden_root_that_does_not_resolve_is_still_reported(
+    pretend_save_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """REPORTED is half of CS-444's acceptance, and it is graded on its own here.
+
+    A fix that refused without reporting would leave a caller unable to say
+    WHICH root went unchecked, and the label is the only safe way to say that -
+    the path itself is personal data.
+    """
+    monkeypatch.setenv(ENV_SAVE_ROOT, str(pretend_save_root))
+    monkeypatch.setattr(workdir, "_resolved", resolver_that_fails_only_for(pretend_save_root))
+
+    roots = workdir._forbidden_roots()  # noqa: SLF001
+
+    assert roots, (
+        "a forbidden root that is present and did not resolve was dropped from the refuse "
+        "list, so nothing downstream can tell it was left unchecked"
+    )
+    unchecked = [root.label for root in roots if root.resolved is None]
+    assert unchecked == [workdir.LABEL_SAVE_ROOT], (
+        "the root that did not resolve is not reported under its own label"
+    )
+
+
+def test_a_forbidden_root_that_does_not_resolve_refuses_the_copy(
+    pretend_source: Path,
+    pretend_save_root: Path,
+    work: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """STILL FORBIDDEN is the other half, and it is the half that stops the write.
+
+    The destination here sits well outside the save root, so this is not a test
+    that the comparison works - it is a test that a root which cannot be
+    compared against refuses on its own. The reason is the same one
+    ``_refuse_if_forbidden`` already applies to an unresolvable DESTINATION:
+    what is missing is the proof that the copy lands outside, and a check whose
+    proof is missing refuses.
+    """
+    monkeypatch.setenv(ENV_SAVE_ROOT, str(pretend_save_root))
+    monkeypatch.setattr(workdir, "_resolved", resolver_that_fails_only_for(pretend_save_root))
+
+    with pytest.raises(workdir.DestinationRefusedError):
+        workdir.copy_for_read(pretend_source, work_root=work)
+
+
+def test_a_copy_refused_for_an_unresolvable_root_creates_nothing(
+    pretend_source: Path,
+    pretend_save_root: Path,
+    work: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The refusal lands before the mkdir, as it does for the destination check.
+
+    Same argument as ``test_a_refused_destination_is_not_created``: a refusal
+    raised after the directory existed would report a violation rather than
+    prevent one.
+    """
+    monkeypatch.setenv(ENV_SAVE_ROOT, str(pretend_save_root))
+    monkeypatch.setattr(workdir, "_resolved", resolver_that_fails_only_for(pretend_save_root))
+
+    with pytest.raises(workdir.DestinationRefusedError):
+        workdir.copy_for_read(pretend_source, work_root=work)
+
+    assert not work.exists(), "the refusal created the work directory it was refusing"
+
+
+def test_the_unresolvable_root_refusal_names_the_root_and_renders_no_path(
+    pretend_source: Path,
+    pretend_save_root: Path,
+    work: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The message says which root could not be checked, using its fixed label.
+
+    A refusal that did not name the root would send an operator hunting through
+    three resolvers, and a refusal that named it by PATH would render the thing
+    non-negotiable 3 forbids rendering.
+    """
+    monkeypatch.setenv(ENV_SAVE_ROOT, str(pretend_save_root))
+    monkeypatch.setattr(workdir, "_resolved", resolver_that_fails_only_for(pretend_save_root))
+
+    with pytest.raises(workdir.DestinationRefusedError) as caught:
+        workdir.copy_for_read(pretend_source, work_root=work)
+
+    message = str(caught.value)
+    assert workdir.LABEL_SAVE_ROOT in message, (
+        "the refusal does not say which root it could not check"
+    )
+    assert PRETEND_ACCOUNT not in message, "the refusal message leaks the account directory"
+    assert "\\" not in message, "the message was not passed through redact()"
+
+
+def test_the_unresolvable_root_harness_refuses_nothing_by_itself(
+    pretend_source: Path,
+    pretend_save_root: Path,
+    work: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The stand-in the four tests above rest on is graded rather than trusted.
+
+    Pointed at a path that is neither a forbidden root nor the destination nor
+    the source, it must change the outcome not at all. Without this, a stand-in
+    that answered None too widely would make those tests pass for the
+    pre-existing unresolvable-destination reason and CS-444 would look fixed
+    while the hole stayed open.
+    """
+    monkeypatch.setenv(ENV_SAVE_ROOT, str(pretend_save_root))
+    monkeypatch.setattr(workdir, "_resolved", resolver_that_fails_only_for(work / "unrelated"))
+
+    copy = workdir.copy_for_read(pretend_source, work_root=work)
+
+    assert copy.is_file(), "the stand-in resolver changed an outcome it was not aimed at"
+
+
+def test_a_root_that_is_absent_is_not_reported_as_one_that_would_not_resolve() -> None:
+    """A machine with no game installed stays a supported state, not a refusal.
+
+    Two different facts share the value None and CS-444's fix must keep them
+    apart. A resolver answering None means there is no such root here, so there
+    is nothing to forbid; a resolver answering a path that then fails to
+    resolve means the root is there and could not be checked. The autouse
+    isolation points all four overrides at a path asserted absent, so this is
+    the first case, and the refuse list stays empty.
+
+    This one passes against the pre-fix code too. It is the fence that stops
+    the fix over-reaching into a refusal on every machine with no game, not a
+    reproduction of the defect.
+    """
+    assert workdir._forbidden_roots() == []  # noqa: SLF001
 
 
 # ===========================================================================
