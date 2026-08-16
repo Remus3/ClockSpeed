@@ -73,6 +73,86 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-16 - CS-420 - Detection claims are DERIVED by the suite; the four false sentences are gone
+Verification: `tests/save/test_decode_oracles.py::test_every_tag_width_is_caught_by_a_library_backed_oracle`
+builds a per-(width, oracle) attribution table at runtime by mutating each width in the SHIPPED
+`objects._TAG_EXTRA_STRINGS`, and asserts no width survives, no member of the derived set is idle, and no
+member measured blind has started firing. No absolute count is written anywhere in it.
+ADR: `docs/adr/0008-detection-claims-are-derived-never-written.md`.
+**TWO ROUNDS WERE REFUTED BY INDEPENDENT ADVERSARIES BEFORE THIS CLOSED, and the record matters more than
+the fix.** Round one derived nothing: the attribution folded through `any()`, which short-circuits, so with
+the reach oracle first and red on every width the other two were consulted ONLY in the pristine control -
+census 7/7/1/1 - and gutting both to green no-ops left the suite passing. Round two was refuted on PROSE:
+five more false sentences, one of them traced to `12b5465`, a CS-420 commit that falsified a CS-420 sentence
+three rounds earlier. Fourteen false sentences were found across this item's life by agents that wrote none
+of it.
+**MEMBERSHIP IS DECIDED BY MEASUREMENT, NOT BY NARRATIVE:** the shipped-walk reach catches 6 of 6 widths,
+the usmap join's word-diversity floor 5 of 6 (not ByteProperty), and the cross-section oracle 0 of 6 - so the
+cross-section is asserted BLIND rather than counted a detector. A stated limit rather than a papered-over
+one: an oracle that detects nothing cannot be protected from gutting by an attribution test.
+**A REAL DEFECT THE PROSE HAD HIDDEN:** both library-backed join tests gated their skip on the SAVE library
+while the usmap comes from the INSTALL, so on a machine with saves and no install they FAILED rather than
+skipped. Fixed. `SystemExit` is a non-`OSError` and rendered the install path under default pytest flags; it
+is now caught. `KeyboardInterrupt` is deliberately left escaping - measured, pytest renders no frame for it
+without `--full-trace` - so the inherited residual note had the two backwards, in the dangerous direction.
+
+### 2026-08-16 - CS-427 - Six sibling read and discovery sites contained, and the guard grading them un-inverted
+Verification: `tests/save/test_world.py::test_the_guard_catches_a_spliced_uncontained_helper` is the control
+that matters - splicing the known-bad shape into a NEW helper must turn it red. Per-site graders are
+`tests/save/test_world.py::test_an_unexpected_read_failure_does_not_unwind_through_the_finder` and its
+neighbours, plus the object-stage and real-save-loader graders in the same file.
+**THE FIRST ROUND SHIPPED INVERTED GUARDS AND AN ADVERSARY BROKE THEM.** They keyed on the CONTAINED routes,
+so a helper using an uncontained route never entered the graded set and both liveness assertions stayed true:
+the pre-repair shape spliced into a new helper left 13 graders passing while it leaked the account name, the
+account id and a world name. That is the ungraded-containment defect re-shipped inside the guard built to
+prevent it. The guards now key on the RISKY primitives, plus a second rule for a function that calls no
+primitive but takes its path from a helper whose RETURN ANNOTATION carries `Path` or `bytes` - derived from
+annotations rather than from a hand-maintained list, because the list is what rots.
+**`SystemExit` WAS LIVE DISCLOSURE, NOT A THEORETICAL RESIDUAL.** Measured against markers harvested from
+this machine, it rendered the real Windows account name. Fifteen handlers now name `(Exception, SystemExit)`,
+including four pre-existing ones with the identical hole. `Skipped` and `Failed` derive from `BaseException`,
+so widening cannot swallow a skip or a failure - asserted rather than argued.
+The item named four sites; six were found. The first power battery had SEVEN mutants that killed nothing -
+the same defect inside the fix - and the final battery is 23 mutants applied one at a time, all red against a
+pristine exit 0.
+
+### 2026-08-16 - CS-424 - PropertyMap, Schema and PropertyEntry render structure and counts, not the name table
+Verification: `tests/save/test_usmap.py::test_the_real_usmap_repr_quotes_nothing` is INSTALL-GATED and runs
+against the real shipped table; `::test_the_property_map_repr_renders_structure_rather_than_its_name_table`
+and `::test_a_schema_and_its_property_entries_render_structure_rather_than_names` cover the synthetic side.
+NOT a non-negotiable 12 breach: these are publisher-owned asset strings, not personal data, so this was asset
+echo and diagnostic noise. Recorded that way deliberately, because overstating it would be its own defect.
+**THE FIRST ROUND ARGUED NO SOUND ORACLE EXISTED** - substring matching collides with the implementation's
+own field labels (the longest hit is 13 characters and `PropertyEntry` is 13 characters), and skeleton
+equality is brittle. **AN ADVERSARY REFUTED THAT BY CONSTRUCTION:** a withholding repr emits no string
+literal at all, so the oracle is "the rendering quotes nothing" - neither substring nor skeleton, live
+against the real 57985-name table. The lesson generalises past this item: a clever argument for why a check
+cannot be built is refuted by building it.
+Also repaired in that round: the tests said "shipped name" while using invented fixture names, borrowing the
+acceptance's own word so the acceptance READ as met; the positive assertions were a zero-iteration loop under
+an empty name table; and two format mutants survived all 83 tests.
+**A MUTATION-HARNESS FAILURE CLASS WORTH KEEPING:** the first harness reverted a repr by deleting
+`repr=False`, which does NOT overwrite a `__repr__` defined in the class body, so three mutants were reported
+SURVIVED when the mutation had never applied. A mutant that fails to apply looks exactly like a test that
+fails to catch. The harness now proves each mutation landed before trusting its verdict.
+
+### 2026-08-16 - CS-419 - An unresolvable enum member index is flagged instead of silently dropped
+Verification: `tests/save/test_usmap.py::test_a_truncated_enum_is_flagged_rather_than_passing_as_a_genuinely_short_one`,
+plus `::test_a_failed_member_does_not_swallow_the_enum_skipped_warning`,
+`::test_the_flagged_enum_is_named_by_its_own_position_not_the_first`,
+`::test_a_one_member_enum_whose_only_member_is_unresolvable_is_flagged` and
+`::test_a_repeated_enum_name_is_flagged_the_way_a_repeated_schema_name_is`.
+Non-negotiable 7: unknown content is flagged and skipped, never silently wrong.
+**THE FIRST FIX INTRODUCED A BEHAVIOUR REGRESSION AND AN ADVERSARY CAUGHT IT.** The new member warning
+reused the enum-name warning's `(code, subject)` key and was added first; `_WarningLog` keeps the FIRST
+detail, so a true "the enum was skipped" was replaced by a false "the enum is shorter than the file declares"
+while the enum was absent entirely. Distinct subjects now. Two further test gaps were real: every fixture
+built its enum at position 0, so the position was untested, and every fixture used two members, so the
+single-member case - the defect itself - was untested.
+A sibling was found INSIDE the edited function: a duplicate enum name collapsed unflagged while
+`_read_schemas` flagged the identical loss. `WARN_DUPLICATE_ENUM` closes it. The real shipped mapping parses
+byte-identically to base by full digest, and the new warning paths fire zero times on it.
+
 
 ### 2026-08-15 - CS-420 - MEASUREMENT RECORD, not a completion record. THE ITEM DID NOT CLOSE
 Verification: `tests/save/test_decode_oracles.py` and `tests/save/test_oracle_citations.py` exist and
