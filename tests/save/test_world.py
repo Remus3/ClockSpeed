@@ -86,8 +86,14 @@ account id and player display name in plaintext - into the test log. That is
 non-negotiable 12 by way of the test runner rather than the parser, and it was
 OBSERVED in this module's own red run rather than theorised. The two real-save
 tests therefore load through ``_load_real_save_or_skip``, which catches the
-refusal and re-reports it as two closed-vocabulary fields with no exception in
+refusal and re-reports it as closed-vocabulary field values with no exception in
 flight and ``pytrace`` suppressed.
+
+Every helper here that reaches the real library is contained on BOTH halves -
+the discovery and the read - and every one of them is graded by forcing a
+failure through it, in the CS-427 section at the foot of this module. An
+ungraded containment is a claim; two helpers being contained was never evidence
+about a third.
 """
 
 from __future__ import annotations
@@ -99,6 +105,7 @@ import re
 import traceback
 from collections.abc import Callable
 from pathlib import Path
+from types import MappingProxyType
 from typing import Final
 
 import pytest
@@ -106,7 +113,15 @@ import pytest
 from clockspeed.data import locate
 from clockspeed.data.locate import ENV_ACCOUNT_DIR, ENV_GAME_DIR, ENV_LOCAL_CONFIG, ENV_SAVE_ROOT
 from clockspeed.save import chunks, header, objects, usmap, workdir, world
-from tests.save import synthetic
+
+# IMPORTED, NEVER COPIED, for the reason ``tests/save/test_decode_oracles.py``
+# states at its own import of this module: ``_library_save_paths`` closes the
+# discovery leak its docstring describes, and each of ``_explode``,
+# ``_raise_memory_error``, ``_contained_call`` and ``_assert_sweep_declines``
+# is a piece of a containment grader. A third transcription of either is a
+# third place to get it subtly wrong. The module is imported whole so every use
+# site says out loud where the value came from.
+from tests.save import synthetic, test_properties
 
 # ---------------------------------------------------------------------------
 # Local constants, so no assertion compares against a bare literal
@@ -1598,28 +1613,55 @@ def test_a_real_save_is_not_required_by_this_module(
     assert world.load_world_from_bytes(synthetic.SAVE_LEVELLED_V36.blob).token
 
 
-def test_the_real_library_reaches_the_object_stage_when_one_is_present(
-    isolated_work_root: Path,
-) -> None:
-    """Skip-if-absent, and COUNTS ONLY, over the NEWEST save whatever its pair.
+def _newest_real_save() -> Path | None:
+    """The newest save on this machine, or None.
 
-    Distinct from the end-to-end test below, which selects a save of a MEASURED
-    pair. This one takes whatever ``workdir.latest_save`` returns - most often
-    one of the three real pairs whose body layout is unmeasured - and proves
-    that the header parse and the chunk walk still reach a body for it. Those
-    two stages are version-correct for all four real pairs; only the object
-    stage is not, which is why this stops at the payload.
+    IT HOLDS EVERY `Exception` AND EVERY `SystemExit`, stated that way rather
+    than as "it never raises" because that absolute is false: a
+    `KeyboardInterrupt` still unwinds, deliberately. See the module docstring.
 
-    THE WHOLE BODY IS INSIDE A GUARD. ``header.read_header`` takes a PATH and
+    ``workdir.latest_save`` resolves the account directory, and its own
+    docstring promises it never raises for an absent, empty or unresolvable
+    one. That is a promise about three states rather than about every state,
+    and a privacy claim this module makes cannot rest on another module's
+    promise: a failure escaping it unwinds through frames holding the account
+    directory, whose NAME is the platform account id (CLAUDE.md section 2,
+    non-negotiable 3).
+
+    Nothing is reported about the failure - not even a type name, for the
+    reason ``test_properties._library_save_paths`` gives: a type name is safe,
+    and a frame that has to unwind to produce one is not.
+
+    Returns:
+        The newest save, or None when there is none or the lookup failed.
+    """
+    try:
+        return workdir.latest_save()
+    except (Exception, SystemExit):  # a narrower catch lets the account dir unwind
+        return None
+
+
+def _object_stage_scalars_or_skip() -> tuple[int, int, int, int]:
+    """Reach a body for the newest real save and return SCALARS ONLY.
+
+    THE WHOLE READ IS INSIDE A GUARD. ``header.read_header`` takes a PATH and
     ``chunks.decompress_body`` takes the save's BYTES, and pytest renders a
     failing frame's arguments - so an escaping error from either publishes an
     absolute path under a home directory (non-negotiable 3) or the header
     options string (non-negotiable 12). The failure is re-reported as the
-    error's class name, which is module-defined vocabulary, with no exception
-    in flight and ``pytrace`` suppressed.
+    error's class name, which is closed vocabulary, with no exception in flight
+    and ``pytrace`` suppressed.
+
+    Split out of its caller so the containment is REACHABLE BY A GRADER. While
+    it sat inline in a test body nothing could force a failure through it
+    without running the test, and an ungraded containment is the exact shape
+    this module's siblings shipped and stayed green on.
+
+    Returns:
+        ``(header version, world token length, chunk count, payload length)``.
+        Skips when there is no library and never returns on a refusal.
     """
-    assert isolated_work_root
-    source = workdir.latest_save()
+    source = _newest_real_save()
     if source is None:
         pytest.skip("no save library on this machine")
 
@@ -1638,11 +1680,35 @@ def test_the_real_library_reaches_the_object_stage_when_one_is_present(
         )
     except (OSError, header.HeaderError, chunks.ChunkError) as exc:
         refusal = type(exc).__name__
+    # THE BACKSTOP. The three families above are the failures somebody
+    # predicted. `MemoryError` is an `Exception` and none of them; `SystemExit`
+    # is a `BaseException`, so it is outside `Exception` as well and is named
+    # beside it. Either unwinds through `header.read_header(source)` and
+    # `source.read_bytes()` - frames whose argument and whose bound `self` are
+    # the save path.
+    except (Exception, SystemExit) as exc:
+        refusal = type(exc).__name__
 
     if refusal is not None:
         pytest.fail(f"the newest real save did not reach a body: {refusal}", pytrace=False)
     assert scalars is not None
-    header_version, token_length, chunk_count, payload_length = scalars
+    return scalars
+
+
+def test_the_real_library_reaches_the_object_stage_when_one_is_present(
+    isolated_work_root: Path,
+) -> None:
+    """Skip-if-absent, and COUNTS ONLY, over the NEWEST save whatever its pair.
+
+    Distinct from the end-to-end test below, which selects a save of a MEASURED
+    pair. This one takes whatever ``workdir.latest_save`` returns - most often
+    one of the three real pairs whose body layout is unmeasured - and proves
+    that the header parse and the chunk walk still reach a body for it. Those
+    two stages are version-correct for all four real pairs; only the object
+    stage is not, which is why this stops at the payload.
+    """
+    assert isolated_work_root
+    header_version, token_length, chunk_count, payload_length = _object_stage_scalars_or_skip()
 
     assert header_version in header.SUPPORTED_HEADER_VERSIONS
     assert token_length == header.WORLD_TOKEN_LENGTH
@@ -1653,23 +1719,37 @@ def test_the_real_library_reaches_the_object_stage_when_one_is_present(
 def _one_real_save_path_of_a_measured_pair() -> Path | None:
     """Find a real save whose whole-body layout this project has measured.
 
-    The path is RETURNED and never rendered: ``load_world`` needs one, and an
-    absolute path under a home directory is personal data (non-negotiable 3).
-    Every caller below binds it to a local and passes it straight on.
+    IT HOLDS EVERY `Exception` AND EVERY `SystemExit` - not "it never raises",
+    which is false while a `KeyboardInterrupt` still unwinds by design. The path
+    is RETURNED and never rendered: ``load_world``
+    needs one, and an absolute path under a home directory is personal data
+    (non-negotiable 3). Every caller below binds it to a local and passes it
+    straight on.
+
+    Discovery goes through ``test_properties._library_save_paths``, which holds
+    the locators and the glob inside its own ``try``. They used to run here,
+    outside every ``try``, so a failure in any of them unwound through a frame
+    holding the account directory - whose NAME is the platform account id.
+
+    THE UNEXPECTED READ FAILURE IS SKIPPED SILENTLY, because this helper
+    returns a path rather than a report and has nowhere to record a type name.
+    The diagnostic is not lost: :func:`_object_stage_scalars_or_skip` sweeps the
+    same library and FAILS on a refusal rather than skipping.
 
     Returns:
         The path, or None when no such file is reachable on this machine.
     """
-    root = locate.resolve_save_root()
-    if root is None:
-        return None
-    account = locate.resolve_account_dir(root)
-    if account is None:
-        return None
-    for path in sorted(account.glob("*.sav")):
+    for path in test_properties._library_save_paths():  # noqa: SLF001
         try:
             parsed = header.parse_header(path.read_bytes())
         except (OSError, header.HeaderError):
+            continue
+        # THE BACKSTOP. `MemoryError` is an `Exception`, `SystemExit` is a
+        # `BaseException`, and neither is one of the two above - which is why the
+        # pair is named rather than `Exception` alone. Either unwinds through
+        # `path.read_bytes()`, whose bound `self` IS the save path, and pytest
+        # renders the arguments of every frame it unwinds with no opt-in flag.
+        except (Exception, SystemExit):  # noqa: S112 - reporting it IS the leak
             continue
         if (parsed.header_version, parsed.save_version) in objects.MEASURED_BODY_LAYOUTS:
             return path
@@ -1705,6 +1785,14 @@ def _load_real_save_or_skip() -> world.WorldModel:
         model = world.load_world(source)
     except world.WorldLoadError as exc:
         refusal = f"{exc.stage}/{exc.cause_type}"
+    # THE BACKSTOP. The family above is the failure somebody predicted.
+    # `world.load_world(source)` takes the save path as its ARGUMENT, so any
+    # other type renders an absolute path under a home directory on the way
+    # out - pytest renders frame arguments with no opt-in flag. `SystemExit` is
+    # named beside `Exception` because it is a `BaseException` and `except
+    # Exception` does not hold it.
+    except (Exception, SystemExit) as exc:
+        refusal = type(exc).__name__
 
     if refusal is not None:
         pytest.fail(f"a real save of a measured pair did not load: {refusal}", pytrace=False)
@@ -1775,3 +1863,281 @@ def test_a_real_world_model_reprs_without_leaking_it(isolated_work_root: Path) -
     assert len(checked) > _TRIPLE
     assert leaked == 0
     assert rendered.isascii()
+
+
+# ---------------------------------------------------------------------------
+# CS-427 - the discovery and the read are contained, and every site is GRADED
+#
+# Several helpers above reach the real library, and until this section existed
+# nothing forced a failure through any of them. Which ones they are is DERIVED
+# rather than counted here - ``test_every_library_reaching_function_here_is_
+# declared`` reads this module's own AST - so adding one cannot falsify this
+# paragraph. Both halves of the containment have a MEASURED leak behind them
+# rather than a theorised one:
+#
+#   THE DISCOVERY. ``locate.resolve_save_root``, ``locate.resolve_account_dir``,
+#   the save glob and ``workdir.latest_save`` each sat outside every ``try``, so
+#   a failure in any of them unwound through a frame holding the account
+#   directory - whose NAME is the platform account id, in a path that also
+#   carries the Windows account name (CLAUDE.md section 2, non-negotiable 3).
+#
+#   THE READ. A catch naming ``OSError`` and a sibling error family names the
+#   failures somebody predicted and lets every other type through.
+#   ``path.read_bytes()`` unwinds through a bound method whose ``self`` IS the
+#   save path, and ``world.load_world(source)`` takes it as an ARGUMENT. pytest
+#   renders the ARGUMENTS of every frame it unwinds with NO opt-in flag - so one
+#   rendered line carries the Windows account name, the platform account id and
+#   the world name together: non-negotiable 3 three times over and
+#   non-negotiable 12 once, under completely default flags.
+#
+#   TWO TYPES FORCE IT, AND ONE HANDLER SHAPE DOES NOT HOLD BOTH. ``MemoryError``
+#   is an ``Exception``; ``SystemExit`` is a ``BaseException`` and is not. A
+#   containment written as ``except Exception`` holds the first and leaks on the
+#   second, and a grader forcing only the first cannot tell those apart - which
+#   is why every read grader below is parametrized over both.
+#
+# EVERY SUBJECT BELOW IS SYNTHETIC. The graders run on a machine with no game
+# installed and never put a real path into the frame under test, and every
+# assertion is reduced to a type NAME or a boolean first - a test that grades a
+# leak must not be the leak.
+# ---------------------------------------------------------------------------
+
+#: The helpers whose containment the graders below force a failure through.
+_GRADED_LIBRARY_REACH: Final = MappingProxyType(
+    {
+        "_newest_real_save": "wraps workdir.latest_save",
+        "_object_stage_scalars_or_skip": "reads the newest save",
+        "_one_real_save_path_of_a_measured_pair": "reads every save in the library",
+        "_load_real_save_or_skip": "loads a real save through world.load_world",
+    }
+)
+
+#: Reaches or touches a primitive without being a grader-able library helper,
+#: name to why. Asserted still reaching, so none outlives its reason.
+_EXEMPT_LIBRARY_REACH: Final = MappingProxyType(
+    {
+        "_fingerprint": (
+            "reads bytes under a tmp_path work root supplied by the caller, "
+            "never a discovered save directory"
+        ),
+        "test_load_world_copies_before_it_parses": (
+            "a test rather than a helper, and its read_bytes is on a synthetic "
+            "fixture blob written into tmp_path"
+        ),
+    }
+)
+
+
+def _assert_contained_outcome(label: str, expected: str, call: Callable[[], object]) -> None:
+    """Assert a helper ended in the named CONTAINED outcome rather than unwinding.
+
+    Both operands are exception type NAMES, so a failure here renders two class
+    names and the label and nothing else. That is deliberate: the helpers under
+    test hold a save path, and a grader that rendered one would be the leak it
+    grades.
+
+    Args:
+        label: What to call the helper in a failure message.
+        expected: The type name of the outcome the containment must produce.
+        call: The helper.
+    """
+    escaped, _value = test_properties._contained_call(call)  # noqa: SLF001
+    assert escaped == expected, (
+        f"the {label} ended in {escaped} rather than {expected}, so the failure was not "
+        "contained and every frame it unwound through held a save path"
+    )
+
+
+def test_every_library_reaching_function_here_is_declared() -> None:
+    """The reach guard, keyed on the RISKY primitives rather than the safe route.
+
+    An earlier version of this test keyed on the two CONTAINED entry points, so
+    a function using the raw locators never entered the flagged set and the
+    subset assertion stayed true. It detected safe helpers and was blind to
+    unsafe ones. The guard is owned by ``test_properties`` and consumed here, so
+    the two sibling modules share one implementation rather than two
+    transcriptions.
+    """
+    test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+        Path(__file__), graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
+    )
+
+
+def test_the_guard_catches_a_spliced_uncontained_helper(tmp_path: Path) -> None:
+    """The guard's POWER, forced rather than asserted about.
+
+    The splice is the pre-repair shape - the locators and the glob outside every
+    ``try``, under a catch naming two families - wired in exactly as the real
+    helpers here are. Run against a COPY in ``tmp_path``, so nothing tracked is
+    mutated and no restore is needed.
+    """
+    spliced = tmp_path / "spliced.py"
+    spliced.write_text(
+        Path(__file__).read_text(encoding="utf-8") + "\n\ndef _spliced_uncontained_helper():\n"
+        '    """A helper carrying the known-bad shape."""\n'
+        "    root = locate.resolve_save_root()\n"
+        "    account = locate.resolve_account_dir(root)\n"
+        '    for path in sorted(account.glob("*.sav")):\n'
+        "        try:\n"
+        "            return header.parse_header(path.read_bytes())\n"
+        "        except (OSError, header.HeaderError):\n"
+        "            continue\n"
+        "    return None\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError) as caught:
+        test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+            spliced, graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
+        )
+    assert "_spliced_uncontained_helper" in str(caught.value)
+
+    # The positive control: the same guard on the unspliced source passes, so
+    # the red above is the splice rather than the guard rejecting everything.
+    test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+        Path(__file__), graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
+    )
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_DISCOVERY_FAILURES,  # noqa: SLF001,
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_failing_save_root_lookup_does_not_unwind_through_the_finder(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., object]
+) -> None:
+    """The first of the finder's three discovery calls that sat outside its ``try``."""
+    monkeypatch.setattr(locate, "resolve_save_root", raiser)
+    test_properties._assert_sweep_declines(  # noqa: SLF001
+        "measured-pair finder", _one_real_save_path_of_a_measured_pair
+    )
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_DISCOVERY_FAILURES,  # noqa: SLF001,
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_failing_account_directory_lookup_does_not_unwind_through_the_finder(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., object]
+) -> None:
+    """The second, and the one whose frame holds the platform account id."""
+    monkeypatch.setattr(locate, "resolve_save_root", lambda: Path("synthetic-root"))
+    monkeypatch.setattr(locate, "resolve_account_dir", raiser)
+    test_properties._assert_sweep_declines(  # noqa: SLF001
+        "measured-pair finder", _one_real_save_path_of_a_measured_pair
+    )
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_DISCOVERY_FAILURES,  # noqa: SLF001,
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_failing_save_glob_does_not_unwind_through_the_finder(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., object]
+) -> None:
+    """The third - it was in the ``for`` statement itself, outside any ``try``."""
+    monkeypatch.setattr(Path, "glob", raiser)
+    test_properties._assert_sweep_declines(  # noqa: SLF001
+        "measured-pair finder", _one_real_save_path_of_a_measured_pair
+    )
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_READ_FAILURES,  # noqa: SLF001
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_an_unexpected_read_failure_does_not_unwind_through_the_finder(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., bytes]
+) -> None:
+    """The narrow catch at the finder's read, forced under BOTH failures.
+
+    ``SystemExit`` is the second parameter because it derives from
+    ``BaseException``: a handler written as ``except Exception`` holds
+    ``MemoryError`` and lets ``SystemExit`` straight through, and one forced
+    failure cannot tell those two containments apart.
+
+    The finder has nowhere to record a type name - it returns a path or None -
+    so containment here means declining. ``_object_stage_scalars_or_skip``
+    sweeps the same library and fails on a refusal rather than skipping.
+    """
+    monkeypatch.setattr(
+        test_properties,
+        "_library_save_paths",
+        lambda: (test_properties._SYNTHETIC_SAVE,),  # noqa: SLF001
+    )
+    monkeypatch.setattr(Path, "read_bytes", raiser)
+    test_properties._assert_sweep_declines(  # noqa: SLF001
+        "measured-pair finder", _one_real_save_path_of_a_measured_pair
+    )
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_DISCOVERY_FAILURES,  # noqa: SLF001,
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_failing_newest_save_lookup_does_not_unwind_through_the_object_stage(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., object]
+) -> None:
+    """``workdir.latest_save`` resolves the account directory and sat outside the ``try``.
+
+    Its own docstring promises it never raises for an absent, empty or
+    unresolvable directory - which is a promise about those three states and not
+    about every state, and this module cannot rest a privacy claim on another
+    module's promise.
+    """
+    monkeypatch.setattr(workdir, "latest_save", raiser)
+    test_properties._assert_sweep_declines("newest-save lookup", _newest_real_save)  # noqa: SLF001
+    _assert_contained_outcome(
+        "object-stage helper", pytest.skip.Exception.__name__, _object_stage_scalars_or_skip
+    )
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_READ_FAILURES,  # noqa: SLF001
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_an_unexpected_read_failure_does_not_unwind_through_the_object_stage(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., bytes]
+) -> None:
+    """``header.read_header`` takes the PATH, so its frame renders one on the way out.
+
+    Forced through ``read_header`` rather than through ``read_bytes`` because
+    ``read_header`` runs first and opens the file itself: a synthetic path makes
+    it raise ``HeaderReadError`` before the ``read_bytes`` line is ever reached,
+    so patching ``read_bytes`` here would grade nothing.
+    """
+    monkeypatch.setattr(workdir, "latest_save", lambda: test_properties._SYNTHETIC_SAVE)  # noqa: SLF001
+    monkeypatch.setattr(header, "read_header", raiser)
+    _assert_contained_outcome(
+        "object-stage helper", pytest.fail.Exception.__name__, _object_stage_scalars_or_skip
+    )
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_READ_FAILURES,  # noqa: SLF001
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_an_unexpected_load_failure_does_not_unwind_through_the_real_save_loader(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., bytes]
+) -> None:
+    """``except world.WorldLoadError`` is the third narrow catch, and the widest gap.
+
+    ``world.load_world(source)`` takes the save path as its ARGUMENT, so any
+    type outside that one family renders an absolute path under a home
+    directory the moment pytest unwinds the call.
+    """
+    monkeypatch.setattr(
+        "tests.save.test_world._one_real_save_path_of_a_measured_pair",
+        lambda: test_properties._SYNTHETIC_SAVE,  # noqa: SLF001
+    )
+    monkeypatch.setattr(world, "load_world", raiser)
+    _assert_contained_outcome(
+        "real-save loader", pytest.fail.Exception.__name__, _load_real_save_or_skip
+    )

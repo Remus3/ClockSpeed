@@ -77,6 +77,24 @@ before any handler, so a failure in one unwound through a frame holding the
 account directory. Every assertion about a sweep is also reduced to a scalar
 before it is written, because pytest prints the operands it compared.
 
+WHAT THE HANDLERS HOLD, AND THE ONE THING THEY DO NOT. Every handler here names
+``Exception`` AND ``SystemExit``. ``SystemExit`` is named separately because it
+derives from ``BaseException``, so ``except Exception`` does not hold it -
+:func:`test_the_forced_failures_are_outside_the_narrow_catch` asserts that
+hierarchy rather than leaving it to a reader, and every read-containment grader
+in this package forces BOTH failures for the same reason.
+
+``KeyboardInterrupt`` is still free to unwind, and that is a decision with a
+measurement under it rather than an inherited habit. Measured on this machine on
+2026-08-16, against the pinned pytest: a ``KeyboardInterrupt`` forced out of a
+read makes pytest's terminal reporter print its ``reprcrash`` line and direct the
+operator to ``--full-trace``, and the run rendered no frame, no argument and no
+path. The same probe under ``SystemExit``, before the handlers named it, rendered
+the save path, the account directory and the Windows account name. So the
+abortability that argues for letting an interrupt through costs no disclosure,
+while the type that discloses gains nothing from being let through. Nothing here
+claims that holds for a pytest this project has not run.
+
 **Only counts and repo literals come out, and both are mechanisms rather than
 arguments.** The sweeps return integers, plus two kinds of word set - the
 measured type words and the recorded region keys - and each of those is
@@ -97,6 +115,7 @@ which every implementation satisfies. The map never leaves the judging frame.
 
 from __future__ import annotations
 
+import ast
 import re
 import struct
 from collections import Counter
@@ -404,7 +423,11 @@ class _TagSweep:
 
 
 def _library_save_paths() -> tuple[Path, ...]:
-    """Every save file on this machine, or an empty tuple. IT NEVER RAISES.
+    """Every save file on this machine, or an empty tuple.
+
+    IT HOLDS EVERY `Exception` AND EVERY `SystemExit`, stated that way rather
+    than as "it never raises" because that absolute is false: a
+    `KeyboardInterrupt` still unwinds, deliberately. See the module docstring.
 
     THE DISCOVERY CALLS USED TO SIT OUTSIDE EVERY ``try`` IN BOTH SWEEPS, which
     is the one shape this module's containment discipline cannot survive: the
@@ -426,12 +449,19 @@ def _library_save_paths() -> tuple[Path, ...]:
         root = locate.resolve_save_root()
         account = locate.resolve_account_dir(root) if root is not None else None
         return () if account is None else tuple(sorted(account.glob("*.sav")))
-    except Exception:  # a narrower catch lets the account id unwind
+    # `SystemExit` is named because it is NOT an `Exception` - `except
+    # Exception` alone lets it through, and it unwinds carrying the account
+    # directory exactly as any other type would. `KeyboardInterrupt` is
+    # deliberately still free to unwind; see the module docstring.
+    except (Exception, SystemExit):
         return ()
 
 
 def _cached_usmap_or_none() -> usmap.PropertyMap | None:
-    """Load the shipped property mapping, or None. IT NEVER RAISES.
+    """Load the shipped property mapping, or None.
+
+    IT HOLDS EVERY `Exception` AND EVERY `SystemExit`, on the same terms as
+    :func:`_library_save_paths`.
 
     The other call the decode sweep made outside every ``try``. It resolves the
     game install, so the same argument as :func:`_library_save_paths` applies.
@@ -441,7 +471,7 @@ def _cached_usmap_or_none() -> usmap.PropertyMap | None:
     """
     try:
         return usmap.cached_usmap()
-    except Exception:  # see _library_save_paths
+    except (Exception, SystemExit):  # see _library_save_paths
         return None
 
 
@@ -476,7 +506,7 @@ def _sweep_payload_tags() -> _TagSweep | None:
             # the library legitimately holds both and the callers treat any
             # recorded failure as fatal.
             continue
-        except Exception as exc:
+        except (Exception, SystemExit) as exc:
             # THE BACKSTOP, for the reason the broad handler below states:
             # anything unexpected escaping here unwinds through
             # `path.read_bytes()`, whose bound `self` IS the save path, and
@@ -512,7 +542,7 @@ def _sweep_payload_tags() -> _TagSweep | None:
                 walked[pair] = walked.get(pair, 0) + 1
                 if landed == end:
                     exact[pair] = exact.get(pair, 0) + 1
-        except Exception as exc:
+        except (Exception, SystemExit) as exc:
             failures.append(type(exc).__name__)
             continue
     # The words are JUDGED here and discarded here. Nothing below this line can
@@ -933,7 +963,7 @@ def _sweep_decoded_values() -> _DecodeSweep | None:
             # the library legitimately holds both and the callers treat any
             # recorded failure as fatal.
             continue
-        except Exception as exc:
+        except (Exception, SystemExit) as exc:
             # THE BACKSTOP, for the reason the broad handler below states:
             # anything unexpected escaping here unwinds through
             # `path.read_bytes()`, whose bound `self` IS the save path, and
@@ -953,7 +983,7 @@ def _sweep_decoded_values() -> _DecodeSweep | None:
             )
             for record in table.records:
                 _tally_one_record(body, record, property_map, tally)
-        except Exception as exc:
+        except (Exception, SystemExit) as exc:
             failures.append(type(exc).__name__)
             continue
     return _DecodeSweep(
@@ -2051,7 +2081,9 @@ def _safe_repr(value: object) -> str:
     """
     try:
         return repr(value)
-    except Exception:  # a broken repr is not this test's subject
+    # `SystemExit` for the reason `_library_save_paths` gives: it is not an
+    # `Exception`, and escaping here unwinds through a frame holding the local.
+    except (Exception, SystemExit):  # a broken repr is not this test's subject
         return ""
 
 
@@ -2339,6 +2371,34 @@ def _explode(*_args: object, **_kwargs: object) -> object:
     raise RuntimeError("synthetic locator failure")
 
 
+def _raise_system_exit(*_args: object, **_kwargs: object) -> bytes:
+    """Fail with the non-``OSError`` that is ALSO not an ``Exception``.
+
+    ``SystemExit`` derives from ``BaseException``, so ``except Exception`` does
+    not hold it - :func:`test_the_forced_failures_are_outside_the_narrow_catch`
+    asserts that hierarchy rather than leaving it to a reader. Any library
+    called during a read or a locate may raise one, and ``sys.exit`` inside a
+    plugin or an atexit path is the ordinary way it arrives.
+
+    Args:
+        *_args: Ignored.
+        **_kwargs: Ignored.
+
+    Raises:
+        SystemExit: Always.
+    """
+    raise SystemExit("synthetic exit during a library reach")
+
+
+#: Every DISCOVERY grader in this package runs both of these, as
+#: ``(type name, callable)``. One is an ``Exception`` and one is not, which is
+#: the distinction a handler naming only ``Exception`` does not survive.
+_FORCED_DISCOVERY_FAILURES: Final = (
+    ("RuntimeError", _explode),
+    ("SystemExit", _raise_system_exit),
+)
+
+
 def _contained_call(call: Callable[[], object]) -> tuple[str | None, object]:
     """Run a contained call and reduce BOTH outcomes to something safe to render.
 
@@ -2383,7 +2443,13 @@ def _assert_sweep_declines(label: str, call: Callable[[], object]) -> None:
 
 
 def _assert_every_sweep_declines() -> None:
-    """All THREE real-library sweeps must decline rather than let a failure unwind.
+    """Every sweep THIS module's graders reach must decline rather than unwind.
+
+    Which sweeps those are is stated by the calls below and nowhere else. The
+    real-library helpers in ``tests/save/test_objects.py`` and
+    ``tests/save/test_world.py`` are outside this grader's reach and carry their
+    own, under CS-427; a count of "all the sweeps" written here would be a
+    restated fact and would drift the moment either module grew one.
 
     EVERY SUBJECT IS REDUCED TO A SCALAR BEFORE IT IS ASSERTED ON. pytest
     rewrites an assertion to render the operands it compared, so
@@ -2396,10 +2462,12 @@ def _assert_every_sweep_declines() -> None:
     ``test_decode_oracles._sweep_decode_oracles`` is a third walk over the real
     library with its own discovery call, and nothing here reached it: splicing
     the known-bad discovery shape into it - the locators called outside the
-    ``try``, as ``test_objects._one_real_save_of_a_measured_pair`` still calls
-    them - left this suite byte-identically green while the spliced sweep
-    leaked the account directory. Two sweeps being contained was never evidence
-    about a third.
+    ``try``, which is what every real-library helper in
+    ``tests/save/test_objects.py`` and ``tests/save/test_world.py`` also carried
+    until CS-427 - left this suite byte-identically green while the spliced
+    sweep leaked the account directory. Two sweeps being contained was never
+    evidence about a third, which is why those two modules now grade themselves
+    rather than being reasoned about from here.
 
     The import is function-local because ``test_decode_oracles`` imports THIS
     module at its top, so a module-level import here would close that cycle.
@@ -2423,7 +2491,14 @@ def _assert_every_sweep_declines() -> None:
         oracle_sweep.cache_clear()
 
 
-def test_a_failing_save_root_lookup_does_not_unwind_through_any_sweep(monkeypatch) -> None:
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    _FORCED_DISCOVERY_FAILURES,
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_failing_save_root_lookup_does_not_unwind_through_any_sweep(
+    monkeypatch, _forced, raiser
+) -> None:
     """The discovery calls used to sit outside every ``try`` in both sweeps.
 
     ``resolve_save_root`` and ``resolve_account_dir`` were called before the
@@ -2438,32 +2513,51 @@ def test_a_failing_save_root_lookup_does_not_unwind_through_any_sweep(monkeypatc
     sweep in ``test_decode_oracles``, which no containment test reached while
     this one was called ``either``.
     """
-    monkeypatch.setattr(locate, "resolve_save_root", _explode)
+    monkeypatch.setattr(locate, "resolve_save_root", raiser)
     _assert_every_sweep_declines()
 
 
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    _FORCED_DISCOVERY_FAILURES,
+    ids=lambda value: value if isinstance(value, str) else "",
+)
 def test_a_failing_account_directory_lookup_does_not_unwind_through_any_sweep(
-    monkeypatch,
+    monkeypatch, _forced, raiser
 ) -> None:
     """The second of the three, and the one whose frame holds the account id."""
     monkeypatch.setattr(locate, "resolve_save_root", lambda: Path("synthetic-root"))
-    monkeypatch.setattr(locate, "resolve_account_dir", _explode)
+    monkeypatch.setattr(locate, "resolve_account_dir", raiser)
     _assert_every_sweep_declines()
 
 
-def test_a_failing_save_glob_does_not_unwind_through_any_sweep(monkeypatch) -> None:
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    _FORCED_DISCOVERY_FAILURES,
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_failing_save_glob_does_not_unwind_through_any_sweep(
+    monkeypatch, _forced, raiser
+) -> None:
     """The third uncontained call - it was in the ``for`` statement itself."""
-    monkeypatch.setattr(Path, "glob", _explode)
+    monkeypatch.setattr(Path, "glob", raiser)
     _assert_every_sweep_declines()
 
 
-def test_a_failing_usmap_load_does_not_unwind_through_the_decode_sweep(monkeypatch) -> None:
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    _FORCED_DISCOVERY_FAILURES,
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_failing_usmap_load_does_not_unwind_through_the_decode_sweep(
+    monkeypatch, _forced, raiser
+) -> None:
     """The call the DECODE sweep added that the older tag sweep never had.
 
     ``cached_usmap`` resolves the game install, so it fails for the same
     reasons the locators do and it sat outside the same ``try``.
     """
-    monkeypatch.setattr(usmap, "cached_usmap", _explode)
+    monkeypatch.setattr(usmap, "cached_usmap", raiser)
     _sweep_decoded_values.cache_clear()
     try:
         # Reduced to a boolean first, for the reason on _assert_every_sweep_
@@ -2505,7 +2599,19 @@ def _raise_memory_error(*_args: object, **_kwargs: object) -> bytes:
     raise MemoryError("synthetic allocation failure")
 
 
-def _assert_read_failure_is_contained(label: str, call: Callable[[], object]) -> None:
+#: The two forced failures every read-containment grader in this package runs,
+#: as ``(type name, callable)``. Both are non-``OSError``; one is an
+#: ``Exception`` and one is not, which is the distinction a containment that
+#: catches only ``Exception`` does not survive.
+_FORCED_READ_FAILURES: Final = (
+    ("MemoryError", _raise_memory_error),
+    ("SystemExit", _raise_system_exit),
+)
+
+
+def _assert_read_failure_is_contained(
+    label: str, call: Callable[[], object], expected: str = "MemoryError"
+) -> None:
     """Assert one sweep reduced an unexpected read failure to a type NAME.
 
     ``failures`` is read with ``getattr`` so that a sweep which DECLINED rather
@@ -2515,6 +2621,9 @@ def _assert_read_failure_is_contained(label: str, call: Callable[[], object]) ->
     Args:
         label: What to call the sweep in a failure message.
         call: The sweep.
+        expected: The type name the sweep must have recorded. Defaults to
+            ``MemoryError`` so that callers written before ``SystemExit`` was
+            forced keep their meaning unchanged.
     """
     escaped, value = _contained_call(call)
     assert escaped is None, (
@@ -2522,14 +2631,252 @@ def _assert_read_failure_is_contained(label: str, call: Callable[[], object]) ->
         "inside it, and the frame it unwound through held the save path"
     )
     reported = getattr(value, "failures", None)
-    assert reported == ("MemoryError",), (
-        f"the {label} reported {reported} rather than the one contained MemoryError, "
+    assert reported == (expected,), (
+        f"the {label} reported {reported} rather than the one contained {expected}, "
         "so the unexpected read failure was not recorded as a type name"
     )
 
 
+def test_the_forced_failures_are_outside_the_narrow_catch() -> None:
+    """The hierarchy every containment in this package is built on, asserted.
+
+    Both forced failures must be non-``OSError`` - that is the wording of the
+    contract they grade. ``SystemExit`` must additionally be outside
+    ``Exception``, because a containment written as ``except Exception`` holds
+    one and not the other, and pytest's own outcome exceptions must be outside
+    BOTH so that widening a handler to hold ``SystemExit`` cannot swallow a
+    ``skip`` or a ``fail``.
+    """
+    for _name, raiser in _FORCED_READ_FAILURES:
+        with pytest.raises(BaseException) as caught:  # noqa: PT011 - the class IS the subject
+            raiser()
+        assert not isinstance(caught.value, OSError)
+
+    assert not issubclass(SystemExit, Exception)
+    assert issubclass(MemoryError, Exception)
+    assert not issubclass(pytest.skip.Exception, Exception | SystemExit)
+    assert not issubclass(pytest.fail.Exception, Exception | SystemExit)
+
+
+# ---------------------------------------------------------------------------
+# The library-reach guard, owned here and consumed by the sibling modules
+# ---------------------------------------------------------------------------
+
+#: Attribute names through which a function can come to hold a REAL save path
+#: or the REAL account directory.
+#:
+#: KEYED ON THE RISKY PRIMITIVES, NEVER ON THE CONTAINED ROUTE. An earlier
+#: version of this guard keyed on ``_library_save_paths`` alone - the SAFE
+#: route - so a function using the raw locators never entered the flagged set
+#: and both the subset and the equality assertion stayed true. It detected safe
+#: functions and was blind to unsafe ones, which is the inversion
+#: ``test_the_guard_catches_a_spliced_uncontained_helper`` in each consuming
+#: module now forces.
+#:
+#: ``glob`` and ``read_bytes`` are included even though neither yields a real
+#: path on its own. Their whole cost is the ``_EXEMPT_LIBRARY_REACH`` map in each
+#: consuming module, and that map is asserted LIVE - every exemption must still
+#: touch a primitive - so the price is visible in the tree rather than argued for
+#: here, and it cannot rot into a silent allowance. ``rglob`` and ``read_text``
+#: are NOT included: they flag repo-source reads and ``tmp_path`` walks that no
+#: discovery primitive feeds.
+_LIBRARY_PRIMITIVES: Final = (
+    "resolve_save_root",
+    "resolve_account_dir",
+    "latest_save",
+    "_library_save_paths",
+    "glob",
+    "read_bytes",
+)
+
+
+def _module_scope_functions(module_path: Path) -> dict[str, ast.FunctionDef]:
+    """Every module-scope function in a file, by name.
+
+    Args:
+        module_path: The file to parse.
+
+    Returns:
+        The functions, keyed by name.
+    """
+    tree = ast.parse(module_path.read_text(encoding="utf-8"))
+    return {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+
+
+def _calls_any(node: ast.FunctionDef, names: frozenset[str]) -> bool:
+    """Whether a function calls any of the named attributes or bare names.
+
+    Args:
+        node: The function.
+        names: The names to look for.
+
+    Returns:
+        True when at least one call matches.
+    """
+    for inner in ast.walk(node):
+        if not isinstance(inner, ast.Call):
+            continue
+        func = inner.func
+        if isinstance(func, ast.Attribute) and func.attr in names:
+            return True
+        if isinstance(func, ast.Name) and func.id in names:
+            return True
+    return False
+
+
+def _returns_personal_data(node: ast.FunctionDef) -> bool:
+    """Whether a function's RETURN ANNOTATION carries a path or save bytes.
+
+    Derived from the annotation rather than declared in a second list, so the
+    set cannot drift from the signatures it describes. A helper returning a
+    ``Path`` hands its caller the account directory; one returning ``bytes``
+    hands it a save body. A helper returning a counts-only sweep or a tuple of
+    scalars hands over nothing personal, so its callers are not reach sites.
+
+    Args:
+        node: The function.
+
+    Returns:
+        True when the annotation mentions ``Path`` or ``bytes``.
+    """
+    if node.returns is None:
+        return False
+    rendered = ast.unparse(node.returns)
+    return "Path" in rendered or "bytes" in rendered
+
+
+def _assert_library_reach_is_declared(
+    module_path: Path, *, graded: Mapping[str, str], exempt: Mapping[str, str]
+) -> None:
+    """Assert every function in a module that can hold a real save path is declared.
+
+    Two ways a function comes to hold one, and both are checked, because the
+    first alone missed a helper that took its path from a sibling rather than
+    from a primitive:
+
+    - DIRECTLY, by calling one of :data:`_LIBRARY_PRIMITIVES`.
+    - INDIRECTLY, by calling a declared helper whose return annotation carries a
+      path or save bytes, per :func:`_returns_personal_data`. Test functions are
+      included in this half: a test holding a real body is a reach site whatever
+      it is called.
+
+    Args:
+        module_path: The consuming module's own file.
+        graded: Helper name to the reason it reaches the library. Each has a
+            containment grader in the consuming module that forces a failure
+            through it.
+        exempt: Function name to the reason it reaches or touches WITHOUT being
+            grader-able - a test function rather than a helper, or a primitive
+            applied to something that is not the real library. Asserted still
+            reaching, so an exemption cannot outlive the code it describes.
+    """
+    functions = _module_scope_functions(module_path)
+    primitives = frozenset(_LIBRARY_PRIMITIVES)
+    declared_names = frozenset(graded) | frozenset(exempt)
+
+    direct = frozenset(name for name, node in functions.items() if _calls_any(node, primitives))
+    propagating = frozenset(
+        name for name in graded if name in functions and _returns_personal_data(functions[name])
+    )
+    indirect = frozenset(name for name, node in functions.items() if _calls_any(node, propagating))
+
+    assert direct, "no function here touches a library primitive, so the guard is vacuous"
+    assert direct <= declared_names, (
+        f"undeclared functions touch a library primitive: {sorted(direct - declared_names)}"
+    )
+    assert indirect <= declared_names, (
+        f"undeclared functions take a save path from a graded helper: "
+        f"{sorted(indirect - declared_names)}"
+    )
+    assert declared_names <= frozenset(functions), (
+        f"a declaration names a function that no longer exists: "
+        f"{sorted(declared_names - frozenset(functions))}"
+    )
+    assert frozenset(graded) <= direct | indirect, (
+        f"a graded helper no longer reaches the library: "
+        f"{sorted(frozenset(graded) - (direct | indirect))}"
+    )
+    assert frozenset(exempt) <= direct | indirect, (
+        f"an exemption outlived the code it describes: "
+        f"{sorted(frozenset(exempt) - (direct | indirect))}"
+    )
+
+
+#: This module's own library-reaching helpers, name to why it reaches.
+_GRADED_LIBRARY_REACH: Final = MappingProxyType(
+    {
+        "_library_save_paths": "holds the locators and the save glob",
+        "_sweep_payload_tags": "reads every save in the library",
+        "_sweep_decoded_values": "reads every save in the library",
+    }
+)
+
+#: Functions that touch a primitive WITHOUT consuming a real path, name to why.
+_EXEMPT_LIBRARY_REACH: Final = MappingProxyType(
+    {
+        "_assert_every_sweep_declines": (
+            "a grader, not a consumer: it calls the contained discovery inside "
+            "_contained_call and reduces the result to an integer before asserting"
+        ),
+    }
+)
+
+
+def test_every_library_reaching_function_here_is_declared() -> None:
+    """This module guards itself with the guard it lends its siblings.
+
+    It owns :func:`_assert_library_reach_is_declared`, and a guard whose owner
+    is outside its own scope is the arrangement that let a third sweep ship
+    ungraded one file over.
+    """
+    _assert_library_reach_is_declared(
+        Path(__file__), graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
+    )
+
+
+def test_the_guard_catches_a_spliced_uncontained_helper(tmp_path: Path) -> None:
+    """The guard's POWER, forced rather than asserted about.
+
+    The splice is the pre-repair shape - the locators and the glob outside every
+    ``try``, under a catch naming two families - wired in exactly as the real
+    helpers are. Run against a COPY in ``tmp_path``, so the check never mutates
+    a tracked file and never needs a restore.
+    """
+    spliced = tmp_path / "spliced.py"
+    spliced.write_text(
+        Path(__file__).read_text(encoding="utf-8") + "\n\ndef _spliced_uncontained_helper():\n"
+        '    """A helper carrying the known-bad shape."""\n'
+        "    root = locate.resolve_save_root()\n"
+        "    account = locate.resolve_account_dir(root)\n"
+        '    for path in sorted(account.glob("*.sav")):\n'
+        "        try:\n"
+        "            return header.parse_header(path.read_bytes())\n"
+        "        except (OSError, header.HeaderError):\n"
+        "            continue\n"
+        "    return None\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError) as caught:
+        _assert_library_reach_is_declared(
+            spliced, graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
+        )
+    assert "_spliced_uncontained_helper" in str(caught.value)
+
+    # The positive control: the same guard on the unspliced source passes, so
+    # the red above is the splice rather than the guard rejecting everything.
+    _assert_library_reach_is_declared(
+        Path(__file__), graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
+    )
+
+
+@pytest.mark.parametrize(
+    ("forced", "raiser"),
+    _FORCED_READ_FAILURES,
+    ids=lambda value: value if isinstance(value, str) else "",
+)
 def test_an_unexpected_read_failure_does_not_unwind_through_either_local_sweep(
-    monkeypatch,
+    monkeypatch, forced, raiser
 ) -> None:
     """The read and the header parse sat under ``except (OSError, HeaderError)``.
 
@@ -2540,6 +2887,10 @@ def test_an_unexpected_read_failure_does_not_unwind_through_either_local_sweep(
     account name, the numeric platform account id and the world name. That is
     non-negotiable 3 three times over and non-negotiable 12 once, under
     completely default pytest flags.
+
+    Parametrized over both forced failures because ``SystemExit`` is a
+    ``BaseException``: a handler naming ``Exception`` alone holds ``MemoryError``
+    and leaks on ``SystemExit``, and one forced type cannot tell them apart.
 
     THE SAVE LIST IS SYNTHETIC, so this runs on a machine with no game
     installed, and the escape is reduced to a type name by ``_contained_call``
@@ -2552,10 +2903,107 @@ def test_an_unexpected_read_failure_does_not_unwind_through_either_local_sweep(
         "tests.save.test_properties._cached_usmap_or_none",
         lambda: _synthetic_map(_SYNTHETIC_SCHEMA),
     )
-    monkeypatch.setattr(Path, "read_bytes", _raise_memory_error)
+    monkeypatch.setattr(Path, "read_bytes", raiser)
     _sweep_decoded_values.cache_clear()
     try:
-        _assert_read_failure_is_contained("tag sweep", _sweep_payload_tags)
-        _assert_read_failure_is_contained("decode sweep", _sweep_decoded_values)
+        _assert_read_failure_is_contained("tag sweep", _sweep_payload_tags, forced)
+        _assert_read_failure_is_contained("decode sweep", _sweep_decoded_values, forced)
     finally:
         _sweep_decoded_values.cache_clear()
+
+
+@dataclass(frozen=True)
+class _StubHeader:
+    """The three fields both sweeps read off a parsed header, and nothing else.
+
+    Attributes:
+        header_version: Half of the layout pair.
+        save_version: The other half.
+        body_offset: Where the chunk walk would start.
+    """
+
+    header_version: int
+    save_version: int
+    body_offset: int
+
+
+@pytest.mark.parametrize(
+    ("forced", "raiser"),
+    _FORCED_READ_FAILURES,
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_an_unexpected_walk_failure_does_not_unwind_through_either_local_sweep(
+    monkeypatch, forced, raiser
+) -> None:
+    """The BROAD handlers, which the read grader above never reaches.
+
+    That grader forces its failure at ``read_bytes``, which the handler ABOVE
+    these catches - so narrowing either broad handler back to ``except
+    Exception`` alone changed nothing anywhere, and a survived mutant is an
+    ungraded containment whatever else is green.
+
+    THESE ARE THE FRAMES THAT HOLD THE BODY. ``chunks.decompress_body(data, ...)``
+    takes the whole save's bytes, so an escape here prints save content rather
+    than a path. So the read is made to SUCCEED here and the walk to fail.
+
+    The pair is taken from the intersection the two sweeps gate on, because they
+    gate on different sets - ``MEASURED_BODY_LAYOUTS`` and :data:`TAGGED_PAIRS` -
+    and a pair outside either would make that sweep skip rather than record.
+    """
+    header_version, save_version = next(
+        iter(sorted(set(TAGGED_PAIRS) & set(objects.MEASURED_BODY_LAYOUTS)))
+    )
+    monkeypatch.setattr(
+        "tests.save.test_properties._library_save_paths", lambda: (_SYNTHETIC_SAVE,)
+    )
+    monkeypatch.setattr(
+        "tests.save.test_properties._cached_usmap_or_none",
+        lambda: _synthetic_map(_SYNTHETIC_SCHEMA),
+    )
+    monkeypatch.setattr(Path, "read_bytes", lambda _self: b"synthetic-not-a-save")
+    monkeypatch.setattr(
+        header, "parse_header", lambda _data: _StubHeader(header_version, save_version, 0)
+    )
+    monkeypatch.setattr(chunks, "decompress_body", raiser)
+    _sweep_decoded_values.cache_clear()
+    try:
+        _assert_read_failure_is_contained("tag sweep", _sweep_payload_tags, forced)
+        _assert_read_failure_is_contained("decode sweep", _sweep_decoded_values, forced)
+    finally:
+        _sweep_decoded_values.cache_clear()
+
+
+class _HostileRepr:
+    """A value whose ``repr`` fails the way :func:`_safe_repr` must survive."""
+
+    def __init__(self, raiser: Callable[..., object]) -> None:
+        """Store the failure to raise from ``__repr__``."""
+        self._raiser = raiser
+
+    def __repr__(self) -> str:
+        """Raise rather than render.
+
+        Returns:
+            Never returns.
+        """
+        self._raiser()
+        return ""  # pragma: no cover - the raiser always raises
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    _FORCED_READ_FAILURES,
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_hostile_repr_does_not_unwind_through_the_safe_repr(_forced, raiser) -> None:
+    """``_safe_repr`` renders a frame LOCAL, so its escape carries that local.
+
+    The locals it is pointed at come from frames inside a real-library sweep, so
+    a type escaping here unwinds through one holding a save path or a body. It
+    must swallow both forced failures and return the placeholder.
+    """
+    assert _safe_repr(_HostileRepr(raiser)) == ""
+
+    # The positive control: an ordinary value still renders, so the placeholder
+    # above is the containment rather than the helper returning "" for anything.
+    assert _safe_repr(1) == "1"

@@ -107,7 +107,15 @@ import pytest
 
 from clockspeed.data import locate
 from clockspeed.save import chunks, header, objects, usmap
-from tests.save import synthetic
+
+# IMPORTED, NEVER COPIED, for the reason ``tests/save/test_decode_oracles.py``
+# states at its own import of this module: ``_library_save_paths`` closes the
+# discovery leak its docstring describes, and each of ``_explode``,
+# ``_raise_memory_error``, ``_contained_call`` and the two assertion helpers is
+# a piece of a containment grader. A third transcription of either is a third
+# place to get it subtly wrong. The module is imported whole so that every use
+# site says out loud where the value came from.
+from tests.save import synthetic, test_properties
 
 # ---------------------------------------------------------------------------
 # Local constants, so no assertion compares against a bare literal
@@ -1685,21 +1693,39 @@ def test_the_flat_walk_is_untouched_by_the_levelled_walk() -> None:
 def _one_real_save_of_a_measured_pair() -> tuple[int, int, bytes] | None:
     """Find a real save whose body layout this project has measured.
 
+    IT HOLDS EVERY `Exception` AND EVERY `SystemExit`, which is stated that way
+    rather than as "it never raises" because that absolute is false: a
+    `KeyboardInterrupt` still unwinds, deliberately. See the module docstring.
+
+    Discovery goes through ``test_properties._library_save_paths``, which holds
+    the locators and the glob inside its own ``try``. They used to run here,
+    outside every ``try``, so a failure in any of them unwound through a frame
+    holding the account directory - and that directory's NAME is the platform
+    account id (CLAUDE.md section 2, non-negotiable 3).
+
+    THE UNEXPECTED READ FAILURE IS SKIPPED SILENTLY, and that costs a
+    diagnostic this helper has nowhere to put: it returns a value rather than a
+    report. The cost is bounded, because
+    ``test_every_real_save_of_a_measured_pair_walks_to_the_end_of_its_body``
+    sweeps the same library through :func:`_sweep_the_real_library`, which does
+    record the type name and whose caller treats any recorded failure as fatal.
+
     Returns:
         ``(header version, save version, decompressed body)``, or None when no
         such file is reachable. Never returns or logs a path.
     """
-    root = locate.resolve_save_root()
-    if root is None:
-        return None
-    account = locate.resolve_account_dir(root)
-    if account is None:
-        return None
-    for path in sorted(account.glob("*.sav")):
+    for path in test_properties._library_save_paths():  # noqa: SLF001
         try:
             data = path.read_bytes()
             parsed = header.parse_header(data)
         except (OSError, header.HeaderError):
+            continue
+        # THE BACKSTOP. `MemoryError` is an `Exception`, `SystemExit` is a
+        # `BaseException`, and neither is one of the two above - which is why the
+        # pair is named rather than `Exception` alone. Either unwinds through
+        # `path.read_bytes()`, whose bound `self` IS the save path, and pytest
+        # renders the arguments of every frame it unwinds with no opt-in flag.
+        except (Exception, SystemExit):  # noqa: S112 - reporting it IS the leak
             continue
         if (parsed.header_version, parsed.save_version) not in objects.MEASURED_BODY_LAYOUTS:
             continue
@@ -1741,38 +1767,59 @@ class _RealSweep:
 def _sweep_the_real_library() -> _RealSweep | None:
     """Walk every real save on this machine and return COUNTS ONLY.
 
-    NOTHING RAISES WITH BYTES IN FLIGHT, and the containment is deliberate
-    rather than habitual. pytest renders the ARGUMENTS of every frame in a
-    failing traceback - no ``--showlocals``, no opt-in - so an exception
-    escaping ``parse_body(body, ...)`` prints the head of a real save body into
-    the test log. Measured on this machine by planting a marker in a bytes
-    argument of a raising frame: it appeared twice in pytest's output.
+    NO ``Exception`` AND NO ``SystemExit`` LEAVES THIS HELPER WITH BYTES IN
+    FLIGHT, and the containment is deliberate rather than habitual. pytest
+    renders the ARGUMENTS of every frame in a failing traceback - no
+    ``--showlocals``, no opt-in - so an exception escaping
+    ``parse_body(body, ...)`` prints the head of a real save body into the test
+    log. Measured on this machine by planting a marker in a bytes argument of a
+    raising frame: it appeared twice in pytest's output.
 
     So every step is wrapped and every failure is reduced to a type NAME here,
-    inside the helper, before it can reach a frame anyone renders. The broad
-    catch is what makes that total: a narrower one would let an unexpected
-    exception type escape carrying the bytes, which is the exact leak the guard
-    exists to close. The type name is preserved, so a genuine defect is still
-    diagnosable - it surfaces as ``walked`` short of ``measured`` with the type
-    named, rather than as a traceback nobody may print.
+    inside the helper, before it can reach a frame anyone renders. The width of
+    the catch is what makes that hold: a narrower one lets an unexpected type
+    escape carrying the bytes, which is the exact leak this closes, and
+    ``SystemExit`` is named beside ``Exception`` because it derives from
+    ``BaseException`` and ``except Exception`` does not hold it. The type name is
+    preserved, so a genuine defect is still diagnosable - it surfaces as
+    ``walked`` short of ``measured`` with the type named, rather than as a
+    traceback nobody may print. A ``KeyboardInterrupt`` still unwinds, by the
+    decision recorded in ``tests/save/test_properties.py``.
+
+    THE DISCOVERY IS CONTAINED TOO, and it did not used to be: the locators and
+    the glob ran outside every ``try``, so a failure in any of them unwound
+    through a frame holding the account directory, whose NAME is the platform
+    account id (non-negotiable 3). They now run inside
+    ``test_properties._library_save_paths``.
 
     Returns:
         The sweep, or None when no save library is reachable. Never returns or
         logs a path, a body, or any decoded string.
     """
-    root = locate.resolve_save_root()
-    account = locate.resolve_account_dir(root) if root is not None else None
-    if account is None:
+    saves = test_properties._library_save_paths()  # noqa: SLF001
+    if not saves:
         return None
 
     files = measured = walked = 0
     pairs: set[tuple[int, int]] = set()
     failures: list[str] = []
-    for path in sorted(account.glob("*.sav")):
+    for path in saves:
         try:
             data = path.read_bytes()
             parsed = header.parse_header(data)
         except (OSError, header.HeaderError):
+            # The two EXPECTED failures - an unreadable file and a save of a
+            # version this project does not parse - stay silent skips, because
+            # the library legitimately holds both and the caller treats any
+            # recorded failure as fatal.
+            continue
+        except (Exception, SystemExit) as exc:
+            # THE BACKSTOP, for the reason the broad handler below states.
+            # `MemoryError` is an `Exception` and neither of the two above;
+            # `SystemExit` is a `BaseException` and outside `Exception` as well,
+            # so both are named. Either unwinds through `path.read_bytes()`,
+            # whose bound `self` IS the save path.
+            failures.append(type(exc).__name__)
             continue
         files += 1
         pair = (parsed.header_version, parsed.save_version)
@@ -1790,7 +1837,7 @@ def _sweep_the_real_library() -> _RealSweep | None:
         # BROAD BY DESIGN - see the docstring. A narrower catch would let an
         # unexpected exception type escape carrying the save bytes, which is the
         # leak this helper exists to close. The type NAME is preserved.
-        except Exception as exc:
+        except (Exception, SystemExit) as exc:
             failures.append(type(exc).__name__)
             continue
         if exact:
@@ -2257,20 +2304,27 @@ def _sweep_payload_attribution() -> _AttributionSweep | None:
     Returns:
         The sweep, or None when no save library is reachable.
     """
-    root = locate.resolve_save_root()
-    account = locate.resolve_account_dir(root) if root is not None else None
-    if account is None:
+    saves = test_properties._library_save_paths()  # noqa: SLF001
+    if not saves:
         return None
 
     files = seen = attributed = 0
     testable = dict.fromkeys(_SHIFTS, 0)
     matched = dict.fromkeys(_SHIFTS, 0)
     failures: list[str] = []
-    for path in sorted(account.glob("*.sav")):
+    for path in saves:
         try:
             data = path.read_bytes()
             parsed = header.parse_header(data)
         except (OSError, header.HeaderError):
+            # The two EXPECTED failures, silent skips for the reason
+            # `_sweep_the_real_library` states at the same handler.
+            continue
+        except (Exception, SystemExit) as exc:
+            # THE BACKSTOP: `MemoryError` and `SystemExit` are both outside those
+            # two, and `SystemExit` is outside `Exception` as well. Either unwinds
+            # through `path.read_bytes()`, whose bound `self` IS the save path.
+            failures.append(type(exc).__name__)
             continue
         if (parsed.header_version, parsed.save_version) not in objects.MEASURED_BODY_LAYOUTS:
             continue
@@ -2286,7 +2340,7 @@ def _sweep_payload_attribution() -> _AttributionSweep | None:
             attributed += _score_one_save(body, records, testable, matched)
             seen += len(records)
             files += 1
-        except Exception as exc:
+        except (Exception, SystemExit) as exc:
             failures.append(type(exc).__name__)
             continue
     return _AttributionSweep(
@@ -2352,3 +2406,259 @@ def test_the_payload_to_record_alignment_is_the_one_the_bytes_choose() -> None:
             "actor payloads; a neighbouring alignment that also fits means the oracle does "
             "not discriminate and the attribution is not measured"
         )
+
+
+# ---------------------------------------------------------------------------
+# CS-427 - the discovery and the read are contained, and every site is GRADED
+#
+# The three helpers above are the module's only reach into the real library,
+# and until this section existed nothing graded either half of their
+# containment. Both halves have a measured leak behind them rather than a
+# theorised one:
+#
+#   THE DISCOVERY. ``resolve_save_root``, ``resolve_account_dir`` and the save
+#   glob each sat outside every ``try``, so a failure in any of them unwound
+#   through a frame holding the account directory - whose NAME is the platform
+#   account id, in a path that also carries the Windows account name (CLAUDE.md
+#   section 2, non-negotiable 3).
+#
+#   THE READ. ``except (OSError, header.HeaderError)`` names the two failures
+#   somebody predicted and lets every other type through. ``path.read_bytes()``
+#   unwinds through a bound method whose ``self`` IS the save path, and pytest
+#   renders the ARGUMENTS of every frame it unwinds with NO opt-in flag - so one
+#   rendered line carries the Windows account name, the platform account id and
+#   the world name together: non-negotiable 3 three times over and
+#   non-negotiable 12 once, under completely default flags.
+#
+#   TWO TYPES FORCE IT, AND ONE HANDLER SHAPE DOES NOT HOLD BOTH. ``MemoryError``
+#   is an ``Exception``; ``SystemExit`` is a ``BaseException`` and is not. A
+#   containment written as ``except Exception`` holds the first and leaks on the
+#   second, and a grader forcing only the first cannot tell those apart - which
+#   is why every read grader below is parametrized over both.
+#
+# EVERY SUBJECT BELOW IS SYNTHETIC. The graders run on a machine with no game
+# installed and never put a real path into the frame under test, and every
+# assertion is reduced to a type NAME or a boolean first - a test that grades a
+# leak must not be the leak.
+# ---------------------------------------------------------------------------
+
+#: Every helper here that reaches the real library, with the label a
+#: containment failure names it by. One list: the reach guard below derives its
+#: graded set from this, so a helper cannot be graded by one and unknown to the
+#: other.
+_REAL_LIBRARY_HELPERS: Final = (
+    ("measured-pair finder", _one_real_save_of_a_measured_pair),
+    ("real-library sweep", _sweep_the_real_library),
+    ("attribution sweep", _sweep_payload_attribution),
+)
+
+_GRADED_LIBRARY_REACH: Final = MappingProxyType(
+    {call.__name__: label for label, call in _REAL_LIBRARY_HELPERS}
+)
+
+#: Reaches, but is not a grader-able helper. Asserted still reaching.
+_EXEMPT_LIBRARY_REACH: Final = MappingProxyType(
+    {
+        "test_a_real_save_of_a_measured_pair_walks_to_the_end_of_its_body": (
+            "a test rather than a helper: it takes a real body from the "
+            "measured-pair finder and parses it inside a try whose failure is "
+            "re-reported as a type name with pytrace suppressed"
+        ),
+    }
+)
+
+
+def _assert_every_real_library_helper_declines() -> None:
+    """Every helper here must decline rather than let a discovery failure unwind."""
+    for label, call in _REAL_LIBRARY_HELPERS:
+        test_properties._assert_sweep_declines(label, call)  # noqa: SLF001
+
+
+def test_every_library_reaching_function_here_is_declared() -> None:
+    """The reach guard, keyed on the RISKY primitives rather than the safe route.
+
+    An earlier version of this test keyed on the contained discovery helper
+    alone, so a function using the raw locators never entered the flagged set
+    and the assertion stayed true. It detected safe helpers and was blind to
+    unsafe ones. The guard is owned by ``test_properties`` and consumed here, so
+    the two sibling modules share one implementation rather than two
+    transcriptions.
+    """
+    test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+        Path(__file__), graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
+    )
+
+
+def test_the_guard_catches_a_spliced_uncontained_helper(tmp_path: Path) -> None:
+    """The guard's POWER, forced rather than asserted about.
+
+    The splice is the pre-repair shape - the locators and the glob outside every
+    ``try``, under a catch naming two families - wired in exactly as the three
+    real helpers are. Run against a COPY in ``tmp_path``, so nothing tracked is
+    mutated and no restore is needed.
+    """
+    spliced = tmp_path / "spliced.py"
+    spliced.write_text(
+        Path(__file__).read_text(encoding="utf-8") + "\n\ndef _spliced_uncontained_helper():\n"
+        '    """A helper carrying the known-bad shape."""\n'
+        "    root = locate.resolve_save_root()\n"
+        "    account = locate.resolve_account_dir(root)\n"
+        '    for path in sorted(account.glob("*.sav")):\n'
+        "        try:\n"
+        "            return header.parse_header(path.read_bytes())\n"
+        "        except (OSError, header.HeaderError):\n"
+        "            continue\n"
+        "    return None\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError) as caught:
+        test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+            spliced, graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
+        )
+    assert "_spliced_uncontained_helper" in str(caught.value)
+
+    # The positive control: the same guard on the unspliced source passes, so
+    # the red above is the splice rather than the guard rejecting everything.
+    test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+        Path(__file__), graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
+    )
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_DISCOVERY_FAILURES,  # noqa: SLF001,
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_failing_save_root_lookup_does_not_unwind_through_any_helper(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., object]
+) -> None:
+    """The first of the three discovery calls that sat outside every ``try``."""
+    monkeypatch.setattr(locate, "resolve_save_root", raiser)
+    _assert_every_real_library_helper_declines()
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_DISCOVERY_FAILURES,  # noqa: SLF001,
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_failing_account_directory_lookup_does_not_unwind_through_any_helper(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., object]
+) -> None:
+    """The second, and the one whose frame holds the platform account id."""
+    monkeypatch.setattr(locate, "resolve_save_root", lambda: Path("synthetic-root"))
+    monkeypatch.setattr(locate, "resolve_account_dir", raiser)
+    _assert_every_real_library_helper_declines()
+
+
+@pytest.mark.parametrize(
+    ("_forced", "raiser"),
+    test_properties._FORCED_DISCOVERY_FAILURES,  # noqa: SLF001,
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_a_failing_save_glob_does_not_unwind_through_any_helper(
+    monkeypatch: pytest.MonkeyPatch, _forced: str, raiser: Callable[..., object]
+) -> None:
+    """The third - it was in the ``for`` statement itself, outside any ``try``."""
+    monkeypatch.setattr(Path, "glob", raiser)
+    _assert_every_real_library_helper_declines()
+
+
+@pytest.mark.parametrize(
+    ("forced", "raiser"),
+    test_properties._FORCED_READ_FAILURES,  # noqa: SLF001
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_an_unexpected_read_failure_does_not_unwind_through_any_helper(
+    monkeypatch: pytest.MonkeyPatch, forced: str, raiser: Callable[..., bytes]
+) -> None:
+    """The narrow catch, graded at all three sites under BOTH forced failures.
+
+    Parametrized over ``MemoryError`` and ``SystemExit`` because a containment
+    written as ``except Exception`` holds the first and not the second, and one
+    forced failure cannot tell those apart. ``SystemExit`` derives from
+    ``BaseException``; forcing it here before the handlers named it rendered the
+    save path at every site under default flags.
+
+    The two sweeps must REDUCE the escape to a type name and carry on, because
+    each reports ``failures`` and its caller treats a recorded failure as fatal
+    - a silent skip there would hide a real defect. The finder returns a value
+    rather than a report and has nowhere to record a type name, so containment
+    there is declining. The sweeps above it do record one, and their callers
+    assert ``failures`` is empty.
+    """
+    monkeypatch.setattr(
+        test_properties,
+        "_library_save_paths",
+        lambda: (test_properties._SYNTHETIC_SAVE,),  # noqa: SLF001
+    )
+    monkeypatch.setattr(Path, "read_bytes", raiser)
+
+    test_properties._assert_read_failure_is_contained(  # noqa: SLF001
+        "real-library sweep", _sweep_the_real_library, forced
+    )
+    test_properties._assert_read_failure_is_contained(  # noqa: SLF001
+        "attribution sweep", _sweep_payload_attribution, forced
+    )
+    test_properties._assert_sweep_declines(  # noqa: SLF001
+        "measured-pair finder", _one_real_save_of_a_measured_pair
+    )
+
+
+@dataclass(frozen=True)
+class _StubHeader:
+    """The three fields the sweeps read off a parsed header, and nothing else.
+
+    Attributes:
+        header_version: Half of the layout pair.
+        save_version: The other half.
+        body_offset: Where the chunk walk would start.
+    """
+
+    header_version: int
+    save_version: int
+    body_offset: int
+
+
+@pytest.mark.parametrize(
+    ("forced", "raiser"),
+    test_properties._FORCED_READ_FAILURES,  # noqa: SLF001
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_an_unexpected_walk_failure_does_not_unwind_through_either_sweep(
+    monkeypatch: pytest.MonkeyPatch, forced: str, raiser: Callable[..., object]
+) -> None:
+    """The BROAD handlers, which the read grader above never reaches.
+
+    That grader forces its failure at ``read_bytes``, which the handler ABOVE
+    these catches - so the broad pair was never exercised by it, and narrowing
+    either one back to ``except Exception`` alone changed nothing anywhere.
+    A survived mutant is an ungraded containment whatever else is green.
+
+    THESE ARE THE FRAMES THAT HOLD THE BODY. ``chunks.decompress_body(data, ...)``
+    takes the whole save's bytes and ``objects.parse_body(body, ...)`` takes the
+    decompressed body, so an escape here prints save content rather than a path
+    - non-negotiable 12 rather than non-negotiable 3. So the read is made to
+    SUCCEED here and the walk to fail.
+    """
+    header_version, save_version = next(iter(sorted(objects.MEASURED_BODY_LAYOUTS)))
+    monkeypatch.setattr(
+        test_properties,
+        "_library_save_paths",
+        lambda: (test_properties._SYNTHETIC_SAVE,),  # noqa: SLF001
+    )
+    monkeypatch.setattr(Path, "read_bytes", lambda _self: b"synthetic-not-a-save")
+    monkeypatch.setattr(
+        header,
+        "parse_header",
+        lambda _data: _StubHeader(header_version, save_version, 0),
+    )
+    monkeypatch.setattr(chunks, "decompress_body", raiser)
+
+    test_properties._assert_read_failure_is_contained(  # noqa: SLF001
+        "real-library sweep", _sweep_the_real_library, forced
+    )
+    test_properties._assert_read_failure_is_contained(  # noqa: SLF001
+        "attribution sweep", _sweep_payload_attribution, forced
+    )
