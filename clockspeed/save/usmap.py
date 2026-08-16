@@ -67,6 +67,23 @@ in-bounds check on the next name index and ends the section with a second
 warning rather than inventing a mapping. Flagged, skipped, never fatal, and
 never silently wrong.
 
+A NAME WHOSE BYTES ARE NOT UTF-8 IS THE SAME RULE APPLIED TO TEXT, and it is
+where the rule was hardest to satisfy (CS-435). Decoding with a replacement
+character does not lose the name, it INVENTS a different one, and everything
+downstream then works perfectly against a key the file does not contain - which
+is the "never silently wrong" breach, not the tolerated "never fatal" one.
+Raising instead would breach the other half, and much wider than a save
+parser's own decode sites do: this module is the oracle for the WHOLE save
+library, so one bad byte in the shipped name table would make every save on the
+machine unreadable rather than one. So the position is flagged under
+:data:`WARN_UNDECODABLE_NAME` and made unresolvable, which is the same None the
+readers below already answer to for an out-of-bounds index. NO CLAIM IS MADE
+HERE ABOUT WHAT THEN HAPPENS AT THE SITES THAT RESOLVE IT. Section 15 of
+``tests/save/test_usmap.py`` pins the measured paths where the position's
+second, per-site warning does not appear; the first build of CS-435 shipped a
+warning detail asserting the opposite and was refuted by them. Read the count
+off that section rather than from here. See :class:`_NameTable`.
+
 THE ERROR TAXONOMY, WHICH IS NARROW ON PURPOSE. An exception raised here may
 carry a field name, a byte offset, an expected or actual length or count, a
 version or method integer, and a fixed reason string. It may not carry raw
@@ -110,6 +127,7 @@ __all__ = [
     "WARN_DUPLICATE_ENUM",
     "WARN_DUPLICATE_SCHEMA",
     "WARN_TRAILING_SECTION",
+    "WARN_UNDECODABLE_NAME",
     "WARN_UNKNOWN_PROPERTY_TYPE",
     "WARN_UNKNOWN_VERSION",
     "WARN_UNRESOLVED_NAME",
@@ -191,6 +209,7 @@ WARN_DESYNCHRONISED_SECTION: Final = "desynchronised-section"
 WARN_DUPLICATE_ENUM: Final = "duplicate-enum"
 WARN_DUPLICATE_SCHEMA: Final = "duplicate-schema"
 WARN_TRAILING_SECTION: Final = "trailing-section"
+WARN_UNDECODABLE_NAME: Final = "undecodable-name"
 WARN_UNKNOWN_PROPERTY_TYPE: Final = "unknown-property-type"
 WARN_UNKNOWN_VERSION: Final = "unknown-usmap-version"
 WARN_UNRESOLVED_NAME: Final = "unresolved-name-index"
@@ -407,7 +426,14 @@ class PropertyMap:
     with the whole name table tells a reader nothing and buries what failed.
 
     Attributes:
-        names: The name table, in file order.
+        names: The name table, in file order. AN ENTRY IS THE EMPTY STRING WHEN
+            ITS BYTES DID NOT DECODE, and the tuple keeps its full length so
+            that every positional index in the enum and schema sections still
+            lands where the file put it. Empty means the name was empty UNLESS a
+            :data:`WARN_UNDECODABLE_NAME` warning names that position, in which
+            case the name is unknown rather than absent - the same distinction
+            ``super_name`` draws below. :meth:`_NameTable.resolve` answers None
+            for such a position rather than a decoded stand-in (CS-435).
         enums: Enum name to its member names, in file order. TWO LOSSES ARE
             POSSIBLE HERE AND BOTH ARE FLAGGED RATHER THAN SILENT. An enum may
             hold FEWER members than the file declared, when a member's index
@@ -516,15 +542,33 @@ class _Reader:
         """Advance past ``count`` bytes."""
         self._take(count, field)
 
-    def text(self, length: int, field: str) -> str:
-        """Read ``length`` UTF-8 bytes.
+    def text(self, length: int, field: str) -> str | None:
+        """Read ``length`` UTF-8 bytes, or None when they do not decode.
 
-        Undecodable bytes are replaced rather than raised on: a name this
-        module cannot render is unknown content, and unknown content is flagged
-        and skipped rather than made fatal.
+        NEITHER RAISES NOR SUBSTITUTES, which is the whole of CS-435. Decoding
+        with ``errors="replace"`` does not lose an unreadable name, it INVENTS a
+        different one - the caller then publishes a key nothing will look up,
+        the body consumes cleanly and no warning is raised, so a class that IS
+        modelled answers "unmodelled" downstream. Returning None hands the
+        caller the one thing it can act on, and :func:`_read_names` flags it.
+
+        THE :class:`UnicodeDecodeError` IS SWALLOWED RATHER THAN CHAINED, for
+        the reason ``clockspeed/save/header.py`` and ``clockspeed/save/objects.py``
+        both give at their own decode sites: its message QUOTES the offending
+        bytes, and exception context is an echo path.
+
+        Args:
+            length: How many bytes the name occupies.
+            field: This module's own name for the field being read.
+
+        Returns:
+            The decoded text, or None when the bytes are not valid UTF-8.
         """
         start = self._take(length, field)
-        return self._data[start : start + length].decode("utf-8", "replace")
+        try:
+            return self._data[start : start + length].decode("utf-8")
+        except UnicodeDecodeError:
+            return None
 
 
 class _WarningLog:
@@ -628,14 +672,90 @@ def _read_container(reader: _Reader, log: _WarningLog) -> UsmapContainer:
 # ---------------------------------------------------------------------------
 
 
-def _read_names(reader: _Reader) -> tuple[str, ...]:
-    """Read the name table.
+@dataclass(frozen=True)
+class _NameTable:
+    """The name table, plus the positions whose bytes did not decode.
+
+    THE UNDECODABLE POSITIONS ARE HELD BESIDE THE NAMES RATHER THAN SUBSTITUTED
+    INTO THEM, and that is the whole of CS-435. There is no string that can
+    stand for "this name did not decode" without being a name some file could
+    legitimately carry, so the discriminator cannot live in the tuple. It lives
+    here, and :meth:`resolve` is what every reader in this module goes through.
+
+    THE PLACEHOLDER IS THE EMPTY STRING and the tuple keeps its length, because
+    every index in the enum and schema sections is POSITIONAL: dropping an entry
+    would shift every later name and turn one unreadable name into a whole
+    mapping of wrong ones. The empty string is not a claim that the name was
+    empty - :data:`WARN_UNDECODABLE_NAME` against ``name-<position>`` is what
+    separates those two, the same way a warning separates an unresolvable super
+    index from an absent one.
+
+    Attributes:
+        names: The name table, in file order, with an undecodable entry held as
+            the empty string.
+        undecodable: Positions whose bytes were not valid UTF-8.
+    """
+
+    names: tuple[str, ...]
+    undecodable: frozenset[int]
+
+    def resolve(self, index: int) -> str | None:
+        """Resolve a name-table index, or None when it cannot be resolved.
+
+        Two conditions collapse to None on purpose: an index outside the table,
+        and an index onto a name that did not decode. Both mean the same thing
+        to a caller - there is no name to publish - and both are already flagged
+        at the position they were read from, so the caller's own flag-and-skip
+        branch is the correct response to either.
+
+        Args:
+            index: The uint32 read out of the file.
+
+        Returns:
+            The name, or None.
+        """
+        if index in self.undecodable:
+            return None
+        return self.names[index] if 0 <= index < len(self.names) else None
+
+
+def _read_names(reader: _Reader, log: _WarningLog) -> _NameTable:
+    """Read the name table, flagging every name whose bytes do not decode.
+
+    A NAME THAT DOES NOT DECODE IS FLAGGED AND MADE UNRESOLVABLE, NOT REPLACED
+    (CS-435, non-negotiable 7). Substitution satisfies "never fatal" and
+    breaches "never silently wrong": it publishes a name the file does not
+    contain, under which a modelled class reports as unmodelled downstream.
+
+    RAISING WOULD BREACH THE OTHER HALF, and this layer already has the rule for
+    choosing. The record cursors in ``clockspeed/save/header.py`` and
+    ``clockspeed/save/objects.py`` RAISE on an undecodable string.
+    ``objects._payload_text`` does NOT - it returns None - and its docstring
+    states the discriminator: raise where the grammar is MEASURED and a failure
+    is therefore a real defect, tolerate where the content is UNMEASURED and an
+    unreadable run is expected.
+
+    BLAST RADIUS SETTLES IT, and the mechanism is the CACHE rather than the
+    ordering. Those two raising sites cost the ONE save being read. This module
+    is the oracle every save is read through: :func:`cached_usmap` parses the
+    installed file at most once and holds it in a module-level cache, and
+    ``world._resolve_property_map`` turns a :class:`UsmapError` from it into a
+    ``WorldLoadError`` at ``STAGE_USMAP``, ending the load. One bad byte in the
+    shipped name table would therefore fail every world load on the machine that
+    does not supply its own mapping, for saves that have nothing to do with that
+    name. It would not fail them EARLY, either - measured call order inside
+    ``world.load_world_from_bytes`` is ``parse_header``, then
+    ``decompress_body``, then the mapping - so a healthy save whose own bytes
+    read perfectly would still be refused at the last step. Flagging and
+    continuing is what satisfies "never fatal" and "never silently wrong" at the
+    same time.
 
     Args:
         reader: Positioned at the name count.
+        log: Where an undecodable name is flagged.
 
     Returns:
-        The names in file order.
+        The name table and the positions that did not decode.
     """
     count = reader.u32("name_count")
     if count > reader.remaining:
@@ -647,20 +767,26 @@ def _read_names(reader: _Reader) -> tuple[str, ...]:
             actual=count,
         )
     names: list[str] = []
-    for _ in range(count):
+    undecodable: list[int] = []
+    for position in range(count):
         length = reader.u8("name_length")
-        names.append(reader.text(length, "name"))
-    return tuple(names)
+        text = reader.text(length, "name")
+        if text is None:
+            log.add(
+                WARN_UNDECODABLE_NAME,
+                f"name-{position}",
+                "a name's bytes are not valid UTF-8; it was not decoded, and "
+                "this position was recorded as unresolvable rather than "
+                "decoded with substitute characters",
+            )
+            undecodable.append(position)
+            names.append("")
+            continue
+        names.append(text)
+    return _NameTable(names=tuple(names), undecodable=frozenset(undecodable))
 
 
-def _resolve(index: int, names: tuple[str, ...]) -> str | None:
-    """Resolve a name-table index, or None when it is out of bounds."""
-    return names[index] if 0 <= index < len(names) else None
-
-
-def _read_enums(
-    reader: _Reader, names: tuple[str, ...], log: _WarningLog
-) -> dict[str, tuple[str, ...]]:
+def _read_enums(reader: _Reader, names: _NameTable, log: _WarningLog) -> dict[str, tuple[str, ...]]:
     """Read the enum table, flagging every entry whose names do not resolve.
 
     THE FAILURES HERE GET DISTINCT WARNING KEYS, and that is load bearing
@@ -690,11 +816,11 @@ def _read_enums(
         )
     enums: dict[str, tuple[str, ...]] = {}
     for position in range(count):
-        enum_name = _resolve(reader.u32("enum_name_index"), names)
+        enum_name = names.resolve(reader.u32("enum_name_index"))
         member_count = reader.u8("enum_member_count")
         members: list[str] = []
         for _ in range(member_count):
-            member = _resolve(reader.u32("enum_member_index"), names)
+            member = names.resolve(reader.u32("enum_member_index"))
             if member is None:
                 # WITHOUT THIS FLAG A TRUNCATED ENUM IS A SHORTER ENUM. Dropping
                 # the member silently yields a mapping that is well formed,
@@ -771,7 +897,7 @@ def _skip_payload(reader: _Reader, type_id: int, depth: int = 0) -> None:
 
 
 def _read_schema(
-    reader: _Reader, names: tuple[str, ...], position: int, log: _WarningLog
+    reader: _Reader, names: _NameTable, position: int, log: _WarningLog
 ) -> Schema | None:
     """Read one schema and its serializable properties.
 
@@ -808,11 +934,11 @@ def _read_schema(
     Returns:
         The schema, or None when its own name index does not resolve.
     """
-    schema_name = _resolve(reader.u32("schema_name_index"), names)
+    schema_name = names.resolve(reader.u32("schema_name_index"))
     raw_super = reader.u32("schema_super_index")
     super_name = None
     if raw_super != _NO_SUPER:
-        super_name = _resolve(raw_super, names)
+        super_name = names.resolve(raw_super)
         if super_name is None:
             # WITHOUT THIS FLAG THE TWO CASES ARE THE SAME BYTES TO A CALLER.
             # An unresolvable index and the all-bits-set "no super" sentinel
@@ -832,7 +958,7 @@ def _read_schema(
     for _ in range(serializable):
         slot = reader.u16("property_slot")
         array_size = reader.u8("property_array_size")
-        property_name = _resolve(reader.u32("property_name_index"), names)
+        property_name = names.resolve(reader.u32("property_name_index"))
         type_id = reader.u8("property_type")
 
         if type_id > MAX_KNOWN_PROPERTY_TYPE:
@@ -866,7 +992,7 @@ def _read_schema(
     return Schema(name=schema_name, super_name=super_name, properties=tuple(entries))
 
 
-def _read_schemas(reader: _Reader, names: tuple[str, ...], log: _WarningLog) -> dict[str, Schema]:
+def _read_schemas(reader: _Reader, names: _NameTable, log: _WarningLog) -> dict[str, Schema]:
     """Read the schema table, stopping cleanly if the stream desynchronises.
 
     Args:
@@ -947,9 +1073,9 @@ def parse_usmap(data: bytes) -> PropertyMap:
         )
 
     reader = _Reader(body, base=container.header_size)
-    names = _read_names(reader)
-    enums = _read_enums(reader, names, log)
-    schemas = _read_schemas(reader, names, log)
+    table = _read_names(reader, log)
+    enums = _read_enums(reader, table, log)
+    schemas = _read_schemas(reader, table, log)
 
     if reader.remaining:
         log.add(
@@ -960,7 +1086,7 @@ def parse_usmap(data: bytes) -> PropertyMap:
         )
 
     return PropertyMap(
-        names=names,
+        names=table.names,
         enums=MappingProxyType(enums),
         schemas=MappingProxyType(schemas),
         warnings=log.emit(),

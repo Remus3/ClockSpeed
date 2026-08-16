@@ -72,6 +72,8 @@ exception is an echo path (non-negotiable 12).
 from __future__ import annotations
 
 import ast
+import importlib
+import re
 import struct
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -669,10 +671,28 @@ class _BodyCursor:
 
 
 def _audit_read_names(cursor: _BodyCursor) -> None:
-    """Read the name table into the cursor."""
+    """Read the name table into the cursor, REFUSING a name that does not decode.
+
+    The refusal is the same independence :meth:`_BodyCursor.checked` buys, one
+    field over, and CS-435 is what made it necessary. Decoding with
+    ``errors="replace"`` here would be a FALSE GREEN rather than a leftover:
+    :func:`_audit_rebuild` builds its index table from ITS OWN names, so a
+    substituted name resolves to the index the file actually holds, the rebuilt
+    entry matches byte for byte, and the audit reports IDENTICAL for a name it
+    never read. Measured on a synthetic body carrying one undecodable name:
+    ``errors="replace"`` returns one enum counted IDENTICAL and an empty
+    ``failure``; strict returns ``failure="UnicodeDecodeError"`` and counts
+    nothing. Both install-backed tests that consume :func:`_audit_rebuild` would
+    otherwise be grading the builder against a substitution.
+
+    A raise is contained by :func:`_audit_rebuild`, which reports the exception
+    TYPE NAME and never its message - and a ``UnicodeDecodeError`` message
+    quotes the offending bytes, so that containment is an echo-path control
+    rather than tidiness.
+    """
     for _ in range(cursor.u32()):
         length = cursor.u8()
-        cursor.names.append(cursor.body[cursor.at : cursor.at + length].decode("utf-8", "replace"))
+        cursor.names.append(cursor.body[cursor.at : cursor.at + length].decode("utf-8"))
         cursor.at += length
 
 
@@ -1836,6 +1856,7 @@ _INDEX_OF_MEMBER_ONE = 2
 #: The two-enum table, for the cases that must not sit at position 0. Its
 #: indices differ from the table above because a name was inserted at 1.
 _TWO_ENUM_NAMES = [_SYNTH_ENUM, _OTHER_ENUM, _MEMBER_ZERO, _MEMBER_ONE]
+_PAIR_INDEX_OF_OTHER_ENUM = 1
 _PAIR_INDEX_OF_MEMBER_ZERO = 2
 _PAIR_INDEX_OF_MEMBER_ONE = 3
 
@@ -2087,6 +2108,35 @@ def test_the_flagged_enum_is_named_by_its_own_position_not_the_first() -> None:
     ]
 
 
+def test_the_flagged_enum_name_is_flagged_at_its_own_position() -> None:
+    """CS-437. The positional control the enum-NAME subject lacked.
+
+    ``enum-N`` is the enum section's counterpart to the bare ``schema-N``: the
+    subject for the condition that decides whether the enum survives at all.
+    The two-enum fixture above breaks a MEMBER, and every fixture here that
+    breaks an enum's own NAME holds one enum at position 0, where a literal and
+    an interpolation are indistinguishable.
+
+    The broken enum is the SECOND one. A subject built from the literal 0 rather
+    than from ``position`` reports the loss against the first enum, which is
+    intact here and asserted so.
+    """
+    enums = [(_SYNTH_ENUM, [_MEMBER_ZERO]), (_OTHER_ENUM, _BOTH_MEMBERS)]
+    at = _enum_name_offset(_TWO_ENUM_NAMES, enums, 1)
+
+    parsed = _parse_enum_body(
+        _patched_enum_body(_TWO_ENUM_NAMES, enums, [(at, _PAIR_INDEX_OF_OTHER_ENUM)])
+    )
+
+    # The healthy first enum survives whole, so the warning cannot be read as
+    # covering it, and the second enum is gone rather than merely short.
+    assert parsed.enums == {_SYNTH_ENUM: (_MEMBER_ZERO,)}
+    assert parsed.body_consumed == parsed.container.compressed_size
+    assert [(w.code, w.subject) for w in parsed.warnings] == [
+        (usmap.WARN_UNRESOLVED_NAME, "enum-1")
+    ]
+
+
 def test_a_one_member_enum_whose_only_member_is_unresolvable_is_flagged() -> None:
     """The single-member case, which is the CS-419 defect at its smallest.
 
@@ -2214,8 +2264,17 @@ def _assert_withholds(rendering: str, names: tuple[str, ...], what: str) -> None
 
     Iterates the parse's OWN name table rather than a restated literal, so a
     fixture that grows a name cannot outrun the assertion.
+
+    THE EMPTY STRING IS SKIPPED, and that is not a hole in the sweep. ``in`` is
+    vacuously true for it against every possible rendering, so including it can
+    only produce a hit on a provably clean string - and an empty name has
+    nothing in it to leak. CS-435 is what put one in a name table: an
+    undecodable name is published as the empty string so that every later index
+    stays aligned, and the warning beside it is what says so.
     """
     for name in names:
+        if not name:
+            continue
         assert name not in rendering, f"{what} renders the fixture name {name!r}"
 
 
@@ -2366,6 +2425,22 @@ def test_every_warning_this_module_can_raise_carries_a_structural_subject() -> N
         )
     )
     collect(_parse_enum_body(_shipped_body(names=["Alpha"], enums=[], schemas=[]) + b"CEXT"))
+    # A name whose bytes are not valid UTF-8 (CS-435). Added here rather than
+    # left to section 14 because the liveness assertion below demands every
+    # WARN_* the module defines be reached by THIS test.
+    collect(
+        _parse_schema_body(
+            _with_undecodable_name(
+                _shipped_body(
+                    names=_UNDECODABLE_FIRST,
+                    enums=[],
+                    schemas=[("SynthSchema", None, [("Alpha", _TYPE_INT)])],
+                ),
+                _UNDECODABLE_FIRST,
+                0,
+            )
+        )
+    )
     # A schema section cut short mid-entry, which desynchronises the walk.
     short = _shipped_body(
         names=["Alpha", "First", "Second"],
@@ -2477,6 +2552,16 @@ _ONE_SCHEMA: list[tuple[str, str | None, list[tuple[str, int]]]] = [
 _TWO_SCHEMAS: list[tuple[str, str | None, list[tuple[str, int]]]] = [
     ("SynthSchema", None, [("Alpha", _TYPE_INT)]),
     (_OTHER_SCHEMA, None, [("Alpha", _TYPE_INT)]),
+]
+
+#: Three schemas whose FIRST and THIRD share a name, so the duplicate is
+#: detected at position 2 rather than at 0 or 1. The repeat carries a different
+#: property type from the original, which is how the surviving definition is
+#: identified without restating the loader's opinion of which one won.
+_DUPLICATE_SCHEMAS: list[tuple[str, str | None, list[tuple[str, int]]]] = [
+    ("SynthSchema", None, [("Alpha", _TYPE_INT)]),
+    (_OTHER_SCHEMA, None, [("Alpha", _TYPE_INT)]),
+    ("SynthSchema", None, [("Alpha", _TYPE_BOOL)]),
 ]
 
 #: What ``_shipped_body`` writes at the second schema's own name index.
@@ -2747,3 +2832,686 @@ def test_a_healthy_schema_section_stays_silent() -> None:
 
     assert sorted(parsed.schemas) == [_OTHER_SCHEMA, "SynthSchema"]
     assert parsed.warnings == ()
+
+
+def test_the_repeated_schema_name_is_flagged_at_its_own_position() -> None:
+    """CS-437. The positional control the duplicate-schema subject lacked.
+
+    ``_read_schemas`` builds this subject from ``position`` like every other
+    site in the module, but the fixture that reaches it held two schemas whose
+    duplicate landed at position 1 and asserted nothing about the subject at
+    all. The repeat here is the THIRD schema, so a subject built from a literal
+    rather than from ``position`` names a schema that did not repeat.
+
+    The surviving definition is asserted to be the LATER one, by a property type
+    the earlier definition does not carry, so the warning's account of what
+    happened is checked rather than just its existence.
+    """
+    parsed = _parse_schema_body(
+        _shipped_body(names=_TWO_SCHEMA_NAMES, enums=[], schemas=_DUPLICATE_SCHEMAS)
+    )
+
+    assert sorted(parsed.schemas) == [_OTHER_SCHEMA, "SynthSchema"]
+    assert [e.type_id for e in parsed.schemas["SynthSchema"].properties] == [_TYPE_BOOL]
+    assert parsed.body_consumed == parsed.container.compressed_size
+    assert [(w.code, w.subject) for w in parsed.warnings] == [
+        (usmap.WARN_DUPLICATE_SCHEMA, "schema-2")
+    ]
+
+
+# ---------------------------------------------------------------------------
+# 14 - CS-435: a name whose bytes are not UTF-8 is FLAGGED, not SUBSTITUTED
+#
+# THE FOURTH INSTANCE OF ONE SHAPE, after CS-417, CS-419 and CS-431: a docstring
+# claiming a loss is reported beside code that reports nothing. ``_Reader.text``
+# decoded with ``errors="replace"`` while saying "unknown content is flagged and
+# skipped rather than made fatal", and the flag half did not exist.
+#
+# WHY SUBSTITUTION IS THE WORSE HALF OF NON-NEGOTIABLE 7 RATHER THAN THE
+# TOLERATED ONE. Replacement does not lose the name, it INVENTS a different one:
+# the schema table gains a key nothing will ever look up, the body consumes
+# cleanly, and ``warnings`` is empty. Downstream of the oracle, a class that IS
+# modelled then answers "unmodelled" - a confident wrong answer, which is the
+# "never silently wrong" half, not the "never fatal" half.
+#
+# WHY THE MODULE FLAGS AND CONTINUES RATHER THAN RAISING, which is the choice
+# this section pins. The record cursors in clockspeed/save/header.py and
+# clockspeed/save/objects.py RAISE on an undecodable string. A third decode site
+# in the same layer does not: objects._payload_text returns None, and its
+# docstring states the discriminator - raise where the grammar is MEASURED and a
+# failure is a real defect, tolerate where the content is UNMEASURED.
+#
+# BLAST RADIUS SETTLES IT, and the mechanism is the CACHE. Those two raising
+# sites cost the one save being read. usmap.cached_usmap parses the installed
+# file at most once into a module-level cache, and world._resolve_property_map
+# turns a UsmapError from it into a WorldLoadError at STAGE_USMAP. One bad byte
+# in the shipped name table would therefore end every world load on the machine
+# that does not supply its own mapping. Not early, either: the measured call
+# order in world.load_world_from_bytes is parse_header, decompress_body, then
+# the mapping, so a save whose own bytes read perfectly is still refused at the
+# last step. test_an_undecodable_name_leaves_the_rest_of_the_mapping_readable is
+# the assertion that choice is accountable to.
+#
+# THE SENTENCE ABOVE IS THE REPAIRED ONE. The first build of CS-435 wrote this
+# justification around "world._resolve_usmap", a symbol that has never existed,
+# and claimed the stage was reached before the save's bytes were touched, which
+# the call order refutes. The conclusion survived both errors; the premise and
+# the symbol did not. Section 15 fences the symbol half by machine.
+#
+# THE UNDECODABLE POSITION IS MADE UNRESOLVABLE rather than given a placeholder
+# name, so it routes into the flag-and-skip machinery sections 7, 11 and 13
+# already built and already grade. Nothing is ever published under a fabricated
+# key, which is what the acceptance asks for.
+# ---------------------------------------------------------------------------
+
+#: A five-byte run that is not valid UTF-8 in any position: 0xFF and 0xFE are
+#: never legal lead bytes and none of the five is a legal continuation byte.
+_UNDECODABLE_BYTES = b"\xff\xfe\xfd\xfc\xfb"
+
+#: The ASCII stand-in written first and overwritten byte for byte by the run
+#: above. Same width, so no offset downstream of the name table moves.
+_STAND_IN = "Undec"
+
+#: What ``errors="replace"`` produced before CS-435 - one U+FFFD per bad byte.
+#: Written as an escape so this file stays 7-bit ASCII (non-negotiable 4).
+_SUBSTITUTED = "\ufffd" * len(_UNDECODABLE_BYTES)
+
+#: Name tables for the fixtures below. The stand-in sits at position 0 in the
+#: first and at position 1 in the second, which is what the positional control
+#: needs.
+_UNDECODABLE_FIRST = [_STAND_IN, "Alpha", "SynthSchema"]
+_UNDECODABLE_SECOND = ["Alpha", _STAND_IN, "SynthSchema"]
+
+#: The stand-in used at every name index a mapping can carry: an enum's own
+#: name and its member, and a schema's own name, its super and its property.
+_ALL_SITES_ENUMS = [(_STAND_IN, [_STAND_IN])]
+_ALL_SITES_SCHEMAS: list[tuple[str, str | None, list[tuple[str, int]]]] = [
+    (_STAND_IN, _STAND_IN, [(_STAND_IN, _TYPE_INT)])
+]
+
+#: How many warnings the all-sites fixture must raise: the undecodable name
+#: itself, plus one per resolving site.
+_ALL_SITES_WARNINGS = 6
+
+
+def _name_text_offset(names: list[str], position: int) -> int:
+    """Byte offset of name ``position``'s TEXT inside a body's name table.
+
+    The uint32 name count, then each earlier name's uint8 length byte and its
+    bytes, then this name's own length byte.
+    """
+    return 4 + sum(1 + len(text.encode("utf-8")) for text in names[:position]) + 1
+
+
+def _with_undecodable_name(body: bytes, names: list[str], position: int) -> bytes:
+    """``body`` with name ``position``'s stand-in overwritten by bad bytes.
+
+    The stand-in is ASSERTED at the offset before the overwrite, for the reason
+    :func:`_patched_body` gives: a patch that lands on the wrong offset leaves
+    every test built on it green while testing nothing. The run is the same
+    width as the stand-in, so the length byte stays correct and every later
+    offset is unmoved.
+    """
+    assert names[position] == _STAND_IN, "the patched position does not hold the stand-in"
+    at = _name_text_offset(names, position)
+    width = len(_UNDECODABLE_BYTES)
+    found = body[at : at + width]
+    assert found == _STAND_IN.encode("ascii"), (
+        f"byte {at} does not hold the stand-in; the patch would land on the wrong field"
+    )
+    return body[:at] + _UNDECODABLE_BYTES + body[at + width :]
+
+
+def _assert_nothing_was_substituted(parsed: usmap.PropertyMap) -> None:
+    """No collection anywhere in the mapping carries a replaced name.
+
+    THE POINT OF THE ITEM, asserted as one helper because every fixture below
+    needs it: the defect was not a lost name, it was an INVENTED one, and an
+    invented name shows up as a key nothing will look up rather than as an
+    absence anything reports.
+    """
+    assert _SUBSTITUTED not in parsed.names
+    assert not any(_SUBSTITUTED in name for name in parsed.names)
+    assert not any(_SUBSTITUTED in name for name in parsed.enums)
+    assert not any(_SUBSTITUTED in name for name in parsed.schemas)
+    for schema in parsed.schemas.values():
+        assert _SUBSTITUTED not in (schema.super_name or "")
+        assert not any(_SUBSTITUTED in entry.name for entry in schema.properties)
+
+
+def test_an_undecodable_name_is_flagged_rather_than_silently_substituted() -> None:
+    """CS-435 acceptance, pinned in both directions against a clean name.
+
+    The two bodies differ ONLY inside the five bytes of one name. One holds
+    ASCII; the other holds a run that is not UTF-8. Before the fix both parsed,
+    both consumed the body to its final byte, and both reported no warning at
+    all - so whether the undecodable one is FLAGGED is the entire difference
+    between them, exactly as it was in sections 7 and 11.
+
+    Both directions are asserted. A test that only checked the warning fires
+    would pass just as happily against an implementation that flagged every
+    name, the clean one included, and that distinguishes nothing.
+    """
+    names = _UNDECODABLE_FIRST
+    schemas: list[tuple[str, str | None, list[tuple[str, int]]]] = [
+        ("SynthSchema", None, [(_STAND_IN, _TYPE_INT), ("Alpha", _TYPE_BOOL)])
+    ]
+    clean_body = _shipped_body(names=names, enums=[], schemas=schemas)
+    broken_body = _with_undecodable_name(clean_body, names, 0)
+    at = _name_text_offset(names, 0)
+
+    differing = {
+        offset
+        for offset, (left, right) in enumerate(zip(clean_body, broken_body, strict=True))
+        if left != right
+    }
+    assert differing
+    assert differing <= set(range(at, at + len(_UNDECODABLE_BYTES)))
+
+    clean = _parse_schema_body(clean_body)
+    broken = _parse_schema_body(broken_body)
+
+    # The clean name decodes, is published, and is silent: the negative control
+    # that gives every assertion below its meaning.
+    assert clean.names == tuple(names)
+    assert [entry.name for entry in clean.schemas["SynthSchema"].properties] == [_STAND_IN, "Alpha"]
+    assert clean.warnings == ()
+
+    # The undecodable one is flagged under its own code, naming the position in
+    # the name table. Asserted as what IS there rather than as an absence.
+    assert usmap.WARN_UNDECODABLE_NAME in {w.code for w in broken.warnings}
+    assert (usmap.WARN_UNDECODABLE_NAME, "name-0") in [(w.code, w.subject) for w in broken.warnings]
+    # And nothing anywhere in the result was invented from the bad bytes.
+    _assert_nothing_was_substituted(broken)
+    assert broken.body_consumed == broken.container.compressed_size
+
+
+def test_an_undecodable_name_leaves_the_rest_of_the_mapping_readable() -> None:
+    """Flagged and SKIPPED, never FATAL - and the control on raise-versus-flag.
+
+    The undecodable name is referenced by NOTHING here, so every other name,
+    enum and schema in the mapping is readable and must come back whole. A
+    module that answered a decode failure by raising would lose all of it, and
+    a usmap is the oracle for the whole save library rather than for one save.
+    This assertion is what that choice is accountable to.
+    """
+    names = _UNDECODABLE_FIRST
+    schemas: list[tuple[str, str | None, list[tuple[str, int]]]] = [
+        ("SynthSchema", None, [("Alpha", _TYPE_INT)])
+    ]
+    body = _with_undecodable_name(_shipped_body(names=names, enums=[], schemas=schemas), names, 0)
+
+    parsed = _parse_schema_body(body)
+
+    assert sorted(parsed.schemas) == ["SynthSchema"]
+    assert [entry.name for entry in parsed.schemas["SynthSchema"].properties] == ["Alpha"]
+    assert parsed.body_consumed == parsed.container.compressed_size
+    assert [(w.code, w.subject) for w in parsed.warnings] == [
+        (usmap.WARN_UNDECODABLE_NAME, "name-0")
+    ]
+    _assert_nothing_was_substituted(parsed)
+
+
+def test_the_five_healthy_resolving_sites_each_report_an_undecodable_name() -> None:
+    """Five sites named one by one, because the general claim was measurably false.
+
+    A warning that FIRES is not a warning that SAYS SOMETHING TRUE, which is
+    what CS-430 shipped. THE FIRST BUILD OF CS-435 SHIPPED IT AGAIN: this test
+    was originally named for every index resolving to an undecodable name while
+    exercising only the five sites below, and the warning detail beside it made
+    the same universal claim. Section 15 pins four measured paths that refute it
+    and the detail no longer makes it.
+
+    What survives is exactly this - the fixture points all five resolving sites
+    at one undecodable name, on the happy path where nothing else has gone
+    wrong: an enum's own name and its member, and a schema's own name, its super
+    and its property. Each is asserted to produce its own unresolved warning.
+    Read the name as naming these five, and nothing beyond them.
+
+    The two empty collections are the other half of the same claim: with every
+    site unresolvable, nothing at all may be published, and before the fix the
+    enum and the schema were both published under a fabricated key.
+    """
+    names = _UNDECODABLE_FIRST
+    body = _with_undecodable_name(
+        _shipped_body(names=names, enums=_ALL_SITES_ENUMS, schemas=_ALL_SITES_SCHEMAS),
+        names,
+        0,
+    )
+
+    parsed = _parse_schema_body(body)
+
+    assert parsed.enums == {}
+    assert parsed.schemas == {}
+    assert parsed.body_consumed == parsed.container.compressed_size
+    assert [(w.code, w.subject) for w in parsed.warnings] == [
+        (usmap.WARN_UNDECODABLE_NAME, "name-0"),
+        (usmap.WARN_UNRESOLVED_NAME, "enum-0-member"),
+        (usmap.WARN_UNRESOLVED_NAME, "enum-0"),
+        (usmap.WARN_UNRESOLVED_NAME, "schema-0-super"),
+        (usmap.WARN_UNRESOLVED_NAME, "schema-0-property"),
+        (usmap.WARN_UNRESOLVED_NAME, "schema-0"),
+    ]
+    assert [w.count for w in parsed.warnings] == [1] * _ALL_SITES_WARNINGS
+    _assert_nothing_was_substituted(parsed)
+
+
+def test_an_undecodable_name_displaces_no_other_conditions_detail() -> None:
+    """The CS-419 regression shape, checked against the warning added here.
+
+    ``_WarningLog`` aggregates by ``(code, subject)`` and KEEPS THE FIRST DETAIL
+    SEEN. The name table is read BEFORE the enums and the schemas, so a new
+    warning sharing a key with any later condition would replace that
+    condition's true sentence with this one - the exact failure CS-419's first
+    round shipped.
+
+    No literal sentence is asserted. Each condition's detail is compared against
+    the detail THAT SAME CONDITION produces when it happens without an
+    undecodable name in the table, so the test pins the behaviour and cannot be
+    satisfied by rewording, nor go red because of it.
+    """
+    names = _UNDECODABLE_FIRST
+    body = _with_undecodable_name(
+        _shipped_body(names=names, enums=_ALL_SITES_ENUMS, schemas=_ALL_SITES_SCHEMAS),
+        names,
+        0,
+    )
+    together = _parse_schema_body(body)
+
+    enum_name_at = (_enum_name_offset(_ENUM_NAMES, _ONE_ENUM, 0), _INDEX_OF_SYNTH_ENUM)
+    enum_member_at = (_enum_member_offset(_ENUM_NAMES, _ONE_ENUM, 0, 1), _INDEX_OF_MEMBER_ONE)
+    alone = {
+        "enum-0": _parse_enum_body(_patched_enum_body(_ENUM_NAMES, _ONE_ENUM, [enum_name_at])),
+        "enum-0-member": _parse_enum_body(
+            _patched_enum_body(_ENUM_NAMES, _ONE_ENUM, [enum_member_at])
+        ),
+    }
+    base = _schema_super_offset(_SCHEMA_NAMES, _ONE_SCHEMA, 0)
+    for subject, delta, anchor in (
+        ("schema-0", _SCHEMA_NAME_DELTA, _INDEX_OF_SYNTH_SCHEMA),
+        ("schema-0-super", 0, _ALL_BITS_SET),
+        ("schema-0-property", _PROPERTY_NAME_DELTA, _INDEX_OF_ALPHA),
+    ):
+        alone[subject] = _parse_schema_body(
+            _patched_schema_body(_SCHEMA_NAMES, _ONE_SCHEMA, [(base + delta, anchor)])
+        )
+
+    for subject, isolated in alone.items():
+        assert _detail_for(together, usmap.WARN_UNRESOLVED_NAME, subject) == _detail_for(
+            isolated, usmap.WARN_UNRESOLVED_NAME, subject
+        ), subject
+
+
+def test_the_flagged_name_is_flagged_at_its_own_position() -> None:
+    """The positional control this section's new subject needs from the start.
+
+    ``name-N`` is built by the same interpolation as every other subject in the
+    module, and CS-437 measured what happens when one of those has no two-item
+    fixture. The undecodable name here is the SECOND one, and the first name is
+    asserted to have decoded, so a subject built from a literal rather than from
+    the position names a name that is intact.
+    """
+    names = _UNDECODABLE_SECOND
+    schemas: list[tuple[str, str | None, list[tuple[str, int]]]] = [
+        ("SynthSchema", None, [("Alpha", _TYPE_INT)])
+    ]
+    body = _with_undecodable_name(_shipped_body(names=names, enums=[], schemas=schemas), names, 1)
+
+    parsed = _parse_schema_body(body)
+
+    assert parsed.names[0] == "Alpha"
+    assert [(w.code, w.subject) for w in parsed.warnings] == [
+        (usmap.WARN_UNDECODABLE_NAME, "name-1")
+    ]
+    _assert_nothing_was_substituted(parsed)
+
+
+def test_two_undecodable_names_are_flagged_separately_rather_than_merged() -> None:
+    """Each bad name is its own subject, so a count of two is never a total.
+
+    ``_WarningLog`` merges by ``(code, subject)``, so a subject that did not
+    carry the position would report two losses as one warning counted twice and
+    name the wrong position for at least one of them.
+    """
+    names = [_STAND_IN, "Alpha", _STAND_IN]
+    schemas: list[tuple[str, str | None, list[tuple[str, int]]]] = [
+        ("Alpha", None, [("Alpha", _TYPE_INT)])
+    ]
+    body = _shipped_body(names=names, enums=[], schemas=schemas)
+    body = _with_undecodable_name(body, names, 0)
+    body = _with_undecodable_name(body, names, 2)
+
+    parsed = _parse_schema_body(body)
+
+    assert [(w.code, w.subject) for w in parsed.warnings] == [
+        (usmap.WARN_UNDECODABLE_NAME, "name-0"),
+        (usmap.WARN_UNDECODABLE_NAME, "name-2"),
+    ]
+    assert [w.count for w in parsed.warnings] == [1, 1]
+    assert sorted(parsed.schemas) == ["Alpha"]
+    _assert_nothing_was_substituted(parsed)
+
+
+def test_a_name_table_that_decodes_cleanly_stays_silent() -> None:
+    """The negative control for the code this section adds.
+
+    Without it, a fix that flagged every name would satisfy every assertion
+    above. The stand-in is present and UNPATCHED here, so this is the same
+    fixture the acceptance test compares against rather than a different one.
+    """
+    names = _UNDECODABLE_FIRST
+
+    parsed = _parse_schema_body(
+        _shipped_body(names=names, enums=_ALL_SITES_ENUMS, schemas=_ALL_SITES_SCHEMAS)
+    )
+
+    assert parsed.names == tuple(names)
+    assert parsed.enums == {_STAND_IN: (_STAND_IN,)}
+    assert sorted(parsed.schemas) == [_STAND_IN]
+    assert parsed.warnings == ()
+
+
+# ---------------------------------------------------------------------------
+# 15 - CS-435 repair: this module's own prose is graded by machine
+#
+# WHY THIS SECTION EXISTS. CS-435's first build shipped a warning DETAIL making
+# a universal claim about the module - "every index resolving to it is flagged
+# unresolved" - and measurement refuted it. The project already runs a fence for
+# absolute claims and it could not have caught this one: that fence reads
+# docstrings, comments and assert messages, and A WARNING DETAIL IS A CALL
+# ARGUMENT. So the fence for that shape lives here, beside the module it grades.
+#
+# THE SECOND FENCE IS FOR A CITED SYMBOL. The same build justified its design by
+# naming ``world._resolve_usmap``, which has never existed in this tree. A
+# symbol that does not resolve is the cheapest lie there is to catch by machine,
+# and nothing in the suite was catching it.
+#
+# THE COUNTER-EXAMPLES ARE PINNED AS TESTS rather than described in a comment,
+# for the reason the deleted sentence demonstrates: a hole that lives only in
+# prose is a hole the next author to read the file closes in prose.
+# ---------------------------------------------------------------------------
+
+#: Short module name to dotted path, for the citation fence. A citation naming a
+#: module absent from this map fails the test rather than being skipped, so a
+#: new sibling cannot be cited into a blind spot.
+_CITED_MODULES = {
+    "header": "clockspeed.save.header",
+    "locate": "clockspeed.data.locate",
+    "objects": "clockspeed.save.objects",
+    "usmap": "clockspeed.save.usmap",
+    "world": "clockspeed.save.world",
+}
+
+#: Matches ``module.symbol`` for the siblings above. ``module.py`` is a FILE
+#: reference rather than a symbol citation and is dropped below.
+_CITATION = re.compile(r"\b(" + "|".join(_CITED_MODULES) + r")\.(_?[A-Za-z][A-Za-z0-9_]*)")
+
+#: Words that turn a warning detail into a claim about OTHER sites. STATED AS A
+#: FLOOR, NOT A GRAMMAR: a universal phrased around this list still gets through,
+#: and this sentence is the honest limit rather than a promise of completeness.
+#: "nothing" and "any" are deliberately absent: each appears today in a detail
+#: quantifying over something other than this module's resolution sites - the
+#: trailing-section and the unknown-version detail respectively. "none" is held
+#: out alongside them as the same kin, not because it appears anywhere today.
+#: Widening the list to cover the three is separate work with its own
+#: measurement.
+_SITE_QUANTIFIERS = frozenset({"every", "all", "each", "always", "never", "only"})
+
+#: Bytes cut off the end of an enum-section body to strand the member run: one
+#: uint32 member index plus the two bytes before it, so the read runs off the
+#: end rather than landing on a short but well formed entry.
+_ENUM_TRUNCATION = 6
+
+
+def _module_source() -> str:
+    """The parser module's own source text.
+
+    The path is read and never rendered. The assertions below quote the
+    offending SENTENCE, which is authored prose, and never the location, which
+    is an absolute path under a home directory (non-negotiable 3).
+    """
+    return Path(usmap.__file__).read_text(encoding="utf-8")
+
+
+def _flattened(node: ast.expr) -> str:
+    """The literal text of a string node, with any interpolation as a blank."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.JoinedStr):
+        # An f-string's literal runs only. A ``{...}`` field becomes a space, so
+        # two literal runs cannot be joined into a word that neither contains.
+        return " ".join(
+            part.value
+            for part in node.values
+            if isinstance(part, ast.Constant) and isinstance(part.value, str)
+        )
+    return ""
+
+
+def _warning_details() -> list[tuple[str, str]]:
+    """Every ``(code, detail)`` the parser module passes to ``_WarningLog.add``.
+
+    Derived from the module's own syntax tree rather than from a list kept here,
+    so a detail added tomorrow is graded without anyone remembering to add it.
+    """
+    found: list[tuple[str, str]] = []
+    for node in ast.walk(ast.parse(_module_source())):
+        if not isinstance(node, ast.Call):
+            continue
+        if not isinstance(node.func, ast.Attribute) or node.func.attr != "add":
+            continue
+        if len(node.args) < _THREE or not isinstance(node.args[0], ast.Name):
+            continue
+        found.append((getattr(usmap, node.args[0].id), _flattened(node.args[2])))
+    return found
+
+
+def _declared_warning_codes() -> set[str]:
+    """Every ``WARN_*`` value the parser module defines."""
+    return {
+        value
+        for name, value in vars(usmap).items()
+        if name.startswith("WARN_") and isinstance(value, str)
+    }
+
+
+def test_no_warning_detail_claims_what_happens_at_another_site() -> None:
+    """CS-435 repair. The fence the absolute-claims scan structurally cannot be.
+
+    A warning detail describes ONE flagged position. The moment it quantifies
+    over the module's other resolution sites it becomes a measurement of the
+    whole module restated in prose with nothing checking it - and CS-435's first
+    build shipped exactly that, and every counter-example that refuted it is
+    pinned below rather than described.
+
+    THE POPULATION IS DERIVED AND ITS LIVENESS IS ASSERTED. Every code the module
+    declares must appear among the details actually extracted, so this cannot
+    pass by parsing nothing or by quietly missing a call site.
+    """
+    details = _warning_details()
+
+    assert {code for code, _ in details} == _declared_warning_codes()
+
+    for code, detail in details:
+        offending = sorted(set(re.findall(r"[a-z]+", detail.lower())) & _SITE_QUANTIFIERS)
+        assert not offending, f"{code} detail quantifies over other sites {offending}: {detail}"
+
+
+def test_every_sibling_symbol_cited_in_the_parser_module_resolves() -> None:
+    """CS-435 repair. A justification may not cite a symbol that does not exist.
+
+    ``world._resolve_usmap`` was cited as the mechanism turning a parse failure
+    into a load failure. The function is ``world._resolve_property_map``, and the
+    cited name appears nowhere in the tree except in the prose citing it. A
+    reader checking that reasoning would have gone looking for a symbol that is
+    not there, and a design decision nobody can re-derive is a decision this
+    project has already lost more than once.
+
+    The population is derived from the module text and asserted non-empty, so
+    deleting every citation fails this rather than satisfying it.
+    """
+    citations = {
+        (module, symbol) for module, symbol in _CITATION.findall(_module_source()) if symbol != "py"
+    }
+
+    assert citations, "no sibling citation was found; the pattern has stopped matching"
+    for module, symbol in sorted(citations):
+        assert module in _CITED_MODULES, f"{module} is cited but not mapped to a dotted path"
+        # The boolean is taken FIRST so the module object is never an argument
+        # pytest can render: its repr is an absolute path (non-negotiable 3).
+        exists = hasattr(importlib.import_module(_CITED_MODULES[module]), symbol)
+        assert exists, f"{module}.{symbol} is cited but does not exist"
+
+
+def test_the_audit_reader_refuses_exactly_what_the_parser_refuses() -> None:
+    """CS-435 residual. The second decoder in this file agreed with nothing.
+
+    ``_audit_read_names`` reads the shipped name table independently, and it
+    decoded with ``errors="replace"`` after the parser stopped doing so. That is
+    not merely a leftover. ``_audit_rebuild`` builds its index table from ITS OWN
+    names, so a substituted name resolves to the same index the file holds, the
+    rebuilt entry matches byte for byte, and the audit reports IDENTICAL - a
+    false green in the one test whose whole purpose is to grade the builder
+    against the game.
+
+    Both decoders are put to the same bytes here, and neither may accept what
+    the other rejects.
+    """
+    clean = _shipped_body(names=_UNDECODABLE_FIRST, enums=[], schemas=[])
+    broken = _with_undecodable_name(clean, _UNDECODABLE_FIRST, 0)
+
+    for body, parser_flags_it in ((clean, False), (broken, True)):
+        parsed = _parse_schema_body(body)
+        flagged = usmap.WARN_UNDECODABLE_NAME in {w.code for w in parsed.warnings}
+        assert flagged is parser_flags_it
+
+        try:
+            _audit_read_names(_BodyCursor(body))
+        except UnicodeDecodeError:
+            audit_refused = True
+        else:
+            audit_refused = False
+        assert audit_refused is flagged, "the two decoders disagree about these bytes"
+
+
+def test_an_undecodable_property_name_behind_an_unknown_type_is_not_flagged() -> None:
+    """The first counter-example to the sentence CS-435's first build shipped.
+
+    ``_read_schema`` tests the type byte BEFORE it tests the property name, and
+    the unknown-type branch consumes the entry with ``continue``. So an index
+    that resolved to an undecodable name is dropped with no unresolved warning
+    against it. The loss is not silent overall - the undecodable name and the
+    unknown type are both flagged - but the PER-SITE attribution is gone.
+
+    THIS ORDERING IS UNCHANGED FROM BEFORE CS-435 and is not this item's defect.
+    It is the reason no universal about resolving indices is written beside the
+    warning. The control below is the same fixture with a known type byte, where
+    the flag does fire, so this pins an ORDERING rather than an absence.
+    """
+    schemas: list[tuple[str, str | None, list[tuple[str, int]]]] = [
+        ("SynthSchema", None, [(_STAND_IN, _UNKNOWN_TYPE)])
+    ]
+    body = _with_undecodable_name(
+        _shipped_body(names=_UNDECODABLE_FIRST, enums=[], schemas=schemas), _UNDECODABLE_FIRST, 0
+    )
+
+    parsed = _parse_schema_body(body)
+
+    assert [(w.code, w.subject) for w in parsed.warnings] == [
+        (usmap.WARN_UNDECODABLE_NAME, "name-0"),
+        (usmap.WARN_UNKNOWN_PROPERTY_TYPE, f"type-{_UNKNOWN_TYPE}"),
+    ]
+    _assert_nothing_was_substituted(parsed)
+
+    known: list[tuple[str, str | None, list[tuple[str, int]]]] = [
+        ("SynthSchema", None, [(_STAND_IN, _TYPE_INT)])
+    ]
+    control = _parse_schema_body(
+        _with_undecodable_name(
+            _shipped_body(names=_UNDECODABLE_FIRST, enums=[], schemas=known),
+            _UNDECODABLE_FIRST,
+            0,
+        )
+    )
+
+    # One byte different, and the per-site flag is back.
+    assert (usmap.WARN_UNRESOLVED_NAME, "schema-0-property") in [
+        (w.code, w.subject) for w in control.warnings
+    ]
+
+
+def test_an_undecodable_schema_name_in_a_desynchronised_entry_is_not_flagged() -> None:
+    """The second counter-example, and the reason a reordering repair was refused.
+
+    ``_read_schema`` flags an unresolvable schema NAME at the BOTTOM of the
+    function, after every site that can raise. An entry that desynchronises
+    therefore loses that flag entirely: the section reports the desync, and
+    nothing says the lost schema's own name was the undecodable one.
+
+    ALSO UNCHANGED FROM BEFORE CS-435. Moving the flag to the top would close
+    this one, but two further sites in ``_read_enums`` cannot be closed that way
+    at all - that section is not wrapped by its caller, so a desync there raises
+    out of ``parse_usmap`` and publishes NO warnings whatsoever. The universal
+    was deleted rather than repaired because no reordering makes it true.
+    """
+    schemas: list[tuple[str, str | None, list[tuple[str, int]]]] = [
+        (_STAND_IN, None, [("Alpha", _TYPE_INT)])
+    ]
+    body = _with_undecodable_name(
+        _shipped_body(names=_UNDECODABLE_FIRST, enums=[], schemas=schemas), _UNDECODABLE_FIRST, 0
+    )
+    name_index_at = _schema_super_offset(_UNDECODABLE_FIRST, schemas, 0) + _SCHEMA_NAME_DELTA
+    (anchor,) = struct.unpack_from("<I", body, name_index_at)
+    assert anchor == 0, "the offset walk does not land on the schema's own name index"
+
+    parsed = _parse_schema_body(body[: name_index_at + 4])
+
+    assert [(w.code, w.subject) for w in parsed.warnings] == [
+        (usmap.WARN_UNDECODABLE_NAME, "name-0"),
+        (usmap.WARN_DESYNCHRONISED_SECTION, "schemas"),
+    ]
+    assert parsed.schemas == {}
+
+
+def test_an_enum_section_desync_loses_the_undecodable_names_resolving_flags() -> None:
+    """The third and fourth counter-examples, which no reordering reaches.
+
+    ``_read_schemas`` wraps its per-entry ``_read_schema`` call in a handler
+    that converts a desynchronised entry into a warning. ``_read_enums`` has no
+    such handler and its caller ``parse_usmap`` adds none, so a truncated enum
+    section raises straight out of the parse. There is then no mapping and no
+    warning list at all, and an index in that section that resolved to the
+    undecodable name is reported nowhere.
+
+    Making the deleted universal true would therefore have required the enum
+    section to stop being fatal - a change to behaviour this module states
+    deliberately, far outside a decoder item. Hence deletion.
+    """
+    enums = [("Alpha", [_STAND_IN, "Alpha"])]
+    body = _with_undecodable_name(
+        _shipped_body(names=_UNDECODABLE_FIRST, enums=enums, schemas=[]), _UNDECODABLE_FIRST, 0
+    )
+
+    # Intact, the member index that resolves to the undecodable name IS flagged.
+    intact = _parse_enum_body(body)
+    assert [(w.code, w.subject) for w in intact.warnings] == [
+        (usmap.WARN_UNDECODABLE_NAME, "name-0"),
+        (usmap.WARN_UNRESOLVED_NAME, "enum-0-member"),
+    ]
+
+    # Cut short inside the member run, the whole parse is fatal and flags nothing.
+    with pytest.raises(usmap.UsmapFormatError):
+        _parse_enum_body(body[: len(body) - _ENUM_TRUNCATION])
+
+    # THE FOURTH PATH, the enum's OWN name rather than a member's, so the two
+    # sites in this section are both pinned rather than one standing for both.
+    own = [("Alpha", ["Alpha"]), (_STAND_IN, ["Alpha", "Alpha"])]
+    own_body = _with_undecodable_name(
+        _shipped_body(names=_UNDECODABLE_FIRST, enums=own, schemas=[]), _UNDECODABLE_FIRST, 0
+    )
+    assert [(w.code, w.subject) for w in _parse_enum_body(own_body).warnings] == [
+        (usmap.WARN_UNDECODABLE_NAME, "name-0"),
+        (usmap.WARN_UNRESOLVED_NAME, "enum-1"),
+    ]
+    with pytest.raises(usmap.UsmapFormatError):
+        _parse_enum_body(own_body[: len(own_body) - _ENUM_TRUNCATION])
