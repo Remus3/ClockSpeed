@@ -73,6 +73,32 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-16 - CS-428 - CORRECTION: a control that could prove nothing on CI failed instead of skipping
+Verification: `tests/test_tmp_path_privacy.py::test_the_parallel_lane_renders_no_worker_interpreter_path`.
+Locally the control still establishes the leak and the arm PASSES with no skip - 15 passed in that
+module - so the skip path fires only where the hazard cannot exist.
+CS-428 STAYS CLOSED; this corrects a test's verdict shape, not the redaction, which was working
+correctly throughout and is unchanged by this record.
+TIER-2 CI WENT RED ON BOTH HOSTED RUNNERS at `c6e1c91`, windows and ubuntu, deterministically and
+NOT on the known `-n auto` flake. The failing assertion was CS-428's own POSITIVE CONTROL: it
+requires the UNGUARDED parallel run to render a worker line carrying a marker, and on a hosted
+runner it does not.
+**THE CONTROL WAS RIGHT AND ITS VERDICT WAS WRONG.** The worker line names the worker's
+INTERPRETER, so that channel carries personal data only where the interpreter itself sits under a
+home directory. That holds on a developer machine and is FALSE on a hosted runner, whose
+interpreter lives in a toolcache outside the runner account's home - so the hazard does not exist
+there and there is nothing to redact. The control correctly determined it had proved nothing, and
+then called that a defect.
+A CHANNEL THE ENVIRONMENT CANNOT EXERCISE IS INCONCLUSIVE, NOT BROKEN AND NOT CLEAN. The arm now
+runs its guarded assertions regardless - a deleted worker line and personal data in the region are
+defects whatever the control found - and skips only the sensitivity verdict, with a reason naming
+the channel, the cause, and what is consequently unmeasured. Per CS-423 the skip is loud and can
+never read as a clean pass.
+NOTE THE SIBLING, DELIBERATELY NOT CHANGED: the `--tb=line` arm above it carries the same shape and
+PASSED on both runners, because the sandbox does sit under a home directory there. Changing a
+control that works on every environment measured would be speculative, so it is recorded here
+rather than pre-emptively edited.
+
 ### 2026-08-16 - CS-428 - CORRECTION: the tmp_path population figure was never true, and the merger restated it
 Verification: an AST count of test functions taking `tmp_path` directly, run by the merger against
 `b210396`, gives 247 across 19 files. A pytest-collection count using the claim's OWN wording -

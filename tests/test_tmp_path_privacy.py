@@ -912,17 +912,39 @@ def test_the_parallel_lane_renders_no_worker_interpreter_path(
         for line in guarded_region(control_xdist_run.output).splitlines()
         if line.startswith("[gw") and hit_counts(line, markers)
     ]
-    assert control_worker_lines, (
-        "the UNGUARDED parallel run rendered no worker line carrying a marker, "
-        "so the guarded assertion below proves nothing on this machine"
-    )
 
+    # THE GUARDED ASSERTIONS RUN REGARDLESS, because they are meaningful even
+    # where the control cannot establish sensitivity: a worker line that was
+    # deleted rather than redacted loses which worker failed, and personal data
+    # in the region is a defect whatever the control found.
     region = guarded_region(guarded_xdist_run.output)
     assert [line for line in region.splitlines() if line.startswith("[gw")], (
         "the guarded parallel run rendered no worker line at all; the line was "
         "removed rather than redacted, which loses which worker failed"
     )
     _assert_no_personal_data(region, "the guarded parallel region")
+
+    # THE CONTROL DECIDES WHETHER THIS ARM PROVED ANYTHING, and where it cannot,
+    # the arm is INCONCLUSIVE rather than passing or failing. The worker line
+    # names the worker's INTERPRETER, so this channel only carries personal data
+    # where the interpreter itself sits under a home directory. That is true on
+    # a developer machine and FALSE on a hosted CI runner, whose interpreter
+    # lives in a toolcache outside the runner account's home - so the hazard
+    # does not exist there and there is nothing to redact.
+    # THIS SKIP IS LOUD ON PURPOSE, per CS-423: it names the channel, the reason,
+    # and what is consequently unmeasured, so it can never read as a clean pass.
+    # It was a FAILURE until 2026-08-16, when tier-2 went red on both hosted
+    # runners while the redaction itself was working correctly - the control was
+    # right that it had proved nothing, and wrong to call that a defect.
+    if not control_worker_lines:
+        pytest.skip(
+            "INCONCLUSIVE, not clean: the unguarded parallel run rendered no "
+            "worker line carrying a marker, so this environment cannot exercise "
+            "the worker-interpreter channel and the guarded run's cleanliness "
+            "here is not evidence that the redaction works. Expected wherever "
+            "the interpreter does not sit under a home directory, which is the "
+            "normal case on a hosted CI runner."
+        )
 
 
 def test_a_url_quoted_path_renders_no_account_name(
