@@ -73,6 +73,26 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-16 - CS-428 - CORRECTION: the tmp_path population figure was never true, and the merger restated it
+Verification: an AST count of test functions taking `tmp_path` directly, run by the merger against
+`b210396`, gives 247 across 19 files. A pytest-collection count using the claim's OWN wording -
+"or a fixture derived from it" - gives 341 across the same 19 files. The figure written was 195.
+Re-measured by `tests/conftest.py`'s own subject rather than by any agent's report.
+CS-428 STAYS CLOSED; this corrects prose, not the fix, and the redaction itself is unaffected.
+THE NUMBER WAS NEVER TRUE ANYWHERE IN THIS CHAIN. Measured by the final adversary against archived
+revisions: 290 at `76f6c82`, 325 at `7478b35` - the commit that WROTE the sentence - and 341 at
+`ee36d0d`. It was copied forward from a `ROADMAP.md` note that was already stale when the CS-429
+builder amended it upward from an earlier figure, and it drifts every time a test is added.
+**THE MERGER RESTATED IT A THIRD TIME, IN THIS FILE, AT LINE 163 OF THE ENTRY BELOW.** That entry
+is append-only and stands as written; this record is the correction. The restatement happened in
+the same session in which the merger twice flagged other agents for exactly this, which is worth
+recording plainly rather than softening: CLAUDE.md section 4 is not hard to understand and was
+still violated by the person enforcing it, because a number that arrives inside a well-evidenced
+report reads as evidence rather than as a claim needing its own measurement.
+THE REMEDY IS DELETION, NOT A CORRECTED NUMBER. `tests/conftest.py` now describes the population
+without counting it. No corrected figure is written into prose anywhere, including here - the two
+numbers above sit in a dated record, which cannot rot, and not in living text.
+
 ### 2026-08-16 - SESSION 11 - FIVE OF FIVE FIRST BUILDS WERE REFUTED, AND THE FAILURE HAD ONE SHAPE
 Verification: the five squash commits `d0d6f87`, `ea4ed3e`, `0ab2007`, `7478b35`, `ee36d0d`, each
 of which is a build PLUS its repair and each of whose message records what was refuted.

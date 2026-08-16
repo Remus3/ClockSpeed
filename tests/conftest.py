@@ -15,8 +15,11 @@ harness that hardcoded one would be asserting against itself.
 THE HOOKS AT THE BOTTOM ARE HERE AND NOT IN A TEST MODULE, and that placement
 is the whole shape of CS-428. pytest renders the failing frame's ARGUMENTS by
 default, so every test taking ``tmp_path`` or a fixture derived from it prints
-its base temporary directory when it fails - 195 test functions across 19
-files. A per-module fix would be 19 edits that the twentieth module escapes;
+its base temporary directory when it fails, across most test modules in the
+tree. NO COUNT IS WRITTEN HERE, DELIBERATELY: the figure this sentence first
+carried was restated from a roadmap note, was already wrong when it was
+written, and drifts every time a test is added - CLAUDE.md section 4. A
+per-module fix would be one edit per module that the next module escapes;
 this is a property of the harness, so the harness is where it is fixed. The
 grading for it lives in tests/test_tmp_path_privacy.py, which runs real pytest
 subprocesses and scans their real output, because the subject is what pytest
@@ -677,19 +680,32 @@ def pytest_runtest_makereport() -> Generator[None, pytest.TestReport, pytest.Tes
     within it changes nothing, and the alternatives are worse: a repo-local
     root is under a home directory on a Linux CI runner, and any fixed absolute
     root is a hardcoded machine layout, which non-negotiable 3 forbids outright.
-    A redirect would also change isolation and retention semantics for all 195
-    tests that take ``tmp_path``. Redacting at render time changes nothing about
+    A redirect would also change isolation and retention semantics for every
+    test that takes ``tmp_path``. Redacting at render time changes nothing about
     where a test writes; what it rewrites is a report's rendered text and crash
     location, gated on either one changing under redaction.
 
-    SCOPE, stated rather than implied, and each boundary measured by
-    tests/test_tmp_path_privacy.py rather than asserted here. This acts on the
-    setup, call and teardown reports of items under ``tests/``. Reports that
-    reach the terminal through a parallel worker need the second hook below as
-    well. NOT reached: pytest's session header, the warnings summary - which
-    pytest builds from its own warning store rather than from a report -
-    collection reports, ``--co`` output, internal errors, or anything printed
-    by a process this suite starts.
+    SCOPE, stated rather than implied. Some but NOT ALL of these boundaries are
+    measured by tests/test_tmp_path_privacy.py; the ones that are not are named
+    as such below rather than left to read as measured. This acts on the setup,
+    call and teardown reports of items under ``tests/``. Reports that reach the
+    terminal through a parallel worker need the second hook below as well.
+
+    NOT reached: pytest's session header, the warnings summary - which pytest
+    builds from its own warning store rather than from a report - collection
+    reports, ``--co`` output, and internal errors. CS-447 owns the session
+    header and the warnings summary.
+
+    REACHED, and this list was WRONG until an adversary measured it. Output
+    from a child process the suite starts IS reached whenever the child writes
+    to INHERITED stdout, because pytest captures that into the ``Captured
+    stdout call`` section and this hook rewrites ``report.sections``. The
+    earlier text claimed the opposite and claimed the boundary was measured;
+    neither held, and no test in tests/test_tmp_path_privacy.py covers a
+    child's inherited stdout. A child whose output this suite captures and
+    renders ITSELF - as the grading module's own subprocess arms do - is a
+    different case and is genuinely outside, because that text is read as data
+    rather than rendered into a report.
 
     Returns:
         The report, sanitized in place.
