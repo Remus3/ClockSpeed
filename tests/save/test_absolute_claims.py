@@ -57,28 +57,68 @@ same reasoning as contract 1 of ``test_oracle_citations``: ``synthetic.py``
 writes "literal beginning ``Clockspeed``" about a base64url literal, and a rule
 firing on that would be red against correct prose.
 
-WHAT COUNTS AS PROSE (contract 5) is three kinds, and the third was added
-after measuring what excluding it cost. A DOCSTRING and a COMMENT are obvious.
-An ASSERT MESSAGE is prose too: a reader reads it as a statement about the
-current tree, which is ADR 0008's own test for living text, and leaving it out
-would leave a place to write a banned sentence that this fence does not read -
-the one thing ADR 0008's Consequences say the rule must deny. It is not a
-theoretical hole. The second of the two quotations that ``662432d`` killed sits
-in an assert message, and a docstring-and-comment scan reported one of the two
-and passed.
+WHAT COUNTS AS PROSE (contract 5) is four kinds, and each of the last two was
+added after measuring what excluding it cost. A DOCSTRING and a COMMENT are
+obvious. An ASSERT MESSAGE is prose too: a reader reads it as a statement about
+the current tree, which is ADR 0008's own test for living text, and leaving it
+out would leave a place to write a banned sentence that this fence does not
+read - the one thing ADR 0008's Consequences say the rule must deny. It is not
+a theoretical hole. The second of the two quotations that ``662432d`` killed
+sits in an assert message, and a docstring-and-comment scan reported one of the
+two and passed.
+
+A DIRECT CALL ARGUMENT IS THE FOURTH, and contract 6 below is what found it.
+``pytest.skip("...")`` carries a sentence written for the OPERATOR to explain a
+loss, and it is not a docstring, not a comment and not an assert message, so
+three kinds left it unread. This is the channel CLASS that CS-435 shipped a
+false universal in - a warning detail string, false at four measured sites,
+which the fence could not see at all. Only a DIRECT argument counts: a string
+nested inside a dict or a tuple that is itself an argument is a data structure
+being passed rather than a sentence being written, and reading those would make
+this module red on its own grammar table.
 
 A STRING LITERAL USED AS DATA IS NOT PROSE, and that line is drawn by AST
 POSITION rather than by a scope rule. The assert message is reached through
-``ast.Assert.msg``; a module-level assignment is reached by neither route. That
-is what keeps the control corpora below INERT BY CONSTRUCTION - they are
-assignments - and a ``#`` inside one is not a comment either, because comments
-come from :mod:`tokenize`.
+``ast.Assert.msg``; a module-level assignment is reached by no prose route at
+all. That is what keeps the control corpora below INERT BY CONSTRUCTION - they
+are assignments - and a ``#`` inside one is not a comment either, because
+comments come from :mod:`tokenize`.
+
+COVERAGE IS CONSERVED (contract 6), and this is the half that five rounds of
+repair did not have. In a module named in :data:`CENSUSED_MODULES` each string
+literal is classified from ONE parse: read by a prose kind, or matched by the
+one exemption, or UNACCOUNTED - and unaccounted reddens. Comment tokens are
+accounted the same way against an independent :mod:`tokenize` pass. The claim
+is NOT that the four positions cover the language; it is that a position nobody
+anticipated unbalances a count instead of passing unread.
+
+THE EXEMPTION TURNS ON WHAT THE STRING IS, NOT ON THE SLOT IT SITS IN, and that
+is what stops it becoming a write-anything channel. A module-scope assignment
+whose value is a bare IDENTIFIER holds a token the module computes with - a
+terminator word, a counter key. The same slot holding a SENTENCE is not an
+identifier, so it is not exempt; no prose kind reads a bare assignment either,
+so it lands unaccounted and reddens. An exemption keyed on POSITION would have
+swallowed the two ``pytest.skip`` reasons along with the attribute names beside
+them, which is a hole with a control bolted to it.
+
+THE SCOPE IS DERIVED, NOT LISTED. A module declares :data:`_FENCE_MARKER` or
+:data:`_CENSUS_MARKER` at module scope, and the tuples above are asserted EQUAL
+to what a walk of the tree finds. Deleting a tuple entry disagrees with the
+walk; deleting a marker disagrees with the tuple. Narrowing a scope takes both
+edits and neither is silent on its own - which a hand-written tuple could not
+offer, since deleting the entry naming this fence's own subject used to leave
+the suite green.
 
 THE CONTROLS ARE THE POINT, because a scanner returning zero findings would
-pass the fenced scan in silence. They need no filesystem and no game.
-:func:`test_prose_is_read_from_the_three_kinds_and_not_from_a_data_literal`
+pass the fenced scan in silence.
+:func:`test_prose_is_read_from_the_four_kinds_and_not_from_a_data_literal`
 holds the extraction contract down at both ends: each kind is read, and an
-assignment is not.
+assignment is not. It needs no filesystem and no game, and neither do the
+boundary controls beside it.
+:func:`test_a_marked_claim_at_each_parse_derived_position_is_caught` does need
+the tree, because its subject is the censused module's own parse: it writes a
+marked claim into each position that parse admits, and requires the scan to
+report it or the census to lose it.
 
 THE RESIDUAL, NAMED RATHER THAN IMPLIED AWAY, past the strength limit already
 stated in contract 3:
@@ -89,6 +129,21 @@ stated in contract 3:
   reddens on another item's file would be reverted rather than obeyed. ADR 0008
   scopes its own mechanical fence the same way and calls widening it separate
   work.
+- THE CENSUS IS SCOPED NARROWER STILL, to one module, and the reason is
+  measured rather than chosen for convenience. The four positions that tile the
+  censused module leave most of THIS module's string literals unaccounted: the
+  grammar table is regexes inside a dict, the corpora are Python source held in
+  assignments, and the controls compare against bare label strings. Censusing
+  this module would take an exemption per shape, and an exemption per shape is
+  the register of pardons contract 1 refuses. What that costs is stated plainly
+  rather than implied away: a sentence written into a dict value HERE is read
+  by no channel, and no count notices.
+- A CLAIM THAT CONTINUES A SENTENCE INHERITS ITS CITATIONS. The rule's unit is
+  a sentence, and a citation anywhere in one backs the whole of it, so a marked
+  claim appended to a clause that already names a resolving test satisfies
+  contract 1. That is contract 3's limit reached from a second direction rather
+  than a fresh gap, and it is why the comment probe closes the preceding
+  fragment before writing its claim.
 - A SYNONYM ESCAPES, and this is the residual most likely to be mistaken for a
   stronger result than it is. Swapping a universal determiner for a
   distributive one - "each" in place of the listed marker - satisfies the fence
@@ -157,6 +212,12 @@ _CENSUS_MARKER: Final = "CS420_CENSUSED"
 #: :func:`prose_paragraphs` and graded; an EXEMPT kind is not read, and an
 #: exempt kind carries a control pinning its BOUNDARY rather than its centre.
 _PROSE_KINDS: Final = ("docstring", "assert", "argument")
+
+#: The kinds :func:`prose_paragraphs` may emit: the string kinds above plus the
+#: comment channel, which comes from :mod:`tokenize` rather than from the
+#: syntax tree and so has no string literal to census. These are contract 5's
+#: four kinds.
+_PARAGRAPH_KINDS: Final = (*_PROSE_KINDS, "comment")
 
 #: The one exempt kind. A module-scope assignment whose value is a bare Python
 #: IDENTIFIER is a token the module computes with - a terminator word, a
@@ -255,51 +316,73 @@ class ProseParagraph:
     text: str
 
 
-def _string_constant(node: ast.AST | None) -> ast.Constant | None:
-    """The node itself when it is a string literal, and ``None`` otherwise.
+@dataclass(frozen=True)
+class StringLiteral:
+    """One string literal, with its text already narrowed to ``str``.
 
-    Narrowing happens HERE, where the isinstance chain is the proof, so a
-    caller gets a typed node back instead of needing a cast.
+    ``ast.Constant.value`` is typed as a union across the literal types, so a
+    function handing back a bare node makes each caller re-prove that the value
+    is text. The narrowing is done ONCE, where the isinstance chain is the
+    proof, and carried on this pair.
+
+    Attributes:
+        node: The literal, whose identity keys the census classification and
+            whose ``value`` the mutation control rewrites.
+        text: Its text.
+    """
+
+    node: ast.Constant
+    text: str
+
+    @property
+    def lineno(self) -> int:
+        """The line the literal starts on."""
+        return self.node.lineno
+
+
+def _string_literal(node: ast.AST | None) -> StringLiteral | None:
+    """Pair a node with its text when it is a string literal.
 
     Args:
         node: Any syntax node, or ``None`` for an absent optional field.
 
     Returns:
-        The node when it is a ``str`` constant, else ``None``.
+        The pair when the node is a ``str`` constant, else ``None``.
     """
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        return node
+        return StringLiteral(node=node, text=node.value)
     return None
 
 
-def _string_constants(tree: ast.Module) -> list[ast.Constant]:
+def _string_literals(tree: ast.Module) -> list[StringLiteral]:
     """The string literals of a module, in a stable order.
 
     Args:
         tree: A parsed module.
 
     Returns:
-        The nodes, sorted by position, which is the census population.
+        The literals, sorted by position, which is the census population.
     """
-    found = [node for node in ast.walk(tree) if _string_constant(node) is not None]
-    return sorted(found, key=lambda node: (node.lineno, node.col_offset))
+    found = [_string_literal(node) for node in ast.walk(tree)]
+    present = [literal for literal in found if literal is not None]
+    return sorted(present, key=lambda literal: (literal.node.lineno, literal.node.col_offset))
 
 
-def _docstring_nodes(tree: ast.Module) -> list[ast.Constant]:
+def _docstring_nodes(tree: ast.Module) -> list[StringLiteral]:
     """The docstring literal of each documentable node.
 
     Args:
         tree: A parsed module.
 
     Returns:
-        One node per docstring, in walk order.
+        One literal per docstring, in walk order.
     """
-    found: list[ast.Constant] = []
+    found: list[StringLiteral] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
             continue
         first = node.body[0] if node.body else None
-        literal = _string_constant(first.value) if isinstance(first, ast.Expr) else None
+        literal = _string_literal(first.value) if isinstance(first, ast.Expr) else None
         if literal is not None:
             found.append(literal)
     return found
@@ -316,7 +399,7 @@ def _docstring_literals(tree: ast.Module) -> list[tuple[int, str]]:
         because ``ast.get_docstring`` discards position, and a finding without
         one sends the reader hunting.
     """
-    return [(node.lineno, node.value) for node in _docstring_nodes(tree)]
+    return [(literal.lineno, literal.text) for literal in _docstring_nodes(tree)]
 
 
 def _assert_messages(tree: ast.Module) -> list[tuple[int, str]]:
@@ -345,7 +428,7 @@ def _assert_messages(tree: ast.Module) -> list[tuple[int, str]]:
     return found
 
 
-def _argument_nodes(tree: ast.Module) -> list[ast.Constant]:
+def _argument_nodes(tree: ast.Module) -> list[StringLiteral]:
     """String literals passed DIRECTLY as an argument of a call.
 
     This is contract 5's fourth prose kind. ``pytest.skip("...")`` carries a
@@ -365,12 +448,12 @@ def _argument_nodes(tree: ast.Module) -> list[ast.Constant]:
     Returns:
         The argument nodes, in walk order.
     """
-    found: list[ast.Constant] = []
+    found: list[StringLiteral] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
         for arg in (*node.args, *(keyword.value for keyword in node.keywords)):
-            literal = _string_constant(arg)
+            literal = _string_literal(arg)
             if literal is not None:
                 found.append(literal)
     return found
@@ -466,15 +549,15 @@ def prose_paragraphs(source: str) -> list[ProseParagraph]:
         text = citations.normalise_lines(message.splitlines())
         if text:
             out.append(ProseParagraph(lineno=lineno, kind="assert", text=text))
-    for node in _argument_nodes(tree):
+    for literal in _argument_nodes(tree):
         # An argument that sits INSIDE an assert message is already read as one,
         # and the kind map is what decides that, so a sentence in that position
         # is reported once rather than twice under two labels.
-        if kinds.get(id(node)) != "argument":
+        if kinds.get(id(literal.node)) != "argument":
             continue
-        text = citations.normalise_lines(node.value.splitlines())
+        text = citations.normalise_lines(literal.text.splitlines())
         if text:
-            out.append(ProseParagraph(lineno=node.lineno, kind="argument", text=text))
+            out.append(ProseParagraph(lineno=literal.lineno, kind="argument", text=text))
     return out
 
 
@@ -654,21 +737,21 @@ def _string_kinds(tree: ast.Module) -> dict[int, str]:
         read as prose; a label in :data:`_EXEMPT_KINDS` is not.
     """
     kinds: dict[int, str] = {}
-    for node in _docstring_nodes(tree):
-        kinds.setdefault(id(node), "docstring")
+    for literal in _docstring_nodes(tree):
+        kinds.setdefault(id(literal.node), "docstring")
     for node in ast.walk(tree):
         if isinstance(node, ast.Assert) and node.msg is not None:
             for part in ast.walk(node.msg):
-                if _string_constant(part) is not None:
+                if _string_literal(part) is not None:
                     kinds.setdefault(id(part), "assert")
-    for node in _argument_nodes(tree):
-        kinds.setdefault(id(node), "argument")
+    for literal in _argument_nodes(tree):
+        kinds.setdefault(id(literal.node), "argument")
     for node in tree.body:
         if not isinstance(node, ast.Assign | ast.AnnAssign):
             continue
-        value = _string_constant(node.value)
-        if value is not None and value.value.isidentifier():
-            kinds.setdefault(id(value), _MODULE_CONSTANT)
+        value = _string_literal(node.value)
+        if value is not None and value.text.isidentifier():
+            kinds.setdefault(id(value.node), _MODULE_CONSTANT)
     return kinds
 
 
@@ -711,14 +794,14 @@ def string_census(source: str) -> StringCensus:
     extracted: list[tuple[int, str]] = []
     exempt: list[tuple[int, str]] = []
     unaccounted: list[tuple[int, str]] = []
-    for node in _string_constants(tree):
-        kind = kinds.get(id(node))
+    for literal in _string_literals(tree):
+        kind = kinds.get(id(literal.node), "")
         if kind in _PROSE_KINDS:
-            extracted.append((node.lineno, kind))
+            extracted.append((literal.lineno, kind))
         elif kind in _EXEMPT_KINDS:
-            exempt.append((node.lineno, kind))
+            exempt.append((literal.lineno, kind))
         else:
-            unaccounted.append((node.lineno, node.value[:_QUOTE_WIDTH]))
+            unaccounted.append((literal.lineno, literal.text[:_QUOTE_WIDTH]))
     return StringCensus(tuple(extracted), tuple(exempt), tuple(unaccounted))
 
 
@@ -728,6 +811,13 @@ def comment_census(source: str) -> dict[str, tuple[int, ...]]:
     The total is taken from :mod:`tokenize` directly rather than from the run
     grouper, so a token the grouper drops shows up as a shortfall rather than
     going uncounted.
+
+    WHICH FAULT TO SIMULATE WHEN GRADING THIS. The ``unaccounted`` bucket is
+    reachable only while the grouper is losing a token, because the grouper
+    walks the same token stream. Perturbing the ``seen.get`` default therefore
+    leaves the bucket unexercised and the suite green - measured - and says
+    little about whether the bucket works. The fault to inject is the grouper
+    DROPPING a class of token, such as a trailing comment or a ``#:`` line.
 
     Args:
         source: A module's full text.
@@ -785,13 +875,13 @@ def string_position_mutants(source: str, claim: str) -> list[tuple[int, str, str
     tree = ast.parse(source)
     kinds = _string_kinds(tree)
     out: list[tuple[int, str, str]] = []
-    for node in _string_constants(tree):
-        original = node.value
-        node.value = claim
+    for literal in _string_literals(tree):
+        literal.node.value = claim
         try:
-            out.append((node.lineno, kinds.get(id(node), "unaccounted"), ast.unparse(tree)))
+            kind = kinds.get(id(literal.node), "unaccounted")
+            out.append((literal.lineno, kind, ast.unparse(tree)))
         finally:
-            node.value = original
+            literal.node.value = literal.text
     return out
 
 
@@ -963,6 +1053,7 @@ VALUE = "IT NEVER RAISES inside a data literal is data, and stays unread."
 
 def check(value: int) -> None:
     """A docstring on a function, which is a third place prose hides."""
+    skip("a skip reason telling the operator the walk always resynchronises")
     assert value, "an assert message claiming the walk is always synchronised"
 '''
 
@@ -1287,10 +1378,11 @@ def test_the_scanner_reddens_on_a_reinserted_absolute() -> None:
         "line and the second paragraph carry a quantifier."
     )
     kinds = {f.kind for f in findings}
-    assert {"docstring", "comment", "assert"} <= kinds, (
+    assert set(_PARAGRAPH_KINDS) <= kinds, (
         f"the scanner read only {sorted(kinds)} out of the red control, which "
-        "carries a quantifier in each of contract 5's three prose kinds. A kind "
-        "the scan skips is a place the banned sentence may be written."
+        f"carries a quantifier in each of contract 5's kinds "
+        f"{sorted(_PARAGRAPH_KINDS)}. A kind the scan skips is a place the "
+        "banned sentence may be written."
     )
 
 
@@ -1330,11 +1422,14 @@ def test_a_dead_full_citation_in_prose_is_reported() -> None:
     )
 
 
-def test_prose_is_read_from_the_three_kinds_and_not_from_a_data_literal() -> None:
+def test_prose_is_read_from_the_four_kinds_and_not_from_a_data_literal() -> None:
     paragraphs = prose_paragraphs(_CONTROL_RED)
     kinds = {p.kind for p in paragraphs}
-    assert kinds == {"docstring", "comment", "assert"}, (
-        f"the extractor did not recover contract 5's three prose kinds: {sorted(kinds)}."
+    assert kinds == set(_PARAGRAPH_KINDS), (
+        f"the extractor did not recover contract 5's prose kinds: it read "
+        f"{sorted(kinds)} where {sorted(_PARAGRAPH_KINDS)} are declared. The "
+        "corpus carries one of each, so a shortfall is a channel that has "
+        "stopped reading rather than a corpus that stopped covering."
     )
 
     carriers = [p.kind for p in paragraphs if "IT NEVER RAISES" in p.text]
