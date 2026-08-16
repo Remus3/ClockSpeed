@@ -1,6 +1,6 @@
-"""Tests for the version-pin guard in tools/drift_guard.py - guard (h).
+"""Tests for the version-pin guard (h) and the work-item guard (i).
 
-THE CRITERION THIS MODULE GRADES, verbatim from ROADMAP.md CS-200: "the drift
+THE CRITERION GUARD (h) GRADES, verbatim from ROADMAP.md CS-200: "the drift
 guard goes red when the pin is manually corrupted and green after re-extract".
 ``test_a_corrupted_pin_goes_red_and_a_regenerated_pin_goes_green_again`` is
 that transcript, and it asserts the process EXIT CODE at every step rather
@@ -20,6 +20,37 @@ that has never had the game on it. Nothing here reads the real install, the
 real save directory or the operator's local configuration - the resolver is
 pointed at a path under tmp_path in every test through the environment
 override that `clockspeed/data/locate.py` publishes.
+
+THE CRITERION GUARD (i) GRADES, verbatim from ROADMAP.md CS-211: a guard that
+"fails when any `CS-nnn` appears as an OPEN entry in `ROADMAP.md` while also
+carrying a closure heading in `docs/LEDGER.md`", and when any ID is recorded in
+more than one owner file, "with a control proving the guard fires on a planted
+duplicate rather than passing on an empty scan".
+
+THE TWO HALVES ARE GRADED ON DIFFERENT MATERIAL, ON PURPOSE. The FIRING half
+runs on synthetic owner files built under tmp_path: a plant has to be planted,
+and planting into the tracked ROADMAP.md or docs/LEDGER.md would mean a test
+that edits the repository it is measuring. The GREEN half runs on the REAL
+tree, because the failure it protects against is a guard red on correct history
+- an ID legitimately reaches `docs/LEDGER.md` before it closes, since CLAUDE.md
+section 6 requires a frozen-file grant to be recorded BEFORE the edit - and a
+fixture proves nothing about the file the operator actually reads.
+
+WHY THE REAL-TREE CONTROLS DERIVE THEIR OWN SETS rather than listing the IDs
+they were written for. A list of IDs is stale as soon as one of them closes,
+and a green about a stale list is a green about nothing. Each control below
+derives its population from the tree with its own patterns - not by importing
+the guard's, because two derivations from one regex agree by construction - and
+asserts that population is non-empty before asserting anything about it.
+
+WHY THE SYNTHETIC OWNER FILES ARE NOT NAMED AFTER THE REAL ONES. The same
+hazard, one level up: the fixture's doctrine sentence declares owner files this
+repository has never had, so a guard that BELIEVED a four-entry map instead of
+parsing one cannot read the fixture at all. When the fixture restated the real
+four paths verbatim, a hardcoded map and a parse agreed by construction and no
+test in this module could tell them apart. Synthetic ids stay in the CS-9nn and
+CS-G9n blocks, which the phase items - CS-0nn through CS-7nn - cannot reach, so
+a stray fixture string can never be mistaken for a real item in a grep.
 """
 
 from __future__ import annotations
@@ -707,3 +738,825 @@ def test_the_version_pin_guard_reports_an_unreadable_pin_without_naming_it(
     assert_reported_without_the_filename(
         " ".join([*guard["detail"], *(skip["reason"] for skip in skips)])
     )
+
+
+# ---------------------------------------------------------------------------
+# Guard (i) - work-item ownership
+# ---------------------------------------------------------------------------
+
+WORK_ITEM_GUARD_ID = "i"
+
+#: State mapped to the owner path the FIXTURE doctrine declares.
+#:
+#: NONE OF THESE IS A PATH THIS REPOSITORY USES, and that is the point rather
+#: than an aesthetic choice. A fixture that restates the real doctrine's four
+#: paths verbatim is packed with exactly the belief the guard is unpacked with,
+#: so a map HARDCODED to those paths reads the fixture as well as a parse of the
+#: doctrine does, and every test built on it passes on both. The fixture would
+#: then be grading the guard against its own assumptions. Naming the owner files
+#: something the tree has never heard of is what makes the parse load-bearing,
+#: and :func:`test_the_fixture_owner_paths_are_not_the_paths_this_repository_uses`
+#: keeps it that way as the real doctrine changes.
+WORK_ITEM_OWNERS = {
+    "OPEN": "PLAN.md",
+    "ASPIRATIONAL": "WISHES.md",
+    "GATED": "HOLDS.md",
+    "CLOSED": "notes/DONE.md",
+}
+
+_WORK_ITEM_CLAUDE_MD = """# Fake repository for the drift guard tests
+
+## 5. Session shape
+
+Work-item states, one per item, one file each: OPEN in `PLAN.md`, ASPIRATIONAL in
+`WISHES.md`, GATED in `HOLDS.md`, CLOSED in `notes/DONE.md` plus a Settled line
+here if it must never reopen.
+
+## 6. Frozen files
+
+- `LICENSE`
+"""
+
+_WORK_ITEM_OPEN = """# Fake open-work file
+
+CS-901 - a synthetic open item - acceptance: none - tier: 1
+CS-902 - a synthetic open item whose only ledger record is a grant - acceptance: none - tier: 1 -
+NOTE: this line mentions CS-903 in its prose, which is a MENTION and not ownership.
+"""
+
+_WORK_ITEM_ASPIRATIONAL = """# Fake aspirational file
+
+- A synthetic aspirational line, carrying no ID at all.
+"""
+
+_WORK_ITEM_GATED = """# Fake gated file
+
+### CS-G91 - a synthetic gated item
+
+Condition: a synthetic external condition. CS-901 is mentioned here and not owned.
+"""
+
+_WORK_ITEM_CLOSED = """# Fake closure file
+
+## Entries
+
+<!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-16 - CS-902 - FROZEN-FILE GRANT ISSUED by the OPERATOR for `LICENSE`
+Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the
+edit, not a completion record. The item it serves is filed in `PLAN.md` as CS-902;
+this entry does not close CS-902.
+
+### 2026-08-16 - CS-903 - a synthetic item that genuinely closed
+Verification: a synthetic pointer.
+"""
+
+_LEDGER_INSERT_ANCHOR = "<!-- Newest first. Append new entries immediately below this line. -->"
+
+
+def make_work_item_repo(root: Path) -> Path:
+    """Build a tree carrying all four work-item owner files, and no collision.
+
+    CS-901 is open only. CS-902 is open AND carries a ledger record, which is
+    the grant-before-closure sequence - the shape that has to stay green.
+    CS-903 is closed only. CS-G91 is gated only.
+
+    Args:
+        root: Directory to build in.
+
+    Returns:
+        ``root``, for chaining.
+    """
+    make_repo(root)
+    (root / "CLAUDE.md").write_text(_WORK_ITEM_CLAUDE_MD, encoding="utf-8")
+    for state, body in (
+        ("OPEN", _WORK_ITEM_OPEN),
+        ("ASPIRATIONAL", _WORK_ITEM_ASPIRATIONAL),
+        ("GATED", _WORK_ITEM_GATED),
+        ("CLOSED", _WORK_ITEM_CLOSED),
+    ):
+        path = root / WORK_ITEM_OWNERS[state]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+    return root
+
+
+@pytest.fixture
+def work_items(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A fake repository whose four owner files hold no collision.
+
+    Args:
+        tmp_path: pytest temporary directory.
+        monkeypatch: pytest monkeypatch fixture.
+
+    Returns:
+        The fake repository root.
+    """
+    root = make_work_item_repo(tmp_path / "repo")
+    monkeypatch.setattr(drift_guard, "repo_root", lambda: root)
+    no_install(monkeypatch, tmp_path)
+    return root
+
+
+def plant_ledger_heading(root: Path, heading: str) -> str:
+    """Insert a heading as the NEWEST ledger entry, byte-verifying it applied.
+
+    Args:
+        root: The fake repository root.
+        heading: The full ``### ...`` line to plant.
+
+    Returns:
+        The ledger text as it was BEFORE the plant, so a caller can restore it
+        and re-measure.
+
+    Raises:
+        AssertionError: The insert anchor was absent or the text did not move.
+            A mutation that fails to apply looks exactly like a guard that
+            failed to fire (CONVENTIONS.md section 7.2), so this refuses to
+            hand back a plant it did not make.
+    """
+    path = root / WORK_ITEM_OWNERS["CLOSED"]
+    before = path.read_text(encoding="utf-8")
+    assert _LEDGER_INSERT_ANCHOR in before, (
+        "the ledger insert anchor is absent, so this plant would land nowhere"
+    )
+    after = before.replace(
+        _LEDGER_INSERT_ANCHOR,
+        f"{_LEDGER_INSERT_ANCHOR}\n{heading}\nVerification: a synthetic pointer.\n",
+        1,
+    )
+    assert after != before, "the plant did not apply"
+    path.write_text(after, encoding="utf-8", newline="\n")
+    return before
+
+
+def restore_ledger(root: Path, text: str) -> None:
+    """Put a ledger back the way :func:`plant_ledger_heading` found it.
+
+    Args:
+        root: The fake repository root.
+        text: The text returned by the plant.
+    """
+    (root / WORK_ITEM_OWNERS["CLOSED"]).write_text(text, encoding="utf-8", newline="\n")
+
+
+def test_a_planted_duplicate_is_reported_as_drift(
+    work_items: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The control. It has to prove the guard FIRES, not that it RUNS.
+
+    A sweep that finds nothing is indistinguishable from a sweep that looks for
+    nothing, so the transcript is planted-red then restored-green: the red has
+    to be caused BY the plant and has to go away when the plant does.
+
+    DETECTED IS SEPARATED FROM CRASHED. A guard that threw, or that bailed
+    before reading an owner file, also reports FAIL - so the assertions below
+    require the report to NAME the planted id and BOTH files it collides
+    across, and to still show a scanned population. A red carrying none of
+    those is a crash wearing a verdict.
+    """
+    before_code, before_report = run_main(capsys)
+    assert (guard_of(before_report, WORK_ITEM_GUARD_ID)["status"], before_code) == ("PASS", 0), (
+        "the tree was already red before anything was planted, so a red afterwards "
+        "would prove nothing about the plant"
+    )
+
+    original = plant_ledger_heading(
+        work_items, "### 2026-08-16 - CS-901 - a synthetic closure, planted"
+    )
+    code, report = run_main(capsys)
+    guard = guard_of(report, WORK_ITEM_GUARD_ID)
+    rendered = "\n".join(guard["detail"])
+
+    assert guard["status"] == "FAIL"
+    assert code != 0, "a collision has to be a non-zero exit code, not only a red word"
+    assert report["verdict"] == "DRIFT"
+    assert WORK_ITEM_GUARD_ID in report["drift"]
+    assert "CS-901" in rendered, (
+        f"the guard went red without naming the planted id. It said: {rendered}"
+    )
+    assert WORK_ITEM_OWNERS["OPEN"] in rendered, (
+        f"the guard did not name the file the id is OPEN in: {rendered}"
+    )
+    assert WORK_ITEM_OWNERS["CLOSED"] in rendered, (
+        f"the guard did not name the file the id is CLOSED in: {rendered}"
+    )
+    assert any("distinct ids found" in line for line in guard["detail"]), (
+        "the guard reported no scanned population, so this red is a crash rather than a detection"
+    )
+
+    restore_ledger(work_items, original)
+    code, report = run_main(capsys)
+    assert guard_of(report, WORK_ITEM_GUARD_ID)["status"] == "PASS"
+    assert code == 0
+
+
+def test_a_planted_duplicate_between_two_non_ledger_owner_files_is_reported(
+    work_items: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The second acceptance clause, on a pair that is not open-and-closed.
+
+    An item can sit in the open file and the gated file at once, so the second
+    clause is graded on that pair rather than on the open-and-closed pair the
+    first clause already covers.
+    """
+    gated = work_items / WORK_ITEM_OWNERS["GATED"]
+    before = gated.read_text(encoding="utf-8")
+    after = before + "\n### CS-901 - the same synthetic item, now also gated\n"
+    assert after != before, "the plant did not apply"
+    gated.write_text(after, encoding="utf-8", newline="\n")
+
+    code, report = run_main(capsys)
+    guard = guard_of(report, WORK_ITEM_GUARD_ID)
+    rendered = "\n".join(guard["detail"])
+
+    assert guard["status"] == "FAIL"
+    assert code != 0
+    assert "CS-901" in rendered
+    assert WORK_ITEM_OWNERS["GATED"] in rendered, (
+        f"the guard did not name the gated half of the pair: {rendered}"
+    )
+    assert WORK_ITEM_OWNERS["OPEN"] in rendered, (
+        f"the guard did not name the open half of the pair: {rendered}"
+    )
+
+
+def test_a_ledger_record_that_says_the_item_did_not_close_leaves_it_open(
+    work_items: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The sequencing trap, on a synthetic tree, in both directions.
+
+    CS-902 is open AND carries a ledger record, and the record says in its own
+    words that it does not close the item. Stripping that sentence out of the
+    words that it does not close the item. Stripping that sentence out of the
+    record, and leaving the rest of the tree alone, turns the guard red - which
+    is what pins the declaration as the thing being read.
+    """
+    code, report = run_main(capsys)
+    assert (guard_of(report, WORK_ITEM_GUARD_ID)["status"], code) == ("PASS", 0)
+
+    path = work_items / WORK_ITEM_OWNERS["CLOSED"]
+    before = path.read_text(encoding="utf-8")
+    after = before.replace("not a completion record", "a completion record").replace(
+        "this entry does not close CS-902", "this entry closes CS-902"
+    )
+    assert after != before, "the mutation did not apply"
+    path.write_text(after, encoding="utf-8", newline="\n")
+
+    code, report = run_main(capsys)
+    guard = guard_of(report, WORK_ITEM_GUARD_ID)
+    assert guard["status"] == "FAIL", (
+        "with its non-closure declaration removed the record is an ordinary closure, "
+        "and an ordinary closure beside a live roadmap entry is the CS-204 shape"
+    )
+    assert "CS-902" in "\n".join(guard["detail"])
+    assert code != 0
+
+
+def test_a_closure_that_a_later_record_reopens_is_not_owned_by_the_ledger(
+    work_items: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Newest-first is read as the ledger states it, not as any-mention.
+
+    An item that closed and was then reopened by a correction is OPEN. Planting
+    the closure alone is red; planting a newer correction above it is green
+    again, with no per-item knowledge anywhere in the guard.
+    """
+    plant_ledger_heading(work_items, "### 2026-08-16 - CS-901 - a synthetic closure, planted")
+    code, report = run_main(capsys)
+    assert (guard_of(report, WORK_ITEM_GUARD_ID)["status"], code) == ("FAIL", 1)
+
+    plant_ledger_heading(
+        work_items,
+        "### 2026-08-17 - CS-901 - CORRECTION: the closure below is wrong, item is reopened",
+    )
+    code, report = run_main(capsys)
+    assert guard_of(report, WORK_ITEM_GUARD_ID)["status"] == "PASS", (
+        "the newest record reopens the item, so the older closure below it no longer "
+        "makes the ledger an owner"
+    )
+    assert code == 0
+
+
+def test_a_tree_with_no_owner_file_declaration_warns_rather_than_passing(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An empty scan says so instead of reporting a green.
+
+    The guard-(h) fixture writes a CLAUDE.md with no work-item sentence in it,
+    so this is the vacuous case arriving by itself rather than being staged.
+    """
+    code, report = run_main(capsys)
+    guard = guard_of(report, WORK_ITEM_GUARD_ID)
+
+    assert guard["status"] == "WARN"
+    assert code == 0, "a tree with nothing to scan is not DRIFT"
+    assert any(drift_guard.WORK_ITEM_ANCHOR in skip["reason"] for skip in report["skipped"]), (
+        "a guard that scanned nothing has to appear in the skip list saying why"
+    )
+    assert (repo / "CLAUDE.md").is_file()
+
+
+def test_declared_owner_files_that_are_all_absent_warn_rather_than_passing(
+    work_items: Path,
+) -> None:
+    """A declaration that names four files none of which are there is not green.
+
+    This is the branch a scope restriction hides in. The doctrine sentence still
+    parses, so the guard believes it has a scan population; the files behind it
+    are gone, so it has none. Passing here would report CLEAN over a tree where
+    every collision is undetectable.
+    """
+    for relative in WORK_ITEM_OWNERS.values():
+        (work_items / relative).unlink()
+
+    guard, skips = drift_guard.guard_work_items(work_items)
+
+    assert guard["status"] == "WARN", (
+        f"the guard reported {guard['status']} with no owner file readable: {guard['detail']}"
+    )
+    assert any("proved nothing on this run" in line for line in guard["detail"])
+    assert len(skips) >= drift_guard._COLLISION_FLOOR, (  # noqa: SLF001
+        f"a file the doctrine names and the tree lacks has to reach the skip list: {skips}"
+    )
+
+
+def test_owner_files_holding_no_id_at_all_warn_rather_than_passing(work_items: Path) -> None:
+    """Present, readable, and empty of items is still a scan that proved nothing."""
+    for relative in WORK_ITEM_OWNERS.values():
+        (work_items / relative).write_text("# nothing here\n", encoding="utf-8", newline="\n")
+
+    guard, _skips = drift_guard.guard_work_items(work_items)
+
+    assert guard["status"] == "WARN", (
+        f"four readable owner files carrying zero ids reported {guard['status']}: {guard['detail']}"
+    )
+    assert any("proved nothing on this run" in line for line in guard["detail"])
+
+
+def test_deleting_the_doctrine_sentence_stops_the_scan_loudly(work_items: Path) -> None:
+    """The owner-file set is derived, so deleting its source is loud.
+
+    A hand-written tuple of owner files would keep scanning here, which is the
+    scope-restriction failure: the list outlives the doctrine it copied.
+    """
+    guard, _skips = drift_guard.guard_work_items(work_items)
+    assert guard["status"] == "PASS"
+
+    path = work_items / "CLAUDE.md"
+    before = path.read_text(encoding="utf-8")
+    after = "\n".join(
+        line for line in before.splitlines() if drift_guard.WORK_ITEM_ANCHOR not in line
+    )
+    assert after != before, "the deletion did not apply"
+    path.write_text(after, encoding="utf-8", newline="\n")
+
+    guard, skips = drift_guard.guard_work_items(work_items)
+    assert guard["status"] == "WARN"
+    assert any(drift_guard.WORK_ITEM_ANCHOR in skip["reason"] for skip in skips)
+
+
+# ---------------------------------------------------------------------------
+# Guard (i) against the REAL tree - the natural controls
+# ---------------------------------------------------------------------------
+#
+# The oracles below are derived here with their own patterns rather than by
+# importing the guard's. Two derivations from one regex agree by construction
+# and prove nothing about the tree.
+
+_REAL_ROADMAP_ENTRY = re.compile(r"^(CS-G?\d{2,})\s+-\s", re.MULTILINE)
+_REAL_LEDGER_HEADING = re.compile(r"^###\s+\d{4}-\d{2}-\d{2}\s+-\s+([^\n]*?)\s+-\s", re.MULTILINE)
+_REAL_ID = re.compile(r"CS-G?\d{2,}")
+
+
+def real_roadmap_entries(repo_root: Path) -> set[str]:
+    """IDs the real ROADMAP.md carries as ENTRY heads.
+
+    Args:
+        repo_root: The repository root.
+
+    Returns:
+        The owned IDs.
+    """
+    text = (repo_root / "ROADMAP.md").read_text(encoding="utf-8")
+    return set(_REAL_ROADMAP_ENTRY.findall(text))
+
+
+def real_ledger_heading_ids(repo_root: Path) -> set[str]:
+    """IDs named at the head of a real docs/LEDGER.md record, closure or not.
+
+    Args:
+        repo_root: The repository root.
+
+    Returns:
+        Every ID appearing in a record heading.
+    """
+    text = (repo_root / "docs" / "LEDGER.md").read_text(encoding="utf-8")
+    return {item for head in _REAL_LEDGER_HEADING.findall(text) for item in _REAL_ID.findall(head)}
+
+
+def test_the_real_tree_carries_ids_in_both_the_roadmap_and_the_ledger(repo_root: Path) -> None:
+    """The floor. Without this the green below is a claim about an empty set.
+
+    This is the sequencing trap standing in the tree rather than staged in a
+    fixture: a frozen-file grant is recorded BEFORE the edit it authorises, so
+    an item is legitimately named in the ledger while still open. CS-436's
+    2026-08-16 grant is the instance that earned this test; the assertion
+    quantifies over whatever the tree holds so that it survives that item
+    closing.
+    """
+    overlap = real_roadmap_entries(repo_root) & real_ledger_heading_ids(repo_root)
+    assert overlap, (
+        "no open roadmap item is named anywhere in the ledger, so the two tests "
+        "below are green about nothing. If the tree genuinely has no such item, "
+        "this fixture-free control has to be replaced by a staged one rather than "
+        "deleted."
+    )
+
+
+def test_the_real_tree_is_green_on_every_open_item_the_ledger_already_names(
+    repo_root: Path,
+) -> None:
+    """Green on correct history, and it says WHY for each id it forgives.
+
+    A guard red here would be red against a grant record that CLAUDE.md section
+    6 REQUIRES to exist before the edit. That is the shape that gets switched
+    off rather than obeyed, so it is graded on the real file rather than on a
+    fixture.
+    """
+    overlap = real_roadmap_entries(repo_root) & real_ledger_heading_ids(repo_root)
+    guard, _skips = drift_guard.guard_work_items(repo_root)
+    rendered = "\n".join(guard["detail"])
+
+    assert guard["status"] == "PASS", (
+        f"the work-item guard is red on the tree as it stands. Ids named in both "
+        f"the roadmap and the ledger right now: {sorted(overlap)}. Detail:\n{rendered}"
+    )
+    unexplained = [item for item in sorted(overlap) if item not in rendered]
+    assert not unexplained, (
+        f"{unexplained} are open AND named in the ledger, and the guard reported no "
+        "reason for treating them as open. A forgiveness with no stated basis is an "
+        "allowlist."
+    )
+
+
+def test_an_id_merely_mentioned_in_a_roadmap_note_is_not_owned_there(repo_root: Path) -> None:
+    """Mention is not ownership, measured on the real roadmap.
+
+    A roadmap NOTE cites the closed items that earned the entry - CS-211's own
+    NOTE is written around one - so a guard matching an ID anywhere in the file
+    would report those citations as collisions.
+    """
+    text = (repo_root / "ROADMAP.md").read_text(encoding="utf-8")
+    mentioned = set(_REAL_ID.findall(text)) - real_roadmap_entries(repo_root)
+    guard, _skips = drift_guard.guard_work_items(repo_root)
+    closed_elsewhere = mentioned & real_ledger_heading_ids(repo_root)
+
+    assert closed_elsewhere, (
+        "the roadmap mentions no id that the ledger also names, so this control "
+        "has nothing to discriminate and its green means nothing"
+    )
+    assert guard["status"] == "PASS", (
+        f"ids mentioned but not owned by the roadmap: {sorted(closed_elsewhere)}. "
+        "Each is cited in the prose of an entry it is not the subject of."
+    )
+
+
+def test_the_real_scan_population_is_non_empty_across_the_owner_files(repo_root: Path) -> None:
+    """A floor under the scan itself, so a silent zero cannot pass as green."""
+    guard, _skips = drift_guard.guard_work_items(repo_root)
+    census = [line for line in guard["detail"] if " owns " in line]
+    owning = [line for line in census if not line.endswith("owns 0 id(s)")]
+
+    assert len(census) >= drift_guard._COLLISION_FLOOR, (  # noqa: SLF001
+        f"only {len(census)} owner file(s) were read. A collision needs two, so "
+        f"below that the cross-file check is vacuous by construction: {census}"
+    )
+    assert len(owning) >= drift_guard._COLLISION_FLOOR, (  # noqa: SLF001
+        f"only {len(owning)} owner file(s) actually own an id: {census}"
+    )
+    assert any("distinct ids found" in line for line in guard["detail"])
+
+
+# ---------------------------------------------------------------------------
+# Guard (i) - the forgiveness predicate is SCOPED to the record's own item
+# ---------------------------------------------------------------------------
+#
+# A non-closure declaration is an EXEMPTION, and an exemption that can be
+# triggered by prose written for some other purpose is an allowlist nobody
+# audited. The three tests below are the three ways a document-wide phrase
+# search grants one: a sentence about a DIFFERENT item, a GENERIC sentence
+# about no item, and a sentence belonging to a LATER heading absorbed into the
+# record above. Each plants an ordinary CS-204-shaped closure - open in one
+# owner file, closed in another - so a guard that forgives it is green on the
+# exact defect the item was filed for.
+
+
+def plant_ledger_record(root: Path, record: str) -> None:
+    """Insert a whole record, heading and body, as the NEWEST ledger entry.
+
+    :func:`plant_ledger_heading` supplies its own one-line body, which is the
+    wrong instrument when the BODY is the thing under test.
+
+    Args:
+        root: The fake repository root.
+        record: The record text, starting with its ``###`` heading line.
+
+    Raises:
+        AssertionError: The insert anchor was absent or the text did not move.
+            A plant that fails to apply looks exactly like a guard that failed
+            to fire, so this refuses to leave one unnoticed.
+    """
+    path = root / WORK_ITEM_OWNERS["CLOSED"]
+    before = path.read_text(encoding="utf-8")
+    assert _LEDGER_INSERT_ANCHOR in before, (
+        "the ledger insert anchor is absent, so this plant would land nowhere"
+    )
+    after = before.replace(_LEDGER_INSERT_ANCHOR, f"{_LEDGER_INSERT_ANCHOR}\n{record}\n", 1)
+    assert after != before, "the plant did not apply"
+    path.write_text(after, encoding="utf-8", newline="\n")
+
+
+def work_item_guard(root: Path) -> tuple[str, str]:
+    """Run guard (i) against a root and return its status and rendered detail.
+
+    Args:
+        root: The repository root to scan.
+
+    Returns:
+        ``(status, rendered detail)``.
+    """
+    guard, _skips = drift_guard.guard_work_items(root)
+    return guard["status"], "\n".join(guard["detail"])
+
+
+def test_a_non_closure_sentence_about_a_different_item_does_not_forgive_a_closure(
+    work_items: Path,
+) -> None:
+    """A true sentence about ANOTHER item must not exempt this record.
+
+    This is the CS-204 shape with one ordinary sentence added. CS-901 is open
+    in the roadmap and this record closes it; the record also remarks, truly,
+    that a different item is untouched. Reading the remark as this record's
+    disposition forgives a real collision, and does it silently.
+    """
+    assert work_item_guard(work_items)[0] == "PASS", "the tree was red before the plant"
+
+    plant_ledger_record(
+        work_items,
+        "### 2026-08-16 - CS-901 - a synthetic closure, planted\n"
+        "Verification: a synthetic pointer. CS-903 stays open and is untouched by this item.",
+    )
+
+    status, rendered = work_item_guard(work_items)
+    assert status == "FAIL", (
+        "a sentence about CS-903 was read as CS-901's disposition, so the closure "
+        f"was forgiven and the collision went unreported. The guard said:\n{rendered}"
+    )
+    assert "CS-901" in rendered
+
+
+def test_a_generic_sentence_naming_no_item_does_not_forgive_a_closure(work_items: Path) -> None:
+    """A statement about records IN GENERAL is not a statement about this item.
+
+    The sentence planted here is the most natural one-line summary of what a
+    ledger record for the work-item guard itself would say. It describes the
+    class of grant records, names no item, and decides nothing - so reading it
+    as this record's disposition means the guard cannot close its own item.
+    """
+    assert work_item_guard(work_items)[0] == "PASS", "the tree was red before the plant"
+
+    plant_ledger_record(
+        work_items,
+        "### 2026-08-16 - CS-901 - a synthetic closure, planted\n"
+        "Verification: a grant record does not close the item it names, and the guard knows it.",
+    )
+
+    status, rendered = work_item_guard(work_items)
+    assert status == "FAIL", (
+        "a generic sentence about grant records was read as CS-901's own disposition. "
+        f"The guard said:\n{rendered}"
+    )
+    assert "CS-901" in rendered
+
+
+def test_a_later_heading_without_an_item_id_cannot_forgive_the_record_above_it(
+    work_items: Path,
+) -> None:
+    """A heading that owns no item still ENDS the record above it.
+
+    A ``###`` heading carrying no work-item ID is not a record head. If it is
+    also not a record BOUNDARY its body merges upward, and any later note that
+    happens to say "stays open" exempts a clean closure written before it.
+    """
+    assert work_item_guard(work_items)[0] == "PASS", "the tree was red before the plant"
+
+    plant_ledger_record(
+        work_items,
+        "### 2026-08-16 - CS-901 - a synthetic closure, planted\n"
+        "Verification: a synthetic pointer.\n"
+        "\n"
+        "### Follow-up note carrying no work-item id\n"
+        "The sibling sweep stays open and is tracked separately.",
+    )
+
+    status, rendered = work_item_guard(work_items)
+    assert status == "FAIL", (
+        "the body of a later id-less heading was absorbed into the record above and "
+        f"exempted it. The guard said:\n{rendered}"
+    )
+    assert "CS-901" in rendered
+
+
+def test_a_record_that_binds_its_declaration_to_its_own_id_is_still_forgiven(
+    work_items: Path,
+) -> None:
+    """The other direction, so the scoping above is not merely a blanket refusal.
+
+    Narrowing an exemption is only correct if the exemption still works. This
+    plants the same closure heading with a declaration that NAMES the item it
+    is about, which is the shape every grant record in the tree already uses,
+    and requires it to stay green.
+    """
+    plant_ledger_record(
+        work_items,
+        "### 2026-08-16 - CS-901 - a synthetic record, planted\n"
+        "Verification: a synthetic pointer. This entry does not close CS-901.",
+    )
+
+    status, rendered = work_item_guard(work_items)
+    assert status == "PASS", (
+        f"a declaration naming its own item was refused, which is a red against a "
+        f"correctly written record. The guard said:\n{rendered}"
+    )
+    assert "CS-901" in rendered, "a forgiveness has to be reported, not merely granted"
+
+
+# ---------------------------------------------------------------------------
+# Guard (i) - an owner clause that stops parsing is UNACCOUNTED, never dropped
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("state", sorted(WORK_ITEM_OWNERS))
+def test_rewording_an_owner_clause_is_reported_rather_than_silently_dropped(
+    work_items: Path, state: str
+) -> None:
+    """Every clause, one at a time. A parse that reads FEWER files must be loud.
+
+    A scope restriction is an allowlist with the sign flipped: whatever leaves
+    the scan takes its coverage with it and nothing goes red. Rewording one
+    clause of the doctrine sentence - same files, same meaning - is the
+    cheapest way to make a file leave the scan, so it is graded on all four
+    rather than on the one that happened to be tried.
+
+    Args:
+        work_items: The fake repository root.
+        state: The work-item state whose clause is reworded.
+    """
+    relative = WORK_ITEM_OWNERS[state]
+    path = work_items / "CLAUDE.md"
+    before = path.read_text(encoding="utf-8")
+    after = before.replace(f"{state} in", f"{state} work lives in", 1)
+    assert after != before, f"the reword did not apply for {state}"
+    path.write_text(after, encoding="utf-8", newline="\n")
+
+    status, rendered = work_item_guard(work_items)
+    assert status == "FAIL", (
+        f"the {state} clause stopped parsing and {relative} left the scan with nothing "
+        f"red. The guard said:\n{rendered}"
+    )
+    assert relative in rendered, (
+        f"the guard went red without naming the file that left the scan: {rendered}"
+    )
+
+
+def test_renaming_an_owner_file_in_the_doctrine_moves_the_scan_with_it(work_items: Path) -> None:
+    """The owner map is READ, not believed.
+
+    A hardcoded map keeps scanning the old path here and reports a clean tree
+    over a file it never opened. Renaming on disk AND in the doctrine has to
+    move the scan, and renaming on disk ALONE has to be loud.
+    """
+    relative = WORK_ITEM_OWNERS["GATED"]
+    moved = "notes/PARKED.md"
+    (work_items / moved).parent.mkdir(parents=True, exist_ok=True)
+    (work_items / relative).rename(work_items / moved)
+
+    status, rendered = work_item_guard(work_items)
+    assert status != "PASS", (
+        f"the doctrine still names {relative} and the file is gone, and the guard was "
+        f"green anyway:\n{rendered}"
+    )
+
+    path = work_items / "CLAUDE.md"
+    before = path.read_text(encoding="utf-8")
+    after = before.replace(f"`{relative}`", f"`{moved}`", 1)
+    assert after != before, "the doctrine rename did not apply"
+    path.write_text(after, encoding="utf-8", newline="\n")
+
+    status, rendered = work_item_guard(work_items)
+    assert status == "PASS", f"the scan did not follow the doctrine to {moved}:\n{rendered}"
+    assert moved in rendered, f"the census does not name the renamed file: {rendered}"
+
+
+def test_the_fixture_owner_paths_are_not_the_paths_this_repository_uses(
+    repo_root: Path,
+) -> None:
+    """The fixture must not agree with the implementation by construction.
+
+    A fixture that restates the real doctrine's four paths verbatim is packed
+    with the belief the guard is unpacked with, so a hardcoded map satisfies it
+    exactly as well as a parse does and no test can tell them apart. These
+    paths are deliberately not the ones this repository owns.
+
+    Args:
+        repo_root: The repository root.
+    """
+    doctrine = (repo_root / "CLAUDE.md").read_text(encoding="utf-8")
+    real = set(re.findall(r"\b[A-Z]{3,}\s+in\s+`([^`]+)`", doctrine))
+    assert real, "the real doctrine sentence parsed to nothing, so this control is vacuous"
+    fixture = set(WORK_ITEM_OWNERS.values())
+    assert not (real & fixture), (
+        f"the fixture reuses the real owner paths {sorted(real & fixture)}, so a map "
+        "hardcoded to those paths would read the fixture and every test here would "
+        "pass on it"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Guard (i) - an unread entry head is UNACCOUNTED, and the floor counts owners
+# ---------------------------------------------------------------------------
+
+
+def test_a_head_shape_the_recogniser_cannot_read_is_reported_rather_than_skipped(
+    work_items: Path,
+) -> None:
+    """An unrecognised head must be UNACCOUNTED, not UNREAD.
+
+    The two failure directions are not symmetric. A head the recogniser misses
+    removes an item from the scan and the report stays green, so the tree looks
+    clean because less of it was read. Naming the line is the whole remedy: the
+    author either rewrites the head or the recogniser learns the shape.
+    """
+    path = work_items / WORK_ITEM_OWNERS["OPEN"]
+    before = path.read_text(encoding="utf-8")
+    after = f"{before}CS-904 (open) - a head shape the recogniser does not know\n"
+    assert after != before, "the plant did not apply"
+    path.write_text(after, encoding="utf-8", newline="\n")
+
+    status, rendered = work_item_guard(work_items)
+    assert status == "FAIL", (
+        f"a line carrying an id in a head position was silently unread:\n{rendered}"
+    )
+    assert "CS-904" in rendered, f"the guard went red without naming the line: {rendered}"
+
+
+def test_an_id_named_in_ordinary_prose_is_not_reported_as_an_unread_head(
+    work_items: Path,
+) -> None:
+    """The other direction, measured on the real tree's own prose shapes.
+
+    A ledger body wraps, so a line can BEGIN with an id and still be the middle
+    of a sentence. Reporting those as unread heads would be a red against
+    correct history, which gets the guard switched off rather than obeyed.
+    """
+    path = work_items / WORK_ITEM_OWNERS["CLOSED"]
+    before = path.read_text(encoding="utf-8")
+    after = (
+        f"{before}\n### 2026-08-16 - CS-905 - a synthetic closure\n"
+        "Verification: a synthetic pointer.\n"
+        "CS-903 is not revisited; its measurement stays as recorded.\n"
+        "CS-903's grading half was checked separately.\n"
+        "**CS-903 IS NOT REOPENED BY THIS.**\n"
+    )
+    assert after != before, "the plant did not apply"
+    path.write_text(after, encoding="utf-8", newline="\n")
+
+    status, rendered = work_item_guard(work_items)
+    assert status == "PASS", (
+        f"a wrapped prose line beginning with an id was reported as an unread head:\n{rendered}"
+    )
+
+
+def test_the_floor_counts_owner_files_that_actually_own_an_id(work_items: Path) -> None:
+    """Files READ is not the population a cross-file collision needs.
+
+    Reformatting entries so no line is a head leaves the file present, readable
+    and worth nothing to this guard. Counting it toward the floor lets the
+    whole OPEN half leave the scan while the report still shows four owner
+    files and a clean verdict.
+    """
+    for state in ("OPEN", "GATED"):
+        path = work_items / WORK_ITEM_OWNERS[state]
+        path.write_text(
+            f"# Fake {state.lower()} file with no entry head\n\n"
+            "The synthetic item CS-901 is discussed here in prose and owned nowhere.\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+
+    status, rendered = work_item_guard(work_items)
+    assert status == "WARN", (
+        "one owner file owning every id it found is not a population a collision can "
+        f"exist in, and the guard reported {status}:\n{rendered}"
+    )
+    assert "proved nothing on this run" in rendered

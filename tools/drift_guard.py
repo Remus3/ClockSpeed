@@ -27,6 +27,15 @@ Guards, in the order they are reported:
                          1 runs this on a runner with no game, so the pin's own
                          checksum is what makes a hand-edit detectable there.
                          Repair with --re-extract.
+  i  work-item owners   every CS- work item is recorded in exactly one owner
+                         file. The owner files are PARSED out of the CLAUDE.md
+                         sentence that declares them, and ownership means an
+                         ENTRY rather than a mention. On the ledger side an ID
+                         is owned only once its newest record is a CLOSURE -
+                         a grant is recorded BEFORE the edit it authorises, so
+                         keying on any mention marks open items closed, and a
+                         record forgives only the ids it names. Anything the
+                         scan could not read is UNACCOUNTED and red.
 
 Exits non-zero on any DRIFT.
 
@@ -54,7 +63,7 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 # --- enumeration policy -----------------------------------------------------
 
@@ -1160,6 +1169,521 @@ def guard_version_pin(root: Path) -> tuple[Guard, list[Skip]]:
     return _guard("h", name, status, detail), skips
 
 
+# --- guard i: work-item ownership -------------------------------------------
+
+# WHY NOTHING BELOW IS A HAND-WRITTEN LIST OF FILES, IDS OR EXEMPTIONS. Each of
+# the three would rot in a different direction, and this project has shipped two
+# of them already:
+#
+#   A LIST OF OWNER FILES is a scope restriction, which is an allowlist with the
+#   sign flipped - deleting an entry deletes the coverage in silence. The set is
+#   parsed instead out of the CLAUDE.md sentence that DECLARES it, so renaming an
+#   owner file or adding a fifth state moves the guard with the doctrine.
+#
+#   A LIST OF IDS is invalidated by each close and each new item, so it is
+#   stale within one session of being written.
+#
+#   A LIST OF EXEMPT IDS is the worst of the three: it forgives by name, so a
+#   single line hides a real collision for as long as nobody re-reads it. What
+#   replaces it here is a QUESTION asked of the ledger record itself - does this
+#   record say, ABOUT THIS ID, that it did not close - so the exemption carries
+#   its own justification, written by the author at the time, in the data. Every
+#   id forgiven that way is REPORTED on every run, for the same reason the skip
+#   list is (CONVENTIONS 15.1): a forgiveness nobody sees is an allowlist again.
+#
+# WHY THE BINDING TO AN ID IS LOAD-BEARING AND NOT A DETAIL. The first build of
+# this guard asked its question of the record's whole BODY, which is a search of
+# a document rather than a statement about an item. Under that predicate an
+# ordinary closure record that also remarked, truly, that some OTHER item stays
+# open exempted itself - so the collision this guard exists to find sat in the
+# tree with the guard green, and the report printed the forgiving sentence and
+# its foreign id side by side without noticing. Forgiving by WORDING ALONE is
+# strictly worse than forgiving by id: an id list is at least auditable, while a
+# phrase list is triggered silently by prose written for other purposes. The
+# phrase list survives here only as the half that recognises a disposition; the
+# half that decides WHOSE disposition it is is the id binding.
+#
+# THE RESIDUAL THAT BUYS COSTS, stated rather than implied away. A record that
+# declares its non-closure without ever naming the item - "this entry is a grant
+# record, not a completion record", with the id only in the heading and no
+# disposition IN the heading - is now read as a closure. That is the loud
+# direction on purpose: if such an id is also open elsewhere the guard says so,
+# and the repair is a new ledger record naming the item, which is what an
+# append-only file is for, and NOT a line in this guard naming the id.
+
+#: The sentence in CLAUDE.md that names the owner file of each work-item state.
+#: An anchor, not a restatement - the file:line is found at runtime and the
+#: guard reports rather than passes when the anchor is absent.
+WORK_ITEM_ANCHOR = "Work-item states"
+
+#: One "<STATE> in `<path>`" pair out of that sentence.
+_OWNER_DECLARATION = re.compile(r"\b([A-Z]{3,})\s+in\s+`([^`]+)`")
+
+#: Any backticked markdown path the same sentence names. THIS IS THE
+#: COMPLETENESS ORACLE, and it exists because the pair pattern above is a
+#: SCOPE RESTRICTION - it reads only the clauses phrased the one way it knows.
+#: A scope restriction is an allowlist with the sign flipped: reword one clause
+#: and its file leaves the scan carrying its coverage with it, and nothing goes
+#: red. Counting the paths the sentence names, independently of how the clause
+#: around them is phrased, turns that silent deletion into a named file.
+_DOCTRINE_PATH = re.compile(r"`([^`\s]+\.md)`")
+
+#: The state whose owner file records a CLOSURE. Read as a key into the parsed
+#: declaration rather than as a filename, so the ledger is identified by the
+#: role the doctrine gives it.
+CLOSED_STATE = "CLOSED"
+
+#: A work-item ID. Two digits or more, which is what keeps the shape strings
+#: "CS-nnn", "CS-0nn" and "CS-1nn" - block labels written in the prose of the
+#: owner files themselves - from being read as items.
+_WORK_ITEM_ID = re.compile(r"CS-G?\d{2,}")
+
+# --- what an ENTRY HEAD looks like, in pieces so the near-miss detector below
+# can reuse every piece except the separator.
+#
+# MENTION IS NOT OWNERSHIP, and that distinction is the whole of these patterns.
+# A ROADMAP entry's NOTE cites the items it was earned by, a GATED item cites
+# the roadmap item it feeds, and a ledger record cites its siblings. Matching an
+# ID anywhere in a file rather than at the head of an entry reads those
+# citations as collisions, which is a guard red against correct history.
+_HEAD_MARKERS = r"(?:[-*+]\s+(?:\[[ xXvV]\]\s+)?|\d+[.)]\s+|\|\s*)*"
+_HEAD_HASHES = r"(?:#+\s*)?"
+_HEAD_DATE = r"(?:\d{4}[-/]\d{2}[-/]\d{2}\s*[-:]\s*)?"
+_HEAD_EMPHASIS = r"[`*_]{0,3}"
+_HEAD_ID_RUN = r"CS-G?\d{2,}(?:\s*(?:,|/|\band\b)\s*CS-G?\d{2,})*"
+_HEAD_QUALIFIER = r"(?:\s+[A-Z][A-Z0-9-]*){0,2}"
+_HEAD_SEPARATOR = r"(?:\s*-{1,3}\s|\s*:\s|\s*\|)"
+_HEAD_PREFIX = rf"^[ \t]*{_HEAD_MARKERS}{_HEAD_HASHES}{_HEAD_DATE}{_HEAD_EMPHASIS}"
+
+#: The head of an ENTRY. Deliberately wide across MARKUP - list bullets,
+#: checkboxes, numbered items, table cells, bold, backticks, heading hashes -
+#: because markup is presentation and none of it changes who owns the item.
+_ENTRY_HEAD = re.compile(
+    rf"{_HEAD_PREFIX}({_HEAD_ID_RUN}){_HEAD_EMPHASIS}{_HEAD_QUALIFIER}{_HEAD_SEPARATOR}"
+)
+
+#: A line that occupies a head POSITION - id first, then punctuation opening a
+#: summary - which :data:`_ENTRY_HEAD` nonetheless could not read.
+#:
+#: THE TWO FAILURE DIRECTIONS ARE NOT SYMMETRIC, which is the whole reason this
+#: pattern exists. A head the recogniser misses removes an item from the scan
+#: and leaves the report GREEN - the tree looks clean because less of it was
+#: read. So an unreadable head is UNACCOUNTED and red, never merely unread. The
+#: separator class here is wider than the one above on purpose: it is asking
+#: "was this line trying to be a head", not "is this line a head".
+#:
+#: A ledger body wraps, so an ordinary sentence can BEGIN with an id and
+#: continue in prose. Those are excluded by requiring punctuation rather than a
+#: word after the id, and the exclusion is graded by its own test.
+_NEAR_MISS_HEAD = re.compile(
+    rf"{_HEAD_PREFIX}({_HEAD_ID_RUN}){_HEAD_EMPHASIS}{_HEAD_QUALIFIER}\s*[-:|(\[{{=~]"
+)
+
+#: Any markdown heading. A heading is a record BOUNDARY whether or not it names
+#: an item, which is what stops a later note's body merging into the record
+#: above it and speaking for an item it never mentions.
+_HEADING_LINE = re.compile(r"^[ \t]{0,3}#+")
+
+#: One sentence boundary, used to scope a declaration to the clause that made
+#: it rather than to the whole document.
+_SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+")
+
+#: How a ledger record DECLARES that the item it names did not close, as label
+#: mapped to pattern, matched case-insensitively.
+#:
+#: FORGIVING BY WORDING IS WORSE THAN FORGIVING BY ID, and this list is only
+#: half the mechanism for that reason. A phrase list is triggered silently by
+#: prose written for entirely other purposes - a true remark about a DIFFERENT
+#: item, or a general observation about grant records as a class - so on its
+#: own it is an allowlist that nobody wrote and nobody can audit. What makes it
+#: safe is the BINDING in :func:`_non_closure_bindings`: a phrase found here
+#: forgives an id only when the clause carrying it is about THAT id.
+_NON_CLOSURE_DECLARATIONS: tuple[tuple[str, str], ...] = (
+    ("not-a-completion-record", r"not a completion record"),
+    ("does-not-close", r"do(?:es)? not close|did not close|may not close"),
+    ("stays-open", r"stays open|remains open|is reopened"),
+)
+
+#: How much of the declaring clause is quoted back in the report.
+_DECLARATION_QUOTE = 120
+
+#: Two owner files are what a collision needs, and they have to be two files
+#: that each OWN something. Below that the cross-file half of this guard is
+#: vacuous by construction, so it reports rather than passes.
+_COLLISION_FLOOR = 2
+
+
+def _owner_files(root: Path) -> tuple[dict[str, str], list[str], str]:
+    """Parse the work-item state-to-owner-file map out of CLAUDE.md.
+
+    Args:
+        root: The repository root under audit.
+
+    Returns:
+        (state mapped to repo-relative path, paths the sentence named that no
+        clause claimed, a problem string). The problem is empty when the map was
+        parsed. It is never both empty and an empty map: a guard that scanned
+        nothing has to say why.
+    """
+    path = root / "CLAUDE.md"
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError as exc:
+        return {}, [], f"CLAUDE.md is unreadable: {_exc_text(exc)}"
+
+    start = next((index for index, line in enumerate(lines) if WORK_ITEM_ANCHOR in line), None)
+    if start is None:
+        return {}, [], f"no sentence containing {WORK_ITEM_ANCHOR!r} in CLAUDE.md"
+
+    end = start
+    while end < len(lines) and lines[end].strip():
+        end += 1
+    sentence = " ".join(lines[start:end])
+    found = dict(_OWNER_DECLARATION.findall(sentence))
+    if not found:
+        return {}, [], f"the {WORK_ITEM_ANCHOR!r} sentence names no backticked owner file"
+    claimed = set(found.values())
+    unclaimed = [name for name in _DOCTRINE_PATH.findall(sentence) if name not in claimed]
+    return found, sorted(set(unclaimed)), ""
+
+
+def _entry_head_ids(line: str) -> list[str]:
+    """The work-item IDs a line OWNS, as opposed to the ones it merely mentions.
+
+    Args:
+        line: One line of an owner file.
+
+    Returns:
+        The IDs at the head of the entry, or an empty list when the line is not
+        an entry head.
+    """
+    match = _ENTRY_HEAD.match(line)
+    return _WORK_ITEM_ID.findall(match.group(1)) if match else []
+
+
+def _unaccounted_heads(text: str) -> list[tuple[int, str]]:
+    """Lines occupying a head position that the recogniser could not read.
+
+    Args:
+        text: The file's full text.
+
+    Returns:
+        ``(line_number, line)`` for each, in file order.
+    """
+    return [
+        (number, line.strip())
+        for number, line in enumerate(text.splitlines(), start=1)
+        if not _entry_head_ids(line) and _NEAR_MISS_HEAD.match(line)
+    ]
+
+
+def _owned_ids(text: str) -> dict[str, int]:
+    """Map every ID a file owns to the line its FIRST entry head sits on.
+
+    Args:
+        text: The file's full text.
+
+    Returns:
+        ID mapped to a 1-based line number.
+    """
+    found: dict[str, int] = {}
+    for number, line in enumerate(text.splitlines(), start=1):
+        for item in _entry_head_ids(line):
+            found.setdefault(item, number)
+    return found
+
+
+def _ledger_records(text: str) -> list[tuple[int, list[str], str, str]]:
+    """Cut the ledger into records, newest first, heading kept apart from body.
+
+    EVERY HEADING IS A BOUNDARY, including one that names no work-item at all.
+    A heading with no ID is not a record - but if it is not a record ENDING
+    either, its body merges upward into the record above and gets to speak for
+    an item it never mentions. The ledger already carries id-less headings, so
+    this is a live shape rather than a hypothetical one.
+
+    The heading is returned separately from the body because a heading rarely
+    ends in a full stop, so joining the two makes the first body sentence
+    inherit the heading's ids and lets a generic remark borrow their authority.
+
+    Args:
+        text: The ledger's full text.
+
+    Returns:
+        ``(line_number, ids, heading, body)`` per record in file order, which
+        the file's stated append discipline makes newest first. The body has its
+        line wraps joined, so a clause split across two lines still reads as one.
+    """
+    lines = text.splitlines()
+    bounds = [number for number, line in enumerate(lines, start=1) if _HEADING_LINE.match(line)]
+    out: list[tuple[int, list[str], str, str]] = []
+    for index, number in enumerate(bounds):
+        ids = _entry_head_ids(lines[number - 1])
+        if not ids:
+            continue
+        stop = bounds[index + 1] - 1 if index + 1 < len(bounds) else len(lines)
+        body = re.sub(r"\s+", " ", " ".join(lines[number:stop]))
+        out.append((number, ids, lines[number - 1].strip(), body))
+    return out
+
+
+def _non_closure_bindings(heading: str, body: str, ids: list[str]) -> dict[str, tuple[str, str]]:
+    """Which of a record's OWN ids it declares did not close, and on what words.
+
+    A DECLARATION IS ONLY AN EXEMPTION WHEN IT IS ABOUT THIS ITEM. A phrase
+    search over the whole record body cannot tell a disposition from a passing
+    remark, so a closure record that also observes - truly - that some OTHER
+    item stays open exempts itself, and the exact shape this guard exists to
+    catch sits in the tree green. Two things can bind a declaration to an id:
+
+    - THE HEADING, which names its own ids by construction. "MEASUREMENT
+      RECORD. THE ITEM STAYS OPEN" in a heading is about that heading's items
+      and nothing else.
+    - A BODY CLAUSE THAT NAMES THE ID. "This entry does not close CS-436" is
+      about CS-436 whatever else the record goes on to say.
+
+    Anything else - a remark about a different item, a general observation
+    about grant records as a class - binds nothing and forgives nothing.
+
+    Args:
+        heading: The record's heading line.
+        body: The record's body, line wraps already joined.
+        ids: The ids the heading owns.
+
+    Returns:
+        Own id mapped to ``(label, quoted clause)``. An id absent from the
+        mapping was not exempted by this record.
+    """
+    bound: dict[str, tuple[str, str]] = {}
+    own = set(ids)
+    for label, pattern in _NON_CLOSURE_DECLARATIONS:
+        if re.search(pattern, heading, re.IGNORECASE):
+            for item in ids:
+                bound.setdefault(item, (label, heading[:_DECLARATION_QUOTE].strip()))
+    for clause in _SENTENCE_BREAK.split(body):
+        named = own.intersection(_WORK_ITEM_ID.findall(clause))
+        if not named:
+            continue
+        for label, pattern in _NON_CLOSURE_DECLARATIONS:
+            if re.search(pattern, clause, re.IGNORECASE):
+                for item in named:
+                    bound.setdefault(item, (label, clause[:_DECLARATION_QUOTE].strip()))
+    return bound
+
+
+def ledger_ownership(text: str) -> tuple[dict[str, int], list[dict[str, str]]]:
+    """Which IDs the ledger owns as CLOSED, and which records were forgiven.
+
+    THE SEQUENCING TRAP THIS FUNCTION EXISTS FOR. An ID reaches the ledger before
+    it closes: a frozen-file grant is recorded BEFORE the edit it authorises
+    (CLAUDE.md section 6), and a measurement record can report what shipped while
+    saying the item stays open. Keying ownership on any MENTION of an ID, or on
+    the mere presence of a heading, marks those items closed while they are
+    correctly open in ROADMAP.md - a guard red against correct history, which
+    gets switched off rather than obeyed.
+
+    Only the NEWEST record for an ID is consulted, which is the discipline the
+    ledger states for itself: it is append-only and newest first, and a record
+    that turns out to be wrong is corrected by a LATER one. An item closed and
+    then reopened by a correction is therefore open, without the guard holding
+    any per-item knowledge.
+
+    Args:
+        text: The ledger's full text.
+
+    Returns:
+        (IDs owned as closed, mapped to the line of the deciding record;
+        one report row per ID a record exempted).
+    """
+    closed: dict[str, int] = {}
+    forgiven: list[dict[str, str]] = []
+    decided: set[str] = set()
+    for number, ids, heading, body in _ledger_records(text):
+        bound = _non_closure_bindings(heading, body, ids)
+        for item in ids:
+            if item in decided:
+                continue
+            decided.add(item)
+            if item not in bound:
+                closed[item] = number
+                continue
+            label, quoted = bound[item]
+            forgiven.append(
+                {"ids": item, "line": str(number), "declaration": label, "quoted": quoted}
+            )
+    return closed, forgiven
+
+
+def _collisions(owned: dict[str, dict[str, str]]) -> list[str]:
+    """Render one line per ID recorded in more than one owner file.
+
+    Args:
+        owned: ID mapped to owner path mapped to a "<state> line <n>" locator.
+
+    Returns:
+        The findings, sorted by ID.
+    """
+    return [
+        f"{item} is owned by {len(where)} files: "
+        + "; ".join(f"{path} ({locator})" for path, locator in sorted(where.items()))
+        for item, where in sorted(owned.items())
+        if len(where) > 1
+    ]
+
+
+class _Scan(NamedTuple):
+    """What one pass over the declared owner files found.
+
+    Attributes:
+        owned: ID mapped to owner path mapped to a "<state> line <n>" locator.
+        census: One report line per owner file read.
+        owning: How many of those files own at least one ID.
+        forgiven: One row per ID a ledger record exempted.
+        unaccounted: One row per line in a head position that was not read.
+        unread: Repo-relative paths the doctrine declared and the tree lacks.
+    """
+
+    owned: dict[str, dict[str, str]]
+    census: list[str]
+    owning: int
+    forgiven: list[dict[str, str]]
+    unaccounted: list[str]
+    unread: list[str]
+
+
+def _read_owner_files(root: Path, owners: dict[str, str], skips: list[Skip]) -> _Scan:
+    """Read each owner file and record which IDs it OWNS.
+
+    Args:
+        root: The repository root under audit.
+        owners: State mapped to repo-relative path.
+        skips: Skip records, appended to for every file not read.
+
+    Returns:
+        The scan.
+    """
+    scan = _Scan({}, [], 0, [], [], [])
+    owning = 0
+    for state, relative in sorted(owners.items()):
+        try:
+            text = (root / relative).read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            skips.append({"path": relative, "reason": f"owner file not read ({_exc_text(exc)})"})
+            scan.unread.append(relative)
+            continue
+        if state == CLOSED_STATE:
+            found, records = ledger_ownership(text)
+            scan.forgiven.extend(records)
+        else:
+            found = _owned_ids(text)
+        scan.unaccounted.extend(
+            f"  {relative}:{number}  {line}" for number, line in _unaccounted_heads(text)
+        )
+        owning += bool(found)
+        scan.census.append(f"  {state:<13} {relative:<16} owns {len(found)} id(s)")
+        for item, number in found.items():
+            scan.owned.setdefault(item, {})[relative] = f"{state} line {number}"
+    return scan._replace(owning=owning)
+
+
+def guard_work_items(root: Path) -> tuple[Guard, list[Skip]]:
+    """Assert every work-item ID is recorded in exactly one owner file.
+
+    CLAUDE.md section 4 states the one-owner rule in prose. This is the machine
+    check for it, on the file that states the thesis: a restated fact is a fact
+    that will drift, and the ROADMAP line of a closed item is a restated fact.
+
+    EVERY WAY THIS GUARD CAN READ LESS THAN THE WHOLE TREE IS RED, not green and
+    not quiet. An owner clause that stopped parsing, a declared file the tree
+    lacks, a line in a head position the recogniser cannot read - each deletes
+    coverage, and coverage deleted in silence is how the two guards before this
+    one shipped with their own scope restrictions intact. The one exception is a
+    tree with NOTHING to scan, which is WARN: that is a wrong root rather than
+    drift, and it names itself in the skip list.
+    """
+    skips: list[Skip] = []
+    name = "work-item ownership"
+    owners, unclaimed, problem = _owner_files(root)
+    if problem:
+        skips.append({"path": "CLAUDE.md", "reason": f"{problem} - no owner file was scanned"})
+        detail = [f"the owner-file declaration was not read: {problem}"]
+        return _guard("i", name, "WARN", detail), skips
+
+    scan = _read_owner_files(root, owners, skips)
+    detail = [f"owner files declared by CLAUDE.md: {len(owners)}", *scan.census]
+    if scan.forgiven:
+        detail.append(
+            "ledger records read as NON-closures, each by its own words about its own "
+            "item - printed every run, because a forgiveness nobody sees is an allowlist "
+            "by another name:"
+        )
+        detail.extend(
+            f"  line {row['line']}  {row['ids']}  [{row['declaration']}]  {row['quoted']}"
+            for row in scan.forgiven
+        )
+    else:
+        detail.append("no ledger record declared itself a non-closure on this run")
+
+    if scan.owning < _COLLISION_FLOOR or not scan.owned:
+        detail.append(
+            f"{len(scan.census)} owner file(s) read, {scan.owning} of them owning any id, "
+            f"and {len(scan.owned)} id(s) found - below the floor of {_COLLISION_FLOOR} "
+            "files EACH owning at least one id, so this guard proved nothing on this run"
+        )
+        return _guard("i", name, "WARN", detail), skips
+
+    detail.append(f"distinct ids found: {len(scan.owned)}")
+    unaccounted = _unaccounted_detail(unclaimed, scan)
+    findings = _collisions(scan.owned)
+    if findings:
+        detail.append("ONE ID, MORE THAN ONE OWNER FILE - CLAUDE.md section 4:")
+        detail.extend(f"  {item}" for item in findings)
+        detail.append(
+            "Delete the entry from the file that no longer owns the item. A ledger "
+            "record that is NOT a closure - a frozen-file grant, a measurement record - "
+            "says so about the item BY NAME and is not reported here; if one of these is "
+            "such a record, the record is what needs to say it."
+        )
+    if findings or unaccounted:
+        return _guard("i", name, "FAIL", [*detail, *unaccounted]), skips
+    return _guard("i", name, "PASS", detail), skips
+
+
+def _unaccounted_detail(unclaimed: list[str], scan: _Scan) -> list[str]:
+    """Render everything the scan could not account for, or nothing at all.
+
+    Args:
+        unclaimed: Doctrine paths no owner clause claimed.
+        scan: The owner-file scan.
+
+    Returns:
+        Report lines. Empty when the scan accounted for everything, which is the
+        only state this guard is allowed to call PASS.
+    """
+    detail: list[str] = []
+    if unclaimed:
+        detail.append(
+            "UNACCOUNTED - the doctrine sentence names these files and no owner clause "
+            "in it parsed to them, so they were never scanned. Reword the clause back "
+            "into '<STATE> in `<path>`' or drop the path from the sentence:"
+        )
+        detail.extend(f"  {name}" for name in unclaimed)
+    if scan.unread:
+        detail.append(
+            "UNACCOUNTED - the doctrine declares these owner files and the tree does not "
+            "hold them, so part of the scan did not happen while the rest reported clean:"
+        )
+        detail.extend(f"  {name}" for name in scan.unread)
+    if scan.unaccounted:
+        detail.append(
+            "UNACCOUNTED - these lines carry a work-item id in a head position that the "
+            "entry recogniser cannot read. An unread head leaves the item out of the "
+            "scan and the verdict green, so rewrite the head or widen the recogniser:"
+        )
+        detail.extend(scan.unaccounted)
+    return detail
+
+
 # --- re-extract -------------------------------------------------------------
 
 
@@ -1235,6 +1759,7 @@ def run_all(root: Path) -> tuple[list[Guard], list[Skip], str]:
         guard_ports,
         guard_frozen,
         guard_version_pin,
+        guard_work_items,
     ):
         guard, guard_skips = runner(root)
         guards.append(guard)
