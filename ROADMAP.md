@@ -15,11 +15,13 @@ and is closed - those entries are in `docs/LEDGER.md`, not here. Open items are 
 in the hundreds block matching their phase: `CS-1nn` phase 1, `CS-2nn` phase 2, and so on
 through `CS-7nn`. Gaps are expected and are never backfilled.
 
-**Not listed here:** phase 0, which is being completed now and closes into
-`docs/LEDGER.md`. Spikes S4, S6 and S8 are also absent - they are being settled in this
-session and their results land as ADRs in `docs/adr/` with the decisions recorded in
-`docs/LEDGER.md`. If any of the three comes back unsettled, it is filed here as a new item
-rather than left implicit.
+**Not listed here:** phase 0, and spikes S4, S6 and S8. All are CLOSED - phase 0 into
+`docs/LEDGER.md`, the three spikes as ADRs 0003, 0004 and 0002 respectively. This paragraph
+described them as in progress until 2026-08-16, which had been false for eight sessions.
+
+**SIZE.** This file is near its hard budget and `tools/doc_budget.py` fails CI above it.
+Relocate, never delete - the superseded dated STATUS blocks inside CS-400 and CS-413 are the
+obvious candidates, and CS-400's own entry already marks one of them as no longer the state.
 
 **Do not advance past a phase whose acceptance criterion is unmet.**
 
