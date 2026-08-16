@@ -2667,8 +2667,81 @@ def test_the_forced_failures_are_outside_the_narrow_catch() -> None:
 # The library-reach guard, owned here and consumed by the sibling modules
 # ---------------------------------------------------------------------------
 
-#: Attribute names through which a function can come to hold a REAL save path
-#: or the REAL account directory.
+#: Every attribute or bare name through which a filesystem PATH can enter a
+#: module. ONE VOCABULARY, OWNED HERE and consumed by both guards that need it:
+#: this module's library-reach guard, and ``test_phase4_gate``'s
+#: ``no-path-reaches-it`` grade over the shipped save modules.
+#:
+#: IT WAS TWO HAND-MAINTAINED LISTS IN TWO FILES, and that is the defect CS-433
+#: repairs rather than a tidying. One commit enumerated the path-bearing names
+#: for the save-module grade while the reach guard beside it named none of them,
+#: so helpers walking a save root through ``rglob``, ``iterdir``, ``os.scandir``
+#: and ``os.stat`` were passed by a guard whose whole subject was reach. Two
+#: lists of the same kind of thing drift apart; one list with a declared
+#: partition cannot.
+_FILESYSTEM_PRIMITIVES: Final = frozenset(
+    (
+        "open",
+        "read_bytes",
+        "read_text",
+        "write_bytes",
+        "write_text",
+        "glob",
+        "rglob",
+        "iterdir",
+        "scandir",
+        "listdir",
+        "walk",
+        "resolve",
+        "expanduser",
+        "home",
+        "cwd",
+        "stat",
+    )
+)
+
+#: Vocabulary members that are NOT library reach, name to why they are excluded.
+#:
+#: THE PARTITION IS ASSERTED TOTAL by
+#: ``test_the_reach_primitives_partition_the_filesystem_vocabulary``, so adding a
+#: name to the vocabulary without classifying it turns this module red. That is
+#: the whole mechanism: a name can be excluded, but it cannot be forgotten.
+_NOT_LIBRARY_REACH: Final = MappingProxyType(
+    {
+        "read_text": (
+            "flags repo-source reads rather than library reads. Every AST guard "
+            "in this package reads its own module text, this one included, and "
+            "no discovery primitive feeds any of them"
+        ),
+        "write_bytes": (
+            "a write cannot hand its caller a path the caller did not already "
+            "hold, so it adds no reach - and the only writes here are into "
+            "tmp_path"
+        ),
+        "write_text": "the same as write_bytes, and the splice controls use it",
+        "walk": (
+            "NAME COLLISION, and it is excluded on that rather than on risk. "
+            "``ast.walk`` is how every AST guard in this package reads a tree, "
+            "this one included, so keying on the bare attribute flags them all "
+            "and says nothing about a save root. It STAYS in the vocabulary "
+            "because ``test_phase4_gate`` grades the shipped save modules with "
+            "the same set, no save module imports ast, and ``os.walk`` there "
+            "would be a real violation. THE RESIDUAL, NAMED RATHER THAN IMPLIED "
+            "AWAY: a test helper walking a real save root with ``os.walk`` is "
+            "not flagged by this guard, and nothing here claims otherwise"
+        ),
+    }
+)
+
+#: Discovery entry points, which are not filesystem primitives but yield a real
+#: save path directly. Kept separate because they are project names rather than
+#: vocabulary, and only the vocabulary needs a partition.
+_LIBRARY_LOCATORS: Final = frozenset(
+    ("resolve_save_root", "resolve_account_dir", "latest_save", "_library_save_paths")
+)
+
+#: Names through which a function can come to hold a REAL save path or the REAL
+#: account directory, DERIVED rather than written down a second time.
 #:
 #: KEYED ON THE RISKY PRIMITIVES, NEVER ON THE CONTAINED ROUTE. An earlier
 #: version of this guard keyed on ``_library_save_paths`` alone - the SAFE
@@ -2682,34 +2755,98 @@ def test_the_forced_failures_are_outside_the_narrow_catch() -> None:
 #: path on its own. Their whole cost is the ``_EXEMPT_LIBRARY_REACH`` map in each
 #: consuming module, and that map is asserted LIVE - every exemption must still
 #: touch a primitive - so the price is visible in the tree rather than argued for
-#: here, and it cannot rot into a silent allowance. ``rglob`` and ``read_text``
-#: are NOT included: they flag repo-source reads and ``tmp_path`` walks that no
-#: discovery primitive feeds.
-_LIBRARY_PRIMITIVES: Final = (
-    "resolve_save_root",
-    "resolve_account_dir",
-    "latest_save",
-    "_library_save_paths",
-    "glob",
-    "read_bytes",
+#: here, and it cannot rot into a silent allowance.
+_LIBRARY_PRIMITIVES: Final = _LIBRARY_LOCATORS | (
+    _FILESYSTEM_PRIMITIVES - frozenset(_NOT_LIBRARY_REACH)
 )
 
+#: A function definition of either colour. ``ast.AsyncFunctionDef`` is NOT a
+#: subclass of ``ast.FunctionDef``, which is the single fact behind two of the
+#: shapes in :data:`_UNCONTAINED_SPLICES`.
+_ANY_FUNCTION: Final = (ast.FunctionDef, ast.AsyncFunctionDef)
 
-def _module_scope_functions(module_path: Path) -> dict[str, ast.FunctionDef]:
-    """Every module-scope function in a file, by name.
+
+def _scanned_functions(tree: ast.Module) -> dict[str, ast.FunctionDef | ast.AsyncFunctionDef]:
+    """Every function a module defines at module scope or on a module-scope class.
+
+    THREE NODE KINDS, because the previous filter named one. It tested
+    ``isinstance(node, ast.FunctionDef)`` over ``tree.body``, and
+    ``ast.AsyncFunctionDef`` is not a subclass of it, so an ``async def`` helper
+    with a body identical to a flagged one was invisible. A method on a
+    module-scope class was invisible for the same reason - ``ast.ClassDef`` was
+    not in the filter either, so its whole body went unread.
+
+    Methods are keyed ``Class.method`` rather than by their bare name, so a
+    method cannot collide with a module-scope function and a declaration naming
+    one is unambiguous about which it means.
 
     Args:
-        module_path: The file to parse.
+        tree: The parsed module.
 
     Returns:
         The functions, keyed by name.
     """
-    tree = ast.parse(module_path.read_text(encoding="utf-8"))
-    return {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+    found: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
+    for node in tree.body:
+        if isinstance(node, _ANY_FUNCTION):
+            found[node.name] = node
+        elif isinstance(node, ast.ClassDef):
+            for member in node.body:
+                if isinstance(member, _ANY_FUNCTION):
+                    found[f"{node.name}.{member.name}"] = member
+    return found
 
 
-def _calls_any(node: ast.FunctionDef, names: frozenset[str]) -> bool:
+def _effective_primitives(tree: ast.Module, names: frozenset[str]) -> frozenset[str]:
+    """Expand a primitive set by the module-scope ALIASES that stand for one.
+
+    ``_alias = _library_save_paths`` at module scope makes ``_alias()`` a reach
+    site that spells no primitive, which is how one of the measured splices got
+    past a guard matching literal names. Resolved to a fixpoint so a chain of
+    aliases cannot outrun it, and bounded so a self-referential assignment
+    cannot spin.
+
+    Args:
+        tree: The parsed module.
+        names: The primitives to start from.
+
+    Returns:
+        The primitives plus every module-scope alias of one.
+    """
+    effective = set(names)
+    for _round in range(len(tree.body) + 1):
+        grew = False
+        for node in tree.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            value = node.value
+            aliased = (isinstance(value, ast.Name) and value.id in effective) or (
+                isinstance(value, ast.Attribute) and value.attr in effective
+            )
+            if not aliased:
+                continue
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id not in effective:
+                    effective.add(target.id)
+                    grew = True
+        if not grew:
+            break
+    return frozenset(effective)
+
+
+def _calls_any(node: ast.FunctionDef | ast.AsyncFunctionDef, names: frozenset[str]) -> bool:
     """Whether a function calls any of the named attributes or bare names.
+
+    THE CALL REQUIREMENT IS DELIBERATE and was measured rather than assumed.
+    Matching a bare REFERENCE instead - any ``Name`` or ``Attribute`` node -
+    flags every forced-failure grader in this package, because
+    ``monkeypatch.setattr(locate, "resolve_save_root", raiser)`` names the
+    primitive in order to BREAK it. Those are the opposite of reach sites, and
+    flagging them is the same inversion, pointed the other way, that the keying
+    note above records.
+
+    ``getattr`` is read because the name it resolves is a string constant rather
+    than a spelled attribute, so a call through it matches nothing syntactically.
 
     Args:
         node: The function.
@@ -2726,10 +2863,14 @@ def _calls_any(node: ast.FunctionDef, names: frozenset[str]) -> bool:
             return True
         if isinstance(func, ast.Name) and func.id in names:
             return True
+        if isinstance(func, ast.Name) and func.id == "getattr" and len(inner.args) > 1:
+            resolved = inner.args[1]
+            if isinstance(resolved, ast.Constant) and resolved.value in names:
+                return True
     return False
 
 
-def _returns_personal_data(node: ast.FunctionDef) -> bool:
+def _returns_personal_data(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     """Whether a function's RETURN ANNOTATION carries a path or save bytes.
 
     Derived from the annotation rather than declared in a second list, so the
@@ -2775,8 +2916,9 @@ def _assert_library_reach_is_declared(
             applied to something that is not the real library. Asserted still
             reaching, so an exemption cannot outlive the code it describes.
     """
-    functions = _module_scope_functions(module_path)
-    primitives = frozenset(_LIBRARY_PRIMITIVES)
+    tree = ast.parse(module_path.read_text(encoding="utf-8"))
+    functions = _scanned_functions(tree)
+    primitives = _effective_primitives(tree, _LIBRARY_PRIMITIVES)
     declared_names = frozenset(graded) | frozenset(exempt)
 
     direct = frozenset(name for name, node in functions.items() if _calls_any(node, primitives))
@@ -2827,6 +2969,139 @@ _EXEMPT_LIBRARY_REACH: Final = MappingProxyType(
 )
 
 
+#: Statements that end a function's straight-line body.
+_TERMINATORS: Final = (ast.Return, ast.Raise, ast.Continue, ast.Break)
+
+
+def _gutted_tests(tree: ast.Module) -> list[str]:
+    """Every test in a module whose body is cut short by an early terminator.
+
+    GUTTING A TEST TO AN EARLY ``return`` IS THE CHEAPEST WAY TO MAKE A SUITE
+    LIE, and it leaves the assertions in the file where a reader and a diff both
+    still see them. Measured on this tree, that shape IS caught today - mypy
+    runs with ``warn_unreachable`` and ``tests/test_mypy_gate.py`` puts it in the
+    suite, so the gutted copy goes red where an ungutted control stays green.
+
+    This guard exists because that protection is a SILENT DEPENDENCY on one
+    setting in one file that no assertion mentions. Turning the flag off, or
+    moving a module out of the gate's reach, would remove it without reddening
+    anything. Here the same property is local, derived from the module's own
+    AST, and named.
+
+    THE SHAPE IT COVERS IS THE EARLY TERMINATOR AND NOTHING WIDER. A test
+    emptied to ``pass``, or one whose assertions are rewritten to ``assert
+    True``, leaves no unreachable statement and is not detected here. That is
+    stated rather than implied, because a guard read as covering all gutting
+    would be the false-guarantee class this package already paid for once.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        ``name at line N`` for each test with unreachable statements after a
+        top-level terminator.
+    """
+    found: list[str] = []
+    for node in _scanned_functions(tree).values():
+        if not node.name.startswith("test_"):
+            continue
+        for index, statement in enumerate(node.body[:-1]):
+            if isinstance(statement, _TERMINATORS):
+                found.append(f"{node.name} at line {node.body[index + 1].lineno}")
+                break
+    return found
+
+
+def _assert_no_test_is_gutted(module_path: Path) -> None:
+    """Assert no test in a module is cut short by an early terminator.
+
+    Args:
+        module_path: The consuming module's own file.
+    """
+    tree = ast.parse(module_path.read_text(encoding="utf-8"))
+    tests = [name for name in _scanned_functions(tree) if name.startswith("test_")]
+    assert tests, f"{module_path.name} defines no test, so this guard is vacuous"
+
+    gutted = _gutted_tests(tree)
+    assert not gutted, (
+        f"these tests are cut short and everything after the cut is dead: {gutted}. "
+        "A test that returns before it asserts passes for the same reason an empty "
+        "one does"
+    )
+
+
+def test_no_test_in_this_module_is_gutted_to_an_early_return() -> None:
+    """CS-433 - the guard against the cheapest way to fake a green suite."""
+    _assert_no_test_is_gutted(Path(__file__))
+
+
+def test_the_gutting_guard_catches_a_spliced_early_return(tmp_path: Path) -> None:
+    """THE GUARD'S POWER, forced rather than asserted about.
+
+    A guard that returned an empty list on everything would pass on every module
+    and read exactly like this one. The splice is the gutting shape itself,
+    written against a COPY in ``tmp_path``.
+    """
+    spliced = tmp_path / "gutted.py"
+    spliced.write_text(
+        Path(__file__).read_text(encoding="utf-8") + "\n\ndef test_spliced_gutted_case():\n"
+        '    """A test emptied to an early return."""\n'
+        "    return\n"
+        "    assert False\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError) as caught:
+        _assert_no_test_is_gutted(spliced)
+    assert "test_spliced_gutted_case" in str(caught.value)
+
+    # The positive control: the unspliced source passes, so the red above is
+    # the splice rather than a guard that rejects every module.
+    _assert_no_test_is_gutted(Path(__file__))
+
+
+def test_the_reach_primitives_partition_the_filesystem_vocabulary() -> None:
+    """CS-433 - the two primitive lists are ONE list, and the split is declared.
+
+    A HAND-MAINTAINED LIST IS THE THING THAT ROTS, and this package has watched
+    it happen: the reach guard and the save-module grade each carried their own
+    tuple of filesystem names, and the commit that enumerated the path-bearing
+    ones for the grade left the guard naming none of them. Neither list was
+    wrong at the moment it was written and they had drifted apart by the time
+    anyone read both.
+
+    So the vocabulary has one owner and the reach set is DERIVED from it by a
+    partition that must be total. Adding a name to
+    :data:`_FILESYSTEM_PRIMITIVES` either makes it a reach primitive or requires
+    a written reason it is not, and there is no third outcome that leaves this
+    green.
+    """
+    excluded = frozenset(_NOT_LIBRARY_REACH)
+    assert excluded <= _FILESYSTEM_PRIMITIVES, (
+        f"an exclusion names something outside the vocabulary: "
+        f"{sorted(excluded - _FILESYSTEM_PRIMITIVES)}"
+    )
+    assert (_FILESYSTEM_PRIMITIVES - excluded) <= _LIBRARY_PRIMITIVES, (
+        f"vocabulary members are neither reach primitives nor excluded with a "
+        f"reason: {sorted(_FILESYSTEM_PRIMITIVES - excluded - _LIBRARY_PRIMITIVES)}"
+    )
+    for name, reason in _NOT_LIBRARY_REACH.items():
+        assert reason.strip(), f"{name} is excluded from the reach set with no reason"
+
+    # NON-VACUITY, both halves. An empty vocabulary would satisfy the subset
+    # assertions above, and so would a partition that excluded everything.
+    assert _FILESYSTEM_PRIMITIVES, "the vocabulary is empty, so the partition is vacuous"
+    assert _FILESYSTEM_PRIMITIVES - excluded, "every vocabulary member is excluded from reach"
+
+    # The locators are NOT vocabulary and must not be smuggled into it: they are
+    # project function names, and a partition over them would be meaningless.
+    assert not (_LIBRARY_LOCATORS & _FILESYSTEM_PRIMITIVES), (
+        f"a locator is being carried as filesystem vocabulary: "
+        f"{sorted(_LIBRARY_LOCATORS & _FILESYSTEM_PRIMITIVES)}"
+    )
+    assert _LIBRARY_LOCATORS <= _LIBRARY_PRIMITIVES, "a locator dropped out of the reach set"
+
+
 def test_every_library_reaching_function_here_is_declared() -> None:
     """This module guards itself with the guard it lends its siblings.
 
@@ -2870,6 +3145,135 @@ def test_the_guard_catches_a_spliced_uncontained_helper(tmp_path: Path) -> None:
 
     # The positive control: the same guard on the unspliced source passes, so
     # the red above is the splice rather than the guard rejecting everything.
+    _assert_library_reach_is_declared(
+        Path(__file__), graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
+    )
+
+
+#: Uncontained helpers the guard must flag, as label mapped to the source to
+#: splice and the name the failure has to report.
+#:
+#: EVERY ENTRY IS A SHAPE THAT ESCAPED A REAL MEASUREMENT, not a shape imagined
+#: from the implementation. The plain ``def`` control one function up was the
+#: shape the guard caught; these were spliced past it by the adversary that
+#: refuted the guard's containment claim. Three root causes are represented: the
+#: AST filter naming one node type, ``_calls_any`` matching only a literal call
+#: spelling, and a primitive vocabulary carrying no path-bearing name.
+#:
+#: THE PRIMITIVE SHAPES REACH THE LIBRARY WITHOUT NAMING A LOCATOR, and that is
+#: what makes them isolate. A first draft of this matrix spelled
+#: ``locate.resolve_save_root()`` inside them as well, so the guard caught them
+#: on the locator and reported nothing about the primitive - four of the eight
+#: went green against the pre-repair guard and looked like coverage of a gap
+#: they never touched. Building the root from the environment instead is both
+#: the isolating construction and the realistic one, since hardcoding that path
+#: is what non-negotiable 3 forbids.
+_UNCONTAINED_SPLICES: Final = MappingProxyType(
+    {
+        "async-def": (
+            "\n\nasync def _spliced_async_helper():\n"
+            '    """An async helper carrying the known-bad shape."""\n'
+            "    root = locate.resolve_save_root()\n"
+            "    account = locate.resolve_account_dir(root)\n"
+            '    return sorted(account.glob("*.sav"))\n',
+            "_spliced_async_helper",
+        ),
+        "class-method": (
+            "\n\nclass _SplicedReacher:\n"
+            '    """A module-scope class whose method reaches the library."""\n'
+            "\n"
+            "    def reach(self):\n"
+            "        root = locate.resolve_save_root()\n"
+            "        return locate.resolve_account_dir(root)\n",
+            "_SplicedReacher.reach",
+        ),
+        "rglob": (
+            "\n\ndef _spliced_rglob_helper():\n"
+            '    """Walks a hardcoded save root with rglob instead of glob."""\n'
+            '    root = Path(os.environ["LOCALAPPDATA"]) / "FactoryGame"\n'
+            '    return sorted(root.rglob("*.sav"))\n',
+            "_spliced_rglob_helper",
+        ),
+        "iterdir-and-builtin-open": (
+            "\n\ndef _spliced_iterdir_helper():\n"
+            '    """Lists a hardcoded save root and opens a save by builtin."""\n'
+            '    root = Path(os.environ["LOCALAPPDATA"]) / "FactoryGame"\n'
+            "    for path in sorted(root.iterdir()):\n"
+            '        with open(path, "rb") as handle:\n'
+            "            return handle.read(4)\n"
+            "    return None\n",
+            "_spliced_iterdir_helper",
+        ),
+        "module-level-alias": (
+            "\n\n_spliced_alias = _library_save_paths\n"
+            "\n\ndef _spliced_alias_helper():\n"
+            '    """Reaches the library through a module-scope alias."""\n'
+            "    return [path for path in _spliced_alias()]\n",
+            "_spliced_alias_helper",
+        ),
+        "getattr-by-string": (
+            "\n\ndef _spliced_getattr_helper():\n"
+            '    """Reaches the locator through getattr rather than a dotted call."""\n'
+            '    finder = getattr(locate, "resolve_save_root")\n'
+            "    return finder()\n",
+            "_spliced_getattr_helper",
+        ),
+        "os-scandir": (
+            "\n\ndef _spliced_scandir_helper():\n"
+            '    """Walks a hardcoded save root through the os module."""\n'
+            '    root = Path(os.environ["LOCALAPPDATA"]) / "FactoryGame"\n'
+            "    return [entry.path for entry in os.scandir(root)]\n",
+            "_spliced_scandir_helper",
+        ),
+        "os-stat": (
+            "\n\ndef _spliced_stat_helper():\n"
+            '    """Stats one hardcoded save file, naming no other primitive."""\n'
+            '    save = Path(os.environ["LOCALAPPDATA"]) / "FactoryGame" / "newest.sav"\n'
+            "    return os.stat(save).st_size\n",
+            "_spliced_stat_helper",
+        ),
+    }
+)
+
+
+@pytest.mark.parametrize(
+    ("label", "splice", "reported"),
+    [(label, splice, reported) for label, (splice, reported) in _UNCONTAINED_SPLICES.items()],
+    ids=list(_UNCONTAINED_SPLICES),
+)
+def test_the_guard_catches_every_uncontained_shape_that_escaped_it(
+    tmp_path: Path, label: str, splice: str, reported: str
+) -> None:
+    """CS-433 - the guard's power against the shapes it was measured to miss.
+
+    The single-shape control one function up passed while seven of these eight
+    walked through, which is the failure class where a guard reads as protection
+    and grades one spelling of the thing it names. Each shape is spliced into a
+    COPY in ``tmp_path``, so nothing tracked is mutated and no restore is needed.
+
+    Args:
+        tmp_path: The per-test temporary directory.
+        label: The shape's name, used only in a failure message.
+        splice: The uncontained source to append.
+        reported: The name the guard's failure has to carry.
+    """
+    spliced = tmp_path / f"spliced_{label.replace('-', '_')}.py"
+    spliced.write_text(
+        Path(__file__).read_text(encoding="utf-8") + splice,
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError) as caught:
+        _assert_library_reach_is_declared(
+            spliced, graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
+        )
+    assert reported in str(caught.value), (
+        f"the guard failed on the {label} splice without naming {reported}, so it "
+        "reddened for some other reason and this shape is still unmeasured"
+    )
+
+    # The positive control, run per shape rather than once: the same guard on
+    # the unspliced source passes, so the red above is this splice.
     _assert_library_reach_is_declared(
         Path(__file__), graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
     )

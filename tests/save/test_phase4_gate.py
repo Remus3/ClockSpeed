@@ -2616,39 +2616,52 @@ _MITIGATION_NO_CODE: Final = "defines-no-code"
 #: and no filesystem primitive - so the redactor would have nothing to strip.
 _MITIGATION_NO_PATH: Final = "no-path-reaches-it"
 
-#: The module parses save bytes but RETAINS none of them: no dataclass field it
-#: exposes is annotated ``bytes``. Records reference the caller's buffer by
-#: offset and length instead. THIS IS THE ONE CS-423 NAMES - absence of the
-#: value rather than redaction of it - and it is the assertion that goes red the
-#: day the module starts holding one.
-_MITIGATION_RETAINS_NO_SAVE_BYTES: Final = "retains-no-save-bytes"
+#: No RECORD the module exposes carries save bytes: no field of any dataclass it
+#: defines is annotated ``bytes``. Records reference the caller's buffer by
+#: offset and length instead.
+#:
+#: THE NAME AND THE TEXT ARE NARROW ON PURPOSE, and CS-433 is why. This kind was
+#: spelled ``retains-no-save-bytes`` and its text said the module "parses save
+#: bytes but RETAINS none of them" - a claim about the whole module, checked by
+#: a function that reads dataclass fields. ``objects.py`` binds the whole body
+#: to ``_Cursor._data``, which is not a dataclass field, so the module shipped a
+#: green grade asserting an absence it did not have. A false guarantee is worse
+#: than the skip CS-423 replaced, because a skip is visible in every run and a
+#: green grade reads as evidence. The claim now stops where its checker does,
+#: and the retention it does have is graded by
+#: :data:`_MITIGATION_RETAINED_BYTES_NEVER_RENDERED`.
+_MITIGATION_RECORDS_RETAIN_NO_BYTES: Final = "records-retain-no-save-bytes"
+
+#: The module DOES hold save bytes on an attribute, and no rendering construct
+#: in it can reach them: no ``raise`` names one, no f-string interpolates one,
+#: no ``repr``/``str`` call takes one and no ``__repr__`` or ``__str__`` renders
+#: one.
+#:
+#: THE KIND IS ONLY AVAILABLE TO A MODULE THAT ACTUALLY RETAINS, and its checker
+#: reports a violation when nothing does. Without that, deleting the retaining
+#: class would leave this passing vacuously - the "negative assertion rules out
+#: without pinning down" class from memory/test-quality-failure-classes.md,
+#: where an empty module satisfies every absence check ever written.
+_MITIGATION_RETAINED_BYTES_NEVER_RENDERED: Final = "retained-bytes-are-never-rendered"
 
 #: The module DOES take a path, but no ``raise`` in it names one: every failure
 #: is reported as a stage constant plus an exception type name, and the path
 #: handling is delegated to a module that does redact.
 _MITIGATION_PATH_IS_NEVER_RAISED: Final = "path-is-never-raised"
 
-#: Attribute or bare names through which a path can enter a module. ``rglob``
-#: and ``read_text`` are included here even though the reach guard for the test
-#: modules excludes them, because the subject differs: a SAVE module has no
-#: legitimate reason to walk the tree or read a file at all.
-_FILESYSTEM_PRIMITIVES: Final = frozenset(
-    (
-        "open",
-        "read_bytes",
-        "read_text",
-        "write_bytes",
-        "write_text",
-        "glob",
-        "rglob",
-        "iterdir",
-        "resolve",
-        "expanduser",
-        "home",
-        "cwd",
-        "stat",
-    )
-)
+#: Attribute or bare names through which a path can enter a module.
+#:
+#: IMPORTED RATHER THAN TRANSCRIBED, and that is CS-433's repair. This tuple was
+#: authored here in the same commit that left ``test_properties``' reach guard
+#: naming none of these, so the two lists disagreed about what a path-bearing
+#: name is from the moment both existed - and the reach guard was the one that
+#: mattered, because it passed helpers walking a save root with ``rglob`` and
+#: ``iterdir``. ``test_properties`` owns the vocabulary now and derives its own
+#: narrower reach set from it by a declared partition; this module keeps the
+#: WHOLE vocabulary, because the subject differs. A SAVE module has no
+#: legitimate reason to read a file or walk a tree at all, so nothing here is
+#: excluded.
+_FILESYSTEM_PRIMITIVES: Final = test_properties._FILESYSTEM_PRIMITIVES  # noqa: SLF001
 
 
 def _defines_no_code(tree: ast.Module) -> list[str]:
@@ -2701,12 +2714,18 @@ def _path_reaches(tree: ast.Module) -> list[str]:
 
 
 def _retained_bytes_fields(tree: ast.Module) -> list[str]:
-    """Violations of :data:`_MITIGATION_RETAINS_NO_SAVE_BYTES`.
+    """Violations of :data:`_MITIGATION_RECORDS_RETAIN_NO_BYTES`.
 
-    A dataclass field annotated ``bytes`` is the module HOLDING save content
+    A dataclass field annotated ``bytes`` is a RECORD holding save content
     rather than pointing at the caller's copy of it. That is the precise sense
-    in which the mitigation is absence-of-value, and the precise thing that
+    in which this mitigation is absence-of-value, and the precise thing that
     would stop being true.
+
+    IT IS A CLAIM ABOUT RECORDS AND NOT ABOUT THE MODULE. Reading dataclass
+    fields is all this function has ever done; what changed in CS-433 is the
+    kind it answers for, which used to be worded as though it covered every
+    attribute in the file. :func:`_retained_body_attributes` is the one that
+    covers those.
 
     NOT A UNIVERSAL PROPERTY, which is what makes it a grade rather than a
     decoration: ``chunks.DecompressedBody.payload`` is annotated ``bytes``,
@@ -2733,6 +2752,144 @@ def _retained_bytes_fields(tree: ast.Module) -> list[str]:
             and "bytes" in ast.unparse(stmt.annotation)
         )
     return found
+
+
+def _retained_body_attributes(tree: ast.Module) -> list[str]:
+    """Every attribute in a module that comes to hold save bytes, dataclass or not.
+
+    THREE SHAPES, because the dataclass one alone missed the module the whole
+    grade was about. ``_Cursor.__init__`` does ``self._data = data`` where
+    ``data`` is the decompressed body, and an ordinary assignment in an ordinary
+    class is invisible to a walk that reads ``@dataclass`` annotated fields.
+
+    - A dataclass field annotated ``bytes``.
+    - ``self.x: bytes = ...``, an annotated attribute assignment.
+    - ``self.x = param`` where the enclosing function annotates ``param`` as
+      ``bytes``. Derived from the SIGNATURE rather than from a list of attribute
+      names, so a module that renames its buffer is still read.
+
+    A reference is retention for this purpose even though ``bytes`` is immutable
+    and nothing is copied: the object outlives the call that made it, and every
+    frame holding it is a frame pytest can render.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        ``Class.attribute`` for each, sorted and deduplicated.
+    """
+    found: list[str] = []
+    for cls in ast.walk(tree):
+        if not isinstance(cls, ast.ClassDef):
+            continue
+        found.extend(
+            f"{cls.name}.{stmt.target.id}"
+            for stmt in cls.body
+            if isinstance(stmt, ast.AnnAssign)
+            and isinstance(stmt.target, ast.Name)
+            and "bytes" in ast.unparse(stmt.annotation)
+        )
+        for member in cls.body:
+            if not isinstance(member, ast.FunctionDef | ast.AsyncFunctionDef):
+                continue
+            args = member.args
+            byte_params = {
+                arg.arg
+                for arg in [*args.posonlyargs, *args.args, *args.kwonlyargs]
+                if arg.annotation is not None and "bytes" in ast.unparse(arg.annotation)
+            }
+            for stmt in ast.walk(member):
+                if (
+                    isinstance(stmt, ast.AnnAssign)
+                    and isinstance(stmt.target, ast.Attribute)
+                    and "bytes" in ast.unparse(stmt.annotation)
+                ):
+                    found.append(f"{cls.name}.{stmt.target.attr}")
+                if not isinstance(stmt, ast.Assign) or not isinstance(stmt.value, ast.Name):
+                    continue
+                if stmt.value.id not in byte_params:
+                    continue
+                found.extend(
+                    f"{cls.name}.{target.attr}"
+                    for target in stmt.targets
+                    if isinstance(target, ast.Attribute)
+                )
+    return sorted(set(found))
+
+
+def _reaches_a_rendering(node: ast.AST, attributes: frozenset[str]) -> bool:
+    """Whether an expression lets one of the named attributes reach a rendering.
+
+    ``len(...)`` IS NOT A RENDERING and is not descended into. ``usmap.py``
+    raises with ``actual=max(len(self._data) - start, 0)``, which reports a
+    COUNT and cannot disclose a byte; treating the mention as a render would
+    report a leak that provably is not one. Excluding it is the equivalent-mutant
+    distinction from memory/test-quality-failure-classes.md rather than a
+    weakening - the splices in
+    ``test_each_absence_checker_rejects_the_violation_it_describes`` still go
+    red, because they pass the attribute itself.
+
+    Args:
+        node: The expression to inspect.
+        attributes: Bare attribute names that hold save bytes.
+
+    Returns:
+        True when one of them is reachable as a value.
+    """
+    if isinstance(node, ast.Call):
+        func = node.func
+        called = func.id if isinstance(func, ast.Name) else getattr(func, "attr", "")
+        if called == "len":
+            return False
+    if isinstance(node, ast.Attribute) and node.attr in attributes:
+        return True
+    return any(_reaches_a_rendering(child, attributes) for child in ast.iter_child_nodes(node))
+
+
+def _rendered_retained_bytes(tree: ast.Module) -> list[str]:
+    """Violations of :data:`_MITIGATION_RETAINED_BYTES_NEVER_RENDERED`.
+
+    The needles are DERIVED from :func:`_retained_body_attributes` rather than
+    written down, so the check cannot describe a buffer the module no longer
+    has, and a second retained attribute is covered the day it appears.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        One label per rendering site, plus the vacuity report when the module
+        retains nothing at all and should be declaring a different kind.
+    """
+    attributes = frozenset(name.split(".", 1)[1] for name in _retained_body_attributes(tree))
+    if not attributes:
+        return [
+            "nothing in this module holds save bytes, so this kind grades nothing here; "
+            f"declare {_MITIGATION_RECORDS_RETAIN_NO_BYTES!r} instead"
+        ]
+
+    renderers = {"repr", "str", "ascii", "format", "hex"}
+    found: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Raise):
+            if node.exc is not None and _reaches_a_rendering(node.exc, attributes):
+                found.append(f"line {node.lineno} raises naming a retained buffer")
+        elif isinstance(node, ast.JoinedStr):
+            if _reaches_a_rendering(node, attributes):
+                found.append(f"line {node.lineno} interpolates a retained buffer")
+        elif isinstance(node, ast.Call):
+            func = node.func
+            called = func.id if isinstance(func, ast.Name) else getattr(func, "attr", "")
+            if called in renderers and any(
+                _reaches_a_rendering(arg, attributes) for arg in node.args
+            ):
+                found.append(f"line {node.lineno} passes a retained buffer to {called}()")
+        elif (
+            isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+            and node.name in {"__repr__", "__str__"}
+            and _reaches_a_rendering(node, attributes)
+        ):
+            found.append(f"line {node.lineno} {node.name} renders a retained buffer")
+    return sorted(set(found))
 
 
 def _raises_naming_a_path(tree: ast.Module) -> list[str]:
@@ -2776,7 +2933,8 @@ _MITIGATION_CHECKERS: Final = MappingProxyType(
     {
         _MITIGATION_NO_CODE: _defines_no_code,
         _MITIGATION_NO_PATH: _path_reaches,
-        _MITIGATION_RETAINS_NO_SAVE_BYTES: _retained_bytes_fields,
+        _MITIGATION_RECORDS_RETAIN_NO_BYTES: _retained_bytes_fields,
+        _MITIGATION_RETAINED_BYTES_NEVER_RENDERED: _rendered_retained_bytes,
         _MITIGATION_PATH_IS_NEVER_RAISED: _raises_naming_a_path,
     }
 )
@@ -2795,21 +2953,31 @@ _ABSENCE_MITIGATIONS: Final = MappingProxyType(
             "frame, no message and no repr in it that could render anything",
         ),
         "chunks.py": (
-            (_MITIGATION_NO_PATH,),
+            (_MITIGATION_NO_PATH, _MITIGATION_RETAINED_BYTES_NEVER_RENDERED),
             "it works on a blob handed to it by a caller and never learns where "
-            "that blob came from. It DOES retain save bytes - DecompressedBody."
-            "payload is the decompressed body and is its whole purpose - so it "
-            "deliberately does not claim retains-no-save-bytes",
+            "that blob came from. It DOES hold save bytes - DecompressedBody."
+            "payload is the decompressed body and is its whole purpose - so the "
+            "records kind is unavailable to it and would be a false claim. What "
+            "it can be held to is that the buffer it holds reaches no raise, no "
+            "f-string and no repr, and that is graded",
         ),
         "objects.py": (
-            (_MITIGATION_NO_PATH, _MITIGATION_RETAINS_NO_SAVE_BYTES),
-            "THE MODULE CS-423 IS ABOUT. Its mitigation is absence rather than "
-            "redaction, in two independent senses. No path reaches it, so the "
+            (
+                _MITIGATION_NO_PATH,
+                _MITIGATION_RECORDS_RETAIN_NO_BYTES,
+                _MITIGATION_RETAINED_BYTES_NEVER_RENDERED,
+            ),
+            "THE MODULE CS-423 IS ABOUT, and the one CS-433 caught being graded "
+            "against a claim it does not satisfy. No path reaches it, so the "
             "redactor - which strips paths, account names and account ids - "
-            "would have nothing to strip. And it parses the body without "
-            "RETAINING it: every record points into the caller's buffer by "
-            "offset and length, so no field of any type it returns is bytes. "
-            "The decoded values it does hold live behind hand-written reprs "
+            "would have nothing to strip. Its RECORDS hold no save bytes: every "
+            "one points into the caller's buffer by offset and length, so no "
+            "field of any type it returns is bytes. THE MODULE ITSELF DOES HOLD "
+            "THE BODY - _Cursor.__init__ binds it to _data and keeps it for the "
+            "length of the parse - which is why the third kind is declared and "
+            "the second is worded about records only. An earlier revision "
+            "claimed the module retained none of it, which was false and green. "
+            "The decoded values it also holds live behind hand-written reprs "
             "that withhold every string, which is a separate guarantee graded "
             "by tests/save/test_properties.py rather than restated here",
         ),
@@ -2917,6 +3085,39 @@ def test_every_declared_absence_mitigation_actually_holds(relative: str) -> None
         )
 
 
+def test_the_module_graded_for_absence_of_value_does_hold_the_body() -> None:
+    """CS-433 - the reality the retention grade has to be written against.
+
+    ``objects.py`` binds the whole decompressed body to an attribute and keeps
+    it for the length of the parse. The grade shipped beside that fact said the
+    module retains none of it, and stayed green because the checker read
+    ``@dataclass`` annotated fields only and the binding is an ordinary
+    assignment in an ordinary class.
+
+    This test pins the FACT rather than the grade, so the two cannot drift
+    apart again: if the body stops being held the assertion goes red and the
+    declaration has to be revisited, and while it is held no wording that denies
+    it can pass.
+    """
+    tree = ast.parse((SAVE_PACKAGE / "objects.py").read_text(encoding="utf-8"))
+    held = _retained_body_attributes(tree)
+    assert held, (
+        "clockspeed/save/objects.py binds the decompressed body to an instance "
+        "attribute, and the retention checker reports nothing - so any grade "
+        "built on it is asserting an absence the module does not have"
+    )
+
+    # The two halves of the split, asserted against each other on the module
+    # that forced it. The narrow checker is SILENT here and the broad one is
+    # not, which is exactly the gap the old single kind was worded across.
+    assert not _retained_bytes_fields(tree), (
+        "a record in objects.py now carries a bytes field, so records-retain-no-"
+        f"save-bytes is no longer true of it: {_retained_bytes_fields(tree)}"
+    )
+    assert _MITIGATION_RECORDS_RETAIN_NO_BYTES in _ABSENCE_MITIGATIONS["objects.py"][0]
+    assert _MITIGATION_RETAINED_BYTES_NEVER_RENDERED in _ABSENCE_MITIGATIONS["objects.py"][0]
+
+
 def test_the_declared_absences_are_exactly_the_modules_that_call_no_redactor() -> None:
     """The declaration set is DERIVED-CHECKED against the scanned set, both ways.
 
@@ -2941,26 +3142,44 @@ def test_the_declared_absences_are_exactly_the_modules_that_call_no_redactor() -
     assert silent, "no module calls the redactor-free path, so the absence graders are vacuous"
 
 
-@pytest.mark.parametrize(
-    ("kind", "splice"),
-    [
-        (_MITIGATION_NO_CODE, "\n\ndef _spliced_surface():\n    return 1\n"),
-        (
-            _MITIGATION_NO_PATH,
-            "\n\nfrom pathlib import Path\n\n\ndef _spliced(p: Path):\n    return p.read_bytes()\n",
+#: Kind to a source fragment that violates exactly that kind.
+#:
+#: NOT THE PARAMETRISATION - the parametrisation is derived from
+#: :data:`_MITIGATION_KINDS`, and this is looked up inside the test. That
+#: ordering is the whole point. When the cases were listed here directly, a kind
+#: could be added to the registry, declared by a module and graded by a checker
+#: that returned an empty list, and nothing would parametrize over it: the suite
+#: stayed green and the new kind was never forced to prove it could go red. A
+#: kind with no entry here now produces a FAILING case rather than no case.
+_MITIGATION_VIOLATION_SPLICES: Final = MappingProxyType(
+    {
+        _MITIGATION_NO_CODE: "\n\ndef _spliced_surface():\n    return 1\n",
+        _MITIGATION_NO_PATH: (
+            "\n\nfrom pathlib import Path\n\n\ndef _spliced(p: Path):\n    return p.read_bytes()\n"
         ),
-        (
-            _MITIGATION_RETAINS_NO_SAVE_BYTES,
-            "\n\n@dataclass(frozen=True)\nclass _Spliced:\n    payload: bytes\n",
+        _MITIGATION_RECORDS_RETAIN_NO_BYTES: (
+            "\n\n@dataclass(frozen=True)\nclass _Spliced:\n    payload: bytes\n"
         ),
-        (
-            _MITIGATION_PATH_IS_NEVER_RAISED,
-            "\n\ndef _spliced(path: Path):\n    raise ValueError(path)\n",
+        # Self-contained: it BRINGS its own retention rather than naming a
+        # buffer the host module happens to have, so the same fragment forces
+        # every module that could ever declare this kind.
+        _MITIGATION_RETAINED_BYTES_NEVER_RENDERED: (
+            "\n\nclass _SplicedRenderer:\n"
+            "    def __init__(self, blob: bytes) -> None:\n"
+            "        self._kept = blob\n"
+            "\n"
+            "    def boom(self):\n"
+            "        raise ValueError(self._kept)\n"
         ),
-    ],
-    ids=lambda value: value if value in _MITIGATION_KINDS else "",
+        _MITIGATION_PATH_IS_NEVER_RAISED: (
+            "\n\ndef _spliced(path: Path):\n    raise ValueError(path)\n"
+        ),
+    }
 )
-def test_each_absence_checker_rejects_the_violation_it_describes(kind: str, splice: str) -> None:
+
+
+@pytest.mark.parametrize("kind", sorted(_MITIGATION_KINDS))
+def test_each_absence_checker_rejects_the_violation_it_describes(kind: str) -> None:
     """THE CHECKERS' POWER, forced rather than asserted about.
 
     A checker that returned an empty list on everything would pass every grade
@@ -2968,23 +3187,42 @@ def test_each_absence_checker_rejects_the_violation_it_describes(kind: str, spli
     would look like a grade. Each violation is spliced into a copy of the
     module that declares that kind, in memory, and the checker must report it.
 
+    THE CASES ARE DERIVED FROM THE REGISTRY, which is CS-433's repair here: the
+    list used to be written out beside this decorator, so a fifth kind could
+    join ``_MITIGATION_CHECKERS`` and be graded by nothing while every test in
+    the file stayed green. Parametrizing over the registry makes an unchecked
+    kind impossible to add quietly - it arrives as a red case.
+
     The positive control runs in the same test: the same checker on the
     UNSPLICED source of the same module must stay clean, so a red above is the
     splice rather than a checker that rejects everything.
     """
-    relative = next(
-        name for name, (kinds, _reason) in _ABSENCE_MITIGATIONS.items() if kind in kinds
+    assert kind in _MITIGATION_VIOLATION_SPLICES, (
+        f"the mitigation kind {kind!r} is in the registry and no fragment here violates it, "
+        "so nothing forces its checker to prove it can go red; add one to "
+        "_MITIGATION_VIOLATION_SPLICES"
     )
-    checker = _MITIGATION_CHECKERS[kind]
-    source = (SAVE_PACKAGE / relative).read_text(encoding="utf-8")
+    declaring = [name for name, (kinds, _reason) in _ABSENCE_MITIGATIONS.items() if kind in kinds]
+    assert declaring, (
+        f"the mitigation kind {kind!r} is in the registry and no module declares it, so it "
+        "grades nothing shipped; either a module should be claiming it or it should go"
+    )
 
-    assert not checker(ast.parse(source)), (
-        f"the positive control failed: {relative} does not satisfy {kind!r} unspliced"
-    )
-    assert checker(ast.parse(source + splice)), (
-        f"the {kind!r} checker passed a module carrying the exact violation it names, "
-        "so it grades nothing"
-    )
+    splice = _MITIGATION_VIOLATION_SPLICES[kind]
+    checker = _MITIGATION_CHECKERS[kind]
+
+    # Every declaring module, not just the first. Two modules claim the render
+    # kind, and grading one of them would leave the other's positive control
+    # unmeasured.
+    for relative in declaring:
+        source = (SAVE_PACKAGE / relative).read_text(encoding="utf-8")
+        assert not checker(ast.parse(source)), (
+            f"the positive control failed: {relative} does not satisfy {kind!r} unspliced"
+        )
+        assert checker(ast.parse(source + splice)), (
+            f"the {kind!r} checker passed {relative} carrying the exact violation it names, "
+            "so it grades nothing"
+        )
 
 
 def test_the_redactor_call_finder_separates_calls_from_prose() -> None:
@@ -3079,6 +3317,26 @@ _EXEMPT_LIBRARY_REACH: Final = MappingProxyType(
             "a test rather than a helper, and its read_bytes is on a synthetic "
             "save written into tmp_path"
         ),
+        # The three below entered the flagged set when CS-433 widened the reach
+        # vocabulary to the path-bearing primitives. None of them was newly
+        # written and none reaches the library; they are the visible price of a
+        # guard keyed on names rather than on targets, which is the trade the
+        # keying note in test_properties records and prefers.
+        "_relative_python_sources": (
+            "rglob and resolve over a SOURCE root handed in by the caller - the "
+            "save package or the repo - listing .py files. No discovery "
+            "primitive feeds it and it never sees a save directory"
+        ),
+        "_run_audited_child": (
+            "resolves the PRETEND save root that _pretend_save_root built under "
+            "tmp_path, to pass the child both Windows spellings of it. The "
+            "resolve is the point of the helper and the path is synthetic"
+        ),
+        "test_the_measured_audit_event_shapes_still_hold": (
+            "a test rather than a helper, and its open and os.open calls are on "
+            "files inside a tempfile.TemporaryDirectory, made solely to force "
+            "the CPython audit events this module's write scanner reasons about"
+        ),
     }
 )
 
@@ -3116,6 +3374,16 @@ def test_every_library_reaching_function_here_is_declared() -> None:
     test_properties._assert_library_reach_is_declared(  # noqa: SLF001
         Path(__file__), graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
     )
+
+
+def test_no_test_in_this_module_is_gutted_to_an_early_return() -> None:
+    """CS-433 - the graded absences cannot be quietly emptied.
+
+    Imported rather than transcribed, like the reach guard beside it. The kinds
+    above are the file's whole contribution to CS-423, and a test cut short
+    before its assertions passes exactly as an absent one would.
+    """
+    test_properties._assert_no_test_is_gutted(Path(__file__))  # noqa: SLF001
 
 
 def test_the_guard_catches_a_spliced_uncontained_helper(tmp_path: Path) -> None:
