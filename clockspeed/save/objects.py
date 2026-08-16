@@ -2167,14 +2167,34 @@ def parse_body(
 #   rather than transcribed.
 #
 #   CROSS-SECTION - an ObjectProperty names a record, and the record table is
-#   parsed by a different pass over a different section. 26146 references
-#   resolved; the rest name assets rather than saved objects, which is why that
-#   oracle is reported as a rate and never as a total.
+#   parsed by a different pass over a different section. The references that do
+#   not resolve name assets rather than saved objects, which is why that oracle
+#   is reported as a rate and never as a total. The count that stood here is
+#   deleted rather than corrected, for the reason the paragraph above gives: it
+#   is one corpus at one moment, and that corpus is a live save library which
+#   grows. tests/save/test_decode_oracles.py::test_object_references_resolve_
+#   against_the_record_table_and_collapse_when_rotated re-derives it on every
+#   run, and shows it collapsing to nothing one byte either side.
 #
 #   DIFFERENT FILE - the usmap is generated from the game's assets and carries
 #   a raw type byte per property. The save's type WORD proved to be a function
-#   of that byte: 13 words, each mapping to exactly one id, no id claimed by
-#   two words, zero contradictions.
+#   of that byte - one-to-one in both directions, no word claiming two ids, no
+#   id claimed by two words, zero contradictions. The word count that stood
+#   here is deleted on the same grounds as the two above.
+#   tests/save/test_decode_oracles.py::test_the_usmap_type_id_join_is_a_
+#   bijection_and_collapses_under_a_one_tag_shift re-derives the shape and its
+#   shifted control on every run.
+#
+#   THAT JOIN IS NOT A CHECK ON THE TAG WIDTHS BELOW, and assuming it were
+#   would be the expensive mistake. Mutating each width in _TAG_EXTRA_STRINGS
+#   one at a time leaves the bijection intact with zero violations, and under
+#   one of those mutants it is byte-identical to the unmutated result. The
+#   mechanism: a wrong width breaks the walk, a broken walk contributes no
+#   pairs at all, so every pair that survives is a correct one. What does
+#   discriminate the widths is the shipped-walk reach -
+#   tests/save/test_decode_oracles.py::test_the_shipped_walker_reaches_a_
+#   terminator_on_every_real_payload - which walks with THESE constants rather
+#   than with a test-side copy of them.
 #
 # AND THE ROTATION CONTROL, which is what makes the above evidence about
 # ALIGNMENT rather than about self-consistency. Re-read at VALUE-START offsets
