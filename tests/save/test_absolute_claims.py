@@ -14,9 +14,12 @@ THE RULE (contract 1). A sentence in the prose of a module named in
 form :func:`backing_citations` can resolve. A sentence that does not is
 deleted, or narrowed until the quantifier is gone. Those are the two
 dispositions, and THERE IS NO REGISTER OF PARDONS. An allowlist of exempted
-sentences is the artifact that rots - four rounds of hand repair on the fenced
-module, each shipping a fresh false sentence, are what that rot looks like, and
-a list of forgiven sentences would have hidden the lot.
+sentences is the artifact that rots - the repeated rounds of hand repair on the
+fenced module, each shipping a fresh false sentence, are what that rot looks
+like, and a list of forgiven sentences would have hidden the lot. NO ROUND
+COUNT IS WRITTEN HERE: the figure that stood in this sentence was stale, and
+the count belongs to ``ROADMAP.md`` rather than to a docstring that a further
+round would falsify again.
 
 THE MARKER SET IS A LIST TOO, AND ITS FAILURE DIRECTION IS THE OPPOSITE ONE.
 :data:`ABSOLUTE_PATTERNS` is hand-written, so a sentence phrased around a
@@ -49,8 +52,10 @@ paragraph is the precise failure CS-420 exists to stop.
 THE PARAGRAPH REFERENCE (contract 4) closes a gap this project measured rather
 than guessed at. ``test_oracle_citations`` resolves ``tests/<path>.py::<name>``
 and does not resolve a paragraph named by its opening words, so when ``662432d``
-renamed the ``objects.py`` paragraph that two of its own sentences quoted, both
-quotes died and the suite stayed green. A reference of the form ``paragraph ...
+renamed the ``objects.py`` join paragraph, the two sentences quoting its old
+opening - both of them in ``test_oracle_citations``, one in that module's
+docstring and one in an assert message - died with it and the suite stayed
+green. A reference of the form ``paragraph ...
 beginning `<text>` `` now has to prefix-match a real prose paragraph somewhere
 under ``clockspeed/`` or ``tests/``. The anchor token bounds the guess, on the
 same reasoning as contract 1 of ``test_oracle_citations``: ``synthetic.py``
@@ -58,9 +63,10 @@ writes "literal beginning ``Clockspeed``" about a base64url literal, and a rule
 firing on that would be red against correct prose.
 
 WHAT COUNTS AS PROSE (contract 5) is the kinds listed in
-:data:`_PARAGRAPH_KINDS`, and the last two were added after measuring what
-excluding them cost. The tuple is the record; this paragraph does not restate
-its length, because a kind added later would leave a number here false.
+:data:`_PARAGRAPH_KINDS`. The tuple is the record; this paragraph restates
+neither its length nor its order, because a kind added or reordered later would
+leave either one false. Why a given kind is read is argued below, beside that
+kind, rather than in a claim about the tuple's shape.
 
 A DOCSTRING and a COMMENT are obvious. An ASSERT MESSAGE is prose too: a reader
 reads it as a statement about the current tree, which is ADR 0008's own test
@@ -70,8 +76,8 @@ say the rule must deny. It is not a theoretical hole. The second of the two
 quotations that ``662432d`` killed sits in an assert message, and a
 docstring-and-comment scan reported one of the two and passed.
 
-A DIRECT CALL ARGUMENT IS THE LAST OF THEM, and contract 6 below is what found
-it. ``pytest.skip("...")`` carries a sentence written for the OPERATOR to
+A DIRECT CALL ARGUMENT IS THE KIND CONTRACT 6 ADDED, and the census below is
+what found it. ``pytest.skip("...")`` carries a sentence written for the OPERATOR to
 explain a loss, and it is not a docstring, not a comment and not an assert
 message, so the earlier kinds left it unread. This is the channel CLASS that
 CS-435 shipped a false universal in - a warning detail string, which the fence
@@ -91,12 +97,19 @@ COVERAGE IS CONSERVED (contract 6), and this is the half the earlier rounds of
 repair did not have. In a module named in :data:`CENSUSED_MODULES` each string
 literal is classified from ONE parse: read by a prose kind, or matched by the
 one exemption, or UNACCOUNTED - and unaccounted reddens. Comment tokens are
-accounted the same way against an independent :mod:`tokenize` pass. The claim
-is NOT that the declared positions cover the language; it is that a position
-nobody anticipated unbalances a count instead of passing unread.
+accounted the same way, with the total taken from the token stream rather than
+from the grouper's output, so a token the grouper drops is a shortfall. That is
+a SECOND PASS AND NOT AN INDEPENDENT ONE - the grouper walks the same stream,
+which bounds what the comment half can catch, and :func:`comment_census` says
+so where the bucket is built. The claim is NOT that the declared positions
+cover the language; it is that a position nobody anticipated unbalances a count
+instead of passing unread.
 
-THE EXEMPTION TURNS ON WHAT THE STRING IS, NOT ON THE SLOT IT SITS IN, and that
-is what stops it becoming a write-anything channel. A module-scope assignment
+THE EXEMPTION TURNS ON WHAT THE STRING IS AS WELL AS ON THE SLOT IT SITS IN,
+and it is the CONTENT half that stops it becoming a write-anything channel. The
+slot half is a walk over module scope; the content half is
+``str.isidentifier``. Deleting either one widens the exemption, and each is
+graded by its own line of :data:`_CONTROL_CENSUS`. A module-scope assignment
 whose value is a bare IDENTIFIER holds a token the module computes with - a
 terminator word, a counter key. The same slot holding a SENTENCE is not an
 identifier, so it is not exempt; no prose kind reads a bare assignment either,
@@ -108,9 +121,9 @@ THE SCOPE IS DERIVED, NOT LISTED. A module declares :data:`_FENCE_MARKER` or
 :data:`_CENSUS_MARKER` at module scope, and the tuples above are asserted EQUAL
 to what a walk of the tree finds. Deleting a tuple entry disagrees with the
 walk; deleting a marker disagrees with the tuple. Narrowing a scope takes both
-edits and neither is silent on its own - which a hand-written tuple could not
-offer, since deleting the entry naming this fence's own subject used to leave
-the suite green.
+edits and neither is silent on its own - which a bare tuple could not offer,
+because a tuple that is only ITERATED is consumed by removing work: deleting an
+entry shrinks the scan and adds no failure to notice it by.
 
 THE CONTROLS ARE THE POINT, because a scanner returning zero findings would
 pass the fenced scan in silence.
@@ -127,20 +140,22 @@ THE RESIDUAL, NAMED RATHER THAN IMPLIED AWAY, past the strength limit already
 stated in contract 3:
 
 - THE SCAN IS SCOPED to :data:`FENCED_MODULES`. ``clockspeed/save/objects.py``
-  carries prose of the same class and is NOT fenced, because its
-  ``_TAG_EXTRA_STRINGS`` docstring is CS-422's to repair and a fence that
-  reddens on another item's file would be reverted rather than obeyed. ADR 0008
-  scopes its own mechanical fence the same way and calls widening it separate
-  work.
-- THE CENSUS IS SCOPED NARROWER STILL, to one module, and the reason is
-  measured rather than chosen for convenience. The positions that tile the
-  censused module leave most of THIS module's string literals unaccounted: the
-  grammar table is regexes inside a dict, the corpora are Python source held in
-  assignments, and the controls compare against bare label strings. Censusing
-  this module would take an exemption per shape, and an exemption per shape is
-  the register of pardons contract 1 refuses. What that costs is stated plainly
-  rather than implied away: a sentence written into a dict value HERE is read
-  by no channel, and no count notices.
+  carries prose of the same class and is NOT fenced. Fencing it is a separate
+  item's work rather than a line in this one, and ADR 0008 scopes its own
+  mechanical fence the same way and calls widening it separate work. NO REASON
+  BEYOND SCOPE IS OFFERED HERE, because the one that stood in its place - that
+  a single ``_TAG_EXTRA_STRINGS`` docstring was another item's to repair - was
+  measured against the module and does not account for what the scan finds
+  there.
+- THE CENSUS IS SCOPED NARROWER STILL, to one module. The positions that tile
+  the censused module do NOT tile this one, and the shapes that escape them are
+  named rather than counted: the grammar table is regexes inside a dict, the
+  corpora are Python source held in assignments, and the controls compare
+  against bare label strings. Censusing this module would take an exemption per
+  shape, and an exemption per shape is the register of pardons contract 1
+  refuses. What that costs is stated plainly rather than implied away: a
+  sentence written into a dict value HERE is read by no channel, and no count
+  notices.
 - A CLAIM THAT CONTINUES A SENTENCE INHERITS ITS CITATIONS. The rule's unit is
   a sentence, and a citation anywhere in one backs the whole of it, so a marked
   claim appended to a clause that already names a resolving test satisfies
@@ -1115,6 +1130,7 @@ TABLE = {"nested": "a string inside a dict that is not a direct argument."}
 def check(value: int) -> None:
     """A function docstring."""
     inner = "a function-scope assignment, which is not module scope."
+    scoped = "identifier_at_function_scope"
     skip("a call argument carrying an operator-facing sentence.")
     wrap({"nested": "a string inside a dict passed as an argument."})
     assert value, "an assert message."
@@ -1275,10 +1291,32 @@ def test_a_marked_claim_at_each_parse_derived_position_is_caught(repo_root: Path
             "was, so a finding here means the pristine module is already red."
         )
 
+        # THE PROBE POPULATION IS TIED TO THE CENSUS POPULATION. Without the
+        # tie, a probe walking a subset reports a success for each position it
+        # walked and passes: a count of successes is silent about the count of
+        # positions until the two are compared. An empty probe is the limiting
+        # case and passes hardest, which is what the liveness floor beside each
+        # comparison is for.
+        census = string_census(source)
+        census_lines = sorted(
+            lineno
+            for group in (census.extracted, census.exempt, census.unaccounted)
+            for lineno, _ in group
+        )
+        string_probes = string_position_mutants(source, _MARKED_CLAIM)
+        assert census_lines, f"{path} holds no string literal to probe"
+        assert sorted(lineno for lineno, _, _ in string_probes) == census_lines, (
+            f"the string probe of {path} enumerated "
+            f"{len(string_probes)} positions where the census counts "
+            f"{len(census_lines)}. The probe is what proves a claim at a "
+            "position is caught, so one that walks a subset grades a subset and "
+            "says less than its name does."
+        )
+
         by_scan: list[int] = []
         by_census: list[int] = []
         missed: list[str] = []
-        for lineno, kind, mutant in string_position_mutants(source, _MARKED_CLAIM):
+        for lineno, kind, mutant in string_probes:
             reported = bool(unbacked_absolutes(path, mutant, sources))
             unaccounted = bool(string_census(mutant).unaccounted)
             if kind in _PROSE_KINDS and reported:
@@ -1305,17 +1343,27 @@ def test_a_marked_claim_at_each_parse_derived_position_is_caught(repo_root: Path
             "of the exempt class is unpinned."
         )
 
+        comments = comment_census(source)
+        comment_lines = sorted(line for lines in comments.values() for line in lines)
+        comment_probes = comment_position_mutants(source, _MARKED_CLAIM)
+        assert comment_lines, f"{path} holds no comment token to probe"
+        assert sorted(lineno for lineno, _ in comment_probes) == comment_lines, (
+            f"the comment probe of {path} enumerated {len(comment_probes)} "
+            f"positions where the census counts {len(comment_lines)}. The "
+            "dropped-as-blank and dropped-as-rule classes are exemptions, so a "
+            "probe that walks past them leaves the two comment exemptions "
+            "ungraded while still reporting a clean run."
+        )
+
         comment_missed = [
             lineno
-            for lineno, mutant in comment_position_mutants(source, _MARKED_CLAIM)
+            for lineno, mutant in comment_probes
             if not unbacked_absolutes(path, mutant, sources)
         ]
         assert not comment_missed, (
             f"a claim written over the comment at these lines of {path} was "
-            f"not reported: {comment_missed}. The dropped-as-blank and "
-            "dropped-as-rule comment classes are exemptions too, so a comment "
-            "position that swallows a sentence is the same hole in the other "
-            "channel."
+            f"not reported: {comment_missed}. A comment position that swallows "
+            "a sentence is the same hole in the other channel."
         )
 
 
@@ -1479,10 +1527,13 @@ def test_the_module_constant_exemption_stops_at_a_sentence_and_at_function_scope
         "on the slot rather than on what the string is would swallow any "
         "sentence an author put there, and the scan would not see it."
     )
-    assert _corpus_line(_CONTROL_CENSUS, "inner =") in unaccounted, (
-        "a FUNCTION-scope assignment holding a token was exempted. The exemption "
-        "is bounded to module scope because that is where the constants it "
-        "covers are declared; widening it silently is how a scope rule grows."
+    assert _corpus_line(_CONTROL_CENSUS, "scoped =") in unaccounted, (
+        "a FUNCTION-scope assignment holding an IDENTIFIER was exempted. That "
+        "line is what grades the scope edge: its value passes isidentifier(), "
+        "so what keeps it out of the exemption is the walk over module scope "
+        "and that alone. The sentence-valued line beside it does not grade "
+        "this - the content gate excludes it on its own, so the assert would "
+        "hold with the scope gate deleted."
     )
 
 

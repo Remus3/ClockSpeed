@@ -12,9 +12,11 @@ pieces of evidence - CLAUDE.md section 5 names it - so the walk here holds no
 width of its own. Names come from ``objects._payload_text``, tag headers from
 ``objects._read_tag_header``, and the cursor advances by the value extent that
 shipped header read reports, so an assertion here grades the shipped grammar
-rather than a copy of it. One literal IS transcribed, the terminator word, and
-that exception is argued where the constant is defined rather than left for a
-reader to notice.
+rather than a copy of it. LITERALS ARE STILL TRANSCRIBED, and each is argued
+where its constant is defined rather than left for a reader to notice. NO COUNT
+OF THEM IS WRITTEN HERE: the figure that stood in this sentence said one and
+was wrong, because the reference word beside the terminator is a transcription
+on the same reading.
 
 WHETHER PROVENANCE ALSO BUYS DETECTION IS NOT ARGUED IN THIS PROSE. For the tag
 widths the relation is derived at runtime by
@@ -183,6 +185,17 @@ _TERMINATOR: Final = "None"
 #: The type word whose value names a saved object. SoftObjectProperty carries
 #: the same two-string shape but names ASSETS, and was measured to resolve
 #: against the record table at a flat zero, so it is not in this population.
+#:
+#: THIS IS A TRANSCRIPTION TOO, AND ITS EXPOSURE IS UNLIKE THE TERMINATOR'S.
+#: ``objects`` holds a module-level name carrying this word - the frozenset
+#: ``objects._TWO_STRING_VALUES`` - so the argument made for the terminator, that
+#: there is no name to import without editing the shipped module, does not
+#: transfer here. What that frozenset holds is the PAIR: this word and the
+#: SoftObjectProperty one the paragraph above excludes by measurement. Importing
+#: it would widen the population back to the pair rather than source this
+#: constant, so a swap needs the exclusion re-expressed against the shipped set.
+#: THAT IS OPEN WORK AND NOT A THING THIS MODULE DOES, recorded here because a
+#: transcription with a reachable source is a weaker exception than one without.
 _REFERENCE_WORD: Final = "ObjectProperty"
 
 #: A decoded object reference is a level reference and an object path.
