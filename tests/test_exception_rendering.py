@@ -34,6 +34,37 @@ like a field access and silently renders the whole object whenever the field
 is absent. A detector that understands fields but not defaults waves it
 through.
 
+THE SAME LEAK ONE CALL DEEPER (CS-441). A helper that RECEIVES the exception
+as a parameter gets the object intact, so `str()` there appends the very same
+filename it would have appended inside the handler. Until CS-441 the detector
+bound names only at `except ... as NAME`, and this module asserted that a
+parameter-taking helper was "the sanctioned boundary" - a sentence true of the
+one helper its author had in mind and silently true of nothing else. Measured
+on `clockspeed/save/workdir.py::_listing_problem`, which takes `exc: OSError`:
+`detail=str(exc)` was 0 findings and green, while the same `str(exc)` moved
+into a real handler was 1 finding and red.
+
+So a parameter ANNOTATED as an exception type is bound over its function body
+too - `def` and `async def` alike, because `ast.AsyncFunctionDef` is not a
+subclass of `ast.FunctionDef` - and its whole-object renderings land in
+`param_found`. The population is DERIVED from annotations rather than listed:
+there is no set of helpers to keep up to date, so a new one cannot escape by
+not being on it.
+
+THE ONE EXEMPTION, and why it is shaped the way it is. Both real redaction
+helpers render the whole object for exactly one type, and both are correct
+because that type is DEFINED IN THEIR OWN MODULE - so the module builds the
+message and can promise it carries no path. Each says so at the site: "built
+by git_run_error() below, already argv-free" and "built in this module and is
+already free of git's stderr and of every discovered path". The exemption is
+therefore structural - a render under `isinstance(NAME, T)` where every T is a
+class defined in this module - and NOT "a render under any isinstance test",
+because `isinstance(exc, OSError): return str(exc)` wears identical syntax and
+is the worst leak in the class. CS-427's privacy guards keyed on the safe
+route and so never graded the unsafe one; this keys on the risky construct and
+carries `test_a_render_guarded_by_a_foreign_type_does_not_earn_the_exemption`
+to prove the exemption cannot reach it.
+
 WHAT IS NOT A RENDERING, and this half is load-bearing. A NAMED FIELD is safe
 and must not be flagged:
 
@@ -41,7 +72,9 @@ and must not be flagged:
     getattr(NAME, "msg", None)      default is not the object
     type(NAME).__name__
     raise SomeError(...) from NAME  chaining, not rendering
-    helper(NAME)                    a per-type redaction allowlist
+    helper(NAME)                    handing it to a redactor is the FIX - though
+                                    since CS-441 that helper's own body is
+                                    scanned in its turn, see below
 
 `clockspeed/data/docs_extract.py` renders `exc.reason`, `exc.msg`, `exc.lineno`
 and `exc.colno` and is ALREADY CORRECT. A naive detector flags it, and whoever
@@ -124,6 +157,10 @@ TEXT_BUILTINS = frozenset({"str", "repr", "ascii", "format"})
 # fallback, and the fallback is where the object sneaks back in.
 GETATTR_WITH_DEFAULT = 3
 
+# `isinstance(obj, T)`. The two-argument form is the only one that constrains a
+# name to a type; anything else is not a type guard this exemption may read.
+ISINSTANCE_ARITY = 2
+
 # ast.FormattedValue.conversion, as the source spelling it came from.
 CONVERSIONS = {-1: "", 115: "!s", 114: "!r", 97: "!a"}
 
@@ -166,6 +203,42 @@ UNGUARDED_TRACEBACK_RESIDUALS = {
     ),
 }
 
+# Files that render an exception PARAMETER as a whole object and are not fixed
+# here, each with the reason. Same contract as the traceback residuals above:
+# a record of known sites, not an allowlist that absorbs the next one. Anything
+# not listed here turning up is a new defect and fails the test, and a listing
+# whose site has gone is also a failure rather than a quiet leftover.
+#
+# WHY THESE ARE RECORDED RATHER THAN EXEMPTED. The structural exemption reads
+# ONE containment: a whole-object render under an `isinstance` test naming a
+# class the module itself defines. Both of these contain the object a different
+# way, and neither containment is a property this detector can read off the
+# AST. Recording them keeps the site VISIBLE on a green run, which is the
+# fail-closed direction - an exemption broad enough to cover them would also
+# cover the leak, which is the CS-427 inversion this file must not repeat.
+PARAMETER_RENDER_RESIDUALS = {
+    "tests/save/test_header.py": (
+        "The redaction-ASSERTION helper _exception_surfaces(), already recorded "
+        "in UNGUARDED_TRACEBACK_RESIDUALS above for the traceback line of the "
+        "very same function - whose entry states the shape outright: 'the "
+        "exception is a parameter rather than a caught object'. It collects "
+        "str, repr, args, notes and the formatted traceback precisely so the "
+        "test can assert none of them carries personal data. Rendering IS the "
+        "assertion; suppressing it would delete the check."
+    ),
+    "tools/drift_guard.py": (
+        "_exc_text()'s non-OSError branch, and a THIRD redaction helper with a "
+        "containment this detector cannot read. The OSError branch renders "
+        "strerror - a named field - while every other type is rendered whole "
+        "and then passed through _redact(), which fails closed to a withheld "
+        "marker when the redactor will not import. That is a wrapper rather "
+        "than a per-type allowlist, and its limit is already on record: redact "
+        "rewrites a path under a HOME directory and leaves an absolute path "
+        "that is not under one untouched. Bounded, deliberate and documented "
+        "at the site - so it is held visible here rather than exempted."
+    ),
+}
+
 # Sites the sweep flags that are NOT leaks, each with the reason, and each
 # asserted live by test_every_waiver_is_still_live. A waiver that outlives the
 # code it describes is a silent exemption, which is the failure CONVENTIONS.md
@@ -193,20 +266,100 @@ class Rendering:
         return f"{self.path}:{self.lineno}  {self.shape}"
 
 
-class RenderVisitor(ast.NodeVisitor):
-    """Flag whole-object renderings of a name bound by `except ... as NAME`.
+def annotation_names(node: ast.expr | None) -> set[str]:
+    """Every bare identifier inside an annotation, unions and strings included.
 
-    Scoping to the handler body is what separates a leak from the redaction
-    helpers themselves: `safe_exc_text(exc)` takes the exception as a
-    PARAMETER, so its own `str(exc)` is outside every handler and is the
-    sanctioned boundary rather than an exemption written into this detector.
+    `OSError`, `subprocess.SubprocessError`, `OSError | ValueError` and the
+    quoted `"OSError"` all have to yield the same identifier, because which
+    spelling an author reached for says nothing about what the value is.
+    """
+    if node is None:
+        return set()
+    names: set[str] = set()
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Name):
+            names.add(sub.id)
+        elif isinstance(sub, ast.Attribute):
+            names.add(sub.attr)
+        elif isinstance(sub, ast.Constant) and isinstance(sub.value, str):
+            try:
+                names |= annotation_names(ast.parse(sub.value, mode="eval").body)
+            except SyntaxError:
+                continue
+    return names
+
+
+def is_exception_annotation(node: ast.expr | None) -> bool:
+    """Whether an annotation names an exception type, read off the SOURCE.
+
+    Syntactic on purpose. Resolving the name would mean importing the module,
+    and this sweep has to run over the gate and the installer, both of which
+    must be scannable in a checkout where importing anything is not safe to
+    assume. `Error` and `Exception` suffixes are what PEP 8 asks for and what
+    every annotation in this tree uses.
+    """
+    return any(name.endswith(("Error", "Exception")) for name in annotation_names(node))
+
+
+def local_class_names(tree: ast.Module) -> frozenset[str]:
+    """Every class DEFINED in this module, which is the exemption's whole basis."""
+    return frozenset(node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef))
+
+
+def isinstance_guards(test: ast.expr) -> dict[str, frozenset[str]]:
+    """Map each name an `isinstance(NAME, T)` test constrains to the types in T.
+
+    A tuple of types yields every member, so a mixed `(LocalError, OSError)`
+    cannot be exempted on the strength of its local half alone.
+    """
+    guards: dict[str, frozenset[str]] = {}
+    for sub in ast.walk(test):
+        if not isinstance(sub, ast.Call) or not isinstance(sub.func, ast.Name):
+            continue
+        if sub.func.id != "isinstance" or len(sub.args) != ISINSTANCE_ARITY:
+            continue
+        subject = sub.args[0]
+        if isinstance(subject, ast.Name):
+            guards[subject.id] = frozenset(annotation_names(sub.args[1]))
+    return guards
+
+
+class RenderVisitor(ast.NodeVisitor):
+    """Flag whole-object renderings of a caught OR parameter-bound exception.
+
+    TWO SCOPES, kept in two lists. `found` holds renderings of a name bound by
+    `except ... as NAME`. `param_found` holds renderings of a parameter
+    ANNOTATED as an exception type, which is the same leak one call deeper -
+    the object reaches the helper intact, so `str()` appends the same filename
+    it would have inside the handler. Until CS-441 only the first scope
+    existed, and this docstring asserted that a helper taking the exception as
+    a parameter was "the sanctioned boundary" - which described one correct
+    helper and silently covered every other function with the same signature.
+
+    THE EXEMPTION, and it is structural rather than a list of blessed names. A
+    whole-object rendering is not flagged when it sits under an
+    `isinstance(NAME, T)` test and every T is a class DEFINED IN THIS MODULE.
+    A module that defines an exception type also builds its message, so it can
+    promise the text carries no path; a type it merely imports has a `str()` it
+    does not control. That is exactly what both real redaction helpers say
+    about themselves in their own comments, and it deliberately does NOT reach
+    `isinstance(exc, OSError): return str(exc)`, which is the worst leak in
+    this class wearing the same syntax.
     """
 
-    def __init__(self, path: str) -> None:
-        """Start a scan of one file, identified by its repo-relative path."""
+    def __init__(self, path: str, local_classes: frozenset[str] = frozenset()) -> None:
+        """Start a scan of one file, identified by its repo-relative path.
+
+        `local_classes` defaults to empty, so a visitor built without it
+        exempts nothing rather than everything - the fail-closed direction.
+        """
         self.path = path
+        self.local_classes = local_classes
         self.bound: list[str] = []
+        self.params: list[frozenset[str]] = []
+        self.type_guards: list[dict[str, frozenset[str]]] = []
         self.found: list[Rendering] = []
+        self.param_found: list[Rendering] = []
         self.tracebacks: list[Rendering] = []
         self.env_guard_depth = 0
 
@@ -219,6 +372,76 @@ class RenderVisitor(ast.NodeVisitor):
         if isinstance(node, ast.Name) and node.id in self.bound:
             return node.id
         return None
+
+    def resolve(self, node: ast.expr) -> tuple[str, bool] | None:
+        """Return (name, is_parameter) if this expression IS an exception object.
+
+        A handler binding wins over a parameter of the same name, because
+        inside the handler body that name refers to the caught object.
+        """
+        if not isinstance(node, ast.Name):
+            return None
+        if node.id in self.bound:
+            return (node.id, False)
+        if any(node.id in frame for frame in self.params):
+            return (node.id, True)
+        return None
+
+    def record(self, node: ast.expr, name: str, is_parameter: bool, shape: str) -> None:
+        """File one rendering into the scope it belongs to, honouring the exemption."""
+        if not is_parameter:
+            self.found.append(Rendering(self.path, node.lineno, shape))
+            return
+        if self.type_exempt(name):
+            return
+        self.param_found.append(Rendering(self.path, node.lineno, shape))
+
+    def type_exempt(self, name: str) -> bool:
+        """Whether this name sits under an isinstance test on a LOCAL class only."""
+        for frame in reversed(self.type_guards):
+            guarded = frame.get(name)
+            if guarded is not None:
+                return bool(guarded) and guarded <= self.local_classes
+        return False
+
+    def note_call(self, node: ast.expr, shape_of) -> None:
+        """Resolve an expression and record it under the shape its caller names."""
+        hit = self.resolve(node)
+        if hit is None:
+            return
+        name, is_parameter = hit
+        self.record(node, name, is_parameter, shape_of(name))
+
+    def exception_parameters(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> frozenset[str]:
+        """Every parameter of this function annotated as an exception type."""
+        spec = node.args
+        every = [*spec.posonlyargs, *spec.args, *spec.kwonlyargs]
+        if spec.vararg is not None:
+            every.append(spec.vararg)
+        if spec.kwarg is not None:
+            every.append(spec.kwarg)
+        return frozenset(arg.arg for arg in every if is_exception_annotation(arg.annotation))
+
+    def visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        """Bind exception-annotated parameters over the body, then restore."""
+        self.params.append(self.exception_parameters(node))
+        self.generic_visit(node)
+        self.params.pop()
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        """Dispatch a `def` into the shared parameter-scoping body."""
+        self.visit_function(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        """Dispatch an `async def` into the SAME body as its `def` twin.
+
+        `ast.AsyncFunctionDef` is not a subclass of `ast.FunctionDef`, so a
+        visitor carrying only the method above is blind to a byte-identical
+        `async def` helper. That exact hole has shipped in this repository
+        before, which is why the two dispatch to one implementation rather
+        than to two that can drift apart.
+        """
+        self.visit_function(node)
 
     def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
         """Bind `except ... as NAME` over its body, then restore the scope."""
@@ -238,10 +461,11 @@ class RenderVisitor(ast.NodeVisitor):
         for part in node.values:
             if not isinstance(part, ast.FormattedValue):
                 continue
-            name = self.bound_name(part.value)
-            if name is not None:
-                conversion = CONVERSIONS.get(part.conversion, "!?")
-                self.flag(part.value, f"f-string {{{name}{conversion}}}")
+            conversion = CONVERSIONS.get(part.conversion, "!?")
+            # `conversion` is bound as a default rather than captured: the
+            # closure is called before the next iteration rebinds it, but a
+            # loop-variable capture is a defect waiting for a refactor.
+            self.note_call(part.value, lambda name, tag=conversion: f"f-string {{{name}{tag}}}")
         self.generic_visit(node)
 
     def visit_Call(self, node: ast.Call) -> None:
@@ -259,6 +483,11 @@ class RenderVisitor(ast.NodeVisitor):
         a reader has to ask for. Only the body counts - the `else` branch of an
         environment test is the DEFAULT path, and a traceback there is exactly
         the thing being suppressed.
+
+        The same body-only rule carries the `isinstance` type guard that the
+        per-type redaction exemption reads. `else` is again the wrong side: the
+        branch NOT taken when the type matched is the branch where the type is
+        anything at all, which is where the object must not be rendered.
         """
         self.visit(node.test)
         guarded = any(
@@ -267,8 +496,10 @@ class RenderVisitor(ast.NodeVisitor):
             for sub in ast.walk(node.test)
         )
         self.env_guard_depth += int(guarded)
+        self.type_guards.append(isinstance_guards(node.test))
         for child in node.body:
             self.visit(child)
+        self.type_guards.pop()
         self.env_guard_depth -= int(guarded)
         for child in node.orelse:
             self.visit(child)
@@ -279,9 +510,7 @@ class RenderVisitor(ast.NodeVisitor):
             right = node.right
             operands = right.elts if isinstance(right, ast.Tuple) else [right]
             for operand in operands:
-                name = self.bound_name(operand)
-                if name is not None:
-                    self.flag(operand, f"percent-format {name}")
+                self.note_call(operand, lambda name: f"percent-format {name}")
         self.generic_visit(node)
 
     def check_text_builtin(self, node: ast.Call) -> None:
@@ -290,9 +519,7 @@ class RenderVisitor(ast.NodeVisitor):
         if not isinstance(func, ast.Name) or func.id not in TEXT_BUILTINS:
             return
         for arg in node.args:
-            name = self.bound_name(arg)
-            if name is not None:
-                self.flag(arg, f"{func.id}({name})")
+            self.note_call(arg, lambda name, call=func.id: f"{call}({name})")
 
     def check_str_format(self, node: ast.Call) -> None:
         """`"...".format(exc)`, positionally or as a keyword value."""
@@ -300,9 +527,7 @@ class RenderVisitor(ast.NodeVisitor):
         if not isinstance(func, ast.Attribute) or func.attr != "format":
             return
         for arg in [*node.args, *(kw.value for kw in node.keywords)]:
-            name = self.bound_name(arg)
-            if name is not None:
-                self.flag(arg, f".format({name})")
+            self.note_call(arg, lambda name: f".format({name})")
 
     def check_getattr_default(self, node: ast.Call) -> None:
         """`getattr(exc, "field", exc)` - the object as the FALLBACK value."""
@@ -311,9 +536,7 @@ class RenderVisitor(ast.NodeVisitor):
             return
         if len(node.args) != GETATTR_WITH_DEFAULT:
             return
-        name = self.bound_name(node.args[2])
-        if name is not None:
-            self.flag(node.args[2], f"getattr default {name}")
+        self.note_call(node.args[2], lambda name: f"getattr default {name}")
 
     def note_traceback(self, node: ast.Call) -> None:
         """Record a traceback rendering, and whether it is opt-in guarded."""
@@ -348,8 +571,9 @@ def tracked_python_files() -> list[str]:
 
 def scan_source(path: str, source: str) -> RenderVisitor:
     """Scan one module's source and return the visitor holding its findings."""
-    visitor = RenderVisitor(path)
-    visitor.visit(ast.parse(source))
+    tree = ast.parse(source)
+    visitor = RenderVisitor(path, local_class_names(tree))
+    visitor.visit(tree)
     return visitor
 
 
@@ -363,6 +587,15 @@ def scan_repo() -> tuple[list[Rendering], list[Rendering]]:
         found.extend(visitor.found)
         tracebacks.extend(visitor.tracebacks)
     return found, tracebacks
+
+
+def scan_repo_parameters() -> list[Rendering]:
+    """Every whole-object rendering of an exception PARAMETER across the tree."""
+    found: list[Rendering] = []
+    for relative in tracked_python_files():
+        text = (REPO_ROOT / relative).read_text(encoding="utf-8")
+        found.extend(scan_source(relative, text).param_found)
+    return found
 
 
 def describe(findings: list[Rendering]) -> str:
@@ -572,6 +805,229 @@ def test_the_real_docs_extract_module_is_not_flagged():
     # Non-vacuous: prove the file really does carry the field shape, so this
     # test cannot pass merely because the module stopped catching anything.
     assert "exc.reason" in source, "the negative control no longer covers what it claims to"
+
+
+# ---------------------------------------------------------------------------
+# CS-441 - the same leak class one call deeper, in a helper that receives the
+# exception as a PARAMETER instead of binding it with `except ... as NAME`
+# ---------------------------------------------------------------------------
+
+# Assembled as SOURCE TEXT for the same reason LEAKY_SOURCE above is: the sweep
+# scans this module like every other, so a real `def f(exc: OSError)` rendering
+# `exc` written here would be a finding against this file.
+PARAM_LEAKY_SOURCE = '''
+def render_the_object(exc: OSError, label: str) -> str:
+    """Every shape above, on an exception received as a PARAMETER."""
+    a = f"fstring: {exc}"
+    b = f"fstring repr: {exc!r}"
+    c = f"fstring str: {exc!s}"
+    d = str(exc)
+    e = repr(exc)
+    f = "dotformat: {}".format(exc)
+    g = "dotformat kw: {why}".format(why=exc)
+    h = "percent: %s" % exc
+    i = "percent tuple: %s %s" % (label, exc)
+    j = "getattr fallback: {}".format(getattr(exc, "problem", exc))
+    return a + b + c + d + e + f + g + h + i + j
+'''
+
+# `ast.AsyncFunctionDef` IS NOT a subclass of `ast.FunctionDef`. A visitor that
+# handles only the sync node is blind to a byte-identical async body, and this
+# repository has shipped exactly that hole before - so the async twin is a
+# control rather than a footnote.
+PARAM_LEAKY_ASYNC_SOURCE = PARAM_LEAKY_SOURCE.replace(
+    "def render_the_object", "async def render_the_object"
+)
+
+
+def test_detector_flags_every_leaky_shape_on_an_exception_parameter():
+    # THE POSITIVE CONTROL for the parameter scope. Before CS-441 the detector
+    # bound names only at `except ... as NAME`, so a helper handed the very same
+    # object one frame deeper rendered it with nothing watching.
+    visitor = scan_source("synthetic_param_leaky.py", PARAM_LEAKY_SOURCE)
+    shapes = sorted({finding.shape for finding in visitor.param_found})
+    expected = sorted(
+        [
+            "f-string {exc}",
+            "f-string {exc!r}",
+            "f-string {exc!s}",
+            "str(exc)",
+            "repr(exc)",
+            ".format(exc)",
+            "percent-format exc",
+            "getattr default exc",
+        ]
+    )
+    assert shapes == expected, (
+        "the detector missed a leaky shape on a parameter-bound exception.\n"
+        f"  caught:   {shapes}\n  expected: {expected}"
+    )
+    assert len(visitor.param_found) == LEAKY_SITE_COUNT, describe(visitor.param_found)
+
+
+def test_the_async_twin_of_the_leaky_helper_is_flagged_identically():
+    # `async def` is a different AST node, not a subclass. Compared site for
+    # site against the sync twin so a partial async implementation is red.
+    sync = scan_source("synthetic_param_leaky.py", PARAM_LEAKY_SOURCE)
+    asynchronous = scan_source("synthetic_param_leaky_async.py", PARAM_LEAKY_ASYNC_SOURCE)
+    assert [finding.shape for finding in asynchronous.param_found] == [
+        finding.shape for finding in sync.param_found
+    ], (
+        "an `async def` helper is not scanned like its `def` twin. "
+        "ast.AsyncFunctionDef is NOT a subclass of ast.FunctionDef:\n"
+        + describe(asynchronous.param_found)
+    )
+    # Non-vacuous: a twin comparison passes trivially if BOTH sides are empty.
+    assert asynchronous.param_found, "the async control compared two empty lists"
+
+
+# ---------------------------------------------------------------------------
+# The exemption, and the control that stops it becoming an inversion
+# ---------------------------------------------------------------------------
+
+# THE SANCTIONED SHAPE, copied structurally from the two real redaction helpers
+# (`tools/precommit_gate.py::safe_exc_text` and its deliberate duplicate in
+# `scripts/install_hooks.py`). Both render the whole object for ONE type and
+# both are correct, because that type is DEFINED IN THE SAME MODULE - so the
+# module builds the message itself and can promise it carries no path. Both
+# say so in their own comments: "built by git_run_error() below, already
+# argv-free" and "built in this module and is already free of git's stderr and
+# of every discovered path". That is the exemption, and it is read off the AST
+# rather than off a list of blessed function names.
+PARAM_SAFE_SOURCE = '''
+import subprocess
+
+
+class LocalError(RuntimeError):
+    """Defined HERE. This module builds its message, so it can promise its text."""
+
+
+def safe_exc_text(exc: BaseException) -> str:
+    """The per-type redaction allowlist. A field is rendered only per type."""
+    if isinstance(exc, LocalError):
+        return str(exc) or type(exc).__name__
+    if isinstance(exc, OSError):
+        return exc.strerror or type(exc).__name__
+    if isinstance(exc, SyntaxError):
+        return exc.msg or type(exc).__name__
+    if isinstance(exc, subprocess.TimeoutExpired):
+        return "%s after %s seconds" % (type(exc).__name__, exc.timeout)
+    if isinstance(exc, subprocess.CalledProcessError):
+        return "%s exit %d" % (type(exc).__name__, exc.returncode)
+    return type(exc).__name__
+'''
+
+# THE ANTI-INVERSION CONTROL, and the reason the exemption is keyed to a
+# LOCALLY DEFINED type rather than to "sits under an isinstance test". CS-427's
+# privacy guards keyed on the SAFE route and so never graded the unsafe one;
+# an exemption for any type-guarded render would repeat that exactly, because
+# `isinstance(exc, OSError): return str(exc)` is the WORST case in this whole
+# class - str() on an OSError is what appends the filename - and it wears the
+# same syntax as the sanctioned helper. OSError is not defined in the module,
+# so its str() is not the module's to promise, so the exemption must not reach.
+PARAM_FOREIGN_GUARD_SOURCE = '''
+class LocalError(RuntimeError):
+    """Defined here, and deliberately NOT the type guarding the render below."""
+
+
+def wears_the_allowlist_syntax(exc: BaseException) -> str:
+    """Structurally identical to the sanctioned helper, and a real leak."""
+    if isinstance(exc, OSError):
+        return str(exc)
+    return type(exc).__name__
+'''
+
+
+def test_the_per_type_redaction_allowlist_is_not_flagged():
+    # THE NEGATIVE CONTROL, and the hard half of the acceptance. A detector
+    # that cannot tell the sanctioned redactor from the leak sends someone to
+    # "fix" the two helpers this project's entire redaction path runs through.
+    visitor = scan_source("synthetic_param_safe.py", PARAM_SAFE_SOURCE)
+    assert not visitor.param_found, (
+        "the detector flagged the per-type redaction allowlist. This shape is "
+        "correct and is the sanctioned boundary:\n" + describe(visitor.param_found)
+    )
+
+
+def test_a_render_guarded_by_a_foreign_type_does_not_earn_the_exemption():
+    # The exemption's OWN executable control. Without this the negative control
+    # above could be passing because the detector exempts every isinstance-
+    # guarded render, which would wave through the worst leak in the class.
+    visitor = scan_source("synthetic_param_foreign.py", PARAM_FOREIGN_GUARD_SOURCE)
+    assert [finding.shape for finding in visitor.param_found] == ["str(exc)"], (
+        "an isinstance-guarded render of a type the module does NOT define was "
+        "exempted. str() on an OSError appends the filename it failed on, so "
+        "this is the leak the exemption exists to stay clear of:\n"
+        + describe(visitor.param_found)
+    )
+
+
+def test_the_real_redaction_helpers_are_not_flagged():
+    # The negative control pinned to the actual files, by name - the acceptance
+    # clause that costs the most to satisfy. These two ARE the project's
+    # redaction path; a detector that reddens them sends the next reader to
+    # "fix" the helpers every other guard renders its exceptions through.
+    for relative in ("tools/precommit_gate.py", "scripts/install_hooks.py"):
+        source = (REPO_ROOT / relative).read_text(encoding="utf-8")
+        flagged = scan_source(relative, source).param_found
+        assert not flagged, (
+            f"{relative} is a per-type redaction allowlist and is already "
+            "correct. If this is red the detector regressed - do not 'fix' "
+            "that file and do not loosen this test:\n" + describe(flagged)
+        )
+        # NON-VACUOUS, and this is the half that matters. Re-scan the same file
+        # with the exemption WITHHELD - a visitor built without local classes
+        # exempts nothing - and require it to be flagged. A green above is then
+        # the exemption doing work at a live site, rather than the helper
+        # having been deleted or its annotation dropped.
+        blind = RenderVisitor(relative)
+        blind.visit(ast.parse(source))
+        assert blind.param_found, (
+            f"{relative} no longer renders an exception parameter at all, so "
+            "the exemption is being proved against nothing. Re-point this "
+            "control at whatever the redaction helper became."
+        )
+
+
+def test_the_parameter_sweep_scans_a_population_that_is_not_empty():
+    # A sweep over zero exception-annotated parameters is green for the wrong
+    # reason. Assert the derivation actually finds some, and that it finds them
+    # in the two files whose helpers the exemption is written around.
+    populated = []
+    for relative in tracked_python_files():
+        tree = ast.parse((REPO_ROOT / relative).read_text(encoding="utf-8"))
+        visitor = RenderVisitor(relative)
+        if any(
+            visitor.exception_parameters(node)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        ):
+            populated.append(relative)
+    assert len(populated) > 1, (
+        "the derived population is empty or trivial, so the sweep proves "
+        f"nothing. Files carrying an exception parameter: {populated}"
+    )
+    for expected in ("tools/precommit_gate.py", "scripts/install_hooks.py"):
+        assert expected in populated, f"{expected} carries a redaction helper but was not derived"
+
+
+def test_parameter_renders_are_only_the_recorded_residuals():
+    # THE SWEEP. This is what a mutant lands on: rendering the exception object
+    # inside a function that receives it as an argument turns this red anywhere
+    # in the tree, with no list of modules to be absent from.
+    found = scan_repo_parameters()
+    unexpected = [site for site in found if site.path not in PARAMETER_RENDER_RESIDUALS]
+    assert not unexpected, (
+        "a function renders an exception it received as a PARAMETER. The object "
+        "reached it intact, so str() appends the same filename it would have "
+        "inside the handler (CLAUDE.md non-negotiable 12). Render a named "
+        "FIELD, or route it through a per-type redaction allowlist:\n"
+        + describe(unexpected)
+    )
+    # Non-vacuous: every recorded residual must still be a real, live site.
+    live = {site.path for site in found}
+    stale = sorted(path for path in PARAMETER_RENDER_RESIDUALS if path not in live)
+    assert not stale, f"these residuals were fixed; delete their entries: {stale}"
 
 
 # ---------------------------------------------------------------------------
