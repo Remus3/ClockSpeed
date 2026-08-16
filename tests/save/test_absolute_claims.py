@@ -57,25 +57,28 @@ same reasoning as contract 1 of ``test_oracle_citations``: ``synthetic.py``
 writes "literal beginning ``Clockspeed``" about a base64url literal, and a rule
 firing on that would be red against correct prose.
 
-WHAT COUNTS AS PROSE (contract 5) is four kinds, and each of the last two was
-added after measuring what excluding it cost. A DOCSTRING and a COMMENT are
-obvious. An ASSERT MESSAGE is prose too: a reader reads it as a statement about
-the current tree, which is ADR 0008's own test for living text, and leaving it
-out would leave a place to write a banned sentence that this fence does not
-read - the one thing ADR 0008's Consequences say the rule must deny. It is not
-a theoretical hole. The second of the two quotations that ``662432d`` killed
-sits in an assert message, and a docstring-and-comment scan reported one of the
-two and passed.
+WHAT COUNTS AS PROSE (contract 5) is the kinds listed in
+:data:`_PARAGRAPH_KINDS`, and the last two were added after measuring what
+excluding them cost. The tuple is the record; this paragraph does not restate
+its length, because a kind added later would leave a number here false.
 
-A DIRECT CALL ARGUMENT IS THE FOURTH, and contract 6 below is what found it.
-``pytest.skip("...")`` carries a sentence written for the OPERATOR to explain a
-loss, and it is not a docstring, not a comment and not an assert message, so
-three kinds left it unread. This is the channel CLASS that CS-435 shipped a
-false universal in - a warning detail string, false at four measured sites,
-which the fence could not see at all. Only a DIRECT argument counts: a string
-nested inside a dict or a tuple that is itself an argument is a data structure
-being passed rather than a sentence being written, and reading those would make
-this module red on its own grammar table.
+A DOCSTRING and a COMMENT are obvious. An ASSERT MESSAGE is prose too: a reader
+reads it as a statement about the current tree, which is ADR 0008's own test
+for living text, and leaving it out would leave a place to write a banned
+sentence that this fence does not read - the one thing ADR 0008's Consequences
+say the rule must deny. It is not a theoretical hole. The second of the two
+quotations that ``662432d`` killed sits in an assert message, and a
+docstring-and-comment scan reported one of the two and passed.
+
+A DIRECT CALL ARGUMENT IS THE LAST OF THEM, and contract 6 below is what found
+it. ``pytest.skip("...")`` carries a sentence written for the OPERATOR to
+explain a loss, and it is not a docstring, not a comment and not an assert
+message, so the earlier kinds left it unread. This is the channel CLASS that
+CS-435 shipped a false universal in - a warning detail string, which the fence
+could not see at all. Only a DIRECT argument counts: a string nested inside a
+dict or a tuple that is itself an argument is a data structure being passed
+rather than a sentence being written, and reading those would make this module
+red on its own grammar table.
 
 A STRING LITERAL USED AS DATA IS NOT PROSE, and that line is drawn by AST
 POSITION rather than by a scope rule. The assert message is reached through
@@ -84,13 +87,13 @@ all. That is what keeps the control corpora below INERT BY CONSTRUCTION - they
 are assignments - and a ``#`` inside one is not a comment either, because
 comments come from :mod:`tokenize`.
 
-COVERAGE IS CONSERVED (contract 6), and this is the half that five rounds of
+COVERAGE IS CONSERVED (contract 6), and this is the half the earlier rounds of
 repair did not have. In a module named in :data:`CENSUSED_MODULES` each string
 literal is classified from ONE parse: read by a prose kind, or matched by the
 one exemption, or UNACCOUNTED - and unaccounted reddens. Comment tokens are
 accounted the same way against an independent :mod:`tokenize` pass. The claim
-is NOT that the four positions cover the language; it is that a position nobody
-anticipated unbalances a count instead of passing unread.
+is NOT that the declared positions cover the language; it is that a position
+nobody anticipated unbalances a count instead of passing unread.
 
 THE EXEMPTION TURNS ON WHAT THE STRING IS, NOT ON THE SLOT IT SITS IN, and that
 is what stops it becoming a write-anything channel. A module-scope assignment
@@ -111,7 +114,7 @@ the suite green.
 
 THE CONTROLS ARE THE POINT, because a scanner returning zero findings would
 pass the fenced scan in silence.
-:func:`test_prose_is_read_from_the_four_kinds_and_not_from_a_data_literal`
+:func:`test_prose_is_read_from_the_declared_kinds_and_not_from_a_data_literal`
 holds the extraction contract down at both ends: each kind is read, and an
 assignment is not. It needs no filesystem and no game, and neither do the
 boundary controls beside it.
@@ -130,7 +133,7 @@ stated in contract 3:
   scopes its own mechanical fence the same way and calls widening it separate
   work.
 - THE CENSUS IS SCOPED NARROWER STILL, to one module, and the reason is
-  measured rather than chosen for convenience. The four positions that tile the
+  measured rather than chosen for convenience. The positions that tile the
   censused module leave most of THIS module's string literals unaccounted: the
   grammar table is regexes inside a dict, the corpora are Python source held in
   assignments, and the controls compare against bare label strings. Censusing
@@ -215,8 +218,9 @@ _PROSE_KINDS: Final = ("docstring", "assert", "argument")
 
 #: The kinds :func:`prose_paragraphs` may emit: the string kinds above plus the
 #: comment channel, which comes from :mod:`tokenize` rather than from the
-#: syntax tree and so has no string literal to census. These are contract 5's
-#: four kinds.
+#: syntax tree and so has no string literal to census. This tuple is what
+#: contract 5 means by "the prose kinds"; the docstring points here rather than
+#: restating its length.
 _PARAGRAPH_KINDS: Final = (*_PROSE_KINDS, "comment")
 
 #: The one exempt kind. A module-scope assignment whose value is a bare Python
@@ -893,14 +897,11 @@ def comment_position_mutants(source: str, claim: str) -> list[tuple[int, str]]:
     fragment of a sentence that starts on an earlier line, so a claim written
     over it CONTINUES that sentence instead of being one. It then inherits any
     citation the sentence already carried, and a sentence naming a resolving
-    test satisfies contract 1 whatever else it says - measured against the
-    paragraph excluding ``test_both_tag_grammar_transcriptions_agree`` from the
-    derived set, where three consecutive positions absorbed the claim that way.
-    That is contract 3's stated limit reached from a new direction, not a fresh
-    gap: a resolving citation is not evidence that the test backs the
-    sentence. The terminator closes the preceding fragment so the probe asks
-    the question it means to ask, which is whether a claim written AT this
-    position is read.
+    test satisfies contract 1 whatever else it says. That is contract 3's
+    stated limit reached from a new direction rather than a fresh gap: a
+    resolving citation is not evidence that the test backs the sentence. The
+    terminator closes the preceding fragment so the probe asks the question it
+    means to ask, which is whether a claim written AT this position is read.
 
     Args:
         source: A module's full text.
@@ -1422,7 +1423,7 @@ def test_a_dead_full_citation_in_prose_is_reported() -> None:
     )
 
 
-def test_prose_is_read_from_the_four_kinds_and_not_from_a_data_literal() -> None:
+def test_prose_is_read_from_the_declared_kinds_and_not_from_a_data_literal() -> None:
     paragraphs = prose_paragraphs(_CONTROL_RED)
     kinds = {p.kind for p in paragraphs}
     assert kinds == set(_PARAGRAPH_KINDS), (
