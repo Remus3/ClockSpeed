@@ -2766,8 +2766,12 @@ def read_properties(body: bytes, record: ObjectRecord, property_map: PropertyMap
         # message with a leaking frame is a mitigation the mechanism defeats.
         # `del` is what a renderer cannot get around: a deleted fast local is
         # simply absent from `frame.f_locals`. The mapping goes for a weaker but
-        # real reason - it is not personal data, it is the whole shipped usmap
-        # name table under a default repr, and this branch has no use for it.
+        # real reason - it is not personal data, and this branch has no use for
+        # it. It no longer carries the echo it once did: `PropertyMap` rendered
+        # its whole name table under a default repr until CS-424 gave it, and
+        # its two neighbours, a repr of structure and counts. The `del` stays
+        # anyway, because a quiet repr is a promise a later edit can withdraw
+        # while a deleted local is a fact the renderer cannot reach around.
         # tests/save/test_properties.py::test_no_clockspeed_frame_holds_the_body_
         # when_the_extent_raises walks the raised traceback and asserts this,
         # so a NEW raise site added to this function is red rather than silent.
