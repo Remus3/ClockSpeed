@@ -650,9 +650,10 @@ MIN_WORLD_TOKEN_CHARS = 8
 # listing it admits costs a fraction of a second.
 #
 # _save_root_dirs lists ACCOUNT DIRECTORIES rather than saves and still uses
-# MAX_SAVE_ROOT_ENTRIES as a plain examination bound. That site was outside
-# this repair and already reported its truncation; the two readings of the
+# MAX_SAVE_ROOT_ENTRIES as a plain examination bound. The two readings of the
 # constant are noted here so a later reader does not mistake them for one.
+# That site reports its truncation to each of its three callers separately -
+# see _save_root_dirs, where CS-436 records why one channel was not enough.
 MAX_SAVE_ROOT_ENTRIES = 512
 MAX_SAVE_ROOT_SCAN = 100_000
 
@@ -663,6 +664,42 @@ MAX_SAVE_ROOT_SCAN = 100_000
 # Each of THESE TWO reports through the skip channel when it trips. That claim
 # is about these two and does not reach the listing bounds above, which is the
 # over-extension the sentence that stood here used to invite.
+#
+# THE TWO BOUND DIFFERENT THINGS and neither substitutes for the other. The
+# count caps HOW MANY headers are read. The budget caps the AGGREGATE wall
+# clock the whole scan may spend - the listing and every read together - which
+# is the exposure that grows with the file count.
+#
+# CS-436 REMOVED THE BUDGET ON A FALSE READING AND THE REMOVAL WAS REVERTED.
+# The reading was that a check at the top of the read loop "cannot fire at
+# all". It does: given reads slow enough to exhaust it, the loop stops with
+# files still unread and reports the skip, where deleting it reads every one.
+# An input where the bound REFUSES and its absence PROCEEDS is a coverage
+# reduction, which is what CS-425 forbids buying. The counts that measurement
+# produced are in the commit that reverted the removal, and they are NOT
+# restated here: they are a function of both constants above, so a comment
+# holding them goes false the moment either is edited (CLAUDE.md section 4).
+# What stands in their place is a pair of tests that derive the property at
+# runtime - one arm proving reads stop when the budget is spent, one proving
+# they continue while it is not. Neither arm passes alone.
+#
+# WHAT IT CANNOT BOUND, named here rather than left implied. It cannot abort a
+# read already in flight, because it is tested between reads. One slow open -
+# a hydrating cloud placeholder, a redirected LOCALAPPDATA, a dead network
+# path - therefore runs to completion however small this is set, so the scan
+# can overrun the budget by the cost of one open. Do NOT read that overrun as
+# evidence the aggregate bound is decorative. It is the irreducible cost of
+# the single in-flight read that no check in any position can interrupt, and
+# it says nothing about the reads that follow it.
+#
+# Do NOT reach for a worker thread to close the in-flight case. A pooled one
+# is joined at interpreter exit, so a blocked read would HANG the gate rather
+# than bound it; a bare daemon thread leaks a thread and an open handle per
+# read and is killed mid-call at finalisation. Both buy a new way for the gate
+# to fail to start, which is the one failure a gate must not have. The listing
+# syscalls around this loop - is_dir, iterdir, scandir, stat - are unbounded
+# against the same dead path anyway, so a per-read deadline would narrow that
+# exposure without closing it.
 MAX_SAVE_HEADER_FILES = 24
 SAVE_HEADER_BUDGET_SECONDS = 5.0
 
@@ -791,41 +828,86 @@ def _matchable(value: str, minimum: int, generic: frozenset[str]) -> str | None:
     return None
 
 
-def _save_root_dirs(report: Report | None) -> list[Path]:
+def _save_root_dirs(report: Report | None) -> tuple[list[Path], bool]:
     """List the save root's immediate subdirectories. READ-ONLY and bounded.
 
     The save directory is never written to and never opened for write
     (CLAUDE.md non-negotiable 1). Only entry NAMES are read here; no file is
     opened at all.
 
+    THE TRUNCATION IS RETURNED RATHER THAN REPORTED, and that split is CS-436.
+    Three callers consume this listing - the account-id discovery, the
+    world-NAME discovery and the world-TOKEN header scan - and a truncation
+    degrades a DIFFERENT check in each of them. This function cannot know
+    which, so it used to report the truncation on the account-id channel and
+    the other two callers passed None to silence the duplicate. That silenced
+    the report on the two channels where nothing else would mention it, and
+    what those two printed instead was "no world name is discoverable on this
+    machine" and "no world token is discoverable on this machine" - not
+    silence but a FALSE STATEMENT, which is the CS-209-B shape one rung down.
+
+    REPORTING THE TRUNCATION IS HALF THE REPAIR AND ON ITS OWN IT IS NOT
+    ENOUGH. A first pass added the true line and left the false one standing
+    beside it, so the operator was shown both at once. Each caller therefore
+    also SUPPRESSES its "nothing is discoverable" sentence when this flag comes
+    back true; see the guards at the three call sites. Past this cap an empty
+    result means "not looked for", never "not there".
+
+    The reasons still reported HERE are the ones that are the same fact for
+    every caller: the listing could not be made at all. Each caller already
+    reports its own empty result, so those stay on one channel rather than
+    printing three times per commit.
+
     Returns:
-        The subdirectories, or an empty list. Every reason for an empty list is
-        reported rather than swallowed.
+        The subdirectories, and whether the entry cap cut the listing short.
+        Every reason for an empty list is reported rather than swallowed.
     """
     root = save_root()
     if root is None:
         _report_skip(report, PII_ACCOUNT_ID_LABEL, "no LOCALAPPDATA in the environment")
-        return []
+        return [], False
     found: list[Path] = []
     try:
         if not root.is_dir():
             _report_skip(report, PII_ACCOUNT_ID_LABEL, "save root does not exist on this machine")
-            return []
+            return [], False
         for index, entry in enumerate(sorted(root.iterdir(), key=lambda item: item.name)):
             if index >= MAX_SAVE_ROOT_ENTRIES:
-                _report_skip(
-                    report,
-                    PII_ACCOUNT_ID_LABEL,
-                    "save root holds more than %d entries; the rest were not read"
-                    % MAX_SAVE_ROOT_ENTRIES,
-                )
-                break
+                return found, True
             if entry.is_dir():
                 found.append(entry)
     except OSError as exc:
         _report_skip(report, PII_ACCOUNT_ID_LABEL, "save root unreadable: " + safe_exc_text(exc))
-        return []
-    return found
+        return [], False
+    return found, False
+
+
+def _report_root_cap(report: Report | None, label: str, subject: str) -> None:
+    """Say that the save-root entry cap truncated, on ONE caller's channel.
+
+    The subject names WHICH check degraded, exactly as _bounded_newest_saves
+    names its own. A reader who is shown "the listing stopped" without being
+    told what stopped being matchable has been given a fact and no consequence.
+
+    IT REPORTS WHAT THIS RUN DID NOT DO, never what the disk holds, and the
+    difference is not stylistic. The wording here used to say values "under a
+    later account directory" are not matchable. On a save root holding 513
+    LOOSE FILES and no directory at all that is simply false - the entries past
+    the cap are not directories, and nothing was under them. The cap is the
+    reason the gate cannot know what is out there, so a message written from
+    behind it may not assert what is out there.
+
+    The reason carries COUNTS and a fixed subject word only. A message naming
+    the entry it truncated at would print an account id, which is the value
+    this gate exists to keep out of a commit (CLAUDE.md non-negotiables 3
+    and 12).
+    """
+    _report_skip(
+        report,
+        label,
+        "save root holds more than %d entries; the listing stopped there, so this "
+        "run did not look for %s past that point" % (MAX_SAVE_ROOT_ENTRIES, subject),
+    )
 
 
 def _report_skip(report: Report | None, label: str, why: str) -> None:
@@ -877,7 +959,11 @@ def discover_account_ids(report: Report | None = None) -> list[str]:
         else:
             _report_skip(report, PII_ACCOUNT_ID_LABEL, "declared account directory: " + reason)
 
-    for entry in _save_root_dirs(report):
+    root_dirs, truncated = _save_root_dirs(report)
+    if truncated:
+        _report_root_cap(report, PII_ACCOUNT_ID_LABEL, "account ids")
+
+    for entry in root_dirs:
         name = entry.name
         reason = _matchable(
             name, MIN_ACCOUNT_DIR_CHARS, GENERIC_ACCOUNT_NAMES | GENERIC_SAVE_ROOT_DIRS
@@ -899,7 +985,15 @@ def discover_account_ids(report: Report | None = None) -> list[str]:
             continue
         found.append(name)
 
-    if report is not None and not found:
+    # `not truncated` is the same guard `not dropped_by_exclusion` is in
+    # discover_world_names, for the same reason and against the same failure.
+    # Past the cap an empty result means "not looked for", not "not there", so
+    # this sentence would be an unsupported universal claim sitting directly
+    # under a line that just said the listing stopped. Two skip lines that
+    # disagree teach a reader to stop reading the channel. The truncation line
+    # carries the fact; the claim it cannot support is DELETED rather than
+    # hedged (docs/adr/0008).
+    if report is not None and not found and not truncated:
         report.skip(PII_ACCOUNT_ID_LABEL, "no account directory is discoverable on this machine")
     return sorted(set(found))
 
@@ -935,7 +1029,14 @@ def discover_world_names(report: Report | None = None) -> list[str]:
     leaves the drop visible.
     """
     candidates = list(declared_values(ENV_WORLD_NAMES, CONFIG_WORLD_NAMES))
-    for directory in [*_save_root_dirs(None), *_declared_account_dirs()]:
+    # None, because discover_account_ids reports the reasons a listing could
+    # not be made at all and repeating them here would print them twice per
+    # commit. The TRUNCATION is different - it is the one degradation nothing
+    # else on this channel would mention - so it is reported here (CS-436).
+    root_dirs, truncated = _save_root_dirs(None)
+    if truncated:
+        _report_root_cap(report, PII_WORLD_LABEL, "world names")
+    for directory in [*root_dirs, *_declared_account_dirs()]:
         candidates.extend(_world_names_from_saves(directory, report))
 
     excluded = _world_name_exclusions()
@@ -964,7 +1065,14 @@ def discover_world_names(report: Report | None = None) -> list[str]:
     # exclusion skip contradicting it. Two skip lines that disagree teach a
     # reader to stop reading the channel - which CS-209 cannot afford, since
     # printing this channel on the authoritative path IS the item.
-    if report is not None and not found and not dropped_by_exclusion:
+    #
+    # `not truncated` is CS-436 extending that guard to the second way this
+    # sentence goes false, and it is the more serious one. Past the cap the
+    # sentence was MEASURABLY wrong: with the identical bytes on disk and only
+    # the account directory renamed so it sorts inside the cap, the gate blocks
+    # a file carrying that world name. Over the cap it exited 0 while telling
+    # the operator the name did not exist.
+    if report is not None and not found and not dropped_by_exclusion and not truncated:
         report.skip(
             PII_WORLD_LABEL,
             "no world name is discoverable on this machine; set %s or add %s to "
@@ -1238,7 +1346,7 @@ def _save_files(directory: Path, report: Report | None) -> list[Path]:
     ]
 
 
-def _world_tokens_from_headers(report: Report | None) -> list[str]:
+def _world_tokens_from_headers(report: Report | None) -> tuple[list[str], bool]:
     """Read world tokens out of the save headers under the save root.
 
     CS-403, and it closes the gap the docstring below used to record as an
@@ -1248,14 +1356,41 @@ def _world_tokens_from_headers(report: Report | None) -> list[str]:
 
     EVERY failure mode is a skip and none of them is fatal. The reader may be
     unimportable, the save root may be absent, a `.sav` may be truncated,
-    half-written by an autosave in progress, or not a save at all. The scan is
-    bounded twice, by MAX_SAVE_HEADER_FILES and by SAVE_HEADER_BUDGET_SECONDS,
-    and whichever bound trips says so.
+    half-written by an autosave in progress, or not a save at all.
+
+    THE SCAN IS BOUNDED TWICE AND THE TWO BOUND DIFFERENT THINGS, which the
+    sentence that stood here did not say. MAX_SAVE_HEADER_FILES caps HOW MANY
+    headers are read. SAVE_HEADER_BUDGET_SECONDS caps the AGGREGATE wall clock
+    this scan may spend across the listing and all of those reads. Whichever
+    trips says so through the skip channel.
+
+    THE TIME BOUND CANNOT ABORT A READ ALREADY IN FLIGHT. It is tested between
+    reads, so one slow open on a hydrating cloud placeholder, a redirected
+    LOCALAPPDATA or a dead network path runs to completion however small the
+    budget is set. That is a known limit and it is stated rather than implied,
+    because the previous wording - "bounded twice ... and whichever bound trips
+    says so" - read as a promise to bound any slow scan and was not one. What
+    the budget does bound is the TOTAL, which is the exposure that grows with
+    the file count.
 
     Returns:
-        The tokens read, unfiltered. Never raises.
+        The tokens read, unfiltered, and whether the save root's entry cap cut
+        the directory listing short. Never raises.
     """
     started = time.monotonic()
+
+    # The listing runs BEFORE the reader guard and the ordering is load
+    # bearing. Written after it, this report sat below an early return, so on
+    # a checkout where the package cannot be imported the truncation line never
+    # printed while a test asserted it did - a test green for a reason it did
+    # not state, which is the shape that reddened CI on ddc5fe0.
+    #
+    # See discover_world_names for why the report is None on the listing call
+    # and the truncation is reported separately (CS-436).
+    root_dirs, truncated = _save_root_dirs(None)
+    if truncated:
+        _report_root_cap(report, PII_WORLD_LABEL, "world tokens")
+
     try:
         read_header = _load_header_reader()
     # BaseException, not Exception, and deliberately: a mid-edit module that
@@ -1269,10 +1404,10 @@ def _world_tokens_from_headers(report: Report | None) -> list[str]:
             "the save-header reader is not importable from this checkout, so a "
             "token is matchable only when declared (" + safe_exc_text(exc) + ")",
         )
-        return []
+        return [], truncated
 
     paths: list[Path] = []
-    for directory in [*_save_root_dirs(None), *_declared_account_dirs()]:
+    for directory in [*root_dirs, *_declared_account_dirs()]:
         paths.extend(_save_files(directory, report))
 
     if len(paths) > MAX_SAVE_HEADER_FILES:
@@ -1288,11 +1423,16 @@ def _world_tokens_from_headers(report: Report | None) -> list[str]:
     unreadable = 0
     for path in paths:
         if time.monotonic() - started > SAVE_HEADER_BUDGET_SECONDS:
+            # "%g" and not "%.1f". The old format rendered a 0.05 second budget
+            # as "0.1" and a 0.04 second one as "0.0", so a diagnostic ABOUT a
+            # limit misreported the limit by a factor of two, or as zero. A
+            # gate whose own account of a bound is wrong is the false-guarantee
+            # class this project rates worse than the bug it describes.
             _report_skip(
                 report,
                 PII_WORLD_LABEL,
-                "the %.1f second save-header budget was spent; the remaining "
-                "headers were not read" % SAVE_HEADER_BUDGET_SECONDS,
+                "the %g second aggregate save-header budget was spent; the "
+                "remaining headers were not read" % SAVE_HEADER_BUDGET_SECONDS,
             )
             break
         try:
@@ -1312,7 +1452,7 @@ def _world_tokens_from_headers(report: Report | None) -> list[str]:
             "%d save header(s) under the save root could not be parsed; their "
             "tokens are not matchable" % unreadable,
         )
-    return found
+    return found, truncated
 
 
 def discover_world_tokens(report: Report | None = None) -> list[str]:
@@ -1346,14 +1486,21 @@ def discover_world_tokens(report: Report | None = None) -> list[str]:
         else:
             _report_skip(report, PII_WORLD_LABEL, "world token: " + reason)
 
-    for value in _world_tokens_from_headers(report):
+    header_tokens, truncated = _world_tokens_from_headers(report)
+    for value in header_tokens:
         reason = _matchable(value, MIN_WORLD_TOKEN_CHARS, GENERIC_ACCOUNT_NAMES)
         if reason is None:
             found.append(value)
         else:
             _report_skip(report, PII_WORLD_LABEL, "world token from a save header: " + reason)
 
-    if report is not None and not found:
+    # The truncation flag is carried up from the header scan rather than
+    # recomputed here, because recomputing it means listing the save root a
+    # second time. `not truncated` is the guard discover_world_names and
+    # discover_account_ids carry, against the same falsehood: past the cap this
+    # sentence claimed no token existed while a rename that moved the same
+    # bytes inside the cap made the gate block on that very token.
+    if report is not None and not found and not truncated:
         report.skip(
             PII_WORLD_LABEL,
             "no world token is discoverable on this machine; set %s or add %s to "

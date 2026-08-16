@@ -38,7 +38,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -2312,30 +2312,156 @@ def test_the_header_scan_is_bounded_by_a_file_cap(tmp_path: Path) -> None:
     assert "cap" in result.stdout.lower(), result.stdout
 
 
-def test_the_header_scan_is_bounded_by_a_wall_clock_budget(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The other bound. A gate that hangs is a gate that gets turned off.
+# --------------------------------------------------------------------------
+# CS-436 - the wall-clock budget is graded as a BOUND, not as a constant
+# --------------------------------------------------------------------------
+#
+# The test that stood here set SAVE_HEADER_BUDGET_SECONDS to 0.0 and asserted
+# the word "budget" appeared in a skip reason. It would have passed against an
+# unconditional break on the first file, so it graded the constant's existence
+# and never the bound. Its first replacement asserted the OPPOSITE property -
+# that every save below the file cap is read - which is only true while the
+# budget is unspent, and it went in beside a removal of the budget that was a
+# coverage reduction (see the fence beside SAVE_HEADER_BUDGET_SECONDS).
+#
+# Both arms below are needed and neither is redundant. The SPENT arm proves
+# reads stop; without the UNSPENT arm an unconditional break passes it. The
+# UNSPENT arm proves reads continue; without the SPENT arm a bound that never
+# fires passes it. A read COUNT is what discriminates them, so the reader is
+# injected at the _load_header_reader seam and counts itself.
 
-    Exercised in process with the budget set to zero, because a real timeout
-    cannot be provoked deterministically without making the suite slow and
-    flaky - and what is under test here is a bound, not a verdict. The verdict
-    is covered end to end above.
+
+class CountingReader:
+    """A stand-in for the save-header reader that COUNTS and can SLEEP.
+
+    Injected at the _load_header_reader seam rather than by making real I/O
+    slow, so the measurement is deterministic and the suite does not become a
+    stopwatch. It parses nothing, which is why the fixture below can be empty
+    files: what is under test is the LOOP, not the parser.
     """
-    gate = load_gate()
-    monkeypatch.setattr(gate, "SAVE_HEADER_BUDGET_SECONDS", 0.0)
-    monkeypatch.setenv(
-        "CLOCKSPEED_SAVE_ROOT", str(make_header_save_root(tmp_path, HEADER_WORLD_TOKEN))
-    )
-    monkeypatch.setenv("CLOCKSPEED_LOCAL_CONFIG", str(tmp_path / "absent.json"))
+
+    def __init__(self, token: str, per_read: float) -> None:
+        """Record the token to hand back and the cost to charge per read."""
+        self.token = token
+        self.per_read = per_read
+        self.reads = 0
+
+    # ARG002: the path is deliberately unread. This stands in for a reader
+    # whose signature takes one, and accepting it is what makes the seam
+    # substitutable; opening it would make the fixture bytes matter again.
+    def __call__(self, path: Path) -> SimpleNamespace:  # noqa: ARG002
+        """Count this read, charge it, and return an object carrying a token."""
+        self.reads += 1
+        if self.per_read:
+            time.sleep(self.per_read)
+        return SimpleNamespace(world_token=self.token)
+
+
+BUDGET_TOKEN = "Bgt5Kq" + "2Xn9Tb" + "4Lm6Wz" + "8Rc"
+
+
+def make_empty_save_root(tmp_path: Path, count: int) -> Path:
+    """A save root holding `count` EMPTY .sav files under one account dir.
+
+    Empty on purpose. CountingReader never opens them, so bytes would only
+    slow the fixture down - and a save the loop declines to read is exactly
+    what these two tests measure.
+    """
+    save_root = make_save_root(tmp_path, FAKE_ACCOUNT_ID)
+    for index in range(count):
+        (save_root / FAKE_ACCOUNT_ID / ("Budgetsave%02d.sav" % index)).write_bytes(b"")
+    return save_root
+
+
+def run_header_scan(
+    gate: ModuleType,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    files: int,
+    per_read: float,
+    budget: float,
+) -> tuple[CountingReader, list[str]]:
+    """Run the header scan with a counted reader and a pinned budget.
+
+    Returns the reader, so the caller can assert on the READ COUNT, and the
+    skip reasons that named the budget.
+    """
+    monkeypatch.setenv("CLOCKSPEED_SAVE_ROOT", str(make_empty_save_root(tmp_path, files)))
+    monkeypatch.setenv("CLOCKSPEED_LOCAL_CONFIG", str(tmp_path / "absent-local-config.json"))
     monkeypatch.delenv("CLOCKSPEED_WORLD_TOKENS", raising=False)
+    monkeypatch.delenv("CLOCKSPEED_ACCOUNT_DIR", raising=False)
+
+    reader = CountingReader(BUDGET_TOKEN, per_read)
+    monkeypatch.setattr(gate, "_load_header_reader", lambda: reader)
+    monkeypatch.setattr(gate, "SAVE_HEADER_BUDGET_SECONDS", budget)
 
     report = gate.Report()
-    tokens = gate.discover_world_tokens(report)
-    reasons = " ".join(why for _label, why in report.skipped)
+    gate._world_tokens_from_headers(report)  # noqa: SLF001
+    reasons = [why for _label, why in report.skipped if "budget" in why.lower()]
+    return reader, reasons
 
-    assert HEADER_WORLD_TOKEN not in tokens
-    assert "budget" in reasons.lower(), reasons
+
+def test_the_header_scan_stops_reading_when_the_time_budget_is_spent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The bound BINDS: reads stop short of the files on disk, and it says so.
+
+    A read count strictly below the file count is the assertion the deleted
+    test never made. Setting the budget to zero cannot make it - every read
+    count from 0 to N satisfies "the budget was reported" - so the budget here
+    is deliberately larger than one read and smaller than eight of them.
+    """
+    gate = load_gate()
+    files = 8
+    reader, reasons = run_header_scan(
+        gate, tmp_path, monkeypatch, files=files, per_read=0.10, budget=0.15
+    )
+
+    assert reader.reads < files, "the scan read every file; the budget did not bind"
+    assert reasons, "reads stopped without saying why"
+
+
+def test_the_header_scan_reads_every_save_while_the_time_budget_is_unspent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The control, and it is what refutes an unconditional break.
+
+    Same seam, same fixture size, a reader that costs nothing and a budget no
+    real run can spend. Every file must be read and no budget line printed -
+    so a break that fires regardless of the clock reddens here even though it
+    would sail through the test above.
+    """
+    gate = load_gate()
+    files = 8
+    reader, reasons = run_header_scan(
+        gate, tmp_path, monkeypatch, files=files, per_read=0.0, budget=3600.0
+    )
+
+    assert files <= gate.MAX_SAVE_HEADER_FILES, "the fixture must sit below the file cap"
+    assert reader.reads == files, "the scan stopped early with the budget unspent"
+    assert not reasons, reasons
+
+
+def test_a_sub_decisecond_budget_is_reported_as_the_value_it_actually_is(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The skip line must not round the budget it is reporting.
+
+    "%.1f" renders 0.05 as 0.1 and 0.04 as 0.0, so under the old format a
+    diagnostic about a bound stated a bound twice the size of the real one, or
+    a bound of zero. A gate whose own report of a limit is wrong is the
+    false-guarantee class this project rates worse than the bug.
+    """
+    gate = load_gate()
+    budget = 0.05
+    _reader, reasons = run_header_scan(
+        gate, tmp_path, monkeypatch, files=4, per_read=0.10, budget=budget
+    )
+
+    assert reasons, "the budget did not trip, so its rendering was never exercised"
+    assert any(str(budget) in why for why in reasons), reasons
+    assert not any("0.1 second" in why for why in reasons), reasons
 
 
 def test_the_package_import_is_function_local_and_never_at_module_scope() -> None:
@@ -2666,3 +2792,602 @@ def test_the_scan_bound_sits_above_the_retention_bound() -> None:
     """
     gate = load_gate()
     assert gate.MAX_SAVE_ROOT_SCAN > gate.MAX_SAVE_ROOT_ENTRIES
+
+
+# ==========================================================================
+# CS-436 - the account-directory cap reports on EVERY channel it degrades
+# ==========================================================================
+#
+# MAX_SAVE_ROOT_ENTRIES caps the ACCOUNT DIRECTORIES that _save_root_dirs
+# lists, and three callers consume that listing: the account-id discovery, the
+# world-NAME discovery, and the world-TOKEN header scan. The cap reported to
+# the first of the three and was silent on the other two, because those two
+# handed `None` to the parameter the report belongs in.
+#
+# The silence is the defect and the channel it fell in is what makes it
+# matter. Past the cap a world name and a world token under a later account
+# directory are undiscovered, and the two lines the operator is then shown are
+# "no world name is discoverable on this machine" and "no world token is
+# discoverable on this machine". Those are not silence - they are FALSE
+# STATEMENTS, and CS-209-B is on record for that exact shape one rung down.
+#
+# Severity sits below CS-209-B and the reason is worth keeping rather than
+# flattening: autosave rotation grows the FILES INSIDE an account directory,
+# not the COUNT of account directories, so time alone does not produce a save
+# root one entry past this cap the way it produces one past the save cap.
+#
+# Every directory name below is generated in this file and exists on no
+# machine. Nothing here reads, asserts on, or renders a real account id.
+
+OVER_CAP_ACCOUNT_PREFIX = "acct"
+
+
+def make_over_cap_account_root(root: Path) -> Path:
+    """A save root holding one MORE account directory than the cap.
+
+    Each name is long enough, carries a digit, and is not a generic word, so
+    every one of them clears the account-id filters - a fixture whose entries
+    were all rejected for shape would leave the cap untested.
+
+    The cap is read from the gate rather than restated here, so raising it in
+    the module does not leave a stale number in this file (CLAUDE.md section 4).
+    """
+    cap = load_gate().MAX_SAVE_ROOT_ENTRIES
+    save_root = root / "save-root"
+    save_root.mkdir(parents=True, exist_ok=True)
+    for index in range(cap + 1):
+        (save_root / (OVER_CAP_ACCOUNT_PREFIX + "%05d" % index)).mkdir()
+    assert len(list(save_root.iterdir())) == cap + 1
+    return save_root
+
+
+@pytest.fixture(scope="module")
+def over_cap_account_root(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Built once and only ever READ - the gate never writes to a save root."""
+    return make_over_cap_account_root(tmp_path_factory.mktemp("overcapaccounts"))
+
+
+def pin_save_root(monkeypatch: pytest.MonkeyPatch, save_root: Path, tmp_path: Path) -> None:
+    """Point the gate at one synthetic save root and clear every declaration.
+
+    The in-process rung has no base_env to inherit, so the same isolation
+    base_env provides to the subprocess rung is applied here by hand. Without
+    it a machine whose config/local.json declares a real world would feed a
+    real value into these tests.
+    """
+    monkeypatch.setenv("CLOCKSPEED_SAVE_ROOT", str(save_root))
+    monkeypatch.setenv("CLOCKSPEED_LOCAL_CONFIG", str(tmp_path / "absent-local-config.json"))
+    for key in ("CLOCKSPEED_WORLD_NAMES", "CLOCKSPEED_WORLD_TOKENS", "CLOCKSPEED_ACCOUNT_DIR"):
+        monkeypatch.delenv(key, raising=False)
+
+
+def truncation_reasons(skipped: list[tuple[str, str]], label: str) -> list[str]:
+    """The skip reasons on one label that name the account-directory cap.
+
+    Takes the skip list rather than the report, so the annotation is the real
+    shape - Report is only reachable through a dynamically loaded module.
+    """
+    cap = load_gate().MAX_SAVE_ROOT_ENTRIES
+    needle = "save root holds more than %d entries" % cap
+    return [why for lbl, why in skipped if lbl == label and needle in why]
+
+
+def test_the_account_cap_reports_on_the_world_name_channel(
+    over_cap_account_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Half one of the acceptance, on the channel the truncation degrades.
+
+    discover_world_names consumes the capped listing, so past the cap a world
+    name under a later account directory is not matchable. The report has to
+    say so on the WORLD label, because that is the check that lost coverage -
+    a line on the account-id label does not tell a reader that the world-name
+    check degraded.
+    """
+    gate = load_gate()
+    pin_save_root(monkeypatch, over_cap_account_root, tmp_path)
+
+    report = gate.Report()
+    gate.discover_world_names(report)
+
+    reasons = truncation_reasons(report.skipped, gate.PII_WORLD_LABEL)
+    assert any("world name" in why for why in reasons), report.skipped
+
+
+def test_the_account_cap_reports_on_the_world_token_channel(
+    over_cap_account_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The token twin, and it is a separate consumer of the same listing.
+
+    A repair that passed the report at the world-NAME site alone would make
+    the test above green and leave the header scan exactly as silent as it
+    was. The two are asserted apart for that reason.
+    """
+    gate = load_gate()
+    pin_save_root(monkeypatch, over_cap_account_root, tmp_path)
+
+    report = gate.Report()
+    gate.discover_world_tokens(report)
+
+    reasons = truncation_reasons(report.skipped, gate.PII_WORLD_LABEL)
+    assert any("world token" in why for why in reasons), report.skipped
+
+
+def test_the_account_cap_still_reports_on_the_account_id_channel(
+    over_cap_account_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The control, and it was already true before this item.
+
+    This channel is the one site that reported. Asserting it here is what
+    distinguishes "the other two were taught to report" from "the reporting
+    moved", which would close two holes by opening a third.
+    """
+    gate = load_gate()
+    pin_save_root(monkeypatch, over_cap_account_root, tmp_path)
+
+    report = gate.Report()
+    gate.discover_account_ids(report)
+
+    assert truncation_reasons(report.skipped, gate.PII_ACCOUNT_ID_LABEL), report.skipped
+
+
+def test_the_account_cap_truncation_is_reported_with_no_flags_at_all(
+    over_cap_account_root: Path, tmp_path: Path
+) -> None:
+    """CS-209's property applied to this cap, through a real gate process.
+
+    .githooks/pre-commit passes neither --verbose nor --list-skipped, so a
+    coverage reduction that only renders under a flag is a reduction nobody is
+    ever shown. Run flagless on purpose.
+
+    The subject word is required to appear ON THE TRUNCATION LINE rather than
+    anywhere in stdout, and that is not pedantry: the unrepaired gate printed
+    "no world name is discoverable on this machine" in this same run, so a
+    bare substring test for "world name" passed against it and proved nothing.
+    That sentence is now suppressed past the cap - see the sibling test that
+    asserts its absence - and pinning the subject to the truncation line keeps
+    this test measuring the line it names rather than the whole stream.
+    """
+    cap = load_gate().MAX_SAVE_ROOT_ENTRIES
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(over_cap_account_root)
+
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+    result = run_gate("--files", str(target), env=env)
+
+    needle = "save root holds more than %d entries" % cap
+    lines = [line for line in result.stdout.splitlines() if needle in line]
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert lines, result.stdout
+    assert any("world name" in line for line in lines), lines
+    assert any("world token" in line for line in lines), lines
+
+
+def test_the_account_cap_report_echoes_no_path_and_no_directory_name(
+    over_cap_account_root: Path, tmp_path: Path
+) -> None:
+    """The skip reason carries COUNTS and a subject word only.
+
+    A message naming the directory it truncated would print an account id -
+    the gate would leak, through its own diagnostic, one of the values it
+    exists to keep out of a commit (CLAUDE.md non-negotiables 3 and 12).
+    """
+    cap = load_gate().MAX_SAVE_ROOT_ENTRIES
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(over_cap_account_root)
+
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+    result = run_gate("--files", str(target), "--list-skipped", env=env)
+
+    needle = "save root holds more than %d entries" % cap
+    lines = [line for line in result.stdout.splitlines() if needle in line]
+    assert lines, result.stdout
+    for line in lines:
+        assert OVER_CAP_ACCOUNT_PREFIX not in line, line
+        assert str(over_cap_account_root) not in line, line
+
+
+def test_an_over_cap_account_root_does_not_stop_the_gate_starting(
+    over_cap_account_root: Path, tmp_path: Path
+) -> None:
+    """The binding condition on the grant: a gate that cannot START does not block.
+
+    The control for every test above. A clean file under the same over-cap
+    save root has to PASS, exit 0, and produce no traceback - otherwise the
+    reporting tests could be green because the gate is crashing rather than
+    because it is reporting.
+    """
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(over_cap_account_root)
+
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+    result = run_gate("--files", str(target), env=env)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Traceback" not in result.stderr, result.stderr
+    assert "crashed" not in result.stderr, result.stderr
+
+
+# --------------------------------------------------------------------------
+# CS-436 - past the cap, the "nothing is discoverable" sentence is DELETED
+# --------------------------------------------------------------------------
+#
+# Reporting the truncation was necessary and it was not sufficient. The first
+# repair added a true line and left the false one standing beside it, so on a
+# 513-entry save root the operator saw, adjacently:
+#
+#   skipped <pii:world> save root holds more than 512 entries; ... world names
+#   skipped <pii:world> no world name is discoverable on this machine; set ...
+#
+# The second sentence is false and MEASURABLY so. With the identical bytes on
+# disk and only the account directory renamed so it sorts inside the cap, the
+# gate BLOCKS a file carrying that world name and that world token - exit 1,
+# both diagnostics. Over the cap it exits 0 while telling the operator neither
+# value exists. "Not looked for" is not "not there", and only the gate knows
+# the difference.
+#
+# THE REMEDY IS DELETION, NOT A HEDGE (docs/adr/0008), and the file already
+# held the pattern: `dropped_by_exclusion` suppresses this same sentence when
+# every discovered name was excluded, for exactly this reason - two skip lines
+# that disagree teach a reader to stop reading the channel. The truncation
+# line survives and carries the fact; the unsupported universal claim goes.
+#
+# The three channels are asserted apart because they are three call sites, and
+# the defect this repairs is a repair that fixed one of them.
+
+NO_ACCOUNT_SENTENCE = "no account directory is discoverable"
+NO_WORLD_NAME_SENTENCE = "no world name is discoverable"
+# S105: a fragment of the gate's own diagnostic text, not a credential. The
+# rule fires on the substring "token" in the name.
+NO_WORLD_TOKEN_SENTENCE = "no world token is discoverable"  # noqa: S105
+
+
+def make_loose_file_save_root(root: Path) -> Path:
+    """A save root one entry past the cap holding NO directory at all.
+
+    Every entry is a regular file, so there is no account directory anywhere
+    under this root and there is no later one either. It is the fixture that
+    catches a truncation message asserting the existence of something it never
+    looked at.
+    """
+    cap = load_gate().MAX_SAVE_ROOT_ENTRIES
+    save_root = root / "save-root"
+    save_root.mkdir(parents=True, exist_ok=True)
+    for index in range(cap + 1):
+        (save_root / ("loose%05d.txt" % index)).write_bytes(b"")
+    assert len(list(save_root.iterdir())) == cap + 1
+    assert not [entry for entry in save_root.iterdir() if entry.is_dir()]
+    return save_root
+
+
+@pytest.fixture(scope="module")
+def loose_file_save_root(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Built once and only ever READ - the gate never writes to a save root."""
+    return make_loose_file_save_root(tmp_path_factory.mktemp("loosefiles"))
+
+
+@pytest.fixture
+def empty_save_root(tmp_path: Path) -> Path:
+    """A save root that EXISTS and holds nothing. The honest-emptiness case."""
+    save_root = tmp_path / "empty-save-root"
+    save_root.mkdir(parents=True, exist_ok=True)
+    return save_root
+
+
+def sentences_matching(skipped: list[tuple[str, str]], needle: str) -> list[str]:
+    """Every skip reason carrying `needle`, on any label."""
+    return [why for _label, why in skipped if needle in why]
+
+
+def test_the_truncated_listing_does_not_claim_no_world_name_exists(
+    over_cap_account_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The false sentence is gone on the world-NAME channel past the cap."""
+    gate = load_gate()
+    pin_save_root(monkeypatch, over_cap_account_root, tmp_path)
+
+    report = gate.Report()
+    gate.discover_world_names(report)
+
+    assert truncation_reasons(report.skipped, gate.PII_WORLD_LABEL), report.skipped
+    assert not sentences_matching(report.skipped, NO_WORLD_NAME_SENTENCE), report.skipped
+
+
+def test_the_truncated_listing_does_not_claim_no_world_token_exists(
+    over_cap_account_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The token twin, and a separate call site from the name above."""
+    gate = load_gate()
+    pin_save_root(monkeypatch, over_cap_account_root, tmp_path)
+
+    report = gate.Report()
+    gate.discover_world_tokens(report)
+
+    assert truncation_reasons(report.skipped, gate.PII_WORLD_LABEL), report.skipped
+    assert not sentences_matching(report.skipped, NO_WORLD_TOKEN_SENTENCE), report.skipped
+
+
+def test_the_truncated_listing_does_not_claim_no_account_directory_exists(
+    loose_file_save_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The third channel, and it needs its own fixture to reach the sentence.
+
+    Under over_cap_account_root the account-id channel finds 512 ids, so its
+    false sentence never prints and the hole is invisible. Here every entry is
+    a file, the id list comes back empty, and the claim is reachable.
+    """
+    gate = load_gate()
+    pin_save_root(monkeypatch, loose_file_save_root, tmp_path)
+
+    report = gate.Report()
+    gate.discover_account_ids(report)
+
+    assert truncation_reasons(report.skipped, gate.PII_ACCOUNT_ID_LABEL), report.skipped
+    assert not sentences_matching(report.skipped, NO_ACCOUNT_SENTENCE), report.skipped
+
+
+def test_a_genuinely_empty_save_root_still_says_nothing_is_discoverable(
+    empty_save_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The control that separates a suppression from a deletion.
+
+    Without it the repair above is indistinguishable from dropping the advice
+    outright, which would strip the coverage warning CS-209 put on this path.
+
+    An empty save root is the unconfigured machine CS-209 exists to warn, and
+    on it all three sentences are TRUE: the listing was complete and it found
+    nothing. The suppression must be conditional on the truncation, never on
+    the emptiness.
+    """
+    gate = load_gate()
+    pin_save_root(monkeypatch, empty_save_root, tmp_path)
+
+    report = gate.Report()
+    gate.discover_account_ids(report)
+    gate.discover_world_names(report)
+    gate.discover_world_tokens(report)
+
+    assert not truncation_reasons(report.skipped, gate.PII_ACCOUNT_ID_LABEL), report.skipped
+    for sentence in (NO_ACCOUNT_SENTENCE, NO_WORLD_NAME_SENTENCE, NO_WORLD_TOKEN_SENTENCE):
+        assert sentences_matching(report.skipped, sentence), (sentence, report.skipped)
+
+
+def test_no_truncation_line_asserts_a_later_account_directory_exists(
+    loose_file_save_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A warning that fires is not a warning that says something true.
+
+    513 regular files and no directory anywhere. The truncation is real - the
+    listing did stop - but there is no later account directory to hold
+    anything, so a line saying values "under a later account directory" are
+    unmatchable states something the gate never looked at and that is not so.
+    The honest form says what this run did not DO, not what the disk contains.
+    """
+    gate = load_gate()
+    pin_save_root(monkeypatch, loose_file_save_root, tmp_path)
+
+    report = gate.Report()
+    gate.discover_account_ids(report)
+    gate.discover_world_names(report)
+    gate.discover_world_tokens(report)
+
+    truncation = sentences_matching(report.skipped, "save root holds more than")
+    assert truncation, report.skipped
+    for why in truncation:
+        assert "later account directory" not in why, why
+
+
+def test_the_cap_report_replaces_the_false_sentence_in_a_real_gate_process(
+    over_cap_account_root: Path, tmp_path: Path
+) -> None:
+    """The operator-facing proof, flagless, through a real gate process.
+
+    .githooks/pre-commit passes no flags, so this is the exact text an
+    over-cap machine is shown on every commit. Both halves are asserted in one
+    run because the defect was their ADJACENCY: the truncation line present,
+    the contradicting sentence absent.
+    """
+    cap = load_gate().MAX_SAVE_ROOT_ENTRIES
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(over_cap_account_root)
+
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+    result = run_gate("--files", str(target), env=env)
+
+    needle = "save root holds more than %d entries" % cap
+    lines = [line for line in result.stdout.splitlines() if needle in line]
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert any("world name" in line for line in lines), result.stdout
+    assert any("world token" in line for line in lines), result.stdout
+    assert NO_WORLD_NAME_SENTENCE not in result.stdout, result.stdout
+    assert NO_WORLD_TOKEN_SENTENCE not in result.stdout, result.stdout
+
+
+def test_the_world_token_cap_report_survives_an_unreachable_package(
+    over_cap_account_root: Path, tmp_path: Path
+) -> None:
+    """The truncation report must not sit below an early return.
+
+    The world-token report was written after the _load_header_reader guard, so
+    on a checkout where the package cannot be imported the guard returns first
+    and the line never prints - while its test asserts it does. That shape is
+    what reddened CI on ddc5fe0: a test green locally for a reason it did not
+    state. Run under -S so the package is genuinely out of reach here even on
+    a runner that pip-installed it editable; see run_gate_copy.
+    """
+    cap = load_gate().MAX_SAVE_ROOT_ENTRIES
+    copy = isolated_gate_copy(tmp_path)
+    env = base_env(tmp_path)
+    env["CLOCKSPEED_SAVE_ROOT"] = str(over_cap_account_root)
+
+    target = write(tmp_path / "clean.md", "nothing to see\n")
+    result = run_gate_copy(copy, "--files", str(target), env=env)
+
+    needle = "save root holds more than %d entries" % cap
+    lines = [line for line in result.stdout.splitlines() if needle in line]
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "not importable from this checkout" in result.stdout, result.stdout
+    assert any("world token" in line for line in lines), result.stdout
+
+
+# ==========================================================================
+# CS-436 - the header scan's time bound states what it does and does not bound
+# ==========================================================================
+#
+# SAVE_HEADER_BUDGET_SECONDS is a wall-clock deadline tested at the TOP of the
+# read loop, BEFORE the read. Two facts about that position, and the order of
+# them is the whole item:
+#
+#   IT BINDS. Given reads slow enough to exhaust it, the loop stops with files
+#   still unread and reports the skip; delete it and the same input reads them
+#   all. There is an input where the bound REFUSED and its absence PROCEEDS,
+#   which is the definition of a coverage reduction, so removing it was never
+#   available. The counts behind that are in the commit that reverted the
+#   removal and are deliberately not restated here - they are a function of
+#   both gate constants, so a comment holding them rots the moment either is
+#   edited. The two arms below re-derive the property on every run instead.
+#
+#   IT BOUNDS THE AGGREGATE SCAN, NOT ONE READ. It can notice time already
+#   spent and cannot abort a read in flight, so a single slow open on a
+#   hydrating cloud placeholder, a redirected LOCALAPPDATA or a dead network
+#   path runs to completion however small the budget is set, and the scan
+#   overruns by the cost of that one open. That is a true fact about a
+#   PER-READ bound and it does not make the AGGREGATE bound decorative.
+#
+# So the defect was never the construct - it was the claim beside it, which
+# named a bound the code did not have. The fence below therefore grades the
+# CONSTRUCT AND ITS CLAIM TOGETHER. The fence it replaces asserted that the
+# string "SAVE_HEADER_BUDGET" was absent from the source, which graded a
+# SPELLING: the identical construct under a different name walked through it
+# with the whole suite green. Grading a name is the defect that fence accused
+# its predecessor of, inverted.
+#
+# Bounding a read in flight is still not on offer here and the reason is
+# recorded beside the constant in the gate: it needs a worker thread, and both
+# thread shapes buy a new way for the gate to fail to start.
+
+
+CLOCK_CALL_NAMES = frozenset(
+    {"monotonic", "monotonic_ns", "perf_counter", "perf_counter_ns", "process_time", "time"}
+)
+
+
+def _is_clock_read(node: ast.AST) -> bool:
+    """Whether one AST node is a call that reads a wall clock.
+
+    Two call shapes are looked for - an attribute call on a module named
+    `time` or `datetime`, and a bare call to one of CLOCK_CALL_NAMES, which is
+    what `from time import monotonic` leaves behind. That is a list of shapes
+    this looks for, not a claim about every way a clock could be read.
+    """
+    if not isinstance(node, ast.Call):
+        return False
+    call = node.func
+    if isinstance(call, ast.Attribute) and isinstance(call.value, ast.Name):
+        return call.value.id in {"time", "datetime"}
+    return isinstance(call, ast.Name) and call.id in CLOCK_CALL_NAMES
+
+
+def time_bound_constants_in(function_name: str) -> list[str]:
+    """The module constants one gate function compares a wall clock against.
+
+    STRUCTURAL rather than textual, which is the whole correction this helper
+    exists to make. Matching on a constant's NAME grades how a thing is
+    spelled - an identical construct spelled differently walked straight
+    through the fence this replaces. Walking the function's own syntax tree
+    finds the comparison first and learns the name from it, so the name is an
+    OUTPUT here and never an input.
+
+    Returns:
+        The names on the far side of every clock comparison, in source order.
+        Empty means the function reads a clock without bounding anything by
+        it, or does not read one at all.
+    """
+    tree = ast.parse(GATE.read_bytes().decode("utf-8"))
+    found: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef) or node.name != function_name:
+            continue
+        for inner in ast.walk(node):
+            if not isinstance(inner, ast.Compare):
+                continue
+            if not any(_is_clock_read(part) for part in ast.walk(inner.left)):
+                continue
+            found.extend(side.id for side in inner.comparators if isinstance(side, ast.Name))
+    return found
+
+
+def test_the_header_scan_time_bound_declares_the_scope_it_actually_has() -> None:
+    """A wall-clock bound in this loop OBLIGES the docstring to state its limit.
+
+    The obligation runs from the CONSTRUCT to the CLAIM, and both ends are
+    found rather than spelled. Reintroducing the bound under any other
+    constant name still lands a clock comparison inside this function, which
+    still demands the disclosures below - and renaming it consistently, which
+    changes nothing about what the code does, still passes.
+
+    The non-vacuity assertion is a fence in its own direction: with no clock
+    comparison at all this test would have nothing to grade, and reaching that
+    state by deleting the bound is the coverage reduction CS-425 forbids.
+    """
+    gate = load_gate()
+    bounds = time_bound_constants_in("_world_tokens_from_headers")
+    assert bounds, "the header scan bounds nothing by the clock; its aggregate bound is gone"
+
+    doc = (gate._world_tokens_from_headers.__doc__ or "").lower()  # noqa: SLF001
+
+    # What it DOES bound. A bound whose docstring does not name its own scope
+    # is the sentence this item was filed against.
+    assert "aggregate" in doc, "the time bound does not say what it bounds"
+
+    # What it does NOT bound, named as a known limit rather than left implied.
+    for phrase in ("cannot abort", "in flight"):
+        assert phrase in doc, "the time bound does not state its limit: " + phrase
+
+    # The docstring must name the constant the code actually compares against,
+    # whatever that is called, and the constant must be a real positive bound.
+    for name in bounds:
+        assert name.lower() in doc, "the docstring does not name the bound in the loop: " + name
+        assert getattr(gate, name) > 0, name
+
+    # The count bound is named too, so satisfying one and dropping the other
+    # does not read as success.
+    assert gate.MAX_SAVE_HEADER_FILES > 0
+    assert "max_save_header_files" in doc
+
+
+# ==========================================================================
+# CS-436 - the --text-stdin path keeps its coverage warning
+# ==========================================================================
+#
+# main() builds PiiMatchers before it dispatches, and --text-stdin never
+# matches on them - mode_text_stdin runs the character-set and secret checks
+# only. Skipping the construction there looks free and is not: PiiMatchers is
+# what RUNS the discovery, and the discovery is what records the coverage
+# skips, which print flagless since CS-209. Dropping it would strip this
+# warning from the PreToolUse path on every unconfigured machine.
+#
+# MEASURED on this path rather than reasoned about, because the saving is what
+# the trade was supposed to buy: the whole call is about 92 ms, of which the
+# interpreter floor is about 20 ms and the gate's own module import about 57
+# ms. Stubbing the construction out entirely moved the median to about 79 ms.
+# So the purchase is roughly 13 ms of 92, and the price is the four lines
+# below. This test is the fence that keeps that trade from being made quietly.
+
+
+def test_text_stdin_still_reports_the_coverage_skips_with_no_flags(tmp_path: Path) -> None:
+    """The coverage warning survives on the busiest path the gate has.
+
+    base_env points the save root at a directory that does not exist and
+    clears every declaration, which is exactly the unconfigured machine this
+    channel exists to warn. Flagless on purpose: that is how the hook runs it.
+    """
+    result = run_gate("--text-stdin", stdin=b"git status --short\n", env=base_env(tmp_path))
+
+    assert result.returncode == 0, result.stderr
+    assert "<pii:account-id>" in result.stdout, result.stdout
+    assert "<pii:world>" in result.stdout, result.stdout
+    assert "no world name is discoverable" in result.stdout, result.stdout
+    assert "no world token is discoverable" in result.stdout, result.stdout
