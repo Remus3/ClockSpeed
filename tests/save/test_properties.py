@@ -100,7 +100,7 @@ from __future__ import annotations
 import re
 import struct
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -471,6 +471,18 @@ def _sweep_payload_tags() -> _TagSweep | None:
             data = path.read_bytes()
             parsed = header.parse_header(data)
         except (OSError, header.HeaderError):
+            # The two EXPECTED failures - an unreadable file and a save of a
+            # version this project does not parse - stay silent skips, because
+            # the library legitimately holds both and the callers treat any
+            # recorded failure as fatal.
+            continue
+        except Exception as exc:
+            # THE BACKSTOP, for the reason the broad handler below states:
+            # anything unexpected escaping here unwinds through
+            # `path.read_bytes()`, whose bound `self` IS the save path, and
+            # pytest renders the arguments of every frame it unwinds with no
+            # opt-in flag.
+            failures.append(type(exc).__name__)
             continue
         pair = (parsed.header_version, parsed.save_version)
         if pair not in objects.MEASURED_BODY_LAYOUTS:
@@ -916,6 +928,18 @@ def _sweep_decoded_values() -> _DecodeSweep | None:
             data = path.read_bytes()
             parsed = header.parse_header(data)
         except (OSError, header.HeaderError):
+            # The two EXPECTED failures - an unreadable file and a save of a
+            # version this project does not parse - stay silent skips, because
+            # the library legitimately holds both and the callers treat any
+            # recorded failure as fatal.
+            continue
+        except Exception as exc:
+            # THE BACKSTOP, for the reason the broad handler below states:
+            # anything unexpected escaping here unwinds through
+            # `path.read_bytes()`, whose bound `self` IS the save path, and
+            # pytest renders the arguments of every frame it unwinds with no
+            # opt-in flag.
+            failures.append(type(exc).__name__)
             continue
         if (parsed.header_version, parsed.save_version) not in TAGGED_PAIRS:
             continue
@@ -2315,31 +2339,91 @@ def _explode(*_args: object, **_kwargs: object) -> object:
     raise RuntimeError("synthetic locator failure")
 
 
-def _assert_both_sweeps_decline() -> None:
-    """Both sweeps must return None rather than let the failure unwind.
+def _contained_call(call: Callable[[], object]) -> tuple[str | None, object]:
+    """Run a contained call and reduce BOTH outcomes to something safe to render.
+
+    THE TEST THAT GRADES A LEAK MUST NOT BE THE LEAK. Every sweep here is
+    written to return None rather than raise, so a containment regression shows
+    up as an exception unwinding OUT of the call - and letting that reach pytest
+    renders every frame it passed through, which is exactly the save path, the
+    account directory and the body bytes these tests exist to contain. The
+    escape is caught here and reduced to its type NAME, so the caller can assert
+    on a string that names a class and nothing else.
+
+    ``BaseException`` rather than ``Exception`` because this is a grader rather
+    than production code: a ``KeyboardInterrupt`` arriving mid-sweep would
+    otherwise unwind through those same frames on its way out.
+
+    Args:
+        call: The contained call under test.
+
+    Returns:
+        ``(escaped type name, None)`` when it raised, else ``(None, its value)``.
+    """
+    try:
+        return None, call()
+    except BaseException as exc:  # broad on purpose - see the docstring above
+        return type(exc).__name__, None
+
+
+def _assert_sweep_declines(label: str, call: Callable[[], object]) -> None:
+    """Assert one sweep declined, rendering only a name and a boolean.
+
+    Args:
+        label: What to call the sweep in a failure message.
+        call: The sweep.
+    """
+    escaped, value = _contained_call(call)
+    assert escaped is None, (
+        f"the {label} let {escaped} unwind instead of containing it, and every frame "
+        "it unwound through held a save path or the account directory"
+    )
+    declined = value is None
+    assert declined, f"the {label} did not decline"
+
+
+def _assert_every_sweep_declines() -> None:
+    """All THREE real-library sweeps must decline rather than let a failure unwind.
 
     EVERY SUBJECT IS REDUCED TO A SCALAR BEFORE IT IS ASSERTED ON. pytest
     rewrites an assertion to render the operands it compared, so
     ``assert _library_save_paths() == ()`` prints the discovered save paths on
     failure - the account directory, which is the exact thing these tests
     exist to keep out of a log. The assertions below can only ever print an
-    integer or a boolean.
+    integer, a boolean or an exception type NAME.
+
+    THE THIRD SWEEP WENT UNGRADED FROM THE DAY IT WAS WRITTEN.
+    ``test_decode_oracles._sweep_decode_oracles`` is a third walk over the real
+    library with its own discovery call, and nothing here reached it: splicing
+    the known-bad discovery shape into it - the locators called outside the
+    ``try``, as ``test_objects._one_real_save_of_a_measured_pair`` still calls
+    them - left this suite byte-identically green while the spliced sweep
+    leaked the account directory. Two sweeps being contained was never evidence
+    about a third.
+
+    The import is function-local because ``test_decode_oracles`` imports THIS
+    module at its top, so a module-level import here would close that cycle.
     """
+    from tests.save import test_decode_oracles  # noqa: PLC0415 - breaks an import cycle
+
+    oracle_sweep = test_decode_oracles._sweep_decode_oracles  # noqa: SLF001
     _sweep_decoded_values.cache_clear()
+    oracle_sweep.cache_clear()
     try:
-        discovered = len(_library_save_paths())
+        escaped, discovered = _contained_call(lambda: len(_library_save_paths()))
+        assert escaped is None, f"the discovery let {escaped} unwind"
         assert discovered == 0, "the discovery raised instead of returning nothing"
-        tag_sweep_declined = _sweep_payload_tags() is None
-        assert tag_sweep_declined, "the tag sweep did not decline"
-        decode_sweep_declined = _sweep_decoded_values() is None
-        assert decode_sweep_declined, "the decode sweep did not decline"
+        _assert_sweep_declines("tag sweep", _sweep_payload_tags)
+        _assert_sweep_declines("decode sweep", _sweep_decoded_values)
+        _assert_sweep_declines("oracle sweep", oracle_sweep)
     finally:
-        # The sweep is cached and four other tests consume it, so a None
-        # cached under a monkeypatched locator would skip them all silently.
+        # Both sweeps are cached and other tests consume them, so a None cached
+        # under a monkeypatched locator would skip those tests silently.
         _sweep_decoded_values.cache_clear()
+        oracle_sweep.cache_clear()
 
 
-def test_a_failing_save_root_lookup_does_not_unwind_through_either_sweep(monkeypatch) -> None:
+def test_a_failing_save_root_lookup_does_not_unwind_through_any_sweep(monkeypatch) -> None:
     """The discovery calls used to sit outside every ``try`` in both sweeps.
 
     ``resolve_save_root`` and ``resolve_account_dir`` were called before the
@@ -2349,22 +2433,28 @@ def test_a_failing_save_root_lookup_does_not_unwind_through_either_sweep(monkeyp
     section 2). Every one of the module's own privacy arguments rests on
     "there is no failure path that unwinds through a frame holding one", and
     that was the path.
+
+    NAMED "any" RATHER THAN "either" because the grader now reaches a third
+    sweep in ``test_decode_oracles``, which no containment test reached while
+    this one was called ``either``.
     """
     monkeypatch.setattr(locate, "resolve_save_root", _explode)
-    _assert_both_sweeps_decline()
+    _assert_every_sweep_declines()
 
 
-def test_a_failing_account_directory_lookup_does_not_unwind_either(monkeypatch) -> None:
-    """The second of the two, and the one whose frame holds the account id."""
+def test_a_failing_account_directory_lookup_does_not_unwind_through_any_sweep(
+    monkeypatch,
+) -> None:
+    """The second of the three, and the one whose frame holds the account id."""
     monkeypatch.setattr(locate, "resolve_save_root", lambda: Path("synthetic-root"))
     monkeypatch.setattr(locate, "resolve_account_dir", _explode)
-    _assert_both_sweeps_decline()
+    _assert_every_sweep_declines()
 
 
-def test_a_failing_save_glob_does_not_unwind_either(monkeypatch) -> None:
+def test_a_failing_save_glob_does_not_unwind_through_any_sweep(monkeypatch) -> None:
     """The third uncontained call - it was in the ``for`` statement itself."""
     monkeypatch.setattr(Path, "glob", _explode)
-    _assert_both_sweeps_decline()
+    _assert_every_sweep_declines()
 
 
 def test_a_failing_usmap_load_does_not_unwind_through_the_decode_sweep(monkeypatch) -> None:
@@ -2376,12 +2466,96 @@ def test_a_failing_usmap_load_does_not_unwind_through_the_decode_sweep(monkeypat
     monkeypatch.setattr(usmap, "cached_usmap", _explode)
     _sweep_decoded_values.cache_clear()
     try:
-        # Reduced to a boolean first, for the reason on _assert_both_sweeps_
-        # decline: usmap.PropertyMap has the DEFAULT repr and renders its whole
+        # Reduced to a boolean first, for the reason on _assert_every_sweep_
+        # declines: usmap.PropertyMap has the DEFAULT repr and renders its whole
         # name table, so a failure comparing one would print the shipped usmap.
         loader_declined = _cached_usmap_or_none() is None
         assert loader_declined, "the contained usmap loader let the failure unwind"
         sweep_declined = _sweep_decoded_values() is None
         assert sweep_declined, "the decode sweep did not decline"
+    finally:
+        _sweep_decoded_values.cache_clear()
+
+
+# ---------------------------------------------------------------------------
+# Read containment - no frame holding a save path may unwind either
+# ---------------------------------------------------------------------------
+
+#: A save path that names nothing real. The read containment below is graded on
+#: this rather than on the library, so it runs on a machine with no game
+#: installed and never puts a real path into a frame in the first place.
+_SYNTHETIC_SAVE: Final = Path("synthetic-save.sav")
+
+
+def _raise_memory_error(*_args: object, **_kwargs: object) -> bytes:
+    """Fail the way a large read really can - outside the narrow catch.
+
+    ``MemoryError`` is an ``Exception`` and is neither an ``OSError`` nor a
+    ``HeaderError``, which is the whole property that made it the leak. It is a
+    plausible failure of ``read_bytes`` on a save this size rather than an
+    invented one, and the narrow catch let it straight through.
+
+    Args:
+        *_args: Ignored.
+        **_kwargs: Ignored.
+
+    Raises:
+        MemoryError: Always.
+    """
+    raise MemoryError("synthetic allocation failure")
+
+
+def _assert_read_failure_is_contained(label: str, call: Callable[[], object]) -> None:
+    """Assert one sweep reduced an unexpected read failure to a type NAME.
+
+    ``failures`` is read with ``getattr`` so that a sweep which DECLINED rather
+    than recording the failure fails this assertion too, with the same message
+    and without a second branch that could render the sweep itself.
+
+    Args:
+        label: What to call the sweep in a failure message.
+        call: The sweep.
+    """
+    escaped, value = _contained_call(call)
+    assert escaped is None, (
+        f"{escaped} escaped the {label} instead of being reduced to a type name "
+        "inside it, and the frame it unwound through held the save path"
+    )
+    reported = getattr(value, "failures", None)
+    assert reported == ("MemoryError",), (
+        f"the {label} reported {reported} rather than the one contained MemoryError, "
+        "so the unexpected read failure was not recorded as a type name"
+    )
+
+
+def test_an_unexpected_read_failure_does_not_unwind_through_either_local_sweep(
+    monkeypatch,
+) -> None:
+    """The read and the header parse sat under ``except (OSError, HeaderError)``.
+
+    That catch names the two failures somebody predicted and lets every other
+    type escape the sweep entirely. pytest renders the arguments of the frames
+    it unwinds with NO opt-in flag, and ``path.read_bytes()`` unwinds through a
+    bound method whose ``self`` IS the save path - one line carrying the Windows
+    account name, the numeric platform account id and the world name. That is
+    non-negotiable 3 three times over and non-negotiable 12 once, under
+    completely default pytest flags.
+
+    THE SAVE LIST IS SYNTHETIC, so this runs on a machine with no game
+    installed, and the escape is reduced to a type name by ``_contained_call``
+    so the test grading the leak cannot become one.
+    """
+    monkeypatch.setattr(
+        "tests.save.test_properties._library_save_paths", lambda: (_SYNTHETIC_SAVE,)
+    )
+    monkeypatch.setattr(
+        "tests.save.test_properties._cached_usmap_or_none",
+        lambda: _synthetic_map(_SYNTHETIC_SCHEMA),
+    )
+    monkeypatch.setattr(Path, "read_bytes", _raise_memory_error)
+    _sweep_decoded_values.cache_clear()
+    try:
+        _assert_read_failure_is_contained("tag sweep", _sweep_payload_tags)
+        _assert_read_failure_is_contained("decode sweep", _sweep_decoded_values)
     finally:
         _sweep_decoded_values.cache_clear()

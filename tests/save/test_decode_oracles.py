@@ -19,6 +19,8 @@ So every walk in THIS module runs on the shipped reader. It holds no width of
 its own: names come from ``objects._payload_text``, tag headers from
 ``objects._read_tag_header``, and the cursor advances by the value extent that
 shipped header read reports. Break a shipped width and this module goes red.
+It does transcribe ONE literal, the terminator word, and that exception is
+argued where the constant is defined rather than left for a reader to notice.
 
 THE THREE ORACLES ARE NOT INTERCHANGEABLE, and the difference is measured
 rather than assumed:
@@ -48,12 +50,28 @@ it joins strictly more tags and yields the same bijection, with no word
 claiming two ids and no id claimed by two words. The flat join is kept because
 it is the narrower claim of the two, not because the chain refuted anything.
 
-PRIVACY, non-negotiables 11 and 12. Every helper that touches a real body is
-called inside the sweep's own ``try``, discovery included, and a failure is
-reported as a type NAME rather than as an object - a save path, a body, an
-instance name and a decoded value are all things pytest would render out of a
-frame it unwinds. Property names and type words are judged INSIDE the sweep and
-discarded there; nothing below that line can render one. Only counts leave.
+PRIVACY, non-negotiables 11 and 12, WRITTEN AS WHAT THE CODE DELIVERS RATHER
+THAN AS WHAT WOULD BE REASSURING. Every call that touches a real path or a real
+body sits inside a ``try`` that reduces whatever comes out of it to an exception
+type NAME: the read and the header parse under the pair of handlers in the
+sweep, the per-save walk under the broad handler below them, and discovery
+inside ``test_properties._library_save_paths``, which holds its own. A save
+path, a body, an instance name and a decoded value are all things pytest
+renders out of a frame it unwinds - and it renders the ARGUMENTS of those
+frames with no opt-in flag, which is why the containment has to be total rather
+than merely present. ``path.read_bytes()`` is a bound method whose ``self`` IS
+the save path, so a single uncontained type escaping that line prints the
+Windows account name, the platform account id and the world name together.
+Property names and type words are judged INSIDE the sweep and discarded there;
+nothing below that line can render one. Only counts leave.
+
+THE RESIDUAL, NAMED RATHER THAN PAPERED OVER: those handlers catch
+``Exception``, not ``BaseException``. A ``KeyboardInterrupt`` or a
+``SystemExit`` arriving mid-read still unwinds through the frame holding the
+path, and ``--full-trace`` would render it. Closing that would mean swallowing
+the interrupt that makes a walk over a real library abortable, which is the
+worse trade - so it is recorded here instead, and this module does not claim
+containment it does not have.
 
 Every assertion here is a shape, a rate or a factor. No absolute count is
 written down, because the corpus is the operator's own live library and it
@@ -66,6 +84,7 @@ from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from functools import lru_cache
+from pathlib import Path
 from types import MappingProxyType
 from typing import Final
 
@@ -83,6 +102,20 @@ from clockspeed.save import chunks, header, objects, usmap
 from tests.save import test_properties
 
 #: The property terminator, as the shipped walk spells it.
+#:
+#: THIS IS A TRANSCRIPTION, AND THE ONE THIS MODULE HOLDS. Saying the module
+#: copies nothing would be the same species of false guarantee the privacy note
+#: above was rewritten to stop making, so the exception is stated instead.
+#: ``objects`` exports no name for the terminator - the literal is bare at its
+#: only site, the ``name[0] == "None"`` test inside the shipped payload walk -
+#: so there is nothing here to import without editing that module.
+#:
+#: The exposure is BOUNDED rather than absent, which is why a fourth copy is
+#: tolerable where a fourth width would not be. Both walks stop on the same
+#: word, so changing it in the shipped reader alone strands this walk past its
+#: terminator and the reach test goes red immediately. It fails loudly rather
+#: than quietly measuring the wrong thing - a smaller risk than a width, and
+#: not a zero one.
 _TERMINATOR: Final = "None"
 
 #: The type word whose value names a saved object. SoftObjectProperty carries
@@ -384,6 +417,17 @@ def _sweep_decode_oracles() -> _OracleSweep | None:
             data = path.read_bytes()
             parsed = header.parse_header(data)
         except (OSError, header.HeaderError):
+            # The two EXPECTED failures - an unreadable file and a save of a
+            # version this project does not parse - stay silent skips, because
+            # the library legitimately holds both and _sweep_or_skip treats any
+            # recorded failure as fatal.
+            continue
+        except Exception as exc:
+            # THE BACKSTOP, for the reason the handler below states: anything
+            # unexpected escaping here unwinds through `path.read_bytes()`,
+            # whose bound `self` IS the save path, and pytest renders the
+            # arguments of every frame it unwinds with no opt-in flag.
+            failures.append(type(exc).__name__)
             continue
         if (parsed.header_version, parsed.save_version) not in test_properties.TAGGED_PAIRS:
             continue
@@ -583,3 +627,37 @@ def test_both_tag_grammar_transcriptions_agree() -> None:
         "the guid width transcribed in tests/save/test_properties.py no longer "
         "matches the shipped constant, with the same consequence"
     )
+
+
+def test_an_unexpected_read_failure_does_not_unwind_through_the_oracle_sweep(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The read and the header parse sat under ``except (OSError, HeaderError)``.
+
+    That catch names the two failures somebody predicted and lets every other
+    type escape the sweep entirely - three lines above a broad handler whose own
+    comment says a narrower catch is the leak. pytest renders the arguments of
+    the frames it unwinds with NO opt-in flag, and ``path.read_bytes()`` unwinds
+    through a bound method whose ``self`` IS the save path: one line carrying the
+    Windows account name, the numeric platform account id and the world name.
+    Non-negotiable 3 three times over, non-negotiable 12 once, under completely
+    default pytest flags.
+
+    THE SAVE LIST IS SYNTHETIC, so this runs on a machine with no game installed
+    and no real path is ever put into the frame under test. Every helper is
+    imported from ``test_properties`` rather than copied, for the reason given
+    at this module's own import of it.
+    """
+    monkeypatch.setattr(
+        test_properties,
+        "_library_save_paths",
+        lambda: (test_properties._SYNTHETIC_SAVE,),  # noqa: SLF001
+    )
+    monkeypatch.setattr(Path, "read_bytes", test_properties._raise_memory_error)  # noqa: SLF001
+    _sweep_decode_oracles.cache_clear()
+    try:
+        test_properties._assert_read_failure_is_contained(  # noqa: SLF001
+            "oracle sweep", _sweep_decode_oracles
+        )
+    finally:
+        _sweep_decode_oracles.cache_clear()
