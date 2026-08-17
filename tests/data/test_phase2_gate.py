@@ -472,6 +472,177 @@ def test_the_import_time_call_finder_actually_finds() -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# a, continued: redact() reaches no resolver, at any depth
+# ---------------------------------------------------------------------------
+#
+# A resolver call inside redact() is not a style problem. It is an infinite
+# recursion, and the cycle is short:
+#
+#     redact -> resolve_save_root -> _override -> local_config
+#            -> _read_local_config -> _note -> redact
+#
+# It does not blow up today for one reason only: ``_override`` passes no
+# collector, so ``_note`` returns at its first statement without redacting
+# anything. Wire a collector down that path - which is precisely what the
+# open reporting work does - and the cycle closes. Measured on a planted
+# version of exactly that shape, it terminates in a RecursionError.
+#
+# The safety of redact() therefore rests on a call that is ABSENT, and nothing
+# mechanical was keeping it absent. Reaching for resolve_save_root() to learn
+# where the save root is would read as entirely reasonable in review, and the
+# comment saying not to is not a mechanism - it is a hope with better
+# formatting.
+#
+# THIS IS A FENCE, NOT A REPRODUCTION. It is green at HEAD and must stay
+# green; it fails only if someone later reintroduces the call. Stating that
+# plainly matters, because a fence written up as a reproduction is a false
+# sentence about what the suite has measured.
+#
+# It reads the TRANSITIVE closure rather than redact()'s own body, because the
+# recursion does not care how many helpers sit between its two ends. A single
+# private wrapper would defeat a body-only check while leaving the cycle
+# exactly as closed as before.
+
+_FunctionNode = ast.FunctionDef | ast.AsyncFunctionDef
+
+
+def _function_defs_by_name(tree: ast.AST) -> dict[str, list[_FunctionNode]]:
+    """Index every function definition in a parsed module by its bare name.
+
+    Indexed at ANY depth rather than at module level only, and the resulting
+    over-approximation is deliberate. ``_redaction_pairs`` defines its two
+    accumulators as closures today; a later refactor that hoists one to module
+    level, or tucks a helper into a class body, must not quietly drop it out of
+    the call graph. Over-approximating can only WIDEN what the fence covers,
+    which is the direction that fails safe.
+
+    A name defined more than once maps to every definition and all of them are
+    walked, for the same reason: guessing which one a call reaches would be the
+    place a real defect hid.
+
+    Args:
+        tree: A parsed module, or any node to search beneath.
+
+    Returns:
+        Bare function name to the definitions carrying it.
+    """
+    found: dict[str, list[_FunctionNode]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            found.setdefault(node.name, []).append(node)
+    return found
+
+
+def _transitively_called_names(source: str, root: str) -> set[str]:
+    """Collect every name called by ``root`` or by any local function it reaches.
+
+    Walks the call graph from ``root``, following only names the module itself
+    defines - an external call such as ``re.sub`` is recorded but not descended
+    into, because the module cannot reintroduce a resolver through the standard
+    library.
+
+    Args:
+        source: Module source text.
+        root: The function to start from. Must be defined in ``source``.
+
+    Returns:
+        Every bare called name reachable from ``root``, the root's own direct
+        calls included.
+    """
+    defs = _function_defs_by_name(ast.parse(source))
+    assert root in defs, f"{root} is not defined in the source under test"
+
+    reached = {root}
+    pending = [root]
+    called: set[str] = set()
+    while pending:
+        for node in defs[pending.pop()]:
+            for name in (_called_name(call) for call in _calls_under(node)):
+                if name is None:
+                    continue
+                called.add(name)
+                if name in defs and name not in reached:
+                    reached.add(name)
+                    pending.append(name)
+    return called
+
+
+def test_redact_calls_no_resolver_at_any_depth() -> None:
+    """redact() must not reach a resolver, directly or through any helper.
+
+    The recursion argument is spelled out in the comment above this test. The
+    check is graded against RESOLVER_NAMES, which
+    ``test_the_resolver_set_matches_locates_public_surface`` holds against
+    locate's live public surface - so a resolver ADDED later is inside this
+    fence automatically, with nothing to remember to update. Transcribing the
+    resolver names into a second literal list here would have produced a fence
+    that grades itself.
+
+    This also turns the parenthetical in that test's docstring - that redact
+    "resolves nothing" - from a stated belief into a checked property. The
+    prose stays where it is; it explains why redact is exempt from the
+    import-time probes, which is a different point from this one.
+    """
+    source = (DATA_PACKAGE / "locate.py").read_text(encoding="utf-8")
+    offenders = sorted(_transitively_called_names(source, "redact") & set(RESOLVER_NAMES))
+    assert not offenders, (
+        f"redact() reaches {offenders}. Every resolver funnels through _override, which "
+        "reads config/local.json, which reports a discard through _note, which redacts the "
+        "subject - so this call is a cycle back into redact. It survives review only while "
+        "_note is passed no collector. Read os.environ directly instead."
+    )
+
+
+def test_the_redact_closure_finder_flags_a_planted_resolver_and_only_that() -> None:
+    """The closure walker catches a planted resolver call and leaves innocents alone.
+
+    Three directions, because two would not be enough. A walker that flagged
+    every module containing the string would pass the first check and be
+    useless; one that read only redact's own body would pass the first two and
+    miss the wrapper case, which is the one an ordinary refactor produces.
+    """
+    planted_directly = (
+        "def redact(text):\n"
+        "    root = resolve_save_root()\n"
+        "    return str(text).replace(str(root), '<root>')\n"
+    )
+    planted_elsewhere = (
+        "def redact(text):\n"
+        "    return str(text)\n"
+        "\n"
+        "def resolve_account_dir(save_root):\n"
+        "    return locate.resolve_save_root()\n"
+    )
+    planted_behind_a_helper = (
+        "def redact(text):\n"
+        "    return _pairs(str(text))\n"
+        "\n"
+        "def _pairs(out):\n"
+        "    return _needles(out)\n"
+        "\n"
+        "def _needles(out):\n"
+        "    return out.replace(str(locate.resolve_save_root()), '<root>')\n"
+    )
+
+    direct = _transitively_called_names(planted_directly, "redact") & set(RESOLVER_NAMES)
+    assert direct == {"resolve_save_root"}, (
+        f"the walker missed a resolver called straight from redact; it found {sorted(direct)}"
+    )
+
+    elsewhere = _transitively_called_names(planted_elsewhere, "redact") & set(RESOLVER_NAMES)
+    assert not elsewhere, (
+        "the walker flagged a resolver call that redact cannot reach, so it is really "
+        f"just a search for the word: it found {sorted(elsewhere)}"
+    )
+
+    behind = _transitively_called_names(planted_behind_a_helper, "redact") & set(RESOLVER_NAMES)
+    assert behind == {"resolve_save_root"}, (
+        "the walker did not follow redact through two private helpers, so a one-line "
+        f"wrapper would defeat it: it found {sorted(behind)}"
+    )
+
+
 # ===========================================================================
 # b. No data-layer test depends on a real install
 # ===========================================================================
