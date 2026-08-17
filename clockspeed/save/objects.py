@@ -2438,9 +2438,7 @@ GUID_BYTES: Final = 16
 #   tests/save/test_width_rule.py::test_every_shipped_width_names_a_
 #   criterion_the_rule_admits holds the grounds against the two classes, and
 #   tests/save/test_width_rule.py::test_the_rule_prose_names_every_
-#   code_it_governs holds the rule's own prose against the code vocabulary - so
-#   replacing the rule text with one that governs nothing goes red rather than
-#   passing unread.
+#   code_it_governs scans the rule's own text for each code by name.
 #
 #   THE DECLINES carry a code from the closed vocabulary rather than a sentence
 #   a reader has to classify.
@@ -2510,8 +2508,11 @@ WIDTH_NON_CRITERIA: Final = frozenset(
 #: enough when all of them are discriminated, and thousands are not enough when
 #: the reading was never put through a discrimination test at all.
 #:
-#: THE RULE NAMES ITS OWN CODES, which is what gives the prose an executable
-#: consequence: a rule text that stopped governing would also stop naming them.
+#: THE RULE NAMES ITS OWN CODES, and what that buys is narrow enough to state
+#: exactly. The codes are tied to the vocabulary BY NAME, so a rule text that
+#: stops naming one of them is caught. NOTHING READS WHAT THE RULE SAYS - the
+#: check is a substring scan, so a text that names every code and governs
+#: nothing, or names every code and inverts the rule, passes it.
 WIDTH_SHIPPING_RULE: Final = (
     "A width may ship when mis-stating it changes an observable outcome on at "
     "least one real payload. Which outcome depends on what the width moves, "
@@ -2589,10 +2590,12 @@ WIDTH_SHIPPING_GROUNDS: Final[Mapping[str, str]] = MappingProxyType(
 #:
 #: Every entry today is in the second state. The first is the state CS-456 will
 #: produce when it measures the family. Admitting both vocabularies is what
-#: makes :data:`WIDTH_RULE_EXCEPTIONS` a filter that can fail on a mis-classified
-#: entry rather than a restatement of this table's key set - narrowing the
-#: vocabulary to the non-criteria alone would make that derivation vacuous by
-#: construction, which is the set-compared-with-itself defect one layer along.
+#: keeps :data:`WIDTH_RULE_EXCEPTIONS` from being this table's key set by
+#: construction. WHAT THAT GUARDS IS RE-TRANSCRIPTION, NOT CLASSIFICATION, and
+#: the difference is measured rather than reasoned: the shipped constant and the
+#: test evaluate the SAME comprehension over the SAME mapping, so reclassifying
+#: a decline onto an admitted criterion and re-deriving leaves the suite green.
+#: Which code an entry carries is an author's judgement that no check grades.
 #:
 #: THE PROSE POINTS AT :data:`UNMEASURED_PAYLOAD_REGIONS` AND RESTATES NOTHING
 #: FROM IT. Every key here also has an entry there, that table owns the
@@ -2670,13 +2673,17 @@ DECLINED_VALUE_READINGS: Final[Mapping[str, tuple[str, str]]] = MappingProxyType
 #: put the same classification in two places, and the copy is the one that goes
 #: stale while still reading as authoritative.
 #:
-#: IT IS A PROPER SUBSET IN PRINCIPLE, WHICH IS WHAT MAKES IT A FILTER. A
-#: decline carrying a code from :data:`WIDTH_CRITERIA` is an application of the
-#: rule and is absent from this set - see the two states recorded above. That
-#: every entry lands here TODAY is a fact about today's table, not a property of
-#: the derivation, and it is exactly why this is computed rather than written:
-#: the first decline recorded against an admitted criterion drops out of this
-#: set with nothing edited here.
+#: IT IS A PROPER SUBSET IN PRINCIPLE. A decline carrying a code from
+#: :data:`WIDTH_CRITERIA` is an application of the rule and is absent from this
+#: set - see the two states recorded above. That every entry lands here TODAY is
+#: a fact about today's table rather than a property of the derivation, and the
+#: first decline recorded against an admitted criterion drops out of this set
+#: with nothing edited here.
+#:
+#: WHAT THE DERIVATION BUYS IS THAT THIS SET CANNOT BE HAND-WRITTEN OUT OF STEP
+#: WITH THE CODES. It buys nothing about whether a given entry carries the right
+#: code - the test recomputes this same comprehension over this same mapping, so
+#: a decline moved onto an admitted criterion is reported by both alike.
 WIDTH_RULE_EXCEPTIONS: Final = frozenset(
     word for word, (code, _) in DECLINED_VALUE_READINGS.items() if code in WIDTH_NON_CRITERIA
 )
@@ -2755,17 +2762,43 @@ VALUE_BYTE_ORDER_STATUS: Final[Mapping[str, str]] = MappingProxyType(
 #: identity is a member - which is the point. A candidate set holding only the
 #: identity would mean the order was pinned, and it is not.
 #:
-#: WHAT BOUNDS THE SET IS WHAT THE ORACLES LOOK AT. Both shipped value oracles
-#: turn on the extreme byte positions - one scores whether the most significant
-#: stored byte is zero, the other scores magnitude, which the exponent end
-#: governs - so a rearrangement that leaves the extremes where they are is
-#: invisible to them. The set is DERIVED FROM THE ORACLES at runtime by the test
-#: named in the commentary block above and compared against this literal, so the
-#: literal cannot quietly stop describing what they do.
+#: WHAT BOUNDS THE SET IS THAT EACH ORACLE CONSTRAINS ONE END ONLY, AND THE
+#: SURVIVORS ARE THE INTERSECTION OF THE TWO. NEITHER ORACLE TURNS ON BOTH
+#: EXTREMES, and reading it that way gets the mechanism backwards. Measured: the
+#: int32 oracle holds exactly for the orderings that leave the LOW position
+#: alone, and it survives orderings that MOVE the most significant byte - so it
+#: does not by itself rule out a high-end swap. The float32 oracle holds exactly
+#: for the orderings that leave the HIGH position alone, and it survives
+#: orderings that move the low byte. Only intersecting the two one-ended
+#: constraints fixes both ends, and that intersection is what this set is.
+#:
+#: THE OBSTACLE IS THE ORACLE, NOT THE DATA, and it is worth being exact about
+#: which. The library's float32 values overwhelmingly DO have differing middle
+#: bytes, so the corpus carries the information that would separate the two
+#: survivors. What cannot use it is the shipped float oracle's magnitude band,
+#: which is wide enough to admit both readings. A narrower discriminator over
+#: the same saves is what would settle this - not more saves.
+#:
+#: The set is DERIVED FROM THE ORACLES at runtime by the test named in the
+#: commentary block above and compared against this literal, so the literal
+#: cannot quietly stop describing what they do.
 #:
 #: THE OTHER RESULT IS ABOUT A DIFFERENT FIELD, READ BY A DIFFERENT READER, AND
-#: IT LICENSES NOTHING HERE. There is a separate result showing the tag's
-#: declared SIZE field is read in exactly one of its twenty-four byte orders.
+#: IT LICENSES NOTHING HERE. There is a separate result over the tag's declared
+#: SIZE field, censused across all twenty-four orderings of its four bytes.
+#:
+#: THAT RESULT IS A NARROWING TO TWO AND NOT A SETTLEMENT, which is the same
+#: SHAPE as the candidate set above rather than a stronger kind of answer. The
+#: as-stored ordering reaches more payloads than any other, but the runner-up
+#: only swaps the two HIGH size bytes - and those are both zero for any declared
+#: size small enough to leave them so. The census therefore separates the two
+#: only on the payloads carrying a size large enough to tell them apart, and
+#: that margin is a count the census prints in the run that measures it rather
+#: than a figure written here. Several other orderings still leave a majority of
+#: payloads reaching. Shipping that one as "exactly one order" while shipping
+#: this one as a candidate set would be an asymmetry inviting exactly the
+#: inference the rest of this paragraph declines to make.
+#:
 #: That field is read by :func:`_read_tag_header`; a property VALUE is read by
 #: :func:`_decode_fixed_width`. Carrying the first result across to the second
 #: needs the premise that this format uses one byte order for every int32 field.
