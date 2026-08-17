@@ -1413,3 +1413,77 @@ Aged out when session 15 landed and `WAKEUP_NOTES.md` keeps only the last three 
   `ROADMAP.md` relocate pass** - it is at 119 per cent of its WARN budget and the cause is structural
   rather than incidental: its entries have become essays while the topology table says one line per
   item. That is a real refactor, not a trim.
+
+---
+
+## Relocated from WAKEUP_NOTES.md on 2026-08-17 (session 16)
+
+## Session 13 - 2026-08-16 - CS-421 and CS-422 land unadjudicated; ROADMAP.md refactored
+
+- **Shipped: NOTHING CLOSED.** CS-421's clauses 1 and 2 are met and clause 3 is met for two of five
+  types; CS-422's acceptance reads as met on every clause. **Neither was adjudicated and no adversary
+  ran** - I built them and I graded them, which this project does not accept, so both STAY OPEN with
+  ledger records declaring the non-closure by name. Filed CS-455, CS-456, CS-457. Suite
+  1993 -> **2001 passed, 3 skipped**, mypy clean over 28 files, ruff check and format clean, drift
+  guard 9 guards PASS 8 WARN 1 FAIL 0, doc budget **PASS** (was WARN). Detail in `docs/LEDGER.md`.
+
+- **THE ROADMAP REFACTOR IS DONE AND IT WAS THE REFACTOR, NOT A TRIM.** 119 per cent of budget to 57.
+  Every oversized entry keeps its line, acceptance, tier, a one-sentence lead and a pointer; 21 full
+  bodies relocated VERBATIM to `docs/history_notes.md` with 21 matching anchors and zero dangling
+  pointers. **The five entries whose CURRENT STATE is load-bearing - CS-440, CS-441, CS-443, CS-444,
+  CS-448 - got hand-written leads**, because an algorithmic first-sentence lead rendered CS-440 as
+  "filed as the remainder of CS-435" and buried "built and refuted". A cold session reading that would
+  redo refuted work, which is the exact failure this file exists to prevent.
+
+- **THE ENDIANNESS QUESTION IS SETTLED FOR THE TWO TYPES PILLAR 3 NEEDS, against the game's data rather
+  than our own writer.** The premise is a fact about the GAME - save int32s are counts and indices, so
+  the stored high byte is usually zero - so no fixture this project packs can satisfy it by
+  construction. The pivot is half the population, so **no measured constant appears in any assertion**,
+  which is deliberate: `_JOIN_WORD_FLOOR = 13` sitting at its observed value is why CS-432 exists.
+  Mutants: `">i"` reddens the int oracle at 7926 of 75136 and leaves the float oracle green; `">f"`
+  reverses it at 4425 of 31318. The counters EXCHANGE values rather than drifting.
+
+- **A SHIPPED COMMENT CLAIMED THE ENCODING WAS MEASURED AND NOTHING EXECUTABLE CHECKED IT.** Four
+  percentages in prose. Its int figures reproduced exactly; **its float figures did not**, because the
+  predicate behind "plausible" was written down nowhere - unreproducible by construction. Deleted per
+  ADR 0008 rather than corrected.
+
+- **CS-422's INCONSISTENCY DISSOLVED RATHER THAN GOT EXCUSED.** Widths split into two classes needing
+  two oracles: a CURSOR width moves `value_start`; an EXTENT width cannot move the cursor at all,
+  because the walk advances by `at = value_start + size`. That is STRUCTURAL - I read the advance before
+  letting the word "cannot" stand - not a corpus accident. **Sample size was never the operative
+  criterion**, so shipping at n=9 and declining at n=11976 was never actually inconsistent.
+
+- **Surprises**, each measured:
+  1. **A SPELLING-KEYED TYPE DISPATCH.** `_decode_fixed_width` chose float-vs-int with `code == "<f"`,
+     so a float in any other byte order fell into the integer branch where `int(NaN)` raises. Nothing
+     was broken on the shipped table - the invariant "the float code is spelled exactly this way" was
+     simply never stated. It is also what made the `">f"` mutant unreachable, so fixing it is what let
+     the float oracle be proven at all.
+  2. **MY OWN DOCSTRING SHIPPED A FALSE ATTRIBUTION AND MY OWN ADVERSARIAL PASS CAUGHT IT.** I wrote
+     that the rotation control covers the constant-fabrication gap. Under a constant-1 mutant that
+     control stays GREEN - it perturbs the WALK, and a fabricated value does not move the walk. 8 tests
+     red, 7 synthetic plus the nested gate. Deleted and replaced with the measurement; the gap is
+     CS-455.
+  3. **THE CITATION CHECKER IS BLIND TO `#:` DOC-COMMENTS.** Four citations naming real tests resolved
+     to TRUNCATED names and `test_oracle_citations.py` PASSED. The underscore-wrap rejoin applies to
+     column-0 `#` blocks only. Failure direction is the dangerous one - unreadable reads as absent,
+     not as an error. Worked around by moving them; the channel is CS-457.
+  4. **A KEY COLLISION IN MY OWN FIRST DRAFT.** `ArrayProperty` ships a tag-extra width AND has its
+     value reading declined, so keying the declined table by bare type word read as though the whole
+     word were declined. Caught by printing the sets to look for exactly that.
+  5. **`git checkout --` TO REVERT A MUTANT DESTROYED MY OWN FIX** in the same file. Invert mutants by
+     targeted replace, never by checking out a file that also holds your work.
+
+- **Failed paths - do not retry:**
+  - **Trusting a measured number written in prose.** The float percentages did not reproduce and their
+    predicate was unrecorded. Derive, or delete.
+  - **Attributing a gap to a named control without running it.** The mechanism said it could not fire.
+  - **Writing a `path::test_name` citation into a `#:` doc-comment.** It is not read.
+  - **An algorithmic first-sentence lead for an entry whose state is the point.** It buried "refuted".
+
+- **Next action:** **CS-420**, the last of the three CS-413 closes through, and the hardest - five
+  failed rounds, acceptance restated on a coverage axis, ADR 0008 accepted. **Before building, read
+  CS-435's two derived fences in `clockspeed/save/usmap.py`** - they are the worked example its clause
+  (2) asks for. **Failing that, get CS-421 and CS-422 ADJUDICATED** - both are built, both are graded
+  only by the agent that built them, and neither can close until an independent pass runs.

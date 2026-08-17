@@ -31,6 +31,85 @@ the line becomes a pointer.
 
 ---
 
+## Session 16 - 2026-08-17 - CS-422 CLOSES; CS-421's anchoring half lands and clause 3 still fails
+
+- **Shipped: CS-422 CLOSED.** CS-421 STAYS OPEN with its anchoring half fixed and a ledger record
+  declaring the non-closure by name. Filed CS-469, CS-470, CS-471, CS-472, CS-473, CS-474. Suite
+  2018 -> **2035 passed, 3 skipped, exit 0**, serial, baseline measured by the merger itself at
+  `f20411c` before any slice ran. Drift guard **CLEAN 9/9**. Detail in `docs/LEDGER.md`.
+
+- **THE HEADLINE IS THAT THE GRADING PASS REFUTED THE MERGER THREE TIMES AND CHANGED THE RECORD EACH
+  TIME.** Builders and graders were right against the merger on the seam, on the reason CS-421 cannot
+  close, and on a repair instruction that would have destroyed a live check. Every one of those
+  corrections landed BEFORE the ledger was written rather than after.
+
+- **CS-421 IS NOT DATA-BLOCKED AND THE MERGER'S RULING THAT IT WAS IS THE SESSION'S WORST NEAR-MISS.**
+  The merger ruled clause 3 unsettleable because only **17 of 75136** int32 values carry differing
+  middle bytes, so no oracle over this corpus could separate the identity from the middle swap. An
+  adjudicator took the measurement the merger had not: **30304 of 31318 FLOAT32 values do carry them.**
+  The evidence is in the library in quantity and the shipped float oracle's magnitude band is simply
+  too wide to use it - a weakness of the ORACLE. Had that reasoning reached the ledger it would have
+  fenced off the one open route. Filed as CS-469 and it is the next action.
+
+- **THE ANCHORING HALF IS REAL AND IT IS THE ITEM'S ONE SOLID GAIN.** `tests/save/test_value_anchoring.py`
+  compares the shipped decoder reading in place against the same declared extent in a poison-padded
+  buffer: 0 mismatches shipped, **75136 of 75136** under the +4 displacement that leaves the old
+  oracle GREEN. The contrast is DERIVED rather than asserted - a test computes which displacements the
+  old oracle tolerates and requires that set to be exactly the one this module controls at.
+
+- **CS-422 CLOSED ON SIX EXECUTABLE CONSEQUENCES WHERE SESSION 14 MEASURED ZERO.** The E1 mutant that
+  used to leave the whole save suite green now reddens, and with it applied the rest of `tests/save`
+  still passes at 1014 - so the new module is the only thing that catches it. Library-free proven with
+  an audit hook: 9 passed, 0 skipped, access count 0, with every discovery root pointed at an empty
+  directory. `WIDTH_SHIPPING_GROUNDS` is hand-authored and injecting a fifth width turns it RED.
+
+- **Surprises**, each measured:
+  1. **THE MERGER SEEDED A FALSE SENTENCE INTO ITS OWN DISPATCH.** It told a builder that a
+     plus-or-minus-one rotation control "would pass and prove nothing". The oracle is a CONJUNCTION
+     and is RED at -2, -1, +2 and +3, GREEN only at +4. The upstream ROADMAP sentence was true of the
+     majority half alone; the dispatch widened it, the builder shipped it at two sites, an adversary
+     caught it, and the replacement is a derivation rather than another sentence.
+  2. **THE MERGER'S VOCABULARY WIDENING DID NOT DO WHAT IT CLAIMED.** Widening the decline codes was
+     meant to make `WIDTH_RULE_EXCEPTIONS` fail on a mis-classified entry. It guards RE-TRANSCRIPTION
+     only: the shipped constant and the test evaluate the same comprehension over the same mapping.
+  3. **A MODULE-LEVEL COMPREHENSION IS EVALUATED AT IMPORT, so mutating its source in process leaves
+     the derived constant STALE** - which a real source edit does not. That flipped one mutant's
+     verdict from DETECTED to MISSED and made a per-entry deletion sweep read 4 of 5, not 5 of 5.
+  4. **THE ANCHOR CONTROL IS GREEN FOR ANY PURE FUNCTION OF THE DECLARED EXTENT.** A decoder zeroing
+     one stored byte of every int32 leaves the whole module green with 4484 values wrong, and across
+     the save suite the only catchers are SYNTHETIC-FIXTURE tests - CS-421's own circularity one layer
+     along. It establishes WHICH BYTES are read, not WHAT FUNCTION they go through.
+  5. **A BUILDER REFUTED A REPAIR INSTRUCTION AND SAVED A LIVE CHECK.** Told the partition assertions
+     in `test_properties.py` compare a set with itself, it measured first: the two TABLES cancel but
+     the test's own transcribed literals do NOT, so renaming `GUID_BYTES` turns `ungoverned` RED.
+     Deleting them would have removed a real transcription check. CS-458's note is corrected.
+  6. **THE FALSE SENTENCE WAS IN TWO PARAGRAPHS, NOT THE ONE THE ADVERSARY QUOTED.** The repair
+     instruction named one site because that is what was quoted; the builder swept and found the
+     duplicate, which a fix scoped to the quotation would have left standing.
+  7. **A SUBAGENT'S "no save library on this machine" WAS THE NESTED GATE'S INNER RUN**, which forces
+     discovery empty by design. `tests/save` on main is 1007 passed 0 skipped. Taken at face value it
+     would have condemned a slice as unmeasurable.
+  8. **WORKTREE STALENESS FIRED IN 3 OF 4 BUILDERS**, including one dispatched explicitly against a
+     post-merge commit that found itself two merges behind.
+
+- **Failed paths - do not retry:**
+  - **Recording CS-421 clause 3 as blocked by the corpus.** The float32 population carries the
+    evidence; the oracle cannot use it.
+  - **Deleting the partition assertions in `test_properties.py`.** They still catch a literal rename.
+  - **Mutating a table in process and reading a constant derived from it at import.** Re-derive, or
+    the verdict is about a stale value.
+  - **Leaving mutation harnesses in a gitignored directory.** A caveat in a destroyed scratch file is
+    not a caveat in the artifact - the limits had to be re-derived by a verifier and then written into
+    the module.
+  - **Trusting a substring scan to grade prose.** A rule text naming every code while inverting the
+    rule passes it, and so does one that names every code and governs nothing.
+
+- **Next action: CS-469**, the float32 discriminator over the values whose middle stored bytes differ.
+  It is the only open route to CS-421 clause 3, which is the last of the three items CS-413 closes
+  through - and CS-413 is the phase-4 depth gate that CS-400, then CS-500, then the dashboard sit
+  behind. **Do NOT close it with a band narrowed until it separates today's corpus** - that is the
+  `_JOIN_WORD_FLOOR` shape CS-432 exists to remove. After it, CS-471 is tier 1 and privacy-adjacent.
+
 ## Session 15 - 2026-08-16 - CS-454 built, merged, and REFUTED on clause 1; the fence it shipped is refuted too
 
 - **Shipped: NOTHING CLOSED. CS-454 STAYS OPEN** with a ledger record declaring the non-closure by
@@ -203,73 +282,3 @@ the line becomes a pointer.
   fixture. **CS-421 and CS-422 both need real work, not re-grading** - CS-421 needs a value-start
   rotation control built knowing +4 does not collapse today, and CS-422 needs its partition derived
   from INDEPENDENT sources (that half is filed as CS-458).
-
-## Session 13 - 2026-08-16 - CS-421 and CS-422 land unadjudicated; ROADMAP.md refactored
-
-- **Shipped: NOTHING CLOSED.** CS-421's clauses 1 and 2 are met and clause 3 is met for two of five
-  types; CS-422's acceptance reads as met on every clause. **Neither was adjudicated and no adversary
-  ran** - I built them and I graded them, which this project does not accept, so both STAY OPEN with
-  ledger records declaring the non-closure by name. Filed CS-455, CS-456, CS-457. Suite
-  1993 -> **2001 passed, 3 skipped**, mypy clean over 28 files, ruff check and format clean, drift
-  guard 9 guards PASS 8 WARN 1 FAIL 0, doc budget **PASS** (was WARN). Detail in `docs/LEDGER.md`.
-
-- **THE ROADMAP REFACTOR IS DONE AND IT WAS THE REFACTOR, NOT A TRIM.** 119 per cent of budget to 57.
-  Every oversized entry keeps its line, acceptance, tier, a one-sentence lead and a pointer; 21 full
-  bodies relocated VERBATIM to `docs/history_notes.md` with 21 matching anchors and zero dangling
-  pointers. **The five entries whose CURRENT STATE is load-bearing - CS-440, CS-441, CS-443, CS-444,
-  CS-448 - got hand-written leads**, because an algorithmic first-sentence lead rendered CS-440 as
-  "filed as the remainder of CS-435" and buried "built and refuted". A cold session reading that would
-  redo refuted work, which is the exact failure this file exists to prevent.
-
-- **THE ENDIANNESS QUESTION IS SETTLED FOR THE TWO TYPES PILLAR 3 NEEDS, against the game's data rather
-  than our own writer.** The premise is a fact about the GAME - save int32s are counts and indices, so
-  the stored high byte is usually zero - so no fixture this project packs can satisfy it by
-  construction. The pivot is half the population, so **no measured constant appears in any assertion**,
-  which is deliberate: `_JOIN_WORD_FLOOR = 13` sitting at its observed value is why CS-432 exists.
-  Mutants: `">i"` reddens the int oracle at 7926 of 75136 and leaves the float oracle green; `">f"`
-  reverses it at 4425 of 31318. The counters EXCHANGE values rather than drifting.
-
-- **A SHIPPED COMMENT CLAIMED THE ENCODING WAS MEASURED AND NOTHING EXECUTABLE CHECKED IT.** Four
-  percentages in prose. Its int figures reproduced exactly; **its float figures did not**, because the
-  predicate behind "plausible" was written down nowhere - unreproducible by construction. Deleted per
-  ADR 0008 rather than corrected.
-
-- **CS-422's INCONSISTENCY DISSOLVED RATHER THAN GOT EXCUSED.** Widths split into two classes needing
-  two oracles: a CURSOR width moves `value_start`; an EXTENT width cannot move the cursor at all,
-  because the walk advances by `at = value_start + size`. That is STRUCTURAL - I read the advance before
-  letting the word "cannot" stand - not a corpus accident. **Sample size was never the operative
-  criterion**, so shipping at n=9 and declining at n=11976 was never actually inconsistent.
-
-- **Surprises**, each measured:
-  1. **A SPELLING-KEYED TYPE DISPATCH.** `_decode_fixed_width` chose float-vs-int with `code == "<f"`,
-     so a float in any other byte order fell into the integer branch where `int(NaN)` raises. Nothing
-     was broken on the shipped table - the invariant "the float code is spelled exactly this way" was
-     simply never stated. It is also what made the `">f"` mutant unreachable, so fixing it is what let
-     the float oracle be proven at all.
-  2. **MY OWN DOCSTRING SHIPPED A FALSE ATTRIBUTION AND MY OWN ADVERSARIAL PASS CAUGHT IT.** I wrote
-     that the rotation control covers the constant-fabrication gap. Under a constant-1 mutant that
-     control stays GREEN - it perturbs the WALK, and a fabricated value does not move the walk. 8 tests
-     red, 7 synthetic plus the nested gate. Deleted and replaced with the measurement; the gap is
-     CS-455.
-  3. **THE CITATION CHECKER IS BLIND TO `#:` DOC-COMMENTS.** Four citations naming real tests resolved
-     to TRUNCATED names and `test_oracle_citations.py` PASSED. The underscore-wrap rejoin applies to
-     column-0 `#` blocks only. Failure direction is the dangerous one - unreadable reads as absent,
-     not as an error. Worked around by moving them; the channel is CS-457.
-  4. **A KEY COLLISION IN MY OWN FIRST DRAFT.** `ArrayProperty` ships a tag-extra width AND has its
-     value reading declined, so keying the declined table by bare type word read as though the whole
-     word were declined. Caught by printing the sets to look for exactly that.
-  5. **`git checkout --` TO REVERT A MUTANT DESTROYED MY OWN FIX** in the same file. Invert mutants by
-     targeted replace, never by checking out a file that also holds your work.
-
-- **Failed paths - do not retry:**
-  - **Trusting a measured number written in prose.** The float percentages did not reproduce and their
-    predicate was unrecorded. Derive, or delete.
-  - **Attributing a gap to a named control without running it.** The mechanism said it could not fire.
-  - **Writing a `path::test_name` citation into a `#:` doc-comment.** It is not read.
-  - **An algorithmic first-sentence lead for an entry whose state is the point.** It buried "refuted".
-
-- **Next action:** **CS-420**, the last of the three CS-413 closes through, and the hardest - five
-  failed rounds, acceptance restated on a coverage axis, ADR 0008 accepted. **Before building, read
-  CS-435's two derived fences in `clockspeed/save/usmap.py`** - they are the worked example its clause
-  (2) asks for. **Failing that, get CS-421 and CS-422 ADJUDICATED** - both are built, both are graded
-  only by the agent that built them, and neither can close until an independent pass runs.

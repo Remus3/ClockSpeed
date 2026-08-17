@@ -73,6 +73,103 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-17 - CS-422 - CLOSED. The width rule now has an executable consequence on the lane that grades it
+Verification: `python -m pytest tests -q -p no:randomly` gives 2035 passed, 3 skipped, exit 0,
+against the 2018 passed 3 skipped the merger measured itself at `f20411c` before any slice ran.
+The rule is graded by `tests/save/test_width_rule.py`, merged into `clockspeed/save/objects.py`'s
+vocabulary. Reproduce the two closure predicates on a machine with NO game and NO saves: adding a
+fifth entry to `objects._FIXED_WIDTH_VALUES` without a `WIDTH_SHIPPING_GROUNDS` entry reddens
+`test_every_shipped_width_names_a_criterion_the_rule_admits`, and deleting `SetProperty` from
+`objects.DECLINED_VALUE_READINGS` reddens
+`test_every_unmeasured_word_that_ships_a_tag_extra_width_is_declined`.
+An adjudicator and three adversaries ran, none having written any part of it.
+**WHAT SESSION 14 REFUTED IS NOW ANSWERED, EACH BY EXECUTION.** E1: replacing
+`WIDTH_SHIPPING_RULE` with "ship any width you feel like, no evidence needed" left the whole save
+suite green; it now reddens `test_the_rule_prose_names_every_code_it_governs`, and with that mutant
+applied the rest of `tests/save` still passes at 1014, so this module is the only thing that
+catches it. E2: the rule was graded by nothing on `ubuntu-latest`, because two of three cited tests
+needed a save library; the new module is 9 passed, 0 skipped, with an audit hook over `open`,
+`listdir`, `scandir`, `glob` and `winreg` reporting an access count of 0 while the save root,
+account directory, game directory, local config and `LOCALAPPDATA` all point at an empty directory.
+E3: the family is DERIVED as `frozenset(_TAG_EXTRA_STRINGS) - MEASURED_VALUE_TYPES` rather than
+listed, and `MapProperty`, `SetProperty` and `StructProperty` gained declines against reason codes
+drawn from a closed set the rule names.
+**THE SET-COMPARED-WITH-ITSELF DEFECT IS GENUINELY FIXED.** `WIDTH_SHIPPING_GROUNDS` is hand
+authored entry by entry rather than built from the width sets, proven by injecting `Int16Property`
+into `_FIXED_WIDTH_VALUES` and observing RED with "Shipped with no ground recorded".
+**WHAT IS NOT GRADED, recorded so it is not rediscovered as a finding.** The rule-prose test is a
+SUBSTRING SCAN: a rule text naming every code while governing nothing passes it, and so does one
+that INVERTS the rule while naming every code. Both were measured passing at 9 green, and the two
+shipped sentences claiming otherwise were DELETED before this record was written rather than after.
+`WIDTH_RULE_EXCEPTIONS` is derived FROM `DECLINED_VALUE_READINGS`, so it grades RE-TRANSCRIPTION and
+not CLASSIFICATION - reclassifying a decline onto an admitted criterion and re-deriving leaves the
+module green. The deletion direction reaches only the derived population, so a declined word that
+ships no tag-extra width can be deleted unnoticed. All three limits are written into the module.
+**TextProperty DOES NOT BLOCK**, and the ground is not that a follow-up covers it, which is a
+recorded failed path. It ships no width at all - it is in neither `_TAG_EXTRA_STRINGS` nor
+`_FIXED_WIDTH_VALUES` - so a clause about when a WIDTH may ship does not govern it. The four words
+that DO ship a tag-extra width with an unmeasured value reading are all guarded.
+**CS-458 REMAINS OPEN AND IS LOAD-BEARING FOR THE STRICTEST READING** of "applied to every entry":
+`INT32_SIZE`, `UTF16_CHAR_SIZE`, `_TAG_INDEX_FIELD_BYTES` and two byte literals still advance the
+cursor from outside every table. That was fenced out of this item deliberately.
+**A CORRECTION TO CS-458'S OWN NOTE AND TO THE 2026-08-16 CS-422 REFUTATION RECORD ABOVE.** Both say
+the partition assertions in `tests/save/test_properties.py` are "structurally empty set differences"
+that "cannot be non-empty for any edit". That overstates. The two TABLES cancel, but the test
+transcribes `GUID_BYTES` and `_SOFT_OBJECT_TAIL_BYTES` as its own literals while `objects.py` spells
+them inline, so renaming `GUID_BYTES` in `CURSOR_WIDTHS` alone turns `ungoverned` RED. The substance
+holds - adding a word to either table leaves it green - but the universal phrasing does not, and the
+test was kept and re-docstringed rather than deleted for exactly that reason.
+
+### 2026-08-17 - CS-421 - DOES NOT CLOSE. The anchoring defect is fixed and clause 3 is NOT MET
+Verification: `python -m pytest tests -q -p no:randomly` gives 2035 passed, 3 skipped, exit 0. The
+new controls are `tests/save/test_value_anchoring.py`; the shipped status data is
+`objects.VALUE_BYTE_ORDER_STATUS` and `objects.BYTE_ORDER_SURVIVING_CANDIDATES`. This record does not
+close CS-421. Clauses 1 and 2 remain MET and were not in question. An adjudicator and three
+adversaries ran, none having written any part of it.
+**THE ANCHORING HALF IS FIXED.** `test_no_fixed_width_value_depends_on_a_byte_outside_its_declared_extent`
+compares the shipped decoder reading in place against the same declared extent copied into a poison
+padded buffer: 0 mismatches on the shipped tree, and 75136 of 75136 under a rebind displacing only
+the `IntProperty` spec by +4 - the displacement that leaves the old oracle GREEN. That contrast is
+itself now DERIVED by
+`test_the_displacement_the_value_oracle_tolerates_is_the_one_the_anchor_catches`.
+**A CORRECTION TO THE 2026-08-16 CS-421 REFUTATION RECORD ABOVE.** It says the as-read majority
+survives at -2, -1, +2, +3 and +4, which is true of the MAJORITY half alone. The oracle is a
+CONJUNCTION of two assertions, and measured one process per delta it is RED at -2, -1, +2 and +3 and
+GREEN only at +4. A first draft of the new module widened "majority survives" into "oracle survives"
+and shipped it at two sites; the merger seeded that wording in its own dispatch. Deleted, and
+replaced by the derivation rather than by another sentence.
+**WHY CLAUSE 3 STILL FAILS.** The two shipped value oracles do not isolate one byte order. They
+leave TWO candidates, the identity and the middle swap, derived at runtime by
+`test_the_shipped_candidate_set_is_what_the_value_oracles_cannot_separate` and shipped as
+`BYTE_ORDER_SURVIVING_CANDIDATES`. Each oracle constrains ONE end only - the int32 oracle holds for
+exactly the orderings leaving the low position alone and survives four that move the most
+significant byte, the float32 oracle the mirror image - so only intersecting two one-ended
+constraints fixes both ends. "Settled" is not earned.
+**THE ROUTE OUT IS OPEN AND MUST NOT BE RECORDED AS DATA-BLOCKED.** The merger ruled clause 3
+unsettleable because the ambiguity is a property of the corpus, and an adjudicator refuted that with
+the measurement the merger had not taken: 17 of 75136 int32 values carry differing middle bytes, but
+30304 of 31318 FLOAT32 values do. The information is in the library in quantity. What cannot use it
+is the shipped float oracle's magnitude band, which is wide enough to admit almost every swapped
+value - a weakness of the ORACLE, not of the data. A narrower discriminator over the same saves
+settles this; more saves do not. Filed as CS-469.
+**THE ANCHOR'S LIMIT IS AT THE CLASS, NOT AT THE CONSTANT.** It is green for ANY pure function of the
+declared extent. Measured: a decoder zeroing stored byte 1 of every `IntProperty` leaves all tests in
+the module green while 4484 of 75136 values decode wrong, and across the whole save suite the only
+catchers are synthetic-fixture tests - CS-421's own circularity one layer along. It establishes WHICH
+BYTES are read, not WHAT FUNCTION they go through. CS-455 is the degenerate case of that class.
+**THE SIZE-FIELD RESULT IS A NARROWING, NOT A SETTLEMENT**, and it is about a DIFFERENT FIELD read by
+a DIFFERENT READER. Its census separates the identity from its high-byte twin only on the payloads
+carrying a declared size large enough to tell them apart, and that population is small; the test is
+gated to SKIP rather than to fail when it is empty, which is why it does not carry the CS-432 shape.
+Carrying it across to a property VALUE needs the premise that this format uses one byte order for
+every int32 field, which is an assumption and not a measurement. The boundary is written down beside
+the data and survived a dedicated attack. Filed as CS-470.
+**PRIVACY.** The first draft held every tagged save's raw bytes in one list with a statement outside
+its handler, which rendered a save-tree account directory, a world-derived save name and raw header
+bytes under `pytest -l` after a forced failure. Not live on main at any point - it was reachable only
+under a mutant, and the repair landed before the merge that carries this record. The sweeps now read
+one save at a time with every statement inside a handler.
+
 ### 2026-08-16 - CS-454 - DOES NOT CLOSE. The redactor is materially better and clause 1 is NOT MET
 Verification: `python -m pytest tests -q -p no:randomly` at `758888d` gives 2018 passed,
 3 skipped, exit 0, against 2007 passed 3 skipped measured by the merger at `bb7a236` in a
