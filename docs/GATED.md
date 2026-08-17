@@ -178,6 +178,27 @@ grammar measured on the other three version pairs does not accept.
 DIFFERENT from the two already present. Playing the pinned development world forward and
 saving on the current game build is the only thing that produces one.
 
+**STATUS 2026-08-16 (session 15): THE OPERATOR PLAYED THE WORLD FORWARD AND SAVED. THE
+CONDITION IS PLAUSIBLY MET AND IS DELIBERATELY NOT DECLARED MET.** Measured read-only,
+counts only: the pair now has FIVE files where the entry above was written against two,
+their sizes all differ, and NO pair of them is byte-identical over the region this entry
+names - 10 of 10 pairs diverge, against 0 of 1 before. **WHAT THAT DOES NOT ESTABLISH, and
+this entry refuses to round it up:** the earliest divergence between any two of them sits at
+offset 12 and the latest at offset 30, which is header metadata - a save timestamp and a
+play duration differ between ANY two saves of any world. So what is measured is that they
+are distinct FILES. Whether the PROPERTY PAYLOAD is now independently sampled is UNMEASURED,
+and that is the whole question this item turns on. **Reading a file count as an independence
+count is the error this entry already warns about, and the first probe taken this session
+walked into it before a second one caught it.** The next session establishes payload-level
+independence with the object walk over the new files before treating the DRAIN half as
+workable; if it turns out the payloads are near-identical because the play session changed
+little, the honest outcome is that this stays gated and needs more varied play.
+
+**The PREP harness was re-run against the enlarged library this session and still PASSES**,
+which is the correct result and not a disappointment: it pins the REFUSAL as a negative
+result, the refusal still holds, and no quantity of new saves was ever going to resolve the
+grammar on its own. New saves buy material to measure with; measuring is the drain work.
+
 **Why no work inside the repo can close it, measured rather than argued.** The pair reaches
 a property terminator on 0 of 1832 payloads at every alignment tried, and a single leading
 byte accounts for 669 of 1832 with the rest unexplained. The two files of that pair are

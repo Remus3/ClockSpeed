@@ -103,6 +103,16 @@ the line becomes a pointer.
     assertion against the game's own `common` directory.
   - **Trusting a branch name from a builder.** Check the diff against the base before merging.
 
+- **THE SAVE LIBRARY GREW THIS SESSION AND CS-G05 MOVED, THOUGH NOT ALL THE WAY.** The operator
+  played the pinned world forward and saved. The version-60 pair went from two files that were
+  byte-identical over the measured region - ONE observation - to FIVE files of differing sizes
+  where 10 of 10 pairs diverge. **BUT the earliest divergence is at offset 12 and the latest at
+  offset 30, which is header metadata, so what is proven is that they are distinct FILES and NOT
+  that the property payload is independently sampled.** The merger's first probe treated five
+  digests as five observations, which is precisely the file-count-as-independence-count error
+  CS-G05's own entry warns about; a second probe caught it. Full status in `docs/GATED.md`.
+  The PREP harness still passes, which is correct - it pins a negative.
+
 - **Next action: OPERATOR-DIRECTED 2026-08-16 - TAKE CS-421 AND CS-422, NOT CS-454 AND NOT CS-465.**
   The reason is the critical path to a usable surface: `CS-413`'s own entry names CS-420, CS-421 and
   CS-422 as the gap between "the values were produced and are self-consistent with our own writer"
