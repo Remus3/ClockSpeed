@@ -1569,13 +1569,42 @@ def test_every_measured_type_the_library_exercises_yields_at_least_one_value() -
 
 
 def test_the_int32_byte_order_is_discriminated_by_the_stored_high_byte() -> None:
-    """THE BYTE ORDER, SETTLED AGAINST THE GAME'S DATA RATHER THAN OUR WRITER.
+    """THE BYTE ORDER, SCORED AGAINST THE GAME'S DATA RATHER THAN OUR WRITER.
+
+    SCORED IS NOT SETTLED, AND THE DIFFERENCE IS MEASURED RATHER THAN CONCEDED.
+    The two assertions below rule the whole-word REVERSAL out on the game's own
+    bytes. They do not narrow the order to one arrangement. What the shipped
+    value oracles leave standing is recorded as data in
+    ``objects.BYTE_ORDER_SURVIVING_CANDIDATES`` and derived from the library by
+    ``tests/save/test_value_anchoring.py::test_the_shipped_candidate_set_is_what_the_value_oracles_cannot_separate``,
+    so the residual is a constant the suite checks rather than a sentence here
+    that nobody grades. ``objects.VALUE_BYTE_ORDER_STATUS`` carries the matching
+    per-type status word.
+
+    MORE THAN ONE CANDIDATE SURVIVES, AND WHY IS DELIBERATELY NOT EXPLAINED
+    HERE. The count and the members are derived by the test named above and
+    checked against the shipped constant. An earlier draft of this paragraph
+    described the mechanism - that both oracles turn on the EXTREME stored byte
+    positions - and that description was measured FALSE: the two oracles are
+    ONE-ENDED in opposite directions, and each survives rearrangements that move
+    the end the other one holds. Two candidates stand because the two
+    constraints are INTERSECTED, not because either oracle is two-ended. The
+    corrected mechanism belongs beside the derivation that measures it rather
+    than in an ungraded copy here.
+
+    THIS ORACLE IS ALSO NOT ANCHORED TO THE BYTES IT GRADES. Displacing the
+    int32 value start so the decode reads a neighbouring field rather than the
+    value leaves both assertions below GREEN, so a green result here is a claim
+    about a POPULATION's byte-order signature and not evidence that the bytes
+    scored were the value's own. The anchoring this lacks is carried by
+    ``tests/save/test_value_anchoring.py::test_no_fixed_width_value_depends_on_a_byte_outside_its_declared_extent``,
+    whose own control is
+    ``tests/save/test_value_anchoring.py::test_the_extent_anchor_control_catches_a_displaced_fixed_width_read``.
 
     CS-421's sharpest finding is that flipping ``IntProperty`` to ``">i"``
     reddens only synthetic-fixture tests - fixtures this project packs with the
     same byte order the reader unpacks with, so they agree by construction and
-    are evidence about nothing. Reproduced on the merged tree before this test
-    was written: the mutant reddened 8 tests and all 8 were synthetic.
+    are evidence about nothing.
 
     THE ORACLE'S PREMISE IS A FACT ABOUT THE GAME, WHICH IS WHY IT ESCAPES THAT
     CIRCULARITY. A save's int32 fields are counts, indices and enum ordinals,
@@ -1593,22 +1622,18 @@ def test_the_int32_byte_order_is_discriminated_by_the_stored_high_byte() -> None
 
     STATED LIMIT, AND IT IS MEASURED RATHER THAN REASONED. This discriminates
     BYTE ORDER and not fabrication: replacing the whole fixed-width decode with
-    a constant 1 leaves both oracles here GREEN, because a small positive
-    constant carries a zero high byte exactly as a real small value does. A
-    constant 0 and a large constant both go red, so the blind spot is narrow -
-    and it is real.
+    a plausible small constant leaves both oracles here GREEN, because such a
+    constant carries a zero high byte exactly as a real small value does. CS-455
+    owns that gap and its ROADMAP entry carries the measured acceptance. The
+    accepting set is deliberately NOT restated here - a band written into a
+    docstring is the same rot one generation on.
 
     THE FIRST DRAFT OF THIS PARAGRAPH NAMED THE ROTATION CONTROL AS THE TEST
-    THAT COVERS THAT GAP, AND THAT WAS FALSE. Measured against the constant-1
-    mutant across the save suite: 8 tests red, 7 of them synthetic-fixture
-    tests and the eighth the nested gate that runs them, while
-    :func:`test_the_decode_collapses_when_the_payload_start_is_rotated` stayed
-    green. It could not have done otherwise - it perturbs the WALK, and a
-    fabricated value does not move the walk. So no library-backed control in
-    this suite catches a fixed-width decoder that fabricates plausible small
-    constants; only fixtures this project packs do, which is the very
-    circularity CS-421 exists to name, one layer along. Recorded here as an open
-    residual rather than attributed to a test that does not do it.
+    THAT COVERS THAT GAP, AND THAT WAS FALSE.
+    :func:`test_the_decode_collapses_when_the_payload_start_is_rotated`
+    perturbs the WALK, and a fabricated value does not move the walk, so it
+    could not have covered it. CS-455 records what was measured. Recorded here
+    as an open residual rather than attributed to a test that does not do it.
 
     It is library-backed and skips with no game installed, which is the CI gap
     CS-426 owns. A synthetic fixture cannot close it: one packed from the same
@@ -1645,11 +1670,24 @@ def test_the_float32_byte_order_is_discriminated_by_plausible_magnitude() -> Non
 
     THE DISCRIMINATOR IS MAGNITUDE PLAUSIBILITY, NOT FINITENESS. Finiteness
     looks like the natural choice and was measured useless before this was
-    written: as read it holds on 100 per cent and byte-swapped on 99.77, because
-    a swapped float32 is nearly always still a finite number - just an absurd
-    one. The band below is a DOMAIN bound on what a coordinate, a clock speed or
-    a power figure can be, not a value fitted to this corpus, and the margin
-    either side of the half-population pivot is wide.
+    written: it holds on very nearly the whole population under BOTH readings,
+    because a swapped float32 is still a finite number far more often than not -
+    just an absurd one. The two rates are deliberately not written here. The
+    operator plays this game, so a percentage in a docstring is a figure the
+    next autosave can falsify for no defect at all, which is the reason the
+    counts this replaces were kept out of the assertions below as well.
+
+    WHAT THIS ORACLE LEAVES OPEN IS RECORDED RATHER THAN DESCRIBED. It does not
+    narrow the byte order to one arrangement on its own, and neither does the
+    int32 oracle; what the two leave standing BETWEEN THEM is held in
+    ``objects.BYTE_ORDER_SURVIVING_CANDIDATES`` and derived from the library by
+    ``tests/save/test_value_anchoring.py::test_the_shipped_candidate_set_is_what_the_value_oracles_cannot_separate``.
+    No account of WHICH rearrangements either oracle admits is written here -
+    the last such account in this file was measured false, and the derivation
+    is the thing that can be graded.
+
+    The band below is a DOMAIN bound on what a coordinate, a clock speed or a
+    power figure can be, not a value fitted to this corpus.
 
     Exact zero is excluded from both counts rather than assigned to either: its
     bit pattern is symmetric, so it reads as zero under both orders and can
@@ -1887,17 +1925,43 @@ def test_an_extent_width_cannot_desynchronise_and_is_caught_by_disagreement() ->
 
 
 def test_the_width_rule_partitions_every_shipped_width_and_declines_no_decoded_one() -> None:
-    """CS-422's rule, applied to EVERY entry rather than per entry.
+    """CS-422's rule over the shipped tables, and the partition halves are blind.
 
-    Three claims, all derived from the shipped tables in the same run. The two
-    width classes must be disjoint, because a width graded by both oracles would
-    let a failure under one be excused by a pass under the other. Together they
-    must cover every width the module ships, so no width sits outside the rule.
-    And a type word whose VALUE reading is declined must not also be decoded,
-    which is the invariant that caught the first draft of this work: the
-    declined table was keyed by bare type word while `ArrayProperty` legitimately
-    ships a TAG-EXTRA width, so the name read as though the whole word were
-    declined.
+    THE NAME OF THIS TEST OVERSTATES WHAT THE PARTITION HALVES GRADE, and the
+    docstring that stood here overstated it the same way. ``ungoverned`` and
+    ``phantom`` difference ``CURSOR_WIDTHS | EXTENT_WIDTHS`` against a
+    ``shipped`` set built below, and both sides are assembled from the SAME two
+    module tables - ``_TAG_EXTRA_STRINGS`` and ``_FIXED_WIDTH_VALUES`` - plus
+    two literal names. The tables cancel, so adding a width to either one moves
+    both sides together. Measured rather than reasoned: a word added to either
+    table leaves this test GREEN. The case the name advertises - a shipped width
+    sitting outside the rule - is the case these two assertions do not grade.
+
+    WHAT THEY DO STILL CATCH, recorded because deleting them would drop it and
+    because "structurally empty" overstates it in the other direction. The two
+    literal names are transcribed HERE as :data:`_GUID_WIDTH_NAME` and
+    :data:`_SOFT_TAIL_NAME` and spelled independently in ``objects.py``, so that
+    pair does NOT cancel. Renaming one on the module side alone turns
+    ``ungoverned`` red. That is a transcription check over two names, and it is
+    the whole of what the partition half is worth.
+
+    CS-458 OWNS THE REPAIR, and its acceptance is the right one: derive the
+    governed set and the shipped set from INDEPENDENT sources, proven by a
+    mutant that introduces a cursor-advancing width without registering it.
+    Until that lands, the executable grading of the width rule lives in
+    ``tests/save/test_width_rule.py``.
+
+    THE OTHER TWO ASSERTIONS ARE NOT PART OF THAT COMPLAINT, and they are why
+    this test stays. Disjointness compares two separately built tables, so a
+    word reaching both is a real finding: a width graded by both oracles would
+    let a failure under one be excused by a pass under the other. The
+    declined-and-decoded intersection reads ``DECLINED_VALUE_READINGS`` against
+    ``MEASURED_VALUE_TYPES``, two independently maintained tables, and it is the
+    invariant that caught the first draft of this work - the declined table was
+    keyed by bare type word while `ArrayProperty` legitimately ships a TAG-EXTRA
+    width, so the name read as though the whole word were declined. The closing
+    ``.strip()`` truthiness check is close to worthless and is kept only because
+    an empty rule string is cheap to exclude.
 
     It needs no save library - it is a claim about the repo, not about a world.
     """
