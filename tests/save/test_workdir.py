@@ -144,13 +144,18 @@ def isolate_from_the_real_machine(monkeypatch: pytest.MonkeyPatch) -> None:
     ``CLOCKSPEED_ACCOUNT_DIR`` at a real directory, which makes that name a
     redaction needle for every test that runs after it.
 
-    MEASURED, with the digit-run backstop neutered by a plugin that asserted
-    its own mutation live before collection:
-    ``test_the_refusal_message_carries_no_raw_account_directory`` run ALONE
-    gave 1 failed; the FULL MODULE under the identical mutant gave 73 passed.
-    The control was therefore being carried by a neighbour, and under ``-n
-    auto`` - where the two may land in different workers - it was vacuous
-    NONDETERMINISTICALLY, which is the shape that survives review.
+    That was not reasoned, it was measured: with the digit-run backstop
+    neutered, a redaction control in this module passed in a full-module run
+    and FAILED when run alone, because alone there was no neighbour to seed the
+    needle. NO COUNTS ARE QUOTED HERE ON PURPOSE - the figures belonged to a
+    tree that no longer exists, and a measured number in prose is a lie with a
+    timestamp on it (CLAUDE.md section 4). Re-derive it against whatever tree
+    you are reading, by running one such control alone and then with the file.
+
+    The direction of the hazard is what makes it worth a fixture rather than a
+    comment: under ``-n auto`` the seeding test and the control may land in
+    different workers, so the vacuity is NONDETERMINISTIC, which is the shape
+    that survives review.
 
     Replacing the ATTRIBUTE through monkeypatch restores it automatically,
     which calling a reset helper would not.

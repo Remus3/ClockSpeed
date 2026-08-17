@@ -31,6 +31,84 @@ the line becomes a pointer.
 
 ---
 
+## Session 15 - 2026-08-16 - CS-454 built, merged, and REFUTED on clause 1; the fence it shipped is refuted too
+
+- **Shipped: NOTHING CLOSED. CS-454 STAYS OPEN** with a ledger record declaring the non-closure by
+  name. Clause 2 MET, clause 3 MET, **clause 1 NOT MET**. The code stays - it is a real improvement.
+  Filed CS-462, CS-464, CS-465, CS-466, CS-467, CS-468. Suite 2007 -> **2018 passed, 3 skipped,
+  exit 0**, serial, baseline measured by the merger at `bb7a236` in a real checkout BEFORE merging.
+  Two commits, `60068a9` and `02523f9`, merged at `9c30fd9` and `758888d`. Detail in `docs/LEDGER.md`.
+
+- **THE HEADLINE IS THAT THE FIX WORKS AND THE ITEM STILL DOES NOT CLOSE.** The relocated-path form
+  is closed in all four resolution states, the 8.3 form is closed, and three independent vacuity
+  reasons were removed from the controls. Then an independent adversary found a leak the merger, the
+  planner and the builder had all missed, and it is in the NEW design rather than pre-existing.
+
+- **THE JUNCTION DEFECT, and it is the session's real result.** `_remember_save_root` stores
+  `_path_forms(str(path))` and never resolves; `clockspeed/save/workdir.py`'s `_resolved()`
+  deliberately DOES resolve, and its docstring says so. So whenever the save root is reached through
+  a junction the two halves of the same package cannot agree on spelling, no anchor matches, and a
+  hex account directory renders WHOLE through the production refusal in `_refuse_if_forbidden`.
+  Reproduced by the merger with a real `mklink /J`, all self-checks passing first. Junctioning a save
+  folder onto another drive is the ordinary way to relocate one.
+
+- **PLACEHOLDER INJECTION DEFEATS THE POSITIONAL RULE, and it fires WITH THE MARKER PRESENT.** The
+  environment pass runs first and rewrites a matching needle to a token, injecting `<` into the
+  account segment; `_PATH_SEGMENT_CLASS` excludes `<>` so position cannot match, and the remembered
+  name pass then hunts a literal the text no longer contains. `USERNAME=Ada`, account directory
+  `Ada4f3a...` -> 30 of 33 characters in plaintext. Pre-existing, unchanged from `bb7a236`.
+  **RULED: a pre-existing instance of the exact defect an item names does NOT excuse that item**, and
+  the reason is in CS-454's own detail entry, which opens by calling the leak pre-existing.
+
+- **THE FENCE THIS SESSION SHIPPED IS ITSELF REFUTED, filed as CS-465.** The redact-cycle pin walks
+  the transitive closure to unbounded DEPTH but grades against `RESOLVER_NAMES`, `locate`'s PUBLIC
+  surface, while four of the seven hops in the cycle are private. Confirmed by the merger with the
+  fence's own helper: a private-hop plant closes the cycle and the fence reports GREEN while the same
+  tree raises `RecursionError`. Its own comment says it reads the closure precisely because "a single
+  private wrapper would defeat a body-only check".
+
+- **Surprises**, each measured:
+  1. **A NON-DIGIT FIXTURE ALREADY EXISTED AND PROVED NOTHING.** `ACCOUNT_DIR_SHAPES` shipped four
+     shapes, three already non-digit - but every path carried the marker, so position caught all
+     four. Neutering the DIGIT BACKSTOP left **0 of 4** leaking; neutering POSITION left 3 of 4. So
+     clause 2 read naively was ALREADY SATISFIED while the leak was live. A control must be a
+     CONJUNCTION: non-digit AND a layout where position cannot fire AND a named mutation.
+  2. **THE CONTROLS WERE CARRIED BY A NEIGHBOUR TEST.** `test_workdir.py` had no reset of
+     `_RESOLVED_ACCOUNT_NAMES`; one test seeded the needle for the whole process. Measured ON THE
+     PRE-FIX TREE at `bb7a236` and quoted here only as session history - alone 1 failed, full module
+     73 passed. **Neither figure reproduces at `758888d` and neither should be carried forward.**
+     Under `-n auto` that made it vacuous NONDETERMINISTICALLY, which is the shape that survives.
+  3. **THE NAIVE IMPLEMENTATION WOULD HAVE BEEN INERT ON THE ORDINARY MACHINE.** Appending the new
+     pass after the env pass leaks everything, because the env pass has already rewritten the path
+     out from under the needle. Live only in the relocated case - the inverse of the filed one. The
+     builder demonstrated the counterfactual rather than asserting the three-form design was needed.
+  4. **THE MERGER CITED A VACUOUS CONTROL.** "The recursion does not occur even with a collector
+     wired through `_override`" tests only half the counterfactual: with the shipped code calling no
+     resolver, wiring a collector cannot recurse, trivially. The adjudicator built the real one and
+     got `RecursionError`. The conclusion held; the evidence did not.
+  5. **THE MERGER'S OWN FOUR-STATE MATRIX WAS THE COMMON-MODE RISK.** It varies override,
+     digit-neighbour and resolution order and varies NOTHING about link indirection, username
+     collision or whitespace - so three surviving channels are invisible to it by construction, and
+     the junction defect sits exactly in that blind spot. Every agent inherited those blind spots.
+  6. **BOTH BUILDERS LEFT THEIR WORK UNCOMMITTED** on branches whose `git diff` against the base was
+     EMPTY. Merging the branch names as reported would have merged nothing.
+
+- **Failed paths - do not retry:**
+  - **Reading "use a NON-digit fixture" as sufficient.** Three of four shipped shapes were already
+    non-digit and the leak was live.
+  - **Widening `_PATH_SEGMENT_CLASS` to close the whitespace tail.** Three variants measured, all
+    worse; one eats the diagnostic prose, one leaves the terminal segment fully intact.
+  - **Calling a resolver from inside `redact()`.** Latent infinite recursion that CS-443 detonates.
+  - **Feeding `_RESOLVED_ACCOUNT_NAMES` from every save-root subdirectory.** Breaks a shipped
+    assertion against the game's own `common` directory.
+  - **Trusting a branch name from a builder.** Check the diff against the base before merging.
+
+- **Next action:** **CS-454 again, and it is now four named things** - the junction defect, the
+  placeholder-injection defect, the whitespace tail and a stated exemption for the bare segment. All
+  four are INSIDE the item; do not file them as follow-ups. The adjudicator's six closure conditions
+  are in `docs/LEDGER.md`. **Take CS-465 in the same pass** - it is the fence that was supposed to
+  protect the recursion rationale and it does not.
+
 ## Session 14 - 2026-08-16 - CS-420 closes on the seventh round; CS-421 and CS-422 both REFUTED
 
 - **Shipped: CS-420 CLOSED.** CS-421 and CS-422 were ADJUDICATED AND REFUTED and both STAY OPEN, each
@@ -181,84 +259,3 @@ the line becomes a pointer.
   CS-435's two derived fences in `clockspeed/save/usmap.py`** - they are the worked example its clause
   (2) asks for. **Failing that, get CS-421 and CS-422 ADJUDICATED** - both are built, both are graded
   only by the agent that built them, and neither can close until an independent pass runs.
-
-## Session 12 - 2026-08-16 - FOUR OF FOUR slices refuted, plus the merger; CS-448 root-caused
-
-- **Shipped: NOTHING CLOSED, DELIBERATELY.** Four tier-1 slices were built, merged and then REFUTED
-  by independent adversaries, so CS-440, CS-441, CS-443 and CS-444 all STAY OPEN, each with a ledger
-  record declaring the non-closure BY NAME. The code stays: every slice is a net improvement and the
-  suite is green. Filed CS-449 through CS-454. Suite 1952 -> **1993 passed, 3 skipped**, mypy clean
-  over 79 files, ruff clean, drift guard 9 guards PASS 8 WARN 1 (the doc budget). Six commits,
-  `0377a29..280eacc`. Detail in `docs/LEDGER.md`.
-
-- **CS-448 IS THE SESSION, AND IT REFUTED THE MERGER'S OWN MEASUREMENT.** I measured 32 runs across
-  four contention profiles - `-n auto`, `-n 32`, a 4-core affinity-confined tree, and the original
-  SHA in its own verified worktree - got zero failures, and concluded it did not reproduce. **AN
-  ADVERSARY REPRODUCED IT SIX TIMES at both cited revisions.** Every one of my 32 runs was taken in
-  one of the two locations on this machine where the failure is STRUCTURALLY IMPOSSIBLE. They were a
-  control that read like a null result, and I did not know the difference.
-  **THE REAL CHAIN, and it is neither party's earlier story:** a checkout sharing a large ancestor
-  with the system temp root makes pytest's rootdir for the innermost probe climb to that root, so
-  collection walks the entire temp tree - **0.4s from three ordinary locations against 42.7s from a
-  clone under the temp root, with only the cwd varied**. A sibling xdist worker deleting a
-  `clockspeed_gate_*` temp directory mid-walk makes `os.lstat` raise, collection is Interrupted, the
-  level-2 child exits 1. **xdist supplies only the concurrent deleter - it is NOT CPU contention, and
-  the walk is single-process.** My contention account was wrong, and so was my count of the sandbox
-  spawns in that file (12, not seven). What survived: the CI-history reading, independently
-  confirmed. Still open: whether a hosted workspace shares that ancestor. Measure `rootdir` in a job.
-
-- **THE INSTRUCTION I WAS GIVEN WAS FALSE AND I MEASURED IT RATHER THAN OBEYING IT.** The session
-  prompt and `WAKEUP_NOTES` both said `ROADMAP.md` was at 97 per cent of "the budget that HARD-FAILS
-  CI" and that any sizeable edit "goes red". `ROADMAP.md`'s budget is severity **WARN**:
-  `doc_budget.py` returns non-zero only on a HARD failure and drift guard (a) returns WARN and exits
-  0, and those two are the only CI consumers. It prints loudly and passes. I did the relocate pass
-  anyway, and deleted the false sentence from the file rather than hedging it.
-
-- **THE MERGER SHIPPED A FALSE UNIVERSAL AND AN ADVERSARY CAUGHT IT.** My own seam fix claimed every
-  exempted class must be a frozen dataclass, "which a resolver is not". A planted frozen dataclass
-  carrying `__call__` - an ordinary resolver shape, and one this codebase is actively moving toward -
-  walked straight through. Deleted rather than hedged; the check now tests inertness too and is
-  graded by the exact shape that broke it.
-
-- **A SECOND MERGER ERROR, AND THE LESSON GENERALISES.** I reported "four of four worktrees cut from
-  the correct base". The reflogs show ALL FOUR were cut STALE and each fast-forwarded itself because
-  the dispatch ordered the check - nine of nine across sessions. **`git log -1` after the fact cannot
-  distinguish "cut correctly" from "cut stale and self-corrected"; the two states are byte-identical
-  at HEAD.** Only the reflog separates them. Committing before dispatch does NOT prevent it.
-
-- **Surprises**, each measured:
-  1. **A GENUINELY NEW CRASH FOUND BY A BUILDER SWEEPING ITS OWN FILE.** `local_config` raised
-     `UnicodeDecodeError` on a non-UTF-8 config - a `ValueError`, not an `OSError`, so it escaped a
-     function whose docstring promises it never raises. Confirmed independently against the pre-fix
-     blob before it was accepted.
-  2. **A SHIPPED CHANNEL WITH NO CONSUMER.** CS-443's reporting channel is passed by nothing in
-     `clockspeed/`, `tools/` or `scripts/`, so `verify_env.py` against a malformed config still exits
-     0 saying nothing. The acceptance says "reported rather than silent"; end to end it is silent.
-  3. **AN OPERATOR-FACING SENTENCE WITH NO CONTROL.** Replacing all six of CS-443's `detail`
-     sentences with a nonsense sentence left the module suite green. Only truthiness is asserted.
-  4. **A PRIVACY CONTROL BLIND IN THE SAME PLACE AS ITS SUBJECT.** CS-443's redaction oracle reads
-     the same and only sources the redactor reads, so it passes vacuously in exactly the environment
-     where the redactor fails open. Separately, CS-444's redaction control has an all-digit fixture -
-     the one shape the backstop catches unconditionally - so gutting the redactor left it green.
-  5. **A LIVE PRE-EXISTING PII LEAK, filed as CS-454.** An account directory that is not all digits
-     - Epic, MS Store, or operator-renamed - renders in plaintext once saves are relocated.
-  6. **THE ITEM PLAN INHERITED A WRONG CLOSURE.** CS-425 is listed as closed in the session prompt
-     and in session 9's notes; its only ledger record is a grant that says it does NOT close it, so
-     it is OPEN. Session 10 recorded this class in the other direction.
-  7. **AN ADVERSARY WAS PARTLY WRONG AND WAS NARROWED RATHER THAN RELAYED.** The `purge_work_dir`
-     finding is real but bounded by two naming conditions, so it was filed at tier 2, not tier 1.
-
-- **Failed paths - do not retry:**
-  - **Measuring a location-dependent flake in one location.** 32 runs in an immune tree is a control,
-    not a null result. Vary the thing the defect might depend on, including the checkout path.
-  - **Running the authoritative suite while adversaries mutate the tree.** It produced five phantom
-    failures that vanished on a clean re-run.
-  - **`git log -1` as a staleness probe.** It cannot see a self-correction. Use the reflog.
-  - **A fixture whose value is the one case the implementation handles.** Two separate privacy
-    controls this session, both green while the thing they guard was gutted.
-
-- **Next action:** **CS-454**, the live PII leak, then **CS-449**, whose reachability is now
-  reproduced end to end. Both are tier 1 and both sit on non-negotiables. **BEFORE EITHER, do the
-  `ROADMAP.md` relocate pass** - it is at 119 per cent of its WARN budget and the cause is structural
-  rather than incidental: its entries have become essays while the topology table says one line per
-  item. That is a real refactor, not a trim.

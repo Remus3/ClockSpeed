@@ -73,6 +73,81 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-16 - CS-454 - DOES NOT CLOSE. The redactor is materially better and clause 1 is NOT MET
+Verification: `python -m pytest tests -q -p no:randomly` at `758888d` gives 2018 passed,
+3 skipped, exit 0, against 2007 passed 3 skipped measured by the merger at `bb7a236` in a
+real checkout before the merge. Independent adjudication ruled clause 2 MET, clause 3 MET,
+clause 1 NOT MET. Reproduce the surviving leaks with
+`tests/save/test_workdir.py::test_the_refusal_message_carries_no_non_digit_account_directory`
+for what now passes, and the two counter-examples below for what does not.
+
+**THIS RECORD DECLARES A NON-CLOSURE BY NAME.** Two commits shipped - `60068a9`
+(`clockspeed/data/locate.py`, `tests/data/test_locate.py`, `tests/save/test_workdir.py`) and
+`02523f9` (`tests/data/test_phase2_gate.py`, `tests/test_redaction_scope.py`). The code
+stays: every part of it is a net improvement and the suite is green. This record does not
+close CS-454, and CS-454 stays open in `ROADMAP.md`, which remains its owner file.
+
+**WHAT WAS ACHIEVED, each measured.** The positional rule now keys on a SET of anchors -
+the fixed marker, `CLOCKSPEED_SAVE_ROOT` read straight from `os.environ`, and every root
+`resolve_save_root` confirmed - rather than on one fixed suffix, so the relocated-path form
+is closed in all four resolution states where three of four leaked. An account directory is
+remembered in every `_path_forms` rendering, closing an 8.3 leak that fired even with
+`CLOCKSPEED_ACCOUNT_DIR` declared - the configuration `locate.py` documented as safe. Three
+independent vacuity reasons were removed from the controls: a ten-digit fixture, a
+marker-present layout in which neutering the digit backstop left 0 of 4 shapes leaking, and
+an absent reset of `_RESOLVED_ACCOUNT_NAMES` that let a neighbour test carry two privacy
+assertions for the whole process. An adversary ran all 11 new controls alone and in-module
+under five mutant classes, 55 processes, and found ZERO divergence.
+
+**WHY IT DOES NOT CLOSE - clause 1 says "in EVERY rendered message" and two leaks survive,
+both confirmed independently by the merger and by the adjudicator.**
+(1) `_remember_save_root` stores `_path_forms(str(path))` and never resolves, while
+`clockspeed/save/workdir.py`'s `_resolved()` DOES resolve and its docstring says the
+symlink-following is deliberate. Through a real `mklink /J` junction the two can never
+agree, and the PRODUCTION refusal from `_refuse_if_forbidden` rendered a hex account
+directory whole. Junctioning a save folder onto another drive is the ordinary way to
+relocate one, which is exactly this item's case. **This one is a defect in the new design,
+not a pre-existing instance.**
+(2) The environment pass runs before the positional pass and rewrites a matching needle to
+a token, injecting `<` into the account segment; `_PATH_SEGMENT_CLASS` excludes `<>` so
+position cannot match, and the name pass then hunts a literal the text no longer contains.
+With `USERNAME=Ada` and an account directory `Ada4f3a...`, 30 of 33 characters render in
+plaintext WITH THE FIXED MARKER PRESENT. Pre-existing and unchanged from `bb7a236`.
+
+**THE RULING ON PRE-EXISTENCE, because it will be re-argued.** A pre-existing instance of
+the exact defect an item names DOES block that item's closure. CS-454's own detail entry
+opens "THIS IS A PRE-EXISTING LIVE LEAK", so pre-existence is the item's subject matter and
+cannot also be its defence; the acceptance is written as a state of the world rather than as
+a delta; and non-negotiables 3 and 12 are invariants, not gradients.
+
+**A THIRD DEFECT, IN THIS SESSION'S OWN FENCE.** `test_redact_calls_no_resolver_at_any_depth`
+walks the transitive closure to unbounded DEPTH but grades against `RESOLVER_NAMES`, which
+is `locate`'s PUBLIC surface. Four of the seven hops in the recursion cycle are private, so
+a plant entering at `_read_local_config` closes the identical cycle and the fence reports
+GREEN. Confirmed by the merger using the fence's own helper: a public-hop plant reports two
+offenders and reddens; a private-hop plant closes the cycle and reports none. That is the
+ADR 0008 shape inside a fence built to enforce ADR 0008.
+
+**WHAT WAS NARROWED RATHER THAN INHERITED.** A breadth adversary rated the chained-exception
+traceback channel HIGH. The adjudicator measured it not live: `workdir.py` builds
+`SourceUnreadableError` already-redacted, so the formatted traceback renders
+`<account-dir>/<save-file>`. The real gap is that `tests/save/test_world.py`'s
+`_FAILURE_CASES` holds six CONTENT failures and no path-carrying one, so the traceback
+surface is graded for planted content markers and never for a path. Coverage, not behaviour.
+
+**COMMON-MODE RISK, recorded because it shaped everything downstream.** The four-state
+matrix the merger built and fed to every agent varies override, digit-neighbour and
+resolution order, and varies NOTHING about link indirection, username collision or
+whitespace. Three of the surviving channels are invisible to it by construction, and the
+junction defect sits precisely in that blind spot. Every downstream agent inherited the
+merger's blind spots along with its measurements.
+
+**ALSO CORRECTED HERE:** the merger relayed "the recursion does not occur even with a
+collector wired through `_override`" as evidence the design works. That control was VACUOUS
+- with the shipped code calling no resolver, wiring a collector cannot recurse, trivially.
+The adjudicator built the full counterfactual and got `RecursionError`. The design rationale
+is unchanged and better supported; the control the merger cited proved nothing.
+
 ### 2026-08-16 - CS-420 - CLOSED. Coverage is conserved, scope is derived, and the probe is parse-derived
 Verification: `tests/save/test_absolute_claims.py` plus
 `tests/save/test_absolute_claims.py::test_a_marked_claim_at_each_parse_derived_position_is_caught`,

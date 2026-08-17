@@ -77,9 +77,19 @@ _QUALIFIED_REDACT = f"{REDACTOR_MODULE}.{REDACT}"
 #: assignment. Legitimate in exactly one file and a shadow everywhere else.
 _DEFINED_LOCALLY = "<bound in this module>"
 
-#: Attributes that reduce a path to one segment. ``Path.name`` and
-#: ``Path.stem`` are the two spellings in the standard library that throw away
-#: every directory above the last one.
+#: Attributes that reduce a path to one segment.
+#:
+#: THE STATED LIMIT, because the earlier wording here claimed these were "the
+#: two spellings in the standard library that throw away every directory above
+#: the last one" and that is FALSE. ``os.path.basename(p)``,
+#: ``os.path.split(p)[1]`` and ``PurePath(p).parts[-1]`` all reduce a path to
+#: its last segment too, and ``os.path.basename`` is the canonical spelling.
+#: This detector matches an ATTRIBUTE NAME, so it sees none of them: they are
+#: calls and subscripts, not attribute access. Measured at the time of writing,
+#: no such spelling reaches a redact() call site in the package - so this is a
+#: coverage limit rather than a live hole, and the first one added walks
+#: straight through. Widening it to calls is separate work; recording the limit
+#: is not.
 _BARE_SEGMENT_ATTRS = frozenset({"name", "stem"})
 
 
