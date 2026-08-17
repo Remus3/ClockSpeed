@@ -203,6 +203,13 @@ from clockspeed.save.usmap import PropertyMap
 
 __all__ = [
     "BODY_LAYOUT_BY_PAIR",
+    "BYTE_ORDER_ANCHORED_NOT_UNIQUE",
+    "BYTE_ORDER_STATUSES",
+    "BYTE_ORDER_SURVIVING_CANDIDATES",
+    "BYTE_ORDER_UNSCORED",
+    "BYTE_ORDER_VACUOUS",
+    "CRITERION_CURSOR_REACH",
+    "CRITERION_VALUE_DISAGREEMENT",
     "CURSOR_WIDTHS",
     "DECLINED_VALUE_READINGS",
     "EVIDENCE_CROSS_SECTION",
@@ -227,11 +234,14 @@ __all__ = [
     "MEASURED_BODY_LAYOUTS",
     "MEASURED_HEADER_VERSIONS",
     "MEASURED_VALUE_TYPES",
+    "REASON_SAMPLE_SIZE",
+    "REASON_SHIPPED_ALIGNMENT_ONLY",
     "TRANSFORM_BYTES",
     "TRANSFORM_DELTA_BY_SAVE_VERSION",
     "TRANSFORM_FLOAT_COUNT",
     "UNKNOWN_CLASS_REASONS",
     "UNMEASURED_PAYLOAD_REGIONS",
+    "VALUE_BYTE_ORDER_STATUS",
     "WARN_BODY_LENGTH_DISAGREEMENT",
     "WARN_MEASURED_VALUE_DISAGREED",
     "WARN_PAYLOAD_COUNT_DISAGREEMENT",
@@ -241,7 +251,11 @@ __all__ = [
     "WARN_UNPARSED_DATA_SECTION",
     "WARN_UNPARSED_PROPERTY_PAYLOAD",
     "WARN_UNRESOLVED_SCHEMA",
+    "WIDTH_CRITERIA",
+    "WIDTH_NON_CRITERIA",
     "WIDTH_ONLY_VALUE_TYPES",
+    "WIDTH_RULE_EXCEPTIONS",
+    "WIDTH_SHIPPING_GROUNDS",
     "WIDTH_SHIPPING_RULE",
     "BodyLayout",
     "ObjectBudgetExceededError",
@@ -2359,13 +2373,18 @@ _TAG_EXTRA_STRINGS: Final[Mapping[str, int]] = MappingProxyType(
 #: Fixed-width value types and their measured widths. The WIDTH is measured -
 #: every instance in the library declares exactly this size and no other.
 #:
-#: THE BYTE ORDER IS A SEPARATE QUESTION AND IS ANSWERED BY A TEST, NOT HERE. A
-#: width rules out a wrong size and says nothing about which end a value starts
-#: at. What settles it is the pair of byte-order oracles cited in the
-#: commentary block above, which score the whole real population's magnitudes
-#: under both readings. Each is proven by a mutant that flips one entry's order,
-#: and neither can be satisfied by a fixture this project packs, because both
-#: read the game's own saves.
+#: THE BYTE ORDER IS A SEPARATE QUESTION, AND THE SHIPPED ORACLES NARROW IT
+#: RATHER THAN ANSWERING IT. This comment used to say the question "is answered
+#: by a test". That claims more than the oracles deliver, which is what CS-421
+#: clause 3 came back for. A width rules out a wrong size and says nothing about
+#: which end a value starts at. The pair of byte-order oracles cited in the
+#: commentary block above score the real population's magnitudes under both
+#: readings; each is proven by a mutant that flips one entry's order, and
+#: neither can be satisfied by a fixture this project packs, because both read
+#: the game's own saves. What they leave standing is a CANDIDATE SET rather than
+#: one order. Which question each entry actually poses now ships as data - see
+#: :data:`VALUE_BYTE_ORDER_STATUS` - and the permutations those oracles cannot
+#: separate ship as :data:`BYTE_ORDER_SURVIVING_CANDIDATES`.
 #:
 #: The figures those oracles compute are deliberately NOT restated here. An
 #: earlier revision of this comment carried four of them and claimed the
@@ -2400,18 +2419,98 @@ _SOFT_OBJECT_TAIL_BYTES: Final = 4
 #: and this module has no use for the value.
 GUID_BYTES: Final = 16
 
+# ---------------------------------------------------------------------------
+# THE WIDTH SHIPPING RULE AND THE BYTE-ORDER STATUS, BOTH AS DATA
+#
+# CS-422 asks when a width may ship and CS-421 clause 3 asks what is actually
+# open about a fixed-width value's byte order. Both were prose, and prose is
+# what a reader has to classify for themselves. Both are now codes plus tables,
+# so a test holds the shipped tables against them in one run. The tests that do
+# the holding are named here rather than in the doc-comments below, because the
+# citation checker reads a column-0 block and is blind to a "#:" line (CS-457).
+#
+#   THE WIDTH GROUNDS are hand-authored per width, deliberately NOT built by a
+#   comprehension over the two width classes. A comprehension would compare a
+#   set with itself and could not notice a width added to one shipped table and
+#   left ungrounded, which is the defect the first draft of this item was
+#   refuted on.
+#   tests/save/test_properties.py::test_every_shipped_width_names_a_
+#   criterion_the_rule_admits holds the grounds against the two classes, and
+#   tests/save/test_properties.py::test_the_rule_prose_names_every_
+#   code_it_governs holds the rule's own prose against the code vocabulary - so
+#   replacing the rule text with one that governs nothing goes red rather than
+#   passing unread.
+#
+#   THE DECLINES carry a code from the closed non-criteria set rather than a
+#   sentence a reader has to classify.
+#   tests/save/test_properties.py::test_every_decline_carries_a_
+#   reason_code_from_the_closed_set grades the codes,
+#   tests/save/test_properties.py::test_every_unmeasured_word_that_
+#   ships_a_tag_extra_width_is_declined grades the key set against the shipped
+#   tag-extra table, and
+#   tests/save/test_properties.py::test_the_exception_set_is_
+#   derived_from_the_codes grades the exception set as a derivation rather than
+#   as a second transcription of the same classification.
+#
+#   THE BYTE-ORDER STATUS is CS-421 clause 3. The vacuous members are computed
+#   from the shipped widths, so a width that stops being one byte stops being
+#   vacuous with no sentence edited anywhere.
+#   tests/save/test_properties.py::test_every_one_byte_value_type_
+#   is_recorded_as_byte_order_vacuous is what holds that derivation.
+#
+#   THE SURVIVING CANDIDATES are the permutations the shipped VALUE oracles
+#   leave standing beside the identity.
+#   tests/save/test_properties.py::test_the_shipped_candidate_set_
+#   is_what_the_value_oracles_cannot_separate derives the set from those oracles
+#   at runtime and compares it with the shipped literal, and
+#   tests/save/test_properties.py::test_the_declared_size_field_is_
+#   read_in_exactly_one_of_its_twenty_four_byte_orders is the DIFFERENT-FIELD
+#   result whose boundary is written down beside that literal.
+#
+#   THE DECLARED EXTENT is the other half of what a fixed-width read may touch,
+#   and it is a different question from which order the bytes inside it are in.
+#   tests/save/test_properties.py::test_no_fixed_width_value_depends_
+#   on_a_byte_outside_its_declared_extent is the claim and
+#   tests/save/test_properties.py::test_the_extent_anchor_control_
+#   catches_a_displaced_fixed_width_read is its control.
+# ---------------------------------------------------------------------------
+
+#: THE CRITERIA THE RULE ADMITS - CS-422. A width ships on one of these. They
+#: are codes rather than sentences so that a shipped width can be held against
+#: them mechanically instead of being read and judged.
+CRITERION_CURSOR_REACH: Final = "cursor_reach"
+CRITERION_VALUE_DISAGREEMENT: Final = "value_disagreement"
+WIDTH_CRITERIA: Final = frozenset({CRITERION_CURSOR_REACH, CRITERION_VALUE_DISAGREEMENT})
+
+#: THE REASONS THE RULE EXPLICITLY DISCLAIMS, kept as a closed set beside the
+#: criteria and disjoint from them. A reading declined on one of these is an
+#: EXCEPTION to the rule rather than an application of it, and naming the two
+#: apart is what keeps that difference legible without a reader having to
+#: classify a paragraph.
+REASON_SAMPLE_SIZE: Final = "sample_size"
+REASON_SHIPPED_ALIGNMENT_ONLY: Final = "shipped_alignment_only"
+WIDTH_NON_CRITERIA: Final = frozenset({REASON_SAMPLE_SIZE, REASON_SHIPPED_ALIGNMENT_ONLY})
+
 #: THE ONE RULE GOVERNING WHEN A WIDTH MAY SHIP - CS-422. This file used to
 #: apply two standards to itself with nothing stated between them: it shipped a
-#: width on nine instances and declined one on eleven thousand.
+#: width on a handful of instances and declined one on thousands.
 #:
 #: SAMPLE SIZE WAS NEVER THE OPERATIVE CRITERION, which is what dissolves that
-#: apparent inconsistency rather than excusing it. Nine instances are enough
-#: when all nine are discriminated, and eleven thousand are not enough when the
-#: reading was never put through a discrimination test at all.
+#: apparent inconsistency rather than excusing it. A handful of instances are
+#: enough when all of them are discriminated, and thousands are not enough when
+#: the reading was never put through a discrimination test at all.
+#:
+#: THE RULE NAMES ITS OWN CODES, which is what gives the prose an executable
+#: consequence: a rule text that stopped governing would also stop naming them.
 WIDTH_SHIPPING_RULE: Final = (
     "A width may ship when mis-stating it changes an observable outcome on at "
     "least one real payload. Which outcome depends on what the width moves, "
-    "which is why one oracle cannot grade both classes."
+    "which is why one oracle cannot grade both classes. A width that advances "
+    "the cursor ships on cursor_reach; a width that only bounds a value's "
+    "extent ships on value_disagreement; those two are the whole of what this "
+    "rule admits. sample_size and shipped_alignment_only are NOT criteria of "
+    "this rule, and a reading declined on either is recorded as an exception "
+    "to the rule rather than as an application of it."
 )
 
 #: Widths that ADVANCE THE CURSOR. Mis-stating one desynchronises the walk, so
@@ -2425,33 +2524,216 @@ CURSOR_WIDTHS: Final = frozenset(_TAG_EXTRA_STRINGS) | {"GUID_BYTES"}
 #: how the two standards got into one file.
 EXTENT_WIDTHS: Final = frozenset(_FIXED_WIDTH_VALUES) | {"_SOFT_OBJECT_TAIL_BYTES"}
 
+#: WHICH CRITERION EACH SHIPPED WIDTH RESTS ON - CS-422, as shipped DATA. It
+#: covers the union of the two classes above, keyed by the same names those
+#: classes use: a type word where the width is the tag-extra count for that
+#: word, and the constant's own name where the width is a module constant.
+#:
+#: HAND-AUTHORED ENTRY BY ENTRY, AND THAT IS THE WHOLE MECHANISM. Deriving this
+#: with a comprehension over :data:`CURSOR_WIDTHS` and :data:`EXTENT_WIDTHS`
+#: would make it a restatement of those two sets - a set compared with itself,
+#: which grades nothing and is exactly the defect this item was sent back for.
+#: Written out, it is an INDEPENDENT fifth source: adding an entry to
+#: ``_TAG_EXTRA_STRINGS`` or to ``_FIXED_WIDTH_VALUES`` and stopping there
+#: leaves that width with no ground recorded here, and the test named in the
+#: commentary block above turns red on it. DO NOT COLLAPSE THIS INTO A
+#: COMPREHENSION - the redundancy is the point of the table.
+WIDTH_SHIPPING_GROUNDS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "ArrayProperty": CRITERION_CURSOR_REACH,
+        "ByteProperty": CRITERION_CURSOR_REACH,
+        "EnumProperty": CRITERION_CURSOR_REACH,
+        "MapProperty": CRITERION_CURSOR_REACH,
+        "SetProperty": CRITERION_CURSOR_REACH,
+        "StructProperty": CRITERION_CURSOR_REACH,
+        "GUID_BYTES": CRITERION_CURSOR_REACH,
+        "FloatProperty": CRITERION_VALUE_DISAGREEMENT,
+        "Int8Property": CRITERION_VALUE_DISAGREEMENT,
+        "IntProperty": CRITERION_VALUE_DISAGREEMENT,
+        "UInt32Property": CRITERION_VALUE_DISAGREEMENT,
+        "_SOFT_OBJECT_TAIL_BYTES": CRITERION_VALUE_DISAGREEMENT,
+    }
+)
+
 #: VALUE readings DECLINED under the rule above, each recorded against the rule
 #: rather than decided on its own terms. This records WHY, so a later slice
 #: re-opening one knows what would settle it.
 #:
+#: EACH ENTRY IS A ``(reason code, prose)`` PAIR and the code is drawn from
+#: :data:`WIDTH_NON_CRITERIA`. The pair shape is what makes the classification
+#: machine-readable: the prose says what a later slice needs to know, and the
+#: code says which side of the rule the decline sits on without anyone having
+#: to parse the prose to find out.
+#:
+#: THE PROSE POINTS AT :data:`UNMEASURED_PAYLOAD_REGIONS` AND RESTATES NOTHING
+#: FROM IT. Every key here also has an entry there, and that table owns the
+#: populations. A figure copied across would be a restated measurement, which
+#: is the drift ``CLAUDE.md`` section 4 forbids - so these entries carry no
+#: figure at all and point instead.
+#:
 #: IT IS ABOUT VALUE READINGS AND NOT ABOUT TAG-EXTRA WIDTHS, which matters
 #: because one type word can carry both. `ArrayProperty` appears here AND in
-#: :data:`CURSOR_WIDTHS`: its tag-extra count of 1 ships and is discriminated,
-#: while its VALUE reading is declined. Keying this by the bare type word once
-#: read as though the whole word were declined, which is why the distinction is
-#: stated rather than left to the name.
-DECLINED_VALUE_READINGS: Final[Mapping[str, str]] = MappingProxyType(
+#: :data:`CURSOR_WIDTHS`: its tag-extra width ships and is discriminated, while
+#: its VALUE reading is declined. Keying this by the bare type word once read as
+#: though the whole word were declined, which is why the distinction is stated
+#: rather than left to the name.
+DECLINED_VALUE_READINGS: Final[Mapping[str, tuple[str, str]]] = MappingProxyType(
     {
         "ArrayProperty": (
+            REASON_SHIPPED_ALIGNMENT_ONLY,
             "consumes its declared size exactly on the arrays whose inner word "
-            "this module measures - see UNMEASURED_PAYLOAD_REGIONS for that "
-            "count - but at the SHIPPED ALIGNMENT ONLY, never under a rotation. "
-            "Consumption at one alignment is not discrimination, so the rule "
-            "declines it. What would settle it is a control showing a wrong "
-            "reading costs something, not a larger sample"
+            "this module measures - the ArrayProperty entry of "
+            "UNMEASURED_PAYLOAD_REGIONS owns that population - but at the "
+            "SHIPPED ALIGNMENT ONLY, never under a rotation. Consumption at one "
+            "alignment is not discrimination, so the rule declines it. What "
+            "would settle it is a control showing a wrong reading costs "
+            "something, not a larger sample",
         ),
         "TextProperty": (
+            REASON_SAMPLE_SIZE,
             "declined on SAMPLE SIZE, which is a criterion the rule above does "
             "not use, so this entry is an exception to the rule rather than an "
             "application of it. Whether a wrong width for it is discriminated "
             "at all is UNMEASURED. Recorded honestly rather than re-justified: "
-            "the decline may well be right, and the reason given for it is not"
+            "the decline may well be right, and the reason given for it is not. "
+            "The population and the one declared size it is seen at are owned "
+            "by the TextProperty entry of UNMEASURED_PAYLOAD_REGIONS",
         ),
+        "MapProperty": (
+            REASON_SAMPLE_SIZE,
+            "declined on SAMPLE SIZE, the same non-criterion TextProperty is "
+            "declined on, so it is an exception to the rule rather than an "
+            "application of it. Its tag carrying two extra type words rather "
+            "than one IS measured; its key and value element framing is not, "
+            "and no discrimination test has been put to that framing. The "
+            "population is owned by the MapProperty entry of "
+            "UNMEASURED_PAYLOAD_REGIONS",
+        ),
+        "SetProperty": (
+            REASON_SAMPLE_SIZE,
+            "declined on SAMPLE SIZE, so an exception to the rule rather than "
+            "an application of it. It poses the element-framing question "
+            "ArrayProperty poses, over a population the SetProperty entry of "
+            "UNMEASURED_PAYLOAD_REGIONS owns and describes as far too small to "
+            "separate the answers",
+        ),
+        "StructProperty": (
+            REASON_SAMPLE_SIZE,
+            "declined under a non-criterion of the rule, and this code is the "
+            "closer fit of the two the rule disclaims rather than a good fit. "
+            "SIZE IS NOT WHAT IS MISSING HERE and the code should be read with "
+            "that caveat: the StructProperty entry of UNMEASURED_PAYLOAD_REGIONS "
+            "owns the population and calls it the largest opaque region this "
+            "module names. What is missing is a discrimination test against the "
+            "interior, which is what the rule would need to admit a reading. "
+            "Recorded this way rather than re-justified, so a later slice sees "
+            "both that the decline stands and that its stated reason is poor",
+        ),
+    }
+)
+
+#: THE DECLINES THAT ARE EXCEPTIONS TO THE RULE RATHER THAN APPLICATIONS OF IT,
+#: DERIVED from the codes above rather than transcribed. A written-out set would
+#: put the same classification in two places, and the copy is the one that goes
+#: stale while still reading as authoritative.
+WIDTH_RULE_EXCEPTIONS: Final = frozenset(
+    word for word, (code, _) in DECLINED_VALUE_READINGS.items() if code in WIDTH_NON_CRITERIA
+)
+
+#: THE BYTE-ORDER STATUS OF EACH FIXED-WIDTH SCALAR VALUE - CS-421 clause 3.
+#:
+#: THREE STATUSES, WHICH IS NOT THE SAME AS THREE OPEN QUESTIONS, and that is
+#: the whole correction. This module's evidence about byte order read as though
+#: every fixed-width type were equally unsettled. Two of them are not questions
+#: at all, because a one-byte value has exactly one byte order.
+BYTE_ORDER_VACUOUS: Final = "vacuous_one_byte"
+BYTE_ORDER_ANCHORED_NOT_UNIQUE: Final = "anchored_not_unique"
+BYTE_ORDER_UNSCORED: Final = "unscored"
+BYTE_ORDER_STATUSES: Final = frozenset(
+    {BYTE_ORDER_VACUOUS, BYTE_ORDER_ANCHORED_NOT_UNIQUE, BYTE_ORDER_UNSCORED}
+)
+
+#: A value of this width has one byte order, so its order is not open. Named
+#: rather than written as a literal in :func:`_byte_order_status`, so the reason
+#: travels with the number.
+_SINGLE_BYTE_WIDTH: Final = 1
+
+#: The fixed-width types a shipped byte-order oracle actually scores. Both
+#: oracles are cited in the commentary block above ``_TAG_EXTRA_STRINGS``. A
+#: type outside this set and wider than one byte has been scored by nothing,
+#: which is what :data:`BYTE_ORDER_UNSCORED` records.
+_BYTE_ORDER_ANCHORED_VALUES: Final = frozenset({"IntProperty", "FloatProperty"})
+
+
+def _byte_order_status(word: str, width: int) -> str:
+    """Classify one fixed-width value type's byte-order question.
+
+    VACUITY IS COMPUTED FROM THE SHIPPED WIDTH RATHER THAN LISTED. If a type's
+    measured width ever changes from one byte to more, this stops calling its
+    byte order vacuous on the same edit that changes the width, instead of
+    waiting for someone to remember a sentence elsewhere.
+
+    Args:
+        word: The type word.
+        width: Its measured value width, from :data:`_FIXED_WIDTH_VALUES`.
+
+    Returns:
+        One of :data:`BYTE_ORDER_STATUSES`.
+    """
+    if width == _SINGLE_BYTE_WIDTH:
+        return BYTE_ORDER_VACUOUS
+    if word in _BYTE_ORDER_ANCHORED_VALUES:
+        return BYTE_ORDER_ANCHORED_NOT_UNIQUE
+    return BYTE_ORDER_UNSCORED
+
+
+#: The status per value type, over the fixed-width scalars this module reads.
+#:
+#: ANCHORED IS NOT UNIQUE, and the status word says so. An oracle that scores
+#: the population under the shipped reading and under the reversed one rules the
+#: reversal out. It does not rule out every other rearrangement of the same
+#: bytes - see :data:`BYTE_ORDER_SURVIVING_CANDIDATES` for what it leaves.
+#:
+#: ``BoolProperty`` IS WRITTEN IN EXPLICITLY BECAUSE ITS BYTE IS NOT IN
+#: ``_FIXED_WIDTH_VALUES``. Its value byte rides in the TAG - :func:`_read_tag_header`
+#: takes it as a single byte at a fixed offset and hands it back separately - so
+#: there is no entry in that table to derive a width from. It is one byte, so
+#: its byte order is vacuous for the same reason the derived members are.
+VALUE_BYTE_ORDER_STATUS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        **{
+            word: _byte_order_status(word, width)
+            for word, (width, _) in _FIXED_WIDTH_VALUES.items()
+        },
+        "BoolProperty": BYTE_ORDER_VACUOUS,
+    }
+)
+
+#: THE BYTE PERMUTATIONS THE SHIPPED VALUE ORACLES CANNOT SEPARATE FROM THE
+#: IDENTITY. Each tuple is a permutation of STORED byte positions, and the
+#: identity is a member - which is the point. A candidate set holding only the
+#: identity would mean the order was pinned, and it is not.
+#:
+#: WHAT BOUNDS THE SET IS WHAT THE ORACLES LOOK AT. Both shipped value oracles
+#: turn on the extreme byte positions - one scores whether the most significant
+#: stored byte is zero, the other scores magnitude, which the exponent end
+#: governs - so a rearrangement that leaves the extremes where they are is
+#: invisible to them. The set is DERIVED FROM THE ORACLES at runtime by the test
+#: named in the commentary block above and compared against this literal, so the
+#: literal cannot quietly stop describing what they do.
+#:
+#: THE OTHER RESULT IS ABOUT A DIFFERENT FIELD, READ BY A DIFFERENT READER, AND
+#: IT LICENSES NOTHING HERE. There is a separate result showing the tag's
+#: declared SIZE field is read in exactly one of its twenty-four byte orders.
+#: That field is read by :func:`_read_tag_header`; a property VALUE is read by
+#: :func:`_decode_fixed_width`. Carrying the first result across to the second
+#: needs the premise that this format uses one byte order for every int32 field.
+#: THAT PREMISE IS AN ASSUMPTION AND NOT A MEASUREMENT. It is not made here, and
+#: the boundary is written down rather than crossed.
+BYTE_ORDER_SURVIVING_CANDIDATES: Final[frozenset[tuple[int, int, int, int]]] = frozenset(
+    {
+        (0, 1, 2, 3),
+        (0, 2, 1, 3),
     }
 )
 
