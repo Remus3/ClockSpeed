@@ -1569,13 +1569,37 @@ def test_every_measured_type_the_library_exercises_yields_at_least_one_value() -
 
 
 def test_the_int32_byte_order_is_discriminated_by_the_stored_high_byte() -> None:
-    """THE BYTE ORDER, SETTLED AGAINST THE GAME'S DATA RATHER THAN OUR WRITER.
+    """THE BYTE ORDER, SCORED AGAINST THE GAME'S DATA RATHER THAN OUR WRITER.
+
+    SCORED IS NOT SETTLED, AND THE DIFFERENCE IS MEASURED RATHER THAN CONCEDED.
+    The two assertions below rule the whole-word REVERSAL out on the game's own
+    bytes. They do not narrow the order to one arrangement. What the shipped
+    value oracles leave standing is recorded as data in
+    ``objects.BYTE_ORDER_SURVIVING_CANDIDATES`` and derived from the library by
+    ``tests/save/test_value_anchoring.py::test_the_shipped_candidate_set_is_what_the_value_oracles_cannot_separate``,
+    so the residual is a constant the suite checks rather than a sentence here
+    that nobody grades. ``objects.VALUE_BYTE_ORDER_STATUS`` carries the matching
+    per-type status word.
+
+    THE REASON MORE THAN ONE CANDIDATE SURVIVES IS STRUCTURAL. Both shipped
+    value oracles turn on the EXTREME stored byte positions - this one on
+    whether the most significant stored byte is zero, the float32 one on
+    magnitude, which the exponent end governs - so a rearrangement that leaves
+    the extremes where they sit is invisible to the pair of them.
+
+    THIS ORACLE IS ALSO NOT ANCHORED TO THE BYTES IT GRADES. Displacing the
+    int32 value start so the decode reads a neighbouring field rather than the
+    value leaves both assertions below GREEN, so a green result here is a claim
+    about a POPULATION's byte-order signature and not evidence that the bytes
+    scored were the value's own. The anchoring this lacks is carried by
+    ``tests/save/test_value_anchoring.py::test_no_fixed_width_value_depends_on_a_byte_outside_its_declared_extent``,
+    whose own control is
+    ``tests/save/test_value_anchoring.py::test_the_extent_anchor_control_catches_a_displaced_fixed_width_read``.
 
     CS-421's sharpest finding is that flipping ``IntProperty`` to ``">i"``
     reddens only synthetic-fixture tests - fixtures this project packs with the
     same byte order the reader unpacks with, so they agree by construction and
-    are evidence about nothing. Reproduced on the merged tree before this test
-    was written: the mutant reddened 8 tests and all 8 were synthetic.
+    are evidence about nothing.
 
     THE ORACLE'S PREMISE IS A FACT ABOUT THE GAME, WHICH IS WHY IT ESCAPES THAT
     CIRCULARITY. A save's int32 fields are counts, indices and enum ordinals,
@@ -1593,22 +1617,18 @@ def test_the_int32_byte_order_is_discriminated_by_the_stored_high_byte() -> None
 
     STATED LIMIT, AND IT IS MEASURED RATHER THAN REASONED. This discriminates
     BYTE ORDER and not fabrication: replacing the whole fixed-width decode with
-    a constant 1 leaves both oracles here GREEN, because a small positive
-    constant carries a zero high byte exactly as a real small value does. A
-    constant 0 and a large constant both go red, so the blind spot is narrow -
-    and it is real.
+    a plausible small constant leaves both oracles here GREEN, because such a
+    constant carries a zero high byte exactly as a real small value does. CS-455
+    owns that gap and its ROADMAP entry carries the measured acceptance. The
+    accepting set is deliberately NOT restated here - a band written into a
+    docstring is the same rot one generation on.
 
     THE FIRST DRAFT OF THIS PARAGRAPH NAMED THE ROTATION CONTROL AS THE TEST
-    THAT COVERS THAT GAP, AND THAT WAS FALSE. Measured against the constant-1
-    mutant across the save suite: 8 tests red, 7 of them synthetic-fixture
-    tests and the eighth the nested gate that runs them, while
-    :func:`test_the_decode_collapses_when_the_payload_start_is_rotated` stayed
-    green. It could not have done otherwise - it perturbs the WALK, and a
-    fabricated value does not move the walk. So no library-backed control in
-    this suite catches a fixed-width decoder that fabricates plausible small
-    constants; only fixtures this project packs do, which is the very
-    circularity CS-421 exists to name, one layer along. Recorded here as an open
-    residual rather than attributed to a test that does not do it.
+    THAT COVERS THAT GAP, AND THAT WAS FALSE.
+    :func:`test_the_decode_collapses_when_the_payload_start_is_rotated`
+    perturbs the WALK, and a fabricated value does not move the walk, so it
+    could not have covered it. CS-455 records what was measured. Recorded here
+    as an open residual rather than attributed to a test that does not do it.
 
     It is library-backed and skips with no game installed, which is the CI gap
     CS-426 owns. A synthetic fixture cannot close it: one packed from the same
@@ -1645,11 +1665,21 @@ def test_the_float32_byte_order_is_discriminated_by_plausible_magnitude() -> Non
 
     THE DISCRIMINATOR IS MAGNITUDE PLAUSIBILITY, NOT FINITENESS. Finiteness
     looks like the natural choice and was measured useless before this was
-    written: as read it holds on 100 per cent and byte-swapped on 99.77, because
-    a swapped float32 is nearly always still a finite number - just an absurd
-    one. The band below is a DOMAIN bound on what a coordinate, a clock speed or
-    a power figure can be, not a value fitted to this corpus, and the margin
-    either side of the half-population pivot is wide.
+    written: it holds on very nearly the whole population under BOTH readings,
+    because a swapped float32 is still a finite number far more often than not -
+    just an absurd one. The two rates are deliberately not written here. The
+    operator plays this game, so a percentage in a docstring is a figure the
+    next autosave can falsify for no defect at all, which is the reason the
+    counts this replaces were kept out of the assertions below as well.
+
+    WHAT THIS LEAVES OPEN IS THE INT32 ORACLE'S RESIDUAL, REACHED FROM THE
+    OTHER END. This oracle turns on magnitude, which the exponent end governs,
+    so a rearrangement of the interior stored bytes is invisible to it too.
+    ``objects.BYTE_ORDER_SURVIVING_CANDIDATES`` records what the two leave
+    standing between them; this docstring does not restate it.
+
+    The band below is a DOMAIN bound on what a coordinate, a clock speed or a
+    power figure can be, not a value fitted to this corpus.
 
     Exact zero is excluded from both counts rather than assigned to either: its
     bit pattern is symmetric, so it reads as zero under both orders and can
