@@ -1581,11 +1581,16 @@ def test_the_int32_byte_order_is_discriminated_by_the_stored_high_byte() -> None
     that nobody grades. ``objects.VALUE_BYTE_ORDER_STATUS`` carries the matching
     per-type status word.
 
-    THE REASON MORE THAN ONE CANDIDATE SURVIVES IS STRUCTURAL. Both shipped
-    value oracles turn on the EXTREME stored byte positions - this one on
-    whether the most significant stored byte is zero, the float32 one on
-    magnitude, which the exponent end governs - so a rearrangement that leaves
-    the extremes where they sit is invisible to the pair of them.
+    MORE THAN ONE CANDIDATE SURVIVES, AND WHY IS DELIBERATELY NOT EXPLAINED
+    HERE. The count and the members are derived by the test named above and
+    checked against the shipped constant. An earlier draft of this paragraph
+    described the mechanism - that both oracles turn on the EXTREME stored byte
+    positions - and that description was measured FALSE: the two oracles are
+    ONE-ENDED in opposite directions, and each survives rearrangements that move
+    the end the other one holds. Two candidates stand because the two
+    constraints are INTERSECTED, not because either oracle is two-ended. The
+    corrected mechanism belongs beside the derivation that measures it rather
+    than in an ungraded copy here.
 
     THIS ORACLE IS ALSO NOT ANCHORED TO THE BYTES IT GRADES. Displacing the
     int32 value start so the decode reads a neighbouring field rather than the
@@ -1672,11 +1677,14 @@ def test_the_float32_byte_order_is_discriminated_by_plausible_magnitude() -> Non
     next autosave can falsify for no defect at all, which is the reason the
     counts this replaces were kept out of the assertions below as well.
 
-    WHAT THIS LEAVES OPEN IS THE INT32 ORACLE'S RESIDUAL, REACHED FROM THE
-    OTHER END. This oracle turns on magnitude, which the exponent end governs,
-    so a rearrangement of the interior stored bytes is invisible to it too.
-    ``objects.BYTE_ORDER_SURVIVING_CANDIDATES`` records what the two leave
-    standing between them; this docstring does not restate it.
+    WHAT THIS ORACLE LEAVES OPEN IS RECORDED RATHER THAN DESCRIBED. It does not
+    narrow the byte order to one arrangement on its own, and neither does the
+    int32 oracle; what the two leave standing BETWEEN THEM is held in
+    ``objects.BYTE_ORDER_SURVIVING_CANDIDATES`` and derived from the library by
+    ``tests/save/test_value_anchoring.py::test_the_shipped_candidate_set_is_what_the_value_oracles_cannot_separate``.
+    No account of WHICH rearrangements either oracle admits is written here -
+    the last such account in this file was measured false, and the derivation
+    is the thing that can be graded.
 
     The band below is a DOMAIN bound on what a coordinate, a clock speed or a
     power figure can be, not a value fitted to this corpus.
@@ -1917,17 +1925,43 @@ def test_an_extent_width_cannot_desynchronise_and_is_caught_by_disagreement() ->
 
 
 def test_the_width_rule_partitions_every_shipped_width_and_declines_no_decoded_one() -> None:
-    """CS-422's rule, applied to EVERY entry rather than per entry.
+    """CS-422's rule over the shipped tables, and the partition halves are blind.
 
-    Three claims, all derived from the shipped tables in the same run. The two
-    width classes must be disjoint, because a width graded by both oracles would
-    let a failure under one be excused by a pass under the other. Together they
-    must cover every width the module ships, so no width sits outside the rule.
-    And a type word whose VALUE reading is declined must not also be decoded,
-    which is the invariant that caught the first draft of this work: the
-    declined table was keyed by bare type word while `ArrayProperty` legitimately
-    ships a TAG-EXTRA width, so the name read as though the whole word were
-    declined.
+    THE NAME OF THIS TEST OVERSTATES WHAT THE PARTITION HALVES GRADE, and the
+    docstring that stood here overstated it the same way. ``ungoverned`` and
+    ``phantom`` difference ``CURSOR_WIDTHS | EXTENT_WIDTHS`` against a
+    ``shipped`` set built below, and both sides are assembled from the SAME two
+    module tables - ``_TAG_EXTRA_STRINGS`` and ``_FIXED_WIDTH_VALUES`` - plus
+    two literal names. The tables cancel, so adding a width to either one moves
+    both sides together. Measured rather than reasoned: a word added to either
+    table leaves this test GREEN. The case the name advertises - a shipped width
+    sitting outside the rule - is the case these two assertions do not grade.
+
+    WHAT THEY DO STILL CATCH, recorded because deleting them would drop it and
+    because "structurally empty" overstates it in the other direction. The two
+    literal names are transcribed HERE as :data:`_GUID_WIDTH_NAME` and
+    :data:`_SOFT_TAIL_NAME` and spelled independently in ``objects.py``, so that
+    pair does NOT cancel. Renaming one on the module side alone turns
+    ``ungoverned`` red. That is a transcription check over two names, and it is
+    the whole of what the partition half is worth.
+
+    CS-458 OWNS THE REPAIR, and its acceptance is the right one: derive the
+    governed set and the shipped set from INDEPENDENT sources, proven by a
+    mutant that introduces a cursor-advancing width without registering it.
+    Until that lands, the executable grading of the width rule lives in
+    ``tests/save/test_width_rule.py``.
+
+    THE OTHER TWO ASSERTIONS ARE NOT PART OF THAT COMPLAINT, and they are why
+    this test stays. Disjointness compares two separately built tables, so a
+    word reaching both is a real finding: a width graded by both oracles would
+    let a failure under one be excused by a pass under the other. The
+    declined-and-decoded intersection reads ``DECLINED_VALUE_READINGS`` against
+    ``MEASURED_VALUE_TYPES``, two independently maintained tables, and it is the
+    invariant that caught the first draft of this work - the declined table was
+    keyed by bare type word while `ArrayProperty` legitimately ships a TAG-EXTRA
+    width, so the name read as though the whole word were declined. The closing
+    ``.strip()`` truthiness check is close to worthless and is kept only because
+    an empty rule string is cheap to exclude.
 
     It needs no save library - it is a claim about the repo, not about a world.
     """
