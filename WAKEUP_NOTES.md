@@ -103,11 +103,15 @@ the line becomes a pointer.
     assertion against the game's own `common` directory.
   - **Trusting a branch name from a builder.** Check the diff against the base before merging.
 
-- **Next action:** **CS-454 again, and it is now four named things** - the junction defect, the
-  placeholder-injection defect, the whitespace tail and a stated exemption for the bare segment. All
-  four are INSIDE the item; do not file them as follow-ups. The adjudicator's six closure conditions
-  are in `docs/LEDGER.md`. **Take CS-465 in the same pass** - it is the fence that was supposed to
-  protect the recursion rationale and it does not.
+- **Next action: OPERATOR-DIRECTED 2026-08-16 - TAKE CS-421 AND CS-422, NOT CS-454 AND NOT CS-465.**
+  The reason is the critical path to a usable surface: `CS-413`'s own entry names CS-420, CS-421 and
+  CS-422 as the gap between "the values were produced and are self-consistent with our own writer"
+  and "correctly decoded". CS-420 closed in session 14, so CS-421 and CS-422 are the last two, and
+  CS-413 is the phase-4 depth gate that CS-400, then CS-500, then the dashboard all sit behind.
+  `IntProperty` and `FloatProperty` are inventory counts and clock speeds, which is exactly what
+  pillar 3 reads, so this is the audit's own evidence base rather than abstract rigour.
+  **CS-454 and CS-465 STAY OPEN and are deferred, not dropped** - CS-454 has four named blockers in
+  its ROADMAP entry and CS-465 is this session's own porous fence.
 
 ## Session 14 - 2026-08-16 - CS-420 closes on the seventh round; CS-421 and CS-422 both REFUTED
 
