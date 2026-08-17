@@ -116,11 +116,18 @@ def _isolated_resolution(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Non
     because of a neighbour rather than because of the code. Replacing the
     ATTRIBUTE through monkeypatch also restores it automatically, which
     calling a reset helper would not.
+
+    The remembered SAVE ROOTS are reset for the same reason and are the newer
+    half of the same hazard (CS-454). A save root this module resolved becomes
+    a redaction ANCHOR, so a neighbouring test's synthetic root would keep
+    rewriting the segment below it here, and a leak assertion could pass
+    because of that neighbour rather than because of the code.
     """
     for name in (locate.ENV_GAME_DIR, locate.ENV_SAVE_ROOT, locate.ENV_ACCOUNT_DIR):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv(locate.ENV_LOCAL_CONFIG, str(tmp_path / "absent" / "local.json"))
     monkeypatch.setattr(locate, "_RESOLVED_ACCOUNT_NAMES", [])
+    monkeypatch.setattr(locate, "_RESOLVED_SAVE_ROOTS", [])
 
 
 def account_name_renderings() -> set[str]:
@@ -662,8 +669,16 @@ def test_redact_hides_an_account_directory_of_any_shape(
     The account directory is identified by POSITION - the segment immediately
     below the save root - and never by what its characters look like. Steam
     writes digits there, Epic a hex token, the Microsoft Store a GUID, and the
-    documented override writes whatever the operator typed. A rule keyed on
-    the characters passes for one of those and leaks for the other three.
+    documented override writes whatever the operator typed.
+
+    WHAT THIS LAYOUT CAN AND CANNOT OBSERVE (CS-454, ADR 0008). Every path
+    built here spells the save-root marker, so POSITION fires for all four
+    shapes: neutering the positional rule alone leaves three of these four
+    leaking, and neutering the digit backstop alone leaves none of them
+    leaking. Varying the shape therefore pins "position catches every shape"
+    and nothing shape-dependent. The shapes a non-positional rule has to reach
+    are covered by the relocated-save-root tests below, where there is no
+    marker for position to key on.
     """
     home = tmp_path / "home"
     local = home / "AppData" / "Local"
@@ -741,6 +756,121 @@ def test_redact_hides_an_account_directory_an_override_placed_outside_the_save_r
     leaked = relocated.name.lower() in rendered.lower()
     assert not leaked, "a relocated account directory leaked its name"
     assert locate.ACCOUNT_DIR_PLACEHOLDER in rendered
+
+
+def test_redact_hides_the_segment_below_a_declared_but_relocated_save_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A save root the operator moved still has an account id under it (CS-454).
+
+    THE CONJUNCTION THIS CONTROL SATISFIES, because two of the three were
+    missing from every account-directory control before it:
+
+      (a) the account name is a HEX TOKEN, not digits, so the digit backstop
+          cannot reach it;
+      (b) the declared save root does NOT spell FactoryGame/Saved/SaveGames,
+          so the POSITIONAL rule has no marker to key on - asserted below
+          rather than assumed, because if the marker were present position
+          would fire and mask the shape entirely;
+      (c) the rule under mutation is therefore the new save-root ANCHOR set;
+          removing it leaves this account name standing in plaintext.
+
+    Nothing is resolved through the module first, so the account-name memory
+    is empty too: the declared save root read straight from the environment is
+    the only thing that can carry this.
+    """
+    relocated = tmp_path / "Relocated" / "operator_chosen_saves"
+    account = relocated / "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+    account.mkdir(parents=True)
+    monkeypatch.setenv(locate.ENV_SAVE_ROOT, str(relocated))
+    assert "FactoryGame/Saved/SaveGames" not in relocated.as_posix(), (
+        "the relocated root spells the marker, so POSITION would fire and this "
+        "test would prove nothing about the anchor set"
+    )
+
+    rendered = locate.redact(account / "World.dat")
+
+    leaked = account.name.lower() in rendered.lower()
+    assert not leaked, "redact() left the account directory below a relocated save root"
+    assert locate.ACCOUNT_DIR_PLACEHOLDER in rendered
+    assert rendered.endswith(f"/{locate.ACCOUNT_DIR_PLACEHOLDER}/World.dat"), (
+        "the account directory went, but so did the structure around it - a negative "
+        "assertion alone rules out without pinning down (CONVENTIONS.md section 7.2)"
+    )
+
+
+def test_redact_hides_the_segment_below_a_save_root_it_has_already_resolved(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A resolved save root stays an anchor after the declaration goes (CS-454).
+
+    Same conjunction as the test above - (a) a hex token, (b) no marker for
+    POSITION, (c) the anchor set is the rule under mutation - with one
+    difference that is the whole point: CLOCKSPEED_SAVE_ROOT is DELETED after
+    the resolver has run. Reading the environment cannot answer here, so the
+    only thing left standing between this account id and the output is the
+    remembered-save-root memory that resolve_save_root() fills.
+    """
+    relocated = tmp_path / "Relocated" / "operator_chosen_saves"
+    account = relocated / "a1b2c3d4e5f60718293a4b5c6d7e8f90"
+    account.mkdir(parents=True)
+    monkeypatch.setenv(locate.ENV_SAVE_ROOT, str(relocated))
+
+    resolved = locate.resolve_save_root()
+    assert resolved == relocated, "the override did not resolve; this test would prove nothing"
+    monkeypatch.delenv(locate.ENV_SAVE_ROOT)
+
+    rendered = locate.redact(account / "World.dat")
+
+    leaked = account.name.lower() in rendered.lower()
+    assert not leaked, "a resolved save root stopped anchoring once the declaration went"
+    assert locate.ACCOUNT_DIR_PLACEHOLDER in rendered
+    assert rendered.endswith(f"/{locate.ACCOUNT_DIR_PLACEHOLDER}/World.dat"), (
+        "the account directory went, but so did the structure around it"
+    )
+
+
+def test_redact_hides_the_8_3_rendering_of_an_account_directory_it_handed_out(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The declared account directory has a second spelling, and it leaked.
+
+    THE DEFECT (CS-454). This module already knows that Windows renders a path
+    two ways and that the 8.3 short form matches no long-form value - the
+    module docstring says so, and _path_forms() exists for exactly that reason
+    on the HOME directory. It was applied to neither the marker nor the account
+    name, so the short rendering of the account directory reached the output in
+    plaintext EVEN WITH CLOCKSPEED_ACCOUNT_DIR declared, which is the
+    configuration resolve_account_dir() documents as the safe one.
+
+    The conjunction: (a) the name is not digits; (b) the 8.3 rendering does not
+    spell the marker either - asserted below - so POSITION cannot fire; (c) the
+    rule under mutation is _remember_account_dir()'s new use of _path_forms().
+    """
+    save_root = _make_save_root(tmp_path)
+    account = _make_account_dir(save_root, "EpicAccountTokenLongEnoughToShorten")
+    monkeypatch.setenv(locate.ENV_ACCOUNT_DIR, str(account))
+
+    resolved = locate.resolve_account_dir(save_root)
+    assert resolved == account, "the override did not resolve; this test would prove nothing"
+    short = locate._win_path_form(str(account), "GetShortPathNameW")  # noqa: SLF001
+    if short is None or Path(short).name.lower() == account.name.lower():
+        pytest.skip("this volume has no distinct 8.3 rendering, so there is no second spelling")
+    short_name = Path(short).name
+    if len(short_name) < locate.MIN_REDACTABLE_LEN:
+        pytest.skip("the 8.3 rendering is shorter than the redaction floor")
+    assert "FactoryGame/Saved/SaveGames" not in short.replace("\\", "/"), (
+        "the 8.3 rendering still spells the marker, so POSITION could fire and this "
+        "test would not isolate the rule it names"
+    )
+
+    rendered = locate.redact(short)
+
+    leaked = short_name.lower() in rendered.lower()
+    assert not leaked, "redact() left the 8.3 rendering of the account directory in its output"
+    assert rendered.endswith(locate.ACCOUNT_DIR_PLACEHOLDER), (
+        "the short account name went, but the path around it did not survive"
+    )
 
 
 def test_redact_hides_a_world_name_carried_by_a_save_filename(

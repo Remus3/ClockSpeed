@@ -49,6 +49,7 @@ from pathlib import Path
 
 import pytest
 
+from clockspeed.data import locate
 from clockspeed.data.locate import (
     ENV_ACCOUNT_DIR,
     ENV_GAME_DIR,
@@ -77,6 +78,16 @@ ABSENT = REPO_ROOT / "no-such-path-workdir-suite"
 # way it treats a real one - which is what lets the redaction test below assert
 # that these exact characters do NOT survive into a message. It is invented.
 PRETEND_ACCOUNT = "1234567890"
+
+# A SECOND stand-in, beside the first rather than instead of it - PRETEND_ACCOUNT
+# carries roughly eight other assertions in this module and none of them are
+# about shape. This one is a hex token: not digits, so the digit-run backstop
+# cannot reach it, which is what makes it able to observe a rule the all-digit
+# fixture cannot (CS-454). The save root here is relocated - "pretend_saves"
+# spells no FactoryGame/Saved/SaveGames marker - so the positional rule has
+# nothing to key on either, and between them those two facts are what stop a
+# control on this name from being carried by a rule it does not name. Invented.
+PRETEND_NONDIGIT_ACCOUNT = "b7c1e0a4d5f6928374a5b6c7d8e9f012"
 
 _CHILD_TIMEOUT_SECONDS = 300
 
@@ -123,11 +134,33 @@ def isolate_from_the_real_machine(monkeypatch: pytest.MonkeyPatch) -> None:
     that matters most: without it, ``locate.local_config()`` reads the
     operator's real ``config/local.json`` and a "pretend" save root quietly
     becomes the real one.
+
+    THE REDACTION MEMORIES ARE RESET HERE, AND THAT IS NOT HOUSEKEEPING - it is
+    the difference between a control and a control-shaped no-op (CS-454).
+    ``locate`` remembers every account directory and every save root it hands
+    out, as module state that outlives a test. This module had no reset, so a
+    neighbour seeded the memory for the whole process:
+    ``test_a_destination_inside_the_account_directory_is_refused`` points
+    ``CLOCKSPEED_ACCOUNT_DIR`` at a real directory, which makes that name a
+    redaction needle for every test that runs after it.
+
+    MEASURED, with the digit-run backstop neutered by a plugin that asserted
+    its own mutation live before collection:
+    ``test_the_refusal_message_carries_no_raw_account_directory`` run ALONE
+    gave 1 failed; the FULL MODULE under the identical mutant gave 73 passed.
+    The control was therefore being carried by a neighbour, and under ``-n
+    auto`` - where the two may land in different workers - it was vacuous
+    NONDETERMINISTICALLY, which is the shape that survives review.
+
+    Replacing the ATTRIBUTE through monkeypatch restores it automatically,
+    which calling a reset helper would not.
     """
     monkeypatch.setenv(ENV_GAME_DIR, str(ABSENT / "install"))
     monkeypatch.setenv(ENV_SAVE_ROOT, str(ABSENT / "saves"))
     monkeypatch.setenv(ENV_ACCOUNT_DIR, str(ABSENT / "account"))
     monkeypatch.setenv(ENV_LOCAL_CONFIG, str(ABSENT / "local.json"))
+    monkeypatch.setattr(locate, "_RESOLVED_ACCOUNT_NAMES", [])
+    monkeypatch.setattr(locate, "_RESOLVED_SAVE_ROOTS", [])
     # An operator who has this set in their shell would otherwise change where
     # the default-work-root test looks.
     monkeypatch.delenv(workdir.ENV_WORK_ROOT, raising=False)
@@ -376,6 +409,53 @@ def test_the_refusal_message_carries_no_raw_account_directory(
     message = str(caught.value)
     assert PRETEND_ACCOUNT not in message, "the refusal message leaks the account directory"
     assert "\\" not in message, "the message was not passed through redact()"
+
+
+def test_the_refusal_message_carries_no_raw_account_directory_of_a_non_digit_shape(
+    pretend_source: Path, pretend_save_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The same refusal, against the shape the fixture above cannot observe.
+
+    THE CONJUNCTION, and every clause is load-bearing (CS-454):
+
+      (a) the account name is a HEX TOKEN. The test above uses ten digits,
+          which is at or above ``locate.MIN_ACCOUNT_ID_DIGITS``, so the
+          digit-run backstop catches it unconditionally and the test cannot
+          fail for any other reason. Epic writes a hex token, the Microsoft
+          Store a GUID, and the override writes whatever the operator typed.
+      (b) the save root is RELOCATED - ``pretend_saves`` spells no
+          FactoryGame/Saved/SaveGames marker, asserted below rather than
+          assumed - so the POSITIONAL rule has nothing to key on. Without this
+          clause position would fire and mask the shape entirely, and the test
+          would be green about a rule it does not name.
+      (c) the rule under mutation is therefore the save-root ANCHOR set.
+          Remove it and this hex token stands in the refusal message in
+          plaintext.
+
+    Asserted on the rendered message, not the call: the leak happens where the
+    exception is rendered into a log or an issue.
+    """
+    account = pretend_save_root / PRETEND_NONDIGIT_ACCOUNT
+    account.mkdir()
+    monkeypatch.setenv(ENV_SAVE_ROOT, str(pretend_save_root))
+    assert "FactoryGame/Saved/SaveGames" not in pretend_save_root.as_posix(), (
+        "the pretend save root spells the marker, so POSITION would fire and this "
+        "test would prove nothing about the shape it names"
+    )
+
+    with pytest.raises(workdir.DestinationRefusedError) as caught:
+        workdir.copy_for_read(pretend_source, work_root=account / "work")
+
+    message = str(caught.value)
+    assert PRETEND_NONDIGIT_ACCOUNT not in message, (
+        "the refusal message leaks a non-digit account directory"
+    )
+    assert f"/pretend_saves/{locate.ACCOUNT_DIR_PLACEHOLDER}/work/" in message, (
+        "the account directory went, but so did the structure around it - the "
+        "placeholder has to sit between the save root and the work directory, or a "
+        "negative assertion alone rules out without pinning down (CONVENTIONS.md "
+        "section 7.2)"
+    )
 
 
 # ===========================================================================

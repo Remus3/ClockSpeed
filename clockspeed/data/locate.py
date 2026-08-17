@@ -52,6 +52,15 @@ found by reading the output rather than the code:
   - Windows renders a home path two ways. The 8.3 short form spells the
     account name as six characters, a tilde and a digit, matches no
     environment value, and is what tempfile.gettempdir() returns.
+  - The 8.3 problem is NOT only a home-path problem. The account directory
+    has a short rendering too, and remembering only its long name left that
+    one standing even with CLOCKSPEED_ACCOUNT_DIR declared. Every account
+    directory is remembered in every rendering.
+  - The SAVE ROOT itself may be relocated by an override, which leaves the
+    account directory sitting in position with no fixed marker above it for
+    position to key on. So position keys on a SET of anchors - the marker,
+    the declared root, and every root this module resolved - and not on the
+    marker alone.
   - A save filename embeds the world name, so the filename component goes
     too.
 
@@ -128,7 +137,7 @@ ACCOUNT_DIR_PLACEHOLDER = "<account-dir>"
 SAVE_FILE_PLACEHOLDER = "<save-file>"
 
 # A BACKSTOP, not the rule. The rule is positional - see
-# _ACCOUNT_POSITION_RE - because an account directory is whatever name sits in
+# _save_root_anchors - because an account directory is whatever name sits in
 # the account-id position, and only one platform puts digits there: Epic
 # writes a hex token, the Microsoft Store a braceless GUID, and the
 # CLOCKSPEED_ACCOUNT_DIR override writes whatever the operator typed. An
@@ -154,29 +163,60 @@ MIN_REDACTABLE_LEN = 3
 # appending, and slicing a list is atomic where iterating a set is not.
 _RESOLVED_ACCOUNT_NAMES: list[str] = []
 
+# Save roots this module has itself resolved, in every rendering Windows spells
+# them, kept for the same reason and with the same safety property as the names
+# above: it only ever grows from a directory this module resolved, never from
+# parsed text, and every entry only ever makes redaction stricter. A save root
+# is an ANCHOR rather than a needle - it is never substituted on its own, only
+# used to find the ONE segment sitting directly below it - so remembering one
+# cannot over-redact the way a free-floating needle would.
+_RESOLVED_SAVE_ROOTS: list[str] = []
+
 # Bounded by non-alphanumerics on both sides so this matches a path SEGMENT or
 # a standalone token, and not the digits inside a longer identifier.
 _ACCOUNT_ID_RE = re.compile(
     r"(?<![0-9A-Za-z])[0-9]{" + str(MIN_ACCOUNT_ID_DIGITS) + r",}(?![0-9A-Za-z])"
 )
 
+# One path segment. Defined ONCE and shared by every rule below that needs it,
+# because three hand-copied spellings of a character class are three chances
+# for one of them to drift. It excludes the angle brackets a placeholder is
+# made of, which is what makes a second pass over an already-redacted string a
+# no-op, and the quote and whitespace characters that end a segment inside a
+# rendered message.
+_PATH_SEGMENT_CLASS = r"[^/\\\s\"'<>|]+"
+
 # THE PRIMARY RULE. The account directory is the segment immediately below the
 # save root, so it is identified by where it sits and never by what it is made
 # of. The marker is derived from SAVE_ROOT_PARTS rather than restated, so the
-# redactor cannot drift from the resolver. The segment class excludes the
-# angle brackets a placeholder is made of, which is what makes a second pass
-# over an already-redacted string a no-op.
+# redactor cannot drift from the resolver.
 _SAVE_ROOT_MARKER = "/".join(SAVE_ROOT_PARTS)
-_ACCOUNT_POSITION_RE = re.compile(
-    "(" + re.escape(_SAVE_ROOT_MARKER) + r")/[^/\\\s\"'<>|]+", re.IGNORECASE
-)
 
 # A save filename, with the optional second suffix the game writes for its
 # rotated copies. The trailing guard stops an unrelated word that merely
 # begins with the suffix from being cut in half.
 _SAVE_FILE_RE = re.compile(
-    r"[^/\\\s\"'<>|]+\.sav(?:\.[A-Za-z0-9]{1,8})?(?![A-Za-z0-9])", re.IGNORECASE
+    _PATH_SEGMENT_CLASS + r"\.sav(?:\.[A-Za-z0-9]{1,8})?(?![A-Za-z0-9])", re.IGNORECASE
 )
+
+
+@functools.lru_cache(maxsize=128)
+def _account_position_re(anchor: str) -> re.Pattern[str]:
+    """Compile the positional rule for one save-root anchor.
+
+    Cached because redact() rebuilds its anchor list on every call - the
+    environment is re-read every time, deliberately - while the compiled form
+    of a given anchor never changes. Bounded because the anchor set is the
+    marker plus a handful of renderings of the roots this module resolved.
+
+    Args:
+        anchor: A save-root spelling, already normalized to forward slashes.
+
+    Returns:
+        A pattern capturing the anchor in group 1 and consuming the ONE
+        segment below it, which is the account directory.
+    """
+    return re.compile("(" + re.escape(anchor) + ")/" + _PATH_SEGMENT_CLASS, re.IGNORECASE)
 
 
 @functools.lru_cache(maxsize=64)
@@ -302,6 +342,70 @@ def _redaction_pairs() -> list[tuple[str, str]]:
     return pairs
 
 
+def _save_root_anchors() -> list[str]:
+    """Every spelling of a save root the account directory could be sitting under.
+
+    WHY THIS IS NOT A RESOLVER CALL. The obvious implementation asks
+    resolve_save_root() where the save root is. It cannot: resolve_save_root
+    reaches _override, which reaches local_config, which reaches
+    _read_local_config, which calls _note, which calls redact. That is a cycle,
+    and it is not theoretical - it survives today only because _override passes
+    no warning collector and _note returns immediately when there is none.
+    Wiring a collector through, which CS-443 is open to do, closes the loop.
+    Beyond the recursion, resolve_save_root can raise on a declared floor while
+    redact() is documented never to raise and is called from except bodies.
+
+    So the three sources here are exactly the ones that cannot recurse:
+
+      1. the fixed marker built from SAVE_ROOT_PARTS - today's rule, unchanged;
+      2. CLOCKSPEED_SAVE_ROOT read STRAIGHT from os.environ, with no override
+         ladder, no config read and no filesystem call. This is the idiom
+         _redaction_pairs already uses for LOCALAPPDATA, APPDATA, USERPROFILE,
+         USERNAME and COMPUTERNAME, and for the same reason;
+      3. _RESOLVED_SAVE_ROOTS, which resolve_save_root fills with roots it has
+         already confirmed are directories.
+
+    THE ORDERING TRAP, and it is why each source is offered in three forms
+    rather than one. By the time the positional pass runs, the environment
+    needles have ALREADY rewritten the text - so on a default machine the save
+    root arrives already spelled with a "<localappdata>" token in front of it,
+    while an anchor built from the raw value still spells the absolute home
+    path it was read from, and the two never meet - the substitution has moved
+    the text out from under the needle. An anchor set that only offered the
+    raw value would be
+    INERT on the ordinary machine and live only on the relocated one, which is
+    the inverse of the case this exists for. Today's marker escapes the trap by
+    accident: it is a SUFFIX, so the home substitution cannot touch it.
+
+    Each candidate is therefore offered as given, in every rendering Windows
+    spells it, and passed through the same substitution the text has received.
+
+    Returns:
+        Anchor strings, longest first, each already normalized to forward
+        slashes. Never raises.
+    """
+    pairs = _redaction_pairs()
+    anchors: list[str] = [_SAVE_ROOT_MARKER]
+
+    def offer(value: str) -> None:
+        for form in _path_forms(value):
+            normalized = form.replace("\\", "/").rstrip("/")
+            substituted = normalized
+            for needle, token in pairs:
+                substituted = re.sub(re.escape(needle), token, substituted, flags=re.IGNORECASE)
+            for variant in (normalized, substituted):
+                if len(variant) >= MIN_REDACTABLE_LEN and variant not in anchors:
+                    anchors.append(variant)
+
+    declared = (os.environ.get(ENV_SAVE_ROOT) or "").strip()
+    if declared:
+        offer(declared)
+    for remembered in _RESOLVED_SAVE_ROOTS[:]:
+        offer(remembered)
+    anchors.sort(key=len, reverse=True)
+    return anchors
+
+
 def redact(text: object) -> str:
     """Strip personal data out of anything about to be printed or raised.
 
@@ -313,11 +417,15 @@ def redact(text: object) -> str:
     FIVE PASSES, IN THIS ORDER, and the order is load-bearing. The environment
     needles go first so the save-root marker is left sitting behind a token
     rather than behind an absolute path. Position goes next, because where a
-    segment sits is the only reliable account-directory rule. The remembered
-    names follow, covering an override that put the account directory
-    somewhere with no marker above it. The digit-run backstop then catches an
-    id encountered outside any path at all. The save filename goes last, so it
-    is matched against a string whose directories are already tokens.
+    segment sits is the only reliable account-directory rule; it runs once per
+    save-root ANCHOR rather than once against the fixed marker, so a save root
+    the operator relocated still has a position to key on (CS-454, and see
+    _save_root_anchors for why the anchors cannot be a resolver call and why
+    each is offered in a substituted form). The remembered names follow,
+    covering an override that put the account directory somewhere with no
+    marker above it. The digit-run backstop then catches an id encountered
+    outside any path at all. The save filename goes last, so it is matched
+    against a string whose directories are already tokens.
 
     Idempotent: every placeholder is built from characters the patterns
     exclude, so redacting an already-redacted string returns it unchanged.
@@ -333,7 +441,8 @@ def redact(text: object) -> str:
     out = str(text).replace("\\", "/")
     for needle, token in _redaction_pairs():
         out = re.sub(re.escape(needle), token, out, flags=re.IGNORECASE)
-    out = _ACCOUNT_POSITION_RE.sub(r"\1/" + ACCOUNT_DIR_PLACEHOLDER, out)
+    for anchor in _save_root_anchors():
+        out = _account_position_re(anchor).sub(r"\1/" + ACCOUNT_DIR_PLACEHOLDER, out)
     for name in _RESOLVED_ACCOUNT_NAMES[:]:
         out = re.sub(
             r"(?<![0-9A-Za-z])" + re.escape(name) + r"(?![0-9A-Za-z])",
@@ -353,15 +462,55 @@ def _remember_account_dir(path: Path) -> Path:
     root; this covers the documented override that does not, which is the case
     where neither position nor pattern can see it.
 
+    EVERY RENDERING, not just ``path.name``, and that was a live leak (CS-454).
+    Windows spells a directory two ways, and this module has known it since
+    _path_forms was written for the HOME directory - but the account directory
+    was remembered by its long name alone. So the 8.3 short form, which is the
+    first six characters of the operator's account id plus a tilde and a digit
+    and which is what tempfile.gettempdir() hands back, matched nothing and
+    reached the output in plaintext EVEN WITH CLOCKSPEED_ACCOUNT_DIR declared -
+    the configuration resolve_account_dir documents as the safe one.
+
+    The forms are taken HERE rather than at redaction time because Windows only
+    answers for a path that still exists, and the directory is known to exist
+    at this moment: every caller has just checked.
+
     Args:
         path: The resolved account directory.
 
     Returns:
         ``path``, unchanged, so callers can return through this.
     """
-    name = path.name
-    if len(name) >= MIN_REDACTABLE_LEN and name not in _RESOLVED_ACCOUNT_NAMES:
-        _RESOLVED_ACCOUNT_NAMES.append(name)
+    for form in _path_forms(str(path)):
+        name = Path(form).name
+        if len(name) >= MIN_REDACTABLE_LEN and name not in _RESOLVED_ACCOUNT_NAMES:
+            _RESOLVED_ACCOUNT_NAMES.append(name)
+    return path
+
+
+def _remember_save_root(path: Path) -> Path:
+    """Record a resolved save root so redact() can anchor positionally on it.
+
+    The mirror of :func:`_remember_account_dir`, and it exists for the case
+    that function cannot cover: the account directory is still SITTING under a
+    save root, so there is a position to key on, but the operator relocated
+    that save root and the fixed FactoryGame/Saved/SaveGames marker is nowhere
+    in the string. Remembering the root restores the position.
+
+    Only ever called with a directory this module has confirmed exists, which
+    is what keeps the memory from being poisoned by parsed text, and what lets
+    _path_forms answer for it.
+
+    Args:
+        path: A save root that resolved.
+
+    Returns:
+        ``path``, unchanged, so callers can return through this.
+    """
+    for form in _path_forms(str(path)):
+        normalized = form.replace("\\", "/").rstrip("/")
+        if len(normalized) >= MIN_REDACTABLE_LEN and normalized not in _RESOLVED_SAVE_ROOTS:
+            _RESOLVED_SAVE_ROOTS.append(normalized)
     return path
 
 
@@ -735,6 +884,10 @@ def resolve_save_root() -> Path | None:
     %LOCALAPPDATA%/FactoryGame/Saved/SaveGames. %LOCALAPPDATA% itself falls
     back to the home directory when the variable is unset.
 
+    Whatever resolves is remembered, so redact() can key the account-directory
+    position on it. That matters for a relocated root, where the fixed
+    FactoryGame/Saved/SaveGames marker is not in the string at all.
+
     Returns:
         The save root, or None if it does not exist. An override naming a
         missing directory returns None rather than falling through, so a
@@ -743,7 +896,7 @@ def resolve_save_root() -> Path | None:
     override = _override(ENV_SAVE_ROOT, CONFIG_SAVE_ROOT)
     if override is not None:
         root = Path(override[0])
-        return root if root.is_dir() else None
+        return _remember_save_root(root) if root.is_dir() else None
 
     local = os.environ.get("LOCALAPPDATA")
     if not local:
@@ -752,7 +905,7 @@ def resolve_save_root() -> Path | None:
         except (OSError, RuntimeError):
             return None
     root = Path(local).joinpath(*SAVE_ROOT_PARTS)
-    return root if root.is_dir() else None
+    return _remember_save_root(root) if root.is_dir() else None
 
 
 def _safe_mtime(path: Path) -> float:
