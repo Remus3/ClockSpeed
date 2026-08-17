@@ -40,11 +40,14 @@ them is the failure this module is written to avoid.
   behind that claim do not settle it.
 
 WHAT THE ANCHOR DOES NOT COVER, stated here and again at each test that uses
-it. A decoder replaced by a CONSTANT depends on no bytes at all, so its in-place
-read and its isolated read agree and the anchor stays green. That gap is CS-455
-and it is not this module's. Attributing a gap to a control unable to fire on
-it is a mistake this project's history records twice, so the limit is written
-beside the control rather than left to be discovered.
+it, because attributing a gap to a control unable to fire on it is a mistake
+this project's history records twice. A decoder replaced by a CONSTANT depends
+on no bytes at all, so its in-place read and its isolated read agree and the
+anchor stays green - that gap is CS-455 and it is not this module's. The
+LOCATOR is shared between the two readings, so a fault in where the tag header
+believes the value starts moves both together and is invisible here. And the
+population is the FIXED-WIDTH types alone. All three limits are written beside
+the test rather than left to be discovered.
 
 PRIVACY, non-negotiables 11 and 12. COUNTS ONLY leave a sweep. No property
 name, no decoded value, no file path and no body byte reaches a failure
@@ -760,16 +763,32 @@ def test_no_fixed_width_value_depends_on_a_byte_outside_its_declared_extent() ->
     cannot check at all: reducing a value to two bits leaves it green under a
     displacement that never touches the int32.
 
-    STATED LIMIT, AND IT IS NOT CS-455's. A decoder replaced by a CONSTANT
+    STATED LIMIT ONE, AND IT IS NOT CS-455's. A decoder replaced by a CONSTANT
     depends on no bytes at all, so its in-place read and its isolated read are
-    the same constant and this control stays GREEN. Fabrication is CS-455 and
-    this test does not cover it, does not narrow it, and must not be cited as
-    if it did. Attributing a gap to a control unable to fire on it is a mistake
-    this package's history records twice.
+    the same constant and this control stays GREEN. That was forced rather than
+    reasoned: a decoder returning 1 leaves this test green. Fabrication is
+    CS-455 and this test does not cover it, does not narrow it, and must not be
+    cited as if it did. Attributing a gap to a control unable to fire on it is a
+    mistake this package's history records twice.
 
-    THE SECOND AND THIRD ASSERTIONS ARE LIVENESS. A zero mismatch count is
-    satisfied trivially by a sweep that graded nothing, so the population and
-    the walk are both asserted non-empty beside it.
+    STATED LIMIT TWO - THE LOCATOR IS SHARED, so this is anchoring against the
+    DECLARATION and not against the truth. Both readings take ``value_at`` and
+    ``size`` from ONE ``objects._read_tag_header`` call, and the isolated copy
+    is sliced at that same offset, so a fault in where the tag header BELIEVES
+    the value starts moves both readings together and this control cannot see
+    it. What it grades is whether the decoder honours the extent it was handed,
+    which is a different question from whether that extent is the right one. The
+    tag walk's own synchronisation is what bounds the second question, and it is
+    graded elsewhere by terminator reach rather than here.
+
+    STATED LIMIT THREE - THE POPULATION IS THE FIXED-WIDTH TYPES. BoolProperty
+    carries its value in the tag and the string and reference decoders are read
+    by different functions, so none of them is anchored by this test and its
+    green says nothing about any of them.
+
+    THE FIRST TWO ASSERTIONS ARE LIVENESS. A zero mismatch count is satisfied
+    trivially by a sweep that graded nothing, so the walk and the population are
+    both asserted non-empty beside it.
     """
     sweep = _anchor_or_skip(None)
 
