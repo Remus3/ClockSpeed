@@ -46,6 +46,40 @@ is the right number. Both are measurements against real payloads and live with
 the oracles rather than here. What is graded here is that the rule has one
 stated form, that the bookkeeping around it is complete against the shipped
 tables, and that neither can be edited into agreement by hand.
+
+TWO LIMITS OF THAT BOOKKEEPING, WRITTEN DOWN BECAUSE A PARTIAL LEFT AS AN
+ADJECTIVE IS NOT RESUMABLE - which is CS-412's whole subject. Each is stated
+as the mechanism that produces it rather than as a verdict, and each is a
+property of the derivation rather than a gap waiting on one more assertion.
+
+LIMIT 1 - THE DELETION DIRECTION REACHES THE DERIVED POPULATION AND STOPS
+THERE. The set of declines this module REQUIRES is exactly that population,
+and shipping a tag-extra width whose value reading is unmeasured is the whole
+of what puts a word into it. A declined word that ships no tag-extra width is
+therefore not in the required set, and its entry is optional by construction:
+it is read wherever it exists and is nowhere derived as having to exist. The
+specific word this exposes today is deliberately not named here, because
+naming it would reinstate the hand-authored scope this module exists to
+remove, in the file whose job is removing it.
+
+CLOSING IT NEEDS A SEAM CHANGE rather than another assertion over the tables
+as they stand. The derived closure that looks obvious - require a decline for
+every word the region table records as unmeasured - is FALSE against those
+tables: that table's keys are not all type words, and a type word it records
+as unmeasured is not thereby a declined VALUE READING. Requiring one would
+demand a decline for entries that correctly have none, so the closure has to
+come from a seam that separates those cases, not from this file.
+
+LIMIT 2 - A REASON CODE IS GRADED AGAINST ITS SOURCE, NOT AGAINST THE WORLD.
+The exception set is derived FROM the decline table, so the assertion over it
+establishes that the two agree and establishes nothing about whether a code is
+the RIGHT code for its word. A decline moved from a reason the rule disclaims
+onto a criterion it admits is structurally valid before and after: one shape
+describes a reclassification made because the discrimination test was run and
+the width failed it, and the same shape describes one asserted without any
+test being run. Separating those needs the measurement itself, which is the
+oracles' work rather than this module's, and no assertion available here can
+stand in for it.
 """
 
 from __future__ import annotations
