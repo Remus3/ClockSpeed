@@ -234,6 +234,7 @@ __all__ = [
     "MEASURED_BODY_LAYOUTS",
     "MEASURED_HEADER_VERSIONS",
     "MEASURED_VALUE_TYPES",
+    "REASON_NO_DISCRIMINATION_TEST",
     "REASON_SAMPLE_SIZE",
     "REASON_SHIPPED_ALIGNMENT_ONLY",
     "TRANSFORM_BYTES",
@@ -2434,44 +2435,44 @@ GUID_BYTES: Final = 16
 #   set with itself and could not notice a width added to one shipped table and
 #   left ungrounded, which is the defect the first draft of this item was
 #   refuted on.
-#   tests/save/test_properties.py::test_every_shipped_width_names_a_
+#   tests/save/test_width_rule.py::test_every_shipped_width_names_a_
 #   criterion_the_rule_admits holds the grounds against the two classes, and
-#   tests/save/test_properties.py::test_the_rule_prose_names_every_
+#   tests/save/test_width_rule.py::test_the_rule_prose_names_every_
 #   code_it_governs holds the rule's own prose against the code vocabulary - so
 #   replacing the rule text with one that governs nothing goes red rather than
 #   passing unread.
 #
-#   THE DECLINES carry a code from the closed non-criteria set rather than a
-#   sentence a reader has to classify.
-#   tests/save/test_properties.py::test_every_decline_carries_a_
+#   THE DECLINES carry a code from the closed vocabulary rather than a sentence
+#   a reader has to classify.
+#   tests/save/test_width_rule.py::test_every_decline_carries_a_
 #   reason_code_from_the_closed_set grades the codes,
-#   tests/save/test_properties.py::test_every_unmeasured_word_that_
+#   tests/save/test_width_rule.py::test_every_unmeasured_word_that_
 #   ships_a_tag_extra_width_is_declined grades the key set against the shipped
 #   tag-extra table, and
-#   tests/save/test_properties.py::test_the_exception_set_is_
+#   tests/save/test_width_rule.py::test_the_exception_set_is_
 #   derived_from_the_codes grades the exception set as a derivation rather than
 #   as a second transcription of the same classification.
 #
 #   THE BYTE-ORDER STATUS is CS-421 clause 3. The vacuous members are computed
 #   from the shipped widths, so a width that stops being one byte stops being
 #   vacuous with no sentence edited anywhere.
-#   tests/save/test_properties.py::test_every_one_byte_value_type_
+#   tests/save/test_value_anchoring.py::test_every_one_byte_value_type_
 #   is_recorded_as_byte_order_vacuous is what holds that derivation.
 #
 #   THE SURVIVING CANDIDATES are the permutations the shipped VALUE oracles
 #   leave standing beside the identity.
-#   tests/save/test_properties.py::test_the_shipped_candidate_set_
+#   tests/save/test_value_anchoring.py::test_the_shipped_candidate_set_
 #   is_what_the_value_oracles_cannot_separate derives the set from those oracles
 #   at runtime and compares it with the shipped literal, and
-#   tests/save/test_properties.py::test_the_declared_size_field_is_
+#   tests/save/test_value_anchoring.py::test_the_declared_size_field_is_
 #   read_in_exactly_one_of_its_twenty_four_byte_orders is the DIFFERENT-FIELD
 #   result whose boundary is written down beside that literal.
 #
 #   THE DECLARED EXTENT is the other half of what a fixed-width read may touch,
 #   and it is a different question from which order the bytes inside it are in.
-#   tests/save/test_properties.py::test_no_fixed_width_value_depends_
+#   tests/save/test_value_anchoring.py::test_no_fixed_width_value_depends_
 #   on_a_byte_outside_its_declared_extent is the claim and
-#   tests/save/test_properties.py::test_the_extent_anchor_control_
+#   tests/save/test_value_anchoring.py::test_the_extent_anchor_control_
 #   catches_a_displaced_fixed_width_read is its control.
 # ---------------------------------------------------------------------------
 
@@ -2487,9 +2488,18 @@ WIDTH_CRITERIA: Final = frozenset({CRITERION_CURSOR_REACH, CRITERION_VALUE_DISAG
 #: EXCEPTION to the rule rather than an application of it, and naming the two
 #: apart is what keeps that difference legible without a reader having to
 #: classify a paragraph.
+#:
+#: ``no_discrimination_test`` IS THE HONEST CODE FOR A REGION NOBODY HAS PUT A
+#: CONTROL TO, and it is distinct from ``sample_size``. Sample size says the
+#: instances exist and are too few to separate the answers; this one says the
+#: question was never put. Recording the second as the first reads as a
+#: measurement of a population when no measurement was taken.
 REASON_SAMPLE_SIZE: Final = "sample_size"
 REASON_SHIPPED_ALIGNMENT_ONLY: Final = "shipped_alignment_only"
-WIDTH_NON_CRITERIA: Final = frozenset({REASON_SAMPLE_SIZE, REASON_SHIPPED_ALIGNMENT_ONLY})
+REASON_NO_DISCRIMINATION_TEST: Final = "no_discrimination_test"
+WIDTH_NON_CRITERIA: Final = frozenset(
+    {REASON_SAMPLE_SIZE, REASON_SHIPPED_ALIGNMENT_ONLY, REASON_NO_DISCRIMINATION_TEST}
+)
 
 #: THE ONE RULE GOVERNING WHEN A WIDTH MAY SHIP - CS-422. This file used to
 #: apply two standards to itself with nothing stated between them: it shipped a
@@ -2508,9 +2518,10 @@ WIDTH_SHIPPING_RULE: Final = (
     "which is why one oracle cannot grade both classes. A width that advances "
     "the cursor ships on cursor_reach; a width that only bounds a value's "
     "extent ships on value_disagreement; those two are the whole of what this "
-    "rule admits. sample_size and shipped_alignment_only are NOT criteria of "
-    "this rule, and a reading declined on either is recorded as an exception "
-    "to the rule rather than as an application of it."
+    "rule admits. sample_size, shipped_alignment_only and no_discrimination_test "
+    "are NOT criteria of this rule, and a reading declined on any of the three "
+    "is recorded as an exception to the rule rather than as an application "
+    "of it."
 )
 
 #: Widths that ADVANCE THE CURSOR. Mis-stating one desynchronises the walk, so
@@ -2560,16 +2571,35 @@ WIDTH_SHIPPING_GROUNDS: Final[Mapping[str, str]] = MappingProxyType(
 #: re-opening one knows what would settle it.
 #:
 #: EACH ENTRY IS A ``(reason code, prose)`` PAIR and the code is drawn from
-#: :data:`WIDTH_NON_CRITERIA`. The pair shape is what makes the classification
-#: machine-readable: the prose says what a later slice needs to know, and the
-#: code says which side of the rule the decline sits on without anyone having
-#: to parse the prose to find out.
+#: ``WIDTH_CRITERIA | WIDTH_NON_CRITERIA``. The pair shape is what makes the
+#: classification machine-readable: the prose says what a later slice needs to
+#: know, and the code says which side of the rule the decline sits on without
+#: anyone having to parse the prose to find out.
+#:
+#: A DECLINE CAN CARRY AN ADMITTED CRITERION, AND THAT IS A DIFFERENT STATE
+#: FROM AN EXCEPTION. Two things can be true of a declined reading and
+#: collapsing them loses the distinction the rule exists to draw:
+#:
+#: - THE TEST WAS RUN AND THE READING FAILED IT. The code is then one of
+#:   :data:`WIDTH_CRITERIA`, and the decline is an APPLICATION of the rule - the
+#:   rule was applied and its answer was no.
+#: - THE TEST WAS NEVER RUN, or the reason offered is not one the rule uses. The
+#:   code is then one of :data:`WIDTH_NON_CRITERIA`, and the decline is an
+#:   EXCEPTION to the rule.
+#:
+#: Every entry today is in the second state. The first is the state CS-456 will
+#: produce when it measures the family. Admitting both vocabularies is what
+#: makes :data:`WIDTH_RULE_EXCEPTIONS` a filter that can fail on a mis-classified
+#: entry rather than a restatement of this table's key set - narrowing the
+#: vocabulary to the non-criteria alone would make that derivation vacuous by
+#: construction, which is the set-compared-with-itself defect one layer along.
 #:
 #: THE PROSE POINTS AT :data:`UNMEASURED_PAYLOAD_REGIONS` AND RESTATES NOTHING
-#: FROM IT. Every key here also has an entry there, and that table owns the
-#: populations. A figure copied across would be a restated measurement, which
-#: is the drift ``CLAUDE.md`` section 4 forbids - so these entries carry no
-#: figure at all and point instead.
+#: FROM IT. Every key here also has an entry there, that table owns the
+#: populations, and each code below is chosen from what that entry ALREADY
+#: RECORDS rather than from a fresh judgement made here. A figure copied across
+#: would be a restated measurement, which is the drift ``CLAUDE.md`` section 4
+#: forbids - so these entries carry no figure at all and point instead.
 #:
 #: IT IS ABOUT VALUE READINGS AND NOT ABOUT TAG-EXTRA WIDTHS, which matters
 #: because one type word can carry both. `ArrayProperty` appears here AND in
@@ -2584,8 +2614,9 @@ DECLINED_VALUE_READINGS: Final[Mapping[str, tuple[str, str]]] = MappingProxyType
             "consumes its declared size exactly on the arrays whose inner word "
             "this module measures - the ArrayProperty entry of "
             "UNMEASURED_PAYLOAD_REGIONS owns that population - but at the "
-            "SHIPPED ALIGNMENT ONLY, never under a rotation. Consumption at one "
-            "alignment is not discrimination, so the rule declines it. What "
+            "SHIPPED ALIGNMENT ONLY, never under a rotation - which is what "
+            "that entry records and where this code comes from. Consumption at "
+            "one alignment is not discrimination, so the rule declines it. What "
             "would settle it is a control showing a wrong reading costs "
             "something, not a larger sample",
         ),
@@ -2596,38 +2627,40 @@ DECLINED_VALUE_READINGS: Final[Mapping[str, tuple[str, str]]] = MappingProxyType
             "application of it. Whether a wrong width for it is discriminated "
             "at all is UNMEASURED. Recorded honestly rather than re-justified: "
             "the decline may well be right, and the reason given for it is not. "
-            "The population and the one declared size it is seen at are owned "
-            "by the TextProperty entry of UNMEASURED_PAYLOAD_REGIONS",
-        ),
-        "MapProperty": (
-            REASON_SAMPLE_SIZE,
-            "declined on SAMPLE SIZE, the same non-criterion TextProperty is "
-            "declined on, so it is an exception to the rule rather than an "
-            "application of it. Its tag carrying two extra type words rather "
-            "than one IS measured; its key and value element framing is not, "
-            "and no discrimination test has been put to that framing. The "
-            "population is owned by the MapProperty entry of "
-            "UNMEASURED_PAYLOAD_REGIONS",
+            "The code comes from the TextProperty entry of "
+            "UNMEASURED_PAYLOAD_REGIONS, which owns the population and the one "
+            "declared size it is seen at and records that the instances present "
+            "cannot distinguish the cases of a tagged union",
         ),
         "SetProperty": (
             REASON_SAMPLE_SIZE,
             "declined on SAMPLE SIZE, so an exception to the rule rather than "
             "an application of it. It poses the element-framing question "
             "ArrayProperty poses, over a population the SetProperty entry of "
-            "UNMEASURED_PAYLOAD_REGIONS owns and describes as far too small to "
-            "separate the answers",
+            "UNMEASURED_PAYLOAD_REGIONS owns and records as far too small to "
+            "separate the answers - which is where this code comes from",
+        ),
+        "MapProperty": (
+            REASON_NO_DISCRIMINATION_TEST,
+            "declined because no discrimination test has been put to it, which "
+            "is a reason the rule does not admit, so this is an exception to "
+            "the rule rather than an application of it. SAMPLE SIZE IS NOT THE "
+            "OBJECTION HERE: the MapProperty entry of UNMEASURED_PAYLOAD_REGIONS "
+            "records the tag carrying two extra type words rather than one as "
+            "MEASURED and the key and value element framing as not, and says "
+            "nothing about the population being too small. Recording it under "
+            "sample size would read as a measurement of a population that no "
+            "one has taken",
         ),
         "StructProperty": (
-            REASON_SAMPLE_SIZE,
-            "declined under a non-criterion of the rule, and this code is the "
-            "closer fit of the two the rule disclaims rather than a good fit. "
-            "SIZE IS NOT WHAT IS MISSING HERE and the code should be read with "
-            "that caveat: the StructProperty entry of UNMEASURED_PAYLOAD_REGIONS "
-            "owns the population and calls it the largest opaque region this "
-            "module names. What is missing is a discrimination test against the "
-            "interior, which is what the rule would need to admit a reading. "
-            "Recorded this way rather than re-justified, so a later slice sees "
-            "both that the decline stands and that its stated reason is poor",
+            REASON_NO_DISCRIMINATION_TEST,
+            "declined because no discrimination test has been put to it, so an "
+            "exception to the rule rather than an application of it. The "
+            "StructProperty entry of UNMEASURED_PAYLOAD_REGIONS records that "
+            "the tag's declared size DOES bound the region, so it is stepped "
+            "over exactly and costs no synchronisation, and that THE INTERIOR "
+            "is what is unmeasured. That is what this code names. What would "
+            "settle it is a control against the interior framing",
         ),
     }
 )
@@ -2636,6 +2669,14 @@ DECLINED_VALUE_READINGS: Final[Mapping[str, tuple[str, str]]] = MappingProxyType
 #: DERIVED from the codes above rather than transcribed. A written-out set would
 #: put the same classification in two places, and the copy is the one that goes
 #: stale while still reading as authoritative.
+#:
+#: IT IS A PROPER SUBSET IN PRINCIPLE, WHICH IS WHAT MAKES IT A FILTER. A
+#: decline carrying a code from :data:`WIDTH_CRITERIA` is an application of the
+#: rule and is absent from this set - see the two states recorded above. That
+#: every entry lands here TODAY is a fact about today's table, not a property of
+#: the derivation, and it is exactly why this is computed rather than written:
+#: the first decline recorded against an admitted criterion drops out of this
+#: set with nothing edited here.
 WIDTH_RULE_EXCEPTIONS: Final = frozenset(
     word for word, (code, _) in DECLINED_VALUE_READINGS.items() if code in WIDTH_NON_CRITERIA
 )
