@@ -4,9 +4,16 @@ WHAT THIS MODULE GRADES
 -------------------------
 ``clockspeed/save/objects.py`` states one rule for when a width may ship, names
 the criteria that rule admits, names the reasons it does NOT admit, records the
-value readings it declines against one of those reasons, and derives its
-exception set from those declines. This module asserts that those structures
-agree with one another and with the rule's own text.
+value readings it declines against a code from either half, and derives its
+exception set as the preimage of the half it does not admit. This module
+asserts that those structures agree with one another and with the rule's text.
+
+THE TWO HALVES ARE BOTH AVAILABLE TO A DECLINE, DELIBERATELY. A decline citing
+an ADMITTED criterion means the discrimination test ran and the width failed
+it; a decline citing a reason the rule disclaims means it was never tested.
+Only the second is an exception to the rule. Were the criteria half closed to
+declines, the exception set would be the whole key set by construction and the
+assertion over it would compare a set with itself.
 
 WHY IT READS SHIPPED DATA AND ITS OWN SOURCE, AND NOTHING ELSE
 ----------------------------------------------------------------
@@ -271,6 +278,13 @@ def test_every_decline_carries_a_reason_code_from_the_closed_set() -> None:
     declined = objects.DECLINED_VALUE_READINGS
     assert declined, "DECLINED_VALUE_READINGS is empty, so this test grades nothing"
 
+    # THE CLOSED SET IS BOTH HALVES, and the criteria half is not an oversight.
+    # A decline naming an ADMITTED criterion is a real and different state: the
+    # discrimination test was run and the width failed it. Restricting declines
+    # to the non-criteria would make the exception set below the whole key set
+    # by construction, which is a set compared with itself wearing two names.
+    recognised = objects.WIDTH_CRITERIA | objects.WIDTH_NON_CRITERIA
+
     for word, entry in sorted(declined.items()):
         assert isinstance(entry, tuple), (
             f"the decline for {word} is not a reason code beside its prose. A "
@@ -281,10 +295,10 @@ def test_every_decline_carries_a_reason_code_from_the_closed_set() -> None:
             f"the decline for {word} does not carry exactly a reason code and its prose"
         )
         code, prose = entry
-        assert code in objects.WIDTH_NON_CRITERIA, (
-            f"the decline for {word} names {code!r}, which is not one of the "
-            f"reasons the rule recognises. Inventing a code per entry is "
-            f"deciding per entry with extra steps"
+        assert code in recognised, (
+            f"the decline for {word} names {code!r}, which is in neither "
+            f"WIDTH_CRITERIA nor WIDTH_NON_CRITERIA. Inventing a code per entry "
+            f"is deciding per entry with extra steps"
         )
         assert prose.strip(), (
             f"the decline for {word} carries a reason code and no prose, so a "
@@ -292,20 +306,36 @@ def test_every_decline_carries_a_reason_code_from_the_closed_set() -> None:
         )
 
 
+def test_every_declined_word_is_recorded_as_unmeasured_by_the_region_table() -> None:
+    """CS-422 - a decline names a word this module already records as opaque."""
+    declined = objects.DECLINED_VALUE_READINGS
+    regions = objects.UNMEASURED_PAYLOAD_REGIONS
+    assert declined, "DECLINED_VALUE_READINGS is empty, so this test grades nothing"
+
+    # THE OTHER DIRECTION FROM THE DERIVED-POPULATION TEST, and derived in its
+    # own right. That test asks whether a word needing a decline has one; this
+    # asks whether a word carrying a decline is one the module records as
+    # unmeasured at all. It reaches the declined words that ship NO tag-extra
+    # width, which the derived population cannot see - without naming one of
+    # them here, since a name here is the hand-authored scope being removed.
+    unrecorded = sorted(frozenset(declined) - frozenset(regions))
+    assert not unrecorded, (
+        f"these words carry a decline under the width rule and no entry in "
+        f"UNMEASURED_PAYLOAD_REGIONS: {unrecorded}. A decline says the value "
+        f"reading was not settled, and the region table is where this module "
+        f"records what is still opaque, so a decline that table has never heard "
+        f"of is one of the two tables being wrong"
+    )
+
+
 def test_the_exception_set_is_derived_from_the_codes() -> None:
-    """CS-422 - the exception set is a union of code classes, never transcribed."""
+    """CS-422 - the exception set is the preimage of the non-criteria, not a copy."""
     declined = objects.DECLINED_VALUE_READINGS
     exceptions = objects.WIDTH_RULE_EXCEPTIONS
     assert declined, "DECLINED_VALUE_READINGS is empty, so this test grades nothing"
     assert exceptions, (
         "WIDTH_RULE_EXCEPTIONS is empty. The rule records its exceptions "
         "against itself, and an empty set says it has none"
-    )
-
-    stray = sorted(frozenset(exceptions) - frozenset(declined))
-    assert not stray, (
-        f"these words are exceptions to the rule without being declines under "
-        f"it: {stray}. An exception with no decline behind it was transcribed"
     )
 
     # Refuse a shape this test cannot read, rather than unpacking it and
@@ -322,22 +352,24 @@ def test_the_exception_set_is_derived_from_the_codes() -> None:
         f"no reason code can be read off them and the derivation below is undefined"
     )
 
-    # Which reason codes mark an exception is the shipping module's decision,
-    # so it is READ rather than pinned here. What is asserted is that the set
-    # is CLOSED over those codes: every decline sharing a code with an
-    # exception is itself an exception. A transcribed set drifts the moment a
-    # decline is added and this is what refuses that.
-    exception_codes = {code for word, (code, _) in declined.items() if word in exceptions}
-    assert exception_codes <= objects.WIDTH_NON_CRITERIA, (
-        f"an exception is filed under a code the rule does not list as a "
-        f"non-criterion: {sorted(exception_codes - objects.WIDTH_NON_CRITERIA)}"
+    # THE RULE, PINNED. An exception is a decline made on a reason the rule
+    # does NOT admit. A decline made on an ADMITTED criterion is the rule
+    # APPLYING - the discrimination test was run and the width failed it - so
+    # it is a decline and not an exception, and this preimage drops it.
+    #
+    # That distinction is what stops this assertion comparing a set with
+    # itself. While every code a decline could carry was a non-criterion, the
+    # preimage was the whole key set by construction and no edit to the codes
+    # could redden it.
+    recomputed = frozenset(
+        word for word, (code, _) in declined.items() if code in objects.WIDTH_NON_CRITERIA
     )
-
-    recomputed = frozenset(word for word, (code, _) in declined.items() if code in exception_codes)
     assert frozenset(exceptions) == recomputed, (
-        f"the exception set is not the set its own reason codes produce. "
-        f"Recorded and not derivable: {sorted(frozenset(exceptions) - recomputed)}. "
-        f"Derivable and not recorded: {sorted(recomputed - frozenset(exceptions))}"
+        f"the exception set is not the preimage of WIDTH_NON_CRITERIA over the "
+        f"declines. Recorded as an exception and not derivable as one: "
+        f"{sorted(frozenset(exceptions) - recomputed)}. Derivable and not "
+        f"recorded: {sorted(recomputed - frozenset(exceptions))}. A set that "
+        f"has to be edited alongside the codes is transcribed, not derived"
     )
 
     measured = frozenset(exceptions) & objects.MEASURED_VALUE_TYPES
