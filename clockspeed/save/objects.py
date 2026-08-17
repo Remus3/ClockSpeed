@@ -2462,9 +2462,9 @@ GUID_BYTES: Final = 16
 #   tests/save/test_value_anchoring.py::test_the_shipped_candidate_set_
 #   is_what_the_value_oracles_cannot_separate derives the set from those oracles
 #   at runtime and compares it with the shipped literal, and
-#   tests/save/test_value_anchoring.py::test_the_declared_size_field_is_
-#   read_in_exactly_one_of_its_twenty_four_byte_orders is the DIFFERENT-FIELD
-#   result whose boundary is written down beside that literal.
+#   tests/save/test_value_anchoring.py::test_the_declared_size_field_census_
+#   narrows_the_byte_orders_to_two is the DIFFERENT-FIELD narrowing whose
+#   boundary is written down beside that literal.
 #
 #   THE DECLARED EXTENT is the other half of what a fixed-width read may touch,
 #   and it is a different question from which order the bytes inside it are in.
