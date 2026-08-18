@@ -110,98 +110,6 @@ the line becomes a pointer.
   behind. **Do NOT close it with a band narrowed until it separates today's corpus** - that is the
   `_JOIN_WORD_FLOOR` shape CS-432 exists to remove. After it, CS-471 is tier 1 and privacy-adjacent.
 
-## Session 15 - 2026-08-16 - CS-454 built, merged, and REFUTED on clause 1; the fence it shipped is refuted too
-
-- **Shipped: NOTHING CLOSED. CS-454 STAYS OPEN** with a ledger record declaring the non-closure by
-  name. Clause 2 MET, clause 3 MET, **clause 1 NOT MET**. The code stays - it is a real improvement.
-  Filed CS-462, CS-464, CS-465, CS-466, CS-467, CS-468. Suite 2007 -> **2018 passed, 3 skipped,
-  exit 0**, serial, baseline measured by the merger at `bb7a236` in a real checkout BEFORE merging.
-  Two commits, `60068a9` and `02523f9`, merged at `9c30fd9` and `758888d`. Detail in `docs/LEDGER.md`.
-
-- **THE HEADLINE IS THAT THE FIX WORKS AND THE ITEM STILL DOES NOT CLOSE.** The relocated-path form
-  is closed in all four resolution states, the 8.3 form is closed, and three independent vacuity
-  reasons were removed from the controls. Then an independent adversary found a leak the merger, the
-  planner and the builder had all missed, and it is in the NEW design rather than pre-existing.
-
-- **THE JUNCTION DEFECT, and it is the session's real result.** `_remember_save_root` stores
-  `_path_forms(str(path))` and never resolves; `clockspeed/save/workdir.py`'s `_resolved()`
-  deliberately DOES resolve, and its docstring says so. So whenever the save root is reached through
-  a junction the two halves of the same package cannot agree on spelling, no anchor matches, and a
-  hex account directory renders WHOLE through the production refusal in `_refuse_if_forbidden`.
-  Reproduced by the merger with a real `mklink /J`, all self-checks passing first. Junctioning a save
-  folder onto another drive is the ordinary way to relocate one.
-
-- **PLACEHOLDER INJECTION DEFEATS THE POSITIONAL RULE, and it fires WITH THE MARKER PRESENT.** The
-  environment pass runs first and rewrites a matching needle to a token, injecting `<` into the
-  account segment; `_PATH_SEGMENT_CLASS` excludes `<>` so position cannot match, and the remembered
-  name pass then hunts a literal the text no longer contains. `USERNAME=Ada`, account directory
-  `Ada4f3a...` -> 30 of 33 characters in plaintext. Pre-existing, unchanged from `bb7a236`.
-  **RULED: a pre-existing instance of the exact defect an item names does NOT excuse that item**, and
-  the reason is in CS-454's own detail entry, which opens by calling the leak pre-existing.
-
-- **THE FENCE THIS SESSION SHIPPED IS ITSELF REFUTED, filed as CS-465.** The redact-cycle pin walks
-  the transitive closure to unbounded DEPTH but grades against `RESOLVER_NAMES`, `locate`'s PUBLIC
-  surface, while four of the seven hops in the cycle are private. Confirmed by the merger with the
-  fence's own helper: a private-hop plant closes the cycle and the fence reports GREEN while the same
-  tree raises `RecursionError`. Its own comment says it reads the closure precisely because "a single
-  private wrapper would defeat a body-only check".
-
-- **Surprises**, each measured:
-  1. **A NON-DIGIT FIXTURE ALREADY EXISTED AND PROVED NOTHING.** `ACCOUNT_DIR_SHAPES` shipped four
-     shapes, three already non-digit - but every path carried the marker, so position caught all
-     four. Neutering the DIGIT BACKSTOP left **0 of 4** leaking; neutering POSITION left 3 of 4. So
-     clause 2 read naively was ALREADY SATISFIED while the leak was live. A control must be a
-     CONJUNCTION: non-digit AND a layout where position cannot fire AND a named mutation.
-  2. **THE CONTROLS WERE CARRIED BY A NEIGHBOUR TEST.** `test_workdir.py` had no reset of
-     `_RESOLVED_ACCOUNT_NAMES`; one test seeded the needle for the whole process. Measured ON THE
-     PRE-FIX TREE at `bb7a236` and quoted here only as session history - alone 1 failed, full module
-     73 passed. **Neither figure reproduces at `758888d` and neither should be carried forward.**
-     Under `-n auto` that made it vacuous NONDETERMINISTICALLY, which is the shape that survives.
-  3. **THE NAIVE IMPLEMENTATION WOULD HAVE BEEN INERT ON THE ORDINARY MACHINE.** Appending the new
-     pass after the env pass leaks everything, because the env pass has already rewritten the path
-     out from under the needle. Live only in the relocated case - the inverse of the filed one. The
-     builder demonstrated the counterfactual rather than asserting the three-form design was needed.
-  4. **THE MERGER CITED A VACUOUS CONTROL.** "The recursion does not occur even with a collector
-     wired through `_override`" tests only half the counterfactual: with the shipped code calling no
-     resolver, wiring a collector cannot recurse, trivially. The adjudicator built the real one and
-     got `RecursionError`. The conclusion held; the evidence did not.
-  5. **THE MERGER'S OWN FOUR-STATE MATRIX WAS THE COMMON-MODE RISK.** It varies override,
-     digit-neighbour and resolution order and varies NOTHING about link indirection, username
-     collision or whitespace - so three surviving channels are invisible to it by construction, and
-     the junction defect sits exactly in that blind spot. Every agent inherited those blind spots.
-  6. **BOTH BUILDERS LEFT THEIR WORK UNCOMMITTED** on branches whose `git diff` against the base was
-     EMPTY. Merging the branch names as reported would have merged nothing.
-
-- **Failed paths - do not retry:**
-  - **Reading "use a NON-digit fixture" as sufficient.** Three of four shipped shapes were already
-    non-digit and the leak was live.
-  - **Widening `_PATH_SEGMENT_CLASS` to close the whitespace tail.** Three variants measured, all
-    worse; one eats the diagnostic prose, one leaves the terminal segment fully intact.
-  - **Calling a resolver from inside `redact()`.** Latent infinite recursion that CS-443 detonates.
-  - **Feeding `_RESOLVED_ACCOUNT_NAMES` from every save-root subdirectory.** Breaks a shipped
-    assertion against the game's own `common` directory.
-  - **Trusting a branch name from a builder.** Check the diff against the base before merging.
-
-- **THE SAVE LIBRARY GREW THIS SESSION AND CS-G05 MOVED, THOUGH NOT ALL THE WAY.** The operator
-  played the pinned world forward and saved. The version-60 pair went from two files that were
-  byte-identical over the measured region - ONE observation - to FIVE files of differing sizes
-  where 10 of 10 pairs diverge. **BUT the earliest divergence is at offset 12 and the latest at
-  offset 30, which is header metadata, so what is proven is that they are distinct FILES and NOT
-  that the property payload is independently sampled.** The merger's first probe treated five
-  digests as five observations, which is precisely the file-count-as-independence-count error
-  CS-G05's own entry warns about; a second probe caught it. Full status in `docs/GATED.md`.
-  The PREP harness still passes, which is correct - it pins a negative.
-
-- **Next action: OPERATOR-DIRECTED 2026-08-16 - TAKE CS-421 AND CS-422, NOT CS-454 AND NOT CS-465.**
-  The reason is the critical path to a usable surface: `CS-413`'s own entry names CS-420, CS-421 and
-  CS-422 as the gap between "the values were produced and are self-consistent with our own writer"
-  and "correctly decoded". CS-420 closed in session 14, so CS-421 and CS-422 are the last two, and
-  CS-413 is the phase-4 depth gate that CS-400, then CS-500, then the dashboard all sit behind.
-  `IntProperty` and `FloatProperty` are inventory counts and clock speeds, which is exactly what
-  pillar 3 reads, so this is the audit's own evidence base rather than abstract rigour.
-  **CS-454 and CS-465 STAY OPEN and are deferred, not dropped** - CS-454 has four named blockers in
-  its ROADMAP entry and CS-465 is this session's own porous fence.
-
 ## Session 17 - 2026-08-17 - CS-469 and CS-475 CLOSE; CS-421 stays open on the type nobody scored
 
 - **Shipped: CS-469 CLOSED, CS-475 CLOSED.** CS-421 STAYS OPEN with a ledger record declaring the
@@ -280,3 +188,104 @@ the line becomes a pointer.
   call `_assert_library_reach_is_declared`. Measured this session: 8 of 16 modules under
   `tests/save` reach the library and 5 declare.
 
+## Session 18 - 2026-08-18 - CS-476 closes after TWO refutations broke it; CS-421's population derived
+
+- **Shipped: CS-476 CLOSED.** CS-421 STAYS OPEN, with its deciding population DERIVED this session
+  and recorded on its ROADMAP entry. Suite 2065 -> **2073 passed, 3 skipped, exit 0**, serial AND
+  under `-n auto`, baseline re-measured by me at `ed25c19` before any work. Drift guard **CLEAN 9/9**,
+  doc budget **PASS measured 16**, mypy clean 28 and 84, ruff clean. Detail in `docs/LEDGER.md`.
+
+- **THE HEADLINE IS THAT THE GUARD WAS REFUTED TWICE, BY TWO DIFFERENT AGENTS, AND THE SECOND
+  REFUTATION LANDED AFTER THE FIRST REPAIR WAS BELIEVED FINAL.** Six routes shipped an unbacked
+  byte-order claim green. THREE were pre-state holes at 1032. **THREE WERE HOLES IN THE GUARD
+  ITSELF** - the swallowed one-byte set member, the vocabulary swap, and a FOURTH STATUS WORD - all
+  green with the guard already present. Do not report CS-476 as having caught six things; it caught
+  three, and independent passes caught the three it shipped.
+
+- **THE FOURTH-WORD ROUTE IS THE ONE WORTH REMEMBERING.** Pinning three status spellings does not
+  BOUND the vocabulary. Adding `settled_uniquely` for `UInt32Property` - a type no oracle scores -
+  ships a claim STRONGER than the over-claim CS-476 names, and every graded direction passes
+  VACUOUSLY, because they all select by the one anchored symbol. `BYTE_ORDER_STATUSES` cannot close
+  it: hand-written, same file, extended by the same edit. The mapping's VALUES are now bounded to
+  three literals. **CS-421's route (b) will want a new word and WILL redden this** - that is the
+  designed behaviour, not a bug: add the word together with whatever grades it.
+
+- **CS-421's REMAINING HALF IS DECIDED BY A MEASUREMENT, AND IT IS ROUTE (b).** Derived from the
+  library this session: `UInt32Property` yields **9 values carrying ONE distinct stored byte
+  pattern**. The 9 matches the archived session-14 figure and that is a COINCIDENCE OF
+  RE-MEASUREMENT, not a carry-forward. Every value has a ZERO HIGH BYTE UNDER BOTH READINGS, so the
+  shipped int32 magnitude oracle - a CONJUNCTION needing a MINORITY under the swapped reading - is
+  provably VACUOUS on this type's own population. That is threshold-free and it is what the status
+  word should record. **Rest the close on the ORACLE being vacuous, never on the population being
+  SMALL** - one pattern is not invariant under the group, so an oracle over it still returns a
+  number, and "small population" is the `_JOIN_WORD_FLOOR` shape CS-432 exists to delete.
+
+- **Surprises**, each measured:
+  1. **A SUBAGENT'S REFUTATION WAS ITSELF WRONG AND I CAUGHT IT BY RE-MEASURING.** The second pass
+     reported that nothing grades the BALANCE of the two byte probe pairs. An unbalanced pair
+     reddens the neutering control, which requires the derived population to be EMPTY with the
+     tallies dead. Recorded in the module and the ledger: an unchecked refutation is as bad as an
+     unchecked claim.
+  2. **I SHIPPED AN UNMEASURED "MEASURED" SENTENCE INTO THE LEDGER AND CAUGHT IT BEFORE COMMIT.**
+     The entry said five routes were green BEFORE the module; I had measured four. Measuring the
+     fifth exposed a worse error in the same sentence - two of the routes were green WITH the
+     module present, so they were guard holes rather than pre-state holes.
+  3. **MY OWN DERIVATION READ TWO OF THREE ORACLES AND CLAIMED THREE.** Both probe bytes had EQUAL
+     interior bytes, which is exactly the population coarseness declines, and an early return ran
+     the byte channel only for words the value channel had already declined. Zero coarseness calls.
+     Every other test stayed green because the word coarseness scores is scored by magnitude too -
+     right answer, wrong reason. A CALL COUNT closed it; a sentence would not have.
+  4. **A HAND-WRITTEN LABEL SET INSIDE THE GUARD LET THE GUARD DISARM ITSELF.** Two lines - revert
+     the probe pairs, drop one label - restored the exact previously-refuted state, suite green. The
+     set is now derived by AST from the shipped dispatch bodies.
+  5. **I CORRUPTED A MEASUREMENT BY DISPATCHING TWO MUTATING AGENTS AT ONE CHECKOUT.** One
+     overwrote the other's in-flight mutant. BOTH agents detected it independently and neither
+     reported the bad number; one rebuilt in a licensed clone. **RULE: concurrent agents may share a
+     checkout only if NONE of them writes to it.** Every later pass ran in `git clone --no-hardlinks`
+     with the live uncommitted files overlaid, licensed by reproducing the live count first.
+  6. **A `git archive` REPLICA IS NOT A VALID MEASUREMENT TREE HERE** - a missing `.git` produces
+     unrelated failures. Clone, then license the clone.
+  7. **THE CITATION BLOCK MADE THE PRE-STATE RECIPE SELF-INVALIDATING.** `objects.py` now cites the
+     new module by path, so moving the module aside to re-derive the old green reddens the
+     package-wide citation resolver and the phase-4 gate behind it. Those failures are NOT the
+     byte-order question. Take a pre-state at a commit before the block, or delete both together.
+
+- **Failed paths - do not retry:**
+  - **Pinning status spellings and calling the vocabulary closed.** It is a swap detector; it does
+    not bound the value set.
+  - **A hand-written label set inside a guard.** Derive it from the thing under test.
+  - **A cheap `or` that short-circuits a probe channel.** It ran the unreached half only where it
+    could not fire.
+  - **Two agents mutating one checkout.**
+  - **Taking a subagent refutation at face value.** One finding of three did not survive.
+
+- **A THIRD REFUTATION LANDED AFTER THE SECOND REPAIR AND FOUND THREE MORE, TWO NOW CLOSED.** The
+  fatal one used NO new status word, so nothing that grades words could fire: `vacuous_one_byte`
+  against `StrProperty` - length-prefixed, carrying an int32 length - retires a byte-order question
+  with zero evidence, green at `tests/save` 1040. **THE HOLE WAS MINE:** my key assertion admitted
+  any `MEASURED_VALUE_TYPES` word. Keys are now bounded EXACTLY to the fixed-width table plus the
+  one tag-carried one-byte value. Also closed: `BYTE_ORDER_STATUSES` is exported and was unbounded
+  even though the mapping's VALUES were bounded - two artifacts, one bound.
+
+- **THE REAL PATTERN, AND IT IS THE SESSION'S MOST TRANSFERABLE FINDING: EACH REPAIR MOVED THE
+  HAND-WRITTEN SEAM UP ONE LEVEL RATHER THAN REMOVING IT.** Label set -> site list. The reach
+  control's oracle NAMES are derived from the dispatch bodies, but WHICH BODIES is still a
+  hand-written tuple, so two line deletions inside that one test module restore the
+  zero-coarseness-call state, and an ordinary extract-method refactor hides a tally from the scan
+  while every control passes. Filed as **CS-477**, with the third finding - `_PROBE_VALUE_PAIRS` is
+  graded by nothing and 3 of its 5 shapes are inert. **A fix that names a population IS the defect.**
+
+- **THREE REFUTATIONS, THREE SUCCESSES, AND THE COUNT IS THE POINT.** Nine routes shipped an
+  unbacked byte-order claim green across the session. THREE were pre-state holes; **SIX were holes
+  in the guard itself**, every one found by an independent pass rather than by the author. Do not
+  record CS-476 as a clean build. The third pass also independently RE-MEASURED and CONFIRMED the
+  correction that the probe-pair balance property IS graded, so that stands at two measurements.
+
+- **Next action: CS-421's remaining half, route (b)**, using the derived census above. It needs a new
+  status word plus a library-backed test deriving the vacuity, and adding that word WILL redden
+  `test_the_status_words_are_pinned_and_distinct` until it is added to `_GRADED_STATUS_WORDS` with
+  its grading - by design. `objects.py` cannot read the library without breaking the seam, so the
+  module ships the word and the test derives the verdict, which is the CS-476 pattern. On a machine
+  with no game that test skips - CS-426's gap. After it, **CS-471** (tier 1, privacy-adjacent);
+  note `tests/save/test_byte_order_status.py` does NOT enlarge it - measured library-free by an
+  audit hook - but it DOES enlarge **CS-473** by 24 unbacked quantified sentences.

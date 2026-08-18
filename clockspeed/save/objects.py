@@ -2733,10 +2733,44 @@ BYTE_ORDER_STATUSES: Final = frozenset(
 #: travels with the number.
 _SINGLE_BYTE_WIDTH: Final = 1
 
-#: The fixed-width types a shipped byte-order oracle actually scores. Both
+#: The fixed-width types a shipped byte-order oracle actually scores. The
 #: oracles are cited in the commentary block above ``_TAG_EXTRA_STRINGS``. A
 #: type outside this set and wider than one byte has been scored by nothing,
 #: which is what :data:`BYTE_ORDER_UNSCORED` records.
+#:
+#: THIS SET IS HAND-WRITTEN AND IT IS GRADED - CS-476. It is written here rather
+#: than derived because the derivation lives on the other side of the seam: what
+#: a type word is scored by is a fact about the test oracles, and this module
+#: does not read them. So the tie is asserted from the test side instead, by
+#: probing the oracles for which words their judgement actually turns on:
+#: tests/save/test_byte_order_status.py::test_no_type_is_marked_anchored_that_no_oracle_scores
+#: is the over-claim direction and
+#: tests/save/test_byte_order_status.py::test_no_type_an_oracle_scores_is_left_recorded_as_unscored
+#: is the other.
+#:
+#: THIS SET IS ALSO GRADED DIRECTLY AND NOT ONLY THROUGH WHAT IT PRODUCES, by
+#: tests/save/test_byte_order_status.py::test_the_hand_written_anchored_set_holds_no_unscored_type
+#: - because grading the mapping alone does not reach all of it. A ONE-BYTE word
+#: added here is swallowed by the width branch in :func:`_byte_order_status`,
+#: which answers first, so it never appears in the mapping and every test over
+#: the mapping stays green while this set says something false.
+#:
+#: WHAT WAS MEASURED, each with a REAL SOURCE EDIT - the mapping below is a
+#: comprehension evaluated at import, so an in-process patch of this set leaves
+#: it stale and grades a value nothing shipped. Before those tests existed:
+#: adding a wider word here that no oracle scores left the save suite green;
+#: deleting a word from the mapping below left it green; adding a one-byte word
+#: here left it green; and exchanging the string values of BYTE_ORDER_VACUOUS
+#: and BYTE_ORDER_ANCHORED_NOT_UNIQUE left it green while the shipped data
+#: claimed an oracle backs two one-byte types.
+#:
+#: RE-DERIVING THAT PRE-STATE NEEDS THIS COMMENT BLOCK REMOVED TOO, and the
+#: recipe is written down because it is not obvious. The citations above name a
+#: test module by path, so moving that module aside to reproduce the old green
+#: turns the package-wide citation resolver RED on a dead citation, plus the
+#: phase-4 gate that runs behind it. Those two failures are not the byte-order
+#: question and must not be read as it. Take the measurement at a commit before
+#: this block, or delete this block along with the module.
 _BYTE_ORDER_ANCHORED_VALUES: Final = frozenset({"IntProperty", "FloatProperty"})
 
 

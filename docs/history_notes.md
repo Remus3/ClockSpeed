@@ -1573,3 +1573,105 @@ Aged out when session 15 landed and `WAKEUP_NOTES.md` keeps only the last three 
   from INDEPENDENT sources (that half is filed as CS-458).
 
 Relocated from `WAKEUP_NOTES.md`, newest first. Never deleted.
+
+## Relocated from ROADMAP.md on 2026-08-18 (session 18)
+
+### CS-421 - status history
+
+The superseded STATUS blocks from CS-421's `ROADMAP.md` entry, moved here verbatim when that entry alone reached 7841 bytes and carried the file over its WARN budget. The item is OPEN; its current status stays in `ROADMAP.md`. Each block below records at least one sentence that a later session MEASURED FALSE, which is why they are relocated rather than dropped - a reader who does not know which claims were already refuted will rewrite them.
+
+**STATUS 2026-08-16 (session 14): ADJUDICATED AND REFUTED. THE INT32 HALF OF CLAUSE 3 DOES NOT HOLD.** Clauses 1 and 2 are MET and are not in question. Clause 3 is REFUTED for `IntProperty`: displacing its value start by +4, so the decode reads the next tag's name-length prefix and never touches the int32, leaves the oracle GREEN at 75136 of 75136 against the correct read's 70669, and only synthetic fixtures notice. The as-read majority survives at -2, -1, +2, +3 and +4, so **a rotation control testing only plus or minus one would pass and prove nothing.** The `FloatProperty` half is NOT refuted - it collapses at every non-zero delta, and that asymmetry is a finding. Both cited mutants reproduced digit for digit and the non-circularity defence survived three attacks, so what failed is the oracle's anchoring, not its independence. **REMAINING WORK IS SMALLER THAN IT LOOKS:** `Int8Property` and `BoolProperty` are one byte, so byte order is VACUOUS for both rather than open, leaving `UInt32Property` as the only live 4-byte question - but the shipped data does not distinguish vacuous from open. Full record in `docs/LEDGER.md` under the 2026-08-16 CS-421 refutation entry. **STATUS 2026-08-17 (session 16): THE ANCHORING HALF IS FIXED AND CLAUSE 3 IS STILL NOT MET.** `tests/save/test_value_anchoring.py` ships the anchor the old oracle lacked - 0 mismatches shipped, 75136 of 75136 under the +4 displacement that leaves the old oracle green - and `objects.VALUE_BYTE_ORDER_STATUS` now derives VACUOUS from a one-byte width so the shipped data no longer reads as three open questions where there is one. **TWO CORRECTIONS TO THE STATUS ABOVE, both measured.** First, "the as-read majority survives at -2, -1, +2, +3 and +4" is true of the MAJORITY half only; the oracle is a conjunction and is RED at -2, -1, +2 and +3, GREEN only at +4. That relation is now derived by a test rather than written down. Second, **THE QUESTION IS NOT DATA-BLOCKED AND MUST NOT BE RECORDED AS SUCH** - 17 of 75136 int32 values carry differing middle bytes but 30304 of 31318 FLOAT32 values do, so the library holds the evidence and the shipped float oracle's magnitude band is too wide to use it. The route out is CS-469. **STATUS 2026-08-17 (session 17): THE CANDIDATE SET NO LONGER LEAVES A CHOICE AND CLAUSE 3 IS STILL NOT MET.** CS-469 closed. The sentence this replaces - that two candidates stand, the identity and the middle swap - is FALSE from that work forward and must not be carried into any later entry; what survives the value oracles is owned by `objects.BYTE_ORDER_SURVIVING_CANDIDATES` and derived from the library by `tests/save/test_value_anchoring.py::test_the_shipped_candidate_set_is_what_the_value_oracles_cannot_separate`, which asserts the derivation against the shipped literal in the direction that reddens when the constant is narrowed without the evidence narrowing. Read the set there rather than from a count here. **WHAT REMAINS IS NOT THE ORDERING, IT IS THE TYPE NOBODY SCORED.** The narrowing is JOINT over `IntProperty` and `FloatProperty` values alone - the census skips every other type word - so `UInt32Property`, a four-byte member of `MEASURED_VALUE_TYPES` that the same reader decodes and ships, is scored by nothing and `objects.VALUE_BYTE_ORDER_STATUS` records it `unscored`. That is the live 4-byte question the session-14 refutation named under remaining work and no session has taken. Carrying the joint result across to it needs the premise that this format uses one byte order for every four-byte field, which `objects.py` refuses IN WRITING for the declared size field in the same docstring block. **AND THE PER-TYPE STATUS IS UNGRADED ABOVE ONE BYTE:** measured 2026-08-17 by the adjudicator, marking `UInt32Property` `anchored_not_unique` - claiming an oracle backs a type nothing scores - leaves the whole save suite green, because `_BYTE_ORDER_ANCHORED_VALUES` is a hand-written pair no test derives from what the oracles admit. Filed as CS-476; it is not CS-459, which is the evidence table and the opposite direction. Full record in `docs/LEDGER.md` under the 2026-08-17 CS-421 entry.
+
+## Relocated from WAKEUP_NOTES.md on 2026-08-18 (session 18)
+
+## Session 15 - 2026-08-16 - CS-454 built, merged, and REFUTED on clause 1; the fence it shipped is refuted too
+
+- **Shipped: NOTHING CLOSED. CS-454 STAYS OPEN** with a ledger record declaring the non-closure by
+  name. Clause 2 MET, clause 3 MET, **clause 1 NOT MET**. The code stays - it is a real improvement.
+  Filed CS-462, CS-464, CS-465, CS-466, CS-467, CS-468. Suite 2007 -> **2018 passed, 3 skipped,
+  exit 0**, serial, baseline measured by the merger at `bb7a236` in a real checkout BEFORE merging.
+  Two commits, `60068a9` and `02523f9`, merged at `9c30fd9` and `758888d`. Detail in `docs/LEDGER.md`.
+
+- **THE HEADLINE IS THAT THE FIX WORKS AND THE ITEM STILL DOES NOT CLOSE.** The relocated-path form
+  is closed in all four resolution states, the 8.3 form is closed, and three independent vacuity
+  reasons were removed from the controls. Then an independent adversary found a leak the merger, the
+  planner and the builder had all missed, and it is in the NEW design rather than pre-existing.
+
+- **THE JUNCTION DEFECT, and it is the session's real result.** `_remember_save_root` stores
+  `_path_forms(str(path))` and never resolves; `clockspeed/save/workdir.py`'s `_resolved()`
+  deliberately DOES resolve, and its docstring says so. So whenever the save root is reached through
+  a junction the two halves of the same package cannot agree on spelling, no anchor matches, and a
+  hex account directory renders WHOLE through the production refusal in `_refuse_if_forbidden`.
+  Reproduced by the merger with a real `mklink /J`, all self-checks passing first. Junctioning a save
+  folder onto another drive is the ordinary way to relocate one.
+
+- **PLACEHOLDER INJECTION DEFEATS THE POSITIONAL RULE, and it fires WITH THE MARKER PRESENT.** The
+  environment pass runs first and rewrites a matching needle to a token, injecting `<` into the
+  account segment; `_PATH_SEGMENT_CLASS` excludes `<>` so position cannot match, and the remembered
+  name pass then hunts a literal the text no longer contains. `USERNAME=Ada`, account directory
+  `Ada4f3a...` -> 30 of 33 characters in plaintext. Pre-existing, unchanged from `bb7a236`.
+  **RULED: a pre-existing instance of the exact defect an item names does NOT excuse that item**, and
+  the reason is in CS-454's own detail entry, which opens by calling the leak pre-existing.
+
+- **THE FENCE THIS SESSION SHIPPED IS ITSELF REFUTED, filed as CS-465.** The redact-cycle pin walks
+  the transitive closure to unbounded DEPTH but grades against `RESOLVER_NAMES`, `locate`'s PUBLIC
+  surface, while four of the seven hops in the cycle are private. Confirmed by the merger with the
+  fence's own helper: a private-hop plant closes the cycle and the fence reports GREEN while the same
+  tree raises `RecursionError`. Its own comment says it reads the closure precisely because "a single
+  private wrapper would defeat a body-only check".
+
+- **Surprises**, each measured:
+  1. **A NON-DIGIT FIXTURE ALREADY EXISTED AND PROVED NOTHING.** `ACCOUNT_DIR_SHAPES` shipped four
+     shapes, three already non-digit - but every path carried the marker, so position caught all
+     four. Neutering the DIGIT BACKSTOP left **0 of 4** leaking; neutering POSITION left 3 of 4. So
+     clause 2 read naively was ALREADY SATISFIED while the leak was live. A control must be a
+     CONJUNCTION: non-digit AND a layout where position cannot fire AND a named mutation.
+  2. **THE CONTROLS WERE CARRIED BY A NEIGHBOUR TEST.** `test_workdir.py` had no reset of
+     `_RESOLVED_ACCOUNT_NAMES`; one test seeded the needle for the whole process. Measured ON THE
+     PRE-FIX TREE at `bb7a236` and quoted here only as session history - alone 1 failed, full module
+     73 passed. **Neither figure reproduces at `758888d` and neither should be carried forward.**
+     Under `-n auto` that made it vacuous NONDETERMINISTICALLY, which is the shape that survives.
+  3. **THE NAIVE IMPLEMENTATION WOULD HAVE BEEN INERT ON THE ORDINARY MACHINE.** Appending the new
+     pass after the env pass leaks everything, because the env pass has already rewritten the path
+     out from under the needle. Live only in the relocated case - the inverse of the filed one. The
+     builder demonstrated the counterfactual rather than asserting the three-form design was needed.
+  4. **THE MERGER CITED A VACUOUS CONTROL.** "The recursion does not occur even with a collector
+     wired through `_override`" tests only half the counterfactual: with the shipped code calling no
+     resolver, wiring a collector cannot recurse, trivially. The adjudicator built the real one and
+     got `RecursionError`. The conclusion held; the evidence did not.
+  5. **THE MERGER'S OWN FOUR-STATE MATRIX WAS THE COMMON-MODE RISK.** It varies override,
+     digit-neighbour and resolution order and varies NOTHING about link indirection, username
+     collision or whitespace - so three surviving channels are invisible to it by construction, and
+     the junction defect sits exactly in that blind spot. Every agent inherited those blind spots.
+  6. **BOTH BUILDERS LEFT THEIR WORK UNCOMMITTED** on branches whose `git diff` against the base was
+     EMPTY. Merging the branch names as reported would have merged nothing.
+
+- **Failed paths - do not retry:**
+  - **Reading "use a NON-digit fixture" as sufficient.** Three of four shipped shapes were already
+    non-digit and the leak was live.
+  - **Widening `_PATH_SEGMENT_CLASS` to close the whitespace tail.** Three variants measured, all
+    worse; one eats the diagnostic prose, one leaves the terminal segment fully intact.
+  - **Calling a resolver from inside `redact()`.** Latent infinite recursion that CS-443 detonates.
+  - **Feeding `_RESOLVED_ACCOUNT_NAMES` from every save-root subdirectory.** Breaks a shipped
+    assertion against the game's own `common` directory.
+  - **Trusting a branch name from a builder.** Check the diff against the base before merging.
+
+- **THE SAVE LIBRARY GREW THIS SESSION AND CS-G05 MOVED, THOUGH NOT ALL THE WAY.** The operator
+  played the pinned world forward and saved. The version-60 pair went from two files that were
+  byte-identical over the measured region - ONE observation - to FIVE files of differing sizes
+  where 10 of 10 pairs diverge. **BUT the earliest divergence is at offset 12 and the latest at
+  offset 30, which is header metadata, so what is proven is that they are distinct FILES and NOT
+  that the property payload is independently sampled.** The merger's first probe treated five
+  digests as five observations, which is precisely the file-count-as-independence-count error
+  CS-G05's own entry warns about; a second probe caught it. Full status in `docs/GATED.md`.
+  The PREP harness still passes, which is correct - it pins a negative.
+
+- **Next action: OPERATOR-DIRECTED 2026-08-16 - TAKE CS-421 AND CS-422, NOT CS-454 AND NOT CS-465.**
+  The reason is the critical path to a usable surface: `CS-413`'s own entry names CS-420, CS-421 and
+  CS-422 as the gap between "the values were produced and are self-consistent with our own writer"
+  and "correctly decoded". CS-420 closed in session 14, so CS-421 and CS-422 are the last two, and
+  CS-413 is the phase-4 depth gate that CS-400, then CS-500, then the dashboard all sit behind.
+  `IntProperty` and `FloatProperty` are inventory counts and clock speeds, which is exactly what
+  pillar 3 reads, so this is the audit's own evidence base rather than abstract rigour.
+  **CS-454 and CS-465 STAY OPEN and are deferred, not dropped** - CS-454 has four named blockers in
+  its ROADMAP entry and CS-465 is this session's own porous fence.

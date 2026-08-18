@@ -73,6 +73,115 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-18 - CS-476 - CLOSED. The byte-order status is graded against what the oracles score
+The per-type byte-order status no longer rests on a hand-written allowlist that nothing read.
+`tests/save/test_byte_order_status.py` derives the admitted population BY EXECUTION: a type word
+is admitted exactly when changing a value's BYTES, holding the word and the value's Python shape
+fixed, changes something an oracle accumulates. Bookkeeping at either dispatch site turns on the
+shape and the word alone, so it cannot move under that probe. The derivation is library-free -
+which is measured, not asserted: an interpreter audit hook over a run recorded no path event
+matching an install or a save directory, and a run with every discovery root pointed at an empty
+directory passes unchanged.
+
+FIVE ROUTES SHIPPED GREEN AND ARE RED NOW, AND THEY DIVIDE INTO TWO GROUPS THAT SHOULD NOT BE
+REPORTED AS ONE. Each was a real source edit, one process per mutant, because the status mapping is
+a comprehension evaluated at import and an in-process patch of its input grades a value nothing
+shipped. THREE were green on the PRE-STATE tree - this module absent - each at `tests/save` 1032
+passed: the over-claim, the deletion and the under-claim. THE OTHER TWO WERE GREEN WITH THE FIRST
+VERSION OF THIS MODULE ALREADY PRESENT, at 1037 passed: the swallowed set member and the vocabulary
+swap. So those two were holes in the GUARD rather than in the artifact it guards, they were found by
+an independent refutation pass and not by the author, and the rebuild is what closed them. Reporting
+all five as pre-state failures would credit this module with catching two things its first version
+shipped. The over-claim - a wider type marked
+`anchored_not_unique` that no branch scores. The DELETION - dropping a fixed-width type from the
+mapping, which was the way OUT of the over-claim, because an absent word reads back as `None` and
+the pre-existing vacuity control accepts anything not vacuous above one byte. The SWALLOWED SET
+MEMBER - a one-byte word added to `_BYTE_ORDER_ANCHORED_VALUES`, which `_byte_order_status` answers
+with the width branch first, so it never reaches the mapping and no test over the mapping can see
+it. The VOCABULARY SWAP - exchanging the string values of `BYTE_ORDER_VACUOUS` and
+`BYTE_ORDER_ANCHORED_NOT_UNIQUE`, which every control here and in `test_value_anchoring` follows by
+SYMBOL, so data and yardstick move together and the shipped data claims an oracle backs two
+one-byte types. And the under-claim, which no other direction catches.
+
+A SIXTH ROUTE, FOUND AFTER THE FIRST REPAIR WAS BELIEVED FINAL, AND IT IS STRICTLY WORSE THAN THE
+ONE THIS ITEM NAMES. Pinning three spellings does not BOUND the vocabulary. Adding a FOURTH status
+word - measured with `settled_uniquely` against `UInt32Property`, a type no oracle scores - ships a
+claim stronger than any over-claim above, and every graded direction passed VACUOUSLY on it because
+they all select by the one anchored symbol. `objects.BYTE_ORDER_STATUSES` cannot close it: a
+hand-written set in the same file, extended by the same edit. Measured green at `tests/save` 1040
+and the full suite 2073 with the repaired module already present. The shipped mapping's VALUES are
+now bounded to three literals, so a genuinely new word - CS-421's remaining half will want one -
+must be added together with whatever grades it.
+
+THE MODULE WAS REFUTED TWICE, BOTH TIMES BY SOMEONE OTHER THAN ITS AUTHOR, AND THE SECOND PASS ALSO
+DISARMED THE FIRST REPAIR. The label set naming which oracles the reach count requires was
+hand-written and graded by nothing: two lines inside the test module - reverting the probe pairs and
+dropping one label - restored the exact previously-refuted state with the save suite green. That set
+now has its NAMES read out of the dispatch bodies. THE BODIES ARE STILL LISTED, and the sentence
+that first stood here - that a label could no longer be dropped without editing the dispatch - was
+REFUTED BY A THIRD PASS and is corrected rather than quietly deleted.
+
+A THIRD REFUTATION FOUND THREE MORE ROUTES AND TWO ARE CLOSED HERE. The fatal one needed no new
+status word at all, so neither the vocabulary bound nor any graded direction could fire: recording
+`vacuous_one_byte` against `StrProperty` - a LENGTH-PREFIXED type carrying an int32 length - retires
+an int32 byte-order question with zero evidence, and shipped green at `tests/save` 1040 and across
+the rest of the repo. The hole was MINE: the key-population assertion admitted any word in
+`MEASURED_VALUE_TYPES`. The keys are now bounded exactly to the fixed-width table plus the one
+tag-carried one-byte value. The second: `BYTE_ORDER_STATUSES` is exported in `__all__` and is what
+`_byte_order_status` documents itself as returning, and bounding the mapping's VALUES did not bound
+it - a word added there ships as part of the module's public answer. Now pinned equal.
+
+THE THIRD IS NOT CLOSED AND IS FILED AS CS-477 RATHER THAN PAPERED OVER. Deleting one entry from
+the reach control's hand-written dispatch-site tuple, or moving a tally call into a helper, restores
+an unreached oracle with every control green. The pattern worth naming: each repair moved the
+hand-written seam UP ONE LEVEL rather than removing it - label set, then site list. That third pass
+also independently RE-MEASURED and CONFIRMED the correction recorded above, that the probe-pair
+balance property is graded.
+
+ONE FINDING OF THAT SECOND PASS DID NOT SURVIVE RE-MEASUREMENT, recorded because an unchecked
+refutation is as bad as an unchecked claim. It reported that nothing grades the BALANCE of the two
+byte probe pairs on the coarseness population filter. Measured: an unbalanced pair reddens the
+neutering control, which requires the derived population to be EMPTY with the tallies dead. The
+property is graded and the finding was wrong.
+
+THE FIRST BUILD OF THIS MODULE WAS REFUTED AND THE REFUTATION IS THE RECORD WORTH KEEPING. It
+claimed to read all three shipped oracles and read two: its byte probe used a single pair whose
+halves both carried EQUAL interior stored bytes, which is exactly the population the
+mantissa-coarseness oracle declines, and its two channels were joined by an early return that ran
+the byte channel only for words the value channel had already declined. That oracle was called
+ZERO times. Both faults left every other test in the module green, because the one word coarseness
+scores is scored by a magnitude oracle too - so the derived population came out right for the
+wrong reason. What closed it is a CALL COUNT rather than a sentence.
+
+ONE DELIBERATE TRANSCRIPTION, NAMED AS SUCH. `test_the_status_words_are_pinned_and_distinct` pins
+three string literals, which this project otherwise treats as the artifact that rots. It is
+justified only because those strings ARE the interface to a reader outside this repository, and no
+symbol-following control can see a spelling change. Every other control here is derived.
+
+LIMITS RECORDED ALONGSIDE. The module grades WHICH type words an oracle judges, never whether the
+judgement is CORRECT - a branch tallying byte-dependent nonsense would read here as an oracle. The
+saturation floor counts candidate words and not REACHABLE ones: one-byte members can never receive
+an anchored status through `_byte_order_status`, so the mapping-grading tests have fewer words that
+can fail them than that floor suggests, and grading the hand-written set directly is what covers
+them. `_ORACLE_TALLIES` is a hand-written label set whose failure direction is safe - an uncounted
+label reports as an unreached oracle - but a FOURTH oracle added without a label is invisible to
+it. The module ships OUTSIDE CS-473's prose fence, and running that fence's contract 1 against it
+reports 24 unbacked quantified sentences; CS-473's note carries the enlarged surface.
+Verification: `python -m pytest tests -q` gives 2073 passed, 3 skipped, exit 0, and `-n auto`
+agrees at the same counts. The graded directions are
+`tests/save/test_byte_order_status.py::test_no_type_is_marked_anchored_that_no_oracle_scores` and
+`::test_no_type_an_oracle_scores_is_left_recorded_as_unscored`; the deletion route is
+`::test_every_fixed_width_type_the_module_decodes_carries_a_recorded_status`; the set itself is
+`::test_the_hand_written_anchored_set_holds_no_unscored_type`; the vocabulary is
+`::test_the_status_words_are_pinned_and_distinct`; and the derivation's own reach is
+`::test_the_probe_reaches_all_three_shipped_oracles`, which counts calls rather than asserting
+coverage. Reproduce any route by making the named source edit in a COPY of
+`clockspeed/save/objects.py` and running `python -m pytest tests/save/test_byte_order_status.py -q`.
+To reproduce a PRE-STATE green instead, take it at a commit before this one: the citation block
+this change adds to `objects.py` names the new module by path, so moving that module aside reddens
+the package-wide citation resolver and the phase-4 gate behind it, and those failures are not the
+byte-order question.
+
 ### 2026-08-17 - CS-421 - DOES NOT CLOSE. The candidate set is a singleton and clause 3 is NOT MET
 This record does not close CS-421. Clauses 1 and 2 remain met and were not reopened. Clause 3
 stays unmet, adjudicated 2026-08-17 by an agent that produced none of the session's work.
