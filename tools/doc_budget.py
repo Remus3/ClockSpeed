@@ -195,24 +195,44 @@ MEMBERSHIP_REASON = (
     "fails is reported rather than measured, never silently dropped."
 )
 
-# THE COST OF THE RULE, RECORDED RATHER THAN GUESSED. Medians over 20 runs on
-# the same tree, in one process: evaluate() is 3.01 ms on the pre-CS-475 tool
-# and 38.60 ms here, about 12.8x, and essentially all of it is the two git
-# subprocesses at roughly 17 ms each on this platform. The walk itself got
-# FASTER - pruning during the walk beats letting rglob descend into .git first.
+# THE COST OF THE RULE, AND WHY IT IS SHAPED THIS WAY. NO FIGURES HERE, on
+# purpose. CLAUDE.md section 4 forbids restating a measured number in prose -
+# a hardcoded figure is a lie with a timestamp on it - and a benchmark in a
+# comment goes stale by MACHINE as well as by time. This tool's own item exists
+# because a population was decided by a glob rather than stated; shipping a
+# stale benchmark in its own comment would be that same defect one file along.
+# An earlier revision of this comment carried three figures and one of them was
+# not merely stale but backwards, claiming the tool had got faster end to end
+# when it had measurably got slower.
 #
-# One invocation spawns TWO git processes, not two per consumer: main() takes a
-# single survey and hands it to evaluate() and to the renderer, and evaluate()
-# accepts a pre-computed survey for the same reason. An earlier revision
-# spawned three because each consumer queried independently.
+# What is durable, and what a reader can re-derive on their own machine:
 #
-# The cost is recorded and accepted rather than optimised away, because it is
-# invisible at the only granularity anyone experiences it: tools/drift_guard.py
-# end to end measures 0.376 s against 0.400 s for the pre-CS-475 tool, inside
-# run-to-run noise. Reading .git/worktrees/*/gitdir directly would save one
-# subprocess and was rejected - `git worktree list --porcelain` is the
-# supported interface, and a guard that reads another tool's private layout is
-# the kind of shortcut this item exists to remove.
+#   - The walk itself got FASTER. Pruning during the walk beats letting rglob
+#     descend into .git and filtering afterwards.
+#   - Essentially all of the added cost is the git subprocesses rather than the
+#     Python. Handed a survey that has already been taken, evaluate() is
+#     cheaper than the pre-CS-475 version was.
+#   - There are TWO subprocesses per invocation - one listing for membership,
+#     one for the worktree registration - and they are spawned once per
+#     INVOCATION, not once per consumer. main() takes a single survey and hands
+#     it to evaluate() and to the renderer, and evaluate() accepts a
+#     pre-computed survey for the same reason. An earlier revision spawned
+#     three, because each consumer queried independently.
+#   - End to end this tool is SLOWER than before, by more than run-to-run
+#     noise. That is accepted rather than optimised away: it is two process
+#     spawns on a tool a session runs a handful of times, weighed against a
+#     guard that was reporting another checkout's numbers as this one's.
+#
+# The subprocess count is pinned by a TEST rather than by this comment -
+# tests/test_doc_budget.py::test_one_invocation_asks_git_once_per_question -
+# because a count in prose is exactly what this paragraph must not become.
+#
+# Reading .git/worktrees/*/gitdir directly would save one subprocess and was
+# rejected as FUNCTIONALLY WRONG, not merely impolite. A linked worktree's .git
+# is a FILE holding a gitdir pointer, not a directory, so root/.git/worktrees
+# does not exist when this tool runs from inside an agent worktree - which is
+# exactly how this project runs it. `git worktree list --porcelain` answers
+# correctly from any checkout, main or linked.
 REGISTERED_WORKTREE_REASON = (
     "a directory git lists as a linked worktree is not descended into, even "
     "when its .git marker is already gone. `git worktree remove` deletes that "

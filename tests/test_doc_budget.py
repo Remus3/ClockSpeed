@@ -579,6 +579,24 @@ def test_the_suite_never_mutates_this_repository_worktree_admin() -> None:
 
     Graded by parsing this module rather than by scanning its text: a text
     scan matches its own needle and grades nothing.
+
+    WHAT THIS GUARD AND ITS SIBLING DO NOT CATCH, stated because a guard whose
+    reach is assumed is worse than no guard at all. Both match on NAMES: a call
+    to ``_git`` whose first argument is the identifier ``repo``. Two bypasses
+    pass them cleanly.
+
+      1. ``repo = REPO_ROOT`` assigned anywhere above the call. The argument is
+         still spelled ``repo``, so both guards stay green.
+      2. A direct ``subprocess.run`` invoking git, which never routes through
+         ``_git`` and is therefore invisible to an AST search keyed on that
+         name. This one is NOT hypothetical: _build_template in this very file
+         calls subprocess.run for `git init`, so the pattern is already live
+         here and a future edit could copy it without noticing.
+
+    So these two catch an ACCIDENTAL future edit - someone reaching for
+    REPO_ROOT out of habit - and not a determined one. The real assurance that
+    this suite leaves the live repository's worktree administration alone is a
+    reviewer, and git's own trace of what the suite executed.
     """
     tree = ast.parse(Path(__file__).read_text(encoding="ascii"))
     offenders: list[str] = []
