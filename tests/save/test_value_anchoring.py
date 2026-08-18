@@ -1731,17 +1731,27 @@ def test_the_declared_size_field_census_narrows_the_byte_orders_to_two() -> None
 # own call site with the helper left honest; a BIG-ENDIAN assembly inside the
 # tally; and the four-line bypass below.
 #
-# THE BYPASS IS WHY THE STRUCTURAL CONTROL EXISTS. Two successive revisions of
-# this module graded the census by VALUE - first on the local the call site
-# passed, then on the bytes the tally reported back. Both were defeated the same
-# way: take a SECOND, displaced slice of the body, hand that to the tally, and
-# rebind the graded local to the honest one. Four lines, and the whole suite
-# stayed green while the census scored two framing bytes and two value bytes -
-# and scored them CLEANER than real values, because the byte before a float
-# value is zero on every float tag in this library. A value grade and a value
-# tally are two statements, and a mutation can always separate two statements.
-# test_the_coarseness_census_cuts_the_body_exactly_once removes the degree of
-# freedom instead of guarding it, and it is what reds that bypass.
+# THE BYPASSES ARE WHY THE STRUCTURAL CONTROL EXISTS, AND WHY IT IS THREE RULES.
+# Two revisions graded the census by VALUE - first on the local the call site
+# passed, then on the bytes the tally reported back. Both fell the same way:
+# take a SECOND, displaced slice, hand it to the tally, rebind the graded local
+# to the honest one. Four lines, whole suite green, census scoring two framing
+# bytes - and scoring them CLEANER than real values, because the byte before a
+# float value is zero on every float tag in this library. A value grade and a
+# value tally are two statements, and a mutation can always separate two
+# statements.
+#
+# COUNTING CUTS THEN FELL TOO, and this comment claimed it could not. Six lines,
+# ONE cut, nothing unaccounted: call the allowlisted decoder at a displaced
+# offset and pack its result back to bytes. The freedom had moved from which
+# local the grade reads to which OFFSET the reader is called at - so the offset
+# is constrained as well.
+#
+# AND CONSTRAINING THE OFFSET EXPRESSION FELL TO A REBIND, which this author
+# built before shipping the rule rather than after: save value_at, displace it,
+# read, restore. Every offset expression stays the bare name and the AST walk
+# sees nothing. The binding count closes it. Each of the three rules exists
+# because the ones before it were worked around and measured to be.
 #
 # ONE MUTANT IS EQUIVALENT AND IS NOT A GAP: widening the coarseness mask by one
 # bit, to take in the exponent's lowest bit. Proven rather than judged. The
@@ -1751,8 +1761,13 @@ def test_the_declared_size_field_census_narrows_the_byte_orders_to_two() -> None
 # exhaustively gives an identical result under both masks. A wider mask cannot
 # change any width this module scores.
 #
-# THAT WAS A SNAPSHOT OF THREE RUNS AND IS NOT A STANDING CONTROL - nothing in
+# THAT WAS A SNAPSHOT OF FOUR RUNS AND IS NOT A STANDING CONTROL - nothing in
 # the suite re-grades those mutants, and a later edit can reopen any of them.
+#
+# THE TWO CONTROLS ARE COMPLEMENTARY AND NEITHER IS SPARE, measured rather than
+# assumed. Neutering the population filter is AST-CLEAN and only the value grade
+# reds it; a second cut, an unallowlisted route and a displaced offset are all
+# value-clean and only the structural control reds them.
 #
 # TWO SHAPES ARE KNOWN NOT TO BE CAUGHT AND ARE NOT THIS SECTION'S TO CLOSE.
 # Gutting any control here to a bare return or to a lone pytest.skip() leaves it
@@ -2349,30 +2364,75 @@ def _hollow_tests(tree: ast.Module) -> list[str]:
 
 
 #: The names the coarseness census is allowed to read ``body`` through, besides
-#: its ONE slice. A read outside this set is a second route to the bytes and is
-#: what the control below exists to forbid.
-_BODY_READERS: Final = ("len", "_decode_fixed_width")
+#: its ONE slice, mapped to the argument position carrying the OFFSET - or None
+#: for a reader that takes no offset at all. A read outside this set is a second
+#: route to the bytes; a read inside it at the wrong offset is a second VALUE,
+#: and the control below forbids both.
+_BODY_READERS: Final[Mapping[str, int | None]] = MappingProxyType(
+    {"len": None, "_decode_fixed_width": 1}
+)
+
+#: The one offset the census may reach the body at: the start the SHIPPED walk
+#: reported for the tag under scrutiny. Anything else locates a different value.
+_VALUE_OFFSET_NAME: Final = "value_at"
 
 
-def _body_reads(function: ast.FunctionDef) -> tuple[int, int]:
-    """Count how a function reaches the decompressed body, and by how many routes.
+def _offset_label(node: ast.expr | None) -> str:
+    """Name one offset expression for a failure message. COUNTS AND NAMES ONLY.
+
+    Args:
+        node: The offset expression, or None where a slice omits its bound.
+
+    Returns:
+        The bare name where it is one, and the node kind otherwise. NEVER the
+        expression's value - this runs over source, and a rendered constant from
+        a body index is still a number about a save.
+    """
+    if node is None:
+        return "<absent>"
+    if isinstance(node, ast.Name):
+        return node.id
+    return f"<{type(node).__name__}>"
+
+
+def _body_reads(function: ast.FunctionDef) -> tuple[int, int, tuple[str, ...], int]:
+    """Measure how a function reaches the decompressed body: route, and offset.
 
     THIS IS THE CONTROL THAT MAKES SINGLE-SLICE OWNERSHIP A PROPERTY RATHER THAN
     A CONVENTION. A grader sited beside a slice can always be pointed at a
     different local than the tally consumes - that was measured, and the bypass
-    was four lines. What cannot be worked around is a rule saying the census may
-    cut the body exactly ONCE: any second cut, whatever local it is bound to, is
-    a second entry in the first count here.
+    was four lines.
+
+    COUNTING CUTS ALONE WAS NOT ENOUGH EITHER, and an earlier revision of this
+    docstring claimed it could not be worked around. IT WAS. The allowlist
+    admits the shipped decoder, which is a general read-the-value-at-any-offset
+    primitive whose result packs straight back to bytes - so a census could
+    reach displaced bytes with ONE cut and no unaccounted read at all. The
+    degree of freedom had simply moved from which local the grade reads to which
+    OFFSET the allowlisted reader is called at.
+
+    SO THE OFFSET IS CONSTRAINED TOO, and the name it must be is
+    :data:`_VALUE_OFFSET_NAME`. Reaching the body anywhere but at the offset the
+    shipped walk reported is reaching a different value, whatever route is used.
+
+    AND THAT NAME MAY BE BOUND ONLY ONCE. Requiring the offset EXPRESSION to be
+    a bare name is defeated by rebinding the name itself - displace it, read,
+    restore - which this author built and measured before shipping the
+    constraint. The binding count closes it: the census takes ``value_at`` from
+    the tag tuple and never assigns it again.
 
     Args:
         function: The census function's syntax tree.
 
     Returns:
-        Slices taken of ``body``, and reads of ``body`` that are neither a slice
-        nor an argument to one of :data:`_BODY_READERS`.
+        Slices taken of ``body``; reads of ``body`` that are neither a slice nor
+        an argument to a reader in :data:`_BODY_READERS`; the offset each
+        body-reaching read used, named; and how many times the offset name is
+        BOUND in this function.
     """
     slices = 0
     accounted: set[int] = set()
+    offsets: list[str] = []
     for node in ast.walk(function):
         if (
             isinstance(node, ast.Subscript)
@@ -2382,22 +2442,36 @@ def _body_reads(function: ast.FunctionDef) -> tuple[int, int]:
         ):
             slices += 1
             accounted.add(id(node.value))
+            offsets.append(_offset_label(node.slice.lower))
         if isinstance(node, ast.Call):
             name = None
             if isinstance(node.func, ast.Attribute):
                 name = node.func.attr
             elif isinstance(node.func, ast.Name):
                 name = node.func.id
-            if name in _BODY_READERS:
-                for argument in node.args:
-                    if isinstance(argument, ast.Name) and argument.id == "body":
-                        accounted.add(id(argument))
+            if name is None or name not in _BODY_READERS:
+                continue
+            at = _BODY_READERS[name]
+            for argument in node.args:
+                if isinstance(argument, ast.Name) and argument.id == "body":
+                    accounted.add(id(argument))
+                    if at is not None:
+                        offsets.append(
+                            _offset_label(node.args[at] if at < len(node.args) else None)
+                        )
     loose = sum(
         1
         for node in ast.walk(function)
         if isinstance(node, ast.Name) and node.id == "body" and id(node) not in accounted
     )
-    return slices, loose
+    bindings = sum(
+        1
+        for node in ast.walk(function)
+        if isinstance(node, ast.Name)
+        and node.id == _VALUE_OFFSET_NAME
+        and isinstance(node.ctx, ast.Store)
+    )
+    return slices, loose, tuple(offsets), bindings
 
 
 def _named_function(tree: ast.Module, name: str) -> ast.FunctionDef:
@@ -2428,18 +2502,32 @@ def test_the_coarseness_census_cuts_the_body_exactly_once() -> None:
     green. AS LONG AS THE CALL SITE CUTS AND THE GRADER COMPARES, A MUTATION CAN
     SEPARATE THE TWO. The degree of freedom has to go, not be guarded.
 
-    SO THE RULE IS STRUCTURAL. The census reads the decompressed body through
-    exactly one slice, and every other read of it is an argument to a named
-    reader - the length check, and the shipped decoder that the one slice is
-    graded against. A second cut is a second route to the bytes whatever local
-    it lands in, and it is counted here regardless of what the value grade
-    happens to be looking at.
+    SO THE RULE IS STRUCTURAL, AND IT IS THREE RULES RATHER THAN ONE - each
+    added because the one before it was worked around and measured to be.
 
-    WHAT IT STILL DOES NOT COVER. Displacing the tag's own reported offset moves
-    the slice AND the shipped decode it is compared with, together - that is the
-    SHARED LOCATOR, it is the extent anchor's question, and nothing in this
-    section answers it. Rewriting the grader itself is control deletion, which
-    is CS-473's class rather than this one's.
+      ONE CUT. The census reads the body through exactly one slice, and every
+      other read is an argument to a named reader. A second cut is a second
+      route to the bytes whatever local it lands in.
+
+      ONE OFFSET. Every body-reaching read - the cut, and each allowlisted
+      reader - locates the value at the offset the SHIPPED WALK reported and at
+      no other. Counting cuts alone was defeated: the allowlisted decoder reads
+      a value at any offset and its result packs straight back to bytes, so a
+      displaced census needed one cut, no unaccounted read, and six lines.
+
+      ONE BINDING. That offset name is bound once, from the tag tuple. Requiring
+      the offset EXPRESSION to be a bare name is defeated by rebinding the name
+      around the read - this author built that bypass before shipping the rule.
+
+    WHAT IT STILL DOES NOT COVER. Displacing the tag's own reported offset at
+    its single binding moves the slice AND the shipped decode it is compared
+    with, together - that is the SHARED LOCATOR, it is the extent anchor's
+    question, and nothing in this section answers it. (It is not silent in
+    practice: with one shared cut, displacing it also displaces the magnitude
+    tallies, and both shipped oracles collapse.) Reaching the body without
+    naming it - through ``locals()``, a frame walk, or a helper this module does
+    not define - is not counted here either; that is control rewriting rather
+    than a census fault, and it is CS-473's class.
 
     IT READS NO SAVE - it parses this module's own source, so it runs on CI.
     """
@@ -2447,7 +2535,7 @@ def test_the_coarseness_census_cuts_the_body_exactly_once() -> None:
     census = _named_function(tree, "_score_values_under_every_permutation")
     tally = _named_function(tree, "_tally_mantissa_coarseness")
 
-    slices, loose = _body_reads(census)
+    slices, loose, offsets, bindings = _body_reads(census)
     assert slices == 1, (
         f"the census cuts the decompressed body {slices} times. Exactly one cut "
         "is the whole defence: a second one can be handed to the tally while the "
@@ -2456,15 +2544,34 @@ def test_the_coarseness_census_cuts_the_body_exactly_once() -> None:
     )
     assert loose == 0, (
         f"the census reads the body {loose} times outside its one slice and "
-        f"outside {list(_BODY_READERS)}. An unaccounted read is another route to "
-        "the bytes, and the count above cannot see what it is used for"
+        f"outside {sorted(_BODY_READERS)}. An unaccounted read is another route "
+        "to the bytes, and the count above cannot see what it is used for"
     )
-    tally_slices, tally_loose = _body_reads(tally)
-    assert (tally_slices, tally_loose) == (0, 0), (
+    assert offsets, (
+        "the census reaches the body at no offset this walk can see, so the "
+        "constraint below grades nothing"
+    )
+    wrong = sorted({name for name in offsets if name != _VALUE_OFFSET_NAME})
+    assert not wrong, (
+        f"the census reaches the body at {wrong} as well as at "
+        f"{_VALUE_OFFSET_NAME!r}. ONE CUT IS NOT ENOUGH ON ITS OWN: the "
+        "allowlisted decoder reads a value at any offset and packs straight back "
+        "to bytes, so a displaced census can be built with one cut and nothing "
+        "unaccounted. A read at another offset is a read of another value"
+    )
+    assert bindings == 1, (
+        f"{_VALUE_OFFSET_NAME!r} is bound {bindings} times in the census. It is "
+        "taken from the tag tuple and never assigned again, because rebinding it "
+        "around a read defeats the offset rule above while every offset "
+        "expression stays a bare name"
+    )
+
+    tally_slices, tally_loose, tally_offsets, _ = _body_reads(tally)
+    assert (tally_slices, tally_loose, tally_offsets) == (0, 0, ()), (
         f"the coarseness tally reaches the body itself - {tally_slices} slices, "
-        f"{tally_loose} other reads. It is handed the bytes to score precisely so "
-        "the cut has one owner, and a cut in here is one the census's grade never "
-        "sees"
+        f"{tally_loose} other reads, offsets {list(tally_offsets)}. It is handed "
+        "the bytes to score precisely so the cut has one owner, and a read in "
+        "here is one the census's grade never sees"
     )
 
 
