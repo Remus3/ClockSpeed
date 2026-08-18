@@ -2378,14 +2378,15 @@ _TAG_EXTRA_STRINGS: Final[Mapping[str, int]] = MappingProxyType(
 #: RATHER THAN ANSWERING IT. This comment used to say the question "is answered
 #: by a test". That claims more than the oracles deliver, which is what CS-421
 #: clause 3 came back for. A width rules out a wrong size and says nothing about
-#: which end a value starts at. The pair of byte-order oracles cited in the
-#: commentary block above score the real population's magnitudes under both
-#: readings; each is proven by a mutant that flips one entry's order, and
-#: neither can be satisfied by a fixture this project packs, because both read
-#: the game's own saves. What they leave standing is a CANDIDATE SET rather than
-#: one order. Which question each entry actually poses now ships as data - see
-#: :data:`VALUE_BYTE_ORDER_STATUS` - and the permutations those oracles cannot
-#: separate ship as :data:`BYTE_ORDER_SURVIVING_CANDIDATES`.
+#: which end a value starts at. The byte-order oracles cited in the commentary
+#: block above score the real population under competing readings; each is
+#: proven by a mutant, and none can be satisfied by a fixture this project
+#: packs, because all of them read the game's own saves. What they leave
+#: standing is a CANDIDATE SET rather than a sentence. Which question each entry
+#: actually poses ships as data - see :data:`VALUE_BYTE_ORDER_STATUS` - and the
+#: permutations those oracles cannot separate ship as
+#: :data:`BYTE_ORDER_SURVIVING_CANDIDATES`, which they have now narrowed to the
+#: as-stored ordering alone.
 #:
 #: The figures those oracles compute are deliberately NOT restated here. An
 #: earlier revision of this comment carried four of them and claimed the
@@ -2457,14 +2458,34 @@ GUID_BYTES: Final = 16
 #   tests/save/test_value_anchoring.py::test_every_one_byte_value_type_
 #   is_recorded_as_byte_order_vacuous is what holds that derivation.
 #
-#   THE SURVIVING CANDIDATES are the permutations the shipped VALUE oracles
-#   leave standing beside the identity.
+#   THE SURVIVING CANDIDATES are the permutations the VALUE oracles leave
+#   standing beside the identity, which is now none of them.
 #   tests/save/test_value_anchoring.py::test_the_shipped_candidate_set_
 #   is_what_the_value_oracles_cannot_separate derives the set from those oracles
-#   at runtime and compares it with the shipped literal, and
+#   at runtime and compares it with the shipped literal.
+#
+#   THE THIRD ORACLE - the one that separates the middle pair the two shipped
+#   ones cannot - is mantissa coarseness, CS-469, and it is graded by four tests
+#   rather than trusted.
+#   tests/save/test_value_anchoring.py::test_the_mantissa_coarseness_oracle_
+#   separates_the_middle_swap_from_the_identity is the claim.
+#   tests/save/test_value_anchoring.py::test_the_coarseness_tie_boundary_is_
+#   the_mantissa_that_fits_in_the_low_stored_byte derives the boundary twice by
+#   two routes, and
+#   tests/save/test_value_anchoring.py::test_the_mantissa_bits_inside_the_
+#   low_stored_byte_separate_no_ordering_from_its_swap is the corpus confirming
+#   the prediction that the boundary makes before any save is read - the
+#   non-circularity argument.
+#   tests/save/test_value_anchoring.py::test_the_coarseness_verdict_does_not_
+#   depend_on_which_mantissa_width_it_scores quantifies the verdict over every
+#   width so no threshold was fitted, and
+#   tests/save/test_value_anchoring.py::test_the_coarseness_predicate_cannot_
+#   pass_both_readings_of_a_swapped_pair is its library-free control.
+#
 #   tests/save/test_value_anchoring.py::test_the_declared_size_field_census_
 #   narrows_the_byte_orders_to_two is the DIFFERENT-FIELD narrowing whose
-#   boundary is written down beside that literal.
+#   boundary is written down beside that literal. IT IS STILL A NARROWING TO
+#   TWO, and the value result reaching one licenses nothing about it.
 #
 #   THE DECLARED EXTENT is the other half of what a fixed-width read may touch,
 #   and it is a different question from which order the bytes inside it are in.
@@ -2737,10 +2758,16 @@ def _byte_order_status(word: str, width: int) -> str:
 
 #: The status per value type, over the fixed-width scalars this module reads.
 #:
-#: ANCHORED IS NOT UNIQUE, and the status word says so. An oracle that scores
-#: the population under the shipped reading and under the reversed one rules the
-#: reversal out. It does not rule out every other rearrangement of the same
-#: bytes - see :data:`BYTE_ORDER_SURVIVING_CANDIDATES` for what it leaves.
+#: ANCHORED IS NOT UNIQUE, and the status word still says so even though
+#: :data:`BYTE_ORDER_SURVIVING_CANDIDATES` is now a singleton. THE TWO ARE
+#: ABOUT DIFFERENT THINGS AND THE DIFFERENCE IS MEASURED RATHER THAN ASSERTED.
+#: This status is per TYPE and records what THAT type's own scored population
+#: settles; the candidate set is the JOINT intersection over both scored
+#: populations. Measured: the oracles reading float32 values leave more than one
+#: ordering standing between them, and so do the ones reading int32 values, and
+#: only intersecting across both reaches one. So no single type here has a
+#: uniquely pinned order, and calling one pinned would carry a result from a
+#: population that did not produce it.
 #:
 #: ``BoolProperty`` IS WRITTEN IN EXPLICITLY BECAUSE ITS BYTE IS NOT IN
 #: ``_FIXED_WIDTH_VALUES``. Its value byte rides in the TAG - :func:`_read_tag_header`
@@ -2757,31 +2784,51 @@ VALUE_BYTE_ORDER_STATUS: Final[Mapping[str, str]] = MappingProxyType(
     }
 )
 
-#: THE BYTE PERMUTATIONS THE SHIPPED VALUE ORACLES CANNOT SEPARATE FROM THE
-#: IDENTITY. Each tuple is a permutation of STORED byte positions, and the
-#: identity is a member - which is the point. A candidate set holding only the
-#: identity would mean the order was pinned, and it is not.
+#: THE BYTE PERMUTATIONS THE VALUE ORACLES CANNOT SEPARATE FROM THE IDENTITY.
+#: Each tuple is a permutation of STORED byte positions, and this set now holds
+#: the identity alone: three oracles between them rule out every rearrangement
+#: of a four-byte value's stored bytes.
 #:
-#: WHAT BOUNDS THE SET IS THAT EACH ORACLE CONSTRAINS ONE END ONLY, AND THE
-#: SURVIVORS ARE THE INTERSECTION OF THE TWO. NEITHER ORACLE TURNS ON BOTH
-#: EXTREMES, and reading it that way gets the mechanism backwards. Measured: the
-#: int32 oracle holds exactly for the orderings that leave the LOW position
-#: alone, and it survives orderings that MOVE the most significant byte - so it
-#: does not by itself rule out a high-end swap. The float32 oracle holds exactly
-#: for the orderings that leave the HIGH position alone, and it survives
-#: orderings that move the low byte. Only intersecting the two one-ended
-#: constraints fixes both ends, and that intersection is what this set is.
+#: A SINGLETON HERE IS A NARROW CLAIM, NOT A BROAD ONE, and reading it as
+#: "the byte order is settled everywhere" is the overclaim this constant exists
+#: to prevent. It says exactly that no ordering other than the as-stored one
+#: survives all three oracles over the operator's library. It says nothing about
+#: any field this module's fixed-width VALUE reader does not read.
 #:
-#: THE OBSTACLE IS THE ORACLE, NOT THE DATA, and it is worth being exact about
-#: which. The library's float32 values overwhelmingly DO have differing middle
-#: bytes, so the corpus carries the information that would separate the two
-#: survivors. What cannot use it is the shipped float oracle's magnitude band,
-#: which is wide enough to admit both readings. A narrower discriminator over
-#: the same saves is what would settle this - not more saves.
+#: HOW THE THREE ORACLES DIVIDE THE WORK, because the mechanism is the reason
+#: the set is the size it is and an earlier account of it was measured false.
+#: NO ORACLE HERE TURNS ON BOTH EXTREMES. The int32 oracle holds exactly for the
+#: orderings that leave the LOW position alone, and survives orderings that move
+#: the most significant byte. The float32 magnitude oracle holds exactly for the
+#: orderings that leave the HIGH position alone, and survives orderings that
+#: move the low byte. Intersecting those two one-ended constraints fixes both
+#: ends and leaves the pair differing only in the two MIDDLE bytes - which is
+#: where the set stood, and why.
 #:
-#: The set is DERIVED FROM THE ORACLES at runtime by the test named in the
-#: commentary block above and compared against this literal, so the literal
-#: cannot quietly stop describing what they do.
+#: THE MIDDLE PAIR IS SEPARATED BY MANTISSA COARSENESS - CS-469 - AND THE
+#: OBSTACLE WAS NEVER THE DATA. The library's float32 values overwhelmingly DO
+#: carry differing middle bytes, so the corpus held the evidence throughout.
+#: What could not use it was the float oracle's magnitude band: the middle swap
+#: moves only the exponent's least significant bit, so it can change a magnitude
+#: by at most a factor of two, and a band spanning dozens of octaves admits both
+#: readings. The discrimination was lost in the PREDICATE. An authored float -
+#: a clock speed, a snapped coordinate, a fraction a designer typed - needs few
+#: significant mantissa bits, so its low mantissa bits are zero, and a wrong
+#: ordering destroys that. Counting how many values keep it separates the pair.
+#: Do not record, here or downstream, that this question was ever data-blocked.
+#:
+#: THE RESULT IS JOINT ACROSS BOTH SCORED POPULATIONS AND NO SINGLE TYPE'S
+#: EVIDENCE PRODUCES IT. Measured: the float32 oracles together still leave more
+#: than one ordering standing, and so do the int32 oracle's own survivors
+#: intersected with coarseness. Only all three together reach one. That is why
+#: :data:`VALUE_BYTE_ORDER_STATUS` still records what a single type's own
+#: oracles settle, which is less than what this set records.
+#:
+#: The set is DERIVED FROM THE ORACLES at runtime by the tests named in the
+#: commentary block above and compared against this literal, in that direction:
+#: the literal narrows when the derivation narrows. Deleting an oracle widens
+#: what survives and reddens the derivation rather than quietly leaving a
+#: stronger claim on the books.
 #:
 #: THE OTHER RESULT IS ABOUT A DIFFERENT FIELD, READ BY A DIFFERENT READER, AND
 #: IT LICENSES NOTHING HERE. There is a separate result over the tag's declared
@@ -2807,7 +2854,6 @@ VALUE_BYTE_ORDER_STATUS: Final[Mapping[str, str]] = MappingProxyType(
 BYTE_ORDER_SURVIVING_CANDIDATES: Final[frozenset[tuple[int, int, int, int]]] = frozenset(
     {
         (0, 1, 2, 3),
-        (0, 2, 1, 3),
     }
 )
 

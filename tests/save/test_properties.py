@@ -1573,23 +1573,26 @@ def test_the_int32_byte_order_is_discriminated_by_the_stored_high_byte() -> None
 
     SCORED IS NOT SETTLED, AND THE DIFFERENCE IS MEASURED RATHER THAN CONCEDED.
     The two assertions below rule the whole-word REVERSAL out on the game's own
-    bytes. They do not narrow the order to one arrangement. What the shipped
-    value oracles leave standing is recorded as data in
+    bytes. THEY DO NOT NARROW THE ORDER TO ONE ARRANGEMENT, and that is still
+    true of this test after the candidate set narrowed - what closed it was a
+    third oracle in another module, not these assertions. What the value oracles
+    leave standing between them is recorded as data in
     ``objects.BYTE_ORDER_SURVIVING_CANDIDATES`` and derived from the library by
     ``tests/save/test_value_anchoring.py::test_the_shipped_candidate_set_is_what_the_value_oracles_cannot_separate``,
     so the residual is a constant the suite checks rather than a sentence here
     that nobody grades. ``objects.VALUE_BYTE_ORDER_STATUS`` carries the matching
-    per-type status word.
+    per-type status word, and it records what THIS type's own population settles
+    rather than what the joint intersection reaches.
 
-    MORE THAN ONE CANDIDATE SURVIVES, AND WHY IS DELIBERATELY NOT EXPLAINED
-    HERE. The count and the members are derived by the test named above and
-    checked against the shipped constant. An earlier draft of this paragraph
-    described the mechanism - that both oracles turn on the EXTREME stored byte
-    positions - and that description was measured FALSE: the two oracles are
-    ONE-ENDED in opposite directions, and each survives rearrangements that move
-    the end the other one holds. Two candidates stand because the two
-    constraints are INTERSECTED, not because either oracle is two-ended. The
-    corrected mechanism belongs beside the derivation that measures it rather
+    WHICH CANDIDATES SURVIVE IS DELIBERATELY NOT EXPLAINED HERE. The members are
+    derived by the test named above and checked against the shipped constant. An
+    earlier draft of this paragraph described the mechanism - that both oracles
+    turn on the EXTREME stored byte positions - and that description was measured
+    FALSE: the two oracles are ONE-ENDED in opposite directions, and each
+    survives rearrangements that move the end the other one holds. What they left
+    standing between them was a pair differing only in the two MIDDLE stored
+    bytes, because the two constraints are INTERSECTED and neither is two-ended.
+    The corrected mechanism belongs beside the derivation that measures it rather
     than in an ungraded copy here.
 
     THIS ORACLE IS ALSO NOT ANCHORED TO THE BYTES IT GRADES. Displacing the
@@ -1679,12 +1682,23 @@ def test_the_float32_byte_order_is_discriminated_by_plausible_magnitude() -> Non
 
     WHAT THIS ORACLE LEAVES OPEN IS RECORDED RATHER THAN DESCRIBED. It does not
     narrow the byte order to one arrangement on its own, and neither does the
-    int32 oracle; what the two leave standing BETWEEN THEM is held in
+    int32 oracle; what survives every value oracle is held in
     ``objects.BYTE_ORDER_SURVIVING_CANDIDATES`` and derived from the library by
     ``tests/save/test_value_anchoring.py::test_the_shipped_candidate_set_is_what_the_value_oracles_cannot_separate``.
     No account of WHICH rearrangements either oracle admits is written here -
     the last such account in this file was measured false, and the derivation
     is the thing that can be graded.
+
+    THE BAND BELOW IS WHY A THIRD ORACLE WAS NEEDED, and naming the limit here
+    is more use than defending it. The band is a DOMAIN bound and it is not
+    narrowable to settle a byte order: the ordering that swaps the two middle
+    stored bytes moves only the exponent's least significant bit, so it changes
+    a magnitude by at most a factor of two, and any band wide enough to hold a
+    world's ordinary floats admits both readings. CS-469 settled that pair with
+    mantissa coarseness instead, in
+    ``tests/save/test_value_anchoring.py::test_the_mantissa_coarseness_oracle_separates_the_middle_swap_from_the_identity``.
+    Do not narrow ``_FLOAT_PLAUSIBLE_LOW`` or ``_FLOAT_PLAUSIBLE_HIGH`` to chase
+    a discrimination they cannot make.
 
     The band below is a DOMAIN bound on what a coordinate, a clock speed or a
     power figure can be, not a value fitted to this corpus.
