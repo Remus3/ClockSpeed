@@ -215,7 +215,8 @@ the line becomes a pointer.
 
 - **Shipped: NOTHING CLOSED, AND THAT IS THE RESULT RATHER THAN A SHORTFALL.** CS-421 STAYS OPEN
   with a ledger record declaring the non-closure by name. Filed CS-478 and CS-479; enlarged
-  CS-471. Suite 2073 -> **2079 passed, 3 skipped, exit 0**, `tests/save` 1040 -> 1046. Drift guard
+  CS-471 and CS-480. Suite 2073 -> **2080 passed, 3 skipped, exit 0** serial AND under
+  `-n auto`, `tests/save` 1040 -> 1047. Drift guard
   **CLEAN 9/9**, doc budget **PASS measured 16** after a relocate pass, mypy clean 28 and 84, ruff
   clean. Detail in `docs/LEDGER.md`.
 
@@ -226,10 +227,25 @@ the line becomes a pointer.
   by timing out at 60 s and printing a `send-pack` disconnect. **Do not carry "needs an interactive
   terminal" forward; give the push a timeout above 300 s.**
 
-- **THE HEADLINE IS THAT TWO OF THREE ADVERSARIES SUCCEEDED AND THE SECOND ONE CHANGED THE
-  OUTCOME OF THE ITEM, not just the code.** The build was finished, green at 2077, and every gate
-  passed. Then a correctness pass showed the close was an anecdote and a privacy pass showed I had
-  introduced a non-negotiable 12 exposure. Neither was reachable from inside the work.
+- **THE HEADLINE IS THAT ALL THREE ADVERSARIES SUCCEEDED AND THE THIRD ONE LANDED AFTER THE
+  COMMIT WAS ALREADY PUSHED.** The build was finished, green at 2077, and every gate passed. Then
+  a correctness pass showed the close was an anecdote, a privacy pass showed I had introduced a
+  non-negotiable 12 exposure, and a guard-hole pass - which I had already reported as not having
+  returned - broke the committed artifact two more ways. None of the three was reachable from
+  inside the work.
+
+- **I COMMITTED WHILE A DISPATCHED PASS WAS STILL OUT, SAID SO PLAINLY, AND IT STILL COST A SECOND
+  COMMIT.** Reporting a lens as unexamined is honest and is NOT the same as being entitled to ship
+  past it. **A pass that has been dispatched has not been declined; if its lens matters, the
+  commit waits for it.** That is the most transferable thing in this session.
+
+- **THE MEMOISED SWEEP POISONED PERMANENTLY AND ITS OWN DOCSTRING DENIED IT IN PROSE.**
+  `_sweep_separability` was an `lru_cache` over a result that can be `None`, and NOTHING in the
+  repo ever called `cache_clear` on it. One earlier call with `_library_save_paths` patched empty
+  cached that `None`, and all four library-backed graders of the new status word then skipped for
+  the whole session - green at exit 0 with four skips, the word graded by nothing, and **a skip
+  reads as an ungraded machine rather than as a defect**, which is what makes it worse than a red.
+  Sibling modules that collect earlier already patch that helper. Fixed by never caching a `None`.
 
 - **CS-421 DOES NOT CLOSE BECAUSE THE VERDICT IS A FACT ABOUT ONE NUMBER.** `UInt32Property` yields
   9 values, ONE stored pattern, `00190000` - which is 6400. Over a population of that same size and
@@ -278,11 +294,18 @@ the line becomes a pointer.
   - **An accumulator-invariance predicate.** Equal counters include both-zero.
   - **Doing the scoring phase outside the per-save handler**, or trusting a sweep's assertion
     messages to be counts-only while its FRAMES are not.
-  - **Trusting my own mutation set to be complete.** Two of eight came back MISSED and one of those
-    was a real gap in the control rather than an expected bound.
+  - **Trusting my own mutation set to be complete.** Two of eight came back MISSED and one was a
+    real gap in the control. An independent pass then found three more my set had no mutant for.
+  - **Caching a `None` that means "this machine cannot grade it".** An absence memoised once
+    disarms every grader downstream of it, silently, for the whole session.
 
-- **Next action: CS-478**, the two incompatible definitions of "an oracle scores this type" - it is
-  the coherence defect this session introduced and it is cheap. Then **CS-471** (tier 1,
-  privacy-adjacent), whose surface this session enlarged in the exact channel its guard cannot see:
+- **Next action: CS-480**, the last ungraded bound on which types may carry a byte-order status.
+  `_TAG_CARRIED_ONE_BYTE_VALUES` in `tests/save/test_byte_order_status.py` is hand-written and read
+  by NOTHING: two lines ship `vacuous_one_byte` for `StrProperty`, a LENGTH-PREFIXED type whose
+  payload begins with an int32 length, with everything green. Reproduced at 31 passed before
+  filing. The objects.py-only half of that edit IS caught, so the guard is exactly one tuple deep.
+  Then **CS-478**, the two incompatible definitions of "an oracle scores this type", which is the
+  coherence defect this session introduced. Then **CS-471** (tier 1, privacy-adjacent), whose
+  surface this session enlarged in the exact channel its guard cannot see:
   `_collect_stored_patterns` and `_score_population` RECEIVE personal data as parameters and
   `_returns_personal_data` reads only `node.returns`. Then CS-477, then CS-479.

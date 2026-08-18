@@ -3003,23 +3003,42 @@ def _derive_separability() -> _SeparabilitySweep | None:
     )
 
 
-@lru_cache(maxsize=1)
+#: The memoised sweep, held in a list so that "nothing cached yet" and "cached a
+#: real sweep" are the only two states it can be in. A None is never stored - see
+#: :func:`_sweep_separability`.
+_SEPARABILITY_CACHE: list[_SeparabilitySweep] = []
+
+
 def _sweep_separability() -> _SeparabilitySweep | None:
     """The memoised derivation the graders read.
 
-    THE CACHE IS DELIBERATELY A THIN WRAPPER AND NOT A DECORATION ON THE WORK.
-    It takes no argument, so it cannot be keyed on a configuration the way
-    :func:`_sweep_anchor` is keyed on its displacement - and an unkeyed cache
-    whose correctness rests on a control remembering to clear it in a ``finally``
-    is the shape whose failure this module already records once. Splitting the
-    work out means the control that neuters an oracle calls
-    :func:`_derive_separability` DIRECTLY and there is no cache to poison. The
-    degree of freedom is removed rather than policed.
+    A ``None`` IS NEVER CACHED, AND THAT IS THE ENTIRE CONTENT OF THIS FUNCTION.
+    An earlier revision was an `lru_cache` over the whole result and its docstring
+    claimed, in prose, that there was no cache to poison. THAT WAS FALSE and an
+    adversary demonstrated it against the committed artifact: one earlier call
+    made with library discovery patched empty cached the ``None``, and because
+    nothing in the repository ever calls `cache_clear` on it, ALL FOUR
+    library-backed graders of the status word skipped for the rest of the session
+    - `tests/save` green at exit 0 with four skips, and
+    `oracle_cannot_separate_readings` indistinguishable from `unscored`. The
+    vector is not hypothetical: sibling modules that collect earlier already
+    monkeypatch `_library_save_paths`, and the no-install gate accepts a skip by
+    design.
+
+    CACHING ONLY A REAL SWEEP REMOVES THE STATE RATHER THAN POLICING IT. When
+    there is genuinely no library, :func:`_derive_separability` returns almost
+    immediately - discovery comes back empty and no save is opened - so there is
+    nothing worth memoising in that branch and a great deal to lose by doing it.
 
     Returns:
         The sweep, or None when no save library is reachable.
     """
-    return _derive_separability()
+    if _SEPARABILITY_CACHE:
+        return _SEPARABILITY_CACHE[0]
+    sweep = _derive_separability()
+    if sweep is not None:
+        _SEPARABILITY_CACHE.append(sweep)
+    return sweep
 
 
 def _separability_or_skip() -> _SeparabilitySweep:
@@ -3338,4 +3357,41 @@ def test_the_signature_predicate_refuses_a_population_that_carries_neither() -> 
         "this test's own premise has gone: the both-zero row is meant to have EQUAL "
         "counters, which is what makes it invariant under the reversal and what makes "
         "the contrast above worth drawing."
+    )
+
+
+def test_a_library_less_call_does_not_switch_the_graders_off_for_the_session() -> None:
+    """A cached absence would disarm every library-backed grader of the status word.
+
+    MEASURED AGAINST THE COMMITTED ARTIFACT BY AN ADVERSARY, NOT BY THE AUTHOR,
+    and the author's docstring asserted the opposite in prose at the time. With
+    the sweep memoised through an `lru_cache`, appending a single test that
+    patched `_library_save_paths` empty and called it once left `tests/save` GREEN
+    at exit 0 with FOUR SKIPS - every library-backed grader of
+    `oracle_cannot_separate_readings` switched off for the whole session, leaving
+    the word indistinguishable from `unscored`. Nothing in the repository calls
+    `cache_clear` on that sweep, so the poisoning was permanent.
+
+    THE ORDER HERE IS THE TEST. A cold cache is taken deliberately, because the
+    defect only exists on the first call - a run that happens to reach a real
+    library first is immune, which is exactly why an ordering-dependent hole
+    survives a suite that usually passes.
+    """
+    _separability_or_skip()
+    _SEPARABILITY_CACHE.clear()
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(test_properties, "_library_save_paths", tuple)
+        assert _sweep_separability() is None, (
+            "with discovery patched empty the sweep reported a library anyway, so this "
+            "control cannot reach the state it exists to grade."
+        )
+
+    restored = _sweep_separability()
+    assert restored is not None, (
+        "a single call made while no library was reachable has left the sweep "
+        "returning None on a machine that HAS one. Every library-backed grader of the "
+        "byte-order status word now skips for the rest of the session, so the shipped "
+        "word is graded by nothing while the suite stays green - which is worse than a "
+        "red, because a skip reads as an ungraded machine rather than as a defect."
     )

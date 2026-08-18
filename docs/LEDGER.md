@@ -73,6 +73,47 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-18 - CS-421 - CORRECTION to the entry below. A third refutation landed after the commit and it was right
+NOT A COMPLETION RECORD; CS-421 STAYS OPEN. This corrects the record immediately below rather
+than editing it, which is what this file requires.
+
+THE ENTRY BELOW REPORTED THREE ADVERSARIES AND TWO SUCCESSES. The third - the guard-hole lens -
+returned after `07b5189` was pushed, and it SUCCEEDED. Its findings were re-measured by the
+merger against the committed artifact before this correction was written.
+
+WHAT IT BROKE, AND THE FIRST ONE IS THE SERIOUS ONE.
+
+1. THE MEMOISED SWEEP POISONED PERMANENTLY, AND ITS OWN DOCSTRING DENIED IT IN PROSE.
+   `_sweep_separability` was an `lru_cache` over a result that can be `None`, and nothing in the
+   repository ever called `cache_clear` on it. One earlier call made with `_library_save_paths`
+   patched empty cached that `None`, and ALL FOUR library-backed graders of the status word then
+   skipped for the rest of the session - `tests/save` green at exit 0 with four skips, and
+   `oracle_cannot_separate_readings` graded by nothing while reading as an ungraded machine
+   rather than a defect. The vector is real: sibling modules that collect earlier already patch
+   that discovery helper. Reproduced by the merger, fixed by never caching a `None` - when there
+   is no library the derivation returns immediately, so that branch was never worth memoising -
+   and graded by
+   `tests/save/test_value_anchoring.py::test_a_library_less_call_does_not_switch_the_graders_off_for_the_session`,
+   which takes a COLD cache deliberately, because the hole only exists on the first call.
+
+2. `_TAG_CARRIED_ONE_BYTE_VALUES` IS HAND-WRITTEN AND GRADED BY NOTHING, and it is the last bound
+   on which non-fixed-width words may carry a byte-order status. Reproduced at 31 passed, exit 0:
+   two lines ship `vacuous_one_byte` for `StrProperty`, a LENGTH-PREFIXED type whose payload
+   begins with an int32 length, retiring that int32's question with no evidence. The same tuple
+   is the second line of a fifth-word route shipping `settled_uniquely` for a type nothing
+   scores. The objects.py-only version of the edit IS caught, so the guard is exactly one tuple
+   deep. Filed as CS-480, not repaired here.
+
+THE TRANSFERABLE LESSON IS ABOUT SEQUENCING, NOT ABOUT THE DEFECTS. I reported a refuter as
+having not returned and treated its lens as unexamined, and then committed. Both statements were
+honest and one of them aged badly within the hour. A pass that has been dispatched has not been
+declined; if its lens matters, the commit waits for it.
+
+Verification: `python -m pytest tests/save -q` (expect 1047 passed). To reproduce the poisoning
+on the pre-fix artifact, check out `07b5189`, patch `test_properties._library_save_paths` to
+return an empty tuple, call `test_value_anchoring._sweep_separability()` once, then restore it and
+call again - it stays `None`.
+
 ### 2026-08-18 - CS-421 - NOT A COMPLETION RECORD. CS-421 STAYS OPEN; route (b) ships and the close is refused
 Route (b)'s artifact landed and CS-421 clause 3 still does not close. This entry exists because
 the work is substantial and the REFUSAL is its result, not a failure to finish it.
