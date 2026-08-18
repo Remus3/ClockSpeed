@@ -216,7 +216,8 @@ the line becomes a pointer.
 - **Shipped: NOTHING CLOSED, AND THAT IS THE RESULT RATHER THAN A SHORTFALL.** CS-421 STAYS OPEN
   with a ledger record declaring the non-closure by name. Filed CS-478 and CS-479; enlarged
   CS-471 and CS-480. Suite 2073 -> **2080 passed, 3 skipped, exit 0** serial AND under
-  `-n auto`, `tests/save` 1040 -> 1047. Drift guard
+  `-n auto`, `tests/save` 1040 -> 1047. **CI failed `07b5189` on `ruff format --check`, a gate
+  that had never been run locally; fixed in a follow-up commit.** Drift guard
   **CLEAN 9/9**, doc budget **PASS measured 16** after a relocate pass, mypy clean 28 and 84, ruff
   clean. Detail in `docs/LEDGER.md`.
 
@@ -298,6 +299,12 @@ the line becomes a pointer.
     real gap in the control. An independent pass then found three more my set had no mutant for.
   - **Caching a `None` that means "this machine cannot grade it".** An absence memoised once
     disarms every grader downstream of it, silently, for the whole session.
+  - **Treating `ruff check` as the whole of ruff.** It is NOT `ruff format --check`, and CI runs
+    both. Every local gate passed all session and CI still failed `07b5189` in 24 seconds on two
+    cosmetic format findings - an unwrapped `assert` and two missing blank lines before a
+    top-level `def`, both artifacts of appending text programmatically. **The local gate set used
+    all session was incomplete against CI's.** Run `python -m ruff format --check .` before every
+    commit; it is instant.
 
 - **Next action: CS-480**, the last ungraded bound on which types may carry a byte-order status.
   `_TAG_CARRIED_ONE_BYTE_VALUES` in `tests/save/test_byte_order_status.py` is hand-written and read

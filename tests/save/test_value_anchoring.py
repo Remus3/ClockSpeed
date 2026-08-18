@@ -2674,6 +2674,7 @@ def test_the_emptiness_guard_catches_a_spliced_hollow_body(tmp_path: Path) -> No
 
     _assert_no_test_is_hollow(Path(__file__))
 
+
 # ---------------------------------------------------------------------------
 # What the int32 oracle CANNOT separate, per type - CS-421 clause 3, route (b)
 # ---------------------------------------------------------------------------

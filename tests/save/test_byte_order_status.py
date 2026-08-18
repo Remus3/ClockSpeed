@@ -612,9 +612,7 @@ def test_the_status_words_are_pinned_and_distinct() -> None:
     """
     assert objects.BYTE_ORDER_VACUOUS == "vacuous_one_byte"
     assert objects.BYTE_ORDER_ANCHORED_NOT_UNIQUE == "anchored_not_unique"
-    assert (
-        objects.BYTE_ORDER_ORACLE_CANNOT_SEPARATE == "oracle_cannot_separate_readings"
-    )
+    assert objects.BYTE_ORDER_ORACLE_CANNOT_SEPARATE == "oracle_cannot_separate_readings"
     assert objects.BYTE_ORDER_UNSCORED == "unscored"
 
     words = (
@@ -674,6 +672,7 @@ def test_the_hand_written_anchored_set_holds_no_unscored_type() -> None:
         "answers first - which is what makes this a separate test from the one "
         "grading the mapping."
     )
+
 
 def test_the_cannot_separate_set_is_bounded_without_a_library() -> None:
     """What can be held against the cannot-separate set without reading a save.
