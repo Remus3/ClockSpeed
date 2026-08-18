@@ -56,9 +56,10 @@ ordering alone.
 
 WHAT CHANGED WAS THE PREDICATE AND NOT THE CORPUS, which is worth stating
 because the opposite was ruled once and refuted. The two shipped value oracles
-left the middle swap standing while the great majority of float32 values in this
-library carry differing middle bytes - the evidence was there and the shipped
-float oracle's magnitude band was too wide to use it. THE VALUE RESULT LICENSES
+left the middle swap standing while the census's admitted population - the
+float32 values whose middle bytes differ - is reported by the run that measures
+it. The evidence was there and the shipped float oracle's magnitude band was too
+wide to use it. THE VALUE RESULT LICENSES
 NOTHING ABOUT THE SIZE FIELD. They are different fields read by different
 readers, and the boundary is written down beside the shipped constant rather
 than crossed.
@@ -358,6 +359,46 @@ class _AnchorSweep:
     failures: tuple[str, ...]
 
 
+@dataclass
+class _CoarsenessCensus:
+    """What the coarseness census admitted and what it graded. COUNTS ONLY.
+
+    THE CENSUS SLICES THE BODY ITSELF, and until this existed nothing graded
+    that slice. Displacing it alone by -2 left every test in this module green
+    while the census scored two framing bytes and two value bytes - and it
+    scored them CLEANER than the real ones, because the byte before a float
+    tag's value is zero on every float tag in the library, so a displaced read
+    manufactures low-mantissa zeros. THE FAULT MADE THE ORACLE GREENER, which is
+    why a displacement-collapse control of the kind the extent anchor uses
+    cannot catch it and an EQUALITY control is what does.
+
+    THIS IS NOT THE EXTENT ANCHOR'S BLIND SPOT AND IT IS NOT COVERED BY IT. That
+    blind spot is the SHARED LOCATOR - a tag header pointing both readings at
+    the wrong place moves them together and is invisible to any comparison
+    between them. This is the census's OWN offset, private to this module, and
+    it is graded here against the shipped decoder reading in place at the tag's
+    own reported start. A shared-locator fault remains outside both.
+
+    Attributes:
+        admitted: Values entering the census.
+        graded: Admitted values whose TALLIED bytes were checked. Asserted equal
+            to ``admitted`` rather than merely non-zero, because a check that
+            silently stops running reports the same zero as a check that passes.
+        misread: Admitted values whose tallied bytes decode to something other
+            than the shipped decoder's in-place read at the tag's own offset.
+        inert: Admitted values the middle swap does not change. THE POPULATION
+            CLAUSE OF CS-469 LIVES HERE - this is computed at the census's own
+            call site from the swap itself, not from the admission helper, so
+            neutering the call site's filter is caught even though the helper
+            stays honest.
+    """
+
+    admitted: int = 0
+    graded: int = 0
+    misread: int = 0
+    inert: int = 0
+
+
 @dataclass(frozen=True)
 class _PermutationSweep:
     """What the two permutation censuses measured. COUNTS ONLY.
@@ -379,6 +420,12 @@ class _PermutationSweep:
             whose interior stored bytes differ, so the swap changes what is
             read. Identical for every ordering by construction, because it is
             decided on the AS-STORED bytes alone.
+        coarseness_graded: Admitted values whose tallied bytes were checked
+            against the shipped in-place read.
+        coarseness_misread: Admitted values whose tallied bytes are not the
+            value's own - the census's private offset, graded.
+        coarseness_inert_admissions: Admitted values the middle swap does not
+            change - the census's private population filter, graded.
         payloads: Payload extents the census walked, per ordering.
         scored_values: How many values the survivor derivation scored under the
             identity, so an empty population cannot pass as agreement.
@@ -399,6 +446,9 @@ class _PermutationSweep:
     coarse_oracle_holds: frozenset[tuple[int, ...]]
     coarseness: Mapping[tuple[int, ...], Mapping[int, int]]
     coarseness_population: int
+    coarseness_graded: int
+    coarseness_misread: int
+    coarseness_inert_admissions: int
     payloads: int
     scored_values: int
     tags_above_the_size_floor: int
@@ -733,24 +783,41 @@ def _with_the_middle_swapped(perm: tuple[int, ...]) -> tuple[int, ...]:
 
 
 def _the_interior_stored_bytes_differ(stored: bytes) -> bool:
-    """Whether the middle swap changes this value's bytes at all.
+    """Whether the MIDDLE SWAP changes this value's bytes.
 
-    THE SCORED POPULATION IS DERIVED FROM THE SWAP, NOT THRESHOLDED. A value
-    whose interior stored bytes are equal reads identically under an ordering
-    and under its partner, so it can separate nothing. Counting it would add the
-    same number to both sides of every comparison below - widening the
-    population while narrowing no margin.
+    THE SCORED POPULATION IS DERIVED FROM THE SWAP, NOT THRESHOLDED. Admission
+    turns on the AS-STORED interior bytes, so the population is exactly the
+    values on which the identity and the middle swap differ. For that ONE PAIR,
+    an excluded value reads the same under both orderings and would add the same
+    number to both sides of every comparison - widening the population while
+    narrowing no margin.
+
+    THE CLAIM IS ABOUT THAT PAIR AND NOT ABOUT THE GROUP, and an earlier
+    revision of this docstring widened it into the group and was measured FALSE.
+    A general ordering ``P`` differs from its partner at ``stored[P[1]]`` versus
+    ``stored[P[2]]``, which is NOT this criterion: on the hand-authored pattern
+    ``[0, 5, 5, 9]`` this function admits nothing while most orderings in the
+    group still read differently from their partners. So the population is
+    tailored to the identity's pair and to no other.
+
+    WHY THAT IS ENOUGH, and it is a structural reason rather than a hopeful one.
+    The survivor derivation INTERSECTS this oracle with the two shipped ones, so
+    only an ordering surviving both of those can change what it produces, and
+    ``test_the_shipped_candidate_set_is_what_the_value_oracles_cannot_separate``
+    asserts that those are exactly the identity and its middle-swapped partner.
+    A verdict this oracle returns on any other ordering is scored on a
+    population not tailored to it, and no shipped constant depends on it.
 
     Args:
         stored: The value's stored bytes.
 
     Returns:
-        True when the interior bytes differ.
+        True when the middle swap changes these bytes.
     """
     return len({stored[position] for position in _INTERIOR_POSITIONS}) > 1
 
 
-def _tally_mantissa_coarseness(reordered: bytes, counts: Counter[int]) -> None:
+def _tally_mantissa_coarseness(reordered: bytes, counts: Counter[int]) -> bytes:
     """Score one reading of one value for how few mantissa bits it uses.
 
     AUTHORED FLOATS ARE COARSE, and that is the structure this looks for. A
@@ -759,22 +826,32 @@ def _tally_mantissa_coarseness(reordered: bytes, counts: Counter[int]) -> None:
     are zero. Reading the same bytes in the wrong order puts exponent and
     high-mantissa bits where those zeros were and destroys the structure.
 
-    WHY THIS SUCCEEDS WHERE THE SHIPPED MAGNITUDE BAND CANNOT. The middle swap
-    moves only the exponent's least significant bit, so it can change a value's
-    magnitude by at most a factor of two, and a band spanning dozens of octaves
-    admits both readings alike. Coarseness is not a band and has no width to
-    survive being doubled.
+    WHY THIS SUCCEEDS WHERE THE SHIPPED MAGNITUDE BAND CANNOT, stated as what
+    is measured rather than as a mechanism. The band's own shipped assertion in
+    ``test_properties`` counts how many values are plausible under the SWAPPED
+    reading, and that count is a large fraction of the population - so the band
+    admits both readings on most values and cannot tell them apart. TWO
+    MECHANISMS WERE OFFERED FOR THAT IN THIS PROJECT'S NOTES AND BOTH WERE
+    MEASURED FALSE, so none is offered here. Coarseness is not a band at all: it
+    counts a structure authored data has and permuted data does not.
 
     Args:
         reordered: The value's stored bytes under one ordering.
         counts: That ordering's accumulator, mutated in place. Keyed by width
             and counting values whose low mantissa bits are all zero to AT LEAST
             that width, so one value contributes to every width it satisfies.
+
+    Returns:
+        THE BYTES IT ACTUALLY SCORED. Returned rather than assumed so the census
+        control grades what this function consumed instead of what the call site
+        meant to hand it - a slice displaced at the call site is otherwise
+        invisible to a check sited on the variable the call site did not use.
     """
     mantissa = int.from_bytes(reordered, "little") & ((1 << _MANTISSA_BITS) - 1)
     zeros = _MANTISSA_BITS if mantissa == 0 else (mantissa & -mantissa).bit_length() - 1
     for width in range(1, zeros + 1):
         counts[width] += 1
+    return reordered
 
 
 def _coarse_oracle_holds(
@@ -1083,7 +1160,8 @@ def _score_values_under_every_permutation(
     tags: list[tuple[str, int, int]],
     tallies: Mapping[tuple[int, ...], test_properties._DecodeTally],
     coarseness: Mapping[tuple[int, ...], Counter[int]],
-) -> tuple[int, int]:
+    census: _CoarsenessCensus,
+) -> int:
     """Decode each scored value once per permutation of its own stored bytes.
 
     THE COARSENESS POPULATION IS ADMITTED ON THE AS-STORED READING ALONE, which
@@ -1098,14 +1176,13 @@ def _score_values_under_every_permutation(
         tags: The payload's tags, from the unrotated shipped walk.
         tallies: One tally per permutation, mutated in place.
         coarseness: One width-keyed counter per permutation, mutated in place.
+        census: The coarseness census's own accumulator, mutated in place.
 
     Returns:
-        How many values were scored under the identity permutation, and how many
-        of them entered the coarseness census.
+        How many values were scored under the identity permutation.
     """
     specs = objects._FIXED_WIDTH_VALUES  # noqa: SLF001
     scored = 0
-    coarse = 0
     for type_word, value_at, size in tags:
         if type_word not in (_INT_WORD, _FLOAT_WORD):
             continue
@@ -1115,22 +1192,35 @@ def _score_values_under_every_permutation(
         stored = bytes(body[value_at : value_at + size])
         scored += 1
         in_population = type_word == _FLOAT_WORD and _the_interior_stored_bytes_differ(stored)
-        if in_population:
-            in_population = isinstance(
-                objects._decode_fixed_width(stored, 0, size, spec),  # noqa: SLF001
-                float,
-            )
-            coarse += int(in_population)
+        # A guard testing that the shipped decoder returned a float for these
+        # bytes stood here and was measured DEAD - the width was already checked
+        # one line above, and the shipped float branch returns a value for every
+        # four-byte input. It is replaced by the census grading below, which can
+        # fire.
+        census.admitted += int(in_population)
         for perm in _PERMUTATIONS:
             reordered = bytes(stored[index] for index in perm)
             if in_population:
-                _tally_mantissa_coarseness(reordered, coarseness[perm])
+                scored_bytes = _tally_mantissa_coarseness(reordered, coarseness[perm])
+                if perm == _IDENTITY:
+                    # GRADED ON WHAT THE TALLY REPORTS HAVING SCORED, not on the
+                    # variable this call site meant to pass. A slice displaced at
+                    # the call site is invisible to a check sited on the unused
+                    # variable, which is why the tally hands its bytes back.
+                    census.graded += 1
+                    if not _agrees(
+                        objects._decode_fixed_width(scored_bytes, 0, size, spec),  # noqa: SLF001
+                        objects._decode_fixed_width(body, value_at, size, spec),  # noqa: SLF001
+                    ):
+                        census.misread += 1
+                    if bytes(scored_bytes[index] for index in _MIDDLE_SWAP) == scored_bytes:
+                        census.inert += 1
             value = objects._decode_fixed_width(reordered, 0, size, spec)  # noqa: SLF001
             if type_word == _INT_WORD and isinstance(value, int):
                 test_properties._tally_int32_byte_order(value, tallies[perm])  # noqa: SLF001
             elif type_word == _FLOAT_WORD and isinstance(value, float):
                 test_properties._tally_float32_byte_order(value, tallies[perm])  # noqa: SLF001
-    return scored, coarse
+    return scored
 
 
 @lru_cache(maxsize=1)
@@ -1166,7 +1256,8 @@ def _sweep_permutations() -> _PermutationSweep | None:
         for perm in _PERMUTATIONS
     }
     coarseness: dict[tuple[int, ...], Counter[int]] = {perm: Counter() for perm in _PERMUTATIONS}
-    payloads = scored = big = coarse_population = 0
+    census = _CoarsenessCensus()
+    payloads = scored = big = 0
     restored = True
     seen_a_save = False
     failures: list[str] = []
@@ -1202,11 +1293,9 @@ def _sweep_permutations() -> _PermutationSweep | None:
                 if tags is None:
                     continue
                 big += sum(1 for _w, _v, size in tags if size >= _HIGH_SIZE_FLOOR)
-                here, coarse_here = _score_values_under_every_permutation(
-                    extents.body, tags, tallies, coarseness
+                scored += _score_values_under_every_permutation(
+                    extents.body, tags, tallies, coarseness, census
                 )
-                scored += here
-                coarse_population += coarse_here
         except (Exception, SystemExit) as exc:
             failures.append(type(exc).__name__)
             continue
@@ -1224,7 +1313,10 @@ def _sweep_permutations() -> _PermutationSweep | None:
         float_oracle_holds=floats,
         coarse_oracle_holds=coarse,
         coarseness=frozen_coarseness,
-        coarseness_population=coarse_population,
+        coarseness_population=census.admitted,
+        coarseness_graded=census.graded,
+        coarseness_misread=census.misread,
+        coarseness_inert_admissions=census.inert,
         payloads=payloads,
         scored_values=scored,
         tags_above_the_size_floor=big,
@@ -1589,11 +1681,26 @@ def test_the_declared_size_field_census_narrows_the_byte_orders_to_two() -> None
 #   related by that swap. It removes the candidate the other two leave; it does
 #   not independently rule out the twenty-two they already rule out.
 #
-#   IT INHERITS THE ANCHOR'S BLIND SPOT AND ADDS NOTHING TO IT. Coarseness is a
-#   property of the bytes the tag header pointed at, so like every oracle in
-#   this module it speaks to WHICH ORDER those bytes are read in and not to the
-#   header having pointed at the right ones. That is the extent anchor's
-#   question and it is a different one.
+#   THE SHARED LOCATOR IS STILL OUTSIDE IT. Coarseness is a property of the
+#   bytes the tag header pointed at, so it speaks to WHICH ORDER those bytes are
+#   read in and not to the header having pointed at the right ones. That is the
+#   extent anchor's question and it is a different one.
+#
+#   ITS OWN OFFSET IS NOT OUTSIDE IT, AND AN EARLIER REVISION OF THIS COMMENT
+#   SAID IT WAS. The census slices the body privately, and that slice is a
+#   DIFFERENT hole from the shared locator: displacing it alone by -2 left every
+#   test here green while the census scored two framing bytes, and it scored
+#   them cleaner than real values because the byte before a float value is zero
+#   on every float tag in this library. It is now graded by
+#   test_the_coarseness_census_reads_the_value_the_shipped_decoder_reads, by
+#   equality against the shipped in-place read rather than by collapse under
+#   displacement - which would not have worked, the fault being GREENER.
+#
+#   THE SKIP SET WIDENED. Library-free, this module skipped five of eight tests
+#   before this work and skips more now, because the library-backed additions
+#   join the legitimate-skip population that a body gutted to a bare
+#   pytest.skip() hides among. That is CS-473's class rather than a new defect,
+#   and it is recorded here rather than closed here.
 #
 #   IT SKIPS WHERE THERE IS NO LIBRARY. Everything below that touches a save
 #   skips on a machine with no game, so the shipped singleton is ungraded on
@@ -1606,12 +1713,28 @@ def test_the_declared_size_field_census_narrows_the_byte_orders_to_two() -> None
 # process per mutant, with a self-check executed in that same process before
 # pytest was invoked - because the constants here are module-level and the
 # sweep is lru_cache-memoised, so a mutant applied in-process would be graded
-# against a stale derivation or a replayed verdict. Graded live and detected:
-# the survivor derivation with the coarseness term removed; the predicate
-# returning a verdict without comparing; the predicate with its strictness
-# dropped; the population test admitting values the swap does not change; and
-# the tie boundary moved one bit either way. THAT WAS A SNAPSHOT OF ONE RUN AND
-# IS NOT A STANDING CONTROL - nothing in the suite re-grades those mutants.
+# against a stale derivation or a replayed verdict.
+#
+# GRADED LIVE AND DETECTED: the survivor derivation with the coarseness term
+# removed; the predicate returning a verdict without comparing; the predicate
+# with its strictness dropped; the predicate made WIDTH-BLIND by comparing
+# totals; the admission helper stopping deriving its population; the tie
+# boundary moved one bit either way; the census's slice displaced by -2 with the
+# magnitude tallies untouched; and the population filter neutered at the
+# census's own call site with the helper left honest. THE LAST TWO WERE MISSED
+# BY AN EARLIER REVISION OF THIS MODULE and are the reason the census now
+# grades its own offset and its own admissions.
+#
+# ONE MUTANT IS EQUIVALENT AND IS NOT A GAP: widening the coarseness mask by one
+# bit, to take in the exponent's lowest bit. Proven rather than judged. The
+# scored quantity is the index of the lowest set bit, capped at the mantissa
+# width when the masked value is zero, and it therefore depends only on the low
+# mantissa-width-plus-one bits of the pattern; sweeping every one of those
+# exhaustively gives an identical result under both masks. A wider mask cannot
+# change any width this module scores.
+#
+# THAT WAS A SNAPSHOT OF TWO RUNS AND IS NOT A STANDING CONTROL - nothing in the
+# suite re-grades those mutants, and a later edit can reopen any of them.
 # ---------------------------------------------------------------------------
 
 
@@ -1692,8 +1815,16 @@ def test_the_coarseness_predicate_cannot_pass_both_readings_of_a_swapped_pair() 
     pair - a predicate dropping the strictness would pass both. A pair tied at
     every width must pass NEITHER - a predicate testing only ``>=`` would pass
     both and rule out nothing. A pair where each side wins somewhere must pass
-    neither - a predicate summing the widths, or reading one width and calling
-    it the verdict, would pick a winner from a corpus that has not chosen one.
+    neither - a predicate reading one width and calling it the verdict, or one
+    SUMMING the widths, would pick a winner from a corpus that has not chosen
+    one.
+
+    THE MIXED FIXTURE'S TOTALS ARE DELIBERATELY UNEQUAL, and an earlier
+    revision's were not. With totals of three against three a width-blind
+    predicate returning ``sum(mine) > sum(theirs)`` answered False for both
+    members and slipped through this test unchanged - measured, one process per
+    mutant. The totals below differ, so that mutant now elects a winner here and
+    is caught.
 
     IT READS NO SAVE, so this runs on CI alongside the boundary derivation.
     """
@@ -1724,13 +1855,71 @@ def test_the_coarseness_predicate_cannot_pass_both_readings_of_a_swapped_pair() 
     )
 
     mixed: Mapping[tuple[int, ...], Mapping[int, int]] = {
-        _IDENTITY: {first: 2, last: 1},
+        _IDENTITY: {first: 3, last: 1},
         _MIDDLE_SWAP: {first: 1, last: 2},
     }
     assert not any(_coarse_oracle_holds(mixed, perm) for perm in mixed), (
         "a pair where each side wins at some width passes the predicate, so the "
         "verdict is being taken from one width rather than from all of them - "
         "which is the fitted-threshold shape this oracle exists to avoid"
+    )
+
+
+def test_the_coarseness_census_reads_the_value_the_shipped_decoder_reads() -> None:
+    """THE CENSUS'S OWN SLICE AND ITS OWN POPULATION, graded at the call site.
+
+    WHAT WAS UNGRADED. The census slices the body privately and admits values
+    privately, and neither the tally, nor the predicate control, nor the
+    survivor derivation could see either. Measured: displacing the census's
+    slice alone by -2 left every test in this module green while it scored two
+    framing bytes and two value bytes, and neutering the admission filter at its
+    call site - leaving the helper honest - silently widened the population to
+    every float32 in the library with the module still reporting green.
+
+    THE DISPLACEMENT MADE THE ORACLE GREENER, NOT REDDER, which is why the
+    collapse-under-displacement shape the extent anchor uses does not work here.
+    The byte before a float tag's value is zero on every float tag in this
+    library, so a displaced read manufactures low-mantissa zeros and reports a
+    cleaner separation than the real values do. AN EQUALITY CONTROL IS WHAT
+    CATCHES IT: the bytes the tally consumed must decode to what the shipped
+    decoder reads in place at the tag's own reported offset.
+
+    ``graded`` IS ASSERTED EQUAL TO THE POPULATION AND NOT MERELY NON-ZERO,
+    because a check that quietly stops running reports the same zero as a check
+    that passes.
+
+    WHAT THIS STILL DOES NOT COVER, and it is a different hole from the one
+    above. The tag header's own offset is SHARED by the census and by the
+    in-place read compared against it, so a header pointing both at the wrong
+    place moves them together and is invisible here. That is the extent
+    anchor's question and it is not answered by anything in this section.
+    """
+    sweep = _permutations_or_skip()
+
+    assert sweep.coarseness_population > 0, (
+        "the coarseness census admitted nothing, so every count below is zero "
+        "for want of a population rather than for want of a fault"
+    )
+    assert sweep.coarseness_graded == sweep.coarseness_population, (
+        f"{sweep.coarseness_graded} of {sweep.coarseness_population} admitted "
+        "values were graded. The two counts diverging means the check below ran "
+        "on some other number of values than the census scored, so a zero from it "
+        "is not a statement about the census"
+    )
+    assert sweep.coarseness_misread == 0, (
+        f"{sweep.coarseness_misread} of {sweep.coarseness_population} admitted "
+        "values were tallied from bytes that do not decode to what the shipped "
+        "decoder reads in place at the tag's own offset. The census is scoring "
+        "something other than the value, and a displaced read of this format "
+        "scores CLEANER than a correct one, so this cannot be left to a "
+        "collapse-under-displacement control"
+    )
+    assert sweep.coarseness_inert_admissions == 0, (
+        f"{sweep.coarseness_inert_admissions} of {sweep.coarseness_population} "
+        "admitted values are ones the middle swap does not change. Those read "
+        "the same under both orderings of the pair the singleton rests on, so "
+        "they add the same number to both sides and widen the population without "
+        "widening the evidence - which is the clause CS-469 asks for by name"
     )
 
 
@@ -1766,10 +1955,11 @@ def test_the_scored_population_is_exactly_what_the_middle_swap_changes() -> None
         assert _the_interior_stored_bytes_differ(stored) == (reordered != stored), (
             f"the population test and the middle swap disagree on {list(stored)}: "
             f"admitted={_the_interior_stored_bytes_differ(stored)} while the swap "
-            f"{'changes' if reordered != stored else 'leaves'} the bytes. A value "
-            "the swap does not change reads the same under both orderings, so "
-            "admitting it adds the same number to both sides and dilutes rather "
-            "than measures; excluding one the swap DOES change discards evidence"
+            f"{'changes' if reordered != stored else 'leaves'} the bytes. For the "
+            "identity and the middle swap - the pair the shipped singleton rests "
+            "on - a value the swap does not change reads the same under both, so "
+            "admitting it adds the same number to both sides; excluding one the "
+            "swap DOES change discards evidence"
         )
 
 
@@ -1778,14 +1968,25 @@ def test_the_mantissa_bits_inside_the_low_stored_byte_separate_no_ordering_from_
 
     Every ordering and its swapped partner agree on which stored byte reaches
     output position zero, so at every width inside that byte their counts must
-    be EXACTLY equal - not close, equal. This is the non-circularity argument
-    and it is the strongest thing here: the region where the parameter is
-    predicted to be useless is measured to be useless, on data nobody chose,
-    for all twelve pairs at once.
+    be EXACTLY equal - not close, equal.
 
-    A FAILURE HERE IS NOT A FAILURE OF THE ORACLE. It says the counts are not
-    reading the bits this module thinks they are, which would make the verdict
-    in the discriminating region unreadable rather than merely wrong.
+    THIS TEST CANNOT FAIL ON ANY CORPUS, AND SAYING SO IS THE POINT. Below the
+    boundary the count depends only on ``stored[perm[0]]``, and the middle swap
+    fixes output position zero, so equality holds by construction whatever the
+    bytes are - it was measured true on uniform random noise and on garbage
+    windows alike. AN EARLIER REPORT OF THIS WORK CALLED IT "the non-circularity
+    argument and the strongest thing here" AND THAT WAS WRONG. A test that no
+    data can red is not evidence about data.
+
+    WHAT IT DOES GRADE IS THE IMPLEMENTATION, and only jointly with two
+    neighbours. It fails when the counts stop reading the bits the layout says
+    they read - a big-endian assembly in the tally, or a boundary in the wrong
+    place. Measured: moving the boundary one bit UP reds this half, and one bit
+    DOWN reds the strict-width test instead. So the pair of them pins the
+    boundary from both sides, and neither does it alone. The non-circularity
+    that matters is that the boundary is DERIVED from the layout twice over
+    before any save is read, which is
+    ``test_the_coarseness_tie_boundary_is_the_mantissa_that_fits_in_the_low_stored_byte``.
     """
     sweep = _permutations_or_skip()
 
@@ -1823,6 +2024,19 @@ def test_the_coarseness_verdict_does_not_depend_on_which_mantissa_width_it_score
     THAT IS THE ANSWER TO THE FITTED-THRESHOLD OBJECTION, and it is made by
     quantifying rather than by arguing. There is no width in this module that
     could be narrowed until the corpus separated.
+
+    A RECORDED FALSE-RED RISK, AND IT IS NOT THE SHIPPED RESULT'S RISK. STRICT
+    at every width is a stronger claim than the predicate deciding the shipped
+    constant needs - :func:`_coarse_oracle_holds` requires domination everywhere
+    and strictness only SOMEWHERE. Measured: on a synthetic population of purely
+    authored floats the two counts TIE at the first discriminating width, so a
+    corpus of that character would red this test while the byte order it grades
+    stayed correct. That is CS-432's shape and it is recorded here rather than
+    engineered away, because weakening the assertion to match the predicate
+    would make this test a restatement of the headline one and retire the
+    per-width visibility that is its whole content. IF THIS REDS, READ IT AS A
+    STATEMENT ABOUT THE CORPUS'S CHARACTER: the shipped constant rests on
+    :func:`_coarse_oracle_holds`, which such a corpus would still satisfy.
     """
     sweep = _permutations_or_skip()
 
@@ -1850,12 +2064,13 @@ def test_the_mantissa_coarseness_oracle_separates_the_middle_swap_from_the_ident
     WHAT WAS BLOCKING THIS, stated exactly, because the wrong diagnosis was
     ruled once and refuted. The two shipped value oracles leave the identity and
     the middle swap standing, and the library holds the evidence to separate
-    them in quantity - the great majority of float32 values carry differing
-    interior stored bytes. What could not use that evidence is the shipped
-    float32 oracle's magnitude band: the middle swap moves only the exponent's
-    least significant bit, so it changes a magnitude by at most a factor of two,
-    and a band spanning dozens of octaves admits both readings. THE
-    DISCRIMINATION WAS LOST IN THE PREDICATE, NOT ABSENT FROM THE DATA.
+    them: the census's admitted population is exactly the float32 values whose
+    middle bytes differ, and the run that measures it reports how many. What
+    could not use that evidence is the shipped float32 oracle's magnitude band,
+    which its own shipped counts show admits BOTH readings on most of the
+    population. NO MECHANISM FOR THAT IS WRITTEN HERE - two were offered in this
+    project's notes and both were measured false. THE DISCRIMINATION WAS LOST IN
+    THE PREDICATE, NOT ABSENT FROM THE DATA.
 
     WHAT THIS ORACLE ASKS INSTEAD is how many values keep the low-mantissa zeros
     that an authored float has and a wrongly ordered read destroys. Coarseness
@@ -1929,9 +2144,17 @@ def test_the_shipped_candidate_set_is_what_the_value_oracles_cannot_separate() -
     STATED LIMIT, AND IT IS STILL ABOUT THE ORACLES RATHER THAN THE CORPUS. A
     candidate surviving here is one these three do not rule out; that is not a
     claim that the format could plausibly use it. And the corpus was never the
-    obstacle: the great majority of float32 values carry differing interior
-    stored bytes, so the evidence was in the library the whole time. Do not
-    write, here or downstream, that the question was blocked by the data.
+    obstacle: the coarseness census admits the float32 values whose interior
+    stored bytes differ, and the run that measures it reports how many, so the
+    evidence was in the library the whole time. Do not write, here or
+    downstream, that the question was blocked by the data.
+
+    WHAT SIZE THAT POPULATION IS, IS NOT GRADED HERE and no assertion in this
+    module claims it. The only thing asserted is that it is non-empty. A floor
+    on its size would be a corpus-coupled constant that the operator's next
+    session could red for no defect at all - CS-432's shape - so the module
+    declines to carry one, and any stronger word for the population is an
+    observation of a run rather than a claim the suite checks.
     """
     sweep = _permutations_or_skip()
 
@@ -1953,6 +2176,17 @@ def test_the_shipped_candidate_set_is_what_the_value_oracles_cannot_separate() -
         "the as-stored ordering does not pass the mantissa-coarseness oracle on "
         "this library, so the survivor set below is derived from an oracle that "
         "disagrees with the reading the module ships"
+    )
+
+    shipped_two = sweep.int_oracle_holds & sweep.float_oracle_holds
+    assert shipped_two <= {_IDENTITY, _MIDDLE_SWAP}, (
+        f"the two shipped oracles leave {sorted(shipped_two)} standing, which is "
+        "more than the identity and its middle-swapped partner. The coarseness "
+        "oracle's population is tailored to THAT PAIR - it is the set of values "
+        "the middle swap changes - so a third ordering reaching this intersection "
+        "would have its coarseness verdict decided on a population not tailored "
+        "to it, and the narrowing below would rest on a comparison this module "
+        "does not license"
     )
 
     derived = sweep.int_oracle_holds & sweep.float_oracle_holds & sweep.coarse_oracle_holds

@@ -2465,22 +2465,28 @@ GUID_BYTES: Final = 16
 #   at runtime and compares it with the shipped literal.
 #
 #   THE THIRD ORACLE - the one that separates the middle pair the two shipped
-#   ones cannot - is mantissa coarseness, CS-469, and it is graded by four tests
-#   rather than trusted.
+#   ones cannot - is mantissa coarseness, CS-469. NO COUNT OF ITS GRADERS IS
+#   WRITTEN HERE; two enumerations of them disagreed once already, so they are
+#   listed and not tallied.
 #   tests/save/test_value_anchoring.py::test_the_mantissa_coarseness_oracle_
 #   separates_the_middle_swap_from_the_identity is the claim.
 #   tests/save/test_value_anchoring.py::test_the_coarseness_tie_boundary_is_
 #   the_mantissa_that_fits_in_the_low_stored_byte derives the boundary twice by
-#   two routes, and
+#   two routes and is where the non-circularity rests.
 #   tests/save/test_value_anchoring.py::test_the_mantissa_bits_inside_the_
-#   low_stored_byte_separate_no_ordering_from_its_swap is the corpus confirming
-#   the prediction that the boundary makes before any save is read - the
-#   non-circularity argument.
+#   low_stored_byte_separate_no_ordering_from_its_swap pins that boundary from
+#   above - it cannot fail on any corpus and its docstring says so.
 #   tests/save/test_value_anchoring.py::test_the_coarseness_verdict_does_not_
-#   depend_on_which_mantissa_width_it_scores quantifies the verdict over every
-#   width so no threshold was fitted, and
+#   depend_on_which_mantissa_width_it_scores pins it from below and quantifies
+#   the verdict over every width so no threshold was fitted.
 #   tests/save/test_value_anchoring.py::test_the_coarseness_predicate_cannot_
-#   pass_both_readings_of_a_swapped_pair is its library-free control.
+#   pass_both_readings_of_a_swapped_pair is the predicate's library-free control.
+#   tests/save/test_value_anchoring.py::test_the_scored_population_is_exactly_
+#   what_the_middle_swap_changes grades the admission helper, and
+#   tests/save/test_value_anchoring.py::test_the_coarseness_census_reads_the_
+#   value_the_shipped_decoder_reads grades the census's OWN offset and its OWN
+#   population at the call site - the two things every other test above is blind
+#   to.
 #
 #   tests/save/test_value_anchoring.py::test_the_declared_size_field_census_
 #   narrows_the_byte_orders_to_two is the DIFFERENT-FIELD narrowing whose
@@ -2806,15 +2812,21 @@ VALUE_BYTE_ORDER_STATUS: Final[Mapping[str, str]] = MappingProxyType(
 #: where the set stood, and why.
 #:
 #: THE MIDDLE PAIR IS SEPARATED BY MANTISSA COARSENESS - CS-469 - AND THE
-#: OBSTACLE WAS NEVER THE DATA. The library's float32 values overwhelmingly DO
-#: carry differing middle bytes, so the corpus held the evidence throughout.
-#: What could not use it was the float oracle's magnitude band: the middle swap
-#: moves only the exponent's least significant bit, so it can change a magnitude
-#: by at most a factor of two, and a band spanning dozens of octaves admits both
-#: readings. The discrimination was lost in the PREDICATE. An authored float -
-#: a clock speed, a snapped coordinate, a fraction a designer typed - needs few
-#: significant mantissa bits, so its low mantissa bits are zero, and a wrong
-#: ordering destroys that. Counting how many values keep it separates the pair.
+#: OBSTACLE WAS NEVER THE DATA. The corpus held the evidence throughout: the
+#: census's admitted population is the float32 values whose middle bytes differ,
+#: and the run that measures it reports how many there are. What could not use
+#: that evidence is the float oracle's magnitude band, which the band's own
+#: shipped counts show admits BOTH readings on a majority of the population.
+#: NO ACCOUNT OF WHY THE BAND CANNOT DISCRIMINATE IS WRITTEN HERE. Two were
+#: offered - a bound of a factor of two, then a bound approaching four - and
+#: both were measured FALSE, the second because the exponent-bit flip crosses
+#: the subnormal and infinity boundaries. The conclusion stands on the band's
+#: measured counts and needs no mechanism beside it.
+#:
+#: WHAT COARSENESS ASKS INSTEAD: an authored float - a clock speed, a snapped
+#: coordinate, a fraction a designer typed - needs few significant mantissa
+#: bits, so its low mantissa bits are zero, and a wrong ordering destroys that.
+#: Counting how many values keep it separates the pair.
 #: Do not record, here or downstream, that this question was ever data-blocked.
 #:
 #: THE RESULT IS JOINT ACROSS BOTH SCORED POPULATIONS AND NO SINGLE TYPE'S

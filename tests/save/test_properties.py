@@ -1691,11 +1691,12 @@ def test_the_float32_byte_order_is_discriminated_by_plausible_magnitude() -> Non
 
     THE BAND BELOW IS WHY A THIRD ORACLE WAS NEEDED, and naming the limit here
     is more use than defending it. The band is a DOMAIN bound and it is not
-    narrowable to settle a byte order: the ordering that swaps the two middle
-    stored bytes moves only the exponent's least significant bit, so it changes
-    a magnitude by at most a factor of two, and any band wide enough to hold a
-    world's ordinary floats admits both readings. CS-469 settled that pair with
-    mantissa coarseness instead, in
+    narrowable to settle a byte order - the second assertion below counts how
+    many values are plausible under the SWAPPED reading, and that count is the
+    evidence for this paragraph. NO MECHANISM IS OFFERED FOR IT HERE. Two were,
+    in successive revisions of this project's notes, and both were measured
+    false; the counts do not need one. CS-469 settled the pair the band cannot
+    with mantissa coarseness instead, in
     ``tests/save/test_value_anchoring.py::test_the_mantissa_coarseness_oracle_separates_the_middle_swap_from_the_identity``.
     Do not narrow ``_FLOAT_PLAUSIBLE_LOW`` or ``_FLOAT_PLAUSIBLE_HIGH`` to chase
     a discrimination they cannot make.
