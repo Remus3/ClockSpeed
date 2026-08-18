@@ -202,83 +202,81 @@ the line becomes a pointer.
   **CS-454 and CS-465 STAY OPEN and are deferred, not dropped** - CS-454 has four named blockers in
   its ROADMAP entry and CS-465 is this session's own porous fence.
 
-## Session 14 - 2026-08-16 - CS-420 closes on the seventh round; CS-421 and CS-422 both REFUTED
+## Session 17 - 2026-08-17 - CS-469 and CS-475 CLOSE; CS-421 stays open on the type nobody scored
 
-- **Shipped: CS-420 CLOSED.** CS-421 and CS-422 were ADJUDICATED AND REFUTED and both STAY OPEN, each
-  with a ledger record withdrawing the previous record's evidence by name. Filed CS-458, CS-459, CS-460,
-  CS-461. CS-455's acceptance CORRECTED against a measurement; CS-456 rescoped from one type word to the
-  family. Suite 2001 -> **2007 passed, 3 skipped, exit 0**, serial, observed this session. mypy clean
-  over 28 files, ruff check and format clean, drift guard **CLEAN 9/9**, doc budget PASS. Detail in
-  `docs/LEDGER.md`.
+- **Shipped: CS-469 CLOSED, CS-475 CLOSED.** CS-421 STAYS OPEN with a ledger record declaring the
+  non-closure by name. Filed CS-476. Suite 2035 -> **2065 passed, 3 skipped, exit 0**, serial and
+  under `-n auto`, baseline measured by the merger itself at `86c9e54` before any slice ran and the
+  delta reconciling exactly as 22 + 8. Drift guard **CLEAN 9/9**, doc budget PASS, bare mypy clean
+  over 83 files, ruff clean. Detail in `docs/LEDGER.md`.
 
-- **THE HEADLINE IS THAT INDEPENDENT GRADING CHANGED THE OUTCOME ON ALL THREE ITEMS, IN BOTH
-  DIRECTIONS.** Two items that read as done were refuted; one item that had failed five rounds closed.
-  The session prompt offered the adjudication as the CHEAPER alternative to CS-420. It was not cheaper
-  and it was the more valuable half.
+- **THE HEADLINE IS THAT BUILDERS REFUSED REVIEWER PRESCRIPTIONS THREE TIMES AND WERE RIGHT EVERY
+  TIME.** Twice on CS-469 against the merger AND the verifier together, once on CS-475 against the
+  merger. Each refusal was a MEASUREMENT, not an argument. The transferable rule: when a reviewer
+  specifies HOW to fix rather than WHAT PROPERTY MUST HOLD, the specification is usually defeatable
+  and the agent holding the code is the one who can see it.
 
-- **CS-421's int32 oracle passes green on bytes that are not the int32.** Displace the `IntProperty`
-  value start by +4 - reading the next tag's name-length prefix - and it scores **75136 of 75136**
-  against the correct read's 70669, because a name-length prefix is a small little-endian count and
-  carries a CLEANER signature than real values do. Only synthetic fixtures notice. **The as-read
-  majority survives at -2, -1, +2, +3 and +4**, so a rotation control testing only plus or minus one
-  would pass and prove nothing. `FloatProperty` is NOT refuted - it collapses at every non-zero delta,
-  and that asymmetry is a finding. Both cited mutants reproduced digit for digit and the
-  non-circularity defence held under three attacks: what failed is ANCHORING, not independence.
+- **CS-469's real difficulty was never the finding, it was grading it.** The answer - the identity
+  `(0,1,2,3)` - was correct and stable from the first build and was re-derived by three independent
+  routes. What failed, four times, was the control: a green displaced census. Bypasses ran 4 lines,
+  then 6, then a nested-scope parameter shadow (`ast.arg` is not `ast.Name`), each found only
+  because someone went looking after the previous closure was believed final. The shipped fence is
+  three structural rules - one cut of the body, one offset expression, one binding of `value_at` -
+  and the module now enumerates them rather than claiming an absolute, because it claimed one twice.
 
-- **CS-422's partition assertion compares a set with itself.** `CURSOR_WIDTHS | EXTENT_WIDTHS` is built
-  from the same four sources the test builds its own `shipped` set from, so `ungoverned` and `phantom`
-  are structurally empty. Confirmed by the merger from source with no mutation needed. Replacing
-  `WIDTH_SHIPPING_RULE` with "ship any width you feel like, no evidence needed", emptying
-  `DECLINED_VALUE_READINGS`, or gutting all three cited tests each leaves the save suite GREEN, and
-  neither symbol has a production consumer. Two of the three tests do not run without a save library,
-  so on CI the rule is graded by nothing at all. What survived: `at = value_start + size` is the only
-  tag-walk advance in the package, so an extent width genuinely cannot move the cursor.
-
-- **CS-420 WAS REFUTED AT ROUND SIX AND CLOSED AT ROUND SEVEN, and the shape of the failure is the
-  item's own signature.** Clause 3's comment half had no liveness floor and could be reduced to probing
-  nothing with the full suite green. The prose audit found two false sentences, **one of them CREATED
-  by the commit whose stated purpose was stripping false measurements**. The repair DELETED rather than
-  reworded, found a third false sentence nobody had listed, and tied both probes to the census
-  population. The second clause-5 pass could not break clauses 1 to 4 across 25 injection shapes, 7
-  deletion trials, 13 mutants and a 279-position attribution sweep.
+- **THE MERGER SEEDED A FALSE SENTENCE INTO ITS OWN DISPATCH, AGAIN, AND THEN PRODUCED TWO MORE
+  WRONG VERSIONS OF IT.** "The middle swap moves only the exponent's LSB, so it can change a
+  magnitude by at most a factor of two" was written by the merger, propagated to FOUR sites, and is
+  false - 24% of values move by more than 2x on corpus, and off corpus the flip crosses the
+  subnormal and infinity boundaries (ratio 256, finite -> inf). The merger's first correction,
+  "bounded by approaching 4", was also false. The builder's replacement justification was false a
+  third way: it cited `float32_plausible_if_swapped` (4425 of 31318, 14.13%) as showing the band
+  admits both readings on most values, when that count is the WHOLE-WORD REVERSAL rather than the
+  middle swap and the assertion beside it requires it to be a minority. **Delete was not enough;
+  the fix was to forbid a number and point at the derivation.**
 
 - **Surprises**, each measured:
-  1. **THE MERGER'S OWN MUTANT LOOP WAS INVALID AND CONTRADICTED TWO AGENTS.** Looping constants inside
-     ONE process reported everything red, because the decode sweep is MEMOISED and every iteration after
-     the first silently replays the first mutant's verdict. One process per constant: 0 red, **1 / 255 /
-     1000 / 65535 / 1000000 GREEN**, 16777216 red. That falsified CS-455's stated premise that a large
-     constant goes red, so its acceptance was rewritten.
-  2. **THE HARNESS EDIT TOOL WRITES CRLF**, converting whole tracked files. `git status` stays CLEAN
-     because `.gitattributes` normalises the blob on commit, so nothing catches it. `git checkout --`
-     does NOT fix it - git thinks the file matches. Delete then check out. Recorded in the harness
-     memory store as `edit-tool-writes-crlf`.
-  3. **THE MERGER REPRODUCED CS-448's MECHANISM BY ACCIDENT.** Removing an agent worktree WHILE the
-     authoritative suite was collecting starved that run past twice its normal wall clock. It is the
-     concurrent-deleter half of CS-448 arriving from a hand rather than from xdist.
-  4. **A BUILDER DISAGREED WITH ITS DISPATCH AND WAS RIGHT.** Told the `monkeypatch` symbol names were
-     data, it read them as prose instead - over-reading costs nothing when the string carries no
-     marker, and every exemption is a hole to defend. That collapsed the design to ONE string exemption
-     class.
-  5. **THE CLAUSE-5 ADVERSARY MISSED A FALSE SENTENCE THAT THE BUILDER THEN CAUGHT** - a suite outcome
-     the builder had never measured, in its own new prose. Checking one flagged sentence also exposed a
-     sibling of the same shape. Where one instance of a shape is found, the family is worth a sweep.
-  6. **TextProperty WAS NOT THE ONE HONEST EXCEPTION.** Four type words share the split; three are
-     declined in a DIFFERENT table on sample size. The admitted exception was simply the one that got
-     transcribed.
+  1. **A BUILDER'S OWN PRESCRIBED FIX WOULD HAVE SHIPPED THE HOLE OPEN.** Plumbing the offset into
+     the tally makes slice and reference move together: `misread=0`, the value grade provably blind.
+     Single-slice ownership is what makes a displacement collapse both magnitude oracles instead.
+  2. **`git worktree remove` DELETES THE `.git` MARKER BEFORE THE FILES** - 8/8 rounds showed a
+     populated, unmarked window. A boundary rule relying on the converse of its own statement is
+     false for the duration of every teardown.
+  3. **A TEST SUITE BECAME A WRITER OF SHARED GIT STATE.** CS-475's first control ran
+     `git worktree add/remove/prune` against the real repo root three times per suite run - CS-448's
+     own mechanism, automated, and it probably explains a `locked` file that vanished unexplained.
+  4. **THE MERGER'S OWN MEMBERSHIP RULE REOPENED THE DEFECT.** tracked-or-not-ignored only worked
+     because the harness directory happens to be gitignored; at an un-ignored path the teardown
+     window reopens. The builder measured that rather than implementing it. Three rules were needed.
+  5. **A pid in a plant path landed in the pytest NODE ID** and broke `-n auto` collection - the
+     exact CI invocation the module's own docstring cited. `--collect-only -n auto` passes on both
+     trees and does not catch it.
+  6. **THE MERGER GENERALISED ONE AGENT REPORT INTO A STANDING LESSON WITHOUT MEASURING IT.** The
+     claim that bare `mypy` catches what targeted `mypy` misses did not survive the verifier: the
+     targeted form catches it too, and the suite catches it via `test_mypy_gate`'s repo-wide shell
+     out. The true lesson is narrower - **ruff does not type-check** - and the gate test is what the
+     suite inherits mypy through. It was caught before reaching the ledger.
+  7. **CS-421's remaining work was on its own list since session 14 and nobody had struck it.**
+     `UInt32Property` is a four-byte type the same reader decodes and no oracle scores.
 
 - **Failed paths - do not retry:**
-  - **Looping mutants inside one process against a memoised sweep.** The first verdict is the only one.
-  - **Editing a tracked file with the harness Edit tool and trusting `git status`.** It reports clean
-    on a working tree that violates the LF rule.
-  - **Deleting a worktree while the authoritative suite runs.** That is CS-448's own mechanism.
-  - **Re-wording a false measured sentence.** Every attempt in this project's history produced another
-    false one, including one four hours old. Delete, or derive in the run that prints it.
-  - **Reading a follow-up item as satisfying the clause it was filed against.** CS-456's existence does
-    not make CS-422's exception clause met.
+  - **Prescribing a fix mechanism to a builder without stating the property.** Three for three.
+  - **Deleting a false measured sentence and letting someone write a replacement justification.**
+    Forbid the number; point at a derived fact the suite reddens on.
+  - **A grader sited beside a slice.** It can always be pointed at a different local. Remove the
+    degree of freedom instead.
+  - **Naming a harness directory, or relying on one being gitignored, to bound a walk.**
+  - **Any `git worktree add/remove/prune` against the live repo from a test.** Build a repo in
+    `tmp_path`.
+  - **Verifying parallel safety with `--collect-only -n auto`.** It passes while the real run fails.
 
-- **Next action:** **CS-454**, the live PII leak on `main` - tier 1, non-negotiables 3 and 12. Then
-  **CS-449** (fail-open below CS-444, reachability measured and reproduced end to end, tier 1), then
-  **CS-455**, whose acceptance was corrected this session and must NOT be closed with a synthetic
-  fixture. **CS-421 and CS-422 both need real work, not re-grading** - CS-421 needs a value-start
-  rotation control built knowing +4 does not collapse today, and CS-422 needs its partition derived
-  from INDEPENDENT sources (that half is filed as CS-458).
+- **Next action: CS-476**, and take it BEFORE the `UInt32Property` half of CS-421, so the status
+  artifact is fenced before anyone edits it. It is cheap, library-free and TDD-able: the failing
+  test is the adjudicator's own mutant. Then CS-421's remaining half - either an oracle scoring
+  `UInt32Property`, or a DERIVED status word distinguishing "no oracle written" from "population
+  cannot separate", with the count derived at runtime and NOT the archived `9` from session 14.
+  After that **CS-471** (tier 1, privacy-adjacent), whose surface this session ENLARGED: three
+  library-reaching helpers were added to `tests/save/test_value_anchoring.py`, which still does not
+  call `_assert_library_reach_is_declared`. Measured this session: 8 of 16 modules under
+  `tests/save` reach the library and 5 declare.
+

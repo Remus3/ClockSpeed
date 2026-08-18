@@ -1487,3 +1487,89 @@ Aged out when session 15 landed and `WAKEUP_NOTES.md` keeps only the last three 
   CS-435's two derived fences in `clockspeed/save/usmap.py`** - they are the worked example its clause
   (2) asks for. **Failing that, get CS-421 and CS-422 ADJUDICATED** - both are built, both are graded
   only by the agent that built them, and neither can close until an independent pass runs.
+
+
+## Archived wakeup notes
+
+## Session 14 - 2026-08-16 - CS-420 closes on the seventh round; CS-421 and CS-422 both REFUTED
+
+- **Shipped: CS-420 CLOSED.** CS-421 and CS-422 were ADJUDICATED AND REFUTED and both STAY OPEN, each
+  with a ledger record withdrawing the previous record's evidence by name. Filed CS-458, CS-459, CS-460,
+  CS-461. CS-455's acceptance CORRECTED against a measurement; CS-456 rescoped from one type word to the
+  family. Suite 2001 -> **2007 passed, 3 skipped, exit 0**, serial, observed this session. mypy clean
+  over 28 files, ruff check and format clean, drift guard **CLEAN 9/9**, doc budget PASS. Detail in
+  `docs/LEDGER.md`.
+
+- **THE HEADLINE IS THAT INDEPENDENT GRADING CHANGED THE OUTCOME ON ALL THREE ITEMS, IN BOTH
+  DIRECTIONS.** Two items that read as done were refuted; one item that had failed five rounds closed.
+  The session prompt offered the adjudication as the CHEAPER alternative to CS-420. It was not cheaper
+  and it was the more valuable half.
+
+- **CS-421's int32 oracle passes green on bytes that are not the int32.** Displace the `IntProperty`
+  value start by +4 - reading the next tag's name-length prefix - and it scores **75136 of 75136**
+  against the correct read's 70669, because a name-length prefix is a small little-endian count and
+  carries a CLEANER signature than real values do. Only synthetic fixtures notice. **The as-read
+  majority survives at -2, -1, +2, +3 and +4**, so a rotation control testing only plus or minus one
+  would pass and prove nothing. `FloatProperty` is NOT refuted - it collapses at every non-zero delta,
+  and that asymmetry is a finding. Both cited mutants reproduced digit for digit and the
+  non-circularity defence held under three attacks: what failed is ANCHORING, not independence.
+
+- **CS-422's partition assertion compares a set with itself.** `CURSOR_WIDTHS | EXTENT_WIDTHS` is built
+  from the same four sources the test builds its own `shipped` set from, so `ungoverned` and `phantom`
+  are structurally empty. Confirmed by the merger from source with no mutation needed. Replacing
+  `WIDTH_SHIPPING_RULE` with "ship any width you feel like, no evidence needed", emptying
+  `DECLINED_VALUE_READINGS`, or gutting all three cited tests each leaves the save suite GREEN, and
+  neither symbol has a production consumer. Two of the three tests do not run without a save library,
+  so on CI the rule is graded by nothing at all. What survived: `at = value_start + size` is the only
+  tag-walk advance in the package, so an extent width genuinely cannot move the cursor.
+
+- **CS-420 WAS REFUTED AT ROUND SIX AND CLOSED AT ROUND SEVEN, and the shape of the failure is the
+  item's own signature.** Clause 3's comment half had no liveness floor and could be reduced to probing
+  nothing with the full suite green. The prose audit found two false sentences, **one of them CREATED
+  by the commit whose stated purpose was stripping false measurements**. The repair DELETED rather than
+  reworded, found a third false sentence nobody had listed, and tied both probes to the census
+  population. The second clause-5 pass could not break clauses 1 to 4 across 25 injection shapes, 7
+  deletion trials, 13 mutants and a 279-position attribution sweep.
+
+- **Surprises**, each measured:
+  1. **THE MERGER'S OWN MUTANT LOOP WAS INVALID AND CONTRADICTED TWO AGENTS.** Looping constants inside
+     ONE process reported everything red, because the decode sweep is MEMOISED and every iteration after
+     the first silently replays the first mutant's verdict. One process per constant: 0 red, **1 / 255 /
+     1000 / 65535 / 1000000 GREEN**, 16777216 red. That falsified CS-455's stated premise that a large
+     constant goes red, so its acceptance was rewritten.
+  2. **THE HARNESS EDIT TOOL WRITES CRLF**, converting whole tracked files. `git status` stays CLEAN
+     because `.gitattributes` normalises the blob on commit, so nothing catches it. `git checkout --`
+     does NOT fix it - git thinks the file matches. Delete then check out. Recorded in the harness
+     memory store as `edit-tool-writes-crlf`.
+  3. **THE MERGER REPRODUCED CS-448's MECHANISM BY ACCIDENT.** Removing an agent worktree WHILE the
+     authoritative suite was collecting starved that run past twice its normal wall clock. It is the
+     concurrent-deleter half of CS-448 arriving from a hand rather than from xdist.
+  4. **A BUILDER DISAGREED WITH ITS DISPATCH AND WAS RIGHT.** Told the `monkeypatch` symbol names were
+     data, it read them as prose instead - over-reading costs nothing when the string carries no
+     marker, and every exemption is a hole to defend. That collapsed the design to ONE string exemption
+     class.
+  5. **THE CLAUSE-5 ADVERSARY MISSED A FALSE SENTENCE THAT THE BUILDER THEN CAUGHT** - a suite outcome
+     the builder had never measured, in its own new prose. Checking one flagged sentence also exposed a
+     sibling of the same shape. Where one instance of a shape is found, the family is worth a sweep.
+  6. **TextProperty WAS NOT THE ONE HONEST EXCEPTION.** Four type words share the split; three are
+     declined in a DIFFERENT table on sample size. The admitted exception was simply the one that got
+     transcribed.
+
+- **Failed paths - do not retry:**
+  - **Looping mutants inside one process against a memoised sweep.** The first verdict is the only one.
+  - **Editing a tracked file with the harness Edit tool and trusting `git status`.** It reports clean
+    on a working tree that violates the LF rule.
+  - **Deleting a worktree while the authoritative suite runs.** That is CS-448's own mechanism.
+  - **Re-wording a false measured sentence.** Every attempt in this project's history produced another
+    false one, including one four hours old. Delete, or derive in the run that prints it.
+  - **Reading a follow-up item as satisfying the clause it was filed against.** CS-456's existence does
+    not make CS-422's exception clause met.
+
+- **Next action:** **CS-454**, the live PII leak on `main` - tier 1, non-negotiables 3 and 12. Then
+  **CS-449** (fail-open below CS-444, reachability measured and reproduced end to end, tier 1), then
+  **CS-455**, whose acceptance was corrected this session and must NOT be closed with a synthetic
+  fixture. **CS-421 and CS-422 both need real work, not re-grading** - CS-421 needs a value-start
+  rotation control built knowing +4 does not collapse today, and CS-422 needs its partition derived
+  from INDEPENDENT sources (that half is filed as CS-458).
+
+Relocated from `WAKEUP_NOTES.md`, newest first. Never deleted.

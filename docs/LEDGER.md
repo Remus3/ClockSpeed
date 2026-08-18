@@ -73,6 +73,81 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-17 - CS-421 - DOES NOT CLOSE. The candidate set is a singleton and clause 3 is NOT MET
+This record does not close CS-421. Clauses 1 and 2 remain met and were not reopened. Clause 3
+stays unmet, adjudicated 2026-08-17 by an agent that produced none of the session's work.
+
+WHAT IS TRUE NOW. CS-469 closed. `objects.BYTE_ORDER_SURVIVING_CANDIDATES` holds one member,
+derived at runtime from three oracles intersected and asserted against the shipped literal in the
+direction that reddens when the constant is narrowed without the evidence narrowing. The evidence
+is the operator's real save library, read-only, which is not this project's own writer.
+
+WHAT THIS RECORD MUST NOT BE READ AS CLAIMING. It does not claim the endianness question is
+settled. It does not claim any single type's byte order is pinned: the narrowing is JOINT, and
+re-derived by the adjudicator from the library this run - int 6, float 6, coarse 6; int&float 2,
+float&coarse 2, int&coarse 3, all three 1. No pair of oracles reaches one. It does not claim
+`UInt32Property` is covered. It does not claim the question was ever data-blocked - it was not.
+
+WHY IT STAYS OPEN. `UInt32Property` is a four-byte member of `MEASURED_VALUE_TYPES`, decoded by
+the same `_decode_fixed_width`, and no oracle scores one of its bytes: the census at
+`tests/save/test_value_anchoring.py` skips every type word that is not IntProperty or
+FloatProperty. Carrying the joint result across to it needs the premise that this format uses one
+byte order for every four-byte field, which `clockspeed/save/objects.py` refuses IN WRITING for
+the declared size field in the same docstring block. It is the live 4-byte question the
+session-14 refutation named under remaining work, unstruck since.
+
+A SECOND DEFECT, MEASURED BY THE ADJUDICATOR RATHER THAN REASONED. `_BYTE_ORDER_ANCHORED_VALUES`
+is a hand-written pair that no test derives from what the oracles admit. Patching the shipped
+constant in-process so `UInt32Property` reads `anchored_not_unique` - claiming an oracle backs a
+type nothing scores - leaves `tests/save` fully green at 1032 passed. Filed as CS-476. It is NOT
+CS-459, which is the evidence table and the opposite direction.
+
+LIMITS RECORDED ALONGSIDE. The result is joint and not per-type. `UInt32Property` is unscored.
+The per-type status partition is ungraded above one byte. The SHARED LOCATOR is unanswered and
+now underpins three oracles rather than two - all three are handed bytes at the same `value_at`
+from the same `_read_tag_header` walk, which is closer to one oracle than to three. The shipped
+singleton is ungraded on CI because the library-backed tests skip without a game, which is
+CS-426's recorded gap. The mutation tables are snapshots of five runs, not standing controls. The
+extent anchor stays green for any pure function of the declared extent, which is CS-455's class.
+Verification: `python -m pytest tests -q -p no:randomly` gives 2065 passed, 3 skipped, exit 0 at
+`2337f78`. Import `clockspeed.save.objects` and read `BYTE_ORDER_SURVIVING_CANDIDATES` for the
+singleton and `VALUE_BYTE_ORDER_STATUS` for `UInt32Property` reading `unscored`. Reproduce the
+ungraded-partition defect by setting that entry to `anchored_not_unique` in a copy and running
+`python -m pytest tests/save -q`, which stays green.
+
+### 2026-08-17 - CS-469 - CLOSED. A mantissa coarseness oracle separates the middle swap from the identity
+The float32 population whose interior stored bytes differ separates the two orderings the
+magnitude oracles could not. An ordering passes when its count of values coarse to k mantissa
+bits is at least its middle-swapped partner's at EVERY k and strictly greater at some k, so there
+is no threshold to tune. The population is derived at runtime from the swap itself. The census is
+fenced by three structural rules - one cut of the body, one offset expression, one binding of
+`value_at` - each added because the previous fence was measured bypassed: a second-slice bypass, a
+displaced-offset bypass through an allowlisted reader, and a nested-scope parameter shadow, the
+last because `ast.arg` is not `ast.Name`. Every closure was believed final at the time, which is
+why the shipped claim is enumerated rather than absolute.
+Verification: `python -m pytest tests -q -p no:randomly` gives 2065 passed, 3 skipped, exit 0 at
+`2337f78`, and `pytest tests -q -n auto` agrees. The shrink is graded by
+`tests/save/test_value_anchoring.py::test_the_shipped_candidate_set_is_what_the_value_oracles_cannot_separate`,
+the fence by `::test_the_coarseness_census_cuts_the_body_exactly_once`. On a machine with no game
+the fence, the predicate control and the population control still run; the census skips, which is
+CS-426's gap. `VALUE_BYTE_ORDER_STATUS` and `_byte_order_status` are byte-identical to `86c9e54`.
+
+### 2026-08-17 - CS-475 - CLOSED. doc_budget states its population instead of globbing it
+The tool no longer measures budgeted files belonging to other checkouts. Membership is three
+complementary rules shipped as data with their reasons - a `.git` boundary marker, a
+registered-worktree check, and tracked-or-not-ignored - each proven load-bearing by ablation. The
+registered-worktree rule is what closes the teardown window, in which `git worktree remove`
+deletes the marker before the files and leaves a populated directory unmarked; a tracked-or-not-
+ignored rule alone reopens it at any path outside a gitignore pattern, which was measured rather
+than assumed. When git cannot answer, the tool prints a DEGRADED line naming the weaker
+population rather than passing it off as the stated one, and a walked-but-untracked file is
+reported rather than silently dropped.
+Verification: `python tools/doc_budget.py` on a tree with live agent worktrees reports
+`measured: 16` where the pre-CS-475 tool reports 18. `python -m pytest tests -q -n auto` gives
+2065 passed, 3 skipped, exit 0 at `2337f78`. The control in `tests/test_doc_budget.py` builds a
+real git checkout under `tmp_path` and plants at two sites; no worktree command in the suite
+targets the repository the suite lives in, which is confirmable from `GIT_TRACE` output. The ast
+guards enforcing that are name-based and bypassable, and say so in their own docstring.
 ### 2026-08-17 - CS-422 - CLOSED. The width rule now has an executable consequence on the lane that grades it
 Verification: `python -m pytest tests -q -p no:randomly` gives 2035 passed, 3 skipped, exit 0,
 against the 2018 passed 3 skipped the merger measured itself at `f20411c` before any slice ran.
