@@ -1576,9 +1576,103 @@ Relocated from `WAKEUP_NOTES.md`, newest first. Never deleted.
 
 ## Relocated from ROADMAP.md on 2026-08-18 (session 18)
 
+### Session 16 - relocated wakeup entry
+
+Moved out of `WAKEUP_NOTES.md` 2026-08-18 (session 19), which holds the last two to three
+sessions at full fidelity and nothing older. Relocated, never deleted.
+
+## Session 16 - 2026-08-17 - CS-422 CLOSES; CS-421's anchoring half lands and clause 3 still fails
+
+- **Shipped: CS-422 CLOSED.** CS-421 STAYS OPEN with its anchoring half fixed and a ledger record
+  declaring the non-closure by name. Filed CS-469, CS-470, CS-471, CS-472, CS-473, CS-474. Suite
+  2018 -> **2035 passed, 3 skipped, exit 0**, serial, baseline measured by the merger itself at
+  `f20411c` before any slice ran. Drift guard **CLEAN 9/9**. Detail in `docs/LEDGER.md`.
+
+- **THE HEADLINE IS THAT THE GRADING PASS REFUTED THE MERGER THREE TIMES AND CHANGED THE RECORD EACH
+  TIME.** Builders and graders were right against the merger on the seam, on the reason CS-421 cannot
+  close, and on a repair instruction that would have destroyed a live check. Every one of those
+  corrections landed BEFORE the ledger was written rather than after.
+
+- **CS-421 IS NOT DATA-BLOCKED AND THE MERGER'S RULING THAT IT WAS IS THE SESSION'S WORST NEAR-MISS.**
+  The merger ruled clause 3 unsettleable because only **17 of 75136** int32 values carry differing
+  middle bytes, so no oracle over this corpus could separate the identity from the middle swap. An
+  adjudicator took the measurement the merger had not: **30304 of 31318 FLOAT32 values do carry them.**
+  The evidence is in the library in quantity and the shipped float oracle's magnitude band is simply
+  too wide to use it - a weakness of the ORACLE. Had that reasoning reached the ledger it would have
+  fenced off the one open route. Filed as CS-469 and it is the next action.
+
+- **THE ANCHORING HALF IS REAL AND IT IS THE ITEM'S ONE SOLID GAIN.** `tests/save/test_value_anchoring.py`
+  compares the shipped decoder reading in place against the same declared extent in a poison-padded
+  buffer: 0 mismatches shipped, **75136 of 75136** under the +4 displacement that leaves the old
+  oracle GREEN. The contrast is DERIVED rather than asserted - a test computes which displacements the
+  old oracle tolerates and requires that set to be exactly the one this module controls at.
+
+- **CS-422 CLOSED ON SIX EXECUTABLE CONSEQUENCES WHERE SESSION 14 MEASURED ZERO.** The E1 mutant that
+  used to leave the whole save suite green now reddens, and with it applied the rest of `tests/save`
+  still passes at 1014 - so the new module is the only thing that catches it. Library-free proven with
+  an audit hook: 9 passed, 0 skipped, access count 0, with every discovery root pointed at an empty
+  directory. `WIDTH_SHIPPING_GROUNDS` is hand-authored and injecting a fifth width turns it RED.
+
+- **Surprises**, each measured:
+  1. **THE MERGER SEEDED A FALSE SENTENCE INTO ITS OWN DISPATCH.** It told a builder that a
+     plus-or-minus-one rotation control "would pass and prove nothing". The oracle is a CONJUNCTION
+     and is RED at -2, -1, +2 and +3, GREEN only at +4. The upstream ROADMAP sentence was true of the
+     majority half alone; the dispatch widened it, the builder shipped it at two sites, an adversary
+     caught it, and the replacement is a derivation rather than another sentence.
+  2. **THE MERGER'S VOCABULARY WIDENING DID NOT DO WHAT IT CLAIMED.** Widening the decline codes was
+     meant to make `WIDTH_RULE_EXCEPTIONS` fail on a mis-classified entry. It guards RE-TRANSCRIPTION
+     only: the shipped constant and the test evaluate the same comprehension over the same mapping.
+  3. **A MODULE-LEVEL COMPREHENSION IS EVALUATED AT IMPORT, so mutating its source in process leaves
+     the derived constant STALE** - which a real source edit does not. That flipped one mutant's
+     verdict from DETECTED to MISSED and made a per-entry deletion sweep read 4 of 5, not 5 of 5.
+  4. **THE ANCHOR CONTROL IS GREEN FOR ANY PURE FUNCTION OF THE DECLARED EXTENT.** A decoder zeroing
+     one stored byte of every int32 leaves the whole module green with 4484 values wrong, and across
+     the save suite the only catchers are SYNTHETIC-FIXTURE tests - CS-421's own circularity one layer
+     along. It establishes WHICH BYTES are read, not WHAT FUNCTION they go through.
+  5. **A BUILDER REFUTED A REPAIR INSTRUCTION AND SAVED A LIVE CHECK.** Told the partition assertions
+     in `test_properties.py` compare a set with itself, it measured first: the two TABLES cancel but
+     the test's own transcribed literals do NOT, so renaming `GUID_BYTES` turns `ungoverned` RED.
+     Deleting them would have removed a real transcription check. CS-458's note is corrected.
+  6. **THE FALSE SENTENCE WAS IN TWO PARAGRAPHS, NOT THE ONE THE ADVERSARY QUOTED.** The repair
+     instruction named one site because that is what was quoted; the builder swept and found the
+     duplicate, which a fix scoped to the quotation would have left standing.
+  7. **A SUBAGENT'S "no save library on this machine" WAS THE NESTED GATE'S INNER RUN**, which forces
+     discovery empty by design. `tests/save` on main is 1007 passed 0 skipped. Taken at face value it
+     would have condemned a slice as unmeasurable.
+  8. **WORKTREE STALENESS FIRED IN 3 OF 4 BUILDERS**, including one dispatched explicitly against a
+     post-merge commit that found itself two merges behind.
+
+- **Failed paths - do not retry:**
+  - **Recording CS-421 clause 3 as blocked by the corpus.** The float32 population carries the
+    evidence; the oracle cannot use it.
+  - **Deleting the partition assertions in `test_properties.py`.** They still catch a literal rename.
+  - **Mutating a table in process and reading a constant derived from it at import.** Re-derive, or
+    the verdict is about a stale value.
+  - **Leaving mutation harnesses in a gitignored directory.** A caveat in a destroyed scratch file is
+    not a caveat in the artifact - the limits had to be re-derived by a verifier and then written into
+    the module.
+  - **Trusting a substring scan to grade prose.** A rule text naming every code while inverting the
+    rule passes it, and so does one that names every code and governs nothing.
+
+- **Next action: CS-469**, the float32 discriminator over the values whose middle stored bytes differ.
+  It is the only open route to CS-421 clause 3, which is the last of the three items CS-413 closes
+  through - and CS-413 is the phase-4 depth gate that CS-400, then CS-500, then the dashboard sit
+  behind. **Do NOT close it with a band narrowed until it separates today's corpus** - that is the
+  `_JOIN_WORD_FLOOR` shape CS-432 exists to remove. After it, CS-471 is tier 1 and privacy-adjacent.
+
+### CS-454 - status detail
+
+Relocated 2026-08-18 (session 19) from CS-454's `ROADMAP.md` entry, which carried the file over its WARN budget. The item is OPEN and tier 1; its clause verdict stays in `ROADMAP.md` and only the supporting detail is here. Read it before taking the item.
+
+The code shipped in `60068a9` and `02523f9` and STAYS - the relocated-path form is closed in all four resolution states, the 8.3 form is closed, and three independent vacuity reasons were removed from the controls. Full record in `docs/LEDGER.md` under the 2026-08-16 CS-454 non-closure entry. **FOUR THINGS REMAIN AND ALL FOUR ARE INSIDE THIS ITEM - do not file them as follow-ups, because a follow-up does not satisfy the clause it was filed against, which is what kept CS-422 open.** (1) **THE JUNCTION DEFECT, and it is in the NEW design rather than pre-existing:** `_remember_save_root` stores `_path_forms(str(path))` and never resolves, while `clockspeed/save/workdir.py`'s `_resolved()` deliberately does, so a save root reached through a junction can never match an anchor and a hex account directory rendered WHOLE through the production refusal in `_refuse_if_forbidden`. Reproduced with a real `mklink /J`. (2) **PLACEHOLDER INJECTION DEFEATS POSITION:** the environment pass runs first and rewrites a matching needle to a token, injecting `<` into the account segment; `_PATH_SEGMENT_CLASS` excludes `<>` so position cannot match and the name pass hunts a literal that is gone. With `USERNAME=Ada` and account directory `Ada4f3a...`, 30 of 33 characters render in plaintext WITH THE MARKER PRESENT. Pre-existing, unchanged from `bb7a236`, and a pre-existing instance of the defect this item names does NOT excuse it - this item's own detail entry opens by calling the leak pre-existing. (3) **THE WHITESPACE TAIL:** `My Backup Copy` renders `<account-dir> Backup Copy`. Three widenings of the segment class were measured and ALL THREE ARE WORSE - one eats the diagnostic prose, one leaves the terminal segment fully intact. Do NOT close this by widening the class; the adjudicator verified that decline was correct. The cheap route it names is feeding the matched segment into the name memory after position fires. (4) **THE BARE-SEGMENT FORM** must be closed or recorded as a STATED exemption bounded by `tests/test_redaction_scope.py`'s fence, which currently bounds it without any exemption being written down.
+
 ### CS-421 - status history
 
 The superseded STATUS blocks from CS-421's `ROADMAP.md` entry, moved here verbatim when that entry alone reached 7841 bytes and carried the file over its WARN budget. The item is OPEN; its current status stays in `ROADMAP.md`. Each block below records at least one sentence that a later session MEASURED FALSE, which is why they are relocated rather than dropped - a reader who does not know which claims were already refuted will rewrite them.
+
+**RELOCATED 2026-08-18 (session 19): the session-18 STATUS and CENSUS blocks below joined them, for the same budget reason. The CENSUS is the derivation of the population CS-421's remaining half turns on, and its fence against recording the item as data-blocked is still binding. Session 19 built the route it sanctioned and REFUSED THE CLOSE - read the current STATUS in `ROADMAP.md` for why, and do not read the census below as licensing a close it does not.**
+
+**STATUS 2026-08-18 (session 18): CS-476 CLOSED AND THE ARTIFACT IS NOW FENCED.** The per-type status data is graded against the population the oracles actually score, derived by execution, so the `UInt32Property` half of this item can now be edited without the edit being ungraded - which is the whole reason CS-476 was taken first. `VALUE_BYTE_ORDER_STATUS` still records `UInt32Property` as `unscored` and THAT IS STILL THE OPEN QUESTION; CS-476 changed what happens if someone writes a different word there, not what the word is. Do NOT read the fence as progress on clause 3. The two acceptable closes are unchanged, and the second is a legitimate result: an oracle scoring `UInt32Property`'s own population, or a DERIVED status word separating `no oracle written` from `population cannot separate`. DERIVE THE COUNT AT RUNTIME - the figure 9 is an archived session-14 number that was never re-measured. **CENSUS 2026-08-18 (session 18) - THE POPULATION IS DERIVED AND IT DECIDES WHICH CLOSE IS HONEST. Re-measured from the library this session, not carried:** across the saves walked, `UInt32Property` yields **9 values carrying exactly ONE distinct stored byte pattern**. The figure 9 matches the archived session-14 number, and that is a COINCIDENCE OF RE-MEASUREMENT rather than a carry-forward - it was derived again from scratch. **ROUTE (a) IS NOT AVAILABLE AND THE REASON IS THRESHOLD-FREE:** every one of those values carries a ZERO HIGH BYTE UNDER BOTH READINGS, so the shipped int32 magnitude oracle - a CONJUNCTION requiring a majority to carry the small-magnitude signature as read and a MINORITY to carry it swapped - is provably VACUOUS on this type's own population. That is a fact about the oracle applied to the population, not a tuned threshold, and it is the distinction route (b) asks the status word to record: an oracle EXISTS, was APPLIED, and returns no verdict here - which is not the same as no oracle having been written. **DO NOT WRITE THAT THIS ITEM IS DATA-BLOCKED AND DO NOT LET THIS CENSUS BE READ AS SAYING SO.** The forbidden sentence is about the CANDIDATE ORDERINGS over the joint IntProperty and FloatProperty populations, and it was measured FALSE - CS-469 found the evidence the corpus held all along. This is a different and much narrower claim about ONE type's OWN population. Conflating the two would re-fence the route CS-469 opened. **AND THE POPULATION OF ONE PATTERN IS NOT ITSELF AN ARGUMENT.** A single pattern is not invariant under the group, so an oracle over it would still return a number - an anecdote dressed as evidence. Any close resting on the population being SMALL rather than on the shipped oracle being VACUOUS is the `_JOIN_WORD_FLOOR` shape CS-432 exists to remove. Rest it on the vacuity, which needs no threshold. Derivation must be test-side and library-backed: `objects.py` cannot read the library without breaking the seam, so the module ships the word and a test derives the verdict, which is the pattern CS-476 established for this same artifact. On a machine with no game that test skips, which is CS-426's recorded gap.
 
 **STATUS 2026-08-16 (session 14): ADJUDICATED AND REFUTED. THE INT32 HALF OF CLAUSE 3 DOES NOT HOLD.** Clauses 1 and 2 are MET and are not in question. Clause 3 is REFUTED for `IntProperty`: displacing its value start by +4, so the decode reads the next tag's name-length prefix and never touches the int32, leaves the oracle GREEN at 75136 of 75136 against the correct read's 70669, and only synthetic fixtures notice. The as-read majority survives at -2, -1, +2, +3 and +4, so **a rotation control testing only plus or minus one would pass and prove nothing.** The `FloatProperty` half is NOT refuted - it collapses at every non-zero delta, and that asymmetry is a finding. Both cited mutants reproduced digit for digit and the non-circularity defence survived three attacks, so what failed is the oracle's anchoring, not its independence. **REMAINING WORK IS SMALLER THAN IT LOOKS:** `Int8Property` and `BoolProperty` are one byte, so byte order is VACUOUS for both rather than open, leaving `UInt32Property` as the only live 4-byte question - but the shipped data does not distinguish vacuous from open. Full record in `docs/LEDGER.md` under the 2026-08-16 CS-421 refutation entry. **STATUS 2026-08-17 (session 16): THE ANCHORING HALF IS FIXED AND CLAUSE 3 IS STILL NOT MET.** `tests/save/test_value_anchoring.py` ships the anchor the old oracle lacked - 0 mismatches shipped, 75136 of 75136 under the +4 displacement that leaves the old oracle green - and `objects.VALUE_BYTE_ORDER_STATUS` now derives VACUOUS from a one-byte width so the shipped data no longer reads as three open questions where there is one. **TWO CORRECTIONS TO THE STATUS ABOVE, both measured.** First, "the as-read majority survives at -2, -1, +2, +3 and +4" is true of the MAJORITY half only; the oracle is a conjunction and is RED at -2, -1, +2 and +3, GREEN only at +4. That relation is now derived by a test rather than written down. Second, **THE QUESTION IS NOT DATA-BLOCKED AND MUST NOT BE RECORDED AS SUCH** - 17 of 75136 int32 values carry differing middle bytes but 30304 of 31318 FLOAT32 values do, so the library holds the evidence and the shipped float oracle's magnitude band is too wide to use it. The route out is CS-469. **STATUS 2026-08-17 (session 17): THE CANDIDATE SET NO LONGER LEAVES A CHOICE AND CLAUSE 3 IS STILL NOT MET.** CS-469 closed. The sentence this replaces - that two candidates stand, the identity and the middle swap - is FALSE from that work forward and must not be carried into any later entry; what survives the value oracles is owned by `objects.BYTE_ORDER_SURVIVING_CANDIDATES` and derived from the library by `tests/save/test_value_anchoring.py::test_the_shipped_candidate_set_is_what_the_value_oracles_cannot_separate`, which asserts the derivation against the shipped literal in the direction that reddens when the constant is narrowed without the evidence narrowing. Read the set there rather than from a count here. **WHAT REMAINS IS NOT THE ORDERING, IT IS THE TYPE NOBODY SCORED.** The narrowing is JOINT over `IntProperty` and `FloatProperty` values alone - the census skips every other type word - so `UInt32Property`, a four-byte member of `MEASURED_VALUE_TYPES` that the same reader decodes and ships, is scored by nothing and `objects.VALUE_BYTE_ORDER_STATUS` records it `unscored`. That is the live 4-byte question the session-14 refutation named under remaining work and no session has taken. Carrying the joint result across to it needs the premise that this format uses one byte order for every four-byte field, which `objects.py` refuses IN WRITING for the declared size field in the same docstring block. **AND THE PER-TYPE STATUS IS UNGRADED ABOVE ONE BYTE:** measured 2026-08-17 by the adjudicator, marking `UInt32Property` `anchored_not_unique` - claiming an oracle backs a type nothing scores - leaves the whole save suite green, because `_BYTE_ORDER_ANCHORED_VALUES` is a hand-written pair no test derives from what the oracles admit. Filed as CS-476; it is not CS-459, which is the evidence table and the opposite direction. Full record in `docs/LEDGER.md` under the 2026-08-17 CS-421 entry.
 

@@ -75,6 +75,14 @@ is hypothetical.
   a genuinely new word - CS-421's remaining half will want one - has to be added
   there together with whatever grades it.
 
+  THAT CASE ARRIVED AND THE BOUND BEHAVED AS DESIGNED. CS-421's route (b) needed
+  ``oracle_cannot_separate``, and adding it to ``objects.py`` alone turned this
+  module RED until the grading landed beside it. What grades it is split, and
+  the split is not tidy: the VERDICT is library-backed and lives in
+  ``test_value_anchoring``, so THIS MODULE CANNOT TELL THAT WORD FROM
+  ``unscored`` at all. What it holds is the shape of the shipped set - see
+  :func:`test_the_cannot_separate_set_is_bounded_without_a_library`.
+
 THE DERIVATION ITSELF WAS REFUTED TWICE, BOTH TIMES BY SOMEONE OTHER THAN ITS
 AUTHOR, AND THE SECOND REFUTATION LANDED AFTER THE FIRST REPAIR WAS BELIEVED
 FINAL. The second found that the label set naming which oracles the reach count
@@ -211,7 +219,26 @@ _TAG_CARRIED_ONE_BYTE_VALUES: Final = ("BoolProperty",)
 #: interface to a reader outside this repository, and every control over the data
 #: - this module's and ``test_value_anchoring``'s - selects by SYMBOL, so nothing
 #: that follows a symbol can see a spelling change or a word added beside it.
-_GRADED_STATUS_WORDS: Final = ("vacuous_one_byte", "anchored_not_unique", "unscored")
+#:
+#: ``oracle_cannot_separate_readings`` ARRIVED WITH CS-421 AND IS THE CASE THIS
+#: TUPLE WAS BUILT TO FORCE. The fourth-word route was measured by an attacker shipping
+#: a made-up word for a type nothing scored, so the rule became: a new word is
+#: added HERE, together with whatever grades it. What grades this one is split
+#: across two modules on purpose, and neither half is the whole answer. The
+#: verdict - that a shipped oracle was applied to that type's own values and
+#: scored the as-stored and reversed readings identically - is LIBRARY-BACKED and
+#: lives in ``test_value_anchoring``, because no hand-authored probe can stand in
+#: for the operator's data. What is gradeable without a library is the shape of
+#: the shipped set, and that is
+#: :func:`test_the_cannot_separate_set_is_bounded_without_a_library`.
+#: SO THIS MODULE CANNOT TELL THAT WORD FROM ``unscored``, and does not pretend
+#: to: on a machine with no game the distinction is ungraded, which is CS-426.
+_GRADED_STATUS_WORDS: Final = (
+    "vacuous_one_byte",
+    "anchored_not_unique",
+    "oracle_cannot_separate_readings",
+    "unscored",
+)
 
 #: The two functions the shipped byte-order dispatch runs through, as
 #: ``(module, attribute)``. Named because the reach count has to patch them; the
@@ -585,11 +612,15 @@ def test_the_status_words_are_pinned_and_distinct() -> None:
     """
     assert objects.BYTE_ORDER_VACUOUS == "vacuous_one_byte"
     assert objects.BYTE_ORDER_ANCHORED_NOT_UNIQUE == "anchored_not_unique"
+    assert (
+        objects.BYTE_ORDER_ORACLE_CANNOT_SEPARATE == "oracle_cannot_separate_readings"
+    )
     assert objects.BYTE_ORDER_UNSCORED == "unscored"
 
     words = (
         objects.BYTE_ORDER_VACUOUS,
         objects.BYTE_ORDER_ANCHORED_NOT_UNIQUE,
+        objects.BYTE_ORDER_ORACLE_CANNOT_SEPARATE,
         objects.BYTE_ORDER_UNSCORED,
     )
     assert len(set(words)) == len(words), (
@@ -642,4 +673,77 @@ def test_the_hand_written_anchored_set_holds_no_unscored_type() -> None:
         "one-byte word it ships as nothing at all, because the width branch "
         "answers first - which is what makes this a separate test from the one "
         "grading the mapping."
+    )
+
+def test_the_cannot_separate_set_is_bounded_without_a_library() -> None:
+    """What can be held against the cannot-separate set without reading a save.
+
+    THIS IS A BOUND AND NOT THE VERDICT, and the name says so because the
+    distinction is the whole point of the word. Whether an oracle was applied to
+    a type and came back undecided is a fact about the OPERATOR'S LIBRARY, and
+    this module reads none - so nothing here can tell
+    ``objects.BYTE_ORDER_ORACLE_CANNOT_SEPARATE`` from
+    ``objects.BYTE_ORDER_UNSCORED``. The derivation that can is
+    ``tests/save/test_value_anchoring.py::test_the_cannot_separate_status_is_derived_from_the_oracle``
+    and it SKIPS on a machine with no game, which is CS-426's recorded gap. What
+    is left here is the shape of the shipped set, and two ways it can be wrong on
+    its face are invisible to every test that reads only the mapping.
+
+    THE ONE-BYTE ROUTE IS THE SWALLOWED-MEMBER DEFECT AGAIN, one branch along.
+    :func:`objects._byte_order_status` tests the width FIRST, so a one-byte word
+    added to the set never reaches its own branch and never appears in the
+    mapping - which is exactly what the anchored set needed its own test for.
+
+    THE OVERLAP ROUTE IS NEW WITH THE THIRD BRANCH AND DID NOT EXIST BEFORE IT. A
+    word in both named sets takes the earlier branch silently, so the shipped
+    mapping reads ``anchored_not_unique`` while this set asserts the opposite
+    about the same word, and nothing reading the mapping can see the disagreement.
+
+    ONE EQUALITY COVERS BOTH, which is why they are not enumerated. Requiring the
+    words the shipped mapping actually surfaces to equal the declared set routes
+    the check through :func:`objects._byte_order_status` itself, so it grades what
+    that function DOES rather than transcribing the order of its branches - and a
+    branch reordered, a width changed or a word added to two sets all show up in
+    the same place.
+
+    WHAT IS DELIBERATELY NOT RESTATED HERE. Whether a word this set names is one
+    the shipped dispatch already scores is governed by
+    :func:`test_no_type_an_oracle_scores_is_left_recorded_as_unscored`, which
+    requires every admitted word to be recorded anchored. Asserting it again here
+    would put one fact in two places, and the copy is the one that goes stale.
+    """
+    declared = objects._BYTE_ORDER_CANNOT_SEPARATE_VALUES  # noqa: SLF001
+    assert declared, (
+        "objects._BYTE_ORDER_CANNOT_SEPARATE_VALUES is empty, so this test grades "
+        "nothing and the status word ships with no type carrying it. A declared word "
+        "no type carries is the state the vocabulary bound was written to catch."
+    )
+
+    surfaced = {
+        word
+        for word, status in objects.VALUE_BYTE_ORDER_STATUS.items()
+        if status == objects.BYTE_ORDER_ORACLE_CANNOT_SEPARATE
+    }
+    assert surfaced == set(declared), (
+        f"objects._BYTE_ORDER_CANNOT_SEPARATE_VALUES names {sorted(declared)} and the "
+        f"shipped mapping surfaces {sorted(surfaced)} as "
+        f"{objects.BYTE_ORDER_ORACLE_CANNOT_SEPARATE!r}. A word named and not surfaced "
+        "was answered by an earlier branch: either it is one byte wide, in which case "
+        "the width branch called it vacuous, or it is also in "
+        "objects._BYTE_ORDER_ANCHORED_VALUES, in which case the mapping calls it "
+        "anchored while this set says an oracle could not separate it. Both ship a "
+        "false claim in a set no reader of the mapping can check. A word surfaced and "
+        "not named means the mapping grew a route into this status that does not come "
+        "from the declared set at all."
+    )
+
+    outside = sorted(set(declared) - set(objects._FIXED_WIDTH_VALUES))  # noqa: SLF001
+    assert not outside, (
+        f"{outside} is named as a type a byte-order oracle was applied to and could "
+        "not separate, and it is not decoded from a fixed number of stored bytes at "
+        "all. THE POPULATION IS BOUNDED EXACTLY for the reason the mapping's own bound "
+        "records: a status about a type this reader does not read from a fixed width "
+        "is a claim with nothing behind it, whatever the word says, and an earlier "
+        "version of the mapping's bound shipped green while recording a byte order for "
+        "a length-prefixed type."
     )

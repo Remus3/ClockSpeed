@@ -2673,3 +2673,669 @@ def test_the_emptiness_guard_catches_a_spliced_hollow_body(tmp_path: Path) -> No
         )
 
     _assert_no_test_is_hollow(Path(__file__))
+
+# ---------------------------------------------------------------------------
+# What the int32 oracle CANNOT separate, per type - CS-421 clause 3, route (b)
+# ---------------------------------------------------------------------------
+
+
+#: The ordering the byte-order question is ABOUT. Every other member of the group
+#: is some rearrangement; this one is the endianness swap itself, and it is the
+#: reading a status word claiming "no verdict" has to be silent about.
+_REVERSAL: Final[tuple[int, ...]] = tuple(reversed(_IDENTITY))
+
+
+@dataclass(frozen=True)
+class _SeparabilitySweep:
+    """What the shipped int32 oracle can and cannot tell apart. COUNTS ONLY.
+
+    NO STORED BYTE AND NO DECODED VALUE LEAVES THIS SWEEP, for the reason every
+    other sweep in this module gives: what crosses the boundary is counts,
+    booleans and repo-literal type words, so a frame rendered under ``pytest -l``
+    on any caller holds none of the library.
+
+    Attributes:
+        applied: Per four-byte type word, how many of that type's OWN values the
+            shipped int32 tally actually accumulated. Zero means the oracle was
+            never applied at all rather than applied and undecided - and the two
+            must not be confused, because separating them is the entire reason
+            the status word exists. ``FloatProperty`` is a live instance of the
+            first: its values decode to a float, which that tally never sees.
+        indistinguishable: Per type word, how many of the twenty-four orderings
+            leave the oracle's whole accumulator equal to the as-stored one.
+            REPORTED, NEVER ASSERTED ON. It is what makes the strength of the
+            result legible to a reader - the oracle narrows one type's population
+            to a pair of orderings and another's to half the group - and no
+            threshold is placed on it anywhere, because a threshold on it would
+            be exactly the floor-shaped reasoning this item must avoid.
+        oracle_holds: Per type word, whether :func:`_int_oracle_holds` returns
+            its green verdict on that type's own population.
+        cannot_separate_the_reversal: The type words the oracle was APPLIED to
+            and which it scored IDENTICALLY as stored and reversed. THIS IS THE
+            DERIVED POPULATION the shipped status word is graded against.
+        saves_read: Saves of a pair this grammar reads.
+        failures: Exception type NAMES, not the exceptions themselves.
+    """
+
+    applied: Mapping[str, int]
+    indistinguishable: Mapping[str, int]
+    oracle_holds: Mapping[str, bool]
+    cannot_separate_the_reversal: tuple[str, ...]
+    saves_read: int
+    failures: tuple[str, ...]
+
+
+def _score_population(
+    spec: tuple[int, str], population: Counter[bytes], perm: tuple[int, ...]
+) -> test_properties._DecodeTally:
+    """Feed one type's whole population to the SHIPPED int32 tally, reordered.
+
+    THE DECODE IS THE SHIPPED ONE AND SO IS THE TALLY. Neither is reimplemented
+    here, which is what makes this an application of the oracle rather than a
+    transcription of what the oracle is believed to do - the same reasoning the
+    survivor derivation above gives for importing both rather than copying them.
+
+    Args:
+        spec: The shipped fixed-width spec for this type word.
+        population: The type's stored patterns, counted.
+        perm: The ordering to read each stored pattern under.
+
+    Returns:
+        The accumulator the shipped int32 scorer filled.
+    """
+    tally = test_properties._DecodeTally(Counter(), set(), set())  # noqa: SLF001
+    for stored, count in population.items():
+        reordered = bytes(stored[index] for index in perm)
+        value = objects._decode_fixed_width(reordered, 0, spec[0], spec)  # noqa: SLF001
+        # KEYED ON THE DECODED SHAPE, and ``bool`` is excluded explicitly for the
+        # same reason the shipped dispatch excludes it: it is a subclass of int.
+        if not isinstance(value, int) or isinstance(value, bool):
+            continue
+        for _ in range(count):
+            test_properties._tally_int32_byte_order(value, tally)  # noqa: SLF001
+    return tally
+
+
+def _collect_stored_patterns(
+    extents: _Extents,
+    specs: Mapping[str, tuple[int, str]],
+    populations: Mapping[str, Counter[bytes]],
+) -> None:
+    """Fold one save's fixed-width stored patterns into the running census.
+
+    SPLIT OUT OF THE SWEEP RATHER THAN INLINED, and the reason is a house one:
+    the sweep was over the branch budget with this inside it. The split is not
+    free of meaning either - this is the only frame that ever holds a body and a
+    stored pattern together, and it returns nothing, so the sweep above it never
+    binds either.
+
+    EVERY TAG IS OFFERED AND THE SHIPPED TABLE DECIDES, which is what keeps a
+    type word out of this census that the reader does not decode from a fixed
+    width. The width is checked against the shipped spec rather than trusted from
+    the tag, so a tag declaring a size the table disagrees with is skipped rather
+    than censused at the wrong width.
+
+    Args:
+        extents: One decompressed body and its readable spans.
+        specs: The shipped fixed-width table.
+        populations: Per type word, the stored patterns seen so far. Mutated in
+            place.
+    """
+    for start, end in extents.spans:
+        tags = _walk_with_the_shipped_reader(extents.body, start, end)
+        if tags is None:
+            continue
+        for word, value_at, size in tags:
+            spec = specs.get(word)
+            if spec is None or size != spec[0] or value_at + size > len(extents.body):
+                continue
+            populations[word][bytes(extents.body[value_at : value_at + size])] += 1
+
+
+@dataclass(frozen=True)
+class _Scored:
+    """What scoring the whole census produced. COUNTS ONLY.
+
+    Attributes:
+        applied: Per type word, values the shipped int32 tally accumulated.
+        indistinguishable: Per type word, orderings whose whole accumulator
+            equals the as-stored one.
+        oracle_holds: Per type word, the shipped predicate's verdict.
+        blind: The type words applied to and scored identically under reversal.
+    """
+
+    applied: Mapping[str, int]
+    indistinguishable: Mapping[str, int]
+    oracle_holds: Mapping[str, bool]
+    blind: tuple[str, ...]
+
+
+def _census_stored_patterns(
+    specs: Mapping[str, tuple[int, str]],
+    populations: Mapping[str, Counter[bytes]],
+) -> tuple[int, int, tuple[str, ...]]:
+    """Walk the library once, folding every save's stored patterns in.
+
+    THE WHOLE LOOP BODY IS INSIDE THE HANDLER, including ``path`` and the read
+    result, for the reason :func:`_sweep_anchor` records: this frame is the only
+    one that ever binds a save path and a whole save's bytes together, so it is
+    the one frame that must never escape to a renderer.
+
+    Args:
+        specs: The shipped fixed-width table.
+        populations: Per type word, the stored patterns seen. Mutated in place.
+
+    Returns:
+        Paths discovered, saves read, and exception type NAMES.
+    """
+    paths = test_properties._library_save_paths()  # noqa: SLF001
+    saves_read = 0
+    failures: list[str] = []
+    for path in paths:
+        # BROAD BY DESIGN, for the reason :func:`_sweep_anchor` records, and the
+        # whole body including ``path`` is inside it.
+        try:
+            read, failure = _read_tagged_save(path)
+            if failure is not None:
+                failures.append(failure)
+            if read is None:
+                continue
+            saves_read += 1
+            _collect_stored_patterns(_extents_of(*read), specs, populations)
+        except (Exception, SystemExit) as exc:
+            failures.append(type(exc).__name__)
+            continue
+    return len(paths), saves_read, tuple(sorted(set(failures)))
+
+
+def _carries_the_signature_both_ways(tally: test_properties._DecodeTally) -> bool:
+    """Whether EVERY value scored carries the int32 signature under BOTH readings.
+
+    THIS IS THE SANCTIONED REASON AND IT IS NARROWER THAN INVARIANCE, which is the
+    distinction the whole status word turns on. An accumulator unchanged by the
+    reversal has its two signature counters EQUAL - and they are equal when both
+    are ZERO just as much as when both are total. A population carrying the
+    signature under NEITHER reading is therefore invariant while being nothing
+    like undecided, and a read of this census displaced by one byte produces
+    exactly that state.
+
+    IT IS A NAMED FUNCTION SO THAT IT CAN BE GRADED WITHOUT THE LIBRARY. Gutting
+    this test to a tautology changed NOTHING any test could see, because on the
+    operator's corpus the universal and the invariance conjunct beside it admit
+    the same single word - so the corpus cannot tell them apart and a control that
+    needs it never will. Hand-authored counters can, and
+    :func:`test_the_signature_predicate_refuses_a_population_that_carries_neither`
+    is what does.
+
+    Args:
+        tally: An accumulator the shipped int32 scorer has been fed.
+
+    Returns:
+        True when the population is non-empty and every value in it carried a
+        zero high byte as stored AND as reversed.
+    """
+    seen = tally.counts["int32"]
+    return bool(
+        seen
+        and tally.counts["int32_high_zero"] == seen
+        and tally.counts["int32_high_zero_swapped"] == seen
+    )
+
+
+def _score_every_four_byte_type(
+    specs: Mapping[str, tuple[int, str]],
+    populations: Mapping[str, Counter[bytes]],
+) -> _Scored:
+    """Apply the shipped int32 oracle to each four-byte type under every ordering.
+
+    Args:
+        specs: The shipped fixed-width table.
+        populations: Per type word, the censused stored patterns.
+
+    Returns:
+        The counts, the verdicts and the derived blind set.
+    """
+    applied: dict[str, int] = {}
+    indistinguishable: dict[str, int] = {}
+    holds: dict[str, bool] = {}
+    blind: list[str] = []
+    for word, spec in specs.items():
+        if spec[0] != _FOUR_BYTES:
+            continue
+        population = populations[word]
+        base = _score_population(spec, population, _IDENTITY)
+        applied[word] = base.counts["int32"]
+        holds[word] = _int_oracle_holds(base)
+        indistinguishable[word] = sum(
+            1
+            for perm in _PERMUTATIONS
+            if _score_population(spec, population, perm).counts == base.counts
+        )
+        # THE UNIVERSAL, NOT AN EQUALITY BETWEEN THE TWO COUNTERS, AND THE
+        # DIFFERENCE WAS FOUND BY AN ADVERSARY RATHER THAN BY THE AUTHOR. Equal
+        # counters make the accumulator invariant under the reversal, which is
+        # what an earlier version tested - but they are equal when BOTH are zero
+        # as well as when both are total. A population carrying the small-magnitude
+        # signature under NEITHER reading therefore derived as "applied and
+        # undecided", and a probe displacing this read by one byte produced exactly
+        # that state and was still admitted. The sanctioned reason is narrower and
+        # is what is implemented: EVERY value carries a zero high byte under BOTH
+        # readings. That implies the invariance; the invariance does not imply it.
+        # THE SECOND CONJUNCT IS IMPLIED BY THE FIRST AND IS KEPT ANYWAY, because
+        # it is the READING THE STATUS WORD NAMES. The universal is counter
+        # arithmetic; this scores the population under the reversal itself. If the
+        # two ever disagreed the word's spelling would no longer describe its own
+        # derivation, and a conjunction reddens where a comment would not.
+        if _carries_the_signature_both_ways(base) and (
+            _score_population(spec, population, _REVERSAL).counts == base.counts
+        ):
+            blind.append(word)
+    return _Scored(
+        applied=MappingProxyType(applied),
+        indistinguishable=MappingProxyType(indistinguishable),
+        oracle_holds=MappingProxyType(holds),
+        blind=tuple(sorted(blind)),
+    )
+
+
+def _derive_separability() -> _SeparabilitySweep | None:
+    """Apply the shipped int32 oracle to EVERY four-byte type's own values.
+
+    WHY THIS IS A SEPARATE WALK FROM THE PERMUTATION CENSUS ABOVE. That census
+    scores ``IntProperty`` and ``FloatProperty`` and skips every other type word
+    by design - which is precisely why ``UInt32Property`` was scored by nothing
+    for as long as it was. Widening it would change the population the CS-469
+    result was derived from, so this asks its own question on its own walk.
+
+    EVERY FRAME THAT CAN HOLD LIBRARY DATA IS CONTAINED, AND THE FIRST DRAFT OF
+    THIS FUNCTION WAS NOT. It ran the whole scoring phase after the per-save
+    loop, in the frame that still bound the path list, the last save's raw bytes
+    and its parsed header - so any raise inside the shipped decoder or the
+    shipped tally rendered a save path, the save-tree ACCOUNT DIRECTORY, a world
+    name and the plaintext header options string, which is non-negotiable 12.
+    An adversary demonstrated it three ways, one of them needing NO opt-in flag
+    at all, because :func:`_score_population` takes the census as a PARAMETER and
+    pytest renders a crashing frame's arguments by default. The repair is
+    structural rather than careful: no frame in this function binds a path or a
+    save, and the two helpers that do are called from inside the handler.
+
+    WHAT IS HELD, STATED EXACTLY RATHER THAN FLATTERINGLY. One decompressed body
+    is alive at a time, and beside it a counter of DISTINCT four-byte stored
+    patterns which accumulates across the WHOLE library - those are raw body
+    bytes, and there is no fixed bound on how many distinct ones a library
+    yields. That is why the containment above is the control and the size is not.
+
+    IT IS UNCACHED ON PURPOSE - see :func:`_sweep_separability` for the wrapper
+    the graders use and why the two are separate.
+
+    Returns:
+        The sweep, or None when no save library is reachable.
+    """
+    specs = objects._FIXED_WIDTH_VALUES  # noqa: SLF001
+    populations: dict[str, Counter[bytes]] = {word: Counter() for word in specs}
+    saves_read = 0
+    failures: tuple[str, ...] = ()
+    scored: _Scored | None = None
+    try:
+        discovered, saves_read, failures = _census_stored_patterns(specs, populations)
+        if not discovered:
+            return None
+        scored = _score_every_four_byte_type(specs, populations)
+    except (Exception, SystemExit) as exc:
+        # THE BACKSTOP, and it is what makes the containment above total. A raise
+        # escaping here would unwind through a frame binding `populations`, which
+        # is library-wide raw body bytes.
+        failures = tuple(sorted({*failures, type(exc).__name__}))
+
+    # A skip only when there is genuinely nothing to grade - see the same guard
+    # in :func:`_sweep_anchor` for why a failure must not become a skip.
+    if not saves_read and not failures:
+        return None
+
+    empty: Mapping[str, int] = MappingProxyType({})
+    return _SeparabilitySweep(
+        applied=scored.applied if scored else empty,
+        indistinguishable=scored.indistinguishable if scored else empty,
+        oracle_holds=scored.oracle_holds if scored else MappingProxyType({}),
+        cannot_separate_the_reversal=scored.blind if scored else (),
+        saves_read=saves_read,
+        failures=failures,
+    )
+
+
+@lru_cache(maxsize=1)
+def _sweep_separability() -> _SeparabilitySweep | None:
+    """The memoised derivation the graders read.
+
+    THE CACHE IS DELIBERATELY A THIN WRAPPER AND NOT A DECORATION ON THE WORK.
+    It takes no argument, so it cannot be keyed on a configuration the way
+    :func:`_sweep_anchor` is keyed on its displacement - and an unkeyed cache
+    whose correctness rests on a control remembering to clear it in a ``finally``
+    is the shape whose failure this module already records once. Splitting the
+    work out means the control that neuters an oracle calls
+    :func:`_derive_separability` DIRECTLY and there is no cache to poison. The
+    degree of freedom is removed rather than policed.
+
+    Returns:
+        The sweep, or None when no save library is reachable.
+    """
+    return _derive_separability()
+
+
+def _separability_or_skip() -> _SeparabilitySweep:
+    """Fetch a separability sweep, skipping when this machine has no library.
+
+    Returns:
+        The sweep.
+    """
+    sweep = _sweep_separability()
+    if sweep is None:
+        pytest.skip(
+            "no save library on this machine - what the int32 oracle can separate "
+            "is not gradeable here"
+        )
+    return sweep
+
+
+def test_the_cannot_separate_status_is_derived_from_the_oracle() -> None:
+    """The status word is derived from the oracle meeting the data - CS-421 (b).
+
+    WHAT THE WORD CLAIMS, AND IT IS THREE THINGS RATHER THAN ONE. That a shipped
+    oracle exists which can be applied to this type's values at all; that it WAS
+    applied, to this type's own population out of the operator's library; and
+    that it scored the as-stored reading and the reversed one IDENTICALLY, so it
+    prefers neither and no verdict can be read out of it.
+
+    THE THIRD CLAUSE IS A UNIVERSAL AND NOT A TUNED FRACTION: every value in the
+    population carries the small-magnitude signature under BOTH readings, so the
+    two counters the shipped predicate discriminates on are not merely equal but
+    total, and no assignment of thresholds to a majority and a minority can
+    separate readings that scored alike on every value.
+
+    IT IS NOT THRESHOLD-FREE AND AN EARLIER REVISION OF THIS DOCSTRING SAID IT
+    WAS. That sentence was measured FALSE by an adversary and is recorded here
+    rather than quietly deleted: the derivation DOES count values - it requires
+    the population to be non-empty and compares each counter against the count -
+    and a ``> 0`` liveness clause is a floor this project has already recorded as
+    not being a control. What is true is narrower: no threshold is placed on the
+    RELATION between the two readings, which is the quantity the byte-order
+    question turns on.
+
+    WHAT THIS DOES NOT ESTABLISH, AND THE HONEST STATEMENT IS UNCOMFORTABLE. The
+    verdict is a fact about this library's values and not a structural property of
+    the oracle meeting the type. Measured by an adversary over a population of the
+    same size and shape as this type's own: of the 65535 values a nine-copy
+    single-pattern population could carry, 65280 would drive this same shipped
+    machinery to a GREEN endianness verdict, and only 255 - the multiples of 256
+    below the high byte - reach the undecided state recorded here. Injecting a
+    single further value with a nonzero low byte empties the derived set and turns
+    this test RED. That is why CS-421 does NOT close on this: an artifact that
+    records what the oracle says today is worth shipping, and a CLOSE resting on
+    which number this type happens to carry is the anecdote CS-432 exists to
+    delete.
+
+    THIS DERIVATION DOES NOT ANCHOR ITSELF, AND IT INHERITS ANCHORING RATHER THAN
+    REPEATING IT. Measured by displacing this census's own read: at deltas of -3,
+    -1, +2 and +3 the displaced bytes still carry the signature under both
+    readings and are still admitted, so five of seven offsets in [-3, +3] survive
+    - the tightening above kills only +1 and -2. What constrains WHICH bytes are
+    read is
+    :func:`test_no_fixed_width_value_depends_on_a_byte_outside_its_declared_extent`,
+    which grades every fixed-width tag through :func:`_anchored`, this type
+    included, and reddens when the shipped reader's value start moves. A
+    displacement applied to THIS code alone would not be caught here, and that is
+    a bound on this control rather than on the suite.
+
+    WHAT "APPLIED" MEANS HERE IS NOT WHAT ``_admitted_words`` MEANS BY IT, and the
+    two must not be collapsed. That probe asks which type words a shipped DISPATCH
+    branches on, keyed on the TAG WORD. This asks whether the oracle's arithmetic
+    was run over this type's own bytes, and it reaches the tally through the
+    decoded shape. ``UInt32Property`` is outside the first and inside the second,
+    which is exactly the gap the status word reports - but the two definitions
+    never meet in one assertion, and nothing today would notice if they
+    disagreed.
+
+    THE SEAM IS WHY THE WORD SHIPS IN ``objects.py`` AND IS DERIVED HERE. That
+    module cannot read the library without breaking the layering, so it ships the
+    word and this test derives the verdict - the pattern CS-476 established for
+    this same artifact. On a machine with no game this SKIPS, which is CS-426's
+    recorded gap and is not closed by this item.
+    """
+    sweep = _separability_or_skip()
+    derived = frozenset(sweep.cannot_separate_the_reversal)
+    recorded = frozenset(
+        word
+        for word, status in objects.VALUE_BYTE_ORDER_STATUS.items()
+        if status == objects.BYTE_ORDER_ORACLE_CANNOT_SEPARATE
+    )
+    assert derived == recorded, (
+        f"the shipped int32 oracle scores {sorted(derived)} identically as stored and "
+        f"reversed, while objects.VALUE_BYTE_ORDER_STATUS records {sorted(recorded)} as "
+        f"{objects.BYTE_ORDER_ORACLE_CANNOT_SEPARATE!r}. THE EQUALITY IS ASSERTED IN "
+        "BOTH DIRECTIONS ON PURPOSE. A word derived and not recorded ships a status "
+        f"weaker than the evidence supports - most likely {objects.BYTE_ORDER_UNSCORED!r}, "
+        "which says nothing looked when something did. A word recorded and not derived "
+        "is the over-claim CS-476 was filed against wearing a new spelling: it asserts "
+        "an oracle was applied and came back undecided when no such application "
+        f"happened. Applied counts per type were {dict(sweep.applied)}, and the "
+        "orderings each population cannot be told from the as-stored one were "
+        f"{dict(sweep.indistinguishable)} of {len(_PERMUTATIONS)}."
+    )
+
+
+def test_the_int32_oracle_still_separates_a_type_it_can_separate() -> None:
+    """A derivation that finds everything undecided has stopped reading an oracle.
+
+    THIS IS THE FLOOR THE EQUALITY ABOVE CANNOT PROVIDE FOR ITSELF. Were the
+    oracle to go blind on every population at once, the derived set would grow to
+    hold every four-byte word and the equality would simply report a different
+    set - it has no way to notice that the REASON changed from "this population
+    cannot tell them apart" to "this oracle no longer tells anything apart". So a
+    type the oracle does separate is required to exist. The strength of the
+    contrast is reported in the message rather than asserted on, because a
+    threshold on it would be a floor and floors are what this item must not ship.
+    """
+    sweep = _separability_or_skip()
+    separated = sorted(
+        word
+        for word, applied in sweep.applied.items()
+        if applied and word not in sweep.cannot_separate_the_reversal
+    )
+    assert separated, (
+        "the shipped int32 oracle scores EVERY four-byte type identically as stored "
+        "and reversed, so it separates nothing anywhere and the derivation above is "
+        "reporting a property of the oracle rather than of any population. Applied "
+        f"counts were {dict(sweep.applied)} and the indistinguishable orderings were "
+        f"{dict(sweep.indistinguishable)} of {len(_PERMUTATIONS)}."
+    )
+    assert any(sweep.oracle_holds.values()), (
+        "no four-byte type's population makes the shipped int32 predicate return its "
+        "green verdict, so the oracle whose silence the status word records has "
+        f"nothing to say anywhere. Verdicts were {dict(sweep.oracle_holds)}."
+    )
+
+
+def test_the_derivation_stops_holding_when_the_int32_tally_is_neutered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The derived set reads the shipped oracle rather than something beside it.
+
+    EMPTINESS IS THE REQUIREMENT, not mere change. An assertion that the derived
+    set merely differs under a dead oracle is satisfied the moment one word drops
+    out, so it would pass while a second word went on being admitted by something
+    that is not an oracle at all. With the tally dead nothing is applied to any
+    population, so the applied clause has to empty the set outright.
+
+    IT CALLS THE UNCACHED DERIVATION, AND THAT IS THE POINT RATHER THAN A DETAIL.
+    An earlier version drove the memoised :func:`_sweep_separability`, clearing
+    its cache on both sides of the mutation - and that cache takes no argument,
+    so it cannot be keyed on the mutation the way :func:`_sweep_anchor` is keyed
+    on its displacement. Its correctness rested entirely on this test remembering
+    a ``finally``; a fourth caller that forgot one would poison every later test
+    in the session, and nothing graded that. Calling
+    :func:`_derive_separability` removes the degree of freedom instead of
+    policing it.
+    """
+    live = _separability_or_skip()
+    assert live.cannot_separate_the_reversal, (
+        "this control assumes the derivation admits something as shipped, and it does "
+        "not. Read the equality test above first - that is the failure, and this test "
+        "can say nothing until it is fixed."
+    )
+
+    monkeypatch.setattr(
+        test_properties,
+        "_tally_int32_byte_order",
+        lambda value, tally: None,  # noqa: ARG005
+    )
+    neutered = _derive_separability()
+    assert neutered is not None, (
+        "the uncached derivation found no library while the memoised one did, so the "
+        "two are not reading the same machine and this control grades nothing."
+    )
+    assert not neutered.cannot_separate_the_reversal, (
+        "with the shipped int32 tally dead, "
+        f"{sorted(neutered.cannot_separate_the_reversal)} is still derived as a type "
+        "the oracle cannot separate. Nothing was applied to any population, so "
+        "whatever still admits these words is not the oracle - and the shipped "
+        f"status word is being graded against it. Applied counts were "
+        f"{dict(neutered.applied)}."
+    )
+
+
+def test_a_raise_in_the_scoring_phase_carries_nothing_out_of_the_walk(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fault in the scoring phase must not unwind through a frame holding a save.
+
+    THIS CONTROL EXISTS BECAUSE THE FIRST VERSION OF THE SWEEP FAILED IT, and it
+    was found by an adversary rather than by its author. The scoring phase ran
+    outside every handler, in the frame that still bound the discovered path
+    list, the last save's whole raw bytes and its parsed header. A raise from the
+    shipped decoder or the shipped tally therefore rendered a save path, the
+    save-tree ACCOUNT DIRECTORY, a world name and the plaintext header options
+    string. That is non-negotiable 12, and the redactor in ``tests/conftest.py``
+    does not cover the account directory - CS-466's recorded gap.
+
+    ONE OF THE THREE DEMONSTRATED ROUTES NEEDED NO OPT-IN FLAG. pytest renders a
+    crashing frame's ARGUMENTS by default, and :func:`_score_population` takes
+    the whole census as a parameter, so an ordinary rename in a sibling test
+    module dumped the operator's raw body bytes with a plain ``-q``.
+
+    WHAT IS ASSERTED IS CONTAINMENT, WHICH IS THE PROPERTY THAT MAKES THE REST
+    UNREACHABLE. If nothing escapes the walk there is no frame for a renderer to
+    reach, so this does not have to enumerate what a traceback would have shown -
+    it requires that there be no traceback. The failure is recorded rather than
+    swallowed, so a library that scored nothing still reddens the graders above.
+    """
+    _separability_or_skip()
+
+    def explode(*_args: object) -> object:
+        raise RuntimeError("scoring fault planted by this control")
+
+    monkeypatch.setattr(
+        "tests.save.test_value_anchoring._score_population",
+        explode,
+    )
+    contained = _derive_separability()
+
+    assert contained is not None, (
+        "the derivation returned None with a library present, so it reported the "
+        "planted fault as an absent library. A failure must never become a skip - "
+        "that is how a broken walk reads as an ungraded machine."
+    )
+    assert "RuntimeError" in contained.failures, (
+        f"the planted scoring fault is not recorded in {contained.failures}. Either it "
+        "never reached the handler or the handler swallowed its identity, and a fault "
+        "reduced to nothing is one the graders above cannot see."
+    )
+    assert not contained.cannot_separate_the_reversal, (
+        f"{sorted(contained.cannot_separate_the_reversal)} was derived as a type the "
+        "oracle cannot separate while the scoring phase was raising on every call. "
+        "Whatever produced that set did not come from scoring anything."
+    )
+
+    reachable = (
+        list(contained.applied)
+        + list(contained.indistinguishable)
+        + list(contained.oracle_holds)
+        + list(contained.cannot_separate_the_reversal)
+        + list(contained.failures)
+    )
+    leaked = [item for item in reachable if not isinstance(item, str)]
+    assert not leaked, (
+        f"the sweep carries {len(leaked)} non-string key(s) out of the walk. Everything "
+        "crossing this boundary is a count, a boolean or a repo-literal type word, so "
+        "that a frame rendered on any caller holds none of the library."
+    )
+
+
+# ---------------------------------------------------------------------------
+# The separability predicate - LIBRARY-FREE, so this half runs on CI
+# ---------------------------------------------------------------------------
+
+
+def _tally_of(seen: int, high_zero: int, high_zero_swapped: int) -> test_properties._DecodeTally:
+    """A hand-authored accumulator, standing in for a population nobody has.
+
+    Args:
+        seen: Values scored.
+        high_zero: Those carrying a zero high byte as stored.
+        high_zero_swapped: Those carrying one under the reversed reading.
+
+    Returns:
+        The accumulator.
+    """
+    tally = test_properties._DecodeTally(Counter(), set(), set())  # noqa: SLF001
+    tally.counts["int32"] = seen
+    tally.counts["int32_high_zero"] = high_zero
+    tally.counts["int32_high_zero_swapped"] = high_zero_swapped
+    return tally
+
+
+def test_the_signature_predicate_refuses_a_population_that_carries_neither() -> None:
+    """Invariance is not the sanctioned reason, and the corpus cannot tell them apart.
+
+    MEASURED, AND IT IS WHY THIS TEST IS HAND-AUTHORED RATHER THAN LIBRARY-BACKED.
+    Replacing the universal in :func:`_carries_the_signature_both_ways` with a
+    tautology left the whole of ``tests/save`` GREEN, because on the operator's
+    corpus that clause and the reversal-invariance conjunct beside it admit the
+    same single type word. A control resting on the corpus therefore cannot grade
+    the difference between them, and the difference is the entire content of the
+    status word: a population carrying the signature under NEITHER reading has two
+    EQUAL counters, so it is invariant under the reversal, while being the exact
+    opposite of a population that cannot tell the readings apart.
+
+    THE BOTH-ZERO ROW IS NOT HYPOTHETICAL. Displacing this census's own read by
+    one byte produces (9, 0, 0) against this type's real population - equal
+    counters, fully invariant, and admitted by the predicate this replaced.
+    """
+    both_total = _tally_of(9, 9, 9)
+    both_zero = _tally_of(9, 0, 0)
+
+    assert _carries_the_signature_both_ways(both_total), (
+        "a population every value of which carries the signature under both readings "
+        "is the sanctioned undecided state, and the predicate refuses it."
+    )
+    assert not _carries_the_signature_both_ways(both_zero), (
+        "a population carrying the signature under NEITHER reading was admitted as "
+        "undecided. Its two counters are equal, so it is invariant under the reversal "
+        "- which is exactly why invariance is not the test. This is the state a read "
+        "displaced by one byte produces, and admitting it means the derivation cannot "
+        "tell an undecided oracle from one that was handed the wrong bytes."
+    )
+    assert not _carries_the_signature_both_ways(_tally_of(9, 9, 0)), (
+        "a population the oracle SEPARATES - total one way, zero the other - was "
+        "admitted as undecided. That is the discriminating case the oracle exists for."
+    )
+    assert not _carries_the_signature_both_ways(_tally_of(0, 0, 0)), (
+        "an empty population was admitted as undecided. Nothing was applied to it, so "
+        "the honest status is unscored, and this is the confusion the word exists to "
+        "prevent."
+    )
+
+    assert both_zero.counts["int32_high_zero"] == both_zero.counts["int32_high_zero_swapped"], (
+        "this test's own premise has gone: the both-zero row is meant to have EQUAL "
+        "counters, which is what makes it invariant under the reversal and what makes "
+        "the contrast above worth drawing."
+    )

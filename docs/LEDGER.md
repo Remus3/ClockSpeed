@@ -73,6 +73,97 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-18 - CS-421 - NOT A COMPLETION RECORD. CS-421 STAYS OPEN; route (b) ships and the close is refused
+Route (b)'s artifact landed and CS-421 clause 3 still does not close. This entry exists because
+the work is substantial and the REFUSAL is its result, not a failure to finish it.
+
+WHAT SHIPPED. A fourth byte-order status word, `objects.BYTE_ORDER_ORACLE_CANNOT_SEPARATE`
+(spelled `oracle_cannot_separate_readings`), recorded for `UInt32Property` in
+`objects.VALUE_BYTE_ORDER_STATUS`. It separates the two states the old data could not tell
+apart: `unscored`, meaning nothing looked, from a shipped oracle having been APPLIED to this
+type's own values and scoring the as-stored reading and its reversal alike. `objects.py` cannot
+read the library without breaking the seam, so it ships the word and a test derives the verdict -
+the pattern CS-476 established for this same artifact. Adding the word turned
+`test_the_status_words_are_pinned_and_distinct` RED until its grading landed beside it, which is
+CS-476's vocabulary bound behaving exactly as designed.
+
+MEASURED THIS SESSION, EVERY FIGURE RE-DERIVED FROM THE LIBRARY AND NONE CARRIED FORWARD.
+`UInt32Property` yields 9 values carrying ONE distinct stored pattern, `00190000`. The shipped
+int32 accumulator over it is (seen 9, high-zero 9, high-zero-swapped 9): every value carries the
+small-magnitude signature under BOTH readings. `IntProperty` is separated to 2 of the 24
+orderings, `UInt32Property` to 12 of 24, and `FloatProperty` is applied to 0 times because its
+values decode to a float the int32 tally never sees. That last figure is load-bearing: without an
+applied clause `FloatProperty` derives as "applied and undecided" on 24-of-24 agreement.
+
+WHY IT DOES NOT CLOSE, AND THIS IS THE FINDING. Over a population of the same size and shape as
+this type's own - nine copies of one stored pattern - 65280 of the 65535 possible values drive
+the SAME shipped oracle to a GREEN endianness verdict, and only 255 of them, the multiples of
+256, reach the undecided state recorded here. The verdict is a fact about this type happening to
+carry 6400, not about the oracle meeting the type; injecting one further value with a nonzero low
+byte empties the derived set. That is the `_JOIN_WORD_FLOOR` shape CS-432 exists to delete,
+wearing a new spelling, and it is exactly what the ROADMAP entry forbade resting a close on. The
+artifact is worth shipping and the close is not earned.
+
+FOUND BY AN INDEPENDENT REFUTATION PASS, NOT BY THE AUTHOR, AND RE-MEASURED BEFORE IT REACHED
+THIS FILE. Three adversaries ran with distinct lenses and TWO SUCCEEDED. Every correction below
+landed before the record was written rather than after:
+
+1. A SENTENCE OF MINE WAS MEASURED FALSE. The derivation's docstring said it was
+   "THRESHOLD-FREE" and that "nothing here counts values". Both are false - the applied clause is
+   a count of values held against zero, which is the liveness-floor shape this project already
+   recorded as not being a control. The claim is now the narrower true one: no threshold is
+   placed on the RELATION between the two readings.
+2. THE PREDICATE ADMITTED A STATE THE SANCTIONED REASON EXCLUDES. It tested whether the
+   accumulator was invariant under the reversal - but two counters are equal when BOTH are zero
+   as well as when both are total, so a population carrying the signature under NEITHER reading
+   derived as undecided. Displacing this census's own read by +1 produced exactly that state and
+   was admitted. Tightened to the universal the ROADMAP sanctioned: EVERY value carries the
+   signature under BOTH readings.
+3. THE SPELLING OVER-CLAIMED. `oracle_cannot_separate` was unqualified while the oracle separates
+   12 of the 24 orderings on this very population. An outside consumer sees only the string,
+   which is the whole reason spellings are pinned here.
+4. A NON-NEGOTIABLE 12 EXPOSURE, AND IT WAS MINE. The first version ran its entire scoring phase
+   OUTSIDE every handler, in the frame still binding the discovered path list, the last save's
+   raw bytes and its parsed header. A raise from the shipped decoder or tally rendered a save
+   path, the save-tree account directory, a world name and the plaintext header options string.
+   One of the three demonstrated routes needed NO opt-in flag, because `_score_population` takes
+   the census as a PARAMETER and pytest renders a crashing frame's arguments by default. Repaired
+   structurally rather than carefully - no frame in the derivation binds a path or a save - and
+   `test_a_raise_in_the_scoring_phase_carries_nothing_out_of_the_walk` now grades containment.
+5. MY OWN REPAIR LEFT A CONSTANT DEAD. Tightening the predicate stopped anything reading
+   `_REVERSAL`, so the reading the status word is NAMED after was no longer scored. It is a
+   conjunct again, and the redundancy is deliberate.
+
+6. A MUTANT CAME BACK MISSED WHEN IT SHOULD NOT HAVE, AND IT FORCED THE LAST REPAIR. Gutting the
+   tightened universal to a tautology left both modules GREEN: on this corpus that clause and the
+   reversal-invariance conjunct beside it admit the SAME single word, so the library cannot tell
+   them apart and no library-backed control ever will. The predicate is a named function now,
+   `_carries_the_signature_both_ways`, graded by hand-authored counters in
+   `test_the_signature_predicate_refuses_a_population_that_carries_neither`, which needs no game
+   installed. Every other mutant was detected: dropping the word, overlapping it with the anchored
+   set, adding a one-byte word the width branch swallows, adding a word outside the fixed-width
+   table, respelling the status word, and marking the type anchored instead - six of six, each a
+   real source edit in a licensed clone, one process per mutant.
+
+WHAT IS STILL NOT ANCHORED, STATED RATHER THAN LEFT TO BE FOUND. Displacing this derivation's own
+read still leaves 5 of the 7 offsets in [-3, +3] admitted; the tightening killed only +1 and -2.
+WHICH bytes are read is constrained by
+`test_no_fixed_width_value_depends_on_a_byte_outside_its_declared_extent`, which grades every
+fixed-width tag including this type, so the suite holds the anchor even though this control does
+not. Filed as CS-479. The repo also now carries two incompatible definitions of "an oracle scores
+this type" - the dispatch keyed on the TAG WORD, and this derivation reaching the tally through
+the DECODED SHAPE - which never meet in one assertion. Filed as CS-478.
+
+Verification: `python -m pytest tests/save -q` (expect 1046 passed). The status word and its
+population are `clockspeed/save/objects.py::_BYTE_ORDER_CANNOT_SEPARATE_VALUES`; the verdict is
+derived by `tests/save/test_value_anchoring.py::test_the_cannot_separate_status_is_derived_from_the_oracle`
+and bounded without a library by
+`tests/save/test_byte_order_status.py::test_the_cannot_separate_set_is_bounded_without_a_library`.
+To re-derive the refusal independently: take a nine-copy population of a single four-byte pattern,
+feed it to `test_properties._tally_int32_byte_order`, and count how many values of 1..65535 make
+`test_value_anchoring._int_oracle_holds` return True (65280) against how many carry the signature
+under both readings (255).
+
 ### 2026-08-18 - CS-476 - CLOSED. The byte-order status is graded against what the oracles score
 The per-type byte-order status no longer rests on a hand-written allowlist that nothing read.
 `tests/save/test_byte_order_status.py` derives the admitted population BY EXECUTION: a type word

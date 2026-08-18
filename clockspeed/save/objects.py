@@ -204,6 +204,7 @@ from clockspeed.save.usmap import PropertyMap
 __all__ = [
     "BODY_LAYOUT_BY_PAIR",
     "BYTE_ORDER_ANCHORED_NOT_UNIQUE",
+    "BYTE_ORDER_ORACLE_CANNOT_SEPARATE",
     "BYTE_ORDER_STATUSES",
     "BYTE_ORDER_SURVIVING_CANDIDATES",
     "BYTE_ORDER_UNSCORED",
@@ -2724,8 +2725,43 @@ WIDTH_RULE_EXCEPTIONS: Final = frozenset(
 BYTE_ORDER_VACUOUS: Final = "vacuous_one_byte"
 BYTE_ORDER_ANCHORED_NOT_UNIQUE: Final = "anchored_not_unique"
 BYTE_ORDER_UNSCORED: Final = "unscored"
+
+#: AN ORACLE EXISTS, WAS APPLIED TO THIS TYPE'S OWN VALUES, AND CANNOT TELL THE
+#: TWO READINGS APART - CS-421 clause 3, route (b).
+#:
+#: IT IS NOT :data:`BYTE_ORDER_UNSCORED` AND THE DIFFERENCE IS THE WHOLE REASON
+#: THE WORD EXISTS. ``unscored`` says nothing looked. This says something looked,
+#: with a shipped oracle, at this type's own values, and that EVERY one of them
+#: carried the oracle's signature under BOTH readings - so the oracle scores the
+#: as-stored reading and the reversed one alike and prefers neither.
+#:
+#: IT IS NOT A SETTLEMENT, and it must never be read as one. The question stays
+#: open; what this records is that a particular oracle has already been tried and
+#: is not the thing that will close it.
+#:
+#: READINGS, NOT ORDERINGS, AND THE SPELLING SAYS SO BECAUSE AN EARLIER ONE DID
+#: NOT. The word is about the as-stored reading against its reversal. It does NOT
+#: say the oracle is blind across the whole permutation group - measured, it
+#: separates half of that group on this very population - and an unqualified
+#: "cannot separate" was an over-claim an adversary caught before it shipped.
+#:
+#: WHAT IT IS NOT EVIDENCE OF. The verdict is a fact about the values this
+#: library happens to carry, not a structural property of the oracle meeting the
+#: type: a population of the same size and shape carrying almost any other value
+#: would drive the same oracle to a green verdict instead. That is recorded where
+#: it is derived, and it is why CS-421 does not close on this word.
+#:
+#: WHY IT IS NOT :data:`BYTE_ORDER_VACUOUS`: that word is arithmetic about a
+#: WIDTH - one byte has one order. This is a fact about an ORACLE meeting a
+#: POPULATION, and either side of that could change without the width moving.
+BYTE_ORDER_ORACLE_CANNOT_SEPARATE: Final = "oracle_cannot_separate_readings"
 BYTE_ORDER_STATUSES: Final = frozenset(
-    {BYTE_ORDER_VACUOUS, BYTE_ORDER_ANCHORED_NOT_UNIQUE, BYTE_ORDER_UNSCORED}
+    {
+        BYTE_ORDER_VACUOUS,
+        BYTE_ORDER_ANCHORED_NOT_UNIQUE,
+        BYTE_ORDER_ORACLE_CANNOT_SEPARATE,
+        BYTE_ORDER_UNSCORED,
+    }
 )
 
 #: A value of this width has one byte order, so its order is not open. Named
@@ -2773,6 +2809,40 @@ _SINGLE_BYTE_WIDTH: Final = 1
 #: this block, or delete this block along with the module.
 _BYTE_ORDER_ANCHORED_VALUES: Final = frozenset({"IntProperty", "FloatProperty"})
 
+#: THE TYPES A SHIPPED ORACLE WAS APPLIED TO AND CAME BACK UNDECIDED ON - CS-421
+#: clause 3, route (b). See :data:`BYTE_ORDER_ORACLE_CANNOT_SEPARATE` for what
+#: the word claims; this is the population it is claimed of.
+#:
+#: THIS IS A THIRD HAND-WRITTEN SET AND ITS BOUND IS STATED RATHER THAN IMPLIED.
+#: It sits here for the same seam reason :data:`_BYTE_ORDER_ANCHORED_VALUES`
+#: does - what an oracle can separate is a fact about the TEST oracles meeting
+#: the operator's library, and this module reads neither. What is different from
+#: the set above is that this one is graded against a DERIVATION rather than
+#: against a probe of which words a dispatch branches on:
+#: tests/save/test_value_anchoring.py::test_the_cannot_separate_status_is_derived_from_the_oracle
+#: applies the shipped int32 oracle to every four-byte type's own values and
+#: requires this set to equal, in BOTH directions, the words it scores
+#: identically as stored and reversed.
+#:
+#: THE RESIDUAL IS THAT THE DERIVATION IS LIBRARY-BACKED AND SKIPS WITHOUT ONE.
+#: On a machine with no game installed this set is ungraded, which is CS-426's
+#: recorded gap and is not closed here. What DOES still grade it on such a
+#: machine is narrower and is stated where it lives:
+#: tests/save/test_byte_order_status.py::test_the_cannot_separate_set_is_bounded_without_a_library
+#: holds it disjoint from the anchored set, free of one-byte words the width
+#: branch would swallow, and free of any word the shipped dispatch already
+#: scores. That is a bound, not the verdict - it cannot tell this status from
+#: :data:`BYTE_ORDER_UNSCORED`, and only the library-backed derivation can.
+#:
+#: WHAT WAS MEASURED, with a REAL SOURCE EDIT in each case, because the mapping
+#: below is a comprehension evaluated at import and an in-process patch of this
+#: set leaves it stale and grades a value nothing shipped. Before the derivation
+#: existed, recording this status for a type no oracle had been applied to left
+#: the whole save suite green - it is the CS-476 over-claim in a new spelling,
+#: and a spelling the vocabulary bound admits by construction once the word is
+#: declared.
+_BYTE_ORDER_CANNOT_SEPARATE_VALUES: Final = frozenset({"UInt32Property"})
+
 
 def _byte_order_status(word: str, width: int) -> str:
     """Classify one fixed-width value type's byte-order question.
@@ -2781,6 +2851,12 @@ def _byte_order_status(word: str, width: int) -> str:
     measured width ever changes from one byte to more, this stops calling its
     byte order vacuous on the same edit that changes the width, instead of
     waiting for someone to remember a sentence elsewhere.
+
+    THE BRANCHES ARE ORDERED AND THE ORDER HIDES THINGS, which is why two of the
+    three populations are graded directly and not only through what this
+    returns. A one-byte word in either named set never reaches its own branch,
+    and a word in both named sets silently takes the earlier one. Neither is
+    visible to a test that reads only :data:`VALUE_BYTE_ORDER_STATUS`.
 
     Args:
         word: The type word.
@@ -2793,6 +2869,8 @@ def _byte_order_status(word: str, width: int) -> str:
         return BYTE_ORDER_VACUOUS
     if word in _BYTE_ORDER_ANCHORED_VALUES:
         return BYTE_ORDER_ANCHORED_NOT_UNIQUE
+    if word in _BYTE_ORDER_CANNOT_SEPARATE_VALUES:
+        return BYTE_ORDER_ORACLE_CANNOT_SEPARATE
     return BYTE_ORDER_UNSCORED
 
 
