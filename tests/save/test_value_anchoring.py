@@ -3026,10 +3026,20 @@ def _sweep_separability() -> _SeparabilitySweep | None:
     monkeypatch `_library_save_paths`, and the no-install gate accepts a skip by
     design.
 
-    CACHING ONLY A REAL SWEEP REMOVES THE STATE RATHER THAN POLICING IT. When
-    there is genuinely no library, :func:`_derive_separability` returns almost
-    immediately - discovery comes back empty and no save is opened - so there is
-    nothing worth memoising in that branch and a great deal to lose by doing it.
+    CACHING ONLY A REAL SWEEP CLOSES THE ``None`` CORNER AND NOTHING WIDER, and
+    the wider claim is not made here because an adversary measured it. When there
+    is genuinely no library :func:`_derive_separability` returns almost
+    immediately - discovery comes back empty and no save is opened - so that
+    branch was never worth memoising and cost the whole artifact its grading.
+
+    TWO THINGS THIS DOES NOT FIX, BOTH DEMONSTRATED. A NARROWED but real sweep
+    still caches for the session: patching discovery to return one save of the
+    library caches that sweep and every grader passes green off it, with no skip
+    and no red. And the green-with-skips outcome itself stays reachable by any
+    route that makes discovery persistently empty - the graders skip, and so does
+    the control below them, so nothing in ``tests/save`` observes that the library
+    was never reached. That second one is CS-426's recorded no-install gap and is
+    not closed here.
 
     Returns:
         The sweep, or None when no save library is reachable.

@@ -306,6 +306,16 @@ the line becomes a pointer.
     all session was incomplete against CI's.** Run `python -m ruff format --check .` before every
     commit; it is instant.
 
+- **A FOURTH ADVERSARY RAN ON THE CACHE FIX AND RETURNED NOT REFUTED**, which is the only
+  unbroken done-claim of the session. It attacked four poisoning routes, proved the control
+  non-vacuous with a mutant isolating the SEMANTICS rather than the data structure - keep the list,
+  drop only the `is not None` guard - and checked six orderings. **It still found a prose
+  overclaim of mine**, the third of the session: "caching only a real sweep removes the state" is
+  false, because a NARROWED but real sweep still caches session-wide. Measured: patching discovery
+  to one save of seventeen caches that sweep and every grader passes green off it, no skip, no red.
+  The docstring states the bound now. **The green-with-skips outcome also stays reachable by a
+  non-cache route the control cannot see, because the control skips too** - that is CS-426.
+
 - **Next action: CS-480**, the last ungraded bound on which types may carry a byte-order status.
   `_TAG_CARRIED_ONE_BYTE_VALUES` in `tests/save/test_byte_order_status.py` is hand-written and read
   by NOTHING: two lines ship `vacuous_one_byte` for `StrProperty`, a LENGTH-PREFIXED type whose
