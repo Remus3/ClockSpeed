@@ -1750,8 +1750,18 @@ def test_the_declared_size_field_census_narrows_the_byte_orders_to_two() -> None
 # AND CONSTRAINING THE OFFSET EXPRESSION FELL TO A REBIND, which this author
 # built before shipping the rule rather than after: save value_at, displace it,
 # read, restore. Every offset expression stays the bare name and the AST walk
-# sees nothing. The binding count closes it. Each of the three rules exists
-# because the ones before it were worked around and measured to be.
+# sees nothing. The binding count closes it.
+#
+# THEN THE BINDING COUNT FELL TO A SCOPE SHADOW, because a PARAMETER is an
+# ast.arg and not an ast.Name with a Store context. A five-line nested def -
+# or a lambda, or a comprehension - taking the offset name as its own parameter
+# scored one cut, every offset a bare name and one binding, with the census
+# fully displaced and the whole suite green. Parameters are counted now too.
+#
+# EACH OF THE THREE RULES, AND EACH WIDENING OF THE THIRD, EXISTS BECAUSE WHAT
+# CAME BEFORE IT WAS WORKED AROUND AND MEASURED TO BE. Every time the closure
+# was believed final it was not, so the standing claim here is the enumerated
+# one and not an absolute.
 #
 # ONE MUTANT IS EQUIVALENT AND IS NOT A GAP: widening the coarseness mask by one
 # bit, to take in the exponent's lowest bit. Proven rather than judged. The
@@ -1761,7 +1771,7 @@ def test_the_declared_size_field_census_narrows_the_byte_orders_to_two() -> None
 # exhaustively gives an identical result under both masks. A wider mask cannot
 # change any width this module scores.
 #
-# THAT WAS A SNAPSHOT OF FOUR RUNS AND IS NOT A STANDING CONTROL - nothing in
+# THAT WAS A SNAPSHOT OF FIVE RUNS AND IS NOT A STANDING CONTROL - nothing in
 # the suite re-grades those mutants, and a later edit can reopen any of them.
 #
 # THE TWO CONTROLS ARE COMPLEMENTARY AND NEITHER IS SPARE, measured rather than
@@ -2470,6 +2480,14 @@ def _body_reads(function: ast.FunctionDef) -> tuple[int, int, tuple[str, ...], i
         if isinstance(node, ast.Name)
         and node.id == _VALUE_OFFSET_NAME
         and isinstance(node.ctx, ast.Store)
+    ) + sum(
+        # A PARAMETER IS NOT AN ``ast.Name``. A nested def or a lambda taking the
+        # offset name shadows it in its own scope, and the walk above cannot see
+        # that - measured: a five-line nested reader scored one cut, every offset
+        # a bare name and one binding, with the census fully displaced.
+        1
+        for node in ast.walk(function)
+        if isinstance(node, ast.arg) and node.arg == _VALUE_OFFSET_NAME
     )
     return slices, loose, tuple(offsets), bindings
 
@@ -2491,7 +2509,12 @@ def _named_function(tree: ast.Module, name: str) -> ast.FunctionDef:
 
 
 def test_the_coarseness_census_cuts_the_body_exactly_once() -> None:
-    """SINGLE-SLICE OWNERSHIP, ENFORCED - the census cannot be pointed elsewhere.
+    """SINGLE-SLICE OWNERSHIP, ENFORCED AGAINST EVERY SHAPE SO FAR MEASURED.
+
+    THE HEADLINE USED TO SAY THE CENSUS "cannot be pointed elsewhere" AND THAT
+    WAS FALSIFIED. Each rule below closed the bypass that defeated the one
+    before it, and each time the closing was believed final. The honest claim is
+    the enumerated one: these three rules, and the shapes named as residuals.
 
     WHY A VALUE-EQUALITY GRADE WAS NOT ENOUGH, measured rather than supposed. An
     earlier revision graded the bytes the tally REPORTED having scored, on the
@@ -2518,16 +2541,26 @@ def test_the_coarseness_census_cuts_the_body_exactly_once() -> None:
       ONE BINDING. That offset name is bound once, from the tag tuple. Requiring
       the offset EXPRESSION to be a bare name is defeated by rebinding the name
       around the read - this author built that bypass before shipping the rule.
+      A BINDING IS NOT ONLY AN ASSIGNMENT: a nested ``def`` or a ``lambda``
+      taking the offset name as a PARAMETER shadows it in its own scope, and a
+      parameter is an ``ast.arg`` rather than an ``ast.Name``, so the assignment
+      walk alone did not see it. Both are counted.
 
-    WHAT IT STILL DOES NOT COVER. Displacing the tag's own reported offset at
-    its single binding moves the slice AND the shipped decode it is compared
-    with, together - that is the SHARED LOCATOR, it is the extent anchor's
-    question, and nothing in this section answers it. (It is not silent in
-    practice: with one shared cut, displacing it also displaces the magnitude
-    tallies, and both shipped oracles collapse.) Reaching the body without
-    naming it - through ``locals()``, a frame walk, or a helper this module does
-    not define - is not counted here either; that is control rewriting rather
-    than a census fault, and it is CS-473's class.
+    WHAT IT STILL DOES NOT COVER, stated at the reach the walk actually has.
+    Displacing the tag's own reported offset at its single binding moves the
+    slice AND the shipped decode it is compared with, together - that is the
+    SHARED LOCATOR, it is the extent anchor's question, and nothing in this
+    section answers it. (It is not silent in practice: with one shared cut,
+    displacing it also displaces the magnitude tallies, and both shipped oracles
+    collapse.) Reaching the body through ``locals()`` or a frame walk names it
+    nowhere and is not counted; that is control rewriting rather than a census
+    fault, and it is CS-473's class.
+
+    A HELPER THIS MODULE DOES NOT DEFINE IS **NOT** IN THAT GAP, and an earlier
+    revision of this paragraph said it was. Handing ``body`` to any call outside
+    :data:`_BODY_READERS` makes it a LOOSE read and reds this test - measured on
+    ``bytes(body)`` and on ``memoryview(body)`` alike. Understating a control's
+    reach misleads the next reader as surely as overstating it.
 
     IT READS NO SAVE - it parses this module's own source, so it runs on CI.
     """
