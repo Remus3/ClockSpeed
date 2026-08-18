@@ -22,6 +22,23 @@ A missing file is reported as MISSING and is NOT a failure here. Whether a file
 that should exist does exist is doc topology, which is tools/drift_guard.py
 guard (d). This tool answers only "is what exists inside its budget".
 
+THE POPULATION IS STATED, NOT GLOBBED (CS-475). WALKED_ROOTS names every root
+this tool walks and WALK_BOUNDARY names the rule that stops the walk, both as
+data carrying their own reasons, and both are printed. That is not tidiness:
+this tool reports a COUNT that a reader trusts, and a population decided by a
+glob is the failure class CONVENTIONS.md section 15.1 names and that
+tools/drift_guard.py prints a skipped-paths list to defend against.
+
+MEMBERSHIP TAKES THREE TESTS, NOT ONE, and none of them is belt-and-braces.
+The boundary marker alone is FALSE for the whole duration of every worktree
+teardown, because `git worktree remove` deletes the .git marker before it
+deletes the files - measured 8 times out of 8. A registered-worktree test
+covers that window; a tracked-or-not-ignored test decides what this tree owns
+without dropping a genuinely new untracked file from the hard gate. Each was
+added because a measurement showed the previous set was wrong, what any of
+them excludes is REPORTED rather than dropped, and the reasoning for all three
+is written out beside MEMBERSHIP_REASON.
+
 tools/drift_guard.py imports evaluate() from this module rather than shelling
 out, so the budget table has exactly one implementation.
 
@@ -34,8 +51,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import subprocess
 import sys
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 
 KB = 1024
 
@@ -62,19 +84,193 @@ AUTOLOADED_EXPLICIT = (
     ".claude/CLAUDE.md",
 )
 
-WALK_SKIP_DIRS = frozenset(
+
+@dataclass(frozen=True)
+class WalkedRoot:
+    """One root this tool walks, and why it walks it.
+
+    Attributes:
+        relative: Path relative to the repository root; "." is the root.
+        filename: The file name collected under it, matched without regard to
+            case because a case-insensitive filesystem auto-loads a file
+            whatever case it carries, and a population that changes with the
+            host's filesystem is not a stated population.
+        reason: Why this root is in the population.
+    """
+
+    relative: str
+    filename: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class WalkBoundary:
+    """The rule that stops a walk, and why it is that rule and not a name.
+
+    Attributes:
+        marker: The directory entry whose presence marks a checkout root.
+        reason: Why a directory carrying it is outside this population.
+    """
+
+    marker: str
+    reason: str
+
+
+# THE POPULATION, STATED. There is one root and it is this repository's own
+# working tree - "the files THIS checkout carries". Everything the tool
+# measures beyond the explicit list above comes from here and nowhere else.
+WALKED_ROOTS: tuple[WalkedRoot, ...] = (
+    WalkedRoot(
+        relative=".",
+        filename="CLAUDE.md",
+        reason=(
+            "this repository's own working tree. A nested CLAUDE.md is auto-loaded "
+            "by the harness when the session is working under it, so it costs the "
+            "same context as the root one and carries the same budget."
+        ),
+    ),
+)
+
+# THE PRUNING RULE, STATED. CS-475: a linked worktree is a DIFFERENT checkout
+# that happens to sit inside this one, and measuring its copy of a budgeted
+# file reports another tree's number under this tree's name.
+WALK_BOUNDARY = WalkBoundary(
+    marker=".git",
+    reason=(
+        "a directory carrying a .git entry is itself a checkout root - a linked "
+        "worktree, a submodule or a nested clone - and its files belong to that "
+        "checkout, not to this one. Descending into one measures a DIFFERENT "
+        "tree's copy of a budgeted file, which during a multi-agent session can "
+        "report a stale copy inside budget while the tracked file is over. This "
+        "is stated as a boundary rather than as a directory name deliberately: "
+        "naming the harness's worktree directory would stop holding the day a "
+        "harness put its worktrees somewhere else."
+    ),
+)
+
+# MEMBERSHIP TAKES THREE COMPLEMENTARY TESTS, AND EACH ONE COVERS A HOLE THE
+# OTHERS LEAVE OPEN. Every one of them was added because a measurement showed
+# the previous set was wrong, not because more rules felt safer.
+#
+# (1) WALK_BOUNDARY, above. Structural, needs no git, prunes during the walk.
+#     It is NECESSARY AND NOT SUFFICIENT: `git worktree remove` deletes the
+#     .git marker BEFORE it deletes the worktree's files. Probed over 8
+#     teardown rounds, 8 of 8 showed a window where the directory still held a
+#     populated CLAUDE.md and carried no marker. The end-of-session ritual runs
+#     this tool at exactly the moment agent worktrees are torn down, so that
+#     window is the common case rather than an exotic one.
+#
+# (2) REGISTERED WORKTREES. In the same measured window, with the marker gone
+#     and the files still on disk, git still LISTS the directory as a linked
+#     worktree - confirmed True at both an ignored and an un-ignored path. So
+#     the registration outlives the marker and closes exactly the window the
+#     marker leaves open, at any path, without depending on where a harness
+#     chose to put its worktrees.
+#
+# (3) TRACKED-OR-NOT-IGNORED. A file is this tree's if the index carries it, or
+#     if it is untracked but not ignored. The earlier revision of this tool
+#     used TRACKED ALONE and that was a real loss of enforcement: an untracked
+#     but genuinely-this-tree nested CLAUDE.md over its budget stopped failing
+#     the hard gate. Measured: docs/newarea/CLAUDE.md at 72900 bytes reported
+#     PASS where it should hard-fail. Not-ignored brings that file back into
+#     the population while still excluding a worktree copy under an ignored
+#     path.
+#
+# WHY (2) IS NOT REDUNDANT WITH (3), which is the trap this nearly fell into:
+# test (3) alone reopens the teardown window for a worktree at an UN-IGNORED
+# path, because in that window the copy is untracked and not ignored and so
+# looks exactly like a new file this tree owns. Measured directly, not assumed:
+# in the marker-absent state the copy PASSED the tracked-or-not-ignored test at
+# an un-ignored path and failed it at an ignored path. Test (2) is what makes
+# the answer independent of the harness's directory layout.
+#
+# What any test excludes is REPORTED rather than silently dropped - CLAUDE.md
+# non-negotiable 7 - and AUTOLOADED_EXPLICIT is exempt from (3), because
+# CLAUDE.local.md is untracked BY DESIGN and still costs context.
+MEMBERSHIP_REASON = (
+    "measured only if this checkout's index carries it, or it is untracked and "
+    "not ignored. A worktree copy under an ignored path fails that, and a "
+    "genuinely new nested CLAUDE.md this tree owns passes it, so the hard gate "
+    "still fires on an untracked file that is over budget. A walked file that "
+    "fails is reported rather than measured, never silently dropped."
+)
+
+# THE COST OF THE RULE, AND WHY IT IS SHAPED THIS WAY. NO FIGURES HERE, on
+# purpose. CLAUDE.md section 4 forbids restating a measured number in prose -
+# a hardcoded figure is a lie with a timestamp on it - and a benchmark in a
+# comment goes stale by MACHINE as well as by time. This tool's own item exists
+# because a population was decided by a glob rather than stated; shipping a
+# stale benchmark in its own comment would be that same defect one file along.
+# An earlier revision of this comment carried three figures and one of them was
+# not merely stale but backwards, claiming the tool had got faster end to end
+# when it had measurably got slower.
+#
+# What is durable, and what a reader can re-derive on their own machine:
+#
+#   - The walk itself got FASTER. Pruning during the walk beats letting rglob
+#     descend into .git and filtering afterwards.
+#   - Essentially all of the added cost is the git subprocesses rather than the
+#     Python. Handed a survey that has already been taken, evaluate() is
+#     cheaper than the pre-CS-475 version was.
+#   - There are TWO subprocesses per invocation - one listing for membership,
+#     one for the worktree registration - and they are spawned once per
+#     INVOCATION, not once per consumer. main() takes a single survey and hands
+#     it to evaluate() and to the renderer, and evaluate() accepts a
+#     pre-computed survey for the same reason. An earlier revision spawned
+#     three, because each consumer queried independently.
+#   - End to end this tool is SLOWER than before, by more than run-to-run
+#     noise. That is accepted rather than optimised away: it is two process
+#     spawns on a tool a session runs a handful of times, weighed against a
+#     guard that was reporting another checkout's numbers as this one's.
+#
+# The subprocess count is pinned by a TEST rather than by this comment -
+# tests/test_doc_budget.py::test_one_invocation_asks_git_once_per_question -
+# because a count in prose is exactly what this paragraph must not become.
+#
+# Reading .git/worktrees/*/gitdir directly would save one subprocess and was
+# rejected as FUNCTIONALLY WRONG, not merely impolite. A linked worktree's .git
+# is a FILE holding a gitdir pointer, not a directory, so root/.git/worktrees
+# does not exist when this tool runs from inside an agent worktree - which is
+# exactly how this project runs it. `git worktree list --porcelain` answers
+# correctly from any checkout, main or linked.
+REGISTERED_WORKTREE_REASON = (
+    "a directory git lists as a linked worktree is not descended into, even "
+    "when its .git marker is already gone. `git worktree remove` deletes that "
+    "marker before it deletes the files, and the registration outlives it, so "
+    "this is the test that holds during a teardown at a path no ignore rule "
+    "covers."
+)
+
+# The stated degradation. Non-negotiable 7 again: when git cannot answer, the
+# tool says so in its output and falls back to the boundary marker alone rather
+# than failing or pretending the weaker population is the stated one.
+INDEX_UNAVAILABLE_REASON = (
+    "git could not answer, so membership fell back to the boundary marker "
+    "alone. That fallback does NOT close the teardown window described beside "
+    "WALK_BOUNDARY, and it does not exclude ignored files."
+)
+
+GIT_TIMEOUT_SECONDS = 30
+
+# Directories pruned for a different and weaker reason than the boundary above:
+# they carry no authored documentation, only generated, vendored or cached
+# bytes. The reason travels with each entry so nobody adds one without stating
+# what it is. Membership is by NAME here, which is sound precisely because
+# these are conventional tool directory names rather than a structural
+# property - the structural property is WALK_BOUNDARY.
+WALK_SKIP_DIRS: Mapping[str, str] = MappingProxyType(
     {
-        ".git",
-        ".venv",
-        "venv",
-        "node_modules",
-        "__pycache__",
-        ".mypy_cache",
-        ".pytest_cache",
-        ".ruff_cache",
-        "data",
-        "dist",
-        "build",
+        ".git": "this checkout's own git metadata, not documentation",
+        ".venv": "virtual environment - installed third-party bytes",
+        "venv": "virtual environment - installed third-party bytes",
+        "node_modules": "installed third-party packages",
+        "__pycache__": "generated bytecode",
+        ".mypy_cache": "generated tool cache",
+        ".pytest_cache": "generated tool cache",
+        ".ruff_cache": "generated tool cache",
+        "data": "the gitignored generated-artifact directory (CLAUDE.md section 2.1)",
+        "dist": "build output",
+        "build": "build output",
     }
 )
 
@@ -86,7 +282,205 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def _autoloaded_files(root: Path) -> list[Path]:
+def _base_of(root: Path, walked: WalkedRoot) -> Path:
+    """Resolve a declared walked root against the repository root."""
+    return root if walked.relative == "." else root / walked.relative
+
+
+def _is_checkout_root(path: Path) -> bool:
+    """True when ``path`` is the root of a checkout of its own.
+
+    A linked worktree carries .git as a FILE holding a gitdir pointer; a plain
+    clone carries it as a directory. Both are checkout roots and neither one's
+    files belong to this repository's population, so presence is the test and
+    the kind is not.
+    """
+    return (path / WALK_BOUNDARY.marker).exists()
+
+
+def _is_registered_worktree(path: Path, facts: GitFacts) -> bool:
+    """True when git lists ``path`` as a linked worktree of this repository.
+
+    This is the test that survives a teardown. The marker is already gone in
+    that window; the registration is not.
+    """
+    if not facts.worktrees:
+        return False
+    try:
+        resolved = str(path.resolve()).lower()
+    except OSError:
+        resolved = str(path).lower()
+    return resolved in facts.worktrees
+
+
+def _walk(root: Path, walked: WalkedRoot, facts: GitFacts) -> tuple[list[Path], list[Path]]:
+    """Collect ``walked.filename`` under one declared root.
+
+    Args:
+        root: The repository root.
+        walked: The declared root to walk.
+        facts: Git's answers, so a registered worktree is pruned even once its
+            .git marker has been removed by an in-progress teardown.
+
+    Returns:
+        The matching files, and the directories the walk refused to enter
+        because they are checkout roots of their own. The second list is
+        REPORTED rather than discarded, so a reader can see what was left out
+        instead of taking the count on trust.
+    """
+    base = _base_of(root, walked)
+    wanted = walked.filename.lower()
+    matches: list[Path] = []
+    stopped: list[Path] = []
+
+    for current, dirnames, filenames in os.walk(base):
+        here = Path(current)
+        kept: list[str] = []
+        for name in sorted(dirnames):
+            if name in WALK_SKIP_DIRS:
+                continue
+            child = here / name
+            if _is_checkout_root(child) or _is_registered_worktree(child, facts):
+                stopped.append(child)
+                continue
+            kept.append(name)
+        # The walk's own base is never tested against the boundary - this
+        # checkout's root carries .git too, and pruning it would measure
+        # nothing at all.
+        dirnames[:] = kept
+        matches.extend(here / name for name in filenames if name.lower() == wanted)
+
+    return sorted(matches), sorted(stopped)
+
+
+@dataclass(frozen=True)
+class GitFacts:
+    """Everything git is asked, asked ONCE per survey.
+
+    Two subprocesses, not one per question. The earlier revision spawned three
+    git processes per invocation because evaluate(), survey() and
+    checkout_boundaries() each walked and queried independently.
+
+    Attributes:
+        members: Paths this tree owns - tracked, or untracked and not ignored -
+            lowercased and posix-style.
+        worktrees: Resolved paths git lists as linked worktrees, excluding the
+            root itself.
+        available: False when git could not answer at all.
+    """
+
+    members: frozenset[str]
+    worktrees: tuple[str, ...]
+    available: bool
+
+
+def _git(root: Path, *args: str) -> str | None:
+    """Run one git command in ``root``. None when git cannot answer."""
+    try:
+        done = subprocess.run(
+            ["git", "-C", str(root), *args],
+            capture_output=True,
+            text=True,
+            timeout=GIT_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if done.returncode != 0:
+        return None
+    return done.stdout
+
+
+def git_facts(root: Path) -> GitFacts:
+    """Ask git the two questions membership needs, once each.
+
+    `ls-files --cached --others --exclude-standard` answers "tracked OR
+    untracked-and-not-ignored" in a single call rather than two.
+    """
+    listing = _git(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
+    if listing is None:
+        return GitFacts(members=frozenset(), worktrees=(), available=False)
+
+    members = frozenset(entry.lower() for entry in listing.split("\0") if entry)
+
+    registered: list[str] = []
+    porcelain = _git(root, "worktree", "list", "--porcelain")
+    if porcelain:
+        try:
+            here = str(root.resolve()).lower()
+        except OSError:
+            here = str(root).lower()
+        for line in porcelain.splitlines():
+            if not line.startswith("worktree "):
+                continue
+            raw = line.split(" ", 1)[1].strip()
+            try:
+                resolved = str(Path(raw).resolve()).lower()
+            except OSError:
+                resolved = raw.lower()
+            if resolved != here:
+                registered.append(resolved)
+
+    return GitFacts(members=members, worktrees=tuple(sorted(registered)), available=True)
+
+
+@dataclass(frozen=True)
+class Survey:
+    """One pass over the declared population, with everything it observed.
+
+    Attributes:
+        files: The walked files that passed every membership test.
+        boundaries: Directories not descended into, being checkouts of their own.
+        excluded: Walked files this tree does not own - reported, never
+            silently dropped.
+        index_available: False when git could not answer, in which case
+            membership fell back to the boundary marker alone.
+    """
+
+    files: tuple[Path, ...]
+    boundaries: tuple[str, ...]
+    excluded: tuple[str, ...]
+    index_available: bool
+
+
+def survey(root: Path | None = None, facts: GitFacts | None = None) -> Survey:
+    """Walk the declared roots and apply every membership test.
+
+    This is the single place the population is decided. Everything that reports
+    a count, a row or a skipped path derives from here, so there is no second
+    opinion about what this repository carries.
+
+    Args:
+        root: The repository root.
+        facts: Pre-computed git answers, so one invocation asks git once
+            instead of once per consumer.
+    """
+    root = root or repo_root()
+    facts = facts if facts is not None else git_facts(root)
+
+    files: list[Path] = []
+    boundaries: list[str] = []
+    excluded: list[str] = []
+
+    for walked in WALKED_ROOTS:
+        matches, stopped = _walk(root, walked, facts)
+        boundaries.extend(_display(root, path) for path in stopped)
+        for path in matches:
+            shown = _display(root, path)
+            if facts.available and shown.lower() not in facts.members:
+                excluded.append(shown)
+                continue
+            files.append(path)
+
+    return Survey(
+        files=tuple(files),
+        boundaries=tuple(sorted(boundaries)),
+        excluded=tuple(sorted(excluded)),
+        index_available=facts.available,
+    )
+
+
+def _autoloaded_files(root: Path, observed: Survey | None = None) -> list[Path]:
     """Every file that lands in context automatically, deduplicated."""
     found: list[Path] = []
     seen: set[str] = set()
@@ -97,14 +491,24 @@ def _autoloaded_files(root: Path) -> list[Path]:
             seen.add(key)
             found.append(path)
 
+    # The explicit list is exempt from the membership test on purpose:
+    # CLAUDE.local.md is the untracked local companion and costs context anyway.
     for relative in AUTOLOADED_EXPLICIT:
         remember(root / relative)
 
-    for path in sorted(root.rglob("CLAUDE.md")):
-        if any(part in WALK_SKIP_DIRS for part in path.relative_to(root).parts):
-            continue
+    for path in (observed if observed is not None else survey(root)).files:
         remember(path)
     return found
+
+
+def checkout_boundaries(root: Path | None = None) -> list[dict]:
+    """Every directory the walk stopped at because it is another checkout.
+
+    Returns:
+        One record per boundary, with the marker that identified it. Empty on
+        a tree with no nested checkout, which is the ordinary case.
+    """
+    return [{"path": shown, "marker": WALK_BOUNDARY.marker} for shown in survey(root).boundaries]
 
 
 def _memory_leaves(root: Path) -> list[Path]:
@@ -147,11 +551,16 @@ def _entry(root: Path, path: Path, budget: int, severity: str, rule: str) -> dic
     }
 
 
-def evaluate(root: Path | None = None) -> list[dict]:
+def evaluate(root: Path | None = None, observed: Survey | None = None) -> list[dict]:
     """Measure every budgeted file.
 
     This is the single implementation of the CONVENTIONS section 2.1 table.
     tools/drift_guard.py calls it directly rather than re-deriving the budgets.
+
+    Args:
+        root: The repository root.
+        observed: A survey already taken for this root. Passing it keeps one
+            invocation to ONE git query rather than one per consumer.
     """
     root = root or repo_root()
     claude_md = root / "CLAUDE.md"
@@ -159,7 +568,7 @@ def evaluate(root: Path | None = None) -> list[dict]:
 
     rows.extend(
         _entry(root, path, AUTOLOADED_BUDGET, "HARD", "auto-loaded file")
-        for path in _autoloaded_files(root)
+        for path in _autoloaded_files(root, observed)
         if path != claude_md
     )
     rows.append(
@@ -221,10 +630,49 @@ def _table(rows: list[dict]) -> list[str]:
     return out
 
 
-def render(rows: list[dict]) -> list[str]:
-    """Render the budget table and the verdict as printable lines."""
+def _population_statement(observed: Survey | None) -> list[str]:
+    """State which roots were walked, what stopped the walk, and what was left out.
+
+    A count is only as trustworthy as the population behind it, so the
+    population is printed next to the count rather than left to be inferred
+    from the table.
+    """
+    out = ["", "Population walked (CS-475 - stated, not globbed):"]
+    out.extend(
+        f"  root {walked.relative}  collecting {walked.filename} - {walked.reason}"
+        for walked in WALKED_ROOTS
+    )
+    out.append(f"  stops at any directory carrying {WALK_BOUNDARY.marker} - {WALK_BOUNDARY.reason}")
+    out.append(f"  stops at a registered worktree - {REGISTERED_WORKTREE_REASON}")
+    out.append(f"  membership - {MEMBERSHIP_REASON}")
+    if observed is None:
+        return out
+
+    if not observed.index_available:
+        out.append(f"  DEGRADED - {INDEX_UNAVAILABLE_REASON}")
+    if observed.boundaries:
+        out.append("  not descended into (a checkout of its own, measured by its own tree):")
+        out.extend(f"    {shown}" for shown in observed.boundaries)
+    else:
+        out.append("  not descended into: (no nested checkout found)")
+    if observed.excluded:
+        out.append("  walked but NOT measured (this tree does not own it):")
+        out.extend(f"    {shown}" for shown in observed.excluded)
+    return out
+
+
+def render(rows: list[dict], observed: Survey | None = None) -> list[str]:
+    """Render the budget table and the verdict as printable lines.
+
+    Args:
+        rows: The rows from :func:`evaluate`.
+        observed: Optional result of :func:`survey`. When omitted the declared
+            population is still stated; only what this run observed is left
+            out, because that needs its own walk.
+    """
     out = ["Documentation size budgets (CONVENTIONS.md section 2.1; 1 KB = 1024 bytes)", ""]
     out.extend(_table(rows))
+    out.extend(_population_statement(observed))
 
     over = [row for row in rows if row["status"] == "OVER"]
     if over:
@@ -272,7 +720,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     args = parser.parse_args(argv)
 
-    rows = evaluate(repo_root())
+    root = repo_root()
+    # ONE survey, shared by the table and the statement. Two git calls for the
+    # whole invocation rather than two per consumer.
+    observed = survey(root)
+    rows = evaluate(root, observed)
     hard = hard_failures(rows)
     warn = soft_failures(rows)
 
@@ -284,6 +736,30 @@ def main(argv: list[str] | None = None) -> int:
                     "schema": 1,
                     "kb": KB,
                     "guidance": RELOCATE_GUIDANCE,
+                    "population": {
+                        "walked_roots": [
+                            {
+                                "relative": walked.relative,
+                                "filename": walked.filename,
+                                "reason": walked.reason,
+                            }
+                            for walked in WALKED_ROOTS
+                        ],
+                        "boundary_marker": WALK_BOUNDARY.marker,
+                        "boundary_reason": WALK_BOUNDARY.reason,
+                        "skipped_directory_names": dict(WALK_SKIP_DIRS),
+                        "membership_reason": MEMBERSHIP_REASON,
+                        "registered_worktree_reason": REGISTERED_WORKTREE_REASON,
+                        "index_available": observed.index_available,
+                        "index_unavailable_reason": (
+                            "" if observed.index_available else INDEX_UNAVAILABLE_REASON
+                        ),
+                        "not_descended_into": [
+                            {"path": shown, "marker": WALK_BOUNDARY.marker}
+                            for shown in observed.boundaries
+                        ],
+                        "walked_but_not_owned": list(observed.excluded),
+                    },
                     "rows": rows,
                     "hard_failures": [row["file"] for row in hard],
                     "warnings": [row["file"] for row in warn],
@@ -293,7 +769,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
     else:
-        print("\n".join(render(rows)))
+        print("\n".join(render(rows, observed)))
 
     return 1 if hard else 0
 
