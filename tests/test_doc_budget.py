@@ -58,8 +58,13 @@ MINIMUM_STATED_REASON = 40
 
 # The two plant sites. The first is where the harness put them when the defect
 # was measured; the second is deliberately nowhere near it.
-HARNESS_SITE = ".claude/worktrees/cs475-control"
-ELSEWHERE_SITE = "cs475-control-outside-the-harness-directory"
+#
+# BOTH CARRY THIS PROCESS'S PID. tier2 runs `pytest tests -q -n auto`, so two
+# workers can be inside this module at once; a shared plant path would let one
+# worker's teardown delete the other's worktree mid-assertion. The pid makes
+# each plant private to the process that created it.
+HARNESS_SITE = f".claude/worktrees/cs475-control-{os.getpid()}"
+ELSEWHERE_SITE = f"cs475-control-elsewhere-{os.getpid()}"
 PLANT_SITES = (HARNESS_SITE, ELSEWHERE_SITE)
 
 
@@ -94,19 +99,6 @@ doc_budget = _load_doc_budget()
 def _population(root: Path) -> list[str]:
     """The display paths of every row the tool actually measured."""
     return sorted(row["file"] for row in doc_budget.evaluate(root) if row["status"] != "MISSING")
-
-
-def _rows_by_file(root: Path) -> dict[str, dict]:
-    return {row["file"]: row for row in doc_budget.evaluate(root)}
-
-
-def _measured_line(root: Path) -> str:
-    """The one rendered line a reader trusts for the count."""
-    lines = [line for line in doc_budget.render(doc_budget.evaluate(root)) if "measured:" in line]
-    if len(lines) != 1:
-        message = f"expected exactly one 'measured:' line, saw {len(lines)}"
-        raise AssertionError(message)
-    return str(lines[0])
 
 
 # ---------------------------------------------------------------------------
@@ -207,44 +199,98 @@ def _inflate_past_budget(path: Path) -> None:
 
 
 @pytest.mark.parametrize("relative", PLANT_SITES)
-def test_population_is_identical_across_a_live_linked_worktree(relative: str) -> None:
+def test_a_live_linked_worktree_is_not_measured(relative: str) -> None:
+    """The graded control. EVERY assertion here is scoped to THIS test's plant.
+
+    Nothing asserts a global emptiness or a global count, and that is not a
+    style choice. Other linked worktrees exist inside the checkout during any
+    multi-agent session - which is CS-475's own scenario and CLAUDE.md section
+    5's default session shape - and a concurrent pytest worker may have its own
+    plant live at the same moment. An assertion about the whole repository
+    would be red for reasons that have nothing to do with this test.
+
+    THE ORDERING IS LOAD-BEARING. The graded assertion uses only symbols that
+    exist in the pre-fix module, so against real pre-fix code this fails on the
+    leak rather than on a missing attribute. Anything referring to the new
+    reporting API comes strictly after it.
+    """
     reason = _git_is_usable()
     if reason:
         pytest.skip(f"CS-475 control needs a git checkout: {reason}")
 
-    before_population = _population(REPO_ROOT)
-    before_rows = _rows_by_file(REPO_ROOT)
-    before_line = _measured_line(REPO_ROOT)
+    planted_file = f"{relative}/CLAUDE.md"
 
     with _linked_worktree(relative) as worktree:
         _inflate_past_budget(worktree / "CLAUDE.md")
-        during_population = _population(REPO_ROOT)
-        during_rows = _rows_by_file(REPO_ROOT)
-        during_line = _measured_line(REPO_ROOT)
-        during_hard = doc_budget.hard_failures(doc_budget.evaluate(REPO_ROOT))
+
+        # ---- GRADED, and reachable with pre-fix symbols only ----
+        measured = _population(REPO_ROOT)
+        assert planted_file not in measured, (
+            f"a live linked worktree's copy was measured as this tree's: {planted_file}"
+        )
+
+        # The planted copy is over its own budget. If it leaked into the
+        # population it would also flip the verdict, so this pins the
+        # consequence and not merely the row.
+        breached = [row["file"] for row in doc_budget.hard_failures(doc_budget.evaluate(REPO_ROOT))]
+        assert planted_file not in breached, (
+            f"a copy inside another checkout flipped the budget verdict: {planted_file}"
+        )
+
+        # The report must not NAME the plant either - scoped to this plant
+        # rather than to the global count the report happens to print.
+        rendered = chr(10).join(doc_budget.render(doc_budget.evaluate(REPO_ROOT)))
+        assert planted_file not in rendered
+
+        # ---- A GUARD'S PRESENCE IS NOT A GUARD'S FIRING ----
+        # Absence from the population is also satisfied by a walk that never
+        # reached the plant, so the boundary must be seen naming the exact
+        # directory it refused to enter.
         during_boundaries = [record["path"] for record in doc_budget.checkout_boundaries(REPO_ROOT)]
+        assert relative in during_boundaries, f"the walk did not report stopping at {relative}"
 
-    after_population = _population(REPO_ROOT)
-    after_line = _measured_line(REPO_ROOT)
+    # Scoped to this plant: the boundary is gone because THIS worktree is gone,
+    # said without claiming anything about anyone else's worktrees.
+    after_boundaries = [record["path"] for record in doc_budget.checkout_boundaries(REPO_ROOT)]
+    assert relative not in after_boundaries, f"a boundary outlived its worktree: {relative}"
+    assert planted_file not in _population(REPO_ROOT)
 
-    leaked = sorted(set(during_population) - set(before_population))
-    assert not leaked, f"a live linked worktree added measured files: {leaked}"
-    assert during_population == before_population
-    assert during_rows == before_rows
-    assert during_line == before_line
-    assert not during_hard, "a copy inside another checkout flipped the budget verdict"
 
-    # A GUARD'S PRESENCE IS NOT A GUARD'S FIRING. Absence from the population
-    # would also be satisfied by a walk that never reached the planted tree at
-    # all, so the boundary has to be seen reporting the exact directory it
-    # refused to enter.
-    assert relative in during_boundaries, (
-        f"the walk did not report stopping at {relative}; it reported {during_boundaries}"
-    )
+def test_the_teardown_window_does_not_leak_a_dying_worktree() -> None:
+    """Finding 4: `git worktree remove` deletes the .git marker BEFORE the files.
 
-    assert after_population == before_population
-    assert after_line == before_line
-    assert not doc_budget.checkout_boundaries(REPO_ROOT), "a boundary outlived its worktree"
+    Probed over 8 teardown rounds, 8 of 8 showed a window in which the
+    directory still held a populated CLAUDE.md and carried NO marker. In that
+    window the boundary test alone answers "this tree owns it" and the walk
+    descends into another checkout - the exact failure CS-475 exists to
+    prevent, arriving at the exact moment the end-of-session ritual runs this
+    tool. The window is reproduced here by deleting the marker directly, which
+    is the state the probe observed rather than a hypothetical one.
+
+    In the same 8 rounds the dying copy was in this checkout's index 0 times
+    out of 8, which is why the index is the test that closes this.
+    """
+    reason = _git_is_usable()
+    if reason:
+        pytest.skip(f"CS-475 control needs a git checkout: {reason}")
+
+    relative = f"cs475-teardown-{os.getpid()}"
+    planted_file = f"{relative}/CLAUDE.md"
+
+    with _linked_worktree(relative) as worktree:
+        marker = worktree / ".git"
+        marker.unlink()
+
+        # SELF-CHECK: the window really is open - unmarked, still populated.
+        assert not marker.exists(), "the marker was not removed"
+        assert (worktree / "CLAUDE.md").stat().st_size > 0, "the copy is already gone"
+
+        assert planted_file not in _population(REPO_ROOT), (
+            "an unmarked but populated dying worktree was measured as this tree's"
+        )
+        assert planted_file in doc_budget.survey(REPO_ROOT).untracked, (
+            "the dying copy was dropped silently instead of being reported"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -294,9 +340,10 @@ def test_the_walk_root_is_not_pruned_by_its_own_marker(tmp_path: Path) -> None:
     assert "CLAUDE.md" in _population(tmp_path)
 
 
-def test_no_stale_control_worktree_survives_from_an_earlier_run() -> None:
-    # A leftover from a crashed control would silently change every other
-    # measurement in this module, so it is checked rather than assumed.
+def test_no_stale_plant_of_this_process_survives() -> None:
+    # Scoped to THIS process's plant paths. A global check here would be red
+    # whenever a concurrent worker has its own plant live, which is precisely
+    # the shape this module must not assert.
     for relative in PLANT_SITES:
         assert not (REPO_ROOT / relative).exists(), f"a previous run left {relative} behind"
 
@@ -368,14 +415,16 @@ def test_the_declared_data_is_immutable() -> None:
 
 
 def test_the_rendered_report_states_the_population() -> None:
-    text = "\n".join(doc_budget.render(doc_budget.evaluate(REPO_ROOT), []))
+    text = "\n".join(
+        doc_budget.render(doc_budget.evaluate(REPO_ROOT), doc_budget.survey(REPO_ROOT))
+    )
 
     assert "Population walked" in text
     for walked in doc_budget.WALKED_ROOTS:
         assert f"root {walked.relative}" in text
         assert walked.reason in text
     assert doc_budget.WALK_BOUNDARY.reason in text
-    assert "no nested checkout found" in text
+    assert doc_budget.INDEX_MEMBERSHIP_REASON in text
 
 
 def test_json_mode_states_the_population(capsys: pytest.CaptureFixture[str]) -> None:
@@ -390,3 +439,6 @@ def test_json_mode_states_the_population(capsys: pytest.CaptureFixture[str]) -> 
         walked.relative for walked in doc_budget.WALKED_ROOTS
     ]
     assert set(population["skipped_directory_names"]) == set(doc_budget.WALK_SKIP_DIRS)
+    assert population["index_membership_reason"] == doc_budget.INDEX_MEMBERSHIP_REASON
+    assert population["index_available"] is True
+    assert population["index_unavailable_reason"] == ""

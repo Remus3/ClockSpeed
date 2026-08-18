@@ -29,6 +29,14 @@ this tool reports a COUNT that a reader trusts, and a population decided by a
 glob is the failure class CONVENTIONS.md section 15.1 names and that
 tools/drift_guard.py prints a skipped-paths list to defend against.
 
+MEMBERSHIP TAKES TWO TESTS, NOT ONE, and the second is not belt-and-braces. The
+boundary marker alone is FALSE for the whole duration of every worktree
+teardown, because `git worktree remove` deletes the .git marker before it
+deletes the files - measured 8 times out of 8. This checkout's index is the
+test that survives that window. Both are applied, they fail in opposite
+directions, and what either one excludes is REPORTED rather than dropped. The
+reasoning is written out beside INDEX_MEMBERSHIP_REASON.
+
 tools/drift_guard.py imports evaluate() from this module rather than shelling
 out, so the budget table has exactly one implementation.
 
@@ -42,6 +50,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -137,6 +146,46 @@ WALK_BOUNDARY = WalkBoundary(
     ),
 )
 
+# THE SECOND MEMBERSHIP TEST, AND WHY ONE IS NOT ENOUGH.
+#
+# The boundary above is necessary and it is NOT sufficient, which was measured
+# rather than reasoned: `git worktree remove` deletes the .git marker BEFORE it
+# deletes the worktree's files. Probed over 8 teardown rounds, 8 of 8 showed a
+# window in which the directory still held a populated CLAUDE.md and carried no
+# marker - so the boundary test alone answers "this tree owns it" during every
+# single worktree teardown. That window is not exotic: the end-of-session ritual
+# runs this tool at exactly the moment agent worktrees are being torn down.
+#
+# So membership needs a test that does not depend on a file the teardown has
+# already removed. This checkout's INDEX is that test. In the same 8 rounds the
+# vanishing copy was in this checkout's index 0 times out of 8, because a linked
+# worktree's files are never in the main tree's index at any point in its life.
+#
+# The two tests fail in OPPOSITE directions, which is the whole reason both are
+# here. The marker misses a tree mid-teardown; the index misses a genuinely new
+# untracked file this tree does own. So a walked file that is not tracked is
+# REPORTED rather than silently dropped - CLAUDE.md non-negotiable 7, unknown
+# content is flagged and skipped, never silently wrong - and the explicit list
+# above is exempt, because CLAUDE.local.md is untracked BY DESIGN.
+INDEX_MEMBERSHIP_REASON = (
+    "measured only if this checkout's own index tracks it. A linked worktree's "
+    "copy is never in this tree's index, including during the teardown window "
+    "where the .git marker is already gone but the files are not, so the index "
+    "closes a hole the boundary marker cannot. A walked file that is untracked "
+    "is reported rather than measured, never silently dropped."
+)
+
+# The stated degradation. Non-negotiable 7 again: when git cannot answer, the
+# tool says so in its output and falls back to the boundary marker alone rather
+# than failing or pretending the weaker population is the stated one.
+INDEX_UNAVAILABLE_REASON = (
+    "git could not enumerate this checkout's index, so membership fell back to "
+    "the boundary marker alone. That fallback does NOT close the teardown "
+    "window described beside WALK_BOUNDARY."
+)
+
+GIT_TIMEOUT_SECONDS = 30
+
 # Directories pruned for a different and weaker reason than the boundary above:
 # they carry no authored documentation, only generated, vendored or cached
 # bytes. The reason travels with each entry so nobody adds one without stating
@@ -221,6 +270,80 @@ def _walk(root: Path, walked: WalkedRoot) -> tuple[list[Path], list[Path]]:
     return sorted(matches), sorted(stopped)
 
 
+def _tracked_paths(root: Path) -> frozenset[str] | None:
+    """Every path this checkout's index carries, lowercased and posix-style.
+
+    Returns:
+        The tracked set, or None when git cannot answer - no git on PATH, not a
+        checkout, or the call failed. None means "the index test is
+        unavailable", which the caller must state rather than paper over.
+    """
+    try:
+        done = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z"],
+            capture_output=True,
+            text=True,
+            timeout=GIT_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if done.returncode != 0:
+        return None
+    return frozenset(entry.lower() for entry in done.stdout.split("\0") if entry)
+
+
+@dataclass(frozen=True)
+class Survey:
+    """One pass over the declared population, with everything it observed.
+
+    Attributes:
+        files: The walked files that passed BOTH membership tests.
+        boundaries: Directories not descended into, being checkouts of their own.
+        untracked: Walked files this checkout's index does not carry. Reported,
+            never silently dropped.
+        index_available: False when git could not answer, in which case
+            membership fell back to the boundary marker alone.
+    """
+
+    files: tuple[Path, ...]
+    boundaries: tuple[str, ...]
+    untracked: tuple[str, ...]
+    index_available: bool
+
+
+def survey(root: Path | None = None) -> Survey:
+    """Walk the declared roots and apply both membership tests.
+
+    This is the single place the population is decided. Everything that reports
+    a count, a row or a skipped path derives from here, so there is no second
+    opinion about what this repository carries.
+    """
+    root = root or repo_root()
+    tracked = _tracked_paths(root)
+
+    files: list[Path] = []
+    boundaries: list[str] = []
+    untracked: list[str] = []
+
+    for walked in WALKED_ROOTS:
+        matches, stopped = _walk(root, walked)
+        boundaries.extend(_display(root, path) for path in stopped)
+        for path in matches:
+            shown = _display(root, path)
+            if tracked is not None and shown.lower() not in tracked:
+                untracked.append(shown)
+                continue
+            files.append(path)
+
+    return Survey(
+        files=tuple(files),
+        boundaries=tuple(sorted(boundaries)),
+        untracked=tuple(sorted(untracked)),
+        index_available=tracked is not None,
+    )
+
+
 def _autoloaded_files(root: Path) -> list[Path]:
     """Every file that lands in context automatically, deduplicated."""
     found: list[Path] = []
@@ -232,13 +355,13 @@ def _autoloaded_files(root: Path) -> list[Path]:
             seen.add(key)
             found.append(path)
 
+    # The explicit list is exempt from the index test on purpose:
+    # CLAUDE.local.md is the untracked local companion and costs context anyway.
     for relative in AUTOLOADED_EXPLICIT:
         remember(root / relative)
 
-    for walked in WALKED_ROOTS:
-        matches, _ = _walk(root, walked)
-        for path in matches:
-            remember(path)
+    for path in survey(root).files:
+        remember(path)
     return found
 
 
@@ -249,19 +372,7 @@ def checkout_boundaries(root: Path | None = None) -> list[dict]:
         One record per boundary, with the marker that identified it. Empty on
         a tree with no nested checkout, which is the ordinary case.
     """
-    root = root or repo_root()
-    out: list[dict] = []
-    for walked in WALKED_ROOTS:
-        _, stopped = _walk(root, walked)
-        out.extend(
-            {
-                "path": _display(root, path),
-                "walked_root": walked.relative,
-                "marker": WALK_BOUNDARY.marker,
-            }
-            for path in stopped
-        )
-    return out
+    return [{"path": shown, "marker": WALK_BOUNDARY.marker} for shown in survey(root).boundaries]
 
 
 def _memory_leaves(root: Path) -> list[Path]:
@@ -378,8 +489,8 @@ def _table(rows: list[dict]) -> list[str]:
     return out
 
 
-def _population_statement(boundaries: list[dict] | None) -> list[str]:
-    """State which roots were walked and what stopped the walk.
+def _population_statement(observed: Survey | None) -> list[str]:
+    """State which roots were walked, what stopped the walk, and what was left out.
 
     A count is only as trustworthy as the population behind it, so the
     population is printed next to the count rather than left to be inferred
@@ -391,28 +502,35 @@ def _population_statement(boundaries: list[dict] | None) -> list[str]:
         for walked in WALKED_ROOTS
     )
     out.append(f"  stops at any directory carrying {WALK_BOUNDARY.marker} - {WALK_BOUNDARY.reason}")
-    if boundaries is None:
+    out.append(f"  index test - {INDEX_MEMBERSHIP_REASON}")
+    if observed is None:
         return out
-    if boundaries:
+
+    if not observed.index_available:
+        out.append(f"  DEGRADED - {INDEX_UNAVAILABLE_REASON}")
+    if observed.boundaries:
         out.append("  not descended into (a checkout of its own, measured by its own tree):")
-        out.extend(f"    {record['path']}" for record in boundaries)
+        out.extend(f"    {shown}" for shown in observed.boundaries)
     else:
         out.append("  not descended into: (no nested checkout found)")
+    if observed.untracked:
+        out.append("  walked but NOT measured (this checkout's index does not carry it):")
+        out.extend(f"    {shown}" for shown in observed.untracked)
     return out
 
 
-def render(rows: list[dict], boundaries: list[dict] | None = None) -> list[str]:
+def render(rows: list[dict], observed: Survey | None = None) -> list[str]:
     """Render the budget table and the verdict as printable lines.
 
     Args:
         rows: The rows from :func:`evaluate`.
-        boundaries: Optional records from :func:`checkout_boundaries`. When
-            omitted the declared population is still stated; only the observed
-            boundary list is left out, because it needs its own walk.
+        observed: Optional result of :func:`survey`. When omitted the declared
+            population is still stated; only what this run observed is left
+            out, because that needs its own walk.
     """
     out = ["Documentation size budgets (CONVENTIONS.md section 2.1; 1 KB = 1024 bytes)", ""]
     out.extend(_table(rows))
-    out.extend(_population_statement(boundaries))
+    out.extend(_population_statement(observed))
 
     over = [row for row in rows if row["status"] == "OVER"]
     if over:
@@ -462,7 +580,7 @@ def main(argv: list[str] | None = None) -> int:
 
     root = repo_root()
     rows = evaluate(root)
-    boundaries = checkout_boundaries(root)
+    observed = survey(root)
     hard = hard_failures(rows)
     warn = soft_failures(rows)
 
@@ -486,7 +604,16 @@ def main(argv: list[str] | None = None) -> int:
                         "boundary_marker": WALK_BOUNDARY.marker,
                         "boundary_reason": WALK_BOUNDARY.reason,
                         "skipped_directory_names": dict(WALK_SKIP_DIRS),
-                        "not_descended_into": boundaries,
+                        "index_membership_reason": INDEX_MEMBERSHIP_REASON,
+                        "index_available": observed.index_available,
+                        "index_unavailable_reason": (
+                            "" if observed.index_available else INDEX_UNAVAILABLE_REASON
+                        ),
+                        "not_descended_into": [
+                            {"path": shown, "marker": WALK_BOUNDARY.marker}
+                            for shown in observed.boundaries
+                        ],
+                        "walked_but_untracked": list(observed.untracked),
                     },
                     "rows": rows,
                     "hard_failures": [row["file"] for row in hard],
@@ -497,7 +624,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
     else:
-        print("\n".join(render(rows, boundaries)))
+        print("\n".join(render(rows, observed)))
 
     return 1 if hard else 0
 
