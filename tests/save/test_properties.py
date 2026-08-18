@@ -1691,15 +1691,18 @@ def test_the_float32_byte_order_is_discriminated_by_plausible_magnitude() -> Non
 
     THE BAND BELOW IS WHY A THIRD ORACLE WAS NEEDED, and naming the limit here
     is more use than defending it. The band is a DOMAIN bound and it is not
-    narrowable to settle a byte order - the second assertion below counts how
-    many values are plausible under the SWAPPED reading, and that count is the
-    evidence for this paragraph. NO MECHANISM IS OFFERED FOR IT HERE. Two were,
-    in successive revisions of this project's notes, and both were measured
-    false; the counts do not need one. CS-469 settled the pair the band cannot
-    with mantissa coarseness instead, in
-    ``tests/save/test_value_anchoring.py::test_the_mantissa_coarseness_oracle_separates_the_middle_swap_from_the_identity``.
-    Do not narrow ``_FLOAT_PLAUSIBLE_LOW`` or ``_FLOAT_PLAUSIBLE_HIGH`` to chase
-    a discrimination they cannot make.
+    narrowable to settle a byte order. THE EVIDENCE FOR THAT IS A DERIVATION AND
+    NOT A COUNT ON THIS PAGE:
+    ``tests/save/test_value_anchoring.py::test_the_mantissa_coarseness_oracle_separates_the_middle_swap_from_the_identity``
+    asserts that the ordering swapping the two MIDDLE stored bytes survives this
+    oracle, so this oracle demonstrably does not rule it out.
+
+    DO NOT REACH FOR THE SWAPPED COUNT BELOW TO SUPPORT THAT. It scores the
+    whole-word REVERSAL - ``pack`` little, ``unpack`` big - which is a different
+    rearrangement from the middle swap, and a revision of this paragraph cited
+    it for exactly that purpose and was measured wrong. Do not narrow
+    ``_FLOAT_PLAUSIBLE_LOW`` or ``_FLOAT_PLAUSIBLE_HIGH`` to chase a
+    discrimination they cannot make.
 
     The band below is a DOMAIN bound on what a coordinate, a clock speed or a
     power figure can be, not a value fitted to this corpus.

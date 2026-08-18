@@ -826,14 +826,21 @@ def _tally_mantissa_coarseness(reordered: bytes, counts: Counter[int]) -> bytes:
     are zero. Reading the same bytes in the wrong order puts exponent and
     high-mantissa bits where those zeros were and destroys the structure.
 
-    WHY THIS SUCCEEDS WHERE THE SHIPPED MAGNITUDE BAND CANNOT, stated as what
-    is measured rather than as a mechanism. The band's own shipped assertion in
-    ``test_properties`` counts how many values are plausible under the SWAPPED
-    reading, and that count is a large fraction of the population - so the band
-    admits both readings on most values and cannot tell them apart. TWO
-    MECHANISMS WERE OFFERED FOR THAT IN THIS PROJECT'S NOTES AND BOTH WERE
-    MEASURED FALSE, so none is offered here. Coarseness is not a band at all: it
-    counts a structure authored data has and permuted data does not.
+    WHY THIS SUCCEEDS WHERE THE SHIPPED MAGNITUDE BAND CANNOT, POINTED AT
+    RATHER THAN ARGUED. That the band cannot separate the middle pair is a
+    DERIVED fact of this module: the middle swap is a member of
+    ``_PermutationSweep.float_oracle_holds``, and
+    ``test_the_mantissa_coarseness_oracle_separates_the_middle_swap_from_the_identity``
+    asserts it. The suite reddens if it ever stops being true.
+
+    NO NUMBER IS CITED FOR IT HERE, AND THAT IS DELIBERATE. Three numeric or
+    mechanical justifications were offered for this one conclusion in successive
+    revisions of this work and ALL THREE WERE MEASURED FALSE - two bounds on how
+    far the swap can move a magnitude, then an appeal to a shipped count that
+    measures the whole-word REVERSAL rather than the middle swap. The conclusion
+    survived every one of them because it never rested on them. Coarseness is
+    not a band at all: it counts a structure authored data has and permuted data
+    does not.
 
     Args:
         reordered: The value's stored bytes under one ordering.
@@ -1720,10 +1727,21 @@ def test_the_declared_size_field_census_narrows_the_byte_orders_to_two() -> None
 # with its strictness dropped; the predicate made WIDTH-BLIND by comparing
 # totals; the admission helper stopping deriving its population; the tie
 # boundary moved one bit either way; the census's slice displaced by -2 with the
-# magnitude tallies untouched; and the population filter neutered at the
-# census's own call site with the helper left honest. THE LAST TWO WERE MISSED
-# BY AN EARLIER REVISION OF THIS MODULE and are the reason the census now
-# grades its own offset and its own admissions.
+# magnitude tallies untouched; the population filter neutered at the census's
+# own call site with the helper left honest; a BIG-ENDIAN assembly inside the
+# tally; and the four-line bypass below.
+#
+# THE BYPASS IS WHY THE STRUCTURAL CONTROL EXISTS. Two successive revisions of
+# this module graded the census by VALUE - first on the local the call site
+# passed, then on the bytes the tally reported back. Both were defeated the same
+# way: take a SECOND, displaced slice of the body, hand that to the tally, and
+# rebind the graded local to the honest one. Four lines, and the whole suite
+# stayed green while the census scored two framing bytes and two value bytes -
+# and scored them CLEANER than real values, because the byte before a float
+# value is zero on every float tag in this library. A value grade and a value
+# tally are two statements, and a mutation can always separate two statements.
+# test_the_coarseness_census_cuts_the_body_exactly_once removes the degree of
+# freedom instead of guarding it, and it is what reds that bypass.
 #
 # ONE MUTANT IS EQUIVALENT AND IS NOT A GAP: widening the coarseness mask by one
 # bit, to take in the exponent's lowest bit. Proven rather than judged. The
@@ -1733,8 +1751,15 @@ def test_the_declared_size_field_census_narrows_the_byte_orders_to_two() -> None
 # exhaustively gives an identical result under both masks. A wider mask cannot
 # change any width this module scores.
 #
-# THAT WAS A SNAPSHOT OF TWO RUNS AND IS NOT A STANDING CONTROL - nothing in the
-# suite re-grades those mutants, and a later edit can reopen any of them.
+# THAT WAS A SNAPSHOT OF THREE RUNS AND IS NOT A STANDING CONTROL - nothing in
+# the suite re-grades those mutants, and a later edit can reopen any of them.
+#
+# TWO SHAPES ARE KNOWN NOT TO BE CAUGHT AND ARE NOT THIS SECTION'S TO CLOSE.
+# Gutting any control here to a bare return or to a lone pytest.skip() leaves it
+# green; those are the two shapes _hollow_tests records as its own blind spots
+# and they are CS-473's. And displacing the tag's OWN reported offset moves the
+# census and the shipped decode it is graded against together - the SHARED
+# LOCATOR, which is the extent anchor's question and is answered nowhere here.
 # ---------------------------------------------------------------------------
 
 
@@ -1978,12 +2003,16 @@ def test_the_mantissa_bits_inside_the_low_stored_byte_separate_no_ordering_from_
     argument and the strongest thing here" AND THAT WAS WRONG. A test that no
     data can red is not evidence about data.
 
-    WHAT IT DOES GRADE IS THE IMPLEMENTATION, and only jointly with two
-    neighbours. It fails when the counts stop reading the bits the layout says
-    they read - a big-endian assembly in the tally, or a boundary in the wrong
-    place. Measured: moving the boundary one bit UP reds this half, and one bit
-    DOWN reds the strict-width test instead. So the pair of them pins the
-    boundary from both sides, and neither does it alone. The non-circularity
+    WHAT IT DOES GRADE IS THE BOUNDARY, and only jointly with a neighbour.
+    Measured: moving the boundary one bit UP reds this test, and one bit DOWN
+    reds the strict-width test instead, so the pair of them pins it from both
+    sides and neither does it alone.
+
+    IT DOES NOT GRADE THE ASSEMBLY, AND AN EARLIER REVISION CLAIMED IT DID. A
+    big-endian assembly inside the tally leaves this test PASSING - it reds
+    three others - because :func:`_with_the_middle_swapped` fixes the last
+    output position exactly as it fixes the first, so a big-endian low byte ties
+    between partners for the same reason a little-endian one does. The non-circularity
     that matters is that the boundary is DERIVED from the layout twice over
     before any save is read, which is
     ``test_the_coarseness_tie_boundary_is_the_mantissa_that_fits_in_the_low_stored_byte``.
@@ -2067,10 +2096,12 @@ def test_the_mantissa_coarseness_oracle_separates_the_middle_swap_from_the_ident
     them: the census's admitted population is exactly the float32 values whose
     middle bytes differ, and the run that measures it reports how many. What
     could not use that evidence is the shipped float32 oracle's magnitude band,
-    which its own shipped counts show admits BOTH readings on most of the
-    population. NO MECHANISM FOR THAT IS WRITTEN HERE - two were offered in this
-    project's notes and both were measured false. THE DISCRIMINATION WAS LOST IN
-    THE PREDICATE, NOT ABSENT FROM THE DATA.
+    and that it cannot is DERIVED rather than described: the assertion below
+    requires the middle swap to be a member of ``float_oracle_holds``, so the
+    band demonstrably does not rule it out. NO NUMBER AND NO MECHANISM IS
+    OFFERED BESIDE IT - three were, in successive revisions, and all three were
+    measured false. THE DISCRIMINATION WAS LOST IN THE PREDICATE, NOT ABSENT
+    FROM THE DATA.
 
     WHAT THIS ORACLE ASKS INSTEAD is how many values keep the low-mantissa zeros
     that an authored float has and a wrongly ordered read destroys. Coarseness
@@ -2315,6 +2346,126 @@ def _hollow_tests(tree: ast.Module) -> list[str]:
         if all(_is_inert(statement) for statement in node.body):
             found.append(f"{node.name} at line {node.lineno}")
     return found
+
+
+#: The names the coarseness census is allowed to read ``body`` through, besides
+#: its ONE slice. A read outside this set is a second route to the bytes and is
+#: what the control below exists to forbid.
+_BODY_READERS: Final = ("len", "_decode_fixed_width")
+
+
+def _body_reads(function: ast.FunctionDef) -> tuple[int, int]:
+    """Count how a function reaches the decompressed body, and by how many routes.
+
+    THIS IS THE CONTROL THAT MAKES SINGLE-SLICE OWNERSHIP A PROPERTY RATHER THAN
+    A CONVENTION. A grader sited beside a slice can always be pointed at a
+    different local than the tally consumes - that was measured, and the bypass
+    was four lines. What cannot be worked around is a rule saying the census may
+    cut the body exactly ONCE: any second cut, whatever local it is bound to, is
+    a second entry in the first count here.
+
+    Args:
+        function: The census function's syntax tree.
+
+    Returns:
+        Slices taken of ``body``, and reads of ``body`` that are neither a slice
+        nor an argument to one of :data:`_BODY_READERS`.
+    """
+    slices = 0
+    accounted: set[int] = set()
+    for node in ast.walk(function):
+        if (
+            isinstance(node, ast.Subscript)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "body"
+            and isinstance(node.slice, ast.Slice)
+        ):
+            slices += 1
+            accounted.add(id(node.value))
+        if isinstance(node, ast.Call):
+            name = None
+            if isinstance(node.func, ast.Attribute):
+                name = node.func.attr
+            elif isinstance(node.func, ast.Name):
+                name = node.func.id
+            if name in _BODY_READERS:
+                for argument in node.args:
+                    if isinstance(argument, ast.Name) and argument.id == "body":
+                        accounted.add(id(argument))
+    loose = sum(
+        1
+        for node in ast.walk(function)
+        if isinstance(node, ast.Name) and node.id == "body" and id(node) not in accounted
+    )
+    return slices, loose
+
+
+def _named_function(tree: ast.Module, name: str) -> ast.FunctionDef:
+    """Fetch one module-level function's tree by name.
+
+    Args:
+        tree: The parsed module.
+        name: The function's name.
+
+    Returns:
+        Its definition node.
+    """
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name == name:
+            return node
+    raise AssertionError(f"{name} is not defined at module scope in this module")
+
+
+def test_the_coarseness_census_cuts_the_body_exactly_once() -> None:
+    """SINGLE-SLICE OWNERSHIP, ENFORCED - the census cannot be pointed elsewhere.
+
+    WHY A VALUE-EQUALITY GRADE WAS NOT ENOUGH, measured rather than supposed. An
+    earlier revision graded the bytes the tally REPORTED having scored, on the
+    reasoning that a grader reading a call-site local could be handed a
+    different one. That reasoning was right and the fix was not: the report is
+    itself a call-site local, and rebinding it after a second, displaced slice
+    restored the whole original defect in four lines with the entire suite still
+    green. AS LONG AS THE CALL SITE CUTS AND THE GRADER COMPARES, A MUTATION CAN
+    SEPARATE THE TWO. The degree of freedom has to go, not be guarded.
+
+    SO THE RULE IS STRUCTURAL. The census reads the decompressed body through
+    exactly one slice, and every other read of it is an argument to a named
+    reader - the length check, and the shipped decoder that the one slice is
+    graded against. A second cut is a second route to the bytes whatever local
+    it lands in, and it is counted here regardless of what the value grade
+    happens to be looking at.
+
+    WHAT IT STILL DOES NOT COVER. Displacing the tag's own reported offset moves
+    the slice AND the shipped decode it is compared with, together - that is the
+    SHARED LOCATOR, it is the extent anchor's question, and nothing in this
+    section answers it. Rewriting the grader itself is control deletion, which
+    is CS-473's class rather than this one's.
+
+    IT READS NO SAVE - it parses this module's own source, so it runs on CI.
+    """
+    tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+    census = _named_function(tree, "_score_values_under_every_permutation")
+    tally = _named_function(tree, "_tally_mantissa_coarseness")
+
+    slices, loose = _body_reads(census)
+    assert slices == 1, (
+        f"the census cuts the decompressed body {slices} times. Exactly one cut "
+        "is the whole defence: a second one can be handed to the tally while the "
+        "grade keeps reading the first, which was measured to restore a displaced "
+        "census with every test in this module still passing"
+    )
+    assert loose == 0, (
+        f"the census reads the body {loose} times outside its one slice and "
+        f"outside {list(_BODY_READERS)}. An unaccounted read is another route to "
+        "the bytes, and the count above cannot see what it is used for"
+    )
+    tally_slices, tally_loose = _body_reads(tally)
+    assert (tally_slices, tally_loose) == (0, 0), (
+        f"the coarseness tally reaches the body itself - {tally_slices} slices, "
+        f"{tally_loose} other reads. It is handed the bytes to score precisely so "
+        "the cut has one owner, and a cut in here is one the census's grade never "
+        "sees"
+    )
 
 
 def _assert_no_test_is_hollow(module_path: Path) -> None:

@@ -2815,13 +2815,16 @@ VALUE_BYTE_ORDER_STATUS: Final[Mapping[str, str]] = MappingProxyType(
 #: OBSTACLE WAS NEVER THE DATA. The corpus held the evidence throughout: the
 #: census's admitted population is the float32 values whose middle bytes differ,
 #: and the run that measures it reports how many there are. What could not use
-#: that evidence is the float oracle's magnitude band, which the band's own
-#: shipped counts show admits BOTH readings on a majority of the population.
-#: NO ACCOUNT OF WHY THE BAND CANNOT DISCRIMINATE IS WRITTEN HERE. Two were
-#: offered - a bound of a factor of two, then a bound approaching four - and
-#: both were measured FALSE, the second because the exponent-bit flip crosses
-#: the subnormal and infinity boundaries. The conclusion stands on the band's
-#: measured counts and needs no mechanism beside it.
+#: that evidence is the float oracle's magnitude band, and THAT IT CANNOT IS A
+#: DERIVED FACT rather than a described one - the middle swap survives that
+#: oracle in the runtime derivation, which is asserted by the test named in the
+#: commentary block above.
+#:
+#: NO NUMBER AND NO MECHANISM IS WRITTEN HERE FOR IT. Three were offered in
+#: successive revisions - a bound of a factor of two, then a bound approaching
+#: four, then an appeal to a shipped count that measures the whole-word REVERSAL
+#: and not the middle swap - and all three were measured FALSE. The conclusion
+#: did not rest on any of them and does not need a fourth.
 #:
 #: WHAT COARSENESS ASKS INSTEAD: an authored float - a clock speed, a snapped
 #: coordinate, a fraction a designer typed - needs few significant mantissa
