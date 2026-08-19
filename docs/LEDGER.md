@@ -73,6 +73,94 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-18 - CS-482 - the walk was DESYNCHRONISED, not overflowing; the (14,60) level tail is a counted list
+Verification: `clockspeed/save/objects.py` (`_read_level_tail`, `_read_package_summary`) plus
+`tests/save/test_objects.py::test_a_named_level_tail_carrying_one_entry_still_walks_to_the_last_byte`,
+`::test_a_package_summary_name_of_any_length_walks`,
+`::test_the_level_tail_entry_ceiling_refuses_exactly_above_itself`,
+`::test_no_discarded_string_survives_in_a_parser_frame` and
+`::test_every_real_save_of_a_measured_pair_walks_to_the_end_of_its_body`. Whole suite
+12 failed 2073 passed 3 skipped -> **2137 passed 3 skipped exit 0** with a library, and
+2036 passed 52 skipped -> **2088 passed 52 skipped exit 0** with no game. Drift guard CLEAN
+9/9, doc budget PASS measured 16, mypy clean 84, ruff check and ruff format clean 84.
+
+THE QUESTION THE ITEM ASKED WAS "LARGER WORLD OR DESYNCHRONISED WALK", AND IT IS
+DESYNCHRONISED, MEASURED RATHER THAN ARGUED. The declared count that tripped the ceiling
+decodes to four printable ASCII characters - the walk was reading a count out of the middle
+of a string. Raising `MAX_OBJECTS` would have admitted it. Two corrections to the item's own
+filing text, both measured: the refusal was against `MAX_CUSTOM_VERSIONS` and not
+`MAX_OBJECTS`, and `test_save_60_refuses_the_grammar_the_other_pairs_accept` carried NO
+independent evidence - all seven `test_properties.py` failures arrive through one shared
+`_sweep_or_skip()` assertion, so it failing "beside" the others was one failure counted seven
+times.
+
+WHAT WAS WRONG. A named (14,60) level closes on a tail that this parser read as 12 constant
+bytes. It is an opaque word, a COUNT, that many string pairs, and a second opaque word. The
+count is 0 on 1522 of the 1525 real level tails on this machine, which is why 12 bytes fitted
+every save the grammar was derived from. Three saves written while session 20 ran declare 1,
+and against those a 12-byte reader lands 80 bytes early. Anchor: the constant word run that
+opens a package summary sits at +4 from the summary start on all 1530 summaries under this
+reading, and at +84 on the three tails that carry an entry under the old one.
+
+THE SAME DEFECT WAS SHIPPED ONE FUNCTION UP THE SAME CALL PATH AND IS FIXED WITH IT. The
+package summary's 70-byte "constant run" is a string, 22 opaque bytes and a second string,
+tiling to exactly 70 when the two declare 0 and 40 - which they do on every real summary. The
+recorded ground for skipping it ("no interior boundary is observable - not 4+6, not 8+2, not
+16+10") was false: that search looked for a split into FIXED widths and the boundary is a
+length prefix. The fixture wrote 70 zero bytes for the same stated reason, so it could never
+have failed the reader that read them.
+
+THE GENERAL LESSON, AND IT IS WHY BOTH HALVES ARE HERE: a run that every save in a corpus
+fills identically is not a constant, it is a field nothing has varied yet, and the two are
+indistinguishable from inside the corpus. The second value arrives as a desynchronised walk.
+
+THREE REFUTATION PASSES RAN AND ALL THREE SUCCEEDED. Do not read this as a clean build. (1) A derivation pass REFUTED the ceiling's justification and the sibling: it
+measured that an unbounded entry count executes ZERO loop iterations over nine deliberate
+desynchronisations because `_Cursor.string` refuses first, so the sentence claiming a ceiling
+prevents a long walk was false and is deleted; and that the ceiling's only measured effect is
+to relabel two of nine desynchronisations from a diagnostic `ObjectFormatError` into the
+misleading budget error. It also narrowed the evidence base: the three entry-carrying tails
+are BYTE-IDENTICAL and all five (14,60) saves are one world, so the grammar rests on ONE
+observed entry; and three rival tail grammars land all 17 saves on their final byte, so the
+landing oracle is necessary and NOT sufficient. Every one of those is now disclosed in the
+shipped docstring. (2) A privacy pass REFUTED the change on non-negotiables 11 and 12: my own
+first-draft docstring put a positioned four-byte fragment of a decoded string from a real save
+into a TRACKED file, in decimal and in ASCII. Removed. The same pass showed the four existing
+privacy controls had ZERO REACH into the new code - every planted failure went through the
+FLAT walk and the new readers are reachable only from `parse_body` - and proved it with a
+mutant whose exception message was the two decoded strings verbatim, green at 1056 tests.
+`_planted_failures` now reaches `parse_body`, and a frame-locals surface catches the mutant
+that bound the decoded strings as helper arguments where `traceback.format_exception` renders
+nothing and pytest renders both.
+
+(3) A MUTATION PASS GRADED THE TESTS AND REFUTED THEM: 26 mutants of the shipped reader, of
+which FIVE survived the whole suite and one was caught only on a machine holding a save
+library, which is never CI. The four that survived BOTH configurations are the ones worth
+carrying: `range(min(count, 1))` in the loop header - a reader that honours the first entry
+and silently drops the rest - survived because NO TEST ANYWHERE SUPPLIED TWO ENTRIES, and the
+library cannot supply one, but the fixture can for free; the ceiling moved to `1 << 30` and to
+`1` both survived, because the test declared `MAX_LEVEL_TAIL_ENTRIES + 1` and asserted against
+`MAX_LEVEL_TAIL_ENTRIES`, so THE CONSTANT GRADED ITSELF and the edge probe beside it pinned the
+edge only relative to the constant; and retaining the entry strings in a module global or on
+the cursor survived, because "never retained" was asserted against the returned model's repr
+alone. The library-only one was the package-summary reorder, invisible without a game because
+the fixture's middle run is 22 ZEROS and its first name is empty, so `4 + 22` and `22 + 4` land
+on the same byte. All six are now DETECTED in both configurations, re-graded by me in a clone:
+two entries are supplied, the ceiling is bounded from above by the smallest int32 four
+printable ASCII bytes can make - `1 << 30` sits inside that interval, which is the failure the
+bound exists for - and from below by the two-entry walk, retention is read out of module and
+cursor state, and the summary test varies BOTH names.
+
+THE PATTERN ACROSS ALL THREE PASSES IS ONE SENTENCE: EVERY HOLE WAS A POPULATION THE TEST
+NEVER SUPPLIED. Two entries, a second string length, a second escape route, a ceiling probed
+only against itself. The corpus could supply none of them and the fixture could supply all of
+them for nothing.
+
+FOUR OF MY OWN SENTENCES WERE MEASURED FALSE AND CORRECTED BEFORE COMMIT: that the anchor sits
+at +4 on 1524 of 1525 tails (a single save's census read as the library's); that there are
+four (14,60) saves (five); that one tail carries an entry (three, of one byte-identical
+entry); and the ceiling justification above.
+
 ### 2026-08-18 - CS-480 - the tag-carried one-byte exemption is DERIVED from two shipped sites
 Verification: `tests/save/test_byte_order_status.py` plus
 `tests/save/test_byte_order_status.py::test_every_fixed_width_type_the_module_decodes_carries_a_recorded_status`,

@@ -229,6 +229,7 @@ __all__ = [
     "MAX_CUSTOM_VERSIONS",
     "MAX_GRIDS",
     "MAX_LEVELS",
+    "MAX_LEVEL_TAIL_ENTRIES",
     "MAX_OBJECTS",
     "MAX_OBJECT_DATA_BYTES",
     "MAX_STRING_BYTES",
@@ -407,24 +408,51 @@ LEVEL_TAIL_NONE: Final = "none"
 #: A named level closes on one int32. Position and width only; no meaning.
 LEVEL_TAIL_WORD: Final = "word"
 
-#: A named level closes on 12 constant bytes and then a package summary.
+#: A named level closes on an opaque word, a COUNTED LIST OF STRING PAIRS,
+#: a second opaque word, and then a package summary.
+#:
+#: THE LIST READ AS 12 CONSTANT BYTES UNTIL CS-482, and the reason it did is
+#: the reason it is spelled out here: it declares zero entries on 1522 of the
+#: 1525 real (14,60) level tails on the machine this was measured against, so
+#: the count and the two words around it are twelve zero bytes on all but
+#: three. A save carrying one entry desynchronises a 12-byte reader by 80
+#: bytes and the walk then takes the package summary's custom-version count
+#: out of the middle of a string.
 LEVEL_TAIL_SUMMARY: Final = "summary"
 
 #: CONSTANT BLOBS, SKIPPED BY LENGTH, exactly as BOOTSTRAP.md already does for
 #: the 28-byte header tail. NO INTERIOR BOUNDARY IN ANY OF THESE IS OBSERVABLE,
 #: so none is claimed and none is decoded.
 #:
-#: The 70-byte run is the sharpest case rather than the laziest: every
-#: candidate split was searched and none is supported - not 4+6, not 8+2, not
-#: 16+10. Every head int32 has exactly one distinct value across the corpus and
-#: the trailing run has one, so the interior is UNFALSIFIABLE, not merely
-#: unmeasured. What IS pinned is the pair (70, 20): the count's position at +70
-#: and the 20-byte entry width are the unique survivors of a brute-force search
-#: over F in [0,84) x K in [1,256], robust to three plausibility caps and
-#: over-determined by four distinct counts against four distinct widths.
-_PACKAGE_SUMMARY_HEAD_BYTES: Final = 70
+#: THE 70-BYTE RUN USED TO STAND HERE AND IT WAS THE PARAGRAPH'S BEST
+#: EXAMPLE. It is gone, for the same reason and by the same evidence as the
+#: level tail below it: an interior boundary IS observable in it. The run is
+#: a string, 22 opaque bytes and a second string, which tiles 4 + 22 + 44 to
+#: exactly 70 when the two declare 0 and 40 - which they do on all 1530
+#: summaries of the five real (14,60) saves, and which is why searching for a
+#: split among FIXED widths found none. The second string's terminator lands
+#: on +69 and the count on +70, so the tiling has no slack anywhere. What the
+#: old search DID establish stands: the count's position at +70 and the
+#: 20-byte entry width are the unique survivors over F in [0,84) x K in
+#: [1,256], and +70 is where this reading also puts the count.
+#:
+#: THE LESSON IS THE ONE CS-482 PAID FOR TWICE. A run every save in a corpus
+#: fills identically is not a constant; it is a field nothing has varied yet,
+#: and the two are indistinguishable from inside the corpus. Only the second
+#: value tells them apart, and it arrives as a desynchronised walk.
+#:
+#: ONE SPAN LEFT THIS LIST RATHER THAN JOINING IT, and it is the reason to
+#: distrust the paragraph above. The level tail was a 12-byte member here on
+#: exactly the same grounds - no observable interior - until a save arrived
+#: whose tail was not 12 bytes long. Its interior was observable all along and
+#: no save in the corpus had exercised it, which is a different condition from
+#: unfalsifiable and reads identically from inside. What survives here are the
+#: two 4-byte words that bracket the tail's entry list, and a 4-byte word has
+#: no interior to claim anything about.
+_PACKAGE_SUMMARY_MIDDLE_BYTES: Final = 22
 _CUSTOM_VERSION_ENTRY_BYTES: Final = 20
-_LEVEL_TAIL_CONSTANT_BYTES: Final = 12
+_LEVEL_TAIL_LEAD_BYTES: Final = 4
+_LEVEL_TAIL_TRAILING_BYTES: Final = 4
 _GRID_OPAQUE_BYTES: Final = 8
 _GRID_CELL_OPAQUE_BYTES: Final = 4
 _COMPONENT_PRE_WORD_BYTES: Final = 4
@@ -432,6 +460,14 @@ _COMPONENT_PRE_WORD_BYTES: Final = 4
 #: Ceiling on a declared grid or custom-version count, applied before any loop.
 MAX_GRIDS: Final = 1 << 12
 MAX_CUSTOM_VERSIONS: Final = 1 << 12
+
+#: Ceiling on a level tail's declared entry count. A REFUSAL BOUND AND NOT A
+#: MEASUREMENT: the library declares 0 on 1522 of its 1525 (14,60) level
+#: tails and 1 on the other three, so nothing measured here is evidence for
+#: this number. It is set at the same order as the other two so that a
+#: desynchronised walk is refused where it reads a garbage count rather than
+#: allocating against one.
+MAX_LEVEL_TAIL_ENTRIES: Final = 1 << 12
 
 
 @dataclass(frozen=True)
@@ -589,6 +625,9 @@ FIELD_NAMES: Final = frozenset(
         "object_data_trailer",
         "component_pre_word",
         "level_tail",
+        # The level tail's entry list (CS-482).
+        "level_tail_count",
+        "level_tail_entry",
     }
 )
 
@@ -1769,25 +1808,109 @@ def _read_section_size(
 def _read_package_summary(cursor: _Cursor) -> None:
     """Step over one package summary.
 
-    A 70-BYTE CONSTANT RUN, A COUNT, THEN THAT MANY 20-BYTE ENTRIES. The run is
-    skipped by LENGTH because no interior boundary in it is observable - not
-    4+6, not 8+2, not 16+10 - which makes its interior unfalsifiable rather than
-    merely unmeasured. ``BOOTSTRAP.md`` already takes exactly this approach to
-    the 28-byte header tail.
+    TWO STRINGS AROUND 22 OPAQUE BYTES, A COUNT, THEN THAT MANY 20-BYTE
+    ENTRIES. This read USED TO BE A 70-BYTE SKIP on the stated grounds that no
+    interior boundary was observable - not 4+6, not 8+2, not 16+10.
 
-    The count's position at +70 and the 20-byte entry width ARE pinned, as the
-    unique survivors of a brute-force search over offsets and widths.
+    THAT GROUND WAS FALSE AND THE SEARCH THAT ESTABLISHED IT COULD NOT HAVE
+    FOUND THIS. It searched for a split into FIXED widths, and the boundary
+    here is a length prefix: the two strings declare 0 and 40 on all 1530
+    summaries of the five real (14,60) saves, tiling 4 + 22 + 44 to exactly 70,
+    with the second string's terminator on +69 and the count on +70 - no slack
+    at either end. Reading them lands all 17 real saves on their final byte,
+    the same oracle the whole levelled grammar rests on.
+
+    A SECOND LENGTH IS WHAT SEPARATES THIS FROM THE OLD READING and no real
+    save on the machine carries one, so the corpus alone cannot choose between
+    them. The fixture supplies the second length instead, which is what
+    tests/save/test_objects.py::test_a_package_summary_name_of_any_length_walks
+    does; the 70-byte reader fails it exactly as it failed the level tail, with
+    a custom-version count taken out of the middle of a string.
 
     Args:
         cursor: Positioned at the summary.
 
     Raises:
+        ObjectFormatError: A declared string length is impossible.
         ObjectBudgetExceededError: The declared count exceeds its ceiling.
         ObjectTruncatedError: The summary runs past the body.
     """
-    cursor.skip(_PACKAGE_SUMMARY_HEAD_BYTES, "package_summary")
+    # Read and DISCARDED, on the same terms as a level name: these name
+    # packages, which is world content (non-negotiable 12).
+    cursor.string("package_summary")
+    cursor.skip(_PACKAGE_SUMMARY_MIDDLE_BYTES, "package_summary")
+    cursor.string("package_summary")
     count = _read_bounded_count(cursor, "custom_version_count", MAX_CUSTOM_VERSIONS)
     cursor.skip(count * _CUSTOM_VERSION_ENTRY_BYTES, "custom_version")
+
+
+def _read_level_tail(cursor: _Cursor) -> None:
+    """Step over a named level's tail, entry list and all.
+
+    TWO OPAQUE WORDS BRACKET A COUNTED LIST OF STRING PAIRS. Only the widths
+    of the two words are read; neither is interpreted, and the corpus cannot
+    separate a constant from a field that has taken one value so far.
+
+    THE LIST IS WHAT CS-482 MEASURED and it is anchored rather than assumed.
+    A package summary opens with a constant word run. Under THIS reading that
+    run sits at +4 from the summary start on every one of the 1530 summaries
+    the five real (14,60) saves hold - 1525 level tails and 5 preambles.
+    Under the 12-byte reading the walk reaches 900 of those summaries before
+    it stops, 897 of them at +4 and 3 at +84 - one per save that declares an
+    entry - and 80 is exactly that entry's two strings and their length
+    prefixes. Reading them lands every real save of a measured pair on its
+    final byte, which
+    tests/save/test_objects.py::test_every_real_save_of_a_measured_pair_walks_to_the_end_of_its_body
+    re-derives on any machine holding a library. The three that did not land
+    before this change reddened twelve tests, that one among them.
+
+    THE EVIDENCE IS ONE ENTRY, NOT THREE, AND THE DIFFERENCE IS WORTH THE
+    SENTENCE. Three level tails declare a non-zero count, one in each of three
+    saves, and a refutation pass hashed the three spans and found them
+    BYTE-IDENTICAL - three rotations of one autosave of one world. All five
+    real (14,60) saves are that same world. So this grammar rests on a single
+    observed entry, and the count is the only field of it that has ever varied.
+
+    THREE THINGS FOLLOW THAT THIS READER CANNOT DECIDE, all of them left open
+    rather than rounded off:
+
+    - WHETHER THE FIELD IS A COUNT AT ALL. Over an observed population of {0,
+      1} a count and a presence flag are the same field. This reads a count
+      because every sibling list in this walk is one.
+    - HOW A COUNT ABOVE 1 INTERLEAVES. A pair per entry and two parallel lists
+      agree at 0 and 1 and diverge at 2. This reads pairs.
+    - WHAT THE TWO STRINGS MEAN. They are consumed, not interpreted.
+
+    LANDING ON THE FINAL BYTE DOES NOT SETTLE ANY OF THAT, which is the trap
+    the same pass walked into deliberately: it built rival tail grammars -
+    a fixed 80-byte blob, two parallel lists, a presence flag - and ALL of them
+    land 17 real saves of 17 on the exact final byte. The oracle is necessary
+    and it is not sufficient. What actually separates this reading from the
+    old 12-byte one is that the two length prefixes tile a CLOSED interval -
+    left edge pinned by the declared data-section size, right edge by the
+    summary's constant word run - with zero slack, each landing on its own
+    terminator; and that arity is decided by the same tiling, since reading one
+    string per entry or three fails 3 of 17.
+
+    THE STRINGS ARE READ AND DISCARDED, on the same terms as a level name:
+    they name packages, which is world content, and holding one would put it
+    into the returned model and into its repr (non-negotiable 12).
+
+    Args:
+        cursor: Positioned at the tail.
+
+    Raises:
+        ObjectFormatError: The declared entry count is negative.
+        ObjectBudgetExceededError: It exceeds
+            :data:`MAX_LEVEL_TAIL_ENTRIES`.
+        ObjectTruncatedError: The tail runs past the body.
+    """
+    cursor.skip(_LEVEL_TAIL_LEAD_BYTES, "level_tail")
+    count = _read_bounded_count(cursor, "level_tail_count", MAX_LEVEL_TAIL_ENTRIES)
+    for _ in range(count):
+        cursor.string("level_tail_entry")
+        cursor.string("level_tail_entry")
+    cursor.skip(_LEVEL_TAIL_TRAILING_BYTES, "level_tail")
 
 
 def _read_grid_preamble(cursor: _Cursor) -> None:
@@ -2114,7 +2237,7 @@ def _read_level(
         if layout.level_tail == LEVEL_TAIL_WORD:
             cursor.int32("level_tail")
         elif layout.level_tail == LEVEL_TAIL_SUMMARY:
-            cursor.skip(_LEVEL_TAIL_CONSTANT_BYTES, "level_tail")
+            _read_level_tail(cursor)
             _read_package_summary(cursor)
     if not named or layout.second_collectables_named:
         _read_collectables(cursor)

@@ -100,7 +100,7 @@ import traceback
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
-from types import MappingProxyType
+from types import FrameType, MappingProxyType
 from typing import Final
 
 import pytest
@@ -152,6 +152,12 @@ _TWICE: Final = 2
 #: int32 object count, then the record's own int32 object type.
 _FIRST_CLASS_PATH_LENGTH_AT: Final = 8
 
+#: The pair whose named levels close on a tail entry list. Named here rather
+#: than spelled at four call sites so a fifth pair growing the same tail is one
+#: edit rather than a search.
+_TAIL_LIST_PAIR: Final = (14, 60)
+
+_INT32_BYTES: Final = 4
 _ABSURD_STRING_LENGTH: Final = 1 << 30
 _NEGATIVE_STRING_LENGTH: Final = -(1 << 30)
 _UNMEASURED_OBJECT_TYPE: Final = 7
@@ -183,7 +189,32 @@ _PLANTED_CLASS_PATH: Final = (
 )
 _PLANTED_ROOT: Final = "PlantedRootMarker:PersistentLevel"
 _PLANTED_INSTANCE: Final = "PlantedInstanceMarker_0"
-_PLANTED_TOKENS: Final = ("PlantedClassMarker", "PlantedRootMarker", "PlantedInstanceMarker")
+#: Markers for the strings the LEVELLED walk decodes and discards. They are
+#: separate from the three above because the flat walk never reads them, and
+#: CS-482 is what happens when a control cannot tell those two sets apart:
+#: every planted failure went through parse_object_headers, so the two string
+#: reads CS-482 added to parse_body were graded by nothing at all.
+_PLANTED_TAIL_FIRST: Final = "PlantedTailFirstMarker_0"
+_PLANTED_TAIL_SECOND: Final = "PlantedTailSecondMarker_0"
+_PLANTED_PACKAGE: Final = "PlantedPackageMarker_0"
+
+#: The markers for strings the walk decodes and KEEPS NOTHING OF. A record's
+#: three strings are not here: those become fields of an ObjectRecord on
+#: purpose, so a frame binding one is the design rather than a leak, and it is
+#: the repr that withholds them. These three have no downstream holder at all.
+_DISCARDED_TOKENS: Final = (
+    "PlantedTailFirstMarker",
+    "PlantedTailSecondMarker",
+    "PlantedPackageMarker",
+)
+_PLANTED_TOKENS: Final = (
+    "PlantedClassMarker",
+    "PlantedRootMarker",
+    "PlantedInstanceMarker",
+    "PlantedTailFirstMarker",
+    "PlantedTailSecondMarker",
+    "PlantedPackageMarker",
+)
 
 #: A namespaced, mod-shaped path. BOOTSTRAP.md section 9: modded content is
 #: tolerated, flagged, and never fatal.
@@ -1194,7 +1225,259 @@ def _planted_failures() -> list[Callable[[], object]]:
         walk(synthetic.body_with_prefix(body[:cut], _HEADER_14))
         for cut in range(0, len(body), step)
     )
+    cases.extend(_planted_levelled_failures())
     return cases
+
+
+def _planted_levelled_body() -> bytes:
+    """A (14,60) body whose level tail and package summary carry planted strings.
+
+    Returns:
+        The body, without its length prefix.
+    """
+    header_version, save_version = _TAIL_LIST_PAIR
+    named = synthetic.LEVELLED_NAMED_BY_PAIR[_TAIL_LIST_PAIR]
+    summary = replace(synthetic.SyntheticPackageSummary(), second_name=_PLANTED_PACKAGE)
+    levels = tuple(replace(level, summary=summary) for level in named)
+    first = replace(levels[0], tail_entries=((_PLANTED_TAIL_FIRST, _PLANTED_TAIL_SECOND),))
+    return synthetic.build_levelled_body(
+        (first, *levels[1:]),
+        synthetic.LEVELLED_PERSISTENT,
+        header_version=header_version,
+        save_version=save_version,
+        summary=summary,
+        grids=synthetic.LEVELLED_GRIDS,
+    )
+
+
+def _planted_levelled_failures() -> list[Callable[[], object]]:
+    """Failure paths through ``parse_body`` with a planted string being read.
+
+    THE FLAT WALK CANNOT REACH THE LEVELLED READERS, which is what left the
+    strings CS-482 taught this parser to decode graded by nothing. The cut
+    points are DERIVED from where each marker actually lands in the buffer
+    rather than spread evenly, so every case is guaranteed to raise with a
+    marker half-read rather than merely present somewhere behind the cursor.
+
+    Returns:
+        Callables that each raise.
+    """
+    header_version, _ = _TAIL_LIST_PAIR
+    body = _planted_levelled_body()
+
+    def walk(payload: bytes) -> Callable[[], object]:
+        def call() -> object:
+            return objects.parse_body(
+                payload,
+                save_version=_TAIL_LIST_PAIR[1],
+                header_version=header_version,
+            )
+
+        return call
+
+    cases: list[Callable[[], object]] = []
+    for marker in (_PLANTED_TAIL_FIRST, _PLANTED_TAIL_SECOND, _PLANTED_PACKAGE):
+        at = body.index(marker.encode("utf-8"))
+        # HALF-READ: the raise arrives from inside the string itself.
+        cases.append(
+            walk(synthetic.body_with_prefix(body[: at + len(marker) // 2], header_version))
+        )
+        # FULLY READ, then the raise. Without this shape the string is never
+        # alive at the moment of a failure, and a reader that put its decoded
+        # value into the message would be graded by nothing on this path.
+        cases.append(walk(synthetic.body_with_prefix(body[: at + len(marker) + 1], header_version)))
+        # DECLARED IMPOSSIBLE: the length prefix in front of the marker is
+        # replaced, so the refusal arrives with the marker still in the buffer.
+        cases.extend(
+            walk(
+                synthetic.body_with_prefix(
+                    _splice(body, at - _INT32_BYTES, struct.pack("<i", declared)),
+                    header_version,
+                )
+            )
+            for declared in (_ABSURD_STRING_LENGTH, _NEGATIVE_STRING_LENGTH)
+        )
+    return cases
+
+
+def _strings_reachable_from(namespace: Mapping[str, object]) -> str:
+    """Every string one level down from a namespace, containers included.
+
+    Deliberately shallow. A retained string is put somewhere a later read can
+    find it, which means a name in the module or an attribute on a live object,
+    not the interior of a nested structure nothing walks.
+
+    Args:
+        namespace: A ``vars()`` mapping.
+
+    Returns:
+        One string holding every string value found.
+    """
+    out: list[str] = []
+    for value in namespace.values():
+        if isinstance(value, str):
+            out.append(value)
+        elif isinstance(value, (tuple, list, set, frozenset)):
+            out.extend(item for item in value if isinstance(item, str))
+        elif isinstance(value, Mapping):
+            out.extend(str(item) for item in value if isinstance(item, str))
+            out.extend(item for item in value.values() if isinstance(item, str))
+    return "".join(out)
+
+
+def _parser_frames(error: BaseException) -> list[FrameType]:
+    """The frames inside the parser package that ``error`` unwound through.
+
+    Frames outside it are excluded because the calling test holds the planted
+    markers on purpose, and reading its frame would make every control here
+    fail for the one reason that is not a defect.
+
+    Args:
+        error: The raised exception.
+
+    Returns:
+        The parser frames, outermost first.
+    """
+    parser_dir = str(Path(objects.__file__).parent)
+    found: list[FrameType] = []
+    tb = error.__traceback__
+    while tb is not None:
+        if tb.tb_frame.f_code.co_filename.startswith(parser_dir):
+            found.append(tb.tb_frame)
+        tb = tb.tb_next
+    return found
+
+
+def _decoded_strings_live_in_parser_frames(error: BaseException) -> str:
+    """Every DECODED STRING bound in a parser frame the exception unwound through.
+
+    THE SURFACE ``traceback.format_exception`` DOES NOT RENDER AND PYTEST DOES.
+    A refutation pass against CS-482 bound the two decoded level-tail strings as
+    arguments to an ordinary bounds helper - one that echoes nothing itself and
+    obeys the whole field taxonomy - and both were printed beside the failing
+    line while all five older surfaces stayed green.
+
+    It reads ``str`` values only, and that narrowing is deliberate and is NOT a
+    pardon: the raw body is bound as a ``bytes`` local in the entry point, which
+    is a WIDER exposure of the same shape, pre-existing, belonging to CS-471,
+    and pinned on its own by
+    ``test_the_entry_points_still_bind_the_raw_body_where_a_renderer_can_read_it``
+    rather than quietly filtered out here.
+
+    Args:
+        error: The raised exception.
+
+    Returns:
+        One string holding every string local of every parser frame.
+    """
+    out: list[str] = []
+    for frame in _parser_frames(error):
+        for name, value in frame.f_locals.items():
+            if isinstance(value, str):
+                out.append(f"{name}={value}")
+            elif isinstance(value, (tuple, list)):
+                out.extend(f"{name}={item}" for item in value if isinstance(item, str))
+    return "".join(out)
+
+
+def test_no_discarded_string_is_retained_in_module_or_cursor_state() -> None:
+    """The other two escape routes for a string the walk claims to discard.
+
+    "Consumed and never retained" was asserted against the returned model's
+    repr and nothing else, and a refutation pass walked straight past it twice:
+    appending both entry strings to a module-level list on
+    :mod:`clockspeed.save.objects` is green in both configurations, and so is
+    storing one on the live cursor, because a module global is not a frame
+    local and ``_Cursor`` renders as its default repr. The only mutant of that
+    family anything caught was caught by the TYPE gate, which is not a privacy
+    control.
+
+    Both surfaces are read here: every string reachable from the parser
+    module's own namespace after a walk, and every attribute of a cursor the
+    tail reader has just run over.
+    """
+    fixture = synthetic.SAVE_LEVELLED_V60
+    marker = "SyntheticRetentionCanary_0"
+    objects.parse_body(
+        _v60_body_with_tail(((marker, marker + "_second"),)),
+        save_version=fixture.save_version,
+        header_version=fixture.header_version,
+    )
+
+    assert marker not in _strings_reachable_from(vars(objects)), (
+        "a discarded string is held in the parser module's own state"
+    )
+
+    # And on the cursor the reader runs over, which outlives the read.
+    cursor = objects._Cursor(  # noqa: SLF001
+        synthetic.level_tail_bytes(((marker, marker + "_second"),))
+    )
+    objects._read_level_tail(cursor)  # noqa: SLF001
+    assert marker not in _strings_reachable_from(vars(cursor)), (
+        "a discarded string is held on the cursor after the read"
+    )
+
+
+def test_no_discarded_string_survives_in_a_parser_frame() -> None:
+    """The surface ``traceback.format_exception`` does not render and pytest does.
+
+    A refutation pass against CS-482 bound the two decoded level-tail strings as
+    arguments to an ordinary bounds helper - one that echoes nothing itself and
+    satisfies the whole field taxonomy - and pytest printed both beside the
+    failing line while all five surfaces of the control above stayed green. A
+    string that no consumer holds must not be alive in a frame when the next
+    read raises, because the frame is what gets rendered.
+
+    Reading is confined to frames inside the parser package: this test's own
+    frame holds the markers on purpose.
+    """
+    for call in _planted_levelled_failures():
+        with pytest.raises(objects.ObjectError) as caught:
+            call()
+        surface = _decoded_strings_live_in_parser_frames(caught.value)
+        for token in _DISCARDED_TOKENS:
+            assert token not in surface, (
+                f"{token} is alive in a parser frame when the walk raised; a renderer "
+                "that shows locals prints it"
+            )
+
+
+def test_the_entry_points_still_bind_the_raw_body_where_a_renderer_can_read_it() -> None:
+    """THE HONEST LIMIT of the frame-locals control above, asserted not commented.
+
+    The control above is scoped two ways - to the DISCARDED strings, and to
+    frames inside the parser - and neither narrowing means the rest is clean.
+    The parser's entry points take the body as a PARAMETER, so every raise
+    anywhere in the walk unwinds through a frame holding the whole decompressed
+    world; the flat walk additionally binds each record's class path, root and
+    instance name as locals on the way into an ObjectRecord. Any renderer that
+    shows locals prints all of it. That is CS-471's class exactly - a channel a
+    guard reading return values cannot see - it is pre-existing, it is not what
+    CS-482 changed, and closing it is CS-471's work.
+
+    This asserts the exposure IS THERE so nobody reads those narrowings as a
+    claim that it is not. When CS-471 closes it this test fails, and the honest
+    edit then is to widen the control to every local and delete this, not to
+    delete this alone.
+    """
+    records = _planted_records()
+    payload = synthetic.body_with_prefix(
+        synthetic.build_body(records, save_version=_SAVE_60)[:40], _HEADER_14
+    )
+
+    with pytest.raises(objects.ObjectError) as caught:
+        objects.parse_object_headers(payload, save_version=_SAVE_60, header_version=_HEADER_14)
+
+    exposed = [
+        name
+        for frame in _parser_frames(caught.value)
+        for name, value in frame.f_locals.items()
+        if isinstance(value, (bytes, bytearray)) and bytes(value) in payload
+    ]
+    assert exposed, (
+        "the raw body is no longer bound in a parser frame - if CS-471 closed this, "
+        "widen _decoded_strings_live_in_parser_frames to every local and delete this test"
+    )
 
 
 def test_the_planted_failure_cases_all_actually_raise() -> None:
@@ -1217,6 +1500,18 @@ def test_no_planted_fixture_string_reaches_any_exception_surface() -> None:
     is an echo path. ``str``, ``args``, ``repr``, ``__notes__`` and the fully
     formatted traceback are checked, because a message can be clean while
     ``args`` carries the value and a traceback renders the chained cause.
+
+    ITS CASE LIST NOW REACHES ``parse_body``. Every case used to go through the
+    FLAT walk, and the levelled readers are reachable from nothing else, so the
+    two string reads CS-482 added were graded here by nothing at all - a
+    refutation pass proved it by putting both decoded strings verbatim into an
+    exception message and watching the whole suite stay green.
+
+    FRAME LOCALS ARE NOT ONE OF THE FIVE, and that is deliberate rather than an
+    omission: a record's class path, root and instance name are bound as locals
+    on the way into :class:`objects.ObjectRecord`, which is the design. The
+    strings that are supposed to be DISCARDED get that surface, in
+    ``test_no_discarded_string_survives_in_a_parser_frame`` below.
     """
     for call in _planted_failures():
         with pytest.raises(objects.ObjectError) as caught:
@@ -1984,6 +2279,353 @@ def test_a_non_zero_reserved_word_in_a_section_size_is_flagged_not_fatal() -> No
     assert flagged, "a non-zero reserved word was consumed without being flagged"
     assert len(table.records) == _expected_record_count(fixture)
     assert not [w for w in table.warnings if w.code == objects.WARN_UNPARSED_DATA_SECTION]
+
+
+#: Two strings for one level-tail entry. They are FIXTURE strings and they are
+#: also the probe for non-negotiable 12: the reader has to consume them and
+#: must not retain either one, so the test that walks them asserts neither
+#: reaches the returned model or its repr.
+_TAIL_ENTRY: Final = ("SyntheticTailPackage_0", "SyntheticTailReference_0")
+
+
+def _v60_body_with_tail(
+    entries: tuple[tuple[str, str], ...], *, declared: int | None = None
+) -> bytes:
+    """Build a (14,60) body whose FIRST named level carries a tail entry list.
+
+    Args:
+        entries: The string pairs the tail declares and writes.
+        declared: What the tail declares instead of the truth, or None.
+
+    Returns:
+        The body with its length prefix, ready for :func:`objects.parse_body`.
+    """
+    header_version, save_version = _TAIL_LIST_PAIR
+    named = synthetic.LEVELLED_NAMED_BY_PAIR[_TAIL_LIST_PAIR]
+    first = replace(named[0], tail_entries=entries, tail_entry_count=declared)
+    return synthetic.body_with_prefix(
+        synthetic.build_levelled_body(
+            (first, *named[1:]),
+            synthetic.LEVELLED_PERSISTENT,
+            header_version=header_version,
+            save_version=save_version,
+            grids=synthetic.LEVELLED_GRIDS,
+        ),
+        header_version,
+    )
+
+
+def test_a_named_level_tail_carrying_one_entry_still_walks_to_the_last_byte() -> None:
+    """CS-482: THE (14,60) LEVEL TAIL IS A COUNTED LIST, NOT 12 CONSTANT BYTES.
+
+    The list is empty on 1522 of the 1525 real level tails on the machine this
+    was measured against, which is why a 12-byte constant fitted every save the
+    grammar was derived from and why nothing here caught it. Three saves
+    written while session 20 was running carry ONE entry, and against those a
+    reader that steps over 12 bytes lands 80 bytes short of the package
+    summary: it reads the entry's two strings as part of the summary's constant
+    head and then takes the custom-version count out of the middle of a string.
+
+    WHAT THAT REPORTED WAS A CEILING, AND THE CEILING WAS RIGHT. The observed
+    failure was ObjectBudgetExceededError on custom_version_count, declaring a
+    number four printable bytes of a package string make when read as an int32
+    - a garbage count refused, not a world too large for the bound. Raising the
+    ceiling would have admitted the bad read and walked on, which is the
+    silently-wrong half of non-negotiable 7.
+
+    NEITHER THE NUMBER NOR THE BYTES ARE WRITTEN HERE, and the first draft of
+    this docstring wrote both. A refutation pass caught it: they are a
+    positioned slice of a decoded string out of a real body on the operator's
+    machine, so putting them in a tracked file is the disclosure
+    non-negotiables 11 and 12 forbid, and rendering the ASCII beside the
+    integer is worse than the hex preview this module's own docstring names.
+    The argument does not need them. Read them off a run.
+
+    The oracle is the body END, not the record count. That oracle is NECESSARY
+    AND NOT SUFFICIENT, which the refutation pass also measured: three rival
+    tail grammars land all 17 real saves on their final byte. What separates
+    this reading from those is the package summary's constant word run landing
+    at a fixed offset on all 1530 summaries, and the walk's own 3060
+    section-size self-checks on this pair.
+    """
+    fixture = synthetic.SAVE_LEVELLED_V60
+    assert (fixture.header_version, fixture.save_version) == _TAIL_LIST_PAIR
+    layout = synthetic.LEVELLED_LAYOUTS[_TAIL_LIST_PAIR]
+    assert layout.level_tail == synthetic.LEVEL_TAIL_SUMMARY
+
+    body = _v60_body_with_tail((_TAIL_ENTRY,))
+    table = objects.parse_body(
+        body,
+        save_version=fixture.save_version,
+        header_version=fixture.header_version,
+    )
+
+    named = synthetic.LEVELLED_NAMED_BY_PAIR[_TAIL_LIST_PAIR]
+    assert len(table.records) == _expected_record_count(fixture)
+    assert table.level_count == len(named) + 1
+    assert not [w for w in table.warnings if w.code == objects.WARN_UNPARSED_DATA_SECTION]
+
+
+#: An int32 made of four PRINTABLE ASCII bytes, the smallest there is. The
+#: whole of CS-482 is that a desynchronised walk reads a count out of the middle
+#: of a string, so every count a string can make must be refused. The interval
+#: is [0x20202020, 0x7e7e7e7e]; pinning the LOW end bounds the ceiling from
+#: above by something measured rather than chosen.
+_SMALLEST_PRINTABLE_ASCII_INT32: Final = 0x20202020
+
+
+def test_a_level_tail_with_two_entries_reads_both() -> None:
+    """The COUNT drives the loop, which 0 and 1 alone cannot show.
+
+    A refutation pass replaced the loop header with ``range(min(count, 1))`` -
+    a reader that honours the first entry and silently drops every other one -
+    and the entire suite stayed green in both configurations, because no test
+    anywhere supplied two entries. The library cannot supply one either: it
+    declares 0 on 1522 of its 1525 level tails and 1 on the other three, and
+    those three are byte-identical. The fixture can, for free, which is the
+    whole reason a synthetic corpus exists beside a real one.
+
+    Two is also the count that separates the two readings the shipped docstring
+    admits it cannot choose between - a pair per entry, or two parallel lists.
+    It does NOT settle that, and this test must not be read as settling it:
+    both readings consume the same four strings here. What it settles is that
+    the count is read and obeyed.
+    """
+    fixture = synthetic.SAVE_LEVELLED_V60
+    entries = (
+        ("SyntheticTailPackage_0", "SyntheticTailReference_0"),
+        ("SyntheticTailPackage_1", "SyntheticTailReference_1"),
+    )
+
+    table = objects.parse_body(
+        _v60_body_with_tail(entries),
+        save_version=fixture.save_version,
+        header_version=fixture.header_version,
+    )
+
+    named = synthetic.LEVELLED_NAMED_BY_PAIR[_TAIL_LIST_PAIR]
+    assert len(table.records) == _expected_record_count(fixture)
+    assert table.level_count == len(named) + 1
+    assert not [w for w in table.warnings if w.code == objects.WARN_UNPARSED_DATA_SECTION]
+
+
+def test_the_level_tail_ceiling_refuses_every_count_a_string_can_make() -> None:
+    """The ceiling's EFFECT, because its VALUE grades itself.
+
+    ``test_the_level_tail_entry_ceiling_refuses_exactly_above_itself`` declares
+    ``MAX_LEVEL_TAIL_ENTRIES + 1`` and asserts against
+    ``MAX_LEVEL_TAIL_ENTRIES``, so it passes for any ceiling whatsoever - a
+    refutation pass moved the constant to ``1 << 30`` and to ``1`` and neither
+    reddened anything. The edge probe beside it has the same defect: it pins the
+    edge RELATIVE to the constant.
+
+    This bounds the constant from above by the failure it exists to refuse. The
+    count CS-482 actually met was four printable ASCII bytes read as an int32,
+    and ``1 << 30`` sits inside that interval - so a ceiling of ``1 << 30``
+    admits a large part of the very class the bound is for. Bounding from BELOW
+    is ``test_a_level_tail_with_two_entries_reads_both``, which a ceiling of 1
+    fails.
+    """
+    fixture = synthetic.SAVE_LEVELLED_V60
+
+    assert objects.MAX_LEVEL_TAIL_ENTRIES < _SMALLEST_PRINTABLE_ASCII_INT32, (
+        "the ceiling admits counts that four printable bytes can make, which is the "
+        "read CS-482 was diagnosed from"
+    )
+
+    with pytest.raises(objects.ObjectBudgetExceededError) as caught:
+        objects.parse_body(
+            _v60_body_with_tail((), declared=_SMALLEST_PRINTABLE_ASCII_INT32),
+            save_version=fixture.save_version,
+            header_version=fixture.header_version,
+        )
+    assert caught.value.field == "level_tail_count"
+
+
+def test_a_level_tail_entry_is_consumed_and_never_retained() -> None:
+    """Non-negotiable 12 applied to the two strings CS-482 taught the walk to read.
+
+    A level tail entry names packages, which is world content on the same terms
+    as the level name the walk already reads and discards. The control is
+    written against the RENDERED model rather than against the field list,
+    because a repr is what a test runner and most loggers emit before a human
+    chooses what to print.
+    """
+    fixture = synthetic.SAVE_LEVELLED_V60
+    table = objects.parse_body(
+        _v60_body_with_tail((_TAIL_ENTRY,)),
+        save_version=fixture.save_version,
+        header_version=fixture.header_version,
+    )
+
+    rendered = repr(table) + "".join(repr(record) for record in table.records)
+    for text in _TAIL_ENTRY:
+        assert text not in rendered
+
+
+def test_the_level_tail_entry_ceiling_refuses_exactly_above_itself() -> None:
+    """The BOUNDARY, because asserting the constant against itself proves nothing.
+
+    THE FIRST VERSION OF THIS TEST ASSERTED ``expected ==
+    MAX_LEVEL_TAIL_ENTRIES``, WHICH PASSES FOR ANY CEILING WHATSOEVER, under a
+    docstring claiming a count read without a ceiling "turns a desynchronised
+    walk into a long one". A refutation pass measured that claim FALSE and it
+    is not restated here: over nine deliberate desynchronisation widths on the
+    real library, an unbounded reader executed ZERO loop iterations and
+    finished in milliseconds, because ``_Cursor.string`` refuses the first bad
+    length prefix long before a count can cost anything.
+
+    WHAT THE CEILING IS ACTUALLY FOR is taxonomy, and the same pass showed it
+    is not free: on some desynchronisations it converts an ObjectFormatError
+    naming ``level_tail_entry`` - which says the grammar is wrong - into an
+    ObjectBudgetExceededError naming ``level_tail_count``, which is the exact
+    signature CS-482 was misread from for a session. It is kept because every
+    other declared count in this walk is refused on its declared value before
+    its loop, and a bound that exists on eight counts and not the ninth is a
+    reader whose refusals depend on which field you hit.
+
+    So this pins the EDGE rather than the number: at the ceiling the reader
+    goes through, above it the reader refuses.
+    """
+    fixture = synthetic.SAVE_LEVELLED_V60
+
+    with pytest.raises(objects.ObjectBudgetExceededError) as caught:
+        objects.parse_body(
+            _v60_body_with_tail((), declared=objects.MAX_LEVEL_TAIL_ENTRIES + 1),
+            save_version=fixture.save_version,
+            header_version=fixture.header_version,
+        )
+    assert caught.value.field == "level_tail_count"
+    assert caught.value.actual == objects.MAX_LEVEL_TAIL_ENTRIES + 1
+
+    # AT the ceiling the count is admitted and the walk fails further in, on
+    # the entries that are not there. Any refusal will do except the budget one
+    # on this field - that is what "the edge is here and not one lower" means.
+    with pytest.raises(objects.ObjectError) as passed:
+        objects.parse_body(
+            _v60_body_with_tail((), declared=objects.MAX_LEVEL_TAIL_ENTRIES),
+            save_version=fixture.save_version,
+            header_version=fixture.header_version,
+        )
+    assert not (
+        isinstance(passed.value, objects.ObjectBudgetExceededError)
+        and passed.value.field == "level_tail_count"
+    )
+
+
+def test_a_negative_level_tail_entry_count_is_refused_as_a_format_error() -> None:
+    """A negative count is impossible rather than merely too large.
+
+    The distinction is the one the taxonomy already draws everywhere else: a
+    budget error says the file declares more than this project will build, and
+    a format error says the file declares something no file can mean.
+    """
+    fixture = synthetic.SAVE_LEVELLED_V60
+    body = _v60_body_with_tail((), declared=-1)
+
+    with pytest.raises(objects.ObjectFormatError) as caught:
+        objects.parse_body(
+            body,
+            save_version=fixture.save_version,
+            header_version=fixture.header_version,
+        )
+
+    assert caught.value.field == "level_tail_count"
+    assert caught.value.actual == -1
+
+
+#: Declared lengths for the package summary's two strings, as (first, second).
+#: THE POINT IS THE SET, not any member: the real library declares 0 and 40 on
+#: every one of its 1530 summaries, so a reader that treats the run as 70
+#: constant bytes is correct on all of them and wrong on the first save that is
+#: not. (0, 39) is included so the passing case is not the only case.
+#:
+#: THE FIRST NAME IS VARIED BECAUSE LEAVING IT EMPTY HID A WHOLE MUTANT CLASS.
+#: The fixture's middle run is 22 zero bytes, so with an empty first name
+#: 4 + 22 and 22 + 4 land on the same byte, and a reader that skips the middle
+#: BEFORE reading the strings decodes a zero-length string out of the padding
+#: and stays green. A refutation pass showed that mutant surviving on any
+#: machine without a save library - which is every CI run. A non-empty first
+#: name breaks the symmetry that hid it.
+_SUMMARY_NAME_LENGTHS: Final = ((0, 39), (0, 1), (0, 96), (4, 40), (17, 8), (41, 41))
+
+
+@pytest.mark.parametrize(("first_length", "second_length"), _SUMMARY_NAME_LENGTHS)
+def test_a_package_summary_name_of_any_length_walks(first_length: int, second_length: int) -> None:
+    """CS-482's SIBLING, found by a refutation pass and fixed with it.
+
+    The 70-byte run before a summary's custom-version count was skipped by
+    length, on the recorded ground that no interior boundary in it was
+    observable. That ground was false and the search behind it could not have
+    found this: it searched for a split into FIXED widths, and the boundary is
+    a length prefix. The run is a string, 22 opaque bytes and a second string,
+    and 4 + 22 + 44 is 70 exactly when the two declare 0 and 40 - which they do
+    on every summary the real library holds.
+
+    SO THE CORPUS CANNOT DECIDE THIS AND THE FIXTURE HAS TO. That is the whole
+    reason this test is parametrized: one length proves nothing, because the
+    reading under attack is right for one length. The old fixture wrote 70 zero
+    bytes and so could never have failed the reader that read them, which is
+    the defect in this suite that let the same mistake ship twice.
+
+    A 70-byte reader fails every member of this set except (0, 39), and it
+    fails them the way CS-482 failed: the count comes out of the middle of a
+    string.
+    """
+    summary = replace(
+        synthetic.SyntheticPackageSummary(),
+        first_name="F" * first_length,
+        second_name="S" * second_length,
+    )
+    header_version, save_version = _TAIL_LIST_PAIR
+    named = synthetic.LEVELLED_NAMED_BY_PAIR[_TAIL_LIST_PAIR]
+    body = synthetic.body_with_prefix(
+        synthetic.build_levelled_body(
+            tuple(replace(level, summary=summary) for level in named),
+            synthetic.LEVELLED_PERSISTENT,
+            header_version=header_version,
+            save_version=save_version,
+            summary=summary,
+            grids=synthetic.LEVELLED_GRIDS,
+        ),
+        header_version,
+    )
+
+    table = objects.parse_body(body, save_version=save_version, header_version=header_version)
+
+    assert len(table.records) == _expected_record_count(synthetic.SAVE_LEVELLED_V60)
+    assert table.level_count == len(named) + 1
+    assert not [w for w in table.warnings if w.code == objects.WARN_UNPARSED_DATA_SECTION]
+
+
+def test_a_package_summary_name_is_consumed_and_never_retained() -> None:
+    """Non-negotiable 12 on the second string this walk now decodes.
+
+    A package name is world content on the same terms as a level name. The
+    control is the rendered model rather than the field list, because a repr is
+    what a test runner emits before a human chooses what to print.
+    """
+    marker = "SyntheticPackageCanary_0"
+    summary = replace(synthetic.SyntheticPackageSummary(), second_name=marker)
+    header_version, save_version = _TAIL_LIST_PAIR
+    named = synthetic.LEVELLED_NAMED_BY_PAIR[_TAIL_LIST_PAIR]
+    table = objects.parse_body(
+        synthetic.body_with_prefix(
+            synthetic.build_levelled_body(
+                tuple(replace(level, summary=summary) for level in named),
+                synthetic.LEVELLED_PERSISTENT,
+                header_version=header_version,
+                save_version=save_version,
+                summary=summary,
+                grids=synthetic.LEVELLED_GRIDS,
+            ),
+            header_version,
+        ),
+        save_version=save_version,
+        header_version=header_version,
+    )
+
+    assert marker not in repr(table) + "".join(repr(record) for record in table.records)
 
 
 def test_the_opaque_spans_are_recorded_as_a_structure_a_later_slice_can_resume_from() -> None:

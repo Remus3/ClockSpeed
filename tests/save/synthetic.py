@@ -630,30 +630,31 @@ LEVEL_TAIL_NONE: Final = "none"
 #: A named level closes on one int32. Position and width only; no meaning.
 LEVEL_TAIL_WORD: Final = "word"
 
-#: A named level closes on 12 constant bytes and then a package summary.
+#: A named level closes on an opaque word, a COUNTED LIST OF STRING PAIRS,
+#: a second opaque word, and then a package summary. The list is empty on
+#: 1522 of the 1525 real (14,60) level tails on the operator machine, which
+#: is why it read as 12 constant bytes until a save carrying one entry
+#: arrived and desynchronised the walk (CS-482).
 LEVEL_TAIL_SUMMARY: Final = "summary"
 
 #: CONSTANT BLOBS, SKIPPED BY LENGTH ON BOTH SIDES, exactly as BOOTSTRAP.md
 #: already does for the 28-byte header tail. No boundary inside any of these is
 #: observable in the corpus, so none is claimed.
 #:
-#: The 70-byte run before a package summary's count is the sharpest case: every
-#: candidate split was tried and NONE is supported - not 4+6, not 8+2, not
-#: 16+10. Every head int32 has exactly one distinct value across the corpus and
-#: the trailing run has one, so the interior is unfalsifiable rather than
-#: merely unmeasured. The count at +70 and the 20-byte entry ARE pinned: they
-#: are the unique surviving (F, K) over F in [0,84) x K in [1,256], robust to
-#: three plausibility caps and over-determined by four distinct counts against
-#: four distinct widths.
+#: THE 70-BYTE RUN LEFT THIS LIST UNDER CS-482. It is a string, 22 opaque
+#: bytes and a second string; the old search for a split among FIXED widths
+#: could not find a boundary that is a length prefix. What remains here is
+#: the 22-byte middle, whose interior no evidence separates.
 #:
 #: THE FIXTURE WRITES ZEROS INTO EVERY ONE OF THESE. It therefore cannot be
 #: evidence about their contents, only about their widths - which is all the
 #: parser reads.
-PACKAGE_SUMMARY_HEAD_BYTES: Final = 70
+PACKAGE_SUMMARY_MIDDLE_BYTES: Final = 22
 CUSTOM_VERSION_ENTRY_BYTES: Final = 20
 SECTION_SIZE_WIDTH_WIDE: Final = 8
 SECTION_SIZE_WIDTH_NARROW: Final = 4
-LEVEL_TAIL_CONSTANT_BYTES: Final = 12
+LEVEL_TAIL_LEAD_BYTES: Final = 4
+LEVEL_TAIL_TRAILING_BYTES: Final = 4
 DATA_ENTRY_LEAD_BYTES: Final = 8
 GRID_OPAQUE_BYTES: Final = 8
 GRID_CELL_OPAQUE_BYTES: Final = 4
@@ -785,20 +786,31 @@ LEVELLED_LAYOUT_OPAQUE_SPANS: Final = {
         "it into named int32 fields is refuted outright - it takes 8 distinct "
         "values with only bits 3, 6, 19, 21 and 32 ever set, which is a bit mask"
     ),
-    "package_summary_head": (
-        "70 bytes before the custom-version count. NO interior boundary is "
-        "observable - not 4+6, not 8+2, not 16+10. Includes a 44-byte run "
-        "consistent with a length-prefixed string of declared length 40 on all "
-        "188 instances, never exercised with a second length"
+    "package_summary_middle": (
+        "22 bytes between the summary's two strings. The 70-byte run this "
+        "entry used to describe was NOT opaque: the 44-byte tail of it that "
+        "the old entry called 'consistent with a length-prefixed string of "
+        "declared length 40, never exercised with a second length' was one, "
+        "and CS-482 exercised it with a second length from the fixture after "
+        "the same defect one function down desynchronised three real saves. "
+        "What is left is the 22-byte middle, which no evidence splits"
     ),
     "custom_version_entry": (
         "20 bytes per entry. The count and the width are jointly pinned as the "
         "unique surviving (70, 20); the interior of one entry is not"
     ),
-    "level_tail_constant": (
-        "12 bytes closing a named level on the (14,60) pair. Its START is pinned "
-        "by the declared data-section size; its WIDTH of 12 is pinned only "
-        "transitively - 41 distinct splits survive consumption alone"
+    "level_tail_words": (
+        "the two int32 words bracketing a named level's tail entry list on the "
+        "(14,60) pair. Only their WIDTHS are read. The run they bracket is NOT "
+        "opaque any more: CS-482 measured it as a count and that many string "
+        "pairs, anchored by the constant word run that opens a package summary. "
+        "That run sits at +4 from the summary start on all 1530 summaries the "
+        "five real (14,60) saves hold under the measured reading, and at +84 on "
+        "the 3 tails that declare an entry under the 12-byte one. What stays "
+        "unmeasured is how a "
+        "count above 1 interleaves: 0 and 1 are the only counts the library "
+        "holds, so a pair-per-entry reading and two parallel lists are "
+        "indistinguishable on it"
     ),
     "data_entry_lead": (
         "8 bytes before each payload's length. On (13,42) they take exactly two "
@@ -895,24 +907,40 @@ def section_size(value: int, width: int, *, reserved: int = 0) -> bytes:
 class SyntheticPackageSummary:
     """The block a (14,60) body opens with, and that its named levels close on.
 
-    A 70-BYTE CONSTANT RUN, THEN A COUNT, THEN THAT MANY 20-BYTE ENTRIES. The
-    count's position at +70 and the 20-byte entry width are jointly pinned as
-    the unique surviving pair over a brute-force search. The 70 bytes are ONE
-    BLOB: no interior boundary is observable, so this writes zeros and claims
-    nothing about their contents.
+    TWO STRINGS AROUND 22 OPAQUE BYTES, THEN A COUNT, THEN THAT MANY 20-BYTE
+    ENTRIES. This used to write 70 zero bytes for the whole run, on the stated
+    ground that no interior boundary in it was observable - and a fixture that
+    writes a constant where the format has a length prefix cannot ever fail the
+    reader that reads it as a constant. CS-482 is what that costs.
+
+    THE DEFAULT NAME IS DELIBERATELY NOT 39 CHARACTERS LONG. The real saves
+    declare 40 for this string, which is 39 characters and a null, and a
+    fixture that also declared 40 would leave the 70-byte reader passing every
+    test in this suite. Nothing here claims 39 is special; the point is that
+    the fixture must not agree with the corpus on a length, because agreeing is
+    what hid the field.
+
+    The 22 middle bytes ARE written as zeros and claim nothing: no evidence
+    splits them.
     """
 
+    #: Declared 0 on all 1530 real summaries, so the empty default is the
+    #: measured value rather than a convenience.
+    first_name: str = ""
+    second_name: str = "SyntheticPackage_0"
     custom_version_count: int = 3
 
     def encode(self) -> bytes:
         """Encode the summary.
 
         Returns:
-            The constant run, the count, and the entries.
+            The two strings, the middle run, the count, and the entries.
         """
         return b"".join(
             [
-                bytes(PACKAGE_SUMMARY_HEAD_BYTES),
+                fstring(self.first_name),
+                bytes(PACKAGE_SUMMARY_MIDDLE_BYTES),
+                fstring(self.second_name),
                 _i32(self.custom_version_count),
                 bytes(self.custom_version_count * CUSTOM_VERSION_ENTRY_BYTES),
             ]
@@ -1041,6 +1069,16 @@ class SyntheticLevel:
     #: The named level's closing int32 where the layout carries one. Observed
     #: constant; position and width only.
     tail_word: int = 0
+    #: The string pairs a (14,60) named level's tail declares before its
+    #: package summary. EMPTY IS THE COMMON CASE and emits the same 12 zero
+    #: bytes the fixture wrote before CS-482 measured the count, so every
+    #: fixture that predates it is byte-identical.
+    tail_entries: tuple[tuple[str, str], ...] = ()
+    #: What the tail DECLARES its entry count to be, where that has to
+    #: disagree with what follows it. None declares the truth. A fixture
+    #: cannot otherwise state an impossible count, and the two refusals
+    #: guarding this list are only gradeable against one that can.
+    tail_entry_count: int | None = None
     summary: SyntheticPackageSummary = SyntheticPackageSummary()
 
     @property
@@ -1117,7 +1155,17 @@ class SyntheticLevel:
             if layout.level_tail == LEVEL_TAIL_WORD:
                 out.append(_i32(self.tail_word))
             elif layout.level_tail == LEVEL_TAIL_SUMMARY:
-                out.append(bytes(LEVEL_TAIL_CONSTANT_BYTES))
+                out.append(bytes(LEVEL_TAIL_LEAD_BYTES))
+                declared = (
+                    len(self.tail_entries)
+                    if self.tail_entry_count is None
+                    else self.tail_entry_count
+                )
+                out.append(_i32(declared))
+                for first, second in self.tail_entries:
+                    out.append(fstring(first))
+                    out.append(fstring(second))
+                out.append(bytes(LEVEL_TAIL_TRAILING_BYTES))
                 out.append(self.summary.encode())
         if self.name is None or layout.second_collectables_named:
             out.append(_i32(len(self.second_collectables)))
@@ -1156,6 +1204,30 @@ def levelled_layout(header_version: int, save_version: int) -> LevelledLayout:
             f"no measured body layout for header {header_version} with save {save_version};"
             " measure it rather than interpolating from another pair"
         ) from None
+
+
+def level_tail_bytes(entries: tuple[tuple[str, str], ...]) -> bytes:
+    """One (14,60) named level's tail, on its own.
+
+    The whole-body builders emit this inline. It is exposed separately so a
+    control can run a cursor over a tail and then inspect that cursor, which is
+    one of the routes a retained string escapes by.
+
+    The two bracketing words are ZEROS here, as everywhere else in this file:
+    only their widths are read.
+
+    Args:
+        entries: The string pairs the tail declares and writes.
+
+    Returns:
+        The encoded tail, with no package summary after it.
+    """
+    out = [bytes(LEVEL_TAIL_LEAD_BYTES), _i32(len(entries))]
+    for first, second in entries:
+        out.append(fstring(first))
+        out.append(fstring(second))
+    out.append(bytes(LEVEL_TAIL_TRAILING_BYTES))
+    return b"".join(out)
 
 
 def build_levelled_body(
