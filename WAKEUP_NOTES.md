@@ -31,108 +31,6 @@ the line becomes a pointer.
 
 ---
 
-## Session 18 - 2026-08-18 - CS-476 closes after TWO refutations broke it; CS-421's population derived
-
-- **Shipped: CS-476 CLOSED.** CS-421 STAYS OPEN, with its deciding population DERIVED this session
-  and recorded on its ROADMAP entry. Suite 2065 -> **2073 passed, 3 skipped, exit 0**, serial AND
-  under `-n auto`, baseline re-measured by me at `ed25c19` before any work. Drift guard **CLEAN 9/9**,
-  doc budget **PASS measured 16**, mypy clean 28 and 84, ruff clean. Detail in `docs/LEDGER.md`.
-
-- **THE HEADLINE IS THAT THE GUARD WAS REFUTED TWICE, BY TWO DIFFERENT AGENTS, AND THE SECOND
-  REFUTATION LANDED AFTER THE FIRST REPAIR WAS BELIEVED FINAL.** Six routes shipped an unbacked
-  byte-order claim green. THREE were pre-state holes at 1032. **THREE WERE HOLES IN THE GUARD
-  ITSELF** - the swallowed one-byte set member, the vocabulary swap, and a FOURTH STATUS WORD - all
-  green with the guard already present. Do not report CS-476 as having caught six things; it caught
-  three, and independent passes caught the three it shipped.
-
-- **THE FOURTH-WORD ROUTE IS THE ONE WORTH REMEMBERING.** Pinning three status spellings does not
-  BOUND the vocabulary. Adding `settled_uniquely` for `UInt32Property` - a type no oracle scores -
-  ships a claim STRONGER than the over-claim CS-476 names, and every graded direction passes
-  VACUOUSLY, because they all select by the one anchored symbol. `BYTE_ORDER_STATUSES` cannot close
-  it: hand-written, same file, extended by the same edit. The mapping's VALUES are now bounded to
-  three literals. **CS-421's route (b) will want a new word and WILL redden this** - that is the
-  designed behaviour, not a bug: add the word together with whatever grades it.
-
-- **CS-421's REMAINING HALF IS DECIDED BY A MEASUREMENT, AND IT IS ROUTE (b).** Derived from the
-  library this session: `UInt32Property` yields **9 values carrying ONE distinct stored byte
-  pattern**. The 9 matches the archived session-14 figure and that is a COINCIDENCE OF
-  RE-MEASUREMENT, not a carry-forward. Every value has a ZERO HIGH BYTE UNDER BOTH READINGS, so the
-  shipped int32 magnitude oracle - a CONJUNCTION needing a MINORITY under the swapped reading - is
-  provably VACUOUS on this type's own population. That is threshold-free and it is what the status
-  word should record. **Rest the close on the ORACLE being vacuous, never on the population being
-  SMALL** - one pattern is not invariant under the group, so an oracle over it still returns a
-  number, and "small population" is the `_JOIN_WORD_FLOOR` shape CS-432 exists to delete.
-
-- **Surprises**, each measured:
-  1. **A SUBAGENT'S REFUTATION WAS ITSELF WRONG AND I CAUGHT IT BY RE-MEASURING.** The second pass
-     reported that nothing grades the BALANCE of the two byte probe pairs. An unbalanced pair
-     reddens the neutering control, which requires the derived population to be EMPTY with the
-     tallies dead. Recorded in the module and the ledger: an unchecked refutation is as bad as an
-     unchecked claim.
-  2. **I SHIPPED AN UNMEASURED "MEASURED" SENTENCE INTO THE LEDGER AND CAUGHT IT BEFORE COMMIT.**
-     The entry said five routes were green BEFORE the module; I had measured four. Measuring the
-     fifth exposed a worse error in the same sentence - two of the routes were green WITH the
-     module present, so they were guard holes rather than pre-state holes.
-  3. **MY OWN DERIVATION READ TWO OF THREE ORACLES AND CLAIMED THREE.** Both probe bytes had EQUAL
-     interior bytes, which is exactly the population coarseness declines, and an early return ran
-     the byte channel only for words the value channel had already declined. Zero coarseness calls.
-     Every other test stayed green because the word coarseness scores is scored by magnitude too -
-     right answer, wrong reason. A CALL COUNT closed it; a sentence would not have.
-  4. **A HAND-WRITTEN LABEL SET INSIDE THE GUARD LET THE GUARD DISARM ITSELF.** Two lines - revert
-     the probe pairs, drop one label - restored the exact previously-refuted state, suite green. The
-     set is now derived by AST from the shipped dispatch bodies.
-  5. **I CORRUPTED A MEASUREMENT BY DISPATCHING TWO MUTATING AGENTS AT ONE CHECKOUT.** One
-     overwrote the other's in-flight mutant. BOTH agents detected it independently and neither
-     reported the bad number; one rebuilt in a licensed clone. **RULE: concurrent agents may share a
-     checkout only if NONE of them writes to it.** Every later pass ran in `git clone --no-hardlinks`
-     with the live uncommitted files overlaid, licensed by reproducing the live count first.
-  6. **A `git archive` REPLICA IS NOT A VALID MEASUREMENT TREE HERE** - a missing `.git` produces
-     unrelated failures. Clone, then license the clone.
-  7. **THE CITATION BLOCK MADE THE PRE-STATE RECIPE SELF-INVALIDATING.** `objects.py` now cites the
-     new module by path, so moving the module aside to re-derive the old green reddens the
-     package-wide citation resolver and the phase-4 gate behind it. Those failures are NOT the
-     byte-order question. Take a pre-state at a commit before the block, or delete both together.
-
-- **Failed paths - do not retry:**
-  - **Pinning status spellings and calling the vocabulary closed.** It is a swap detector; it does
-    not bound the value set.
-  - **A hand-written label set inside a guard.** Derive it from the thing under test.
-  - **A cheap `or` that short-circuits a probe channel.** It ran the unreached half only where it
-    could not fire.
-  - **Two agents mutating one checkout.**
-  - **Taking a subagent refutation at face value.** One finding of three did not survive.
-
-- **A THIRD REFUTATION LANDED AFTER THE SECOND REPAIR AND FOUND THREE MORE, TWO NOW CLOSED.** The
-  fatal one used NO new status word, so nothing that grades words could fire: `vacuous_one_byte`
-  against `StrProperty` - length-prefixed, carrying an int32 length - retires a byte-order question
-  with zero evidence, green at `tests/save` 1040. **THE HOLE WAS MINE:** my key assertion admitted
-  any `MEASURED_VALUE_TYPES` word. Keys are now bounded EXACTLY to the fixed-width table plus the
-  one tag-carried one-byte value. Also closed: `BYTE_ORDER_STATUSES` is exported and was unbounded
-  even though the mapping's VALUES were bounded - two artifacts, one bound.
-
-- **THE REAL PATTERN, AND IT IS THE SESSION'S MOST TRANSFERABLE FINDING: EACH REPAIR MOVED THE
-  HAND-WRITTEN SEAM UP ONE LEVEL RATHER THAN REMOVING IT.** Label set -> site list. The reach
-  control's oracle NAMES are derived from the dispatch bodies, but WHICH BODIES is still a
-  hand-written tuple, so two line deletions inside that one test module restore the
-  zero-coarseness-call state, and an ordinary extract-method refactor hides a tally from the scan
-  while every control passes. Filed as **CS-477**, with the third finding - `_PROBE_VALUE_PAIRS` is
-  graded by nothing and 3 of its 5 shapes are inert. **A fix that names a population IS the defect.**
-
-- **THREE REFUTATIONS, THREE SUCCESSES, AND THE COUNT IS THE POINT.** Nine routes shipped an
-  unbacked byte-order claim green across the session. THREE were pre-state holes; **SIX were holes
-  in the guard itself**, every one found by an independent pass rather than by the author. Do not
-  record CS-476 as a clean build. The third pass also independently RE-MEASURED and CONFIRMED the
-  correction that the probe-pair balance property IS graded, so that stands at two measurements.
-
-- **Next action: CS-421's remaining half, route (b)**, using the derived census above. It needs a new
-  status word plus a library-backed test deriving the vacuity, and adding that word WILL redden
-  `test_the_status_words_are_pinned_and_distinct` until it is added to `_GRADED_STATUS_WORDS` with
-  its grading - by design. `objects.py` cannot read the library without breaking the seam, so the
-  module ships the word and the test derives the verdict, which is the CS-476 pattern. On a machine
-  with no game that test skips - CS-426's gap. After it, **CS-471** (tier 1, privacy-adjacent);
-  note `tests/save/test_byte_order_status.py` does NOT enlarge it - measured library-free by an
-  audit hook - but it DOES enlarge **CS-473** by 24 unbacked quantified sentences.
-
 ## Session 19 - 2026-08-18 - CS-421's route (b) SHIPS and the close is REFUSED; the privacy defect was mine
 
 - **Shipped: NOTHING CLOSED, AND THAT IS THE RESULT RATHER THAN A SHORTFALL.** CS-421 STAYS OPEN
@@ -345,3 +243,114 @@ the line becomes a pointer.
   Then **CS-481**, using the reproduction on its ROADMAP entry. Then **CS-478**, then **CS-471**
   (tier 1, privacy-adjacent), then CS-477 - whose measurements are now in `docs/history_notes.md`
   under **CS-477 - detail** - then CS-479, then CS-470/472/473/474.
+
+## Session 21 - 2026-08-19 - CS-482 CLOSES; the walk was desynchronised and the same defect shipped twice
+
+- **Shipped: CS-482 CLOSED, and CS-485's licence gate recorded.** Filed CS-483, CS-484, CS-486.
+  Enlarged CS-471 and CS-473. Amended one `CLAUDE.md` Settled entry. Suite
+  **12 failed 2073 passed 3 skipped -> 2137 passed 3 skipped exit 0** with a library, and
+  **2036 -> 2088 passed 52 skipped exit 0** with no game, both measured by me this session.
+  mypy clean 28 and 84, ruff check and ruff format clean 84, drift guard **CLEAN 9/9**, doc
+  budget **PASS measured 16**, precommit gate PASS 150. Detail in `docs/LEDGER.md`.
+
+- **THE ANSWER TO CS-482's QUESTION IS DESYNCHRONISED WALK, AND THE ITEM WAS RIGHT TO FORBID
+  RAISING THE CEILING.** The declared count that tripped the bound decodes to four printable
+  ASCII bytes - the walk was taking a count out of the middle of a string. **Two corrections to
+  the item's own filing text, both measured:** the refusal was against `MAX_CUSTOM_VERSIONS`
+  and NOT `MAX_OBJECTS`, and `test_save_60_refuses_the_grammar_the_other_pairs_accept` carried
+  NO independent evidence - all seven `test_properties.py` failures arrive through one shared
+  `_sweep_or_skip()` assertion, so it was one failure counted seven times rather than a second
+  witness.
+
+- **WHAT WAS WRONG, AND IT WAS WRONG IN TWO PLACES.** A named (14,60) level tail is an opaque
+  word, a COUNT, that many string pairs, and a second opaque word; it was read as 12 constant
+  bytes. The count is 0 on 1522 of the 1525 real level tails here, which is why 12 fitted every
+  save the grammar came from. **The identical defect was shipped one function up the same call
+  path** - the package summary's 70-byte "constant run" is a string, 22 opaque bytes and a
+  second string - and its recorded justification was false: the search that found "no interior
+  boundary - not 4+6, not 8+2, not 16+10" looked for a split into FIXED widths, and the
+  boundary is a LENGTH PREFIX. The fixture wrote 70 zeros for the same stated reason, so it
+  could never have failed the reader that read them.
+
+- **THE TRANSFERABLE SENTENCE: A RUN EVERY SAVE IN A CORPUS FILLS IDENTICALLY IS NOT A
+  CONSTANT.** It is a field nothing has varied yet, and the two are indistinguishable from
+  inside the corpus. The second value arrives as a desynchronised walk. Both halves of this
+  session's fix are that one sentence.
+
+- **ALL THREE REFUTATION PASSES SUCCEEDED. Do not record CS-482 as a clean build.**
+  1. **A PRIVACY PASS REFUTED ME ON A NON-NEGOTIABLE.** My own first-draft docstring put a
+     positioned four-byte fragment of a decoded string from a real save into a TRACKED file, in
+     decimal AND in ASCII. Removed. The same pass showed the four existing privacy controls had
+     **ZERO REACH** into the new code - every planted failure went through the FLAT walk and the
+     new readers are reachable only from `parse_body` - and proved it with a mutant whose
+     exception message was the two decoded strings verbatim, green at 1056 tests.
+  2. **A DERIVATION PASS DELETED A FALSE JUSTIFICATION AND FOUND THE SIBLING.** It measured that
+     an unbounded entry count executes ZERO loop iterations over nine deliberate
+     desynchronisations, because `_Cursor.string` refuses first - so my sentence claiming the
+     ceiling prevents a long walk was false. It also narrowed my evidence base: the three
+     entry-carrying tails are BYTE-IDENTICAL and all five (14,60) saves are one world, so the
+     grammar rests on ONE observed entry.
+  3. **A MUTATION PASS GRADED THE TESTS AND REFUTED THEM: 26 mutants, FIVE surviving.** All six
+     now die in both configurations after repair, re-graded by me in a clone.
+
+- **EVERY HOLE ALL THREE PASSES FOUND WAS A POPULATION THE TEST NEVER SUPPLIED.** Two entries, a
+  second string length, a second escape route for a retained string, a ceiling probed only
+  against itself. The corpus could supply none of them; the fixture could supply all of them for
+  nothing. That is the session's method finding and it generalises past this item.
+
+- **Surprises**, each measured:
+  1. **THE LANDING ORACLE IS NECESSARY AND NOT SUFFICIENT.** Three rival tail grammars - a fixed
+     80-byte blob, two parallel lists, a presence flag instead of a count - ALL land 17 real
+     saves of 17 on the exact final byte. What actually separates the shipped reading is that
+     two length prefixes tile a CLOSED interval with zero slack, each landing on its own
+     terminator. Stop citing the final-byte oracle alone.
+  2. **A CONSTANT CAN GRADE ITSELF AND LOOK FULLY TESTED.** `MAX_LEVEL_TAIL_ENTRIES` moved to
+     `1 << 30` and to `1` with the whole suite green, because the test declared
+     `MAX_LEVEL_TAIL_ENTRIES + 1` and asserted against `MAX_LEVEL_TAIL_ENTRIES`. The edge probe
+     beside it had the same defect - it pinned the edge RELATIVE to the constant. It is bounded
+     from above now by the smallest int32 four printable ASCII bytes can make, and from below by
+     a two-entry walk.
+  3. **CI RUNS A DIFFERENT RUFF THAN THIS MACHINE DOES, AND SESSION 19's FIX DOES NOT COVER IT.**
+     The first push went red on FURB192 - PREVIEW on the local ruff, STABLE on CI's, because
+     `pyproject.toml` pins `ruff>=0.13` with no upper bound. Running `ruff format --check` as
+     well as `ruff check` does not reproduce CI when the divergence is the VERSION. `--preview`
+     is not the local proxy either: 105 findings against CI's 1. Filed CS-484.
+  4. **THE FAILING LINE WAS SESSION 20's, NOT MINE.** It shipped in `e86f84d` and CI had never
+     seen it, because that session's push was blocked by the very suite CS-482 fixed. A blocked
+     push hides a lint failure for a whole session.
+  5. **THE OPERATOR PLAYED THROUGHOUT AND THE SAVE FILES WERE OVERWRITTEN IN PLACE, TWICE.** The
+     three autosave slots moved 18:47/18:52/18:57 -> 19:02/19:07/19:12 -> 19:42/19:47/19:52
+     while I worked, each rotation carrying a larger body. A per-save measurement is pinned to a
+     moment, not to a path.
+  6. **MY NEW FRAME-LOCALS CONTROL FOUND A PRE-EXISTING EXPOSURE AND I DID NOT WIDEN CS-482 TO
+     FIX IT.** The parser's entry points bind the raw body as a PARAMETER and the flat walk binds
+     each record's three strings as locals, so any renderer showing locals prints all of it. That
+     is CS-471's class. The control is scoped to the strings that are supposed to be DISCARDED,
+     and `test_the_entry_points_still_bind_the_raw_body_where_a_renderer_can_read_it` PINS the
+     rest so the narrowing cannot be read as a claim of absence.
+  7. **THE OPERATOR CORRECTED MY PROVENANCE FRAMING.** satisfactory.wiki.gg is the OFFICIAL
+     wiki, so "no community-compiled datasets" was the wrong fence. The gate still refuses
+     vendoring, now on the LICENCE - CC BY-NC-SA 4.0, copyleft plus non-commercial, conflicting
+     with the frozen `LICENSE`. The `CLAUDE.md` Settled entry is amended to say so.
+
+- **Failed paths - do not retry:**
+  - **Citing the final-byte landing oracle as if it settled a grammar.** Three rivals land.
+  - **Asserting a ceiling against itself**, or pinning an edge relative to the constant.
+  - **Asserting "never retained" against the returned model's repr alone.** A module global and
+    an attribute on the cursor both survive it, and a frame local survives all five older
+    exception surfaces because `traceback.format_exception` renders none of them.
+  - **Testing a counted list at 0 and 1.** `range(min(count, 1))` survives.
+  - **A fixture that writes zeros into a run the parser reads structurally.** With an empty
+    first name, `4 + 22` and `22 + 4` land on the same byte and a whole reorder class goes
+    invisible without a save library - which is every CI run.
+  - **`ruff check --preview` as a local proxy for CI.** It over-approximates 105 to 1.
+  - **Trimming prose to meet a doc budget.** ROADMAP went over again; one relocation fixed it.
+
+- **Next action: CS-481**, using the reproduction on its ROADMAP entry. It is the half of the
+  byte-order key bound that was never derived, and the width table is SELF-AUTHORISING. **DO NOT
+  close it by widening the tag-carried exemption - the route does not go through it.** Note that
+  CS-482 changed `objects.py` around the level tail and the package summary, so re-read the
+  module before assuming session 20's line numbers. Then **CS-478**, then **CS-471** (tier 1,
+  privacy-adjacent, and this session added measured evidence to its entry plus a pinning test
+  that FAILS when it closes), then CS-477, CS-479, CS-470/472/473/474. **CS-484 is cheap and
+  blocks nothing but will bite again on the next push.**

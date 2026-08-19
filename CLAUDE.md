@@ -276,10 +276,16 @@ point.
   gated. *Do not re-pitch:* an LP or ILP library before `OptimizerBackend` exists, before
   it slots behind the interface without changing a caller, and before the `CONVENTIONS.md`
   section 14 license gate passes.
-- **No community-compiled datasets.** *Do not re-pitch:* lifting a community node dataset
-  or any community data dump. It carries provenance risk that a later public flip makes
-  worse, and both sanctioned paths - the save itself, or extraction from the shipped
-  assets - are cleaner.
+- **No lifted datasets, including from the OFFICIAL wiki.** Both sanctioned paths - the
+  save itself, or extraction from the shipped assets - are cleaner. The official wiki is
+  CC BY-NC-SA 4.0, so vendoring any part of it would relicense this project and conflict
+  with `LICENSE`; the gate result and the reasoning are in `docs/LEDGER.md` under CS-485.
+  Reading it and citing a URL is CLEARED and carries no obligation. *Do not re-pitch:*
+  lifting a node dataset, a table or a data dump from any wiki or community source; nor an
+  automated poller against the wiki, which its platform terms appear to forbid. *Do not
+  argue from "it is official":* that is the site's standing, not any page's authority, and
+  its save-format pages are a major version stale and carry a byte label this project has
+  already measured false.
 - **The reference world is the operator-pinned development world** - vanilla, no creative
   mode, no modifiers, onboarding active - snapshotted into a gitignored corpus as it
   grows. *Do not re-pitch:* switching reference worlds without recording why. Its name

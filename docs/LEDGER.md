@@ -73,6 +73,51 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-19 - CS-485 - the official wiki's CONVENTIONS section 14 licence gate: REFUSED for vendoring, CLEARED for reading and citing
+Verification: this entry IS the record - a licence gate produces a decision, not a test. The
+research it rests on was a dispatched page-by-page pass over the site's navigation and
+category listings on 2026-08-18; re-run it against the URLs below to check any line.
+
+GATE RESULT. satisfactory.wiki.gg is licensed CC BY-NC-SA 4.0, stated at
+https://satisfactory.wiki.gg/wiki/Satisfactory_Wiki:Copyrights and qualified there by the
+phrase "that we may lawfully license" - so the site does not purport to license the
+publisher's own material that its pages restate. Copyleft plus a non-commercial restriction
+means vendoring would relicense the project and conflict with `LICENSE`, which is a frozen
+file. Traps from CONVENTIONS section 14: trap 1 fires (a CC grant sits alongside a platform
+terms-of-service clause prohibiting automated crawling), trap 2 fires (pages predating March
+2023 are adapted from a Fandom-era wiki, so there are multiple upstream holders, and the site
+disclaims the publisher's material besides), trap 5 fires (NC plus SA is not an open-source
+licence). Trap 4 is clean - the page links the canonical deed rather than pasting a modified
+copy.
+
+THE OPERATOR CORRECTED MY FRAMING MID-SESSION AND THE CORRECTION IS RECORDED RATHER THAN
+ABSORBED: this is the OFFICIAL, developer-endorsed wiki, not a third-party community dump, so
+`CLAUDE.md`'s "no community-compiled datasets" was the wrong fence to reach for. The gate
+still refuses vendoring, on the licence rather than on provenance, and that is a better fence
+because it is measured. The `Settled` entry in `CLAUDE.md` is amended accordingly.
+
+WHAT ENDORSEMENT DOES NOT SETTLE, and this is the finding worth keeping: the site's standing
+is not any page's authority. Three provenance classes coexist on it - verbatim publisher text
+(the dedicated-server API page says so of itself), editor transcription of shipped data, and
+editor reverse-engineering (the save-format page carries its own incompleteness caveat).
+FRESHNESS IS ALSO NOT UNIFORM, and the split runs against this project: the patch-notes lane
+is current with the operator's pinned build, while the save-format lane is a major version
+behind. The save-format page also labels a header byte "session visibility" - a label
+`BOOTSTRAP.md` section 2.4 already records as REFUTED by measurement across the operator's own
+saves. That is the cheapest available argument against ever re-adopting the wiki as an
+authority on save bytes.
+
+ALSO RECORDED AS FACT, WITH NO RECOMMENDATION ATTACHED: the site runs MediaWiki with an open
+Action API and serves raw wikitext, while the platform terms prohibit automated crawling. The
+exact terms document could not be resolved from the link the Copyrights page uses, so the
+crawling clause is PROBABLE AND UNCONFIRMED - which, defaulting to refused, means treat it as
+binding. No automated poller.
+
+WHAT THIS DOES NOT CLOSE. The upstream watch list the research produced has no doc with an
+owner in the topology table yet; that is CS-486. And the research independently confirmed that
+D1 node semantics - per-node resource type and purity - has no sanctioned source and the wiki
+does not supply one, which is ADR 0003's gap unchanged.
+
 ### 2026-08-18 - CS-482 - the walk was DESYNCHRONISED, not overflowing; the (14,60) level tail is a counted list
 Verification: `clockspeed/save/objects.py` (`_read_level_tail`, `_read_package_summary`) plus
 `tests/save/test_objects.py::test_a_named_level_tail_carrying_one_entry_still_walks_to_the_last_byte`,
