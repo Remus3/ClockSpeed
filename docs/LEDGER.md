@@ -73,6 +73,74 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-19 - CS-481 - the width table's membership is bounded for the words the module names; the three-line route is dead and three wider ones are filed
+Verification: `tests/save/test_byte_order_status.py::test_no_word_carries_a_byte_order_status_the_module_records_as_unclaimed`,
+`tests/save/test_byte_order_status.py::test_every_fixed_width_word_is_one_the_shipped_walk_counts_as_measured`,
+`tests/save/test_byte_order_status.py::test_the_walk_outcome_words_are_pinned_and_distinct` and
+`tests/save/test_properties.py::test_no_type_word_sits_on_both_sides_of_the_module_s_own_split`,
+against `clockspeed/save/objects.py`. To reproduce the defect, apply the three lines named
+below and run `tests/save` with `CLOCKSPEED_GAME_DIR` and `CLOCKSPEED_SAVE_ROOT` pointed at
+directories that do not exist.
+
+WHAT CLOSED, AND IT CLOSED ON THE STATED ACCEPTANCE RATHER THAN ON THE WIDTH TABLE HAVING
+BECOME BOUNDED. The acceptance was that declaring a type one byte wide, when the module claims
+nothing about that type's value encoding, turns a test RED on a machine with no game. It does.
+The reproduction on the item - a `(1, "<b")` entry for `Int64Property`, its
+`WIDTH_SHIPPING_GROUNDS` entry, and holding the word out of `MEASURED_VALUE_TYPES` - was
+re-measured by me before anything was written, at `tests/save` **1055 passed 49 skipped with no
+game, the same two counts the clean tree gives**, shipping `vacuous_one_byte` for an EIGHT-byte
+type. Each line was measured alone: the width entry reds 4, plus its grounds reds 3, plus the
+severed measured set reds 2. On the merged tree that same edit reds 3 - both new controls in
+`test_byte_order_status` plus the phase-4 no-install gate behind them.
+
+TWO ARMS, AIMED AT DIFFERENT LINES, NEITHER SUBSUMING THE OTHER. The CLAIM arm holds the status
+mapping against `UNMEASURED_PAYLOAD_REGIONS`, the module's own record of what it claims nothing
+about; the pre-existing split control required the UNION of the two halves to cover, never the
+INTERSECTION to be empty, and the reproduction lived in that gap. The WALK arm asks the shipped
+parser rather than a set: severing the width table from `MEASURED_VALUE_TYPES` does not stop
+`_decode_value` decoding the word - it dispatches on the width table directly - it makes
+`_decode_payload` count a declared-size disagreement as UNMODELLED CONTENT instead of as a walk
+that has lost its place, which is the CS-417 conflation, measured on the forged tree.
+
+ALL THREE REFUTATION PASSES SUCCEEDED. DO NOT RECORD THIS AS A CLEAN BUILD.
+1. A ROUTE-AROUND PASS FOUND A DEFECT IN MY OWN CONTROL. The probe could not build a tag for any
+   word carrying tag-extra strings, so those words were filtered out of the CONTROL population -
+   while the GRADED arms iterated the width table raw with no such filter. Demonstrated with the
+   shipped word `ByteProperty`: a later slice moving it into the width table would have been
+   reddened by a message blaming the width table for a defect in the probe. FIXED by building the
+   tag-extra shape instead of filtering; the control population went from 2 words to 6.
+2. TWO PASSES INDEPENDENTLY MEASURED WIDER ROUTES STILL GREEN, and I re-measured both in clones.
+   SIX LINES make the module claim the type outright and ship the false status with `tests/save`
+   green (CS-488). THREE LINES, all in `objects.py` with no test-side line at all, ship it through
+   the tag-carried exemption with no width entry involved (CS-487). A third finding, ungraded
+   prose inside a region-table entry, is CS-489.
+3. SIX SENTENCES OF MY OWN PROSE WERE MEASURED FALSE and are corrected in place with the
+   refutation recorded beside them, never rewritten silently: that a constant probe "would satisfy
+   two of the three" arms (measured: at most one, enumerated over all five outcome words); that
+   without the control arm a broken payload builder "would still be graded green" (the agreeing arm
+   reds on its own); that the citation checker "is blind to a `#:` line" (it resolves citations
+   there and merely never requires one - and my sentence restated a false claim already in the
+   file, which is the drift `CLAUDE.md` section 4 forbids); a "reds three tests" count that invited
+   the wrong mapping, since the `test_properties` control is GREEN on the reproduction; a
+   value-bytes rationale describing a discipline every one of its own call sites breaks; and a
+   first draft of the residual paragraph that stopped at a red two lines short of green.
+4. AN EQUIVALENT MUTANT SURVIVED AND NOW DOES NOT. Exchanging the string values of the two walk
+   outcome words left every control green while inverting every rendered failure message, so a
+   genuine desynchronisation would report itself as unmodelled content in the sentence a reader
+   acts on. Pinned by `test_the_walk_outcome_words_are_pinned_and_distinct`, graded by me with
+   that swap.
+
+WHAT THIS DOES NOT CLAIM, because two of the passes are right that the mechanism is wider than
+the word. Both arms read tables keyed by type word, so a type the module has never NAMED walks
+past the claim arm - there is nothing to intersect with. The walk arm does not depend on the word
+being named, and that is measured: a never-named type declared one byte wide and severed from the
+measured set reds it and nothing else in the suite. And both arms of the walk control are narrow
+in a way worth stating - the agreeing arm takes the width from the same table `_decode_fixed_width`
+tests against, so no self-consistent entry can fail it, and at width + 1 the disagreement arm
+reduces to asking whether the word is in `MEASURED_VALUE_TYPES`, which is derived from the width
+table. The edit either arm catches is an edit to that derivation. All of this is written into the
+module rather than left here.
+
 ### 2026-08-19 - CS-485 - the official wiki's CONVENTIONS section 14 licence gate: REFUSED for vendoring, CLEARED for reading and citing
 Verification: this entry IS the record - a licence gate produces a decision, not a test. The
 research it rests on was a dispatched page-by-page pass over the site's navigation and

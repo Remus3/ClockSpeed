@@ -31,122 +31,6 @@ the line becomes a pointer.
 
 ---
 
-## Session 19 - 2026-08-18 - CS-421's route (b) SHIPS and the close is REFUSED; the privacy defect was mine
-
-- **Shipped: NOTHING CLOSED, AND THAT IS THE RESULT RATHER THAN A SHORTFALL.** CS-421 STAYS OPEN
-  with a ledger record declaring the non-closure by name. Filed CS-478 and CS-479; enlarged
-  CS-471 and CS-480. Suite 2073 -> **2080 passed, 3 skipped, exit 0** serial AND under
-  `-n auto`, `tests/save` 1040 -> 1047. **CI failed `07b5189` on `ruff format --check`, a gate
-  that had never been run locally; fixed in a follow-up commit.** Drift guard
-  **CLEAN 9/9**, doc budget **PASS measured 16** after a relocate pass, mypy clean 28 and 84, ruff
-  clean. Detail in `docs/LEDGER.md`.
-
-- **THE PUSH WAS NEVER A CREDENTIAL PROBLEM AND SESSION 18'S DIAGNOSIS WAS WRONG.** `a7cb400`
-  pushed from this non-interactive session on the first real attempt with
-  `git -c credential.interactive=false push`. What looks like a hung GUI dialog is the pre-push
-  hook running the WHOLE suite for ~155 s. My own first attempt reproduced the false signal exactly
-  by timing out at 60 s and printing a `send-pack` disconnect. **Do not carry "needs an interactive
-  terminal" forward; give the push a timeout above 300 s.**
-
-- **THE HEADLINE IS THAT ALL THREE ADVERSARIES SUCCEEDED AND THE THIRD ONE LANDED AFTER THE
-  COMMIT WAS ALREADY PUSHED.** The build was finished, green at 2077, and every gate passed. Then
-  a correctness pass showed the close was an anecdote, a privacy pass showed I had introduced a
-  non-negotiable 12 exposure, and a guard-hole pass - which I had already reported as not having
-  returned - broke the committed artifact two more ways. None of the three was reachable from
-  inside the work.
-
-- **I COMMITTED WHILE A DISPATCHED PASS WAS STILL OUT, SAID SO PLAINLY, AND IT STILL COST A SECOND
-  COMMIT.** Reporting a lens as unexamined is honest and is NOT the same as being entitled to ship
-  past it. **A pass that has been dispatched has not been declined; if its lens matters, the
-  commit waits for it.** That is the most transferable thing in this session.
-
-- **THE MEMOISED SWEEP POISONED PERMANENTLY AND ITS OWN DOCSTRING DENIED IT IN PROSE.**
-  `_sweep_separability` was an `lru_cache` over a result that can be `None`, and NOTHING in the
-  repo ever called `cache_clear` on it. One earlier call with `_library_save_paths` patched empty
-  cached that `None`, and all four library-backed graders of the new status word then skipped for
-  the whole session - green at exit 0 with four skips, the word graded by nothing, and **a skip
-  reads as an ungraded machine rather than as a defect**, which is what makes it worse than a red.
-  Sibling modules that collect earlier already patch that helper. Fixed by never caching a `None`.
-
-- **CS-421 DOES NOT CLOSE BECAUSE THE VERDICT IS A FACT ABOUT ONE NUMBER.** `UInt32Property` yields
-  9 values, ONE stored pattern, `00190000` - which is 6400. Over a population of that same size and
-  shape, **65280 of the 65535 possible values drive the SAME shipped oracle to a GREEN endianness
-  verdict; only the 255 multiples of 256 reach the undecided state recorded.** Re-measured by me
-  before it reached the ledger. The artifact is right and is shipped; reading it as clause 3
-  settled is what is refused.
-
-- **FOUR SENTENCES I WROTE WERE MEASURED FALSE, AND ALL FOUR WERE CAUGHT BEFORE THE COMMIT:**
-  that the derivation is THRESHOLD-FREE and "counts no values" (the applied clause is a count
-  against zero); that accumulator INVARIANCE under the reversal is the right predicate (two
-  counters are equal when both are ZERO as well as both total, and a read displaced by +1 produced
-  exactly that and was admitted); the unqualified spelling `oracle_cannot_separate` (the oracle
-  separates 12 of 24 orderings on this very population); and a draft ledger line asserting a
-  containment control **that I had not actually applied yet**.
-
-- **Surprises**, each measured:
-  1. **THE SCORING PHASE SAT OUTSIDE EVERY HANDLER AND I DID NOT SEE IT.** The frame still bound
-     the discovered path list, the last save's raw bytes and its parsed header, so a raise from the
-     shipped decoder rendered a save path, the save-tree ACCOUNT DIRECTORY, a world name and the
-     plaintext header options string. **One demonstrated route needed NO opt-in flag**, because
-     `_score_population` takes the census as a PARAMETER and pytest renders a crashing frame's
-     arguments by default - an ordinary rename in a sibling module was enough.
-  2. **A MUTANT CAME BACK MISSED THAT SHOULD NOT HAVE, AND IT WAS THE MOST USEFUL RESULT OF THE
-     SESSION.** Gutting my own tightened predicate to a tautology left both modules GREEN: on this
-     corpus the universal and the reversal conjunct beside it admit the SAME single word, so no
-     library-backed control can ever tell them apart. The fix was to name the predicate and grade
-     it with HAND-AUTHORED counters, which runs on a machine with no game.
-  3. **MY REPAIR KILLED A CONSTANT.** Tightening the predicate left `_REVERSAL` unreferenced, so
-     the reading the status word is NAMED after was no longer scored by anything. ruff does not
-     flag a dead module-level constant.
-  4. **`FloatProperty` DERIVES AS "APPLIED AND UNDECIDED" ON 24-OF-24 AGREEMENT** unless an applied
-     clause excludes it - its values decode to a float the int32 tally never sees, so its
-     accumulator is empty and every ordering trivially matches every other.
-  5. **THE EXTENT ANCHOR ALREADY COVERS `UInt32Property`**, which softened one refutation:
-     `_anchor_one_save` grades every fixed-width tag through `_anchored`. The derivation inherits
-     anchoring rather than lacking it - but a displacement applied to the derivation ALONE still
-     leaves 5 of 7 offsets admitted. Filed as CS-479.
-  6. **ADDING THE WORD REDDENED CS-476's VOCABULARY BOUND EXACTLY AS PREDICTED**, and stayed red
-     until the grading landed beside it. The handover called this and it behaved.
-
-- **Failed paths - do not retry:**
-  - **Diagnosing the push as a credential dialog.** It is the pre-push suite; use a long timeout.
-  - **Resting the CS-421 close on the oracle being undecided here.** It is undecided because of
-    which number this type carries, and one new value with a nonzero low byte empties the set.
-  - **An accumulator-invariance predicate.** Equal counters include both-zero.
-  - **Doing the scoring phase outside the per-save handler**, or trusting a sweep's assertion
-    messages to be counts-only while its FRAMES are not.
-  - **Trusting my own mutation set to be complete.** Two of eight came back MISSED and one was a
-    real gap in the control. An independent pass then found three more my set had no mutant for.
-  - **Caching a `None` that means "this machine cannot grade it".** An absence memoised once
-    disarms every grader downstream of it, silently, for the whole session.
-  - **Treating `ruff check` as the whole of ruff.** It is NOT `ruff format --check`, and CI runs
-    both. Every local gate passed all session and CI still failed `07b5189` in 24 seconds on two
-    cosmetic format findings - an unwrapped `assert` and two missing blank lines before a
-    top-level `def`, both artifacts of appending text programmatically. **The local gate set used
-    all session was incomplete against CI's.** Run `python -m ruff format --check .` before every
-    commit; it is instant.
-
-- **A FOURTH ADVERSARY RAN ON THE CACHE FIX AND RETURNED NOT REFUTED**, which is the only
-  unbroken done-claim of the session. It attacked four poisoning routes, proved the control
-  non-vacuous with a mutant isolating the SEMANTICS rather than the data structure - keep the list,
-  drop only the `is not None` guard - and checked six orderings. **It still found a prose
-  overclaim of mine**, the third of the session: "caching only a real sweep removes the state" is
-  false, because a NARROWED but real sweep still caches session-wide. Measured: patching discovery
-  to one save of seventeen caches that sweep and every grader passes green off it, no skip, no red.
-  The docstring states the bound now. **The green-with-skips outcome also stays reachable by a
-  non-cache route the control cannot see, because the control skips too** - that is CS-426.
-
-- **Next action: CS-480**, the last ungraded bound on which types may carry a byte-order status.
-  `_TAG_CARRIED_ONE_BYTE_VALUES` in `tests/save/test_byte_order_status.py` is hand-written and read
-  by NOTHING: two lines ship `vacuous_one_byte` for `StrProperty`, a LENGTH-PREFIXED type whose
-  payload begins with an int32 length, with everything green. Reproduced at 31 passed before
-  filing. The objects.py-only half of that edit IS caught, so the guard is exactly one tuple deep.
-  Then **CS-478**, the two incompatible definitions of "an oracle scores this type", which is the
-  coherence defect this session introduced. Then **CS-471** (tier 1, privacy-adjacent), whose
-  surface this session enlarged in the exact channel its guard cannot see:
-  `_collect_stored_patterns` and `_score_population` RECEIVE personal data as parameters and
-  `_returns_personal_data` reads only `node.returns`. Then CS-477, then CS-479.
-
 ## Session 20 - 2026-08-18 - CS-480 CLOSES after THREE refutations; the library grew and the push is blocked
 
 - **Shipped: CS-480 CLOSED.** Filed CS-481 and CS-482; enlarged CS-473. **THE SUITE IS RED AT
@@ -354,3 +238,87 @@ the line becomes a pointer.
   privacy-adjacent, and this session added measured evidence to its entry plus a pinning test
   that FAILS when it closes), then CS-477, CS-479, CS-470/472/473/474. **CS-484 is cheap and
   blocks nothing but will bite again on the next push.**
+
+## Session 22 - 2026-08-19 - CS-481 CLOSES on its acceptance; all three refutation passes succeeded and two found routes that still work
+
+- **Shipped: CS-481 CLOSED.** Filed CS-487, CS-488, CS-489. Suite **2137 passed 3 skipped ->
+  2141 passed 3 skipped exit 0** with a library, and `tests/save` **1055 -> 1059 passed, 49
+  skipped exit 0** with no game, both measured by me this session. mypy clean 28 and 47, ruff
+  check and ruff format clean 84, drift guard **CLEAN 9/9**, doc budget **PASS measured 16**
+  after one relocate pass, precommit gate PASS 3. Detail in `docs/LEDGER.md`.
+
+- **THE CLOSE IS ON THE STATED ACCEPTANCE AND NOT ON "THE WIDTH TABLE IS NOW BOUNDED", AND THE
+  DIFFERENCE IS THE WHOLE ENTRY.** The three-line reproduction is dead: it reds two new controls
+  plus the phase-4 gate with no game. Two refutation passes then measured WIDER routes still
+  green, and I re-measured both in clones. Six lines make the module CLAIM the type outright and
+  ship `vacuous_one_byte` for an eight-byte type, everything green - that is CS-488. Three lines,
+  all in `objects.py` with NO test-side line at all, do it through the tag-carried exemption with
+  no width entry involved - that is CS-487, and it is CS-480's disclosed residual priced properly
+  for the first time.
+
+- **ALL THREE ADVERSARIES SUCCEEDED AGAIN, AND ONE OF THEM BROKE MY OWN CONTROL RATHER THAN MY
+  PROSE.** The probe could not build a tag for any word carrying tag-extra strings, so those words
+  were filtered out of the CONTROL population while the GRADED arms iterated the width table raw
+  with no such filter. Demonstrated on the shipped word `ByteProperty`. A later slice doing the
+  honest thing would have been reddened by a message blaming the width table for a defect in my
+  builder. **THE FIX WAS TO BUILD THE SHAPE, NOT TO ADD A SECOND FILTER** - the control population
+  went from 2 words to 6.
+
+- **SIX SENTENCES I WROTE WERE MEASURED FALSE.** That a constant probe would satisfy two of the
+  three arms (at most one, enumerated). That without the control arm a broken builder would still
+  be graded green (the agreeing arm reds on its own). That the citation checker is blind to a
+  `#:` line (it resolves citations there and merely never REQUIRES one) - and that sentence was a
+  RESTATEMENT of a false claim already in the file, which is the section 4 drift, so the fix was to
+  delete my copy rather than correct it. A "reds three tests" count that invited the wrong mapping.
+  A value-bytes rationale describing a discipline all three of its own call sites break. And a
+  first draft of the residual paragraph that stopped at a red **two lines short of green**.
+
+- **AN EQUIVALENT MUTANT SURVIVED THE FIRST BUILD.** Exchanging the string values of the two walk
+  outcome words left every control green while INVERTING every rendered failure message, so a
+  genuine desynchronisation would report itself as unmodelled content in the sentence a reader
+  acts on. The module already had this exact defect and its exact pin for the STATUS words; the
+  five new outcome words got none. Pinned now, and graded by me with that swap.
+
+- **Surprises**, each measured:
+  1. **A RED TWO LINES SHORT OF GREEN IS NOT A BOUND.** My corrected paragraph rested on
+     `test_the_synthetic_fixture_exercises_every_measured_type_word` going red on the wide route.
+     It does. Two passes then supplied the fixture tag and the expected-value line - for a width-1
+     lie the "decodable instance" is one `struct.pack("<b", ...)` call - and it goes green.
+     **Stopping at the first red and calling the route expensive is the same error as stopping at
+     the first green and calling it safe.**
+  2. **WHAT PUTS A WORD IN REACH OF THESE CONTROLS IS THAT THE MODULE NAMES IT.** Both new arms
+     read tables keyed by type word. `DoubleProperty` - a real eight-byte Unreal type this repo
+     names nowhere - walks past the claim arm because there is nothing to intersect with. Honesty
+     about a word is what puts it in reach; silence keeps it out.
+  3. **THE WALK ARM IS WORD-AGNOSTIC ON THE OTHER LINE, WHICH IS THE HALF THAT SURVIVED.** A
+     never-named type declared one byte wide and severed from `MEASURED_VALUE_TYPES` reds it and
+     nothing else in the suite.
+  4. **BOTH ARMS OF THE WALK CONTROL ARE NARROWER THAN THEY READ.** The agreeing arm takes the
+     width from the same table `_decode_fixed_width` tests against, so no self-consistent entry
+     can fail it - an entry pairing width 1 with an eight-byte code passes. At width + 1 the
+     disagreement arm reduces to asking whether the word is in `MEASURED_VALUE_TYPES`, which is
+     DERIVED from the width table. The one edit either arm catches is an edit to that derivation.
+  5. **GUTTING ALL FIVE NEW ASSERTIONS TO TAUTOLOGIES LEAVES THE CLEAN SUITE GREEN**, as does
+     deleting all six emptiness guards. That is what a guard IS on a clean tree, and it is why the
+     forgery - not the suite - is what grades these.
+  6. **PROSE INSIDE A REGION-TABLE ENTRY IS READ BY NOTHING.** Two passes found the same dangling
+     sentence independently. Filed as CS-489.
+
+- **Failed paths - do not retry:**
+  - **Filtering a population out of a CONTROL while leaving the graded arms unfiltered.** Build the
+    shape the reader expects instead.
+  - **Stopping at the first red when pricing an escape route.** Take it two lines further.
+  - **Restating another file's sentence to explain a choice.** If the sentence is false, you have
+    now shipped it twice.
+  - **Shipping a new internal vocabulary without a spelling pin** when the module already carries
+    one for the same defect class.
+  - **Arguing a control's justification instead of measuring it.** Both sentences I argued were
+    false and the arm was load-bearing for a third reason entirely.
+
+- **Next action: CS-487**, which is the cheapest live route in the tree - three lines, no
+  test-side line, and it needs no width entry at all. Then **CS-478**, then **CS-471** (tier 1,
+  privacy-adjacent; `test_the_entry_points_still_bind_the_raw_body_where_a_renderer_can_read_it`
+  PINS the exposure and FAILS when the item closes - widen the control and delete that test, do
+  not delete it alone). Then CS-488, CS-477, CS-479, CS-470/472/473/474. **CS-484 is still cheap,
+  still blocks nothing, and will bite again on the next push.** **CS-486 still needs an OPERATOR
+  DECISION rather than work.**

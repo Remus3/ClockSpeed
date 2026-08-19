@@ -3069,6 +3069,51 @@ def test_every_type_word_the_module_names_is_on_one_side_of_its_own_split() -> N
     )
 
 
+def test_no_type_word_sits_on_both_sides_of_the_module_s_own_split() -> None:
+    """The half of the two-way classification the union check never held.
+
+    :func:`test_every_type_word_the_module_names_is_on_one_side_of_its_own_split`
+    requires every word the region table names to sit in one half or the other.
+    IT IS A UNION CHECK AND A WORD IN BOTH HALVES SATISFIES IT - more
+    comfortably than a word in either, because it is covered twice. A two-way
+    classification needs both halves to be true of it, and only one of them was
+    ever asserted.
+
+    THIS IS THE MECHANISM CS-481 RIDES, ONE TABLE ALONG. The byte-order half of
+    it is graded where the status data lives - see
+    ``tests/save/test_byte_order_status.py::test_no_word_carries_a_byte_order_status_the_module_records_as_unclaimed``
+    - and NEITHER SUBSUMES THE OTHER, which is measured rather than assumed:
+    the reproduction on that item holds its word OUT of
+    ``objects.MEASURED_VALUE_TYPES`` while leaving it in the fixed-width table,
+    so the intersection asserted here stays empty while the status mapping
+    contradicts the region table. The reverse route - a word added to a
+    string-valued family while its region entry stands - is invisible from
+    there and lands here.
+
+    IT LISTS NOTHING. Both operands are shipped tables read in the same run, and
+    what is asserted is that they do not contradict each other.
+
+    NEEDS NO SAVE LIBRARY - it is a claim about the repo, not about a world.
+    """
+    measured = objects.MEASURED_VALUE_TYPES
+    regions = objects.UNMEASURED_PAYLOAD_REGIONS
+    assert measured, "objects.MEASURED_VALUE_TYPES is empty, so this test grades nothing"
+    assert regions, (
+        "objects.UNMEASURED_PAYLOAD_REGIONS is empty, so this test grades nothing - and "
+        "emptying it is also the cheapest way to satisfy it, which is why it is refused."
+    )
+
+    both = sorted(frozenset(measured) & frozenset(regions))
+    assert not both, (
+        f"{both} are recorded by objects.py as types whose value encoding is MEASURED and "
+        "decoded, and ALSO as payload regions whose entry states what this module does "
+        "not claim about that same encoding. Both cannot be true, and the entry a reader "
+        "believes decides whether they treat the decode as evidence or as a gap. Cite the "
+        "measurement where the type is decoded and retire the region entry, or drop the "
+        "type from the measured set - do not leave the module saying both."
+    )
+
+
 def test_the_region_table_holds_no_key_nothing_justifies() -> None:
     """The OTHER direction of the completeness check, which was checked one way.
 

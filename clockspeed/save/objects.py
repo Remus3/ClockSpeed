@@ -2519,6 +2519,22 @@ _TAG_EXTRA_STRINGS: Final[Mapping[str, int]] = MappingProxyType(
 #: nowhere. Read the counts off a run of the tests instead - and note that the
 #: two remaining entries below carry no such oracle, which is recorded in
 #: :data:`WIDTH_ONLY_VALUE_TYPES` rather than in a sentence.
+#:
+#: WHAT BOUNDS MEMBERSHIP OF THIS TABLE - CS-481. Placing a word here is what
+#: makes :func:`_byte_order_status` speak about it at all, and a width-1 entry
+#: retires that word's byte-order question on arithmetic alone. Nothing outside
+#: this table used to constrain what may go into it, and that was measured
+#: rather than suspected: three lines - a width-1 entry for a type this module
+#: claims nothing about, its shipping-grounds entry, and holding the word out of
+#: :data:`MEASURED_VALUE_TYPES` - shipped :data:`BYTE_ORDER_VACUOUS` for an
+#: EIGHT-byte type, byte-identical to the clean tree on a machine with no game.
+#: Two library-free controls bound it now, and they are named in the commentary
+#: block below, which is where this module keeps its test citations. WHAT THEY
+#: REFUSE, stated so the table
+#: carries its own bound: a word in here that
+#: :data:`UNMEASURED_PAYLOAD_REGIONS` still records as unclaimed, and a word in
+#: here whose declared-size disagreement the shipped payload walk counts as
+#: unmodelled content rather than as a walk that has lost its place.
 _FIXED_WIDTH_VALUES: Final[Mapping[str, tuple[int, str]]] = MappingProxyType(
     {
         "IntProperty": (4, "<i"),
@@ -2581,6 +2597,27 @@ GUID_BYTES: Final = 16
 #   vacuous with no sentence edited anywhere.
 #   tests/save/test_value_anchoring.py::test_every_one_byte_value_type_
 #   is_recorded_as_byte_order_vacuous is what holds that derivation.
+#
+#   THE WIDTH TABLE'S OWN MEMBERSHIP is what that derivation rests on, and
+#   nothing bounded it until CS-481: a word placed in the table needs no tag
+#   reader, no decoder agreement and no exemption, because the vacuity branch
+#   answers on arithmetic. Two library-free controls bound it now and they read
+#   different things, which is why there are two.
+#   tests/save/test_byte_order_status.py::test_no_word_carries_a_byte_
+#   order_status_the_module_records_as_unclaimed holds the status mapping
+#   against UNMEASURED_PAYLOAD_REGIONS, this module's own record of what it
+#   claims nothing about, so a width entry cannot stand while a region entry
+#   contradicts it.
+#   tests/save/test_byte_order_status.py::test_every_fixed_width_word_
+#   is_one_the_shipped_walk_counts_as_measured asks the WALK rather than a set:
+#   a tag declaring a size the table refuses has to come back counted as a
+#   measured type whose bytes disagreed, and not as unmeasured content.
+#   tests/save/test_properties.py::test_no_type_word_sits_on_both_sides_
+#   of_the_module_s_own_split is the same contradiction one table along, over
+#   the measured set rather than over the status data. NEITHER SUBSUMES THE
+#   OTHER and that is measured on the reproduction: it holds its word out of
+#   MEASURED_VALUE_TYPES, so the intersection that one asserts stays empty
+#   while the status mapping contradicts the region table.
 #
 #   THE SURVIVING CANDIDATES are the permutations the VALUE oracles leave
 #   standing beside the identity, which is now none of them.

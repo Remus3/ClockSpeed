@@ -108,10 +108,15 @@ is hypothetical.
   with ``tests/save`` at 1002 passed and 49 skipped ON A MACHINE WITH NO GAME,
   byte-identical to the clean tree there, this module included. With the
   operator's library it is red, by library-backed width oracles in other
-  modules that skip without one. So the sentence this module is entitled to is
-  narrow: NOTHING HERE BOUNDS THE WIDTH TABLE, and a wider type can still reach
-  a byte-order status by being declared one byte wide rather than tag-carried.
-  Filed as CS-481; do not read the exemption's derivation as covering it.
+  modules that skip without one. THAT WAS CS-481 AND IT IS CLOSED ON ITS
+  STATED ACCEPTANCE, not on the width table having become bounded. The two
+  controls at the foot of this module are what red on the reproduction, plus
+  the phase-4 no-install gate that re-runs the same suite behind them; the
+  third control this work added, beside the split check in ``test_properties``,
+  is GREEN on that reproduction and is named here because a count of three
+  invites the wrong mapping. What a widening still costs, and the routes that
+  still work, are written down where those controls live rather than claimed
+  here - and one of them needs no width entry at all.
 
   THE FOURTH WORD, which is worse than everything above it and was found by an
   attacker after the spelling pin had already landed. Pinning three spellings
@@ -205,7 +210,7 @@ from typing import Final
 import pytest
 
 from clockspeed.save import objects
-from tests.save import test_properties, test_value_anchoring
+from tests.save import synthetic, test_properties, test_value_anchoring
 
 #: The property name the probes decode under. It is joined on by the dispatch
 #: under test, so it has to be the same key in both halves of a probe; nothing
@@ -1388,3 +1393,455 @@ def test_the_cannot_separate_set_is_bounded_without_a_library() -> None:
         "version of the mapping's bound shipped green while recording a byte order for "
         "a length-prefixed type."
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-481 - THE OTHER SUBTRAHEND. What bounds membership of the WIDTH TABLE.
+#
+# The key bound above subtracts two sets from the words the status mapping
+# records: the fixed-width table, and the tag-carried exemption. CS-480 derived
+# the exemption. THE WIDTH TABLE WAS SELF-AUTHORISING - a word placed there
+# needed no reader, no decoder agreement and no exemption, because
+# `objects._byte_order_status` calls any width-1 entry vacuous on arithmetic
+# alone and the mapping is a comprehension over that table.
+#
+# THE REPRODUCTION, RE-MEASURED HERE BEFORE ANYTHING WAS WRITTEN. Three lines in
+# `objects.py` - a `(1, "<b")` entry for `Int64Property`, its
+# `WIDTH_SHIPPING_GROUNDS` entry, and holding the word out of
+# `MEASURED_VALUE_TYPES` - ship `vacuous_one_byte` for an EIGHT-byte type whose
+# value encoding that module explicitly claims nothing about, at `tests/save`
+# 1055 passed and 49 skipped ON A MACHINE WITH NO GAME, byte-identical to the
+# clean tree there. Each line is load-bearing and was measured alone: the width
+# entry by itself reds four tests, the width entry plus its grounds reds three,
+# and the width entry plus the severed measured set reds two. All three
+# together red nothing.
+#
+# THE TWO ARMS BELOW, AND WHY NEITHER SUBSUMES THE OTHER. They are aimed at
+# different lines of that edit and they read different things.
+#
+#   THE CLAIM ARM asks whether the module CONTRADICTS ITSELF. `objects.py`
+#   carries its own record of what it claims nothing about, and that record is
+#   hand-authored somewhere else entirely, for another purpose, with its own
+#   graded relationships. A word cannot both carry a byte-order status and be
+#   recorded as a region whose value encoding is unclaimed. The pre-existing
+#   split control requires the UNION of the two halves to cover every word the
+#   region table names; it never required the INTERSECTION to be empty, and the
+#   reproduction lives in exactly that gap.
+#
+#   THE WALK ARM asks the SHIPPED PARSER instead of reading a set, and it is
+#   what the third line of the reproduction is aimed past. Severing the width
+#   table from `MEASURED_VALUE_TYPES` does not stop the parser decoding the
+#   word - `objects._decode_value` dispatches on the width table directly - it
+#   changes how `objects._decode_payload` COUNTS a disagreement. MEASURED on the
+#   forged tree: a tag declaring a size the width table refuses comes back
+#   counted as UNMEASURED CONTENT rather than as a walk that is not where it
+#   believes it is. That is the CS-417 conflation the walk's own docstring names
+#   as the half of non-negotiable 7 with no second chance, and it is visible
+#   with no save library at all.
+#
+# WHAT THIS DOES NOT CLOSE. THREE REFUTATION PASSES ATTACKED THIS WORK AND ALL
+# THREE SUCCEEDED, so everything below is measured rather than reasoned, and the
+# drafts that were wrong are recorded rather than deleted.
+#
+#   THE FIRST DRAFT OF THIS PARAGRAPH claimed four shipped-data edits plus one
+#   test-side line still widen the table, and stopped at a red it had measured
+#   at
+#   `test_properties.py::test_the_synthetic_fixture_exercises_every_measured_type_word`.
+#   That red is real; the conclusion drawn from it was not. TWO SEPARATE PASSES
+#   took the route two lines further and it goes GREEN. The "decodable instance
+#   of the type" that red seemed to demand is, for a width-1 lie, one
+#   `struct.pack("<b", ...)` fixture tag and one expected-value line. SIX
+#   LINES - three in `objects.py`, three in `test_properties.py` - ship
+#   `vacuous_one_byte` for an EIGHT-byte type with the whole tree green on a
+#   machine with no game. What the module then does is CLAIM the type in five
+#   places rather than contradict itself in two. That difference is what this
+#   item's acceptance turns on and it is NOT a reason to call the route closed.
+#
+#   THE ROUTE THAT NEEDS NO WIDTH ENTRY AT ALL is cheaper still and is not this
+#   item's mechanism. Writing a word straight into the
+#   `VALUE_BYTE_ORDER_STATUS` literal beside `BoolProperty`, and widening the
+#   two shipped tag-carried sites `_read_tag_header` and `_decode_value` to
+#   admit it, ships `vacuous_one_byte` for an eight-byte type in THREE lines,
+#   all in `objects.py`, with no test-side line at all and the whole tree green.
+#   That is CS-480's disclosed residual - the disclosure priced it as "an edit
+#   to both shipped sites" and never said how cheap both sites are.
+#
+#   WHAT PUTS A WORD IN REACH OF THESE CONTROLS IS THAT THE MODULE NAMES IT,
+#   and the two arms differ on this. Both read tables keyed by type word, so a
+#   type this module has never mentioned walks past the CLAIM arm, which has
+#   nothing to intersect with. The WALK arm does not depend on the word being
+#   named: measured, a never-named type declared one byte wide and severed from
+#   the measured set reds it and nothing else in the suite. So the severance
+#   line is bounded word-agnostically and the contradiction line is bounded
+#   only for the words the region table names.
+#
+# WHAT IS GONE is the three-line route this item was filed on: an edit that
+# leaves the module's own two-way classification contradicting itself while its
+# walk reports a desynchronisation as unmodelled content.
+# ---------------------------------------------------------------------------
+
+#: The property name the payload probes below decode under. The walk joins on
+#: it and nothing else about it turns anything, so it is spelled to be
+#: unmistakably synthetic - a rendered failure here must never read as content
+#: out of a world.
+_PAYLOAD_PROBE_NAME: Final = "ClockspeedProbeProperty"
+
+#: The name that ends a payload's tag run. It is a literal in
+#: :func:`objects._decode_payload` and it is spelled here rather than imported
+#: because there is nothing to import: the walk compares against this word
+#: inline.
+_PAYLOAD_TERMINATOR: Final = "None"
+
+#: A tag's guid-present flag, absent. :func:`objects._skip_guid_flag` accepts 0
+#: and 1 and refuses everything else, and 0 is the shape with no guid to step
+#: over - which is what keeps the probe's value offset free of any arithmetic
+#: this module would have to keep in step with that reader.
+_NO_GUID_FLAG: Final = b"\x00"
+
+#: The text written into each tag-extra string the probe has to present. Its
+#: CONTENT turns nothing - :func:`objects._skip_tag_extra` steps over these
+#: without reading them - so it is spelled to be unmistakably synthetic.
+_PROBE_TAG_EXTRA: Final = "ClockspeedProbeTagExtra"
+
+#: What a property type word ends in. Every one of them does, which is the
+#: structural fact ``test_properties`` grades the whole vocabulary against; it
+#: is used here only to tell a region-table key that names a TYPE from one that
+#: names a run of bytes.
+_TYPE_WORD_SUFFIX: Final = "Property"
+
+#: The one type word whose tag data carries a guid the reader steps over rather
+#: than reads. Spelled once here because two places below need it.
+_STRUCT_WORD: Final = "StructProperty"
+
+#: The size the unmeasured-word control declares. NOTHING TURNS ON THE NUMBER -
+#: a word the walk does not measure is counted before any width is consulted.
+#: It is four so the control presents the same tag shape a real four-byte
+#: scalar does rather than a degenerate one.
+_CONTROL_DECLARED_SIZE: Final = 4
+
+#: WHAT ONE PROBED TAG DID TO THE SHIPPED WALK'S OWN BOOKKEEPING. These name
+#: OUTCOMES rather than counters, because two of the counters mean opposite
+#: things and collapsing them is the conflation
+#: :func:`objects._decode_payload` documents: an unmeasured type is unmodelled
+#: content and says nothing about the walk, while a measured type whose bytes
+#: disagree means the reader is not where it believes it is and every value
+#: after it in the payload is suspect.
+_WALK_DECODED: Final = "decoded"
+_WALK_DISAGREED: Final = "measured_type_whose_bytes_disagreed"
+_WALK_UNMEASURED: Final = "unmeasured_type"
+_WALK_SILENT: Final = "counted_as_nothing"
+_WALK_BROKE: Final = "the_walk_did_not_reach_its_terminator"
+
+
+def _one_tag_payload(word: str, declared_size: int, value: bytes) -> bytes:
+    """One hand-authored payload carrying a single tag of one type word.
+
+    HAND-AUTHORED BYTES, NOT A SLICE OF ANYTHING. Every field below is written
+    here: a property name, a type word, the declared size, the tag's index
+    field, an absent guid flag, the value bytes and the terminator name. The
+    string framing comes from ``tests/save/synthetic.py`` rather than being
+    re-rolled, so a change to the length-prefix shape is felt here too.
+
+    THE VALUE BYTES ARE THE CALLER'S, AND WHAT THAT BUYS TODAY IS SMALLER THAN
+    THE FIRST DRAFT OF THIS PARAGRAPH CLAIMED. It argued the parameter exists
+    because a fixture writing zeros into a run the parser reads structurally can
+    never fail the reader that reads them - which is true of this project and
+    was refuted as a description of this function: EVERY call site below passes
+    ``bytes(n)``, all zeros. So the parameter buys visibility at the call site
+    and nothing else yet, and the zeros are sound here for a reason that does
+    not generalise - none of the three arms turns on the value's CONTENT, only
+    on whether a value came back at all.
+
+    THE TAG-EXTRA SHAPE IS BUILT RATHER THAN AVOIDED, AND AN ADVERSARY IS WHY.
+    The first version of this builder emitted no tag-extra strings, and the
+    words that carry them were filtered out of the CONTROL population with that
+    as the stated reason - while the GRADED arms iterated the width table raw
+    and had no such filter. MEASURED by that pass against the shipped word
+    ``ByteProperty``, which carries one tag-extra string and whose raw shape is
+    genuinely one byte: the probe returned the broken-walk outcome at every
+    size, so a later slice moving that word into the fixed-width table would
+    have been reddened by a message blaming the width table for what was a
+    defect in this builder. Asking :data:`objects._TAG_EXTRA_STRINGS` how many
+    strings the word takes, and adding a StructProperty's stepped-over guid,
+    removes the filter from both places instead of adding one.
+
+    Args:
+        word: The type word the tag declares.
+        declared_size: The size the tag declares for its value.
+        value: The value bytes laid down where the tag says the value begins.
+
+    Returns:
+        A payload beginning at its first tag name and ending at its terminator.
+    """
+    extras = objects._TAG_EXTRA_STRINGS.get(word, 0)  # noqa: SLF001
+    stepped_guid = bytes(objects.GUID_BYTES) if word == _STRUCT_WORD else b""
+    return (
+        synthetic.fstring(_PAYLOAD_PROBE_NAME)
+        + synthetic.fstring(word)
+        + struct.pack("<i", declared_size)
+        + bytes(objects._TAG_INDEX_FIELD_BYTES)  # noqa: SLF001
+        + synthetic.fstring(_PROBE_TAG_EXTRA) * extras
+        + stepped_guid
+        + _NO_GUID_FLAG
+        + value
+        + synthetic.fstring(_PAYLOAD_TERMINATOR)
+    )
+
+
+def _walk_verdict(word: str, declared_size: int, value: bytes) -> str:
+    """What the SHIPPED payload walk made of one probed tag.
+
+    THE VERDICT IS READ OFF THE WALK'S OWN COUNTERS AND NOT OFF A SET. That is
+    the whole reason this exists: whether a type is measured is decidable by
+    reading ``objects.MEASURED_VALUE_TYPES``, and reading it would grade the
+    constant against itself. What the walk DOES with a type is a different
+    fact, and it is the one that reaches a caller.
+
+    THE OUTCOMES ARE EXCLUSIVE BY CONSTRUCTION because the payload carries
+    exactly one tag, so at most one of the walk's three channels can have
+    moved. :data:`_WALK_SILENT` is reachable only if that stops being true, and
+    it is named rather than folded into the broken case so a probe that
+    stops presenting a tag at all is distinguishable from one whose tag was
+    refused.
+
+    Args:
+        word: The type word the tag declares.
+        declared_size: The size the tag declares for its value.
+        value: The value bytes.
+
+    Returns:
+        One of the ``_WALK_*`` outcomes.
+    """
+    body = _one_tag_payload(word, declared_size, value)
+    walked = objects._decode_payload(body, 0, len(body))  # noqa: SLF001
+    if walked is None:
+        return _WALK_BROKE
+    decoded, unmeasured, disagreed, reached = walked
+    if not reached:
+        return _WALK_BROKE
+    if decoded:
+        return _WALK_DECODED
+    if disagreed:
+        return _WALK_DISAGREED
+    if unmeasured:
+        return _WALK_UNMEASURED
+    return _WALK_SILENT
+
+
+def _words_the_module_records_as_unclaimed() -> frozenset[str]:
+    """The type words the region table names and the probe can present.
+
+    DERIVED FROM THE SHIPPED REGION TABLE rather than listed, so a word moved
+    into or out of it moves this population without this module being edited.
+    ONE filter narrows it and it is about what a tag IS, not about what the
+    probe can build: a key that is not a type word at all - the trailing run is
+    one - has no tag to present.
+
+    THERE WAS A SECOND FILTER AND AN ADVERSARY REMOVED IT, WHICH IS RECORDED
+    BECAUSE THE FILTER WAS THE DEFECT. It held out the words carrying tag-extra
+    strings, on the stated ground that :func:`_one_tag_payload` could not build
+    their tag shape. The graded arms that this population controls carried no
+    such filter, so the exclusion narrowed the CONTROL while leaving the arms
+    exposed to exactly the words it admitted were unbuildable. The builder
+    presents the tag-extra shape now, so four more words grade the probe here
+    and no word has to be held out of either place.
+
+    Returns:
+        Every type word the region table records that the probe can present.
+    """
+    return frozenset(
+        word for word in objects.UNMEASURED_PAYLOAD_REGIONS if word.endswith(_TYPE_WORD_SUFFIX)
+    )
+
+
+def test_the_walk_outcome_words_are_pinned_and_distinct() -> None:
+    """The outcome words are what a failure message shows, and no control read them.
+
+    A REFUTATION PASS FOUND THIS AS AN EQUIVALENT MUTANT AND IT IS THE SAME
+    DEFECT THE STATUS WORDS ALREADY HAVE A PIN FOR. Exchanging the string
+    values of :data:`_WALK_DISAGREED` and :data:`_WALK_UNMEASURED` leaves every
+    control here green, because both the data and the yardstick are the same
+    symbol. What it changes is the DIAGNOSTIC: a genuine desynchronisation then
+    reports itself as unmeasured content in the rendered message, which is the
+    exact conflation the arms below exist to refuse, moved from the code into
+    the sentence a reader acts on.
+
+    IT IS A WEAKER PIN THAN THE STATUS ONE AND THE DIFFERENCE IS WORTH STATING.
+    A status word is shipped DATA that something outside this repository reads.
+    These five are internal to this module and reach a reader only through a
+    failure message. That is still a reader, and a control whose message says
+    the opposite of what happened is worse than no message.
+
+    NEEDS NO SAVE LIBRARY - it is a claim about this module.
+    """
+    assert _WALK_DECODED == "decoded"
+    assert _WALK_DISAGREED == "measured_type_whose_bytes_disagreed"
+    assert _WALK_UNMEASURED == "unmeasured_type"
+    assert _WALK_SILENT == "counted_as_nothing"
+    assert _WALK_BROKE == "the_walk_did_not_reach_its_terminator"
+
+    outcomes = (_WALK_DECODED, _WALK_DISAGREED, _WALK_UNMEASURED, _WALK_SILENT, _WALK_BROKE)
+    assert len(set(outcomes)) == len(outcomes), (
+        f"two of the walk outcome words are spelled the same: {outcomes}. Every arm "
+        "below compares a verdict against one of these symbols, so a collapse leaves "
+        "each arm passing while two outcomes that mean opposite things become one."
+    )
+
+
+def test_no_word_carries_a_byte_order_status_the_module_records_as_unclaimed() -> None:
+    """The width table's membership, held against the module's own other half.
+
+    CS-481. A byte-order status is a claim about how a type's bytes are read,
+    and ``objects.UNMEASURED_PAYLOAD_REGIONS`` is where this module records the
+    types it claims nothing about. One word cannot honestly be in both, and
+    until this test existed one could: the reproduction on that item puts
+    ``Int64Property`` into the width table while its region entry goes on
+    saying, in tracked source, that not a width, not a byte order and not an
+    instance count is claimed for it.
+
+    WHY THE PRE-EXISTING SPLIT CONTROL DOES NOT COVER THIS, which is the reason
+    a whole test is spent on one intersection.
+    ``tests/save/test_properties.py::test_every_type_word_the_module_names_is_on_one_side_of_its_own_split``
+    requires every word the region table NAMES to sit in one half or the other.
+    It is a UNION check. A word in BOTH halves satisfies it, and satisfies it
+    more comfortably than a word in either.
+
+    IT IS NOT A TRANSCRIPTION AND THE ASYMMETRY IS WHAT MAKES IT ONE SOURCE
+    RATHER THAN TWO COPIES. Nothing here lists which words may carry a status.
+    The two tables are authored for different jobs in different parts of the
+    module - one drives a decoder, the other records what a later slice still
+    has to measure - and this asserts only that they do not contradict each
+    other.
+
+    NEEDS NO SAVE LIBRARY - it is a claim about the repo, not about a world.
+    """
+    regions = objects.UNMEASURED_PAYLOAD_REGIONS
+    assert regions, (
+        "objects.UNMEASURED_PAYLOAD_REGIONS is empty, so this test grades nothing. An "
+        "empty region table is also the cheapest way to satisfy it, which is why the "
+        "emptiness is refused here rather than left to read as a clean result."
+    )
+    assert objects.VALUE_BYTE_ORDER_STATUS, (
+        "objects.VALUE_BYTE_ORDER_STATUS is empty, so no word can be in both tables and "
+        "this test grades nothing. Deleting the status data is not a way to satisfy it."
+    )
+
+    contradicted = sorted(frozenset(objects.VALUE_BYTE_ORDER_STATUS) & frozenset(regions))
+    assert not contradicted, (
+        f"objects.py records a byte-order status for {contradicted} and ALSO records the "
+        "same word in UNMEASURED_PAYLOAD_REGIONS, where its entry says what this module "
+        "does not claim about that type's value encoding. Both cannot be true. THE "
+        "DIRECTION THAT MATTERS IS THE STATUS: a word reaches the status mapping by "
+        "sitting in the fixed-width table, and membership of that table needs no reader, "
+        "no decoder and no exemption - objects._byte_order_status calls any width-1 entry "
+        f"{objects.BYTE_ORDER_VACUOUS} on arithmetic alone. So the cheap way to retire a "
+        "byte-order question for a type nothing has measured is to declare it one byte "
+        "wide, and this is what refuses it. Either the region entry is stale and the "
+        "measurement that retired it should be cited where the width is shipped, or the "
+        "width entry is a claim the module has not earned - do not delete the region "
+        "entry to silence this."
+    )
+
+
+def test_every_fixed_width_word_is_one_the_shipped_walk_counts_as_measured() -> None:
+    """A width table entry the walk does not treat as measured, asked of the walk.
+
+    CS-481, the arm the reproduction's THIRD line is aimed past. Holding a word
+    out of ``objects.MEASURED_VALUE_TYPES`` while leaving it in the width table
+    does NOT stop the shipped parser decoding it - :func:`objects._decode_value`
+    dispatches on the width table directly. What it changes is how
+    :func:`objects._decode_payload` COUNTS a tag whose declared size the width
+    table refuses. MEASURED on the forged tree: that tag comes back counted as
+    unmeasured content, where every honest member of the table comes back
+    counted as a measured type whose bytes disagreed. Those two counters mean
+    opposite things - one is unmodelled content, the other is a walk that is
+    not where it believes it is - and the walk's own docstring names collapsing
+    them as the half of non-negotiable 7 that has no second chance.
+
+    THE CONTROL RUNS FIRST, AND THE TWO SENTENCES THAT JUSTIFIED IT HERE WERE
+    BOTH MEASURED FALSE BY REFUTATION PASSES. They said a constant probe "would
+    satisfy two of the three" arms and that without the control a builder which
+    stopped presenting a readable tag "would still be graded green". Neither
+    holds: the three arms require three DISTINCT outcome words, so a constant
+    probe satisfies at most ONE of them, enumerated over all five words; and a
+    builder that stops presenting a tag cannot produce the DECODED outcome, so
+    the agreeing arm reds on its own. Do not restore either sentence.
+
+    WHAT THE ARM IS ACTUALLY FOR, measured two ways rather than argued. Sever
+    the shipped walk from :data:`objects.MEASURED_VALUE_TYPES` - so a
+    disagreement is counted as a disagreement unconditionally - AND neuter this
+    arm, and the whole of this module comes back 16 passed: the disagreement arm
+    alone cannot tell a walk that consults the measured set from one that does
+    not, because at width + 1 both count the same way. This arm is what fails
+    there. It also catches the reverse edit, a word added to a string-valued
+    family while its region entry stands, which the arms below never see.
+
+    WHY THE WIDTH IS PROBED AT TWO SIZES. At the declared width the value has
+    to decode, or a table entry could name a width the walk can never reach and
+    the disagreement arm would pass for the wrong reason. At one byte more it
+    has to be REFUSED and counted as a disagreement, which is the arm the
+    severed measured set fails.
+
+    WHAT IS DELIBERATELY NOT ASSERTED HERE, AND A REFUTATION PASS MADE IT
+    SHARPER THAN "NOT ASSERTED". Nothing here says the width is RIGHT - that
+    rests on the operator's library and skips without one. Measured, both arms
+    are narrower than they read. The agreeing arm takes the width out of the
+    shipped table and :func:`objects._decode_fixed_width` tests the declared
+    size against that same table, so NO self-consistent entry can fail it - an
+    entry pairing a width of 1 with a code that unpacks eight bytes was
+    measured passing. And at width + 1 the decode always returns None, so the
+    disagreement arm reduces to asking whether the word is in
+    :data:`objects.MEASURED_VALUE_TYPES`, which is DERIVED from the width
+    table. The edit either arm can catch is an edit to that derivation - which
+    is the reproduction's third line, and is exactly what the wider routes
+    recorded in the block above decline to touch.
+
+    NEEDS NO SAVE LIBRARY - the payloads are hand-authored in this file.
+    """
+    unclaimed = _words_the_module_records_as_unclaimed()
+    assert unclaimed, (
+        "objects.UNMEASURED_PAYLOAD_REGIONS names no type word this probe can present, "
+        "so the control below grades nothing and the arms it serves are ungraded too. "
+        "Either the region table has stopped naming type words, or every word it names "
+        "now carries tag-extra strings the probe's tag shape does not build."
+    )
+    for word in sorted(unclaimed):
+        verdict = _walk_verdict(word, _CONTROL_DECLARED_SIZE, bytes(_CONTROL_DECLARED_SIZE))
+        assert verdict == _WALK_UNMEASURED, (
+            f"objects.py records {word!r} as a payload region whose value encoding it "
+            f"claims nothing about, and the shipped walk reports {verdict!r} for a tag "
+            f"carrying it rather than {_WALK_UNMEASURED!r}. THIS IS THE CONTROL AND NOT "
+            "A FINDING ABOUT THAT WORD: the arms below require this probe to distinguish "
+            "a measured type from an unmeasured one, and a probe that cannot reach the "
+            "unmeasured outcome at all grades them vacuously. Fix the probe before "
+            "reading anything into the arms below."
+        )
+
+    widths = objects._FIXED_WIDTH_VALUES  # noqa: SLF001
+    assert widths, "the shipped fixed-width table is empty, so this test grades nothing"
+
+    for word, (width, _) in sorted(widths.items()):
+        agreeing = _walk_verdict(word, width, bytes(width))
+        assert agreeing == _WALK_DECODED, (
+            f"the shipped fixed-width table gives {word!r} a width of {width}, and a tag "
+            f"declaring exactly that size comes back {agreeing!r} rather than "
+            f"{_WALK_DECODED!r}. A width the walk cannot reach a value through is not a "
+            "measurement of anything, and the disagreement arm below would then pass "
+            "for the wrong reason - it would be refusing a value that never decoded."
+        )
+
+        disagreeing = _walk_verdict(word, width + 1, bytes(width + 1))
+        assert disagreeing == _WALK_DISAGREED, (
+            f"a tag declaring {width + 1} bytes for {word!r}, one more than the width "
+            f"this module ships for it, comes back {disagreeing!r} rather than "
+            f"{_WALK_DISAGREED!r}. THE TWO OUTCOMES MEAN OPPOSITE THINGS and "
+            "objects._decode_payload counts them separately for that reason: "
+            f"{_WALK_UNMEASURED!r} says this project never measured the type and the "
+            f"walk is fine, while {_WALK_DISAGREED!r} says the type IS measured and the "
+            "reader is not where it believes it is. MEASURED: adding a width-1 entry for "
+            "a type objects.py claims nothing about, and holding that word out of "
+            "MEASURED_VALUE_TYPES, ships a byte-order status for it AND makes the walk "
+            "report its desynchronisations as unmodelled content. The width table drives "
+            "the decode directly, so severing it from the measured set does not stop the "
+            "decode - it only stops the walk telling the truth about it."
+        )
