@@ -875,7 +875,7 @@ def test_the_tag_carried_one_byte_values_are_derived_from_the_tag_reader() -> No
 #: table rather than named, so it cannot go stale, and it is the RIGHT shape for
 #: the job: a word already known to read its value from counted stored bytes, so
 #: admitting it to the tag-carried exemption is unambiguously wrong.
-_FORGERY_TARGET: Final = sorted(objects._FIXED_WIDTH_VALUES)[0]  # noqa: SLF001
+_FORGERY_TARGET: Final = min(objects._FIXED_WIDTH_VALUES)  # noqa: SLF001
 
 
 def _tag_byte_decoder(target: str) -> Callable[..., object]:
