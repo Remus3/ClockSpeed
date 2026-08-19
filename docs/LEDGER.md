@@ -73,6 +73,64 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-18 - CS-480 - the tag-carried one-byte exemption is DERIVED from two shipped sites
+Verification: `tests/save/test_byte_order_status.py` plus
+`tests/save/test_byte_order_status.py::test_every_fixed_width_type_the_module_decodes_carries_a_recorded_status`,
+`::test_the_tag_carried_one_byte_values_are_derived_from_the_tag_reader`,
+`::test_the_reader_arm_of_the_exemption_is_load_bearing`,
+`::test_the_decoder_arm_of_the_exemption_is_load_bearing`,
+`::test_each_arm_of_the_tag_byte_predicate_rejects_its_own_counter` and
+`::test_the_dependence_count_reports_a_wider_field_as_wider`. `clockspeed/save/objects.py` is
+UNCHANGED by this item; the whole change is in the test module.
+
+WHAT CLOSED. `_TAG_CARRIED_ONE_BYTE_VALUES`, a hand-written 1-tuple read by exactly one
+assertion, is deleted. The exemption from the byte-order status key bound is now derived by
+asking two shipped functions: `objects._read_tag_header` must hand back a tag-carried value
+byte, AND `objects._decode_value` must build that type's value out of that byte alone. The
+reproduction filed with the item - `"StrProperty": BYTE_ORDER_VACUOUS` in the mapping plus
+`"StrProperty"` in the tuple, green at 31 passed over the two modules with a library - has no
+test-side line left to add and reddens.
+
+THREE INDEPENDENT REFUTATION PASSES RAN AND ALL THREE SUCCEEDED. Do not read this item as a
+clean build. (1) A guard-hole pass showed the reader ALONE only moved the transcription across
+the seam: the reader picks its own population by an ungraded literal, and widening it to
+`Int64Property` plus one mapping line shipped `vacuous_one_byte` - the word asserting the
+question is retired BECAUSE the value is one byte - for an EIGHT-byte type, reproduced by the
+merger at 32 passed. That is what the decoder arm exists for. It also showed an
+extract-method wrapper route that only library-backed anchors caught, so it was green on a
+no-game machine; the library-free module catches it now. (2) A correctness pass measured four
+prose claims FALSE, one of them a live hole: a reader reading TWO bytes at the tag offset while
+advancing ONE left every control green, cursor arm included, with `vacuous_one_byte` still
+shipped for a two-byte value. Closed by `_tag_byte_source_positions`, which counts how many
+body positions the returned tag byte depends on. (3) A third pass against the repair found the
+route recorded as CS-481 below, and a cross-term hole in the new predicate: sampling payload
+dependence at one tag byte and tag dependence at one filler never samples the CROSS term, and a
+decoder returning a STORED byte for one tag byte and a constant for the other was accepted. The
+arms now run over the full cross product.
+
+MUTANT GRADING, MEASURED THIS SESSION: 17 mutants, 16 DETECTED. The one MISSED is weakening the
+dependence assertion itself to a tautology, which nothing else in the module can see - that is
+the emptiness-guard shape CS-473 owns, and it is recorded in that test's docstring rather than
+papered over. An earlier version of the controls returned FOUR MISSED of eleven, including
+deleting the decoder arm outright, because the counters called the predicate directly instead of
+exercising the derivation; that is what the two load-bearing controls were built for.
+
+PROSE MEASURED FALSE AND CORRECTED IN PLACE, none to be rewritten: that the cursor excess IS the
+width of the value field (a padding byte in front of a still-one-byte value reports 2); that
+zeros satisfy EVERY branch (the guid-present branch is unreachable from a zero-filled body, and
+a struct guid is stepped over unread); that the reader "always" walks to a value that fits (false
+at small slack); and the enumeration of three ways the derivation can be wrong, which was four.
+
+RESIDUALS FILED RATHER THAN ABSORBED. CS-481 records the route the third pass found: the key
+bound subtracts the fixed-width table AND this exemption, and only the exemption is derived -
+membership of the WIDTH table is self-authorising, so three lines in `objects.py` ship
+`vacuous_one_byte` for an eight-byte type with `tests/save` at 1002 passed 49 skipped on a
+no-game machine, byte-identical to the clean tree there. Verified by the merger in both
+environments. CS-473 is ENLARGED: the repo's own `unbacked_absolutes` reports this module at 113
+sentences against 70 at `fd9e8dc`, and the module is not in `FENCED_MODULES`, so nothing
+enforces it. No sample repair was made - a partial hand repair with no mechanism is the register
+of pardons that tool's own docstring forbids.
+
 ### 2026-08-18 - CS-421 - CORRECTION to the entry below. A third refutation landed after the commit and it was right
 NOT A COMPLETION RECORD; CS-421 STAYS OPEN. This corrects the record immediately below rather
 than editing it, which is what this file requires.

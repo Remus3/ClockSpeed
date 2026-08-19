@@ -21,6 +21,113 @@ Where current truth actually lives:
 
 ---
 
+## Session 17 wakeup note - relocated 2026-08-18 (session 20)
+
+Moved out of `WAKEUP_NOTES.md` when session 20 landed and that file's two-to-three
+session window closed over it. Relocated, not deleted.
+
+## Session 17 - 2026-08-17 - CS-469 and CS-475 CLOSE; CS-421 stays open on the type nobody scored
+
+- **Shipped: CS-469 CLOSED, CS-475 CLOSED.** CS-421 STAYS OPEN with a ledger record declaring the
+  non-closure by name. Filed CS-476. Suite 2035 -> **2065 passed, 3 skipped, exit 0**, serial and
+  under `-n auto`, baseline measured by the merger itself at `86c9e54` before any slice ran and the
+  delta reconciling exactly as 22 + 8. Drift guard **CLEAN 9/9**, doc budget PASS, bare mypy clean
+  over 83 files, ruff clean. Detail in `docs/LEDGER.md`.
+
+- **THE HEADLINE IS THAT BUILDERS REFUSED REVIEWER PRESCRIPTIONS THREE TIMES AND WERE RIGHT EVERY
+  TIME.** Twice on CS-469 against the merger AND the verifier together, once on CS-475 against the
+  merger. Each refusal was a MEASUREMENT, not an argument. The transferable rule: when a reviewer
+  specifies HOW to fix rather than WHAT PROPERTY MUST HOLD, the specification is usually defeatable
+  and the agent holding the code is the one who can see it.
+
+- **CS-469's real difficulty was never the finding, it was grading it.** The answer - the identity
+  `(0,1,2,3)` - was correct and stable from the first build and was re-derived by three independent
+  routes. What failed, four times, was the control: a green displaced census. Bypasses ran 4 lines,
+  then 6, then a nested-scope parameter shadow (`ast.arg` is not `ast.Name`), each found only
+  because someone went looking after the previous closure was believed final. The shipped fence is
+  three structural rules - one cut of the body, one offset expression, one binding of `value_at` -
+  and the module now enumerates them rather than claiming an absolute, because it claimed one twice.
+
+- **THE MERGER SEEDED A FALSE SENTENCE INTO ITS OWN DISPATCH, AGAIN, AND THEN PRODUCED TWO MORE
+  WRONG VERSIONS OF IT.** "The middle swap moves only the exponent's LSB, so it can change a
+  magnitude by at most a factor of two" was written by the merger, propagated to FOUR sites, and is
+  false - 24% of values move by more than 2x on corpus, and off corpus the flip crosses the
+  subnormal and infinity boundaries (ratio 256, finite -> inf). The merger's first correction,
+  "bounded by approaching 4", was also false. The builder's replacement justification was false a
+  third way: it cited `float32_plausible_if_swapped` (4425 of 31318, 14.13%) as showing the band
+  admits both readings on most values, when that count is the WHOLE-WORD REVERSAL rather than the
+  middle swap and the assertion beside it requires it to be a minority. **Delete was not enough;
+  the fix was to forbid a number and point at the derivation.**
+
+- **Surprises**, each measured:
+  1. **A BUILDER'S OWN PRESCRIBED FIX WOULD HAVE SHIPPED THE HOLE OPEN.** Plumbing the offset into
+     the tally makes slice and reference move together: `misread=0`, the value grade provably blind.
+     Single-slice ownership is what makes a displacement collapse both magnitude oracles instead.
+  2. **`git worktree remove` DELETES THE `.git` MARKER BEFORE THE FILES** - 8/8 rounds showed a
+     populated, unmarked window. A boundary rule relying on the converse of its own statement is
+     false for the duration of every teardown.
+  3. **A TEST SUITE BECAME A WRITER OF SHARED GIT STATE.** CS-475's first control ran
+     `git worktree add/remove/prune` against the real repo root three times per suite run - CS-448's
+     own mechanism, automated, and it probably explains a `locked` file that vanished unexplained.
+  4. **THE MERGER'S OWN MEMBERSHIP RULE REOPENED THE DEFECT.** tracked-or-not-ignored only worked
+     because the harness directory happens to be gitignored; at an un-ignored path the teardown
+     window reopens. The builder measured that rather than implementing it. Three rules were needed.
+  5. **A pid in a plant path landed in the pytest NODE ID** and broke `-n auto` collection - the
+     exact CI invocation the module's own docstring cited. `--collect-only -n auto` passes on both
+     trees and does not catch it.
+  6. **THE MERGER GENERALISED ONE AGENT REPORT INTO A STANDING LESSON WITHOUT MEASURING IT.** The
+     claim that bare `mypy` catches what targeted `mypy` misses did not survive the verifier: the
+     targeted form catches it too, and the suite catches it via `test_mypy_gate`'s repo-wide shell
+     out. The true lesson is narrower - **ruff does not type-check** - and the gate test is what the
+     suite inherits mypy through. It was caught before reaching the ledger.
+  7. **CS-421's remaining work was on its own list since session 14 and nobody had struck it.**
+     `UInt32Property` is a four-byte type the same reader decodes and no oracle scores.
+
+- **Failed paths - do not retry:**
+  - **Prescribing a fix mechanism to a builder without stating the property.** Three for three.
+  - **Deleting a false measured sentence and letting someone write a replacement justification.**
+    Forbid the number; point at a derived fact the suite reddens on.
+  - **A grader sited beside a slice.** It can always be pointed at a different local. Remove the
+    degree of freedom instead.
+  - **Naming a harness directory, or relying on one being gitignored, to bound a walk.**
+  - **Any `git worktree add/remove/prune` against the live repo from a test.** Build a repo in
+    `tmp_path`.
+  - **Verifying parallel safety with `--collect-only -n auto`.** It passes while the real run fails.
+
+- **Next action: CS-476**, and take it BEFORE the `UInt32Property` half of CS-421, so the status
+  artifact is fenced before anyone edits it. It is cheap, library-free and TDD-able: the failing
+  test is the adjudicator's own mutant. Then CS-421's remaining half - either an oracle scoring
+  `UInt32Property`, or a DERIVED status word distinguishing "no oracle written" from "population
+  cannot separate", with the count derived at runtime and NOT the archived `9` from session 14.
+  After that **CS-471** (tier 1, privacy-adjacent), whose surface this session ENLARGED: three
+  library-reaching helpers were added to `tests/save/test_value_anchoring.py`, which still does not
+  call `_assert_library_reach_is_declared`. Measured this session: 8 of 16 modules under
+  `tests/save` reach the library and 5 declare.
+
+
+## CS-455 - detail
+
+Relocated from `ROADMAP.md` 2026-08-18 (session 20) for budget, not deleted. The item
+itself stays OPEN in `ROADMAP.md`.
+
+filed 2026-08-16 (session 13) by the CS-421 builder as a MEASURED residual of its own work, and it is this project's own circularity one layer along. Measured with byte-verified mutants: replacing the whole fixed-width decode with a constant 1 leaves the two new byte-order oracles GREEN, because a small positive constant carries a zero high byte exactly as a real small value does. **THE ORIGINAL NOTE THEN SAID "constant 0 and a large constant both go red, so the blind spot is narrow" AND THAT WAS MEASURED FALSE 2026-08-16 (session 14), one process per constant so no memoised sweep carries a result forward: 0 red, 1 / 255 / 1000 / 65535 / 1000000 ALL GREEN, 16777216 red.** The accepting band is every constant with a zero high byte and a nonzero low byte - not narrow, and the acceptance above is widened accordingly. **THE RANGE FRAMING THAT USED TO SIT HERE - "roughly 1 to 16777215" - WAS MEASURED FALSE 2026-08-17 (session 16), one process per constant: 256 sits inside that range and goes RED, because its low byte is zero.** The two-part rule is the correct statement and the range was an approximation of it that is wrong at every multiple of 256. Deleted rather than re-fitted; do not write a range here. Do not re-derive this by looping mutants inside one process; the sweep is memoised and every later iteration silently reports the first mutant's verdict. **THE FIRST DRAFT OF THE DOCSTRING ATTRIBUTED THIS GAP TO THE ROTATION CONTROL AND THAT WAS FALSE** - under the constant-1 mutant 8 tests red, 7 of them synthetic-fixture tests and the eighth the nested gate that runs them, while `tests/save/test_properties.py::test_the_decode_collapses_when_the_payload_start_is_rotated` stayed green. It could not have done otherwise: it perturbs the WALK, and a fabricated value does not move the walk. So on the real library nothing catches this; only fixtures packed from the same belief the reader unpacks with do, which is CS-421's stated circularity reappearing. Do NOT close this with a synthetic fixture.
+
+
+## CS-458 - detail
+
+Relocated from `ROADMAP.md` 2026-08-18 (session 20) for budget, not deleted. The item
+itself stays OPEN in `ROADMAP.md`.
+
+filed 2026-08-16 (session 14) by the CS-422 adversary and confirmed by the merger from source, no mutation needed. `tests/save/test_properties.py` builds its `shipped` set as `_TAG_EXTRA_STRINGS | _FIXED_WIDTH_VALUES | {GUID_BYTES, _SOFT_OBJECT_TAIL_BYTES}` and `CURSOR_WIDTHS | EXTENT_WIDTHS` equals that same union, so `ungoverned` and `phantom` are empty for any edit to either TABLE. **THAT PHRASING USED TO READ "structurally empty set differences" AND IT OVERSTATES, MEASURED 2026-08-17 (session 16):** the test transcribes `GUID_BYTES` and `_SOFT_OBJECT_TAIL_BYTES` as its own literals while `objects.py` spells them inline, so the two literals do NOT cancel and renaming `GUID_BYTES` in `CURSOR_WIDTHS` alone turns `ungoverned` RED. The acceptance below is unaffected - the table half is what needs independent sources - but the test was kept and re-docstringed rather than deleted, because deleting it would have removed a live transcription check. Five cursor-advancing widths in the same walk are covered by nothing: `_TAG_INDEX_FIELD_BYTES` (`clockspeed/save/objects.py:2608`), `INT32_SIZE`, `UTF16_CHAR_SIZE`, the guid-flag byte literal and the `BoolProperty` in-tag byte literal. **THE ASYMMETRY IS WHAT REMOVES THE "PRIVATE CONSTANTS ARE OUT OF SCOPE" DEFENCE:** `_SOFT_OBJECT_TAIL_BYTES` is private and IS classified while `_TAG_INDEX_FIELD_BYTES` is private and is not, and nothing distinguishes them but who typed which literal. Mis-stating `_TAG_INDEX_FIELD_BYTES` reddens two census tests on their BASELINE with messages naming an innocent width, which is collateral collapse rather than grading.
+
+
+## CS-477 - detail
+
+Relocated from `ROADMAP.md` 2026-08-18 (session 20) for budget, not deleted. The item itself stays OPEN in `ROADMAP.md`.
+
+**MEASURED, all at `tests/save` 1040 passed, exit 0.** (1) `_DISPATCH_SITES` in `tests/save/test_byte_order_status.py` is a hand-written 2-tuple; deleting one entry drops every oracle that entry owns and costs the probe NOTHING, because `_coarseness_observation` reaches its dispatch directly rather than through the tuple - so two line deletions inside that one module restore the zero-coarseness-call state the second refutation closed. (2) An ordinary extract-method refactor - moving `_tally_mantissa_coarseness` behind a helper called from the census - takes the call out of the scanned body while the oracle still runs, and EVERY control passes, which is stealthier than an alias because the neutering patch still bites. A rename dropping the `_tally_` prefix IS caught, but only by `monkeypatch.setattr` raising on a missing attribute, not by the derivation. (3) `_PROBE_VALUE_PAIRS` is graded by nothing: emptying it leaves the module green at 8 passed, and 3 of its 5 shapes cannot move anything under any combination, because both dispatch sites key on IntProperty and FloatProperty alone.
+
+
 ## Rules for this file
 
 - **Relocate, never delete.** When a living file hits its size budget or a note ages out
@@ -1668,6 +1775,13 @@ The code shipped in `60068a9` and `02523f9` and STAYS - the relocated-path form 
 
 ### CS-421 - status history
 
+
+**STATUS 2026-08-18 (session 19) - relocated from `ROADMAP.md` 2026-08-18 (session 20) for budget, not deleted.** ROUTE (b) IS BUILT AND SHIPPED AND CS-421 STILL DOES NOT CLOSE -
+THE REFUSAL IS THE RESULT, NOT AN UNFINISHED ATTEMPT. The full record, every figure and the
+five corrections that landed before it was written are in `docs/LEDGER.md` under the
+2026-08-18 CS-421 entry; they are deliberately not restated here. The word
+`oracle_cannot_separate_readings` ships for `UInt32Property` and is derived by
+`tests/save/test_value_anchoring.py::test_the_cannot_separate_status_is_derived_from_the_oracle`.
 The superseded STATUS blocks from CS-421's `ROADMAP.md` entry, moved here verbatim when that entry alone reached 7841 bytes and carried the file over its WARN budget. The item is OPEN; its current status stays in `ROADMAP.md`. Each block below records at least one sentence that a later session MEASURED FALSE, which is why they are relocated rather than dropped - a reader who does not know which claims were already refuted will rewrite them.
 
 **RELOCATED 2026-08-18 (session 19): the session-18 STATUS and CENSUS blocks below joined them, for the same budget reason. The CENSUS is the derivation of the population CS-421's remaining half turns on, and its fence against recording the item as data-blocked is still binding. Session 19 built the route it sanctioned and REFUSED THE CLOSE - read the current STATUS in `ROADMAP.md` for why, and do not read the census below as licensing a close it does not.**

@@ -31,84 +31,6 @@ the line becomes a pointer.
 
 ---
 
-## Session 17 - 2026-08-17 - CS-469 and CS-475 CLOSE; CS-421 stays open on the type nobody scored
-
-- **Shipped: CS-469 CLOSED, CS-475 CLOSED.** CS-421 STAYS OPEN with a ledger record declaring the
-  non-closure by name. Filed CS-476. Suite 2035 -> **2065 passed, 3 skipped, exit 0**, serial and
-  under `-n auto`, baseline measured by the merger itself at `86c9e54` before any slice ran and the
-  delta reconciling exactly as 22 + 8. Drift guard **CLEAN 9/9**, doc budget PASS, bare mypy clean
-  over 83 files, ruff clean. Detail in `docs/LEDGER.md`.
-
-- **THE HEADLINE IS THAT BUILDERS REFUSED REVIEWER PRESCRIPTIONS THREE TIMES AND WERE RIGHT EVERY
-  TIME.** Twice on CS-469 against the merger AND the verifier together, once on CS-475 against the
-  merger. Each refusal was a MEASUREMENT, not an argument. The transferable rule: when a reviewer
-  specifies HOW to fix rather than WHAT PROPERTY MUST HOLD, the specification is usually defeatable
-  and the agent holding the code is the one who can see it.
-
-- **CS-469's real difficulty was never the finding, it was grading it.** The answer - the identity
-  `(0,1,2,3)` - was correct and stable from the first build and was re-derived by three independent
-  routes. What failed, four times, was the control: a green displaced census. Bypasses ran 4 lines,
-  then 6, then a nested-scope parameter shadow (`ast.arg` is not `ast.Name`), each found only
-  because someone went looking after the previous closure was believed final. The shipped fence is
-  three structural rules - one cut of the body, one offset expression, one binding of `value_at` -
-  and the module now enumerates them rather than claiming an absolute, because it claimed one twice.
-
-- **THE MERGER SEEDED A FALSE SENTENCE INTO ITS OWN DISPATCH, AGAIN, AND THEN PRODUCED TWO MORE
-  WRONG VERSIONS OF IT.** "The middle swap moves only the exponent's LSB, so it can change a
-  magnitude by at most a factor of two" was written by the merger, propagated to FOUR sites, and is
-  false - 24% of values move by more than 2x on corpus, and off corpus the flip crosses the
-  subnormal and infinity boundaries (ratio 256, finite -> inf). The merger's first correction,
-  "bounded by approaching 4", was also false. The builder's replacement justification was false a
-  third way: it cited `float32_plausible_if_swapped` (4425 of 31318, 14.13%) as showing the band
-  admits both readings on most values, when that count is the WHOLE-WORD REVERSAL rather than the
-  middle swap and the assertion beside it requires it to be a minority. **Delete was not enough;
-  the fix was to forbid a number and point at the derivation.**
-
-- **Surprises**, each measured:
-  1. **A BUILDER'S OWN PRESCRIBED FIX WOULD HAVE SHIPPED THE HOLE OPEN.** Plumbing the offset into
-     the tally makes slice and reference move together: `misread=0`, the value grade provably blind.
-     Single-slice ownership is what makes a displacement collapse both magnitude oracles instead.
-  2. **`git worktree remove` DELETES THE `.git` MARKER BEFORE THE FILES** - 8/8 rounds showed a
-     populated, unmarked window. A boundary rule relying on the converse of its own statement is
-     false for the duration of every teardown.
-  3. **A TEST SUITE BECAME A WRITER OF SHARED GIT STATE.** CS-475's first control ran
-     `git worktree add/remove/prune` against the real repo root three times per suite run - CS-448's
-     own mechanism, automated, and it probably explains a `locked` file that vanished unexplained.
-  4. **THE MERGER'S OWN MEMBERSHIP RULE REOPENED THE DEFECT.** tracked-or-not-ignored only worked
-     because the harness directory happens to be gitignored; at an un-ignored path the teardown
-     window reopens. The builder measured that rather than implementing it. Three rules were needed.
-  5. **A pid in a plant path landed in the pytest NODE ID** and broke `-n auto` collection - the
-     exact CI invocation the module's own docstring cited. `--collect-only -n auto` passes on both
-     trees and does not catch it.
-  6. **THE MERGER GENERALISED ONE AGENT REPORT INTO A STANDING LESSON WITHOUT MEASURING IT.** The
-     claim that bare `mypy` catches what targeted `mypy` misses did not survive the verifier: the
-     targeted form catches it too, and the suite catches it via `test_mypy_gate`'s repo-wide shell
-     out. The true lesson is narrower - **ruff does not type-check** - and the gate test is what the
-     suite inherits mypy through. It was caught before reaching the ledger.
-  7. **CS-421's remaining work was on its own list since session 14 and nobody had struck it.**
-     `UInt32Property` is a four-byte type the same reader decodes and no oracle scores.
-
-- **Failed paths - do not retry:**
-  - **Prescribing a fix mechanism to a builder without stating the property.** Three for three.
-  - **Deleting a false measured sentence and letting someone write a replacement justification.**
-    Forbid the number; point at a derived fact the suite reddens on.
-  - **A grader sited beside a slice.** It can always be pointed at a different local. Remove the
-    degree of freedom instead.
-  - **Naming a harness directory, or relying on one being gitignored, to bound a walk.**
-  - **Any `git worktree add/remove/prune` against the live repo from a test.** Build a repo in
-    `tmp_path`.
-  - **Verifying parallel safety with `--collect-only -n auto`.** It passes while the real run fails.
-
-- **Next action: CS-476**, and take it BEFORE the `UInt32Property` half of CS-421, so the status
-  artifact is fenced before anyone edits it. It is cheap, library-free and TDD-able: the failing
-  test is the adjudicator's own mutant. Then CS-421's remaining half - either an oracle scoring
-  `UInt32Property`, or a DERIVED status word distinguishing "no oracle written" from "population
-  cannot separate", with the count derived at runtime and NOT the archived `9` from session 14.
-  After that **CS-471** (tier 1, privacy-adjacent), whose surface this session ENLARGED: three
-  library-reaching helpers were added to `tests/save/test_value_anchoring.py`, which still does not
-  call `_assert_library_reach_is_declared`. Measured this session: 8 of 16 modules under
-  `tests/save` reach the library and 5 declare.
-
 ## Session 18 - 2026-08-18 - CS-476 closes after TWO refutations broke it; CS-421's population derived
 
 - **Shipped: CS-476 CLOSED.** CS-421 STAYS OPEN, with its deciding population DERIVED this session
@@ -326,3 +248,100 @@ the line becomes a pointer.
   surface this session enlarged in the exact channel its guard cannot see:
   `_collect_stored_patterns` and `_score_population` RECEIVE personal data as parameters and
   `_returns_personal_data` reads only `node.returns`. Then CS-477, then CS-479.
+
+## Session 20 - 2026-08-18 - CS-480 CLOSES after THREE refutations; the library grew and the push is blocked
+
+- **Shipped: CS-480 CLOSED.** Filed CS-481 and CS-482; enlarged CS-473. **THE SUITE IS RED AT
+  SESSION END AND IT IS NOT THIS SESSION'S WORK - THAT IS CS-482, READ IT FIRST.** Measured both
+  ways: `12 failed, 2073 passed, 3 skipped, exit 1` on the working tree, and that same clone of `fd9e8dc`, with
+  no working-tree changes at all, gives `12 failed, 2068 passed, 3 skipped` - the SAME twelve
+  tests, the same 3 skips, and exactly the 5 tests this session added as the whole delta. With NO GAME INSTALLED the working tree is **2036 passed, 52 skipped, exit 0**. Session
+  start was 2080 passed 3 skipped exit 0 at `fd9e8dc`, measured by me before any edit. Drift
+  guard and doc budget below. mypy clean 28 and 84, ruff check clean, ruff format clean 84.
+  Detail in `docs/LEDGER.md`.
+
+- **THE HEADLINE IS THAT ALL THREE ADVERSARIES SUCCEEDED AND EACH BROKE THE FIX THE PREVIOUS ONE
+  HAD FORCED.** None of the three findings was reachable from inside the work. The first artifact
+  was right about its acceptance and wrong about its consequence; the second was right about its
+  consequence and had a live hole in the arm that closed it; the third found the route that goes
+  AROUND the whole mechanism, which is CS-481.
+
+- **REFUTATION 1 - ASKING THE READER ONLY MOVED THE TRANSCRIPTION ACROSS THE SEAM.** Deriving the
+  exemption from `objects._read_tag_header` alone LOOKS like a derivation and is not one: the
+  reader picks its own population by a literal nothing grades. Widening it to `Int64Property`
+  plus one mapping line ships `vacuous_one_byte` - the word asserting the byte-order question is
+  retired BECAUSE THE VALUE IS ONE BYTE - for an EIGHT-byte type, at 32 passed, reproduced by me
+  before acting. The old two-line edit had become a new two-line edit, both lines now in
+  `objects.py`. **THE FIX WAS A SECOND SHIPPED SITE:** `objects._decode_value` must build the
+  value out of that byte alone. The same pass also found an extract-method wrapper route caught
+  only by library-backed anchors, so it was GREEN on a no-game machine; the library-free module
+  catches it now.
+
+- **REFUTATION 2 - FOUR PROSE CLAIMS MEASURED FALSE, ONE A LIVE HOLE.** A reader reading TWO
+  bytes at the tag offset while ADVANCING ONE left every control green, cursor arm included,
+  with `vacuous_one_byte` still shipped for a two-byte value. Closed by
+  `_tag_byte_source_positions`, which counts how many body positions the returned tag byte
+  depends on. The other three were prose, corrected in place and NOT to be rewritten: the cursor
+  excess is what the BRANCH consumes and not the value's width (a padding byte in front of a
+  one-byte value reports 2); zeros do NOT satisfy every branch (the guid-present path is
+  unreachable from a zero-filled body, and a struct guid is stepped over unread); and the reader
+  does not "always" walk to a value that fits.
+
+- **REFUTATION 3 - THE ROUTE GOES AROUND THE EXEMPTION, NOT THROUGH IT.** The key bound subtracts
+  the fixed-width table AND the exemption. CS-480 derived the exemption. The WIDTH TABLE IS
+  SELF-AUTHORISING: three lines in `objects.py` ship `vacuous_one_byte` for an eight-byte type
+  with `tests/save` at **1002 passed 49 skipped on a no-game machine, byte-identical to the clean
+  tree there**. I verified in BOTH environments. With a library it is red - I measured 13 failed
+  where the pass reported 1 - but all of those are library-backed width oracles in OTHER modules
+  that skip without one. CS-480's acceptance is about a type NAMED AS TAG-CARRIED, so it closes;
+  this is a different ungraded bound and it is CS-481.
+
+- **MY OWN CONTROLS FAILED THEIR GRADING AND THAT WAS THE MOST USEFUL RESULT OF THE SESSION.**
+  FOUR mutants of eleven came back MISSED, including deleting the decoder arm outright. The
+  counters called the predicate DIRECTLY instead of exercising the derivation, so they graded the
+  function and not its use; and the one shipped counter available was rejected by the wrong arm
+  before the arms under test were consulted. **A COUNTER THAT FIRES THE WRONG ARM GRADES
+  NOTHING.** Rebuilt as two controls that forge a word through each shipped site in turn, plus
+  hand-authored fake decoders per arm. Final battery: **17 mutants, 16 DETECTED.**
+
+- **Surprises**, each measured:
+  1. **THE OPERATOR PLAYED THE GAME WHILE I WORKED AND IT TURNED THE SUITE RED.** Three saves
+     were written to the library at 18:47, 18:52 and 18:57. The walk now raises
+     `ObjectBudgetExceededError` on real bodies. **The pre-push hook runs the whole suite, so the
+     commit is LOCAL-ONLY.** Do not bypass the hook; do not raise `MAX_OBJECTS` as a first move -
+     a budget error is equally the signature of a desynchronised walk. That is CS-482.
+  2. **THE PREDICATE SAMPLED TWO SLICES OF A CROSS PRODUCT AND CALLED IT A CROSS PRODUCT.**
+     Payload-independence was probed only at tag byte 0 and tag-sensitivity only at filler 0x00,
+     so a decoder returning a STORED byte for tag byte 1 and a constant for 0 was ACCEPTED. Both
+     arms now run at every combination.
+  3. **THE ONE MUTANT STILL MISSED IS THE ASSERTION GUTTED TO A TAUTOLOGY.** Nothing else in the
+     module sees the dependence count, so weakening `== 1` to `>= 0` is invisible. That is
+     CS-473's emptiness shape, recorded in the test's own docstring rather than papered over.
+  4. **THE REPO'S OWN TOOL SAYS THIS MODULE GOT WORSE.** `unbacked_absolutes` reports 113
+     sentences against 70 at `fd9e8dc`, and the module is not in `FENCED_MODULES`. I did NOT
+     hand-repair a sample: a partial repair with no mechanism is the register of pardons that
+     tool's docstring forbids. Recorded on CS-473.
+  5. **A SUBAGENT'S NUMBER DID NOT REPRODUCE AND MINE IS THE ONE IN THE LEDGER.** The third pass
+     reported the width-table route as 1 failed with a library; I measured 13. The no-library
+     figure - the load-bearing one - reproduced exactly.
+  6. **THE HARNESS BASH HEREDOC EATS BACKSLASHES**, not only on large payloads. `\x00` became a
+     real NUL byte inside a source file and `\n` became a real newline inside a string literal,
+     twice. Write the payload with the Write tool instead.
+  7. **DOC BUDGET TOOK FIVE RELOCATIONS, NOT SIX TRIMS.** Two new entries put `ROADMAP.md` over
+     its WARN twice. Micro-trimming prose recovered 11 bytes; relocating four NOTE blocks and one
+     status block to `docs/history_notes.md` took it from 60.85 KiB to 57.86 KiB.
+
+- **Failed paths - do not retry:**
+  - **Deriving a bound from ONE shipped site.** If that site picks its own population by an
+    ungraded literal, the derivation is a transcription with extra steps.
+  - **Grading a predicate by calling it directly.** Grade the DERIVATION that uses it, or a
+    mutant deleting the call comes back MISSED.
+  - **A counter drawn from the shipped population when the arms already agree on it.** Forge one.
+  - **Sampling two slices of a cross product.** The cross term is where the hole is.
+  - **Micro-trimming prose to meet a doc budget.** Relocate.
+
+- **Next action: CS-482**, because it blocks the push and the whole suite. Establish whether the
+  new saves mean a genuinely larger world or a desynchronised walk BEFORE touching `MAX_OBJECTS`.
+  Then **CS-481**, using the reproduction on its ROADMAP entry. Then **CS-478**, then **CS-471**
+  (tier 1, privacy-adjacent), then CS-477 - whose measurements are now in `docs/history_notes.md`
+  under **CS-477 - detail** - then CS-479, then CS-470/472/473/474.

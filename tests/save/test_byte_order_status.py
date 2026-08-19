@@ -63,6 +63,56 @@ is hypothetical.
   one-byte types and ``vacuous_one_byte`` against the scored ones. The spellings
   are pinned as literals for that reason and for no other.
 
+  THE EXEMPTED KEY, which used no new status word at all and so tripped nothing
+  that grades words. The key bound below exempts the types whose single byte
+  rides in the TAG rather than in the fixed-width table, and that exemption was
+  a hand-written 1-tuple this module read in exactly one assertion. MEASURED
+  against this module and ``test_value_anchoring`` AS THEY STOOD BEFORE THIS
+  DERIVATION EXISTED, at 31 passed: writing ``StrProperty`` into the shipped
+  mapping AND into that tuple shipped ``vacuous_one_byte`` for a
+  LENGTH-PREFIXED type whose payload opens with an int32 length - retiring that
+  int32's byte-order question with no evidence - with every control green. The
+  objects.py half of that edit was already caught on its own; the tuple was the
+  second line, and the same second line served a FIFTH-WORD route. So the
+  exemption is now ASKED OF THE SHIPPED CODE rather than listed. That is CS-480.
+
+  ASKING THE READER ALONE WAS NOT ENOUGH AND AN ADVERSARY MEASURED IT, which is
+  why this paragraph names two sites. :func:`objects._read_tag_header` returns
+  the byte a tag carries as its fourth element - but it decides WHICH words get
+  one by a literal of its own that nothing grades, so the two-line edit had
+  merely moved: widening that literal to ``Int64Property`` and recording the
+  word in the shipped mapping ships ``vacuous_one_byte`` for an EIGHT-byte type,
+  GREEN at ``tests/save`` 1048 with the library present. A second route wrapped
+  the reader so ``StrProperty`` reported a tag byte, which the library-backed
+  anchors catch WITH a library and nothing catches without one. So the
+  exemption now requires the reader AND :func:`objects._decode_value` to agree -
+  the decoded value has to move with the tag byte and with no stored byte - and
+  :func:`_value_is_the_tag_byte` is what asks. THE HONEST BOUND: an editor
+  changing BOTH shipped sites still widens the exemption, and what is gone is
+  every route that leaves the shipped decode untouched, plus any test-side line
+  at all. Graded by
+  :func:`test_the_tag_carried_one_byte_values_are_derived_from_the_tag_reader`
+  - declining to read, coming back empty, and saturating are invisible from the
+  bound they serve, and the decoder arm needs HAND-AUTHORED counters because on
+  the shipped tree it and the reader arm admit the same single word.
+
+  THE EXEMPTION IS ONE OF TWO SUBTRAHENDS AND ONLY THIS ONE IS DERIVED, WHICH A
+  THIRD ADVERSARY ESTABLISHED AND WHICH IS RECORDED HERE RATHER THAN LEFT TO BE
+  DISCOVERED AGAIN. The key bound subtracts the fixed-width table AND this
+  exemption. Membership of the WIDTH TABLE is self-authorising: a word placed
+  there needs no tag reader, no decoder agreement and no exemption, and
+  :func:`objects._byte_order_status` calls any width-1 entry vacuous on
+  arithmetic alone. MEASURED: three lines in ``objects.py`` - a width-1 entry
+  for ``Int64Property``, its shipping-grounds entry, and holding it out of
+  ``MEASURED_VALUE_TYPES`` - ship ``vacuous_one_byte`` for an EIGHT-byte type
+  with ``tests/save`` at 1002 passed and 49 skipped ON A MACHINE WITH NO GAME,
+  byte-identical to the clean tree there, this module included. With the
+  operator's library it is red, by library-backed width oracles in other
+  modules that skip without one. So the sentence this module is entitled to is
+  narrow: NOTHING HERE BOUNDS THE WIDTH TABLE, and a wider type can still reach
+  a byte-order status by being declared one byte wide rather than tag-carried.
+  Filed as CS-481; do not read the exemption's derivation as covering it.
+
   THE FOURTH WORD, which is worse than everything above it and was found by an
   attacker after the spelling pin had already landed. Pinning three spellings
   does not BOUND the vocabulary. A new status word - measured with
@@ -146,8 +196,10 @@ from __future__ import annotations
 
 import ast
 import inspect
+import struct
 import textwrap
 from collections import Counter
+from collections.abc import Callable
 from typing import Final
 
 import pytest
@@ -192,7 +244,7 @@ _PROBE_WIDTH: Final = 4
 #: test. A type word is probed with all five and admitted if any pair moves.
 #:
 #: THIS TUPLE IS GRADED BY NOTHING AND THREE OF ITS FIVE PAIRS ARE INERT, both
-#: measured: emptying it entirely leaves this module green at 8 passed, because
+#: measured: emptying it entirely leaves every test in this module green, because
 #: the byte channel alone admits the same two words. It is kept because the reach
 #: count needs the value channel to exercise the two magnitude tallies, and
 #: because a future oracle keyed on a shape the byte channel cannot present would
@@ -205,14 +257,54 @@ _PROBE_VALUE_PAIRS: Final = (
     (("a", "b"), ("c", "d")),
 )
 
-#: The value types whose single byte rides in the TAG rather than in the
-#: fixed-width table, so no width can be derived for them. ``BoolProperty`` is
-#: the whole set: :func:`objects._read_tag_header` takes its byte at a fixed
-#: offset and hands it back separately, which is why ``objects.py`` writes it
-#: into the status mapping explicitly instead of deriving it. Named here so the
-#: key population can be bounded EXACTLY rather than left open to any measured
-#: word - which is what let a length-prefixed type ship as one byte.
-_TAG_CARRIED_ONE_BYTE_VALUES: Final = ("BoolProperty",)
+#: Zero bytes written after a synthetic tag's length-prefixed type word, in
+#: place of every shape the tag grammar can put between the type word and the
+#: value.
+#:
+#: ZEROS CARRY EVERY BRANCH TO A DEFINED ANSWER, which is the whole reason one
+#: body can probe a word whose grammar this module does not know. A zero int32
+#: reads as a declared size of nothing and as an empty length-prefixed string; a
+#: zero flag byte reads as "this tag carries no property guid"; a zero declared
+#: size leaves the value empty. So the reader reaches a verdict for a word
+#: carrying extra strings, for one carrying a struct guid and for one carrying a
+#: byte in its tag alike, WITHOUT this module choosing which of those a word is -
+#: which is exactly the transcription CS-480 was filed to remove.
+#:
+#: TWO THINGS ZEROS DO NOT DO, BOTH MEASURED BY AN ADVERSARY WITH A LINE TRACE
+#: AND BOTH RECORDED HERE BECAUSE THE SENTENCE ABOVE ONCE CLAIMED OTHERWISE. The
+#: guid-PRESENT branch of :func:`objects._skip_guid_flag` is unreachable from a
+#: zero-filled body by construction - a zero flag byte forces the absent path,
+#: so that branch is never taken and this probe says nothing about it. And the
+#: sixteen bytes a ``StructProperty`` tag carries are STEPPED OVER without being
+#: inspected, so no branch reads them and zeros are doing nothing there; any
+#: sixteen bytes would serve. What is claimed is a defined verdict, not branch
+#: coverage.
+#:
+#: THE COUNT IS SLACK AND NOT A MEASUREMENT. It only has to outlast the longest
+#: head the grammar can build, and nothing reads it back. Too short and the
+#: reader returns None rather than a wrong answer - measured at 9, where
+#: ``BoolProperty`` stops reading - and
+#: :func:`test_the_tag_carried_one_byte_values_are_derived_from_the_tag_reader`
+#: reddens on the unread word rather than quietly reporting it unscored.
+_SYNTHETIC_TAG_SLACK: Final = 96
+
+#: The two tag bytes the decoder is asked to turn into a value, and the two
+#: payload fillers it is asked to ignore.
+#:
+#: 0 AND 1 ARE NOT ARBITRARY: the shipped decoder returns None for a tag byte
+#: above 1, so a wider pair would report every word as undecodable and the arm
+#: reading them would reject everything. Two payload fillers that differ in
+#: every bit are what make "no stored byte contributes" a measurement rather
+#: than a hope.
+_TAG_BYTE_PROBES: Final = (0, 1)
+_PAYLOAD_FILLERS: Final = (0x00, 0xFF)
+
+#: The byte written into one body position at a time to find out which positions
+#: the reader's returned tag byte actually depends on. 1 rather than 0xFF on
+#: purpose: it is a legal guid flag and a small declared size, so perturbing a
+#: field the tag byte does not use leaves the tag readable and the position
+#: counts as "no effect" instead of being skipped as unreadable.
+_POSITION_PROBE: Final = 0x01
 
 #: The status words this module knows how to grade. PINNED AS LITERALS, which is
 #: the one deliberate transcription here: these strings are the artifact's
@@ -290,6 +382,207 @@ def _dispatched_tally_names() -> frozenset[str]:
 #: rather than listed, so a type added to the status data is probed without this
 #: module being edited.
 _CANDIDATE_WORDS: Final = frozenset(objects.VALUE_BYTE_ORDER_STATUS)
+
+#: The words the tag reader is asked about. The status data's own keys are the
+#: population that needs a verdict; the fixed-width table is unioned in so the
+#: saturation control below has something that MUST come back without a tag byte
+#: even if a word is dropped from the mapping.
+_PROBED_TAG_WORDS: Final = _CANDIDATE_WORDS | frozenset(objects._FIXED_WIDTH_VALUES)  # noqa: SLF001
+
+
+def _synthetic_tag(word: str) -> bytes:
+    """One hand-authored tag presenting a type word to the shipped reader.
+
+    Args:
+        word: The type word written into the tag.
+
+    Returns:
+        A body whose first byte is where :func:`objects._read_tag_header` begins,
+        being just past a tag's name.
+    """
+    encoded = word.encode("ascii") + b"\x00"
+    return struct.pack("<i", len(encoded)) + encoded + bytes(_SYNTHETIC_TAG_SLACK)
+
+
+def _tag_reader_read(word: str) -> tuple[str, int, int, int | None] | None:
+    """What the shipped tag reader makes of a synthetic tag for one word.
+
+    Args:
+        word: The type word to present.
+
+    Returns:
+        The reader's own four-tuple, or None if the tag does not read.
+    """
+    body = _synthetic_tag(word)
+    return objects._read_tag_header(body, 0, len(body))  # noqa: SLF001
+
+
+def _tag_byte_source_positions(word: str) -> list[int]:
+    """Which body positions the reader's returned tag byte depends on.
+
+    THE WIDTH OF THE TAG-CARRIED FIELD IS A DEPENDENCE COUNT AND NOTHING ELSE
+    MEASURED IT, which an adversary showed by widening the read without moving
+    the cursor. Replacing the reader's one-byte read with a two-byte one while
+    leaving its advance at one byte left the whole save suite GREEN: the cursor
+    arm saw its usual one-byte excess, the probe's own tag byte was 0 either
+    way, and ``objects.VALUE_BYTE_ORDER_STATUS`` went on shipping
+    ``vacuous_one_byte`` for a value that had become two bytes wide. A range
+    check could not have caught it and neither could the cursor.
+
+    HOW IT IS COUNTED. One body position at a time is set to
+    :data:`_POSITION_PROBE` and the tag is re-read. A position counts when the
+    re-read still yields THIS word and the tag byte it hands back differs. A
+    perturbation that stops the tag reading, or that changes the type word
+    itself, is skipped rather than counted - it says nothing about the field.
+
+    Args:
+        word: The type word to probe.
+
+    Returns:
+        The positions the returned tag byte moves with, empty when the word
+        carries no tag byte at all.
+    """
+    body = bytearray(_synthetic_tag(word))
+    baseline = objects._read_tag_header(bytes(body), 0, len(body))  # noqa: SLF001
+    if baseline is None or baseline[3] is None:
+        return []
+    positions = []
+    for index in range(len(body)):
+        held = body[index]
+        body[index] = _POSITION_PROBE
+        got = objects._read_tag_header(bytes(body), 0, len(body))  # noqa: SLF001
+        body[index] = held
+        if got is not None and got[0] == word and got[3] != baseline[3]:
+            positions.append(index)
+    return positions
+
+
+def _value_is_the_tag_byte(word: str, read: tuple[str, int, int, int | None]) -> bool:
+    """Whether the shipped DECODER makes this type's value out of the tag byte alone.
+
+    THIS ARM EXISTS BECAUSE THE READER ALONE WAS REFUTED, and the refutation is
+    recorded here rather than summarised. Asking only
+    :func:`objects._read_tag_header` whether it hands a value byte back moved the
+    hand-written population across the seam instead of removing it: the reader
+    decides by a literal of its own, that literal is graded by nothing, and
+    MEASURED at 32 passed over this module and ``test_value_anchoring`` with the
+    operator's library present, widening it to ``Int64Property`` and recording
+    that word in the shipped mapping ships ``vacuous_one_byte`` - the word that
+    says the byte-order question is retired BECAUSE THE VALUE IS ONE BYTE - for
+    an EIGHT-byte type whose value encoding ``objects.py`` explicitly claims
+    nothing about. The old two-line edit had become a new two-line edit.
+
+    WHAT THE SECOND SITE BUYS, STATED AS A BOUND RATHER THAN AS A CLOSURE. The
+    exemption now requires the reader AND the decoder to agree, and they are
+    separate shipped functions: :func:`objects._decode_value` has to turn the tag
+    byte into this type's value with no stored byte contributing. A word named in
+    the reader and not decoded that way is rejected here. That is NOT a claim
+    that no edit can widen the exemption - an edit to both sites still can, and
+    it changes what the shipped parser DECODES rather than only what a test
+    believes. What is gone is any route that leaves the shipped decode untouched.
+
+    THE THREE ARMS, AND WHY EACH IS NEEDED. The value must decode at all, or an
+    unmeasured type would pass by returning None twice and comparing equal. It
+    must CHANGE with the tag byte, or a type whose value ignores that byte would
+    qualify. And it must NOT change with the payload, or a length-prefixed type
+    handed a tag byte would qualify on the strength of bytes the tag byte had no
+    part in - which is the second refuted route exactly.
+
+    THE ARMS RUN OVER THE FULL CROSS PRODUCT BECAUSE SAMPLING TWO SLICES OF IT
+    WAS REFUTED. An earlier version held the payload at one filler while varying
+    the tag byte and held the tag byte at one value while varying the filler, so
+    the CROSS TERM - payload dependence at the tag byte that would actually carry
+    data - was never sampled. MEASURED in process against the shipped helpers: a
+    decoder returning a constant for tag byte 0 and a STORED byte for tag byte 1
+    was accepted, which is the exact shape the payload arm exists to reject. Both
+    arms are now required at every combination.
+
+    TWO THINGS THE PROBE STANDS IN FOR, STATED BECAUSE THEY BOUND WHAT ANY
+    VERDICT HERE MEANS. The declared size the reader hands back is always 0,
+    because :func:`_synthetic_tag` writes zeros where that int32 lands - so a
+    shipped branch gated on a zero size is fully visible here and invisible in a
+    real save. And the payload body is UNIFORM, so a decoder reading two
+    different payload offsets cannot be told from one reading none; what the
+    payload arm detects is dependence on the payload's VALUE, not on its shape.
+
+    Args:
+        word: The type word being judged.
+        read: What :func:`objects._read_tag_header` returned for it.
+
+    Returns:
+        True when the decoded value moves with the tag byte and with nothing else.
+    """
+    _, value_at, size, _ = read
+    span = value_at + size + _SYNTHETIC_TAG_SLACK
+
+    def decoded(tag_byte: int, filler: int) -> object:
+        return objects._decode_value(  # noqa: SLF001
+            bytes([filler]) * span, word, value_at, size, tag_byte
+        )
+
+    readings = {
+        (tag_byte, filler): decoded(tag_byte, filler)
+        for tag_byte in _TAG_BYTE_PROBES
+        for filler in _PAYLOAD_FILLERS
+    }
+    if any(value is None for value in readings.values()):
+        return False
+    moves_with_the_tag = all(
+        any(
+            readings[(tag_byte, filler)] != readings[(_TAG_BYTE_PROBES[0], filler)]
+            for tag_byte in _TAG_BYTE_PROBES[1:]
+        )
+        for filler in _PAYLOAD_FILLERS
+    )
+    ignores_the_payload = all(
+        readings[(tag_byte, filler)] == readings[(tag_byte, _PAYLOAD_FILLERS[0])]
+        for tag_byte in _TAG_BYTE_PROBES
+        for filler in _PAYLOAD_FILLERS
+    )
+    return moves_with_the_tag and ignores_the_payload
+
+
+def _tag_carried_one_byte_values() -> frozenset[str]:
+    """The type words the shipped tag reader hands a value byte back for.
+
+    THIS IS THE POPULATION CS-480 EXISTS TO DERIVE. It was a hand-written 1-tuple
+    read by exactly one assertion. MEASURED at 31 passed over this module and
+    ``test_value_anchoring`` AS THEY STOOD BEFORE THIS FUNCTION EXISTED, ON A
+    MACHINE WITH THE OPERATOR'S LIBRARY - the same two modules skip a third of
+    that on a machine with no game, which is why the figure is qualified:
+    writing
+    ``StrProperty`` into the shipped status mapping AND into that tuple shipped
+    ``vacuous_one_byte`` for a LENGTH-PREFIXED type whose payload opens with an
+    int32 length - retiring that int32's byte-order question with no evidence at
+    all - with every control green. Its objects.py half was caught on its own;
+    the tuple was the second line, and it made the key bound one transcription deep.
+
+    WHAT MAKES A WORD TAG-CARRIED IS NOT ASSERTED HERE, IT IS ASKED - OF TWO
+    SHIPPED SITES, BECAUSE ONE WAS REFUTED. :func:`objects._read_tag_header`
+    returns the byte a tag carries as its fourth element and ``None`` when the
+    tag carries none. That alone is not enough, and the reason is measured on
+    :func:`_value_is_the_tag_byte`: the reader picks its own population by a
+    literal nothing grades, so the exemption could still be widened by two lines
+    - they had merely both moved into ``objects.py``. So a word also has to be
+    one :func:`objects._decode_value` builds out of that byte alone.
+
+    THE BOUND, STATED RATHER THAN LEFT TO BE READ AS A CLOSURE. An editor who
+    changes BOTH shipped sites still widens the exemption. What no longer works
+    is any route that leaves the shipped decode untouched, and there is no
+    test-side line to add at all. A word that does not read reports no verdict
+    and is not counted - a silent route to an empty population, graded by
+    :func:`test_the_tag_carried_one_byte_values_are_derived_from_the_tag_reader`
+    rather than assumed here.
+
+    Returns:
+        Every probed word the reader returns a tag-carried value byte for.
+    """
+    carried: set[str] = set()
+    for word in _PROBED_TAG_WORDS:
+        read = _tag_reader_read(word)
+        if read is not None and read[3] is not None and _value_is_the_tag_byte(word, read):
+            carried.add(word)
+    return frozenset(carried)
 
 
 def _magnitude_observation(word: str, value: object) -> tuple[object, ...]:
@@ -452,11 +745,14 @@ def test_every_fixed_width_type_the_module_decodes_carries_a_recorded_status() -
         f"{objects.BYTE_ORDER_UNSCORED} is."
     )
 
-    ungoverned = sorted(_CANDIDATE_WORDS - decoded - frozenset(_TAG_CARRIED_ONE_BYTE_VALUES))
+    ungoverned = sorted(_CANDIDATE_WORDS - decoded - _tag_carried_one_byte_values())
     assert not ungoverned, (
         f"objects.VALUE_BYTE_ORDER_STATUS records a byte order for {ungoverned}, which is "
-        "not decoded from a fixed number of stored bytes and is not one of the tag-carried "
-        "one-byte values. THE POPULATION IS BOUNDED EXACTLY, and an earlier version of this "
+        "not decoded from a fixed number of stored bytes and is not one the shipped tag "
+        "reader hands a value byte back for. THE EXEMPTION IS DERIVED RATHER THAN LISTED - "
+        "it used to be a hand-written tuple read by this line alone, and adding one word to "
+        "it was the second line of the route below. THE POPULATION IS BOUNDED EXACTLY, and "
+        "an earlier version of this "
         "assertion admitted any word in MEASURED_VALUE_TYPES - which shipped green while the "
         "mapping recorded vacuous_one_byte against StrProperty, a LENGTH-PREFIXED type whose "
         "payload carries an int32 length. That retires an int32 byte-order question with no "
@@ -464,6 +760,352 @@ def test_every_fixed_width_type_the_module_decodes_carries_a_recorded_status() -
         "graded direction fired. A status about a type this reader does not read from a fixed "
         "width is a claim with nothing behind it, whatever the word says."
     )
+
+
+def test_the_tag_carried_one_byte_values_are_derived_from_the_tag_reader() -> None:
+    """The exemption from the key bound is asked of the reader, not transcribed.
+
+    WHAT THIS COVERS AND WHY IT IS A SEPARATE TEST FROM THE BOUND IT SERVES.
+    :func:`test_every_fixed_width_type_the_module_decodes_carries_a_recorded_status`
+    subtracts :func:`_tag_carried_one_byte_values` from the words the shipped
+    mapping records, so a derivation that admitted too much would widen that
+    exemption silently and a derivation that read nothing would narrow it into a
+    false red. Neither failure is visible from inside that test, because both
+    leave it asserting about a set it has no independent handle on.
+
+    FOUR WAYS THE DERIVATION CAN BE WRONG, EACH GRADED BELOW RATHER THAN
+    ASSUMED, AND THE COUNT WAS THREE UNTIL AN ADVERSARY SUPPLIED THE FOURTH. It
+    can fail to READ - a synthetic tag the shipped grammar rejects returns
+    ``None``, which reports as "no tag byte" and is indistinguishable from a
+    real verdict. It can come back EMPTY, which retires the exemption
+    altogether. It can SATURATE onto words whose bytes live in the fixed-width
+    table. And it can admit a word that is in NEITHER - a length-prefixed type,
+    which is CS-480's own defect and which the saturation arm cannot see,
+    because such a word is not in the fixed-width table to intersect with. That
+    fourth one is held by :func:`_value_is_the_tag_byte` rather than by an arm
+    here, and by the two load-bearing controls beside this test.
+
+    THE TWO WIDTH ARMS MEASURE DIFFERENT THINGS AND NEITHER SUBSUMES THE OTHER,
+    which is recorded because a single arm was believed to cover both and did
+    not. A byte read out of a body is in range by construction, so
+    ``0 <= byte < 256`` grades nothing. The DEPENDENCE arm counts how many body
+    positions the returned tag byte moves with, and one is the only honest
+    answer for a one-byte field; a reader widening its read to two bytes was
+    measured GREEN against every other control here, cursor included. The CURSOR
+    arm counts how many bytes the tag-carried branch consumes past a plainly-read
+    control word of the same length, which catches a byte inserted BESIDE the
+    value rather than in it. The cursor arm says nothing about WHICH words are in
+    the reader's set: the tag-carried branch bypasses the extra-string step and
+    advances exactly one, so any word added to that set satisfies it
+    automatically. What bounds the population is :func:`_value_is_the_tag_byte`,
+    whose arms are graded by HAND-AUTHORED counters beside this test, because no
+    word this module can reach distinguishes them on the shipped tree.
+    """
+    unread = sorted(word for word in _PROBED_TAG_WORDS if _tag_reader_read(word) is None)
+    assert not unread, (
+        f"the shipped tag reader declines the synthetic tag built for {unread}, so the "
+        "derivation has no verdict for those words and counts them as carrying no tag "
+        "byte. THAT IS INDISTINGUISHABLE FROM A REAL ANSWER at the call site and it is "
+        "why this is checked here: a grammar change, or a head longer than "
+        f"_SYNTHETIC_TAG_SLACK ({_SYNTHETIC_TAG_SLACK} bytes), silently empties the "
+        "exemption instead of reddening. Lengthen the slack or fix the synthetic tag."
+    )
+
+    carried = _tag_carried_one_byte_values()
+    assert carried, (
+        "the shipped tag reader returns a tag-carried value byte for no probed word at "
+        "all, so the exemption in the key bound is empty. Every word the status mapping "
+        "records that is not in the fixed-width table would then read as ungoverned, "
+        "which is a FALSE RED rather than a hole - but it means this derivation has "
+        "stopped reading the reader and nothing downstream of it means anything."
+    )
+
+    saturated = sorted(carried & frozenset(objects._FIXED_WIDTH_VALUES))  # noqa: SLF001
+    assert not saturated, (
+        f"the derivation reports {saturated} as carrying its value byte in the TAG, and "
+        "the shipped fixed-width table reads those same words from a counted run of "
+        "stored bytes. Both cannot be true of one word, and the direction that matters "
+        "is the exemption: a derivation admitting words it should not admit exempts "
+        "them from the key bound, which is the CS-480 route reopened one layer along - "
+        "a length-prefixed type shipping a byte-order status with nothing behind it."
+    )
+
+    for word in sorted(carried):
+        plain = "Z" * len(word)
+        plain_read = _tag_reader_read(plain)
+        assert plain_read is not None, (
+            f"the control word {plain!r} is the same length as {word!r} and exists only to "
+            "put the reader's cursor where a plainly-read tag leaves it. The reader "
+            "declined it, so there is no cursor to measure the tag-carried word against."
+        )
+        assert plain_read[3] is None, (
+            f"the control word {plain!r} comes back carrying a tag byte of its own, so it "
+            "is not a control: it takes the same branch as the word being measured and "
+            "the difference below would be zero however wide that branch's field is."
+        )
+        read = _tag_reader_read(word)
+        assert read is not None
+        excess = read[1] - plain_read[1]
+        assert excess == 1, (
+            f"the shipped reader puts {word!r}'s value {excess} bytes further into the "
+            f"body than it puts {plain!r}'s, and the two tags are identical up to the "
+            "point where the tag-carried branch begins. THIS IS WHAT THE BRANCH CONSUMES "
+            "AND NOT THE WIDTH OF THE VALUE - an adversary measured a mutant putting a "
+            "padding byte in FRONT of a value that was still one byte, and this arm "
+            "reported 2 while an earlier version of this message called that the value's "
+            "own width. Either reading is a change to the tag grammar that has to be "
+            "re-measured against real saves before any status word here still holds; the "
+            "value's own width is the dependence count below."
+        )
+
+        positions = _tag_byte_source_positions(word)
+        assert len(positions) == 1, (
+            f"the tag byte the reader hands back for {word!r} moves with {len(positions)} "
+            f"body positions, {positions}, and a one-byte field moves with exactly one. "
+            "MEASURED: a reader reading two bytes at that offset while advancing one left "
+            "every other control here green, the cursor arm included, with "
+            "objects.VALUE_BYTE_ORDER_STATUS still shipping vacuous_one_byte for a value "
+            "that had become two bytes wide. Zero positions means the returned byte does "
+            "not come from the body at all; more than one means the status word claiming "
+            "the byte-order question is retired BECAUSE the value is one byte is unbacked."
+        )
+
+
+#: The fixed-width word the arm controls forge against. Taken from the shipped
+#: table rather than named, so it cannot go stale, and it is the RIGHT shape for
+#: the job: a word already known to read its value from counted stored bytes, so
+#: admitting it to the tag-carried exemption is unambiguously wrong.
+_FORGERY_TARGET: Final = sorted(objects._FIXED_WIDTH_VALUES)[0]  # noqa: SLF001
+
+
+def _tag_byte_decoder(target: str) -> Callable[..., object]:
+    """A decoder that builds ``target``'s value out of the tag byte alone.
+
+    Args:
+        target: The word to answer for. Every other word is delegated.
+
+    Returns:
+        A stand-in for :func:`objects._decode_value`.
+    """
+    real = objects._decode_value  # noqa: SLF001
+
+    def decode(body: bytes, type_word: str, at: int, size: int, in_tag_byte: int | None) -> object:
+        if type_word != target:
+            return real(body, type_word, at, size, in_tag_byte)
+        return None if in_tag_byte is None else bool(in_tag_byte)
+
+    return decode
+
+
+def _tag_byte_reader(target: str) -> Callable[..., object]:
+    """A reader that hands ``target`` a tag byte the shipped one does not.
+
+    Args:
+        target: The word to answer for. Every other word is delegated.
+
+    Returns:
+        A stand-in for :func:`objects._read_tag_header`.
+    """
+    real = objects._read_tag_header  # noqa: SLF001
+
+    def read(body: bytes, at: int, end: int) -> tuple[str, int, int, int | None] | None:
+        got = real(body, at, end)
+        if got is None or got[0] != target:
+            return got
+        return (got[0], got[1], got[2], 0)
+
+    return read
+
+
+def test_the_reader_arm_of_the_exemption_is_load_bearing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A word only the DECODER treats as tag-carried is still not exempt.
+
+    WHY THIS FORGES A WORD INSTEAD OF USING A SHIPPED ONE. On the shipped tree
+    the reader arm and the decoder arm admit the SAME single word, so every word
+    this module can reach agrees with both arms and a control built out of them
+    passes with either arm deleted. MEASURED: four mutants came back MISSED
+    against an earlier version of this control that called the predicate
+    directly instead of exercising the derivation, and one of them was deleting
+    the decoder arm from the derivation outright.
+
+    WHAT IT WOULD MEAN IF THIS FAILED. The exemption from the key bound could be
+    widened by an edit to :func:`objects._decode_value` alone, with
+    :func:`objects._read_tag_header` never asked - and the word forged here is
+    one the shipped fixed-width table already reads from counted stored bytes,
+    so its byte order is a live question the exemption would silently retire.
+    """
+    monkeypatch.setattr(objects, "_decode_value", _tag_byte_decoder(_FORGERY_TARGET))
+    assert _FORGERY_TARGET not in _tag_carried_one_byte_values(), (
+        f"with the shipped decoder replaced by one that builds {_FORGERY_TARGET!r}'s value "
+        "out of the tag byte alone, the derivation exempts it - so the exemption asks the "
+        "decoder and not the reader, and the shipped reader hands that word no tag byte at "
+        f"all. {_FORGERY_TARGET!r} is in objects._FIXED_WIDTH_VALUES, so this is not a "
+        "hypothetical widening: it exempts a type whose value IS a counted run of stored "
+        "bytes with a real byte order from the bound that requires one."
+    )
+
+
+def test_the_decoder_arm_of_the_exemption_is_load_bearing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A word only the READER treats as tag-carried is still not exempt.
+
+    THIS IS THE REFUTED ROUTE, RUN IN PROCESS. An adversary widened the shipped
+    reader's own literal to an eight-byte type and recorded that word in the
+    status mapping: ``vacuous_one_byte`` - the word asserting the byte-order
+    question is retired BECAUSE THE VALUE IS ONE BYTE - shipped for a type
+    ``objects.py`` claims no value encoding for at all, GREEN over the whole of
+    ``tests/save`` with the operator's library present. The reader decides its
+    own population by a literal nothing grades, so asking only the reader had
+    MOVED the two-line edit rather than removed it.
+
+    The forgery here is that route with the source edit replaced by a patch,
+    which is why the derivation requires both shipped sites to agree.
+    """
+    monkeypatch.setattr(objects, "_read_tag_header", _tag_byte_reader(_FORGERY_TARGET))
+    assert _FORGERY_TARGET not in _tag_carried_one_byte_values(), (
+        f"with the shipped reader replaced by one that hands {_FORGERY_TARGET!r} a tag byte, "
+        "the derivation exempts it from the key bound - so the exemption asks the reader and "
+        "nothing else, and a reader naming a wider or length-prefixed type then carries the "
+        "whole claim on its own. The shipped decoder reads that word's value from counted "
+        "stored bytes, which is exactly what the second arm is there to notice."
+    )
+
+
+def test_each_arm_of_the_tag_byte_predicate_rejects_its_own_counter() -> None:
+    """The three arms are graded one at a time, by hand-authored decoders.
+
+    NO SHIPPED WORD SEPARATES THESE ARMS, so the counters are fabricated
+    decoders rather than type words - which is also the only way to grade them
+    on a machine with no game. MEASURED against an earlier version that used
+    shipped words as counters: dropping the tag-sensitivity arm left every test
+    green, and so did dropping the payload-insensitivity arm, because the one
+    usable shipped counter was rejected by the undecodable arm before either of
+    them was ever consulted. A counter that fires the wrong arm grades nothing.
+
+    THE ACCEPTING CASE IS PART OF THE CONTROL AND NOT A COURTESY. A predicate
+    that says no to everything satisfies all three rejections and empties the
+    exemption, which reads downstream as a false red rather than as a hole.
+    """
+    read = _tag_reader_read(_FORGERY_TARGET)
+    assert read is not None, "the forgery target does not read, so no arm can be exercised"
+
+    def undecodable(*_args: object) -> object:
+        return None
+
+    def ignores_the_tag(*_args: object) -> object:
+        return True
+
+    def moves_with_the_payload(
+        body: bytes, _word: str, at: int, _size: int, in_tag_byte: int | None
+    ) -> object:
+        return (in_tag_byte, body[at])
+
+    def payload_sourced_at_one_tag_byte(
+        body: bytes, _word: str, at: int, _size: int, in_tag_byte: int | None
+    ) -> object:
+        if in_tag_byte == _TAG_BYTE_PROBES[0]:
+            return False
+        return int(body[at]) + 1
+
+    counters = (
+        (undecodable, "returns None, so the type is not decoded at all"),
+        (ignores_the_tag, "ignores the tag byte, so that byte is not the value"),
+        (
+            moves_with_the_payload,
+            "moves with a stored byte, so the tag byte is not the whole value",
+        ),
+        (
+            payload_sourced_at_one_tag_byte,
+            "sources its value from a stored byte at one tag byte and not the other, "
+            "which two slices of the probe cannot see and which an adversary shipped "
+            "past this predicate",
+        ),
+    )
+    for fake, why in counters:
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(objects, "_decode_value", fake)
+            assert not _value_is_the_tag_byte(_FORGERY_TARGET, read), (
+                f"_value_is_the_tag_byte accepts a decoder that {why}. That arm is doing "
+                "nothing, and with it gone the exemption admits a type whose value is not "
+                "the byte the tag carries - which is the claim vacuous_one_byte makes and "
+                "the reason this predicate exists."
+            )
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(objects, "_decode_value", _tag_byte_decoder(_FORGERY_TARGET))
+        assert _value_is_the_tag_byte(_FORGERY_TARGET, read), (
+            "_value_is_the_tag_byte rejects a decoder that builds the value out of the tag "
+            "byte and nothing else, which is the one shape it exists to accept. Every "
+            "rejection above is vacuous in that state."
+        )
+
+
+def _reader_sourcing_the_tag_byte_from(
+    target: str, positions: tuple[int, ...]
+) -> Callable[..., object]:
+    """A reader whose returned tag byte is built from named body positions.
+
+    THE POSITIONS ARE COUNTED FROM THE END OF THE BODY, which is slack the tag
+    grammar never reaches, so perturbing one of them changes the forged tag byte
+    and nothing else about how the tag parses. That is what makes the count this
+    produces a clean expectation rather than an artefact of the grammar.
+
+    Args:
+        target: The word to answer for. Every other word is delegated.
+        positions: Offsets from the END of the body the forged byte is built from.
+
+    Returns:
+        A stand-in for :func:`objects._read_tag_header`.
+    """
+    real = objects._read_tag_header  # noqa: SLF001
+
+    def read(body: bytes, at: int, end: int) -> tuple[str, int, int, int | None] | None:
+        got = real(body, at, end)
+        if got is None or got[0] != target:
+            return got
+        forged = 0
+        for rank, offset in enumerate(positions):
+            forged += body[len(body) - offset] << (8 * rank)
+        return (got[0], got[1], got[2], forged)
+
+    return read
+
+
+def test_the_dependence_count_reports_a_wider_field_as_wider() -> None:
+    """The width arm counts positions, and the counting itself is graded.
+
+    WHY THIS IS A SEPARATE TEST. The dependence arm beside the cursor arm is the
+    only thing in this module asserting how many body bytes the tag-carried
+    value is built from, so nothing else reddens if that count stops being
+    computed - MEASURED: weakening its assertion to a tautology leaves every
+    test here green, which is the emptiness shape CS-473 owns rather than
+    something this arm can close about itself. What CAN be graded is the counter,
+    against readers whose answer is built from a known number of bytes.
+
+    THE ONE-POSITION CASE IS NOT A COURTESY EITHER. A counter that always
+    reported 2 would satisfy the widened case and fail the shipped tree, and one
+    that always reported 0 would satisfy neither - but a counter that reported 1
+    unconditionally would pass the shipped tree while calling a two-byte field
+    one byte, which is the exact defect the arm exists to catch.
+    """
+    for positions, expected in (((), 0), ((1,), 1), ((1, 2), 2)):
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(
+                objects,
+                "_read_tag_header",
+                _reader_sourcing_the_tag_byte_from(_FORGERY_TARGET, positions),
+            )
+            found = _tag_byte_source_positions(_FORGERY_TARGET)
+            assert len(found) == expected, (
+                f"a reader whose tag byte is built from {len(positions)} body position(s) is "
+                f"reported as depending on {len(found)}, {found}. The count is what stands "
+                "between a one-byte value and a wider one: a reader reading two bytes at the "
+                "tag offset while advancing one was measured GREEN against every other "
+                "control here, so a miscount reopens that route silently."
+            )
 
 
 def test_the_oracles_score_something_and_do_not_score_everything() -> None:
