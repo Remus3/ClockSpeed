@@ -59,7 +59,7 @@ from clockspeed.data.locate import (
     ENV_SAVE_ROOT,
 )
 from clockspeed.save import workdir
-from tests.save import synthetic, test_properties
+from tests.save import reach_guard, synthetic
 
 # ---------------------------------------------------------------------------
 # Paths, derived rather than written down
@@ -1935,9 +1935,9 @@ def test_the_single_writer_detector_actually_detects() -> None:
 # ---------------------------------------------------------------------------
 # CS-471 - THIS MODULE'S LIBRARY REACH, DECLARED.
 #
-# The guard is owned by ``test_properties`` and applied across this package by
-# the suite-wide test that lives beside it, which walks the package directory
-# rather than waiting to be called. Before CS-471 this module touched a library
+# The guard is owned by ``reach_guard`` and applied across this package by
+# the suite-wide test in ``test_reach_guard``, which walks the package
+# directory rather than waiting to be called. Before CS-471 this module touched a library
 # primitive while declaring no reach at all, and the suite had no check that
 # would say so.
 #
@@ -1952,7 +1952,7 @@ _GRADED_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType({})
 #: Asserted still reaching, so a stale exemption reddens the guard.
 _EXEMPT_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType(
     {
-        test_properties.MODULE_SCOPE_REACH: (
+        reach_guard.MODULE_SCOPE_REACH: (
             "Path(__file__).resolve() at module scope, building this repo's "
             "own root and this module's own path as constants. It resolves a "
             "tracked source file, never a save directory and never the "

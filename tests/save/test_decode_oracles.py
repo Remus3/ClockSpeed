@@ -143,7 +143,7 @@ from clockspeed.save import chunks, header, objects, usmap
 # lifted, so that a use site says out loud which module the value came from.
 # That matters most for the two transcribed constants, which are the SUBJECT of
 # the last test here.
-from tests.save import test_properties
+from tests.save import reach_guard, test_properties
 
 #: CS-420 contract markers, read by ``tests/save/test_absolute_claims.py``.
 #:
@@ -1172,9 +1172,9 @@ def test_every_tag_width_is_caught_by_a_library_backed_oracle(
 # ---------------------------------------------------------------------------
 # CS-471 - THIS MODULE'S LIBRARY REACH, DECLARED.
 #
-# The guard is owned by ``test_properties`` and applied across this package by
-# the suite-wide test that lives beside it, which walks the package directory
-# rather than waiting to be called. Before CS-471 this module touched a library
+# The guard is owned by ``reach_guard`` and applied across this package by
+# the suite-wide test in ``test_reach_guard``, which walks the package
+# directory rather than waiting to be called. Before CS-471 this module touched a library
 # primitive while declaring no reach at all, and the suite had no check that
 # would say so.
 #
@@ -1188,7 +1188,7 @@ def test_every_tag_width_is_caught_by_a_library_backed_oracle(
 #: and the key is the function it names rather than a transcription of it,
 #: so a rename moves both together.
 _GRADED_LIBRARY_REACH: Final = MappingProxyType(
-    {_sweep_decode_oracles.__name__: test_properties.REACH_READS_THE_LIBRARY}
+    {_sweep_decode_oracles.__name__: reach_guard.REACH_READS_THE_LIBRARY}
 )
 
 #: Touches a primitive WITHOUT consuming a real save path, name to why.

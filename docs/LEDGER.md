@@ -73,6 +73,77 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-20 - CS-495 - the library-reach guard implementation is relocated out of `test_properties.py` into `tests/save/reach_guard.py`, restoring the margin under the 256 KiB ceiling; a refutation pass REFUTED the first close and was right
+Verification: `tests/save/reach_guard.py` is the guard; `tests/save/test_reach_guard.py` is the
+control set. In particular
+`tests/save/test_reach_guard.py::test_the_module_that_owns_the_guard_is_inside_the_population_it_walks`,
+`::test_no_module_the_collector_skips_defines_a_test`,
+`::test_the_guard_catches_an_uncontained_helper_spliced_into_its_own_source` and
+`::test_no_test_in_this_module_is_gutted_to_an_early_return` are the four this item added. The
+ceiling itself is `tests/data/test_phase2_gate.py::test_no_file_under_tests_is_large_enough_to_be_a_slice_of_real_game_data`,
+whose `_MAX_TEST_FILE_BYTES` is UNCHANGED - diff that file against `1e05233` and it is
+byte-identical. All run with `CLOCKSPEED_GAME_DIR` and `CLOCKSPEED_SAVE_ROOT` pointed at
+directories that do not exist.
+
+WHAT CLOSED. The module is under its ceiling by a margin a session can spend. Read the sizes
+off the tree rather than from here: `test_properties.py` shrank by roughly a third, it is no
+longer the largest authored file under `tests/`, and the comment justifying the number - that
+the ceiling sits "well above the largest authored file" - went from barely true to comfortably
+true without the number moving. **The number was NOT raised**, which the item's fence forbade.
+
+IT WAS A RELOCATION, NOT A REWRITE, AND THAT IS MACHINE-CHECKABLE. Fifty-six top-level
+definitions left `test_properties.py`; every one is byte-identical to its pre-move source,
+verified by parsing both trees and comparing source segments. Nothing was deleted. The
+collected node-id set gained the four tests above and lost nothing at all - five test functions
+changed module and no test id disappeared.
+
+WHAT STAYED, AND WHY. `test_properties.py` keeps its own `_GRADED_LIBRARY_REACH` and
+`_EXEMPT_LIBRARY_REACH`, and the checks that grade THAT file rather than the guard. The five
+controls that plant a module and demand a verdict moved to `test_reach_guard.py`, which is not
+a new module - session 24 created it and it grew here.
+
+THE BLAST RADIUS IS TWELVE FILES, NOT THREE. Ten sibling modules took import rewiring and had
+the sentence "The guard is owned by `test_properties`" corrected. A verification pass named
+that omission in the first draft of this entry.
+
+**TWO REFUTATION PASSES REFUTED THE FIRST CLOSE AND BOTH WERE RIGHT.** Every finding was
+reproduced by the merger before anything changed.
+
+- **A test planted in `reach_guard.py` runs zero times and nothing says so.** Pytest does not
+  collect it, and no gutting guard reads it. Pre-move the guard's owner was a collected test
+  module, so this property was graded; after the move it was not. **The CLASS is older than
+  this item** - the same plant in `tests/save/synthetic.py` survives on `1e05233` too - but the
+  guard-owning file's membership in it is new. Closed by
+  `::test_no_module_the_collector_skips_defines_a_test`, which covers both modules and both
+  shapes, the `test_`-named function and the `Test*` class.
+- **The margin on the guard's own source dropped from eleven reddening tests to one**, because
+  `reach_guard.py` cannot carry the per-module splice control every consumer carries. Closed by
+  `::test_the_guard_catches_an_uncontained_helper_spliced_into_its_own_source`, which derives
+  the guard's path from its own code object rather than naming it.
+- **Three sentences this item authored were measured false and are corrected in place.** A
+  claim that each consuming module keeps three checks - only two of the five call
+  `_assert_no_test_is_gutted` at all; a module COUNT written into the same file that had just
+  deleted a different stale count on the grounds that CLAUDE.md section 4 forbids one; and a
+  `:func:` role plus a "THIS MODULE'S OWN planted control" that stopped resolving when the
+  guard moved one file away. Do not rewrite them back.
+
+**A PRE-EXISTING TAUTOLOGY WAS FOUND WHILE READING THE MOVED CODE and is filed as CS-497.**
+`_LIBRARY_PRIMITIVES` is derived as the locators unioned with the vocabulary minus the
+exclusions, so `::test_the_reach_primitives_partition_the_filesystem_vocabulary`'s inclusion
+assertion reduces to `A <= B | A`. An unclassified name added to the vocabulary leaves that
+test green - measured. The comment claiming "a name can be excluded, but it cannot be
+forgotten" was false and is corrected in place. **CS-498** is the other pre-existing hole found
+here: the guard cannot detect a self-exemption in its own source, measured green on BOTH trees.
+
+**THIS ITEM MOVED THE SUBJECT OF THREE OTHER RECORDS, AND THEY ARE RE-POINTED RATHER THAN LEFT
+TO A FUTURE GREP.** CS-494's acceptance named `test_properties._bound_parameter_annotations`,
+which is now `reach_guard._bound_parameter_annotations`. CS-473's subject was one module's
+prose and is now three. And **this entry corrects two earlier ledger records**, which are
+append-only and therefore not edited: the CS-471 entry above cites three tests at
+`tests/save/test_properties.py::` that are now at `tests/save/test_reach_guard.py::`, and the
+CS-491 entry says "The guard itself stays in `tests/save/test_properties.py`" and "The guard
+implementation stayed put" - both true when written, both false as of this item.
+
 ### 2026-08-20 - CS-491 - the reach guard's aliasing, cross-module and wrapper routes are closed by RESOLUTION rather than by a wider name list; TWO REFUTATION PASSES REFUTED IT FIRST AND BOTH WERE RIGHT
 Verification: `tests/save/test_reach_guard.py`, which is the whole control set - in particular
 `::test_a_primitive_reached_through_an_alias_is_named_by_the_guard` (fourteen routes),

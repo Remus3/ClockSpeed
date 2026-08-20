@@ -78,7 +78,7 @@ from clockspeed.data import locate
 # format constant and no builder opinion crosses this import, so control 1's
 # independence claim in the module docstring is untouched. See the CS-429
 # section at the foot of this file.
-from tests.save import synthetic, test_properties
+from tests.save import reach_guard, synthetic, test_properties
 
 # ---------------------------------------------------------------------------
 # The independent minimal reader.
@@ -1382,11 +1382,10 @@ def test_every_library_reaching_function_here_is_declared() -> None:
     Keyed that way because the inverted alternative has already shipped here
     once: a guard keyed on the CONTAINED entry point detects safe helpers and is
     blind to unsafe ones, so every assertion in it stays true while the module
-    leaks. The guard is owned by ``test_properties`` and consumed here, so the
-    three sibling modules share one implementation rather than three
-    transcriptions.
+    leaks. The guard is owned by ``reach_guard`` and consumed here, so the
+    sibling modules share one implementation rather than a transcription each.
     """
-    test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+    reach_guard._assert_library_reach_is_declared(  # noqa: SLF001
         Path(__file__), graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
     )
 
@@ -1412,14 +1411,14 @@ def test_the_guard_catches_a_spliced_uncontained_helper(tmp_path: Path) -> None:
     )
 
     with pytest.raises(AssertionError) as caught:
-        test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+        reach_guard._assert_library_reach_is_declared(  # noqa: SLF001
             spliced, graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
         )
     assert "_spliced_uncontained_helper" in str(caught.value)
 
     # The positive control: the same guard on the unspliced source passes, so
     # the red above is the splice rather than the guard rejecting everything.
-    test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+    reach_guard._assert_library_reach_is_declared(  # noqa: SLF001
         Path(__file__), graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
     )
 

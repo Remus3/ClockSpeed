@@ -213,7 +213,7 @@ from clockspeed.save import chunks, header, objects, workdir, world
 # `test_properties` supplies the CONTAINED discovery, the two forced-failure
 # pairs and the library-reach guard, all imported rather than transcribed - see
 # the CS-429 section at the foot of this file.
-from tests.save import synthetic, test_properties
+from tests.save import reach_guard, synthetic, test_properties
 
 # ---------------------------------------------------------------------------
 # Paths, derived rather than written down
@@ -2661,7 +2661,7 @@ _MITIGATION_PATH_IS_NEVER_RAISED: Final = "path-is-never-raised"
 #: WHOLE vocabulary, because the subject differs. A SAVE module has no
 #: legitimate reason to read a file or walk a tree at all, so nothing here is
 #: excluded.
-_FILESYSTEM_PRIMITIVES: Final = test_properties._FILESYSTEM_PRIMITIVES  # noqa: SLF001
+_FILESYSTEM_PRIMITIVES: Final = reach_guard._FILESYSTEM_PRIMITIVES  # noqa: SLF001
 
 
 def _defines_no_code(tree: ast.Module) -> list[str]:
@@ -3309,7 +3309,7 @@ _GRADED_LIBRARY_REACH: Final = MappingProxyType(
 #: name to why. Asserted still reaching, so none outlives its reason.
 _EXEMPT_LIBRARY_REACH: Final = MappingProxyType(
     {
-        test_properties.MODULE_SCOPE_REACH: (
+        reach_guard.MODULE_SCOPE_REACH: (
             "Path(__file__).resolve() at module scope, building this repo's "
             "own root and this module's own path as constants. It resolves a "
             "tracked source file, never a save directory and never the "
@@ -3373,11 +3373,11 @@ def test_every_library_reaching_function_here_is_declared() -> None:
     Keyed that way because the inverted alternative has already shipped in this
     package once: a guard keyed on the CONTAINED entry point detects safe
     helpers and is blind to unsafe ones, so every assertion in it stays true
-    while the module leaks. The guard is owned by ``test_properties`` and
-    consumed here, so the sibling modules share one implementation rather than
-    several transcriptions.
+    while the module leaks. The guard is owned by ``reach_guard`` and consumed
+    here, so the sibling modules share one implementation rather than several
+    transcriptions.
     """
-    test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+    reach_guard._assert_library_reach_is_declared(  # noqa: SLF001
         Path(__file__), graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
     )
 
@@ -3389,7 +3389,7 @@ def test_no_test_in_this_module_is_gutted_to_an_early_return() -> None:
     above are the file's whole contribution to CS-423, and a test cut short
     before its assertions passes exactly as an absent one would.
     """
-    test_properties._assert_no_test_is_gutted(Path(__file__))  # noqa: SLF001
+    reach_guard._assert_no_test_is_gutted(Path(__file__))  # noqa: SLF001
 
 
 def test_the_guard_catches_a_spliced_uncontained_helper(tmp_path: Path) -> None:
@@ -3416,14 +3416,14 @@ def test_the_guard_catches_a_spliced_uncontained_helper(tmp_path: Path) -> None:
     )
 
     with pytest.raises(AssertionError) as caught:
-        test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+        reach_guard._assert_library_reach_is_declared(  # noqa: SLF001
             spliced, graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
         )
     assert "_spliced_uncontained_helper" in str(caught.value)
 
     # The positive control: the same guard on the unspliced source passes, so
     # the red above is the splice rather than the guard rejecting everything.
-    test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+    reach_guard._assert_library_reach_is_declared(  # noqa: SLF001
         Path(__file__), graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
     )
 

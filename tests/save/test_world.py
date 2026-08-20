@@ -122,7 +122,7 @@ from clockspeed.save import chunks, header, objects, usmap, workdir, world
 # is a piece of a containment grader. A third transcription of either is a
 # third place to get it subtly wrong. The module is imported whole so every use
 # site says out loud where the value came from.
-from tests.save import synthetic, test_properties, test_usmap
+from tests.save import reach_guard, synthetic, test_properties, test_usmap
 
 # ---------------------------------------------------------------------------
 # Local constants, so no assertion compares against a bare literal
@@ -2362,7 +2362,7 @@ _GRADED_LIBRARY_REACH: Final = MappingProxyType(
 #: name to why. Asserted still reaching, so none outlives its reason.
 _EXEMPT_LIBRARY_REACH: Final = MappingProxyType(
     {
-        test_properties.MODULE_SCOPE_REACH: (
+        reach_guard.MODULE_SCOPE_REACH: (
             "Path(__file__).resolve() at module scope, building this repo's "
             "own root and this module's own path as constants. It resolves a "
             "tracked source file, never a save directory and never the "
@@ -2406,11 +2406,11 @@ def test_every_library_reaching_function_here_is_declared() -> None:
     An earlier version of this test keyed on the two CONTAINED entry points, so
     a function using the raw locators never entered the flagged set and the
     subset assertion stayed true. It detected safe helpers and was blind to
-    unsafe ones. The guard is owned by ``test_properties`` and consumed here, so
-    the two sibling modules share one implementation rather than two
-    transcriptions.
+    unsafe ones. The guard is owned by ``reach_guard`` and consumed here, so
+    the sibling modules share one implementation rather than a transcription
+    each.
     """
-    test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+    reach_guard._assert_library_reach_is_declared(  # noqa: SLF001
         Path(__file__), graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
     )
 
@@ -2439,14 +2439,14 @@ def test_the_guard_catches_a_spliced_uncontained_helper(tmp_path: Path) -> None:
     )
 
     with pytest.raises(AssertionError) as caught:
-        test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+        reach_guard._assert_library_reach_is_declared(  # noqa: SLF001
             spliced, graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
         )
     assert "_spliced_uncontained_helper" in str(caught.value)
 
     # The positive control: the same guard on the unspliced source passes, so
     # the red above is the splice rather than the guard rejecting everything.
-    test_properties._assert_library_reach_is_declared(  # noqa: SLF001
+    reach_guard._assert_library_reach_is_declared(  # noqa: SLF001
         Path(__file__), graded=_GRADED_LIBRARY_REACH, exempt=_EXEMPT_LIBRARY_REACH
     )
 

@@ -1608,9 +1608,9 @@ def test_a_paragraph_reference_resolves_only_against_a_paragraph_that_opens_that
 # ---------------------------------------------------------------------------
 # CS-471 - THIS MODULE'S LIBRARY REACH, DECLARED.
 #
-# The guard is owned by ``test_properties`` and applied across this package by
-# the suite-wide test that lives beside it, which walks the package directory
-# rather than waiting to be called. Before CS-471 this module touched a library
+# The guard is owned by ``reach_guard`` and applied across this package by
+# the suite-wide test in ``test_reach_guard``, which walks the package
+# directory rather than waiting to be called. Before CS-471 this module touched a library
 # primitive while declaring no reach at all, and the suite had no check that
 # would say so.
 #

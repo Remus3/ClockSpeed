@@ -138,7 +138,7 @@ from clockspeed.save import chunks, header, objects
 # ``_cached_usmap_or_none`` each close a leak their docstrings describe, and the
 # two value-oracle tallies are the SUBJECT of the survivor derivation below, so
 # a transcription of either would grade a copy instead of the shipped judgement.
-from tests.save import test_properties
+from tests.save import reach_guard, test_properties
 
 #: The property terminator, as the shipped walk spells it. A TRANSCRIPTION, and
 #: the only one this module holds: ``objects`` exports no name for it - the
@@ -2339,7 +2339,7 @@ def _hollow_tests(tree: ast.Module) -> list[str]:
 
     WHAT THE SIBLING GUARD SAYS ABOUT ITSELF, quoted rather than paraphrased,
     because an earlier revision of this docstring paraphrased it wrongly.
-    ``test_properties._gutted_tests`` reports an early terminator with dead
+    ``reach_guard._gutted_tests`` reports an early terminator with dead
     statements after it, and its own docstring records that "A test emptied to
     ``pass``, or one whose assertions are rewritten to ``assert True``, leaves
     no unreachable statement and is not detected here." It names ``pass`` and
@@ -2365,7 +2365,7 @@ def _hollow_tests(tree: ast.Module) -> list[str]:
         ``name at line N`` for each test whose body is entirely inert.
     """
     found: list[str] = []
-    for node in test_properties._scanned_functions(tree).values():  # noqa: SLF001
+    for node in reach_guard._scanned_functions(tree).values():  # noqa: SLF001
         if not node.name.startswith("test_"):
             continue
         if all(_is_inert(statement) for statement in node.body):
@@ -2615,7 +2615,7 @@ def _assert_no_test_is_hollow(module_path: Path) -> None:
         module_path: The consuming module's own file.
     """
     tree = ast.parse(module_path.read_text(encoding="utf-8"))
-    tests = [name for name in test_properties._scanned_functions(tree) if name.startswith("test_")]  # noqa: SLF001
+    tests = [name for name in reach_guard._scanned_functions(tree) if name.startswith("test_")]  # noqa: SLF001
     assert tests, f"{module_path.name} defines no test, so this guard is vacuous"
 
     hollow = _hollow_tests(tree)
@@ -2627,9 +2627,9 @@ def _assert_no_test_is_hollow(module_path: Path) -> None:
     )
     # The sibling shape, run here so this module is covered by both rather than
     # by whichever one its author happened to think of.
-    assert not test_properties._gutted_tests(tree), (  # noqa: SLF001
+    assert not reach_guard._gutted_tests(tree), (  # noqa: SLF001
         f"these tests are cut short and everything after the cut is dead: "
-        f"{test_properties._gutted_tests(tree)}"  # noqa: SLF001
+        f"{reach_guard._gutted_tests(tree)}"  # noqa: SLF001
     )
 
 
@@ -3411,9 +3411,9 @@ def test_a_library_less_call_does_not_switch_the_graders_off_for_the_session() -
 # ---------------------------------------------------------------------------
 # CS-471 - THIS MODULE'S LIBRARY REACH, DECLARED.
 #
-# The guard is owned by ``test_properties`` and applied across this package by
-# the suite-wide test that lives beside it, which walks the package directory
-# rather than waiting to be called. Before CS-471 this module touched a library
+# The guard is owned by ``reach_guard`` and applied across this package by
+# the suite-wide test in ``test_reach_guard``, which walks the package
+# directory rather than waiting to be called. Before CS-471 this module touched a library
 # primitive while declaring no reach at all, and the suite had no check that
 # would say so.
 #

@@ -208,3 +208,67 @@ the line becomes a pointer.
 
 - **THE HARNESS HEREDOC ATE MY BACKSLASHES THREE TIMES**, twice on small payloads with quoted
   delimiters. Write such payloads with the Write tool; this is the third session it has bitten.
+
+## Session 25 - 2026-08-20 - CS-495 CLOSES; a refutation pass refuted the first close and was right, and the hole it found was older than the item
+
+- **Shipped: CS-495 CLOSED.** The library-reach guard implementation moved out of
+  `tests/save/test_properties.py` into a new NON-TEST module `tests/save/reach_guard.py`; five
+  controls moved into `tests/save/test_reach_guard.py`. Filed CS-497 and CS-498. `tests/save`
+  with NO GAME **1111 -> 1115 passed, 49 skipped, exit 0**. Detail in `docs/LEDGER.md`.
+
+- **THE BASELINE REPRODUCED EXACTLY** before any of it: 1111 passed, 49 skipped with no game,
+  and 2144 / 52 for the whole suite.
+
+- **THE MOVE IS MACHINE-CHECKABLE AS A MOVE.** Fifty-six top-level definitions left
+  `test_properties.py` and every one is BYTE-IDENTICAL to its pre-move source, verified by
+  parsing both trees. The collected node-id set lost NOTHING - five tests changed module, four
+  were added. Do the same diff on any future relocation; it is cheap and it is the only thing
+  that distinguishes a move from a rewrite.
+
+- **A REFUTATION PASS REFUTED THE FIRST CLOSE WITH A COUNTER-EXAMPLE AND IT WAS RIGHT.** A test
+  planted in `reach_guard.py` runs ZERO TIMES and nothing says so - pytest does not collect a
+  module that is not named `test_*`, and no gutting guard reads it. Pre-move the guard's owner
+  WAS a collected test module, so the property was graded. **The class is older than the item**
+  - the same plant in `tests/save/synthetic.py` survives on `1e05233` too - but the
+  guard-owning file's membership in it is new. Closed by
+  `test_no_module_the_collector_skips_defines_a_test`, which covers both modules and both
+  shapes.
+
+- **THE SECOND FINDING WAS A MARGIN, NOT A HOLE, AND IS WORTH THE SAME ATTENTION.** An
+  undeclared reach planted in the guard's own file reddened ELEVEN tests before the move and
+  ONE after, because `reach_guard.py` cannot carry the per-module splice control every consumer
+  carries. The property was still graded and the margin was one test wide. Restored by
+  `test_the_guard_catches_an_uncontained_helper_spliced_into_its_own_source`.
+
+- **I DELETED A STALE COUNT ON A RULE AND AUTHORED A NEW ONE IN THE SAME FILE IN THE SAME
+  COMMIT.** The prose pass measured it: I removed "five module constants of `test_properties`"
+  citing CLAUDE.md section 4, and four hundred lines away wrote "in the name of sixteen" - the
+  walk covers eighteen. **Knowing the rule is not applying it.** Both numbers are gone now.
+
+- **THREE MORE SENTENCES OF MINE WERE MEASURED FALSE and are corrected in place.** Do not
+  rewrite them back: a claim that each consuming module keeps three checks, when only TWO of
+  the five call `_assert_no_test_is_gutted` at all; a `:func:` role that stopped resolving when
+  the guard moved one file away; and "THIS MODULE'S OWN planted control" in a module that
+  plants nothing.
+
+- **TWO PRE-EXISTING HOLES WERE FOUND BY READING THE MOVED CODE, both measured on BOTH trees.**
+  CS-497: the vocabulary partition is a TAUTOLOGY in its inclusion direction - `_LIBRARY_PRIMITIVES`
+  is derived as locators plus vocabulary minus exclusions, so the assertion reduces to `A <= B | A`
+  and an unclassified name is silently made a reach primitive. The suite DOES go red on that
+  mutant, on two `test_workdir` tests that have nothing to do with the partition - a red for the
+  wrong reason. CS-498: the guard cannot detect a self-exemption in its own source, because every
+  control runs it against a `tmp_path` copy under a different filename.
+
+- **THE MOVE CHANGED THE SUBJECT OF THREE OTHER RECORDS AND THEY ARE RE-POINTED.** CS-494's
+  acceptance named a symbol that moved; CS-473's subject was one module's prose and is now
+  three; and two earlier LEDGER entries cite tests at paths that changed - corrected by the new
+  entry rather than by editing them, since that file is append-only. **When you relocate code,
+  grep the open items and the ledger for its symbols before you close.**
+
+- **A KILL IS NOT A MEASUREMENT UNTIL YOU KNOW WHICH TEST DID IT.** My first mutation battery
+  ran with `-x` and every mutant reddened on
+  `test_phase4_gate::test_the_save_suite_passes_with_no_install_and_no_save`, which reruns the
+  suite in a CHILD process and so reddens on almost anything. Deselect it when attributing.
+
+- **Next action:** CS-496, the doc-budget copytree race - measured on CI, cheap, and it will
+  keep going red at random. Then CS-492/493/494, whose detail blocks each carry a fence.

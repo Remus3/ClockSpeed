@@ -783,9 +783,9 @@ def test_a_module_that_does_not_parse_is_reported_rather_than_resolved() -> None
 # ---------------------------------------------------------------------------
 # CS-471 - THIS MODULE'S LIBRARY REACH, DECLARED.
 #
-# The guard is owned by ``test_properties`` and applied across this package by
-# the suite-wide test that lives beside it, which walks the package directory
-# rather than waiting to be called. Before CS-471 this module touched a library
+# The guard is owned by ``reach_guard`` and applied across this package by
+# the suite-wide test in ``test_reach_guard``, which walks the package
+# directory rather than waiting to be called. Before CS-471 this module touched a library
 # primitive while declaring no reach at all, and the suite had no check that
 # would say so.
 #

@@ -1,26 +1,22 @@
-"""The controls that grade the library-reach guard, CS-491.
+"""The controls that grade the library-reach guard, CS-491 and CS-495.
 
-THE GUARD ITSELF LIVES IN ``tests/save/test_properties.py`` AND STAYS THERE.
-That module owns :func:`~tests.save.test_properties._assert_library_reach_is_declared`
-and is guarded by it, which
-``test_every_library_reaching_function_here_is_declared`` records as deliberate:
-a guard whose owner is outside its own scope is the arrangement that let a third
-sweep ship ungraded one file over. What moved here is the set of controls that
-PLANT a module and require a verdict, and they carry no such property.
+THE GUARD ITSELF LIVES IN ``tests/save/reach_guard.py``. This module holds the
+claims about it: nothing here is imported by the guard, and the guard is
+imported by everything here.
 
-THAT IS A REASON TO MOVE THESE FIRST, NOT A FENCE AROUND THE GUARD. CS-471's
-package-wide walk now applies the guard to EVERY module in this package,
-including whichever one owns it, so relocating the implementation would
-preserve the self-guarding property rather than break it. CS-495 records that,
-and records that the objection which used to block the move no longer holds.
+THE SENTENCE THAT USED TO OPEN THIS FILE SAID THE GUARD LIVED IN
+``test_properties.py`` AND STAYED THERE. It was true when session 24 wrote it
+and CS-495 made it false on purpose - the paragraph below it already recorded
+that the objection behind "stays there" no longer held. The objection was that
+``test_every_library_reaching_function_here_is_declared`` needs the guard's
+owner inside the guard's own scope, since a guard whose owner sits outside it is
+the arrangement that let a third sweep ship ungraded one file over. CS-471's
+package walk globs ``*.py`` rather than test modules, so ``reach_guard`` is
+graded by the guard it defines, and the property is preserved by the move rather
+than broken by it.
 
-WHY THEY MOVED. ``test_properties.py`` reached the 256 KiB ceiling that
-``tests/data/test_phase2_gate.py`` puts on any file under ``tests/`` - a crude
-check whose whole job is to catch a trimmed slice of real game data dropped in
-"just for tests". CLAUDE.md section 4 says relocate rather than delete when a
-budget is hit, and that ceiling's stated premise is that every hand-authored
-module sits far below it. Raising the number would have made that sentence
-false; moving the controls keeps it true.
+WHY BOTH MOVES HAPPENED is recorded once, in ``tests/save/reach_guard.py``'s
+module docstring, and is not restated here.
 
 EVERY CONTROL HERE PLANTS INTO ``tmp_path`` AND NEEDS NO SAVE LIBRARY. They are
 claims about the repository, not about a world, so they run identically on a
@@ -30,13 +26,32 @@ WHAT THEY GRADE, in one line each: that a primitive reached through an alias, a
 wrapper, a subscript, a string or a compound-statement scope is NAMED by the
 guard; that a module reaching only through a sibling is not classed silent; that
 a sibling's EXEMPT helper exports no reach it does not have; that a body handed
-back in another shape propagates; and that the guard's own failure message
-carries function names and never a path.
+back in another shape propagates; that the guard's own failure message carries
+function names and never a path; that the primitive vocabulary is partitioned
+without a leftover; that a module reaching the library and declaring nothing is
+caught; that a declaration outliving its code is caught; and that the gutting
+guard beside it catches a test spliced to an early return.
+
+WHAT IS NOT HERE, and deliberately. A module that CONSUMES the guard keeps the
+checks that grade ITS OWN source: its reaching functions declared, and an
+uncontained helper spliced into a copy of that source caught. Those grade the
+module, not the guard, and moving them here would have graded one file in the
+name of the package.
+
+THAT SENTENCE SAID "THREE CHECKS" AND NAMED A GUTTING CHECK AS THE THIRD, AND A
+REFUTATION PASS MEASURED IT FALSE: of the five modules that self-apply the reach
+guard, only two call ``_assert_no_test_is_gutted`` at all. It is not a rule the
+package follows, it is a habit two modules have. Corrected rather than made true
+by adding the check to three more modules, which would be a different item. It
+also carried a module COUNT, which was stale in the direction that reads as
+smaller; CLAUDE.md section 4 forbids the number here, so it is gone rather than
+re-measured.
 """
 
 from __future__ import annotations
 
 import ast
+import importlib
 from collections.abc import Mapping
 from pathlib import Path
 from types import MappingProxyType
@@ -44,18 +59,27 @@ from typing import Final
 
 import pytest
 
-from tests.save.test_properties import (
+from tests.save import reach_guard
+from tests.save.reach_guard import (
+    _FILESYSTEM_PRIMITIVES,
+    _LIBRARY_LOCATORS,
     _LIBRARY_PRIMITIVES,
+    _NOT_LIBRARY_REACH,
     _PERSONAL_DATA_TYPES,
-    _UNDECLARED_MODULE_SOURCE,
+    _REACH_DECLARATIONS,
     MODULE_SCOPE_REACH,
     _assert_library_reach_is_declared,
+    _assert_no_test_is_gutted,
     _body_wrapping_classes,
+    _calls_any,
     _carries_personal_data,
+    _declaration_verdicts,
     _effective_primitives,
+    _imported_sibling,
     _module_reaches,
     _module_scope_reaches,
     _personal_data_names,
+    _reaching_modules,
     _returns_personal_data,
     _scanned_functions,
     _stands_for_a_primitive,
@@ -1142,9 +1166,14 @@ def test_a_primitive_name_inside_a_collection_literal_binds_no_alias() -> None:
     asserted of that predicate.
 
     WHAT THE WIDENING ACTUALLY COSTS, since the false sentence also overstated
-    that. It does NOT make the guard "flag everything": measured, it adds five
-    module constants of ``test_properties`` to the alias set and leaves the
-    flagged FUNCTION set identical. What it does is make every reach DECLARATION
+    that. It does NOT make the guard "flag everything": measured, it adds a
+    handful of module constants to the alias set and leaves the flagged
+    FUNCTION set identical. THE COUNT THAT USED TO BE HERE WAS FIVE, ALL OF
+    THEM ``test_properties``'; CS-495 split the vocabulary constants into
+    ``reach_guard`` and left the declaration maps behind, so it is now spread
+    over two modules. The count is dropped rather than restated because
+    CLAUDE.md section 4 forbids a measured number in prose and the relocation
+    is exactly how one goes stale. What it does is make every reach DECLARATION
     in this package - each a dict keyed by function name - resolve to a
     primitive, which is a lie waiting for its first caller.
 
@@ -1237,3 +1266,474 @@ def test_the_personal_data_vocabulary_is_not_vacuous() -> None:
             "these - so a graded helper returning one would taint every caller with "
             "a reason describing something the code does not do"
         )
+
+
+def test_no_test_in_this_module_is_gutted_to_an_early_return() -> None:
+    """CS-433 - the guard against the cheapest way to fake a green suite.
+
+    ADDED BY CS-495 RATHER THAN MOVED WITH THE CONTROLS. The five controls below
+    came from ``test_properties``, which carries this check; this module did not,
+    so the relocation would have moved five tests out from under it. The control
+    that follows does end by running the same guard over ``__file__``, so the
+    property was covered incidentally the moment the move landed - and a property
+    held by whichever assertion happens to run last is the arrangement this
+    package has already paid for. It is named here instead.
+    """
+    _assert_no_test_is_gutted(Path(__file__))
+
+
+def test_the_gutting_guard_catches_a_spliced_early_return(tmp_path: Path) -> None:
+    """THE GUARD'S POWER, forced rather than asserted about.
+
+    A guard that returned an empty list on everything would pass on every module
+    and read exactly like this one. The splice is the gutting shape itself,
+    written against a COPY in ``tmp_path``.
+    """
+    spliced = tmp_path / "gutted.py"
+    spliced.write_text(
+        Path(__file__).read_text(encoding="utf-8") + "\n\ndef test_spliced_gutted_case():\n"
+        '    """A test emptied to an early return."""\n'
+        "    return\n"
+        "    assert False\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError) as caught:
+        _assert_no_test_is_gutted(spliced)
+    assert "test_spliced_gutted_case" in str(caught.value)
+
+    # The positive control: the unspliced source passes, so the red above is
+    # the splice rather than a guard that rejects every module.
+    _assert_no_test_is_gutted(Path(__file__))
+
+
+def test_the_reach_primitives_partition_the_filesystem_vocabulary() -> None:
+    """CS-433 - the two primitive lists are ONE list, and the split is declared.
+
+    A HAND-MAINTAINED LIST IS THE THING THAT ROTS, and this package has watched
+    it happen: the reach guard and the save-module grade each carried their own
+    tuple of filesystem names, and the commit that enumerated the path-bearing
+    ones for the grade left the guard naming none of them. Neither list was
+    wrong at the moment it was written and they had drifted apart by the time
+    anyone read both.
+
+    So the vocabulary has one owner and the reach set is DERIVED from it by a
+    partition that must be total.
+
+    WHAT THIS TEST ACTUALLY HOLDS, MEASURED RATHER THAN READ OFF THE ASSERTIONS.
+    The docstring here used to say that adding a name to
+    :data:`~tests.save.reach_guard._FILESYSTEM_PRIMITIVES` either makes it a
+    reach primitive or requires a written reason it is not, "and there is no
+    third outcome that leaves this green". There is no third outcome, and the
+    first one is taken SILENTLY: the reach set is derived as the locators
+    unioned with the vocabulary minus the exclusions, so the inclusion assertion
+    below reduces to ``A <= B | A`` and cannot fail. ``fchmod`` added to the
+    vocabulary and classified nowhere leaves this test green - measured on this
+    tree. What DOES hold here is the exclusion direction, the reason strings,
+    both non-vacuity floors, and the locator separation. Repairing the inclusion
+    direction is filed as its own item; it is not what CS-495 was about.
+    """
+    excluded = frozenset(_NOT_LIBRARY_REACH)
+    assert excluded <= _FILESYSTEM_PRIMITIVES, (
+        f"an exclusion names something outside the vocabulary: "
+        f"{sorted(excluded - _FILESYSTEM_PRIMITIVES)}"
+    )
+    assert (_FILESYSTEM_PRIMITIVES - excluded) <= _LIBRARY_PRIMITIVES, (
+        f"vocabulary members are neither reach primitives nor excluded with a "
+        f"reason: {sorted(_FILESYSTEM_PRIMITIVES - excluded - _LIBRARY_PRIMITIVES)}"
+    )
+    for name, reason in _NOT_LIBRARY_REACH.items():
+        assert reason.strip(), f"{name} is excluded from the reach set with no reason"
+
+    # NON-VACUITY, both halves. An empty vocabulary would satisfy the subset
+    # assertions above, and so would a partition that excluded everything.
+    assert _FILESYSTEM_PRIMITIVES, "the vocabulary is empty, so the partition is vacuous"
+    assert _FILESYSTEM_PRIMITIVES - excluded, "every vocabulary member is excluded from reach"
+
+    # The locators are NOT vocabulary and must not be smuggled into it: they are
+    # project function names, and a partition over them would be meaningless.
+    assert not (_LIBRARY_LOCATORS & _FILESYSTEM_PRIMITIVES), (
+        f"a locator is being carried as filesystem vocabulary: "
+        f"{sorted(_LIBRARY_LOCATORS & _FILESYSTEM_PRIMITIVES)}"
+    )
+    assert _LIBRARY_LOCATORS <= _LIBRARY_PRIMITIVES, "a locator dropped out of the reach set"
+
+
+#: A module that reaches the library and says so nowhere. Written into tmp_path
+#: by the control below rather than into this package, so the tracked tree is
+#: untouched and the guard is put to a module it has genuinely not seen.
+_UNDECLARED_MODULE_SOURCE: Final = """
+from clockspeed.data import locate
+
+
+def _helper_that_reaches():
+    root = locate.resolve_save_root()
+    return locate.resolve_account_dir(root)
+"""
+
+#: A module whose reaching helper hands its caller a DATACLASS holding a body.
+#: This is CS-471's wrapper evasion in its smallest honest form.
+_WRAPPED_BODY_MODULE_SOURCE: Final = """
+from dataclasses import dataclass
+
+from clockspeed.data import locate
+
+
+@dataclass(frozen=True)
+class _Wrapped:
+    body: bytes
+
+
+def _reaches_and_wraps() -> _Wrapped:
+    root = locate.resolve_save_root()
+    account = locate.resolve_account_dir(root)
+    return _Wrapped(body=sorted(account.glob("*.sav"))[0].read_bytes())
+
+
+def _takes_the_wrapper():
+    return _reaches_and_wraps()
+"""
+
+
+def test_the_suite_wide_guard_catches_a_module_that_declares_nothing(tmp_path: Path) -> None:
+    """CS-471 clauses 1 and 2, FORCED rather than asserted about.
+
+    The suite-wide guard is green on this package, and a guard that is green can
+    be green for two reasons: the package is declared, or the guard reports
+    nothing whatever is put to it. This puts a module to it that reaches the
+    library through the raw locators and carries no declarations, and requires
+    the verdict to name it.
+
+    IT IS WRITTEN INTO ``tmp_path`` AND NOT INTO THE PACKAGE, so no tracked file
+    is created, no import cache is disturbed, and the run leaves the tree as it
+    found it.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+    """
+    planted = tmp_path / "test_planted_undeclared.py"
+    planted.write_text(_UNDECLARED_MODULE_SOURCE, encoding="utf-8")
+
+    tree = ast.parse(planted.read_text(encoding="utf-8"))
+    functions = _scanned_functions(tree)
+    primitives = _effective_primitives(tree, _LIBRARY_PRIMITIVES, source=planted)
+    reaching = [name for name, node in functions.items() if _calls_any(node, primitives)]
+    assert reaching == ["_helper_that_reaches"], (
+        f"the planted module was meant to reach the library and the scanner found "
+        f"{reaching}. The control is describing a module that is not the one it wrote."
+    )
+
+    undeclared, rejected = _declaration_verdicts([planted], lambda _path: object())
+    assert undeclared == [planted.name], (
+        f"a module reaching the library through the raw locators and declaring "
+        f"neither map was not reported: undeclared={undeclared}, "
+        f"rejected={[one[0].name for one in rejected]}. "
+        "The suite-wide guard would then be green on this package for a reason that "
+        "has nothing to do with the package being declared."
+    )
+
+
+def test_a_helper_handing_back_a_wrapped_body_is_flagged_as_propagating(
+    tmp_path: Path,
+) -> None:
+    """CS-471 clause 3 - the wrapper evasion, and the OLD rule failing it.
+
+    BOTH RULES ARE RUN ON THE SAME NODE, which is what makes this a measurement
+    of the widening rather than a restatement of it. The old rule read the
+    rendered return annotation for ``Path`` or ``bytes``; a dataclass with a
+    ``body: bytes`` field renders as neither, so a helper handing one back
+    propagated the whole decompressed world past a guard that reported it clean.
+
+    THE CONSEQUENCE IS GRADED TOO, not just the predicate. With the wrapper
+    helper declared, its caller becomes an indirect reach site and the guard has
+    to say so - which is the half that would still be missing if this only
+    checked the boolean.
+
+    THE LIVE INSTANCE IS NOT SYNTHETIC. ``tests/save/test_value_anchoring.py``
+    ships ``_extents_of``, which hands back an ``_Extents`` holding a body; the
+    old rule called it clean and the new one does not.
+
+    IT CHANGES NO VERDICT ON THE SHIPPED PACKAGE TODAY, and that is disclosed
+    rather than left to be discovered. ``_extents_of`` calls no primitive, so it
+    is not a direct reach site and is not graded, and the propagation half is
+    consulted for graded helpers alone. The widening is therefore latent on the
+    real tree and live only on a module like the one planted here - which is
+    exactly why it is planted rather than argued for.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+    """
+    planted = tmp_path / "test_planted_wrapper.py"
+    planted.write_text(_WRAPPED_BODY_MODULE_SOURCE, encoding="utf-8")
+    tree = ast.parse(planted.read_text(encoding="utf-8"))
+    functions = _scanned_functions(tree)
+
+    wrapping = _body_wrapping_classes(tree)
+    assert wrapping == frozenset({"_Wrapped"}), (
+        f"the body-wrapping class walk found {sorted(wrapping)} in a module whose "
+        "only class holds a bytes field. The predicate below would then be "
+        "measuring the walk's silence rather than the widening."
+    )
+
+    node = functions["_reaches_and_wraps"]
+    assert not _returns_personal_data(node), (
+        "the OLD rule already called a wrapped body personal, so this control "
+        "grades nothing and CS-471's clause 3 had no defect to close. Either the "
+        "planted module stopped wrapping or the narrow rule has changed."
+    )
+    assert _returns_personal_data(node, wrapping), (
+        "the widened rule still calls a helper returning a dataclass with a "
+        "bytes field clean, which is exactly the evasion CS-471 was filed on."
+    )
+
+    with pytest.raises(AssertionError) as caught:
+        _assert_library_reach_is_declared(
+            planted,
+            graded={"_reaches_and_wraps": "reaches and hands back a wrapped body"},
+            exempt={},
+        )
+    assert "_takes_the_wrapper" in str(caught.value), (
+        "the caller of the wrapper-returning helper was not reported as an "
+        f"undeclared indirect reach site. The guard said: {caught.value}"
+    )
+
+
+def test_the_module_that_owns_the_guard_is_inside_the_population_it_walks() -> None:
+    """CS-495 - the self-guarding property, PINNED rather than left in prose.
+
+    WHAT CS-495 CLAIMED AND WHAT WAS ACTUALLY HOLDING IT. Moving the guard out of
+    ``test_properties`` was argued on the ground that CS-471's package walk
+    covers every module in this directory, so the guard grades its own source
+    wherever it lives. That is true, and until this test nothing enforced it: a
+    MEASURED MUTANT narrowing :func:`~tests.save.reach_guard._reaching_modules`
+    from ``*.py`` to ``test_*.py`` left the whole suite GREEN with the guard's
+    own module silently outside the population it walks.
+
+    THE MUTANT SURVIVED ON THE PRE-MOVE TREE TOO, so this is not a hole the
+    relocation opened - it is one the relocation made load-bearing. Before the
+    move the only non-test module here was the synthetic corpus, which reaches
+    nothing and declares nothing, so narrowing the glob changed no verdict at
+    all. After it, the same edit drops the guard itself out of scope.
+
+    THE OWNER IS DERIVED, NEVER WRITTEN DOWN. It comes from the guard function's
+    own code object, so if the implementation moves again this test follows it
+    rather than pinning a filename that has stopped being true. A name spelled
+    here would be the transcription the whole guard exists to avoid.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+    """
+    reaching, silent = _reaching_modules()
+    walked = {path.name for path in (*reaching, *silent)}
+
+    assert len(walked) > 1, (
+        f"the package walk found {sorted(walked)}, which is too few modules for "
+        "the membership assertion below to mean anything. Either the package "
+        "moved or the walk has stopped enumerating it."
+    )
+
+    owner = Path(_assert_library_reach_is_declared.__code__.co_filename).name
+    assert owner in walked, (
+        f"{owner} defines the reach guard and is not in the population that guard "
+        f"is applied to: {sorted(walked)}. A guard outside its own scope is the "
+        "arrangement that let a third sweep ship ungraded one file over, and it "
+        "is the exact objection CS-495 answered by pointing at this walk."
+    )
+
+
+def test_no_module_the_collector_skips_defines_a_test() -> None:
+    """A test in a module pytest never collects runs zero times and says nothing.
+
+    THE HOLE THIS CLOSES WAS MEASURED, NOT IMAGINED. A refutation pass on CS-495
+    appended a gutted test - ``return`` before a ``raise`` - to
+    ``tests/save/reach_guard.py`` and the whole repo suite stayed GREEN, while
+    the same append to the module that owned the guard BEFORE the relocation
+    reddened two tests. The merger reproduced both, and reproduced a third: the
+    same append to ``tests/save/synthetic.py`` also survives, on this tree and
+    on the pre-relocation one.
+
+    SO THE CLASS IS OLDER THAN CS-495 AND THE EXPOSURE IS NEW. Before the move
+    the only uncollected module in this package was the synthetic corpus, which
+    defines no test and never would. Moving the guard implementation into a
+    second uncollected module put a file that people will want to add checks to
+    inside the same blind spot. Nothing is stranded today - both modules are
+    asserted below to define nothing - and this test is what keeps that true.
+
+    IT IS A CLAIM ABOUT THE COLLECTOR, NOT ABOUT THE GUARD, and it lives here
+    because this module already owns the claims about which modules the package
+    walk covers. It reads that same walk rather than globbing again, so it
+    cannot disagree with it about the population.
+
+    NEITHER RUFF NOR MYPY COVERS THIS. Both read the uncollected module happily
+    - a planted violation in it is reported by each - which is precisely why a
+    dead test in it looks healthy to every tool in the tree.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+    """
+    reaching, silent = _reaching_modules()
+    uncollected = [path for path in (*reaching, *silent) if not path.name.startswith("test_")]
+
+    assert uncollected, (
+        "every module in this package is collected by pytest, so this guard is "
+        "vacuous. It exists for the modules that are NOT - if there are none, "
+        "either the package changed shape or the walk stopped enumerating it."
+    )
+
+    stranded: dict[str, list[str]] = {}
+    for path in uncollected:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        names = [name for name in _scanned_functions(tree) if name.startswith("test_")]
+        names += [
+            node.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ClassDef) and node.name.startswith("Test")
+        ]
+        if names:
+            stranded[path.name] = sorted(names)
+
+    assert not stranded, (
+        f"these modules are not collected by pytest and define tests anyway: "
+        f"{stranded}. Every one of those runs zero times, passes nothing and "
+        "fails nothing, and appears in no suite listing where a reader would "
+        "miss it. Move them into a module named test_*.py, or rename them so "
+        "they do not read as tests."
+    )
+
+
+def test_the_guard_catches_an_uncontained_helper_spliced_into_its_own_source(
+    tmp_path: Path,
+) -> None:
+    """The guard's POWER over its OWN source, forced rather than asserted about.
+
+    WHAT THIS RESTORES. Every module that consumes the guard carries a control
+    splicing an uncontained helper into a copy of its own source and requiring
+    the guard to name it. Before CS-495 the guard lived in such a module and got
+    that control for free; a refutation pass measured the cost of the move as a
+    drop from ELEVEN tests reddening on an undeclared reach planted in the
+    guard's own file to ONE. The property was still graded and the margin was a
+    single test wide. This is the second one.
+
+    THE SOURCE IS DERIVED FROM THE GUARD'S OWN CODE OBJECT, never named, so this
+    control follows the implementation if it moves again rather than pinning a
+    path that has stopped being true.
+
+    WHAT IT DOES NOT REACH, stated rather than implied, because a control read as
+    covering more than it does is the failure class this package has already paid
+    for. The splice goes into ``tmp_path`` under a DIFFERENT FILENAME, so a guard
+    that early-returns on its own file name defeats this control and every other
+    one in the package at once: the splice still reddens, the positive control
+    still passes, and an undeclared reach in the guard's real source goes unseen.
+    That is measured, on this tree AND on the pre-relocation one, and it is filed
+    as CS-498. Nothing here claims otherwise.
+
+    Args:
+        tmp_path: The per-test temporary directory.
+    """
+    owner = Path(_assert_library_reach_is_declared.__code__.co_filename)
+    spliced = tmp_path / "spliced_guard.py"
+    spliced.write_text(
+        owner.read_text(encoding="utf-8") + "\n\ndef _spliced_uncontained_guard_helper():\n"
+        '    """A helper carrying the known-bad shape."""\n'
+        "    from clockspeed.data import locate\n"
+        "\n"
+        "    root = locate.resolve_save_root()\n"
+        "    return locate.resolve_account_dir(root)\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError) as caught:
+        _assert_library_reach_is_declared(
+            spliced,
+            graded=reach_guard._GRADED_LIBRARY_REACH,  # noqa: SLF001
+            exempt=reach_guard._EXEMPT_LIBRARY_REACH,  # noqa: SLF001
+        )
+    assert "_spliced_uncontained_guard_helper" in str(caught.value), (
+        "the guard reddened on its own spliced source without naming the evader, "
+        "so it failed for some other reason and this route is still unmeasured"
+    )
+
+    # The positive control: the same guard on the unspliced source passes, so
+    # the red above is the splice rather than the guard rejecting everything.
+    _assert_library_reach_is_declared(
+        owner,
+        graded=reach_guard._GRADED_LIBRARY_REACH,  # noqa: SLF001
+        exempt=reach_guard._EXEMPT_LIBRARY_REACH,  # noqa: SLF001
+    )
+
+
+def test_every_library_reaching_module_in_the_package_is_declared() -> None:
+    """CS-471 clauses 1 and 2 - the guard no module has to opt into.
+
+    WHAT WAS WRONG, MEASURED BEFORE THIS TEST EXISTED. The reach guard was
+    consumed by whichever module remembered to call it; a minority of the modules
+    under ``tests/save`` did, and the rest were unexamined. Several of those had
+    functions touching a library primitive, and a NEW library-reaching module
+    shipped undeclared by default - the opposite of what a privacy guard should
+    do on the path of least effort. NO COUNT IS QUOTED HERE, deliberately: the
+    figures live in the CS-471 ledger entry, which is dated, and a measured
+    number in prose is a lie with a timestamp on it.
+
+    WHAT THIS DOES NOT REACH, because a green guard invites the wrong reading. A
+    module with no direct primitive call is classed silent and skipped, so a
+    helper imported from a sibling and called here is invisible to the
+    enumeration. This proves the guard is APPLIED to every module in the package;
+    it does not prove every route into the library runs through a primitive this
+    module names.
+
+    THE ENUMERATION IS THE POINT AND IT IS NOT A LIST. This walks the package's
+    own directory, so a module added tomorrow is in scope the moment it exists.
+    A guard that had to be added to each new module is exactly the guard that
+    was not added to eleven.
+
+    BOTH DIRECTIONS ARE HELD. A module that reaches must declare; a module that
+    does NOT reach must not carry declarations, or an exemption outlives the
+    code it described and the next reader inherits a reason for nothing. The
+    second half is what stops this test being satisfied by pasting empty maps
+    into every file.
+
+    THE PER-MODULE TESTS ARE NOT REDUNDANT AND ARE DELIBERATELY KEPT. Each
+    consuming module also carries a splice control that forces the guard to
+    catch a planted uncontained helper IN THAT MODULE. This test proves the
+    guard is APPLIED everywhere; those prove it has teeth. Neither is the other,
+    and the count of consumers is not a claim about the count of modules walked.
+    THIS SENTENCE USED TO NAME BOTH NUMBERS. The second was already stale when it
+    was written and CS-495 made it staler; both are dropped rather than
+    re-measured, for the reason CLAUDE.md section 4 gives.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+    """
+    reaching, silent = _reaching_modules()
+    assert reaching, (
+        "no module under tests/save has a function touching a library primitive, "
+        "so this guard is vacuous. Either the package moved or the primitive "
+        "vocabulary has stopped matching the code it describes."
+    )
+
+    undeclared, rejected = _declaration_verdicts(reaching, _imported_sibling)
+
+    assert not undeclared, (
+        f"these modules have a function touching a library primitive and declare "
+        f"nothing: {sorted(undeclared)}. Each needs "
+        f"{_REACH_DECLARATIONS[0]} and {_REACH_DECLARATIONS[1]} at module scope - "
+        "every reaching function either graded with why it reaches, or exempt with "
+        "why touching a primitive is not reaching the library here. A module that "
+        "declares nothing is not a module that reaches nothing."
+    )
+    if rejected:
+        # RE-RAISED THROUGH THE GUARD rather than rendered from a caught object,
+        # so the message pytest shows is the guard's own and this frame holds no
+        # exception at all - see the note in _declaration_verdicts.
+        path, graded, exempt = rejected[0]
+        _assert_library_reach_is_declared(path, graded=graded, exempt=exempt)
+
+    stray = [
+        path.name
+        for path in silent
+        if any(
+            getattr(importlib.import_module(f"tests.save.{path.stem}"), name, None) is not None
+            for name in _REACH_DECLARATIONS
+        )
+    ]
+    assert not stray, (
+        f"{sorted(stray)} carry library-reach declarations and no function in them "
+        "touches a primitive at all. A declaration that outlives the code it "
+        "described reads as a live constraint and holds nothing - delete it, or "
+        "the next reader inherits a reason for something that is not there."
+    )
