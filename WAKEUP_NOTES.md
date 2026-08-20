@@ -225,7 +225,7 @@ the line becomes a pointer.
   not delete it alone). Then CS-488, CS-477, CS-479, CS-470/472/473/474. **CS-484 is still cheap,
   still blocks nothing, and will bite again on the next push.** **CS-486 still needs an OPERATOR
   DECISION rather than work.**
-## Session 23 - 2026-08-19 - CS-487 CLOSES on its acceptance; BOTH refutation passes succeeded and one found a cheaper route through the same exemption
+## Session 23 - 2026-08-19 - CS-487, CS-478 and CS-471 CLOSE; every refutation pass succeeded and one refuted an acceptance clause outright
 
 - **Shipped: CS-487 CLOSED.** Filed CS-490. Two arms landed in
   `tests/save/test_byte_order_status.py`, not one. Suite with the library
