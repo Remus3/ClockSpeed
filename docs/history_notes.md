@@ -276,6 +276,13 @@ gap. So the acceptance cannot rest on another contradiction; it needs either a f
 costs more than one `struct.pack` call, or evidence from outside this module's own tables.
 
 
+## CS-496 - detail
+
+Relocated from `ROADMAP.md` 2026-08-20 (session 24) for budget, not deleted. The item itself
+stays OPEN in `ROADMAP.md`.
+
+CS-496 - `tests/test_doc_budget.py`'s scratch-repo fixture copies a LIVE git directory and races git's own background maintenance - acceptance: the fixture cannot fail because a file inside `.git` vanished between the walk and the copy, and the reproduction is recorded - tier: 2 - NOTE: filed 2026-08-20 (session 24). **MEASURED, not suspected:** CI run 32346100111 on `dc5237b` errored with `shutil.Error: ... '.git/objects/maintenance.lock' ... [Errno 2] No such file or directory`, at `tests/test_doc_budget.py:203`, where `shutil.copytree` copies a session-scoped template checkout. `copytree` stats the tree and then copies it, so any file git removes in between kills the fixture - and `maintenance.lock` is exactly such a file, created and deleted by git's own housekeeping. **THE COMMIT THAT HIT IT CHANGED TWO MARKDOWN FILES AND NO PYTHON**, so this is a property of the fixture rather than of any change. **RE-RUNNING THE SAME JOB PASSED**, which is what makes it a flake rather than a break, and is also why it will be tempting to ignore. It is the CS-483 shape - a test that fails for a reason unrelated to what it grades - and every such failure spends a session's trust in the suite. `ignore=shutil.ignore_patterns` over `.git` housekeeping files, or copying with `dirs_exist_ok` and a retry, are the obvious candidates; neither is measured.
+
 ## CS-492 - detail
 
 Relocated from `ROADMAP.md` 2026-08-20 (session 24) for budget, not deleted. The item itself

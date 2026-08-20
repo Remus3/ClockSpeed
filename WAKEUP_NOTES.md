@@ -204,5 +204,7 @@ the line becomes a pointer.
 
 - **CS-484's PREMISE IS MEASURED AT LAST, and the item is still open.** Extracted from the tier1 log on `76fac74`: **CI resolves ruff 0.16.3, this machine has 0.15.12**. Three sessions carried that gap as UNVERIFIED because nobody had read it out of a CI log. Both linters passed this tree, so the gap cost nothing on this push - which is NOT evidence it is harmless, only that this tree does not touch a rule they disagree on. Pinning is now cheap because the number is known; it needs `scripts/verify_env.py` to move with `pyproject.toml`.
 
+- **CI WENT RED ON A MARKDOWN-ONLY COMMIT AND IT WAS NOT MY CHANGE.** Run 32346100111 errored in `tests/test_doc_budget.py`'s scratch-repo fixture: `shutil.copytree` races git's own background maintenance, and `.git/objects/maintenance.lock` vanished between the walk and the copy. Re-running the same job passed. Filed as **CS-496**. It is the CS-483 shape - a test failing for a reason unrelated to what it grades - and the tempting response is to ignore it, which is how a suite stops being believed.
+
 - **THE HARNESS HEREDOC ATE MY BACKSLASHES THREE TIMES**, twice on small payloads with quoted
   delimiters. Write such payloads with the Write tool; this is the third session it has bitten.
