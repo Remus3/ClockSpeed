@@ -311,8 +311,10 @@ CS-494 - Reconcile the two walks that read which attributes come to hold save by
 
 ## CS-498 - detail
 
-Relocated from `ROADMAP.md` 2026-08-20 (session 25) for budget, not deleted. The item itself
-stays OPEN in `ROADMAP.md`.
+Relocated from `ROADMAP.md` 2026-08-20 (session 25) for budget, not deleted.
+
+**CS-498 CLOSED 2026-08-20 (session 25) - see `docs/LEDGER.md`. This block is the record of how
+it was filed and is no longer a live instruction.** Closed on the three NAME-keyed shapes the acceptance states - `.name`, `.stem` and `endswith`. The FULL-PATH shape survives and is filed as CS-499.
 
 CS-498 - The reach guard cannot detect a self-exemption in its own source, because every control runs it against a `tmp_path` copy under a different filename - acceptance: a guard that early-returns on its own file name turns a test RED on a machine with NO GAME INSTALLED, even when its own source also gains an undeclared reaching helper - tier: 2 - NOTE: filed 2026-08-20 (session 25) by the CS-495 silent-narrowing refutation pass and REPRODUCED BY THE MERGER ON BOTH TREES. **MEASURED: adding `if module_path.name == "<its own file>": return` to `_assert_library_reach_is_declared` AND appending an undeclared library-reaching helper to that same file leaves `tests/save` GREEN** - 1114 passed on the post-CS-495 tree, 1110 on `1e05233` with the guard still in `test_properties`. **THIS PREDATES CS-495 and the relocation neither caused nor worsened it**; it is recorded because the pass that found it was looking at the relocation. Do not close it by naming the guard's own filename anywhere - that is the same defect pointing the other way.
 
@@ -325,8 +327,10 @@ CS-484 - The local lint gate cannot reproduce CI's, because `pyproject.toml` pin
 
 ## CS-497 - detail
 
-Relocated from `ROADMAP.md` 2026-08-20 (session 25) for budget, not deleted. The item itself
-stays OPEN in `ROADMAP.md`.
+Relocated from `ROADMAP.md` 2026-08-20 (session 25) for budget, not deleted.
+
+**CS-497 CLOSED 2026-08-20 (session 25) - see `docs/LEDGER.md`. This block is the record of how
+it was filed and is no longer a live instruction.** Closed on the DECLARED-inclusion route, not by deleting the assertion: the derivation now intersects a declared reaching set instead of subtracting the exclusions, so the line the fence protected is what reports an unclassified name.
 
 CS-497 - The filesystem-vocabulary partition is a TAUTOLOGY in its inclusion direction, so an unclassified name is silently made a reach primitive - acceptance: a name added to `tests/save/reach_guard._FILESYSTEM_PRIMITIVES` and classified in neither `_NOT_LIBRARY_REACH` nor the reach set turns a test RED on a machine with NO GAME INSTALLED, and the red NAMES that name - tier: 2 - NOTE: filed 2026-08-20 (session 25) by the CS-495 prose refutation pass and REPRODUCED BY THE MERGER. `_LIBRARY_PRIMITIVES` is derived as `_LIBRARY_LOCATORS | (_FILESYSTEM_PRIMITIVES - frozenset(_NOT_LIBRARY_REACH))`, so `test_the_reach_primitives_partition_the_filesystem_vocabulary`'s inclusion assertion reduces to `A <= B | A` and holds for any vocabulary whatever. **MEASURED: `fchmod` added to the vocabulary and classified nowhere leaves that test GREEN.** The whole suite does go red, on `tests/save/test_workdir.py::test_the_default_work_root_is_gitignored` and `::test_the_workdir_suite_passes_with_no_install_and_no_save` - which is a red for an unrelated reason and is not this property being graded. **THE EXCLUSION DIRECTION IS REAL** and so are both non-vacuity floors and the locator separation; only the inclusion half is vacuous. The comment and the docstring that claimed "a name can be excluded, but it cannot be forgotten" are corrected in place - do not rewrite them back. This predates CS-495, which only relocated the code; do not close it by deleting the assertion, which is what makes the exclusion direction hold.
 

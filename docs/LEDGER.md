@@ -73,6 +73,63 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-20 - CS-497 and CS-498 - the vocabulary partition stops being a tautology, and a self-exemption keyed on the guard's own file name is caught
+Verification: `tests/save/test_reach_guard.py::test_a_vocabulary_name_classified_nowhere_is_not_silently_a_reach_primitive`,
+`::test_the_reach_primitives_partition_the_filesystem_vocabulary` and
+`::test_the_guard_reaches_the_same_verdict_under_its_own_name_as_under_any_other`. All run with
+`CLOCKSPEED_GAME_DIR` and `CLOCKSPEED_SAVE_ROOT` pointed at directories that do not exist. To see
+CS-497's defect, revert `reach_guard._reach_primitives` to
+`_LIBRARY_LOCATORS | (frozenset(vocabulary) - frozenset(_NOT_LIBRARY_REACH))`; the first test
+reddens. To see CS-498's, add `if module_path.name == "<the guard's file>": return` to
+`_assert_library_reach_is_declared`; the third reddens.
+
+**CS-497 - INCLUSION IS DECLARED NOW, NOT DERIVED BY SUBTRACTION.** The reach set was
+`locators | (vocabulary - excluded)`, so a name added to `_FILESYSTEM_PRIMITIVES` and classified
+nowhere became a reach primitive by arithmetic, and the assertion that was supposed to catch that
+reduced to `A <= B | A`. `_REACHES_THE_LIBRARY` now names the reaching half and
+`_reach_primitives` INTERSECTS, so a name in neither map reaches nothing.
+
+**THE ASSERTION WAS NOT DELETED - THE DERIVATION WAS REPAIRED UNDER IT**, which the item's fence
+required, since that same line is what holds the exclusion direction. It now bites: `fchmod`
+added to the vocabulary and classified nowhere reddens with `vocabulary members are neither reach
+primitives nor excluded with a reason: ['fchmod']`. The partition is asserted in BOTH directions
+and for disjointness, because a partition asserted one way round is a subset check wearing a
+partition's name.
+
+**THE DERIVATION IS GRADED WITH A VOCABULARY IT HAS NOT SEEN.** Asked only about the shipped
+constant, a derivation that absorbs an unclassified name and one that rejects it give the same
+answer - which is why the old assertion could not tell them apart. `_reach_primitives` takes the
+vocabulary as an argument so a control can hand it an invented name.
+
+**THE REACH SET IS UNCHANGED BY THIS**, checked directly: the declared twelve equal what the
+subtraction produced. No module's classification moved.
+
+**IT IS NOT CS-433's DEFECT RETURNING.** That was two lists in two FILES, neither aware of the
+other. These are two classifications of ONE vocabulary in one file, asserted to partition it
+exactly - neither can gain or lose a name without the other disagreeing.
+
+**CS-498 - THE GUARD'S VERDICT MUST NOT DEPEND ON WHAT THE FILE IS CALLED.** Every control ran
+the guard against a `tmp_path` copy under a different filename, so a guard early-returning on its
+own name defeated all of them at once: the splice still reddened, the positive controls still
+passed, and an undeclared reach in the real source went unseen - measured green on this tree and
+on `1e05233`. The close writes two byte-identical spliced copies differing only in filename, one
+of them under the guard's own basename, and requires the same verdict for both. **The basename is
+taken from the guard's code object and named nowhere**, which the item's fence required.
+
+**FOUR MUTANTS FOR CS-498, THREE KILLED AND THE FOURTH DISCLOSED RATHER THAN CLAIMED.** Exemptions
+keyed on `.name`, on `.stem` and on `str(path).endswith` all red on the intended test. An
+exemption keyed on the FULL PATH survives, because both copies live in `tmp_path` and neither is
+the real file, so they agree. That is stated in the control's own docstring and filed as CS-499
+rather than implied away. CS-497 was mutated four ways and all four died.
+
+**THE FIRST DRAFT OF THE CS-498 CONTROL SHIPPED A NON-NEGOTIABLE 12 VIOLATION AND THE WHOLE-SUITE
+RUN CAUGHT IT.** It bound the guard's failure in an `except` handler and rendered it with
+`str(caught)`; `str` on an OSError appends the path it failed on.
+`tests/test_exception_rendering.py` reported it, and that module lives OUTSIDE `tests/save`, so
+the `tests/save` run was green while it was there - the same trap session 23 recorded. Rewritten
+onto `pytest.raises`, which the guard's AST shape cannot see into, and the mutants were re-run
+afterwards because an idiom change can cost a control its teeth.
+
 ### 2026-08-20 - CS-496 - the doc-budget scratch fixture no longer races git's own background maintenance, and the race is reproduced DETERMINISTICALLY rather than waited for
 Verification: `tests/test_doc_budget.py::test_the_scratch_copy_survives_a_git_lock_vanishing_mid_copy`
 and `::test_the_scratch_template_has_git_housekeeping_disabled`. Both run on a machine with no

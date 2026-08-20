@@ -84,16 +84,19 @@ _FILESYSTEM_PRIMITIVES: Final = frozenset(
 #: THE SENTENCE THAT USED TO SIT HERE SAID adding a name to the vocabulary
 #: without classifying it "turns this module red", and that "a name can be
 #: excluded, but it cannot be forgotten". BOTH WERE MEASURED FALSE by a
-#: refutation pass on CS-495 and reproduced by the merger. ``fchmod`` added to
-#: :data:`_FILESYSTEM_PRIMITIVES` and classified nowhere leaves
-#: ``test_the_reach_primitives_partition_the_filesystem_vocabulary`` GREEN,
-#: because :data:`_LIBRARY_PRIMITIVES` is DERIVED as the locators unioned with
-#: the vocabulary minus the exclusions - so the test's subset assertion reduces
-#: to ``A <= B | A`` and holds for any vocabulary whatever. An unclassified name
-#: is not caught; it is silently made a reach primitive. The exclusion half of
-#: the partition IS real - an exclusion naming something outside the vocabulary
-#: reddens - and the inclusion half is the tautology. Repairing it is filed
-#: separately; the claim is corrected here rather than left standing.
+#: refutation pass on CS-495 and reproduced by the merger: ``fchmod`` added to
+#: :data:`_FILESYSTEM_PRIMITIVES` and classified nowhere left the partition test
+#: GREEN, because the reach set was DERIVED as the locators unioned with the
+#: vocabulary minus the exclusions - so the assertion reduced to ``A <= B | A``
+#: and held for any vocabulary whatever. An unclassified name was not caught; it
+#: was silently made a reach primitive.
+#:
+#: **CS-497 MADE THOSE SENTENCES TRUE RATHER THAN DELETING THEM.** Inclusion is
+#: now DECLARED in :data:`_REACHES_THE_LIBRARY` instead of falling out of a set
+#: subtraction, and :func:`_reach_primitives` INTERSECTS rather than subtracts,
+#: so a name in neither map reaches nothing and is reported by name. The record
+#: of what was false stays because the mechanism that made it false is the one
+#: worth recognising again, not because the claim is still wrong.
 _NOT_LIBRARY_REACH: Final = MappingProxyType(
     {
         "read_text": (
@@ -128,6 +131,7 @@ _LIBRARY_LOCATORS: Final = frozenset(
     ("resolve_save_root", "resolve_account_dir", "latest_save", "_library_save_paths")
 )
 
+
 #: Names through which a function can come to hold a REAL save path or the REAL
 #: account directory, DERIVED rather than written down a second time.
 #:
@@ -144,9 +148,57 @@ _LIBRARY_LOCATORS: Final = frozenset(
 #: consuming module, and that map is asserted LIVE - every exemption must still
 #: touch a primitive - so the price is visible in the tree rather than argued for
 #: here, and it cannot rot into a silent allowance.
-_LIBRARY_PRIMITIVES: Final = _LIBRARY_LOCATORS | (
-    _FILESYSTEM_PRIMITIVES - frozenset(_NOT_LIBRARY_REACH)
+#: Vocabulary members that ARE library reach, name by name.
+#:
+#: DECLARED, NOT DERIVED, AND THAT IS CS-497. Deriving this as "the vocabulary
+#: minus the exclusions" meant a name classified nowhere landed here by
+#: arithmetic, and every assertion over it reduced to a tautology. Both halves
+#: are written down now, and :func:`_reach_primitives` intersects, so the cost
+#: of forgetting a name is that it reaches nothing and a test says so by name.
+#:
+#: THIS IS NOT CS-433's DEFECT COMING BACK, and the difference is the reason it
+#: is safe. That defect was two lists in two FILES, neither aware of the other,
+#: drifting until a guard named none of the path-bearing primitives its sibling
+#: enumerated. These two sit in one file over one vocabulary and are asserted to
+#: PARTITION it exactly - neither can gain or lose a name without the other
+#: disagreeing.
+_REACHES_THE_LIBRARY: Final = frozenset(
+    (
+        "open",
+        "read_bytes",
+        "glob",
+        "rglob",
+        "iterdir",
+        "scandir",
+        "listdir",
+        "resolve",
+        "expanduser",
+        "home",
+        "cwd",
+        "stat",
+    )
 )
+
+
+def _reach_primitives(vocabulary: frozenset[str]) -> frozenset[str]:
+    """The reach set this module derives from a filesystem vocabulary.
+
+    A FUNCTION SO THE DERIVATION CAN BE GRADED WITH A VOCABULARY IT HAS NOT
+    SEEN. Asked only about the shipped constant, a derivation that absorbs an
+    unclassified name is indistinguishable from one that rejects it.
+
+    Args:
+        vocabulary: Filesystem names to classify.
+
+    Returns:
+        The locators plus the vocabulary members DECLARED to reach the library.
+        A name in neither declaration reaches nothing, which is what makes
+        forgetting one visible instead of free.
+    """
+    return _LIBRARY_LOCATORS | (frozenset(vocabulary) & _REACHES_THE_LIBRARY)
+
+
+_LIBRARY_PRIMITIVES: Final = _reach_primitives(_FILESYSTEM_PRIMITIVES)
 
 #: A function definition of either colour. ``ast.AsyncFunctionDef`` is NOT a
 #: subclass of ``ast.FunctionDef``, which is the single fact behind two of the

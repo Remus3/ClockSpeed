@@ -284,6 +284,27 @@ the line becomes a pointer.
   green and is bypass 1 in that guard's own list of what it cannot see. Widened in the open
   instead, with the reason on the constant.
 
+- **CS-497 AND CS-498 ALSO CLOSED, both filed earlier in this same session.** CS-497: inclusion in
+  the reach set is DECLARED now rather than derived by subtracting the exclusions, so a vocabulary
+  name classified nowhere reaches nothing and is named in the red. **The assertion the fence
+  protected was not deleted - the derivation was repaired under it, and it now bites.** The reach
+  set is unchanged, checked directly. CS-498: two byte-identical spliced copies of the guard's own
+  source, differing only in filename, must get the same verdict; the basename comes from the
+  guard's code object and is named nowhere. Residual filed as CS-499.
+
+- **A DERIVATION CANNOT BE GRADED BY ASKING IT ABOUT ITS OWN CONSTANT.** One that absorbs an
+  unclassified name and one that rejects it give the same answer on the shipped vocabulary. Making
+  `_reach_primitives` take the vocabulary as an ARGUMENT is what let a control hand it an invented
+  name, and is what turned a tautology into a measurement.
+
+- **I SHIPPED A NON-NEGOTIABLE 12 VIOLATION AGAIN, IN THE SAME SHAPE SESSION 23 RECORDED.** The
+  first draft of the CS-498 control bound the guard's failure in an `except` handler and rendered
+  it with `str(caught)`. `tests/test_exception_rendering.py` caught it and that module is OUTSIDE
+  `tests/save`, so the `tests/save` run was green while it was there. **Use `pytest.raises`, whose
+  AST shape that guard cannot see into, and RE-RUN THE MUTANTS after an idiom change** - a rewrite
+  can cost a control its teeth.
+
 - **Next action:** CS-492/493/494, CS-491's remaining residuals - read each detail block in
-  `docs/history_notes.md` first, each carries a fence. CS-497 and CS-498 were filed this session
-  and are cheaper. CS-484's premise is measured and pinning is now cheap.
+  `docs/history_notes.md` first, each carries a fence. CS-499 is the cheapest thing filed but its
+  candidate fix changes the guard's signature and every call site. CS-484's premise is measured
+  and pinning is now cheap.

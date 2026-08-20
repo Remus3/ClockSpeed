@@ -67,6 +67,7 @@ from tests.save.reach_guard import (
     _NOT_LIBRARY_REACH,
     _PERSONAL_DATA_TYPES,
     _REACH_DECLARATIONS,
+    _REACHES_THE_LIBRARY,
     MODULE_SCOPE_REACH,
     _assert_library_reach_is_declared,
     _assert_no_test_is_gutted,
@@ -79,6 +80,7 @@ from tests.save.reach_guard import (
     _module_reaches,
     _module_scope_reaches,
     _personal_data_names,
+    _reach_primitives,
     _reaching_modules,
     _returns_personal_data,
     _scanned_functions,
@@ -1307,6 +1309,56 @@ def test_the_gutting_guard_catches_a_spliced_early_return(tmp_path: Path) -> Non
     _assert_no_test_is_gutted(Path(__file__))
 
 
+def test_a_vocabulary_name_classified_nowhere_is_not_silently_a_reach_primitive() -> None:
+    """CS-497 - an unclassified name must be REJECTED, not absorbed.
+
+    WHAT WAS WRONG, MEASURED. The reach set was derived as the locators unioned
+    with the vocabulary MINUS the exclusions, so a name added to
+    :data:`~tests.save.reach_guard._FILESYSTEM_PRIMITIVES` and classified
+    nowhere became a reach primitive by arithmetic. The partition test beside
+    this one asserted ``(vocabulary - excluded) <= reach set``, which under that
+    derivation reduces to ``A <= B | A`` and holds for any vocabulary whatever.
+    ``fchmod`` added to the vocabulary and classified nowhere left the whole
+    suite green except for two ``test_workdir`` tests that have nothing to do
+    with the partition - a red for the wrong reason, which is not this property
+    being graded.
+
+    SO THE DERIVATION IS ASKED ABOUT A VOCABULARY IT HAS NOT SEEN. Asked only
+    about the shipped constant, a derivation that absorbs an unclassified name
+    and one that rejects it give the same answer, and no assertion over the
+    shipped constant alone can separate them.
+
+    THE INVENTED NAME IS ASSERTED ABSENT FIRST. If it ever became real
+    vocabulary this control would silently start grading nothing, which is the
+    shape it exists to catch.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+    """
+    invented = "fchmod"
+    assert invented not in _FILESYSTEM_PRIMITIVES, (
+        f"{invented} is real vocabulary now, so this control no longer plants an "
+        "unclassified name and grades nothing. Pick a name the module does not use."
+    )
+    assert invented not in _NOT_LIBRARY_REACH, f"{invented} is classified as an exclusion"
+
+    widened = frozenset(_FILESYSTEM_PRIMITIVES) | {invented}
+
+    assert invented not in _reach_primitives(widened), (
+        f"{invented} was classified nowhere and the derivation made it a reach "
+        "primitive anyway. A name can be excluded with a reason, or included with "
+        "one, and forgetting it must not silently pick the first thing that falls "
+        "out of a set subtraction."
+    )
+
+    # NON-VACUITY, so the refusal above is the classification and not a
+    # derivation that refuses everything: a name the module DOES classify as
+    # reaching still comes back.
+    assert "glob" in _reach_primitives(widened), (
+        "a classified reach primitive dropped out of the derivation, so the "
+        "refusal above says nothing about classification"
+    )
+
+
 def test_the_reach_primitives_partition_the_filesystem_vocabulary() -> None:
     """CS-433 - the two primitive lists are ONE list, and the split is declared.
 
@@ -1320,18 +1372,28 @@ def test_the_reach_primitives_partition_the_filesystem_vocabulary() -> None:
     So the vocabulary has one owner and the reach set is DERIVED from it by a
     partition that must be total.
 
-    WHAT THIS TEST ACTUALLY HOLDS, MEASURED RATHER THAN READ OFF THE ASSERTIONS.
-    The docstring here used to say that adding a name to
+    THE INCLUSION ASSERTION HERE WAS A TAUTOLOGY UNTIL CS-497, and the record of
+    that stays because the shape is worth recognising again. The docstring used
+    to say that adding a name to
     :data:`~tests.save.reach_guard._FILESYSTEM_PRIMITIVES` either makes it a
     reach primitive or requires a written reason it is not, "and there is no
-    third outcome that leaves this green". There is no third outcome, and the
-    first one is taken SILENTLY: the reach set is derived as the locators
-    unioned with the vocabulary minus the exclusions, so the inclusion assertion
-    below reduces to ``A <= B | A`` and cannot fail. ``fchmod`` added to the
-    vocabulary and classified nowhere leaves this test green - measured on this
-    tree. What DOES hold here is the exclusion direction, the reason strings,
-    both non-vacuity floors, and the locator separation. Repairing the inclusion
-    direction is filed as its own item; it is not what CS-495 was about.
+    third outcome that leaves this green". There was no third outcome, and the
+    first was taken SILENTLY: the reach set was derived as the locators unioned
+    with the vocabulary MINUS the exclusions, so ``vocabulary - excluded <=
+    reach set`` reduced to ``A <= B | A``. ``fchmod`` added to the vocabulary
+    and classified nowhere left this test green - measured.
+
+    **THE ASSERTION WAS NOT DELETED; THE DERIVATION WAS REPAIRED UNDER IT.**
+    Inclusion is declared in
+    :data:`~tests.save.reach_guard._REACHES_THE_LIBRARY` and
+    :func:`~tests.save.reach_guard._reach_primitives` intersects rather than
+    subtracts, so that same line now asserts something: every non-excluded
+    vocabulary name must be DECLARED reaching, and an unclassified one is
+    reported by name. The item's fence forbade closing it by deleting the
+    assertion, which is what holds the exclusion direction.
+
+    BOTH DIRECTIONS AND DISJOINTNESS ARE HELD, because a partition asserted one
+    way round is a subset check wearing a partition's name.
     """
     excluded = frozenset(_NOT_LIBRARY_REACH)
     assert excluded <= _FILESYSTEM_PRIMITIVES, (
@@ -1357,6 +1419,28 @@ def test_the_reach_primitives_partition_the_filesystem_vocabulary() -> None:
         f"{sorted(_LIBRARY_LOCATORS & _FILESYSTEM_PRIMITIVES)}"
     )
     assert _LIBRARY_LOCATORS <= _LIBRARY_PRIMITIVES, "a locator dropped out of the reach set"
+
+    # THE OTHER DIRECTION OF THE PARTITION, CS-497. The assertions above say
+    # every vocabulary member is classified; these say every classification
+    # names vocabulary, and that nothing is classified twice. Without them a
+    # name could be declared reaching while sitting in no vocabulary at all,
+    # which reads as a live rule and governs nothing.
+    assert _REACHES_THE_LIBRARY <= _FILESYSTEM_PRIMITIVES, (
+        f"these names are declared to reach the library and are not filesystem "
+        f"vocabulary: {sorted(_REACHES_THE_LIBRARY - _FILESYSTEM_PRIMITIVES)}"
+    )
+    assert not (_REACHES_THE_LIBRARY & excluded), (
+        f"these names are classified BOTH ways, so the partition is not one: "
+        f"{sorted(_REACHES_THE_LIBRARY & excluded)}"
+    )
+    vocabulary = frozenset(_FILESYSTEM_PRIMITIVES)
+    classified = _REACHES_THE_LIBRARY | excluded
+    assert classified == vocabulary, (
+        f"the two classifications do not cover the vocabulary exactly. "
+        f"Unclassified: {sorted(vocabulary - classified)}; "
+        f"classified but not vocabulary: {sorted(classified - vocabulary)}"
+    )
+    assert _REACHES_THE_LIBRARY, "nothing is declared to reach the library, so this is vacuous"
 
 
 #: A module that reaches the library and says so nowhere. Written into tmp_path
@@ -1597,6 +1681,101 @@ def test_no_module_the_collector_skips_defines_a_test() -> None:
     )
 
 
+#: How many copies of the guard's source the name-independence control judges.
+#: Named so the count in its assertion is not a bare literal that could drift
+#: away from the loop above it.
+_COPIES_OF_THE_GUARD_SOURCE: Final = 2
+
+#: An uncontained helper appended to a COPY of the guard's own source. Spelled
+#: once because two controls splice it - one grading that the guard has teeth
+#: over its own file at all, one grading that those teeth do not depend on what
+#: the file is called.
+_UNCONTAINED_GUARD_SPLICE: Final = (
+    "\n\ndef _spliced_uncontained_guard_helper():\n"
+    '    """A helper carrying the known-bad shape."""\n'
+    "    from clockspeed.data import locate\n"
+    "\n"
+    "    root = locate.resolve_save_root()\n"
+    "    return locate.resolve_account_dir(root)\n"
+)
+
+
+def test_the_guard_reaches_the_same_verdict_under_its_own_name_as_under_any_other(
+    tmp_path: Path,
+) -> None:
+    """CS-498 - a guard that early-returns on its own file name is caught.
+
+    WHAT WAS WRONG, MEASURED ON TWO TREES. Every control over this guard runs it
+    against a ``tmp_path`` COPY under a different filename, so a guard that
+    early-returned on its own name defeated all of them at once: the planted
+    splice still reddened, every positive control still passed, and an
+    undeclared reaching helper in the guard's REAL source went unseen. Adding
+    ``if module_path.name == "<its own file>": return`` to
+    :func:`~tests.save.reach_guard._assert_library_reach_is_declared` AND
+    appending an undeclared helper to that same file left ``tests/save`` green -
+    on the post-CS-495 tree and on ``1e05233``, where the guard still lived in
+    ``test_properties``. The relocation neither caused it nor worsened it.
+
+    THE CLOSE NAMES NO FILENAME, WHICH IS THE ITEM'S FENCE. Writing the guard's
+    own basename into a control would be the same defect pointing the other way
+    - a second place that has to be updated when the file moves, and one that
+    goes quiet rather than red when it is not. The basename is taken from the
+    guard's own code object and a copy is written under it in ``tmp_path``, so
+    the control follows the implementation wherever it goes.
+
+    THE COMPARISON IS THE POINT, NOT EITHER VERDICT. Two byte-identical copies
+    of the same spliced source, differing only in what they are called, must get
+    the same answer. A name-keyed exemption breaks that equality; nothing a
+    correct guard does can.
+
+    WHAT IT DOES NOT REACH, stated rather than implied. An exemption keyed on
+    the guard's full PATH rather than its name survives this: both copies live
+    in ``tmp_path`` and neither is the real file, so both are judged normally
+    and they agree. That shape cannot be caught without editing the tracked
+    source, and nothing here claims otherwise.
+
+    Args:
+        tmp_path: The per-test temporary directory.
+    """
+    owner = Path(_assert_library_reach_is_declared.__code__.co_filename)
+    spliced_source = owner.read_text(encoding="utf-8") + _UNCONTAINED_GUARD_SPLICE
+
+    under_its_own_name = tmp_path / "same_name" / owner.name
+    under_another_name = tmp_path / "other_name" / "a_module_this_guard_has_never_seen.py"
+    assert under_its_own_name.name != under_another_name.name, (
+        "both copies carry the same filename, so this control cannot tell a "
+        "name-keyed exemption from a correct guard"
+    )
+
+    for target in (under_its_own_name, under_another_name):
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(spliced_source, encoding="utf-8")
+
+    # ``pytest.raises`` RATHER THAN A TRY/EXCEPT, and that is non-negotiable 12
+    # rather than style. Binding the exception in an ``except`` handler and
+    # rendering it is the shape ``tests/test_exception_rendering.py`` forbids -
+    # ``str`` on an OSError appends the path it failed on. It caught the first
+    # draft of this control. A copy that does NOT raise fails here with pytest's
+    # own DID NOT RAISE, naming the copy, which is the verdict this grades.
+    named: list[str] = []
+    for target in (under_its_own_name, under_another_name):
+        with pytest.raises(AssertionError) as caught:
+            _assert_library_reach_is_declared(
+                target,
+                graded=reach_guard._GRADED_LIBRARY_REACH,  # noqa: SLF001
+                exempt=reach_guard._EXEMPT_LIBRARY_REACH,  # noqa: SLF001
+            )
+        if "_spliced_uncontained_guard_helper" in str(caught.value):
+            named.append(target.name)
+
+    assert len(named) == _COPIES_OF_THE_GUARD_SOURCE, (
+        f"the guard named the spliced helper in {named} and not in both copies. Two "
+        "byte-identical sources that differ only in filename got different answers, "
+        "which is what a self-exemption keyed on the guard's own name looks like "
+        "from outside."
+    )
+
+
 def test_the_guard_catches_an_uncontained_helper_spliced_into_its_own_source(
     tmp_path: Path,
 ) -> None:
@@ -1629,13 +1808,7 @@ def test_the_guard_catches_an_uncontained_helper_spliced_into_its_own_source(
     owner = Path(_assert_library_reach_is_declared.__code__.co_filename)
     spliced = tmp_path / "spliced_guard.py"
     spliced.write_text(
-        owner.read_text(encoding="utf-8") + "\n\ndef _spliced_uncontained_guard_helper():\n"
-        '    """A helper carrying the known-bad shape."""\n'
-        "    from clockspeed.data import locate\n"
-        "\n"
-        "    root = locate.resolve_save_root()\n"
-        "    return locate.resolve_account_dir(root)\n",
-        encoding="utf-8",
+        owner.read_text(encoding="utf-8") + _UNCONTAINED_GUARD_SPLICE, encoding="utf-8"
     )
 
     with pytest.raises(AssertionError) as caught:
