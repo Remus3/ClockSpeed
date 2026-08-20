@@ -73,6 +73,50 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-19 - CS-471 - the library-reach declaration is enforced package-wide and the wrapper evasion is closed; it CLOSES ON ITS THREE CLAUSES AND NOT ON THE CHANNEL BEING SHUT
+Verification: `tests/save/test_properties.py::test_every_library_reaching_module_in_the_package_is_declared`,
+`tests/save/test_properties.py::test_the_suite_wide_guard_catches_a_module_that_declares_nothing`
+and `tests/save/test_properties.py::test_a_helper_handing_back_a_wrapped_body_is_flagged_as_propagating`,
+against the six modules that gained `_GRADED_LIBRARY_REACH` and `_EXEMPT_LIBRARY_REACH`. To
+reproduce the defect, drop a module under `tests/save` that calls the raw locators and declares
+neither map, and run with `CLOCKSPEED_GAME_DIR` and `CLOCKSPEED_SAVE_ROOT` pointed at
+directories that do not exist.
+
+WHAT CLOSED, AND ON THE THREE STATED CLAUSES ONLY. Every module in the package that reaches the
+save library declares its reaching functions or exempts them by name with a reason; the
+enforcement walks the package directory rather than waiting to be called, so a module added
+tomorrow is in scope the moment it exists; and a helper returning a dataclass that wraps a body
+is flagged as propagating. The parameter-and-locals channel named in the item's enlarging
+evidence is NOT closed, `tests/save/test_objects.py::test_the_entry_points_still_bind_the_raw_body_where_a_renderer_can_read_it`
+therefore still passes and stays, and this entry closes nothing about it.
+
+BOTH REFUTATION PASSES SUCCEEDED AND ONE REFUTED A CLAUSE OUTRIGHT. The function scan read
+module-body statements only, so a reach spelled at module scope was invisible - and the
+classifier called such a module SILENT, so the guard was never applied to it at all. The proof
+of concept was the ordinary pytest idiom, a module-scope call feeding a parametrize list, and it
+held the account directory as a process-lifetime global with every guard green. Closed under a
+`MODULE_SCOPE_REACH` sentinel wired into the guard AND the classifier, and verified against that
+same planted module.
+
+EIGHT SHIPPED EXEMPT REASONS OF MINE WERE MEASURED FALSE AND ARE CORRECTED. Do not rewrite them
+back: six described `rglob` and `resolve` filesystem work on functions that touch no filesystem,
+matched only by a name collision with a sibling's own citation resolver; one described the
+auto-detected game install for a test that writes a synthetic usmap into `tmp_path`; and one
+claimed `tmp_path` containment for a test that passes no path at all, whose real containment is
+an autouse environment fixture - measured, because the same call uncontained resolves a real
+save on this machine.
+
+FOUR MORE DEFECTS IN MY OWN WORK, EACH FOUND BY A PASS RATHER THAN BY ME. A privacy control in
+the wider suite caught this work rendering a caught exception OBJECT into a message, which is
+non-negotiable 12 and was invisible to a `tests/save` run; the wrapper walk read field
+annotations only, so a subclass of a wrapper came back clean; the clause-2 control was a
+tautology, because its loader reported every input undeclared including a path that does not
+exist; and the package walk was narrowable from every module to one with the suite still green.
+
+WHAT THIS DOES NOT CLOSE IS FILED AS CS-491 RATHER THAN DISCLOSED HERE - the aliasing routes,
+the cross-module route, the wrapper defeats, and the fact that clause 3 moves no verdict on the
+shipped tree. Read that item before treating this area as guarded.
+
 ### 2026-08-19 - CS-478 - the two definitions of "an oracle scores this type" now meet in one assertion, and disagree only where the module records it
 Verification: `tests/save/test_byte_order_status.py::test_the_two_admission_rules_for_the_int32_oracle_never_disagree_unrecorded`,
 against `tests/save/test_properties.py::_tally_decoded_values` and

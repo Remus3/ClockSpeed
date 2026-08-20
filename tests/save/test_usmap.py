@@ -78,6 +78,8 @@ import struct
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
+from typing import Final
 
 import pytest
 
@@ -3515,3 +3517,50 @@ def test_an_enum_section_desync_loses_the_undecodable_names_resolving_flags() ->
     ]
     with pytest.raises(usmap.UsmapFormatError):
         _parse_enum_body(own_body[: len(own_body) - _ENUM_TRUNCATION])
+
+
+# ---------------------------------------------------------------------------
+# CS-471 - THIS MODULE'S LIBRARY REACH, DECLARED.
+#
+# The guard is owned by ``test_properties`` and applied across this package by
+# the suite-wide test that lives beside it, which walks the package directory
+# rather than waiting to be called. Before CS-471 this module touched a library
+# primitive while declaring no reach at all, and the suite had no check that
+# would say so.
+#
+# The wording here is deliberately free of the CS-420 quantifier vocabulary,
+# because two modules carrying this block sit inside that fence.
+# ---------------------------------------------------------------------------
+
+#: Helpers that genuinely reach the save library, name to why each reaches.
+_GRADED_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType({})
+
+#: Touches a primitive WITHOUT consuming a real save path, name to why.
+#: Asserted still reaching, so a stale exemption reddens the guard.
+_EXEMPT_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "test_the_builder_reproduces_the_shipped_bytes_it_models": (
+            "reads the shipped usmap out of the auto-detected GAME INSTALL, "
+            "which is publisher-owned game data rather than the save "
+            "library - no save path and no account directory passes through "
+            "it "
+        ),
+        "test_the_evidence_table_matches_what_the_rebuild_audit_measures": (
+            "reads the shipped usmap out of the auto-detected GAME INSTALL, "
+            "which is publisher-owned game data rather than the save "
+            "library - no save path and no account directory passes through "
+            "it "
+        ),
+        "test_the_loader_never_writes_to_the_install": (
+            "builds a SYNTHETIC usmap into tmp_path and points the game-dir "
+            "environment variable at it, so the install it reads is the one "
+            "this test wrote "
+        ),
+        "test_the_real_usmap_accounts_for_its_own_length_exactly": (
+            "reads the shipped usmap out of the auto-detected GAME INSTALL, "
+            "which is publisher-owned game data rather than the save "
+            "library - no save path and no account directory passes through "
+            "it "
+        ),
+    }
+)

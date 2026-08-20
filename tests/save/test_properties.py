@@ -116,10 +116,11 @@ which every implementation satisfies. The map never leaves the judging frame.
 from __future__ import annotations
 
 import ast
+import importlib
 import re
 import struct
 from collections import Counter
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
@@ -3701,7 +3702,110 @@ def _calls_any(node: ast.FunctionDef | ast.AsyncFunctionDef, names: frozenset[st
     return False
 
 
-def _returns_personal_data(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+def _body_wrapping_classes(tree: ast.Module) -> frozenset[str]:
+    """Every class in a module that HOLDS save bytes or a real path in a field.
+
+    THIS IS CS-471's WRAPPER EVASION, CLOSED. :func:`_returns_personal_data`
+    read the rendered return annotation and nothing else, so a helper handing
+    its caller a dataclass with a ``body: bytes`` field propagated the whole
+    decompressed world while annotating something the guard read as a scalar.
+    The evasion needed no cunning - it is the ordinary shape of a helper that
+    gathers a body and its extents together, and one such helper was already
+    shipped.
+
+    THE WALK IS TRANSITIVE THROUGH FIELDS AND THROUGH BASES, because a wrapper
+    inside another is the same evasion with a step in it and so is a subclass of
+    one. A DRAFT READ FIELDS ALONE and a refutation pass measured what that
+    missed: a subclass declaring only a label, whose base declares the body, came
+    back clean.
+
+    THE REMAINING LIMIT IS CROSS-MODULE AND IS STATED RATHER THAN IMPLIED. The
+    fixed point is taken over the module's own classes, so a class imported from
+    a sibling and returned from here is not resolved and the guard reports
+    nothing about it.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        The names of the classes that hold personal data, directly or through
+        another class in the same module.
+    """
+    annotations: dict[str, list[str]] = {}
+    bases: dict[str, list[str]] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        annotations[node.name] = [
+            ast.unparse(statement.annotation)
+            for statement in node.body
+            if isinstance(statement, ast.AnnAssign) and statement.annotation is not None
+        ]
+        bases[node.name] = [ast.unparse(base) for base in node.bases]
+
+    wrapping = {
+        name
+        for name, rendered in annotations.items()
+        if any("bytes" in one or "Path" in one for one in rendered)
+    }
+    growing = True
+    while growing:
+        growing = False
+        for name, rendered in annotations.items():
+            if name in wrapping:
+                continue
+            held_in_a_field = any(held in one for one in rendered for held in wrapping)
+            # INHERITED COUNTS - a refutation pass measured the gap. Reading the
+            # field annotations alone missed a subclass of a wrapper, which holds
+            # the body its base declares and declares nothing itself.
+            inherited = any(held in one for one in bases[name] for held in wrapping)
+            if held_in_a_field or inherited:
+                wrapping.add(name)
+                growing = True
+    return frozenset(wrapping)
+
+
+#: The declaration name a module-scope reach is filed under. A reach spelled
+#: OUTSIDE any def has no function name to report, and a refutation pass
+#: measured that the scan could not see it at all: hoisting the two locator
+#: calls of the planted control out one indentation level left the suite-wide
+#: guard green while the module held the account directory as a global. Hoisting
+#: is the ordinary way to build a pytest parametrize list, so this was the
+#: likeliest shape to meet, not the least.
+MODULE_SCOPE_REACH: Final = "<module scope>"
+
+
+def _module_scope_reaches(tree: ast.Module, primitives: frozenset[str]) -> bool:
+    """Whether a primitive is called outside every function in a module.
+
+    Args:
+        tree: The parsed module.
+        primitives: The reach vocabulary.
+
+    Returns:
+        True when a call to one of ``primitives`` sits at module scope, inside a
+        module-scope ``if`` or ``try``, or in a class body - anywhere that runs
+        at import and that :func:`_scanned_functions` does not report.
+    """
+    inside: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, _ANY_FUNCTION):
+            for child in ast.walk(node):
+                inside.add(id(child))
+    for node in ast.walk(tree):
+        if id(node) in inside or not isinstance(node, ast.Call):
+            continue
+        name = (
+            node.func.attr if isinstance(node.func, ast.Attribute) else getattr(node.func, "id", "")
+        )
+        if name in primitives:
+            return True
+    return False
+
+
+def _returns_personal_data(
+    node: ast.FunctionDef | ast.AsyncFunctionDef, wrapping: frozenset[str] = frozenset()
+) -> bool:
     """Whether a function's RETURN ANNOTATION carries a path or save bytes.
 
     Derived from the annotation rather than declared in a second list, so the
@@ -3710,16 +3814,26 @@ def _returns_personal_data(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool
     hands it a save body. A helper returning a counts-only sweep or a tuple of
     scalars hands over nothing personal, so its callers are not reach sites.
 
+    A NAMED CLASS COUNTS WHEN IT HOLDS ONE - CS-471. The SECOND argument is the
+    module's own body-wrapping classes, from :func:`_body_wrapping_classes`, and
+    a return annotation naming one propagates exactly as ``bytes`` does. The
+    default is empty so a caller that has not resolved the module's classes gets
+    the old, narrower answer rather than a wrong one.
+
     Args:
         node: The function.
+        wrapping: Class names that hold personal data in a field.
 
     Returns:
-        True when the annotation mentions ``Path`` or ``bytes``.
+        True when the annotation mentions ``Path`` or ``bytes``, or names one of
+        ``wrapping``.
     """
     if node.returns is None:
         return False
     rendered = ast.unparse(node.returns)
-    return "Path" in rendered or "bytes" in rendered
+    if "Path" in rendered or "bytes" in rendered:
+        return True
+    return any(held in rendered for held in wrapping)
 
 
 def _assert_library_reach_is_declared(
@@ -3731,6 +3845,10 @@ def _assert_library_reach_is_declared(
     first alone missed a helper that took its path from a sibling rather than
     from a primitive:
 
+    - AT MODULE SCOPE, by calling one of :data:`_LIBRARY_PRIMITIVES` outside
+      every ``def``. There is no function name to report, so it is filed under
+      :data:`MODULE_SCOPE_REACH`. This half was ADDED BY CS-471 after a
+      refutation pass measured its absence.
     - DIRECTLY, by calling one of :data:`_LIBRARY_PRIMITIVES`.
     - INDIRECTLY, by calling a declared helper whose return annotation carries a
       path or save bytes, per :func:`_returns_personal_data`. Test functions are
@@ -3750,11 +3868,16 @@ def _assert_library_reach_is_declared(
     tree = ast.parse(module_path.read_text(encoding="utf-8"))
     functions = _scanned_functions(tree)
     primitives = _effective_primitives(tree, _LIBRARY_PRIMITIVES)
+    wrapping = _body_wrapping_classes(tree)
     declared_names = frozenset(graded) | frozenset(exempt)
 
     direct = frozenset(name for name, node in functions.items() if _calls_any(node, primitives))
+    if _module_scope_reaches(tree, primitives):
+        direct |= {MODULE_SCOPE_REACH}
     propagating = frozenset(
-        name for name in graded if name in functions and _returns_personal_data(functions[name])
+        name
+        for name in graded
+        if name in functions and _returns_personal_data(functions[name], wrapping)
     )
     indirect = frozenset(name for name, node in functions.items() if _calls_any(node, propagating))
 
@@ -3766,9 +3889,13 @@ def _assert_library_reach_is_declared(
         f"undeclared functions take a save path from a graded helper: "
         f"{sorted(indirect - declared_names)}"
     )
-    assert declared_names <= frozenset(functions), (
-        f"a declaration names a function that no longer exists: "
-        f"{sorted(declared_names - frozenset(functions))}"
+    # THE SENTINEL IS A NAME AND NOT A FUNCTION, so it is admitted here rather
+    # than faked into the function map. A placeholder node was tried and is
+    # deprecated from Python 3.15, which is a poor thing to hang a privacy guard
+    # on.
+    nameable = frozenset(functions) | (direct & {MODULE_SCOPE_REACH})
+    assert declared_names <= nameable, (
+        f"a declaration names a function that no longer exists: {sorted(declared_names - nameable)}"
     )
     assert frozenset(graded) <= direct | indirect, (
         f"a graded helper no longer reaches the library: "
@@ -3779,6 +3906,15 @@ def _assert_library_reach_is_declared(
         f"{sorted(frozenset(exempt) - (direct | indirect))}"
     )
 
+
+#: A reach reason spelled ONCE, for the modules that cannot carry a string
+#: literal of their own. ``tests/save/test_decode_oracles.py`` is censused by
+#: CS-420 contract 6, under which a literal no prose channel reads is a finding,
+#: so its declaration takes both halves from elsewhere: the key from the
+#: function's own ``__name__`` and the reason from here.
+REACH_READS_THE_LIBRARY: Final = (
+    "reads each save in the library and reduces it to counts before returning"
+)
 
 #: This module's own library-reaching helpers, name to why it reaches.
 _GRADED_LIBRARY_REACH: Final = MappingProxyType(
@@ -3793,6 +3929,12 @@ _GRADED_LIBRARY_REACH: Final = MappingProxyType(
 #: Functions that touch a primitive WITHOUT consuming a real path, name to why.
 _EXEMPT_LIBRARY_REACH: Final = MappingProxyType(
     {
+        "_reaching_modules": (
+            "globs THIS TEST PACKAGE's own directory to enumerate the modules "
+            "the suite-wide guard covers - a repo path, never a save root or an "
+            "account directory. It is listed here rather than special-cased in "
+            "the guard, so the guard covering the package also covers itself"
+        ),
         "_assert_every_sweep_declines": (
             "a grader, not a consumer: it calls the contained discovery inside "
             "_contained_call and reduces the result to an integer before asserting"
@@ -3932,6 +4074,316 @@ def test_the_reach_primitives_partition_the_filesystem_vocabulary() -> None:
         f"{sorted(_LIBRARY_LOCATORS & _FILESYSTEM_PRIMITIVES)}"
     )
     assert _LIBRARY_LOCATORS <= _LIBRARY_PRIMITIVES, "a locator dropped out of the reach set"
+
+
+#: The two names a module under ``tests/save`` declares its library reach with.
+#: Spelled once here because the suite-wide guard below looks them up by name on
+#: every module in the package, and a second spelling would be the transcription
+#: this whole guard exists to avoid.
+_REACH_DECLARATIONS: Final = ("_GRADED_LIBRARY_REACH", "_EXEMPT_LIBRARY_REACH")
+
+
+def _reaching_modules() -> tuple[list[Path], list[Path]]:
+    """Split the package's modules by whether any function touches a primitive.
+
+    Returns:
+        The modules with at least one reach site, inside a function or at module
+        scope, and the rest.
+    """
+    package = Path(__file__).parent
+    reaching: list[Path] = []
+    silent: list[Path] = []
+    for path in sorted(package.glob("*.py")):
+        if path.name == "__init__.py":
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        functions = _scanned_functions(tree)
+        primitives = _effective_primitives(tree, _LIBRARY_PRIMITIVES)
+        # BOTH HALVES, AND THE SECOND WAS MISSING. Splitting on the function scan
+        # alone classed a module whose reach sits at module scope as SILENT, so
+        # the guard was never applied to it at all - the reach was invisible
+        # twice over. A refutation pass measured exactly that with a module-scope
+        # parametrize list, which is the ordinary idiom rather than a contrived
+        # one.
+        touched = any(_calls_any(node, primitives) for node in functions.values())
+        touched = touched or _module_scope_reaches(tree, primitives)
+        (reaching if touched else silent).append(path)
+    return reaching, silent
+
+
+def _imported_sibling(path: Path) -> object:
+    """Import a module of this package by its file path.
+
+    Args:
+        path: The module's file, inside this package.
+
+    Returns:
+        The imported module.
+    """
+    return importlib.import_module(f"tests.save.{path.stem}")
+
+
+def _declaration_verdicts(
+    paths: Sequence[Path], load: Callable[[Path], object]
+) -> tuple[list[str], list[tuple[Path, Mapping[str, str], Mapping[str, str]]]]:
+    """Judge each module's declarations, taking its module object from a caller.
+
+    THE LOADER IS A PARAMETER SO THIS CAN BE GRADED. It is named ``load``
+    rather than ``resolve`` because the reach guard is keyed on NAMES, so a
+    parameter called ``resolve`` reads as ``Path.resolve`` and flags this
+    function as touching a primitive - measured, not guessed. Driving the real package
+    is what the suite-wide test does; handing it a path outside the package and
+    a stand-in module is what
+    :func:`test_the_suite_wide_guard_catches_a_module_that_declares_nothing`
+    does, and without the seam that control would have to write a file into the
+    tracked test package to say anything at all.
+
+    Args:
+        paths: The modules to judge.
+        load: Maps a module file to the object carrying its declarations.
+
+    THE GUARD'S OWN FAILURE IS NOT CAUGHT AND RENDERED HERE, and that is
+    non-negotiable 12 rather than a style choice. An earlier draft collected
+    ``f"{path.name}: {exc}"``, which renders a caught exception OBJECT into a
+    message - ``str`` on an ``OSError`` appends the path it failed on, and that
+    path carries the account name. ``tests/test_exception_rendering.py`` caught
+    it, in a run of the WHOLE suite rather than of ``tests/save``. What is
+    collected instead is the ARGUMENTS the guard was called with, so the caller
+    can re-raise through the guard and let its own message be the one rendered.
+
+    Returns:
+        The modules declaring nothing, and the guard arguments of each module
+        whose declarations the guard rejects.
+    """
+    undeclared: list[str] = []
+    rejected: list[tuple[Path, Mapping[str, str], Mapping[str, str]]] = []
+    for path in paths:
+        module = load(path)
+        graded = getattr(module, _REACH_DECLARATIONS[0], None)
+        exempt = getattr(module, _REACH_DECLARATIONS[1], None)
+        if graded is None or exempt is None:
+            undeclared.append(path.name)
+            continue
+        try:
+            _assert_library_reach_is_declared(path, graded=graded, exempt=exempt)
+        except AssertionError:
+            rejected.append((path, graded, exempt))
+    return undeclared, rejected
+
+
+#: A module that reaches the library and says so nowhere. Written into tmp_path
+#: by the control below rather than into this package, so the tracked tree is
+#: untouched and the guard is put to a module it has genuinely not seen.
+_UNDECLARED_MODULE_SOURCE: Final = """
+from clockspeed.data import locate
+
+
+def _helper_that_reaches():
+    root = locate.resolve_save_root()
+    return locate.resolve_account_dir(root)
+"""
+
+#: A module whose reaching helper hands its caller a DATACLASS holding a body.
+#: This is CS-471's wrapper evasion in its smallest honest form.
+_WRAPPED_BODY_MODULE_SOURCE: Final = """
+from dataclasses import dataclass
+
+from clockspeed.data import locate
+
+
+@dataclass(frozen=True)
+class _Wrapped:
+    body: bytes
+
+
+def _reaches_and_wraps() -> _Wrapped:
+    root = locate.resolve_save_root()
+    account = locate.resolve_account_dir(root)
+    return _Wrapped(body=sorted(account.glob("*.sav"))[0].read_bytes())
+
+
+def _takes_the_wrapper():
+    return _reaches_and_wraps()
+"""
+
+
+def test_the_suite_wide_guard_catches_a_module_that_declares_nothing(tmp_path: Path) -> None:
+    """CS-471 clauses 1 and 2, FORCED rather than asserted about.
+
+    The suite-wide guard is green on this package, and a guard that is green can
+    be green for two reasons: the package is declared, or the guard reports
+    nothing whatever is put to it. This puts a module to it that reaches the
+    library through the raw locators and carries no declarations, and requires
+    the verdict to name it.
+
+    IT IS WRITTEN INTO ``tmp_path`` AND NOT INTO THE PACKAGE, so no tracked file
+    is created, no import cache is disturbed, and the run leaves the tree as it
+    found it.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+    """
+    planted = tmp_path / "test_planted_undeclared.py"
+    planted.write_text(_UNDECLARED_MODULE_SOURCE, encoding="utf-8")
+
+    tree = ast.parse(planted.read_text(encoding="utf-8"))
+    functions = _scanned_functions(tree)
+    primitives = _effective_primitives(tree, _LIBRARY_PRIMITIVES)
+    reaching = [name for name, node in functions.items() if _calls_any(node, primitives)]
+    assert reaching == ["_helper_that_reaches"], (
+        f"the planted module was meant to reach the library and the scanner found "
+        f"{reaching}. The control is describing a module that is not the one it wrote."
+    )
+
+    undeclared, rejected = _declaration_verdicts([planted], lambda _path: object())
+    assert undeclared == [planted.name], (
+        f"a module reaching the library through the raw locators and declaring "
+        f"neither map was not reported: undeclared={undeclared}, "
+        f"rejected={[one[0].name for one in rejected]}. "
+        "The suite-wide guard would then be green on this package for a reason that "
+        "has nothing to do with the package being declared."
+    )
+
+
+def test_a_helper_handing_back_a_wrapped_body_is_flagged_as_propagating(
+    tmp_path: Path,
+) -> None:
+    """CS-471 clause 3 - the wrapper evasion, and the OLD rule failing it.
+
+    BOTH RULES ARE RUN ON THE SAME NODE, which is what makes this a measurement
+    of the widening rather than a restatement of it. The old rule read the
+    rendered return annotation for ``Path`` or ``bytes``; a dataclass with a
+    ``body: bytes`` field renders as neither, so a helper handing one back
+    propagated the whole decompressed world past a guard that reported it clean.
+
+    THE CONSEQUENCE IS GRADED TOO, not just the predicate. With the wrapper
+    helper declared, its caller becomes an indirect reach site and the guard has
+    to say so - which is the half that would still be missing if this only
+    checked the boolean.
+
+    THE LIVE INSTANCE IS NOT SYNTHETIC. ``tests/save/test_value_anchoring.py``
+    ships ``_extents_of``, which hands back an ``_Extents`` holding a body; the
+    old rule called it clean and the new one does not.
+
+    IT CHANGES NO VERDICT ON THE SHIPPED PACKAGE TODAY, and that is disclosed
+    rather than left to be discovered. ``_extents_of`` calls no primitive, so it
+    is not a direct reach site and is not graded, and the propagation half is
+    consulted for graded helpers alone. The widening is therefore latent on the
+    real tree and live only on a module like the one planted here - which is
+    exactly why it is planted rather than argued for.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+    """
+    planted = tmp_path / "test_planted_wrapper.py"
+    planted.write_text(_WRAPPED_BODY_MODULE_SOURCE, encoding="utf-8")
+    tree = ast.parse(planted.read_text(encoding="utf-8"))
+    functions = _scanned_functions(tree)
+
+    wrapping = _body_wrapping_classes(tree)
+    assert wrapping == frozenset({"_Wrapped"}), (
+        f"the body-wrapping class walk found {sorted(wrapping)} in a module whose "
+        "only class holds a bytes field. The predicate below would then be "
+        "measuring the walk's silence rather than the widening."
+    )
+
+    node = functions["_reaches_and_wraps"]
+    assert not _returns_personal_data(node), (
+        "the OLD rule already called a wrapped body personal, so this control "
+        "grades nothing and CS-471's clause 3 had no defect to close. Either the "
+        "planted module stopped wrapping or the narrow rule has changed."
+    )
+    assert _returns_personal_data(node, wrapping), (
+        "the widened rule still calls a helper returning a dataclass with a "
+        "bytes field clean, which is exactly the evasion CS-471 was filed on."
+    )
+
+    with pytest.raises(AssertionError) as caught:
+        _assert_library_reach_is_declared(
+            planted,
+            graded={"_reaches_and_wraps": "reaches and hands back a wrapped body"},
+            exempt={},
+        )
+    assert "_takes_the_wrapper" in str(caught.value), (
+        "the caller of the wrapper-returning helper was not reported as an "
+        f"undeclared indirect reach site. The guard said: {caught.value}"
+    )
+
+
+def test_every_library_reaching_module_in_the_package_is_declared() -> None:
+    """CS-471 clauses 1 and 2 - the guard no module has to opt into.
+
+    WHAT WAS WRONG, MEASURED BEFORE THIS TEST EXISTED. The reach guard was
+    consumed by whichever module remembered to call it; a minority of the modules
+    under ``tests/save`` did, and the rest were unexamined. Several of those had
+    functions touching a library primitive, and a NEW library-reaching module
+    shipped undeclared by default - the opposite of what a privacy guard should
+    do on the path of least effort. NO COUNT IS QUOTED HERE, deliberately: the
+    figures live in the CS-471 ledger entry, which is dated, and a measured
+    number in prose is a lie with a timestamp on it.
+
+    WHAT THIS DOES NOT REACH, because a green guard invites the wrong reading. A
+    module with no direct primitive call is classed silent and skipped, so a
+    helper imported from a sibling and called here is invisible to the
+    enumeration. This proves the guard is APPLIED to every module in the package;
+    it does not prove every route into the library runs through a primitive this
+    module names.
+
+    THE ENUMERATION IS THE POINT AND IT IS NOT A LIST. This walks the package's
+    own directory, so a module added tomorrow is in scope the moment it exists.
+    A guard that had to be added to each new module is exactly the guard that
+    was not added to eleven.
+
+    BOTH DIRECTIONS ARE HELD. A module that reaches must declare; a module that
+    does NOT reach must not carry declarations, or an exemption outlives the
+    code it described and the next reader inherits a reason for nothing. The
+    second half is what stops this test being satisfied by pasting empty maps
+    into every file.
+
+    THE PER-MODULE TESTS ARE NOT REDUNDANT AND ARE DELIBERATELY KEPT. Each
+    consuming module also carries a splice control that forces the guard to
+    catch a planted uncontained helper IN THAT MODULE. This test proves the
+    guard is APPLIED everywhere; those prove it has teeth. Neither is the other,
+    and a count of five consumers is not a claim about sixteen modules.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+    """
+    reaching, silent = _reaching_modules()
+    assert reaching, (
+        "no module under tests/save has a function touching a library primitive, "
+        "so this guard is vacuous. Either the package moved or the primitive "
+        "vocabulary has stopped matching the code it describes."
+    )
+
+    undeclared, rejected = _declaration_verdicts(reaching, _imported_sibling)
+
+    assert not undeclared, (
+        f"these modules have a function touching a library primitive and declare "
+        f"nothing: {sorted(undeclared)}. Each needs "
+        f"{_REACH_DECLARATIONS[0]} and {_REACH_DECLARATIONS[1]} at module scope - "
+        "every reaching function either graded with why it reaches, or exempt with "
+        "why touching a primitive is not reaching the library here. A module that "
+        "declares nothing is not a module that reaches nothing."
+    )
+    if rejected:
+        # RE-RAISED THROUGH THE GUARD rather than rendered from a caught object,
+        # so the message pytest shows is the guard's own and this frame holds no
+        # exception at all - see the note in _declaration_verdicts.
+        path, graded, exempt = rejected[0]
+        _assert_library_reach_is_declared(path, graded=graded, exempt=exempt)
+
+    stray = [
+        path.name
+        for path in silent
+        if any(
+            getattr(importlib.import_module(f"tests.save.{path.stem}"), name, None) is not None
+            for name in _REACH_DECLARATIONS
+        )
+    ]
+    assert not stray, (
+        f"{sorted(stray)} carry library-reach declarations and no function in them "
+        "touches a primitive at all. A declaration that outlives the code it "
+        "described reads as a live constraint and holds nothing - delete it, or "
+        "the next reader inherits a reason for something that is not there."
+    )
 
 
 def test_every_library_reaching_function_here_is_declared() -> None:

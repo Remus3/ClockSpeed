@@ -290,6 +290,30 @@ the line becomes a pointer.
 - **CS-478's residual, stated as an adversary put it:** one more line turns the `unscored` lie
   into a `cannot_separate` lie. The control prices CONCEALMENT, not the lie. CS-426 owns it.
 
-- **Next action:** take CS-471 (tier 1, privacy-adjacent). Its pinning test
-  `test_the_entry_points_still_bind_the_raw_body_where_a_renderer_can_read_it` FAILS when the
-  item closes - widen the control and delete that test, never delete it alone.
+- **CS-471 ALSO CLOSED, on its THREE STATED CLAUSES and not on the channel being shut.** The
+  parameter-and-locals channel stays open and its pinning test
+  `test_the_entry_points_still_bind_the_raw_body_where_a_renderer_can_read_it` STILL PASSES and
+  stays. Residuals filed as CS-491. Operator ruled the close on the three clauses.
+
+- **A REFUTATION PASS REFUTED CLAUSE 1 OUTRIGHT AND IT WAS RIGHT.** The scan read module-body
+  statements only, so a module-scope reach was invisible - and the classifier called that module
+  SILENT, so the guard never ran on it. The proof of concept was the ordinary pytest idiom, a
+  module-scope call feeding a parametrize list. Closed under a `MODULE_SCOPE_REACH` sentinel
+  wired into BOTH the guard and the classifier. **Fixing a guard without fixing the thing that
+  decides which files the guard runs on is half a fix that measures green.**
+
+- **I SHIPPED A NON-NEGOTIABLE 12 VIOLATION WHILE CLOSING A PRIVACY ITEM.** An f-string rendered
+  a caught exception object; `OSError.__str__` appends the path it failed on. Caught by
+  `tests/test_exception_rendering.py`, which lives OUTSIDE `tests/save` - so a `tests/save` run
+  was green while it was there. **Run the whole suite before believing a privacy change.**
+
+- **EIGHT EXEMPT REASONS OF MINE WERE MEASURED FALSE, plus four more defects.** Do not rewrite
+  them back: six reasons described filesystem work on functions matched only by a NAME COLLISION
+  with a sibling's citation resolver; one described the game install for a synthetic usmap in
+  tmp_path; one claimed tmp_path containment for a test passing no path, whose real containment
+  is an autouse env fixture. Also: the wrapper walk missed a subclass; the clause-2 control was
+  a tautology reporting every input undeclared; the package walk was narrowable to one module in
+  silence; and a docstring said "third argument" of two.
+
+- **Next action:** take CS-491 (tier 1), CS-471's filed residual - read its detail in
+  `docs/history_notes.md` first. CS-488 and CS-490 are the other open tier-2 byte-order items.

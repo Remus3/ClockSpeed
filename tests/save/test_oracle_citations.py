@@ -108,6 +108,8 @@ import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
+from typing import Final
 
 # ---------------------------------------------------------------------------
 # Grammar
@@ -776,3 +778,64 @@ def test_a_module_that_does_not_parse_is_reported_rather_than_resolved() -> None
         "the syntax tree, so a module it cannot parse is a question it cannot "
         "answer, and answering it anyway in either direction would be a guess."
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-471 - THIS MODULE'S LIBRARY REACH, DECLARED.
+#
+# The guard is owned by ``test_properties`` and applied across this package by
+# the suite-wide test that lives beside it, which walks the package directory
+# rather than waiting to be called. Before CS-471 this module touched a library
+# primitive while declaring no reach at all, and the suite had no check that
+# would say so.
+#
+# The wording here is deliberately free of the CS-420 quantifier vocabulary,
+# because two modules carrying this block sit inside that fence.
+# ---------------------------------------------------------------------------
+
+#: Helpers that genuinely reach the save library, name to why each reaches.
+_GRADED_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType({})
+
+#: Touches a primitive WITHOUT consuming a real save path, name to why.
+#: Asserted still reaching, so a stale exemption reddens the guard.
+_EXEMPT_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "_sources_under": (
+            "rglob over THIS REPO's own tracked sources under the project "
+            "root, never a save directory and never the account directory "
+        ),
+        "test_a_def_inside_a_string_literal_does_not_resolve_a_citation": (
+            "matched by NAME and not by a filesystem call: it uses this "
+            "module's own citation resolver, which is spelled resolve and "
+            "takes an injected mapping of module text. It opens no file and "
+            "touches no path at all "
+        ),
+        "test_a_method_or_a_nested_def_does_not_resolve_a_citation": (
+            "matched by NAME and not by a filesystem call: it uses this "
+            "module's own citation resolver, which is spelled resolve and "
+            "takes an injected mapping of module text. It opens no file and "
+            "touches no path at all "
+        ),
+        "test_a_module_that_does_not_parse_is_reported_rather_than_resolved": (
+            "matched by NAME and not by a filesystem call: it uses this "
+            "module's own citation resolver, which is spelled resolve and "
+            "takes an injected mapping of module text. It opens no file and "
+            "touches no path at all "
+        ),
+        "test_every_test_citation_in_the_package_resolves": (
+            "rglob over THIS REPO's own tracked sources under the project "
+            "root, and a resolve that is this module's own citation "
+            "resolver over injected text rather than a filesystem call "
+        ),
+        "test_no_citation_under_the_package_is_too_broken_to_read": (
+            "rglob over THIS REPO's own tracked sources under the project "
+            "root, never a save directory and never the account directory "
+        ),
+        "test_the_citation_scanner_catches_an_uncited_oracle_and_a_dead_citation": (
+            "matched by NAME and not by a filesystem call: it uses this "
+            "module's own citation resolver, which is spelled resolve and "
+            "takes an injected mapping of module text. It opens no file and "
+            "touches no path at all "
+        ),
+    }
+)

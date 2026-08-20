@@ -1167,3 +1167,30 @@ def test_every_tag_width_is_caught_by_a_library_backed_oracle(
         "false. A red here means no width at all moves the count, so the count grades "
         "zero faults in this run"
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-471 - THIS MODULE'S LIBRARY REACH, DECLARED.
+#
+# The guard is owned by ``test_properties`` and applied across this package by
+# the suite-wide test that lives beside it, which walks the package directory
+# rather than waiting to be called. Before CS-471 this module touched a library
+# primitive while declaring no reach at all, and the suite had no check that
+# would say so.
+#
+# The wording here is deliberately free of the CS-420 quantifier vocabulary,
+# because two modules carrying this block sit inside that fence.
+# ---------------------------------------------------------------------------
+
+#: Helpers that genuinely reach the save library, name to why each reaches.
+#: THE KEY IS THE FUNCTION'S OWN ``__name__`` AND THE REASON COMES FROM
+#: ``test_properties``, so this censused module adds no string literal here -
+#: and the key is the function it names rather than a transcription of it,
+#: so a rename moves both together.
+_GRADED_LIBRARY_REACH: Final = MappingProxyType(
+    {_sweep_decode_oracles.__name__: test_properties.REACH_READS_THE_LIBRARY}
+)
+
+#: Touches a primitive WITHOUT consuming a real save path, name to why.
+#: Asserted still reaching, so a stale exemption reddens the guard.
+_EXEMPT_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType({})

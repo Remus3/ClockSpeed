@@ -44,8 +44,10 @@ import os
 import re
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
+from types import MappingProxyType
+from typing import Final
 
 import pytest
 
@@ -57,7 +59,7 @@ from clockspeed.data.locate import (
     ENV_SAVE_ROOT,
 )
 from clockspeed.save import workdir
-from tests.save import synthetic
+from tests.save import synthetic, test_properties
 
 # ---------------------------------------------------------------------------
 # Paths, derived rather than written down
@@ -1928,3 +1930,92 @@ def test_the_single_writer_detector_actually_detects() -> None:
     assert write_modes_in('with path.open("rb") as fh:') == []
     assert write_modes_in('with open("data.txt") as fh:') == []
     assert write_modes_in('with open(path, "rb") as fh:') == []
+
+
+# ---------------------------------------------------------------------------
+# CS-471 - THIS MODULE'S LIBRARY REACH, DECLARED.
+#
+# The guard is owned by ``test_properties`` and applied across this package by
+# the suite-wide test that lives beside it, which walks the package directory
+# rather than waiting to be called. Before CS-471 this module touched a library
+# primitive while declaring no reach at all, and the suite had no check that
+# would say so.
+#
+# The wording here is deliberately free of the CS-420 quantifier vocabulary,
+# because two modules carrying this block sit inside that fence.
+# ---------------------------------------------------------------------------
+
+#: Helpers that genuinely reach the save library, name to why each reaches.
+_GRADED_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType({})
+
+#: Touches a primitive WITHOUT consuming a real save path, name to why.
+#: Asserted still reaching, so a stale exemption reddens the guard.
+_EXEMPT_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        test_properties.MODULE_SCOPE_REACH: (
+            "Path(__file__).resolve() at module scope, building this repo's "
+            "own root and this module's own path as constants. It resolves a "
+            "tracked source file, never a save directory and never the "
+            "account directory"
+        ),
+        "sha256_of": ("digests a file the caller wrote into tmp_path "),
+        "stat_triple": ("stats a file the caller wrote into tmp_path "),
+        "test_latest_save_hands_the_listing_problems_to_a_caller_that_asks": (
+            "applies the locator to a pytest tmp_path standing in for a "
+            "save root, never to the real one "
+        ),
+        "test_latest_save_ignores_files_that_are_not_saves": (
+            "applies the locator to a pytest tmp_path standing in for a "
+            "save root, never to the real one "
+        ),
+        "test_latest_save_is_stable_across_two_runs": (
+            "applies the locator to a pytest tmp_path standing in for a "
+            "save root, never to the real one "
+        ),
+        "test_latest_save_picks_a_manual_save_when_it_is_the_newest": (
+            "applies the locator to a pytest tmp_path standing in for a "
+            "save root, never to the real one "
+        ),
+        "test_latest_save_picks_the_newest_across_manual_saves_and_autosaves": (
+            "applies the locator to a pytest tmp_path standing in for a "
+            "save root, never to the real one "
+        ),
+        "test_latest_save_reports_nothing_for_a_directory_it_could_read": (
+            "applies the locator to a pytest tmp_path standing in for a "
+            "save root, never to the real one "
+        ),
+        "test_latest_save_returns_none_for_an_absent_directory": (
+            "applies the locator to a pytest tmp_path standing in for a "
+            "save root, never to the real one "
+        ),
+        "test_latest_save_returns_none_for_an_empty_directory": (
+            "applies the locator to a pytest tmp_path standing in for a "
+            "save root, never to the real one "
+        ),
+        "test_latest_save_returns_none_when_nothing_resolves": (
+            "passes NO path at all - it asserts the locator declines when "
+            "nothing resolves. Its containment is the autouse fixture in "
+            "this module, which points the CLOCKSPEED environment variables "
+            "at a directory under the repo that does not exist. MEASURED, "
+            "so the distinction is not academic: the same call with that "
+            "fixture absent resolves a real save on this machine "
+        ),
+        "test_latest_save_tells_a_directory_that_is_not_there_from_one_that_refused": (
+            "applies the locator to a pytest tmp_path standing in for a "
+            "save root, never to the real one "
+        ),
+        "test_stat_reports_the_broken_symlink_fault_that_is_file_hides": (
+            "stats a broken symlink this test created in tmp_path "
+        ),
+        "test_the_copy_is_byte_identical_to_the_source": (
+            "resolves tmp_path work and source roots this test created "
+        ),
+        "test_the_copy_survives_a_body_with_every_byte_value": (
+            "reads back a synthetic body this test wrote into tmp_path "
+        ),
+        "test_workdir_is_the_only_save_module_that_can_write": (
+            "globs THIS REPO's own clockspeed/save sources to prove no "
+            "other module can write, never a save directory "
+        ),
+    }
+)

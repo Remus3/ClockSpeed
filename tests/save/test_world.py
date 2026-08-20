@@ -2362,6 +2362,12 @@ _GRADED_LIBRARY_REACH: Final = MappingProxyType(
 #: name to why. Asserted still reaching, so none outlives its reason.
 _EXEMPT_LIBRARY_REACH: Final = MappingProxyType(
     {
+        test_properties.MODULE_SCOPE_REACH: (
+            "Path(__file__).resolve() at module scope, building this repo's "
+            "own root and this module's own path as constants. It resolves a "
+            "tracked source file, never a save directory and never the "
+            "account directory"
+        ),
         "_fingerprint": (
             "reads bytes under a tmp_path work root supplied by the caller, "
             "never a discovered save directory"

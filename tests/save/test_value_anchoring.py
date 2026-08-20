@@ -3406,3 +3406,31 @@ def test_a_library_less_call_does_not_switch_the_graders_off_for_the_session() -
         "word is graded by nothing while the suite stays green - which is worse than a "
         "red, because a skip reads as an ungraded machine rather than as a defect."
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-471 - THIS MODULE'S LIBRARY REACH, DECLARED.
+#
+# The guard is owned by ``test_properties`` and applied across this package by
+# the suite-wide test that lives beside it, which walks the package directory
+# rather than waiting to be called. Before CS-471 this module touched a library
+# primitive while declaring no reach at all, and the suite had no check that
+# would say so.
+#
+# The wording here is deliberately free of the CS-420 quantifier vocabulary,
+# because two modules carrying this block sit inside that fence.
+# ---------------------------------------------------------------------------
+
+#: Helpers that genuinely reach the save library, name to why each reaches.
+_GRADED_LIBRARY_REACH: Final = MappingProxyType(
+    {
+        "_census_stored_patterns": ("reads every save in the library, counts only "),
+        "_read_tagged_save": ("reads one real save and hands back its body "),
+        "_sweep_anchor": ("reads every save in the library "),
+        "_sweep_permutations": ("reads every save in the library "),
+    }
+)
+
+#: Touches a primitive WITHOUT consuming a real save path, name to why.
+#: Asserted still reaching, so a stale exemption reddens the guard.
+_EXEMPT_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType({})

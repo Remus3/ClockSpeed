@@ -1603,3 +1603,43 @@ def test_a_paragraph_reference_resolves_only_against_a_paragraph_that_opens_that
         "This is the exact 662432d rename, and a fence that misses it closes "
         "no gap."
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-471 - THIS MODULE'S LIBRARY REACH, DECLARED.
+#
+# The guard is owned by ``test_properties`` and applied across this package by
+# the suite-wide test that lives beside it, which walks the package directory
+# rather than waiting to be called. Before CS-471 this module touched a library
+# primitive while declaring no reach at all, and the suite had no check that
+# would say so.
+#
+# The wording here is deliberately free of the CS-420 quantifier vocabulary,
+# because two modules carrying this block sit inside that fence.
+# ---------------------------------------------------------------------------
+
+#: Helpers that genuinely reach the save library, name to why each reaches.
+_GRADED_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType({})
+
+#: Touches a primitive WITHOUT consuming a real save path, name to why.
+#: Asserted still reaching, so a stale exemption reddens the guard.
+_EXEMPT_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "_sources_under": (
+            "rglob over THIS REPO's own tracked sources under the project "
+            "root, never a save directory and never the account directory "
+        ),
+        "backing_citations": (
+            "matched by NAME and not by a filesystem call: it uses this "
+            "module's own citation resolver, which is spelled resolve and "
+            "takes an injected mapping of module text. It opens no file and "
+            "touches no path at all "
+        ),
+        "dead_full_citations": (
+            "matched by NAME and not by a filesystem call: it uses this "
+            "module's own citation resolver, which is spelled resolve and "
+            "takes an injected mapping of module text. It opens no file and "
+            "touches no path at all "
+        ),
+    }
+)

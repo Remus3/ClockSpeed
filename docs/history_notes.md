@@ -276,6 +276,48 @@ gap. So the acceptance cannot rest on another contradiction; it needs either a f
 costs more than one `struct.pack` call, or evidence from outside this module's own tables.
 
 
+## CS-491 - detail
+
+Relocated from `ROADMAP.md` 2026-08-19 (session 23) for budget, not deleted. The item itself
+stays OPEN in `ROADMAP.md`.
+
+filed 2026-08-19 (session 23) as CS-471's residual. CS-471 closed on its three stated clauses
+and the routes below were measured OPEN at that moment by two refutation passes, each with a
+proof of concept run on a machine with no game. **Do not read CS-471's ledger entry as closing
+any of them.**
+
+**THE ALIASING ROUTES.** The reach guard is keyed on NAMES, which the module has always
+recorded as a trade. Measured invisible to it: a module-scope `lambda` wrapping a locator;
+`functools.partial(locate.resolve_save_root)`; `operator.methodcaller("glob", "*.sav")`; and
+`getattr(account, _NAME)("*.sav")` where `_NAME` is a module constant. `_effective_primitives`
+resolves an assignment of a bare Name or Attribute and stops there, and `_calls_any` reads a
+`getattr` only when its second argument is a literal.
+
+**THE CROSS-MODULE ROUTE.** A module with no primitive call of its own is classed silent, so
+importing a sibling's reaching helper and calling it is outside the guard entirely. CS-471's
+suite-wide test proves the guard is APPLIED to every module in the package; it does not prove
+every route into the library runs through a primitive that module names, and its docstring now
+says so.
+
+**THE WRAPPER DEFEATS.** `_body_wrapping_classes` reads field annotations and bases. Measured
+NOT flagged: a field typed `bytearray`, `memoryview` or `BytesIO`; an unannotated
+`self.body = body` bound in `__init__`; and a class imported from a sibling module. Measured
+flagged: `NamedTuple`, a string annotation, a class nested in a function, and a subclass of a
+wrapper.
+
+**CLAUSE 3 IS INERT ON THE SHIPPED TREE AND THAT IS NOT A DEFECT IN THE WIDENING.** The
+propagation half is consulted for GRADED helpers alone, and `tests/save/test_value_anchoring.py`
+`_extents_of` calls no primitive, so it can never be graded - the guard refuses it with `a
+graded helper no longer reaches the library`. Neutering the widening reds its own planted
+control and nothing else in the suite. Any acceptance here has to move a verdict, not a
+predicate.
+
+NOTE THE HARD PART BEFORE STARTING: keying on names is what makes the guard cheap and total
+over the shapes it does see. A route-based guard would need to resolve aliases across modules,
+which is the analysis this repo has so far declined. Do not close this by widening the name
+list alone - that leaves the next alias open and reads as though it did not.
+
+
 ## CS-487 - detail
 
 Relocated from `ROADMAP.md` 2026-08-19 (session 22) for budget, not deleted. **CS-487 CLOSED
