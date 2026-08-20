@@ -297,8 +297,12 @@ CS-492 - Close the reach routes that travel through an OBJECT rather than a name
 
 ## CS-493 - detail
 
-Relocated from `ROADMAP.md` 2026-08-20 (session 24) for budget, not deleted. The item itself
-stays OPEN in `ROADMAP.md`.
+Relocated from `ROADMAP.md` 2026-08-20 (session 24) for budget, not deleted.
+
+**CS-493 CLOSED 2026-08-20 (session 25) - see `docs/LEDGER.md`. This block is the record of how it
+was filed and is no longer a live instruction.** Bound 2 was LIVE rather than latent: two tracked
+modules had declarations the reader could not follow. Bounds 3 and 4 are NOT closed - bound 4 is
+filed as CS-500.
 
 CS-493 - Bound the cross-module reach resolution, which is one hop and reads only a LITERAL declaration - acceptance: a module reaching the library through a two-hop sibling chain is reported, or the one-hop bound is recorded in shipped DATA rather than in prose; and a sibling whose `_GRADED_LIBRARY_REACH` is built by a call or a comprehension rather than a dict literal is not silently read as declaring nothing - tier: 2 - NOTE: filed 2026-08-20 (session 24) as CS-491's disclosed residual. `_reaching_names_of` scans a sibling with the base vocabulary and its own aliases, NOT with its own sibling imports, so a helper reaching the library only through a third module is not resolved. `_declared_graded_names` reads `ast.Dict` keys out of the assignment, so `MappingProxyType(dict(...))` or a comprehension yields an EMPTY graded set and the sibling exports nothing - **which fails SILENT, in the permissive direction**. Both bounds are stated in docstrings today, which is prose. **A third, from the privacy pass:** `_sibling_module_file` has no stated precondition on `source`; it reads and parses any `*.py` beside whatever directory it is handed. 2927 arguments were measured across a full run with ZERO outside the repo and tmp, so the bound holds today as a property of the CALL SITES rather than as an assertion. **A fourth, from the round-three pass:** `MODULE_SCOPE_REACH` is ONE sentinel per file, so a module that already declares it absorbs any additional module-scope reach with no new evidence. Three tracked modules declare it today.
 

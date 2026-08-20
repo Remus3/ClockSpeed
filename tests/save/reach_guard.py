@@ -549,45 +549,127 @@ def _sibling_module_file(stem: str, source: Path) -> Path | None:
     return None
 
 
+def _function_names_in(
+    value: ast.expr, functions: frozenset[str], constants: Mapping[str, ast.expr], depth: int
+) -> frozenset[str]:
+    """Every function of a module that an expression names, however it spells it.
+
+    THREE SPELLINGS, EACH EXACT, plus ONE level of indirection through a
+    module-scope constant. A string key names a function directly; ``f.__name__``
+    names ``f``; a bare ``f`` names itself. A name that resolves to a module
+    constant is followed once, which is what reads a declaration built from a
+    table of ``(label, function)`` pairs.
+
+    Args:
+        value: The expression to read.
+        functions: The names the module defines, so a reference to something
+            else contributes nothing.
+        constants: Module-scope bindings, for the one indirection hop.
+        depth: Remaining indirection budget.
+
+    Returns:
+        The subset of ``functions`` the expression names.
+    """
+    found: set[str] = set()
+    for node in ast.walk(value):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if node.value in functions:
+                found.add(node.value)
+        elif isinstance(node, ast.Attribute) and node.attr == "__name__":
+            if isinstance(node.value, ast.Name) and node.value.id in functions:
+                found.add(node.value.id)
+        elif isinstance(node, ast.Name):
+            if node.id in functions:
+                found.add(node.id)
+            elif depth > 0 and node.id in constants:
+                found |= _function_names_in(constants[node.id], functions, constants, depth - 1)
+    return frozenset(found)
+
+
 def _declared_graded_names(tree: ast.Module) -> frozenset[str]:
-    """The keys of a module's graded-reach declaration, read out of its source.
+    """The functions a module's graded-reach declaration names, read out of its source.
 
     READ FROM THE TREE RATHER THAN IMPORTED. The classifier runs over every file
     in the package before anything has established that they all import, and a
     guard that imports what it is judging has a cycle waiting in it - this
-    module is imported BY most of the package it scans.
+    module is imported BY most of the package it scans. It also runs over
+    PLANTED modules under ``tmp_path``, which are not importable at all.
+
+    IT OVER-APPROXIMATES ON PURPOSE, WHICH IS CS-493. It read ``ast.Dict`` keys
+    and nothing else, so a declaration built any other way read as EMPTY - and
+    that failed in the PERMISSIVE direction: the sibling export is filtered by
+    this set, so a module whose declaration could not be read exported no
+    reaching helper, every importer of it was classed silent, and the guard
+    never ran on them. **Two tracked modules were measured in exactly that
+    state**, one keying on ``f.__name__`` and one building the map with a
+    comprehension over a table of ``(label, function)`` pairs.
+
+    OVER-READING IS SAFE HERE AND UNDER-READING IS NOT, which is the whole
+    reason this direction was chosen. :func:`_reaching_names_of` returns
+    ``graded & (direct | indirect)``, so a name this reports that does not
+    actually reach is intersected away and can never manufacture a reacher. A
+    name it MISSES is a real reach that goes unexported and unguarded.
 
     Args:
         tree: The sibling's parsed module.
 
     Returns:
-        The string keys of its ``_GRADED_LIBRARY_REACH`` mapping, empty when it
+        The functions its ``_GRADED_LIBRARY_REACH`` names, empty when it
         declares none.
     """
+    functions = frozenset(_scanned_functions(tree))
+    constants = {
+        bound[0]: value
+        for bound, value in _bindings_in(tree, inside_functions=False)
+        if len(bound) == 1
+    }
     found: set[str] = set()
     for bound, value in _bindings_in(tree, inside_functions=False):
         if _REACH_DECLARATIONS[0] not in bound:
             continue
-        for node in ast.walk(value):
-            if not isinstance(node, ast.Dict):
-                continue
-            found |= {
-                key.value
-                for key in node.keys
-                if isinstance(key, ast.Constant) and isinstance(key.value, str)
-            }
+        found |= _function_names_in(value, functions, constants, _DECLARATION_INDIRECTION_HOPS)
     return frozenset(found)
 
 
+#: How many module-scope constants the declaration reader follows before it
+#: stops. One, so a declaration built from a table of helpers is read and an
+#: arbitrarily deep chain of indirection is not chased. Over-reading here is
+#: intersected away by :func:`_reaching_names_of`; under-reading is the failure
+#: that hides a real reacher, which is why the budget exists at all rather than
+#: the reader refusing anything it cannot fully evaluate.
+_DECLARATION_INDIRECTION_HOPS: Final = 1
+
+#: How many module hops the sibling resolution follows.
+#:
+#: THE BOUND IN DATA, WHICH IS CS-493. It was stated in three docstrings and
+#: nowhere else, so nothing measured it and nothing would have noticed it
+#: drifting. It is a parameter now, defaulted from here, and
+#: ``test_the_sibling_resolution_bound_is_the_number_this_module_declares``
+#: plants a chain one hop longer than this and requires it to go unresolved at
+#: this value and resolved at one more. A number a control moves is a number
+#: that means something.
+#:
+#: ONE IS DELIBERATE AND IS NOT A LIMITATION OF THE CODE. Raising it resolves
+#: longer chains and costs a parse of every module on every hop, and the wider
+#: analysis has been declined before. What changed here is that the cost of
+#: raising it is now a one-character edit with a control that proves the effect,
+#: rather than an argument about what the guard might do.
+_SIBLING_RESOLUTION_HOPS: Final = 1
+
+
 @cache
-def _reaching_names_of(sibling: Path, names: frozenset[str]) -> frozenset[str]:
+def _reaching_names_of(
+    sibling: Path, names: frozenset[str], hops: int = _SIBLING_RESOLUTION_HOPS
+) -> frozenset[str]:
     """The helpers a sibling module defines that reach the SAVE LIBRARY.
 
-    ONE HOP, STATED RATHER THAN IMPLIED. The sibling is scanned with the base
-    vocabulary and its OWN aliases, and NOT with its own sibling imports, so a
-    helper reaching the library only through a third module is not resolved
-    here. Two hops would need the whole-package fixpoint this repo has declined;
-    what CS-491 closes is the hop that was measured open.
+    THE HOP COUNT IS A PARAMETER AND ITS DEFAULT IS
+    :data:`_SIBLING_RESOLUTION_HOPS`. At one hop the sibling is scanned with the
+    base vocabulary and its OWN aliases and NOT with its own sibling imports, so
+    a helper reaching the library only through a THIRD module is not resolved -
+    which is the bound CS-493 moved out of prose and into a number a control can
+    move. At more than one it resolves the sibling's siblings too, recursively,
+    with the budget spent one hop at a time.
 
     THE SIBLING'S OWN GRADED DECLARATION IS THE FILTER, and that is a narrowing
     with a reason rather than a convenience. Touching a primitive is not the
@@ -612,6 +694,8 @@ def _reaching_names_of(sibling: Path, names: frozenset[str]) -> frozenset[str]:
     Args:
         sibling: The sibling module's file.
         names: The base reach vocabulary.
+        hops: How many further module hops to follow from this one. At one, the
+            sibling's own imports are not resolved.
 
     Returns:
         The names of its graded helpers that reach the library directly or
@@ -620,6 +704,11 @@ def _reaching_names_of(sibling: Path, names: frozenset[str]) -> frozenset[str]:
     """
     tree = ast.parse(sibling.read_text(encoding="utf-8"))
     primitives = _aliases_bound_in(tree, names, inside_functions=False)
+    if hops > 1:
+        # THE NEXT HOP, spent from this one's budget. Guarded on the count
+        # rather than on a visited set because the budget is what bounds it:
+        # a cycle cannot outlast a strictly decreasing integer.
+        primitives = primitives | _sibling_reaching_names(tree, sibling, names, hops=hops - 1)
     functions = _scanned_functions(tree)
     graded = _declared_graded_names(tree)
     direct = frozenset(name for name, node in functions.items() if _calls_any(node, primitives))
@@ -639,7 +728,10 @@ def _reaching_names_of(sibling: Path, names: frozenset[str]) -> frozenset[str]:
 
 
 def _runtime_named_siblings(
-    tree: ast.Module, source: Path, names: frozenset[str]
+    tree: ast.Module,
+    source: Path,
+    names: frozenset[str],
+    hops: int = _SIBLING_RESOLUTION_HOPS,
 ) -> frozenset[str]:
     """Reaching names of siblings a module names as a STRING rather than by import.
 
@@ -652,6 +744,7 @@ def _runtime_named_siblings(
         tree: The importing module's tree.
         source: The importing module's own file.
         names: The base reach vocabulary.
+        hops: The remaining module-hop budget, passed to each sibling scan.
 
     Returns:
         The reaching names of every sibling named by a string argument.
@@ -665,12 +758,15 @@ def _runtime_named_siblings(
                 continue
             named = _sibling_module_file(arg.value.rsplit(".", 1)[-1], source)
             if named is not None:
-                reaching |= _reaching_names_of(named, names)
+                reaching |= _reaching_names_of(named, names, hops)
     return frozenset(reaching)
 
 
 def _sibling_reaching_names(
-    tree: ast.Module, source: Path, names: frozenset[str]
+    tree: ast.Module,
+    source: Path,
+    names: frozenset[str],
+    hops: int = _SIBLING_RESOLUTION_HOPS,
 ) -> frozenset[str]:
     """Names a module imports from a package sibling that reach the library themselves.
 
@@ -699,6 +795,7 @@ def _sibling_reaching_names(
         tree: The importing module's tree.
         source: The importing module's own file.
         names: The base reach vocabulary.
+        hops: The remaining module-hop budget, spent one hop per module.
 
     Returns:
         The local names that stand for a sibling helper which calls a primitive.
@@ -720,7 +817,7 @@ def _sibling_reaching_names(
             sibling = _sibling_module_file(stem, source)
             if sibling is None:
                 continue
-            exported = _reaching_names_of(sibling, names)
+            exported = _reaching_names_of(sibling, names, hops)
             reaching |= {alias.asname or alias.name for alias in aliases if alias.name in exported}
             # A STAR IMPORT binds the sibling's whole namespace under its own
             # names, so every exported reacher arrives spelled exactly as the
@@ -733,13 +830,17 @@ def _sibling_reaching_names(
         for alias in aliases:
             sibling = _sibling_module_file(alias.name.rsplit(".", 1)[-1], source)
             if sibling is not None:
-                reaching |= _reaching_names_of(sibling, names)
+                reaching |= _reaching_names_of(sibling, names, hops)
 
-    return frozenset(reaching) | _runtime_named_siblings(tree, source, names)
+    return frozenset(reaching) | _runtime_named_siblings(tree, source, names, hops)
 
 
 def _effective_primitives(
-    tree: ast.Module, names: frozenset[str], *, source: Path | None = None
+    tree: ast.Module,
+    names: frozenset[str],
+    *,
+    source: Path | None = None,
+    hops: int = _SIBLING_RESOLUTION_HOPS,
 ) -> frozenset[str]:
     """Expand a primitive set by the ALIASES and the SIBLING IMPORTS that stand for one.
 
@@ -762,6 +863,7 @@ def _effective_primitives(
         tree: The parsed module.
         names: The primitives to start from.
         source: The module's own file, when the caller has it.
+        hops: The module-hop budget for the sibling half.
 
     Returns:
         The primitives, plus every alias the module binds and every sibling
@@ -769,7 +871,7 @@ def _effective_primitives(
     """
     effective = names
     if source is not None:
-        effective = effective | _sibling_reaching_names(tree, source, names)
+        effective = effective | _sibling_reaching_names(tree, source, names, hops)
     return _aliases_bound_in(tree, effective, inside_functions=False)
 
 

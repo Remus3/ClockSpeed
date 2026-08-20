@@ -1831,6 +1831,205 @@ def test_the_guard_catches_an_uncontained_helper_spliced_into_its_own_source(
     )
 
 
+#: The deepest module in a planted chain: it reaches the library directly and
+#: declares that it does.
+_CHAIN_TAIL: Final = """
+from types import MappingProxyType
+
+from clockspeed.data import locate
+
+
+def _hop_{index}_sweep():
+    \"\"\"Reaches the library directly.\"\"\"
+    return locate.resolve_save_root()
+
+
+_GRADED_LIBRARY_REACH = MappingProxyType({{"_hop_{index}_sweep": "reads the save library"}})
+_EXEMPT_LIBRARY_REACH = MappingProxyType({{}})
+"""
+
+#: A link in the chain: it reaches the library only through the NEXT module, and
+#: declares its own helper so the sibling export is not filtered out.
+_CHAIN_LINK: Final = """
+from types import MappingProxyType
+
+from planted_hop_{next_index} import _hop_{next_index}_sweep
+
+
+def _hop_{index}_sweep():
+    \"\"\"Reaches the library only through another module.\"\"\"
+    return _hop_{next_index}_sweep()
+
+
+_GRADED_LIBRARY_REACH = MappingProxyType({{"_hop_{index}_sweep": "reads through a sibling"}})
+_EXEMPT_LIBRARY_REACH = MappingProxyType({{}})
+"""
+
+#: The module under test: it names no primitive and reaches only through the
+#: chain. It declares nothing, because it is the subject rather than a link.
+_CHAIN_HEAD: Final = """
+from planted_hop_1 import _hop_1_sweep
+
+
+def _head_sweep():
+    \"\"\"Names no primitive and reaches the library down the chain.\"\"\"
+    return _hop_1_sweep()
+"""
+
+
+def _plant_chain(directory: Path, length: int) -> Path:
+    """Write a chain of modules whose last link reaches the library.
+
+    BUILT FROM THE BOUND RATHER THAN FIXED, which is the whole point. A chain of
+    a hardcoded length pins a literal while claiming to read the constant, and
+    that is what the first draft of this control did - raising the bound left
+    the chain resolvable AT the bound and reddened it for the wrong reason.
+
+    Args:
+        directory: Where to write the modules.
+        length: How many hops separate the head from the reaching module.
+
+    Returns:
+        The head module's path.
+    """
+    for index in range(1, length + 1):
+        template = _CHAIN_TAIL if index == length else _CHAIN_LINK
+        (directory / f"planted_hop_{index}.py").write_text(
+            template.format(index=index, next_index=index + 1), encoding="utf-8"
+        )
+    head = directory / "planted_head.py"
+    head.write_text(_CHAIN_HEAD, encoding="utf-8")
+    return head
+
+
+def test_the_sibling_resolution_bound_is_the_number_this_module_declares(
+    tmp_path: Path,
+) -> None:
+    """CS-493 clause 1 - the one-hop bound is DATA now, and the number is measured.
+
+    WHAT WAS WRONG. The bound was stated in three docstrings and nowhere else.
+    Nothing measured it, so nothing would have noticed it drifting, and a reader
+    had only the prose's word that one hop was where the resolution stopped. A
+    bound recorded only in prose is the shape CLAUDE.md section 4 warns about,
+    and this one governed a privacy guard.
+
+    THE CHAIN IS BUILT ONE HOP LONGER THAN THE SHIPPED BOUND, from the constant
+    rather than at a fixed length, so it must go unresolved at
+    :data:`~tests.save.reach_guard._SIBLING_RESOLUTION_HOPS` and resolved at one
+    more WHATEVER that number is. The first draft planted a fixed chain and said
+    this; raising the bound then reddened it, which pinned the literal instead of
+    the constant. BOTH HALVES ARE REQUIRED. Asserting only that the
+    chain is unresolved would pass against a resolution that resolves NOTHING,
+    which is a bound of zero wearing the shipped number's name.
+
+    NO NUMBER IS SPELLED HERE. The control reads the constant and adds one, so
+    raising the bound moves this test with it instead of leaving a literal
+    behind that says something the code stopped doing.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+
+    Args:
+        tmp_path: The per-test temporary directory.
+    """
+    bound = reach_guard._SIBLING_RESOLUTION_HOPS  # noqa: SLF001
+    head = _plant_chain(tmp_path, bound + 1)
+    tree = ast.parse(head.read_text(encoding="utf-8"))
+
+    at_the_bound = _effective_primitives(tree, _LIBRARY_PRIMITIVES, source=head, hops=bound)
+    assert "_hop_1_sweep" not in at_the_bound, (
+        f"a chain {bound + 1} hops long resolved at a bound of {bound}, so the number "
+        "this module declares is not the number the resolution follows"
+    )
+
+    one_hop_further = _effective_primitives(tree, _LIBRARY_PRIMITIVES, source=head, hops=bound + 1)
+    assert "_hop_1_sweep" in one_hop_further, (
+        f"the chain did not resolve at {bound + 1} hops either, so the refusal above is "
+        "a resolution that resolves nothing rather than the bound holding"
+    )
+
+
+def test_every_graded_declaration_in_this_package_is_readable_from_the_source() -> None:
+    """CS-493 clause 2 - a declaration the AST cannot read is REPORTED, not assumed empty.
+
+    WHAT WAS WRONG, AND IT FAILED IN THE PERMISSIVE DIRECTION.
+    :func:`~tests.save.reach_guard._declared_graded_names` reads ``ast.Dict``
+    keys out of the assignment, so a declaration built by
+    ``MappingProxyType(dict(...))`` or by a comprehension yields an EMPTY set.
+    Measured on this tree: both spellings read as declaring NOTHING. The sibling
+    export is filtered by that set, so such a module exports no reaching helper,
+    every importer of it is classed silent, and the guard never runs on them -
+    all without a single red.
+
+    THE FIX IS A CROSS-CHECK, NOT A WIDER PARSER. Teaching the reader to
+    evaluate ``dict(...)`` would leave the next spelling open and read as though
+    it did not. Instead the AST read is compared against what the module
+    actually holds AT RUNTIME, which is the ground truth the guard's other half
+    already uses. Any spelling the reader cannot follow shows up as a
+    disagreement naming the module, whether or not anyone predicted it.
+
+    TWO INDEPENDENT READS OF ONE FACT, which is the only reason this is worth
+    anything: a test that asked the AST reader to check itself would agree with
+    itself for any parser at all.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+    """
+    reaching, silent = _reaching_modules()
+    checked: list[str] = []
+    disagreements: dict[str, dict[str, list[str]]] = {}
+
+    for path in (*reaching, *silent):
+        module = _imported_sibling(path)
+        runtime = getattr(module, _REACH_DECLARATIONS[0], None)
+        if runtime is None:
+            continue
+        checked.append(path.name)
+        from_source = reach_guard._declared_graded_names(  # noqa: SLF001
+            ast.parse(path.read_text(encoding="utf-8"))
+        )
+        if from_source != frozenset(runtime):
+            disagreements[path.name] = {
+                "in the source only": sorted(from_source - frozenset(runtime)),
+                "at runtime only": sorted(frozenset(runtime) - from_source),
+            }
+
+    assert checked, (
+        "no module in this package declares a graded reach map, so this guard is "
+        "vacuous. Either the package moved or the declaration name changed."
+    )
+
+    # THE DANGEROUS DIRECTION FIRST. A name the reader MISSES is a real reach
+    # that goes unexported, so its importers are classed silent and the guard
+    # never runs on them - which is how two tracked modules sat unread.
+    missed = {
+        name: gap["at runtime only"]
+        for name, gap in disagreements.items()
+        if gap["at runtime only"]
+    }
+    assert not missed, (
+        f"the source reader cannot follow these modules' graded declarations: {missed}. "
+        "A declaration read as short exports fewer reaching helpers than the module has, "
+        "so every module importing one of the missing helpers is classed silent and the "
+        "guard never runs on it. Widen the reader and grade the new spelling."
+    )
+
+    # THE SAFE DIRECTION, RECORDED RATHER THAN ALLOWED IN SILENCE. Over-reading
+    # cannot manufacture a reacher - _reaching_names_of intersects with what the
+    # functions actually do - so this is not a failure of the guard. It is
+    # asserted anyway because "currently exact" is worth knowing, and a reader
+    # that started guessing would otherwise change nothing visible.
+    over = {
+        name: gap["in the source only"]
+        for name, gap in disagreements.items()
+        if gap["in the source only"]
+    }
+    assert not over, (
+        f"the source reader names helpers these modules do not declare: {over}. That is "
+        "the SAFE direction - the export intersects it with what the functions actually "
+        "do - but it was exact when this was written, so a change here is a change in "
+        "the reader worth looking at rather than a defect on its own."
+    )
+
+
 def test_every_library_reaching_module_in_the_package_is_declared() -> None:
     """CS-471 clauses 1 and 2 - the guard no module has to opt into.
 

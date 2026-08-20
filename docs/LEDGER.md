@@ -73,6 +73,50 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-20 - CS-493 - the sibling-resolution bound moves from prose into DATA, and a declaration the reader cannot follow is REPORTED instead of read as empty
+Verification: `tests/save/test_reach_guard.py::test_the_sibling_resolution_bound_is_the_number_this_module_declares`
+and `::test_every_graded_declaration_in_this_package_is_readable_from_the_source`. Both run with
+`CLOCKSPEED_GAME_DIR` and `CLOCKSPEED_SAVE_ROOT` pointed at directories that do not exist.
+
+**CLAUSE 2 WAS LIVE ON THE SHIPPED TREE, NOT LATENT, AND THE ITEM WAS FILED AS THOUGH IT WERE A
+BOUND RATHER THAN A DEFECT.** The new cross-check reddened on arrival, naming two tracked modules
+whose `_GRADED_LIBRARY_REACH` the source reader could not follow: `test_decode_oracles.py`, which
+keys on `_sweep_decode_oracles.__name__`, and `test_objects.py`, which builds the map with a
+comprehension over a table of `(label, function)` pairs - **literally the comprehension the
+acceptance names**. Both spellings exist for good reasons: one keeps a censused module free of a
+string literal, the other stops the graded set drifting from the helper list. Neither was wrong;
+the reader was.
+
+WHAT THE REPAIR IS. `_declared_graded_names` read `ast.Dict` constant keys and nothing else, so
+any other spelling read as EMPTY - and that fails in the PERMISSIVE direction, because the sibling
+export is filtered by that set. It now reads three exact spellings - a string key, `f.__name__`,
+and a bare reference - and follows ONE module-scope constant, which is the indirection the package
+actually uses.
+
+**IT OVER-APPROXIMATES ON PURPOSE, AND THAT IS SAFE FOR A REASON RATHER THAN BY LUCK.**
+`_reaching_names_of` returns `graded & (direct | indirect)`, so a name the reader reports that does
+not actually reach is intersected away and can never manufacture a reacher. A name it MISSES is a
+real reach that goes unexported and unguarded. Measured after the widening: the reader now names
+exactly the runtime keys for all twelve declaring modules, over-reading nothing.
+
+CLAUSE 1 IS CLOSED ON THE SECOND BRANCH OF ITS OWN ACCEPTANCE - the bound is recorded in shipped
+DATA rather than in prose. `_SIBLING_RESOLUTION_HOPS` is a constant the resolution actually spends,
+one hop per module, and the control plants a chain BUILT FROM that constant and requires it
+unresolved at the bound and resolved at one more.
+
+**THE FIRST DRAFT OF THAT CONTROL PINNED THE LITERAL WHILE CLAIMING TO READ THE CONSTANT.** It
+planted a fixed three-module chain, so raising the bound to two left the chain resolvable AT the
+bound and reddened it - a mutant dying for the wrong reason. Rebuilt to generate the chain from the
+constant: raising the bound now SURVIVES, which is correct, because raising it is a deliberate
+change and the control follows it. Neutering the recursion and making it ignore the bound are both
+killed.
+
+**WHAT THIS DOES NOT CLOSE, from the item's own four bounds.** `_sibling_module_file` still has no
+stated precondition on `source` - its bound holds as a property of the call sites, measured, not as
+an assertion. And `MODULE_SCOPE_REACH` is still ONE sentinel per file, so a module already
+declaring it absorbs a second module-scope reach with no new evidence; that is reproduced and filed
+as CS-500. Neither is in this item's acceptance and neither is claimed.
+
 ### 2026-08-20 - CS-497 and CS-498 - the vocabulary partition stops being a tautology, and a self-exemption keyed on the guard's own file name is caught
 Verification: `tests/save/test_reach_guard.py::test_a_vocabulary_name_classified_nowhere_is_not_silently_a_reach_primitive`,
 `::test_the_reach_primitives_partition_the_filesystem_vocabulary` and
