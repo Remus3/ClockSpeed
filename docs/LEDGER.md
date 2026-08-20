@@ -73,6 +73,89 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-20 - CS-491 - the reach guard's aliasing, cross-module and wrapper routes are closed by RESOLUTION rather than by a wider name list; TWO REFUTATION PASSES REFUTED IT FIRST AND BOTH WERE RIGHT
+Verification: `tests/save/test_reach_guard.py`, which is the whole control set - in particular
+`::test_a_primitive_reached_through_an_alias_is_named_by_the_guard` (fourteen routes),
+`::test_a_module_scope_reach_through_an_alias_is_reported` (five),
+`::test_every_spelling_of_the_cross_module_route_is_resolved` (two),
+`::test_a_module_reaching_only_through_a_sibling_helper_is_not_classed_silent`,
+`::test_a_siblings_exempt_helper_does_not_export_a_reach_it_does_not_have`,
+`::test_a_siblings_graded_helper_that_reaches_indirectly_is_still_exported`,
+`::test_a_wrapper_holding_the_body_in_another_shape_is_flagged_as_propagating` (eleven
+defeats), `::test_a_wrapper_class_annotated_through_a_module_handle_is_resolved`,
+`::test_the_guards_failure_message_names_functions_and_never_a_path` and
+`::test_a_primitive_name_inside_a_collection_literal_binds_no_alias`. The guard itself stays
+in `tests/save/test_properties.py`. All run with `CLOCKSPEED_GAME_DIR` and
+`CLOCKSPEED_SAVE_ROOT` pointed at directories that do not exist.
+
+WHAT CLOSED. Every route the item was filed on, and twenty-one more that refutation passes
+measured past two earlier attempts at closing it, turn a test red on a machine with no game -
+and each red NAMES the evading function, or the module-scope sentinel where there is no
+function to name. The item's fence forbade closing it by widening the name list, so nothing in
+the guard names a wrapper: `partial`, `methodcaller` and `attrgetter` appear nowhere in it.
+
+IT TOOK THREE ROUNDS AND THE FIRST TWO WERE WRONG. That is the entry, not a preamble to it.
+Round one closed the seven filed routes; a refutation pass found eleven more, every one
+reproduced by the merger before anything was changed. Round two closed those; a second pass
+found a twelfth plus ten more. Round three closed those. A green suite after round one would
+have been a lie, and the guard is the thing this item is about.
+
+THE SAME DEFECT APPEARED FOUR TIMES: ONE MECHANISM APPLIED TO ONE OF TWO POPULATIONS. Aliases
+were resolved to a fixpoint for PRIMITIVES and not for TYPES, so `_Body = bytes` switched the
+whole wrapper walk off. The module-handle import shape was resolved for REACH and not for
+WRAPPERS. The sibling export was keyed on the DIRECT set, so a graded helper reaching through
+another graded helper never exported. And `_module_scope_reaches` re-derived the callee name
+itself with the pre-CS-491 two-channel test while `_calls_any` had grown five channels - so
+EVERY route already closed reopened by moving it one indentation level out of its `def`,
+escaping the guard and the classifier at once. That is the CS-477 pattern, found four times
+inside the repair for it.
+
+THE FIX FOR THE LAST ONE IS THE SHAPE WORTH COPYING. Replacing the callee node-type
+enumeration with a WALK over the callee expression flagged thirteen innocent functions,
+because a RECEIVER is a mention: `THIS_MODULE.read_text()` reads as reach once `THIS_MODULE`
+is itself an alias. That would have manufactured thirteen false reasons, which is the defect
+CS-471 had to correct eight of at once. What ships is `_callee_resolves`, a recursive
+structural question that asks the same thing of a smaller callee. A guard that names a
+population is the defect; a guard that walks everything manufactures reasons.
+
+THIRTY MUTANTS WERE RUN AGAINST THE CONTROLS AND TWO SURVIVED EARLIER PASSES, both closed by
+adding the route that isolates the branch rather than by deleting the branch: the
+`getattr`-through-a-NAME channel, live only where the primitive is handed back UNCALLED, and
+the store-annotation read, live only where the store's annotation is the sole statement of the
+type. The first draft of that second route reddened on `_Wrapped.__init__` rather than on the
+caller, because its value was itself a primitive call - a red for the wrong reason is not a
+measurement.
+
+TWO OF THE CONTROLS WERE TAUTOLOGIES AND A REFUTATION PASS PROVED IT BY CONSTRUCTION. The
+personal-data vocabulary's positive half was `_carries_personal_data(f"{word} | None")`, which
+reduces to `word in word + " | None"` and is true of any string - a vocabulary naming nothing
+personal passed it. And the collection-literal control claimed to hold the bound stated in
+`_resolves_by_string`, while widening that predicate to walk its arguments left the whole suite
+green. Both are replaced with assertions that can fail.
+
+NON-NEGOTIABLE 12 IS ENFORCED HERE NOW RATHER THAN ASSUMED. A privacy refutation pass - which
+did NOT refute the change, and verified it at runtime with an audit hook, write interception
+and forced frame rendering - counted this module's renderings of a caught exception into an
+f-string rising from nine to nineteen, and observed that `tests/test_exception_rendering.py`
+keys on an AST shape inside an `except` handler, so `with pytest.raises(...) as caught` is
+structurally invisible to it. They are safe only because the guard formats sorted lists of
+function names. `::test_the_guards_failure_message_names_functions_and_never_a_path` holds
+that, and the mutant adding `module_path` to a guard message reddens it.
+
+THE CONTROLS WERE RELOCATED, NOT TRIMMED. `test_properties.py` crossed the 256 KiB ceiling
+`tests/data/test_phase2_gate.py` puts on any file under `tests/` - a crude check whose whole
+job is catching a trimmed slice of real game data. CLAUDE.md section 4 says relocate rather
+than delete, and raising the number would have falsified the comment that justifies it, so the
+control set moved to `tests/save/test_reach_guard.py`. The guard implementation stayed put.
+**The module was 288 bytes under that ceiling when the session started**, which is filed as
+CS-495.
+
+THE PRICE ON THE SHIPPED TREE IS ONE EXEMPTION, in `tests/save/test_workdir.py`.
+`test_an_unrecognised_failure_is_reported_as_could_not_tell` binds `Path.iterdir` to a local
+in order to REPLACE it, and the widened local-alias expansion cannot tell that local from one
+holding a reach. Its first reason described work the test does not do and is corrected in
+place. Residuals filed as CS-492, CS-493, CS-494 and CS-495.
+
 ### 2026-08-19 - CS-471 - the library-reach declaration is enforced package-wide and the wrapper evasion is closed; it CLOSES ON ITS THREE CLAUSES AND NOT ON THE CHANNEL BEING SHUT
 Verification: `tests/save/test_properties.py::test_every_library_reaching_module_in_the_package_is_declared`,
 `tests/save/test_properties.py::test_the_suite_wide_guard_catches_a_module_that_declares_nothing`

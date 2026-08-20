@@ -317,3 +317,84 @@ the line becomes a pointer.
 
 - **Next action:** take CS-491 (tier 1), CS-471's filed residual - read its detail in
   `docs/history_notes.md` first. CS-488 and CS-490 are the other open tier-2 byte-order items.
+## Session 24 - 2026-08-20 - CS-491 CLOSES after THREE rounds; two refutation passes refuted it and both were right
+
+- **Shipped: CS-491 CLOSED.** Forty-seven controls, relocated into a new
+  `tests/save/test_reach_guard.py`; one exemption in `tests/save/test_workdir.py`. Filed
+  CS-492, CS-493, CS-494 and CS-495. `tests/save` with NO GAME **1064 -> 1111 passed, 49
+  skipped, exit 0**. Detail in `docs/LEDGER.md`.
+
+- **THE BASELINE REPRODUCED EXACTLY** before any of it: 1064 passed, 49 skipped with no game.
+
+- **I CLOSED IT WRONG TWICE AND SHIPPED NEITHER.** Round one closed the seven filed routes;
+  a refutation pass found ELEVEN more and was right about all eleven - I reproduced every
+  one before touching anything. Round two closed those; a second pass found the TWELFTH and
+  ten more, and was right again. Round three closed those. **The item is the guard's
+  credibility, not the diff, and a green suite after round one would have been a lie.**
+
+- **THE SAME DEFECT FOUR TIMES: ONE MECHANISM APPLIED TO ONE OF TWO POPULATIONS.** Aliases
+  resolved to a fixpoint for PRIMITIVES and not for TYPES, so `_Body = bytes` switched the
+  wrapper walk off. The module-handle import shape resolved for REACH and not for WRAPPERS.
+  The sibling export keyed on the DIRECT set, so a graded-but-indirect helper never
+  exported. **And the worst: `_module_scope_reaches` re-derived the callee name itself with
+  the pre-CS-491 two-channel test while `_calls_any` had grown five channels - so every
+  route I had closed reopened by moving it one indentation level out of its `def`.** This is
+  the CS-477 pattern, found four times inside the repair for it.
+
+- **THE FIX FOR THE LAST ONE IS THE SHAPE TO COPY.** I first replaced the callee node-type
+  enumeration with `_stands_for_a_primitive(callee)` - a WALK - and it flagged thirteen
+  innocent functions, because a RECEIVER is a mention: `THIS_MODULE.read_text()` reads as
+  reach when `THIS_MODULE` is itself an alias. That would have manufactured thirteen false
+  reasons. Replaced with `_callee_resolves`, a RECURSIVE STRUCTURAL question that asks the
+  same thing of a smaller callee. **A guard that names a population is the defect; a guard
+  that walks everything manufactures reasons. The answer is recursion, not either list.**
+
+- **EIGHT SENTENCES OF MINE OR MY PREDECESSORS' WERE MEASURED FALSE AND ARE CORRECTED IN
+  PLACE.** Do not rewrite them back: `_calls_any`'s claim that a bare-reference matcher
+  "flags every forced-failure grader" (measured 1 of 31 - those graders name the primitive
+  as a STRING, which is neither a Name nor an Attribute node); a citation to a test that
+  does not exist; "eleven tracked modules import it this way" (measured EIGHT; eleven is the
+  count of modules the classifier calls reaching, a real measurement of a different thing);
+  `_DECLARED_COMPANION`'s present-tense claim that its presence is what makes the controls
+  measure the route (true of the pre-CS-491 guard, false of the shipped one); the module-scope
+  `lambda` recorded as invisible to the guard (it is VISIBLE and files under the sentinel,
+  naming no function, which is worse in one way); and the `test_workdir` exemption's claim
+  about which directory the test lists.
+
+- **TWO OF MY CONTROLS WERE TAUTOLOGIES AND A REFUTATION PASS PROVED IT.** The personal-data
+  vocabulary's positive half was `_carries_personal_data(f"{word} | None")`, which reduces to
+  `word in word + " | None"` and is true for any string - a vocabulary naming nothing
+  personal passed it. And the `vocabulary-constant` control claimed to hold the bound stated
+  in `_resolves_by_string`; widening that predicate to walk its arguments left the whole
+  suite green. Both replaced with assertions that fail: the first walks a synthetic class per
+  word, the second asserts the bound of the predicate itself.
+
+- **AN ENUMERATION NOBODY PINS CAN BE NARROWED IN SILENCE, AGAIN.** Dropping `memoryview`
+  from `_PERSONAL_DATA_TYPES` AND its parallel entry from the defeat matrix left the suite
+  green, one test lower, with CS-491's own wrapper defeat number two reopened. Pinned now
+  with a second spelling, deliberately - a pin that reads the list it pins is not a pin.
+
+- **THIRTY MUTANTS, AND TWO SURVIVED EARLIER PASSES.** Both were closed by adding the route
+  that isolates the branch rather than deleting the branch: the `getattr`-through-a-NAME
+  channel, live only where the primitive is handed back UNCALLED; and the store-annotation
+  read, live only where the store's annotation is the sole statement of the type. **The first
+  draft of that second route reddened on `_Wrapped.__init__` rather than the caller, because
+  its value was itself a primitive call - a red for the wrong reason is not a measurement.**
+
+- **THE PRIVACY PASS CAME BACK NOT REFUTED**, verified at runtime rather than by reading: an
+  audit hook over 73 accessed paths, interception of 158 write events, and forced frame
+  rendering. Zero reads of the save root, zero writes outside tmp_path, zero rendered paths.
+  It handed over one real gap outside its own lens (the indirect-export hole, now closed) and
+  one unenforced assumption: ten new f-strings interpolate a caught `AssertionError`, safe
+  only because the guard formats function names, and `tests/test_exception_rendering.py`
+  cannot see that shape. **Now enforced** - the mutant that adds `module_path` to a guard
+  message reddens a control.
+
+- **THE SIZE CEILING WAS 288 BYTES AWAY WHEN I ARRIVED.** `test_properties.py` tripped
+  `tests/data/test_phase2_gate.py`'s 256 KiB cap, which exists to catch a trimmed slice of
+  real game data. Relocated the controls per CLAUDE.md section 4 rather than raising the
+  number, which would have falsified the comment justifying it. **It is still tight. That is
+  CS-495 and the next session should expect to trip it.**
+
+- **THE HARNESS HEREDOC ATE MY BACKSLASHES THREE TIMES**, twice on small payloads with quoted
+  delimiters. Write such payloads with the Write tool; this is the third session it has bitten.

@@ -276,10 +276,43 @@ gap. So the acceptance cannot rest on another contradiction; it needs either a f
 costs more than one `struct.pack` call, or evidence from outside this module's own tables.
 
 
+## CS-492 - detail
+
+Relocated from `ROADMAP.md` 2026-08-20 (session 24) for budget, not deleted. The item itself
+stays OPEN in `ROADMAP.md`.
+
+CS-492 - Close the reach routes that travel through an OBJECT rather than a name binding - acceptance: a module holding a primitive on an instance attribute, or serving one from a module-level `__getattr__`, and calling it from a function that names no primitive, turns a test RED on a machine with NO GAME INSTALLED - tier: 2 - NOTE: filed 2026-08-20 (session 24) as CS-491's disclosed residual, MEASURED by two refutation passes and re-measured by the merger. Two shapes, both green against the shipped guard: `self.finder = locate.resolve_save_root` bound in `__init__` and called from a sibling method or off a module-scope instance, and `def __getattr__(name): return locate.resolve_save_root` at module scope. **THE REASON THEY ARE NOT IN CS-491:** `_aliases_bound_in` deliberately holds module scope and function-local scope APART, because a local `finder` in one function says nothing about a name `finder` in the next - and an attribute bound inside `__init__` is a function-local binding whose CONSUMER is a different function. Making it module-visible re-opens the inversion the keying note records, and the correct fix is a per-CLASS scope that does not exist yet. **Both were ranked CONTRIVED by the adversary that found them**, and an AST scan of `tests/save` finds zero instances of either, so this is latent rather than live. Do not close it by making function-local bindings module-visible without measuring what that flags. **ALSO HERE, and NOT contrived:** a body held in a CONTAINER field - `parts: list` holding `[source.read_bytes()]`, or a helper returning `dict` whose value is the body - is not walked as a wrapper. That one sits close to CS-491's stated residual (the type is written nowhere) but is not identical to it.
+
+## CS-493 - detail
+
+Relocated from `ROADMAP.md` 2026-08-20 (session 24) for budget, not deleted. The item itself
+stays OPEN in `ROADMAP.md`.
+
+CS-493 - Bound the cross-module reach resolution, which is one hop and reads only a LITERAL declaration - acceptance: a module reaching the library through a two-hop sibling chain is reported, or the one-hop bound is recorded in shipped DATA rather than in prose; and a sibling whose `_GRADED_LIBRARY_REACH` is built by a call or a comprehension rather than a dict literal is not silently read as declaring nothing - tier: 2 - NOTE: filed 2026-08-20 (session 24) as CS-491's disclosed residual. `_reaching_names_of` scans a sibling with the base vocabulary and its own aliases, NOT with its own sibling imports, so a helper reaching the library only through a third module is not resolved. `_declared_graded_names` reads `ast.Dict` keys out of the assignment, so `MappingProxyType(dict(...))` or a comprehension yields an EMPTY graded set and the sibling exports nothing - **which fails SILENT, in the permissive direction**. Both bounds are stated in docstrings today, which is prose. **A third, from the privacy pass:** `_sibling_module_file` has no stated precondition on `source`; it reads and parses any `*.py` beside whatever directory it is handed. 2927 arguments were measured across a full run with ZERO outside the repo and tmp, so the bound holds today as a property of the CALL SITES rather than as an assertion. **A fourth, from the round-three pass:** `MODULE_SCOPE_REACH` is ONE sentinel per file, so a module that already declares it absorbs any additional module-scope reach with no new evidence. Three tracked modules declare it today.
+
+## CS-494 - detail
+
+Relocated from `ROADMAP.md` 2026-08-20 (session 24) for budget, not deleted. The item itself
+stays OPEN in `ROADMAP.md`.
+
+CS-494 - Reconcile the two walks that read which attributes come to hold save bytes - acceptance: `tests/save/test_properties._bound_parameter_annotations` and `tests/save/test_phase4_gate._retained_body_attributes` read one population through one owner, or their difference is recorded and graded - tier: 2 - NOTE: filed 2026-08-20 (session 24). Two hand-maintained walks over one kind of thing is exactly the defect `_FILESYSTEM_PRIMITIVES` was unified to repair, recreated inside the fix for CS-491 and found by the refutation pass on it. They already DISAGREE: `_retained_body_attributes` enumerates three shapes and covers neither the tuple target `self.body, self.count = body, count` nor a `@property` accessor, both of which CS-491 closed on the other side; and it is keyed on the word `bytes` rather than on a vocabulary, so `bytearray`, `memoryview` and `BytesIO` are outside it. The two guards grade different files - one the shipped save modules, one this test package - which is why the drift is invisible to both. **The residual CS-491 could NOT close either way:** a fully unannotated `def __init__(self, body): self.body = body` states the type nowhere, and no reader of either file can recover it.
+
+## CS-495 - detail
+
+Relocated from `ROADMAP.md` 2026-08-20 (session 24) for budget, not deleted. The item itself
+stays OPEN in `ROADMAP.md`.
+
+CS-495 - `tests/save/test_properties.py` sits against a hard size ceiling with no margin - acceptance: the module is under its ceiling by a margin a session can spend, or the ceiling's owner records what the margin is meant to be - tier: 2 - NOTE: filed 2026-08-20 (session 24). `tests/data/test_phase2_gate.py::test_no_file_under_tests_is_large_enough_to_be_a_slice_of_real_game_data` caps any file under `tests/` at 256 KiB, a crude check whose whole job is catching a trimmed slice of real game data. **At the START of session 24 the module was 288 bytes under that ceiling** - any addition at all would have tripped it, and CS-491 did. Session 24 relocated the reach-guard CONTROLS into `tests/save/test_reach_guard.py` per CLAUDE.md section 4 (relocate, do not delete), which restored some margin but not much. **DO NOT CLOSE THIS BY RAISING THE NUMBER** without dealing with the comment that justifies it, which says the ceiling sits "well above the largest authored file" - raising it to fit makes that sentence false and puts a measured number in prose. **THE OBVIOUS RELOCATION IS THE GUARD IMPLEMENTATION**, and the objection that used to block it no longer holds: `test_every_library_reaching_function_here_is_declared` records that a guard whose owner is outside its own scope let a sweep ship ungraded, but CS-471's package-wide walk now applies the guard to every module including whichever one owns it, so moving it preserves that property rather than breaking it. It costs updating the sibling references that name `test_properties` for the guard.
+
 ## CS-491 - detail
 
-Relocated from `ROADMAP.md` 2026-08-19 (session 23) for budget, not deleted. The item itself
-stays OPEN in `ROADMAP.md`.
+Relocated from `ROADMAP.md` 2026-08-19 (session 23) for budget, not deleted.
+
+**CS-491 CLOSED 2026-08-20 (session 24) - see `docs/LEDGER.md`. This block is the record of
+how it was filed and is no longer a live instruction.** It took THREE rounds: the routes below
+were closed first, then eleven more that a refutation pass measured past that close, then a
+twelfth plus ten more that a second pass measured past the second. Residuals filed as CS-492,
+CS-493, CS-494 and CS-495.
 
 filed 2026-08-19 (session 23) as CS-471's residual. CS-471 closed on its three stated clauses
 and the routes below were measured OPEN at that moment by two refutation passes, each with a
@@ -292,6 +325,17 @@ recorded as a trade. Measured invisible to it: a module-scope `lambda` wrapping 
 `getattr(account, _NAME)("*.sav")` where `_NAME` is a module constant. `_effective_primitives`
 resolves an assignment of a bare Name or Attribute and stops there, and `_calls_any` reads a
 `getattr` only when its second argument is a literal.
+
+> **CORRECTION, session 24, 2026-08-20 - the LAMBDA clause above names the wrong mechanism,
+> and the true one is worse in one direction.** Measured: the guard is NOT blind to a
+> module-scope `lambda` wrapping a locator. An `ast.Lambda` body is not a function to
+> `_module_scope_reaches`, so the call inside it reads as a MODULE-SCOPE call and the
+> classifier does pick the module up. What the guard then does is file it under
+> `MODULE_SCOPE_REACH` and name NO FUNCTION - so a module that legitimately declares that
+> sentinel, as three tracked modules do, hides the reaching helper completely. The route is
+> real; "invisible to it" is the wrong reason, and the true reason is harder to notice
+> because the guard looks like it fired. The other three clauses reproduced exactly.
+> Corrected in place per this project's method; do not rewrite it back.
 
 **THE CROSS-MODULE ROUTE.** A module with no primitive call of its own is classed silent, so
 importing a sibling's reaching helper and calling it is outside the guard entirely. CS-471's

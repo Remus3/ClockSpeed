@@ -1960,6 +1960,21 @@ _EXEMPT_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType(
         ),
         "sha256_of": ("digests a file the caller wrote into tmp_path "),
         "stat_triple": ("stats a file the caller wrote into tmp_path "),
+        "test_an_unrecognised_failure_is_reported_as_could_not_tell": (
+            "takes a reference to Path.iterdir in order to REPLACE it, and its "
+            "stand-in delegates to that reference for every path except the one "
+            "it fakes a failure on. A primitive named to be BROKEN rather than "
+            "used is the inversion this guard's keying note records, and it "
+            "surfaces here because CS-491 widened the alias expansion into "
+            "function locals - a local holding the real method is "
+            "indistinguishable BY NAME from one holding a reach. WHAT IT LISTS, "
+            "corrected: not pretend_account_dir but a child directory the test "
+            "creates under it and then makes unreadable, so the stand-in raises "
+            "for that path rather than delegating and NOTHING is listed at all. "
+            "The containment is transitive - the child sits under "
+            "pretend_account_dir, which is built under tmp_path - and the first "
+            "reading of this reason described work the test does not do "
+        ),
         "test_latest_save_hands_the_listing_problems_to_a_caller_that_asks": (
             "applies the locator to a pytest tmp_path standing in for a "
             "save root, never to the real one "
