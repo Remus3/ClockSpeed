@@ -733,6 +733,264 @@ def test_no_type_an_oracle_scores_is_left_recorded_as_unscored() -> None:
     )
 
 
+#: The four stored bytes both admission rules below are probed with. WHAT IS
+#: BEING MEASURED IS WHICH WORDS REACH THE INT32 TALLY, never what that tally
+#: concludes about them, so the pattern does not turn either derived set - which
+#: is measured rather than assumed, over the all-zero, all-ones, NaN and
+#: ascending patterns and twenty thousand random ones, none of which moves a word
+#: from one side to the other.
+#:
+#: IT IS STILL CHOSEN AND NOT ARBITRARY, because a probe that moves only half the
+#: oracle would make this constant's own comment false while the test stayed
+#: green. A DRAFT OF IT DID: ``b"\x2c\x01\x00\x00"`` was described as the shape
+#: both channels accumulate on, and it moves ``int32_high_zero`` alone - its LOW
+#: byte is non-zero, so ``int32_high_zero_swapped`` never fires. This value has a
+#: zero byte at BOTH ends, so both channels accumulate on it.
+_ADMISSION_PROBE_BYTES: Final = b"\x00\x01\x00\x00"
+
+
+def _four_byte_words() -> frozenset[str]:
+    """The width-table words the decoded-shape rule is scoped to.
+
+    THE SCOPE IS TAKEN FROM THE RULE BEING COMPARED, not chosen here.
+    ``test_value_anchoring._score_every_four_byte_type`` skips any width table
+    entry whose width is not :data:`test_value_anchoring._FOUR_BYTES`, so a
+    comparison over a wider population would report words the second rule was
+    never offered as disagreements.
+
+    Returns:
+        Every fixed-width word whose measured width is four bytes.
+    """
+    return frozenset(
+        word
+        for word, (width, _) in objects._FIXED_WIDTH_VALUES.items()  # noqa: SLF001
+        if width == test_value_anchoring._FOUR_BYTES  # noqa: SLF001
+    )
+
+
+def _dispatch_scores_int32(word: str) -> bool:
+    """Whether the TAG-WORD rule reaches the shipped int32 tally for this word.
+
+    Args:
+        word: A fixed-width type word.
+
+    Returns:
+        True when ``test_properties._tally_decoded_values``, handed this word
+        and the value the shipped decoder produces for the probe bytes,
+        accumulates anything on the int32 counter.
+    """
+    spec = objects._FIXED_WIDTH_VALUES[word]  # noqa: SLF001
+    value = objects._decode_fixed_width(_ADMISSION_PROBE_BYTES, 0, spec[0], spec)  # noqa: SLF001
+    tally = test_properties._DecodeTally(Counter(), set(), set())  # noqa: SLF001
+    test_properties._tally_decoded_values(  # noqa: SLF001
+        {_PROBE_NAME: value}, {_PROBE_NAME: word}, tally
+    )
+    return bool(tally.counts["int32"])
+
+
+def _shape_scores_int32(word: str) -> bool:
+    """Whether the DECODED-SHAPE rule reaches the same tally for this word.
+
+    Args:
+        word: A fixed-width type word.
+
+    Returns:
+        True when ``test_value_anchoring._score_population``, handed this word's
+        shipped spec and a population of one probe pattern, accumulates anything
+        on the same int32 counter.
+    """
+    spec = objects._FIXED_WIDTH_VALUES[word]  # noqa: SLF001
+    tally = test_value_anchoring._score_population(  # noqa: SLF001
+        spec,
+        Counter({_ADMISSION_PROBE_BYTES: 1}),
+        test_value_anchoring._IDENTITY,  # noqa: SLF001
+    )
+    return bool(tally.counts["int32"])
+
+
+def test_the_two_admission_rules_for_the_int32_oracle_never_disagree_unrecorded() -> None:
+    """CS-478 - the two definitions of "an oracle scores this type", compared.
+
+    ONE ORACLE, TWO ADMISSION RULES, AND THEY HAD NEVER MET IN AN ASSERTION.
+    ``test_properties._tally_decoded_values`` decides what reaches the int32
+    tally by the TAG WORD, and its own comment says the Python type must never be
+    used because ``bool`` subclasses ``int``.
+    ``test_value_anchoring._score_population`` reaches the SAME shipped tally by
+    the DECODED SHAPE, which is what let CS-421 route (b) apply the int32 oracle
+    to a type the dispatch skips. Both are shipped, both are load-bearing, and
+    until this test nothing compared them - :func:`_is_admitted` holds two
+    channels at once but ORs them, which is not a comparison, and both of its
+    channels key on the tag word anyway.
+
+    THE COMPARISON IS PER-ORACLE AND THAT IS NOT A DETAIL. Measured: comparing
+    "any oracle admits this word" against the shape rule puts ``FloatProperty``
+    in the difference, because the shape rule applies the INT32 oracle alone
+    while the dispatch also runs a float32 channel. That difference is an
+    artefact of comparing unlike things, not a finding. Both helpers above read
+    the same single counter for that reason.
+
+    WHAT THIS DOES NOT DO IS PICK A WINNER, and the item filing this forbade it:
+    deleting either rule loses what it covers. The tag-word rule is what keeps a
+    BoolProperty out of the int32 population; the shape rule is the whole of
+    CS-421 route (b). They are held apart and required to differ only where the
+    module SAYS they differ.
+
+    THE HOLE THIS FILLS, MEASURED IN A CLONE OF `13ac39b` BEFORE THIS TEST
+    EXISTED. Six edited lines - three in ``objects.py`` (a four-byte signed entry
+    in the width table, its shipping grounds, its evidence entry) and three in
+    ``tests/save/test_properties.py`` (the measured-set transcription, a fixture
+    tag, its expected value) - add a type the shape rule scores, the dispatch
+    skips, and the module records as ``unscored``. `tests/save` was GREEN with no
+    game, at the SAME pass and skip counts that commit gives untouched, which is
+    the load-bearing half - an absolute count here would distinguish nothing.
+    Dropping either fixture line is not green, so the six are not padded. Nothing
+    in the suite compared the two rules, so the module shipped "nothing has
+    looked at this type" about a type one of its own oracles scores.
+
+    WHAT ALREADY COVERED PART OF THIS, so the arms below are not credited with
+    it. ``test_the_cannot_separate_set_is_bounded_without_a_library`` requires the
+    declared cannot-separate set to be non-empty and to equal what the mapping
+    surfaces, which pins the ONE word carrying that status today - emptying the
+    set reds it, measured. What it cannot see is a SECOND word entering the
+    disagreement, because it reads the declared set rather than either rule.
+
+    Arms, and each is aimed at a different way the two can drift:
+
+    THE SUBSET ARM, AND WHAT IT REALLY GUARDS, which is not what a draft of this
+    paragraph said. Both helpers decode the SAME probe bytes with the SAME
+    shipped spec, so while the dispatch keeps its own ``isinstance`` guard,
+    dispatch-fires implies shape-fires is close to a tautology and NO EDIT TO
+    ``objects.py`` can break it. The arm is live against a change to one of the
+    two rules themselves, which is the drift this test exists for: narrowing
+    :func:`test_value_anchoring._score_population` to drop the signed int32 type
+    reds it, measured. The route this paragraph used to claim - a dispatch
+    widened to a word whose decode is not an int - does NOT reach the assert at
+    all: ``_tally_int32_byte_order`` raises ``TypeError`` on a float before any
+    set here is built. A widening that COERCES reaches it.
+
+    THE RECORD ARM, AND ONLY HALF OF IT IS UNIQUELY LOAD-BEARING. A word the
+    shape rule scores and the dispatch does not may not be recorded ``unscored``
+    - something has in fact scored it - and may not be recorded
+    ``anchored_not_unique`` either, because the anchoring evidence comes from the
+    dispatch, which skipped it. The status left is the one the module already
+    ships for exactly this case. MEASURED, so the two halves are not credited
+    alike: the ``unscored`` half is the one nothing else sees, and forging the
+    ``anchored_not_unique`` half reds this arm together with
+    :func:`test_no_type_is_marked_anchored_that_no_oracle_scores`,
+    :func:`test_the_hand_written_anchored_set_holds_no_unscored_type` and the
+    neutering control beside them. That half is a fourth voice on a question
+    three tests already answer.
+
+    WHAT THE RECORD ARM CANNOT BE DODGED BY, which is a stronger bound than the
+    arm's own wording suggests and was found by a refutation pass rather than by
+    the author. :func:`objects._decode_fixed_width` ends by returning
+    ``float(value)`` or ``int(value)``, so it can never hand back a ``bool`` and
+    hands back an ``int`` for every non-float format code. Every four-byte
+    non-float width-table entry is therefore admitted by the shape rule whatever
+    else is edited, and cannot slip past this arm by changing what it decodes to.
+
+    THE REVERSE ARM. A word carrying that status must actually be one the shape
+    rule scores and the dispatch does not, or the status is a claim with nothing
+    behind it. A DRAFT CALLED THIS ARM HARD TO REACH AND THAT WAS MEASURED WRONG
+    in three directions, each firing it: giving the status to an eight-byte
+    width-table word, which the four-byte scope means neither rule scores;
+    changing the named word's spec so neither rule scores it, where this is the
+    ONLY failure in this module; and widening the dispatch so both rules score it.
+    The set's own shape test catches a different family - a word swallowed by an
+    earlier branch of :func:`objects._byte_order_status` and never surfaced - and
+    neither arm subsumes the other.
+
+    THE SCOPE LIMIT IS REAL AND IT IS BENIGN, measured rather than argued. A
+    four-byte FLOAT entry is scored by neither rule - both the float channel of
+    the dispatch and the permutation census key on the literal word
+    ``FloatProperty`` - so it escapes this comparison entirely. What it ships is
+    ``unscored``, and that is HONEST for it: nothing does score it. The escape
+    produces no false status, and the two ways of escalating it into one - giving
+    such a word the cannot-separate status, or giving it to an eight-byte word -
+    both red the reverse arm, because the population that arm reads is the WHOLE
+    status mapping and is not scoped to four bytes.
+
+    WHAT THIS DOES NOT MAKE IMPOSSIBLE, stated in the sharpest form a refutation
+    pass could put it. The route out of this arm is one more line, and it turns
+    an ``unscored`` lie into a ``cannot_separate`` lie rather than removing the
+    lie. Whether an oracle really was applied and really came back undecided is a
+    fact about the operator's library; the derivation that could dispute it is
+    ``tests/save/test_value_anchoring.py::test_the_cannot_separate_status_is_derived_from_the_oracle``
+    and it SKIPS with no game. So what this arm raises is the price of
+    CONCEALMENT and not the price of the lie, and CS-426 owns that gap.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+    """
+    scope = _four_byte_words()
+    assert scope, (
+        "no width-table entry is four bytes wide, so the decoded-shape rule is "
+        "scoped to nothing and every arm below is vacuous. Either the shipped "
+        "width table moved or this scope no longer describes it."
+    )
+
+    by_dispatch = frozenset(word for word in scope if _dispatch_scores_int32(word))
+    by_shape = frozenset(word for word in scope if _shape_scores_int32(word))
+    assert by_dispatch, (
+        "the TAG-WORD rule reaches the int32 tally for no four-byte word at all, so "
+        "the comparison below has nothing on one side of it. That is a broken probe "
+        "or a dispatch that has stopped scoring anything, and either way nothing "
+        "here means what it says."
+    )
+    assert by_shape, (
+        "the DECODED-SHAPE rule reaches the int32 tally for no four-byte word at "
+        "all, so the comparison below has nothing on the other side of it. "
+        "test_value_anchoring._score_population has stopped applying the oracle, "
+        "which would leave CS-421 route (b) deriving from an empty population."
+    )
+
+    dispatch_only = sorted(by_dispatch - by_shape)
+    assert not dispatch_only, (
+        f"the tag-word rule scores {dispatch_only} and the decoded-shape rule does "
+        "not. The dispatch calls the int32 tally only for a non-bool int and the "
+        "shape rule admits exactly those, so this means one of the two has changed "
+        "what it admits: the dispatch is now claiming int32 evidence for a word "
+        "whose decoded value the oracle would not accept, or the shape rule has "
+        "narrowed and CS-421 route (b) is deriving from less than it reports."
+    )
+
+    unrecorded = sorted(
+        word
+        for word in by_shape - by_dispatch
+        if objects.VALUE_BYTE_ORDER_STATUS.get(word)
+        in {objects.BYTE_ORDER_UNSCORED, objects.BYTE_ORDER_ANCHORED_NOT_UNIQUE}
+    )
+    assert not unrecorded, (
+        f"the decoded-shape rule scores {unrecorded} and the tag-word dispatch does "
+        f"not, and objects.VALUE_BYTE_ORDER_STATUS records each as either "
+        f"{objects.BYTE_ORDER_UNSCORED} or {objects.BYTE_ORDER_ANCHORED_NOT_UNIQUE}. "
+        f"Neither is available here. {objects.BYTE_ORDER_UNSCORED} says nothing has "
+        "looked, and something has - the shape rule applies the shipped int32 "
+        f"oracle to this type's own values. {objects.BYTE_ORDER_ANCHORED_NOT_UNIQUE} "
+        "rests on what the DISPATCH accumulates, and the dispatch skips this word, "
+        "so the anchoring would be evidence from a population that never included "
+        "it. THIS IS THE TWO RULES DISAGREEING SILENTLY, which is the whole of "
+        "CS-478: the suite used to stay green here only because nothing compared "
+        "them."
+    )
+
+    claimed = frozenset(
+        word
+        for word, status in objects.VALUE_BYTE_ORDER_STATUS.items()
+        if status == objects.BYTE_ORDER_ORACLE_CANNOT_SEPARATE
+    )
+    hollow = sorted(claimed - (by_shape - by_dispatch))
+    assert not hollow, (
+        f"{hollow} is recorded {objects.BYTE_ORDER_ORACLE_CANNOT_SEPARATE}, which says "
+        "an oracle was applied to this type's own values OUTSIDE the dispatch and came "
+        "back undecided, and this run finds no such application: the word is scored by "
+        "both admission rules, or by neither. The status would then be a verdict from "
+        "a population nothing fed. Note what this does NOT assert - that the verdict "
+        "itself is right. Whether the oracle really cannot separate the readings is a "
+        "fact about the operator's library, it is CS-426's recorded gap, and the "
+        "derivation that can settle it skips on a machine with no game."
+    )
+
+
 def test_every_fixed_width_type_the_module_decodes_carries_a_recorded_status() -> None:
     """A type can escape both graded directions above by not being recorded at all.
 
@@ -1510,6 +1768,18 @@ def test_the_cannot_separate_set_is_bounded_without_a_library() -> None:
     :func:`test_no_type_an_oracle_scores_is_left_recorded_as_unscored`, which
     requires every admitted word to be recorded anchored. Asserting it again here
     would put one fact in two places, and the copy is the one that goes stale.
+
+    THAT SENTENCE IS TRUE AND A DRAFT OF CS-478 REPLACED IT WITH AN ACCUSATION
+    THAT IT WAS FALSE. The accusation was refuted by measurement and the sentence
+    is restored: widening the shipped dispatch to score the one word this set
+    names reds that test, with ``a shipped byte-order oracle scores
+    ['UInt32Property']``. It GOVERNS THE TRANSITION even though it is silent on
+    today's state, and reading present non-membership of a runtime-computed
+    population as silence is the conflation that produced the accusation. WHAT
+    THAT TEST DOES NOT REACH is a word this set does NOT name - a second type the
+    decoded-shape rule scores and the dispatch skips never enters its population
+    at all, which is CS-478 and is held by
+    :func:`test_the_two_admission_rules_for_the_int32_oracle_never_disagree_unrecorded`.
     """
     declared = objects._BYTE_ORDER_CANNOT_SEPARATE_VALUES  # noqa: SLF001
     assert declared, (

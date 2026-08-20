@@ -73,6 +73,53 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-19 - CS-478 - the two definitions of "an oracle scores this type" now meet in one assertion, and disagree only where the module records it
+Verification: `tests/save/test_byte_order_status.py::test_the_two_admission_rules_for_the_int32_oracle_never_disagree_unrecorded`,
+against `tests/save/test_properties.py::_tally_decoded_values` and
+`tests/save/test_value_anchoring.py::_score_population`. To reproduce the defect, apply the
+six lines named in that test's docstring and run `tests/save` with `CLOCKSPEED_GAME_DIR` and
+`CLOCKSPEED_SAVE_ROOT` pointed at directories that do not exist. That docstring is the ONE
+OWNER of every count and every route; this entry states none of them.
+
+WHAT CLOSED, ON THE SECOND OF THE TWO SANCTIONED ROUTES. The acceptance offered unification
+behind one owner OR holding the two apart with a test that reddens on an unrecorded
+disagreement. The second was taken, because the item's own fence forbids deleting either
+definition: the tag-word rule is what keeps a BoolProperty out of the int32 population, and the
+decoded-shape rule is the whole of CS-421 route (b). The literal reading - red whenever the two
+differ at all - would red on the shipped tree, since `UInt32Property` differs today by design
+and is recorded for it. What ships reddens on a difference the module does NOT record, which is
+the "cannot disagree SILENTLY" half of the acceptance.
+
+THE HOLE WAS REAL AND WAS MEASURED BEFORE ANYTHING WAS WRITTEN. Six edited lines add a second
+four-byte type the shape rule scores, the dispatch skips, and the module records as `unscored` -
+so the module ships "nothing has looked at this type" about a type one of its own oracles
+scores - with `tests/save` green with no game at the counts the clean tree gives. The new
+control reds on it and nothing else in the suite does, re-derived independently by a refutation
+pass that built its own forgery with a different word.
+
+BOTH REFUTATION PASSES SUCCEEDED AND THEY AGREED ON THE HEADLINE. **I accused a TRUE sentence of
+being false and nearly shipped the accusation.** A draft rewrote the docstring of
+`test_the_cannot_separate_set_is_bounded_without_a_library` to say that
+`test_no_type_an_oracle_scores_is_left_recorded_as_unscored` "says nothing whatever about"
+the word the cannot-separate set names. Widening the tag-word dispatch to score that word reds
+that very test, naming it. The original sentence GOVERNS THE TRANSITION while being silent on
+today's state, and reading present non-membership of a runtime-computed population as silence is
+the conflation. The sentence is restored verbatim with the refutation recorded beside it.
+
+FOUR MORE OF MY SENTENCES WERE MEASURED FALSE AND ARE CORRECTED IN PLACE. Do not rewrite them
+back: a probe constant described as the shape BOTH channels of the int32 oracle accumulate on
+when its low byte is non-zero, so only one fires - the constant was changed to one for which the
+sentence is true; a subset arm whose stated route raises `TypeError` inside the tally before the
+assertion is reached, and which no edit to `objects.py` can fire at all; a reverse arm called
+hard to reach that fires three ways; and an absolute suite count that distinguished nothing,
+because the clean tree measures the same.
+
+WHAT THIS DOES NOT CLOSE, IN THE SHARPEST FORM A REFUTATION PASS COULD PUT IT. One more line
+turns the `unscored` lie into a `cannot_separate` lie. Whether an oracle really was applied and
+came back undecided is a fact about the operator's library, and the derivation that could
+dispute it skips with no game. This control raises the price of CONCEALMENT, not the price of
+the lie. CS-426 owns that gap and this entry does not narrow it.
+
 ### 2026-08-19 - CS-487 - the tag-carried exemption's price is measured and raised from three lines in one file to seven across two; it is NOT closed as a mechanism
 Verification: `tests/save/test_byte_order_status.py::test_no_word_the_exemption_admits_is_one_the_module_declines_to_measure`
 and the widened saturation arm inside

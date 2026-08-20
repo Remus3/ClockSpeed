@@ -265,5 +265,31 @@ the line becomes a pointer.
   session touched it. I appended to match the ACTUAL order rather than reorder three blocks
   under a rule I may be misreading. One of the two is wrong and it is an operator call which.
 
-- **Next action:** take CS-478, the two incompatible definitions of "an oracle scores this
-  type". CS-471 is the tier-1 item behind it and the one with a privacy edge.
+- **CS-478 ALSO CLOSED, later in the same session.** The two definitions of "an oracle scores
+  this type" - tag-word in `test_properties._tally_decoded_values`, decoded-shape in
+  `test_value_anchoring._score_population` - now meet in
+  `test_the_two_admission_rules_for_the_int32_oracle_never_disagree_unrecorded`. Closed on the
+  HOLD-THEM-APART route, not unification: the item's own fence forbids deleting either.
+
+- **THE WORST MISTAKE OF THE SESSION WAS IN CS-478 AND BOTH REFUTATION PASSES CAUGHT IT
+  INDEPENDENTLY: I ACCUSED A TRUE SENTENCE OF BEING FALSE.** A draft rewrote
+  `test_the_cannot_separate_set_is_bounded_without_a_library`'s docstring to say that
+  `test_no_type_an_oracle_scores_is_left_recorded_as_unscored` says nothing about the word the
+  cannot-separate set names. Widening the dispatch to score that word reds that very test. The
+  sentence GOVERNS THE TRANSITION while being silent on today's state; present non-membership
+  of a runtime-computed population is not silence. Restored verbatim. **This project's method
+  says corrected-in-place sentences must never be rewritten back - a false correction is the
+  same defect pointing the other way.**
+
+- **FOUR MORE CS-478 SENTENCES OF MINE WERE MEASURED FALSE and are corrected in place.** Do not
+  rewrite them back: a probe constant said to move BOTH channels of the int32 oracle when its
+  low byte is non-zero so only one fires; a subset arm whose stated route raises `TypeError`
+  before the assertion and which NO edit to `objects.py` can fire; a reverse arm called hard to
+  reach that fires three ways; and an absolute suite count that distinguished nothing.
+
+- **CS-478's residual, stated as an adversary put it:** one more line turns the `unscored` lie
+  into a `cannot_separate` lie. The control prices CONCEALMENT, not the lie. CS-426 owns it.
+
+- **Next action:** take CS-471 (tier 1, privacy-adjacent). Its pinning test
+  `test_the_entry_points_still_bind_the_raw_body_where_a_renderer_can_read_it` FAILS when the
+  item closes - widen the control and delete that test, never delete it alone.
