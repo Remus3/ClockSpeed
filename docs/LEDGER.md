@@ -73,6 +73,49 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-20 - CS-496 - the doc-budget scratch fixture no longer races git's own background maintenance, and the race is reproduced DETERMINISTICALLY rather than waited for
+Verification: `tests/test_doc_budget.py::test_the_scratch_copy_survives_a_git_lock_vanishing_mid_copy`
+and `::test_the_scratch_template_has_git_housekeeping_disabled`. Both run on a machine with no
+game and need only `git` on PATH. To see the defect, revert `_copy_checkout`'s body to
+`shutil.copytree(source, destination, ignore=_hook)` - the first test reddens with the CI error
+verbatim.
+
+WHAT CLOSED, IN TWO HALVES. `_build_template` now sets `maintenance.auto=false` and `gc.auto=0`
+in the scratch template BEFORE it commits, so the lock file is never created; and
+`_copy_checkout` skips a file that has ceased to exist by the time it is read, so a lock that
+appears anyway cannot fail the copy. The second half is there because a fixture resting on one
+git config being honoured by every future git version has one point of failure and no second.
+
+THE CAUSE, NAMED. `git commit` runs `git maintenance run --auto` and DETACHES it. The
+session-scoped template therefore keeps a background git process after the fixture that built it
+has returned, and that process creates and removes `.git/objects/maintenance.lock` while later
+tests are copying the directory. `shutil.copytree` stats a tree and then copies it, so anything
+removed in that window kills it.
+
+THE REPRODUCTION IS DETERMINISTIC, WHICH THE ACCEPTANCE REQUIRED. `copytree` hands each
+directory's entries to its `ignore` callback after listing them and before copying them, so
+deleting the lock from inside that callback removes it in exactly the window CI lost. No
+re-running until it happens. The seam `_hook` exists for that and production callers pass
+nothing.
+
+**THREE MUTANTS, ALL KILLED BY THE INTENDED TEST.** Reverting the tolerant copy reddens the race
+test; removing the two config lines reddens the housekeeping test; and a hook that deletes
+nothing reddens the race test's own third assertion, so the control is not passing because the
+race failed to happen.
+
+THE FIX WIDENED A GUARD AND THAT IS RECORDED RATHER THAN DONE QUIETLY.
+`test_the_suite_never_mutates_this_repository_worktree_admin` required every `_git` call's first
+argument to be the identifier `repo`; reading the template's config needed `repo_template`. The
+guard's rule is that a git call targets a scratch repo the test built, and `repo_template` is
+one - the single name was the rule's implementation, not its intent. The alternative was binding
+`repo = repo_template` before the call, which is **bypass 1 in that guard's own list of what it
+cannot see**. Using a hole a guard documents to get past that guard is worse than widening it in
+the open, so the allowed set is now a named constant carrying the reason.
+
+NO SIBLING CASE. Four other modules build throwaway `git init` repositories, and none of them
+copies a live `.git` tree - the race needs both. Their commits also spawn detached maintenance,
+which is stated here as an observation rather than a claim that it costs anything.
+
 ### 2026-08-20 - CS-495 - the library-reach guard implementation is relocated out of `test_properties.py` into `tests/save/reach_guard.py`, restoring the margin under the 256 KiB ceiling; a refutation pass REFUTED the first close and was right
 Verification: `tests/save/reach_guard.py` is the guard; `tests/save/test_reach_guard.py` is the
 control set. In particular

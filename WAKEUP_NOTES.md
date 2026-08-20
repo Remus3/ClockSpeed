@@ -270,5 +270,20 @@ the line becomes a pointer.
   `test_phase4_gate::test_the_save_suite_passes_with_no_install_and_no_save`, which reruns the
   suite in a CHILD process and so reddens on almost anything. Deselect it when attributing.
 
-- **Next action:** CS-496, the doc-budget copytree race - measured on CI, cheap, and it will
-  keep going red at random. Then CS-492/493/494, whose detail blocks each carry a fence.
+- **CS-496 ALSO CLOSED, later in the same session.** The cause is more specific than the item
+  was filed with: `git commit` DETACHES `git maintenance run --auto`, so the session-scoped
+  template keeps a background git process after its fixture returned, dropping lock files under
+  `.git/objects` while later tests copy the directory. Fixed in two halves - housekeeping off in
+  the template, and a copy that skips a file which has ceased to exist. **The race is reproduced
+  DETERMINISTICALLY**, by deleting the lock from inside `copytree`'s own `ignore` callback, which
+  fires after the walk and before the copy. Three mutants, all killed by the intended test.
+
+- **CLOSING CS-496 REQUIRED WIDENING A GUARD, AND THE TEMPTING ROUTE WAS ONE THE GUARD ITSELF
+  DOCUMENTS AS A HOLE.** `test_the_suite_never_mutates_this_repository_worktree_admin` demands
+  every `_git` call target the identifier `repo`; binding `repo = repo_template` would have gone
+  green and is bypass 1 in that guard's own list of what it cannot see. Widened in the open
+  instead, with the reason on the constant.
+
+- **Next action:** CS-492/493/494, CS-491's remaining residuals - read each detail block in
+  `docs/history_notes.md` first, each carries a fence. CS-497 and CS-498 were filed this session
+  and are cheaper. CS-484's premise is measured and pinning is now cheap.

@@ -48,7 +48,7 @@ import os
 import shutil
 import subprocess
 import sys
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from types import ModuleType
 
@@ -58,6 +58,19 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DOC_BUDGET_SOURCE = REPO_ROOT / "tools" / "doc_budget.py"
 
 GIT_TIMEOUT = 120
+
+#: Identifiers this module's git calls may target - each one a scratch checkout
+#: a fixture in this file built under tmp_path, never the live repository.
+#:
+#: WIDENED BY CS-496 FROM THE SINGLE NAME ``repo``, deliberately and not as a
+#: way past the guard. The guard's rule is that a git call must target a
+#: scratch repo the test built; ``repo_template`` is one, and the single name
+#: was the rule's implementation rather than its intent. The alternative was
+#: binding ``repo = repo_template`` before the call, which is bypass 1 in
+#: :func:`test_the_suite_never_mutates_this_repository_worktree_admin`'s own
+#: list of what it cannot see - using a hole a guard documents to get past that
+#: guard is worse than widening it in the open.
+SCRATCH_REPO_NAMES = ("repo", "repo_template")
 
 NEWLINE = chr(10)
 
@@ -160,6 +173,17 @@ def _build_template(repo: Path) -> None:
         timeout=GIT_TIMEOUT,
         check=False,
     )
+    # CS-496 - HOUSEKEEPING OFF, BEFORE ANY COMMIT. `git commit` runs
+    # `git maintenance run --auto` and DETACHES it, so a template built here
+    # keeps a background process that creates and removes
+    # .git/objects/maintenance.lock after this function has returned. Every
+    # later test copies this directory, and CI lost that race on run
+    # 32346100111. Both knobs are set because the two git versions this project
+    # runs read different ones: `gc.auto` is the older name and
+    # `maintenance.auto` the one that gates the detached run.
+    _git(repo, "config", "maintenance.auto", "false")
+    _git(repo, "config", "gc.auto", "0")
+
     (repo / "CLAUDE.md").write_text("# scratch root" + NEWLINE, encoding="ascii")
     (repo / ".gitignore").write_text("/.claude/worktrees/" + NEWLINE, encoding="ascii")
     (repo / "memory").mkdir()
@@ -177,6 +201,50 @@ def _build_template(repo: Path) -> None:
         "-m",
         "scratch base",
     )
+
+
+def _copy_checkout(
+    source: Path, destination: Path, _hook: Callable[[str, list[str]], set[str]] | None = None
+) -> None:
+    """Copy a git checkout.
+
+    A FILE THAT VANISHES BETWEEN THE WALK AND THE COPY IS SKIPPED, not raised.
+    `shutil.copytree` stats a tree and then copies it, so anything git removes
+    in between kills it - which is what CI hit on run 32346100111, on a commit
+    that changed two markdown files and no Python. `_build_template` now turns
+    git housekeeping off so the lock should never appear at all; this is the
+    second line, because a fixture resting on one config being honoured by
+    every future git version has one point of failure and no second.
+
+    WHAT IS SKIPPED IS NARROW AND IS NOT SWALLOWED SILENTLY IN THE CASE THAT
+    MATTERS. Only a file that has ceased to exist by the time it is read is
+    passed over. A tracked file that goes missing would take its content with
+    it, and the callers assert on the content they need, so a copy that lost
+    something real still fails - it just fails where the content is missing
+    rather than inside the copy.
+
+    Args:
+        source: The checkout to copy.
+        destination: Where to copy it.
+        _hook: Test seam, called with each directory and its entries as the
+            walk reaches them. Production callers pass nothing.
+    """
+    destination.mkdir(parents=True, exist_ok=True)
+    entries = sorted(source.iterdir())
+    skipped: set[str] = set()
+    if _hook is not None:
+        skipped = set(_hook(str(source), [entry.name for entry in entries]))
+
+    for entry in entries:
+        if entry.name in skipped:
+            continue
+        try:
+            if entry.is_dir():
+                _copy_checkout(entry, destination / entry.name, _hook)
+            else:
+                shutil.copy2(entry, destination / entry.name)
+        except FileNotFoundError:
+            continue
 
 
 @pytest.fixture(scope="session")
@@ -200,8 +268,99 @@ def scratch_repo(repo_template: Path, tmp_path: Path) -> Path:
     the subprocess path.
     """
     destination = tmp_path / "scratch"
-    shutil.copytree(repo_template, destination)
+    _copy_checkout(repo_template, destination)
     return destination
+
+
+def _copy_racing_a_vanishing_lock(source: Path, destination: Path) -> None:
+    """Copy ``source`` while a git housekeeping lock vanishes mid-copy.
+
+    ``shutil.copytree`` lists a directory, hands the names to its ``ignore``
+    callback, and only then copies what survives that filter. Deleting the lock
+    from inside that callback removes it AFTER the walk has seen it and BEFORE
+    the copy reaches it, which is precisely the window CI lost. A deterministic
+    reproduction of a race, rather than a re-run until it happens again.
+
+    Args:
+        source: The checkout to copy.
+        destination: Where to copy it.
+    """
+    lock = source / ".git" / "objects" / "maintenance.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_text("", encoding="ascii")
+
+    def _vanish(directory: str, _names: list[str]) -> set[str]:
+        if Path(directory) == lock.parent and lock.exists():
+            lock.unlink()
+        return set()
+
+    try:
+        _copy_checkout(source, destination, _hook=_vanish)
+    finally:
+        lock.unlink(missing_ok=True)
+
+
+def test_the_scratch_copy_survives_a_git_lock_vanishing_mid_copy(
+    repo_template: Path, tmp_path: Path
+) -> None:
+    """CS-496 - the fixture cannot fail because a file inside .git disappeared.
+
+    MEASURED ON CI, NOT SUSPECTED. Run 32346100111 errored with
+    ``shutil.Error: ... '.git/objects/maintenance.lock' ... [Errno 2] No such
+    file or directory`` on a commit that changed two markdown files and no
+    Python, and re-running the same job passed. ``git commit`` runs
+    ``git maintenance run --auto`` and DETACHES it, so the template this
+    fixture builds can still be dropping lock files under ``.git/objects``
+    while a later test copies it.
+
+    THE FIX HAS TWO HALVES AND THIS GRADES THE SECOND. The template now
+    disables auto maintenance, so the lock should never appear - that is
+    :func:`test_the_scratch_template_has_git_housekeeping_disabled`. This test
+    assumes the prevention failed anyway and requires the copy to survive it,
+    because a fixture resting on one git config being honoured by every future
+    git version has one point of failure and no second.
+
+    IT IS THE CS-483 SHAPE. A test that fails for a reason unrelated to what it
+    grades spends the suite's credibility, and the tempting response - re-run
+    it, it passed - is how a suite stops being believed.
+
+    Args:
+        repo_template: The session-scoped template checkout.
+        tmp_path: The per-test temporary directory.
+    """
+    destination = tmp_path / "scratch"
+
+    _copy_racing_a_vanishing_lock(repo_template, destination)
+
+    assert (destination / ".git").is_dir(), "the copy produced no .git directory"
+    assert (destination / "CLAUDE.md").read_text(encoding="ascii").startswith("# scratch"), (
+        "the copy dropped a tracked file while tolerating the vanished lock"
+    )
+    assert not (destination / ".git" / "objects" / "maintenance.lock").exists(), (
+        "the vanished lock reached the copy, so the hook did not reproduce the race and "
+        "this test grades nothing"
+    )
+
+
+def test_the_scratch_template_has_git_housekeeping_disabled(repo_template: Path) -> None:
+    """CS-496's first half - the lock is prevented, not only tolerated.
+
+    Turning both knobs off in the template is what stops the lock file existing
+    at all; the copy's tolerance is the second line, not the first.
+
+    READ FROM GIT, NOT FROM THE FIXTURE'S SOURCE. Asserting that the fixture
+    contains a ``git config`` call would grade a transcription of the setting
+    rather than the setting, which is the ADR 0008 shape.
+
+    Args:
+        repo_template: The session-scoped template checkout.
+    """
+    for key in ("maintenance.auto", "gc.auto"):
+        result = _git(repo_template, "config", "--get", key)
+        assert result.stdout.strip() in {"false", "0"}, (
+            f"{key} reads {result.stdout.strip()!r} in the scratch template, so git may run "
+            "housekeeping in it while another test is copying it"
+        )
 
 
 @contextlib.contextmanager
@@ -609,7 +768,7 @@ def test_the_suite_never_mutates_this_repository_worktree_admin() -> None:
         if not node.args:
             continue
         first = node.args[0]
-        if isinstance(first, ast.Name) and first.id != "repo":
+        if isinstance(first, ast.Name) and first.id not in SCRATCH_REPO_NAMES:
             offenders.append(f"line {node.lineno}: _git({first.id}, ...)")
 
     assert not offenders, f"git commands aimed at a repository the test did not build: {offenders}"
