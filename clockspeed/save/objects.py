@@ -2619,6 +2619,19 @@ GUID_BYTES: Final = 16
 #   MEASURED_VALUE_TYPES, so the intersection that one asserts stays empty
 #   while the status mapping contradicts the region table.
 #
+#   THE TAG-CARRIED EXEMPTION is the other subtrahend of the key bound, and
+#   CS-480 derived it from the two shipped sites rather than listing it. That
+#   left a route that edits BOTH of them, which is what CS-487 came back for.
+#   tests/save/test_byte_order_status.py::test_no_word_the_exemption_admits_
+#   is_one_the_module_declines_to_measure is the arm aimed at it, by reading
+#   MEASURED_VALUE_TYPES - which neither of those two sites can move, both being
+#   function bodies. THAT TABLE IS DERIVED FROM THE WIDTH TABLE, so a width
+#   entry enters it for free and this arm is silent on that route. It is also
+#   satisfied for free by a word ALREADY in the table, which is why the
+#   derivation's saturation arm was widened to every table this module reads a
+#   value out of the payload from. The first arm's docstring owns the measured
+#   price and the routes that still work; CS-490 owns what survives.
+#
 #   THE SURVIVING CANDIDATES are the permutations the VALUE oracles leave
 #   standing beside the identity, which is now none of them.
 #   tests/save/test_value_anchoring.py::test_the_shipped_candidate_set_
@@ -3052,6 +3065,19 @@ def _byte_order_status(word: str, width: int) -> str:
 #: takes it as a single byte at a fixed offset and hands it back separately - so
 #: there is no entry in that table to derive a width from. It is one byte, so
 #: its byte order is vacuous for the same reason the derived members are.
+#:
+#: WHAT BOUNDS A HAND-WRITTEN ENTRY HERE - CS-487. A word written in beside that
+#: one is exempt from the key bound only while the two shipped tag-carried sites
+#: agree it is tag-carried, and CS-480 derived exactly that. AN EDIT TO BOTH
+#: SITES ANSWERS BOTH, which is why the exemption also has to intersect a table
+#: those two sites cannot move: a word this module builds a value for and
+#: :data:`MEASURED_VALUE_TYPES` does not name is the module recording a settled
+#: byte order for a type it also records as one it does not decode. THAT ARM IS
+#: NOT THE WHOLE OF WHAT BOUNDS THE EXEMPTION - the derivation's saturation arm
+#: was widened in the same work, because an attacker who PICKS a word already in
+#: that table rather than adding one satisfies the arm for free. Both are named
+#: in the commentary block above, and the second of them owns the measured price
+#: of every route that still works. No count is restated here.
 VALUE_BYTE_ORDER_STATUS: Final[Mapping[str, str]] = MappingProxyType(
     {
         **{

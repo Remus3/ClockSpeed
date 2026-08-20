@@ -87,10 +87,15 @@ is hypothetical.
   anchors catch WITH a library and nothing catches without one. So the
   exemption now requires the reader AND :func:`objects._decode_value` to agree -
   the decoded value has to move with the tag byte and with no stored byte - and
-  :func:`_value_is_the_tag_byte` is what asks. THE HONEST BOUND: an editor
-  changing BOTH shipped sites still widens the exemption, and what is gone is
-  every route that leaves the shipped decode untouched, plus any test-side line
-  at all. Graded by
+  :func:`_value_is_the_tag_byte` is what asks. THE HONEST BOUND AS CS-480 LEFT
+  IT: what is gone is every route that leaves the shipped decode untouched, and
+  an editor changing BOTH shipped sites still widened the exemption, at a price
+  that disclosure never gave. THAT IS CS-487, and the arms that red on it are
+  the saturation arm below and
+  :func:`test_no_word_the_exemption_admits_is_one_the_module_declines_to_measure`,
+  whose docstring is the one owner of the measured price. NO COUNT IS REPEATED
+  HERE - two of them were wrong in a first draft precisely because they were
+  written twice. Graded by
   :func:`test_the_tag_carried_one_byte_values_are_derived_from_the_tag_reader`
   - declining to read, coming back empty, and saturating are invisible from the
   bound they serve, and the decoder arm needs HAND-AUTHORED counters because on
@@ -571,10 +576,15 @@ def _tag_carried_one_byte_values() -> frozenset[str]:
     - they had merely both moved into ``objects.py``. So a word also has to be
     one :func:`objects._decode_value` builds out of that byte alone.
 
-    THE BOUND, STATED RATHER THAN LEFT TO BE READ AS A CLOSURE. An editor who
-    changes BOTH shipped sites still widens the exemption. What no longer works
-    is any route that leaves the shipped decode untouched, and there is no
-    test-side line to add at all. A word that does not read reports no verdict
+    THE BOUND, STATED RATHER THAN LEFT TO BE READ AS A CLOSURE. What this
+    derivation retires is any route that leaves the shipped decode untouched. An
+    editor changing BOTH shipped sites still widens it, and this docstring used
+    to price that residual at nothing at all - CS-487 measured it, narrowed it
+    at the saturation arm below and at
+    :func:`test_no_word_the_exemption_admits_is_one_the_module_declines_to_measure`,
+    and left it OPEN rather than closed. That test owns the price and the
+    surviving routes; no count is repeated here. A word that does not read
+    reports no verdict
     and is not counted - a silent route to an empty population, graded by
     :func:`test_the_tag_carried_one_byte_values_are_derived_from_the_tag_reader`
     rather than assumed here.
@@ -783,12 +793,23 @@ def test_the_tag_carried_one_byte_values_are_derived_from_the_tag_reader() -> No
     can fail to READ - a synthetic tag the shipped grammar rejects returns
     ``None``, which reports as "no tag byte" and is indistinguishable from a
     real verdict. It can come back EMPTY, which retires the exemption
-    altogether. It can SATURATE onto words whose bytes live in the fixed-width
-    table. And it can admit a word that is in NEITHER - a length-prefixed type,
-    which is CS-480's own defect and which the saturation arm cannot see,
-    because such a word is not in the fixed-width table to intersect with. That
-    fourth one is held by :func:`_value_is_the_tag_byte` rather than by an arm
-    here, and by the two load-bearing controls beside this test.
+    altogether. It can SATURATE onto words the module reads out of the
+    PAYLOAD. And it can admit a word that is in no shape table at all, which
+    :func:`_value_is_the_tag_byte` holds rather than an arm here, together with
+    the two load-bearing controls beside this test and with
+    :func:`test_no_word_the_exemption_admits_is_one_the_module_declines_to_measure`.
+
+    THE SATURATION ARM'S POPULATION WAS WIDENED BY CS-487 AND THE SENTENCE IT
+    REPLACED WAS MEASURED FALSE. That arm intersected the fixed-width table
+    alone, while this paragraph and the arm's own message both named A
+    LENGTH-PREFIXED TYPE as the thing it guards against - which it could not
+    see, because such a word is not in that table to intersect with. MEASURED by
+    a refutation pass: widening both shipped tag-carried sites to a word already
+    in :data:`objects.MEASURED_VALUE_TYPES` and reading it as one byte shipped
+    ``vacuous_one_byte`` for a length-prefixed type with the tree green. The arm
+    now intersects every table this module reads a value out of the payload
+    from, and what that still does not reach is priced in
+    :func:`test_no_word_the_exemption_admits_is_one_the_module_declines_to_measure`.
 
     THE TWO WIDTH ARMS MEASURE DIFFERENT THINGS AND NEITHER SUBSUMES THE OTHER,
     which is recorded because a single arm was believed to cover both and did
@@ -825,14 +846,23 @@ def test_the_tag_carried_one_byte_values_are_derived_from_the_tag_reader() -> No
         "stopped reading the reader and nothing downstream of it means anything."
     )
 
-    saturated = sorted(carried & frozenset(objects._FIXED_WIDTH_VALUES))  # noqa: SLF001
+    read_from_the_payload = (
+        frozenset(objects._FIXED_WIDTH_VALUES)  # noqa: SLF001
+        | objects._ONE_STRING_VALUES  # noqa: SLF001
+        | objects._TWO_STRING_VALUES  # noqa: SLF001
+    )
+    saturated = sorted(carried & read_from_the_payload)
     assert not saturated, (
         f"the derivation reports {saturated} as carrying its value byte in the TAG, and "
-        "the shipped fixed-width table reads those same words from a counted run of "
-        "stored bytes. Both cannot be true of one word, and the direction that matters "
-        "is the exemption: a derivation admitting words it should not admit exempts "
-        "them from the key bound, which is the CS-480 route reopened one layer along - "
-        "a length-prefixed type shipping a byte-order status with nothing behind it."
+        "the shipped tables read those same words out of the PAYLOAD - from a counted "
+        "run of stored bytes, or from one or two length-prefixed strings. Both cannot "
+        "be true of one word, and the direction that matters is the exemption: a "
+        "derivation admitting words it should not admit exempts them from the key "
+        "bound, which is the CS-480 route reopened one layer along - a length-prefixed "
+        "type shipping a byte-order status with nothing behind it. THE POPULATION USED "
+        "TO BE THE FIXED-WIDTH TABLE ALONE while this message already named a "
+        "length-prefixed type as what it guards, and that gap was measured rather than "
+        "suspected - see CS-487."
     )
 
     for word in sorted(carried):
@@ -874,6 +904,129 @@ def test_the_tag_carried_one_byte_values_are_derived_from_the_tag_reader() -> No
             "not come from the body at all; more than one means the status word claiming "
             "the byte-order question is retired BECAUSE the value is one byte is unbacked."
         )
+
+
+def test_no_word_the_exemption_admits_is_one_the_module_declines_to_measure() -> None:
+    """CS-487 - the tag-carried exemption's real cost, which CS-480 priced wrong.
+
+    THE ROUTE THIS ARM CLOSES, RE-MEASURED IN A CLONE OF `8ec3dbb` WITHOUT THIS
+    ARM BEFORE IT WAS WRITTEN. THREE LINES in ``objects.py`` and NO TEST-SIDE
+    LINE AT ALL - a word written into the ``VALUE_BYTE_ORDER_STATUS`` literal
+    beside the tag-carried entry, plus the two shipped tag-carried sites
+    :func:`objects._read_tag_header` and :func:`objects._decode_value` widened to
+    admit it - ship ``vacuous_one_byte`` for an EIGHT-byte Unreal type this repo
+    names in no table at all, at ``tests/save`` 1059 passed and 49 skipped ON A
+    MACHINE WITH NO GAME, the same counts that clone gives untouched. CS-480
+    disclosed that an edit to BOTH shipped sites still widens the exemption
+    without pricing what it costs. The prose sites that carried that pricing now
+    point here, and THIS DOCSTRING IS THE ONE OWNER OF THE PRICE.
+
+    THE COUNTING CONVENTION, STATED ONCE BECAUSE TWO DRAFTS OF THIS DOCSTRING
+    DISAGREED WITHOUT IT.
+    ``tests/save/test_phase4_gate.py::test_the_save_suite_passes_with_no_install_and_no_save``
+    re-runs this whole suite, so it fails alongside whatever else fails and is
+    EXCLUDED from every count below. A line count is EDITED LINES, added and
+    modified alike, because widening a literal modifies a line rather than
+    adding one and counting only additions understated one route by two.
+
+    WHAT IT READS, AND WHY IT MUST BE A TABLE THE ROUTE DOES NOT TOUCH. The
+    derivation above asks the shipped reader and the shipped decoder whether a
+    word is tag-carried, and the route answers YES at both - it edits exactly
+    those two sites, so no amount of asking them harder separates it.
+    :data:`objects.MEASURED_VALUE_TYPES` is what :func:`objects._decode_payload`
+    reads to decide whether a value that did not come back is unmodelled content
+    or a walk that is no longer where it believes it is, and both tag-carried
+    sites are function bodies, so neither can move it. A word the shipped
+    decoder BUILDS A VALUE FOR is decoded by definition, so a word this
+    exemption admits while that table declines to name it has the module
+    recording a settled byte order for a type it also records as one it does not
+    decode. MEASURED on the tree carrying this arm: the three-line route above
+    reds this arm and nothing else.
+
+    THAT TABLE IS DERIVED, NOT HAND-AUTHORED, AND THAT BOUNDS THIS ARM RATHER
+    THAN BACKING IT. An earlier draft of this docstring called it hand-authored
+    and a refutation pass measured that false: it is the union of
+    ``objects._FIXED_WIDTH_VALUES`` with the two string-shaped sets and two
+    written-in words, so A WORD ADDED TO THE WIDTH TABLE ENTERS IT FOR FREE.
+    This arm is silent on that route - a width-table word is not tag-carried, so
+    it never reaches the population here at all - and what it bounds is the
+    TAG-CARRIED route and nothing else.
+
+    THIS NARROWS THE EXEMPTION AND MUST NEVER BE LOOSENED INTO ADMITTING TO IT.
+    An earlier version of the key bound ADMITTED any word in that table, and
+    shipped green while the mapping recorded ``vacuous_one_byte`` against
+    ``StrProperty``, a length-prefixed type - which is CS-480's own defect. This
+    is a CONJUNCT on top of the derived exemption and never a disjunct beside
+    it: a word still has to be one both shipped sites treat as tag-carried, and
+    now also one the module records as measured. Rewriting it as
+    ``carried | measured`` anywhere reopens that route.
+
+    THIS ARM ALONE WAS NOT ENOUGH AND A REFUTATION PASS MEASURED IT, WHICH IS
+    WHY THE SATURATION ARM ABOVE WAS WIDENED IN THE SAME WORK. Requiring the
+    word to be in the measured set does nothing against an attacker who PICKS a
+    word already in it rather than adding one, and six of the eleven are neither
+    one byte wide nor in the fixed-width table. MEASURED: three shipped lines
+    plus two in ``tests/save/test_properties.py``, naming a LENGTH-PREFIXED type
+    already in the measured set, shipped ``vacuous_one_byte`` for it with the
+    tree green at 1060 passed and 49 skipped - CS-480's own defect, reached
+    again. The saturation arm now intersects every table this module reads a
+    value out of the payload from, which reds that route, and the one measured
+    word left in no shape table reds eight tests at three lines.
+
+    WHAT IT DOES NOT CLOSE, PRICED RATHER THAN NAMED, BECAUSE STOPPING AT THE
+    FIRST RED IS HOW THE LAST BOUND WAS OVERSTATED - and both routes below were
+    taken all the way to green on the tree carrying both arms rather than left
+    at the red they first hit. SEVEN EDITED LINES reach green at ``tests/save``
+    1060 passed and 49 skipped, five in ``objects.py`` and two in
+    ``tests/save/test_properties.py``: take a word already in the measured set,
+    sever it from the shape table that reads it, re-declare it measured, widen
+    both tag-carried sites and write the status entry, then move its fixture tag
+    and expected value. A word the module has never NAMED costs EIGHT edited
+    lines to the same green, five in ``objects.py`` and three in
+    ``tests/save/test_properties.py``. So this exemption costs seven lines
+    across two files rather than three lines in one file, and no route through
+    it is closed.
+
+    THE SURVIVING ROUTE IS CS-490 AND IT IS NOT CS-488'S. CS-488's acceptance is
+    scoped to a WIDTH-TABLE entry and neither route above touches a width table,
+    so satisfying CS-488 need not red either; an earlier draft handed this to
+    CS-488 and a refutation pass measured that assignment wrong. What the three
+    items share is the root none of them closes: a module that CLAIMS a type
+    consistently everywhere contradicts itself nowhere, and every control here
+    is keyed on a contradiction.
+
+    THE POPULATION IS THE WORDS THE STATUS MAPPING NAMES, through
+    :data:`_PROBED_TAG_WORDS`. A reader widened for a word that is never written
+    into that mapping is not probed here, and it ships no byte-order claim
+    either, which is the whole of what this module bounds.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+    """
+    carried = _tag_carried_one_byte_values()
+    assert carried, (
+        "the tag-carried exemption is empty, so this arm has nothing to grade and "
+        "would pass on any module at all. The derivation test above owns that "
+        "failure and reports it with the diagnosis; it is repeated here because a "
+        "vacuous pass is indistinguishable from a real one at this call site."
+    )
+
+    undeclared = sorted(carried - objects.MEASURED_VALUE_TYPES)
+    assert not undeclared, (
+        f"{undeclared} are exempted from the key bound as tag-carried, so "
+        "objects.VALUE_BYTE_ORDER_STATUS may record a byte order for them, and "
+        "objects.MEASURED_VALUE_TYPES does not name them at all. The shipped decoder "
+        "BUILDS A VALUE for each - that is what the exemption's own derivation just "
+        "asked it - so the module is recording a settled byte order for a type it "
+        "also records as one it does not decode. THE TWO HALVES ARE READ FROM "
+        "DIFFERENT PLACES ON PURPOSE: the exemption comes from executing the two "
+        "shipped tag-carried sites, and that table is what objects._decode_payload "
+        "reads to tell unmodelled content from a walk that has lost its place, so "
+        "an edit to those two sites cannot move it - both are function bodies. It "
+        "is DERIVED and not hand-authored, which bounds this arm rather than "
+        "backing it, and the docstring says where. Widening the measured set to "
+        "silence this is not a fix - it is the rest of the route, and what it "
+        "costs is written in this test's docstring."
+    )
 
 
 #: The fixed-width word the arm controls forge against. Taken from the shipped
@@ -1457,14 +1610,20 @@ def test_the_cannot_separate_set_is_bounded_without_a_library() -> None:
 #   places rather than contradict itself in two. That difference is what this
 #   item's acceptance turns on and it is NOT a reason to call the route closed.
 #
-#   THE ROUTE THAT NEEDS NO WIDTH ENTRY AT ALL is cheaper still and is not this
-#   item's mechanism. Writing a word straight into the
+#   THE ROUTE THAT NEEDS NO WIDTH ENTRY AT ALL was cheaper still and was never
+#   this item's mechanism. Writing a word straight into the
 #   `VALUE_BYTE_ORDER_STATUS` literal beside `BoolProperty`, and widening the
 #   two shipped tag-carried sites `_read_tag_header` and `_decode_value` to
-#   admit it, ships `vacuous_one_byte` for an eight-byte type in THREE lines,
+#   admit it, shipped `vacuous_one_byte` for an eight-byte type in THREE lines,
 #   all in `objects.py`, with no test-side line at all and the whole tree green.
-#   That is CS-480's disclosed residual - the disclosure priced it as "an edit
-#   to both shipped sites" and never said how cheap both sites are.
+#   That was CS-480's disclosed residual, priced there as "an edit to both
+#   shipped sites" with no account of how cheap both sites are. THAT IS CS-487,
+#   and the reproduction in this paragraph is DEAD, kept as the record of what
+#   these two arms do not reach. A CHEAPER ROUTE THROUGH THE SAME EXEMPTION
+#   SURVIVES and is filed as CS-490; do not read the death of this one as the
+#   death of the mechanism. The arm that reds on it is
+#   `test_no_word_the_exemption_admits_is_one_the_module_declines_to_measure`,
+#   beside the exemption's derivation rather than here, and it owns the price.
 #
 #   WHAT PUTS A WORD IN REACH OF THESE CONTROLS IS THAT THE MODULE NAMES IT,
 #   and the two arms differ on this. Both read tables keyed by type word, so a

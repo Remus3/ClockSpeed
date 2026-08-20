@@ -73,6 +73,56 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-19 - CS-487 - the tag-carried exemption's price is measured and raised from three lines in one file to seven across two; it is NOT closed as a mechanism
+Verification: `tests/save/test_byte_order_status.py::test_no_word_the_exemption_admits_is_one_the_module_declines_to_measure`
+and the widened saturation arm inside
+`tests/save/test_byte_order_status.py::test_the_tag_carried_one_byte_values_are_derived_from_the_tag_reader`,
+against `clockspeed/save/objects.py`. To reproduce the defect, apply the three lines named
+below and run `tests/save` with `CLOCKSPEED_GAME_DIR` and `CLOCKSPEED_SAVE_ROOT` pointed at
+directories that do not exist. The first test's docstring is the ONE OWNER of every count;
+this entry states none of them.
+
+WHAT CLOSED, AND ON THE STATED ACCEPTANCE RATHER THAN ON THE EXEMPTION HAVING BECOME BOUNDED.
+The acceptance was that writing a type word into the `objects.VALUE_BYTE_ORDER_STATUS` literal
+and widening `objects._read_tag_header` and `objects._decode_value` to admit it turns a test
+RED on a machine with no game. It does. The reproduction on the item was re-measured by me in
+a clone of `8ec3dbb` before anything was written, and again after: those three lines, all in
+`clockspeed/save/objects.py` with no test-side line at all, ship `vacuous_one_byte` for an
+EIGHT-byte Unreal type this repo names in no table at all, at the same pass and skip counts the
+untouched clone gives. The route is word-agnostic and no word is named here or in the shipped
+tree, per the item's fence.
+
+TWO ARMS SHIPPED, NOT ONE, AND THE SECOND EXISTS BECAUSE THE FIRST WAS REFUTED. The first
+reads `MEASURED_VALUE_TYPES` - what `objects._decode_payload` consults to tell unmodelled
+content from a walk that has lost its place, and a table neither tag-carried site can move,
+both being function bodies. A word the shipped decoder builds a value for, that this table
+declines to name, is the module recording a settled byte order for a type it also records as
+one it does not decode. THAT ARM ALONE DOES NOTHING AGAINST AN ATTACKER WHO PICKS A WORD
+ALREADY IN THE TABLE RATHER THAN ADDING ONE, which a refutation pass measured on a live route
+naming a LENGTH-PREFIXED type - CS-480's own defect, reached again through both shipped sites.
+So the derivation's saturation arm, which intersected the fixed-width table alone while its own
+message named a length-prefixed type as the thing it guarded, now intersects every table this
+module reads a value out of the payload from.
+
+BOTH REFUTATION PASSES SUCCEEDED AND NEITHER FINDING WAS REACHABLE FROM INSIDE THE WORK. One
+found the cheaper route above. The other found that the eight-line price I had measured was
+taken on a tree WITHOUT the new arm and carried the wrong tree's pass count, that I had called
+a DERIVED table hand-authored while the same test module already recorded it as derived, and
+that I had handed the residual to CS-488, whose acceptance is scoped to a width-table entry
+that neither surviving route touches. All four are corrected in place with the refutation
+recorded beside them rather than rewritten away.
+
+WHAT THIS DOES NOT CLOSE, AND IT IS FILED RATHER THAN DISCLOSED. Two routes still reach a green
+tree and both were taken all the way to green rather than left at the first red. They are
+CS-490. The root neither this item nor CS-488 closes: every control on this exemption is keyed
+on the module CONTRADICTING itself, and a module that claims a type in every table at once
+contradicts itself nowhere.
+
+A COUNT THIS ITEM WAS FILED WITH DID NOT REPRODUCE, and the correction is recorded at
+`docs/history_notes.md` under **CS-487 - detail** rather than here, because that block owns it.
+The relation it asserted - that the forged tree is byte-identical to the clean one - reproduced
+exactly; the absolute figure did not, and it disagreed with session 22's own wakeup note.
+
 ### 2026-08-19 - CS-481 - the width table's membership is bounded for the words the module names; the three-line route is dead and three wider ones are filed
 Verification: `tests/save/test_byte_order_status.py::test_no_word_carries_a_byte_order_status_the_module_records_as_unclaimed`,
 `tests/save/test_byte_order_status.py::test_every_fixed_width_word_is_one_the_shipped_walk_counts_as_measured`,
