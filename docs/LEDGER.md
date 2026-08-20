@@ -73,6 +73,61 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-20 - CS-493 CORRECTED and CS-494 CLOSED - the declaration reader reads KEY POSITIONS only; the CS-493 entry below it contains a sentence measured FALSE
+Verification: `tests/save/test_reach_guard.py::test_every_graded_declaration_in_this_package_is_readable_from_the_source`
+and `::test_the_sibling_resolution_bound_is_the_number_this_module_declares` for CS-493;
+`tests/save/test_phase4_gate.py::test_the_two_walks_over_held_bytes_differ_only_where_recorded` for
+CS-494. All run with `CLOCKSPEED_GAME_DIR` and `CLOCKSPEED_SAVE_ROOT` pointed at directories that
+do not exist.
+
+**THIS ENTRY CORRECTS THE CS-493 ENTRY BELOW IT, which is append-only and therefore not edited.**
+That entry says an over-read "can never manufacture a reacher, because `_reaching_names_of` returns
+`graded & (direct | indirect)`". **THAT SENTENCE IS FALSE AND A REFUTATION PASS MEASURED IT.** The
+intersection is circular: `indirect` is computed from `propagating`, and `propagating` is computed
+from `graded`, so widening `graded` widens the very set it is then intersected with. The same false
+sentence stood in the `_declared_graded_names` docstring and is corrected in place there.
+
+**REPRODUCED END TO END BY THE MERGER.** A planted module in which NO function calls any library
+primitive exported a reacher, and an importer of it was told `undeclared functions touch a library
+primitive: ['_consumer']` - for a function that touches nothing in either module. The only way to
+green that tree is to write a reason that is false. Forcing a false reason is the defect class this
+package has already shipped eight of.
+
+WHAT THE REPAIR IS. The reader walked the whole declaration for anything name-shaped. It now
+resolves KEY POSITIONS and refuses everything else: a string key, an `f.__name__` key, and a
+comprehension key resolved through its iterable BY POSITION. Targets are paired with their values,
+so `_GRADED_LIBRARY_REACH, _EXEMPT_LIBRARY_REACH = a, b` no longer reads the exempt map as graded.
+A comprehension carrying an `if` clause is REFUSED rather than resolved, because the position read
+cannot see which rows a filter drops. **Measured on all four spellings the refutation used plus the
+three the package writes: exact on every one, and exact against runtime on all twelve declaring
+modules.**
+
+UNDER-READING IS NOW THE ONLY FAILURE DIRECTION LEFT, AND IT IS THE ONE THE BACKSTOP CATCHES.
+`test_every_graded_declaration_in_this_package_is_readable_from_the_source` compares the source read
+against the runtime mapping for every module in the package.
+
+**TWO MORE FINDINGS FROM THE SAME PASS, BOTH REPAIRED.** The backstop skipped any module whose
+declaration was invisible at runtime - a declaration bound under `if TYPE_CHECKING:` was dropped
+entirely while the reader read it anyway; it now checks a module that declares on EITHER side. And
+the hop-bound control passed `hops=` explicitly on both assertions, so it never exercised the
+shipped default: a tree declaring a bound of two while every default spent one was **fully green**.
+The control now takes the default, and pins BOTH sides - a chain of exactly the declared length must
+resolve at the default, which no smaller default can do. That mutant is now killed.
+
+**CS-494 CLOSES ON THE SECOND BRANCH OF ITS ACCEPTANCE - the difference is recorded and GRADED.**
+The two walks are NOT merged, and that is the answer rather than a compromise: they ask different
+questions over different files and return different things, so merging them would make one caller
+wrong. What was genuinely broken was coverage, and that is closed - `_retained_body_attributes`
+gained the tuple target, the `@property` accessor and the bytes-LIKE vocabulary its sibling already
+had. **Measured before the widening: it adds NOTHING on the shipped save modules**, so it is a grade
+that starts catching things rather than one reporting what was already known.
+
+FIVE OF THE SIX DISAGREEMENTS WENT AWAY. The item's detail block named three; the merger measured
+six. The one that survives is a difference of SUBJECT - the reach guard counts a real `Path` as
+personal data because that is what it is about, and the retention walk does not because a path is
+not save bytes - and it is recorded with that reason in `_HELD_BYTES_SHAPES` and asserted. A row
+that differs without a reason fails, and so does a row that agrees and still carries one.
+
 ### 2026-08-20 - CS-493 - the sibling-resolution bound moves from prose into DATA, and a declaration the reader cannot follow is REPORTED instead of read as empty
 Verification: `tests/save/test_reach_guard.py::test_the_sibling_resolution_bound_is_the_number_this_module_declares`
 and `::test_every_graded_declaration_in_this_package_is_readable_from_the_source`. Both run with

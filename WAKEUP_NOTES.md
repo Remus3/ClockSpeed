@@ -304,7 +304,33 @@ the line becomes a pointer.
   AST shape that guard cannot see into, and RE-RUN THE MUTANTS after an idiom change** - a rewrite
   can cost a control its teeth.
 
-- **Next action:** CS-492/493/494, CS-491's remaining residuals - read each detail block in
-  `docs/history_notes.md` first, each carries a fence. CS-499 is the cheapest thing filed but its
-  candidate fix changes the guard's signature and every call site. CS-484's premise is measured
-  and pinning is now cheap.
+- **CS-493 AND CS-494 ALSO CLOSED. CS-493 TOOK TWO ROUNDS AND THE REFUTATION PASS ON ROUND ONE WAS
+  RIGHT.** Round one widened the declaration reader to walk the whole value for anything name-shaped
+  and justified it with a sentence measured FALSE: "an over-read can never manufacture a reacher,
+  because `_reaching_names_of` returns `graded & (direct | indirect)`". **THE INTERSECTION IS
+  CIRCULAR** - `indirect` comes from `propagating`, which comes from `graded`, so widening `graded`
+  widens the set it is intersected with. Reproduced: a module where NO function calls a primitive
+  exported a reacher, and an importer was told to declare a reach for a function touching nothing.
+  Round two reads KEY POSITIONS only and refuses what it cannot place.
+
+- **A DATUM IS NOT A BOUND UNTIL A CONTROL SPENDS THE DEFAULT.** The hop-bound control passed
+  `hops=` explicitly on both assertions, so a tree declaring a bound of two while every default
+  spent one was FULLY GREEN. Fixed twice over: the control now takes the DEFAULT, and pins BOTH
+  sides - a chain of exactly the declared length must resolve at the default, which no smaller
+  default can do. **The same defect had already bitten this item once** as a fixed-length chain.
+
+- **CS-493's clause 2 was LIVE, not latent.** The new cross-check reddened on arrival naming two
+  tracked modules whose declarations the reader could not follow - one keyed on `f.__name__`, one
+  built by a comprehension over a `(label, function)` table, which is literally the shape the
+  acceptance names. Both spellings exist for good reasons; the reader was wrong.
+
+- **CS-494 closed on the RECORD-AND-GRADE branch, and the coverage half turned out free.** Widening
+  `_retained_body_attributes` to the tuple target, the `@property` accessor and the bytes-LIKE
+  vocabulary adds NOTHING on the shipped save modules - measured before shipping it. Five of six
+  disagreements went away; the item's detail block named three, the merger measured six. The
+  survivor is a difference of SUBJECT and is recorded with its reason.
+
+- **Next action:** CS-492, the last of CS-491's residuals and the largest - three shapes reproduced
+  ESCAPING this session with a declared companion beside each, so probe with one or every route
+  reddens on the guard's vacuity assertion instead. Then CS-499, CS-500, and CS-484 whose premise is
+  measured and whose pinning is now cheap.

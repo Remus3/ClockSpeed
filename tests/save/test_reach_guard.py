@@ -1877,6 +1877,18 @@ def _head_sweep():
 """
 
 
+def _ast_of(path: Path) -> ast.Module:
+    """Parse a planted module.
+
+    Args:
+        path: The module's file.
+
+    Returns:
+        Its parsed tree.
+    """
+    return ast.parse(path.read_text(encoding="utf-8"))
+
+
 def _plant_chain(directory: Path, length: int) -> Path:
     """Write a chain of modules whose last link reaches the library.
 
@@ -1892,6 +1904,7 @@ def _plant_chain(directory: Path, length: int) -> Path:
     Returns:
         The head module's path.
     """
+    directory.mkdir(parents=True, exist_ok=True)
     for index in range(1, length + 1):
         template = _CHAIN_TAIL if index == length else _CHAIN_LINK
         (directory / f"planted_hop_{index}.py").write_text(
@@ -1935,16 +1948,37 @@ def test_the_sibling_resolution_bound_is_the_number_this_module_declares(
     head = _plant_chain(tmp_path, bound + 1)
     tree = ast.parse(head.read_text(encoding="utf-8"))
 
-    at_the_bound = _effective_primitives(tree, _LIBRARY_PRIMITIVES, source=head, hops=bound)
+    # THE DEFAULT PATH, NOT AN EXPLICIT ARGUMENT. A refutation pass measured that
+    # passing hops= on both assertions never exercises the shipped default at
+    # all: a tree declaring a bound of two while every default still spent one
+    # was fully green. The constant was prose spelled as an int. This call takes
+    # the default so the datum and the behaviour cannot part.
+    at_the_bound = _effective_primitives(tree, _LIBRARY_PRIMITIVES, source=head)
     assert "_hop_1_sweep" not in at_the_bound, (
-        f"a chain {bound + 1} hops long resolved at a bound of {bound}, so the number "
-        "this module declares is not the number the resolution follows"
+        f"a chain {bound + 1} hops long resolved at the SHIPPED DEFAULT while this "
+        f"module declares a bound of {bound}, so the number it declares is not the "
+        "number the resolution spends"
     )
 
     one_hop_further = _effective_primitives(tree, _LIBRARY_PRIMITIVES, source=head, hops=bound + 1)
     assert "_hop_1_sweep" in one_hop_further, (
         f"the chain did not resolve at {bound + 1} hops either, so the refusal above is "
         "a resolution that resolves nothing rather than the bound holding"
+    )
+
+    # THE OTHER SIDE OF THE BOUND, AND WITHOUT IT THE DATUM CAN STILL LIE. A
+    # refutation pass declared a bound of two while every default spent one and
+    # the tree stayed green: a chain longer than the DECLARED bound is
+    # unresolved at a SMALLER default too, so the refusal above passes for a
+    # default that does not match the number. A chain of exactly the declared
+    # length must resolve at the default, which no smaller default can do.
+    at_the_bound_exactly = _plant_chain(tmp_path / "exact", bound)
+    reached = _effective_primitives(
+        _ast_of(at_the_bound_exactly), _LIBRARY_PRIMITIVES, source=at_the_bound_exactly
+    )
+    assert "_hop_1_sweep" in reached, (
+        f"a chain of exactly {bound} hops did NOT resolve at the shipped default, so the "
+        f"default spends fewer hops than the {bound} this module declares"
     )
 
 
@@ -1980,16 +2014,22 @@ def test_every_graded_declaration_in_this_package_is_readable_from_the_source() 
     for path in (*reaching, *silent):
         module = _imported_sibling(path)
         runtime = getattr(module, _REACH_DECLARATIONS[0], None)
-        if runtime is None:
-            continue
-        checked.append(path.name)
         from_source = reach_guard._declared_graded_names(  # noqa: SLF001
             ast.parse(path.read_text(encoding="utf-8"))
         )
-        if from_source != frozenset(runtime):
+        # A MODULE INVISIBLE AT RUNTIME IS STILL CHECKED IF THE SOURCE DECLARES
+        # ONE. A refutation pass measured the hole: a declaration bound under
+        # ``if TYPE_CHECKING:`` is absent from the imported module, so a
+        # ``runtime is None`` skip dropped it entirely - while the source reader
+        # read it anyway and exported reachers from it. Only a module that
+        # declares nothing on EITHER side is out of scope here.
+        if runtime is None and not from_source:
+            continue
+        checked.append(path.name)
+        if from_source != frozenset(runtime or ()):
             disagreements[path.name] = {
-                "in the source only": sorted(from_source - frozenset(runtime)),
-                "at runtime only": sorted(frozenset(runtime) - from_source),
+                "in the source only": sorted(from_source - frozenset(runtime or ())),
+                "at runtime only": sorted(frozenset(runtime or ()) - from_source),
             }
 
     assert checked, (

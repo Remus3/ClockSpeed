@@ -308,8 +308,13 @@ CS-493 - Bound the cross-module reach resolution, which is one hop and reads onl
 
 ## CS-494 - detail
 
-Relocated from `ROADMAP.md` 2026-08-20 (session 24) for budget, not deleted. The item itself
-stays OPEN in `ROADMAP.md`.
+Relocated from `ROADMAP.md` 2026-08-20 (session 24) for budget, not deleted.
+
+**CS-494 CLOSED 2026-08-20 (session 25) - see `docs/LEDGER.md`. This block is the record of how it
+was filed and is no longer a live instruction.** Closed on the second branch of its acceptance: the
+walks are not merged, the coverage difference is gone, and the one that remains is a difference of
+SUBJECT recorded with its reason and graded. This block names three disagreements; the merger
+measured six.
 
 CS-494 - Reconcile the two walks that read which attributes come to hold save bytes - acceptance: `tests/save/reach_guard._bound_parameter_annotations` and `tests/save/test_phase4_gate._retained_body_attributes` read one population through one owner, or their difference is recorded and graded - tier: 2 - NOTE: filed 2026-08-20 (session 24). Two hand-maintained walks over one kind of thing is exactly the defect `_FILESYSTEM_PRIMITIVES` was unified to repair, recreated inside the fix for CS-491 and found by the refutation pass on it. They already DISAGREE: `_retained_body_attributes` enumerates three shapes and covers neither the tuple target `self.body, self.count = body, count` nor a `@property` accessor, both of which CS-491 closed on the other side; and it is keyed on the word `bytes` rather than on a vocabulary, so `bytearray`, `memoryview` and `BytesIO` are outside it. The two guards grade different files - one the shipped save modules, one this test package - which is why the drift is invisible to both. **The residual CS-491 could NOT close either way:** a fully unannotated `def __init__(self, body): self.body = body` states the type nowhere, and no reader of either file can recover it.
 

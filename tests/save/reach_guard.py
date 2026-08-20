@@ -549,41 +549,166 @@ def _sibling_module_file(stem: str, source: Path) -> Path | None:
     return None
 
 
-def _function_names_in(
-    value: ast.expr, functions: frozenset[str], constants: Mapping[str, ast.expr], depth: int
-) -> frozenset[str]:
-    """Every function of a module that an expression names, however it spells it.
+def _resolves_to_a_name(node: ast.expr) -> str | None:
+    """The function name a KEY expression stands for, when it states one exactly.
 
-    THREE SPELLINGS, EACH EXACT, plus ONE level of indirection through a
-    module-scope constant. A string key names a function directly; ``f.__name__``
-    names ``f``; a bare ``f`` names itself. A name that resolves to a module
-    constant is followed once, which is what reads a declaration built from a
-    table of ``(label, function)`` pairs.
+    TWO SPELLINGS, BOTH EXACT AND NEITHER A GUESS. A string constant IS the
+    name; ``f.__name__`` names ``f``. Anything else returns None rather than a
+    best effort, which is the whole repair CS-493 needed a second round for.
 
     Args:
-        value: The expression to read.
-        functions: The names the module defines, so a reference to something
-            else contributes nothing.
-        constants: Module-scope bindings, for the one indirection hop.
-        depth: Remaining indirection budget.
+        node: The key expression.
 
     Returns:
-        The subset of ``functions`` the expression names.
+        The name, or None when the expression does not state one.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if (
+        isinstance(node, ast.Attribute)
+        and node.attr == "__name__"
+        and isinstance(node.value, ast.Name)
+    ):
+        return node.value.id
+    return None
+
+
+def _comprehension_key_names(node: ast.DictComp, constants: Mapping[str, ast.expr]) -> set[str]:
+    """The names a dict comprehension's KEY expression takes from its iterable.
+
+    THE ONE INDIRECTION THIS PACKAGE ACTUALLY WRITES, resolved by position
+    rather than by evaluation. ``{call.__name__: label for label, call in
+    _TABLE}`` binds ``call`` to element 1 of every tuple in ``_TABLE``, so the
+    key names whatever sits at that index - which is read off the constant's
+    own literal tuples.
+
+    IT RESOLVES NOTHING IT CANNOT PLACE. A key naming a variable this cannot
+    locate in the target, an iterable that is not a module constant, or a
+    constant that is not a tuple of tuples, all contribute nothing.
+
+    Args:
+        node: The comprehension.
+        constants: Module-scope bindings, for the iterable.
+
+    Returns:
+        The function names the key expression resolves to.
+    """
+    if len(node.generators) != 1:
+        return set()
+    generator = node.generators[0]
+    if generator.ifs:
+        # A FILTER IS NOT RESOLVED, IT IS REFUSED. This reads the table by
+        # POSITION and cannot see which rows an ``if`` clause drops, so a
+        # filtered comprehension would name helpers the module does not
+        # declare. Over-reading is the direction that MANUFACTURES a reacher -
+        # see :func:`_declared_graded_names` - so the answer here is nothing,
+        # and the exactness control reports the module rather than this
+        # guessing on its behalf.
+        return set()
+    table = constants.get(generator.iter.id) if isinstance(generator.iter, ast.Name) else None
+    if not isinstance(table, ast.Tuple | ast.List):
+        return set()
+
+    # WHERE THE KEY'S VARIABLE SITS IN EACH ROW. A bare target is column 0 of a
+    # one-column table; a tuple target places it by position. A target of any
+    # other shape, or a name appearing twice in it, resolves to nothing.
+    if not (
+        isinstance(node.key, ast.Attribute)
+        and node.key.attr == "__name__"
+        and isinstance(node.key.value, ast.Name)
+    ):
+        return set()
+    wanted = node.key.value.id
+    elements = (
+        generator.target.elts if isinstance(generator.target, ast.Tuple) else [generator.target]
+    )
+    columns = [
+        index
+        for index, element in enumerate(elements)
+        if isinstance(element, ast.Name) and element.id == wanted
+    ]
+    if len(columns) != 1:
+        return set()
+    column = columns[0]
+
+    return {cell.id for row in table.elts if isinstance(cell := _cell(row, column), ast.Name)}
+
+
+def _cell(row: ast.expr, column: int) -> ast.expr | None:
+    """One column of a table row, when the row states it.
+
+    Args:
+        row: The row expression.
+        column: Which element to take.
+
+    Returns:
+        The element, or None when the row cannot supply it.
+    """
+    if isinstance(row, ast.Tuple | ast.List):
+        return row.elts[column] if column < len(row.elts) else None
+    return row if column == 0 else None
+
+
+def _mapping_key_names(value: ast.expr, constants: Mapping[str, ast.expr]) -> set[str]:
+    """The names a declaration's KEY POSITIONS state, and nothing else.
+
+    KEYS ONLY, WHICH IS CS-493's SECOND ROUND. The first repair walked the whole
+    declaration for anything that looked like a function name, and a refutation
+    pass measured what that costs: a reason string naming a second helper, a
+    filtered comprehension, and a tuple assignment binding the graded and exempt
+    maps together all put names into the graded set that the module does not
+    declare. That is not a harmless over-approximation - see
+    :func:`_declared_graded_names` for why it manufactures reachers.
+
+    Args:
+        value: The declaration's bound value.
+        constants: Module-scope bindings, for a comprehension's iterable.
+
+    Returns:
+        The names the key positions state exactly.
     """
     found: set[str] = set()
     for node in ast.walk(value):
-        if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            if node.value in functions:
-                found.add(node.value)
-        elif isinstance(node, ast.Attribute) and node.attr == "__name__":
-            if isinstance(node.value, ast.Name) and node.value.id in functions:
-                found.add(node.value.id)
-        elif isinstance(node, ast.Name):
-            if node.id in functions:
-                found.add(node.id)
-            elif depth > 0 and node.id in constants:
-                found |= _function_names_in(constants[node.id], functions, constants, depth - 1)
-    return frozenset(found)
+        if isinstance(node, ast.Dict):
+            # A ``**other`` entry has NO key, which is why the keys are
+            # optional. It contributes nothing rather than being followed.
+            found |= {
+                name
+                for key in node.keys
+                if key is not None and (name := _resolves_to_a_name(key)) is not None
+            }
+        elif isinstance(node, ast.DictComp):
+            found |= _comprehension_key_names(node, constants)
+    return found
+
+
+def _module_scope_values(tree: ast.Module, name: str) -> list[ast.expr]:
+    """Every value bound to ``name`` at a module's own scope, paired exactly.
+
+    PAIRED, NOT COLLECTED. ``_GRADED_LIBRARY_REACH, _EXEMPT_LIBRARY_REACH = a, b``
+    binds two names in one statement, and a reader that took the whole statement's
+    value for either name read the exempt map as graded - measured.
+
+    Args:
+        tree: The parsed module.
+        name: The declaration name to look for.
+
+    Returns:
+        The values bound to it, outermost scope only.
+    """
+    inside = _nodes_inside_functions(tree)
+    found: list[ast.expr] = []
+    for node in ast.walk(tree):
+        if id(node) in inside:
+            continue
+        if isinstance(node, ast.AnnAssign):
+            if isinstance(node.target, ast.Name) and node.target.id == name and node.value:
+                found.append(node.value)
+        elif isinstance(node, ast.Assign):
+            for target, value in _paired_targets(node):
+                if isinstance(target, ast.Name) and target.id == name:
+                    found.append(value)
+    return found
 
 
 def _declared_graded_names(tree: ast.Module) -> frozenset[str]:
@@ -595,20 +720,32 @@ def _declared_graded_names(tree: ast.Module) -> frozenset[str]:
     module is imported BY most of the package it scans. It also runs over
     PLANTED modules under ``tmp_path``, which are not importable at all.
 
-    IT OVER-APPROXIMATES ON PURPOSE, WHICH IS CS-493. It read ``ast.Dict`` keys
-    and nothing else, so a declaration built any other way read as EMPTY - and
-    that failed in the PERMISSIVE direction: the sibling export is filtered by
-    this set, so a module whose declaration could not be read exported no
-    reaching helper, every importer of it was classed silent, and the guard
-    never ran on them. **Two tracked modules were measured in exactly that
-    state**, one keying on ``f.__name__`` and one building the map with a
-    comprehension over a table of ``(label, function)`` pairs.
+    WHAT IT READ, AND WHY THAT WAS THE PERMISSIVE FAILURE. It read ``ast.Dict``
+    constant keys and nothing else, so a declaration built any other way read as
+    EMPTY. The sibling export is filtered by this set, so a module whose
+    declaration could not be read exported no reaching helper, every importer of
+    it was classed silent, and the guard never ran on them. **Two tracked
+    modules were measured in exactly that state**, one keying on ``f.__name__``
+    and one building the map with a comprehension over a table of
+    ``(label, function)`` pairs.
 
-    OVER-READING IS SAFE HERE AND UNDER-READING IS NOT, which is the whole
-    reason this direction was chosen. :func:`_reaching_names_of` returns
-    ``graded & (direct | indirect)``, so a name this reports that does not
-    actually reach is intersected away and can never manufacture a reacher. A
-    name it MISSES is a real reach that goes unexported and unguarded.
+    **THE FIRST REPAIR WIDENED THIS TO WALK THE WHOLE DECLARATION FOR ANYTHING
+    NAME-SHAPED, AND JUSTIFIED IT WITH A SENTENCE THAT WAS FALSE.** That sentence
+    said an over-read "can never manufacture a reacher", because
+    :func:`_reaching_names_of` returns ``graded & (direct | indirect)``. A
+    refutation pass measured the circularity: ``indirect`` is computed from
+    ``propagating``, and ``propagating`` is computed from ``graded``. Widening
+    ``graded`` widens the very set it is then intersected with. Reproduced end to
+    end - a module where NO function calls any primitive exported a reacher, and
+    an importer of it was told to declare a library reach for a function that
+    touches nothing. A false reason forced by a guard is the defect this package
+    has already shipped eight of.
+
+    SO IT READS KEY POSITIONS AND REFUSES EVERYTHING ELSE. A string key, an
+    ``f.__name__`` key, and a comprehension key resolved through its iterable by
+    POSITION. A spelling it cannot place contributes nothing and is caught by
+    ``test_every_graded_declaration_in_this_package_is_readable_from_the_source``,
+    which compares this against what the module holds at runtime.
 
     Args:
         tree: The sibling's parsed module.
@@ -617,27 +754,16 @@ def _declared_graded_names(tree: ast.Module) -> frozenset[str]:
         The functions its ``_GRADED_LIBRARY_REACH`` names, empty when it
         declares none.
     """
-    functions = frozenset(_scanned_functions(tree))
     constants = {
         bound[0]: value
         for bound, value in _bindings_in(tree, inside_functions=False)
         if len(bound) == 1
     }
     found: set[str] = set()
-    for bound, value in _bindings_in(tree, inside_functions=False):
-        if _REACH_DECLARATIONS[0] not in bound:
-            continue
-        found |= _function_names_in(value, functions, constants, _DECLARATION_INDIRECTION_HOPS)
+    for value in _module_scope_values(tree, _REACH_DECLARATIONS[0]):
+        found |= _mapping_key_names(value, constants)
     return frozenset(found)
 
-
-#: How many module-scope constants the declaration reader follows before it
-#: stops. One, so a declaration built from a table of helpers is read and an
-#: arbitrarily deep chain of indirection is not chased. Over-reading here is
-#: intersected away by :func:`_reaching_names_of`; under-reading is the failure
-#: that hides a real reacher, which is why the budget exists at all rather than
-#: the reader refusing anything it cannot fully evaluate.
-_DECLARATION_INDIRECTION_HOPS: Final = 1
 
 #: How many module hops the sibling resolution follows.
 #:

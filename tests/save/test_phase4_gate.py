@@ -193,7 +193,7 @@ import re
 import subprocess
 import sys
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
@@ -2754,6 +2754,39 @@ def _retained_bytes_fields(tree: ast.Module) -> list[str]:
     return found
 
 
+#: Type words that mean "this attribute has come to hold the decompressed
+#: world". DERIVED from the reach guard's own personal-data vocabulary rather
+#: than written down again, minus the ones that are a PATH rather than a body.
+#:
+#: CS-494 - THIS WALK AND ``reach_guard._bound_parameter_annotations`` ARE TWO
+#: WALKS OVER ONE KIND OF THING, which is the drift ``_FILESYSTEM_PRIMITIVES``
+#: was unified to prevent. They are not merged, because they answer different
+#: questions over different files: that one asks whether a class in the TEST
+#: package holds anything personal-data bearing, including a real path; this one
+#: asks whether an attribute of a SHIPPED save module holds save BYTES. What was
+#: wrong is that this one was keyed on the single word ``bytes`` while its
+#: sibling read a vocabulary, so ``bytearray``, ``memoryview`` and ``BytesIO``
+#: were outside it for no stated reason. The remaining difference is recorded
+#: and graded by
+#: ``test_the_two_walks_over_held_bytes_differ_only_where_recorded``.
+_BODY_TYPE_WORDS: Final = frozenset(reach_guard._PERSONAL_DATA_TYPES) - {"Path"}  # noqa: SLF001
+
+
+def _names_a_body_type(annotation: ast.expr | None) -> bool:
+    """Whether an annotation names a type that carries the decompressed world.
+
+    Args:
+        annotation: The annotation node, or None when there is none.
+
+    Returns:
+        True when it names one of :data:`_BODY_TYPE_WORDS`.
+    """
+    if annotation is None:
+        return False
+    rendered = ast.unparse(annotation)
+    return any(word in rendered for word in _BODY_TYPE_WORDS)
+
+
 def _retained_body_attributes(tree: ast.Module) -> list[str]:
     """Every attribute in a module that comes to hold save bytes, dataclass or not.
 
@@ -2762,11 +2795,24 @@ def _retained_body_attributes(tree: ast.Module) -> list[str]:
     ``data`` is the decompressed body, and an ordinary assignment in an ordinary
     class is invisible to a walk that reads ``@dataclass`` annotated fields.
 
-    - A dataclass field annotated ``bytes``.
+    - A dataclass field annotated with a body type.
     - ``self.x: bytes = ...``, an annotated attribute assignment.
-    - ``self.x = param`` where the enclosing function annotates ``param`` as
-      ``bytes``. Derived from the SIGNATURE rather than from a list of attribute
-      names, so a module that renames its buffer is still read.
+    - ``self.x = param`` where the enclosing function annotates ``param`` as one.
+      Derived from the SIGNATURE rather than from a list of attribute names, so a
+      module that renames its buffer is still read.
+    - ``self.x, self.y = a, b``, a TUPLE target, whose elements a single-target
+      read cannot pair with their values.
+    - ``@property def x(self) -> bytes``, which hands the held thing out and
+      states its type on the way.
+
+    THE LAST TWO AND THE VOCABULARY ARE CS-494. This walk read the single word
+    ``bytes`` and three shapes while ``reach_guard._bound_parameter_annotations``
+    read a vocabulary and covered the tuple target and the property. **Measured
+    before the widening: it adds nothing at all on the shipped save modules** -
+    which is the point, since a grade that only catches what is already there
+    catches nothing. The two walks are still not merged; they ask different
+    questions over different files, and the difference that remains is graded by
+    ``test_the_two_walks_over_held_bytes_differ_only_where_recorded``.
 
     A reference is retention for this purpose even though ``bytes`` is immutable
     and nothing is copied: the object outlives the call that made it, and every
@@ -2787,34 +2833,228 @@ def _retained_body_attributes(tree: ast.Module) -> list[str]:
             for stmt in cls.body
             if isinstance(stmt, ast.AnnAssign)
             and isinstance(stmt.target, ast.Name)
-            and "bytes" in ast.unparse(stmt.annotation)
+            and _names_a_body_type(stmt.annotation)
         )
         for member in cls.body:
             if not isinstance(member, ast.FunctionDef | ast.AsyncFunctionDef):
                 continue
+            # A PROPERTY HANDS THE HELD THING OUT and states its type on the
+            # way. Read here for the reason the sibling walk gives: the type is
+            # written plainly and was simply not being read.
+            if any(
+                "property" in ast.unparse(one) for one in member.decorator_list
+            ) and _names_a_body_type(member.returns):
+                found.append(f"{cls.name}.{member.name}")
             args = member.args
             byte_params = {
                 arg.arg
                 for arg in [*args.posonlyargs, *args.args, *args.kwonlyargs]
-                if arg.annotation is not None and "bytes" in ast.unparse(arg.annotation)
+                if _names_a_body_type(arg.annotation)
             }
             for stmt in ast.walk(member):
                 if (
                     isinstance(stmt, ast.AnnAssign)
                     and isinstance(stmt.target, ast.Attribute)
-                    and "bytes" in ast.unparse(stmt.annotation)
+                    and _names_a_body_type(stmt.annotation)
                 ):
                     found.append(f"{cls.name}.{stmt.target.attr}")
-                if not isinstance(stmt, ast.Assign) or not isinstance(stmt.value, ast.Name):
+                if not isinstance(stmt, ast.Assign):
                     continue
-                if stmt.value.id not in byte_params:
-                    continue
-                found.extend(
-                    f"{cls.name}.{target.attr}"
-                    for target in stmt.targets
-                    if isinstance(target, ast.Attribute)
-                )
+                for target in stmt.targets:
+                    # THE TUPLE TARGET, paired element by element. A
+                    # single-target read cannot pair `self.a, self.b = x, y`
+                    # with its values, which is the shape the sibling walk
+                    # covers and this one did not.
+                    if isinstance(target, ast.Tuple) and isinstance(stmt.value, ast.Tuple):
+                        pairs = list(zip(target.elts, stmt.value.elts, strict=False))
+                    else:
+                        pairs = [(target, stmt.value)]
+                    found.extend(
+                        f"{cls.name}.{one.attr}"
+                        for one, value in pairs
+                        if isinstance(one, ast.Attribute)
+                        and isinstance(value, ast.Name)
+                        and value.id in byte_params
+                    )
     return sorted(set(found))
+
+
+#: One source per shape a class can come to hold the decompressed world by,
+#: with what each of the two walks reports and - where they differ - why.
+#:
+#: THIS IS CS-494's SECOND ACCEPTANCE BRANCH: the difference between
+#: :func:`_retained_body_attributes` and
+#: ``reach_guard._bound_parameter_annotations`` is RECORDED here and GRADED by
+#: the test below, rather than described in a docstring where nothing can check
+#: it. Five of the six differences that existed when this was written were
+#: closed by widening this module's walk; the one that remains is a difference
+#: of SUBJECT rather than of coverage, and it is written down with its reason.
+#:
+#: Each entry is the source, what the reach guard's wrapper walk says, what this
+#: module's retention walk says, and the reason they differ - empty when they
+#: agree, which the test requires both ways round.
+_HELD_BYTES_SHAPES: Final[Mapping[str, tuple[str, bool, bool, str]]] = MappingProxyType(
+    {
+        "dataclass-field": (
+            "from dataclasses import dataclass\n\n\n@dataclass\nclass _Holder:\n    body: bytes\n",
+            True,
+            True,
+            "",
+        ),
+        "annotated-store": (
+            "class _Holder:\n    def __init__(self, body):\n        self.body: bytes = body\n",
+            True,
+            True,
+            "",
+        ),
+        "annotated-parameter": (
+            "class _Holder:\n    def __init__(self, body: bytes):\n        self.body = body\n",
+            True,
+            True,
+            "",
+        ),
+        "tuple-target": (
+            "class _Holder:\n    def __init__(self, body: bytes, count: int):\n"
+            "        self.body, self.count = body, count\n",
+            True,
+            True,
+            "",
+        ),
+        "property-accessor": (
+            "class _Holder:\n    @property\n    def body(self) -> bytes:\n"
+            "        return self._body\n",
+            True,
+            True,
+            "",
+        ),
+        "bytearray-parameter": (
+            "class _Holder:\n    def __init__(self, body: bytearray):\n        self.body = body\n",
+            True,
+            True,
+            "",
+        ),
+        "memoryview-parameter": (
+            "class _Holder:\n    def __init__(self, body: memoryview):\n        self.body = body\n",
+            True,
+            True,
+            "",
+        ),
+        "bytesio-parameter": (
+            "from io import BytesIO\n\n\nclass _Holder:\n"
+            "    def __init__(self, body: BytesIO):\n        self.body = body\n",
+            True,
+            True,
+            "",
+        ),
+        "path-parameter": (
+            "from pathlib import Path\n\n\nclass _Holder:\n"
+            "    def __init__(self, source: Path):\n        self.source = source\n",
+            True,
+            False,
+            "A DIFFERENCE OF SUBJECT, NOT OF COVERAGE, and the only one left. The "
+            "reach guard asks whether a class in the TEST package holds anything "
+            "personal-data bearing, and a real save path is one - it is what its "
+            "whole guard is about. This module asks whether an attribute of a "
+            "SHIPPED save module holds save BYTES, which a path is not. Teaching "
+            "this walk to report paths would make its own callers wrong: the "
+            "rendering grade built on it looks for a retained BUFFER reaching a "
+            "repr, and a path reaching one is a different finding with a "
+            "different mitigation.",
+        ),
+        "fully-unannotated": (
+            "class _Holder:\n    def __init__(self, body):\n        self.body = body\n",
+            False,
+            False,
+            "",
+        ),
+        "unrelated-scalar": (
+            "class _Holder:\n    def __init__(self, count: int):\n        self.count = count\n",
+            False,
+            False,
+            "",
+        ),
+    }
+)
+
+
+def test_the_two_walks_over_held_bytes_differ_only_where_recorded() -> None:
+    """CS-494 - two walks over one kind of thing, with the difference graded.
+
+    WHAT WAS WRONG. ``reach_guard._bound_parameter_annotations`` and
+    :func:`_retained_body_attributes` both read which attributes come to hold
+    the decompressed world, and they disagreed in six ways that existed only in
+    prose. Two hand-maintained walks over one kind of thing is the drift
+    ``_FILESYSTEM_PRIMITIVES`` was unified to prevent, recreated inside the fix
+    for CS-491 and found by the refutation pass on it. Neither walk could see
+    the disagreement, because they grade different files.
+
+    THEY ARE NOT MERGED, AND THAT IS THE ANSWER RATHER THAN A COMPROMISE. They
+    answer different questions - one about personal data in the TEST package,
+    one about save bytes in the SHIPPED save modules - and return different
+    things. Merging them would make one of the two callers wrong. What was
+    genuinely broken was the coverage difference, and that is closed: five of
+    the six disagreements went away when this module's walk gained the tuple
+    target, the property accessor and the bytes-LIKE vocabulary its sibling
+    already had. **Measured before that widening: it adds nothing on the shipped
+    save modules**, so it is a grade that starts catching things rather than one
+    that reports what was already known.
+
+    THE SURVIVING DIFFERENCE IS RECORDED WITH ITS REASON, and the reason is
+    asserted present. A row that differs and explains nothing fails here, and so
+    does a row that agrees and carries an explanation - a stale reason for a
+    difference that no longer exists is the shape CS-471 shipped eight of.
+
+    IT NEEDS NO SAVE LIBRARY. Every subject is a synthetic source in this file.
+    """
+    disagreements: dict[str, tuple[bool, bool]] = {}
+    unexplained: list[str] = []
+    stale: list[str] = []
+
+    for label, (source, wraps, retains, reason) in _HELD_BYTES_SHAPES.items():
+        tree = ast.parse(source)
+        actual_wraps = bool(reach_guard._body_wrapping_classes(tree))  # noqa: SLF001
+        actual_retains = bool(_retained_body_attributes(tree))
+
+        assert (actual_wraps, actual_retains) == (wraps, retains), (
+            f"{label}: the walks now report {(actual_wraps, actual_retains)} and this "
+            f"record says {(wraps, retains)}. One of them changed - update the record "
+            "with the reason, or restore the coverage."
+        )
+        if wraps != retains:
+            disagreements[label] = (wraps, retains)
+            if not reason.strip():
+                unexplained.append(label)
+        elif reason.strip():
+            stale.append(label)
+
+    assert not unexplained, (
+        f"these shapes are reported by one walk and not the other with no reason "
+        f"recorded: {unexplained}. A difference nobody wrote down is the drift this "
+        "record exists to stop."
+    )
+    assert not stale, (
+        f"these shapes agree and still carry a reason for differing: {stale}. A reason "
+        "that outlives the difference it described reads as a live constraint and holds "
+        "nothing."
+    )
+
+    # NON-VACUITY, all three ways. A record where nothing differs would satisfy
+    # the assertions above while grading no difference at all; one where nothing
+    # agrees would mean the two walks share no subject and comparing them says
+    # nothing; and one where nothing is flagged would pass for two walks that
+    # report nothing whatever.
+    assert disagreements, (
+        "the two walks agree on every shape here, so this record grades no difference. "
+        "Either they were unified - in which case delete this - or the corpus stopped "
+        "covering the shapes where they part."
+    )
+    assert any(wraps and retains for _s, wraps, retains, _r in _HELD_BYTES_SHAPES.values()), (
+        "no shape is reported by both walks, so they share no subject and comparing "
+        "them grades nothing"
+    )
+    assert any(
+        not wraps and not retains for _s, wraps, retains, _r in _HELD_BYTES_SHAPES.values()
+    ), "no shape is refused by both walks, so neither is shown to refuse anything"
 
 
 def _reaches_a_rendering(node: ast.AST, attributes: frozenset[str]) -> bool:
