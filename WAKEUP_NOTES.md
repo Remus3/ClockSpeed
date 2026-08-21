@@ -31,183 +31,88 @@ the line becomes a pointer.
 
 ---
 
-## Session 23 - 2026-08-19 - CS-487, CS-478 and CS-471 CLOSE; every refutation pass succeeded and one refuted an acceptance clause outright
+## Session 26 - 2026-08-21 - CS-492 is BUILT in full and does NOT close; six refutation rounds, five of them mine to answer
 
-- **Shipped: CS-487 CLOSED.** Filed CS-490. Two arms landed in
-  `tests/save/test_byte_order_status.py`, not one. Suite with the library
-  **2142 passed, 3 skipped, exit 0**; `tests/save` with NO GAME **1059 -> 1060 passed, 49
-  skipped, exit 0**. mypy clean 28 and 56, ruff check clean, ruff format clean 84, drift guard
-  **CLEAN 9/9**, doc budget **PASS measured 16** after a relocate pass, precommit gate PASS.
-  Detail in `docs/LEDGER.md`.
+- **Shipped: NOTHING CLOSED, and that is the result rather than a shortfall.** CS-492's
+  acceptance is built, controlled and mutation-covered, and the item stays OPEN because
+  ROUND SIX IS UNGRADED. Six grading rounds ran; every one returned REFUTED and every one
+  found something real. Closing on an ungraded round is the mistake this ledger keeps
+  recording. Filed CS-800 through CS-805.
 
-- **THE HEADLINE IS THAT ONE ARM WAS NOT ENOUGH AND I SHIPPED THE FIRST DRAFT BELIEVING IT
-  WAS.** The `MEASURED_VALUE_TYPES` conjunct reds the filed three-line route and does NOTHING
-  against an attacker who PICKS a word already in that table instead of adding one. A
-  refutation pass measured that live: three shipped lines plus two test-side, naming a
-  LENGTH-PREFIXED type, shipped `vacuous_one_byte` with the tree green - which is CS-480's own
-  defect reached again. The fix was widening the derivation's saturation arm from the
-  fixed-width table alone to every table the module reads a value out of the payload from.
+- **THE HEADLINE IS THAT THE GUARD WAS MANUFACTURING DECLARATIONS, not that it was missing
+  routes.** A declaration is a written claim about where personal data flows, so a false
+  reacher is worse than a missed one, and this item produced EIGHT of them across rounds
+  three to five. The worst was measured on the real tree: `monkeypatch.setattr(os, "walk",
+  os.scandir)` - three ordinary lines - took `tests/save/test_phase4_gate.py` from nine
+  flagged functions to twenty. `walk` is excluded BY NAME in `_NOT_LIBRARY_REACH` precisely
+  because `ast.walk` is how every AST guard here reads a tree, and CS-497 made
+  `_reach_primitives` INTERSECT so an unclassified name reaches nothing. **The attribute
+  vocabulary I added had no partition, no map and no intersection**, so the exclusion was
+  bypassed by the back door. An exclusion that holds in one namespace and not the other is
+  not an exclusion.
 
-- **FOUR OF MY OWN SENTENCES WERE MEASURED FALSE BY THE SECOND PASS AND ARE CORRECTED IN PLACE
-  WITH THE REFUTATION BESIDE THEM.** Do not rewrite them back: an eight-line price measured on
-  a tree WITHOUT the new arm and carrying the wrong tree's pass count; calling
-  `MEASURED_VALUE_TYPES` hand-authored when it is DERIVED and the same test module already said
-  so; handing the residual to CS-488, whose acceptance is scoped to a width-table entry neither
-  surviving route touches; and a pointer chain in which three prose sites each said a different
-  one of them owned the price.
+- **ONE DOOR ACCOUNTED FOR SIX OF THE EIGHT.** The three-argument store shape read
+  `f(target, "name", value)` as a store - which is what `setattr` is, and equally what
+  `getattr(spec, "reader", open)`, `re.sub(pattern, "count", text)` and `OSError(13,
+  "denied", path)` are. It produced a false reacher in THREE separate rounds with a
+  different payload each time. It is gone; `_attribute_stores` read 160 stores on this tree
+  and 127 were that shape, so it now reads 33. Two shipped controls died with it and are
+  recorded in CS-802 with the measurement, not quietly dropped.
 
-- **THE PRICE IS THE RESULT, NOT THE CLOSURE.** The exemption cost three lines in one file and
-  now costs seven across two. No route through it is closed, both survivors were taken all the
-  way to GREEN rather than left at their first red, and they are CS-490. Read that item's
-  detail before touching this area.
+- **THE ROOT CAUSE IS ONE SENTENCE AND IT IS NOT NEW.** `_stands_for_a_primitive` treats a
+  primitive's RESULT as standing for one, and justifies it by saying that costs a flag "only
+  where the bound name is itself CALLED, which no module in this package does". The
+  vocabulary is therefore full of PATH CONSTANTS. A hand-back is exactly the place that
+  justification fails. Four rounds were spent deleting arms - the call arm, the container
+  arms, the subscript/conditional/fallback arms - before round six did the thing those
+  deletions were substituting for: `_serving_names` builds a SECOND, narrower name set from
+  the primitives outward by the hand-back rule itself. That is the callable-versus-value
+  split, computed where it can be.
 
-- **A COUNT CS-487 WAS FILED WITH DID NOT REPRODUCE.** Its detail block said `tests/save` 1058
-  with no game; I measured 1059 four times, on two trees. The RELATION it asserted - forged
-  tree byte-identical to clean - reproduced exactly. Corrected in place at
-  `docs/history_notes.md` under **CS-487 - detail**.
+- **THREE OF MY OWN SENTENCES WERE MEASURED FALSE AND ARE CORRECTED IN PLACE.** Do not
+  rewrite them back. `_reaching_attributes`'s stated cost bound ("costs a flag only where a
+  module binds a locator to an attribute name and then calls something else of that name")
+  was broken by a counter-example holding no locator at all. `_returned_values` claimed
+  `yield from` walks "a container of spellings" while `_hands_back_a_primitive` refuses
+  containers outright. And a `strings` switch documented as structural was set correctly at
+  ONE of three call sites in the commit that introduced it.
 
-- **THIS FILE'S STATED ORDER AND ITS ACTUAL ORDER DISAGREE, and I did not silently pick one.**
-  The header says NEWEST FIRST; sessions 21, 22 and 23 run oldest first, and did before this
-  session touched it. I appended to match the ACTUAL order rather than reorder three blocks
-  under a rule I may be misreading. One of the two is wrong and it is an operator call which.
+- **THE MEASUREMENT THAT MATTERED MOST WAS THE ONE THAT SAID NOTHING HAPPENED.** The
+  widening adds zero attributes, zero serve-aliases, zero newly-flagged functions and loses
+  zero coverage across all 18 modules - re-measured after every round, with the harness
+  proven able to report non-zero on a planted module first. That zero is real and it is also
+  weak evidence: a refutation pass showed the tree sits ONE ORDINARY LINE from a false flag,
+  and then produced the line.
 
-- **CS-478 ALSO CLOSED, later in the same session.** The two definitions of "an oracle scores
-  this type" - tag-word in `test_properties._tally_decoded_values`, decoded-shape in
-  `test_value_anchoring._score_population` - now meet in
-  `test_the_two_admission_rules_for_the_int32_oracle_never_disagree_unrecorded`. Closed on the
-  HOLD-THEM-APART route, not unification: the item's own fence forbids deleting either.
+- **A CONTROL STOPPED COVERING THE THING IT WAS WRITTEN FOR, silently.** Closing the
+  attribute fixpoint in round six meant the hold-and-serve chain no longer needed a second
+  round of the OUTER fixpoint, and a mutant setting that loop to `range(1)` went green. The
+  mutant was proved non-equivalent and `an-alias-of-a-server` now carries that bound. A
+  passing control is not evidence that the bound it was written for still has one.
 
-- **THE WORST MISTAKE OF THE SESSION WAS IN CS-478 AND BOTH REFUTATION PASSES CAUGHT IT
-  INDEPENDENTLY: I ACCUSED A TRUE SENTENCE OF BEING FALSE.** A draft rewrote
-  `test_the_cannot_separate_set_is_bounded_without_a_library`'s docstring to say that
-  `test_no_type_an_oracle_scores_is_left_recorded_as_unscored` says nothing about the word the
-  cannot-separate set names. Widening the dispatch to score that word reds that very test. The
-  sentence GOVERNS THE TRANSITION while being silent on today's state; present non-membership
-  of a runtime-computed population is not silence. Restored verbatim. **This project's method
-  says corrected-in-place sentences must never be rewritten back - a false correction is the
-  same defect pointing the other way.**
+- **Failed paths, so they are not retried:** keying the store shape on the callee (measured,
+  leaves every other store helper open); turning the container arm back on (measured, two
+  false reachers from two different channels); a per-caller `strings` switch (set wrong
+  immediately); scoping the attribute vocabulary per CLASS (needs receiver typing that
+  `_callee_resolves` refuses elsewhere).
 
-- **FOUR MORE CS-478 SENTENCES OF MINE WERE MEASURED FALSE and are corrected in place.** Do not
-  rewrite them back: a probe constant said to move BOTH channels of the int32 oracle when its
-  low byte is non-zero so only one fires; a subset arm whose stated route raises `TypeError`
-  before the assertion and which NO edit to `objects.py` can fire; a reverse arm called hard to
-  reach that fires three ways; and an absolute suite count that distinguished nothing.
+- **Suite, no game: `tests` 2190 passed / 52 skipped / exit 0; `tests/save` 1155 passed / 49
+  skipped / exit 0.** With the library, 2239 passed / 3 skipped / exit 0. mypy clean 86,
+  ruff check and format clean repo-wide, drift guard CLEAN 9/9, doc budget PASS measured 16
+  after four relocate passes, precommit gate PASS 5. 24 mutants, all killed, no survivors,
+  against a green pristine floor. Controls in `test_reach_guard.py`: 63 at HEAD, 95 now.
 
-- **CS-478's residual, stated as an adversary put it:** one more line turns the `unscored` lie
-  into a `cannot_separate` lie. The control prices CONCEALMENT, not the lie. CS-426 owns it.
+- **Decisions: the operator opened the `CS-8nn` follow-up block** because `CS-4nn` is full
+  (98 of 100, the two free being gaps the rule forbids backfilling), and ruled that
+  `WAKEUP_NOTES.md`'s ENTRIES were the wrong half of its four-session contradiction. This
+  file is now newest-first as its header always said; session 23 relocated to
+  `docs/history_notes.md`.
 
-- **CS-471 ALSO CLOSED, on its THREE STATED CLAUSES and not on the channel being shut.** The
-  parameter-and-locals channel stays open and its pinning test
-  `test_the_entry_points_still_bind_the_raw_body_where_a_renderer_can_read_it` STILL PASSES and
-  stays. Residuals filed as CS-491. Operator ruled the close on the three clauses.
-
-- **A REFUTATION PASS REFUTED CLAUSE 1 OUTRIGHT AND IT WAS RIGHT.** The scan read module-body
-  statements only, so a module-scope reach was invisible - and the classifier called that module
-  SILENT, so the guard never ran on it. The proof of concept was the ordinary pytest idiom, a
-  module-scope call feeding a parametrize list. Closed under a `MODULE_SCOPE_REACH` sentinel
-  wired into BOTH the guard and the classifier. **Fixing a guard without fixing the thing that
-  decides which files the guard runs on is half a fix that measures green.**
-
-- **I SHIPPED A NON-NEGOTIABLE 12 VIOLATION WHILE CLOSING A PRIVACY ITEM.** An f-string rendered
-  a caught exception object; `OSError.__str__` appends the path it failed on. Caught by
-  `tests/test_exception_rendering.py`, which lives OUTSIDE `tests/save` - so a `tests/save` run
-  was green while it was there. **Run the whole suite before believing a privacy change.**
-
-- **EIGHT EXEMPT REASONS OF MINE WERE MEASURED FALSE, plus four more defects.** Do not rewrite
-  them back: six reasons described filesystem work on functions matched only by a NAME COLLISION
-  with a sibling's citation resolver; one described the game install for a synthetic usmap in
-  tmp_path; one claimed tmp_path containment for a test passing no path, whose real containment
-  is an autouse env fixture. Also: the wrapper walk missed a subclass; the clause-2 control was
-  a tautology reporting every input undeclared; the package walk was narrowable to one module in
-  silence; and a docstring said "third argument" of two.
-
-- **Next action:** take CS-491 (tier 1), CS-471's filed residual - read its detail in
-  `docs/history_notes.md` first. CS-488 and CS-490 are the other open tier-2 byte-order items.
-## Session 24 - 2026-08-20 - CS-491 CLOSES after THREE rounds; two refutation passes refuted it and both were right
-
-- **Shipped: CS-491 CLOSED.** Forty-seven controls, relocated into a new
-  `tests/save/test_reach_guard.py`; one exemption in `tests/save/test_workdir.py`. Filed
-  CS-492, CS-493, CS-494 and CS-495. `tests/save` with NO GAME **1064 -> 1111 passed, 49
-  skipped, exit 0**. Detail in `docs/LEDGER.md`.
-
-- **THE BASELINE REPRODUCED EXACTLY** before any of it: 1064 passed, 49 skipped with no game.
-
-- **I CLOSED IT WRONG TWICE AND SHIPPED NEITHER.** Round one closed the seven filed routes;
-  a refutation pass found ELEVEN more and was right about all eleven - I reproduced every
-  one before touching anything. Round two closed those; a second pass found the TWELFTH and
-  ten more, and was right again. Round three closed those. **The item is the guard's
-  credibility, not the diff, and a green suite after round one would have been a lie.**
-
-- **THE SAME DEFECT FOUR TIMES: ONE MECHANISM APPLIED TO ONE OF TWO POPULATIONS.** Aliases
-  resolved to a fixpoint for PRIMITIVES and not for TYPES, so `_Body = bytes` switched the
-  wrapper walk off. The module-handle import shape resolved for REACH and not for WRAPPERS.
-  The sibling export keyed on the DIRECT set, so a graded-but-indirect helper never
-  exported. **And the worst: `_module_scope_reaches` re-derived the callee name itself with
-  the pre-CS-491 two-channel test while `_calls_any` had grown five channels - so every
-  route I had closed reopened by moving it one indentation level out of its `def`.** This is
-  the CS-477 pattern, found four times inside the repair for it.
-
-- **THE FIX FOR THE LAST ONE IS THE SHAPE TO COPY.** I first replaced the callee node-type
-  enumeration with `_stands_for_a_primitive(callee)` - a WALK - and it flagged thirteen
-  innocent functions, because a RECEIVER is a mention: `THIS_MODULE.read_text()` reads as
-  reach when `THIS_MODULE` is itself an alias. That would have manufactured thirteen false
-  reasons. Replaced with `_callee_resolves`, a RECURSIVE STRUCTURAL question that asks the
-  same thing of a smaller callee. **A guard that names a population is the defect; a guard
-  that walks everything manufactures reasons. The answer is recursion, not either list.**
-
-- **EIGHT SENTENCES OF MINE OR MY PREDECESSORS' WERE MEASURED FALSE AND ARE CORRECTED IN
-  PLACE.** Do not rewrite them back: `_calls_any`'s claim that a bare-reference matcher
-  "flags every forced-failure grader" (measured 1 of 31 - those graders name the primitive
-  as a STRING, which is neither a Name nor an Attribute node); a citation to a test that
-  does not exist; "eleven tracked modules import it this way" (measured EIGHT; eleven is the
-  count of modules the classifier calls reaching, a real measurement of a different thing);
-  `_DECLARED_COMPANION`'s present-tense claim that its presence is what makes the controls
-  measure the route (true of the pre-CS-491 guard, false of the shipped one); the module-scope
-  `lambda` recorded as invisible to the guard (it is VISIBLE and files under the sentinel,
-  naming no function, which is worse in one way); and the `test_workdir` exemption's claim
-  about which directory the test lists.
-
-- **TWO OF MY CONTROLS WERE TAUTOLOGIES AND A REFUTATION PASS PROVED IT.** The personal-data
-  vocabulary's positive half was `_carries_personal_data(f"{word} | None")`, which reduces to
-  `word in word + " | None"` and is true for any string - a vocabulary naming nothing
-  personal passed it. And the `vocabulary-constant` control claimed to hold the bound stated
-  in `_resolves_by_string`; widening that predicate to walk its arguments left the whole
-  suite green. Both replaced with assertions that fail: the first walks a synthetic class per
-  word, the second asserts the bound of the predicate itself.
-
-- **AN ENUMERATION NOBODY PINS CAN BE NARROWED IN SILENCE, AGAIN.** Dropping `memoryview`
-  from `_PERSONAL_DATA_TYPES` AND its parallel entry from the defeat matrix left the suite
-  green, one test lower, with CS-491's own wrapper defeat number two reopened. Pinned now
-  with a second spelling, deliberately - a pin that reads the list it pins is not a pin.
-
-- **THIRTY MUTANTS, AND TWO SURVIVED EARLIER PASSES.** Both were closed by adding the route
-  that isolates the branch rather than deleting the branch: the `getattr`-through-a-NAME
-  channel, live only where the primitive is handed back UNCALLED; and the store-annotation
-  read, live only where the store's annotation is the sole statement of the type. **The first
-  draft of that second route reddened on `_Wrapped.__init__` rather than the caller, because
-  its value was itself a primitive call - a red for the wrong reason is not a measurement.**
-
-- **THE PRIVACY PASS CAME BACK NOT REFUTED**, verified at runtime rather than by reading: an
-  audit hook over 73 accessed paths, interception of 158 write events, and forced frame
-  rendering. Zero reads of the save root, zero writes outside tmp_path, zero rendered paths.
-  It handed over one real gap outside its own lens (the indirect-export hole, now closed) and
-  one unenforced assumption: ten new f-strings interpolate a caught `AssertionError`, safe
-  only because the guard formats function names, and `tests/test_exception_rendering.py`
-  cannot see that shape. **Now enforced** - the mutant that adds `module_path` to a guard
-  message reddens a control.
-
-- **THE SIZE CEILING WAS 288 BYTES AWAY WHEN I ARRIVED.** `test_properties.py` tripped
-  `tests/data/test_phase2_gate.py`'s 256 KiB cap, which exists to catch a trimmed slice of
-  real game data. Relocated the controls per CLAUDE.md section 4 rather than raising the
-  number, which would have falsified the comment justifying it. **It is still tight. That is
-  CS-495 and the next session should expect to trip it.**
-
-- **CS-484's PREMISE IS MEASURED AT LAST, and the item is still open.** Extracted from the tier1 log on `76fac74`: **CI resolves ruff 0.16.3, this machine has 0.15.12**. Three sessions carried that gap as UNVERIFIED because nobody had read it out of a CI log. Both linters passed this tree, so the gap cost nothing on this push - which is NOT evidence it is harmless, only that this tree does not touch a rule they disagree on. Pinning is now cheap because the number is known; it needs `scripts/verify_env.py` to move with `pyproject.toml`.
-
-- **CI WENT RED ON A MARKDOWN-ONLY COMMIT AND IT WAS NOT MY CHANGE.** Run 32346100111 errored in `tests/test_doc_budget.py`'s scratch-repo fixture: `shutil.copytree` races git's own background maintenance, and `.git/objects/maintenance.lock` vanished between the walk and the copy. Re-running the same job passed. Filed as **CS-496**. It is the CS-483 shape - a test failing for a reason unrelated to what it grades - and the tempting response is to ignore it, which is how a suite stops being believed.
-
-- **THE HARNESS HEREDOC ATE MY BACKSLASHES THREE TIMES**, twice on small payloads with quoted
-  delimiters. Write such payloads with the Write tool; this is the third session it has bitten.
+- **Next action: GRADE ROUND SIX.** Dispatch a refutation pass against the working tree - not
+  against HEAD, which is round zero - on both lenses at once: what still escapes, and what
+  the widening falsely flags. If it comes back clean, CS-492 closes on its acceptance and the
+  ledger entry cites `tests/save/test_reach_guard.py::test_a_primitive_reached_through_an_object_is_named_by_the_guard`
+  plus `::test_the_object_routed_widening_does_not_flag_a_module_that_reaches_nothing`.
 
 ## Session 25 - 2026-08-20 - CS-495 CLOSES; a refutation pass refuted the first close and was right, and the hole it found was older than the item
 
@@ -340,3 +245,89 @@ the line becomes a pointer.
   ESCAPING this session with a declared companion beside each, so probe with one or every route
   reddens on the guard's vacuity assertion instead. Then CS-499, CS-500, and CS-484 whose premise is
   measured and whose pinning is now cheap.
+## Session 24 - 2026-08-20 - CS-491 CLOSES after THREE rounds; two refutation passes refuted it and both were right
+
+- **Shipped: CS-491 CLOSED.** Forty-seven controls, relocated into a new
+  `tests/save/test_reach_guard.py`; one exemption in `tests/save/test_workdir.py`. Filed
+  CS-492, CS-493, CS-494 and CS-495. `tests/save` with NO GAME **1064 -> 1111 passed, 49
+  skipped, exit 0**. Detail in `docs/LEDGER.md`.
+
+- **THE BASELINE REPRODUCED EXACTLY** before any of it: 1064 passed, 49 skipped with no game.
+
+- **I CLOSED IT WRONG TWICE AND SHIPPED NEITHER.** Round one closed the seven filed routes;
+  a refutation pass found ELEVEN more and was right about all eleven - I reproduced every
+  one before touching anything. Round two closed those; a second pass found the TWELFTH and
+  ten more, and was right again. Round three closed those. **The item is the guard's
+  credibility, not the diff, and a green suite after round one would have been a lie.**
+
+- **THE SAME DEFECT FOUR TIMES: ONE MECHANISM APPLIED TO ONE OF TWO POPULATIONS.** Aliases
+  resolved to a fixpoint for PRIMITIVES and not for TYPES, so `_Body = bytes` switched the
+  wrapper walk off. The module-handle import shape resolved for REACH and not for WRAPPERS.
+  The sibling export keyed on the DIRECT set, so a graded-but-indirect helper never
+  exported. **And the worst: `_module_scope_reaches` re-derived the callee name itself with
+  the pre-CS-491 two-channel test while `_calls_any` had grown five channels - so every
+  route I had closed reopened by moving it one indentation level out of its `def`.** This is
+  the CS-477 pattern, found four times inside the repair for it.
+
+- **THE FIX FOR THE LAST ONE IS THE SHAPE TO COPY.** I first replaced the callee node-type
+  enumeration with `_stands_for_a_primitive(callee)` - a WALK - and it flagged thirteen
+  innocent functions, because a RECEIVER is a mention: `THIS_MODULE.read_text()` reads as
+  reach when `THIS_MODULE` is itself an alias. That would have manufactured thirteen false
+  reasons. Replaced with `_callee_resolves`, a RECURSIVE STRUCTURAL question that asks the
+  same thing of a smaller callee. **A guard that names a population is the defect; a guard
+  that walks everything manufactures reasons. The answer is recursion, not either list.**
+
+- **EIGHT SENTENCES OF MINE OR MY PREDECESSORS' WERE MEASURED FALSE AND ARE CORRECTED IN
+  PLACE.** Do not rewrite them back: `_calls_any`'s claim that a bare-reference matcher
+  "flags every forced-failure grader" (measured 1 of 31 - those graders name the primitive
+  as a STRING, which is neither a Name nor an Attribute node); a citation to a test that
+  does not exist; "eleven tracked modules import it this way" (measured EIGHT; eleven is the
+  count of modules the classifier calls reaching, a real measurement of a different thing);
+  `_DECLARED_COMPANION`'s present-tense claim that its presence is what makes the controls
+  measure the route (true of the pre-CS-491 guard, false of the shipped one); the module-scope
+  `lambda` recorded as invisible to the guard (it is VISIBLE and files under the sentinel,
+  naming no function, which is worse in one way); and the `test_workdir` exemption's claim
+  about which directory the test lists.
+
+- **TWO OF MY CONTROLS WERE TAUTOLOGIES AND A REFUTATION PASS PROVED IT.** The personal-data
+  vocabulary's positive half was `_carries_personal_data(f"{word} | None")`, which reduces to
+  `word in word + " | None"` and is true for any string - a vocabulary naming nothing
+  personal passed it. And the `vocabulary-constant` control claimed to hold the bound stated
+  in `_resolves_by_string`; widening that predicate to walk its arguments left the whole
+  suite green. Both replaced with assertions that fail: the first walks a synthetic class per
+  word, the second asserts the bound of the predicate itself.
+
+- **AN ENUMERATION NOBODY PINS CAN BE NARROWED IN SILENCE, AGAIN.** Dropping `memoryview`
+  from `_PERSONAL_DATA_TYPES` AND its parallel entry from the defeat matrix left the suite
+  green, one test lower, with CS-491's own wrapper defeat number two reopened. Pinned now
+  with a second spelling, deliberately - a pin that reads the list it pins is not a pin.
+
+- **THIRTY MUTANTS, AND TWO SURVIVED EARLIER PASSES.** Both were closed by adding the route
+  that isolates the branch rather than deleting the branch: the `getattr`-through-a-NAME
+  channel, live only where the primitive is handed back UNCALLED; and the store-annotation
+  read, live only where the store's annotation is the sole statement of the type. **The first
+  draft of that second route reddened on `_Wrapped.__init__` rather than the caller, because
+  its value was itself a primitive call - a red for the wrong reason is not a measurement.**
+
+- **THE PRIVACY PASS CAME BACK NOT REFUTED**, verified at runtime rather than by reading: an
+  audit hook over 73 accessed paths, interception of 158 write events, and forced frame
+  rendering. Zero reads of the save root, zero writes outside tmp_path, zero rendered paths.
+  It handed over one real gap outside its own lens (the indirect-export hole, now closed) and
+  one unenforced assumption: ten new f-strings interpolate a caught `AssertionError`, safe
+  only because the guard formats function names, and `tests/test_exception_rendering.py`
+  cannot see that shape. **Now enforced** - the mutant that adds `module_path` to a guard
+  message reddens a control.
+
+- **THE SIZE CEILING WAS 288 BYTES AWAY WHEN I ARRIVED.** `test_properties.py` tripped
+  `tests/data/test_phase2_gate.py`'s 256 KiB cap, which exists to catch a trimmed slice of
+  real game data. Relocated the controls per CLAUDE.md section 4 rather than raising the
+  number, which would have falsified the comment justifying it. **It is still tight. That is
+  CS-495 and the next session should expect to trip it.**
+
+- **CS-484's PREMISE IS MEASURED AT LAST, and the item is still open.** Extracted from the tier1 log on `76fac74`: **CI resolves ruff 0.16.3, this machine has 0.15.12**. Three sessions carried that gap as UNVERIFIED because nobody had read it out of a CI log. Both linters passed this tree, so the gap cost nothing on this push - which is NOT evidence it is harmless, only that this tree does not touch a rule they disagree on. Pinning is now cheap because the number is known; it needs `scripts/verify_env.py` to move with `pyproject.toml`.
+
+- **CI WENT RED ON A MARKDOWN-ONLY COMMIT AND IT WAS NOT MY CHANGE.** Run 32346100111 errored in `tests/test_doc_budget.py`'s scratch-repo fixture: `shutil.copytree` races git's own background maintenance, and `.git/objects/maintenance.lock` vanished between the walk and the copy. Re-running the same job passed. Filed as **CS-496**. It is the CS-483 shape - a test failing for a reason unrelated to what it grades - and the tempting response is to ignore it, which is how a suite stops being believed.
+
+- **THE HARNESS HEREDOC ATE MY BACKSLASHES THREE TIMES**, twice on small payloads with quoted
+  delimiters. Write such payloads with the Write tool; this is the third session it has bitten.
+

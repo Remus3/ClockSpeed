@@ -69,9 +69,12 @@ from tests.save.reach_guard import (
     _REACH_DECLARATIONS,
     _REACHES_THE_LIBRARY,
     MODULE_SCOPE_REACH,
+    _aliases_bound_in,
     _assert_library_reach_is_declared,
     _assert_no_test_is_gutted,
     _body_wrapping_classes,
+    _call_reaches_a_primitive,
+    _callee_resolves,
     _calls_any,
     _carries_personal_data,
     _declaration_verdicts,
@@ -81,7 +84,9 @@ from tests.save.reach_guard import (
     _module_scope_reaches,
     _personal_data_names,
     _reach_primitives,
+    _reach_vocabulary,
     _reaching_modules,
+    _reaching_names_of,
     _returns_personal_data,
     _scanned_functions,
     _stands_for_a_primitive,
@@ -362,6 +367,402 @@ def test_a_primitive_reached_through_an_alias_is_named_by_the_guard(
     )
 
 
+#: Reach routes that travel through an OBJECT rather than a name binding, as
+#: label mapped to the source to plant and the name the guard's failure has to
+#: report.
+#:
+#: CS-492, AND EVERY ENTRY WAS MEASURED GREEN AGAINST THE POST-CS-491 GUARD -
+#: twice by refutation passes in session 24, again by that session's merger, and
+#: again here before a line of the fix existed. Two root causes, and neither is
+#: the alias vocabulary being short a spelling:
+#:
+#: - :func:`reach_guard._aliases_bound_in` holds module scope and function-local
+#:   scope APART, and must, so an attribute bound in ``__init__`` is a
+#:   function-local binding whose CONSUMER is a different function. Neither
+#:   scope sees it, and the name it binds is an ATTRIBUTE rather than a local,
+#:   which is why the answer is a second vocabulary rather than a wider first.
+#: - A function that HANDS BACK a primitive without calling one stands for
+#:   nothing, so a module-level ``__getattr__`` serving a locator teaches the
+#:   vocabulary nothing at all.
+#:
+#: THE LAST SEVEN ARE THE SIBLING SWEEP, not the acceptance, and they are here
+#: rather than in a matrix of their own because they are the SAME two mechanisms
+#: reached one step differently - a store the walk could not read, and a serve
+#: the vocabulary could not learn. Each was measured OPEN against the guard as
+#: ``HEAD`` ships it before it was written down.
+#:
+#: THE LAST TWO CAME FROM A REFUTATION PASS THAT BROKE THE ACCEPTANCE ITSELF.
+#: ``self.__dict__["finder"] = locate.resolve_save_root`` IS a module holding a
+#: primitive on an instance attribute - the acceptance sentence word for word -
+#: and it was green against this item's own first draft, with the module classed
+#: SILENT so the suite-wide sweep never ran on it. ``yield`` is the same hole in
+#: the serve half: ``_returned_values`` read ``ast.Return`` alone, so a
+#: generator serving a locator taught the vocabulary nothing. Both are here
+#: rather than filed because both are the mechanism this item names, not a new
+#: one.
+#:
+#: THE LAST THREE CAME FROM A MUTATION PASS, NOT FROM AN ESCAPE. Each covers an
+#: arm of the guard that a hostile mutant proved indistinguishable from ``return
+#: False`` across the whole of ``tests/save`` - an arm that is real, is
+#: load-bearing on a planted module, and was pinned by nothing. The lambda held
+#: on an attribute covers ``_hands_back_a_primitive``'s ``ast.Lambda`` arm; the
+#: hold-and-serve chain covers ``_reach_vocabulary``'s fixpoint, which needs a
+#: SECOND round to resolve and whose round bound was previously satisfied by
+#: ``range(1)``; and the ``yield from`` covers the ``ast.YieldFrom`` arm of
+#: ``_returned_values``. A guard on a path no control exercises is a guard that
+#: is already deleted and does not know it.
+#:
+#: THE TWO-CLASS CHAIN IS ROUND FIVE, and it is here because round three gave a
+#: control to ONE of this guard's TWO fixpoint round bounds. The chain above
+#: pins ``_reach_vocabulary``'s; this one pins ``_reaching_attributes``'s, which
+#: needs a second round to learn that ``second`` holds what ``first`` holds -
+#: two classes, neither of which mentions the other's attribute until the first
+#: round has resolved it. A mutation pass measured that bound satisfied by
+#: ``range(1)``. Two bounds, one control, is the shape this item keeps
+#: repeating.
+#:
+#: THE ALIAS OF A SERVER IS ROUND SIX, and it exists because closing the
+#: attribute fixpoint moved which control was carrying which bound. Once
+#: ``_reaching_attributes`` resolved its own two sets to a mutual fixpoint, the
+#: chain above stopped needing a SECOND round of the OUTER loop, and a mutant
+#: setting that loop to ``range(1)`` went green - a control had quietly stopped
+#: covering the thing it was written for. This route needs both rounds by
+#: construction: the first puts the server's NAME into the vocabulary, and only
+#: then can an alias BOUND to that name resolve. Measured FLAGGED under the
+#: shipped bound and ACCEPTED under ``range(1)``, so the mutant it kills is not
+#: an equivalent one.
+#:
+#: THE HELPER STORE IS HERE TO HOLD ONE PROPERTY THAT NOTHING ELSE HOLDS.
+#: ``reach_guard._attribute_stores`` reads the three-argument store shape and
+#: states, at length, that it is keyed on the ARGUMENT SHAPE and never on the
+#: callee - because a vocabulary holding ``setattr`` would leave every other
+#: store helper open while reading as though it did not. A refutation pass
+#: measured that property asserted in PROSE and nowhere in tests: rewriting the
+#: rule to require ``setattr`` in the callee passed every control in this file.
+#: This route stores through a helper whose name contains no ``setattr`` at all,
+#: so the shape rule catches it and a callee-keyed one cannot.
+#:
+#: TWO SPELLINGS ARE DELIBERATELY ABSENT, BOTH FOR THE SAME REASON: they were
+#: measured ALREADY RED before this item started, and planting a route that was
+#: never open would read as evidence and be none. ``finder =
+#: locate.resolve_save_root`` written straight into a class body, and the same
+#: thing as a dataclass FIELD DEFAULT, are both class-body bindings - a class
+#: body is not a function, so the module walk has always read them.
+_OBJECT_ROUTED_REACHES: Final = MappingProxyType(
+    {
+        "attribute-called-from-a-sibling-method": (
+            "\n\nclass _Library:\n"
+            '    """Holds a locator on an instance attribute."""\n'
+            "\n"
+            "    def __init__(self):\n"
+            '        """Binds the locator where no sibling scope can see it."""\n'
+            "        self.finder = locate.resolve_save_root\n"
+            "\n"
+            "    def account(self):\n"
+            '        """Reaches the locator through an attribute it never names."""\n'
+            "        return self.finder()\n",
+            "_Library.account",
+        ),
+        "attribute-called-off-a-module-instance": (
+            "\n\nclass _Holder:\n"
+            '    """Holds a locator on an instance attribute."""\n'
+            "\n"
+            "    def __init__(self):\n"
+            '        """Binds the locator where no sibling scope can see it."""\n'
+            "        self.finder = locate.resolve_save_root\n"
+            "\n\n_HOLDER = _Holder()\n"
+            "\n\ndef _reaches_through_an_instance():\n"
+            '    """Reaches the locator off a module-scope instance."""\n'
+            "    return _HOLDER.finder()\n",
+            "_reaches_through_an_instance",
+        ),
+        "module-getattr": (
+            "\n\ndef __getattr__(name):\n"
+            '    """Serves the locator for every attribute this module lacks."""\n'
+            "    return locate.resolve_save_root\n"
+            "\n\ndef _reaches_through_module_getattr():\n"
+            '    """Reaches the locator through the module-level __getattr__."""\n'
+            '    return __getattr__("anything")()\n',
+            "_reaches_through_module_getattr",
+        ),
+        "a-local-rebound-from-an-attribute": (
+            "\n\nclass _Library:\n"
+            '    """Holds a locator on an instance attribute."""\n'
+            "\n"
+            "    def __init__(self):\n"
+            '        """Binds the locator where no sibling scope can see it."""\n'
+            "        self.finder = locate.resolve_save_root\n"
+            "\n"
+            "    def account(self):\n"
+            '        """Rebinds the attribute to a local and calls the local."""\n'
+            "        local = self.finder\n"
+            "        return local()\n",
+            "_Library.account",
+        ),
+        "a-method-that-serves-a-primitive": (
+            "\n\nclass _Library:\n"
+            '    """Serves a locator from a method instead of holding one."""\n'
+            "\n"
+            "    def finder(self):\n"
+            '        """Hands back the locator without calling it."""\n'
+            "        return locate.resolve_save_root\n"
+            "\n"
+            "    def account(self):\n"
+            '        """Calls what the sibling method handed back."""\n'
+            "        return self.finder()()\n",
+            "_Library.account",
+        ),
+        "a-store-onto-a-module-scope-object": (
+            "\n\nclass _Holder:\n"
+            '    """Holds nothing until module scope patches it."""\n'
+            "\n"
+            "    finder = None\n"
+            "\n\n_HOLDER = _Holder()\n"
+            "_HOLDER.finder = locate.resolve_save_root\n"
+            "\n\ndef _reaches_through_a_patched_object():\n"
+            '    """Reaches a locator stored onto an object at module scope."""\n'
+            "    return _HOLDER.finder()\n",
+            "_reaches_through_a_patched_object",
+        ),
+        "a-serve-shape-function-called-bare": (
+            "\n\ndef _locator():\n"
+            '    """Hands back the locator without calling it."""\n'
+            "    return locate.resolve_save_root\n"
+            "\n\ndef _reaches_through_a_factory():\n"
+            '    """Calls what the factory handed back."""\n'
+            "    return _locator()()\n",
+            "_reaches_through_a_factory",
+        ),
+        "a-store-through-the-instance-dict": (
+            "\n\nclass _Library:\n"
+            '    """Holds a locator on an instance attribute."""\n'
+            "\n"
+            "    def __init__(self):\n"
+            '        """Binds the locator through the instance dict."""\n'
+            '        self.__dict__["finder"] = locate.resolve_save_root\n'
+            "\n"
+            "    def account(self):\n"
+            '        """Reaches the locator through the stored attribute."""\n'
+            "        return self.finder()\n",
+            "_Library.account",
+        ),
+        "a-lambda-held-on-an-attribute": (
+            "\n\nclass _Library:\n"
+            '    """Holds a lambda that reaches when it is called."""\n'
+            "\n"
+            "    def __init__(self):\n"
+            '        """Binds a lambda wrapping the locator."""\n'
+            "        self.finder = lambda: locate.resolve_save_root()\n"
+            "\n"
+            "    def account(self):\n"
+            '        """Reaches the locator through the held lambda."""\n'
+            "        return self.finder()\n",
+            "_Library.account",
+        ),
+        "a-hold-and-serve-chain-two-rounds-deep": (
+            "\n\nclass _Holder:\n"
+            '    """Holds a chain of locators."""\n'
+            "\n"
+            "    first = None\n"
+            "    second = None\n"
+            "\n\n_HOLDER = _Holder()\n"
+            "_HOLDER.first = locate.resolve_save_root\n"
+            "\n\ndef _serves_the_first():\n"
+            '    """Hands back the first held locator."""\n'
+            "    return _HOLDER.first\n"
+            "\n\n_HOLDER.second = _serves_the_first\n"
+            "\n\ndef _serves_the_second():\n"
+            '    """Hands back what the second attribute holds."""\n'
+            "    return _HOLDER.second\n"
+            "\n\ndef _reaches_at_depth_two():\n"
+            '    """Calls the end of the chain."""\n'
+            "    return _serves_the_second()()()\n",
+            "_reaches_at_depth_two",
+        ),
+        "a-serve-that-yields-from-an-alias": (
+            "\n\n_FINDERS = locate.resolve_save_root\n"
+            "\n\ndef _locators():\n"
+            '    """Yields from a module alias rather than returning it."""\n'
+            "    yield from _FINDERS\n"
+            "\n\ndef _reaches_through_a_yield_from():\n"
+            '    """Calls what the generator handed back."""\n'
+            "    return next(_locators())()\n",
+            "_reaches_through_a_yield_from",
+        ),
+        "a-hold-and-serve-chain-across-two-classes": (
+            "\n\nclass _First:\n"
+            '    """Holds the locator."""\n'
+            "\n"
+            "    def __init__(self):\n"
+            '        """Binds the locator."""\n'
+            "        self.first = locate.resolve_save_root\n"
+            "\n\nclass _Second:\n"
+            '    """Holds what the first class holds."""\n'
+            "\n"
+            "    def __init__(self, other):\n"
+            '        """Binds the other class attribute."""\n'
+            "        self.second = other.first\n"
+            "\n\ndef _reaches_through_two_classes(holder):\n"
+            '    """Reaches the locator two attribute hops out."""\n'
+            "    return holder.second()\n",
+            "_reaches_through_two_classes",
+        ),
+        "a-locator-held-through-a-dotted-receiver": (
+            "\n\nfrom clockspeed import data\n"
+            "\n\nclass _Library:\n"
+            '    """Holds a locator reached through a dotted receiver."""\n'
+            "\n"
+            "    def __init__(self):\n"
+            '        """Binds the locator."""\n'
+            "        self.finder = data.locate.resolve_save_root\n"
+            "\n"
+            "    def account(self):\n"
+            '        """Reaches through the held locator."""\n'
+            "        return self.finder()\n",
+            "_Library.account",
+        ),
+        "a-locator-held-through-a-module-alias": (
+            "\n\n_LOCATE = locate\n"
+            "\n\nclass _Library:\n"
+            '    """Holds a locator reached through a module alias."""\n'
+            "\n"
+            "    def __init__(self):\n"
+            '        """Binds the locator."""\n'
+            "        self.finder = _LOCATE.resolve_save_root\n"
+            "\n"
+            "    def account(self):\n"
+            '        """Reaches through the held locator."""\n'
+            "        return self.finder()\n",
+            "_Library.account",
+        ),
+        "a-locator-held-from-a-plain-import": (
+            "\n\nimport os\n"
+            "\n\nclass _Library:\n"
+            '    """Holds a discovery primitive from a plain import."""\n'
+            "\n"
+            "    def __init__(self):\n"
+            '        """Binds the primitive."""\n'
+            "        self.reader = os.scandir\n"
+            "\n"
+            "    def entries(self):\n"
+            '        """Reaches through the held primitive."""\n'
+            "        return self.reader()\n",
+            "_Library.entries",
+        ),
+        "a-locator-held-from-an-aliased-import": (
+            "\n\nimport os as system\n"
+            "\n\nclass _Library:\n"
+            '    """Holds a discovery primitive from an aliased import."""\n'
+            "\n"
+            "    def __init__(self):\n"
+            '        """Binds the primitive."""\n'
+            "        self.reader = system.scandir\n"
+            "\n"
+            "    def entries(self):\n"
+            '        """Reaches through the held primitive."""\n'
+            "        return self.reader()\n",
+            "_Library.entries",
+        ),
+        "a-locator-held-from-a-dotted-import": (
+            "\n\nimport os.path\n"
+            "\n\nclass _Library:\n"
+            '    """Holds a discovery primitive from a dotted import."""\n'
+            "\n"
+            "    def __init__(self):\n"
+            '        """Binds the primitive."""\n'
+            "        self.reader = os.listdir\n"
+            "\n"
+            "    def entries(self):\n"
+            '        """Reaches through the held primitive."""\n'
+            "        return self.reader()\n",
+            "_Library.entries",
+        ),
+        "an-alias-of-a-server": (
+            "\n\ndef _serves():\n"
+            '    """Hands back the locator."""\n'
+            "    return locate.resolve_save_root\n"
+            "\n\n_ALIAS = _serves\n"
+            "\n\ndef _reaches_through_an_alias_of_a_server():\n"
+            '    """Calls an alias of the server, then what it handed back."""\n'
+            "    return _ALIAS()()\n",
+            "_reaches_through_an_alias_of_a_server",
+        ),
+        "a-serve-that-yields-the-locator": (
+            "\n\ndef _locators():\n"
+            '    """Yields the locator instead of returning it."""\n'
+            "    yield locate.resolve_save_root\n"
+            "\n\ndef _reaches_through_a_generator():\n"
+            '    """Calls what the generator handed back."""\n'
+            "    return next(_locators())()\n",
+            "_reaches_through_a_generator",
+        ),
+    }
+)
+
+
+@pytest.mark.parametrize(
+    ("label", "route", "reported"),
+    [(label, route, reported) for label, (route, reported) in _OBJECT_ROUTED_REACHES.items()],
+    ids=list(_OBJECT_ROUTED_REACHES),
+)
+def test_a_primitive_reached_through_an_object_is_named_by_the_guard(
+    tmp_path: Path, label: str, route: str, reported: str
+) -> None:
+    """CS-492: the routes that travel through an object rather than a name.
+
+    GRADED AT THE VERDICT, exactly as CS-491's matrix above is, and for the same
+    reason: a predicate that moves while no verdict does is what CS-471 shipped.
+
+    THREE THINGS PER ROUTE, and the companion is why the first of them means
+    anything. Without a declared reach site planted beside it, every one of
+    these reddens on the guard's own vacuity assertion - ``no function here
+    touches a library primitive`` - which is a red that says NOTHING about the
+    route. That trap cost session 25 a whole probe pass.
+
+    - The guard names the evader, and names the FUNCTION rather than settling
+      for the module-scope sentinel.
+    - The companion ALONE is accepted, so the red above is the route rather than
+      the guard refusing the planted shape wholesale.
+    - The CLASSIFIER picks up a module whose ONLY reach is this route. Each of
+      these was measured with ``_module_reaches`` answering False, which means
+      the suite-wide guard never ran on the module and no declaration anywhere
+      could have helped - the CS-471 half-fix shape, met for the third time.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+
+    Args:
+        tmp_path: The per-test temporary directory.
+        label: The route's name, used for the planted filenames and a message.
+        route: The evading source to plant beside the companion.
+        reported: The name the guard's failure has to carry.
+    """
+    stem = label.replace("-", "_")
+    planted = tmp_path / f"test_planted_obj_{stem}.py"
+    planted.write_text(_DECLARED_COMPANION + route, encoding="utf-8")
+
+    with pytest.raises(AssertionError) as caught:
+        _assert_library_reach_is_declared(
+            planted, graded=_COMPANION_GRADED, exempt=_module_scope_exemption(planted)
+        )
+    assert reported in str(caught.value), (
+        f"the guard failed on the {label} route without naming {reported}, so it "
+        f"reddened for another reason and this route is still unmeasured. The "
+        f"guard said: {caught.value}"
+    )
+
+    companion_only = tmp_path / f"test_companion_obj_{stem}.py"
+    companion_only.write_text(_DECLARED_COMPANION, encoding="utf-8")
+    _assert_library_reach_is_declared(companion_only, graded=_COMPANION_GRADED, exempt={})
+
+    alone = tmp_path / f"test_alone_obj_{stem}.py"
+    alone.write_text("from clockspeed.data import locate\n" + route, encoding="utf-8")
+    assert _module_reaches(alone), (
+        f"a module whose ONLY reach is the {label} route is classed SILENT, so "
+        "the suite-wide guard never runs on it and the red above is reachable "
+        "only by a caller that already suspected the module."
+    )
+
+
 #: Reach routes spelled OUTSIDE every ``def``, label to the source to plant.
 #:
 #: THESE ARE CS-491's TWELFTH HOLE AND THE REASON THERE WAS A ROUND THREE.
@@ -442,6 +843,526 @@ def test_a_module_scope_reach_through_an_alias_is_reported(
         planted,
         graded=_COMPANION_GRADED,
         exempt={MODULE_SCOPE_REACH: "the planted route's own module-scope call"},
+    )
+
+
+#: A module holding a locator on an attribute, with the consumer in a sibling
+#: method. Spelled once here because the default-pinning control below reads it
+#: through four different functions and a second copy is a copy that drifts.
+_HELD_ON_AN_ATTRIBUTE: Final = '''
+from clockspeed.data import locate
+
+
+class _Library:
+    """Holds a locator on an instance attribute."""
+
+    def __init__(self):
+        """Binds the locator where no sibling scope can see it."""
+        self.finder = locate.resolve_save_root
+
+    def account(self):
+        """Reaches the locator through an attribute it never names."""
+        return self.finder()
+
+
+_HOLDER = _Library()
+_ACCOUNT = _HOLDER.finder()
+'''
+
+
+def test_the_attribute_vocabulary_is_opt_in_and_its_absence_is_the_old_answer(
+    tmp_path: Path,
+) -> None:
+    """CS-492's four new defaults are a BOUND, not merely a datum.
+
+    A DATUM IS NOT A BOUND UNTIL A CONTROL SPENDS THE DEFAULT, and a verifier
+    measured that this item shipped its first draft failing that test in the
+    worst way: the defaults ARE spent, at nine call sites, and NOTHING observed
+    what they were. Replacing every ``attributes: frozenset[str] = frozenset()``
+    with a populated set left ``tests/save`` at its exact unmutated count, and
+    so did populating ``_aliases_bound_in``'s ``also``. Four widened signatures,
+    zero controls.
+
+    WHAT THE DEFAULT MEANS is the thing worth pinning, and it is not "empty".
+    It is that the attribute vocabulary is OPT-IN: a caller that has not
+    resolved a module's attributes gets the answer this guard gave before
+    CS-492 - narrower, never wrong - rather than a guess. Both directions are
+    asserted here, because "returns False without it" alone is satisfied by a
+    function that returns False always.
+
+    THE MODULE-SCOPE HALF IS PINNED BESIDE THE FUNCTION HALF. Every previous
+    round of this guard's history has had a route reopened by moving it one
+    indentation level out of its ``def``, so a control that pins one population
+    and not the other has, historically, pinned nothing.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+
+    Args:
+        tmp_path: The per-test temporary directory.
+    """
+    planted = tmp_path / "test_held_on_an_attribute.py"
+    planted.write_text(_HELD_ON_AN_ATTRIBUTE, encoding="utf-8")
+    tree = ast.parse(planted.read_text(encoding="utf-8"))
+    consumer = _scanned_functions(tree)["_Library.account"]
+
+    primitives, attributes = _reach_vocabulary(tree, _LIBRARY_PRIMITIVES, source=planted)
+    assert "finder" in attributes, (
+        "the planted module holds a locator on an attribute named finder and the "
+        f"attribute vocabulary did not learn it, so nothing below is measuring "
+        f"the default. It resolved: {sorted(attributes)}"
+    )
+
+    assert not _calls_any(consumer, primitives), (
+        "_calls_any answered the WIDE question when it was handed no attribute "
+        "vocabulary. Its default is what every caller outside this item's two "
+        "consumers spends, and it must be the pre-CS-492 answer."
+    )
+    assert _calls_any(consumer, primitives, attributes), (
+        "_calls_any could not see the held attribute even when handed the "
+        "vocabulary that names it, so the assertion above passes for the wrong "
+        "reason and pins nothing."
+    )
+
+    assert not _module_scope_reaches(tree, primitives), (
+        "_module_scope_reaches answered the WIDE question with no attribute "
+        "vocabulary. The module-scope half has been reopened by hoisting in "
+        "every previous round of this guard, so its default is pinned too."
+    )
+    assert _module_scope_reaches(tree, primitives, attributes), (
+        "_module_scope_reaches could not see the module-scope call through the "
+        "held attribute even when handed the vocabulary that names it."
+    )
+
+    call = next(
+        node
+        for node in ast.walk(consumer)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    )
+    assert not _call_reaches_a_primitive(call, primitives), (
+        "_call_reaches_a_primitive resolved an attribute callee with no "
+        "attribute vocabulary, so its default is wider than its signature says."
+    )
+    assert _call_reaches_a_primitive(call, primitives, attributes), (
+        "_call_reaches_a_primitive could not resolve the attribute callee even "
+        "when handed the vocabulary that names it."
+    )
+
+    assert not _callee_resolves(call.func, primitives), (
+        "_callee_resolves resolved an attribute callee with no attribute "
+        "vocabulary, so its default is wider than its signature says."
+    )
+    assert _callee_resolves(call.func, primitives, attributes), (
+        "_callee_resolves could not resolve the attribute callee even when "
+        "handed the vocabulary that names it."
+    )
+
+    rebound = ast.parse("local = self.finder\n")
+    assert "local" not in _aliases_bound_in(rebound, primitives, inside_functions=True), (
+        "_aliases_bound_in resolved a local bound from an attribute with no "
+        "lookup vocabulary, so its `also` default is wider than it says."
+    )
+    widened = _aliases_bound_in(rebound, primitives, inside_functions=True, also=attributes)
+    assert "local" in widened, (
+        "_aliases_bound_in could not resolve a local bound from a held "
+        "attribute even when handed the vocabulary that names it."
+    )
+    assert "finder" not in widened, (
+        "an ATTRIBUTE name escaped into the bare-name vocabulary through "
+        "`also`, which is the inversion the keying note forbids: an unrelated "
+        "local of that spelling would now be flagged. `also` is read, never "
+        "added."
+    )
+
+
+#: Modules the widening must NOT flag, as label mapped to the source to plant
+#: and any extra graded declaration it needs.
+#:
+#: THE OVER-FLAG DIRECTION, WHICH CS-492 SHIPPED WITH NO CONTROL AT ALL. A
+#: refutation pass measured that gap and it was the item's worst: eight positive
+#: routes and nothing whatever holding the other side, so two mutants that
+#: should have died survived. Four arms of ``reach_guard._hands_back_a_primitive``
+#: were indistinguishable from ``return False`` across the entire package, and
+#: keying the string store on the CALLEE - the design that function's docstring
+#: argues at length against - passed every test in the file.
+#:
+#: A FALSE FLAG IS NOT NOISE HERE. The guard requires a DECLARATION, and a
+#: declaration is a written claim about where personal data flows. Manufacturing
+#: one is the failure CS-471 shipped and had to repair, and the attribute
+#: vocabulary makes it cheaper than it has ever been: one false attribute name
+#: was measured to cost up to a hundred and thirty-nine functions across twelve
+#: modules, against that incident's thirteen.
+#:
+#: EVERY ENTRY IS A SHAPE THIS PACKAGE ACTUALLY WRITES, or a two-line reduction
+#: of one, and each was measured FLAGGED against an intermediate build of this
+#: item before the bound that repairs it was drawn. None is imagined.
+#:
+#: THE LAST TWO ARE THE SAME PAYLOAD AS THE FIRST, MOVED FROM A STORE TO A
+#: RETURN, and they are here because that is exactly how the first repair was
+#: measured incomplete. The string channel was switched off for stores and left
+#: on for serves - one rule, three call sites, two of them wrong - so
+#: ``def _banner(): return _label("home")`` still made ``_banner`` a locator
+#: server and flagged its caller, on a module that touches no filesystem. A
+#: negative control for one half of a rule is a control that will be half true
+#: again.
+#:
+#: THE LAST THREE ARE ROUND FOUR, and all three were measured FLAGGING a module
+#: that touches no filesystem, on the build that shipped the round-three repair.
+#: They are the same root cause reached through the three channels that repair
+#: left open: a ``lambda`` delegating to the callee question, which re-admitted
+#: the string channel one layer down; and the ARGUMENT channel, through which
+#: ``str(_HERE)`` - a path CONSTANT, which the vocabulary holds by
+#: over-approximation - manufactured an attribute from a subscript store and
+#: from a three-argument store. One of them was demonstrated end to end against
+#: a real shipped module: appending nine lines to ``tests/save/test_chunks.py``
+#: reddened the suite-wide guard on a file that imports no locator.
+#:
+#: THE ``getattr`` ENTRY CARRIES A REAL DEFAULT, and it did not always. It was
+#: planted with ``""``, which is the value with the mechanism REMOVED, and a
+#: refutation pass measured that the entry as written could not fail under
+#: either revert of the rule it claims to grade. A negative control that cannot
+#: fail is worse than none, because it reads as coverage. The default is now
+#: ``root.stat().st_size``, which makes ``_attribute_of`` a genuine reacher -
+#: hence its declaration - while the claim stays what it always was: the
+#: ``getattr`` READ must not be mistaken for a STORE of ``attr``.
+#:
+#: THE LAST TWO ARE ROUND FIVE, and they are the reason this guard reads a
+#: RECEIVER in exactly one place. The reach vocabulary contains ordinary English
+#: words - ``home``, ``open``, ``stat``, ``cwd``, ``resolve`` - so a
+#: receiver-blind store rule read ``page.home`` as a locator and made every
+#: ``.banner()`` call in the module a reach site. Both doors are planted, the
+#: three-argument store and the subscript store, because the previous four
+#: rounds each closed one door of a mechanism and left another open. What
+#: separates the real thing from the caption is where the primitive is SPELLED:
+#: ``locate.resolve_save_root`` names a module this file imported, and
+#: ``page.home`` names a parameter.
+_MUST_NOT_FLAG: Final = MappingProxyType(
+    {
+        "an-english-string-in-a-three-argument-call": (
+            "\n\ndef _label(word):\n"
+            '    """Titlecases a caption."""\n'
+            "    return word.title()\n"
+            "\n\ndef _install(monkeypatch, module):\n"
+            '    """Installs a rendered caption."""\n'
+            '    monkeypatch.setattr(module, "banner", _label("home"))\n'
+            "\n\ndef _renders_a_card(card):\n"
+            '    """Renders a card\'s caption."""\n'
+            "    return card.banner()\n",
+            {},
+        ),
+        "an-english-string-handed-back-by-a-function": (
+            "\n\ndef _label(word):\n"
+            '    """Renders a caption."""\n'
+            '    return "[" + word + "]"\n'
+            "\n\ndef _banner():\n"
+            '    """Hands back a rendered caption and nothing else."""\n'
+            '    return _label("home")\n'
+            "\n\ndef _shows_a_banner():\n"
+            '    """Shows a caption. Reaches nothing whatever."""\n'
+            "    return _banner()\n",
+            {},
+        ),
+        "an-english-string-handed-back-by-a-method": (
+            "\n\ndef _label(word):\n"
+            '    """Renders a caption."""\n'
+            '    return "[" + word + "]"\n'
+            "\n\nclass _Card:\n"
+            '    """Renders captions and holds no locator at all."""\n'
+            "\n"
+            "    def banner(self):\n"
+            '        """Hands back a rendered caption."""\n'
+            '        return _label("home")\n'
+            "\n"
+            "    def show(self):\n"
+            '        """Shows the caption."""\n'
+            "        return self.banner()\n",
+            {},
+        ),
+        "a-primitive-name-spelled-on-a-parameter": (
+            "\n\ndef _point(monkeypatch, page):\n"
+            '    """Points one caption at another."""\n'
+            '    monkeypatch.setattr(page, "banner", page.home)\n'
+            "\n\ndef _renders_a_banner(widget):\n"
+            '    """Renders a banner. Reaches nothing whatever."""\n'
+            "    return widget.banner()\n",
+            {},
+        ),
+        "a-primitive-name-on-a-parameter-through-a-subscript": (
+            "\n\n_CAPTIONS = {}\n"
+            "\n\ndef _point(page):\n"
+            '    """Stores one caption."""\n'
+            '    _CAPTIONS["count"] = page.home\n'
+            "\n\ndef _tallies(tags):\n"
+            '    """Counts tags. Reaches nothing whatever."""\n'
+            '    return tags.count("x")\n',
+            {},
+        ),
+        "an-excluded-name-re-entering-through-a-store": (
+            "\n\nimport ast\n"
+            "import os\n"
+            "\n\ndef _stub(page):\n"
+            '    """Points the directory walk at the faster primitive."""\n'
+            "    page.walk = os.scandir\n"
+            "\n\ndef _constants(tree):\n"
+            '    """Every constant in a tree. Reaches nothing whatever."""\n'
+            "    return [one for one in ast.walk(tree) if isinstance(one, ast.Constant)]\n",
+            {},
+        ),
+        "an-accessor-for-the-modules-own-file": (
+            "\n\nimport pathlib\n"
+            "\n_HERE = pathlib.Path(__file__).resolve()\n"
+            "\n\ndef _source():\n"
+            '    """Hands back this module own path."""\n'
+            "    return _HERE\n"
+            "\n\ndef _reads_the_source():\n"
+            '    """Uses the accessor. Reaches nothing whatever."""\n'
+            "    return _source()\n",
+            {},
+        ),
+        "a-getattr-read-carrying-a-default": (
+            "\n\ndef _attribute_of(node, root):\n"
+            '    """Reads a size, defaulting to the real one."""\n'
+            '    return getattr(node, "attr", root.stat().st_size)\n'
+            "\n\ndef _renders_a_widget(widget):\n"
+            '    """Renders a widget\'s attribute. Reaches nothing."""\n'
+            "    return widget.attr()\n",
+            {"_attribute_of": "stats a path handed to it, defaulting a size"},
+        ),
+        "a-lambda-wrapping-a-caption": (
+            "\n\ndef _label(word):\n"
+            '    """Renders a caption."""\n'
+            "    return word.title()\n"
+            "\n\nclass _Panel:\n"
+            '    """Renders captions and holds no locator at all."""\n'
+            "\n"
+            "    def __init__(self):\n"
+            '        """Binds a caption renderer."""\n'
+            '        self.banner = lambda: _label("home")\n'
+            "\n\ndef _renders_a_panel(panel):\n"
+            '    """Renders a panel banner. Reaches nothing whatever."""\n'
+            "    return panel.banner()\n",
+            {},
+        ),
+        "a-subscript-store-of-a-path-constant": (
+            "\n\nimport pathlib\n"
+            "\n_HERE = pathlib.Path(__file__).resolve()\n"
+            "\n\ndef _build(env):\n"
+            '    """Populates an environment mapping."""\n'
+            '    env["PYTHONPATH"] = str(_HERE)\n'
+            "    return env\n"
+            "\n\ndef _renders_a_path(widget):\n"
+            '    """Renders a widget path. Reaches nothing whatever."""\n'
+            "    return widget.PYTHONPATH()\n",
+            {},
+        ),
+        "a-three-argument-store-of-a-path-constant": (
+            "\n\nimport pathlib\n"
+            "\n_HERE = pathlib.Path(__file__).resolve()\n"
+            "\n\ndef _build(monkeypatch, env):\n"
+            '    """Sets one environment entry."""\n'
+            '    monkeypatch.setitem(env, "label", str(_HERE))\n'
+            "\n\ndef _renders_a_label(widget):\n"
+            '    """Renders a widget label. Reaches nothing whatever."""\n'
+            "    return widget.label()\n",
+            {},
+        ),
+        "argv-built-from-a-path-constant": (
+            "\n\nimport pathlib\n"
+            "\n_HERE = pathlib.Path(__file__).resolve()\n"
+            "\n\ndef _child_args():\n"
+            '    """Builds the argv naming this file."""\n'
+            '    return ["-m", "pytest", str(_HERE), "-q"]\n'
+            "\n\ndef _runs_the_child():\n"
+            '    """Hands the built argv to a runner."""\n'
+            "    return _child_args()\n",
+            {},
+        ),
+        "a-local-sharing-a-stored-attributes-spelling": (
+            "\n\nclass _Library:\n"
+            '    """Holds a locator on an instance attribute."""\n'
+            "\n"
+            "    def __init__(self):\n"
+            '        """Binds the locator."""\n'
+            "        self.finder = locate.resolve_save_root\n"
+            "\n\ndef _unrelated():\n"
+            '    """Calls a local that merely shares the attribute\'s spelling."""\n'
+            "    finder = dict\n"
+            "    return finder()\n",
+            {},
+        ),
+        "a-helper-handing-back-the-result-not-the-locator": (
+            "\n\ndef _root():\n"
+            '    """Hands back the RESULT of the locator, never the locator."""\n'
+            "    return locate.resolve_save_root()\n"
+            "\n\ndef _uses_the_root():\n"
+            '    """Uses the path the helper already resolved."""\n'
+            "    return _root()\n",
+            {"_root": "resolves the save root and hands back the path"},
+        ),
+    }
+)
+
+
+@pytest.mark.parametrize(
+    ("label", "source", "extra"),
+    [(label, source, extra) for label, (source, extra) in _MUST_NOT_FLAG.items()],
+    ids=list(_MUST_NOT_FLAG),
+)
+def test_the_object_routed_widening_does_not_flag_a_module_that_reaches_nothing(
+    tmp_path: Path, label: str, source: str, extra: Mapping[str, str]
+) -> None:
+    """CS-492's inversion, which the item shipped its first draft without.
+
+    THE POSITIVE MATRIX ABOVE CANNOT SAY THIS. Eight routes asserting the guard
+    reddens say nothing about what else it reddens on, and a guard that reddens
+    on everything satisfies all eight. What holds the line is a module that
+    reaches NOTHING through the new channels and must be ACCEPTED.
+
+    EACH ENTRY WAS MEASURED FLAGGED before the bound that repairs it existed,
+    so none of them is a shape imagined from the implementation. The companion
+    is planted beside each so the module has a real reach site to declare -
+    without one the guard reds on vacuity and this control would pass for the
+    wrong reason, which is the trap the matrix above records.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+
+    Args:
+        tmp_path: The per-test temporary directory.
+        label: The shape's name, used for the planted filename and a message.
+        source: The innocent source to plant beside the companion.
+        extra: Declarations the shape genuinely needs, for a helper that really
+            does reach. Empty for a shape that reaches nothing at all.
+    """
+    stem = label.replace("-", "_")
+    planted = tmp_path / f"test_innocent_{stem}.py"
+    planted.write_text(_DECLARED_COMPANION + source, encoding="utf-8")
+
+    graded = MappingProxyType({**_COMPANION_GRADED, **extra})
+    try:
+        _assert_library_reach_is_declared(
+            planted, graded=graded, exempt=_module_scope_exemption(planted)
+        )
+    except AssertionError as caught:
+        # THE GUARD'S OWN MESSAGE, TAKEN FROM A NAMED FIELD - non-negotiable 12.
+        # Rendering the caught OBJECT is the defect ``tests/test_exception_
+        # rendering.py`` exists for, and it caught this control doing exactly
+        # that: ``str`` on an exception is type-dependent and on an ``OSError``
+        # appends the path it failed on, which carries the account name. Only
+        # the whole-suite run sees it, because that guard lives outside
+        # ``tests/save``.
+        said = caught.args[0] if caught.args else ""
+        pytest.fail(
+            f"the widening flagged the {label} shape, which reaches nothing through "
+            f"any channel CS-492 added. A guard that manufactures a reach reason "
+            f"forces a false declaration about where personal data flows, which is "
+            f"the CS-471 failure this package has already had to repair once. The "
+            f"guard said: {said}"
+        )
+
+
+#: A sibling whose declared sweep reaches the library THROUGH A HELD ATTRIBUTE,
+#: spelling no primitive in any callee position of its own.
+_ATTRIBUTE_SIBLING_SOURCE: Final = '''
+from types import MappingProxyType
+
+from clockspeed.data import locate
+
+
+class _Library:
+    """Holds the locator on the receiver."""
+
+    def __init__(self):
+        """Binds the locator where no sibling scope can see it."""
+        self.finder = locate.resolve_save_root
+
+
+def _sibling_sweep():
+    """Reads the library through the held locator."""
+    return _Library().finder()
+
+
+_GRADED_LIBRARY_REACH = MappingProxyType({"_sibling_sweep": "reads the library"})
+_EXEMPT_LIBRARY_REACH = MappingProxyType({})
+'''
+
+#: The SAME sibling, reaching the plain way. It is the control that makes the
+#: one above a measurement rather than an assertion about a planted file.
+_PLAIN_SIBLING_SOURCE: Final = _ATTRIBUTE_SIBLING_SOURCE.replace(
+    "    return _Library().finder()", "    return locate.resolve_save_root()"
+)
+
+
+def test_a_siblings_reach_through_a_held_attribute_is_still_exported(tmp_path: Path) -> None:
+    """CS-492 round two: the module seam, where the item's own mechanism was left behind.
+
+    THREE CALL SITES ASK WHICH OF A MODULE'S FUNCTIONS REACH, and the first
+    draft of this item gave the new vocabulary to two. The third is
+    :func:`reach_guard._reaching_names_of`, the walk that tells an IMPORTER what
+    a sibling reaches, and it built its own vocabulary from the alias half
+    alone. So the guard computed ``finder`` as a reaching attribute FOR THAT
+    VERY FILE, graded the file's own functions with it, and then discarded it
+    when exporting - and the importer of a legitimately declared library sweep
+    was classed SILENT, which means the suite-wide guard never ran on it at all.
+
+    THE PLAIN SIBLING IS WHY THIS IS A MEASUREMENT. Both halves of this control
+    plant the same module with the same declaration, differing only in how
+    ``_sibling_sweep`` spells its reach. If the export were broken for some
+    reason other than the attribute vocabulary, both would fail together and
+    this test would be saying nothing. A refutation pass measured them side by
+    side and got ``[]`` against ``['_sibling_sweep']``.
+
+    THAT IS THE CS-471 HALF-FIX SHAPE, MET FOR THE FOURTH TIME - a guard
+    repaired without the classifier that decides which files the guard runs on.
+    The pattern in this item's history is one mechanism applied to part of its
+    population; the seam is simply the largest population it had left.
+
+    It needs no save library - it is a claim about the repo, not about a world.
+
+    Args:
+        tmp_path: The per-test temporary directory.
+    """
+    consumer = (
+        "from planted_sibling import _sibling_sweep\n"
+        "\n\ndef _reaches_through_a_sibling_sweep():\n"
+        '    """Calls a sibling\'s declared sweep and names no primitive at all."""\n'
+        "    return _sibling_sweep()\n"
+    )
+
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    (plain / "planted_sibling.py").write_text(_PLAIN_SIBLING_SOURCE, encoding="utf-8")
+    plain_consumer = plain / "test_planted_plain_sibling.py"
+    plain_consumer.write_text(consumer, encoding="utf-8")
+    assert _module_reaches(plain_consumer), (
+        "the CONTROL half of this test failed: a module importing a sibling "
+        "whose sweep reaches the plain way is classed silent, so the attribute "
+        "half below would fail for a reason that has nothing to do with CS-492."
+    )
+
+    held = tmp_path / "held"
+    held.mkdir()
+    (held / "planted_sibling.py").write_text(_ATTRIBUTE_SIBLING_SOURCE, encoding="utf-8")
+    held_consumer = held / "test_planted_held_sibling.py"
+    held_consumer.write_text(consumer, encoding="utf-8")
+
+    exported = _reaching_names_of(held / "planted_sibling.py", _LIBRARY_PRIMITIVES)
+    assert "_sibling_sweep" in exported, (
+        "a sibling whose declared sweep reaches through a HELD ATTRIBUTE exports "
+        "nothing, while the identical sibling spelling the reach directly exports "
+        f"it. The attribute vocabulary is computed for that file and then dropped "
+        f"at the seam. It exported: {sorted(exported)}"
+    )
+
+    assert _module_reaches(held_consumer), (
+        "a module whose only route into the library is a sibling's sweep through "
+        "a held attribute is classed SILENT, so the suite-wide guard never runs "
+        "on it and no declaration anywhere could have helped."
+    )
+
+    with pytest.raises(AssertionError) as caught:
+        _assert_library_reach_is_declared(held_consumer, graded={}, exempt={})
+    assert "_reaches_through_a_sibling_sweep" in str(caught.value), (
+        f"the guard reddened on the importer without naming it, so it reddened "
+        f"for another reason. It said: {caught.value}"
     )
 
 

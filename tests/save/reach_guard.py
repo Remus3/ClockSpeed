@@ -308,6 +308,16 @@ def _resolves_by_string(call: ast.Call, names: frozenset[str]) -> bool:
     dicts of primitive names, and counting those would make every reach
     declaration in the package resolve to a primitive.
 
+    IT IS ASKED ONLY WHERE A CALL IS BEING MADE, and that bound belongs to the
+    CALLER rather than to a parameter here. CS-492 tried giving this a switch so
+    a hand-back could ask it without the string channel; the switch was set
+    correctly at one of three sites, and then the ARGUMENT channel manufactured
+    false reachers anyway, because this vocabulary holds path constants as well
+    as locators. :func:`_hands_back_a_primitive` now reads no call at all and
+    records why. Nothing here changed as a result - this question was always
+    right for a callee - and the switch is gone rather than left for the next
+    caller to set wrong.
+
     Args:
         call: The call node.
         names: The reach vocabulary.
@@ -365,6 +375,251 @@ def _stands_for_a_primitive(value: ast.expr, names: frozenset[str]) -> bool:
             return True
         if isinstance(node, ast.Call) and _resolves_by_string(node, names):
             return True
+    return False
+
+
+def _imported_module_names(tree: ast.Module) -> frozenset[str]:
+    """Every name this module binds by importing something.
+
+    ``from clockspeed.data import locate`` binds ``locate``; ``import
+    pathlib`` binds ``pathlib``; either may be aliased. What matters to the
+    caller is only that the name arrived through an import statement rather
+    than through a parameter or a local, which is what separates
+    ``locate.resolve_save_root`` from ``page.home``.
+
+    IT DOES NOT ASK WHETHER THE NAME IS REALLY A MODULE. ``from x import
+    helper`` binds a function and is counted here too. That over-approximates
+    in the safe direction - it admits a receiver rather than refusing one - and
+    deciding otherwise would mean resolving what every import target actually
+    is, which is the analysis this repo has declined.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        The bound names, aliases resolved to the name actually bound.
+    """
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import | ast.ImportFrom):
+            found |= {one.asname or one.name.split(".")[0] for one in node.names}
+    return frozenset(found)
+
+
+def _hands_back_a_primitive(
+    value: ast.expr,
+    names: frozenset[str],
+    attributes: frozenset[str],
+    imported: frozenset[str],
+) -> bool:
+    """Whether an expression HANDS BACK a primitive rather than the RESULT of calling one.
+
+    THE DISTINCTION IS THE WHOLE POINT AND IT IS WHY THIS IS NOT
+    :func:`_stands_for_a_primitive`. That one reads any MENTION anywhere inside
+    the expression, deliberately, because a name bound to
+    ``locate.resolve_save_root()`` is one this package never calls again. Here
+    the bound name IS called, by construction - this exists to decide whether a
+    function is itself a stand-in for a primitive - so ``return
+    locate.resolve_save_root`` and ``return locate.resolve_save_root()`` have to
+    part company. Reading a mention would make every graded sweep in the package
+    a primitive and put a reach requirement on all of their callers, which is
+    the false-reason failure CS-471 already had to repair once. It was measured
+    before it was rejected: the companion in
+    ``tests/save/test_reach_guard.py`` returns ``sorted(... .glob(...))`` and a
+    mention rule calls that a primitive.
+
+    IT IS :func:`_callee_resolves` MINUS ONE ARM AND PLUS THE CONTAINERS. The
+    missing arm is the one that reads THROUGH a call to its callee: that arm is
+    right when the expression sits in callee position, where ``partial(prim)()``
+    really does call the primitive, and wrong here, where ``prim()`` hands back
+    a path and not a locator. Everything else - a dispatch subscript, a
+    conditional, an override-with-fallback, a wrapper that takes the name as an
+    argument - answers the same way in both.
+
+    THE CONTAINER ARMS WERE ADDED AFTER A REFUTATION PASS MEASURED THEIR
+    ABSENCE, and the defect was an asymmetry rather than a missing shape.
+    :func:`_stands_for_a_primitive` WALKS a container, so a module-scope
+    ``_TABLE = {"save": locate.resolve_save_root}`` followed by
+    ``_TABLE["save"]()`` is caught; without these arms the same table handed
+    back from a function - ``return {"save": locate.resolve_save_root}`` then
+    ``_locators()["save"]()`` - was not. One mechanism applied to part of its
+    population, in the population this item is named for. The call-through arm
+    is still the only thing left out, and it is left out for a stated reason.
+
+    INSIDE A CONTAINER, ONLY A SPELLED PRIMITIVE COUNTS, and this bound was
+    MEASURED rather than reasoned to. The container arms above and the CALL arm
+    below compose into a false reacher, and the tree already had one:
+    ``tests/save/test_phase4_gate.py``'s ``_child_pytest_args`` returns a list
+    of pytest ARGV holding ``str(SAVE_TESTS)``. ``SAVE_TESTS`` is a module
+    constant derived from ``__file__``, which :func:`_stands_for_a_primitive`
+    treats as standing for a primitive under its deliberate over-approximation,
+    so :func:`_resolves_by_string` read that ``str(...)`` call as handing back a
+    locator, and every caller of the argv builder acquired a library-reach
+    requirement. Two tests that reach nothing were flagged. That is the
+    thirteen-function false-reason failure recorded in
+    :func:`_callee_resolves`, reached from the other side, and the repair is the
+    same one: refuse the receiver-ish channel rather than widen the vocabulary.
+
+    THE DISTINCTION IS BETWEEN A CONTAINER OF CALLABLES AND A CONTAINER OF
+    RESULTS. ``{"save": locate.resolve_save_root}`` holds a locator, spelled.
+    ``[str(path), "-q"]`` holds strings that were COMPUTED, and a computed
+    element is data. So a container recurses into a spelled name or attribute
+    and into further containers, and stops at a call - while a call handed back
+    DIRECTLY is still read, because ``return functools.partial(locate.resolve_save_root)``
+    really does hand back a locator. THE BOUND, STATED: a container holding a
+    wrapper rather than a spelling - ``[functools.partial(prim)]`` - is not
+    read.
+
+    A LAMBDA IS READ THROUGH ITS BODY'S CALLEE. ``self.finder = lambda:
+    locate.resolve_save_root()`` holds something that reaches when called,
+    which is this question exactly, and the body is where the callee is.
+
+    A HAND-BACK RESOLVES A SPELLING AND NOTHING ELSE, and it took FOUR rounds
+    and three separate false reachers on the real tree to arrive at a rule that
+    short. Each round narrowed one channel and left the identical value flowing
+    through the next one:
+
+    - The store arm read a MENTION anywhere, so ``monkeypatch.setattr(mod,
+      "banner", _label("home"))`` made ``banner`` a locator. ``home`` is a
+      locator name and that was a caption.
+    - Switching the string channel off PER CALLER set it correctly at one of
+      three sites, so the same caption handed back by a ``return`` still made a
+      locator server out of a module touching no filesystem.
+    - Removing the switch left the ARGUMENT channel, and the vocabulary is full
+      of PATH CONSTANTS: ``env["PYTHONPATH"] = str(_HERE)`` and
+      ``setitem(env, "label", str(_HERE))`` both manufactured an attribute, and
+      a ``lambda`` delegating to :func:`_callee_resolves` re-admitted the string
+      channel one layer down.
+
+    THE ROOT CAUSE IS THAT THE VOCABULARY DOES NOT SEPARATE A CALLABLE FROM A
+    VALUE. :func:`_stands_for_a_primitive` treats the RESULT of a primitive as
+    standing for one, deliberately, and says that is safe because such a name is
+    never CALLED. A hand-back is precisely the place that stops being true, so
+    NO CALL is read here at all: ``partial(prim)`` and ``str(_HERE)`` are the
+    same shape, one argument already in the vocabulary, and nothing syntactic
+    separates them. Four rounds of tuning arms is the evidence that nothing
+    will, short of splitting the vocabulary - which is a change to that
+    function's contract and not to this one.
+
+    A LAMBDA IS THE ONE CALL THAT IS UNWRAPPED, and it is unwrapped rather than
+    delegated. ``lambda: locate.resolve_save_root()`` reaches when called, so
+    one layer comes off and the SAME spelling question is asked of the callee -
+    which answers True for ``locate.resolve_save_root`` and False for
+    ``_label``. Delegating to :func:`_callee_resolves` instead is what
+    re-admitted the string channel, measured.
+
+    WHAT THAT COSTS, STATED: ``self.finder = functools.partial(prim)``,
+    ``return operator.methodcaller("glob")`` and ``self.finder =
+    getattr(account, "glob")`` are not read as handing a locator back. All three
+    are real, all three are a NARROWING rather than a repair, and they are filed
+    rather than papered over. The same wrappers in CALLEE position are still
+    read in full, because that is where a call is actually being made.
+
+    EVERY COMPOUND SHAPE IS REFUSED, AND THE LAST OF THEM WENT BECAUSE A
+    MUTATION PASS COULD NOT TELL IT FROM ``return False``. A subscript, a
+    conditional and an override-with-fallback were each read by taking the
+    expression apart and asking about the pieces. No control exercised any of
+    them, and all three carry the path-constant hazard this docstring has
+    already described twice: ``return _PATHS[0]`` where ``_PATHS`` holds
+    resolved paths is the argv defect one shape further out. An arm that no test
+    can distinguish from ``False`` is already deleted and does not know it, so
+    it is deleted here, where the deletion is visible and the cost is written
+    down. THE COST: a locator handed back through a dispatch subscript, a
+    conditional or a fallback is not read. Filed, not papered over.
+
+    A CONTAINER IS REFUSED FOR THE SAME REASON, AND THAT REFUSAL IS A
+    MEASUREMENT RATHER THAN AN OVERSIGHT. Reading one was tried, shipped into
+    an intermediate build, and manufactured a FALSE REACHER on this tree TWICE,
+    from two different channels. ``tests/save/test_phase4_gate.py``'s ``_child_pytest_args``
+    returns pytest ARGV holding ``str(SAVE_TESTS)``; narrowing the arm to a
+    SPELLED element then let ``tests/save/test_workdir.py``'s builder through
+    instead, because its argv holds the bare name ``_MODULE_NODE_ID``. Both
+    flagged tests that reach nothing.
+
+    THE ROOT CAUSE IS NOT IN THIS FUNCTION AND IS WORTH NAMING, because it
+    bounds what any future widening here can do.
+    :func:`_stands_for_a_primitive` deliberately treats the RESULT of a
+    primitive as standing for one, and its docstring says that is safe because
+    "it costs a flag only where the bound name is itself CALLED, which no module
+    in this package does". The vocabulary is therefore full of PATH CONSTANTS -
+    ``THIS_MODULE``, ``SAVE_TESTS``, ``_MODULE_NODE_ID`` - which are values and
+    not locators. This function asks whether something handed back is a
+    CALLABLE, so every one of those constants is a false answer waiting for a
+    caller, and a container of argv strings is where they all live. Reading a
+    container safely needs the vocabulary split into callables and results,
+    which is a change to that function's contract and not to this one.
+
+    THE COST OF THE REFUSAL, STATED: ``return {"save": locate.resolve_save_root}``
+    followed by ``_locators()["save"]()`` is NOT read, while the same table
+    written at module scope IS - :func:`_stands_for_a_primitive` walks a
+    container and this does not. That asymmetry is real, it is a residual rather
+    than a repair, and it is filed rather than papered over.
+
+    THE RECEIVER IS READ IN THIS ONE PLACE, AND ONLY HERE - CS-492 round five,
+    measured. Everywhere else in this guard a receiver is discarded, because
+    deciding what an expression is an instance of is the type resolution this
+    repo has declined; and for a CALLEE that is right, since ``account.glob(...)``
+    reaches whatever ``account`` is. A STORE is different. This vocabulary
+    contains ordinary English words - ``home``, ``open``, ``stat``, ``cwd``,
+    ``resolve`` - so a receiver-blind rule read ``monkeypatch.setattr(page,
+    "banner", page.home)`` as storing a locator, and every ``.banner()`` call in
+    the module acquired a reach requirement. Three such false reachers were
+    measured on planted modules that touch no filesystem, and a refutation pass
+    put the shipped tree "one ordinary line" from one.
+
+    A PROJECT LOCATOR NEEDS NO RECEIVER, and leaving it needing one was the
+    receiver rule applied to a population wider than its own reason. The reason
+    is that the VOCABULARY holds ordinary English - ``home``, ``open``,
+    ``stat``. :data:`_LIBRARY_LOCATORS` holds none: ``resolve_save_root`` and
+    ``resolve_account_dir`` are project names, which is why they are kept in a
+    separate constant whose docstring says only the vocabulary needs a
+    partition. Requiring an import for them cost seven measured routes -
+    ``data.locate.resolve_save_root`` through a dotted receiver, a module-scope
+    alias of the module itself, a module handed in as a parameter - every one of
+    them classed SILENT, so the suite-wide sweep never ran on them. The clause
+    was measured to cost nothing on the shipped tree.
+
+    SO AN ATTRIBUTE HAND-BACK COUNTS THREE WAYS AND NOT ONE. It counts when the
+    attribute is ALREADY a known reaching attribute, receiver-blind, which is
+    what carries a hold-and-serve chain; and it counts when the primitive is
+    spelled on a receiver this file IMPORTED, which is how a locator actually
+    arrives - ``locate.resolve_save_root``. A primitive spelled on a parameter
+    is neither, and ``page.home`` is a caption.
+
+    THE COST, STATED: a bound method of a real path stored on an attribute -
+    ``self.finder = account.glob`` where ``account`` is a ``Path`` - is not read
+    as handing a locator back. That is a NARROWING rather than a repair, it is
+    filed, and it is the price of not manufacturing declarations about where
+    personal data flows.
+
+    Args:
+        value: The expression handed back.
+        names: The reach vocabulary.
+        attributes: The attribute vocabulary, per :func:`_reaching_attributes`.
+            An attribute already known to hold a locator resolves whatever its
+            receiver is.
+        imported: The names this module binds by importing, per
+            :func:`_imported_module_names`.
+
+    Returns:
+        True when the value SPELLS one of ``names`` in one of those two ways,
+        or is a lambda whose body calls something that does. Everything else is
+        False, including every shape this function used to take apart.
+    """
+    if isinstance(value, ast.Name):
+        return value.id in names
+    if isinstance(value, ast.Attribute):
+        if value.attr in attributes:
+            return True
+        if value.attr in _LIBRARY_LOCATORS:
+            return True
+        receiver = value.value
+        return value.attr in names and isinstance(receiver, ast.Name) and receiver.id in imported
+    if isinstance(value, ast.Lambda):
+        inner = value.body
+        return _hands_back_a_primitive(
+            inner.func if isinstance(inner, ast.Call) else inner, names, attributes, imported
+        )
     return False
 
 
@@ -495,7 +750,11 @@ def _bindings_in(scope: ast.AST, *, inside_functions: bool) -> list[tuple[list[s
 
 
 def _aliases_bound_in(
-    scope: ast.AST, names: frozenset[str], *, inside_functions: bool
+    scope: ast.AST,
+    names: frozenset[str],
+    *,
+    inside_functions: bool,
+    also: frozenset[str] = frozenset(),
 ) -> frozenset[str]:
     """Expand a primitive set by every name a scope binds that stands for one.
 
@@ -506,6 +765,12 @@ def _aliases_bound_in(
         scope: The subtree to read.
         names: The primitives to start from.
         inside_functions: Passed through to :func:`_bindings_in`.
+        also: Names that RESOLVE a primitive but are never returned as ones -
+            the attribute vocabulary of :func:`_reaching_attributes`. ``local =
+            self.finder`` binds a local to an attribute that stands for a
+            locator, and without this the local resolves to nothing. They are
+            read and not added, so an attribute name cannot escape into the
+            bare-name namespace and flag an unrelated call.
 
     Returns:
         ``names`` plus every alias the scope binds.
@@ -515,7 +780,7 @@ def _aliases_bound_in(
     for _round in range(len(bindings) + 1):
         grew = False
         for bound, value in bindings:
-            if not _stands_for_a_primitive(value, frozenset(effective)):
+            if not _stands_for_a_primitive(value, frozenset(effective) | also):
                 continue
             for name in bound:
                 if name not in effective:
@@ -829,15 +1094,31 @@ def _reaching_names_of(
         as :func:`_scanned_functions` keys them.
     """
     tree = ast.parse(sibling.read_text(encoding="utf-8"))
-    primitives = _aliases_bound_in(tree, names, inside_functions=False)
+    base = names
     if hops > 1:
         # THE NEXT HOP, spent from this one's budget. Guarded on the count
         # rather than on a visited set because the budget is what bounds it:
-        # a cycle cannot outlast a strictly decreasing integer.
-        primitives = primitives | _sibling_reaching_names(tree, sibling, names, hops=hops - 1)
+        # a cycle cannot outlast a strictly decreasing integer. It is folded in
+        # BEFORE the fixpoint rather than after it, so a name reached through a
+        # further hop can still be aliased here; the old order resolved aliases
+        # first and left anything the next hop contributed unaliased.
+        base = base | _sibling_reaching_names(tree, sibling, names, hops=hops - 1)
+    # THE SAME VOCABULARY THE GUARD ITSELF USES, and this is CS-492's round-two
+    # hole rather than a tidying. This walk built its own with the alias half
+    # ALONE, so neither of that item's new mechanisms reached it: a sibling
+    # whose declared sweep reaches through a HELD ATTRIBUTE exported nothing,
+    # and its importer was classed silent - while the identical sibling
+    # spelling the reach directly exported the sweep and got its importer
+    # caught. Measured side by side. Three call sites ask which of a module's
+    # functions reach, two of them were given the new vocabulary and this one
+    # was not, which is the same one-mechanism-part-of-its-population shape
+    # this item is made of, reached at the module seam.
+    primitives, attributes = _reach_vocabulary(tree, base)
     functions = _scanned_functions(tree)
     graded = _declared_graded_names(tree)
-    direct = frozenset(name for name, node in functions.items() if _calls_any(node, primitives))
+    direct = frozenset(
+        name for name, node in functions.items() if _calls_any(node, primitives, attributes)
+    )
     # THE INDIRECT HALF, mirroring the guard rather than approximating it. A
     # graded helper that takes its body from ANOTHER graded helper calls no
     # primitive itself, so an export keyed on the direct set alone left it
@@ -961,6 +1242,100 @@ def _sibling_reaching_names(
     return frozenset(reaching) | _runtime_named_siblings(tree, source, names, hops)
 
 
+def _returned_values(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[ast.expr]:
+    """Every value a function hands back, its own nested definitions excluded.
+
+    A NESTED ``def`` HAS ITS OWN RETURNS AND THEY ARE NOT THIS FUNCTION'S.
+    :func:`_calls_any` walks a parent's whole body on purpose, because a nested
+    def's reach IS its parent's, and the opposite is true of a return: an inner
+    helper handing back a locator says nothing about what the outer function
+    hands back to ITS caller.
+
+    Args:
+        node: The function.
+
+    A ``yield`` HANDS BACK TOO - CS-492 round two, measured past the
+    return-only read by a refutation pass. ``def _locators(): yield
+    locate.resolve_save_root`` followed by ``next(_locators())()`` serves the
+    locator exactly as a ``return`` does, and reading one statement and not the
+    other is one mechanism applied to part of its population - which is the
+    shape this whole item is made of.
+
+    THE SENTENCE HERE SAID ``yield from`` WAS READ THE SAME WAY BECAUSE "a
+    container of spellings is walked", AND THAT WAS MEASURED FALSE in the same
+    round it was written. :func:`_hands_back_a_primitive` refuses a container,
+    for reasons recorded there, so ``yield from (locate.resolve_save_root,)`` is
+    NOT read and ``yield from _FINDERS`` - the value being a bare alias rather
+    than a display - IS. The statement is collected here either way; what
+    happens to its value is that function's business, and only the second
+    spelling survives it. Corrected in place with the refutation beside it
+    rather than rewritten back; the container half is filed as a residual.
+
+    Returns:
+        The expressions handed back, by ``return``, ``yield`` or ``yield from``.
+        A bare ``return`` and a bare ``yield`` are excluded because neither
+        hands back anything that can be called.
+    """
+    nested: set[int] = set()
+    for statement in node.body:
+        for child in ast.walk(statement):
+            if isinstance(child, (*_ANY_FUNCTION, ast.Lambda)):
+                nested |= {id(inner) for inner in ast.walk(child) if inner is not child}
+    return [
+        inner.value
+        for statement in node.body
+        for inner in ast.walk(statement)
+        if isinstance(inner, ast.Return | ast.Yield | ast.YieldFrom)
+        and inner.value is not None
+        and id(inner) not in nested
+    ]
+
+
+def _handing_back_names(
+    tree: ast.Module,
+    names: frozenset[str],
+    attributes: frozenset[str],
+    imported: frozenset[str],
+) -> frozenset[str]:
+    """Module-scope function names that SERVE a primitive instead of calling one.
+
+    CS-492's third route, and the shape that names it is the module-level
+    ``__getattr__``: ``def __getattr__(name): return locate.resolve_save_root``
+    makes every attribute of the module a locator, and the function itself
+    CALLS nothing, so the guard read it as silent and the consumer's
+    ``__getattr__("anything")()`` named no primitive in any callee position.
+
+    KEYED ON HANDING ONE BACK, NEVER ON THE NAME ``__getattr__``. A vocabulary
+    of one dunder would leave the ordinary factory - ``def _locator(): return
+    locate.resolve_save_root`` - open while reading as though it did not, which
+    is the fence CS-491 wrote and this item inherits.
+
+    METHODS ARE NOT HERE. A method that hands one back binds an ATTRIBUTE name,
+    not a module-scope one, so it belongs to :func:`_reaching_attributes` and is
+    resolved there. Putting it here would let a method name flag an unrelated
+    module-scope call of the same spelling, which is the inversion this guard's
+    keying note records.
+
+    Args:
+        tree: The parsed module.
+        names: The reach vocabulary resolved so far.
+        attributes: The attribute vocabulary, passed through.
+        imported: The imported receiver names, passed through.
+
+    Returns:
+        The module-scope function names that hand back a primitive.
+    """
+    return frozenset(
+        name
+        for name, node in _scanned_functions(tree).items()
+        if "." not in name
+        and any(
+            _hands_back_a_primitive(value, names, attributes, imported)
+            for value in _returned_values(node)
+        )
+    )
+
+
 def _effective_primitives(
     tree: ast.Module,
     names: frozenset[str],
@@ -985,6 +1360,17 @@ def _effective_primitives(
     resolve a sibling against, so the sibling half is skipped rather than
     guessed at.
 
+    THE THIRD HALF IS THE SERVE SHAPE - CS-492. A function that HANDS BACK a
+    locator rather than calling one taught this nothing, so a module-level
+    ``__getattr__`` returning ``locate.resolve_save_root`` made every attribute
+    of that module a locator while the module itself read as silent.
+
+    IT IS THE NAME HALF OF :func:`_reach_vocabulary` AND NOTHING ELSE. The
+    attribute half is returned beside it there, and a caller that needs both
+    calls that rather than this. This is kept because the controls that grade
+    the vocabulary ask about names, and narrowing a caller to the half it uses
+    is not the same as giving it a wrong answer.
+
     Args:
         tree: The parsed module.
         names: The primitives to start from.
@@ -992,13 +1378,69 @@ def _effective_primitives(
         hops: The module-hop budget for the sibling half.
 
     Returns:
-        The primitives, plus every alias the module binds and every sibling
-        helper it imports that reaches the library itself.
+        The primitives, plus every alias the module binds, every sibling helper
+        it imports that reaches the library itself, and every module-scope
+        function that serves one.
+    """
+    return _reach_vocabulary(tree, names, source=source, hops=hops)[0]
+
+
+def _reach_vocabulary(
+    tree: ast.Module,
+    names: frozenset[str],
+    *,
+    source: Path | None = None,
+    hops: int = _SIBLING_RESOLUTION_HOPS,
+) -> tuple[frozenset[str], frozenset[str]]:
+    """The NAME half and the ATTRIBUTE half of a module's reach, resolved TOGETHER.
+
+    THE TWO HALVES ARE ONE FIXPOINT AND NOT TWO PASSES - CS-492 round two,
+    measured by a refutation pass and reproduced by the merger. The first draft
+    ran the name fixpoint and then :func:`_reaching_attributes` once, after it.
+    Each of the item's two new mechanisms was therefore invisible to the other,
+    and composing them defeated both at once:
+
+        _HOLDER.finder = locate.resolve_save_root   # the attribute half
+        def _serve(): return _HOLDER.finder         # the serve half
+        def _reaches(): return _serve()()
+
+    Neither half is short a shape; the serve half simply never learned that
+    ``finder`` was an attribute worth serving, because the attribute half had
+    not run yet. Both of those spellings ship as controls of this item
+    INDIVIDUALLY, and their composition was green. Running them to a joint
+    fixpoint is the whole repair.
+
+    IT TERMINATES BECAUSE BOTH SETS ONLY GROW. Each round either adds a name or
+    an attribute or stops, and the bound is the number of things there are to
+    add, so a self-referential module cannot spin.
+
+    Args:
+        tree: The parsed module.
+        names: The primitives to start from.
+        source: The module's own file, when the caller has it. Its absence
+            skips the sibling half rather than guessing at it.
+        hops: The module-hop budget for the sibling half.
+
+    Returns:
+        The reach vocabulary and the attribute vocabulary. The second is
+        consulted only where :func:`_callee_resolves` already discards a
+        receiver, which is what keeps an attribute name out of the bare-name
+        namespace.
     """
     effective = names
     if source is not None:
         effective = effective | _sibling_reaching_names(tree, source, names, hops)
-    return _aliases_bound_in(tree, effective, inside_functions=False)
+    imported = _imported_module_names(tree)
+    attributes = _reaching_attributes(tree, imported)
+    for _round in range(len(_scanned_functions(tree)) + len(_attribute_stores(tree)) + 1):
+        widened = _aliases_bound_in(tree, effective, inside_functions=False, also=attributes)
+        serving = _serving_names(tree, attributes, imported)
+        widened = widened | _handing_back_names(tree, serving, attributes, imported)
+        grown = _reaching_attributes(tree, imported)
+        if (widened, grown) == (effective, attributes):
+            break
+        effective, attributes = widened, grown
+    return effective, attributes
 
 
 def _names_a_primitive(node: ast.expr, effective: frozenset[str]) -> bool:
@@ -1016,7 +1458,9 @@ def _names_a_primitive(node: ast.expr, effective: frozenset[str]) -> bool:
     return isinstance(node, ast.Name) and node.id in effective
 
 
-def _callee_resolves(func: ast.expr, effective: frozenset[str]) -> bool:
+def _callee_resolves(
+    func: ast.expr, effective: frozenset[str], attributes: frozenset[str] = frozenset()
+) -> bool:
     """Whether the expression in CALLEE position IS the primitive being called.
 
     STRUCTURAL, AND NOT A WALK, because a walk was tried and measured. Asking
@@ -1042,26 +1486,39 @@ def _callee_resolves(func: ast.expr, effective: frozenset[str]) -> bool:
     Args:
         func: The callee expression.
         effective: The reach vocabulary, aliases included.
+        attributes: The ATTRIBUTE vocabulary, per :func:`_reaching_attributes`.
+            Consulted in the ``Attribute`` arm ALONE - CS-492. That arm already
+            reads ``func.attr`` and discards the receiver, so admitting these
+            there resolves ``self.finder()`` and ``_HOLDER.finder()`` without
+            putting ``finder`` into the bare-name namespace, where it would flag
+            an unrelated local of that spelling. The default is empty so a
+            caller that has not resolved a module's attributes gets the old,
+            narrower answer rather than a wrong one.
 
     Returns:
-        True when the callee resolves one of ``effective``.
+        True when the callee resolves one of ``effective``, or one of
+        ``attributes`` through an attribute step.
     """
     if isinstance(func, ast.Name):
         return func.id in effective
     if isinstance(func, ast.Attribute):
-        return func.attr in effective
+        return func.attr in effective or func.attr in attributes
     if isinstance(func, ast.Call):
-        return _resolves_by_string(func, effective) or _callee_resolves(func.func, effective)
+        return _resolves_by_string(func, effective) or _callee_resolves(
+            func.func, effective, attributes
+        )
     if isinstance(func, ast.Subscript):
-        return _callee_resolves(func.value, effective)
+        return _callee_resolves(func.value, effective, attributes)
     if isinstance(func, ast.IfExp):
-        return any(_callee_resolves(one, effective) for one in (func.body, func.orelse))
+        return any(_callee_resolves(one, effective, attributes) for one in (func.body, func.orelse))
     return isinstance(func, ast.BoolOp) and any(
-        _callee_resolves(one, effective) for one in func.values
+        _callee_resolves(one, effective, attributes) for one in func.values
     )
 
 
-def _call_reaches_a_primitive(call: ast.Call, effective: frozenset[str]) -> bool:
+def _call_reaches_a_primitive(
+    call: ast.Call, effective: frozenset[str], attributes: frozenset[str] = frozenset()
+) -> bool:
     """Whether ONE call node reaches a primitive.
 
     ONE QUESTION ABOUT THE CALLEE, NOT A LIST OF CALLEE NODE TYPES. An earlier
@@ -1086,6 +1543,7 @@ def _call_reaches_a_primitive(call: ast.Call, effective: frozenset[str]) -> bool
     Args:
         call: The call node.
         effective: The reach vocabulary, aliases included.
+        attributes: The attribute vocabulary, passed to :func:`_callee_resolves`.
 
     Returns:
         True when this call reaches one.
@@ -1093,10 +1551,14 @@ def _call_reaches_a_primitive(call: ast.Call, effective: frozenset[str]) -> bool
     func = call.func
     if isinstance(func, ast.Name) and func.id == "getattr" and len(call.args) > 1:
         return _names_a_primitive(call.args[1], effective)
-    return _callee_resolves(func, effective)
+    return _callee_resolves(func, effective, attributes)
 
 
-def _calls_any(node: ast.FunctionDef | ast.AsyncFunctionDef, names: frozenset[str]) -> bool:
+def _calls_any(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    names: frozenset[str],
+    attributes: frozenset[str] = frozenset(),
+) -> bool:
     """Whether a function calls any of the named attributes or bare names.
 
     THE CALL REQUIREMENT IS DELIBERATE. The sentence that stood here said that
@@ -1147,16 +1609,29 @@ def _calls_any(node: ast.FunctionDef | ast.AsyncFunctionDef, names: frozenset[st
     one. ``tests/save/test_phase4_gate.py`` writes both spellings, 130 lines
     apart, which is how a refutation pass found it.
 
+    AN ATTRIBUTE THAT STANDS FOR A PRIMITIVE IS CALLED THE SAME WAY - CS-492.
+    ``self.finder = locate.resolve_save_root`` in ``__init__`` and
+    ``self.finder()`` in a sibling method share no scope this function can see,
+    because the binding is function-local to a DIFFERENT function and the name
+    it binds is an attribute rather than a local. The attribute vocabulary is
+    resolved once per module by :func:`_reaching_attributes` and handed down,
+    and it is also handed to the local alias fixpoint as a lookup - so ``local =
+    self.finder`` followed by ``local()`` resolves too - without any of those
+    names being added to the bare-name vocabulary this function matches on.
+
     Args:
         node: The function.
         names: The names to look for.
+        attributes: The module's attribute vocabulary, per
+            :func:`_reaching_attributes`. Empty by default, which is the answer
+            this function gave before CS-492.
 
     Returns:
         True when at least one call matches.
     """
-    effective = _aliases_bound_in(node, names, inside_functions=True)
+    effective = _aliases_bound_in(node, names, inside_functions=True, also=attributes)
     return any(
-        _call_reaches_a_primitive(inner, effective)
+        _call_reaches_a_primitive(inner, effective, attributes)
         for inner in ast.walk(node)
         if isinstance(inner, ast.Call)
     )
@@ -1248,6 +1723,12 @@ def _held_type_words(tree: ast.Module) -> frozenset[str]:
 def _stores_on_receiver(target: ast.expr, receiver: str) -> bool:
     """Whether an assignment target stores an attribute on a method's own receiver.
 
+    IT IS THE PERSONAL-DATA WALK'S READER ALONE. CS-492's attribute vocabulary
+    started out calling this and stopped: what that walk needs is the receiver
+    step, because a field's ANNOTATION is a claim about one class, and what the
+    reach vocabulary needs is the attribute NAMESPACE, which no receiver owns.
+    :func:`_attribute_stores` records why in full.
+
     Args:
         target: The assignment target.
         receiver: The method's first parameter name.
@@ -1281,6 +1762,288 @@ def _paired_targets(node: ast.Assign) -> Iterator[tuple[ast.expr, ast.expr]]:
             yield from zip(target.elts, node.value.elts, strict=False)
         else:
             yield target, node.value
+
+
+def _attribute_stores(tree: ast.Module) -> list[tuple[str, ast.expr]]:
+    """Every attribute name a module stores something under, with the value stored.
+
+    RECEIVER-BLIND, AND THAT IS THE SIBLING SWEEP RATHER THAN A SIMPLIFICATION.
+    The first draft of this read a store only inside a class method and only
+    onto that method's own receiver, per :func:`_stores_on_receiver`. Two
+    siblings of CS-492's own routes were then measured OPEN against it and are
+    the same mechanism reached one step differently: ``_HOLDER.finder =
+    locate.resolve_save_root`` written at MODULE scope, which is in no method
+    and on no receiver; and ``setattr(self, "finder", locate.resolve_save_root)``,
+    which is in a method and on the receiver but spells the attribute as a
+    string, so no assignment target carries it. Reading the store shape in one
+    of its three spellings is one mechanism applied to part of its population,
+    which is the pattern this whole item is made of. What the guard consumes is
+    the attribute NAMESPACE, and that namespace does not care which object the
+    store landed on - :func:`_callee_resolves` discards the receiver anyway.
+
+    ``_paired_targets`` IS REUSED RATHER THAN COPIED, so the tuple store
+    ``self.finder, self.root = locate.resolve_save_root, None`` is read here for
+    the same reason it is read for the personal-data walk, and cannot drift from
+    it.
+
+    THE THREE-ARGUMENT STORE SHAPE IS GONE, AND IT WAS REMOVED ON EVIDENCE
+    RATHER THAN ON TASTE. It read ``f(target, "name", value)`` as a store, which
+    is what ``setattr`` is - and is equally what ``getattr(spec, "reader",
+    open)``, ``re.sub(pattern, "count", text)`` and ``OSError(13, "denied",
+    path)`` are, none of which stores anything. Three separate refutation
+    rounds produced FALSE REACHERS through this one door, each with a different
+    payload, and the last of them defeated this module's own exclusion map:
+    ``monkeypatch.setattr(os, "walk", os.scandir)`` put ``walk`` into the
+    attribute vocabulary, and ``walk`` is excluded BY NAME because ``ast.walk``
+    is how every AST guard in this package reads a tree. One ordinary
+    three-line helper appended to ``tests/save/test_phase4_gate.py`` took it
+    from nine flagged functions to twenty. A declaration is a written claim
+    about where personal data flows; manufacturing eleven of them is worse than
+    missing the route this door was opened for.
+
+    WHAT IT COST, AND WHERE THAT WENT: ``setattr(self, "finder", prim)`` and a
+    store through a helper of one's own are no longer read. Both were controls
+    of CS-492 and both are now filed. The shape cannot be salvaged by keying on
+    the callee instead - that was measured too, and it leaves every other store
+    helper open while reading as though it did not.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        One entry per store, as the attribute name and the expression stored.
+        Nothing here decides whether the value reaches anything -
+        :func:`_reaching_attributes` asks that, so this stays vocabulary-free
+        and can be read without one.
+    """
+    found: list[tuple[str, ast.expr]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            found.extend(
+                (target.attr, value)
+                for target, value in _paired_targets(node)
+                if isinstance(target, ast.Attribute)
+            )
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and node.value is not None
+            and isinstance(node.target, ast.Attribute)
+        ):
+            found.append((node.target.attr, node.value))
+    found.extend(_subscript_stores(tree))
+    return found
+
+
+def _subscript_stores(tree: ast.Module) -> list[tuple[str, ast.expr]]:
+    """Every attribute stored through a SUBSCRIPT under a string literal.
+
+    ``self.__dict__["finder"] = locate.resolve_save_root`` IS holding a
+    primitive on an instance attribute - it is the acceptance sentence of
+    CS-492 word for word - and the assignment-target read above cannot see it,
+    because the target is a ``Subscript`` and not an ``Attribute``. Measured
+    green by a refutation pass, end to end: the module was classed SILENT, so
+    the suite-wide sweep never ran on it at all. ``vars(self)["finder"]`` is the
+    same store spelled through a builtin and is read here too; before this it
+    reddened by ACCIDENT, naming ``__init__`` because the target walk harvested
+    the bare name ``vars``, and never naming the consumer.
+
+    RECEIVER-BLIND like the rest of this walk, and keyed on the string literal
+    rather than on ``__dict__``, so a mapping-backed attribute store under any
+    other spelling is read the same way. THE BOUND, STATED: a subscript key that
+    arrives through a variable is not read, for the same reason the string store
+    above does not read one - resolving it is the alias analysis this repo has
+    declined.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        One entry per store, as the attribute name and the expression stored.
+    """
+    found: list[tuple[str, ast.expr]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        for target, value in _paired_targets(node):
+            if (
+                isinstance(target, ast.Subscript)
+                and isinstance(target.slice, ast.Constant)
+                and isinstance(target.slice.value, str)
+            ):
+                found.append((target.slice.value, value))
+    return found
+
+
+def _serving_names(
+    tree: ast.Module, attributes: frozenset[str], imported: frozenset[str]
+) -> frozenset[str]:
+    """The names that stand for a LOCATOR, as opposed to a path a locator produced.
+
+    A SECOND, NARROWER NAME SET, AND THE REASON IT HAS TO EXIST IS ONE SENTENCE
+    THIS MODULE HAS BEEN CIRCLING FOR SIX ROUNDS. :func:`_stands_for_a_primitive`
+    treats the RESULT of a primitive as standing for one, deliberately, and
+    justifies it by saying that costs a flag "only where the bound name is
+    itself CALLED, which no module in this package does". The set it builds is
+    therefore full of PATH CONSTANTS - ``THIS_MODULE``, ``SAVE_TESTS``,
+    ``REPO_ROOT``, ``_MODULE_NODE_ID`` - and that is fine for a CALLEE question,
+    which is the only question it was built for.
+
+    A HAND-BACK IS THE ONE PLACE THAT JUSTIFICATION FAILS, because a hand-back
+    makes the bound name callable through something else. Handing the callee set
+    to :func:`_hands_back_a_primitive` meant ``sources["source"] = _HERE``
+    stored a "locator" and flagged every ``.source()`` call, and
+    ``def _source(): return _HERE`` - the ordinary extract-a-constant refactor -
+    made ``_source`` a locator server. Both measured on planted modules that
+    touch no filesystem.
+
+    SO THIS SET IS BUILT BY THE HAND-BACK RULE ITSELF, from the primitives
+    outward: a name is here when its module-scope binding hands back a locator,
+    or when it is a function that serves one. ``_FINDERS =
+    locate.resolve_save_root`` is here; ``_HERE = pathlib.Path(__file__).resolve()``
+    is not, because a CALL is not a hand-back. The narrowing is exactly the
+    callable-versus-value split the container and call arms were removed for
+    want of, applied where it can actually be computed.
+
+    IT SEEDS FROM :data:`_LIBRARY_PRIMITIVES` AND NOT FROM THE CALLER'S SET,
+    which is the whole point and was got wrong once: seeding from the callee
+    vocabulary admits every path constant in it on the first round, and the
+    fixpoint then propagates them. The seed is the primitives themselves.
+
+    Args:
+        tree: The parsed module.
+        attributes: The attribute vocabulary, passed through.
+        imported: The imported receiver names, passed through.
+
+    Returns:
+        The primitives plus every module-scope name that hands one back, to a
+        fixpoint so a chain of servers cannot outrun it.
+    """
+    bindings = _bindings_in(tree, inside_functions=False)
+    serving = set(_LIBRARY_PRIMITIVES)
+    for _round in range(len(bindings) + len(_scanned_functions(tree)) + 1):
+        grew = False
+        frozen = frozenset(serving)
+        for bound, value in bindings:
+            if _hands_back_a_primitive(value, frozen, attributes, imported):
+                for name in bound:
+                    if name not in serving:
+                        serving.add(name)
+                        grew = True
+        for name in _handing_back_names(tree, frozen, attributes, imported):
+            if name not in serving:
+                serving.add(name)
+                grew = True
+        if not grew:
+            break
+    return frozenset(serving)
+
+
+def _reaching_attributes(tree: ast.Module, imported: frozenset[str]) -> frozenset[str]:
+    """The ATTRIBUTE names a module makes stand for a primitive.
+
+    CS-492's first two routes, and a SECOND VOCABULARY rather than a wider
+    first, which is the whole design. ``self.finder = locate.resolve_save_root``
+    bound in ``__init__`` and called from ``account`` was invisible because
+    :func:`_aliases_bound_in` holds module scope and function-local scope apart
+    - and it must, since a local ``finder`` in one function says nothing about a
+    name ``finder`` in the next. The binding is not a local, though. It binds a
+    name in the ATTRIBUTE namespace, which no function-local scope owns and no
+    module scope owns either, and that is the namespace this returns.
+
+    KEEPING IT SEPARATE IS WHAT AVOIDS THE INVERSION. These names are consulted
+    only where :func:`_callee_resolves` already refuses to look at a receiver -
+    the ``Attribute`` arm, which asks ``func.attr`` and nothing else - so a bare
+    local ``finder()`` in an unrelated function is untouched by them. Folding
+    them into the primitive set instead would flag exactly that call, which is
+    the inversion the keying note records, pointed a fourth way.
+
+    RECEIVER-BLIND, DELIBERATELY, AND THIS IS THE TRADE. ``self.finder()`` and
+    ``_HOLDER.finder()`` and ``whatever.finder()`` all answer the same, because
+    deciding WHICH class an expression is an instance of is the type resolution
+    :func:`_callee_resolves` already refuses for ``_TABLE.entries["root"]()``.
+    Scoping per class would answer the first two and would have to guess at the
+    third; answering all three costs a flag only where a module binds a locator
+    to an attribute name and then calls something else of that name.
+
+    :data:`_NOT_LIBRARY_REACH` GOVERNS THIS NAMESPACE AS WELL, and it did not
+    until a refutation pass walked straight through the gap. That map names
+    what does NOT reach, and :func:`_reach_primitives` enforces it by
+    INTERSECTING rather than subtracting - CS-497 - so a name in neither
+    declaration reaches nothing. This vocabulary had no partition, no map and no
+    intersection, so an excluded name re-entered by the back door: a store under
+    the name ``walk`` made every ``ast.walk`` call in the module a reach site,
+    and ``walk`` is excluded BY NAME for exactly that collision. An exclusion
+    that holds in one namespace and not the other is not an exclusion.
+
+    A METHOD THAT HANDS ONE BACK IS HERE TOO, per :func:`_hands_back_a_primitive`,
+    because a method name is an attribute name. Reading the store shape and not
+    the serve shape would be one mechanism applied to part of its population,
+    which is the pattern this item kept turning up.
+
+    A STORE RESOLVES BY SPELLING AND NOT BY MENTION - CS-492 round two. This
+    asked :func:`_stands_for_a_primitive`, which reads a mention ANYWHERE inside
+    the stored expression, and a refutation pass broke the cost bound this
+    docstring used to state. The counter-example holds no locator and touches no
+    filesystem: ``monkeypatch.setattr(mod, "banner", _label("home"))`` stores a
+    rendered caption, and ``"home"`` is a locator name, so ``banner`` became a
+    locator and every ``.banner()`` call in the module acquired a reach
+    requirement. Asking :func:`_hands_back_a_primitive` with the string channel
+    OFF is the repair: it is the callable question rather than the mention
+    question, which is what a store of a locator actually is.
+
+    WHAT THAT COSTS, STATED HONESTLY: a store whose value only MENTIONS a
+    primitive - ``self.root = locate.resolve_save_root()``, the RESULT - is no
+    longer an attribute that reaches. It never should have been. A store of a
+    wrapper naming the primitive as a STRING - ``self.finder =
+    operator.methodcaller("glob")`` - is no longer read either, and that one is
+    a real narrowing rather than a repair.
+
+    Args:
+        tree: The parsed module.
+        imported: The names this module binds by importing, per
+            :func:`_imported_module_names`, which is what separates a primitive
+            spelled on its own module from one spelled on a parameter.
+
+    Returns:
+        The attribute names that resolve a primitive, to a fixpoint so a store
+        of another such attribute cannot outrun it.
+    """
+    refused = frozenset(_NOT_LIBRARY_REACH)
+    stores = _attribute_stores(tree)
+    serves = [
+        (name.rsplit(".", 1)[1], node)
+        for name, node in _scanned_functions(tree).items()
+        if "." in name
+    ]
+    attributes: set[str] = set()
+    for _round in range(len(stores) + len(serves) + 1):
+        known = frozenset(attributes)
+        # THE HAND-BACK SET, NOT THE CALLEE SET - see :func:`_serving_names`.
+        # The callee set holds path constants by design, and a hand-back is the
+        # one question for which that is a wrong answer rather than a wide one.
+        # It is recomputed each round because the two sets feed each other: a
+        # server can hand back a HELD attribute, and an attribute can hold what
+        # a server hands back. Both only grow, so the pair still terminates.
+        serving = _serving_names(tree, known, imported)
+        grew = False
+        for attribute, value in stores:
+            if attribute in attributes or attribute in refused:
+                continue
+            if _hands_back_a_primitive(value, serving, known, imported):
+                attributes.add(attribute)
+                grew = True
+        for attribute, node in serves:
+            if attribute in attributes or attribute in refused:
+                continue
+            if any(
+                _hands_back_a_primitive(value, serving, known, imported)
+                for value in _returned_values(node)
+            ):
+                attributes.add(attribute)
+                grew = True
+        if not grew:
+            break
+    return frozenset(attributes)
 
 
 def _bound_parameter_annotations(node: ast.ClassDef) -> list[str]:
@@ -1544,12 +2307,19 @@ def _sibling_wrapping_classes(tree: ast.Module, source: Path) -> frozenset[str]:
 MODULE_SCOPE_REACH: Final = "<module scope>"
 
 
-def _module_scope_reaches(tree: ast.Module, primitives: frozenset[str]) -> bool:
+def _module_scope_reaches(
+    tree: ast.Module, primitives: frozenset[str], attributes: frozenset[str] = frozenset()
+) -> bool:
     """Whether a primitive is called outside every function in a module.
 
     Args:
         tree: The parsed module.
         primitives: The reach vocabulary.
+        attributes: The attribute vocabulary, per :func:`_reaching_attributes`.
+            Handed down for the same reason the function scan gets it: a
+            module-scope ``_HOLDER.finder()`` is the same route one indentation
+            level out, and every previous half of this guard that read one
+            population and not the other was reopened by exactly that move.
 
     IT ASKS :func:`_call_reaches_a_primitive`, THE SAME QUESTION THE FUNCTION
     SCAN ASKS, and that is CS-491's twelfth hole rather than a tidying. This
@@ -1570,7 +2340,7 @@ def _module_scope_reaches(tree: ast.Module, primitives: frozenset[str]) -> bool:
     """
     inside = _nodes_inside_functions(tree)
     return any(
-        _call_reaches_a_primitive(node, primitives)
+        _call_reaches_a_primitive(node, primitives, attributes)
         for node in ast.walk(tree)
         if isinstance(node, ast.Call) and id(node) not in inside
     )
@@ -1638,12 +2408,14 @@ def _assert_library_reach_is_declared(
     """
     tree = ast.parse(module_path.read_text(encoding="utf-8"))
     functions = _scanned_functions(tree)
-    primitives = _effective_primitives(tree, _LIBRARY_PRIMITIVES, source=module_path)
+    primitives, attributes = _reach_vocabulary(tree, _LIBRARY_PRIMITIVES, source=module_path)
     personal = _personal_data_names(tree, source=module_path)
     declared_names = frozenset(graded) | frozenset(exempt)
 
-    direct = frozenset(name for name, node in functions.items() if _calls_any(node, primitives))
-    if _module_scope_reaches(tree, primitives):
+    direct = frozenset(
+        name for name, node in functions.items() if _calls_any(node, primitives, attributes)
+    )
+    if _module_scope_reaches(tree, primitives, attributes):
         direct |= {MODULE_SCOPE_REACH}
     propagating = frozenset(
         name
@@ -1782,9 +2554,9 @@ def _module_reaches(path: Path) -> bool:
     """
     tree = ast.parse(path.read_text(encoding="utf-8"))
     functions = _scanned_functions(tree)
-    primitives = _effective_primitives(tree, _LIBRARY_PRIMITIVES, source=path)
-    touched = any(_calls_any(node, primitives) for node in functions.values())
-    return touched or _module_scope_reaches(tree, primitives)
+    primitives, attributes = _reach_vocabulary(tree, _LIBRARY_PRIMITIVES, source=path)
+    touched = any(_calls_any(node, primitives, attributes) for node in functions.values())
+    return touched or _module_scope_reaches(tree, primitives, attributes)
 
 
 def _reaching_modules() -> tuple[list[Path], list[Path]]:

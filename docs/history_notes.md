@@ -21,6 +21,103 @@ Where current truth actually lives:
 
 ---
 
+## Session 23 wakeup note - relocated 2026-08-21 (session 26)
+
+Relocated from `WAKEUP_NOTES.md` for the two-to-three-session rule, not deleted. Session 26 also REORDERED that file to the newest-first order its header has always stated; sessions 23, 24 and 25 each recorded the contradiction and each declined to resolve it, and the operator ruled on 2026-08-21 that the entries were the wrong half.
+
+## Session 23 - 2026-08-19 - CS-487, CS-478 and CS-471 CLOSE; every refutation pass succeeded and one refuted an acceptance clause outright
+
+- **Shipped: CS-487 CLOSED.** Filed CS-490. Two arms landed in
+  `tests/save/test_byte_order_status.py`, not one. Suite with the library
+  **2142 passed, 3 skipped, exit 0**; `tests/save` with NO GAME **1059 -> 1060 passed, 49
+  skipped, exit 0**. mypy clean 28 and 56, ruff check clean, ruff format clean 84, drift guard
+  **CLEAN 9/9**, doc budget **PASS measured 16** after a relocate pass, precommit gate PASS.
+  Detail in `docs/LEDGER.md`.
+
+- **THE HEADLINE IS THAT ONE ARM WAS NOT ENOUGH AND I SHIPPED THE FIRST DRAFT BELIEVING IT
+  WAS.** The `MEASURED_VALUE_TYPES` conjunct reds the filed three-line route and does NOTHING
+  against an attacker who PICKS a word already in that table instead of adding one. A
+  refutation pass measured that live: three shipped lines plus two test-side, naming a
+  LENGTH-PREFIXED type, shipped `vacuous_one_byte` with the tree green - which is CS-480's own
+  defect reached again. The fix was widening the derivation's saturation arm from the
+  fixed-width table alone to every table the module reads a value out of the payload from.
+
+- **FOUR OF MY OWN SENTENCES WERE MEASURED FALSE BY THE SECOND PASS AND ARE CORRECTED IN PLACE
+  WITH THE REFUTATION BESIDE THEM.** Do not rewrite them back: an eight-line price measured on
+  a tree WITHOUT the new arm and carrying the wrong tree's pass count; calling
+  `MEASURED_VALUE_TYPES` hand-authored when it is DERIVED and the same test module already said
+  so; handing the residual to CS-488, whose acceptance is scoped to a width-table entry neither
+  surviving route touches; and a pointer chain in which three prose sites each said a different
+  one of them owned the price.
+
+- **THE PRICE IS THE RESULT, NOT THE CLOSURE.** The exemption cost three lines in one file and
+  now costs seven across two. No route through it is closed, both survivors were taken all the
+  way to GREEN rather than left at their first red, and they are CS-490. Read that item's
+  detail before touching this area.
+
+- **A COUNT CS-487 WAS FILED WITH DID NOT REPRODUCE.** Its detail block said `tests/save` 1058
+  with no game; I measured 1059 four times, on two trees. The RELATION it asserted - forged
+  tree byte-identical to clean - reproduced exactly. Corrected in place at
+  `docs/history_notes.md` under **CS-487 - detail**.
+
+- **THIS FILE'S STATED ORDER AND ITS ACTUAL ORDER DISAGREE, and I did not silently pick one.**
+  The header says NEWEST FIRST; sessions 21, 22 and 23 run oldest first, and did before this
+  session touched it. I appended to match the ACTUAL order rather than reorder three blocks
+  under a rule I may be misreading. One of the two is wrong and it is an operator call which.
+
+- **CS-478 ALSO CLOSED, later in the same session.** The two definitions of "an oracle scores
+  this type" - tag-word in `test_properties._tally_decoded_values`, decoded-shape in
+  `test_value_anchoring._score_population` - now meet in
+  `test_the_two_admission_rules_for_the_int32_oracle_never_disagree_unrecorded`. Closed on the
+  HOLD-THEM-APART route, not unification: the item's own fence forbids deleting either.
+
+- **THE WORST MISTAKE OF THE SESSION WAS IN CS-478 AND BOTH REFUTATION PASSES CAUGHT IT
+  INDEPENDENTLY: I ACCUSED A TRUE SENTENCE OF BEING FALSE.** A draft rewrote
+  `test_the_cannot_separate_set_is_bounded_without_a_library`'s docstring to say that
+  `test_no_type_an_oracle_scores_is_left_recorded_as_unscored` says nothing about the word the
+  cannot-separate set names. Widening the dispatch to score that word reds that very test. The
+  sentence GOVERNS THE TRANSITION while being silent on today's state; present non-membership
+  of a runtime-computed population is not silence. Restored verbatim. **This project's method
+  says corrected-in-place sentences must never be rewritten back - a false correction is the
+  same defect pointing the other way.**
+
+- **FOUR MORE CS-478 SENTENCES OF MINE WERE MEASURED FALSE and are corrected in place.** Do not
+  rewrite them back: a probe constant said to move BOTH channels of the int32 oracle when its
+  low byte is non-zero so only one fires; a subset arm whose stated route raises `TypeError`
+  before the assertion and which NO edit to `objects.py` can fire; a reverse arm called hard to
+  reach that fires three ways; and an absolute suite count that distinguished nothing.
+
+- **CS-478's residual, stated as an adversary put it:** one more line turns the `unscored` lie
+  into a `cannot_separate` lie. The control prices CONCEALMENT, not the lie. CS-426 owns it.
+
+- **CS-471 ALSO CLOSED, on its THREE STATED CLAUSES and not on the channel being shut.** The
+  parameter-and-locals channel stays open and its pinning test
+  `test_the_entry_points_still_bind_the_raw_body_where_a_renderer_can_read_it` STILL PASSES and
+  stays. Residuals filed as CS-491. Operator ruled the close on the three clauses.
+
+- **A REFUTATION PASS REFUTED CLAUSE 1 OUTRIGHT AND IT WAS RIGHT.** The scan read module-body
+  statements only, so a module-scope reach was invisible - and the classifier called that module
+  SILENT, so the guard never ran on it. The proof of concept was the ordinary pytest idiom, a
+  module-scope call feeding a parametrize list. Closed under a `MODULE_SCOPE_REACH` sentinel
+  wired into BOTH the guard and the classifier. **Fixing a guard without fixing the thing that
+  decides which files the guard runs on is half a fix that measures green.**
+
+- **I SHIPPED A NON-NEGOTIABLE 12 VIOLATION WHILE CLOSING A PRIVACY ITEM.** An f-string rendered
+  a caught exception object; `OSError.__str__` appends the path it failed on. Caught by
+  `tests/test_exception_rendering.py`, which lives OUTSIDE `tests/save` - so a `tests/save` run
+  was green while it was there. **Run the whole suite before believing a privacy change.**
+
+- **EIGHT EXEMPT REASONS OF MINE WERE MEASURED FALSE, plus four more defects.** Do not rewrite
+  them back: six reasons described filesystem work on functions matched only by a NAME COLLISION
+  with a sibling's citation resolver; one described the game install for a synthetic usmap in
+  tmp_path; one claimed tmp_path containment for a test passing no path, whose real containment
+  is an autouse env fixture. Also: the wrapper walk missed a subclass; the clause-2 control was
+  a tautology reporting every input undeclared; the package walk was narrowable to one module in
+  silence; and a docstring said "third argument" of two.
+
+- **Next action:** take CS-491 (tier 1), CS-471's filed residual - read its detail in
+  `docs/history_notes.md` first. CS-488 and CS-490 are the other open tier-2 byte-order items.
+
 ## Session 18 - wakeup note, relocated
 
 Relocated whole from `WAKEUP_NOTES.md` on 2026-08-19 (session 21), which keeps the last
@@ -287,6 +384,134 @@ and the cause turned out to be more specific than the block says: `git commit` D
 returned.
 
 CS-496 - `tests/test_doc_budget.py`'s scratch-repo fixture copies a LIVE git directory and races git's own background maintenance - acceptance: the fixture cannot fail because a file inside `.git` vanished between the walk and the copy, and the reproduction is recorded - tier: 2 - NOTE: filed 2026-08-20 (session 24). **MEASURED, not suspected:** CI run 32346100111 on `dc5237b` errored with `shutil.Error: ... '.git/objects/maintenance.lock' ... [Errno 2] No such file or directory`, at `tests/test_doc_budget.py:203`, where `shutil.copytree` copies a session-scoped template checkout. `copytree` stats the tree and then copies it, so any file git removes in between kills the fixture - and `maintenance.lock` is exactly such a file, created and deleted by git's own housekeeping. **THE COMMIT THAT HIT IT CHANGED TWO MARKDOWN FILES AND NO PYTHON**, so this is a property of the fixture rather than of any change. **RE-RUNNING THE SAME JOB PASSED**, which is what makes it a flake rather than a break, and is also why it will be tempting to ignore. It is the CS-483 shape - a test that fails for a reason unrelated to what it grades - and every such failure spends a session's trust in the suite. `ignore=shutil.ignore_patterns` over `.git` housekeeping files, or copying with `dirs_exist_ok` and a retry, are the obvious candidates; neither is measured.
+
+## CS-800 - detail
+
+Relocated from `ROADMAP.md` 2026-08-21 (session 26) for budget, not deleted. The
+item itself stays OPEN in `ROADMAP.md`.
+
+CS-800 - A CONTAINER handed back by a function is not read as serving what it holds, while the same container at module scope is - acceptance: a module whose helper returns a container of locators, and whose consumer indexes that container and calls the result, turns a test RED on a machine with NO GAME INSTALLED, without flagging a helper that returns a container of computed strings - tier: 2
+
+filed 2026-08-21 (session 26) as CS-492's disclosed residual, measured green three times. `reach_guard._hands_back_a_primitive` REFUSES a container and says so; `_stands_for_a_primitive` WALKS one, so `_TABLE = {"save": prim}` with `_TABLE["save"]()` is caught and `return {"save": prim}` with `_locators()["save"]()` is not. **THE REFUSAL IS NOT AN OVERSIGHT AND MUST NOT BE UNDONE BY SIMPLY TURNING THE ARM ON:** it was on, and it manufactured a FALSE REACHER on this tree twice, from two different channels - `test_phase4_gate._child_pytest_args` returns argv holding `str(SAVE_TESTS)`, and `test_workdir._child_pytest_args` returns argv holding the bare name `_MODULE_NODE_ID`. Both are path CONSTANTS, which the vocabulary holds under `_stands_for_a_primitive`'s deliberate over-approximation, and both flagged tests that reach nothing. The root cause is that the vocabulary does not distinguish a callable from a value, and any real fix says how it will. A generator-expression serve and a list-index serve are the same gap one shape further out. `tests/save/test_reach_guard.py::test_the_object_routed_widening_does_not_flag_a_module_that_reaches_nothing[argv-built-from-a-path-constant]` is the control that reds if the arm is turned back on naively.
+
+
+
+**ROUND FOUR WIDENED THIS ITEM.** It was filed as the served-container gap. By the time
+CS-492 closed, the hand-back rule had been narrowed three more times, each time because the
+previous shape manufactured a FALSE REACHER on the real tree, and the residual is now every
+one of them:
+
+- a CALL is not read at all, so `functools.partial(prim)`, `operator.methodcaller("glob")`
+  and `getattr(account, "glob")` are not read as handing a locator back;
+- a CONTAINER is not read;
+- a SUBSCRIPT, a CONDITIONAL and an OVERRIDE-WITH-FALLBACK are not read - those arms existed
+  and were deleted, because a mutation pass could not tell them from `return False` and they
+  carried the same hazard as the rest.
+
+**THE ROOT CAUSE IS ONE SENTENCE AND ANY FIX HAS TO ANSWER IT:** `_stands_for_a_primitive`
+treats the RESULT of a primitive as standing for one, so the vocabulary holds path CONSTANTS
+- `THIS_MODULE`, `SAVE_TESTS`, `_MODULE_NODE_ID` - alongside locators, and nothing syntactic
+separates `partial(prim)` from `str(SAVE_TESTS)`. Four rounds of tuning arms is the evidence
+that no arm will. **Do not reopen any arm without first splitting the vocabulary into
+callables and values**, which is a change to that function's contract.
+## CS-801 - detail
+
+Relocated from `ROADMAP.md` 2026-08-21 (session 26) for budget, not deleted. The
+item itself stays OPEN in `ROADMAP.md`.
+
+CS-801 - A `__getattr__` serving a locator is closed only where it is defined at MODULE scope and consumed in the SAME file - acceptance: a class-level `__getattr__` returning a locator, and a module-level one consumed from a sibling as `other.anything()`, each turn a test RED on a machine with NO GAME INSTALLED - tier: 2
+
+filed 2026-08-21 (session 26) as CS-492's disclosed residual, both measured green and both classed SILENT, so the suite-wide guard never runs on the module at all. A `__getattr__` makes EVERY attribute of its namespace a locator, and neither vocabulary can express that today: `_reaching_attributes` learns the attribute name `__getattr__` itself and stops, and `_reaching_names_of` exports NAMES, so a wildcard cannot cross the module seam as one. Ranked ORDINARY by the pass that found it - a proxy or lazy-attribute class is the ordinary reason to write either. **A fix has to say what a wildcard looks like in a set of names**; the file's own `MODULE_SCOPE_REACH` sentinel is the precedent for a member that is not an identifier.
+
+
+## CS-802 - detail
+
+Relocated from `ROADMAP.md` 2026-08-21 (session 26) for budget, not deleted. The
+item itself stays OPEN in `ROADMAP.md`.
+
+CS-802 - A store whose attribute NAME is not a literal is not read - acceptance: `setattr(self, _NAME, locate.resolve_save_root)` with `_NAME` a module constant, and `self.__dict__.update(finder=locate.resolve_save_root)`, each turn a test RED on a machine with NO GAME INSTALLED - tier: 2
+
+filed 2026-08-21 (session 26) as CS-492's disclosed residual and stated as a bound in `reach_guard._attribute_stores`. The three-argument store shape and the subscript store both key on a string LITERAL; resolving a name that arrives through a variable is the alias analysis this repo has declined, and `_module_scope_values` is the machinery that would have to do it. The keyword form is a fourth store spelling rather than a variable key and is the cheaper half.
+
+
+
+**ROUND SIX RETIRED TWO SHIPPED CONTROLS INTO THIS ITEM, and the reason is the one thing
+worth reading here.** `setattr(self, "finder", locate.resolve_save_root)` and a store through
+a three-argument helper of one's own were both CS-492 controls, both measured open at HEAD,
+and both are now accepted. What removed them was the THREE-ARGUMENT STORE SHAPE, which read
+`f(target, "name", value)` as a store.
+
+That shape is what `setattr` is. It is equally what `getattr(spec, "reader", open)`,
+`re.sub(pattern, "count", text)` and `OSError(13, "denied", path)` are, and none of those
+stores anything. It produced a FALSE REACHER in three separate refutation rounds, with a
+different payload each time, and the last one defeated this package's own exclusion map:
+`monkeypatch.setattr(os, "walk", os.scandir)` put `walk` into the attribute vocabulary, and
+`walk` is excluded BY NAME because `ast.walk` is how every AST guard here reads a tree. One
+ordinary three-line helper appended to `tests/save/test_phase4_gate.py` took it from nine
+flagged functions to twenty - eleven functions that reach nothing, each forced into a written
+claim about where personal data flows.
+
+`_attribute_stores` had read 160 stores on the shipped tree; 127 of them were this shape. It
+now reads 33.
+
+**WHAT A FIX HAS TO ANSWER:** the shape cannot separate a store from a read, and keying on
+the callee instead was measured too - it leaves every other store helper open while reading
+as though it did not. Anything that reopens this door needs a way to tell `setattr` from
+`getattr` that is not a vocabulary of callee names, or it needs the exclusion map to govern
+the attribute namespace hard enough that a false entry cannot propagate. The second half
+shipped in round six regardless: `_reaching_attributes` now refuses any name in
+`_NOT_LIBRARY_REACH`.
+## CS-803 - detail
+
+Relocated from `ROADMAP.md` 2026-08-21 (session 26) for budget, not deleted. The
+item itself stays OPEN in `ROADMAP.md`.
+
+CS-803 - A closure built by a nested `def` is not read as serving what it closes over - acceptance: a module whose factory returns a nested function that reaches the library, and whose consumer calls the factory's result, turns a test RED on a machine with NO GAME INSTALLED even when the factory itself is declared - tier: 2
+
+filed 2026-08-21 (session 26) by a refutation pass on CS-492 round two, measured: the consumer HOLDS THE REAL SAVE ROOT and is accepted. `_returned_values` excludes nested definitions deliberately - an inner helper's returns are not the outer function's - so the factory is never a serve. The IDENTICAL idiom spelled with a `lambda` IS caught and names the consumer, which is what makes this one mechanism applied to part of its population rather than a stated bound. Ranked ORDINARY. **Do not close it by deleting the nested-definition exclusion in `_returned_values`** - that exclusion is load-bearing for the opposite case and its reason is in the docstring.
+
+
+## CS-804 - detail
+
+Relocated from `ROADMAP.md` 2026-08-21 (session 26) for budget, not deleted. The
+item itself stays OPEN in `ROADMAP.md`.
+
+CS-804 - A sibling's graded `Class.method` declaration can never match a callee, so the cross-module export is keyed on a spelling nothing resolves - acceptance: an importer calling a sibling's declared reaching METHOD turns a test RED on a machine with NO GAME INSTALLED - tier: 2
+
+filed 2026-08-21 (session 26) by a refutation pass on CS-492 round two. `_scanned_functions` keys a method `Class.method` and `_reaching_names_of` exports that key verbatim; `_callee_resolves` tests `func.attr`, a bare attribute name, which can never equal a dotted key. Latent rather than live - no tracked module declares a dotted graded name today - and it sits at the same module seam CS-492 round two repaired for functions, which is why it is filed rather than folded in.
+
+
+
+**ROUND FIVE WIDENED THIS ITEM FROM ONE SPELLING TO THE WHOLE EXPORT SET.** It was filed as
+the dotted-key mismatch. A refutation pass then measured two more holes at the same seam, both
+ORDINARY, both with the sibling GREEN and the importer classed SILENT:
+
+- **The sibling's SERVER.** `_reaching_names_of` returns `graded & (direct | indirect)`, and a
+  function that HANDS BACK a locator calls nothing, so it can never be in `direct`. Worse, the
+  sibling **cannot declare it**: adding it to `_GRADED_LIBRARY_REACH` reds the sibling with
+  `a graded helper no longer reaches the library`. There is no declaration that fixes this.
+- **The sibling's HELD ATTRIBUTE.** The export is a set of NAMES; the attribute vocabulary is
+  never exported at all, so an importer calling `sibling._Holder().finder()` resolves nothing.
+
+Measured side by side against a consumer spelling the same reach directly, which IS named.
+CS-492 round two repaired the vocabulary INSIDE `_reaching_names_of` and left the EXPORT SET
+unrepaired - one mechanism applied to part of its population, at the module seam, for the
+second time in the same item.
+
+**THIS SUBSUMES WHAT CS-801 SAYS ABOUT A CROSS-MODULE `__getattr__`:** that is one instance of
+the server hole, not a `__getattr__`-specific one. Whichever item is taken first should say so.
+
+**ALSO MEASURED AND NOT FILED SEPARATELY, both CONTRIVED:** `(await holder.finder)()` and
+`(finder := locate.resolve_save_root)()` are accepted - `_callee_resolves` has no `ast.Await`
+and no `ast.NamedExpr` arm. The ordinary spellings of both are caught by the inner call.
+## CS-805 - detail
+
+Relocated from `ROADMAP.md` 2026-08-21 (session 26) for budget, not deleted. The
+item itself stays OPEN in `ROADMAP.md`.
+
+CS-805 - The container-FIELD personal-data shape is not walked as a wrapper, and the footprint is wider than CS-492's detail block records - acceptance: a class holding a save body in a CONTAINER field, and a helper whose return annotation is a container of bodies or of stringified real save paths, each turn a test RED on a machine with NO GAME INSTALLED - tier: 2
+
+filed 2026-08-21 (session 26). This is the PERSONAL-DATA half of the guard, `reach_guard._body_wrapping_classes` and `_returns_personal_data`, not the reach half CS-492 closed, which is why it is a separate item rather than that item's acceptance. Named in `docs/history_notes.md` under **CS-492 - detail** as "ALSO HERE, and NOT contrived". A refutation pass measured all of it open and found one shape the note does not mention: a return annotated `-> list[str]` carrying stringified real save paths passes strict typing and propagates nothing. Measured caught for contrast: `-> bytes` and a `bytes`-typed field.
 
 ## CS-492 - detail
 
