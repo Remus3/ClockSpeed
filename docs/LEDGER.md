@@ -170,7 +170,8 @@ killed.
 stated precondition on `source` - its bound holds as a property of the call sites, measured, not as
 an assertion. And `MODULE_SCOPE_REACH` is still ONE sentinel per file, so a module already
 declaring it absorbs a second module-scope reach with no new evidence; that is reproduced and filed
-as CS-500. Neither is in this item's acceptance and neither is claimed.
+as CS-501 - first filed as CS-500, which COLLIDED with the phase 5 gate; the older item keeps
+the ID and the collision is corrected here rather than by editing the entry that made it. Neither is in this item's acceptance and neither is claimed.
 
 ### 2026-08-20 - CS-497 and CS-498 - the vocabulary partition stops being a tautology, and a self-exemption keyed on the guard's own file name is caught
 Verification: `tests/save/test_reach_guard.py::test_a_vocabulary_name_classified_nowhere_is_not_silently_a_reach_primitive`,

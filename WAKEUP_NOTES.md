@@ -330,6 +330,12 @@ the line becomes a pointer.
   disagreements went away; the item's detail block named three, the merger measured six. The
   survivor is a difference of SUBJECT and is recorded with its reason.
 
+- **THE CS-4nn ID BLOCK IS FULL AND THE /done RITUAL CAUGHT ME COLLIDING WITH IT.** 98 of 100 used;
+  the only two unused are GAPS, which CLAUDE.md forbids backfilling. I filed the sentinel residual
+  as CS-500 and that ID has belonged to the PHASE 5 GATE for a long time. The older item keeps it
+  and mine is renumbered CS-501. **Which block phase-4 follow-ups continue into is an OPERATOR
+  DECISION and nothing in the tree settles it** - check the block before filing the next item.
+
 - **Next action:** CS-492, the last of CS-491's residuals and the largest - three shapes reproduced
   ESCAPING this session with a declared companion beside each, so probe with one or every route
   reddens on the guard's vacuity assertion instead. Then CS-499, CS-500, and CS-484 whose premise is
