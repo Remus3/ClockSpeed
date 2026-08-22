@@ -767,9 +767,58 @@ accepting nothing. Deleting them to go green removes the only instrument that di
 repair from a vacuous one, which is a worse repository than one with eight manufactured
 declarations in it.
 
-**Unmeasured, and the measurement to take first:** whether those four exemptions are the only false
-declarations on the shipped tree. They were found by following one control's failure, not by a
-sweep. A sweep is the cheapest next step and it belongs to this item.
+**THE SWEEP IS TAKEN - 2026-08-22, session 29. THE ANSWER IS SIX, NOT FOUR, AND THEY SIT IN TWO
+MODULES RATHER THAN ONE.** The population is every `_EXEMPT_LIBRARY_REACH` and
+`_GRADED_LIBRARY_REACH` mapping under `tests/save`, read by AST at module scope so payloads
+planted inside string literals are not counted. No consumer of the guard exists anywhere else in
+the tracked tree - the only other copies are the four uncommitted worktrees.
+
+| channel | entries | modules | false |
+|---|---|---|---|
+| `_EXEMPT_LIBRARY_REACH` | 45 (42 are functions, 3 are the module-scope sentinel) | 11 | **6** |
+| `_GRADED_LIBRARY_REACH` | 20 | 7 | 0 |
+
+The graded channel is CLEAN: all twenty entries genuinely read the save library, so every false
+declaration on this tree is an exemption. The two NEW ones are `backing_citations` and
+`dead_full_citations` in `tests/save/test_absolute_claims.py`, carrying the same reason string as
+the four already recorded. **Both are HELPERS rather than tests**, which the four are not, so the
+false-flag population is not confined to test functions the way the first finding suggested.
+
+**TWO INDEPENDENT METHODS AGREE ON THE SAME SIX, and the second never reads a reason string.**
+The first sweeps reason strings for a self-report that the function touches nothing. The second
+takes the call node the guard actually trips on - `_call_reaches_a_primitive` under the module's
+own `_reach_vocabulary`, per the granularity rule - resolves the callee ONE HOP to a def in this
+repo, and asks `_calls_any` whether THAT def reaches. A function all of whose trips resolve to a
+target reaching nothing is false whatever its prose claims.
+
+**THE MECHANISM SPLITS, AND ONLY ONE HALF IS THE IRREDUCIBLE CONFLICT.** Measured per call node:
+
+- FOUR trip on a bare `resolve()` at `test_oracle_citations.py` lines 653, 752, 764 and 775. That
+  is the module's own module-scope `def resolve`, and `resolve` is in the NAME half of the
+  vocabulary because `Path.resolve` is a primitive. This is the value-agnostic bare-name class,
+  the one measured irreducible above.
+- TWO trip on `citations.resolve()` at `test_absolute_claims.py` lines 656 and 717 - an ATTRIBUTE
+  callee. `_callee_resolves` (`tests/save/reach_guard.py:1504`) answers the `Attribute` arm with
+  `func.attr in effective or func.attr in attributes` and DISCARDS the receiver. The receiver is
+  `citations`, bound at `test_absolute_claims.py:192` by
+  `from tests.save import test_oracle_citations as citations` - a module alias resolvable from the
+  import table without any type resolution.
+
+**THE ATTRIBUTE HALF HAS A DISCRIMINATOR THE BARE-NAME HALF LACKS, AND IT IS UNMEASURED.** Do not
+read this as a proposed fix. `_callee_resolves`' own docstring records that a receiver WALK was
+tried and reverted because it put a library-reach requirement on thirteen functions that reach
+nothing - but that walk WIDENED, counting any mention of a primitive-ish thing anywhere in the
+callee. Using the receiver to NARROW, exonerating a call whose receiver resolves to a repo module
+that owns no primitive, is the opposite direction and was never measured. It is a candidate, not
+an answer, and CS-807's rule stands: any acceptance must say which side it buys and pay for it in
+the open.
+
+**WHAT THE SWEEP DOES NOT DECIDE, stated as a floor rather than a total.** The one-hop pass treats
+a callee it cannot resolve in one hop - an object receiver, a two-hop alias - as genuine. Six is
+therefore a floor on the false population, not a ceiling, and the reason-string pass is a floor on
+the SELF-REPORTED false population only. A false flag whose reason string was written to read like
+a genuine reach evades the first pass and is caught by the second only when it resolves in one
+hop.
 
 ## CS-800 - detail
 
