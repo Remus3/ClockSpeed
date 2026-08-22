@@ -150,6 +150,29 @@ if subject.rstrip(".!").strip().lower() in PLACEHOLDERS:
         "Say what changed and why; the log is read by future you.",
     )
 
+# Modelled on git's own trailer parser, not on a string prefix. git finds
+# the separator FIRST and trims the token AFTERWARDS, so "Co-authored-by :"
+# is a trailer to git; and it refuses whitespace before the token has
+# begun, so an indented line is not a trailer to git at any position. Both
+# facts are measured, and both are load-bearing: matching a bare prefix was
+# simultaneously too narrow to catch the first and too wide to allow the
+# second, which is how this repository came to reject its own examples.
+TRAILER = "co-authored-by"
+for number, line in enumerate(body.decode("ascii").split("\n"), 1):
+    token, separator, _rest = line.partition(":")
+    if separator and token.rstrip().lower() == TRAILER:
+        fail(
+            "co-authorship trailer on line %d of the message body." % number,
+            "Line: %s" % line.strip(),
+            "This repository records NO co-author trailer - not for an agent,",
+            "and not for a human. The rule is in docs/GATED.md; the gate is",
+            "CS-702. The match is name-free ON PURPOSE: a name list would fail",
+            "open on the next harness or model rename.",
+            "TO QUOTE THE SHAPE instead of recording one, INDENT the line by",
+            "one space: git reads no trailer in an indented line, so this gate",
+            "does not either. A token sitting mid-sentence is fine as well.",
+        )
+
 raise SystemExit(0)
 CLOCKSPEED_COMMIT_MSG
 

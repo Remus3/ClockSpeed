@@ -73,6 +73,58 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-22 - CS-702 - CLOSED: a co-authorship trailer is BLOCKED end to end, and the gate's predicate is git's own rather than a list of agent names
+Verification: `.githooks/commit-msg` carries the check;
+`tests/test_commit_msg_gate.py::test_a_co_authorship_trailer_is_blocked_and_head_is_unchanged` is the
+acceptance arm and it drives a REAL `git commit` in a throwaway repository, asserting the exit code and
+that HEAD did not move - a hook's presence is never proof it fires, so nothing here asserts the file
+exists. `tests/test_commit_msg_gate.py::test_the_rejection_is_issued_by_this_hook_and_not_by_git`
+separates the two possible authors of a refusal, and
+`tests/test_commit_msg_gate.py::test_the_attribution_property_can_tell_the_hooks_rules_apart` is its
+control. Reproduce with `python -m pytest tests/test_commit_msg_gate.py -q`.
+THE PREDICATE IS NAME-FREE AND THAT IS THE WHOLE DESIGN. It compares the token before the first colon,
+right-trimmed and lowercased, against the trailer key, and only on a line at column zero. Two properties
+follow and both are measured:
+`tests/test_commit_msg_gate.py::test_whitespace_before_the_colon_is_still_a_trailer_and_is_blocked`
+covers the shape git NORMALISES and a prefix match MISSES, and
+`tests/test_commit_msg_gate.py::test_an_indented_line_is_accepted_because_git_reads_no_trailer_there`
+covers the shape git does NOT read as a trailer at all. The rule implemented is "block what git would
+recognise", with git as the oracle rather than this project's model of git.
+THE POLARITY IS WIDER THAN THE OPERATOR DECISION IN `docs/GATED.md` AND THAT WAS ADJUDICATED, not
+assumed: the rule rejects EVERY co-authorship trailer rather than only one naming an agent, because
+"naming an agent" is not mechanically decidable and any name list fails OPEN on the next harness rename
+- which is precisely how the rule failed the first time. Cost measured on this date: zero.
+THREE BUILDS, TWO REFUTED, AND THE THIRD BUILT AND DELIBERATELY NOT SHIPPED. Build one missed a trailer
+git normalises and blocked indented and fenced examples git never reads as trailers. Build two - what
+ships - fixed both by aligning with git's parser. **A FENCE IS NOT A SHIELD** and the measurement is
+worth carrying: a fenced block containing a co-authorship line IS parsed by git as a trailer whenever a
+git-generated trailer shares the block, because git's quarter-of-the-block rule trips and it reads the
+block whole, fence lines and all. So the cheap fix of skipping fenced blocks would have failed OPEN.
+Indentation is the reliable shield; a column-0 fenced example is BLOCKED and that is deliberate. Build
+three rewrote the inherited pre-filter under a widened grant, closed four escapes, and was REFUTED
+anyway; it is recorded in `docs/GATED.md` and filed as CS-813 rather than shipped.
+WHAT THIS ITEM DOES NOT CLAIM, stated because a gate that overclaims is worse than one that does not
+exist. It does not claim the class of routes that never runs this hook - `git commit --no-verify`,
+`git cherry-pick`, `git revert`, `git rebase` on either backend, `git am`, and an unbootstrapped clone -
+which is CS-704. It does not claim the pre-filter class, which is CS-813. It does not claim the
+interpreter ladder, which accepts any program that exits 0 and is CS-703. It does not clean the
+historical commits that carry the trailer; the flip precondition in `docs/GATED.md` covers those by
+generating a fresh history. Every one of those is named in that file rather than left for a reader to
+discover.
+
+### 2026-08-22 - CS-813 - CORRECTION to this session's widened-grant record: the stored subject measured 200 characters, not 215
+Verification: reproduce by committing a message whose first line is `# ` followed by 198 characters with
+`git commit -F` against the hook as it stood at `ac6e151`; `git log -1 --format=%s | wc -c` reports the
+stored subject. Two independent agents measured 200 from a 200-character input line.
+THE WIDENED-GRANT ENTRY IN THIS FILE SAYS "a 215-character STORED subject" AND THAT NUMBER IS WRONG. It
+was carried from an adjudicator's report into a tracked file by the merger without being re-measured,
+which is the exact failure this repository has a rule against - a measured number restated in prose
+drifts, and this one drifted on its first restatement. This file is append-only, so the wrong number
+stays where it was written and this record corrects it.
+NOTHING ELSE IN THAT ENTRY IS AFFECTED. The escape it describes is real and reproduces exactly; only the
+magnitude was wrong, and the escape does not depend on the magnitude. CS-813 stays OPEN and this entry
+does not close it.
+
 ### 2026-08-22 - CS-702, CS-813 - FROZEN-FILE GRANT WIDENED by the OPERATOR for `.githooks/commit-msg`, narrowed eleven ways by an adjudicator
 Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit, not a
 completion record. Nothing has been edited under it at the time of writing. It WIDENS the grant

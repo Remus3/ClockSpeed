@@ -191,6 +191,145 @@ existing history satisfies none of the three.
 **Do not** treat the working-tree scrub as having cleared this item. It cleared the tree,
 which is the PREP half. The DRAIN half is the flip itself and it remains gated.
 
+#### Measured 2026-08-22 (CS-702): the rule was broken the day after it was written, and is now ENFORCED
+
+**Nothing above this heading is edited, and that is deliberate.** The 2026-08-13 record
+stands exactly as written, its measurement sentence included, because that sentence was
+true when written. What follows is a LATER observation and what it changed. Filed as new
+text rather than as a correction in place, because the dated record is now the evidence
+that the rule was written down BEFORE it was broken - the most useful thing it holds.
+
+**The measurement, and how to re-derive it rather than trust it.** Walk every commit body
+on `main` and match a line that sits at column zero, carries a colon, and whose text before
+that colon - trailing whitespace trimmed - folds to `co-authored-by`. That is the shape git
+itself reads as a trailer, and it is the shape the gate matches. Measured on 2026-08-22:
+EIGHTEEN commits match, oldest `e9af2df`, newest `5907d45`, all dated 2026-08-14 or
+2026-08-15, and ZERO since. The eighteen are a closed set at that date. The repository
+total keeps growing, so the eighteen, the two SHAs and the two dates are the stable figures
+here - not a ratio. The stripped-prefix method this section first described returns the
+same eighteen over this history, so the correction recorded further down changes the gate,
+not the census.
+
+**A naive census gets this wrong - but only for ONE SPELLING of the token, and naming which
+spelling is the whole of the point.** A plain substring search for the COLON-LESS token
+`co-authored-by` also matches PROSE ABOUT THE RULE, this subsection included: measured
+2026-08-22 over `main`, it returns NINETEEN where the trailer-shaped match returns EIGHTEEN,
+and the nineteenth is a commit message discussing this very item. Search for the token WITH
+its colon and the gap closes - that returns EIGHTEEN as well. So in that particular
+comparison it is the COLON doing the separating, not the anchor, and an earlier draft of
+this paragraph cited the nineteen without saying which token it had searched for. A count
+whose matcher is unstated cannot be checked by the next reader, which is the only thing a
+recorded measurement is for.
+
+**What was overtaken is the CONSEQUENCE, not the measurement.** Every one of the eighteen
+postdates the 2026-08-13 decision by one or two days. What did not hold is the clause that
+followed it - that the rule "costs nothing to keep true". A rule kept by habit, against a
+tool whose default violates it, is a rule that fails on the first session nobody is
+watching, and this one failed on the next. The same entry predicted that in its closing
+sentence and shipped no mechanism.
+
+**What changed: the rule is now MECHANICAL.** `.githooks/commit-msg` rejects the trailer,
+under the frozen-file grant recorded in `docs/LEDGER.md` for CS-702. The acceptance is an
+end-to-end transcript - a real staged change, a real `git commit`, a non-zero exit and an
+unmoved HEAD - because a hook's presence is never proof that it fires.
+`tests/test_commit_msg_gate.py` drives real commits in a throwaway repository for exactly
+that reason: `core.hooksPath` is machine-local configuration that is never cloned, so a
+unit test of the matcher would be byte-identical green whether the gate fired or not.
+
+**The gate's polarity is WIDER than this section's rule, deliberately.** The 2026-08-13
+decision forbids a trailer NAMING AN AGENT; the gate rejects EVERY co-authorship trailer,
+name-free, a hypothetical human one included. A list of agent names would fail open on the
+next harness or model rename, which is the continuous pressure the item was filed against.
+Measured cost at the grant: zero - all eighteen name an agent, and no human co-author
+trailer exists anywhere in the history. A genuine human co-author is BLOCKED, which is the
+intended failure direction; the route out is a new item and a recorded allowlist entry,
+never a shortened matcher.
+
+**The predicate is derived from GIT'S OWN TRAILER PARSER, after a first cut that was wrong
+in BOTH directions at once.** That first cut matched a body line whose STRIPPED form started
+with `co-authored-by:`. Measured against git 2.53, it was simultaneously too narrow and too
+wide, and the two halves were refuted independently.
+
+TOO NARROW, which is a gate failing OPEN on the exact thing it exists to stop. git locates
+the separator FIRST and trims the token AFTERWARDS, so a line reading `Co-authored-by :
+value` - one space before the colon - is a real trailer to git. Under the first cut the
+commit was ACCEPTED, HEAD moved, and
+`git log -1 --format=%(trailers:key=Co-authored-by,valueonly)` returned the value. A tab
+before the colon behaved identically.
+
+TOO WIDE, which is how a gate gets switched off. git refuses whitespace before the token
+has begun, so an INDENTED line is not a trailer to git at any position in any message -
+`interpret-trailers --parse` returns nothing for it and the key reads empty on a commit
+carrying one. The first cut blocked it anyway, and the cost was that this repository could
+not QUOTE THE SHAPE IT FORBIDS: this subsection, the ledger entry closing the item and the
+commit message landing it were all rejected by the gate they describe.
+
+**So the shipped predicate judges a line only at column zero, and compares the trimmed
+token before the first colon, case-folded.** To quote the shape rather than record one,
+INDENT the example by one space - which is exactly the shape git also declines to read.
+
+**A FENCED BLOCK IS NOT A SHIELD, and this gate must never be taught that it is.** Measured
+2026-08-22 on git 2.53: a triple-backtick block whose only trailer-shaped line is a
+co-authorship one is not parsed as a trailer, but the SAME block carrying a GIT-GENERATED
+trailer beside it - a sign-off, or a cherry-pick line - is parsed whole, fence lines and
+all, and the co-authorship line inside it becomes a real trailer. The gate therefore still
+refuses a fenced example whose content sits flush at column zero. That is a DECLARED
+divergence in the fail-CLOSED direction, pinned by a test so it cannot drift silently, and
+the obvious cheap fix - skip fenced blocks - would fail OPEN on precisely the sign-off
+message above. Indent the content instead.
+
+**THIS GATE IS A CLIENT-SIDE, LOCALLY-ARMED CONTROL, and a whole CLASS of routes goes around
+it.** Naming only two of them, as this section first did, understated the shape of the
+problem. The hook fires only where `core.hooksPath` points at `.githooks/` on the machine
+doing the commit, and only on the code paths git chooses to run `commit-msg` on. Members of
+the class, recorded rather than chased, each its own item: `git commit --no-verify`;
+`git cherry-pick`; `git revert`, which is a sequencer sibling of cherry-pick and was MISSED
+by the first enumeration of this list; `git rebase` on either backend; `git am`; a fresh
+clone on which nobody
+has run the bootstrap, where the hook is present but unarmed; `core.commentChar` or
+`core.commentString` remapped, which moves the comment-stripping the gate is built on; and a
+substituted interpreter, since the ladder honours `CLOCKSPEED_PYTHON` whenever it merely
+answers the probe. That last one sits ABOVE the edit line the CS-702 grant drew and could
+not be touched under it.
+
+**THE HOOK PREDICTS THE BYTES GIT WILL STORE AND NEVER OBSERVES THEM, and three further
+escapes follow from that. They are MEASURED, they are NOT closed here, and they are filed as
+CS-813.** Cleanup runs AFTER this hook: on the editor path the hook sees git's full template
+while the stored message has it stripped. The comment-stripping this gate inherits models one
+cleanup mode out of five. Measured with real commits: a co-authorship trailer below git's cut
+token is stored and git reads it as a trailer; a comment line carrying a byte above 0x7E puts
+that byte in the stored message, which is a hole in non-negotiable 4 inside the hook that
+enforces it; and a long comment line as the first line inflates the STORED subject past the
+72-character cap. All three predate the trailer check and none is caused by it.
+
+**A REWRITE OF THAT PRE-FILTER WAS BUILT UNDER A WIDENED GRANT, MEASURED, AND DELIBERATELY NOT
+SHIPPED - that is a result, not an unfinished attempt.** It closed all three escapes and a
+fourth nobody had named, and it was refuted anyway. Reading the whole buffer is sound for a
+SCAN and unsound for a SELECTION: the subject is chosen from the first non-blank line, so
+reading more lines does not widen the check, it picks a DIFFERENT line from the one git stores.
+A message whose first line is a comment therefore passed with a stored subject well over the
+cap, and the same shape let a placeholder subject through - both cases the inherited
+comment-stripping got RIGHT. It also rejected `git commit --verbose` whenever the staged diff
+carried a byte above 0x7E, which blocks precisely the work of fixing such a byte, and rejected
+git's own generated `fixup!` subject for any commit whose subject is 66 characters or longer.
+The honest reading is that a commit-msg hook can be made conservative and cannot be made
+complete, because two inputs to the prediction - an explicit cleanup override and the verbose
+flag - are invisible to any hook. The measurements are kept against CS-813 so the next attempt
+starts from them rather than from scratch.
+
+**What closes the class is not a better matcher - it is a RANGE SCAN.** Over the pushed
+commits, in `.githooks/pre-push`, or on the CI side, or both: a range scan reads history as
+it LANDS rather than as it is authored, and none of the routes above can avoid being read.
+Each is its own frozen file and its own grant. Until one exists, read this gate as making
+the rule hard to break BY ACCIDENT - which is the failure it was actually filed against, a
+tool whose default violates the rule every session - and not as making it impossible to
+break on purpose.
+
+**The eighth precondition above is NOT breached by the eighteen.** It speaks of the
+PUBLISHED history, and this section already rules that the published history is generated
+fresh from a squash or an orphan branch, which need not carry them. What the eighteen broke
+was the standing rule and the consequence drawn from it, not the flip.
+
 ### CS-G04 - Dedicated-server data lane
 
 **One line:** Read world state from the dedicated server API instead of, or in addition
