@@ -35,7 +35,7 @@ Classify each as `MUST-FIX`, `SHOULD-FIX` or `NOTE`.
 
 - [ ] Any Windows account name, numeric platform account id, world name, machine name, or
       absolute path under a user home directory. Any hardcoded interpreter path - it must be
-      `py -3`.
+      `python`, NEVER `py -3` (BOOTSTRAP.md section 2.5).
 - [ ] **Every code path that could echo raw save-header bytes leaks PII**: error messages,
       debug dumps, hex previews, log lines, exception context, repr and str. The header
       options string is REDACTED BY DEFAULT and needs an explicit opt-in flag to render.

@@ -47,7 +47,7 @@ here is allowed to close a work item - hygiene never drains a backlog.
 - [ ] Every memory reachable from `memory/MEMORY.md` or an `INDEX_<domain>.md`. **Do not
       unindex a file to save bytes.** Hook lines in the index are SHORT - the index is
       scanned, not read.
-- [ ] Re-run `py -3 tools/memory_sync.py`. The sync is idempotent - it updates in place by
+- [ ] Re-run `python tools/memory_sync.py`. The sync is idempotent - it updates in place by
       category plus key and never duplicates.
 - [ ] Verify recall coverage, not health. **A "healthy" status is NOT proof recall works** - a
       store can report healthy while most rows have no embedding, silently degrading recall
@@ -68,8 +68,8 @@ here is allowed to close a work item - hygiene never drains a backlog.
 - [ ] Check `BACKLOG.md` conditional triggers: has any trigger fired? A fired trigger promotes
       the item to `ROADMAP.md` with an ID and acceptance criteria.
 - [ ] Re-probe the environment facts that could have drifted: game build string, the tracked
-      content-hash pin, port band 8900-8911 free, `py -3` resolving, ruff / pytest / mypy
-      present. Run `py -3 scripts/verify_env.py` and record the exit code.
+      content-hash pin, port band 8900-8911 free, `python` resolving, and ruff /
+      pytest / mypy importable BY THAT INTERPRETER rather than merely on PATH. Run `python scripts/verify_env.py` and record the exit code.
 - [ ] If the game patched, the version pin guard is RED by design. File the re-extract as a
       work item rather than silently re-pinning.
 

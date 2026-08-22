@@ -34,8 +34,8 @@ You implement ONE slice. You write ONLY the files on your declared write-list.
   string becomes a string terminator, cascading into a parse failure.
 - NEVER hardcode into a tracked file: the Windows account name, a numeric platform account
   id, a world name, a machine name, or any absolute path under a user home directory. That
-  includes the Python interpreter path - invoke it as `py -3`, the Windows launcher on
-  PATH. Auto-detect at runtime and make it config-overridable.
+  includes the Python interpreter path - invoke it as `python`, NEVER `py -3`
+  (BOOTSTRAP.md section 2.5). Auto-detect at runtime and make it config-overridable.
 - A save file is a personal-data-bearing artifact. Never commit one, never place one in a
   fixture directory, never echo raw header bytes. The header options string is redacted by
   default and needs an explicit opt-in flag to render.

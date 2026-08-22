@@ -73,6 +73,73 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-22 - CS-806 - `scripts/verify_env.py` now judges the toolchain by the RESOLVED interpreter rather than by PATH, and HARD-fails when the two diverge
+Verification: `tests/test_verify_env.py::test_a_tool_the_resolved_interpreter_cannot_import_is_reported_missing`
+is the control, with four siblings in the same block. END TO END ON THIS MACHINE, which is the
+half a unit test cannot show: `python scripts/verify_env.py` exits 0 and `py -3 scripts/verify_env.py`
+exits 1 naming pytest and ruff. Against the PRE-CHANGE blob at `b26c0b6` the same `py -3`
+invocation printed `VERDICT: PASS - every HARD dependency is present` and exited 0, which is the
+defect itself and was captured before the change was written.
+
+**WHAT WAS ACTUALLY WRONG, and it is not the one the item was filed on.** CS-806 was filed as a
+docs defect - the tier-0 lint command spelled `py -3 -m ruff check` and exits 1 as written. The
+docs were half of it. The other half is that `BOOTSTRAP.md` section 2.5 has carried a MANDATORY
+consequence since the FIRST COMMIT (`9d24823`): verify_env "must assert that the RESOLVED
+interpreter can import pytest and ruff, and must HARD-fail if it cannot. Reporting the version
+alone is not sufficient and would have passed this machine while the pre-push suite was
+unrunnable." **That requirement was never implemented.** So this closes an unimplemented spec
+clause, not a design question.
+
+**THE ITEM'S OWN DETAIL BLOCK IS SUPERSEDED ON ONE POINT and this record is the correction.**
+`docs/history_notes.md` under **CS-806 - detail** says verify_env "DOES NOT CATCH IT AND IS NOT
+WRONG TO MISS IT", probing by name "correctly by its own contract", and asks whoever closes the
+item to "decide whether that contract is the right one". The contract had already been decided,
+in `BOOTSTRAP.md` section 2.5, before the code was written. It was not a live question.
+
+**THE MECHANISM.** `_tool_version` probed PATH FIRST and only fell back to the module channel,
+so a `Scripts` directory belonging to a DIFFERENT interpreter satisfied a HARD row. Both installs
+report the same version, so the version check passed while the toolchain was unreachable.
+`_module_backed_tool_row` now runs the module probe FIRST - the way every gate in this project
+invokes these tools - and reads PATH only to tell the operator WHICH failure they have, because
+"install ruff" and "you are on the wrong interpreter" need different actions.
+
+**SIBLING SWEPT AND FIXED:** `mypy`, SOFT, same root cause exactly - the tier-2 gate invokes it as
+`-m mypy`. **DELIBERATELY EXCLUDED, each pinned by a test or examined and cleared:** `node` and
+`gh` are genuine executables and are still judged by PATH, because applying the module rule to
+them would report MISSING for a working install; `.githooks/pre-commit` and `pre-push` ALREADY
+implement section 2.5's resolution order and pre-push already probes `import pytest` against the
+resolved interpreter, so they are correct as written and needed no frozen-file grant;
+`tools/precommit_gate.py::ruff_command` selects an INVOCATION rather than reporting availability,
+prefers a standalone `ruff.exe` which runs under any interpreter, guards its module fallback with
+a real `import ruff`, and reports a loud "lint was NOT run" note when neither exists - no defect,
+and again no grant needed. **NO FROZEN FILE WAS TOUCHED.**
+
+**THE ONE BEHAVIOUR CHANGE WITH A PLAUSIBLE FALSE-POSITIVE STORY, stated rather than discovered
+later.** A machine with ruff installed ONLY as a standalone binary, not importable, now reports
+MISSING where it previously reported FOUND. That is the correct answer for THIS project rather
+than a regression: `docs/OPERATIONS.md`, the `/done` ritual, the tier-1 lane and the tier-2 lane
+all invoke it as `python -m ruff`, so such a machine cannot run the gates it would be certifying.
+
+**CI IS NOT REDDENED, CHECKED RATHER THAN ASSUMED.** `.github/workflows/tier2.yml` runs
+`python scripts/verify_env.py` and requires exit 0, but installs `-e ".[dev]"` into the SAME
+interpreter first, deliberately and with a comment saying why. mypy, pytest and ruff are all
+`[dev]` extras, so all three are importable there.
+
+**DOCS.** `docs/OPERATIONS.md` said "`py -3` is equivalent on this machine", which was FALSE and
+contradicted `BOOTSTRAP.md` section 2.5; it now states the divergence and points at the check.
+The eight `.claude/agents/*.md` and six `.claude/commands/*.md` files that instructed sessions to
+invoke `py -3` - `/done` among them, which is how this was found - now say `python` and carry an
+explicit NEVER fence. `.githooks/*` still name `py -3` and are LEFT ALONE: they name it correctly,
+as the documented last resort after `$CLOCKSPEED_PYTHON`, `python` and `python3`. `BOOTSTRAP.md`,
+`ROADMAP.md`, `WAKEUP_NOTES.md` and this file name it as a RECORD of the trap and are untouched.
+
+**ADVERSARIAL PASS.** Four mutants, each asserting it applied before its run so a mutation that
+never landed could not read as a survivor: PATH-first restored (the original defect), the two
+MISSING reasons collapsed into one note, always-MISSING, and the module rule widened onto node and
+gh. ALL FOUR CAUGHT, no survivors, against a green pristine floor. Full suite 2244 passed,
+3 skipped, exit 0; `ruff check .` and `ruff format --check .` both exit 0; `mypy clockspeed`
+clean; drift_guard 0; doc_budget 0.
+
 ### 2026-08-22 - CS-807, CS-808 - NOT A COMPLETION RECORD. NOTHING CLOSED. The sweep sized the item at SIX, and an attribute-half repair was built and REFUTED by three independent lenses
 Verification: this entry is a POINTER. `ROADMAP.md` for CS-807's corrected acceptance and for
 CS-808 as newly filed; `docs/history_notes.md` under **CS-807 - detail** for the sweep tables

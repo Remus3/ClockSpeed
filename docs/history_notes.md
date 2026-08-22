@@ -1005,6 +1005,12 @@ filed 2026-08-21 (session 26). This is the PERSONAL-DATA half of the guard, `rea
 
 ## CS-806 - detail
 
+**CS-806 CLOSED 2026-08-22 (session 30) - see `docs/LEDGER.md`. This block is the record of how it
+was filed and is NO LONGER A LIVE INSTRUCTION.** One paragraph below is SUPERSEDED and the ledger
+entry says so: the question it poses - whether verify_env's probe-by-name contract "is the right
+one" - was already answered by `BOOTSTRAP.md` section 2.5 before any code was written, and that
+answer was simply never implemented. Do not re-open it as a design choice.
+
 filed 2026-08-22 (session 28) by the /done ritual, which tripped over it while running its own
 documented step.
 

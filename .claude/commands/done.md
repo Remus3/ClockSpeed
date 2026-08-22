@@ -22,9 +22,9 @@ each one. Items: $ARGUMENTS
 - [ ] Run from the REPO ROOT with an EXPLICIT target directory. Never a bare recursive
       invocation from the root - that can sweep runtime state directories and destroy live
       locks or data.
-      - tier 0: syntax check plus `py -3 -m ruff check <changed paths>` only.
-      - tier 1: `py -3 -m pytest tests/<module> -q`
-      - tier 2: `py -3 -m pytest tests -q` plus `py -3 -m mypy clockspeed` plus any service
+      - tier 0: syntax check plus `python -m ruff check <changed paths>` only.
+      - tier 1: `python -m pytest tests/<module> -q`
+      - tier 2: `python -m pytest tests -q` plus `python -m mypy clockspeed` plus any service
         restart and mirror sync.
 - [ ] Record the exact command, its EXIT CODE, and the pass / fail / skipped counts.
 - [ ] **Report only counts observed THIS run. NEVER carry forward a prior count or a
@@ -34,7 +34,7 @@ each one. Items: $ARGUMENTS
 
 ## 2. Commit and push
 
-- [ ] `py -3 tools/precommit_gate.py --staged` before staging is even attempted, so a
+- [ ] `python tools/precommit_gate.py --staged` before staging is even attempted, so a
       violation is caught before the git hook runs. Both layers run; neither alone is
       trusted.
 - [ ] Stage deliberately. Never `git add -A` without reading `git status` first.
@@ -78,9 +78,9 @@ Append-only, NEWEST-FIRST, one entry per item:
 
 ## 6. Run the drift guard - EVERY `/done`, no exceptions
 
-- [ ] `py -3 tools/drift_guard.py` - record the exit code.
-- [ ] `py -3 tools/doc_budget.py` - record the exit code.
-- [ ] `py -3 tools/memory_sync.py` if any source doc changed. The markdown is the source of
+- [ ] `python tools/drift_guard.py` - record the exit code.
+- [ ] `python tools/doc_budget.py` - record the exit code.
+- [ ] `python tools/memory_sync.py` if any source doc changed. The markdown is the source of
       truth; the store is a mirror. Never fix a fact only in the mirror.
 - [ ] Thirty seconds each time beats a cleanup session later.
 

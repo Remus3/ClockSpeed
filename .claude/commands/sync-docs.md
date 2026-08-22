@@ -13,7 +13,7 @@ restated fact is a fact that will drift.**
 ## 1. Establish the CANONICAL fact set FIRST - from the artifact, never from another doc
 
 - [ ] Read facts from ground truth only: the code, `git log`, `config/ports.json`, a live
-      suite run, `py -3 tools/facts_probe.py`, the tracked build-string and content-hash pin.
+      suite run, `python tools/facts_probe.py`, the tracked build-string and content-hash pin.
 - [ ] PRINT the fact set. Every later edit cites a line of it.
 - [ ] **Two docs agreeing is not evidence** - they may both have copied the same stale
       number. Only the artifact settles it.
@@ -66,7 +66,7 @@ file that OWNS it.
 
 - [ ] Grep every tracked file for: the Windows account name, a numeric platform account id,
       a world name, a machine name, any absolute path under a user home directory, and any
-      hardcoded interpreter path. Replace with the auto-detection wording and `py -3`.
+      hardcoded interpreter path. Replace with the auto-detection wording and `python`.
 - [ ] Assert 7-bit ASCII across every authored file. No em-dash, no en-dash, no smart quotes.
 - [ ] Confirm no save file, no game data and no extracted asset is referenced as a tracked
       fixture.
@@ -93,13 +93,13 @@ file that OWNS it.
 - [ ] Delete memories that turned out to be wrong. Update rather than duplicate.
 - [ ] Do not save what the repo already records - code structure, past fixes, git history,
       content already in `CLAUDE.md`.
-- [ ] Re-run `py -3 tools/memory_sync.py`. The markdown is the SOURCE; the store is a MIRROR.
+- [ ] Re-run `python tools/memory_sync.py`. The markdown is the SOURCE; the store is a MIRROR.
       **Never fix a fact only in the mirror.** A "healthy" store status is NOT proof recall
       works - only `embedded == active` proves coverage.
 
 ## 7. Verify and report
 
-- [ ] `py -3 tools/drift_guard.py` and `py -3 tools/doc_budget.py` - record both exit codes.
+- [ ] `python tools/drift_guard.py` and `python tools/doc_budget.py` - record both exit codes.
 - [ ] Confirm all doc cross-references resolve; no orphaned or stale markdown.
 - [ ] Report: the canonical fact set and its sources; every drift found as
       fact / wrong file / owner / action; every conflict left UNRESOLVED and flagged in

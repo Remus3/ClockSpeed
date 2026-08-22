@@ -13,12 +13,12 @@ a guard you did not run.
 
 ## 1. Run the guards
 
-- [ ] `py -3 tools/drift_guard.py` - exit code: ____
-- [ ] `py -3 tools/doc_budget.py` - exit code: ____
-- [ ] `py -3 tools/facts_probe.py` - exit code: ____ (the live-state fact set)
-- [ ] `py -3 scripts/verify_env.py` - exit code: ____ (interpreter, toolchain, paths, ports)
-- [ ] `py -3 tools/precommit_gate.py --staged` - exit code: ____ (character set and secrets)
-- [ ] `py -3 tools/memory_sync.py` if any source doc changed - exit code: ____
+- [ ] `python tools/drift_guard.py` - exit code: ____
+- [ ] `python tools/doc_budget.py` - exit code: ____
+- [ ] `python tools/facts_probe.py` - exit code: ____ (the live-state fact set)
+- [ ] `python scripts/verify_env.py` - exit code: ____ (interpreter, toolchain, paths, ports)
+- [ ] `python tools/precommit_gate.py --staged` - exit code: ____ (character set and secrets)
+- [ ] `python tools/memory_sync.py` if any source doc changed - exit code: ____
 
 ## 2. What each guard must actually be checking
 
@@ -38,7 +38,7 @@ a guard you did not run.
       quotes.
 - [ ] **PII.** No Windows account name, numeric platform account id, world name, machine
       name, absolute home path, or hardcoded interpreter path in any tracked file. The
-      interpreter is invoked as `py -3`.
+      interpreter is invoked as `python`, NEVER `py -3` (BOOTSTRAP.md section 2.5).
 - [ ] **Port allocation.** `config/ports.json` matches the reserved band 8900-8911 with base
       port 8901, and the docs agree with the config rather than restating it.
 - [ ] **Cross-references.** Every doc link resolves; no orphaned markdown.
@@ -62,12 +62,12 @@ a guard you did not run.
 Do this whenever hooks or settings changed, and at least once per phase:
 
 - [ ] Assert `.claude/settings.json` PARSES:
-      `py -3 -c "import json;json.load(open('.claude/settings.json'))"`.
+      `python -c "import json;json.load(open('.claude/settings.json'))"`.
       A single backslash in a Windows path makes it invalid; it never parses, NO hook
       registers, and nothing warns you. Eliminate this confound before concluding a hook did
       not fire.
 - [ ] Confirm `core.hooksPath` is set and `.githooks/` is installed:
-      `py -3 scripts/install_hooks.py` is idempotent and FAILS LOUDLY if it cannot set it.
+      `python scripts/install_hooks.py` is idempotent and FAILS LOUDLY if it cannot set it.
 - [ ] **Stage a deliberate violation, attempt a REAL commit, assert HEAD is unchanged.** That
       is the only valid test. A hook that exists but does not fire is worse than no hook,
       because it is trusted.

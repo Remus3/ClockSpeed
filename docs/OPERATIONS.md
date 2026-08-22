@@ -7,8 +7,14 @@ terms, ports, MCP re-wire, and runbooks.
 `docs/ARCHITECTURE.md` and `docs/adr/`), and never restates a measured value that a
 machine already checks. Where a number is machine-owned, this file points at the owner.
 
-Commands below use `python`. `py -3` is equivalent on this machine. Never write the
-interpreter's absolute path into a tracked file.
+Commands below use `python`, and that is not interchangeable with `py -3`. **The two
+resolve to DIFFERENT installations on this machine and only `python` can import ruff,
+pytest or mypy** - `BOOTSTRAP.md` section 2.5 measured it, and CS-806 was filed when a
+session ran the tier-0 lint gate as written and read the module error as not-applicable.
+`scripts/verify_env.py` now HARD-fails under an interpreter that cannot import them, so
+run it to settle which one you are on rather than trusting a version string - both
+report the same version. Never write the interpreter's absolute path into a tracked
+file.
 
 ---
 

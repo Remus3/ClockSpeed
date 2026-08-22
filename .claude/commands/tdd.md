@@ -76,8 +76,8 @@ All feature work and all bug fixes follow this loop. No exceptions.
 - [ ] From the REPO ROOT with an EXPLICIT target directory. Never a bare recursive invocation
       from the root - it can sweep runtime state directories and destroy live locks or data.
       - tier 0: syntax check plus lint on the changed paths.
-      - tier 1: `py -3 -m pytest tests/<module> -q`
-      - tier 2: `py -3 -m pytest tests -q` plus `py -3 -m mypy clockspeed`, plus restart and
+      - tier 1: `python -m pytest tests/<module> -q`
+      - tier 2: `python -m pytest tests -q` plus `python -m mypy clockspeed`, plus restart and
         mirror sync.
 - [ ] Run the linter before reporting done. Generated test files have broken CI before.
 - [ ] Run the suite ONCE and trust the exit code. Re-run only if you edited since or the tool

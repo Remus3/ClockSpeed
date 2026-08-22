@@ -930,3 +930,224 @@ def test_a_found_hooks_path_row_still_names_the_directory(
 
     assert EXPECTED_HOOKS_DIR_NAME in row["value"], "the FOUND row stopped naming anything"
     assert EXPECTED_HOOKS_DIR_NAME in facts["hooks_path"], "the JSON fact was blanked"
+
+
+# --- the toolchain rows: importable by the RESOLVED interpreter -------------
+#
+# THE THIRD SUBJECT IN THIS FILE. BOOTSTRAP.md section 2.5 measured four Python
+# installations on this machine and recorded that the launcher and the plain
+# name both report the same version while only one of them can import ruff. It
+# draws one MANDATORY consequence for this script: assert that the RESOLVED
+# interpreter can import pytest and ruff, and HARD-fail if it cannot, because
+# "reporting the version alone is not sufficient and would have passed this
+# machine while the pre-push suite was unrunnable".
+#
+# THE FAILURE DIRECTION IS THE DANGEROUS ONE, which is why a version row is not
+# enough on its own. A PATH probe answers FOUND out of a Scripts directory
+# belonging to a DIFFERENT interpreter than the one that will run the check, so
+# the table certifies a toolchain the session cannot actually invoke - and an
+# unrunnable check reads as a passed check. That is CS-806.
+#
+# THE ROWS ARE DRIVEN THROUGH THE PUBLIC collect_rows(), for the reason the
+# hooks helper above states: these tests pin what the script REPORTS, not the
+# shape of the private builder that happens to produce it today.
+
+# The tools probed as PYTHON MODULES. node and gh are genuine executables and
+# are deliberately NOT here - see the exclusion test at the end of this block.
+MODULE_BACKED_TOOLS = ("pytest", "ruff", "mypy")
+
+# The two the BOOTSTRAP consequence names by hand, and the two that are HARD.
+HARD_MODULE_BACKED_TOOLS = ("pytest", "ruff")
+
+
+def toolchain_run(importable: set[str]) -> Callable[..., str | None]:
+    """Answer every probe, with the module channel and the PATH channel SPLIT.
+
+    This is the CS-806 machine in miniature: a version run against an
+    executable on PATH succeeds, while the same tool run as a module under the
+    RESOLVED interpreter fails exactly when it is not importable there.
+
+    Args:
+        importable: The tools the resolved interpreter can import. A tool
+            outside this set answers None to the module probe, which is the
+            real shape of a missing module - _run returns None on a non-zero
+            exit, and the module probe exits 1 saying there is no such module.
+
+    Returns:
+        A stand-in for verify_env._run.
+    """
+
+    def run(cmd: list[str], *_args: object, **_kwargs: object) -> str | None:
+        if "--is-inside-work-tree" in cmd:
+            return "true"
+        if "--git-common-dir" in cmd or "core.hooksPath" in cmd:
+            return None
+        # The module probe is [sys.executable, "-m", <name>, "--version"].
+        if cmd[:2] == [sys.executable, "-m"]:
+            return "canned 1.0" if cmd[2] in importable else None
+        # Every remaining call is a PATH executable answering --version, and it
+        # answers SUCCESSFULLY - that is the whole point of the scenario.
+        return "canned 1.0"
+
+    return run
+
+
+def toolchain_which(present: set[str], root: Path) -> Callable[..., str | None]:
+    """Stand in for shutil.which, planting each present tool under tmp_path.
+
+    Args:
+        present: The tools that have an executable on PATH.
+        root: The directory the planted executables are reported in.
+
+    Returns:
+        A stand-in for shutil.which.
+    """
+
+    def which(name: str, *_args: object, **_kwargs: object) -> str | None:
+        return str(root / f"{name}-stub") if name in present else None
+
+    return which
+
+
+def toolchain_rows(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    importable: set[str],
+    present: set[str] | None = None,
+    checkout_name: str = "clone",
+) -> dict[str, dict]:
+    """Collect the dependency rows for one toolchain scenario, keyed by name.
+
+    Args:
+        tmp_path: The per-test temporary directory.
+        monkeypatch: The patcher, scoped to the calling test.
+        importable: Tools the resolved interpreter can import.
+        present: Tools with an executable on PATH. Defaults to every tool this
+            file names plus git, which is the CS-806 shape - present on PATH
+            and not necessarily importable.
+        checkout_name: The checkout directory name. A test comparing TWO
+            scenarios needs a distinct root for each, because tmp_path is
+            shared within a single test.
+
+    Returns:
+        Every dependency row, keyed by its name.
+    """
+    if present is None:
+        present = {"git", "node", "gh", *MODULE_BACKED_TOOLS}
+    root = checkout_with_hooks(tmp_path, checkout_name)
+
+    monkeypatch.setattr(verify_env, "_run", toolchain_run(importable))
+    monkeypatch.setattr(verify_env.shutil, "which", toolchain_which(present, root))
+    monkeypatch.setattr(verify_env, "resolve_game_dir", lambda: (None, "stubbed"))
+    monkeypatch.setattr(verify_env, "resolve_save_root", lambda: None)
+    monkeypatch.setattr(verify_env, "numeric_account_dirs", lambda _root: [])
+
+    rows, _port_rows, _facts = verify_env.collect_rows(root)
+
+    by_name = {entry["name"]: entry for entry in rows}
+    for name in MODULE_BACKED_TOOLS:
+        assert name in by_name, f"no row named {name}; a test selecting no row asserts nothing"
+    return by_name
+
+
+def test_a_tool_the_resolved_interpreter_cannot_import_is_reported_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE CS-806 CONTROL. On PATH, answering its version, and still unusable.
+
+    This is the exact divergence measured on this machine: the executable is
+    real and runs, and the interpreter that will actually run the gate cannot
+    import it. Before the fix this row read FOUND, which is how a session
+    concludes the tier-0 lint gate passed when it never ran.
+    """
+    rows = toolchain_rows(tmp_path, monkeypatch, importable=set())
+
+    for name in HARD_MODULE_BACKED_TOOLS:
+        assert rows[name]["ok"] is False, (
+            f"{name} reported FOUND while the resolved interpreter cannot import it - "
+            "that is the unrunnable-check-is-not-a-passed-check defect"
+        )
+        assert rows[name]["scope"] == "HARD", f"{name} stopped being a HARD dependency"
+
+
+def test_a_tool_the_resolved_interpreter_can_import_is_still_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The positive control, without which the rule above could just say no.
+
+    An implementation that reported MISSING unconditionally would satisfy the
+    divergence test and be useless. This pins the other side of the branch.
+    """
+    rows = toolchain_rows(tmp_path, monkeypatch, importable=set(MODULE_BACKED_TOOLS))
+
+    for name in MODULE_BACKED_TOOLS:
+        assert rows[name]["ok"] is True, (
+            f"{name} reported MISSING while the resolved interpreter CAN import it"
+        )
+        assert rows[name]["value"], f"{name} reported FOUND and showed nothing"
+
+
+def test_the_divergent_row_reads_differently_from_a_tool_that_is_simply_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """MISSING is not one state, and collapsing the two wastes the finding.
+
+    "Install ruff" and "you are running the wrong interpreter" need different
+    actions from the operator. The assertion compares two COMPUTED renderings
+    rather than matching a literal sentence, so rewording the note does not
+    redden it - only collapsing the distinction does.
+    """
+    diverged = toolchain_rows(
+        tmp_path, monkeypatch, importable=set(), present={"git", "ruff"}, checkout_name="diverged"
+    )
+    absent = toolchain_rows(
+        tmp_path, monkeypatch, importable=set(), present={"git"}, checkout_name="absent"
+    )
+
+    diverged_row = diverged["ruff"]
+    absent_row = absent["ruff"]
+
+    assert diverged_row["ok"] is False, "the divergent case must be MISSING"
+    assert absent_row["ok"] is False, "the absent case must be MISSING"
+    assert diverged_row["note"] != absent_row["note"], (
+        "a tool on PATH but unimportable renders identically to one that is simply "
+        "absent, so the table cannot tell the operator which one they have"
+    )
+    assert "interpreter" in diverged_row["note"].lower(), (
+        "the divergent row does not mention the interpreter, which is the one fact "
+        "that makes it actionable"
+    )
+
+
+def test_the_soft_module_backed_tool_follows_the_same_interpreter_rule(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Mypy is the SIBLING CASE, and it shares the root cause exactly.
+
+    It is SOFT, so it cannot fail the run - but the tier-2 gate invokes it as a
+    module, so a row certifying a mypy this interpreter cannot import misreports
+    the same way ruff did. Fixed alongside pytest and ruff rather than left as a
+    known-identical defect.
+    """
+    rows = toolchain_rows(tmp_path, monkeypatch, importable={"pytest", "ruff"})
+
+    assert rows["mypy"]["ok"] is False, (
+        "mypy reported FOUND while the resolved interpreter cannot import it"
+    )
+
+
+def test_a_genuine_path_executable_is_still_judged_by_the_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE DELIBERATE EXCLUSION, pinned so it cannot be widened by accident.
+
+    node and gh are not python modules and never will be. Applying the module
+    rule to them would report MISSING for a perfectly working install, which is
+    the opposite error and just as misleading.
+    """
+    rows = toolchain_rows(tmp_path, monkeypatch, importable=set())
+
+    for name in ("node", "gh"):
+        assert rows[name]["ok"] is True, (
+            f"{name} is a PATH executable and was judged by the module channel"
+        )

@@ -37,8 +37,8 @@ Shipping a page ahead of its audit is a process failure.
   string becomes a string terminator, cascading into a parse failure.
 - NEVER hardcode into a tracked file: the Windows account name, a numeric platform account
   id, a world name, a machine name, or any absolute path under a user home directory. That
-  includes the Python interpreter path - invoke it as `py -3`, the Windows launcher on
-  PATH. A dashboard must never RENDER any of these either - check the page, not just the
+  includes the Python interpreter path - invoke it as `python`, NEVER `py -3`
+  (BOOTSTRAP.md section 2.5). A dashboard must never RENDER any of these either - check the page, not just the
   source.
 
 ## Tool scoping (CONVENTIONS.md R1-R3) - a scoping rule, not a ban

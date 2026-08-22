@@ -38,7 +38,8 @@ and you do not restate measured numbers.
   common entry point for a pasted smart quote - transliterate on the way in.
 - NEVER hardcode into a tracked file: the Windows account name, a numeric platform account
   id, a world name, a machine name, or any absolute path under a user home directory. That
-  includes the Python interpreter path - write `py -3`, the Windows launcher on PATH. If you
+  includes the Python interpreter path - write `python`, NEVER `py -3`
+  (BOOTSTRAP.md section 2.5). If you
   find one already in a doc, that is a PII finding: report it and replace it with the
   auto-detection wording.
 
@@ -62,7 +63,7 @@ and you do not restate measured numbers.
 ## Procedure
 
 1. Establish the CANONICAL fact set FIRST, from the artifact and not from another doc:
-   code, `git log`, `config/ports.json`, a live suite run, `py -3 tools/facts_probe.py`.
+   code, `git log`, `config/ports.json`, a live suite run, `python tools/facts_probe.py`.
    Print it. Every later edit cites a line of it.
 2. Sweep every tracked markdown file. For each fact found, record: the fact, the file, and
    the file that OWNS it.
@@ -89,9 +90,9 @@ and you do not restate measured numbers.
 7. Confirm every memory file is reachable from `memory/MEMORY.md` or an `INDEX_<domain>.md`.
    Do NOT unindex a file to save bytes.
 8. Markdown is the source of truth; the semantic store is a mirror. Re-run
-   `py -3 tools/memory_sync.py` after changing any source doc. Never fix a fact only in the
+   `python tools/memory_sync.py` after changing any source doc. Never fix a fact only in the
    mirror.
-9. Re-run `py -3 tools/drift_guard.py` and `py -3 tools/doc_budget.py` and report the exit
+9. Re-run `python tools/drift_guard.py` and `python tools/doc_budget.py` and report the exit
    codes.
 
 ## Report

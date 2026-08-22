@@ -563,6 +563,51 @@ def _row(scope: str, name: str, ok: bool, value: str, note: str = "") -> dict:
     }
 
 
+def _module_backed_tool_row(scope: str, name: str) -> dict:
+    """Judge a python-module tool by the RESOLVED interpreter, not by PATH.
+
+    BOOTSTRAP.md section 2.5 measured four Python installations on this machine
+    and drew a MANDATORY consequence for this script: assert that the RESOLVED
+    interpreter can import pytest and ruff, and HARD-fail if it cannot, because
+    "reporting the version alone is not sufficient and would have passed this
+    machine while the pre-push suite was unrunnable".
+
+    THE ORDER IS THE WHOLE FIX. Probing PATH first answers FOUND out of a
+    Scripts directory belonging to a DIFFERENT interpreter than the one that
+    will run the gate, so the table certifies a toolchain the session cannot
+    invoke - and an unrunnable check reads as a passed check. The module probe
+    runs the tool the way every gate in this project runs it, so what it
+    reports is what the gate will get (CS-806).
+
+    PATH IS STILL READ, and only to tell the operator WHICH failure they have.
+    "Install ruff" and "you are on the wrong interpreter" need different
+    actions, and a row that collapses them wastes the finding.
+
+    Args:
+        scope: HARD or SOFT.
+        name: The module name, which is also the executable name.
+
+    Returns:
+        One dependency row.
+    """
+    ok, value = _module_version(name)
+    if ok:
+        return _row(scope, name, True, value)
+
+    on_path = shutil.which(name)
+    if on_path:
+        return _row(
+            scope,
+            name,
+            False,
+            f"not importable  (an executable sits at {redact(on_path)})",
+            "on PATH but NOT importable by the interpreter running this script, so it "
+            f"belongs to a DIFFERENT interpreter - a gate invoked as -m {name} will not "
+            "run. Resolve the interpreter before trusting any gate.",
+        )
+    return _row(scope, name, False, value, "neither importable nor on PATH - install it")
+
+
 def _hard_rows(root: Path, facts: dict) -> list[dict]:
     version = ".".join(str(part) for part in sys.version_info[:3])
     minimum = ".".join(str(part) for part in MIN_PYTHON)
@@ -648,21 +693,16 @@ def _hard_rows(root: Path, facts: dict) -> list[dict]:
         )
     )
 
-    for name in ("pytest", "ruff"):
-        ok, value = _tool_version(name)
-        if not ok:
-            ok, value = _module_version(name)
-        rows.append(_row("HARD", name, ok, value))
+    rows.extend(_module_backed_tool_row("HARD", name) for name in ("pytest", "ruff"))
     return rows
 
 
 def _optional_tool_rows() -> list[dict]:
-    rows = []
-    for exe in ("node", "gh", "mypy"):
-        ok, value = _tool_version(exe)
-        if not ok and exe == "mypy":
-            ok, value = _module_version(exe)
-        rows.append(_row("SOFT", exe, ok, value))
+    # node and gh are genuine executables and are judged by PATH. mypy is a
+    # python module and shares pytest and ruff's root cause exactly - the
+    # tier-2 gate invokes it as -m mypy - so it follows the same rule.
+    rows = [_row("SOFT", exe, *_tool_version(exe)) for exe in ("node", "gh")]
+    rows.append(_module_backed_tool_row("SOFT", "mypy"))
     return rows
 
 
