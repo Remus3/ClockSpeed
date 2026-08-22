@@ -1134,6 +1134,28 @@ NOTE: filed 2026-08-16 by the CS-444 security adversary. **THIS IS A PRE-EXISTIN
 
 NOTE: filed 2026-08-16 by the CS-427 adversary, which hit it while scanning that slice's diff for leaked personal data and correctly classified it as a PRE-EXISTING FALSE POSITIVE rather than a finding against the slice. Measured: the operator git author line coincides with one 4-character world name on this machine, and it is present identically on `8b3fb9d` and `1009681` - `author-line hits: 1, body hits: 0` on every revision checked. **NOTHING IS LEAKED BY THIS TODAY** - the world name is not disclosed by the author line, the coincidence runs the other way. The problem is mechanical and arrives later: **a world-name-keyed PII scan will trip on EVERY COMMIT IN THE REPO**, and a scan that is red on correct history is a scan someone switches off. CS-700's checklist includes a full-history PII scan across tracked files and commit messages, so settle the exemption rule before that gate runs rather than while it is failing. Note the CS-209 precedent: narrowing a PII blocklist by default to pre-empt a collision was DENIED BY MEASUREMENT, so an exemption here must be a named, recorded exception rather than a shortened matcher.
 
+### CS-702 - detail
+
+filed 2026-08-22 (session 28) by /insights, measured against the artifact rather than remembered.
+
+CS-702 - The no-agent-trailer rule is recorded but UNENFORCED, and commits on `main` already carry the trailer it forbids - acceptance: a `Co-authored-by:` trailer naming an agent is BLOCKED end to end - stage a violation, attempt a real commit, assert HEAD is unchanged - and the overtaken claim in `docs/GATED.md`'s DATED operator-decision section is resolved by NEW text rather than by a rewrite of the dated record - tier: 1
+
+**THE MEASUREMENT. RE-DERIVE RATHER THAN TRUSTING THESE FIGURES.** As measured that day: of 171 commits on `main`, EIGHTEEN carry `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>` - seventeen dated 2026-08-14 and one dated 2026-08-15, oldest `e9af2df`, newest `5907d45`, and ZERO since. Method matters here and a naive census gets it wrong: match a body line whose stripped form STARTS WITH `co-authored-by:`, which is the trailer shape. A plain `grep -i co-authored` also matches prose ABOUT the rule - this block included - and inflates the count.
+
+**WHAT IS FALSE AND WHAT IS NOT, because the distinction decides what the repair is.** `docs/GATED.md` lines 144 to 149 record the operator decision that no commit carries the trailer, and say "Measured at the time of the decision, no commit did - the trailer had never been added - so this is a standing rule going forward rather than a cleanup, and it costs nothing to keep true". **THE MEASUREMENT SENTENCE WAS PROBABLY TRUE WHEN WRITTEN AND MUST NOT BE REPORTED AS A LIE:** its section is headed `Operator decision 2026-08-13`, and every one of the eighteen postdates that by one or two days. What has been OVERTAKEN is the consequence drawn from it - the history now needs a cleanup for the rule to be true of it, and "costs nothing to keep true" was not borne out.
+
+**THE ENTRY PREDICTED ITS OWN FAILURE MODE IN THE VERY NEXT SENTENCE AND SHIPPED NO MECHANISM.** It says it is recorded there "because a trailer is trivial to reintroduce by default and impossible to remove later without the rewrite this section exists to avoid". Seventeen were reintroduced by default the following day. That is the entire argument for this item: a rule kept by habit, against a tool whose default violates it, is a rule that fails on the first session nobody is watching - and this one failed on the next.
+
+**NOTHING ENFORCES IT, MEASURED.** `grep -rniE 'co.?authored' .githooks/ tools/precommit_gate.py scripts/` returns no match, exit 1. `.githooks/commit-msg` checks the character set, a 72-byte subject cap and placeholder subjects; it does not look at trailers at all.
+
+**THE PRESSURE IS CONTINUOUS, NOT HISTORICAL.** The harness driving most sessions appends the trailer BY DEFAULT unless it is suppressed, so every session is a fresh chance to reintroduce it and the count above is a snapshot rather than a closed set. This is why the acceptance asks for a blocking gate rather than a one-time scrub: a scrub leaves the next default untouched.
+
+**TWO CONSTRAINTS ON THE REPAIR, both of which an eager slice will walk straight past.** FIRST, `.githooks/*` is on the `CLAUDE.md` section 6 frozen list, so the gate needs an explicit operator grant routed through an adjudicator and recorded in `docs/LEDGER.md` BEFORE the edit is made. No agent grants itself this one. SECOND, the `docs/GATED.md` section carrying the overtaken claim is DATED, and `CLAUDE.md` section 4 rules that a heading carrying an explicit date marks its own section historical - so the correction is NEW text stating the measurement and its date, not a rewrite of the 2026-08-13 record. Rewriting it would destroy the most useful thing that section now holds, which is the evidence that the rule was written down before it was broken.
+
+**AND DO NOT CLOSE THIS BY ASSERTING THE HOOK EXISTS.** `CLAUDE.md` section 2.2 is explicit that a hook's presence is never proof it fires, and the only valid test is end to end. That is why the acceptance names the transcript rather than the file.
+
+**WHAT THIS ITEM DOES NOT CLAIM.** CS-G03's flip is NOT breached by the eighteen. Its eighth precondition speaks of the PUBLISHED history, and that same section rules the published history is generated fresh from a squash or an orphan branch, which need not carry them. The live defects are the unenforced rule and the stale consequence, not the flip.
+
 ---
 
 
