@@ -73,6 +73,40 @@ asset path must satisfy, the fixtures, and the tests that grade either implement
 **Do not** substitute a community-compiled node dataset. It carries provenance risk that
 a later public flip makes worse, and it is not this item.
 
+**STATUS 2026-08-22 (session 28): CONDITION 1 ABOVE IS MEASURED STALE, AND READ LITERALLY IT
+WOULD VOID AN ITEM THAT ADR 0003 MAKES LOAD-BEARING. DO NOT CLOSE THIS ITEM ON IT.**
+
+Condition 1 unblocks this item on spike S4 **failing**, and rules that if S4 succeeds the item
+is VOID. **S4 SUCCEEDED, and `docs/adr/0003-s4-node-actors-in-save.md` has been `accepted`
+since 2026-08-13 recording it - but S4 SPLIT, and condition 1 is written as though it could
+not.** That ADR's decision line is "Geometry: yes. Semantics: no". Measured there: 626 node
+actors, 626 of 626 carrying a valid transform; and `mPurity`, `mResourceNodeType`,
+`mResourceClass`, `EResourcePurity` and `mExtractResourceNode` occurring ZERO times in any save
+examined, across three worlds and four game builds. The mechanism is recorded and it is
+ordinary Unreal behaviour: a save stores deltas from level defaults, and a node's resource type
+and purity are level defaults that never change, so they are never written to the save at all.
+
+**THE TWO HALVES OF THIS ITEM'S ONE-LINE THEREFORE MOVED IN OPPOSITE DIRECTIONS.** The
+COORDINATES half is genuinely superseded - the save carries placement, so the asset path is no
+longer needed as a fallback for it. The PURITY half is not merely still open: it is now
+LOAD-BEARING rather than a fallback, because the save is measured not to carry it at all.
+**ADR 0003 ALREADY DRAWS EXACTLY THIS CONCLUSION IN ITS OWN CONSEQUENCES AND POINTS AT THIS
+FILE** - the node semantics layer needs the asset-extraction path, and the licence gate "is now
+a real, scheduled obligation rather than a contingency".
+
+**WHAT IS ACTUALLY BLOCKING IS CONDITION 2, WHICH IS UNMET AND UNSTARTED.** No candidate
+library has been triaged and no written verdict exists; `docs/LEDGER.md` carries ZERO records
+citing this item, at any date.
+
+**THE REPAIR IS TO RESTATE CONDITION 1, NOT TO ACT ON IT.** Rewrite it to ask the question S4
+actually answered - per HALF rather than per spike - and record the coordinates half as
+superseded with the ADR cited. Until that happens, treat the VOID clause as stale text.
+**NOTE THAT THIS FILE'S OWN RULE AGAINST SYNTHETIC CLOSURE COVERS THIS DIRECTION TOO:** voiding
+an item because a condition sentence reads that way, when the ADR that sentence defers to says
+the opposite, drains the backlog exactly as falsely as substituting a proxy would. Nothing
+outside the repo changed here - what changed is that the condition was never re-read against
+the ADR that answered it.
+
 ### CS-G02 - External LP/ILP optimizer dependency
 
 **One line:** Add an external linear or integer programming backend behind
@@ -222,6 +256,29 @@ value of the test - a bare zero is not a measurement.
 neighbours, or by declaring the pair unsupported. Three measured neighbours making a fourth
 look derivable is precisely the refuted arithmetic route ADR 0005 fences, and the test above
 exists to stop it being closed by resemblance.
+
+**STATUS 2026-08-22 (session 28): THE NEXT STEP THE BLOCK ABOVE NAMES WAS NEVER TAKEN. THE
+DRAIN HALF IS STILL NOT WORKABLE, AND THE ITEM SITS EXACTLY WHERE 2026-08-16 LEFT IT.**
+
+The status above says in terms that "the next session establishes payload-level independence
+with the object walk over the new files before treating the DRAIN half as workable". Six days
+and several sessions on, no artifact records that walk. Measured rather than recalled:
+`docs/LEDGER.md` carries ZERO records citing this item at any date; the last commit touching it
+is `f20411c` on 2026-08-16, which is the commit that WROTE the status above; and no commit
+since names node data, save 60, purity or payload independence in its subject. The PREP harness
+still pins the refusal unchanged - `tests/save/test_properties.py` still records that save
+version 60 refuses the grammar the other three pairs accept, on not one payload.
+
+**THAT IS THE WHOLE FINDING, AND IT IS A NEGATIVE ONE: nothing decayed and nothing advanced.**
+The condition remains PLAUSIBLY MET AND DELIBERATELY NOT DECLARED MET, which was the right call
+on 2026-08-16 and is still the right call. What is missing is the measurement that would settle
+it in either direction, and no amount of further play substitutes for it.
+
+**THE RISK THIS RECORD EXISTS TO STOP.** The longer an undischarged "the next session will
+measure this" sits in a status block, the more it reads on a later pass as though the
+measurement had been taken. That is this item's own file-count-as-independence-count error,
+displaced from the data onto the record of the data. The next session that opens this item
+establishes payload-level independence FIRST, or writes down plainly that it did not.
 
 ---
 
