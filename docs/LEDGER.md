@@ -73,6 +73,42 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-22 - CS-807, CS-808 - NOT A COMPLETION RECORD. NOTHING CLOSED. The sweep sized the item at SIX, and an attribute-half repair was built and REFUTED by three independent lenses
+Verification: this entry is a POINTER. `ROADMAP.md` for CS-807's corrected acceptance and for
+CS-808 as newly filed; `docs/history_notes.md` under **CS-807 - detail** for the sweep tables
+and the refutation record. Commit `77336e5` is DOCUMENTATION ONLY and is the session's only
+change to `main`. The refuted build is on branch `cs807-attribute-half` and is NOT merged.
+
+**THE SWEEP WAS TAKEN, and it changed the item's size.** CS-807's detail block named it as the
+cheapest next step and recorded the answer as unmeasured. The answer is SIX false declarations,
+not four, in TWO modules rather than one: `backing_citations` and `dead_full_citations` in
+`tests/save/test_absolute_claims.py` are the new pair, and both are HELPERS rather than tests.
+The graded channel is clean. Two independent methods agree, and the second never reads a reason
+string. Six is a FLOOR, not a total.
+
+**THE ATTRIBUTE HALF WAS ATTEMPTED TWICE AND REFUTED BOTH TIMES, ON THE SAME ROOT CAUSE.** The
+sweep showed the six split by mechanism: four on the bare-name arm already measured irreducible,
+two on the ATTRIBUTE arm, where `_callee_resolves` discards a receiver the import table resolves
+without any type resolution. That looked reducible and it was reported as such. It is not. Both
+narrowings read an ABSENCE as evidence of safety - the first that the sibling exported no reach,
+the second that a def's own body names no primitive - and each was refuted on a real escape.
+
+**THE GRADING WAS DONE BY THREE AGENTS THAT DID NOT PRODUCE THE BUILD, on three lenses, and all
+three returned REFUTED.** The permissive-failure lens found seven escapes, each caught on the
+parent commit and silent on the build. The control-validity lens found that the build's
+anti-vacuity control passes with `_assert_library_reach_is_declared` gutted to a bare `return`.
+The claim-accuracy lens found the new `_module_handles` docstring stating the polarity of the
+REFUTED first spike, and a FOURTH reach-computation site that manufactures a `<module scope>`
+declaration on a module reaching nothing - the CS-807 defect itself, inside the CS-807 repair.
+
+**WHAT SURVIVED GRADING.** The two exemption deletions are correct - the claim-accuracy lens
+verified both call chains by reading rather than by running the guard - and no shipped module
+goes silent on the build today. Every escape found is prospective, which is what a guard is for.
+
+*Do not re-pitch* a third narrowing of the same shape without an answer to the absence-of-evidence
+root cause, and *do not* take "the attribute half is the tractable one" forward: that was this
+session's own claim and grading refuted it.
+
 ### 2026-08-22 - CS-492, CS-807 - NOT A COMPLETION RECORD. NOTHING CLOSED. Nine rounds of CS-492 were graded and every one was REFUTED; the false-flag direction was split out as CS-807
 Verification: this entry is a POINTER. `ROADMAP.md` for CS-807 as a filed item and for
 CS-492's rewritten NOTE; `docs/history_notes.md` under **CS-807 - detail** for the

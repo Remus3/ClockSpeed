@@ -820,6 +820,61 @@ the SELF-REPORTED false population only. A false flag whose reason string was wr
 a genuine reach evades the first pass and is caught by the second only when it resolves in one
 hop.
 
+**THE ATTRIBUTE HALF WAS ATTEMPTED AND REFUTED THREE WAYS - 2026-08-22, session 29. DO NOT READ
+THE SPLIT ABOVE AS "ONE HALF IS TRACTABLE".** That was this session's claim on the strength of the
+receiver being resolvable from the import table, and three independent grading lenses refuted the
+build it produced. The build is on branch `cs807-attribute-half`, base `77336e5`, NOT merged.
+
+**BOTH NARROWINGS DIED THE SAME DEATH: AN ABSENCE READ AS EVIDENCE OF SAFETY.**
+
+- VERSION ONE exonerated any attribute the sibling did not EXPORT as reaching. An export set is
+  empty for many reasons that are not safety - an unreadable declaration is one, and this package
+  has already shipped two modules in that state. It silenced a planted sibling binding
+  `latest_save = workdir.latest_save` at module scope, which the shipped guard catches, and the
+  whole `tests/save` suite stayed GREEN at 1204 passed across the change.
+- VERSION TWO exonerated a name only when the sibling DEFINES it as a def measured not to reach.
+  The measurement is `_calls_any` on the def's own body - the DIRECT half alone - while
+  `_reaching_names_of` and `_assert_library_reach_is_declared` both carry an indirect half. The
+  file therefore contradicts itself on one sibling: `_reaching_names_of` says `latest_save`
+  reaches, `_harmless_defs_of` says it is measured not to, and the Attribute arm believes the
+  second.
+
+**THE ESCAPES, all caught on the parent commit and silent on the build.** The discovery hoisted one
+line up behind a def wrapper; one more local hop; a decorator applying the reach; a held attribute,
+which is CS-492's own recorded shape reopened at the new seam; and a sibling that DECLARES the
+reach in its own `_GRADED_LIBRARY_REACH` being exonerated anyway. With any ordinary second reacher
+present the module is classed reaching, the guard runs, and it passes GREEN with an undeclared
+function that hands back the world name - so there is not even a vacuity hint.
+
+**TWO DEFECTS WORTH CARRYING FORWARD WHATEVER HAPPENS TO THIS DIRECTION.**
+
+- THE EXONERATION WAS KEYED ON A BARE RECEIVER NAME WITH NO SCOPE CHECK. A PARAMETER spelled like
+  a module handle silences a plain `Path.resolve()` on a real account directory.
+  `tests/save/test_absolute_claims.py:192` already binds `citations` as a module handle, so this
+  is a name collision away rather than a contrived shape.
+- A FOURTH SITE ASKS THE SAME REACH QUESTION. `_module_scope_reaches` was not given the new
+  vocabulary, so the identical call at module scope MANUFACTURES a `<module scope>` declaration on
+  a module that reaches nothing. Its own docstring already memorialises this shape as "one
+  mechanism applied to one of two populations, for the fourth time in this item" - and the repair
+  made it the fifth. **Count the sites from the source before claiming all of them are covered;
+  `grep -n "_calls_any(" ` finds three and misses this one.**
+
+**THE CONTROL LESSON, WHICH IS THE MOST TRANSFERABLE THING HERE. A control written to defeat
+vacuity was itself vacuous.** It swallowed the guard's "vacuous" message through an
+`if "vacuous" in said: return` branch, so on the repaired tree it passed WITHOUT EVER OBSERVING THE
+GUARD REACH A VERDICT - and it passed with `_assert_library_reach_is_declared` gutted to a bare
+`return`. Against a 16-mutant battery derived from the diff it had ZERO unique detection and was
+strictly weaker than a test already in the file. **The symmetric instrument it declined to use is
+`assert not _module_reaches(consumer)`**, which is not satisfiable by a gutted guard and kills two
+of the mutants that survived. The companion escape control, by contrast, graded as a real
+instrument with a clean unique kill.
+
+**WHAT SURVIVED GRADING, and is therefore reusable.** The two exemption deletions in
+`tests/save/test_absolute_claims.py` are CORRECT - verified by reading `backing_citations`,
+`dead_full_citations`, `citations.resolve` and `prose_paragraphs` end to end rather than by running
+the guard - and no shipped module goes silent on the build today. Every escape above is
+prospective.
+
 ## CS-800 - detail
 
 Relocated from `ROADMAP.md` 2026-08-21 (session 26) for budget, not deleted. The
