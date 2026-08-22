@@ -3469,3 +3469,145 @@ a rule they might be misreading. It is an operator call which of the two is wron
   not delete it alone). Then CS-488, CS-477, CS-479, CS-470/472/473/474. **CS-484 is still cheap,
   still blocks nothing, and will bite again on the next push.** **CS-486 still needs an OPERATOR
   DECISION rather than work.**
+
+## Session 27 - relocated from WAKEUP_NOTES.md
+
+Relocated 2026-08-22 (session 29) because a fourth session entry landed and that file holds the last two to three at full fidelity. Relocated, never deleted.
+
+## Session 27 - 2026-08-21 - CS-492 rounds seven, eight and nine; the ROOT CAUSE is finally located and it is a CONTRACT, not a bug
+
+- **Shipped: NOTHING CLOSED. Again, and it is the result rather than a shortfall.** Round six
+  was graded and REFUTED on both lenses. Round seven was built, graded, REFUTED on both.
+  Round eight was built, graded, REFUTED on both. Round nine was dispatched against the
+  located root cause and is UNGRADED at session end. Nine rounds, nine refutations, every
+  one on a real defect. The only thing committed this session is a documentation relocate
+  pass; rounds seven and eight remain UNCOMMITTED in their worktrees by operator decision,
+  so that nothing unproven enters main.
+
+- **THE HEADLINE, AND IT IS THE FIRST TIME THIS ITEM HAS HAD ONE SENTENCE: THE EVIDENCE
+  RULE IS VALUE-AGNOSTIC.** It asks WHETHER a bare name is bound at module scope and never
+  WHAT IT IS BOUND TO. So `stat = "chunks"` certifies the bare name `stat` as a filesystem
+  primitive, and a class with `def get(self, stat): return stat` beside it manufactures
+  EIGHT declarations on the real `tests/save/test_phase4_gate.py`, whose entire reach is
+  `dict.get(...)`. The round-eight builder stated the contract explicitly - "the evidence
+  set is value-agnostic by contract" - so this is a chosen design, not an oversight, which
+  is why four rounds of widening never touched it.
+
+- **THE MEASUREMENT THAT ORGANISES EVERYTHING ELSE, taken by the merger across all three
+  builds.** `+` means eight manufactured declarations on the real `test_phase4_gate.py`:
+
+  | payload | round 6 | round 7 | round 8 |
+  |---|---|---|---|
+  | `get(self, stat): return stat` alone | + | clean | clean |
+  | module-scope binder alone | clean | clean | clean |
+  | `stat = "chunks"` + that method | + | **+** | **+** |
+  | `for stat in (...)` + that method | + | clean | **+** |
+  | `with ... as stat` + that method | + | clean | **+** |
+  | `except ... as stat` + that method | + | clean | **+** |
+
+  **The `Assign` row is the one that matters: it predates round eight and was never
+  closed.** Round six's defect has been DISPLACED TWICE AND REPAIRED ZERO TIMES. Rounds
+  seven and eight each fixed the spelling a refuter happened to name.
+
+- **NO BUILD IS STRICTLY BEST, and that is why neither was merged.** Round seven has the
+  cleanest false-flag direction and three silent module-scope escapes plus three ungraded
+  mutation survivors. Round eight fixed all three escapes, added 45 controls with ZERO
+  removed and no weakening anywhere, and regressed three false-flag rows. Round eight is
+  the better base and is still not shippable.
+
+- **TWO REACH ESCAPES IN ROUND EIGHT ARE CONFIRMED UNGRADED, one of them by the merger at
+  function granularity.** Reverting the subscript-key arm so the PEP 562 sentinel cannot
+  answer for it turns `FLAGGED: ['_reads_the_served_entry']` into "no function here touches
+  a library primitive, so the guard is vacuous" while the whole suite stays at 2235 passed,
+  52 skipped, exit 0. The second is the serves-loop evidence site, pinned by nothing.
+
+- **A COARSE PROBE GAVE THE MERGER A WRONG ANSWER FIRST, and the correction is the method
+  point.** Asking the PACKAGE WALK whether the module is flagged said FLAGGED under both
+  pristine and mutant, because the planted `__getattr__` itself reaches. Only a
+  FUNCTION-GRANULARITY probe - calling `_assert_library_reach_is_declared` directly and
+  reading `caught.args[0]` - separated them. **Grade a claim at the granularity the claim
+  is made at.**
+
+- **THE CEILING IS AN UNGRADEABLE NUMBER, WHICH IS THE DEFECT ROUND EIGHT CLAIMED TO
+  REMOVE.** It deleted the old round budget saying a number nothing can grade "is an arm
+  already deleted that does not know it", and replaced it with a `RuntimeError` ceiling
+  having the identical property: everything from `len//2 + 2` to `2*len + 2` passes the
+  whole suite. Measured over all 86 tracked `.py` files, the worst real module uses ONE
+  round against a ceiling of six. **The repair relocated the ungradeable number rather than
+  removing it.** The loud-failure arm itself is legitimate and must be kept - round eight's
+  first battery HUNG before it existed.
+
+- **`_serving_names` IS DEAD CODE AND ITS PROSE DEFENDS ITSELF WITH CONTROLS THAT DO NOT
+  EXIST.** Defined, never called; deleting it changes zero verdicts. `_serving_vocabulary`'s
+  docstring keeps it "because the controls that grade the serving set ask about names" and
+  no such control exists, and `test_reach_guard.py:947` attributes a real control's bound to
+  an inner fixpoint in a function that runs no loop and is never called. **That is this
+  project's own "a mutant that never applied looks green" trap, written into a comment as
+  evidence.**
+
+- **FOURTEEN OF NINETEEN `_MUST_NOT_FLAG` ENTRIES HAVE UNVERIFIABLE PROVENANCE.** The
+  standing claim says each was measured flagged by the build immediately before the bound
+  that repairs it. Only five can be checked; the other fourteen were born whole inside
+  `6f7aa3b`, and at `752d9c7` none of the machinery that could flag them exists. This is the
+  same class the two removed entries were removed for. **Mitigating and measured:** reverting
+  the hand-back narrowing fires 11 of the 19, so most do grade the narrowing they name - the
+  defect is the SENTENCE, not the coverage.
+
+- **THE SETTLED SEED RULE IS GRADED NOWHERE.** `serving = _LIBRARY_PRIMITIVES | attributes`
+  survives all of `tests/save`; the `| bound` variant is killed, so one half of the rule is
+  pinned and the other is not. A separating control was constructed and handed to round nine.
+
+- **BATTERY SIZE IS A MEASURED FAILURE MODE, not a matter of taste.** Round eight ran 14
+  mutants against 1368 changed lines and reported 13 killed, 1 survived. A grading pass that
+  derived its targets from the diff ran 41 and found SEVEN survivors, two of them real reach
+  escapes. **Size the battery to the change, never to the previous list.**
+
+- **ROUND EIGHT BROKE THE TDD ORDER AND DISCLOSED IT UNPROMPTED** - implementation before
+  controls, then controls verified red afterwards. That is exactly the provenance that
+  produced the fourteen unverifiable entries. The disclosure was worth more than the
+  deviation cost; round nine's brief requires the build each control was measured red
+  against to be named in the report.
+
+- **Failed paths, so they are not retried:** deleting the `def`/`class` admission from
+  `_value_bound_names` to fix the false-flag class - it works and turns
+  `a-hold-and-serve-chain-two-rounds-deep` RED at `2 failed, 1179 passed`, because
+  `_HOLDER.second = _serves_the_first` names a module-scope `def` that legitimately serves;
+  and splitting locators from raw vocabulary to carry the evidence rule, which the round-eight
+  builder measured broken by `def resolve(): return locate.resolve_save_root`, a genuine
+  server spelled with a vocabulary word. **Both counter-examples must be satisfied by any
+  value-aware fix.**
+
+- **Documentation: a relocate pass, COMMITTED.** `ROADMAP.md` had NINE BYTES of margin against
+  its 61440 budget. CS-421's four fences and the NOTE bodies of CS-468 and CS-456 moved to
+  `docs/history_notes.md`, byte-identical, leaving acceptance sentences and emphatic pointers;
+  margin is now 2647 bytes. The relocation script REFUSES on ambiguity and that caught a real
+  case - CS-448 already had a detail block, so its ROADMAP NOTE is a second body and merging
+  the two needs judgement rather than a script. It was left alone.
+
+- **Suite, no game, re-measured from scratch at session start and unchanged from session 26:**
+  `tests` 2190 passed / 52 skipped / exit 0. Round seven measured 2216/52/0, round eight
+  2235/52/0, both verified by the merger independently rather than taken from the builder.
+  ruff 0.15.12 check and format clean, mypy clean 86 and 28, drift guard CLEAN 9/9, doc budget
+  PASS measured 16, precommit gate PASS non-vacuously via `--files`.
+
+- **A doc-topology contradiction worth an operator ruling:** `docs/history_notes.md` opens
+  with "This file holds NOTHING current. Nothing in it may be cited as the present state of
+  the project", and is already the home of CS-492's, CS-484's, CS-421's and now CS-468's and
+  CS-456's LIVE instructions, which `ROADMAP.md` points at with "MUST BE READ BEFORE TAKING
+  THIS ITEM". The file is doing two contradictory jobs. Same shape as the `WAKEUP_NOTES.md`
+  contradiction ruled on in session 26.
+
+- **Forward risk, structural rather than a defect:** `tests/save/test_reach_guard.py` is
+  182026 bytes against the 262144 cap, having grown about 21 KB in round seven and 17 KB in
+  round eight. CS-495 already settled the answer when it arrives - relocate, never raise the
+  number, because the cap's stated premise is that every hand-authored file sits far below it.
+
+- **Next action: GRADE ROUND NINE, on both lenses at once.** Its base is `6f7aa3b` plus round
+  eight's two files, NOT HEAD - assert `git hash-object tests/save/reach_guard.py` is
+  `9c16958af3168e19005ab1c257b529f399d2fdfa` before measuring anything. The false-flag lens
+  owns the six-row table above; the control lens owns battery size, the ceiling constant, the
+  standing claim and the seed rule. If round nine comes back clean, CS-492 closes on its
+  acceptance; if it does not, the open question is no longer which spelling escaped but
+  whether a name-keyed guard can satisfy this acceptance at all - CS-491's own note warned
+  "do not close this by widening the name list alone", and nine rounds have now tested that
+  warning to destruction.
