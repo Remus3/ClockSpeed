@@ -73,6 +73,160 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-22 - CS-819 - FROZEN-FILE GRANT WIDENED by the OPERATOR for `.githooks/commit-msg`, narrowed to one region by an adjudicator
+Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit, not a
+completion record. It WIDENS the CS-703 grant recorded below on this same date and does not replace
+it; that entry stays as the record of what was permitted first. NOTHING IS CLOSED BY THIS ENTRY.
+CS-819 is filed OPEN in `ROADMAP.md` and CS-703 stays OPEN until its own closure record.
+THE DEFECT. `.githooks/commit-msg` delivers its checking program to the interpreter as a heredoc.
+That body is 4181 bytes. Under the MSYS2 build of dash a heredoc above 4096 DELIVERED bytes arrives
+as ZERO bytes; `python -` then reads an EMPTY program, which is valid Python, does nothing and exits
+0, and `exit $?` faithfully propagates that 0. The hook exits 0 with COMPLETELY EMPTY STDERR. Zero
+bytes rather than truncation is what makes it fail OPEN - a truncated program would raise a
+SyntaxError and fail loudly.
+MEASURED THREE TIMES INDEPENDENTLY on the TRACKED hook. Under that dash the trailer check, the
+non-ASCII check, the subject cap, the placeholder check and the empty-message check ALL exit 0; under
+bash all five refuse correctly. Delivery bisect on the real body: 4051 delivered bytes arrive intact,
+4097 arrive as zero, 4182 arrive as zero. Heredoc size by commit, read with `git show`: `9d24823`
+2788, `ac6e151` 2788, `bfa64e7` 4181, `32a982c` 4181. So `bfa64e7` - THE COMMIT THAT CLOSED CS-702 -
+is what crossed the threshold, and it did so silently.
+THE SEVERITY WAS OVERSTATED WHEN FIRST REPORTED, AND THIS ENTRY RECORDS THE CORRECTION RATHER THAN
+THE FIRST CLAIM. The first report said the exposure included a stock Ubuntu runner and most Linux
+developers. THAT IS REFUTED BY THIS PROJECT'S OWN CI. The affected `dash` links `msys-2.0.dll`; the
+zero-byte delivery is a property of MSYS2 fork emulation on the `openhere()` writer path, not of dash
+generally. `tier1` run `32601774702`, at `32a982c` with the 4181-byte body, ran on `ubuntu-latest`
+where `/bin/sh` IS dash, and `tests/test_commit_msg_gate.py` - 23 tests, ZERO skip or xfail markers,
+driving REAL `git commit` through the hook - passed every violation class. CS-702 IS ENFORCED ON
+UBUNTU CI AND THIS ENTRY DOES NOT CLAIM OTHERWISE. On this machine `/bin/sh` is bash, so git never
+invokes the affected dash here either. The defect is LATENT rather than live.
+THE GRANT STANDS ANYWAY, on the adjudicator's reasoning and the hook's own. A gate that can exit 0
+with empty stderr is unacceptable regardless of how many shells trigger it today; the hook already
+asserts exactly this principle for the INTERPRETER and never asserts it for the PROGRAM; and the body
+grew 2788 to 4181 in a single commit and now sits 85 bytes over a real threshold.
+SCOPE, ONE REGION, ADJUDICATOR'S WORDING. In `.githooks/commit-msg` ONLY, for CS-819 alone: initialise
+a new shell variable before the heredoc invocation and wrap that invocation in a command substitution
+assigning to it; insert exactly one sentinel write to stdout immediately before the program's final
+successful exit; and replace the trailing `exit $?` with a status check followed by a sentinel check.
+NO other line of the python program, NO other line of this hook, and NO line of `pre-commit` or
+`pre-push` may change. Those two are NOT affected and were checked by reading rather than assumed:
+`pre-commit` invokes a FILE and `pre-push` invokes a MODULE, so neither delivers a program by heredoc.
+TEN CONDITIONS BIND THIS GRANT, and they are written here because this is their only tracked home.
+ONE, this entry must not claim CS-702 is unenforced on Ubuntu CI or for Linux developers generally,
+and must record the MSYS2 attribution and the green tier1 run. TWO, PLAIN ASSIGNMENT ONLY on the
+capture - no `export`, `local` or `readonly` prefix, each of which MASKS `$?` to 0 in both bash and
+dash and would silently restore the fail-open. THREE, the capture variable is initialised before
+first use so `set -u` cannot fire. FOUR, the sentinel is 7-bit ASCII and carries NO TRAILING NEWLINE,
+with the reason recorded beside it: Windows text mode turns a written newline into CR LF, and a
+written CR LF into CR CR LF, which command substitution does not fully strip. FIVE, the comparison is
+EXACT equality rather than containment. SIX, the failure message prints the observed stdout verbatim
+and says the check did not run. SEVEN, the acceptance carries all six items the adjudicator listed,
+with RED demonstrated first. EIGHT, the background-child stall is disclosed: command substitution
+waits for EOF rather than for the child, so a program that spawns a process holding stdout would hang
+the hook, measured at a bounded timeout returning 124. It is LATENT - the program spawns nothing.
+NINE, `scripts/install_hooks.py` runs clean after the edit. TEN, this record precedes the edit.
+THE RUNNER-UP WAS PROGRAM-IN-A-FILE and it lost for a reason worth keeping. Its best argument is
+strong: `pre-commit` already invokes a file, so a file is the HOUSE PATTERN rather than a
+restructure, and it removes heredoc-size sensitivity permanently. It lost because AN EMPTY OR
+BOUNDARY-TRUNCATED FILE EXITS 0 JUST AS SILENTLY - it removes one CAUSE without establishing the
+invariant, where the sentinel detects every cause including ones not yet imagined. The two are
+complementary rather than competing: the sentinel stays even if delivery later moves to a file, and
+file delivery is filed as its own low-priority item needing its own grant.
+WHAT THE SENTINEL DOES NOT BUY, stated because a gate that overclaims is worse than none. It makes
+the hook SAFE on an affected shell, not USABLE: on such a shell every commit is refused, including
+legitimate ones. Given no realistic `/bin/sh` is affected, that is the accepted cost.
+ONE PRE-EXISTING GAP WAS NOTICED AND IS DELIBERATELY NOT FIXED HERE. A message carrying NUL or other
+control bytes below 0x20 is ACCEPTED, because the offender test is `b > 0x7E` only. Unrelated to
+CS-819, filed separately, and explicitly outside this grant.
+COMMON-MODE RISK. Every measurement here shares one toolchain, git 2.53.0.windows.3 on one msys
+installation. The Ubuntu conclusion is inferred from a green CI log rather than from a Linux shell
+anyone ran directly. Whether glibc dash delivers a heredoc above 4096 is INFERRED, not measured, and
+is settled cheaply by one `dash -c` run in the tier1 job printing the delivered byte count.
+### 2026-08-22 - CS-703 - FROZEN-FILE GRANT ISSUED by the OPERATOR for all THREE hooks, then GRANTED-WITH-CONDITIONS by an adjudicator
+Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit, not a
+completion record. Nothing has been edited under it at the time of writing. The item it serves is
+filed in `ROADMAP.md` as CS-703 with its detail in `docs/history_notes.md`; this entry does not
+close it.
+GRANTED BY THE OPERATOR, in direct answer to a question naming CS-703, the three files and the
+measured blast radius, and then ROUTED THROUGH AN ADJUDICATOR that produced none of the work it
+judged. The adjudicator returned GRANTED-WITH-CONDITIONS and independently re-derived every
+measurement below in its own throwaway repositories rather than accepting them.
+SCOPE: `.githooks/pre-commit`, `.githooks/commit-msg` and `.githooks/pre-push`, for CS-703 ALONE.
+ALL THREE ARE IN SCOPE TOGETHER BY CONSTRUCTION - the defect is a byte-identical `cs_probe` in
+each, and a probe repaired in two of three is green in exactly the way this defect was green.
+TWO PARTS, and nothing else in any of the three files may be touched. PART 1 replaces `cs_probe`
+so it judges the candidate's OUTPUT rather than only its exit code. PART 2 makes a set-but-failing
+`CLOCKSPEED_PYTHON` call the existing failure helper instead of falling through to the next rung.
+The four-rung ladder ORDER is NOT touched and stays as the 2026-08-15 entry in this file settled
+it: the hooks name `py -3` correctly, as the documented last resort. The acceptance tests land
+under `tests/`, which is not frozen and is not part of this grant.
+NO OTHER FROZEN PATH IS COVERED. `scripts/install_hooks.py`, `tools/precommit_gate.py`,
+`.claude/settings.json` and `LICENSE` are NOT in this grant, and each would need its own.
+THE DEFECT, MEASURED TWICE INDEPENDENTLY with git 2.53.0.windows.3, one wired hook per throwaway
+repository so a block is attributable. Control with `CLOCKSPEED_PYTHON` unset: pre-commit exits 1
+with HEAD unchanged on a staged em dash; commit-msg exits 1 with HEAD unchanged and the trailer
+check fires by name; pre-push exits 1 because a deliberately failing test really runs, and the ref
+never reaches the remote. With `CLOCKSPEED_PYTHON=true`: ALL THREE exit 0. The pre-commit commit
+lands carrying the em dash bytes. The commit-msg commit lands and `git log -1
+--format=%(trailers:key=Co-authored-by)` reads the trailer back as a REAL trailer, so CS-702 is
+disarmed by an environment variable. The pre-push ref LANDS on the remote with the suite never run.
+NINE CONDITIONS ARE THE ADJUDICATOR'S AND BIND THIS GRANT. They are written here because this is
+their only tracked home; the 2026-08-15 ruling against restating a condition applies to conditions
+that already have an owner file, and these have none.
+ONE, the change ships a test driving a REAL `git commit` with the interpreter substituted, asserting
+a non-zero exit AND that HEAD did not move, demonstrated RED against the current hooks first.
+TWO, that end to end assertion exists for ALL THREE hooks; agreement between byte-identical copies
+is not evidence.
+THREE, the probe's captured-output variable is initialised before first use, so `set -u` cannot fire
+on the failure path.
+FOUR, the PART 2 failure message prints the OBSERVED probe output verbatim and states that
+`CLOCKSPEED_PYTHON` must name ONE EXECUTABLE, not a command line with arguments.
+FIVE, the probe program writes its token with NO trailing newline, with the reason recorded beside it.
+SIX, PART 2 EXCEEDS THE ACCEPTANCE AS FILED and this entry says so plainly rather than quietly
+widening it. The filed acceptance is satisfied by PART 1 alone. PART 2 is an OPERATOR INSTRUCTION,
+chosen in direct answer to a question that named both alternatives.
+SEVEN, `scripts/install_hooks.py` runs clean after the edit, which is the LF-only and no-BOM check.
+EIGHT, this grant is recorded here before the edit is made.
+NINE, `docs/GATED.md` is updated when CS-703 closes: it currently lists a substituted interpreter as
+a live member of the class no client-side gate covers, and says that member sits ABOVE the edit line
+the CS-702 grant drew. This grant is what draws the new line.
+WHY THE RUNNER-UP LOST, recorded because it is the better argument than it looks. PART 1 ALONE
+satisfies the filed acceptance and the adjudicator MEASURED that it does: with the repaired probe
+and the old fall-through, `CLOCKSPEED_PYTHON=true` fails the probe, the ladder falls to real
+`python`, and the em dash is blocked. Its cost is that a CLEAN file then COMMITS, exit 0, under an
+interpreter the operator pinned, was silently overruled on, and was never told about. That is the
+CS-806 shape surviving in a quieter form, and `BOOTSTRAP.md` section 2.5 names exactly it. PART 2's
+cost is a loud message; the fall-through's cost is silence.
+A CORRECTION TO `docs/history_notes.md` UNDER **CS-703 - detail**, per CLAUDE.md section 8, made by
+measurement from two agents that ran it rather than read it. That block says the old probe passes
+"`true`, `:` and `env`". `env` DOES NOT PASS on this toolchain - GNU `env` rejects `-c` and exits
+125 - and `echo` DOES pass and is not named. The item is unaffected: `true` and `:` both pass, and
+`true` is precisely the argument-ignoring program the acceptance names. The detail block is
+corrected in place there rather than here, because it is not append-only.
+THE BLAST RADIUS OF THE FIX IS EXACTLY THESE THREE FILES, and the blast radius of the DEFECT CLASS
+is wider by one. Checked by grep rather than by reasoning: `scripts/verify_env.py`,
+`scripts/install_hooks.py`, `tools/precommit_gate.py`, `tools/edit_lint_check.py`,
+`tools/pretooluse_gate.py`, `tools/facts_probe.py`, `tools/drift_guard.py`, `config/` and both CI
+workflows are all CLEAN of this shape, and no CI job or tracked doc sets `CLOCKSPEED_PYTHON` at all.
+`.claude/settings.json` IS A FOURTH SITE OF THE CLASS: it hardcodes its interpreter with no ladder
+and no probe, and a missing or substituted one yields a status its own protocol treats as
+non-blocking, so it fails OPEN. It is MILDER because CLAUDE.md section 2.2 makes the Claude hooks a
+convenience layer and `.githooks` authoritative, and it is NOT FIXABLE HERE because JSON cannot
+express a probe. It is filed as its own item and needs its own grant.
+FIVE RESIDUALS ARE DISCLOSED RATHER THAN CLOSED, each filed as its own item. The probe asserts
+PYTHONHOOD, NOT TOOLCHAIN, so `py -3` passes it and still has no pytest, which is the
+`BOOTSTRAP.md` section 2.5 trap arriving at a different door. `PYTHONINSPECT=1` HANGS BOTH THE OLD
+AND THE NEW PROBE, measured at a bounded six seconds returning 124 WITH stdin already at
+`/dev/null`, so closing stdin does not close it and neither probe is timeout-bounded.
+`scripts/verify_env.py` never evaluates `CLOCKSPEED_PYTHON`, so a green environment check does not
+predict which interpreter the hooks will resolve. Three FALSE-REFUSAL modes are accepted
+deliberately - a `sitecustomize` printing to stdout, a `.cmd` shim without `@echo off`, and
+`PYTHONIOENCODING=utf-8-sig` - because the alternative, containment instead of exact equality,
+trades a LOUD false refusal for a SILENT false accept, which is the wrong trade in a gate. And a
+purpose-built forger that simply prints the token passes, which no probe can prevent and which the
+hook comment must state rather than imply otherwise.
+THE COMMON-MODE RISK IS RECORDED. All three probes and both independent re-derivations share ONE
+toolchain, git 2.53.0.windows.3 on one msys bash. `CONVENTIONS.md` section 16 says hook findings are
+version-specific and expire; re-measure rather than inherit.
 ### 2026-08-22 - CS-702 - CLOSED: a co-authorship trailer is BLOCKED end to end, and the gate's predicate is git's own rather than a list of agent names
 Verification: `.githooks/commit-msg` carries the check;
 `tests/test_commit_msg_gate.py::test_a_co_authorship_trailer_is_blocked_and_head_is_unchanged` is the
