@@ -97,8 +97,8 @@ Append-only, NEWEST-FIRST, one entry per item:
 Rediscovery - redoing closed work, re-pitching a refuted idea, acting on a stale doc - is
 the dominant failure mode, and this prompt is the defence against it.
 
-Print it as a complete, self-contained block the operator can paste into a cold session with
-no other context:
+It must be complete and self-contained - the operator pastes it into a cold session with no
+other context. WHAT GOES IN IT:
 
 - [ ] What this session closed, by item ID, one line each.
 - [ ] The exact state of anything left half-done, including which files are dirty.
@@ -110,6 +110,25 @@ no other context:
 - [ ] The files the next session must read first: `CLAUDE.md`, `memory/MEMORY.md`,
       `ROADMAP.md`, `WAKEUP_NOTES.md`, `docs/ARCHITECTURE.md`.
 - [ ] Any external condition being waited on.
+
+**HOW TO EMIT IT: inline, raw, and copy-pastable in one grab.** The operator moves this by
+hand into a cold session. Rendered markdown cannot be moved - the emphasis markers are
+consumed, the list structure becomes the renderer's, and there is no raw source to select.
+So emit the SOURCE, verbatim, inside a fence:
+
+- [ ] ONE fenced block, opened and closed with FOUR backticks, and no language tag. Four,
+      not three: the prompt itself contains a three-backtick fence (the uncommitted-branch
+      list), and a three-backtick outer fence is closed by the first inner one, silently
+      truncating every line after it. No language tag - a `bash` tag puts a Run button on it.
+- [ ] That fence is the LAST thing in the message. Nothing after it - no summary, no sign
+      off, no offer to continue. Trailing prose is text the operator has to select around.
+- [ ] Nothing above it either, beyond one line naming what it is.
+- [ ] 7-bit ASCII, per non-negotiable 4. No em-dashes, no smart quotes. A pasted em-dash is
+      how one enters a file in the first place, and this is the most-pasted string the
+      project emits.
+- [ ] Emphasise with CAPS, not `**`. Inside a fence nothing renders, so `**` reaches the
+      operator as two literal asterisks.
+- [ ] One block, whole. Never split across two fences, never summarised in prose first.
 
 ## 9. Final report
 
