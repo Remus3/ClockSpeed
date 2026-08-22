@@ -1278,6 +1278,14 @@ this arrived. The acceptance asks for a check with a control for that reason.
 
 ## CS-492 - detail
 
+### Relocated 2026-08-22 (session 32) from `ROADMAP.md` - the CS-492 NOTE, verbatim
+
+Moved for budget, not deleted. The item itself stays OPEN in `ROADMAP.md`, which now
+carries a one-line pointer here.
+
+**NINE ROUNDS, NINE REFUTATIONS, every one on a real defect.** s27 graded round six (REFUTED), built and graded rounds seven and eight (both REFUTED on both lenses), and dispatched round nine, which is UNGRADED. **THE ROOT CAUSE IS LOCATED AND IT IS A CHOSEN CONTRACT: the evidence rule is VALUE-AGNOSTIC** - it asks whether a bare name is bound at module scope, never what to - so `stat = "chunks"` certifies `stat` as a filesystem primitive and a neighbouring `def get(self, stat): return stat` manufactures EIGHT declarations on the real `tests/save/test_phase4_gate.py`. That row is measured on rounds SIX, SEVEN AND EIGHT alike, so it predates every repair and round six's defect has been DISPLACED TWICE AND REPAIRED ZERO TIMES. **Rounds seven and eight are UNCOMMITTED in worktrees by operator decision** - no build is strictly best, r7 has the cleaner false-flag direction and three silent module-scope escapes, r8 fixes those and regresses three false-flag rows. **Do not close this by widening the name list alone** - CS-491's note said so and nine rounds have now tested it to destruction. **THE FALSE-FLAG DIRECTION IS NOW CS-807, TIER 1, AND IT OUTRANKS THIS ITEM** - operator decision 2026-08-22. This acceptance is ESCAPE-SHAPED and says nothing about flagging a module that reaches nothing, which is what actually refuted all nine rounds; read CS-807's detail block before taking either. **THE BARE-NAME CONFLICT IS MEASURED IRREDUCIBLE - do NOT spend a tenth round on it.** Two narrowing spikes, five-site and two-site, each take every manufactured-declaration payload to zero, each cost the SAME twelve controls, and narrowing the site count retires none: telling a caption from a locator on the same bare token needs the type resolution this repo has declined. Full measurement table, both failed fix shapes and the next action are in `WAKEUP_NOTES.md` session 27; the filing history is in `docs/history_notes.md` **CS-492 - detail**.
+
+
 Relocated from `ROADMAP.md` 2026-08-20 (session 24) for budget, not deleted. The item itself
 stays OPEN in `ROADMAP.md`.
 
