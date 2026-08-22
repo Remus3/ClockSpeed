@@ -73,6 +73,57 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-22 - CS-702 - FROZEN-FILE GRANT ISSUED by the OPERATOR for `.githooks/commit-msg`, then NARROWED by an adjudicator
+Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit, not a
+completion record. Nothing has been edited under it at the time of writing. The item it serves is
+filed in `ROADMAP.md` as CS-702; this entry does not close it.
+GRANTED BY THE OPERATOR, in direct answer to a question naming CS-702 and this file, and then
+ROUTED THROUGH AN ADJUDICATOR that produced none of the work it judged - the section 6 route in
+full, rather than the direct-issue route every prior grant in this file took. The adjudicator
+returned GRANTED-WITH-NARROWING.
+SCOPE: `.githooks/commit-msg`, for CS-702 ALONE. ONE insertion - a constant, a loop, and a single
+call to the existing failure helper - placed after the placeholder-subject check and before the
+final exit, inside the heredoc that is already there. Nothing above the interpreter ladder may be
+touched: the shebang, the header comment, the shell options, the early failure helper, the
+message-file guard, the probe and dispatcher helpers, the four-rung ladder and its fail-closed
+else branch are all OUT of scope, as is the tail. No reordering, no renaming, no helper
+extraction, no reflow of an existing line. The acceptance test lands under `tests/`, which is not
+frozen and is not part of this grant.
+NO OTHER FROZEN PATH IS COVERED. `.githooks/pre-commit`, `.githooks/pre-push`,
+`scripts/install_hooks.py`, `tools/precommit_gate.py`, `.claude/settings.json` and `LICENSE` are
+NOT in this grant, and each would need its own.
+CONDITIONS ARE THE ONES ALREADY WRITTEN IN CS-702'S ROADMAP ENTRY and are deliberately NOT
+restated here, per the ruling recorded in the 2026-08-15 grant entry below: restating a condition
+is how a condition drifts.
+FOUR CONDITIONS ARE ADDED BY THE ADJUDICATOR, because they bind this grant rather than any clause
+already written. FIRST, THE PREDICATE IS NAME-FREE - it rejects the trailer SHAPE and carries no
+list of agent names, because a name list fails OPEN on the next harness or model rename, which is
+exactly the continuous pressure CS-702 was filed against. SECOND, it reads the COMMENT-STRIPPED
+message body rather than the raw bytes, so a scissors-cut verbose diff and a commented-out line
+stay out of scope - both were measured to be discarded by git before the message exists. THIRD,
+no edit sits above the interpreter ladder. FOURTH, LF-only line endings are ASSERTED after the
+edit rather than assumed - the harness edit path converts a tracked file to CRLF while git
+normalises the blob so the working tree still reports clean, and msys bash runs a CRLF hook
+correctly on this toolchain, so the breakage is invisible here and surfaces on another shell.
+THE POLARITY IS WIDER THAN THE RECORDED OPERATOR DECISION, AND THAT IS DELIBERATE. `docs/GATED.md`
+records the rule as no commit carrying a co-authorship trailer that names an agent; this gate
+rejects EVERY co-authorship trailer, name-free, on the fail-closed criterion and on the CS-209
+precedent that narrowing a blocklist by default to pre-empt a collision was DENIED BY MEASUREMENT.
+Cost measured on this date is ZERO - every one of the eighteen trailer-bearing commits then on
+`main` names an agent, and no human co-author trailer existed anywhere in the history. A future
+genuine human co-author is BLOCKED, which is the intended failure direction; the route is then a
+new item and a recorded allowlist entry, never a shortened matcher. THIS IS THE ONE PART OF THE
+VERDICT MOST WORTH OVERRULING, and it is recorded here so that the operator can.
+TWO BYPASSES ARE OUT OF REACH OF THIS GRANT AND ARE NOT CLAIMED CLOSED. Measured in a throwaway
+repository this session: `git commit --no-verify` does not fire this hook, and `git cherry-pick`
+does not fire it either, so a replay of the historical commits would re-inject every trailer with
+the gate silent. Closing those needs a range scan in `.githooks/pre-push`, or a check on the CI
+side - a separate frozen file and a separate grant.
+THE COMMON-MODE RISK IS RECORDED because both halves of the work inherit it: the hook's invocation
+path is machine-local git configuration that is never cloned, and a unit test of the matcher is
+byte-identical green whether the gate fires or not. That is why CS-702's acceptance names an end
+to end transcript rather than a file, and why this grant is conditional on that transcript.
+
 ### 2026-08-22 - CS-442 - CLOSED, and a CORRECTION to five earlier entries: `docs/` is read by a guard for the first time, and the dead pointers it found are corrected here rather than in the entries that carry them
 Verification: `tests/test_docs_citations.py`, which is the first thing in this repository to read
 `docs/` at all. The control the acceptance asks for is
