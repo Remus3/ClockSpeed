@@ -609,6 +609,93 @@ Relocated 2026-08-21 (session 27) because a fourth session landed and that file 
   reddens on the guard's vacuity assertion instead. Then CS-499, CS-500, and CS-484 whose premise is
   measured and whose pinning is now cheap.
 
+## Session 26 - relocated from WAKEUP_NOTES.md
+
+Relocated 2026-08-22 (session 27 continued) because a fourth session entry landed and that file holds the last two to three at full fidelity. Relocated, never deleted.
+
+## Session 26 - 2026-08-21 - CS-492 is BUILT in full and does NOT close; six refutation rounds, five of them mine to answer
+
+- **Shipped: NOTHING CLOSED, and that is the result rather than a shortfall.** CS-492's
+  acceptance is built, controlled and mutation-covered, and the item stays OPEN because
+  ROUND SIX IS UNGRADED. Six grading rounds ran; every one returned REFUTED and every one
+  found something real. Closing on an ungraded round is the mistake this ledger keeps
+  recording. Filed CS-800 through CS-805.
+
+- **THE HEADLINE IS THAT THE GUARD WAS MANUFACTURING DECLARATIONS, not that it was missing
+  routes.** A declaration is a written claim about where personal data flows, so a false
+  reacher is worse than a missed one, and this item produced EIGHT of them across rounds
+  three to five. The worst was measured on the real tree: `monkeypatch.setattr(os, "walk",
+  os.scandir)` - three ordinary lines - took `tests/save/test_phase4_gate.py` from nine
+  flagged functions to twenty. `walk` is excluded BY NAME in `_NOT_LIBRARY_REACH` precisely
+  because `ast.walk` is how every AST guard here reads a tree, and CS-497 made
+  `_reach_primitives` INTERSECT so an unclassified name reaches nothing. **The attribute
+  vocabulary I added had no partition, no map and no intersection**, so the exclusion was
+  bypassed by the back door. An exclusion that holds in one namespace and not the other is
+  not an exclusion.
+
+- **ONE DOOR ACCOUNTED FOR SIX OF THE EIGHT.** The three-argument store shape read
+  `f(target, "name", value)` as a store - which is what `setattr` is, and equally what
+  `getattr(spec, "reader", open)`, `re.sub(pattern, "count", text)` and `OSError(13,
+  "denied", path)` are. It produced a false reacher in THREE separate rounds with a
+  different payload each time. It is gone; `_attribute_stores` read 160 stores on this tree
+  and 127 were that shape, so it now reads 33. Two shipped controls died with it and are
+  recorded in CS-802 with the measurement, not quietly dropped.
+
+- **THE ROOT CAUSE IS ONE SENTENCE AND IT IS NOT NEW.** `_stands_for_a_primitive` treats a
+  primitive's RESULT as standing for one, and justifies it by saying that costs a flag "only
+  where the bound name is itself CALLED, which no module in this package does". The
+  vocabulary is therefore full of PATH CONSTANTS. A hand-back is exactly the place that
+  justification fails. Four rounds were spent deleting arms - the call arm, the container
+  arms, the subscript/conditional/fallback arms - before round six did the thing those
+  deletions were substituting for: `_serving_names` builds a SECOND, narrower name set from
+  the primitives outward by the hand-back rule itself. That is the callable-versus-value
+  split, computed where it can be.
+
+- **THREE OF MY OWN SENTENCES WERE MEASURED FALSE AND ARE CORRECTED IN PLACE.** Do not
+  rewrite them back. `_reaching_attributes`'s stated cost bound ("costs a flag only where a
+  module binds a locator to an attribute name and then calls something else of that name")
+  was broken by a counter-example holding no locator at all. `_returned_values` claimed
+  `yield from` walks "a container of spellings" while `_hands_back_a_primitive` refuses
+  containers outright. And a `strings` switch documented as structural was set correctly at
+  ONE of three call sites in the commit that introduced it.
+
+- **THE MEASUREMENT THAT MATTERED MOST WAS THE ONE THAT SAID NOTHING HAPPENED.** The
+  widening adds zero attributes, zero serve-aliases, zero newly-flagged functions and loses
+  zero coverage across all 18 modules - re-measured after every round, with the harness
+  proven able to report non-zero on a planted module first. That zero is real and it is also
+  weak evidence: a refutation pass showed the tree sits ONE ORDINARY LINE from a false flag,
+  and then produced the line.
+
+- **A CONTROL STOPPED COVERING THE THING IT WAS WRITTEN FOR, silently.** Closing the
+  attribute fixpoint in round six meant the hold-and-serve chain no longer needed a second
+  round of the OUTER fixpoint, and a mutant setting that loop to `range(1)` went green. The
+  mutant was proved non-equivalent and `an-alias-of-a-server` now carries that bound. A
+  passing control is not evidence that the bound it was written for still has one.
+
+- **Failed paths, so they are not retried:** keying the store shape on the callee (measured,
+  leaves every other store helper open); turning the container arm back on (measured, two
+  false reachers from two different channels); a per-caller `strings` switch (set wrong
+  immediately); scoping the attribute vocabulary per CLASS (needs receiver typing that
+  `_callee_resolves` refuses elsewhere).
+
+- **Suite, no game: `tests` 2190 passed / 52 skipped / exit 0; `tests/save` 1155 passed / 49
+  skipped / exit 0.** With the library, 2239 passed / 3 skipped / exit 0. mypy clean 86,
+  ruff check and format clean repo-wide, drift guard CLEAN 9/9, doc budget PASS measured 16
+  after four relocate passes, precommit gate PASS 5. 24 mutants, all killed, no survivors,
+  against a green pristine floor. Controls in `test_reach_guard.py`: 63 at HEAD, 95 now.
+
+- **Decisions: the operator opened the `CS-8nn` follow-up block** because `CS-4nn` is full
+  (98 of 100, the two free being gaps the rule forbids backfilling), and ruled that
+  `WAKEUP_NOTES.md`'s ENTRIES were the wrong half of its four-session contradiction. This
+  file is now newest-first as its header always said; session 23 relocated to
+  `docs/history_notes.md`.
+
+- **Next action: GRADE ROUND SIX.** Dispatch a refutation pass against the working tree - not
+  against HEAD, which is round zero - on both lenses at once: what still escapes, and what
+  the widening falsely flags. If it comes back clean, CS-492 closes on its acceptance and the
+  ledger entry cites `tests/save/test_reach_guard.py::test_a_primitive_reached_through_an_object_is_named_by_the_guard`
+  plus `::test_the_object_routed_widening_does_not_flag_a_module_that_reaches_nothing`.
+
 ## CS-807 - detail
 
 Filed 2026-08-22 (session 27) by operator decision, splitting the FALSE-FLAG direction out of

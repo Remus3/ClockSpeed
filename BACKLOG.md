@@ -38,6 +38,20 @@ below is deliberately deferred. **Trigger for all three: phase 6 completes.**
   decide whether to move the band or accept it and re-record `config/ports.json`; conditional
   on CS-601 actually trying to bind, and an operator call either way.
 
+## Doc topology
+
+- `ROADMAP.md` needed TWO relocate passes in one day - 9 bytes of margin, then 97 after two
+  filings - so it is structurally at its 61440 ceiling rather than occasionally near it, and
+  the budget is severity WARN so CI never says so; find a durable answer other than a manual
+  pass per session, noting CS-495 settled that raising the number is not it - conditional on
+  ROADMAP.md hit its budget a third time, or on an operator call.
+- `docs/history_notes.md` opens with "This file holds NOTHING current" and is now the home of
+  the LIVE instructions for CS-421, CS-442, CS-456, CS-460, CS-465, CS-468, CS-472, CS-479,
+  CS-484, CS-492, CS-702, CS-806 and CS-807, which `ROADMAP.md` points at with "MUST BE READ
+  BEFORE TAKING THIS ITEM" - the file is doing two contradictory jobs and its header is the
+  half that is false; conditional on an operator ruling, the same shape as the WAKEUP_NOTES
+  ordering ruling of session 26.
+
 ## Ingestion lanes
 
 - OCR and CV ingestion lane for live and transient state the save file cannot provide -

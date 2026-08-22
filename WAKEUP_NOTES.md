@@ -31,6 +31,96 @@ the line becomes a pointer.
 
 ---
 
+## Session 27, continued - 2026-08-22 - CS-492 rounds seven to nine all REFUTED; the bare-name conflict is MEASURED IRREDUCIBLE and CS-807 takes the false-flag direction
+
+**This entry is newer than session 28's below it.** Session 27 resumed after session 28 had
+closed and pushed; its commits `6680182` and `31f0e2a` sit on top of `5a5de5f`. Nothing in
+session 28's entry is superseded.
+
+- **Shipped: NOTHING CLOSED, for the second session running, and it is the result rather than a
+  shortfall.** CS-807 was FILED. Rounds seven, eight and nine of CS-492 were BUILT, each graded
+  on two independent lenses, and every one returned REFUTED on a real defect. All three remain
+  UNCOMMITTED in worktrees by operator decision so nothing unproven enters `main`. Zero `.py`
+  files were touched in `main` across the whole session.
+
+- **THE THREE NUMBERS THAT DECIDED EVERYTHING, all reproduced by the merger rather than taken
+  from a builder.** The `_ANY_ATTRIBUTE` sentinel manufactures **268** false declarations across
+  six real modules from FIVE ORDINARY LINES of PEP 562 - measured 47 flagged before, 315 after.
+  The bare-name class that consumed nine rounds manufactures **EIGHT**. And **FOUR** false
+  declarations are LIVE ON THE SHIPPED TREE in `tests/save/test_oracle_citations.py`, whose own
+  reason strings say "It opens no file and touches no path at all". The guard was never
+  repaired; the false flags were written down and shipped as exemptions.
+
+- **THE BARE-NAME CONFLICT IS MEASURED IRREDUCIBLE. DO NOT SPEND A TENTH ROUND ON IT.** Two
+  narrowing spikes were measured against round nine - FIVE-SITE and TWO-SITE. Both take every
+  manufactured-declaration payload to ZERO, including `import stat` plus the exec-bit constants,
+  which is verbatim real repo code at `scripts/install_hooks.py:44` and `:206`. Both cost the
+  SAME TWELVE controls. **Narrowing five sites to two retires NONE of them**, and the mechanism
+  was verified rather than inferred: the patched arm is the only consumer of evidence for a bare
+  vocabulary word. Two-site DOMINATES five-site - same kills, same reds, smaller diff, one extra
+  route kept - so if the hypothesis is ever adopted, adopt it at two sites.
+
+- **THE CONFLICT, STATED ONCE SO IT IS NOT REDISCOVERED.**
+  `test_a_parameter_spelled_like_a_primitive_binds_nothing_and_serves_nothing` demands BOTH that
+  `stat` as a PARAMETER manufacture nothing AND that `stat = os.stat` at module scope BE CAUGHT.
+  Same token, name-keyed guard. Telling them apart needs the type resolution this repo has
+  declined. Nine rounds were attempts to split that hair and the measurement says it does not
+  split.
+
+- **ROUND NINE'S ENGINE SURVIVED CONTROL-VALIDITY GRADING; ITS PROSE DID NOT.** 38 mutants
+  against the builder's 19 found NO new defect, no weakened assertion, no lost control, renames
+  clean, the sole survivor proven genuinely equivalent, and termination LOUD rather than hanging
+  - 252 `RuntimeError`s where round eight once hung. It was refuted on two documentation defects:
+  it ships a provenance claim it declares false 345 lines later in the same file, and it left
+  THREE citations to `_value_bound_names`, a function it deleted, one of them the opening
+  sentence of a control it added in the same change. **The stale provenance claim is INHERITED
+  and is live on `main` today**; the stranded citations are round nine's own.
+
+- **THE PROGRESSION, so nobody re-derives it:** round six certified ANY binding; seven any
+  MODULE-SCOPE binding; eight any binding STATEMENT; nine any binding whose value SPELLS a
+  vocabulary word. The rule was never value-aware, only LITERAL-aware - `stat = "open"` certifies
+  and `stat = "chunks"` does not, and the shipped control grades exactly the one literal that
+  misses. Displaced four times, repaired zero times.
+
+- **Failed paths, so they are not retried:** deleting the `def`/`class` admission from
+  `_value_bound_names` - reds `a-hold-and-serve-chain-two-rounds-deep` at `2 failed, 1179 passed`;
+  splitting locators from raw vocabulary - broken by `def resolve(): return locate.resolve_save_root`,
+  a genuine server spelled with a vocabulary word; and the two-site narrowing as a cost reduction -
+  it retires nothing.
+
+- **METHOD, EARNED: GRADE A CLAIM AT THE GRANULARITY THE CLAIM IS MADE AT.** A module-level probe
+  told the merger a subscript escape did NOT reproduce; it did. The planted `__getattr__` reached
+  on its own account, so the module flagged either way. Only calling
+  `_assert_library_reach_is_declared(path, graded={}, exempt={})` directly and reading
+  `caught.args[0]` separated pristine from mutant.
+
+- **A PROBE GOES STALE THE MOMENT THE RULE CHANGES.** The merger's `except_target` probe read
+  SILENT on round nine and looked like a hole. It is not: `except ValueError as stat` binds the
+  caught EXCEPTION INSTANCE, never a primitive, so declining it is correct under a value-aware
+  rule. The probe was written to catch round seven's regression and outlived its premise.
+
+- **TWO BUILDER CORRECTIONS TO THE MERGER'S OWN BRIEFS, both right.** The round-nine brief
+  asserted "these 15 routes are all currently CAUGHT and I verified that myself" - `except_target`
+  was not. And the seed control the merger specified for round nine had SILENTLY DECAYED INTO
+  DECORATION: a different bound now blocked its mutant, so it separated nothing. Builders that
+  implement the brief verbatim would have shipped both.
+
+- **Suite at `31f0e2a`, no game, run this session from scratch: `tests` 2190 passed / 52 skipped /
+  exit 0.** mypy clean 86 and 28, ruff check and format clean, drift guard CLEAN 9/9, doc budget
+  PASS measured 16, precommit gate PASS non-vacuously via `--files`. Every skip is environmental -
+  no game install or no save library - or the mypy gate's empty gap record.
+
+- **Documentation: TWO relocate passes in ONE DAY.** `ROADMAP.md` went 9 bytes -> 2647 -> 97
+  (session 28 filed into it) -> 5426 -> 4090. Nine notes relocated byte-identically across the two
+  passes. The file is structurally at its ceiling and the budget is severity WARN so CI never says
+  so; filed to `BACKLOG.md` with the `docs/history_notes.md` header contradiction beside it.
+
+- **Next action: TAKE CS-807, and take the SWEEP first.** Whether those four false exemptions are
+  the only ones on the shipped tree is UNMEASURED - they were found by following one control's
+  failure, not by looking. Sweep every module under `tests/save` for an exemption whose reason
+  string denies touching the filesystem, before any repair is designed. Then the sentinel, which
+  is thirty times the bare-name class and untouched by every round and both spikes.
+
 ## Session 28 - 2026-08-22 - an /insights pass; NOTHING CLOSED and four findings filed, one of which reversed under its own evidence
 
 - **Shipped: NOTHING CLOSED, and no code at all.** Zero `.py` files touched across four
@@ -230,86 +320,3 @@ the line becomes a pointer.
   whether a name-keyed guard can satisfy this acceptance at all - CS-491's own note warned
   "do not close this by widening the name list alone", and nine rounds have now tested that
   warning to destruction.
-
-## Session 26 - 2026-08-21 - CS-492 is BUILT in full and does NOT close; six refutation rounds, five of them mine to answer
-
-- **Shipped: NOTHING CLOSED, and that is the result rather than a shortfall.** CS-492's
-  acceptance is built, controlled and mutation-covered, and the item stays OPEN because
-  ROUND SIX IS UNGRADED. Six grading rounds ran; every one returned REFUTED and every one
-  found something real. Closing on an ungraded round is the mistake this ledger keeps
-  recording. Filed CS-800 through CS-805.
-
-- **THE HEADLINE IS THAT THE GUARD WAS MANUFACTURING DECLARATIONS, not that it was missing
-  routes.** A declaration is a written claim about where personal data flows, so a false
-  reacher is worse than a missed one, and this item produced EIGHT of them across rounds
-  three to five. The worst was measured on the real tree: `monkeypatch.setattr(os, "walk",
-  os.scandir)` - three ordinary lines - took `tests/save/test_phase4_gate.py` from nine
-  flagged functions to twenty. `walk` is excluded BY NAME in `_NOT_LIBRARY_REACH` precisely
-  because `ast.walk` is how every AST guard here reads a tree, and CS-497 made
-  `_reach_primitives` INTERSECT so an unclassified name reaches nothing. **The attribute
-  vocabulary I added had no partition, no map and no intersection**, so the exclusion was
-  bypassed by the back door. An exclusion that holds in one namespace and not the other is
-  not an exclusion.
-
-- **ONE DOOR ACCOUNTED FOR SIX OF THE EIGHT.** The three-argument store shape read
-  `f(target, "name", value)` as a store - which is what `setattr` is, and equally what
-  `getattr(spec, "reader", open)`, `re.sub(pattern, "count", text)` and `OSError(13,
-  "denied", path)` are. It produced a false reacher in THREE separate rounds with a
-  different payload each time. It is gone; `_attribute_stores` read 160 stores on this tree
-  and 127 were that shape, so it now reads 33. Two shipped controls died with it and are
-  recorded in CS-802 with the measurement, not quietly dropped.
-
-- **THE ROOT CAUSE IS ONE SENTENCE AND IT IS NOT NEW.** `_stands_for_a_primitive` treats a
-  primitive's RESULT as standing for one, and justifies it by saying that costs a flag "only
-  where the bound name is itself CALLED, which no module in this package does". The
-  vocabulary is therefore full of PATH CONSTANTS. A hand-back is exactly the place that
-  justification fails. Four rounds were spent deleting arms - the call arm, the container
-  arms, the subscript/conditional/fallback arms - before round six did the thing those
-  deletions were substituting for: `_serving_names` builds a SECOND, narrower name set from
-  the primitives outward by the hand-back rule itself. That is the callable-versus-value
-  split, computed where it can be.
-
-- **THREE OF MY OWN SENTENCES WERE MEASURED FALSE AND ARE CORRECTED IN PLACE.** Do not
-  rewrite them back. `_reaching_attributes`'s stated cost bound ("costs a flag only where a
-  module binds a locator to an attribute name and then calls something else of that name")
-  was broken by a counter-example holding no locator at all. `_returned_values` claimed
-  `yield from` walks "a container of spellings" while `_hands_back_a_primitive` refuses
-  containers outright. And a `strings` switch documented as structural was set correctly at
-  ONE of three call sites in the commit that introduced it.
-
-- **THE MEASUREMENT THAT MATTERED MOST WAS THE ONE THAT SAID NOTHING HAPPENED.** The
-  widening adds zero attributes, zero serve-aliases, zero newly-flagged functions and loses
-  zero coverage across all 18 modules - re-measured after every round, with the harness
-  proven able to report non-zero on a planted module first. That zero is real and it is also
-  weak evidence: a refutation pass showed the tree sits ONE ORDINARY LINE from a false flag,
-  and then produced the line.
-
-- **A CONTROL STOPPED COVERING THE THING IT WAS WRITTEN FOR, silently.** Closing the
-  attribute fixpoint in round six meant the hold-and-serve chain no longer needed a second
-  round of the OUTER fixpoint, and a mutant setting that loop to `range(1)` went green. The
-  mutant was proved non-equivalent and `an-alias-of-a-server` now carries that bound. A
-  passing control is not evidence that the bound it was written for still has one.
-
-- **Failed paths, so they are not retried:** keying the store shape on the callee (measured,
-  leaves every other store helper open); turning the container arm back on (measured, two
-  false reachers from two different channels); a per-caller `strings` switch (set wrong
-  immediately); scoping the attribute vocabulary per CLASS (needs receiver typing that
-  `_callee_resolves` refuses elsewhere).
-
-- **Suite, no game: `tests` 2190 passed / 52 skipped / exit 0; `tests/save` 1155 passed / 49
-  skipped / exit 0.** With the library, 2239 passed / 3 skipped / exit 0. mypy clean 86,
-  ruff check and format clean repo-wide, drift guard CLEAN 9/9, doc budget PASS measured 16
-  after four relocate passes, precommit gate PASS 5. 24 mutants, all killed, no survivors,
-  against a green pristine floor. Controls in `test_reach_guard.py`: 63 at HEAD, 95 now.
-
-- **Decisions: the operator opened the `CS-8nn` follow-up block** because `CS-4nn` is full
-  (98 of 100, the two free being gaps the rule forbids backfilling), and ruled that
-  `WAKEUP_NOTES.md`'s ENTRIES were the wrong half of its four-session contradiction. This
-  file is now newest-first as its header always said; session 23 relocated to
-  `docs/history_notes.md`.
-
-- **Next action: GRADE ROUND SIX.** Dispatch a refutation pass against the working tree - not
-  against HEAD, which is round zero - on both lenses at once: what still escapes, and what
-  the widening falsely flags. If it comes back clean, CS-492 closes on its acceptance and the
-  ledger entry cites `tests/save/test_reach_guard.py::test_a_primitive_reached_through_an_object_is_named_by_the_guard`
-  plus `::test_the_object_routed_widening_does_not_flag_a_module_that_reaches_nothing`.

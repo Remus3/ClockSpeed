@@ -73,6 +73,35 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-22 - CS-492, CS-807 - NOT A COMPLETION RECORD. NOTHING CLOSED. Nine rounds of CS-492 were graded and every one was REFUTED; the false-flag direction was split out as CS-807
+Verification: this entry is a POINTER. `ROADMAP.md` for CS-807 as a filed item and for
+CS-492's rewritten NOTE; `docs/history_notes.md` under **CS-807 - detail** for the
+measurement tables; `WAKEUP_NOTES.md` session 27 for the full-fidelity account. No test is
+cited because NO CODE SHIPPED - commits `b8148cd`, `6680182` and this one are documentation,
+and zero `.py` files were touched in `main` across the session.
+
+**WHAT WAS MEASURED, all of it reproduced by the merger rather than taken from a builder.**
+Rounds six, seven, eight and nine of CS-492 were each graded on two independent lenses and
+each returned REFUTED on a real defect. Rounds seven, eight and nine were BUILT and remain
+UNCOMMITTED in worktrees by operator decision, so that nothing unproven enters `main`; no
+build is strictly best, and round nine's engine survived control-validity grading while its
+prose did not.
+
+**THE THREE NUMBERS THAT DECIDED THE SPLIT.** The `_ANY_ATTRIBUTE` sentinel manufactures
+**268** false declarations across six real modules from five ordinary lines of PEP 562. The
+bare-name class that consumed nine rounds manufactures **eight**. And **four** false
+declarations are live on the shipped tree in `tests/save/test_oracle_citations.py`, whose own
+reason strings say "It opens no file and touches no path at all" - the guard was not repaired,
+the false flags were written down and shipped.
+
+**THE DECISION, AND ITS FENCE.** CS-492's acceptance is ESCAPE-shaped and cannot record
+whether the false-flag direction was won, so that direction became CS-807 at tier 1. Two
+narrowing spikes - five-site and two-site - each take every manufactured-declaration payload
+to zero, each cost the SAME twelve controls, and narrowing the site count retires NONE, so the
+bare-name conflict is MEASURED IRREDUCIBLE. *Do not re-pitch* a tenth round of the same shape,
+and *do not close either item by deleting the twelve controls*: one of them exists specifically
+to defeat a guard that passes the caption case by accepting nothing.
+
 ### 2026-08-22 - CS-442, CS-702, CS-G01, CS-G05 - NOT A COMPLETION RECORD. NOTHING CLOSED. An /insights pass measured four findings and filed each into the file that owns it
 Verification: this entry is a POINTER, deliberately - every measurement it refers to is
 recorded in the file that owns that fact, and is not restated here. `ROADMAP.md` for CS-442's
