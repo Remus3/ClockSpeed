@@ -73,6 +73,50 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-22 - CS-442, CS-702, CS-G01, CS-G05 - NOT A COMPLETION RECORD. NOTHING CLOSED. An /insights pass measured four findings and filed each into the file that owns it
+Verification: this entry is a POINTER, deliberately - every measurement it refers to is
+recorded in the file that owns that fact, and is not restated here. `ROADMAP.md` for CS-442's
+re-derived note and for CS-702 and CS-806 as filed items; `docs/history_notes.md` under
+**CS-442 - detail**, **CS-702 - detail** and **CS-806 - detail** for the methods and tables;
+`docs/GATED.md` for the dated CS-G01 and CS-G05 status blocks; `BACKLOG.md` for the port
+observation. No test is cited because no code shipped - like the CS-485 licence gate below,
+the record IS the artifact. Commits `b31d071`, `75a662a`, `bd5e9b3` and this one, all
+documentation, zero `.py` files touched across the session.
+
+**WHY A NON-CLOSURE RECORD EXISTS AT ALL.** The /insights pass that opened this session found
+that the two preceding commits shipped roughly 1750 lines into `main` under CS-492 with no
+ledger presence of any kind. Ending this session the same way would refute its own finding.
+This entry is therefore the minimum that makes the session visible from the ledger, and it
+points rather than restates because `CLAUDE.md` section 4 gives every fact exactly one owner.
+
+**THE FOUR FINDINGS, one line each, evidence in the owning file.** CS-442: the ledger's own
+verification pointers were censused and 7 of 68 do not resolve, in three repair classes, and
+the figure is a floor because only one citation shape was read. CS-702, NEW ID: the
+no-agent-trailer rule recorded in `docs/GATED.md` is enforced by nothing and 18 commits on
+`main` already carry the trailer. CS-G01: unblocking condition 1 is stale. CS-G05: the next
+step its 2026-08-16 status block promised was never taken.
+
+**ONE CORRECTION, RECORDED BECAUSE THE WRONG READING IS THE TEMPTING ONE AND WILL BE REACHED
+AGAIN.** The CS-G01 finding was first written up as "S4 succeeded, so the item should have been
+VOIDED and was not". **THAT IS BACKWARDS AND ADR 0003's OWN CONSEQUENCES SECTION REFUTES IT.**
+S4 split: geometry yes, semantics no. The save carries placement and provably does not carry
+purity - `mPurity`, `mResourceNodeType`, `mResourceClass`, `EResourcePurity` and
+`mExtractResourceNode` occur zero times across three worlds and four builds - so the asset path
+is now LOAD-BEARING for the semantics half rather than a superseded fallback, and ADR 0003 says
+exactly that. Condition 1, read literally, would void an item that ADR makes necessary. The
+dangerous direction here is the false VOID, not the missed one.
+
+**TWO ENVIRONMENT ANOMALIES OBSERVED WHILE RUNNING THE RITUAL, both filed rather than left in a
+transcript.** First, `py -3` and `python` resolve to DIFFERENT Python 3.14.4 installations on
+this machine, and the interpreter the docs name is the one with no `ruff` module - filed as
+CS-806. `scripts/verify_env.py` does not catch it and is not wrong to miss it: it probes the
+toolchain by NAME on PATH, where `ruff` genuinely is. Second, port 8901 - this project's
+allocated dashboard port - has been held since 2026-08-16 by an unrelated third-party
+process, deliberately not named here. `scripts/verify_env.py` reports it as a SOFT failure on every run and that
+mechanism is working correctly; what is absent is the decision it asks for, which is only forced
+when CS-601 tries to bind. Filed in `BACKLOG.md` with that trigger. **Nothing was killed, moved
+or re-recorded** - the port band is operator territory.
+
 ### 2026-08-20 - CS-493 CORRECTED and CS-494 CLOSED - the declaration reader reads KEY POSITIONS only; the CS-493 entry below it contains a sentence measured FALSE
 Verification: `tests/save/test_reach_guard.py::test_every_graded_declaration_in_this_package_is_readable_from_the_source`
 and `::test_the_sibling_resolution_bound_is_the_number_this_module_declares` for CS-493;

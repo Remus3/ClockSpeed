@@ -475,6 +475,140 @@ Relocated 2026-08-21 (session 27) because a fourth session landed and that file 
 - **THE HARNESS HEREDOC ATE MY BACKSLASHES THREE TIMES**, twice on small payloads with quoted
   delimiters. Write such payloads with the Write tool; this is the third session it has bitten.
 
+## Session 25 - relocated from WAKEUP_NOTES.md
+
+## Session 25 - 2026-08-20 - CS-495 CLOSES; a refutation pass refuted the first close and was right, and the hole it found was older than the item
+
+- **Shipped: CS-495 CLOSED.** The library-reach guard implementation moved out of
+  `tests/save/test_properties.py` into a new NON-TEST module `tests/save/reach_guard.py`; five
+  controls moved into `tests/save/test_reach_guard.py`. Filed CS-497 and CS-498. `tests/save`
+  with NO GAME **1111 -> 1115 passed, 49 skipped, exit 0**. Detail in `docs/LEDGER.md`.
+
+- **THE BASELINE REPRODUCED EXACTLY** before any of it: 1111 passed, 49 skipped with no game,
+  and 2144 / 52 for the whole suite.
+
+- **THE MOVE IS MACHINE-CHECKABLE AS A MOVE.** Fifty-six top-level definitions left
+  `test_properties.py` and every one is BYTE-IDENTICAL to its pre-move source, verified by
+  parsing both trees. The collected node-id set lost NOTHING - five tests changed module, four
+  were added. Do the same diff on any future relocation; it is cheap and it is the only thing
+  that distinguishes a move from a rewrite.
+
+- **A REFUTATION PASS REFUTED THE FIRST CLOSE WITH A COUNTER-EXAMPLE AND IT WAS RIGHT.** A test
+  planted in `reach_guard.py` runs ZERO TIMES and nothing says so - pytest does not collect a
+  module that is not named `test_*`, and no gutting guard reads it. Pre-move the guard's owner
+  WAS a collected test module, so the property was graded. **The class is older than the item**
+  - the same plant in `tests/save/synthetic.py` survives on `1e05233` too - but the
+  guard-owning file's membership in it is new. Closed by
+  `test_no_module_the_collector_skips_defines_a_test`, which covers both modules and both
+  shapes.
+
+- **THE SECOND FINDING WAS A MARGIN, NOT A HOLE, AND IS WORTH THE SAME ATTENTION.** An
+  undeclared reach planted in the guard's own file reddened ELEVEN tests before the move and
+  ONE after, because `reach_guard.py` cannot carry the per-module splice control every consumer
+  carries. The property was still graded and the margin was one test wide. Restored by
+  `test_the_guard_catches_an_uncontained_helper_spliced_into_its_own_source`.
+
+- **I DELETED A STALE COUNT ON A RULE AND AUTHORED A NEW ONE IN THE SAME FILE IN THE SAME
+  COMMIT.** The prose pass measured it: I removed "five module constants of `test_properties`"
+  citing CLAUDE.md section 4, and four hundred lines away wrote "in the name of sixteen" - the
+  walk covers eighteen. **Knowing the rule is not applying it.** Both numbers are gone now.
+
+- **THREE MORE SENTENCES OF MINE WERE MEASURED FALSE and are corrected in place.** Do not
+  rewrite them back: a claim that each consuming module keeps three checks, when only TWO of
+  the five call `_assert_no_test_is_gutted` at all; a `:func:` role that stopped resolving when
+  the guard moved one file away; and "THIS MODULE'S OWN planted control" in a module that
+  plants nothing.
+
+- **TWO PRE-EXISTING HOLES WERE FOUND BY READING THE MOVED CODE, both measured on BOTH trees.**
+  CS-497: the vocabulary partition is a TAUTOLOGY in its inclusion direction - `_LIBRARY_PRIMITIVES`
+  is derived as locators plus vocabulary minus exclusions, so the assertion reduces to `A <= B | A`
+  and an unclassified name is silently made a reach primitive. The suite DOES go red on that
+  mutant, on two `test_workdir` tests that have nothing to do with the partition - a red for the
+  wrong reason. CS-498: the guard cannot detect a self-exemption in its own source, because every
+  control runs it against a `tmp_path` copy under a different filename.
+
+- **THE MOVE CHANGED THE SUBJECT OF THREE OTHER RECORDS AND THEY ARE RE-POINTED.** CS-494's
+  acceptance named a symbol that moved; CS-473's subject was one module's prose and is now
+  three; and two earlier LEDGER entries cite tests at paths that changed - corrected by the new
+  entry rather than by editing them, since that file is append-only. **When you relocate code,
+  grep the open items and the ledger for its symbols before you close.**
+
+- **A KILL IS NOT A MEASUREMENT UNTIL YOU KNOW WHICH TEST DID IT.** My first mutation battery
+  ran with `-x` and every mutant reddened on
+  `test_phase4_gate::test_the_save_suite_passes_with_no_install_and_no_save`, which reruns the
+  suite in a CHILD process and so reddens on almost anything. Deselect it when attributing.
+
+- **CS-496 ALSO CLOSED, later in the same session.** The cause is more specific than the item
+  was filed with: `git commit` DETACHES `git maintenance run --auto`, so the session-scoped
+  template keeps a background git process after its fixture returned, dropping lock files under
+  `.git/objects` while later tests copy the directory. Fixed in two halves - housekeeping off in
+  the template, and a copy that skips a file which has ceased to exist. **The race is reproduced
+  DETERMINISTICALLY**, by deleting the lock from inside `copytree`'s own `ignore` callback, which
+  fires after the walk and before the copy. Three mutants, all killed by the intended test.
+
+- **CLOSING CS-496 REQUIRED WIDENING A GUARD, AND THE TEMPTING ROUTE WAS ONE THE GUARD ITSELF
+  DOCUMENTS AS A HOLE.** `test_the_suite_never_mutates_this_repository_worktree_admin` demands
+  every `_git` call target the identifier `repo`; binding `repo = repo_template` would have gone
+  green and is bypass 1 in that guard's own list of what it cannot see. Widened in the open
+  instead, with the reason on the constant.
+
+- **CS-497 AND CS-498 ALSO CLOSED, both filed earlier in this same session.** CS-497: inclusion in
+  the reach set is DECLARED now rather than derived by subtracting the exclusions, so a vocabulary
+  name classified nowhere reaches nothing and is named in the red. **The assertion the fence
+  protected was not deleted - the derivation was repaired under it, and it now bites.** The reach
+  set is unchanged, checked directly. CS-498: two byte-identical spliced copies of the guard's own
+  source, differing only in filename, must get the same verdict; the basename comes from the
+  guard's code object and is named nowhere. Residual filed as CS-499.
+
+- **A DERIVATION CANNOT BE GRADED BY ASKING IT ABOUT ITS OWN CONSTANT.** One that absorbs an
+  unclassified name and one that rejects it give the same answer on the shipped vocabulary. Making
+  `_reach_primitives` take the vocabulary as an ARGUMENT is what let a control hand it an invented
+  name, and is what turned a tautology into a measurement.
+
+- **I SHIPPED A NON-NEGOTIABLE 12 VIOLATION AGAIN, IN THE SAME SHAPE SESSION 23 RECORDED.** The
+  first draft of the CS-498 control bound the guard's failure in an `except` handler and rendered
+  it with `str(caught)`. `tests/test_exception_rendering.py` caught it and that module is OUTSIDE
+  `tests/save`, so the `tests/save` run was green while it was there. **Use `pytest.raises`, whose
+  AST shape that guard cannot see into, and RE-RUN THE MUTANTS after an idiom change** - a rewrite
+  can cost a control its teeth.
+
+- **CS-493 AND CS-494 ALSO CLOSED. CS-493 TOOK TWO ROUNDS AND THE REFUTATION PASS ON ROUND ONE WAS
+  RIGHT.** Round one widened the declaration reader to walk the whole value for anything name-shaped
+  and justified it with a sentence measured FALSE: "an over-read can never manufacture a reacher,
+  because `_reaching_names_of` returns `graded & (direct | indirect)`". **THE INTERSECTION IS
+  CIRCULAR** - `indirect` comes from `propagating`, which comes from `graded`, so widening `graded`
+  widens the set it is intersected with. Reproduced: a module where NO function calls a primitive
+  exported a reacher, and an importer was told to declare a reach for a function touching nothing.
+  Round two reads KEY POSITIONS only and refuses what it cannot place.
+
+- **A DATUM IS NOT A BOUND UNTIL A CONTROL SPENDS THE DEFAULT.** The hop-bound control passed
+  `hops=` explicitly on both assertions, so a tree declaring a bound of two while every default
+  spent one was FULLY GREEN. Fixed twice over: the control now takes the DEFAULT, and pins BOTH
+  sides - a chain of exactly the declared length must resolve at the default, which no smaller
+  default can do. **The same defect had already bitten this item once** as a fixed-length chain.
+
+- **CS-493's clause 2 was LIVE, not latent.** The new cross-check reddened on arrival naming two
+  tracked modules whose declarations the reader could not follow - one keyed on `f.__name__`, one
+  built by a comprehension over a `(label, function)` table, which is literally the shape the
+  acceptance names. Both spellings exist for good reasons; the reader was wrong.
+
+- **CS-494 closed on the RECORD-AND-GRADE branch, and the coverage half turned out free.** Widening
+  `_retained_body_attributes` to the tuple target, the `@property` accessor and the bytes-LIKE
+  vocabulary adds NOTHING on the shipped save modules - measured before shipping it. Five of six
+  disagreements went away; the item's detail block named three, the merger measured six. The
+  survivor is a difference of SUBJECT and is recorded with its reason.
+
+- **THE CS-4nn ID BLOCK IS FULL AND THE /done RITUAL CAUGHT ME COLLIDING WITH IT.** 98 of 100 used;
+  the only two unused are GAPS, which CLAUDE.md forbids backfilling. I filed the sentinel residual
+  as CS-500 and that ID has belonged to the PHASE 5 GATE for a long time. The older item keeps it
+  and mine is renumbered CS-501. **Which block phase-4 follow-ups continue into is an OPERATOR
+  DECISION and nothing in the tree settles it** - check the block before filing the next item.
+
+- **Next action:** CS-492, the last of CS-491's residuals and the largest - three shapes reproduced
+  ESCAPING this session with a declared companion beside each, so probe with one or every route
+  reddens on the guard's vacuity assertion instead. Then CS-499, CS-500, and CS-484 whose premise is
+  measured and whose pinning is now cheap.
+
 ## CS-800 - detail
 
 Relocated from `ROADMAP.md` 2026-08-21 (session 26) for budget, not deleted. The
@@ -602,6 +736,41 @@ item itself stays OPEN in `ROADMAP.md`.
 CS-805 - The container-FIELD personal-data shape is not walked as a wrapper, and the footprint is wider than CS-492's detail block records - acceptance: a class holding a save body in a CONTAINER field, and a helper whose return annotation is a container of bodies or of stringified real save paths, each turn a test RED on a machine with NO GAME INSTALLED - tier: 2
 
 filed 2026-08-21 (session 26). This is the PERSONAL-DATA half of the guard, `reach_guard._body_wrapping_classes` and `_returns_personal_data`, not the reach half CS-492 closed, which is why it is a separate item rather than that item's acceptance. Named in `docs/history_notes.md` under **CS-492 - detail** as "ALSO HERE, and NOT contrived". A refutation pass measured all of it open and found one shape the note does not mention: a return annotated `-> list[str]` carrying stringified real save paths passes strict typing and propagates nothing. Measured caught for contrast: `-> bytes` and a `bytes`-typed field.
+
+## CS-806 - detail
+
+filed 2026-08-22 (session 28) by the /done ritual, which tripped over it while running its own
+documented step.
+
+CS-806 - `py -3` and `python` resolve to DIFFERENT Python 3.14.4 installations on this machine, and the one the docs name has no `ruff` module - acceptance: the documented tier-0 lint command runs green AS WRITTEN, or the docs name the interpreter that works AND a check FAILS when the two diverge, proven by a control - tier: 1
+
+**MEASURED.** `py -3` resolves to `...\Local\Python\pythoncore-3.14-64\python.exe` and `python`
+to `...\Local\Programs\Python\Python314\python.exe`. Both report 3.14.4. Only the second has
+`ruff`: `python -m ruff --version` gives 0.15.12, `py -3 -m ruff --version` gives "No module
+named ruff", exit 1. The suite, mypy and every tool run this session went through `python`.
+
+**WHY IT MATTERS AND WHY IT IS NOT COSMETIC.** `docs/OPERATIONS.md` and the `/done` ritual both
+spell the tier-0 gate as `py -3 -m ruff check <paths>`. Run as written it exits 1 with a module
+error. **THE FAILURE MODE IS NOT THE ERROR, IT IS THE MISREADING:** on a markdown-only change
+the honest result of a real ruff run is "No Python files found under the given path(s)" plus
+"All checks passed" - which looks close enough to a failure-to-run that a session can conclude
+lint was not applicable and move on. That is the unrunnable-check-is-not-a-passed-check class
+this project already fences in `.githooks/commit-msg`, arriving through the docs instead.
+
+**`scripts/verify_env.py` DOES NOT CATCH IT AND IS NOT WRONG TO MISS IT.** It probes the
+toolchain by NAME - `for name in ("pytest", "ruff")` - and `ruff` genuinely is on PATH, at the
+Programs install's `Scripts\` directory. So it reports SOFT 15/15 present under BOTH
+interpreters, correctly by its own contract. Whatever closes this item should decide whether
+that contract is the right one, rather than treating the pass as a bug.
+
+**RELATION TO CS-484, which is a DIFFERENT item and must not absorb this one.** CS-484 is a
+VERSION gap - `pyproject.toml` pins `ruff>=0.13` with no upper bound and CI installs whatever is
+newest. This is an INTERPRETER gap on one machine. They can be fixed independently and a fix for
+either leaves the other live.
+
+**DO NOT CLOSE THIS BY EDITING ONLY THE DOCS.** Changing `py -3` to `python` everywhere makes
+the command work today and leaves nothing that notices when the two diverge again, which is how
+this arrived. The acceptance asks for a check with a control for that reason.
 
 ## CS-492 - detail
 

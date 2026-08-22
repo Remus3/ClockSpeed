@@ -31,6 +31,68 @@ the line becomes a pointer.
 
 ---
 
+## Session 28 - 2026-08-22 - an /insights pass; NOTHING CLOSED and four findings filed, one of which reversed under its own evidence
+
+- **Shipped: NOTHING CLOSED, and no code at all.** Zero `.py` files touched across four
+  commits. This was a reporting session that turned into a filing session. CS-702 and CS-806
+  are NEW items; CS-442 gained a re-derived measurement; CS-G01 and CS-G05 gained dated status
+  blocks. Ledger entry for the session is a NON-CLOSURE record and says so in its heading.
+
+- **THE FINDING THAT ORGANISES THE SESSION: the ledger's own verification pointers are
+  unguarded, and 7 of 68 do not resolve.** CS-442 has been open on this since 2026-08-16 with a
+  census of five; re-deriving it gives seven, in three repair classes that price differently.
+  Three are stale PATHS from CS-495's relocation and are NOT defects in the record. Three are
+  one-word slips whose real target is measured and named. One, CS-433's, has no identifiable
+  target at all. **The four wrong-when-written ones cannot be repaired by editing the ledger,
+  because it is append-only** - each needs a new correcting record, and `4b2d04c` has already
+  broken that rule once by correcting the CS-500 collision inside the entry that caused it.
+  **Seven is a FLOOR:** the census reads `path::test_name` only, and the bare-identifier shape
+  that CS-442's own block calls the most important one is still unmeasured.
+
+- **THE CORRECTION, AND IT IS THE ONE TO CARRY FORWARD.** CS-G01 was first written up as "S4
+  succeeded, so this gated item should have been VOIDED and was not". **THAT IS BACKWARDS.** ADR
+  0003's Consequences section refutes it: S4 SPLIT - geometry yes, semantics no. The save carries
+  placement and provably does not carry purity, so the asset path is now LOAD-BEARING for the
+  semantics half rather than a superseded fallback, and the ADR says so in terms. Condition 1 of
+  CS-G01, read literally, would VOID an item that ADR makes necessary. **The dangerous direction
+  on that item is the false void, not the missed one** - and this file's rule against synthetic
+  closure runs in that direction too. Do not re-derive the first reading.
+
+- **CS-702 is filed and it is not a paperwork item.** The no-agent-trailer rule recorded in
+  `docs/GATED.md` is enforced by NOTHING - no hook, no gate - and 18 of the 171 commits on `main`
+  already carry the trailer, all dated 2026-08-14 and 2026-08-15, none since. The GATED.md
+  measurement sentence was probably TRUE when written on 2026-08-13; what is overtaken is its
+  consequence, "a standing rule going forward rather than a cleanup". **The entry predicted its
+  own failure mode in the very next sentence and shipped no mechanism, and seventeen trailers
+  arrived by default the following day.** The harness default still adds one every session
+  unless suppressed, so the pressure is continuous. `.githooks/*` is FROZEN, so the gate needs
+  an adjudicator route and a ledger grant BEFORE the edit.
+
+- **Surprises: the /done ritual tripped over its own documented command.** `py -3` and `python`
+  are DIFFERENT Python 3.14.4 installations on this machine and only `python` has `ruff`, so the
+  documented tier-0 gate `py -3 -m ruff check` exits 1 with a module error. Filed as CS-806.
+  `scripts/verify_env.py` passes under both and is not wrong to - it probes the toolchain by NAME
+  on PATH. Also observed: port 8901, this project's allocated dashboard port, has been held by an
+  unrelated third-party process since 2026-08-16 and verify_env has been reporting it as a SOFT
+  failure on every run. Filed in `BACKLOG.md`; nothing was killed or re-recorded.
+
+- **Failed paths: none - but one method is worth not re-inventing.** Distinguishing a citation
+  that was WRONG WHEN WRITTEN from one the tree moved out from under needs
+  `git log -S"def <name>(" -- '*.py'` with a control on a live name, because a bare `grep` over
+  the history matches the ledger prose that names the test and reports a false positive. The
+  same trap bit the trailer census: `grep -i co-authored` matches prose ABOUT the rule, so the
+  count must match a body line whose stripped form STARTS WITH the trailer key.
+
+- **ROADMAP.md IS EFFECTIVELY FULL: 97 bytes of margin against its 60 KB budget.** Two items
+  were filed into it this session and CS-442's note was already trimmed to a pointer once to make
+  room. **The next session relocates before it files anything.** The budget is severity WARN and
+  will not fail CI, which is exactly why it needs acting on.
+
+- **Next action:** relocate ROADMAP.md notes into `docs/history_notes.md` until the file has
+  real margin, then take CS-442 - the seven are enumerated with their targets, the three classes
+  are stated, and the append-only constraint is written down, so the item is now a mechanism
+  question rather than a discovery one.
+
 ## Session 27 - 2026-08-21 - CS-492 rounds seven, eight and nine; the ROOT CAUSE is finally located and it is a CONTRACT, not a bug
 
 - **Shipped: NOTHING CLOSED. Again, and it is the result rather than a shortfall.** Round six
@@ -251,135 +313,3 @@ the line becomes a pointer.
   the widening falsely flags. If it comes back clean, CS-492 closes on its acceptance and the
   ledger entry cites `tests/save/test_reach_guard.py::test_a_primitive_reached_through_an_object_is_named_by_the_guard`
   plus `::test_the_object_routed_widening_does_not_flag_a_module_that_reaches_nothing`.
-
-## Session 25 - 2026-08-20 - CS-495 CLOSES; a refutation pass refuted the first close and was right, and the hole it found was older than the item
-
-- **Shipped: CS-495 CLOSED.** The library-reach guard implementation moved out of
-  `tests/save/test_properties.py` into a new NON-TEST module `tests/save/reach_guard.py`; five
-  controls moved into `tests/save/test_reach_guard.py`. Filed CS-497 and CS-498. `tests/save`
-  with NO GAME **1111 -> 1115 passed, 49 skipped, exit 0**. Detail in `docs/LEDGER.md`.
-
-- **THE BASELINE REPRODUCED EXACTLY** before any of it: 1111 passed, 49 skipped with no game,
-  and 2144 / 52 for the whole suite.
-
-- **THE MOVE IS MACHINE-CHECKABLE AS A MOVE.** Fifty-six top-level definitions left
-  `test_properties.py` and every one is BYTE-IDENTICAL to its pre-move source, verified by
-  parsing both trees. The collected node-id set lost NOTHING - five tests changed module, four
-  were added. Do the same diff on any future relocation; it is cheap and it is the only thing
-  that distinguishes a move from a rewrite.
-
-- **A REFUTATION PASS REFUTED THE FIRST CLOSE WITH A COUNTER-EXAMPLE AND IT WAS RIGHT.** A test
-  planted in `reach_guard.py` runs ZERO TIMES and nothing says so - pytest does not collect a
-  module that is not named `test_*`, and no gutting guard reads it. Pre-move the guard's owner
-  WAS a collected test module, so the property was graded. **The class is older than the item**
-  - the same plant in `tests/save/synthetic.py` survives on `1e05233` too - but the
-  guard-owning file's membership in it is new. Closed by
-  `test_no_module_the_collector_skips_defines_a_test`, which covers both modules and both
-  shapes.
-
-- **THE SECOND FINDING WAS A MARGIN, NOT A HOLE, AND IS WORTH THE SAME ATTENTION.** An
-  undeclared reach planted in the guard's own file reddened ELEVEN tests before the move and
-  ONE after, because `reach_guard.py` cannot carry the per-module splice control every consumer
-  carries. The property was still graded and the margin was one test wide. Restored by
-  `test_the_guard_catches_an_uncontained_helper_spliced_into_its_own_source`.
-
-- **I DELETED A STALE COUNT ON A RULE AND AUTHORED A NEW ONE IN THE SAME FILE IN THE SAME
-  COMMIT.** The prose pass measured it: I removed "five module constants of `test_properties`"
-  citing CLAUDE.md section 4, and four hundred lines away wrote "in the name of sixteen" - the
-  walk covers eighteen. **Knowing the rule is not applying it.** Both numbers are gone now.
-
-- **THREE MORE SENTENCES OF MINE WERE MEASURED FALSE and are corrected in place.** Do not
-  rewrite them back: a claim that each consuming module keeps three checks, when only TWO of
-  the five call `_assert_no_test_is_gutted` at all; a `:func:` role that stopped resolving when
-  the guard moved one file away; and "THIS MODULE'S OWN planted control" in a module that
-  plants nothing.
-
-- **TWO PRE-EXISTING HOLES WERE FOUND BY READING THE MOVED CODE, both measured on BOTH trees.**
-  CS-497: the vocabulary partition is a TAUTOLOGY in its inclusion direction - `_LIBRARY_PRIMITIVES`
-  is derived as locators plus vocabulary minus exclusions, so the assertion reduces to `A <= B | A`
-  and an unclassified name is silently made a reach primitive. The suite DOES go red on that
-  mutant, on two `test_workdir` tests that have nothing to do with the partition - a red for the
-  wrong reason. CS-498: the guard cannot detect a self-exemption in its own source, because every
-  control runs it against a `tmp_path` copy under a different filename.
-
-- **THE MOVE CHANGED THE SUBJECT OF THREE OTHER RECORDS AND THEY ARE RE-POINTED.** CS-494's
-  acceptance named a symbol that moved; CS-473's subject was one module's prose and is now
-  three; and two earlier LEDGER entries cite tests at paths that changed - corrected by the new
-  entry rather than by editing them, since that file is append-only. **When you relocate code,
-  grep the open items and the ledger for its symbols before you close.**
-
-- **A KILL IS NOT A MEASUREMENT UNTIL YOU KNOW WHICH TEST DID IT.** My first mutation battery
-  ran with `-x` and every mutant reddened on
-  `test_phase4_gate::test_the_save_suite_passes_with_no_install_and_no_save`, which reruns the
-  suite in a CHILD process and so reddens on almost anything. Deselect it when attributing.
-
-- **CS-496 ALSO CLOSED, later in the same session.** The cause is more specific than the item
-  was filed with: `git commit` DETACHES `git maintenance run --auto`, so the session-scoped
-  template keeps a background git process after its fixture returned, dropping lock files under
-  `.git/objects` while later tests copy the directory. Fixed in two halves - housekeeping off in
-  the template, and a copy that skips a file which has ceased to exist. **The race is reproduced
-  DETERMINISTICALLY**, by deleting the lock from inside `copytree`'s own `ignore` callback, which
-  fires after the walk and before the copy. Three mutants, all killed by the intended test.
-
-- **CLOSING CS-496 REQUIRED WIDENING A GUARD, AND THE TEMPTING ROUTE WAS ONE THE GUARD ITSELF
-  DOCUMENTS AS A HOLE.** `test_the_suite_never_mutates_this_repository_worktree_admin` demands
-  every `_git` call target the identifier `repo`; binding `repo = repo_template` would have gone
-  green and is bypass 1 in that guard's own list of what it cannot see. Widened in the open
-  instead, with the reason on the constant.
-
-- **CS-497 AND CS-498 ALSO CLOSED, both filed earlier in this same session.** CS-497: inclusion in
-  the reach set is DECLARED now rather than derived by subtracting the exclusions, so a vocabulary
-  name classified nowhere reaches nothing and is named in the red. **The assertion the fence
-  protected was not deleted - the derivation was repaired under it, and it now bites.** The reach
-  set is unchanged, checked directly. CS-498: two byte-identical spliced copies of the guard's own
-  source, differing only in filename, must get the same verdict; the basename comes from the
-  guard's code object and is named nowhere. Residual filed as CS-499.
-
-- **A DERIVATION CANNOT BE GRADED BY ASKING IT ABOUT ITS OWN CONSTANT.** One that absorbs an
-  unclassified name and one that rejects it give the same answer on the shipped vocabulary. Making
-  `_reach_primitives` take the vocabulary as an ARGUMENT is what let a control hand it an invented
-  name, and is what turned a tautology into a measurement.
-
-- **I SHIPPED A NON-NEGOTIABLE 12 VIOLATION AGAIN, IN THE SAME SHAPE SESSION 23 RECORDED.** The
-  first draft of the CS-498 control bound the guard's failure in an `except` handler and rendered
-  it with `str(caught)`. `tests/test_exception_rendering.py` caught it and that module is OUTSIDE
-  `tests/save`, so the `tests/save` run was green while it was there. **Use `pytest.raises`, whose
-  AST shape that guard cannot see into, and RE-RUN THE MUTANTS after an idiom change** - a rewrite
-  can cost a control its teeth.
-
-- **CS-493 AND CS-494 ALSO CLOSED. CS-493 TOOK TWO ROUNDS AND THE REFUTATION PASS ON ROUND ONE WAS
-  RIGHT.** Round one widened the declaration reader to walk the whole value for anything name-shaped
-  and justified it with a sentence measured FALSE: "an over-read can never manufacture a reacher,
-  because `_reaching_names_of` returns `graded & (direct | indirect)`". **THE INTERSECTION IS
-  CIRCULAR** - `indirect` comes from `propagating`, which comes from `graded`, so widening `graded`
-  widens the set it is intersected with. Reproduced: a module where NO function calls a primitive
-  exported a reacher, and an importer was told to declare a reach for a function touching nothing.
-  Round two reads KEY POSITIONS only and refuses what it cannot place.
-
-- **A DATUM IS NOT A BOUND UNTIL A CONTROL SPENDS THE DEFAULT.** The hop-bound control passed
-  `hops=` explicitly on both assertions, so a tree declaring a bound of two while every default
-  spent one was FULLY GREEN. Fixed twice over: the control now takes the DEFAULT, and pins BOTH
-  sides - a chain of exactly the declared length must resolve at the default, which no smaller
-  default can do. **The same defect had already bitten this item once** as a fixed-length chain.
-
-- **CS-493's clause 2 was LIVE, not latent.** The new cross-check reddened on arrival naming two
-  tracked modules whose declarations the reader could not follow - one keyed on `f.__name__`, one
-  built by a comprehension over a `(label, function)` table, which is literally the shape the
-  acceptance names. Both spellings exist for good reasons; the reader was wrong.
-
-- **CS-494 closed on the RECORD-AND-GRADE branch, and the coverage half turned out free.** Widening
-  `_retained_body_attributes` to the tuple target, the `@property` accessor and the bytes-LIKE
-  vocabulary adds NOTHING on the shipped save modules - measured before shipping it. Five of six
-  disagreements went away; the item's detail block named three, the merger measured six. The
-  survivor is a difference of SUBJECT and is recorded with its reason.
-
-- **THE CS-4nn ID BLOCK IS FULL AND THE /done RITUAL CAUGHT ME COLLIDING WITH IT.** 98 of 100 used;
-  the only two unused are GAPS, which CLAUDE.md forbids backfilling. I filed the sentinel residual
-  as CS-500 and that ID has belonged to the PHASE 5 GATE for a long time. The older item keeps it
-  and mine is renumbered CS-501. **Which block phase-4 follow-ups continue into is an OPERATOR
-  DECISION and nothing in the tree settles it** - check the block before filing the next item.
-
-- **Next action:** CS-492, the last of CS-491's residuals and the largest - three shapes reproduced
-  ESCAPING this session with a declared companion beside each, so probe with one or every route
-  reddens on the guard's vacuity assertion instead. Then CS-499, CS-500, and CS-484 whose premise is
-  measured and whose pinning is now cheap.

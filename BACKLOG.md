@@ -33,6 +33,11 @@ below is deliberately deferred. **Trigger for all three: phase 6 completes.**
   if window binding fails for any reason, and never blocking input it did not intend to
   receive.
 
+- Port 8901, this project's allocated dashboard port, has been held since 2026-08-16 by an
+  unrelated process, and `scripts/verify_env.py` reports it as a SOFT failure on every run -
+  decide whether to move the band or accept it and re-record `config/ports.json`; conditional
+  on CS-601 actually trying to bind, and an operator call either way.
+
 ## Ingestion lanes
 
 - OCR and CV ingestion lane for live and transient state the save file cannot provide -
