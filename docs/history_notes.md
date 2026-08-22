@@ -1003,6 +1003,98 @@ CS-805 - The container-FIELD personal-data shape is not walked as a wrapper, and
 
 filed 2026-08-21 (session 26). This is the PERSONAL-DATA half of the guard, `reach_guard._body_wrapping_classes` and `_returns_personal_data`, not the reach half CS-492 closed, which is why it is a separate item rather than that item's acceptance. Named in `docs/history_notes.md` under **CS-492 - detail** as "ALSO HERE, and NOT contrived". A refutation pass measured all of it open and found one shape the note does not mention: a return annotated `-> list[str]` carrying stringified real save paths passes strict typing and propagates nothing. Measured caught for contrast: `-> bytes` and a `bytes`-typed field.
 
+## Session 27, continued wakeup note - relocated 2026-08-22 (session 30)
+
+## Session 27, continued - 2026-08-22 - CS-492 rounds seven to nine all REFUTED; the bare-name conflict is MEASURED IRREDUCIBLE and CS-807 takes the false-flag direction
+
+**This entry is newer than session 28's below it.** Session 27 resumed after session 28 had
+closed and pushed; its commits `6680182` and `31f0e2a` sit on top of `5a5de5f`. Nothing in
+session 28's entry is superseded.
+
+- **Shipped: NOTHING CLOSED, for the second session running, and it is the result rather than a
+  shortfall.** CS-807 was FILED. Rounds seven, eight and nine of CS-492 were BUILT, each graded
+  on two independent lenses, and every one returned REFUTED on a real defect. All three remain
+  UNCOMMITTED in worktrees by operator decision so nothing unproven enters `main`. Zero `.py`
+  files were touched in `main` across the whole session.
+
+- **THE THREE NUMBERS THAT DECIDED EVERYTHING, all reproduced by the merger rather than taken
+  from a builder.** The `_ANY_ATTRIBUTE` sentinel manufactures **268** false declarations across
+  six real modules from FIVE ORDINARY LINES of PEP 562 - measured 47 flagged before, 315 after.
+  The bare-name class that consumed nine rounds manufactures **EIGHT**. And **FOUR** false
+  declarations are LIVE ON THE SHIPPED TREE in `tests/save/test_oracle_citations.py`, whose own
+  reason strings say "It opens no file and touches no path at all". The guard was never
+  repaired; the false flags were written down and shipped as exemptions.
+
+- **THE BARE-NAME CONFLICT IS MEASURED IRREDUCIBLE. DO NOT SPEND A TENTH ROUND ON IT.** Two
+  narrowing spikes were measured against round nine - FIVE-SITE and TWO-SITE. Both take every
+  manufactured-declaration payload to ZERO, including `import stat` plus the exec-bit constants,
+  which is verbatim real repo code at `scripts/install_hooks.py:44` and `:206`. Both cost the
+  SAME TWELVE controls. **Narrowing five sites to two retires NONE of them**, and the mechanism
+  was verified rather than inferred: the patched arm is the only consumer of evidence for a bare
+  vocabulary word. Two-site DOMINATES five-site - same kills, same reds, smaller diff, one extra
+  route kept - so if the hypothesis is ever adopted, adopt it at two sites.
+
+- **THE CONFLICT, STATED ONCE SO IT IS NOT REDISCOVERED.**
+  `test_a_parameter_spelled_like_a_primitive_binds_nothing_and_serves_nothing` demands BOTH that
+  `stat` as a PARAMETER manufacture nothing AND that `stat = os.stat` at module scope BE CAUGHT.
+  Same token, name-keyed guard. Telling them apart needs the type resolution this repo has
+  declined. Nine rounds were attempts to split that hair and the measurement says it does not
+  split.
+
+- **ROUND NINE'S ENGINE SURVIVED CONTROL-VALIDITY GRADING; ITS PROSE DID NOT.** 38 mutants
+  against the builder's 19 found NO new defect, no weakened assertion, no lost control, renames
+  clean, the sole survivor proven genuinely equivalent, and termination LOUD rather than hanging
+  - 252 `RuntimeError`s where round eight once hung. It was refuted on two documentation defects:
+  it ships a provenance claim it declares false 345 lines later in the same file, and it left
+  THREE citations to `_value_bound_names`, a function it deleted, one of them the opening
+  sentence of a control it added in the same change. **The stale provenance claim is INHERITED
+  and is live on `main` today**; the stranded citations are round nine's own.
+
+- **THE PROGRESSION, so nobody re-derives it:** round six certified ANY binding; seven any
+  MODULE-SCOPE binding; eight any binding STATEMENT; nine any binding whose value SPELLS a
+  vocabulary word. The rule was never value-aware, only LITERAL-aware - `stat = "open"` certifies
+  and `stat = "chunks"` does not, and the shipped control grades exactly the one literal that
+  misses. Displaced four times, repaired zero times.
+
+- **Failed paths, so they are not retried:** deleting the `def`/`class` admission from
+  `_value_bound_names` - reds `a-hold-and-serve-chain-two-rounds-deep` at `2 failed, 1179 passed`;
+  splitting locators from raw vocabulary - broken by `def resolve(): return locate.resolve_save_root`,
+  a genuine server spelled with a vocabulary word; and the two-site narrowing as a cost reduction -
+  it retires nothing.
+
+- **METHOD, EARNED: GRADE A CLAIM AT THE GRANULARITY THE CLAIM IS MADE AT.** A module-level probe
+  told the merger a subscript escape did NOT reproduce; it did. The planted `__getattr__` reached
+  on its own account, so the module flagged either way. Only calling
+  `_assert_library_reach_is_declared(path, graded={}, exempt={})` directly and reading
+  `caught.args[0]` separated pristine from mutant.
+
+- **A PROBE GOES STALE THE MOMENT THE RULE CHANGES.** The merger's `except_target` probe read
+  SILENT on round nine and looked like a hole. It is not: `except ValueError as stat` binds the
+  caught EXCEPTION INSTANCE, never a primitive, so declining it is correct under a value-aware
+  rule. The probe was written to catch round seven's regression and outlived its premise.
+
+- **TWO BUILDER CORRECTIONS TO THE MERGER'S OWN BRIEFS, both right.** The round-nine brief
+  asserted "these 15 routes are all currently CAUGHT and I verified that myself" - `except_target`
+  was not. And the seed control the merger specified for round nine had SILENTLY DECAYED INTO
+  DECORATION: a different bound now blocked its mutant, so it separated nothing. Builders that
+  implement the brief verbatim would have shipped both.
+
+- **Suite at `31f0e2a`, no game, run this session from scratch: `tests` 2190 passed / 52 skipped /
+  exit 0.** mypy clean 86 and 28, ruff check and format clean, drift guard CLEAN 9/9, doc budget
+  PASS measured 16, precommit gate PASS non-vacuously via `--files`. Every skip is environmental -
+  no game install or no save library - or the mypy gate's empty gap record.
+
+- **Documentation: TWO relocate passes in ONE DAY.** `ROADMAP.md` went 9 bytes -> 2647 -> 97
+  (session 28 filed into it) -> 5426 -> 4090. Nine notes relocated byte-identically across the two
+  passes. The file is structurally at its ceiling and the budget is severity WARN so CI never says
+  so; filed to `BACKLOG.md` with the `docs/history_notes.md` header contradiction beside it.
+
+- **Next action: TAKE CS-807, and take the SWEEP first.** Whether those four false exemptions are
+  the only ones on the shipped tree is UNMEASURED - they were found by following one control's
+  failure, not by looking. Sweep every module under `tests/save` for an exemption whose reason
+  string denies touching the filesystem, before any repair is designed. Then the sentinel, which
+  is thirty times the bare-name class and untouched by every round and both spikes.
+
 ## CS-809 - detail
 
 Relocated from `ROADMAP.md` 2026-08-22 (session 30) for budget, not deleted. The item itself stays
