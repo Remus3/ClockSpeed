@@ -609,6 +609,81 @@ Relocated 2026-08-21 (session 27) because a fourth session landed and that file 
   reddens on the guard's vacuity assertion instead. Then CS-499, CS-500, and CS-484 whose premise is
   measured and whose pinning is now cheap.
 
+## CS-807 - detail
+
+Filed 2026-08-22 (session 27) by operator decision, splitting the FALSE-FLAG direction out of
+CS-492. Every measurement below was taken by the merger or reproduced by it independently, on a
+machine with no game installed.
+
+**WHY IT IS ITS OWN ITEM.** CS-492's acceptance is ESCAPE-SHAPED - it asks that a route through
+an object turn a test RED - and says nothing about flagging a module that reaches nothing. Yet
+the false-flag direction is what refuted ALL NINE of its rounds. A direction that keeps doing the
+refuting needs an owner, or it goes on being fought inside an item whose acceptance cannot record
+whether it was won.
+
+**A DECLARATION IS A WRITTEN CLAIM ABOUT WHERE PERSONAL DATA FLOWS.** Manufacturing one is worse
+than missing a route. That is the whole reason this direction outranks the escape direction, and
+it is why this item is tier 1 while CS-492 is tier 2.
+
+**FOUR FALSE DECLARATIONS ARE LIVE ON THE SHIPPED TREE TODAY.** `tests/save/test_oracle_citations.py`
+carries seven exemptions; four of them read, in their own reason strings, "matched by NAME and not
+by a filesystem call: it uses this module's own citation resolver, which is spelled resolve ... It
+opens no file and touches no path at all". Those four exist ONLY because the guard falsely flags
+them. The guard was not repaired; the false flags were written down and shipped. Measured: with
+either narrowing spike below, dropping those four leaves the module clean, and the only functions
+still flagged are the three that genuinely `rglob` this repo's own sources.
+
+**THE SENTINEL IS THE LARGEST SOURCE BY A FACTOR OF THIRTY AND ITS MAGNITUDE APPEARED NOWHERE IN
+THE TREE.** `_ANY_ATTRIBUTE` has been carried as a disclosed residual since round seven. Measured
+by the merger, five ordinary lines of PEP 562 - a deprecation alias serving the save-root finder
+under its pre-rename spelling - planted into six real modules:
+
+| module | flagged before | after | manufactured |
+|---|---|---|---|
+| `test_phase4_gate.py` | 10 | 78 | 68 |
+| `test_properties.py` | 5 | 69 | 64 |
+| `test_workdir.py` | 18 | 77 | 59 |
+| `test_value_anchoring.py` | 4 | 43 | 39 |
+| `test_absolute_claims.py` | 3 | 28 | 25 |
+| `test_oracle_citations.py` | 7 | 20 | 13 |
+| TOTAL | 47 | 315 | **268** |
+
+The bare-name class that consumed nine rounds manufactures EIGHT. "Disclosed" was doing more work
+than it can bear.
+
+**THE BARE-NAME CONFLICT IS MEASURED IRREDUCIBLE - do not spend a tenth round on it.** Two spikes
+were measured against round nine, both leaving the receiver rule, the attribute path and
+`_LIBRARY_LOCATORS` untouched:
+
+- FIVE-SITE (`_bare_resolves` at every bare-`ast.Name` vocabulary site) and TWO-SITE (only
+  `_hands_back_a_primitive`'s bare arm and `_callee_resolves`' bare arm).
+- BOTH take every manufactured-declaration payload to ZERO, including `import stat` plus the
+  exec-bit constants, which is verbatim real repo code at `scripts/install_hooks.py:44` and `:206`.
+- BOTH cost the SAME TWELVE controls. Narrowing the site count retires NONE of them. The
+  mechanism was verified rather than inferred: the patched arm is the ONLY consumer of evidence
+  for a bare vocabulary word, so leaving the other arms reading bare names buys nothing.
+- BOTH leave the sentinel's 268 untouched.
+- TWO-SITE DOMINATES FIVE-SITE: same kills, same reds, a smaller diff, and it keeps one route the
+  five-site loses (`stat = os.stat; _alias = stat; _alias()`).
+
+**THE CONFLICT, STATED.** `test_a_parameter_spelled_like_a_primitive_binds_nothing_and_serves_nothing`
+demands BOTH that `stat` as a PARAMETER manufacture nothing AND that `stat = os.stat` at module
+scope BE CAUGHT. Same token, name-keyed guard. Telling them apart requires knowing what the name
+is BOUND TO, which is the type resolution this repo has declined - see CS-491's note, "do not
+close this by widening the name list alone". Nine rounds were attempts to split that hair. The
+measurement says it does not split. **Any acceptance here must say which side it buys, and pay for
+it in the open.**
+
+**DO NOT close this by deleting the twelve controls.** They were written to assert bare-name reach
+is caught, and one of them exists specifically to defeat a guard that passes the caption case by
+accepting nothing. Deleting them to go green removes the only instrument that distinguishes this
+repair from a vacuous one, which is a worse repository than one with eight manufactured
+declarations in it.
+
+**Unmeasured, and the measurement to take first:** whether those four exemptions are the only false
+declarations on the shipped tree. They were found by following one control's failure, not by a
+sweep. A sweep is the cheapest next step and it belongs to this item.
+
 ## CS-800 - detail
 
 Relocated from `ROADMAP.md` 2026-08-21 (session 26) for budget, not deleted. The
