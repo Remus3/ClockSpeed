@@ -1965,6 +1965,73 @@ and was raised directly. It is not a claim that any shipped hook echoes the envi
 proving that none does is half the acceptance. The other half is writing the rule where the next
 author of a hook will read it, so the third repetition of this pattern is the last.
 
+### Archived 2026-08-22 from `WAKEUP_NOTES.md` - session 28 at full fidelity
+
+Aged out when session 31 landed and `WAKEUP_NOTES.md` keeps only the last three sessions.
+**Nothing here is current.**
+
+## Session 28 - 2026-08-22 - an /insights pass; NOTHING CLOSED and four findings filed, one of which reversed under its own evidence
+
+- **Shipped: NOTHING CLOSED, and no code at all.** Zero `.py` files touched across four
+  commits. This was a reporting session that turned into a filing session. CS-702 and CS-806
+  are NEW items; CS-442 gained a re-derived measurement; CS-G01 and CS-G05 gained dated status
+  blocks. Ledger entry for the session is a NON-CLOSURE record and says so in its heading.
+
+- **THE FINDING THAT ORGANISES THE SESSION: the ledger's own verification pointers are
+  unguarded, and 7 of 68 do not resolve.** CS-442 has been open on this since 2026-08-16 with a
+  census of five; re-deriving it gives seven, in three repair classes that price differently.
+  Three are stale PATHS from CS-495's relocation and are NOT defects in the record. Three are
+  one-word slips whose real target is measured and named. One, CS-433's, has no identifiable
+  target at all. **The four wrong-when-written ones cannot be repaired by editing the ledger,
+  because it is append-only** - each needs a new correcting record, and `4b2d04c` has already
+  broken that rule once by correcting the CS-500 collision inside the entry that caused it.
+  **Seven is a FLOOR:** the census reads `path::test_name` only, and the bare-identifier shape
+  that CS-442's own block calls the most important one is still unmeasured.
+
+- **THE CORRECTION, AND IT IS THE ONE TO CARRY FORWARD.** CS-G01 was first written up as "S4
+  succeeded, so this gated item should have been VOIDED and was not". **THAT IS BACKWARDS.** ADR
+  0003's Consequences section refutes it: S4 SPLIT - geometry yes, semantics no. The save carries
+  placement and provably does not carry purity, so the asset path is now LOAD-BEARING for the
+  semantics half rather than a superseded fallback, and the ADR says so in terms. Condition 1 of
+  CS-G01, read literally, would VOID an item that ADR makes necessary. **The dangerous direction
+  on that item is the false void, not the missed one** - and this file's rule against synthetic
+  closure runs in that direction too. Do not re-derive the first reading.
+
+- **CS-702 is filed and it is not a paperwork item.** The no-agent-trailer rule recorded in
+  `docs/GATED.md` is enforced by NOTHING - no hook, no gate - and 18 of the 171 commits on `main`
+  already carry the trailer, all dated 2026-08-14 and 2026-08-15, none since. The GATED.md
+  measurement sentence was probably TRUE when written on 2026-08-13; what is overtaken is its
+  consequence, "a standing rule going forward rather than a cleanup". **The entry predicted its
+  own failure mode in the very next sentence and shipped no mechanism, and seventeen trailers
+  arrived by default the following day.** The harness default still adds one every session
+  unless suppressed, so the pressure is continuous. `.githooks/*` is FROZEN, so the gate needs
+  an adjudicator route and a ledger grant BEFORE the edit.
+
+- **Surprises: the /done ritual tripped over its own documented command.** `py -3` and `python`
+  are DIFFERENT Python 3.14.4 installations on this machine and only `python` has `ruff`, so the
+  documented tier-0 gate `py -3 -m ruff check` exits 1 with a module error. Filed as CS-806.
+  `scripts/verify_env.py` passes under both and is not wrong to - it probes the toolchain by NAME
+  on PATH. Also observed: port 8901, this project's allocated dashboard port, has been held by an
+  unrelated third-party process since 2026-08-16 and verify_env has been reporting it as a SOFT
+  failure on every run. Filed in `BACKLOG.md`; nothing was killed or re-recorded.
+
+- **Failed paths: none - but one method is worth not re-inventing.** Distinguishing a citation
+  that was WRONG WHEN WRITTEN from one the tree moved out from under needs
+  `git log -S"def <name>(" -- '*.py'` with a control on a live name, because a bare `grep` over
+  the history matches the ledger prose that names the test and reports a false positive. The
+  same trap bit the trailer census: `grep -i co-authored` matches prose ABOUT the rule, so the
+  count must match a body line whose stripped form STARTS WITH the trailer key.
+
+- **ROADMAP.md IS EFFECTIVELY FULL: 97 bytes of margin against its 60 KB budget.** Two items
+  were filed into it this session and CS-442's note was already trimmed to a pointer once to make
+  room. **The next session relocates before it files anything.** The budget is severity WARN and
+  will not fail CI, which is exactly why it needs acting on.
+
+- **Next action:** relocate ROADMAP.md notes into `docs/history_notes.md` until the file has
+  real margin, then take CS-442 - the seven are enumerated with their targets, the three classes
+  are stated, and the append-only constraint is written down, so the item is now a mechanism
+  question rather than a discovery one.
+
 <!-- Newest first. Each block: date archived, source file, then the content. -->
 
 ### Archived 2026-08-16 from `WAKEUP_NOTES.md` - session 9 at full fidelity
