@@ -73,6 +73,104 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-22 - CS-442 - CLOSED, and a CORRECTION to five earlier entries: `docs/` is read by a guard for the first time, and the dead pointers it found are corrected here rather than in the entries that carry them
+Verification: `tests/test_docs_citations.py`, which is the first thing in this repository to read
+`docs/` at all. The control the acceptance asks for is
+`tests/test_docs_citations.py::test_the_checker_fires_on_a_planted_dead_pointer`, with the opposite
+branch pinned beside it by `test_the_checker_passes_the_same_pointer_once_it_resolves` so it cannot
+pass by always reporting. To reproduce the finding rather than trust it: set `DISPOSITIONS` to `{}`
+and run the module - the ledger yields SEVEN dead `path::name` citations and THREE dead bare
+identifiers, and `ROADMAP.md` and `docs/GATED.md` yield none.
+
+**THE STRUCTURAL FACT, which is the item and is sharper than the typo it was filed on: NOTHING IN
+THIS REPOSITORY READ `docs/`.** `tests/save/test_oracle_citations` scans `clockspeed/`,
+`tests/save/test_absolute_claims` scans `tests/`, and neither looked at `docs/`. So the Verification
+pointer - the one field this file declares MANDATORY, and the entire reason it is trustworthy - was
+the least guarded prose in the project. It is now guarded in `docs/LEDGER.md`, `ROADMAP.md` and
+`docs/GATED.md`.
+
+**THE POPULATION WAS RE-DERIVED, NOT INHERITED, AND IT IS EIGHT RATHER THAN THE RECORDED SEVEN.**
+The seven previously recorded all reproduce. The eighth is
+`test_the_header_scan_advertises_no_bound_it_cannot_enforce`, cited by the CS-436 entry, and it is
+invisible to a `path::name` scanner because it is spent BARE, with no path attached. The CS-442
+detail block predicted exactly this - it called the bare shape "the single most important shape to
+cover" and left it UNMEASURED - so the floor caveat it attached to its own figure was correct and
+is now discharged.
+
+**A NINTH CANDIDATE WAS REJECTED ON INSPECTION, and it is recorded because the next census will
+meet it again.** `clockspeed/save/objects.py::_BYTE_ORDER_CANNOT_SEPARATE_VALUES` reads dead to any
+resolver that looks for `def` alone. It is a live module-level CONSTANT at `objects.py:3017`. That
+is the same artifact class the detail block already warns about on the `file:line` arm, arriving on
+the `path::name` arm instead, and `test_a_citation_naming_a_module_level_constant_resolves` is what
+keeps it rejected.
+
+**THE CORRECTIONS. This file is append-only, so the four entries that were WRONG WHEN WRITTEN are
+corrected HERE and are not edited where they sit.** The live precedent for getting that wrong is
+`4b2d04c`, which corrected a collision by editing the entry that made it while claiming in the
+inserted text that it had not.
+
+| Entry | Cited, and never in any commit | Read it as |
+|---|---|---|
+| CS-420 | `tests/save/test_absolute_claims.py::test_the_scanned_prose_carries_no_unbacked_absolute_claim` | `tests/save/test_absolute_claims.py::test_the_fenced_prose_carries_no_unbacked_absolute_claim` |
+| CS-454 | `tests/save/test_workdir.py::test_the_refusal_message_carries_no_non_digit_account_directory` | `tests/save/test_workdir.py::test_the_refusal_message_carries_no_raw_account_directory_of_a_non_digit_shape` |
+| the registry entry | `tests/data/test_registry.py::test_the_misspelled_keys_are_used_verbatim_not_autocorrected` | `tests/data/test_registry.py::test_the_misspelled_game_keys_are_used_verbatim_not_autocorrected` |
+| CS-436 | `test_the_header_scan_advertises_no_bound_it_cannot_enforce`, bare | `tests/test_precommit_gate.py::test_the_header_scan_time_bound_declares_the_scope_it_actually_has` |
+
+Each was confirmed by `git log -S"def <name>(" -- "*.py"` returning NOTHING, against a control on a
+live name that returns a commit - the probe is worthless without that control. The CS-436 target is
+not an inference: it was added by `ee36d0d`, the CS-436 commit itself, alongside the live sibling
+the same Verification field cites.
+
+**THE ONE THAT GETS NO TARGET, and this is a judgement rather than a lookup.** The CS-433 entry
+cites `tests/save/test_properties.py::test_the_reach_guard_catches_every_spliced_shape`. No such
+name is in history, and NO LIVE TEST IS ASSIGNED TO IT, because the claim the name encodes is
+measurably false: the CS-441 entry in this file records 26 of 46 spliced shapes still escaping, and
+CS-441 is still OPEN. Assigning a target would launder an aspirational sentence into a verified
+pointer, which is the exact defect this item exists to remove. The live gating evidence for CS-433
+is the retention checker's own mutation controls, which that entry also names and which resolve.
+
+**THE STATED RULE THE ACCEPTANCE ASKS FOR, for a citation whose file moved under it.** A dead
+citation is not one thing, and the four dispositions are recorded in `DISPOSITIONS` and
+machine-checked rather than believed: MOVED - the record was right when written and the tree moved
+the name, which is NOT a record defect and needs no ledger change; RENAMED - wrong when written with
+one unambiguous live target, which needs a correcting record like this one; NO_TARGET - wrong when
+written with no target assignable; and DELIBERATE - the citation asserts an ABSENCE, which a
+correction record does on purpose.
+
+**THE FOURTH DISPOSITION IS NOT A CONVENIENCE, IT IS A DEFECT THIS ITEM NEARLY SHIPPED.** The
+CS-411 correction record's Verification field cites a dead name deliberately - `grep -c` returning 0
+IS its evidence - so a checker that reddens on every dead bare name reddens on a record doing
+precisely the right thing. That trap was not previously recorded anywhere.
+
+**THE TABLE CANNOT ACCUMULATE FALSE DECLARATIONS, which is the CS-807 lesson applied before it is
+earned rather than after.** Every entry is checked in BOTH directions:
+`test_every_recorded_disposition_is_still_in_use` fails on an entry whose citation has gone or which
+now resolves on its own, and `test_every_correctable_disposition_names_a_target_and_the_others_do_not`
+fails on a MOVED or RENAMED entry that names no target. An exemption nothing verifies is how a false
+declaration ships.
+
+**TWO ARTIFACT CLASSES ARE DECLINED RATHER THAN JUDGED, and each is printed rather than passed in
+silence.** An unqualified bare basename - `registry.py:206`, `verify_env.py:358` - has no directory
+to resolve against, and resolving one repo-relative and calling it missing is how an earlier census
+manufactured six findings that were all artifacts. A `file:line` pointer into THIS file rots by
+construction, because prepending an entry shifts every line number below it. The `file:line` arm
+judges RANGE only: asserting what sits AT a line would redden on every edit above it, and that
+limit is stated rather than left to be discovered. Measured today: 22 pointers, 20 judged and in
+range, 2 declined, 0 broken.
+
+**ADVERSARIAL PASS.** Ten mutants, each asserting it applied before its run: the citation arm, the
+resolver, the `file:line` arm and the bare arm each neutered in turn; the ledger left unscoped so the
+preamble's illustrative pointers are judged; the two declined classes forced into judgement; the
+constant-and-class widening removed; the table made to forgive everything; and the redirect
+verification disabled. NINE were caught immediately. THE TENTH SURVIVED and is the reason four more
+controls exist: verifying a MOVED target only fires when a target STOPS resolving, which never
+happens on the live table, so it was a guard on a non-default path and would have shipped untested.
+The table is injectable now so a control can reach it. Second run: TEN of ten caught, no survivors.
+
+**DISCLOSED RESIDUALS, filed rather than implied:** CS-809, `docs/history_notes.md` is excluded and
+carries dead citations of its own; CS-810, a citation written as bare `::name` with no path is
+invisible to both arms.
+
 ### 2026-08-22 - CS-806 - `scripts/verify_env.py` now judges the toolchain by the RESOLVED interpreter rather than by PATH, and HARD-fails when the two diverge
 Verification: `tests/test_verify_env.py::test_a_tool_the_resolved_interpreter_cannot_import_is_reported_missing`
 is the control, with four siblings in the same block. END TO END ON THIS MACHINE, which is the

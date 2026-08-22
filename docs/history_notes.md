@@ -1003,6 +1003,50 @@ CS-805 - The container-FIELD personal-data shape is not walked as a wrapper, and
 
 filed 2026-08-21 (session 26). This is the PERSONAL-DATA half of the guard, `reach_guard._body_wrapping_classes` and `_returns_personal_data`, not the reach half CS-492 closed, which is why it is a separate item rather than that item's acceptance. Named in `docs/history_notes.md` under **CS-492 - detail** as "ALSO HERE, and NOT contrived". A refutation pass measured all of it open and found one shape the note does not mention: a return annotated `-> list[str]` carrying stringified real save paths passes strict typing and propagates nothing. Measured caught for contrast: `-> bytes` and a `bytes`-typed field.
 
+## CS-809 - detail
+
+Relocated from `ROADMAP.md` 2026-08-22 (session 30) for budget, not deleted. The item itself stays
+OPEN in `ROADMAP.md`.
+
+Filed as CS-442's disclosed residual, MEASURED rather than assumed: `docs/history_notes.md` carries
+17 distinct `path::name` citations, 4 of which do not resolve.
+
+**THE REASON IT WAS EXCLUDED IS THE ITEM, not laziness.** That file is the deep archive, and its
+detail blocks QUOTE dead names while discussing them - the CS-442 block quotes four of them, which
+is most of the file's dead population. So quoting and citing are indistinguishable BY SHAPE there,
+and a guard that cannot tell them apart is RED ON CORRECT HISTORY. That is the failure mode this
+project has already named as the one that gets a guard switched off, and it is why the file was
+left out rather than forced in.
+
+**WHAT CLOSING IT ACTUALLY NEEDS**, so the next session does not rediscover it: a way to mark a
+name as QUOTED rather than CITED. The CS-442 guard's `DELIBERATE` disposition is the nearest
+existing mechanism - it already covers a citation that asserts an ABSENCE - but it is keyed per
+citation, and a detail block quoting four names would need four entries that say nothing more than
+"this is prose". A block-level marker is probably the right shape. Do not close this by adding the
+whole archive to `GUARDED_DOCS` and dispositioning every quote: that trades one unguarded file for
+a table of forgiveness entries nobody can audit, which is the CS-807 shape.
+
+## CS-810 - detail
+
+Relocated from `ROADMAP.md` 2026-08-22 (session 30) for budget, not deleted. The item itself stays
+OPEN in `ROADMAP.md`.
+
+Filed as CS-442's disclosed residual. A citation written as a bare `::name`, with no path in front
+of the separator, falls between both arms of the CS-442 guard BY CONSTRUCTION rather than by
+oversight:
+
+- the `path::name` arm requires a `<path>.py` before the `::` and matches nothing;
+- the bare arm's lookbehind deliberately excludes a name preceded by `:`, precisely so it does not
+  re-judge the right half of a full citation under a second rule and report one defect twice.
+
+**LIVE TODAY, NOT HYPOTHETICAL.** The CS-411 correction record spends
+`::test_the_exclusion_is_discovery_only_not_containment` in exactly that form.
+
+**NOTE THAT INSTANCE IS DELIBERATE** - the record cites the name to prove it is DEAD, and
+`grep -c` returning 0 is its evidence. So closing this needs the same absence-versus-assertion
+distinction the guard already draws, and a naive fix that simply widens the bare arm's lookbehind
+would redden that correction record for doing the right thing.
+
 ## CS-806 - detail
 
 **CS-806 CLOSED 2026-08-22 (session 30) - see `docs/LEDGER.md`. This block is the record of how it
@@ -1556,6 +1600,13 @@ NOTE: filed 2026-08-16 as the stated remainder of CS-435, whose ledger entry nam
 NOTE: filed 2026-08-16 from the CS-438 adversary and CONFIRMED by the CS-438 repair with three byte-verified mutants. `tests/test_exception_rendering.py`'s `RenderVisitor` is scoped BY DESIGN to `except ... as NAME` handler bodies, and its own docstring states that `safe_exc_text(exc)` takes the exception as a parameter so its `str(exc)` sits outside every handler. Measured against `workdir._listing_problem(code, exc)`: `detail=str(exc)` gives 0 findings GREEN, `detail=exc.filename` gives 0 findings GREEN, and the same `str(exc)` inside a real handler gives 1 finding RED. The runtime behaviour is clean today, so this is a COVERAGE gap rather than a live leak - but the module that relied on it had ZERO direct tests until CS-438's repair added them, and the sweep is the enumerating guard the project trusts precisely because it has no list. Note the shape generalises: any helper reached from a handler and handed the bound exception is invisible, and nobody has counted how many exist. **BUILT 2026-08-16 (session 12) AND REFUTED THE SAME DAY. THE CODE SHIPPED AND THE ITEM DOES NOT CLOSE.** The narrow mechanism works - a suffix-annotated parameter rendered whole IS now flagged, and the sanctioned-helper half SURVIVED every attack including two combined mutants aimed at the non-vacuity proofs, which are genuinely live. **WHAT FAILED: of 46 spliced shapes 26 ESCAPED, and seven whole-object leaks in one file left the suite green.** Three families, all measured: the annotation predicate is a NAME SUFFIX, so it misses 19 builtin exception types, `subprocess.TimeoutExpired` - which this project's own gate names as a leak type - and **five exception classes this repo already defines carrying `noqa: N818`**, so the predicate's foundation is already deliberately breached in-tree; an UNANNOTATED parameter is invisible; and the exemption is reachable by `not isinstance(...)`, by `isinstance(...) or flag`, and by a locally-defined `OSError` SUBCLASS whose `__str__` appends the filename, which refutes the stated reason that a module defining a type can promise its message. **THE ITEM'S OWN "no list to keep up to date" CLAIM IS FALSE:** three dicts in that file are keyed by PATH, so a brand-new leak appended to an already-listed file is absorbed silently - demonstrated in `tools/drift_guard.py` and again in a waived test file, both green. Four false sentences and seven behaviour-changing green mutants against unbacked detection claims are recorded against ADR 0008. Measured against 7165 annotations in the tree: **0 real helpers sit in the blind spot today**, so this is coverage, not a live leak - one keystroke deep.
 
 ### CS-442 - detail
+
+**CS-442 CLOSED 2026-08-22 (session 30) - see `docs/LEDGER.md`. This block is the record of how
+it was filed and is NO LONGER A LIVE INSTRUCTION.** Two of its figures were superseded by the
+re-derivation it asked for: the population is EIGHT rather than seven, because the bare-identifier
+shape this block correctly calls the most important one to cover was UNMEASURED when it was
+written and yielded one more; and a ninth candidate was rejected as an artifact of resolving
+`def` alone. The guard, the four dispositions and the corrections are in the ledger entry.
 
 NOTE: filed 2026-08-16. `docs/LEDGER.md:128` cites `tests/save/test_absolute_claims.py::test_the_scanned_prose_carries_no_unbacked_absolute_claim`, which occurs ZERO times; the real name is `test_the_fenced_prose_carries_no_unbacked_absolute_claim`. Corrected by a new record, because this file is append-only. **THE STRUCTURAL FACT IS THE ITEM AND IT IS SHARPER THAN THE TYPO: NOTHING IN THIS REPOSITORY READS `docs/`.** `tests/save/test_oracle_citations.py` scans `clockspeed/`, `tests/save/test_absolute_claims.py` scans `tests/`, and neither looks at `docs/` at all - so the VERIFICATION POINTER, which is the one field `docs/LEDGER.md` declares MANDATORY and the entire reason that file is trustworthy, is unguarded. Note the append-only tension to solve rather than inherit: a correct citation can be invalidated by a later legitimate rename, so the rule must distinguish a pointer that was WRONG WHEN WRITTEN from one the tree moved out from under, and the second is not a defect in the record. **SHARPENED 2026-08-16 (session 12) BY A CENSUS RATHER THAN AN ANECDOTE - the population is bigger than the one typo this entry was filed on, and it is FIVE, not one.** Re-derive rather than trusting these figures, but as measured that day: of the `path::name` citations in `docs/`, five resolved to no name defined anywhere in the tree, in `docs/LEDGER.md` alone, spanning entries written across several sessions rather than clustering in one. **THREE DESIGN FACTS THE CENSUS TURNED UP, each of which a naive checker gets wrong.** FIRST, the dead name this entry already names occurs at a SECOND site that a `path::name` scanner structurally CANNOT see: it sits inside a `grep -c <bare name>` command in the MANDATORY `Verification:` field, as a bare identifier with no path attached. That is the single most important shape to cover, because the Verification pointer is the entire reason the ledger is trustworthy, and it is the shape most likely to be missed. SECOND, **a `file:line` citation into `docs/LEDGER.md` rots BY CONSTRUCTION**: the ledger is append-only NEWEST-FIRST, so every existing line number shifts down whenever an entry is prepended - which is why this entry's own `docs/LEDGER.md:128` pointer no longer names the line it was written for. A rule that treats a drifted ledger line number as a defect will be red on correct history. THIRD, and this is a warning about the checker rather than about the tree: the census's own `file:line` arm reported six dead targets and **all six were ARTIFACTS** - bare basenames like `objects.py:1666` which the checker resolved repo-relative and then declared missing. An unqualified citation is not a dead one. Discarding that number was the right call and the next checker must not re-earn it.
 
