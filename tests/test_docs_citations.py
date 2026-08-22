@@ -17,7 +17,7 @@ docstring because it is the difference between the two questions - a pytest
 node id can only address a module-level function, while a docs citation may
 legitimately name a class or a module-level constant.
 
-FOUR TRAPS SHAPE THIS MODULE. Each was measured on the real corpus, and a
+FIVE TRAPS SHAPE THIS MODULE. Each was measured on the real corpus, and a
 checker that misses any one of them is red on correct history, which is the
 failure that gets a guard switched off.
 
@@ -44,12 +44,57 @@ failure that gets a guard switched off.
    right thing. That is the :data:`DELIBERATE` disposition, and the ledger
    already contains one such record.
 
-WHAT THIS MODULE DOES NOT COVER, stated rather than left to be discovered.
-``docs/history_notes.md`` is EXCLUDED: it is the deep archive, and its detail
-blocks QUOTE dead names deliberately while discussing them, so the quoting and
-the citing are indistinguishable by shape there. A citation written as bare
-``::name`` with no path in front of it is invisible to both arms below. Both
-are recorded in ``ROADMAP.md`` rather than implied here.
+5. A PATH CAN BE ELIDED, and recovering it by inheritance manufactures
+   findings. The ledger writes one full citation and then ``::name`` for
+   further tests in the same file. Resolving those against "the last full
+   citation seen" MANUFACTURES findings on correct records, because a paragraph
+   may interleave an unrelated full citation while the elisions after it still
+   mean the earlier file. :data:`ELIDED_RE` reads
+   the shape and asks the question that needs no path - does the tree bind this
+   name - which is the same question the bare arm asks.
+
+WHAT THIS MODULE DOES NOT COVER, recorded rather than left to be discovered.
+:data:`UNGUARDED_DOCS` is the whole of it, and it is a RECORD rather than a
+silence: every in-domain markdown file carrying a citation is either guarded or
+named there with its reason, checked in both directions, so the unguarded set
+cannot grow or linger unnoticed. ``docs/history_notes.md`` is its ONE member,
+because the deep archive's dead pointers sit inside the detail blocks OF these
+very items, whose subject IS a pointer being dead, so quoting and citing cannot
+be told apart by shape there. Guarding it later is a one-line change that this
+contract then FORCES, by failing the record that has stopped being needed.
+
+TWO THINGS THAT WENT WRONG ON THE FIRST BUILD OF THAT BOUNDARY, kept here
+because both are the same mistake wearing different clothes - a rule that
+reads narrower than what it governs.
+
+A. CARRYING A CITATION WAS DECIDED BY THE PATH ARM ALONE. It asked
+   :func:`citations_in`, which needs a ``path.py`` before the separator, so a
+   doc carrying ONLY an elided ``::name`` - the very shape added to this module
+   in the same change - was not a carrier at all. Neither was one carrying only
+   a bare ``grep -c`` identifier or only a ``file:line`` pointer. Such a doc
+   could never be reported, and, worse, a maintainer who CORRECTLY recorded one
+   was told the record was stale and to delete it. :data:`JUDGED_SHAPES` is now
+   the single answer to what this module judges, :func:`carries_a_citation`
+   reads it, and a contract walks this module's own compiled patterns and fails
+   on any that the boundary does not read - so the NEXT arm cannot fall out.
+
+B. AN EXEMPTION SHIPPED THAT THIS MODULE'S OWN TABLE CONTRADICTED.
+   ``WAKEUP_NOTES.md`` was recorded unguarded on the reason "every citation in
+   it resolves today". One did not, and :data:`DISPOSITIONS` already recorded
+   that same name as dead under the ledger key. The repair was not to rewrite
+   the sentence - a record nothing verifies is the whole failure mode - but to
+   GUARD the file, at a cost of one disposition. It is in :data:`GUARDED_DOCS`
+   now, and so is ADR 0008, which the widened boundary surfaced the moment it
+   could see a doc that names test modules and nothing else.
+
+A DISPOSITION IS GRANTED PER SITE, NOT PER NAME. The table is keyed
+``(doc, name)``, which forgives every spelling of that name in that doc
+forever - including citations written long after the one that was adjudicated.
+Three new ledger entries citing already-forgiven names were planted and the
+module stayed green on all three. Each entry now records HOW MANY sites it
+answers and a count that no longer matches is reported. A line number would
+have been the obvious key and is the wrong one, for the same reason trap 3
+declines to judge a ``file:line`` pointer into an append-only file.
 """
 
 from __future__ import annotations
@@ -80,7 +125,61 @@ ENTRIES_HEADING: Final = "## Entries"
 
 # ROADMAP.md and docs/GATED.md carry citations too and both measured clean, so
 # they are guarded from the start rather than after they rot.
-GUARDED_DOCS: Final = (LEDGER, "ROADMAP.md", "docs/GATED.md")
+#
+# ADR 0008 JOINED THE MOMENT THE BOUNDARY LEARNED TO READ EVERY ARM. It names
+# three test MODULES and no test, so the path arm and the file:line arm find
+# nothing in it and the bare arm's basename filter answers all three - measured
+# zero on every arm, which is why guarding it was the cheap answer and
+# recording it the expensive one. It was invisible to the boundary until
+# JUDGED_SHAPES existed, which is exactly the silence CS-442 was opened on.
+# WAKEUP_NOTES.md IS GUARDED BECAUSE ITS EXEMPTION WAS MEASURABLY FALSE. It
+# was first RECORDED unguarded, on the stated reason "every citation in it
+# resolves today". That reason was false on the record's own first run, and
+# this module's DISPOSITIONS table already held the counter-evidence under the
+# ledger key. Guarding it costs exactly one disposition and closes the gap
+# permanently; repairing the sentence instead would have left a record that
+# nothing verifies, which is the shape that ships false declarations.
+ADR_0008: Final = "docs/adr/0008-detection-claims-are-derived-never-written.md"
+
+GUARDED_DOCS: Final = (LEDGER, "ROADMAP.md", "docs/GATED.md", "WAKEUP_NOTES.md", ADR_0008)
+
+# `.claude/` is OUT OF DOMAIN rather than exempt. It is Claude Code
+# configuration, it appears nowhere in the CLAUDE.md doc-topology table, and
+# its prose instructs an agent rather than recording a verification. A guard
+# that reddened on a harness-config edit would be reddening on something that
+# is not documentation at all.
+OUT_OF_DOMAIN: Final = ".claude/"
+
+# THE BOUNDARY OF THE GUARDED SET, which until now nothing re-derived.
+# GUARDED_DOCS is a hand-maintained tuple, so a doc that STARTS carrying
+# citations joins the unguarded set in silence - which is this module's own
+# founding finding, "nothing in this repository read docs/", repeating one
+# level up. So every in-domain markdown file carrying a citation is either
+# guarded or RECORDED here with its reason, and the record is checked in BOTH
+# directions: an entry for a doc that has since been guarded, or that no longer
+# carries a citation, FAILS. Nothing may join this set quietly and nothing may
+# linger in it after it stops being needed.
+#
+# MEASURED, NOT ASSUMED, AND THE MEASUREMENT EVICTED A MEMBER. The first run of
+# that contract reported TWO carriers the item had recorded one of, and
+# WAKEUP_NOTES.md was written in here on the reason "every citation in it
+# resolves today". THAT REASON WAS FALSE ON ITS FIRST RUN: WAKEUP_NOTES.md
+# spends test_the_header_scan_advertises_no_bound_it_cannot_enforce, which this
+# tree binds nowhere and which DISPOSITIONS below already recorded as dead
+# under the ledger key. An exemption table nothing verifies is precisely how a
+# false declaration ships, and this one shipped inside the module that says so.
+#
+# It was not repaired in prose. The file was GUARDED, at a cost of one
+# disposition, and the record deleted - so the archive is the only member, and
+# a contract below keeps it the only one.
+UNGUARDED_DOCS: Final[Mapping[str, str]] = {
+    "docs/history_notes.md": (
+        "the deep archive, and its dead citations sit inside the detail blocks OF the"
+        " citation-guard items themselves - blocks whose SUBJECT is a pointer being dead -"
+        " so quoting and citing are indistinguishable by shape and a guard would be red on"
+        " correct history."
+    ),
+}
 
 # A path segment may begin with a dot - `.github/workflows/tier1.yml:250` is a
 # real citation, and a pattern anchored on an alphanumeric drops the dot and
@@ -95,6 +194,39 @@ LINE_POINTER_RE: Final = re.compile(
 # A bare test identifier, NOT preceded by "::" or "." - those forms are the
 # other two arms' business. The length floor keeps ordinary words out.
 BARE_RE: Final = re.compile(r"(?<![:.\w])(test_[a-z0-9_]{8,})\b")
+
+# THE PATH-ELISION IDIOM: one full `path.py::name` citation, then `::name` for
+# further tests in the SAME file. `docs/LEDGER.md` writes most of its bare
+# identifiers that way, and both arms above are blind to it BY CONSTRUCTION -
+# the path arm needs a `<path>.py` before the separator, and BARE_RE's
+# lookbehind excludes a name preceded by ":" so a full citation's right half is
+# not judged twice.
+#
+# THE PATH IS NOT RECOVERED, DELIBERATELY. Inheriting "the last full citation
+# seen" was measured to MANUFACTURE findings on correct records, because the
+# ledger interleaves an unrelated full citation mid-paragraph while the
+# elisions that follow still mean the earlier file. So an elided pointer is
+# judged the way a bare one is - does ANY module in the tree bind this name -
+# which is the question that can be answered without guessing.
+#
+# The same length floor does the same work: the metasyntactic `path::name` and
+# `path::test_name` placeholders that document the citation SHAPE are both
+# below it, and judging those would redden the documentation of the rule.
+ELIDED_RE: Final = re.compile(r"(?<![A-Za-z0-9_])::(test_[a-z0-9_]{8,})\b")
+
+# EVERY SHAPE THIS MODULE JUDGES, IN ONE PLACE, because the boundary contract
+# needs the same answer the arms use and once did not have it. It decided
+# carrier-hood with the PATH pattern alone, so a doc carrying only an elided
+# `::name`, only a bare `grep -c` identifier or only a `file:line` pointer was
+# not a carrier at all - it could join the unguarded set in silence, and a
+# maintainer who correctly recorded it was told the record was STALE.
+#
+# THE MEMBERSHIP IS ASSERTED AGAINST THE MODULE ITSELF rather than trusted:
+# test_every_pattern_this_module_judges_by_also_decides_what_carries_a_citation
+# walks this module's own compiled patterns and fails on any that is not here.
+# That is what keeps a FUTURE arm from falling out of the boundary the way the
+# elided arm did - the arm and the boundary cannot drift apart quietly.
+JUDGED_SHAPES: Final = (CITATION_RE, LINE_POINTER_RE, BARE_RE, ELIDED_RE)
 
 # --- dispositions -----------------------------------------------------------
 
@@ -115,18 +247,30 @@ class Disposition:
             verify against.
         why: The evidence, in one line, so the table is auditable without
             re-deriving it.
+        sites: HOW MANY TIMES the doc spells this citation. Without it the key
+            is ``(doc, name)`` and nothing else, so a forgiveness granted for
+            one adjudicated site silently covers a brand-new dead citation of
+            the same name at a NEW site in the same doc - which measured true:
+            three new ledger entries citing already-forgiven names left the
+            whole module green. A count is the cheapest key that closes it and
+            the only one that does not churn, because line numbers move every
+            time an entry is prepended to an append-only file.
     """
 
     kind: str
     target: str
     why: str
+    sites: int
 
 
-# EVERY ENTRY HERE IS CHECKED, IN BOTH DIRECTIONS. A MOVED or RENAMED target
-# that stops resolving fails, and an entry whose citation no longer appears -
-# or which now resolves on its own - ALSO fails. That second direction is the
-# point: an exemption table nothing verifies is how a false declaration ends up
-# shipped, and this project has an open item about exactly that.
+# EVERY ENTRY HERE IS CHECKED, IN THREE DIRECTIONS. A MOVED or RENAMED target
+# that stops resolving fails; an entry whose citation no longer appears - or
+# which now resolves on its own - ALSO fails; and an entry whose SITE COUNT no
+# longer matches the doc fails too. That last one is the newest and the one an
+# exemption table is normally missing: without it the key is a name, a name is
+# forgiven forever, and the next dead citation that happens to spell the same
+# name is forgiven on arrival. Every count below is MEASURED from the doc, not
+# asserted about it.
 DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
     # --- class 1: the record was RIGHT when written; CS-495 moved the tests.
     (
@@ -139,6 +283,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "::test_every_library_reaching_module_in_the_package_is_declared",
         "CS-471 cited test_properties.py; CS-495 relocated the reach-guard"
         " suite. Not a record defect.",
+        1,
     ),
     (
         LEDGER,
@@ -149,6 +294,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "tests/save/test_reach_guard.py"
         "::test_the_suite_wide_guard_catches_a_module_that_declares_nothing",
         "CS-471 citation, relocated by CS-495. Not a record defect.",
+        1,
     ),
     (
         LEDGER,
@@ -159,6 +305,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "tests/save/test_reach_guard.py"
         "::test_a_helper_handing_back_a_wrapped_body_is_flagged_as_propagating",
         "CS-471 citation, relocated by CS-495. Not a record defect.",
+        1,
     ),
     # --- class 2: WRONG WHEN WRITTEN, one unambiguous live target. Each is
     # corrected by a later ledger record, because this file is append-only.
@@ -171,6 +318,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "tests/save/test_absolute_claims.py"
         "::test_the_fenced_prose_carries_no_unbacked_absolute_claim",
         "one-word slip, scanned for fenced; the cited name is in no commit in history.",
+        2,
     ),
     (
         LEDGER,
@@ -180,6 +328,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "tests/data/test_registry.py"
         "::test_the_misspelled_game_keys_are_used_verbatim_not_autocorrected",
         "the word game was dropped; the cited name is in no commit in history.",
+        2,
     ),
     (
         LEDGER,
@@ -191,6 +340,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "::test_the_refusal_message_carries_no_raw_account_directory_of_a_non_digit_shape",
         "CS-454 is about the non-digit shape, and the surviving variant"
         " postdates the entry and matches its sentence.",
+        2,
     ),
     # --- class 3: WRONG WHEN WRITTEN, and NO target may be assigned.
     (
@@ -201,6 +351,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "",
         "no test bears this meaning: CS-441 records 26 of 46 spliced shapes"
         " still escaping, and stays OPEN.",
+        2,
     ),
     # --- the bare-identifier arm, which sees what a path scanner cannot.
     (LEDGER, "test_the_header_scan_advertises_no_bound_it_cannot_enforce"): Disposition(
@@ -208,18 +359,45 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "tests/test_precommit_gate.py"
         "::test_the_header_scan_time_bound_declares_the_scope_it_actually_has",
         "added by ee36d0d, the CS-436 commit, alongside the live sibling the same entry cites.",
+        3,
+    ),
+    # THE WHOLE COST OF GUARDING WAKEUP_NOTES.md, and the entry that had to
+    # exist before that file could be guarded at all. Same dead name as the
+    # ledger-keyed entry above and the same live target - the notes and the
+    # ledger record the same CS-436 work - but the key carries the DOC, so a
+    # name forgiven in one file is not forgiven in another by accident.
+    (
+        "WAKEUP_NOTES.md",
+        "test_the_header_scan_advertises_no_bound_it_cannot_enforce",
+    ): Disposition(
+        RENAMED,
+        "tests/test_precommit_gate.py"
+        "::test_the_header_scan_time_bound_declares_the_scope_it_actually_has",
+        "the same ee36d0d rename the ledger entry records, restated in the notes"
+        " that were written from it.",
+        1,
     ),
     (LEDGER, "test_the_scanned_prose_carries_no_unbacked_absolute_claim"): Disposition(
         RENAMED,
         "tests/save/test_absolute_claims.py"
         "::test_the_fenced_prose_carries_no_unbacked_absolute_claim",
         "THE SECOND SITE of the same slip, spent bare inside a grep -c with no path attached.",
+        1,
     ),
     (LEDGER, "test_no_recorded_gap_is_blocked_by_a_frozen_file"): Disposition(
         DELIBERATE,
         "",
         "the CS-411 correction record cites this name to prove it is DEAD;"
         " grep -c returning 0 IS its evidence.",
+        2,
+    ),
+    (LEDGER, "test_the_exclusion_is_discovery_only_not_containment"): Disposition(
+        DELIBERATE,
+        "",
+        "the SECOND name in that same CS-411 correction, and the reason it needed"
+        " an entry only now: it is spelled ONLY in the elided form, so until"
+        " ELIDED_RE the guard had never seen it.",
+        2,
     ),
 }
 
@@ -280,6 +458,57 @@ def scoped_text(doc: str, text: str) -> str:
     return tail if marker else text
 
 
+def citation_sites(text: str, cited: str) -> int:
+    """How many times a doc SPELLS one citation, counted by the arm that judges it.
+
+    The arms de-duplicate: one dead name is one finding however often it
+    appears, which is right for reporting and wrong for forgiving. A
+    disposition keyed on ``(doc, name)`` alone forgives every site of that name
+    forever, including sites written long after the one that was adjudicated.
+    Counting is what turns "this name is answered" into "these N spellings of
+    it are answered".
+
+    Args:
+        text: The scoped doc text - the same text the arm reads.
+        cited: A full ``path.py::name`` key, or a bare identifier key.
+
+    Returns:
+        The number of occurrences, counted with the same pattern the owning arm
+        judges by, so the count cannot disagree with what the arm sees.
+    """
+    if "::" in cited:
+        path, _, name = cited.partition("::")
+        return sum(1 for found in CITATION_RE.findall(text) if found == (path, name))
+    return judged_bare_names(text).count(cited)
+
+
+def disposition_site_problems(
+    texts: Mapping[str, str],
+    dispositions: Mapping[tuple[str, str], Disposition],
+) -> list[str]:
+    """Every recorded disposition whose site count no longer matches its doc.
+
+    Args:
+        texts: Guarded doc path to its scoped text.
+        dispositions: The recorded answers.
+
+    Returns:
+        One line per entry whose recorded multiplicity has drifted. MORE sites
+        than recorded is a NEW dead citation arriving under an old forgiveness;
+        FEWER is a record that has outgrown what it answers. Both are the table
+        drifting from the corpus, and the table is only worth what it is
+        checked against.
+    """
+    problems: list[str] = []
+    for (doc, cited), recorded in sorted(dispositions.items()):
+        found = citation_sites(texts.get(doc, ""), cited)
+        if found != recorded.sites:
+            problems.append(
+                f"{doc} :: {cited} - forgives {recorded.sites} site(s), the doc spells it {found}"
+            )
+    return problems
+
+
 def citations_in(text: str) -> list[tuple[str, str]]:
     """Extract distinct ``(path, name)`` citations, in order of appearance."""
     out: list[tuple[str, str]] = []
@@ -288,6 +517,26 @@ def citations_in(text: str) -> list[tuple[str, str]]:
         if pair not in out:
             out.append(pair)
     return out
+
+
+def carries_a_citation(text: str) -> bool:
+    """Whether a doc holds anything this module would judge, in ANY spelling.
+
+    The boundary contract's question, and deliberately WIDER than
+    :func:`citations_in`, which answers the path arm's narrower one. A doc
+    carrying only ``::name``, only a bare ``grep -c`` identifier or only a
+    ``file:line`` pointer carries a pointer that can rot, and a boundary that
+    could not see it left the doc unable to be reported OR recorded.
+
+    Args:
+        text: The doc's full text. The whole text rather than the scoped part:
+            a pointer in a preamble is still a pointer, and scoping decides
+            what to ADJUDICATE, not what to notice.
+
+    Returns:
+        True if any pattern in :data:`JUDGED_SHAPES` matches.
+    """
+    return any(pattern.search(text) for pattern in JUDGED_SHAPES)
 
 
 def unresolved_citations(
@@ -390,6 +639,43 @@ def line_pointer_problems(
 # --- the bare-identifier arm ------------------------------------------------
 
 
+def judged_bare_names(text: str) -> list[str]:
+    """Every identifier the bare arm judges, in order of appearance.
+
+    TWO SPELLINGS, ONE QUESTION. A name spent bare inside a ``grep -c`` and the
+    same name spelled ``::name`` with its path elided are both asking whether
+    the tree binds that identifier, and neither carries a path to check. They
+    are collected here rather than at each call site because the two that need
+    them - the arm that judges and the check that the disposition table has not
+    gone stale - MUST agree on the population. A disposition recorded for a
+    name only one of them can see is a forgiveness entry the other reports as
+    unused, which is the failure the table is built to prevent.
+
+    A FULL ``path.py::name`` CITATION IS BLANKED WHOLE, PATH AND ALL, and the
+    path half is the half that needs it. The two lookbehinds already keep the
+    NAME half out - both patterns refuse a name preceded by ``:`` - so blanking
+    is not what stops a citation being judged twice; that credit belonged to
+    the lookbehinds and was measured off this line. What the blanking stops is
+    the citation's PATH being read as a bare identifier: in
+    ``tests/synthetic/test_plantedxx.py::test_a_real_one`` the basename
+    ``test_plantedxx`` clears the length floor and follows a ``/``, so without
+    the blanking it reaches the arm and is reported dead whenever that module
+    is not tracked - a manufactured finding, on a citation the path arm is
+    already judging. ``test_the_whole_of_a_full_citation_is_blanked_not_just_the_name_half``
+    is the observation; before it existed, deleting this line survived.
+
+    Args:
+        text: The scoped doc text.
+
+    Returns:
+        The matched identifiers, source order preserved, duplicates included.
+    """
+    stripped = CITATION_RE.sub(" ", text)
+    found = [(match.start(), match.group(1)) for match in BARE_RE.finditer(stripped)]
+    found += [(match.start(), match.group(1)) for match in ELIDED_RE.finditer(stripped)]
+    return [name for _offset, name in sorted(found)]
+
+
 def bare_name_problems(
     doc: str,
     text: str,
@@ -397,12 +683,16 @@ def bare_name_problems(
     module_basenames: Iterable[str],
     dispositions: Mapping[tuple[str, str], Disposition] | None = None,
 ) -> list[tuple[str, str]]:
-    """Judge bare ``test_*`` identifiers, which no path-shaped scanner can see.
+    """Judge ``test_*`` identifiers carrying no path, in either spelling.
 
     This is the shape the item calls the most important one to cover: the
     mandatory Verification field spends them inside ``grep -c <name>``, with no
     path attached, and a ``path::name`` scanner is structurally blind to them.
     One dead citation in the ledger is visible ONLY here.
+
+    :func:`judged_bare_names` supplies the population, so the ELIDED ``::name``
+    spelling is judged by the same rule as the bare one and a disposition keyed
+    on the name covers both sites of a name spent in both forms.
 
     Args:
         doc: The repo-relative doc path, used to key :data:`DISPOSITIONS`.
@@ -425,10 +715,7 @@ def bare_name_problems(
     modules = set(module_basenames)
     problems: list[tuple[str, str]] = []
     seen: set[str] = set()
-    # A path::name pair's right half is the other arm's business; blank the
-    # whole pair out so it is not judged twice under two different rules.
-    stripped = CITATION_RE.sub(" ", text)
-    for name in BARE_RE.findall(stripped):
+    for name in judged_bare_names(text):
         if name in seen or name in known or name in modules:
             continue
         seen.add(name)
@@ -442,6 +729,63 @@ def bare_name_problems(
                     (name, f"its {recorded.kind} target {recorded.target} does not resolve")
                 )
     return problems
+
+
+# --- the boundary of the guarded set ----------------------------------------
+
+
+def guarded_set_problems(
+    docs: Mapping[str, str],
+    guarded: Iterable[str],
+    recorded: Mapping[str, str],
+) -> tuple[list[str], list[str]]:
+    """Judge which docs are guarded at all, rather than what a guarded doc says.
+
+    Every other contract in this module asks whether a citation resolves. This
+    one asks the question one level up - whether the file carrying it is looked
+    at by anything - because that is the question whose wrong answer opened
+    CS-442 in the first place.
+
+    A doc counts as CARRYING a citation when :func:`carries_a_citation` says
+    so - that is, when it holds ANY shape this module judges, in any of the
+    four spellings, judged on the whole text rather than the scoped part: a
+    pointer in a preamble is still a pointer, and the scoping exists to decide
+    what to ADJUDICATE, not what to notice.
+
+    ASKING THE PATH PATTERN ALONE WAS THE ORIGINAL DEFECT. It made a doc
+    carrying only an elided ``::name`` invisible in BOTH directions - never
+    reported as unguarded, and, worse, a correct record for it reported as
+    stale. The boundary now reads exactly what the arms read.
+
+    Args:
+        docs: In-domain repo-relative markdown path to full text. Injected, so
+            a control can pose the question against a corpus with no
+            filesystem involved.
+        guarded: The docs the other contracts adjudicate.
+        recorded: Repo-relative path to the one-line reason it is deliberately
+            NOT guarded.
+
+    Returns:
+        ``(unrecorded, stale)``. UNRECORDED is a doc carrying citations that is
+        neither guarded nor recorded - the set growing in silence. STALE is a
+        record that has stopped being needed, which is the direction an
+        exemption table normally is not checked in and the direction that lets
+        a false declaration ship.
+    """
+    guarded_set = set(guarded)
+    carriers = {doc for doc, text in docs.items() if carries_a_citation(text)}
+
+    unrecorded = sorted(doc for doc in carriers if doc not in guarded_set and doc not in recorded)
+
+    stale: list[str] = []
+    for doc in sorted(recorded):
+        if doc in guarded_set:
+            stale.append(f"{doc} - now guarded, so the record forgives nothing")
+        elif doc not in docs:
+            stale.append(f"{doc} - not an in-domain tracked markdown file")
+        elif doc not in carriers:
+            stale.append(f"{doc} - carries no citation, so there is nothing to leave unguarded")
+    return unrecorded, stale
 
 
 # --- the live corpus --------------------------------------------------------
@@ -496,6 +840,39 @@ def known_names(sources: Mapping[str, str]) -> frozenset[str]:
     return frozenset(names)
 
 
+@pytest.fixture(scope="module")
+def module_basenames(tracked: list[str]) -> frozenset[str]:
+    """Tracked module basenames without the extension.
+
+    A bare ``test_properties`` is a MODULE, not a test. Hoisted to a fixture
+    because every guarded doc's bare arm needs it, and recomputing it per
+    parametrization would re-walk the index once per doc.
+    """
+    return frozenset(path.rsplit("/", 1)[-1][:-3] for path in tracked if path.endswith(".py"))
+
+
+def in_domain(path: str) -> bool:
+    """Whether a tracked path is documentation this module adjudicates.
+
+    A NAMED PREDICATE RATHER THAN A COMPREHENSION, because a filter written
+    inline into a fixture cannot be tested: asking the fixture whether its
+    output contains what it filtered out re-asserts the comprehension and
+    cannot fail. This can be asked about a path that does not exist.
+
+    Args:
+        path: A repo-relative POSIX path.
+
+    Returns:
+        True for tracked markdown outside :data:`OUT_OF_DOMAIN`.
+    """
+    return path.endswith(".md") and not path.startswith(OUT_OF_DOMAIN)
+
+
+@pytest.fixture(scope="module")
+def markdown_texts(tracked: list[str]) -> dict[str, str]:
+    return {path: doc_text(path) for path in tracked if in_domain(path)}
+
+
 def doc_text(doc: str) -> str:
     return (REPO_ROOT / doc).read_text(encoding="ascii", errors="replace")
 
@@ -531,20 +908,105 @@ def test_every_file_line_pointer_in_a_guarded_doc_is_in_range(
     )
 
 
-def test_every_bare_identifier_in_the_ledger_resolves(
-    known_names: frozenset[str], tracked: list[str]
+@pytest.mark.parametrize("doc", GUARDED_DOCS)
+def test_every_bare_identifier_in_a_guarded_doc_resolves(
+    doc: str, known_names: frozenset[str], module_basenames: frozenset[str]
 ) -> None:
-    basenames = {path.rsplit("/", 1)[-1][:-3] for path in tracked if path.endswith(".py")}
-
     problems = bare_name_problems(
-        LEDGER, scoped_text(LEDGER, doc_text(LEDGER)), known_names, basenames
+        doc, scoped_text(doc, doc_text(doc)), known_names, module_basenames
     )
 
     assert not problems, (
         "dead bare identifiers in "
-        + LEDGER
+        + doc
         + ":\n"
         + "\n".join(f"  {name} - {why}" for name, why in problems)
+    )
+
+
+# A name of the elided shape that this tree binds nowhere. Spelled `::name`
+# on purpose: it is the shape the arm was widened to read, so a plant in this
+# spelling proves BOTH that the arm reaches the doc and that the widening is
+# what carries it there.
+_PLANTED_DEAD_NAME: Final = "test_a_planted_name_this_tree_binds_nowhere"
+_PLANTED_DEAD_LINE: Final = f"\n\nVerification: `::{_PLANTED_DEAD_NAME}`.\n"
+
+
+@pytest.mark.parametrize("doc", GUARDED_DOCS)
+def test_the_bare_arm_has_teeth_on_every_guarded_doc(
+    doc: str, known_names: frozenset[str], module_basenames: frozenset[str]
+) -> None:
+    """Every guarded doc is REACHED, measured per doc rather than assumed.
+
+    The arm above passes on all of them today, and a passing arm proves nothing
+    about coverage - it reads the same on a doc that is clean and on a doc
+    nobody asked about. This module shipped with exactly that hole: the arm was
+    hardcoded to the ledger while its two siblings were parametrized, so a dead
+    ``::name`` in ROADMAP.md or docs/GATED.md left the whole module green.
+
+    The plant is in memory. Nothing is written to a tracked doc.
+    """
+    planted = scoped_text(doc, doc_text(doc)) + _PLANTED_DEAD_LINE
+
+    problems = bare_name_problems(doc, planted, known_names, module_basenames)
+
+    assert [name for name, _why in problems] == [_PLANTED_DEAD_NAME], (
+        f"a dead elided pointer planted in {doc} was not the single finding, so "
+        "the arm does not reach this doc or the doc already carries another"
+    )
+
+
+def test_every_markdown_file_carrying_a_citation_is_guarded_or_recorded_unguarded(
+    markdown_texts: Mapping[str, str],
+) -> None:
+    """CS-809's acceptance, in the direction that keeps the exclusion BOUNDED.
+
+    Leaving a file out of the guarded set is a legitimate answer. Leaving it
+    out SILENTLY is not, and until this contract existed there was no
+    difference between the two.
+    """
+    unrecorded, _stale = guarded_set_problems(markdown_texts, GUARDED_DOCS, UNGUARDED_DOCS)
+
+    assert not unrecorded, (
+        "markdown carrying citations that nothing guards and nothing records:\n"
+        + "\n".join(f"  {doc}" for doc in unrecorded)
+        + "\nGuard it, or record it in UNGUARDED_DOCS with the reason."
+    )
+
+
+def test_every_recorded_unguarded_doc_still_needs_its_record(
+    markdown_texts: Mapping[str, str],
+) -> None:
+    """The other direction, for the same reason :data:`DISPOSITIONS` has one."""
+    _unrecorded, stale = guarded_set_problems(markdown_texts, GUARDED_DOCS, UNGUARDED_DOCS)
+
+    assert not stale, "stale entries in UNGUARDED_DOCS:\n" + "\n".join(
+        f"  {problem}" for problem in stale
+    )
+
+
+def test_every_unguarded_record_states_a_reason_and_none_is_also_guarded() -> None:
+    """The record's own shape, so an entry cannot be a bare path with no case."""
+    for doc, why in UNGUARDED_DOCS.items():
+        assert why.strip(), f"{doc} is recorded as unguarded and states no reason"
+        assert doc not in GUARDED_DOCS, f"{doc} is recorded as unguarded AND listed as guarded"
+
+
+def test_the_deep_archive_is_the_only_doc_left_unguarded() -> None:
+    """CS-809's acceptance as literally written: a check that it stays the only one.
+
+    The contracts above bound the unguarded set - nothing joins it quietly and
+    nothing lingers in it. This one pins its MEMBERSHIP, so a second exemption
+    is a deliberate edit here with a reason someone had to write, rather than a
+    line added to a table while the suite stays green. WAKEUP_NOTES.md is the
+    reason this is worth pinning: it was recorded here on a reason that
+    measured false, and the set having one member is what makes a second one
+    conspicuous.
+    """
+    assert set(UNGUARDED_DOCS) == {"docs/history_notes.md"}, (
+        "the recorded-unguarded set is no longer the deep archive alone:\n"
+        + "\n".join(f"  {doc}" for doc in sorted(UNGUARDED_DOCS))
+        + "\nGuard the newcomer, or change this contract deliberately and say why."
     )
 
 
@@ -563,22 +1025,82 @@ def test_every_recorded_disposition_is_still_in_use(sources: Mapping[str, str]) 
     texts = {doc: scoped_text(doc, doc_text(doc)) for doc in GUARDED_DOCS}
     unused = []
     for doc, cited in DISPOSITIONS:
-        haystack = texts.get(doc, "")
-        name = cited.rpartition("::")[2] if "::" in cited else cited
+        still_cited = citation_sites(texts.get(doc, ""), cited) > 0
         if "::" in cited:
-            path = cited.partition("::")[0]
-            still_cited = f"{path}::{name}" in haystack
+            path, _, name = cited.partition("::")
             if still_cited and resolves(path, name, sources):
                 unused.append((doc, cited, "now resolves on its own"))
                 continue
-        else:
-            still_cited = name in BARE_RE.findall(CITATION_RE.sub(" ", haystack))
         if not still_cited:
             unused.append((doc, cited, f"no longer cited in {doc}"))
 
     assert not unused, "stale entries in DISPOSITIONS:\n" + "\n".join(
         f"  {doc} :: {cited} - {why}" for doc, cited, why in unused
     )
+
+
+def test_every_recorded_disposition_covers_exactly_the_sites_it_records() -> None:
+    """A forgiveness is granted per SITE, not per name, and the count says how many.
+
+    The table's keys are ``(doc, name)``, so without this a single adjudicated
+    dead citation buys silence for every later citation of the same name in the
+    same doc. That is not hypothetical: three new ledger entries, each citing a
+    name this table already forgives, were planted and the module stayed green
+    on all three. A dead pointer written today is a defect whatever was
+    adjudicated about the same name a year ago.
+
+    A LINE NUMBER WOULD HAVE BEEN THE OBVIOUS KEY AND IS THE WRONG ONE. The
+    ledger is append-only newest-first, so prepending one entry moves every
+    site below it - the same rot that makes trap 3 decline to judge a
+    ``file:line`` pointer into that file. A count moves only when the prose
+    that spells the citation moves.
+    """
+    texts = {doc: scoped_text(doc, doc_text(doc)) for doc in GUARDED_DOCS}
+
+    problems = disposition_site_problems(texts, DISPOSITIONS)
+
+    assert not problems, (
+        "DISPOSITIONS no longer matches the docs it forgives:\n"
+        + "\n".join(f"  {problem}" for problem in problems)
+        + "\nA site that appeared since the record was written is a NEW citation."
+        " Adjudicate it, then update the count."
+    )
+
+
+def test_a_second_site_for_a_forgiven_citation_is_reported() -> None:
+    """The control, in both spellings, so the count is not a decorative field."""
+    bare = ("ROADMAP.md", "test_a_name_that_is_not_bound")
+    full = ("ROADMAP.md", "tests/synthetic/test_planted.py::test_a_name_that_is_not_there")
+    one_of_each = {
+        bare: Disposition(DELIBERATE, "", "cited to prove it is dead", 1),
+        full: Disposition(NO_TARGET, "", "no test bears this meaning", 1),
+    }
+    once = {
+        "ROADMAP.md": 'grep -c "test_a_name_that_is_not_bound" x\n'
+        "see `tests/synthetic/test_planted.py::test_a_name_that_is_not_there`\n"
+    }
+    twice = {"ROADMAP.md": once["ROADMAP.md"] * 2}
+
+    assert disposition_site_problems(once, one_of_each) == [], (
+        "the recorded count did not match a doc spelling each citation once, so "
+        "the report below proves nothing about a SECOND site"
+    )
+    reported = disposition_site_problems(twice, one_of_each)
+    assert [line.rpartition(" - ")[2] for line in reported] == [
+        "forgives 1 site(s), the doc spells it 2",
+        "forgives 1 site(s), the doc spells it 2",
+    ], f"a second site went unreported in one spelling: {reported}"
+
+
+def test_a_disposition_for_a_citation_that_has_vanished_is_reported() -> None:
+    """The other direction: a record that outlived what it answered."""
+    key = ("ROADMAP.md", "test_a_name_that_is_not_bound")
+    table = {key: Disposition(DELIBERATE, "", "cited to prove it is dead", 1)}
+
+    problems = disposition_site_problems({"ROADMAP.md": "no pointer here at all\n"}, table)
+
+    assert len(problems) == 1, "a record forgiving a citation nothing spells was accepted"
+    assert "the doc spells it 0" in problems[0]
 
 
 def test_every_correctable_disposition_names_a_target_and_the_others_do_not() -> None:
@@ -596,6 +1118,10 @@ def test_every_correctable_disposition_names_a_target_and_the_others_do_not() ->
                 f"{doc}::{cited} is {recorded.kind} and must name no target"
             )
         assert recorded.why.strip(), f"{doc}::{cited} records no evidence"
+        assert recorded.sites >= 1, (
+            f"{doc}::{cited} forgives {recorded.sites} sites, so it answers nothing"
+            " that is written - delete it, or record the count it covers"
+        )
 
 
 # --- contract 3: the controls. A guard that cannot fail is not a guard. ------
@@ -714,6 +1240,397 @@ def test_the_bare_arm_does_not_re_judge_the_name_half_of_a_full_citation() -> No
     assert bare_name_problems("ROADMAP.md", text, [], []) == []
 
 
+def test_the_whole_of_a_full_citation_is_blanked_not_just_the_name_half() -> None:
+    """The line above this one survived deletion, and it is NOT equivalent.
+
+    The sibling test cannot see the difference, and the reason is a coincidence
+    of its fixture rather than a property of the rule: ``test_planted`` is seven
+    characters past the prefix and the length floor demands eight, so that path's
+    basename never reaches the arm whether it is blanked or not. One character
+    more and it does. The two lookbehinds cover the NAME half; only the blanking
+    covers the PATH half, and a path whose module is not tracked is then reported
+    as a dead bare identifier - a finding manufactured out of a citation the path
+    arm is already judging.
+    """
+    text = "see `tests/synthetic/test_plantedxx.py::test_a_real_one`\n"
+
+    assert judged_bare_names(text) == [], (
+        "a full citation's PATH reached the bare arm; the basename "
+        "test_plantedxx clears the length floor, so only blanking the whole "
+        "citation keeps it out"
+    )
+    assert bare_name_problems("ROADMAP.md", text, [], []) == [], (
+        "the path half of a full citation was reported as a dead bare name"
+    )
+
+
+def test_the_elided_arm_reports_a_dead_name_with_no_path_in_front_of_it() -> None:
+    """CS-810's acceptance, on a synthetic corpus.
+
+    A citation spelled `::name` fell between BOTH arms by construction: the
+    path arm needs a ``<path>.py`` before the separator and matches nothing,
+    and the bare arm's lookbehind excludes a name preceded by ``:`` precisely
+    so it does not re-judge the right half of a full citation under a second
+    rule. The elided spelling is what remains when a paragraph writes one full
+    citation and then names further tests in the SAME file.
+    """
+    text = (
+        "Verification: `tests/synthetic/test_planted.py::test_a_real_one`,\n"
+        "`::test_a_name_that_is_not_bound`.\n"
+    )
+
+    assert unresolved_citations("ROADMAP.md", text, _CORPUS) == [], (
+        "the path arm should stay blind to an elided pointer - if it is not, this "
+        "control no longer proves the elided arm is load-bearing"
+    )
+    assert bare_name_problems("ROADMAP.md", text, ["test_a_real_one"], []) == [
+        (
+            "test_a_name_that_is_not_bound",
+            "bound nowhere in the tree and carries NO recorded disposition",
+        )
+    ]
+
+
+def test_the_elided_arm_passes_the_idiom_it_was_widened_to_read() -> None:
+    """The idiom is CORRECT prose, and the common case by a wide margin.
+
+    Most elided pointers in the ledger name a live test. If the widening were
+    red on those it would be red on correct history, which is the failure that
+    gets a guard switched off rather than fixed.
+    """
+    text = (
+        "Verification: `tests/synthetic/test_planted.py::test_a_real_one`,\n"
+        "`::test_a_second_real_one`.\n"
+    )
+
+    assert judged_bare_names(text) == ["test_a_second_real_one"], (
+        "the elided pointer must REACH the arm, or the next line passes vacuously"
+    )
+    assert (
+        bare_name_problems("ROADMAP.md", text, ["test_a_real_one", "test_a_second_real_one"], [])
+        == []
+    )
+
+
+def test_the_elided_arm_declines_the_metasyntactic_placeholder() -> None:
+    """`path::name` and `path::test_name` DOCUMENT the shape; they cite nothing.
+
+    Both are live in the guarded docs today, describing the citation rule
+    itself, and judging them would redden the documentation of the rule. Two
+    independent guards keep them out and both are pinned here: the placeholders
+    as actually spelled carry a word character before the separator, and
+    `test_name` is below the length floor even when nothing precedes it.
+    """
+    as_spelled = "a citation is written `path::name`, or `path::test_name` in the older notes\n"
+    floor_only = "the shape is `::test_name` once the path is elided\n"
+
+    assert judged_bare_names(as_spelled) == []
+    assert judged_bare_names(floor_only) == [], "the length floor did not hold on its own"
+    assert bare_name_problems("ROADMAP.md", as_spelled, [], []) == []
+
+
+def test_the_dot_py_spelling_of_the_placeholder_is_a_citation_no_floor_protects() -> None:
+    """Written with a `.py`, the placeholder stops being one. Measured, not feared.
+
+    ``path::name`` and ``path::test_name`` are declined twice over - no ``.py``
+    before the separator, so the path arm never sees them, and below the length
+    floor, so the elided arm does not either. Spell the SAME placeholder
+    ``path.py::name`` and both guards are gone at once: it is a well-formed
+    citation naming a module this tree does not have, and it is judged like any
+    other.
+
+    THIS PIN IS WRITTEN FROM AN INCIDENT, not from caution. A paragraph
+    documenting the citation rule spelled it that way in ``docs/history_notes.md``
+    and raised that archive's dead-citation count by one - inside the very
+    change whose subject was that archive's dead citations. The placeholders
+    above are pinned because a floor protects them; this one is pinned because
+    nothing does.
+    """
+    text = "a citation is written `path.py::name`\n"
+
+    assert citations_in(text) == [("path.py", "name")], (
+        "the .py spelling did not reach the path arm, so this pin would not "
+        "catch the same prose in a guarded doc either"
+    )
+    judged = unresolved_citations("ROADMAP.md", text, _CORPUS)
+    assert [(path, name) for path, name, _why in judged] == [("path.py", "name")], (
+        "the .py spelling of the placeholder was forgiven by a floor that does not cover it"
+    )
+    assert judged_bare_names(text) == [], "the placeholder also reached the bare arm"
+
+
+def test_a_module_qualified_pointer_is_not_read_as_an_elided_one() -> None:
+    """TRAP 2 again, one spelling along: an unqualified citation is not a dead one.
+
+    `test_phase4_gate::test_the_save_suite_passes_with_no_install_and_no_save`
+    is real prose in this repo. Its path is ABBREVIATED, not elided - the
+    module is right there - so it is the path arm's business and that arm
+    declines it for want of a `.py`. Reading it as elided would judge a pointer
+    whose module was stated, which is how a census manufactured six findings.
+
+    The module half DOES reach the bare arm, as it always has, and the
+    basename filter is what answers it. Only the name half is at issue here.
+    """
+    text = "gated by `test_phase4_gate::test_a_name_that_is_not_bound`\n"
+
+    assert "test_a_name_that_is_not_bound" not in judged_bare_names(text)
+    assert bare_name_problems("ROADMAP.md", text, [], ["test_phase4_gate"]) == []
+
+
+def test_a_name_spelled_both_bare_and_elided_is_reported_once() -> None:
+    """Both spellings feed one arm, so one dead name is still one finding."""
+    text = (
+        'Verification: `grep -c "test_a_name_that_is_not_bound" x.py` returns 0,\n'
+        "and `::test_a_name_that_is_not_bound` names the same thing.\n"
+    )
+
+    assert judged_bare_names(text) == [
+        "test_a_name_that_is_not_bound",
+        "test_a_name_that_is_not_bound",
+    ], "both spellings must reach the arm, or the de-duplication below proves nothing"
+    assert len(bare_name_problems("ROADMAP.md", text, [], [])) == 1
+
+
+def test_a_disposition_keyed_on_the_bare_name_also_forgives_the_elided_site() -> None:
+    """The seam that let the widening land without re-judging a settled record.
+
+    A correction record proving a name DEAD spends it bare inside a `grep -c`
+    AND elided in the entry it corrects. One key covers both, so widening the
+    arm did not redden a record doing exactly the right thing - which is the
+    DELIBERATE disposition's whole purpose.
+    """
+    text = (
+        'Verification: `grep -c "test_a_name_that_is_not_bound" x.py` returns 0.\n'
+        "The entry below spends `::test_a_name_that_is_not_bound`.\n"
+    )
+    key = ("ROADMAP.md", "test_a_name_that_is_not_bound")
+    table = {key: Disposition(DELIBERATE, "", "cited to prove it is dead", 2)}
+
+    assert bare_name_problems("ROADMAP.md", text, [], [], table) == []
+    assert len(bare_name_problems("ROADMAP.md", text, [], [], {})) == 1, (
+        "without the disposition this text MUST be a finding, or the line above "
+        "proves nothing about the disposition"
+    )
+
+
+def test_an_elided_only_name_is_visible_to_the_stale_disposition_check() -> None:
+    """The two callers of :func:`judged_bare_names` must agree on the population.
+
+    A disposition recorded for a name spelled ONLY in the elided form is a
+    forgiveness entry that the stale-entry check would report as unused if it
+    still read the narrow pattern - the table would then fail in one direction
+    for an entry the other direction requires. Both read the same function, and
+    this is what makes that non-optional.
+    """
+    text = "the entry cites `tests/x.py::test_a_real_one`, `::test_an_elided_only_name`\n"
+
+    assert "test_an_elided_only_name" in judged_bare_names(text)
+    assert "test_a_real_one" not in judged_bare_names(text), (
+        "a full citation's right half belongs to the path arm and must not be "
+        "judged twice under two different rules"
+    )
+
+
+# --- the boundary controls, on a synthetic markdown corpus -------------------
+
+_MD_CORPUS: Final = {
+    "docs/guarded.md": "see `tests/synthetic/test_planted.py::test_a_real_one`\n",
+    "docs/loose.md": "see `tests/synthetic/test_planted.py::test_a_real_one`\n",
+    "docs/prose.md": "no pointer here at all\n",
+}
+
+
+def test_a_doc_that_carries_citations_and_nothing_looks_at_is_reported() -> None:
+    """CS-809's acceptance in the direction that has teeth: silence is the defect."""
+    unrecorded, stale = guarded_set_problems(_MD_CORPUS, ["docs/guarded.md"], {})
+
+    assert unrecorded == ["docs/loose.md"]
+    assert stale == []
+
+
+def test_a_doc_carrying_no_citation_is_asked_for_neither_a_guard_nor_a_record() -> None:
+    """The set is bounded by what can rot, not by what is markdown.
+
+    THE SECOND HALF IS WHAT MAKES THE FIRST MEAN ANYTHING. An assert-empty on
+    its own is silent about whether the subject answered or merely returned
+    nothing - a subject gutted to ``return [], []`` passes it. The same corpus
+    is asked once more with a live finding in it, so the emptiness above is
+    about ``docs/prose.md`` carrying no pointer rather than about the function
+    having stopped speaking.
+    """
+    unrecorded, _stale = guarded_set_problems(_MD_CORPUS, ["docs/guarded.md", "docs/loose.md"], {})
+
+    assert unrecorded == [], "a doc with no pointer in it was made to justify itself"
+
+    still_answering, _stale = guarded_set_problems(_MD_CORPUS, ["docs/guarded.md"], {})
+    assert still_answering == ["docs/loose.md"], (
+        "the same corpus reports nothing when a doc IS unguarded and carries a "
+        "pointer, so the empty result above is silence rather than an answer"
+    )
+
+
+def test_recording_a_doc_unguarded_answers_it_as_well_as_guarding_it_does() -> None:
+    """Both are legitimate answers. Only the unstated third option is a defect.
+
+    Paired with its own discriminator for the reason above: removing the record
+    MUST turn the same corpus into a finding, or this test is an assert-empty
+    that a subject returning nothing at all would satisfy.
+    """
+    unrecorded, stale = guarded_set_problems(
+        _MD_CORPUS, ["docs/guarded.md"], {"docs/loose.md": "the deep archive, quotes not cites"}
+    )
+
+    assert (unrecorded, stale) == ([], [])
+
+    without_the_record, _stale = guarded_set_problems(_MD_CORPUS, ["docs/guarded.md"], {})
+    assert without_the_record == ["docs/loose.md"], (
+        "dropping the record changed nothing, so the pass above was not the record being honoured"
+    )
+
+
+def test_a_record_for_a_doc_that_has_since_been_guarded_is_reported() -> None:
+    """The reverse direction, and the one that makes this compose with guarding.
+
+    Whoever later guards the archive gets told to delete its record rather than
+    leaving a forgiveness entry behind that forgives nothing and hides the next
+    thing that lands on it.
+    """
+    _unrecorded, stale = guarded_set_problems(
+        _MD_CORPUS, ["docs/guarded.md", "docs/loose.md"], {"docs/loose.md": "stale now"}
+    )
+
+    assert len(stale) == 1, "a record for an already-guarded doc was accepted"
+    assert "now guarded" in stale[0]
+
+
+def test_a_record_naming_a_doc_that_is_not_tracked_is_reported() -> None:
+    _unrecorded, stale = guarded_set_problems(_MD_CORPUS, [], {"docs/deleted.md": "gone"})
+
+    assert len(stale) == 1, "a record for a file that does not exist was accepted"
+    assert "not an in-domain tracked markdown file" in stale[0]
+
+
+def test_a_record_for_a_doc_that_stopped_carrying_citations_is_reported() -> None:
+    _unrecorded, stale = guarded_set_problems(_MD_CORPUS, [], {"docs/prose.md": "was a carrier"})
+
+    assert len(stale) == 1, "a record that had stopped being needed was accepted"
+    assert "nothing to leave unguarded" in stale[0]
+
+
+# --- the boundary must read EVERY shape this module judges, not just one -----
+#
+# ONE DOC, ONE SHAPE EACH. The boundary once decided carrier-hood with
+# :func:`citations_in`, which requires a `path.py` prefix, so three of the four
+# shapes this module judges did not make a doc a carrier at all - including the
+# elided one, added to this module in the same change that left the boundary
+# blind to it. Each corpus below carries exactly ONE shape and nothing else, so
+# a predicate that reads only some of them fails on the ones it cannot see.
+
+_ONE_SHAPE_EACH: Final = {
+    "docs/elided_only.md": "Verification: `::test_a_name_that_is_not_bound_anywhere`.\n",
+    "docs/bare_only.md": 'Verification: `grep -c "test_a_name_that_is_not_bound_anywhere" x`\n',
+    "docs/line_only.md": "see `tools/thing.py:900`\n",
+    "docs/path_only.md": "see `tests/synthetic/test_planted.py::test_a_name_that_is_not_there`\n",
+}
+
+
+@pytest.mark.parametrize("doc", sorted(_ONE_SHAPE_EACH))
+def test_a_doc_carrying_only_one_judged_shape_is_still_a_carrier(doc: str) -> None:
+    """Whatever this module would JUDGE in a doc is what makes the doc a carrier."""
+    unrecorded, stale = guarded_set_problems({doc: _ONE_SHAPE_EACH[doc]}, [], {})
+
+    assert unrecorded == [doc], (
+        f"{doc} carries a shape this module judges and was not asked for a guard "
+        "or a record, so it could join the unguarded set in silence"
+    )
+    assert stale == []
+
+
+def test_every_pattern_this_module_judges_by_also_decides_what_carries_a_citation() -> None:
+    """The boundary's membership is DERIVED from this module, not hand-listed.
+
+    Fixing the four shapes by hand would leave the FIFTH arm to fall out of the
+    boundary exactly the way the elided arm did - a new pattern is added, an arm
+    is taught to read it, and nothing says the boundary must learn it too. So
+    the check is not "are these four there", it is "does anything this module
+    compiles sit outside :data:`JUDGED_SHAPES`". A new ``*_RE`` is red until it
+    is answered one way or the other.
+    """
+    compiled = {
+        name: value
+        for name, value in globals().items()
+        if name.endswith("_RE") and isinstance(value, re.Pattern)
+    }
+
+    assert compiled, (
+        "this module compiles no pattern named *_RE, so the derivation below "
+        "reads an empty set and would pass whatever the boundary ignored"
+    )
+    missing = sorted(name for name, value in compiled.items() if value not in JUDGED_SHAPES)
+    assert not missing, (
+        "patterns this module judges by that the boundary contract does not read:\n"
+        + "\n".join(f"  {name}" for name in missing)
+        + "\nAdd it to JUDGED_SHAPES, or stop judging by it."
+    )
+
+
+@pytest.mark.parametrize("doc", sorted(_ONE_SHAPE_EACH))
+def test_recording_a_doc_carrying_only_one_judged_shape_is_not_called_stale(doc: str) -> None:
+    """The worse direction of the same blindness, and the one that costs a record.
+
+    A doc the predicate cannot see is not merely unreported - a maintainer who
+    CORRECTLY records it is told the record is stale and to delete it, which
+    turns a right answer into a wrong one.
+    """
+    unrecorded, stale = guarded_set_problems(
+        {doc: _ONE_SHAPE_EACH[doc]}, [], {doc: "recorded unguarded on purpose"}
+    )
+
+    assert (unrecorded, stale) == ([], []), (
+        f"a correct record for {doc} was rejected, so recording the doc is not "
+        "an available answer for the shape it carries"
+    )
+
+
+def test_the_domain_excludes_a_harness_file_that_would_otherwise_be_a_carrier(
+    tracked: list[str],
+) -> None:
+    """A rule about nothing is worse than no rule - it reads as coverage.
+
+    THE FORM OF THIS TEST IS ITS POINT. Asking the fixture whether it contains
+    a ``.claude/`` path proves nothing: the fixture filters them out by
+    construction, so that assertion re-states its own comprehension and cannot
+    fail however the rule is broken. This asks :func:`in_domain` instead, about
+    a path that carries a citation, in BOTH directions - the harness file is
+    excluded and its twin one directory over is not.
+
+    MEASURED RESIDUAL, disclosed rather than implied away: no tracked
+    ``.claude/*.md`` carries any judged shape today, in any of the four
+    spellings, so the exclusion currently suppresses NOTHING. It is a rule
+    about a real set of files and an empty set of pointers. That is why the
+    planted carrier below is synthetic - it is the only carrier the exclusion
+    has ever had to answer for.
+    """
+    carrier = "see `tests/synthetic/test_planted.py::test_a_name_that_is_not_there`\n"
+    harness = f"{OUT_OF_DOMAIN}commands/planted.md"
+
+    assert not in_domain(harness), (
+        f"{harness} carries a citation and reached the documentation domain; "
+        "a harness-config edit would then redden a docs guard"
+    )
+    assert in_domain("docs/planted.md"), (
+        "the same text one directory over was also excluded, so the predicate "
+        "rejects documentation rather than harness configuration"
+    )
+    assert guarded_set_problems({"docs/planted.md": carrier}, [], {})[0] == ["docs/planted.md"], (
+        "the planted text is not a carrier at all, so excluding it proves nothing"
+    )
+    assert [p for p in tracked if p.startswith(OUT_OF_DOMAIN) and p.endswith(".md")], (
+        "nothing under .claude/ is tracked markdown, so OUT_OF_DOMAIN excludes nothing and "
+        "should be deleted rather than left standing as a rule about an empty set"
+    )
+
+
 # --- contract 4: a disposition is a REDIRECT, and a redirect is verified -----
 #
 # THESE FOUR EXIST BECAUSE A MUTATION BATTERY FOUND THE GAP. Deleting the
@@ -732,7 +1649,7 @@ _REDIRECT_KEY: Final = (
 def test_a_disposition_whose_target_resolves_forgives_the_citation() -> None:
     table = {
         _REDIRECT_KEY: Disposition(
-            MOVED, "tests/synthetic/test_planted.py::test_a_real_one", "the target is live"
+            MOVED, "tests/synthetic/test_planted.py::test_a_real_one", "the target is live", 1
         )
     }
 
@@ -743,7 +1660,7 @@ def test_a_disposition_whose_target_stopped_resolving_is_reported() -> None:
     """The mutant that survived until this test was written."""
     table = {
         _REDIRECT_KEY: Disposition(
-            MOVED, "tests/synthetic/test_planted.py::test_gone_now", "the target rotted"
+            MOVED, "tests/synthetic/test_planted.py::test_gone_now", "the target rotted", 1
         )
     }
 
@@ -756,7 +1673,7 @@ def test_a_disposition_whose_target_stopped_resolving_is_reported() -> None:
 def test_a_disposition_whose_target_file_vanished_is_reported() -> None:
     table = {
         _REDIRECT_KEY: Disposition(
-            MOVED, "tests/synthetic/test_deleted.py::test_a_real_one", "the file is gone"
+            MOVED, "tests/synthetic/test_deleted.py::test_a_real_one", "the file is gone", 1
         )
     }
 
@@ -768,8 +1685,8 @@ def test_a_bare_disposition_whose_target_stopped_resolving_is_reported() -> None
     text = 'Verification: `grep -c "test_a_name_that_is_not_bound" x.py`\n'
     key = ("ROADMAP.md", "test_a_name_that_is_not_bound")
 
-    live = {key: Disposition(RENAMED, "tests/x.py::test_a_real_one", "live")}
-    rotted = {key: Disposition(RENAMED, "tests/x.py::test_gone_now", "rotted")}
+    live = {key: Disposition(RENAMED, "tests/x.py::test_a_real_one", "live", 1)}
+    rotted = {key: Disposition(RENAMED, "tests/x.py::test_gone_now", "rotted", 1)}
 
     assert bare_name_problems("ROADMAP.md", text, ["test_a_real_one"], [], live) == []
     assert len(bare_name_problems("ROADMAP.md", text, ["test_a_real_one"], [], rotted)) == 1
@@ -782,7 +1699,7 @@ def test_a_no_target_disposition_forgives_without_naming_anything() -> None:
     empty target, which would resolve to nothing and report a defect on a
     citation that was deliberately left unassigned.
     """
-    table = {_REDIRECT_KEY: Disposition(NO_TARGET, "", "no test bears this meaning")}
+    table = {_REDIRECT_KEY: Disposition(NO_TARGET, "", "no test bears this meaning", 1)}
 
     assert unresolved_citations("ROADMAP.md", _REDIRECT_TEXT, _CORPUS, table) == []
 

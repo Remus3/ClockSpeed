@@ -1118,6 +1118,65 @@ citation, and a detail block quoting four names would need four entries that say
 whole archive to `GUARDED_DOCS` and dispositioning every quote: that trades one unguarded file for
 a table of forgiveness entries nobody can audit, which is the CS-807 shape.
 
+**SUPERSEDED 2026-08-22 - THE RECORDED-UNGUARDED ROUTE WAS BUILT, NOT THE BLOCK MARKER.** The
+paragraphs above stay as the record of how the item was filed; their instruction half is no longer
+live. This archive stays unguarded on the reason the paragraphs above already give and that the
+recorded exemption now states in one line: its dead pointers sit inside detail blocks whose SUBJECT
+is a pointer being dead, so quoting and citing cannot be told apart by shape here, and guarding it
+would mean dispositioning every quote - a table of forgiveness entries nobody can audit, which is
+the CS-807 shape. A marker would also have to be inserted into the deep archive, which exists to be
+a faithful record rather than a place to keep guard machinery.
+
+**ONE ARGUMENT MADE FOR THAT CHOICE WAS RETIRED THE SAME DAY IT WAS WRITTEN, and it is recorded
+here because a retired argument left standing gets re-used.** The first draft of this block argued
+that guarding the sink while the SOURCE stayed open would redden a pure doc-hygiene move, since
+`WAKEUP_NOTES.md` feeds this file and was itself unguarded. `WAKEUP_NOTES.md` is now guarded, so
+a block relocated here arrives already checked and that argument supports nothing. The
+quoting-versus-citing reason is what carries the decision, and it is the only one the exemption
+record states.
+
+**WHAT WAS BUILT INSTEAD, and the weight is in the second half rather than the first.** This file
+is named in `tests/test_docs_citations.py::UNGUARDED_DOCS` with its reason. Beside it,
+`tests/test_docs_citations.py::guarded_set_problems` asks the question one level up from every
+other contract in that module: not whether a citation resolves, but whether the file carrying it is
+looked at by anything. Every in-domain markdown file carrying a pointer in ANY spelling that module
+judges is either guarded or recorded, checked in BOTH directions - a record for a file that has
+since been guarded, or that no longer carries a pointer, FAILS. So the unguarded set can neither
+grow in silence nor linger after it stops being earned, and guarding this archive later is a
+one-line change that the contract now FORCES rather than forbids.
+
+**IN ANY SPELLING IS LOAD-BEARING, AND IT WAS WRONG ON THE FIRST BUILD.** The boundary asked the
+PATH pattern alone, which needs a module name and a double colon in front of the identifier. A doc
+carrying only an elided pointer, only a bare `grep -c` identifier or only a line pointer was
+therefore not a carrier at all - never reported as unguarded, and, worse, a maintainer who
+correctly recorded one was told the record was stale and to delete it. That is a right answer
+turned into a wrong one by a guard. `tests/test_docs_citations.py::JUDGED_SHAPES` is the repair,
+and it is not a hand-written list of four: a contract walks that module's own compiled patterns and
+fails on any that the boundary does not read, so the NEXT arm cannot fall out the way the elided
+one did.
+
+**THE FIRST RUN OF THAT CONTRACT FOUND SOMETHING THIS ITEM DID NOT KNOW: the archive was NOT the
+only unguarded carrier.** `WAKEUP_NOTES.md` was one too, and it was first RECORDED unguarded on the
+stated reason that every citation in it resolved. THAT REASON WAS FALSE WHEN IT SHIPPED. The notes
+spend the header-scan identifier from the CS-436 rename - the one whose live target is
+`tests/test_precommit_gate.py::test_the_header_scan_time_bound_declares_the_scope_it_actually_has`
+- and the tree binds the old spelling nowhere. The citation module's own disposition table already
+recorded that exact name as dead under its ledger key, so the exemption contradicted, in prose, a
+fact the same module held in a machine-checked table eighty lines away. It shipped inside the
+module whose own comment says an exemption nothing verifies is how a false declaration ships. The
+dead spelling is deliberately NOT written out here: this archive is unguarded precisely because
+quoting a dead name and citing one cannot be told apart by shape in it, so every quote added is one
+more forgiveness entry owed by whoever guards it later.
+
+**IT WAS NOT REPAIRED IN PROSE.** Rewriting the reason would have left a record that still nothing
+checks. `WAKEUP_NOTES.md` was moved into the guarded set instead, at a measured cost of exactly one
+disposition pointing at the live target the ledger entry for the same rename already names; its
+path and line-pointer arms were both clean. The recorded-unguarded set is now this archive alone,
+and a contract keeps it that way, so a second exemption has to be a deliberate edit with a written
+reason rather than a line that lands while the suite stays green. The residual the first draft left
+open - whether a file rewritten whole each session should be guarded at all - is answered by the
+measurement: the churn was never the risk, the unchecked claim was.
+
 ## CS-810 - detail
 
 Relocated from `ROADMAP.md` 2026-08-22 (session 30) for budget, not deleted. The item itself stays
@@ -1138,6 +1197,43 @@ oversight:
 `grep -c` returning 0 is its evidence. So closing this needs the same absence-versus-assertion
 distinction the guard already draws, and a naive fix that simply widens the bare arm's lookbehind
 would redden that correction record for doing the right thing.
+
+**SUPERSEDED 2026-08-22 - THE SHAPE IS READ NOW, and it was not one instance.** The paragraphs
+above stay as the record of how the item was filed. The arm is
+`tests/test_docs_citations.py::ELIDED_RE`, and it does not stand beside the bare arm so much as
+join it: both draw their population from `tests/test_docs_citations.py::judged_bare_names`, so the
+elided spelling is judged by the same rule as the bare one and the two callers that need that
+population cannot drift apart. The filing called this ONE live instance. It is not - the elided
+form is the ledger's ordinary PATH-ELISION IDIOM, one full citation followed by `::name` for
+further tests in the same file, and it is how most of that file's bare identifiers are written.
+Nearly all of them name a live test, which is why the widening had to be measured before it was
+believed rather than after.
+
+**THE PATH IS NOT RECOVERED, and that is the design rather than a shortcut.** Resolving `::name`
+against the last full citation seen manufactures findings on CORRECT records, because a paragraph
+may interleave an unrelated full citation while the elisions that follow still mean the earlier
+file. So an elided pointer is asked the question that needs no path at all - does the tree bind
+this name - which is exactly what the bare arm already asks. That is also why the metasyntactic
+`path::name` and `path::test_name` placeholders survive: they are below the same length floor that
+keeps ordinary words out of the bare arm, so the documentation of the rule is not judged by it.
+
+**THE DELIBERATE INSTANCE THIS BLOCK WARNS ABOUT SURVIVED UNTOUCHED, because the disposition is
+keyed on the NAME and not on the spelling.** The first of the two names the CS-411 correction
+record cites to prove them DEAD was already forgiven at its bare site inside a `grep -c`, and
+inherited that forgiveness at its newly visible elided site with no new entry. Its sibling in the
+same record needed one, for exactly the reason the paragraph above predicts: that name is spelled
+ONLY in the elided form, so the guard had never once seen it. Neither is spelled out here, and the
+omission is the point - in an archive where quoting and citing are indistinguishable by shape,
+every dead name written down is one more entry owed by whoever guards this file later.
+
+**A LATER REPAIR NARROWED THAT FORGIVENESS, and it is recorded here because the paragraph above
+reads as an endorsement of it.** One key covering many sites is right for the two names above and
+wrong in general: keyed on `(doc, name)` alone, a brand-new and genuinely dead citation at a NEW
+site in the SAME doc was forgiven on arrival, measured on three planted ledger entries that left
+the suite green. The disposition now records HOW MANY sites it answers, and a site that appears
+after the record was written is reported. A line number would have been the obvious key and is the
+wrong one - this ledger is append-only newest-first, so prepending one entry moves every site below
+it.
 
 ## CS-806 - detail
 
@@ -1778,6 +1874,34 @@ CS-702 - The no-agent-trailer rule is recorded but UNENFORCED, and commits on `m
 
 ---
 
+
+## CS-703 - detail
+
+Relocated from `ROADMAP.md` 2026-08-22 (session 31) for budget, not deleted. The item itself
+stays OPEN in `ROADMAP.md`.
+
+filed 2026-08-22 (session 31) by the CS-702 bypass adversary, MEASURED with a real commit rather than reasoned. All three hooks carry a byte-identical `cs_probe` running `"$1" -c "raise SystemExit(0)"` and judging only the exit code, so `true`, `:` and `env` all pass; the heredoc is then handed to that program, which ignores it and exits 0, and the hook reports success. THE BLAST RADIUS IS WIDER THAN PHASE 7 - the same ladder fronts the character-set gate, the secret scan and the whole-suite pre-push run. The hooks' own text says an unrunnable check is not a passed check: the no-interpreter branch honours that and the wrong-interpreter branch does not. THIS IS THE CS-806 SHAPE A SECOND TIME - that item closed by making the environment check assert the RESOLVED interpreter instead of trusting a name, and the same assertion was never made here. **NEEDS A FROZEN-FILE GRANT for all three hooks.**
+
+## CS-704 - detail
+
+Relocated from `ROADMAP.md` 2026-08-22 (session 31) for budget, not deleted. The item itself
+stays OPEN in `ROADMAP.md`.
+
+filed 2026-08-22 (session 31) by the CS-702 bypass adversary, each route confirmed with a real commit. `git rebase` on BOTH backends, `git am`, `git cherry-pick` and `git commit --no-verify` all land a trailer git itself recognises while the hook stays silent, and an unbootstrapped fresh clone runs no hook at all because `core.hooksPath` is machine-local and is never cloned. Remapping `core.commentChar` or `core.commentString` also defeats the comment-stripping premise. REBASE IS MORE ROUTINE THAN CHERRY-PICK in a worktree-slice workflow, so this class is reachable by accident rather than by evasion. CS-702 is forward-only and single-command by construction; this is the class it cannot cover. A range scan on pre-push or a check on the CI side is the route, and the first **NEEDS A FROZEN-FILE GRANT for `.githooks/pre-push`**.
+
+## CS-811 - detail
+
+Relocated from `ROADMAP.md` 2026-08-22 (session 31) for budget, not deleted. The item itself
+stays OPEN in `ROADMAP.md`.
+
+filed 2026-08-22 (session 31) by the verifier of the CS-809 repair, MEASURED with proven-landed mutants. The walk is `name.endswith("_RE") and isinstance(value, re.Pattern)` over module globals, so it sees ONE shape; a pattern named without the suffix, held in a dict or a list, compiled at call time, or an arm judging by substring all escape it, and all five were measured green. Its docstring claims it sees anything the module compiles, which is wider than what it enforces. SECOND HALF, same file: `carries_a_citation` decides carrier-hood by SHAPE, so a doc that merely names a tracked test module becomes a carrier and must be guarded or recorded even when nothing in it can rot - 31 currently-clean tracked docs are one pytest-invocation line away, and `docs/OPERATIONS.md` is the likeliest next. That is the intended forcing function but it is an undisclosed recurring hand edit.
+
+## CS-812 - detail
+
+Relocated from `ROADMAP.md` 2026-08-22 (session 31) for budget, not deleted. The item itself
+stays OPEN in `ROADMAP.md`.
+
+filed 2026-08-22 (session 31) as the CS-810 repair's disclosed residual plus one PRE-EXISTING defect its verifier found. The arms de-duplicate by name and cannot say which site is new, which is why the site pin sits in a contract test; the consequence is that `bare_name_problems` and `unresolved_citations` return empty on a genuinely new dead citation of a forgiven name. LATENT rather than live - this module is imported by nothing today, measured. SEPARATELY AND PRE-EXISTING, inherited unchanged from `f938062`: a BARE disposition whose forgiven name later becomes LIVE is never reported stale, because the now-resolves-on-its-own branch is gated on the key containing a path separator and so never fires for a bare key. Four bare-keyed entries are affected. Proven by resurrecting a forgiven name as a real def and observing the module stay green.
 
 <!-- Newest first. Each block: date archived, source file, then the content. -->
 

@@ -73,6 +73,57 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-22 - CS-810 - CLOSED: a citation written as a bare `::name` is judged in EVERY guarded doc, and a second site for an already-forgiven name is no longer silently forgiven
+Verification: `tests/test_docs_citations.py::test_every_bare_identifier_in_a_guarded_doc_resolves` is the arm, now
+parametrized over the guarded set rather than hardcoded to this file, and
+`tests/test_docs_citations.py::test_the_bare_arm_has_teeth_on_every_guarded_doc` is its per-doc non-vacuity control.
+Reproduce the acceptance by planting a `::name` naming nothing into any guarded doc and running
+`python -m pytest tests/test_docs_citations.py -q`; it goes red. The module ran 26 tests at `f938062` and runs 71 here.
+THE ITEM WAS FILED AT ONE LIVE INSTANCE AND THE POPULATION IS 48. `docs/LEDGER.md` spends 47 real names in the
+elided form plus one metasyntactic placeholder, because the elision is this file's ORDINARY IDIOM - a full citation,
+then `::name` for further tests in the same file. 43 of those names were elided-only and invisible to every arm.
+A RESOLVER THAT INHERITS THE LAST FULL CITATION SEEN WAS BUILT, MEASURED AND REJECTED: it manufactures 14 false
+findings, because this file interleaves an unrelated full citation mid-paragraph and the elisions after it still mean
+the earlier file. The shipped arm never recovers a path; it asks only whether any module binds the name.
+FIRST BUILD WAS REFUTED, and the refutation is the useful record. The arm had exactly ONE live caller, hardcoded to
+this file, so a `::name` naming nothing planted in `ROADMAP.md` or in `docs/GATED.md` left the module green - two of
+the three guarded docs. Separately, `DISPOSITIONS` was keyed by name with no multiplicity, so a NEW entry citing an
+already-forgiven name was accepted in silence; three such plants were green. Both are closed here:
+`tests/test_docs_citations.py::test_every_recorded_disposition_covers_exactly_the_sites_it_records` pins the
+occurrence count per entry, and `tests/test_docs_citations.py::test_a_second_site_for_a_forgiven_citation_is_reported`
+is its control. Counts are pinned rather than line numbers, which churn.
+THE DELIBERATE DISPOSITION SURVIVED AND WAS REQUIRED TO. A citation can assert an ABSENCE - the CS-411 correction
+record cites a dead name to prove it is dead, and `grep -c` returning 0 IS its evidence. One new entry was needed,
+for the sibling name that is spelled ONLY in the elided form and that no arm had ever seen.
+RESIDUAL, disclosed rather than rounded off: the arms still return empty for an extra site and only the contract test
+reddens, so a direct importer that reads an arm's empty return as "no dead citations" gets a false clean. No such
+importer exists today - this module is imported by nothing - so the exposure is latent. Filed as CS-812.
+
+### 2026-08-22 - CS-809 - CLOSED: the deep archive is now the ONLY doc left unguarded, and that cardinality is itself checked
+Verification: `tests/test_docs_citations.py::test_every_markdown_file_carrying_a_citation_is_guarded_or_recorded_unguarded`
+is the boundary and it is checked in BOTH directions - an unanswered carrier fails, and so does a record for a doc
+that is now guarded, is untracked, or has stopped carrying citations.
+`tests/test_docs_citations.py::test_the_deep_archive_is_the_only_doc_left_unguarded` is the cardinality pin this
+item's acceptance names. Reproduce by adding one line naming a tracked test module to any unguarded markdown file and
+running `python -m pytest tests/test_docs_citations.py -q`.
+THE ACCEPTANCE CLAUSE WAS LITERALLY TRUE ONLY AFTER A SECOND FILE WAS GUARDED. The clause asks for a check that the
+archive stays "the only one", and it never was: `WAKEUP_NOTES.md` also carried a citation nothing looked at. The first
+build recorded BOTH files as unguarded and stated, in its own exemption table, that every citation in the second one
+resolved. THAT WAS MEASURABLY FALSE - it carries a dead bare name, and this module's own table already recorded that
+name as dead under another key. An exemption table nothing verifies is how a false declaration ships, and one shipped
+on its first run. The repair guards `WAKEUP_NOTES.md` instead, at a cost of exactly one disposition, which leaves the
+unguarded set at a single member and makes the clause true as written rather than needing an amendment.
+THE ARCHIVE STAYS UNGUARDED ON ITS RECORDED REASON, which is unchanged: its detail blocks QUOTE dead names while
+discussing them, so quoting and citing are indistinguishable by shape there, and a guard over it would be red on
+correct history. It still carries 4 dead full citations and 2 dead bare names; this item adds none and removes none,
+measured set-identical against `f938062` with the same code on both sides.
+WIDENING THE CARRIER PREDICATE FOUND A DOC NOBODY HAD EVER LOOKED AT - `docs/adr/0008-detection-claims-are-derived-never-written.md`
+- which measured clean on all three arms and is now guarded rather than recorded.
+RESIDUALS, disclosed: carrier-hood is decided by SHAPE rather than by whether an arm would report anything, so any
+doc that merely names a tracked test module becomes a carrier and must be answered - 31 currently-clean tracked docs
+are one command line away from it. And the pattern-derivation check is a CONVENTION rather than a mechanism: five
+measured ways of adding a judging pattern escape its walk. Filed as CS-811.
+
 ### 2026-08-22 - CS-702 - FROZEN-FILE GRANT ISSUED by the OPERATOR for `.githooks/commit-msg`, then NARROWED by an adjudicator
 Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit, not a
 completion record. Nothing has been edited under it at the time of writing. The item it serves is
