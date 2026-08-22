@@ -73,6 +73,69 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-22 - CS-702, CS-813 - FROZEN-FILE GRANT WIDENED by the OPERATOR for `.githooks/commit-msg`, narrowed eleven ways by an adjudicator
+Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit, not a
+completion record. Nothing has been edited under it at the time of writing. It WIDENS the grant
+recorded below on this same date and does not replace it; that entry stays as the record of what
+was permitted first. NOTHING IS CLOSED BY THIS ENTRY: CS-702 STAYS OPEN, and CS-813 STAYS OPEN.
+Both are filed in `ROADMAP.md` and this entry does not close either of them.
+GRANTED BY THE OPERATOR in direct answer to a question naming the pre-filter and two measured
+escapes, then routed through an adjudicator that produced none of the work it judged. The verdict
+was GRANTED-WITH-NARROWING.
+WHY IT WAS NEEDED. The gate shipped under the first grant was REFUTED by an adversary and the
+escapes were reproduced independently with real commits and clean controls. THE CAUSE IS THE
+PRE-FILTER, which is pre-existing code building the `body` variable - below the interpreter ladder
+but above the granted insertion. It drops every line beginning with a comment character and breaks
+out at any comment line containing the scissors token, UNCONDITIONALLY, regardless of the cleanup
+mode git will actually apply.
+THE ROOT FACT, measured by the adjudicator and stronger than the report that prompted it: CLEANUP
+RUNS AFTER THIS HOOK. On the editor path the hook sees the full template while the stored message
+has it stripped, so every check here PREDICTS the stored bytes and never observes them. A
+pre-filter can be made conservative; it cannot be made complete.
+THREE ESCAPES, NOT TWO. The third was found by the adjudicator and is named nowhere else: the
+72-character subject cap. A 200-character comment line as the first line becomes a 215-character
+STORED subject with the hook exiting 0 and HEAD moving. Same cause, same fix. The other two are
+the trailer fail-open, where git itself reads the trailer on a message the gate passed, and the
+7-bit ASCII fail-open, which is not a CS-702 defect at all but a pre-existing hole in the
+enforcement of non-negotiable 4, inside a hook that exists to enforce it.
+SCOPE: `.githooks/commit-msg`, ONE further edit - replace the pre-filter block, re-point the four
+downstream checks at the body each one actually needs, and edit the single dispatcher line only if
+a new observable is passed in from sh. NOTHING AT OR ABOVE THE LINE CLOSING THE FOUR-RUNG LADDER,
+and nothing in the tail. The acceptance suite is not frozen and is not part of this grant. NO
+OTHER FROZEN PATH IS COVERED - in particular `.githooks/pre-commit` and `.githooks/pre-push` carry
+the byte-identical interpreter ladder whose own defect is filed as CS-703, and that is NOT this
+grant.
+THE ELEVEN NARROWINGS ARE THE ADJUDICATOR'S AND BIND THIS GRANT. The load-bearing ones: the
+DEFAULT DIRECTION IS TO CHECK MORE, and a line may be skipped only when the hook can PROVE from an
+observable that git will discard it; the unconditional break on the scissors token GOES, because
+`strip` - which IS the default when an editor is used - does not truncate below that marker
+either, so today's break is wrong on the ordinary editor path too; `commit.cleanup` MUST be read,
+since `whitespace` and `verbatim` force the raw path even under an editor; and the comment
+character is configurable, so it is read or it is recorded as a named residual with a pinning
+test, but not left unread and unrecorded.
+ONE PRIOR NARROWING IS VACATED AND THE REVERSAL IS RECORDED HERE RATHER THAN LEFT IMPLICIT. The
+first grant required the check read the COMMENT-STRIPPED body. That is vacated FOR THE TRAILER
+CHECK ALONE, which now reads the raw buffer. Its stated justification - that git discards a
+scissors-cut section and a commented line before the message exists - was MEASURED FALSE on the
+`-F` and `-m` paths, and CLAUDE.md section 8 rules that ground truth beats every document. The
+empty-message check KEEPS the comment-stripped body, so an abandoned editor commit still reports
+itself empty rather than complaining about git's own template. Measured false-positive cost of the
+reversal: the trailer predicate over a real verbose buffer scores ZERO hits, and zero of the 187
+commits then on `main` carry a comment-prefixed body line.
+TWO SUITE ARMS CHANGE AND BOTH ARE NAMED HERE BECAUSE ONE OF THEM IS THE DEFECT'S FINGERPRINT
+INSIDE THE GUARD. The commented-trailer arm SURVIVES unchanged. The arm asserting that a trailer
+below a scissors marker does not block the commit MUST INVERT - it currently pins escape one as
+intended behaviour, which is why 78 green tests coexisted with three live fail-opens. Every arm
+drives one commit path today, and each gains an editor-path twin.
+THE COMMON-MODE RISK IS RECORDED because the fix and its guard share it: one git binary, one
+locale, and a `core.hooksPath` that is machine-local and never cloned, so every arm proves a
+wiring a fresh clone does not have.
+A SHAPE WHERE HOOK AND GIT CANNOT AGREE IS ADMITTED RATHER THAN PAPERED OVER. Because cleanup runs
+after the hook, the prediction's inputs include flags no hook can observe; an editor invoked with
+an explicit cleanup override is the concrete case. It is a named residual, and the class closes
+only where the stored message is a fact rather than a prediction - the range scan already filed as
+CS-704.
+
 ### 2026-08-22 - CS-810 - CLOSED: a citation written as a bare `::name` is judged in EVERY guarded doc, and a second site for an already-forgiven name is no longer silently forgiven
 Verification: `tests/test_docs_citations.py::test_every_bare_identifier_in_a_guarded_doc_resolves` is the arm, now
 parametrized over the guarded set rather than hardcoded to this file, and

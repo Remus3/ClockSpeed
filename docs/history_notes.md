@@ -1903,6 +1903,68 @@ stays OPEN in `ROADMAP.md`.
 
 filed 2026-08-22 (session 31) as the CS-810 repair's disclosed residual plus one PRE-EXISTING defect its verifier found. The arms de-duplicate by name and cannot say which site is new, which is why the site pin sits in a contract test; the consequence is that `bare_name_problems` and `unresolved_citations` return empty on a genuinely new dead citation of a forgiven name. LATENT rather than live - this module is imported by nothing today, measured. SEPARATELY AND PRE-EXISTING, inherited unchanged from `f938062`: a BARE disposition whose forgiven name later becomes LIVE is never reported stale, because the now-resolves-on-its-own branch is gated on the key containing a path separator and so never fires for a bare key. Four bare-keyed entries are affected. Proven by resurrecting a forgiven name as a real def and observing the module stay green.
 
+## CS-813 - detail
+
+Filed 2026-08-22 (session 31); the item stays OPEN in `ROADMAP.md`.
+
+Filed 2026-08-22 (session 31) by the adjudicator of the widened CS-702 grant, which MEASURED the subject-cap escape that nothing else had named.
+
+**THE ROOT FACT: cleanup runs AFTER the commit-msg hook.** On the editor path the hook sees the full
+template while the stored message has it stripped, so every check in that hook PREDICTS the stored
+bytes and never observes them. The pre-filter drops comment lines and truncates at the scissors
+token unconditionally, so it models one mode out of five.
+
+**MEASURED, with real commits and clean controls.** A 200-character comment line as the first line
+becomes a 215-character STORED subject with the hook exiting 0 and HEAD moving. A comment line
+carrying an em dash lands three bytes above 0x7E in the stored message. Both need only a comment
+line - no scissors marker, no flags, no configuration.
+
+**THE CLEANUP TABLE, measured.** `verbatim` and `whitespace` keep comments and keep everything below
+the scissors marker. `strip` removes comments and KEEPS what is below the marker. `scissors`
+truncates only on the editor path. `default` is `strip` when edited and `whitespace` when not.
+Note the consequence: today's unconditional break is wrong on the ordinary editor path too.
+
+**THE OBSERVABLE EXISTS.** Git sets `GIT_EDITOR` to the no-op colon in the hook environment exactly
+when the editor was not used. `commit.cleanup` is readable too. What is NOT observable is an
+explicit cleanup override combined with an editor, which is the admitted residual.
+
+**WHY 78 GREEN TESTS COEXISTED WITH THREE FAIL-OPENS,** which is the transferable part: every arm
+drove one commit path, and one arm ASSERTED THE ESCAPE AS INTENDED BEHAVIOUR. The defective mode
+was simultaneously the only mode tested and the mode declared correct. Any suite for this item must
+parameterize over cleanup mode by commit path, and must use GIT AS THE ORACLE FOR THE STORED BYTES
+- read `git log -1` back from the landed commit and assert the gate blocked if and only if the
+stored message violates - rather than asserting against its own model of what git will do.
+
+The trailer half of the same defect is CS-702 and the routes no client-side hook can cover are
+CS-704. This item owns the cleanup model, the ASCII escape and the subject-cap escape.
+
+## CS-814 - detail
+
+Filed 2026-08-22 (session 31); the item stays OPEN in `ROADMAP.md`.
+
+Filed 2026-08-22 (session 31). Found by an adjudicator that dumped the hook environment during an
+unrelated probe, and CONFIRMED by the merger without echoing any value.
+
+**MEASURED: five live credentials sit in the environment every git hook inherits** - a GitHub
+personal access token, three third-party API keys and a harness messaging token. Confirmed by name
+and length only. NOTHING IS COMMITTED: no tracked file and no git configuration key carries any of
+them, checked. The exposure was into a session transcript, not into the repository.
+
+**THE RULE THIS PROJECT ALREADY OWNS, ONE DOMAIN OVER.** Non-negotiable 12 rules that any code path
+echoing raw header bytes leaks personal data, and that error messages, debug dumps, hex previews,
+log lines and exception context ALL COUNT AS ECHO PATHS. A hook or a debug path that renders the
+environment is exactly that shape for credentials. The reasoning is written down for save headers
+and nowhere for the hooks, which is the gap.
+
+**THIS IS THE CS-806 PATTERN AGAIN** - a rule already decided, never carried across to the place it
+also applies. That makes three in three sessions, so treat the pattern as the finding rather than
+the instance.
+
+**WHAT THIS ITEM IS NOT.** It is not a request to rotate a credential - that is an operator action
+and was raised directly. It is not a claim that any shipped hook echoes the environment today;
+proving that none does is half the acceptance. The other half is writing the rule where the next
+author of a hook will read it, so the third repetition of this pattern is the last.
+
 <!-- Newest first. Each block: date archived, source file, then the content. -->
 
 ### Archived 2026-08-16 from `WAKEUP_NOTES.md` - session 9 at full fidelity
