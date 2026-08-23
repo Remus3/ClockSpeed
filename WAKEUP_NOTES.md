@@ -89,9 +89,11 @@ the line becomes a pointer.
   `tests/save/test_byte_order_status.py` and `tests/save/test_value_anchoring.py`, it carries FOUR
   fences, and route (b) shipped without closing it.
 
-- **In flight: NOTHING half-done, but THREE COMMITS ARE UNPUSHED and that is deliberate.** The
-  operator DECLINED the push at the end of the session, so `main` is three ahead of
-  `origin/main` at `33a5624` and NO CI RUN EXISTS for any of them. Working tree clean. The four
+- **In flight: NOTHING half-done, but THE SESSION'S COMMITS ARE UNPUSHED and that is
+  deliberate.** The operator DECLINED the push, so `main` is ahead of `origin/main` and NO CI
+  RUN EXISTS for any commit this session produced. The count and the head SHA are deliberately
+  not written here - read them with `git log --oneline origin/main..HEAD`, which cannot go
+  stale the way a number in prose does. Working tree clean. The four
   pre-existing worktrees (CS-492 rounds seven to nine and the two-site spike) and branch
   `cs807-attribute-half` are UNTOUCHED, exactly as sessions 31 and 32 left them.
 
