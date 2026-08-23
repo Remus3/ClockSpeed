@@ -139,6 +139,24 @@ the line becomes a pointer.
   defect. No-evidence states now route to the same skip a missing library takes, which also stops a
   degenerate sweep reaching the cache.
 
+- **WORKTREE PRUNE: ONE REMOVED, SIX KEPT, AND THE INHERITED NOTE THAT SENT ME THERE WAS WRONG IN A
+  WAY THAT WOULD HAVE DESTROYED WORK.** The note said "FOUR WORKTREES REMAIN MERGED AND PRUNABLE"
+  and then named THREE. Measured instead of trusted: **only `agent-a8f0774be4d10c1fe` was clean, and
+  it is the only one removed.** Of the other two the note named, `agent-a1d0d1c85dd5bc8fc` holds
+  1567 uncommitted insertions across `.githooks/commit-msg` - a FROZEN file - `docs/GATED.md` and
+  `tests/test_commit_msg_gate.py`, and `agent-ac95f3565beb2209d` holds 1049 across
+  `docs/history_notes.md` and `tests/test_docs_citations.py`. Both carry content that is NOT in
+  main, checked file by file rather than inferred.
+
+- **THE TRAP IS GENERAL AND IS THE REASON THIS IS WRITTEN DOWN.** `git merge-base --is-ancestor`
+  reports ALL SEVEN of these worktrees as "merged into main", and that verdict is WORTHLESS here:
+  their checked-out HEAD is the BASE commit the agent started from, which of course is in main,
+  while the work sits UNCOMMITTED in the working tree. **A worktree is prunable only if it is
+  ancestor-merged AND clean.** Six of the seven are dirty, so the six that remain - the four CS-492
+  and spike worktrees plus those two - are ALL still holding work and none is prunable. Branch
+  `worktree-agent-ab7fcd5c63f9193ea` (32a982c) is genuinely merged and its worktree is already gone,
+  so only the branch is left to delete; `cs807-attribute-half` is NOT merged and stays.
+
 - **Next action: THE REMAINING ROUTE IS THE OPERATOR'S ALONE.** Amend clause 3 to say what it now
   means - settled JOINTLY over the scored populations against the real library, with the per-type
   residual in shipped data - and file the `UInt32Property` residual as its own item. An adjudicator
