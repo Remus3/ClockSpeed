@@ -40,6 +40,15 @@ the first: a consumer actually needs to follow a component to its parent.**
 - `clockspeed/save/objects.py` is now the largest module in the package by a wide margin
   and is a splitting candidate - conditional on a change that would grow it again.
 
+## CI and toolchain
+
+- `actions/checkout@v4` and `actions/setup-python@v5` target Node 20, which GitHub has
+  deprecated; the runner currently FORCES them onto Node 24 and prints a warning on every
+  run, so nothing is broken and the warning is the only signal - eight pin sites across
+  `.github/workflows/tier1.yml` and `.github/workflows/tier2.yml`, and neither file is on
+  the frozen list, so no adjudicator grant is needed - conditional on the forcing being
+  withdrawn, or on the warning becoming a failure.
+
 ## Mod content support
 
 Architecture is first-class from phase 0 - namespaced identifiers, unknown classes
