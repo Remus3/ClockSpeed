@@ -1195,20 +1195,6 @@ stays OPEN in `ROADMAP.md`.
 
 CS-484 - The local lint gate cannot reproduce CI's, because `pyproject.toml` pins `ruff>=0.13` with no upper bound and CI installs whatever is newest - acceptance: running the documented local gate set on a tree CI will reject turns something RED locally first, with the reproduction recorded - tier: 2 - NOTE: filed 2026-08-19 (session 21). MEASURED, not inferred: CI run 32211377535 failed `ruff check` on FURB192 at `tests/save/test_byte_order_status.py:878`, a line shipped in `e86f84d` (session 20) and never seen by CI because that session's push was blocked. Locally the same command passes and `ruff check --select FURB192` answers `Selection FURB192 has no effect because preview is not enabled` - the rule is PREVIEW on ruff 0.15.12 here and STABLE on the newer ruff CI resolves. **THIS IS SESSION 19's LESSON IN A NEW FORM AND THE OLD FIX DOES NOT COVER IT.** That session learned to run `ruff format --check` as well as `ruff check`; running BOTH still does not reproduce CI, because the divergence is now the ruff VERSION rather than the command. An unpinned linter means the gate's ruleset changes under the project with no commit, so a tree that is green today is red tomorrow for reasons no diff explains - and the failure lands AFTER the push, which is the expensive place. Pinning an exact version and bumping it deliberately is the obvious candidate; enabling preview locally is NOT, it would over-approximate CI in the other direction. `pyproject.toml` is not a frozen file, but the toolchain pin is asserted by `scripts/verify_env.py`, so any change goes with it. **THE DIVERGENCE IS NOW MEASURED RATHER THAN INFERRED, 2026-08-20 (session 24).** The entry rested on a version gap nobody had extracted from a CI log, and three sessions carried it as UNVERIFIED. Taken from the tier1 run on `76fac74`: CI resolved **ruff 0.16.3**; this machine has **0.15.12**. That is the premise confirmed, not the item closed - both linters passed the shipped tree on that run, so the gap cost nothing this time. What is still missing is the acceptance's own half: a tree CI rejects and the local gate does not. **DO NOT read the passing run as evidence the gap is harmless;** it is evidence that this tree happens not to touch a rule the two versions disagree on.
 
-## CS-486
-
-### NOTE - relocated from `ROADMAP.md` 2026-08-23
-
-**NOTE RELOCATED for budget, never deleted: read this file under **CS-486 - detail** BEFORE TAKING THIS ITEM.**
-
-### detail - relocated to `docs/upstream_watch.md` 2026-08-23
-
-The CS-486 watch list moved to its own file under the same operator ruling, because
-it is a STANDING watch rather than per-item detail: it outlives the item that filed
-it. `docs/upstream_watch.md` owns it - the page groups, the ordering that makes them
-useful, and the standing refusal of any automated fetch. Read it before taking this
-item; the verbatim block that used to sit here is its source-of-record section.
-
 ## CS-500
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23

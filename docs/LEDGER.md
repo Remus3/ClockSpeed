@@ -73,6 +73,15 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-23 - CS-486 - CLOSED. The upstream wiki watch list gets an owning file, a topology row and a budget; clause 1 closed on an operator ruling, not on new research
+`docs/upstream_watch.md` now owns the upstream watch list - the page groups, the ordering that makes them usable, and the standing refusal of any automated fetch. It is named in the `CLAUDE.md` section 4 ownership table and in the `CONVENTIONS.md` section 2 table that `tools/drift_guard.py` guard d parses at runtime, and `tools/doc_budget.py` was extended to measure it, which is what clause 3 asked for.
+
+CLAUSE 1 DID NOT CLOSE ON EVIDENCE AND THIS ENTRY SAYS SO PLAINLY. It asked for the PER-PAGE watch list. Measured 2026-08-23 while building the file: the per-page change signals were never carried into any tracked file - not into the relocated source block, and not into this ledger under CS-485, which records the gate result and the research method and leaves the list itself homeless. What the repository holds is the page GROUPS and the ordering. **The operator ruled that those ARE the watch list clause 1 meant**, and the item closed on that ruling. A future reader who wants per-page signals must re-run the CS-485 pass; `docs/upstream_watch.md` records that and refuses to invent them, which is the honest state rather than a gap hidden behind a close.
+
+The item was filed to find a home and had sat without one because inventing a tracked doc with no owner is the drift `CLAUDE.md` section 4 exists to prevent. The ruling that created the file came in the same session that executed the ROADMAP budget ruling, which is why the two arrived together.
+
+Verification: `python tools/drift_guard.py` - guard d parses the `CONVENTIONS.md` section 2 table and FAILS on a named file that does not exist, so a PASS is evidence the owner file is really there; `python tools/doc_budget.py` lists `docs/upstream_watch.md` with its budget and its measured share; and `grep -n upstream_watch CLAUDE.md CONVENTIONS.md` shows the two topology rows.
+
 ### 2026-08-23 - CS-413 - CLOSED. Three clauses graded against the real library; FIVE residuals filed after a review found the first two were not all of them
 CS-413 CLOSES on its three acceptance clauses, each graded against the real save library rather
 than against the synthetic corpus, and with both of the objections that kept it open addressed.

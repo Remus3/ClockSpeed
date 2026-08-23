@@ -22,6 +22,29 @@ Where current truth actually lives:
 
 ---
 
+## CS-486 - detail - CLOSED 2026-08-23
+
+**CS-486 CLOSED 2026-08-23 - see `docs/LEDGER.md`. This block is the record of how it
+was filed and is NO LONGER A LIVE INSTRUCTION.** It closed on an operator ruling that
+the page-GROUP list plus the reading order is the watch list clause 1 asked for. The
+standing watch itself did NOT move here and is not history: `docs/upstream_watch.md`
+owns it, and that file is where the list is read.
+
+### NOTE - relocated from `ROADMAP.md` 2026-08-23
+
+**NOTE RELOCATED for budget, never deleted: read this file under **CS-486 - detail** BEFORE TAKING THIS ITEM.**
+
+### detail - relocated to `docs/upstream_watch.md` 2026-08-23
+
+The CS-486 watch list moved to its own file under the same operator ruling, because
+it is a STANDING watch rather than per-item detail: it outlives the item that filed
+it. `docs/upstream_watch.md` owns it - the page groups, the ordering that makes them
+useful, and the standing refusal of any automated fetch. Read it before taking this
+item; the verbatim block that used to sit here is its source-of-record section.
+
+
+---
+
 ## Live per-item detail moved out - 2026-08-23
 
 **Relocated, not deleted.** Under an operator ruling of 2026-08-23 every LIVE instruction

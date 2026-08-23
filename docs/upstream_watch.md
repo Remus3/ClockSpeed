@@ -78,6 +78,11 @@ signal for each individual page was never carried into a tracked file - not into
 file's source block, and not into the CS-485 ledger entry, which records the gate result
 and the research method and explicitly leaves the list itself homeless.
 
+**THIS IS NOT AN OPEN GAP IN CS-486.** The operator ruled on 2026-08-23 that the page
+GROUPS plus the reading order ARE the watch list that item asked for, and CS-486 closed
+on that ruling. What follows is a standing note about this file's contents, not an item
+state: recovering a per-page signal is worth doing only if someone actually wants one.
+
 **Do not invent them.** Recovering a per-page signal means re-running the CS-485 research
 pass - a page-by-page read of the site's navigation and category listings, by a human,
 under the ordering above - and recording the result here.
@@ -85,6 +90,11 @@ under the ordering above - and recording the result here.
 ---
 
 ## Source of record - relocated VERBATIM
+
+**CS-486 CLOSED 2026-08-23.** The block below WAS written while the item was open and
+says so; that sentence was true when written. What is true now: the item is closed,
+this file is its home, and THIS FILE IS NOT HISTORY - the watch it describes is
+standing, and outlives the item that filed it.
 
 Relocated 2026-08-23 under an operator ruling, from `docs/history_notes.md` under
 **CS-486 - detail**, where it had been relocated from `ROADMAP.md` for budget. Verbatim
