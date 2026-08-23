@@ -73,6 +73,81 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-23 - CS-421 - ADJUDICATED DO-NOT-CLOSE, and a CORRECTION to the entry below
+CS-421 STAYS OPEN. This corrects the record immediately below rather than editing it, which
+is what this file requires. The close was routed to an adjudicator on the operator's
+instruction; the adjudicator produced none of the work it graded, ran its mutation in an
+OUT-OF-TREE copy built from `git ls-files` so it never touched this working tree, and
+returned DO-NOT-CLOSE. Every finding below was re-verified by the merger before it was
+written here.
+
+**THE VERDICT.** Clause 1 MET WITH A STATED LIMIT - it grades completeness and vocabulary,
+not the truth of the class named, and only `EVIDENCE_MAGNITUDE` is tied to a live control,
+through the hand-written `_MAGNITUDE_SCORED_TYPES`, which CS-459 owns. Clause 2 MET. **Clause
+3 NOT MET.**
+
+**THE GROUND THAT DECIDES IT, AND THE MERGER RE-READ IT FROM A FRESH INTERPRETER.**
+`objects.BYTE_ORDER_STATUSES` is `anchored_not_unique`, `oracle_cannot_separate_readings`,
+`unscored`, `vacuous_one_byte`. **NO WORD IN THE SHIPPED VOCABULARY MEANS SETTLED**, and
+every four-byte type ships one that denies it - `IntProperty` and `FloatProperty`
+`anchored_not_unique`, `UInt32Property` `oracle_cannot_separate_readings`. Closing clause 3
+would put this file in direct contradiction with the module, and clause 2 is the clause that
+insisted the MODULE owns this fact rather than prose.
+
+**CORRECTION ONE - THE ENTRY BELOW CANNOT COUNT.** It says 13 tests fail, five are
+library-backed, "Six are synthetic and the thirteenth is the nested no-install gate". That is
+5 + 6 + 1 = 12. Re-counted from the same run output: there are SEVEN non-library, non-gate
+reds in `tests/save/test_properties.py`, so the split is **5 + 7 + 1 = 13**. The 13 and the
+five names are correct and reproduce; the sentence that partitions them is not.
+
+**CORRECTION TWO, AND IT IS THE SUBSTANTIVE ONE. "FIVE LIBRARY-BACKED PLACES" OVERSTATES
+INDEPENDENCE.** It is ONE predicate consumed at five sites. `_int_oracle_holds` in
+`tests/save/test_value_anchoring.py` is single-owner by its own docstring and feeds the
+anchor sweep, the permutation sweep and the separability sweep alike; the fifth red spells
+the identical majority-minority conjunction inline in `tests/save/test_properties.py`.
+Verified by the merger at all four call sites. FOUR OF THE FIVE DISCLAIM THEIR OWN RESULT IN
+THEIR FAILURE TEXT - they report that their baseline is red and the comparison therefore
+means nothing. So one library-backed oracle catches the flip and four further tests refuse to
+compute. **The entry below declined to add a test on the ground that "an arm asserting what
+five existing arms assert is the redundancy this project refuses". That premise is FALSE:
+there is one arm, not five, and a second INDEPENDENT library-backed control is therefore real
+work rather than redundancy.**
+
+**FENCE 1 WAS CROSSED.** "DO NOT RE-PITCH THE CLOSE ON THE ARTIFACT EXISTING" - not by the
+singleton or the 13/5, which are new material, but by offering `UInt32Property`'s
+`oracle_cannot_separate_readings` as disposing of the residual. The fence's arithmetic was
+re-verified: the single stored pattern reads 6400, which is 25 x 256, and only the 255
+multiples of 256 reach the undecided state while 65280 of 65535 would have driven the same
+oracle green. The status is an accident of the one value this world carries. Fences 2, 3 and
+4 are intact.
+
+**WHICH PRIOR REFUSALS STILL STAND.** The 2026-08-16 anchoring refusal and the 2026-08-17
+two-candidate refusal are ANSWERED and no longer stand. **The 2026-08-17 singleton refusal
+and the 2026-08-18 route (b) refusal STAND UNTOUCHED** - the result is JOINT rather than
+per-type, `UInt32Property` is scored by nothing, and carrying the joint result across needs a
+premise `objects.py` refuses in writing.
+
+**COMMON-MODE RISK, RECORDED RATHER THAN WAVED AT.** Three shared inputs and nothing tests
+any of them: the single `_int_oracle_holds` predicate above; all three oracles receiving
+bytes at the same `value_at` from the same `_read_tag_header` walk, which the 2026-08-17
+record already called "closer to one oracle than to three"; and every library-backed figure
+in this item coming from ONE world across the saves the separability sweep reads.
+
+**WHAT WOULD CLOSE IT.** Either an OPERATOR RULING amending clause 3 to say what it now means
+- settled JOINTLY over the scored populations against the real save library, with the
+per-type residual recorded in shipped data - with the `UInt32Property` residual filed as its
+own item; an adjudicator cannot grant that narrowing, because narrowing an acceptance clause
+is exactly fence 1's forbidden move. OR a second library-backed control that catches the
+`">i"` flip through a predicate that is NOT `_int_oracle_holds`, which would make "two
+independent library-backed oracles" true where "five places" is not.
+
+Verification: `python -c "from clockspeed.save import objects as o;
+print(sorted(o.BYTE_ORDER_STATUSES)); print(dict(o.VALUE_BYTE_ORDER_STATUS))"` shows no word
+meaning settled and every four-byte type carrying one that denies it. For the single-owner
+predicate, `grep -n "_int_oracle_holds" tests/save/test_value_anchoring.py` shows the
+definition and its three consumers, and `tests/save/test_properties.py` lines 1672 to 1683
+carry the inline twin. For the count, re-run the mutation recorded in the entry below and
+partition the 13 `FAILED` lines yourself.
 ### 2026-08-23 - CS-421 - NOT A COMPLETION RECORD. CS-421 STAYS OPEN; TWO of its own headline claims measured FALSE
 This entry records a MEASUREMENT and closes nothing. No clause was re-graded and no
 acceptance was declared met. It exists because CS-421's documentation described a gap the

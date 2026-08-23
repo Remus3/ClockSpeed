@@ -84,12 +84,29 @@ the line becomes a pointer.
   `test_properties.py::...` that does not resolve from the repo root; guarded docs need the full
   path.
 
-- **Next action: THE CS-421 CLOSE IS AN OPERATOR DECISION AND WAS DELIBERATELY NOT TAKEN.** Clauses
-  1 and 2 are met and graded. Clause 3's evidence exists - `BYTE_ORDER_SURVIVING_CANDIDATES` is a
-  library-derived SINGLETON and a wrong shipped byte order reddens in five library-backed places -
-  but three prior sessions refused this close, the measurement's author is the wrong party to grade
-  it, and `UInt32Property` still cannot be separated by its own population. Put it to an adjudicator
-  that did not produce the measurement, or take CS-817 / CS-821 / CS-824 instead.
+- **THE CLOSE WENT TO AN ADJUDICATOR ON THE OPERATOR'S INSTRUCTION AND CAME BACK DO-NOT-CLOSE, AND
+  IT REFUTED MY OWN ENTRY TWICE.** It graded none of its own work and ran its mutation in an
+  OUT-OF-TREE copy so it never touched this tree. FIRST, MY LEDGER ENTRY COULD NOT COUNT: "five
+  library-backed, six synthetic, one gate" is TWELVE, and the split is 5 + 7 + 1. SECOND, AND THIS
+  IS THE ONE THAT MATTERS, **"five library-backed places" OVERSTATES INDEPENDENCE - it is ONE
+  predicate at five sites.** `_int_oracle_holds` is single-owner by its own docstring and feeds the
+  anchor, permutation and separability sweeps alike, and the fifth red spells the same conjunction
+  inline; FOUR OF THE FIVE DISCLAIM THEIR OWN RESULT IN THEIR FAILURE TEXT, reporting that their
+  baseline is red so the comparison means nothing. So my stated reason for adding no test - that it
+  would be redundant against five arms - rests on a FALSE PREMISE. All of it re-verified here before
+  it reached `docs/LEDGER.md`. The decisive ground was simpler than any of that:
+  `objects.BYTE_ORDER_STATUSES` HAS NO WORD MEANING SETTLED, and every four-byte type ships one that
+  denies it - so closing clause 3 would put the ledger in contradiction with the module, and clause 2
+  is the clause that gave the module that fact. Fence 1 was CROSSED by my `UInt32Property` bullet.
+
+- **Next action: TWO ROUTES AND THE FIRST IS THE OPERATOR'S ALONE.** Either amend clause 3 to say
+  what it now means - settled JOINTLY over the scored populations against the real library, with the
+  per-type residual in shipped data - and file the `UInt32Property` residual as its own item; an
+  adjudicator CANNOT grant that narrowing, because narrowing an acceptance clause is fence 1's
+  forbidden move. Or build the smaller thing: **a second library-backed control catching the `">i"`
+  flip through a predicate that is NOT `_int_oracle_holds`**, which is real work the 2026-08-23 entry
+  declined on the false premise above. Otherwise take CS-817 / CS-821 / CS-824, which are smaller and
+  independent.
 
 ## Session 33 - 2026-08-22 - CS-823 CLOSES and takes a SECOND, unfiled escape with it; then an adversary refuted this session's own suite and SIX wrong hooks passed it
 

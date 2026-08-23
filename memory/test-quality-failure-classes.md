@@ -56,5 +56,13 @@ case in front of them is an instance of it.
   CS-421 the population had not moved at all, the EVIDENCE TABLE had, and a headline of
   "60.1 per cent" was 2.6 per cent by the time anyone re-measured it.
 
+- **N RED TESTS IS NOT N INDEPENDENT DETECTIONS.** A mutant that reddens five tests reads as
+  five detections, and the count then gets used to argue a sixth arm would be redundant. Trace
+  the reds to their PREDICATE first. Measured on CS-421: five library-backed reds were ONE
+  single-owner predicate consumed at five sites, and FOUR of the five disclaimed their own
+  result in their failure text - each reported that its baseline was red, so its comparison
+  meant nothing. One detection, four guard trips. **Read the failure TEXT of every red, not
+  just the summary line**, and treat shared-predicate reds as one piece of evidence.
+
 Related: [[verification-failure-classes]], [[orchestrated-multi-agent-is-the-default]],
 [[unknown-content-is-flagged-not-fatal]].
