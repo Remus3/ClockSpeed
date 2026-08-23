@@ -371,8 +371,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
     ),
     (
         ITEM_NOTES,
-        "test_a_parameter_spelled_like_a_primitive"
-        "_binds_nothing_and_serves_nothing",
+        "test_a_parameter_spelled_like_a_primitive_binds_nothing_and_serves_nothing",
     ): Disposition(
         NO_TARGET,
         "",
