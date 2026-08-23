@@ -57,12 +57,91 @@ fi
 CS_PY=""
 CS_PY_ARG=""
 
+# THE PROBE PROVES THE CANDIDATE BOTH RUNS A PROGRAM AND CAN REPORT ITS FAILURE.
+#
+# CS-703: the previous probe ran the candidate with -c and read only its exit
+# status, so `true`, `:` and `echo` all passed it. The heredoc or the gate
+# invocation was then handed to that program, which ignored it and exited 0, and
+# the hook reported success - one environment variable silently disarmed the
+# character-set gate, the secret scan, the message checks and the pre-push suite
+# at once. An unrunnable check is not a passed check, and neither is a check
+# handed to something that cannot run it.
+#
+# THE SECOND HALF EXISTS BECAUSE THE GATES READ A CHANNEL THE FIRST HALF NEVER
+# VALIDATES. Every gate decision in every one of these hooks is taken from `$?`.
+# A probe that compares only stdout therefore proves the candidate RAN the
+# program and says nothing about whether it can REPORT a failure - so a wrapper
+# that forwards stdout faithfully and drops the exit status answers the first
+# half with the exact token and turns all three tier-0 gates into no-ops. Two
+# ordinary shapes do exactly that, and neither is purpose-built nor knows the
+# token: a POSIX wrapper ending in `| cat`, because a pipeline's status is its
+# LAST command's, and a Windows .cmd shim wrapping its body in `setlocal` /
+# `endlocal`, because `endlocal` resets ERRORLEVEL. The second half hands the
+# candidate a program that exits 97 and demands 97 back. The sentinel avoids 0,
+# 1, 2 and 5, which are ordinary results, and 125, 126 and 127, which `env` and
+# the shell itself produce on an exec failure - so a candidate that never ran the
+# program cannot answer correctly by accident.
+#
+# THAT ESCAPE WAS REACHABLE THROUGH THE `python` RUNG WITH NO ENVIRONMENT
+# VARIABLE SET AT ALL. It was never a CLOCKSPEED_PYTHON problem, and unsetting
+# that variable was never a mitigation for it.
+#
+# THE TOKEN IS ASSEMBLED FROM THREE PIECES at run time, so the string being
+# compared never appears literally in the program text the candidate is handed.
+# A candidate that merely echoes its arguments back cannot reproduce it by
+# accident, and `echo` is the live example of one that tries.
+#
+# THE COMPARISON IS EXACT RATHER THAN CONTAINMENT, deliberately. Exact equality
+# refuses a candidate whose stdout carries anything extra - a sitecustomize that
+# prints, a .cmd shim without `@echo off`, PYTHONIOENCODING=utf-8-sig - and each
+# of those is a FALSE REFUSAL this accepts knowingly. Containment would accept
+# all three, and would also accept any program that emits the token among other
+# output. In a gate a LOUD FALSE REFUSAL beats a SILENT FALSE ACCEPT: the
+# message below fixes the first in a minute, and the second is the defect that
+# made this item exist.
+#
+# THE TOKEN CARRIES NO TRAILING NEWLINE, so the comparison never depends on how
+# the interpreter and the shell each treat a line terminator. Measured here:
+# python writes CR LF to a pipe and this bash strips both, so the newline form
+# happens to compare equal on THIS toolchain - exactly the version-specific
+# tolerance CONVENTIONS.md section 16 says to re-measure rather than inherit.
+# Writing no newline removes the dependency instead of resting on it.
+#
+# THIS IS AN ACCIDENT DETECTOR, NOT A SECURITY BOUNDARY. It catches a
+# MISCONFIGURED interpreter, which is what CS-703 was. It stops nobody who means
+# to get past it: a program written on purpose to print the token and exit 97
+# passes both halves, and `git commit --no-verify` skips every hook here without
+# needing to. Never cite this probe as evidence that a commit was checked.
+CS_PROBE_PROGRAM='import sys; sys.stdout.write("clockspeed-" + "python-" + "ok")'
+CS_PROBE_EXPECTED='clockspeed-python-ok'
+CS_PROBE_EXIT_PROGRAM='import sys; sys.exit(97)'
+CS_PROBE_EXIT_EXPECTED=97
+
 cs_probe() {
+    # BOTH initialised BEFORE first use. The failure path below renders each of
+    # them, and `set -u` would abort the hook on an unset one instead. The exit
+    # code starts as a WORD rather than a number on purpose: a refusal that never
+    # reached the second half must not be readable as "the candidate returned 0".
+    cs_probe_out=""
+    cs_probe_code="not reached"
     if [ -n "${2:-}" ]; then
-        "$1" "$2" -c "raise SystemExit(0)" >/dev/null 2>&1
+        cs_probe_out=$("$1" "$2" -c "$CS_PROBE_PROGRAM" 2>/dev/null </dev/null) || return 1
     else
-        "$1" -c "raise SystemExit(0)" >/dev/null 2>&1
+        cs_probe_out=$("$1" -c "$CS_PROBE_PROGRAM" 2>/dev/null </dev/null) || return 1
     fi
+    [ "$cs_probe_out" = "$CS_PROBE_EXPECTED" ] || return 1
+    # THE EXIT-STATUS HALF. $? is captured IMMEDIATELY on the next line, because
+    # any command in between - a `[` included - overwrites it.
+    if [ -n "${2:-}" ]; then
+        "$1" "$2" -c "$CS_PROBE_EXIT_PROGRAM" >/dev/null 2>&1 </dev/null
+        cs_probe_code=$?
+    else
+        "$1" -c "$CS_PROBE_EXIT_PROGRAM" >/dev/null 2>&1 </dev/null
+        cs_probe_code=$?
+    fi
+    # Compared as STRINGS. Both sides are literal digits here, and `=` cannot
+    # raise on a non-numeric value the way `-eq` would.
+    [ "$cs_probe_code" = "$CS_PROBE_EXIT_EXPECTED" ]
 }
 
 cs_python() {
@@ -73,8 +152,42 @@ cs_python() {
     fi
 }
 
-if [ -n "${CLOCKSPEED_PYTHON:-}" ] && cs_probe "$CLOCKSPEED_PYTHON"; then
-    CS_PY="$CLOCKSPEED_PYTHON"
+if [ -n "${CLOCKSPEED_PYTHON:-}" ]; then
+    # SET BUT FAILING IS A HARD FAILURE, NOT A FALL-THROUGH. The old form was
+    # one `&&` condition, so a value that failed the probe fell quietly through
+    # to `python`: the operator's explicit choice was overruled, the run
+    # continued under an interpreter they did not pick, and nothing said so.
+    # That is the CS-806 shape in a quieter form. Refusing costs one loud
+    # message; falling through costs silence.
+    if cs_probe "$CLOCKSPEED_PYTHON"; then
+        CS_PY="$CLOCKSPEED_PYTHON"
+    else
+        # Flattened to ONE line and capped, so a candidate that ignores its
+        # arguments and prints without limit cannot flood the terminal. The
+        # VALUE of CLOCKSPEED_PYTHON is deliberately NOT echoed back: it is
+        # routinely an absolute path under a home directory, and this text
+        # reaches logs and reports (CLAUDE.md non-negotiable 3).
+        cs_probe_flat=$(printf '%s' "$cs_probe_out" | tr '\r\n' '  ' 2>/dev/null)
+        cs_probe_shown=$(printf '%.200s' "$cs_probe_flat")
+        die "CLOCKSPEED_PYTHON is set but did not answer the probe." \
+            "It must name ONE EXECUTABLE, not a command line with arguments." \
+            "'py -3' is two tokens, so it cannot be this variable's value. Unset" \
+            "the variable and the ladder reaches 'py -3' by itself, last." \
+            "Observed probe output, truncated to 200 characters:" \
+            "[$cs_probe_shown]" \
+            "Observed exit status when asked to fail: [$cs_probe_code]" \
+            "(expected $CS_PROBE_EXIT_EXPECTED; 'not reached' means this half" \
+            "never ran. That happens BOTH when the candidate could not be" \
+            "executed at all AND when it ran but answered the output check" \
+            "wrongly - empty output above points at the first.)" \
+            "An interpreter must BOTH run the program it is handed AND report a" \
+            "failure back. That is CS-703: judging the exit code alone let 'true'," \
+            "':' and 'echo' through, and judging stdout alone let a wrapper that" \
+            "forwards output but drops the exit status turn every tier-0 gate" \
+            "into a no-op." \
+            "Point CLOCKSPEED_PYTHON at a working python executable, or unset it." \
+            "The commit is BLOCKED: an unrunnable gate is not a passed gate."
+    fi
 elif cs_probe python; then
     CS_PY="python"
 elif cs_probe python3; then

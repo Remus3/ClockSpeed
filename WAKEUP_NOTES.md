@@ -31,6 +31,75 @@ the line becomes a pointer.
 
 ---
 
+## Session 32 - 2026-08-22 - CS-703 and CS-819 both CLOSE after FOUR refutations, and the transferable finding is that a probe validated one channel while every gate read another
+
+- **Shipped: CS-703 and CS-819 CLOSED. Filed CS-815, CS-816, CS-817, CS-818, CS-820, CS-821,
+  CS-822, CS-823.** Detail in `docs/LEDGER.md`, not here. **TWO ITEMS CLOSED AND EIGHT FILED, and
+  seven of the eight are defects in things already green and already reported done.** Two frozen-file
+  grants were issued, adjudicated and recorded BEFORE any edit, in their own commit.
+
+- **THE HEADLINE IS NOT THE ITEM AS FILED. CS-703 was reported as an environment-variable problem
+  and it never was one.** The repaired probe's FIRST build validated STDOUT while every gate decision
+  in every hook reads `$?`. A wrapper that forwards stdout faithfully and drops the exit status
+  therefore answered the probe with the exact token and turned all three tier-0 gates into no-ops -
+  and it reached that through the ladder's own `python` rung **with no environment variable set at
+  all**. Two ordinary shapes do it and neither knows the token: a POSIX wrapper ending in `| cat`,
+  and a Windows `.cmd` using `setlocal`/`endlocal`. **A PROBE THAT VALIDATES ONE CHANNEL WHILE THE
+  CONSUMER READS ANOTHER PROVES NOTHING**, and that is the sentence to carry forward.
+
+- **FOUR REFUTATIONS, NOT ONE FROM READING THE CODE.** Every one came from an agent RUNNING it, with
+  real commits and real pushes. Round one: the stdout/exit-code split above. Round two: the
+  commit-msg hook FAILS OPEN under MSYS2 dash, which became CS-819. Round three attacked the SUITE
+  rather than the hooks and killed three mutants. Round four found CS-823 and one message defect.
+
+- **THE MERGER'S OWN ORACLE SHARED THE SUITE'S BLIND SPOT, TWICE, AND THAT IS THE METHOD LESSON.**
+  It graded the first build 15/15 while four escapes were live, because every substitution arm used
+  `true` - which fails at the stdout comparison and never reaches the exit-code question. It also
+  drives real git, which on Windows is bash, the one shell where the dash fail-open is invisible.
+  **A harness that cannot reach a channel cannot grade it.** Both gaps are closed; it now runs 23
+  arms, 6 of which fail against the pre-repair hooks.
+
+- **Decisions: no ADR. Four that must not be reopened.** The probe demands BOTH a computed token and
+  a returned failure code; a set-but-broken `CLOCKSPEED_PYTHON` is REFUSED rather than silently
+  replaced, which exceeds the filed acceptance and was an OPERATOR instruction, recorded as such.
+  Exact equality beats containment because **a loud false refusal beats a silent false accept in a
+  gate**. CS-819 ships a SENTINEL rather than moving the program into a file, because an empty file
+  exits 0 just as silently - it removes a cause without establishing the invariant. And no heredoc
+  size guard: 4096 is one dash build's property, so a size assertion is a proxy for the property
+  rather than the property.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`. Two things contradicted ME, and both corrections
+  are in tracked files rather than only here.** I reported CS-819 as affecting "most Linux
+  developers"; that is REFUTED by this project's own CI - `tier1` run `32601774702` at `32a982c`
+  ran on ubuntu-latest, where `/bin/sh` IS dash, with the over-threshold body, and 23 commit-msg
+  tests with no skip markers passed every violation class. It is MSYS2-only and LATENT. Separately
+  the CS-703 detail block named `env` as passing the old probe; it does not on this toolchain, and
+  `echo` does and was unnamed. Both corrected per CLAUDE.md section 8.
+
+- **Failed paths, so they are not retried.** A probe that reads only stdout - refuted by measurement,
+  above. A byte-identity check scoped to the probe alone leaves the refusal block unpinned, and two
+  mutants survived in exactly that gap. Message-content arms hardwired to ONE hook let a grant
+  condition be deleted from the other two with the suite green. And the harness bash heredoc ate
+  backslash continuations AGAIN, silently, on a patch script - the Write tool is the answer, every
+  time, and this is the fifth session it has cost.
+
+- **A DEVIATION RECORDED RATHER THAN CLAIMED MET.** Both grants ask that `scripts/install_hooks.py`
+  run clean. Its `inspect_hook` was run over all three hooks and passed; the WHOLE script was not,
+  because `install()` writes `core.hooksPath` RELATIVE where this machine holds it ABSOLUTE - from a
+  worktree that repoints hook resolution to that worktree's own copy, which would let an agent
+  editing a hook disarm the gate judging its own commit. Changing the operator's git configuration
+  was not a side effect these items were entitled to take.
+
+- **In flight: NOTHING from this session.** Working tree clean. The four pre-existing worktrees
+  (CS-492 rounds seven to nine and the two-site spike) and branch `cs807-attribute-half` are
+  UNTOUCHED and still unmerged, exactly as session 31 left them. One NEW worktree,
+  `agent-ab7fcd5c63f9193ea`, is fully merged and prunable.
+
+- **Next action: CS-823.** It is tier 1, the fix is already designed and measured, and it needs a
+  frozen-file grant for `.githooks/pre-commit` before a line is written. `pre-commit` runs the gate
+  with no proof of execution, so an empty or truncated `tools/precommit_gate.py` passes it silently -
+  and 1019 of 2395 truncation points still compile.
+
 ## Session 31 - 2026-08-22 - THREE items close and SIX are filed; every first build was refuted, and the largest finding is that a substituted interpreter disarms every tier-0 gate
 
 - **Shipped: CS-702, CS-809 and CS-810 CLOSED. Filed CS-703, CS-704, CS-811, CS-812, CS-813,
@@ -165,82 +234,3 @@ the line becomes a pointer.
 - **Next action: CS-702, but it is BLOCKED ON AN OPERATOR GRANT and must not be started without
   one** - `.githooks/commit-msg` is frozen. If the grant is not forthcoming, take CS-809 or
   CS-810, which are CS-442's residuals and need no grant.
-
-## Session 29 - 2026-08-22 - CS-807's sweep is TAKEN and sizes the item at SIX; an attribute-half repair was built and REFUTED by three independent lenses
-
-- **Shipped: NOTHING CLOSED. Third session running.** CS-807 stays OPEN, CS-492 was not
-  touched, and CS-808 was FILED. Two commits, `77336e5` and `6547f9f`, both DOCUMENTATION
-  ONLY - zero `.py` files were touched in `main`. `docs/LEDGER.md` carries a NON-CLOSURE
-  record and says so in its heading.
-
-- **THE SWEEP IS TAKEN, and it was the right first action because it changed the item's
-  size.** CS-807's detail block named it the cheapest next step and recorded the answer as
-  unmeasured. The answer is **SIX false declarations, not four, in TWO modules rather than
-  one**: `backing_citations` and `dead_full_citations` in `tests/save/test_absolute_claims.py`
-  are the new pair, and **both are HELPERS rather than tests**, so the population is not
-  confined to test functions the way the first finding implied. 45 exemptions in 11 modules,
-  20 graded entries in 7; the graded channel is CLEAN. No consumer of the guard exists
-  outside `tests/save`. **Six is a FLOOR, not a total.** Full tables in
-  `docs/history_notes.md` under **CS-807 - detail**.
-
-- **TWO INDEPENDENT METHODS AGREED ON THE SAME SIX and the second never reads a reason
-  string** - it takes the call node the guard trips on, resolves the callee one hop, and asks
-  whether that target reaches. One phrase match was REJECTED on inspection:
-  `test_workdir::test_latest_save_returns_none_when_nothing_resolves` matches "no path at
-  all" but genuinely calls the locator.
-
-- **In flight: branch `cs807-attribute-half` at `72f0f2c`, base `77336e5`, REFUTED and NOT
-  MERGED.** +242/-25 across three files. The working tree is CLEAN and nothing is unpushed;
-  the branch is the only artifact. The four pre-existing worktrees (CS-492 rounds seven to
-  nine and the two-site spike) are UNTOUCHED.
-
-- **Failed paths - the whole of the repair attempt, and the framing that produced it.** The
-  sweep showed the six splitting by mechanism: four on the bare-name arm already measured
-  irreducible, two on the ATTRIBUTE arm where `_callee_resolves` discards a receiver the
-  import table resolves without type resolution. **That was reported as the tractable half
-  and it is not.** Two narrowings were built and both were refuted, both for reading an
-  ABSENCE as evidence of safety - the first that the sibling exported no reach, the second
-  that a def's own body names no primitive. **Do not take a third of the same shape without
-  an answer to that root cause.**
-
-- **THE GRADING WAS DONE BY THREE AGENTS THAT DID NOT PRODUCE THE BUILD, and all three
-  returned REFUTED.** Permissive-failure found seven escapes, each caught on the parent
-  commit and silent on the build. Control-validity found the build's anti-vacuity control
-  passes with `_assert_library_reach_is_declared` gutted to a bare `return`, with ZERO unique
-  detection against a 16-mutant battery. Claim-accuracy found `_module_handles`' docstring
-  stating the polarity of the REFUTED first spike, and a FOURTH reach-computation site.
-
-- **Surprises: NO SPIKE CONTRADICTED `BOOTSTRAP.md` this session.** But two measured facts
-  contradicted a TRACKED DOC and the doc was corrected per CLAUDE.md section 8: ROADMAP's
-  CS-807 acceptance said "the four exemptions in `test_oracle_citations`" and the sweep says
-  six across two modules; and this session's own claim that the attribute half was tractable
-  was refuted by its own grading and is now fenced in the detail block.
-
-- **Two defects worth carrying forward whatever happens to the direction.** The exoneration
-  was keyed on a bare receiver name with NO SCOPE CHECK, so a PARAMETER spelled like a module
-  handle silences `Path.resolve()` on a real account directory - and
-  `tests/save/test_absolute_claims.py:192` already binds `citations` as a handle, so that is
-  a rename away rather than contrived. And `_module_scope_reaches` asks the same reach
-  question as the three sites `grep -n "_calls_any("` finds, so the identical call at module
-  scope MANUFACTURED a `<module scope>` declaration on a module reaching nothing - the CS-807
-  defect inside the CS-807 repair. **Count the sites from the source, not from that grep.**
-
-- **THE CONTROL LESSON IS THE MOST TRANSFERABLE THING HERE: a control written to defeat
-  vacuity was itself vacuous.** It swallowed the guard's own "vacuous" message through an
-  `if "vacuous" in said: return` branch and so passed WITHOUT EVER OBSERVING THE GUARD REACH
-  A VERDICT. The symmetric instrument it declined to use is
-  `assert not _module_reaches(consumer)`, which a gutted guard cannot satisfy and which kills
-  two of the surviving mutants. The companion escape control graded as a REAL instrument with
-  a clean unique kill, so the pair was half sound.
-
-- **What survived grading, and is reusable.** The two exemption deletions are CORRECT,
-  verified by reading `backing_citations`, `dead_full_citations`, `citations.resolve` and
-  `prose_paragraphs` end to end rather than by running the guard. No shipped module goes
-  silent on the build today; every escape found is prospective.
-
-- **Decisions: no ADR was recorded.** The fences are in `docs/history_notes.md` under
-  **CS-807 - detail** and in the ledger entry.
-
-- **Next action: CS-442 or CS-806, NOT a third narrowing of the attribute arm.** CS-807 has
-  now consumed a sweep and two refuted builds, and the direction needs an operator decision
-  about which side its acceptance buys before more work goes into it.

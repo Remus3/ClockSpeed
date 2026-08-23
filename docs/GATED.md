@@ -288,9 +288,16 @@ by the first enumeration of this list; `git rebase` on either backend; `git am`;
 clone on which nobody
 has run the bootstrap, where the hook is present but unarmed; `core.commentChar` or
 `core.commentString` remapped, which moves the comment-stripping the gate is built on; and a
-substituted interpreter, since the ladder honours `CLOCKSPEED_PYTHON` whenever it merely
-answers the probe. That last one sits ABOVE the edit line the CS-702 grant drew and could
-not be touched under it.
+substituted interpreter, which was a live member of this class until **CS-703 CLOSED it on
+2026-08-22**. The ladder now requires a candidate to answer with a token it has to COMPUTE
+and to return a failure code it has to REPORT, and a set-but-failing `CLOCKSPEED_PYTHON` is
+refused rather than silently replaced by the next rung. That member sat ABOVE the edit line
+the CS-702 grant drew and could not be touched under it; CS-703's own grant drew the new
+line. **It was never a `CLOCKSPEED_PYTHON` problem:** the same escape was measured through
+the `python` rung with no environment variable set at all, so unsetting the variable was
+never a mitigation. What remains open here is narrower and is filed separately - the probe
+proves PYTHONHOOD and not TOOLCHAIN (CS-817), pre-push trusts an exit code for pytest's
+presence (CS-821), and `.claude/settings.json` carries no probe at all (CS-815).
 
 **THE HOOK PREDICTS THE BYTES GIT WILL STORE AND NEVER OBSERVES THEM, and three further
 escapes follow from that. They are MEASURED, they are NOT closed here, and they are filed as

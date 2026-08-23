@@ -1901,6 +1901,11 @@ CS-702 - The no-agent-trailer rule is recorded but UNENFORCED, and commits on `m
 
 ## CS-703 - detail
 
+**CLOSED 2026-08-22 (session 32).** The item shipped; see `docs/LEDGER.md` for the closure
+record and its residuals. Nothing below is a live instruction. The measurement it records is
+still accurate except where the block itself already carries a correction.
+
+
 Relocated from `ROADMAP.md` 2026-08-22 (session 31) for budget, not deleted. The item itself
 stays OPEN in `ROADMAP.md`.
 
@@ -1928,6 +1933,15 @@ stays OPEN in `ROADMAP.md`.
 filed 2026-08-22 (session 31) as the CS-810 repair's disclosed residual plus one PRE-EXISTING defect its verifier found. The arms de-duplicate by name and cannot say which site is new, which is why the site pin sits in a contract test; the consequence is that `bare_name_problems` and `unresolved_citations` return empty on a genuinely new dead citation of a forgiven name. LATENT rather than live - this module is imported by nothing today, measured. SEPARATELY AND PRE-EXISTING, inherited unchanged from `f938062`: a BARE disposition whose forgiven name later becomes LIVE is never reported stale, because the now-resolves-on-its-own branch is gated on the key containing a path separator and so never fires for a bare key. Four bare-keyed entries are affected. Proven by resurrecting a forgiven name as a real def and observing the module stay green.
 
 ## CS-813 - detail
+
+**A THIRD AXIS, added 2026-08-22 (session 32) by the fourth CS-703 adversary. The
+acceptance text names cleanup mode and commit path; `core.commentChar` is a third and the
+matrix is wider than filed.** Measured: with `core.commentChar` remapped, a line led by the
+ordinary comment character is NOT a comment to git, survives cleanup into the stored
+message, and the hook's pre-filter still drops it - a byte above 0x7E landed in the stored
+message with HEAD moved and the hook silent. This does not change the item's direction, it
+widens the matrix any acceptance suite has to cover.
+
 
 Filed 2026-08-22 (session 31); the item stays OPEN in `ROADMAP.md`.
 
@@ -4059,6 +4073,16 @@ by it.
 
 ## CS-816 - detail
 
+**A THIRD HANG SHAPE, added 2026-08-22 (session 32) by the fourth CS-703 adversary.**
+A wrapper of the form `exec python "$@" < /dev/null` answers BOTH probe halves exactly -
+the token, then 97 - and then hangs `commit-msg` forever, measured at 124 under a 30 second
+cap with HEAD unmoved. Root cause measured: under MSYS bash `/dev/null` maps to Windows
+`NUL`, a CHARACTER DEVICE, so `isatty()` reports true, `python -` goes interactive, and the
+3.14 REPL spins on an invalid handle. It is DISTINCT from the two shapes above - this
+candidate spawns nothing and sets no environment variable - and it is further evidence that
+the answer is a BOUND rather than an enumeration of causes.
+
+
 Filed 2026-08-22 (session 32); the item stays OPEN in `ROADMAP.md`.
 
 TWO SHAPES, both measured, one pre-existing and one introduced by CS-819's capture.
@@ -4141,6 +4165,15 @@ instance is closed and the CLASS is this item.
 
 ## CS-821 - detail
 
+**A SECOND SHAPE, added 2026-08-22 (session 32) by the fourth CS-703 adversary and proven
+with a real push that reached the remote: a suite that is 100 percent SKIPPED passes.**
+The hook guards exit 5 - nothing collected - and nothing else, so tests that are collected
+and then all skipped report 0 and the push proceeds. The hook's own header cites
+`CONVENTIONS.md` section 7.2, "a skipped suite is not a passing suite", which is exactly
+the sentence this misses. Any fix must judge what the run actually EXECUTED rather than the
+code pytest chose to return.
+
+
 Filed 2026-08-22 (session 32); the item stays OPEN in `ROADMAP.md`.
 
 Filed by the CS-703 escape adversary and confirmed with a real push that landed a RED suite on a
@@ -4169,3 +4202,131 @@ range are accepted into a commit message.
 PRE-EXISTING, unrelated to CS-819, and EXPLICITLY EXCLUDED from that grant so the fix is not smuggled
 in beside it. Any repair has to permit tab and newline deliberately rather than by omission, which is
 the reason this is its own item rather than a one-character change to a comparison.
+
+## CS-823 - detail
+
+Filed 2026-08-22 (session 32); the item stays OPEN in `ROADMAP.md`.
+
+Filed by the FOURTH CS-703 adversary and re-derived by the merger with real commits. CS-819
+established that a hook must PROVE its checking program ran. That principle was applied to
+`.githooks/commit-msg`, whose program arrives by heredoc. **THE SIBLING SITE WAS LEFT OPEN, and the
+commit-msg comment names it in passing without closing it.**
+
+`.githooks/pre-commit` tests only that the gate file EXISTS and then runs it. There is no
+proof-of-execution. A truncated or empty `tools/precommit_gate.py` in the WORKING TREE therefore
+makes the hook report success.
+
+**MEASURED, with real commits staging a forbidden byte, gate truncated in the working tree only:**
+
+| gate state | exit | HEAD moved | hook stderr |
+|---|---|---|---|
+| intact (control) | 1 | no | 561 bytes |
+| truncated to 2368 lines | 0 | **YES** | **0 bytes** |
+| truncated to 1 line | 0 | **YES** | **0 bytes** |
+| empty, 0 bytes | 0 | **YES** | **0 bytes** |
+
+**IT IS CLOSE TO A COIN FLIP RATHER THAN A CORNER CASE.** Compiling every line-boundary prefix of the
+tracked 2395-line gate, **1019 of 2395 truncation points are syntactically valid**. Line 2369 is the
+`if __name__ == "__main__":` guard, so ANY truncation before it that compiles defines everything and
+executes nothing - python exits 0 and the hook reads that as a pass.
+
+**THE INDEX IS NO PROTECTION, and this is the part that makes it more than a curiosity.** The hook
+loads the gate from the WORKING TREE while the gate reads the files under test from the INDEX. A
+correct committed copy does not help; measured with index 99155 bytes against working tree 97982
+during the escape.
+
+**THE DESIGNED FIX, ready to build and NOT built here.** The gate already writes
+`precommit_gate: PASS - ...` to STDOUT and its BLOCKED banner to STDERR - measured. So the hook can
+capture stdout and, on a ZERO exit, require that banner; a gate that never ran yields exit 0 with
+empty stdout and is refused. This needs NO change to `tools/precommit_gate.py`, which is separately
+frozen, and it mirrors CS-819 exactly. The cost is a coupling between the hook and one line of the
+gate's output format, which a contract test should pin from both sides the way CS-819's
+sentinel-agreement arm does.
+
+**`.githooks/pre-commit` IS FROZEN. This needs its own operator grant and its own adjudication.** It
+was explicitly OUT of both the CS-703 and CS-819 grants, and the operator decided on 2026-08-22 to
+FILE it rather than widen a third time in the same session.
+
+### Archived 2026-08-22 from `WAKEUP_NOTES.md` - session 29 at full fidelity
+
+Aged out when session 32 landed and `WAKEUP_NOTES.md` keeps only the last three sessions.
+**Nothing here is current.**
+
+## Session 29 - 2026-08-22 - CS-807's sweep is TAKEN and sizes the item at SIX; an attribute-half repair was built and REFUTED by three independent lenses
+
+- **Shipped: NOTHING CLOSED. Third session running.** CS-807 stays OPEN, CS-492 was not
+  touched, and CS-808 was FILED. Two commits, `77336e5` and `6547f9f`, both DOCUMENTATION
+  ONLY - zero `.py` files were touched in `main`. `docs/LEDGER.md` carries a NON-CLOSURE
+  record and says so in its heading.
+
+- **THE SWEEP IS TAKEN, and it was the right first action because it changed the item's
+  size.** CS-807's detail block named it the cheapest next step and recorded the answer as
+  unmeasured. The answer is **SIX false declarations, not four, in TWO modules rather than
+  one**: `backing_citations` and `dead_full_citations` in `tests/save/test_absolute_claims.py`
+  are the new pair, and **both are HELPERS rather than tests**, so the population is not
+  confined to test functions the way the first finding implied. 45 exemptions in 11 modules,
+  20 graded entries in 7; the graded channel is CLEAN. No consumer of the guard exists
+  outside `tests/save`. **Six is a FLOOR, not a total.** Full tables in
+  `docs/history_notes.md` under **CS-807 - detail**.
+
+- **TWO INDEPENDENT METHODS AGREED ON THE SAME SIX and the second never reads a reason
+  string** - it takes the call node the guard trips on, resolves the callee one hop, and asks
+  whether that target reaches. One phrase match was REJECTED on inspection:
+  `test_workdir::test_latest_save_returns_none_when_nothing_resolves` matches "no path at
+  all" but genuinely calls the locator.
+
+- **In flight: branch `cs807-attribute-half` at `72f0f2c`, base `77336e5`, REFUTED and NOT
+  MERGED.** +242/-25 across three files. The working tree is CLEAN and nothing is unpushed;
+  the branch is the only artifact. The four pre-existing worktrees (CS-492 rounds seven to
+  nine and the two-site spike) are UNTOUCHED.
+
+- **Failed paths - the whole of the repair attempt, and the framing that produced it.** The
+  sweep showed the six splitting by mechanism: four on the bare-name arm already measured
+  irreducible, two on the ATTRIBUTE arm where `_callee_resolves` discards a receiver the
+  import table resolves without type resolution. **That was reported as the tractable half
+  and it is not.** Two narrowings were built and both were refuted, both for reading an
+  ABSENCE as evidence of safety - the first that the sibling exported no reach, the second
+  that a def's own body names no primitive. **Do not take a third of the same shape without
+  an answer to that root cause.**
+
+- **THE GRADING WAS DONE BY THREE AGENTS THAT DID NOT PRODUCE THE BUILD, and all three
+  returned REFUTED.** Permissive-failure found seven escapes, each caught on the parent
+  commit and silent on the build. Control-validity found the build's anti-vacuity control
+  passes with `_assert_library_reach_is_declared` gutted to a bare `return`, with ZERO unique
+  detection against a 16-mutant battery. Claim-accuracy found `_module_handles`' docstring
+  stating the polarity of the REFUTED first spike, and a FOURTH reach-computation site.
+
+- **Surprises: NO SPIKE CONTRADICTED `BOOTSTRAP.md` this session.** But two measured facts
+  contradicted a TRACKED DOC and the doc was corrected per CLAUDE.md section 8: ROADMAP's
+  CS-807 acceptance said "the four exemptions in `test_oracle_citations`" and the sweep says
+  six across two modules; and this session's own claim that the attribute half was tractable
+  was refuted by its own grading and is now fenced in the detail block.
+
+- **Two defects worth carrying forward whatever happens to the direction.** The exoneration
+  was keyed on a bare receiver name with NO SCOPE CHECK, so a PARAMETER spelled like a module
+  handle silences `Path.resolve()` on a real account directory - and
+  `tests/save/test_absolute_claims.py:192` already binds `citations` as a handle, so that is
+  a rename away rather than contrived. And `_module_scope_reaches` asks the same reach
+  question as the three sites `grep -n "_calls_any("` finds, so the identical call at module
+  scope MANUFACTURED a `<module scope>` declaration on a module reaching nothing - the CS-807
+  defect inside the CS-807 repair. **Count the sites from the source, not from that grep.**
+
+- **THE CONTROL LESSON IS THE MOST TRANSFERABLE THING HERE: a control written to defeat
+  vacuity was itself vacuous.** It swallowed the guard's own "vacuous" message through an
+  `if "vacuous" in said: return` branch and so passed WITHOUT EVER OBSERVING THE GUARD REACH
+  A VERDICT. The symmetric instrument it declined to use is
+  `assert not _module_reaches(consumer)`, which a gutted guard cannot satisfy and which kills
+  two of the surviving mutants. The companion escape control graded as a REAL instrument with
+  a clean unique kill, so the pair was half sound.
+
+- **What survived grading, and is reusable.** The two exemption deletions are CORRECT,
+  verified by reading `backing_citations`, `dead_full_citations`, `citations.resolve` and
+  `prose_paragraphs` end to end rather than by running the guard. No shipped module goes
+  silent on the build today; every escape found is prospective.
+
+- **Decisions: no ADR was recorded.** The fences are in `docs/history_notes.md` under
+  **CS-807 - detail** and in the ledger entry.
+
+- **Next action: CS-442 or CS-806, NOT a third narrowing of the attribute arm.** CS-807 has
+  now consumed a sweep and two refuted builds, and the direction needs an operator decision
+  about which side its acceptance buys before more work goes into it.

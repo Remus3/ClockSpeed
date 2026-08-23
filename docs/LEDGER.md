@@ -73,6 +73,105 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-22 - CS-703 - CLOSED: an interpreter must now PROVE it ran the program AND can report a failure, and a pinned-but-broken one is refused rather than silently replaced
+Verification: `.githooks/pre-commit`, `.githooks/commit-msg` and `.githooks/pre-push` carry a
+byte-identical `cs_probe`; the acceptance is
+`tests/test_hook_interpreter_ladder.py::test_every_hook_refuses_an_interpreter_that_cannot_report_failure`
+with
+`tests/test_hook_interpreter_ladder.py::test_a_liar_on_the_path_is_refused_with_no_environment_variable_set`
+beside it, because the escape was reachable with NO environment variable at all. The non-vacuity
+control is `tests/test_hook_interpreter_ladder.py::test_an_honest_wrapper_is_still_accepted` - without
+it every arm above is satisfied by a hook that refuses everything. Common-mode control:
+`tests/test_hook_interpreter_ladder.py::test_the_three_hooks_carry_a_byte_identical_probe`.
+WHAT WAS WRONG. All three hooks shared a probe that ran the candidate with `-c` and judged ONLY the
+exit code, so `true`, `:` and `echo` passed it; the real work was then handed to a program that
+ignored it and exited 0. MEASURED with real commits: with the interpreter substituted, a staged em
+dash LANDED, a co-authorship trailer git reads back as REAL landed, and a RED suite reached the
+remote - all three exit 0.
+FOUR REFUTATIONS, AND NOT ONE CAME FROM READING THE CODE. Every one came from an agent RUNNING it.
+Build one judged STDOUT only - and every gate decision reads `$?`, so a wrapper that forwards stdout
+faithfully and drops the exit status answered the probe with the exact token and turned all three
+gates into no-ops. Two ordinary shapes do it and neither knows the token: a POSIX wrapper ending in
+`| cat`, because a pipeline's status is its last command's, and a Windows `.cmd` using
+`setlocal`/`endlocal`, because `endlocal` resets ERRORLEVEL. **THAT ESCAPE NEEDED NO ENVIRONMENT
+VARIABLE** - a shim installed as `python` on PATH reached it through the ladder's own second rung,
+which is why the item was never a `CLOCKSPEED_PYTHON` problem. The fix demands a distinctive non-zero
+code back as well as the token.
+THE THIRD AND FOURTH REFUTATIONS WERE OF THE SUITE RATHER THAN THE HOOKS, and that is the part worth
+carrying. A mutation pass found grant condition 4 and the flood cap each pinned on ONE HOOK OF THREE -
+deleting them from the other two left the suite GREEN - because the identity check covered only the
+probe and the message arms were hardwired to one hook. It also found the three headline arms asserting
+only "something blocked", which stayed green under a FULL revert of the ladder change. All three are
+fixed, and the refusal block is now covered by its own identity arm with its own non-vacuity control.
+**THE MERGER'S OWN ORACLE HAD THE SAME BLIND SPOT AS THE SUITE** and this is recorded because the
+lesson generalises: it substituted only `true`, which fails at the stdout comparison and never reaches
+the exit-code question. A harness that cannot reach a channel cannot grade it. It was extended with
+exit-fidelity, honest-wrapper non-vacuity and PATH-shadowing arms and now runs 23 arms, 6 of which
+fail against the pre-repair hooks and 9 of which are controls.
+ONE DEFECT WAS FIXED BY THE MERGER AFTER THE BUILD, and it is named so it is not mistaken for
+builder work: the refusal glossed `not reached` as "the output comparison failed first", which is
+false when the candidate could not be EXECUTED at all. Both paths are now named in the message. No
+arm pinned that gloss, and none was added - it is a wording correction, not a new invariant.
+CONDITION 7 IS NOT MET IN ITS LITERAL FORM AND THIS ENTRY SAYS SO RATHER THAN CLAIMING IT. The
+condition asks that `scripts/install_hooks.py` run clean. Its `inspect_hook` was run over all three
+hooks - `OK, LF, ascii`, exit 0 - but the whole script was NOT run, because `install()` writes
+`core.hooksPath` as a RELATIVE path while this machine holds an ABSOLUTE one. From the main checkout
+those behave alike; from a worktree a relative value resolves to THAT worktree's `.githooks`, which
+would repoint hook resolution for eight existing worktrees and let an agent editing a hook disarm the
+gate judging its own commit. Changing the operator's git configuration was not a side effect this
+item was entitled to take.
+SEVEN RESIDUALS ARE FILED RATHER THAN CLAIMED CLOSED, each with its own item and its own measurement:
+CS-815, CS-816, CS-817, CS-818, CS-820, CS-821 and CS-823. The probe proves PYTHONHOOD, NOT TOOLCHAIN,
+and that is the biggest of them. The hook says in terms that it is an ACCIDENT DETECTOR, NOT A SECURITY
+BOUNDARY: a program written on purpose to print the token and exit 97 passes both halves, and
+`--no-verify` skips every hook without needing to.
+COMMON-MODE RISK, recorded because every measurement in this entry shares it: one toolchain, git
+2.53.0.windows.3 on one msys installation. `CONVENTIONS.md` section 16 says hook findings are
+version-specific and expire. Re-measure rather than inherit.
+
+### 2026-08-22 - CS-819 - CLOSED: the commit-msg hook now PROVES its checking program ran, instead of reading an empty program's exit 0 as a pass
+Verification: `.githooks/commit-msg` captures the program's stdout and requires a sentinel; the
+shell-independent acceptance is
+`tests/test_hook_interpreter_ladder.py::test_a_silent_interpreter_is_refused_through_real_git`, which
+ALWAYS RUNS and needs no dash, with
+`tests/test_hook_interpreter_ladder.py::test_an_honest_interpreter_still_runs_the_checks_through_real_git`
+as its non-vacuity control. The platform arm is
+`tests/test_hook_interpreter_ladder.py::test_the_msys2_dash_truncation_reproduces_and_is_now_refused`;
+where dash is absent it is loudly NOT RUN rather than counted green, on the CS-428 precedent that a
+control which could prove nothing must fail rather than skip. The two literals are pinned together by
+`tests/test_hook_interpreter_ladder.py::test_the_shell_and_the_program_agree_on_the_sentinel`, and the
+status-masking prefixes are fenced by
+`tests/test_hook_interpreter_ladder.py::test_the_capture_is_a_plain_assignment_with_no_status_masking_prefix`.
+WHAT WAS WRONG. The hook delivered its checking program as a 4181-byte heredoc. The MSYS2 build of
+dash delivers ZERO bytes for a heredoc above 4096, so `python -` read an EMPTY program - valid Python -
+did nothing, exited 0, and the hook exited 0 with COMPLETELY EMPTY STDERR. Zero bytes rather than
+truncation is what made it fail OPEN; a truncated program would have raised a SyntaxError and failed
+loudly. Measured: 4051 delivered bytes arrive intact, 4097 arrive as zero. `bfa64e7`, THE COMMIT THAT
+CLOSED CS-702, is what crossed the threshold.
+THE SEVERITY WAS OVERSTATED WHEN FIRST REPORTED AND THE CORRECTION IS THE RECORD. It is MSYS2-only.
+`tier1` run `32601774702`, at `32a982c` with the 4181-byte body, ran on `ubuntu-latest` where
+`/bin/sh` IS dash, and 23 commit-msg tests with ZERO skip markers passed every violation class.
+CS-702 IS AND WAS ENFORCED ON UBUNTU CI. On this machine `/bin/sh` is bash, so git never invoked the
+affected dash here either. The defect was LATENT, and it was closed on the principle rather than the
+blast radius: a gate that can exit 0 with empty stderr is unacceptable however few shells reach it.
+THE COST IS REAL AND IS ACCEPTED RATHER THAN HIDDEN. On an affected shell the hook now refuses EVERY
+commit, including legitimate ones - measured, the legitimate class went from 0 to 1 under dash. The
+sentinel makes the hook SAFE there, not USABLE. Under bash, stderr is byte-identical across all five
+violation classes and the legitimate one, exit codes are unchanged, and stdout is empty in every case.
+A CORRECTION TO THIS ITEM'S OWN GRANT ENTRY, recorded here because that file is append-only. The grant
+says "CS-819 is filed OPEN in `ROADMAP.md`". IT NEVER WAS: it was filed and closed inside one session,
+and `ROADMAP.md` holds OPEN work only, so no such line was ever written. The grant's scope, conditions
+and reasoning are unaffected.
+TWO REFINEMENTS FROM THE FINAL ADVERSARY, both measured, neither changing the fix. `python -` with an
+empty PIPE exits 0 silently, which is the case the guard is built for; with `/dev/null` it HANGS
+instead, because MSYS maps that to a character device. And bash ELIDES an empty heredoc entirely, so a
+shell that delivered zero bytes by dropping the redirect would hand `python -` git's own stdin and the
+outcome would be a hang rather than an exit 0. The guard fires correctly in the case that occurs; the
+hang shapes belong to CS-816.
+THE RUNNER-UP - moving the program into a file - was NOT chosen and stays unbuilt, for the reason the
+grant records: an empty or boundary-truncated FILE exits 0 just as silently, so it removes a cause
+without establishing the invariant. That exact shape is now filed as CS-823 against `pre-commit`,
+which invokes a file today and has no proof of execution at all.
 ### 2026-08-22 - CS-819 - FROZEN-FILE GRANT WIDENED by the OPERATOR for `.githooks/commit-msg`, narrowed to one region by an adjudicator
 Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit, not a
 completion record. It WIDENS the CS-703 grant recorded below on this same date and does not replace
