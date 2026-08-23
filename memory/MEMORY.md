@@ -45,3 +45,6 @@ Budgets: this file under 20 KB (CI hard fail), each leaf under 6 KB (CI warn).
   green and proves nothing, with mechanisms.
 - [Verification failure classes](verification-failure-classes.md) - ways a check looks
   convincing and proves nothing, with mechanisms.
+- [A probe can validate the wrong channel](a-probe-can-validate-the-wrong-channel.md) -
+  a check that validates one channel while its consumer reads another proves nothing;
+  a harness that cannot reach that channel cannot grade it.
