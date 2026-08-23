@@ -2273,6 +2273,103 @@ stored message violates - rather than asserting against its own model of what gi
 The trailer half of the same defect is CS-702 and the routes no client-side hook can cover are
 CS-704. This item owns the cleanup model, the ASCII escape and the subject-cap escape.
 
+### Archived 2026-08-23 from `WAKEUP_NOTES.md` - session 32 at full fidelity
+
+Aged out when session 35 landed and `WAKEUP_NOTES.md` keeps only the last three sessions.
+**Nothing here is current.**
+
+## Session 32 - 2026-08-22 - CS-703 and CS-819 both CLOSE after FOUR refutations, and the transferable finding is that a probe validated one channel while every gate read another
+
+- **Shipped: CS-703 and CS-819 CLOSED. Filed CS-815, CS-816, CS-817, CS-818, CS-820, CS-821,
+  CS-822, CS-823.** Detail in `docs/LEDGER.md`, not here. **TWO ITEMS CLOSED AND EIGHT FILED, and
+  seven of the eight are defects in things already green and already reported done.** Two frozen-file
+  grants were issued, adjudicated and recorded BEFORE any edit, in their own commit.
+
+- **THE HEADLINE IS NOT THE ITEM AS FILED. CS-703 was reported as an environment-variable problem
+  and it never was one.** The repaired probe's FIRST build validated STDOUT while every gate decision
+  in every hook reads `$?`. A wrapper that forwards stdout faithfully and drops the exit status
+  therefore answered the probe with the exact token and turned all three tier-0 gates into no-ops -
+  and it reached that through the ladder's own `python` rung **with no environment variable set at
+  all**. Two ordinary shapes do it and neither knows the token: a POSIX wrapper ending in `| cat`,
+  and a Windows `.cmd` using `setlocal`/`endlocal`. **A PROBE THAT VALIDATES ONE CHANNEL WHILE THE
+  CONSUMER READS ANOTHER PROVES NOTHING**, and that is the sentence to carry forward.
+
+- **FOUR REFUTATIONS, NOT ONE FROM READING THE CODE.** Every one came from an agent RUNNING it, with
+  real commits and real pushes. Round one: the stdout/exit-code split above. Round two: the
+  commit-msg hook FAILS OPEN under MSYS2 dash, which became CS-819. Round three attacked the SUITE
+  rather than the hooks and killed three mutants. Round four found CS-823 and one message defect.
+
+- **THE MERGER'S OWN ORACLE SHARED THE SUITE'S BLIND SPOT, TWICE, AND THAT IS THE METHOD LESSON.**
+  It graded the first build 15/15 while four escapes were live, because every substitution arm used
+  `true` - which fails at the stdout comparison and never reaches the exit-code question. It also
+  drives real git, which on Windows is bash, the one shell where the dash fail-open is invisible.
+  **A harness that cannot reach a channel cannot grade it.** Both gaps are closed; it now runs 23
+  arms, 6 of which fail against the pre-repair hooks.
+
+- **Decisions: no ADR. Four that must not be reopened.** The probe demands BOTH a computed token and
+  a returned failure code; a set-but-broken `CLOCKSPEED_PYTHON` is REFUSED rather than silently
+  replaced, which exceeds the filed acceptance and was an OPERATOR instruction, recorded as such.
+  Exact equality beats containment because **a loud false refusal beats a silent false accept in a
+  gate**. CS-819 ships a SENTINEL rather than moving the program into a file, because an empty file
+  exits 0 just as silently - it removes a cause without establishing the invariant. And no heredoc
+  size guard: 4096 is one dash build's property, so a size assertion is a proxy for the property
+  rather than the property.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`. Two things contradicted ME, and both corrections
+  are in tracked files rather than only here.** I reported CS-819 as affecting "most Linux
+  developers"; that is REFUTED by this project's own CI - `tier1` run `32601774702` at `32a982c`
+  ran on ubuntu-latest, where `/bin/sh` IS dash, with the over-threshold body, and 23 commit-msg
+  tests with no skip markers passed every violation class. It is MSYS2-only and LATENT. Separately
+  the CS-703 detail block named `env` as passing the old probe; it does not on this toolchain, and
+  `echo` does and was unnamed. Both corrected per CLAUDE.md section 8.
+
+- **Failed paths, so they are not retried.** A probe that reads only stdout - refuted by measurement,
+  above. A byte-identity check scoped to the probe alone leaves the refusal block unpinned, and two
+  mutants survived in exactly that gap. Message-content arms hardwired to ONE hook let a grant
+  condition be deleted from the other two with the suite green. And the harness bash heredoc ate
+  backslash continuations AGAIN, silently, on a patch script - the Write tool is the answer, every
+  time, and this is the fifth session it has cost.
+
+- **CI CAUGHT A DEFECT THAT THE LOCAL SUITE AND THE PRE-PUSH HOOK BOTH PASSED, and it is the last
+  lesson of the session.** `be5cd81` was green locally at 2464 passed and green through the whole-suite
+  pre-push run, and `tier1` was RED on it: six failures, one cause. Both dash platform arms encoded
+  **"dash truncates the heredoc"**, which is false - the truncation is a property of the MSYS2 BUILD,
+  not of dash. On `ubuntu-latest` the program ARRIVED, every rule fired correctly and reported its own
+  reason, and the arms read CORRECT BEHAVIOUR as a broken premise. The hooks were never wrong on either
+  shell; the acceptance was. **A PLATFORM PREMISE BAKED INTO A TEST IS THE SAME DEFECT CLASS AS A HOOK
+  THAT TRUSTS A NAME** - an assumption asserted rather than measured - and the fix is the same: measure
+  the property at run time and branch on it. Fixed in `a2a89ed`; both branches now assert something
+  true and neither is a skip.
+
+- **THAT FAILURE DISCHARGED A RECORDED RESIDUAL, which is the one good thing about it.** The CS-819
+  grant listed "whether glibc dash delivers a heredoc above 4096 is INFERRED, not measured" as open.
+  The CI log measures it: **4535 delivered bytes**, against 0 on the MSYS2 build. The delivered-bytes
+  control the adjudicator insisted on is what measured it, by FAILING LOUDLY rather than passing
+  quietly, on the first CI run after it shipped.
+
+- **A PROCESS MISTAKE WORTH NOT REPEATING: I pruned the builder's worktree before CI was green.** When
+  CI went red the agent that knew the module could not be resumed - its worktree was gone and the
+  fallback directory was outside the session's fences. **Do not prune a worktree until CI is green on
+  the commit that merged it.** The repair was done in the main checkout instead, which was fine here
+  only because the diagnosis was precise and the change was one file.
+
+- **A DEVIATION RECORDED RATHER THAN CLAIMED MET.** Both grants ask that `scripts/install_hooks.py`
+  run clean. Its `inspect_hook` was run over all three hooks and passed; the WHOLE script was not,
+  because `install()` writes `core.hooksPath` RELATIVE where this machine holds it ABSOLUTE - from a
+  worktree that repoints hook resolution to that worktree's own copy, which would let an agent
+  editing a hook disarm the gate judging its own commit. Changing the operator's git configuration
+  was not a side effect these items were entitled to take.
+
+- **In flight: NOTHING from this session.** Working tree clean. The four pre-existing worktrees
+  (CS-492 rounds seven to nine and the two-site spike) and branch `cs807-attribute-half` are
+  UNTOUCHED and still unmerged, exactly as session 31 left them. One NEW worktree,
+  `agent-ab7fcd5c63f9193ea`, is fully merged and prunable.
+
+- **Next action: CS-823.** It is tier 1, the fix is already designed and measured, and it needs a
+  frozen-file grant for `.githooks/pre-commit` before a line is written. `pre-commit` runs the gate
+  with no proof of execution, so an empty or truncated `tools/precommit_gate.py` passes it silently -
+  and 1019 of 2395 truncation points still compile.
+
 ## CS-814 - detail
 
 Filed 2026-08-22 (session 31); the item stays OPEN in `ROADMAP.md`.
