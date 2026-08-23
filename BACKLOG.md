@@ -47,7 +47,7 @@ below is deliberately deferred. **Trigger for all three: phase 6 completes.**
   ROADMAP.md hit its budget a third time, or on an operator call.
 - `docs/history_notes.md` opens with "This file holds NOTHING current" and is now the home of
   the LIVE instructions for CS-442, CS-456, CS-460, CS-465, CS-468, CS-472, CS-479, CS-500,
-  CS-825, CS-826,
+  CS-825, CS-826, CS-828, CS-829,
   CS-484, CS-492, CS-702, CS-806 and CS-807, which `ROADMAP.md` points at with "MUST BE READ
   BEFORE TAKING THIS ITEM" - the file is doing two contradictory jobs and its header is the
   half that is false; conditional on an operator ruling, the same shape as the WAKEUP_NOTES

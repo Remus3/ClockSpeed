@@ -1695,6 +1695,14 @@ load-bearing against the tree before acting on it.
 
 ### CS-413 - detail
 
+**STATUS 2026-08-23: CS-413 IS CLOSED. EVERYTHING BELOW THIS BANNER IS HISTORY**, including
+the sentences reading "WHY IT STAYS OPEN", "CS-400's clause 1 closes when this closes" and
+"phase 5 does not open before it". They were true when written, are not edited, and all three
+are superseded - phase 5 is OPEN, and clause 1 waits on inventory being readable rather than on
+this item. The close is in `docs/LEDGER.md`. **THE RESIDUALS THIS ITEM LEFT ARE LIVE** and are
+CS-828, CS-829, CS-830, CS-831 and CS-832. This banner exists because the CS-421 close earlier
+the same day set the precedent and this close initially failed to follow it.
+
 **THIS IS THE PHASE-4 DEPTH GATE.** Filed 2026-08-15 by the operator ruling recorded in CS-400: CS-400's clause 1 closes when this closes, and phase 5 does not open before it. It is the natural successor to CS-407, which closed the SKELETON. NOTE THE TWO LAYERS, because they are not the same problem and only the second is what most readers picture. **Layer 1 - the data section is located and walked; what was missing is ATTRIBUTION.** **Layer 2 - the property grammar inside one payload**, then value decoding per type. Prior knowledge of how Unreal serializes properties is a HYPOTHESIS GENERATOR and never evidence here; the phase's stated common-mode risk is a corpus that only ever agrees with whoever wrote it, and for layer 1 the corpus can say nothing at all because no fixture builds a data section. Record the grammar as DATA, per CS-412 - a partial recorded as an adjective is not resumable. **The session-6 STATUS, which recorded the attribution half being MET and the four independent oracles that proved the payload pairing, is relocated to `docs/history_notes.md` along with this entry's own correction record.** **STATUS 2026-08-15 (session 7): THE DECODE LANDED AND THIS STILL DOES NOT CLOSE.** `read_properties` now returns real property values across the local library, every unmeasured type flagged rather than guessed, and a hand-authored synthetic payload fixture means the decoder is covered on a machine with no game installed. The save-60 half of this item has MOVED OUT to `docs/GATED.md` CS-G05, because no work inside this repo can close it. **WHY IT STAYS OPEN, ruled by the merger and confirmed by an adjudicator that did not produce the work.** Two independent reasons, both measured. FIRST, THE ACCEPTANCE CLAUSE IS TRIVIALLY SATISFIABLE: "returns at least one decoded property VALUE off a real building" is a liveness floor, and a decoder that reads ZERO value bytes clears it, because a `BoolProperty`'s value rides in the tag with `size` 0. This project already recorded that a `> 0` liveness control is not a control; an acceptance clause the shipped rotation control is designed to defeat cannot be the thing that closes the item. SECOND, THE EVIDENCE IS UNEVEN AND THE UNEVENNESS FALLS EXACTLY ON WHAT PILLAR 3 NEEDS: a majority of the decoded values are backed by a declared width and nothing else, a check the module ITSELF records as "defensive rather than measured", while byte order and signedness are checked by NOTHING EXECUTABLE - flipping an integer type to big-endian reddens only synthetic-fixture tests whose own fixture packs with the same byte order the reader unpacks with. `IntProperty` and `FloatProperty` are inventory counts and clock speeds, so pillar 3 sits inside exactly that unbacked majority. **CS-421 OWNS THAT SPLIT AND CARRIES THE PER-TYPE FIGURES. They are deliberately not restated here: one measured fact living in two entries is the drift CLAUDE.md section 4 exists to stop, and this entry was doing it.** What is evidenced is "the values were produced and are self-consistent with our own writer". What closing would assert is "correctly decoded". The gap between those sentences is CS-420, CS-421 and CS-422, and those three carry the acceptance criteria that close this properly.
 
 ### CS-420 - detail
@@ -1733,6 +1741,164 @@ the banner under `CS-421 - detail`.**
 Relocated from `ROADMAP.md` 2026-08-21 (session 27) for budget, not deleted. The item itself stays OPEN in `ROADMAP.md` and these fences are LIVE instructions rather than history - read them before taking CS-421.
 
 **THE FENCES, WHICH ARE WHAT THIS ENTRY OWNS. (1) DO NOT RE-PITCH THE CLOSE ON THE ARTIFACT EXISTING** - it is right, graded and shipped; what is refused is reading it as clause 3 settled, because 65280 of the 65535 values a population of this size and shape could carry would drive the same oracle to a GREEN verdict and only 255 reach the state recorded here, so the verdict is a fact about this type carrying 6400. **(2) DO NOT REWRITE THE THREE SENTENCES MEASURED FALSE AND CORRECTED IN PLACE:** that the derivation is threshold-free; that accumulator INVARIANCE under the reversal is the right predicate (equal counters also mean both ZERO - the predicate is the universal now); and the unqualified spelling `oracle_cannot_separate`. **(3) DO NOT RE-DERIVE THE ANCHOR** - it is CS-479. **(4) A NON-NEGOTIABLE 12 EXPOSURE WAS INTRODUCED AND REPAIRED IN THE SAME SESSION;** `test_a_raise_in_the_scoring_phase_carries_nothing_out_of_the_walk` grades the containment and must not be deleted as redundant. Residuals filed as CS-478 and CS-479.
+
+## CS-470 - detail
+
+Relocated from `ROADMAP.md` 2026-08-23 for budget, not deleted. The item stays OPEN in
+`ROADMAP.md`. This block is a LIVE instruction, not history.
+
+filed 2026-08-17 (session 16). The census reaches its terminator on more payloads under the identity than under any other of the 24 orderings, but the runner-up swaps only the two HIGH size bytes, which are both zero for any small declared size, so the two are separated only on the payloads carrying a size at or above the 16-bit boundary - a small population that the operator's play can remove entirely. **The test is gated to SKIP rather than to fail when that population is empty**, which is what keeps it out of the CS-432 false-red shape, and the gate is a stated bound rather than a fix. Note the asymmetry that produced this item: the session shipped the VALUE result as a candidate set of two and very nearly shipped this one as "exactly one of its twenty-four byte orders", on a smaller discriminating population than the one it had just called disqualifying.
+
+## CS-457 - detail
+
+Relocated from `ROADMAP.md` 2026-08-23 for budget, not deleted. The item stays OPEN in
+`ROADMAP.md`. This block is a LIVE instruction, not history.
+
+filed 2026-08-16 (session 13) by the CS-422 builder against its own work. Measured: citations written into `#:` doc-comments in `clockspeed/save/objects.py` resolved to TRUNCATED names and the checker PASSED - the underscore-wrap rejoin applies inside column-0 `#` blocks and not to `#:`, so four citations naming real tests were read as four dead names and nothing went red. Worked around by moving those citations into the adjacent `#` commentary block, where a planted dead name IS caught; the blind channel itself is untouched and is what this item covers. **THIS IS THE CS-442 FAMILY, one file along** - the verification pointer is the field that makes a claim trustworthy, and a channel the checker cannot read is a channel where a pointer rots silently. Note the failure direction is the dangerous one: an unreadable citation reads as no citation at all rather than as an error.
+
+## CS-467 - detail
+
+Relocated from `ROADMAP.md` 2026-08-23 for budget, not deleted. The item stays OPEN in
+`ROADMAP.md`. This block is a LIVE instruction, not history.
+
+filed 2026-08-16 (session 15). `test_no_planted_string_reaches_any_world_load_error_surface` already asserts over FIVE surfaces including the formatted traceback, which is the right design; but `_FAILURE_CASES` holds six CONTENT and parse failures only, all on files that exist with malformed bytes, and `_PLANTED_TOKENS` are all content markers. The one failure mode whose chained cause carries a path - a missing or unreadable save, where `OSError.filename` is the full save path - appears only in the message-shape test, which formats no traceback. **THE LEAK IS NOT LIVE and that is why this is tier 2:** the adjudicator measured that `workdir.py` builds `SourceUnreadableError` already-redacted, so the traceback renders `<account-dir>/<save-file>`. This is coverage, not behaviour - but the surface is guarded by another module's redaction rather than by this sweep.
+
+## CS-401 - detail
+
+Relocated from `ROADMAP.md` 2026-08-23 for budget, not deleted. The item stays OPEN in
+`ROADMAP.md`. This block is a LIVE instruction, not history.
+
+REWRITTEN 2026-08-14. The original acceptance ended "and the ledger treats an unknown token as a new world rather than failing", which is NOT SATISFIABLE IN PHASE 4: the ledger is `clockspeed/advisor/ledger.py`, which is phase 5 and does not exist. That clause moves to CS-500's acceptance, where the ledger exists. What remains here is the half phase 4 can actually prove, and it is the half that matters - the token is stable and the parser tolerates an unseen one.
+
+## CS-446 - detail
+
+Relocated from `ROADMAP.md` 2026-08-23 for budget, not deleted. The item stays OPEN in
+`ROADMAP.md`. This block is a LIVE instruction, not history.
+
+filed 2026-08-16 by the CS-438 adversary and CONFIRMED by the CS-438 repair. `tests/save/test_phase4_gate.py:2089` declares `WRITER_WRITE_SURFACE` as a `frozenset[tuple[str, str]]`, so a sixth write duplicating an existing `(function, construct)` pair moves the raw site count from 5 to 6 and the test STAYS GREEN - measured by adding a second `open(mode="wb")` inside `_stream_copy`. The pin's own docstring claims a fifth mutating call is red, so the module contradicts itself about its own guard, which is the ADR 0008 shape outside `tests/save/`'s two fenced modules. Severity is real but bounded: the pin still catches a write in a NEW function, which is the more likely regression, and `clockspeed/save/workdir.py` remains the package's only writer. A set was the right shape for "which functions may write" and the wrong shape for "how many writes exist".
+
+## CS-501 - detail
+
+Relocated from `ROADMAP.md` 2026-08-23 for budget, not deleted. The item stays OPEN in
+`ROADMAP.md`. This block is a LIVE instruction, not history.
+
+filed 2026-08-20 (session 25), reproduced by the merger: a planted module with two module-scope locator calls and one sentinel exemption is SILENT. Named as bound 4 in CS-493's detail block and outside that item's acceptance. Three tracked modules declare the sentinel today, so any fix has to say what a per-site key looks like - a line number is not stable across an edit, which is why this is filed rather than guessed at. **ID NOTE: this sits in the CS-5nn block because the CS-4nn block is FULL** - 98 of 100 used, and the only two unused are gaps, which CLAUDE.md forbids backfilling. It was first filed as CS-500 and collided with the phase 5 gate, which has held that ID far longer; the older item keeps it. **Which block phase-4 follow-ups continue into is an OPERATOR DECISION and is not settled by this line.**
+
+## CS-210 - detail
+
+Relocated from `ROADMAP.md` 2026-08-23 for budget, not deleted. The item stays OPEN in
+`ROADMAP.md`. This block is a LIVE instruction, not history.
+
+this is the COMMON-MODE RISK named by the ADR 0006 adjudication on 2026-08-14. Both fences that ADR relies on read the SAME hand-authored corpus, so the registry-layer and solve-layer tests are one fixture read twice rather than two independent confirmations. That a registry-published `Building` can lack `mMaxPotential` AT ALL is asserted nowhere against the shipped data: the version pin records per-value counts (`"1.000000": 62`) but not WHICH entries carry the key, and ADR 0005 measured 62 entries carrying it while `clockspeed/data/registry.py:84-85` states 6 power-bearing entries carry no exponent - whether those sets overlap is unknown. It fails safe, because None cannot invent a number, so this is a premise risk rather than a correctness bug.
+
+## CS-828 - detail
+
+Filed 2026-08-23 as a residual of CS-413's close; the item stays OPEN in `ROADMAP.md`. This
+block is a LIVE instruction, not history.
+
+**THIS REGION WAS ASSIGNED TO CS-413 BY `docs/GATED.md` AND WOULD HAVE BEEN ORPHANED BY ITS
+CLOSE.** That file rules that the save-60 half of the payload question is gated and moves to
+CS-G05, while the variable trailing run **on the other three pairs** is a grammar question that
+more saves will not fix. CS-413 closed on its three acceptance clauses, none of which is this,
+so filing it here is what keeps that ruling true. **THE POINTER IN `docs/GATED.md` IS UPDATED
+IN THE SAME CHANGE**, which is why this block paraphrases it rather than quoting it - a first
+draft quoted the pre-edit wording verbatim and the quotation was dead on arrival.
+
+**WHAT IS MEASURED, and it is recorded in shipped data rather than here** - the `trailing_run`
+entry of `UNMEASURED_PAYLOAD_REGIONS` in `clockspeed/save/objects.py` owns the figures. In
+words, and with no figure restated here because the module owns them: the run sits between a
+payload's property terminator and its declared final byte; on the THREE pairs this item covers
+it is universal, a small fixed floor holds, and above that the width varies widely.
+**DO NOT WRITE 'EVERY PAYLOAD IN THE LIBRARY'** - a draft of this block did, and it is false:
+the (14,60) pair reaches a terminator on NO payload, so it has no trailing run to speak of, and
+it is scoped OUT of this item and stays in CS-G05.
+
+**WHY THIS DOES NOT MAKE CS-413's CLAUSE 2 FALSE, because the two are easy to confuse and one
+draft of this project's notes already did.** The BODY walk is boundary-exact: every real save
+walks its framing to the final byte with nothing left over, because payloads are stepped over
+by their declared length. The PROPERTY walk inside a payload is terminator-exact: it stops at
+the terminator and the declared length carries it the rest of the way. This item is the second
+one. Do not restate it as a defect in the body walk.
+
+**DO NOT close this by widening the declared-length step.** Stepping over a region is what
+makes the body walk exact today; the question is what the region CONTAINS, and a step is not a
+reading.
+
+## CS-829 - detail
+
+Filed 2026-08-23 as a residual of CS-413's close; the item stays OPEN in `ROADMAP.md`. This
+block is a LIVE instruction, not history.
+
+**THIS ITEM WAS FILED ON A FALSE PREMISE AND REWRITTEN THE SAME DAY. READ THIS FIRST.** Its
+first acceptance asked for `InventoryStack` to yield a decoded inventory off a real BUILDING.
+**MEASURED over the real library: no building record carries an `InventoryStack` at all.** A
+building holds an `ObjectProperty` REFERENCE to a separate inventory component, and the stacks
+live over there inside a container property. Inventory is therefore behind THREE layers - the
+cross-record join (CS-831), the container element framing (CS-830), and only then this item.
+An operator ruling on CS-400's clause 1 was obtained on that false premise and has been
+restated by SUBSTANCE rather than by item id as a result. **DO NOT re-pitch this as the
+inventory item.**
+
+**WHAT IT IS: the largest opaque region by count, and read by nothing.**
+`StructProperty` is the largest opaque region by count in `UNMEASURED_PAYLOAD_REGIONS`. The
+tag's declared size DOES bound it, so it is stepped over exactly and costs no synchronisation -
+**the INTERIOR is what is unmeasured**. The struct's own type word is present in the tag, and
+the shipped record names `InventoryStack` as the one pillar 3 needs for inventory.
+
+**WHY IT IS FILED SEPARATELY FROM CS-456.** CS-456 asks whether a WRONG tag-extra width is
+discriminated for the four types that ship one. That is a question about the FRAMING. This item
+is about the CONTENTS of one of them. Closing either leaves the other open.
+
+**WHERE IT SITS AMONG PILLAR 3's THREE NEEDS.** CS-400 names inventory, clock speed and
+connection state. Clock speed is `FloatProperty` and decodes today. Connection state is
+`ObjectProperty` and decodes today AS A VALUE, though FOLLOWING one to the record it names is
+CS-831. Inventory is behind all three layers above. This item is the LAST of the three rather
+than the first, which is the opposite of what its first draft said.
+
+**DO NOT hand-write a struct vocabulary.** The observed type words are led by a handful of
+names, and transcribing them is the hand-maintained list this project has repeatedly recorded
+as the thing that rots. Derive the population.
+
+## CS-400 - detail
+
+Relocated from `ROADMAP.md` 2026-08-23 for budget, not deleted. The item stays OPEN in
+`ROADMAP.md`. This block is a LIVE instruction, not history.
+
+**CS-400 STAYS OPEN ON DEPTH, NOT ON COVERAGE.** Clause 1's coverage half is MET and clauses 2,
+3 and 4 remain MET, all gated by `tests/save/test_phase4_gate.py`. **RULED BY THE OPERATOR
+2026-08-15 (session 6): a skeleton walk does NOT satisfy clause 1.** The superseded session-5
+coverage STATUS and the skeleton-grammar paragraph are relocated here too. Pillar 3, the
+whole-world audit this phase exists to feed, needs inventory, clock speed and connection state,
+and every one of those lives in the payload. The honest reading is that phase 4 can now
+enumerate a world but not inspect it.
+
+The ruling had two mechanical consequences. The object payload grammar was filed as **CS-413**,
+its own item and the natural successor to CS-407 - **CS-413 CLOSED 2026-08-23**. And phase 5
+did not open until a record's properties could be READ - **SUPERSEDED 2026-08-23** by a later
+operator ruling recorded under CS-500, which opens phase 5.
+
+**THE LINKAGE SENTENCE WAS MEASURABLY TOO STRONG, AND THE OPERATOR HAS SINCE RULED ON IT.** It read "Clause 1 closes when CS-413 closes, not before". CS-413 has closed on its
+three acceptance clauses, every one of them graded against the real library. **CLAUSE 1 IS NOT
+THEREBY SATISFIED**, and closing it on that sentence alone would be the error CS-421 was caught
+making one level down - honouring the letter of an acceptance while the thing it existed for is
+unmet. Of the three fields this item names as pillar 3's needs, INVENTORY is not readable.
+**IT IS NOT INSIDE A STRUCT INTERIOR** - a draft of this block said so and it was measured
+false the same day; the chain is CS-831, then CS-830, then CS-829. Clock speed is decoded.
+**RULED BY THE OPERATOR 2026-08-23, ASKED DIRECTLY: CLAUSE 1 WAITS UNTIL A BUILDING'S INVENTORY
+IS ACTUALLY READABLE.** CS-413's closure does not close it. The reasoning ABOVE is the author's
+and was put to the operator; what the operator ruled is the conclusion, and a draft of this
+block wrongly presented the reasoning as theirs.
+
+**THE RULING IS STATED BY SUBSTANCE AND NOT BY ITEM ID, AND THAT IS THE WHOLE LESSON.** Its
+first version read "waits on CS-829", on the author's statement that inventory sits inside
+`StructProperty`'s interior. **THAT WAS MEASURED FALSE THE SAME DAY** - no building record
+carries an `InventoryStack`; a building holds an `ObjectProperty` reference to a separate
+inventory component. The operator was given a one-blocker map when there are three, so the
+ruling was re-put and restated in a form that does not depend on the author's decomposition
+being right. The chain today is CS-831, then CS-830, then CS-829.
+
+**DO NOT re-derive whether clause 1 closes with CS-413 - it is ruled.** What IS open is the
+work in that chain.
 
 ## CS-459 - detail
 
@@ -1824,13 +1990,26 @@ ruled that phase 5 opens now.
 
 **THE 2026-08-15 REASON STILL GOVERNS WHAT THIS GATE NEEDS, rather than when it starts.** Pillars
 3 and 4 are IN this gate, and pillar 3 needs inventory, clock speed and connection state, all
-three of which live in the payload CS-413 is measuring. A rule written against a field no reader
+three of which live in the payload CS-413 measured before it closed on 2026-08-23. A rule written against a field no reader
 populates is still the failure to avoid; what changed is that a reader populates them.
 
-**NOTE THE TENSE, because a draft of this got it wrong.** CS-413 is OPEN, and its second
-acceptance clause - the object data section walking to its exact final byte - is unmet by the
-module's own shipped record, which keeps the walk terminator-exact rather than boundary-exact.
-Writing "the payload CS-413 measured" reads that item as finished and it is not.
+**CORRECTION 2026-08-23, SAME DAY, TO THE SENTENCE THIS PARAGRAPH USED TO CARRY.** It said
+CS-413's second acceptance clause - the object data section walking to its exact final byte -
+was UNMET, and that the walk is terminator-exact rather than boundary-exact. **THAT IS FALSE
+AND THE BLAME FOR IT WAS ALSO MISPLACED, WHICH IS THE MORE USEFUL HALF.** A first version of
+this correction said the sentence came from an adversary report and was never checked. It came
+from THIS MODULE. `clockspeed/save/objects.py` SAID at the top of the file that the walk was
+terminator-exact and not boundary-exact, without saying WHICH walk, in a module containing
+two. The adversary quoted it accurately and the author then blamed the adversary. **THE ROOT
+CAUSE WAS THAT UNQUALIFIED SENTENCE**, which misled two independent readers before it was
+fixed. **IT IS FIXED NOW**, in the same change as this block - that module and
+`tests/save/test_properties.py` now name which walk at every site a sweep could find, so do
+not go looking for it. Measured:
+`tests/save/test_objects.py::test_every_real_save_of_a_measured_pair_walks_to_the_end_of_its_body`
+passes against the real library, and asserts in terms that every real save walks its framing
+to the final byte with nothing left over. **THE BODY WALK IS BOUNDARY-EXACT.** What IS
+terminator-exact is the PROPERTY walk INSIDE a payload - the trailing run - which is a
+different region, is not clause 2, and is filed as its own item.
 
 **ALSO CARRIES A CLAUSE MOVED HERE FROM CS-401**, which could not satisfy it in phase 4 because
 `clockspeed/advisor/ledger.py` does not exist yet: the ledger treats a world token it has never

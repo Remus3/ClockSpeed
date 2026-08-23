@@ -389,7 +389,11 @@ accident that more of the same files would fix.
 
 **This is deliberately NOT filed as a grammar defect**, which is the distinction that makes
 it gated at all. The variable trailing run on the other three pairs IS a grammar question -
-more saves will not fix it, and it stays in `ROADMAP.md` under CS-413. Save 60 is the
+more saves will not fix it, and it stays in `ROADMAP.md` - under CS-413 when this was
+written, and under **CS-828** since CS-413 closed on 2026-08-23, and CS-828 is scoped to the THREE
+pairs this paragraph names - not to all four measured pairs. A first draft of CS-828 scoped it to every
+measured pair, which would have swept (14,60) in and done precisely what the next sentence forbids;
+an adversary caught it before it landed. Save 60 is the
 opposite. Filing both as one item would hide a blocked half behind a workable one.
 
 **PREP half, COMPLETE and workable now.** The harness that will grade the DRAIN half already

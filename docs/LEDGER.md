@@ -73,6 +73,90 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-23 - CS-413 - CLOSED. Three clauses graded against the real library; FIVE residuals filed after a review found the first two were not all of them
+CS-413 CLOSES on its three acceptance clauses, each graded against the real save library rather
+than against the synthetic corpus, and with both of the objections that kept it open addressed.
+It was routed to an adjudicator and three adversaries; the adjudicator returned DO-NOT-CLOSE and
+all three adversaries returned REFUTED against an earlier draft. What follows is the repaired
+version, and every repair is named rather than quietly applied.
+
+**HOW THE THREE CLAUSES GRADE.** No count is restated in this section; each pointer produces its
+own.
+
+CLAUSE 1 - `ObjectRecord.body_offset` and `body_length` locate a real payload instead of reading
+0 on every path. MET, against the real library, with the ALIGNMENT measured rather than assumed:
+the k-th pairing satisfies the cross-check universally and both neighbours satisfy it never.
+
+CLAUSE 2 - the object data section walks to its exact final byte on every real save of a
+measured pair. MET. **DISCLOSED RATHER THAN GLOSSED: THE TEST THAT GRADES THIS IS CS-407's
+ACCEPTANCE**, its body unchanged since the CS-407 commit, so this clause was green before CS-413
+was filed. An adversary found that and it is worth stating - CS-413's own contribution is
+clause 1's attribution and clause 3's decode, not this. **AND NOTE WHAT THIS CLAUSE IS NOT.** The
+BODY walk is boundary-exact: every real save walks its framing to the final byte with nothing
+left over, and a section that does not tile raises rather than hiding behind the body total. The
+PROPERTY walk inside a payload is terminator-exact. Those are different walks, and the region
+between them is CS-828.
+
+CLAUSE 3 - `read_properties` returns at least one decoded property VALUE off a real building.
+MET, and **not on the floor the clause literally asks for**. The recorded objection was that "at
+least one" is trivially satisfiable, since a `BoolProperty`'s value rides in the tag at size 0.
+The shipped test asserts an EQUALITY instead - every building carrying a measured type decodes -
+keeping a floor only to stop the equality passing vacuously at 0 == 0. That is stronger than the
+acceptance.
+
+**OBJECTION 2 IS NOT DISCHARGED; IT IS CARRIED FORWARD, AND AN EARLIER DRAFT OF THIS ENTRY SAID
+OTHERWISE.** The objection was that the evidence is uneven and the unevenness falls exactly on
+what pillar 3 needs. The three items said to carry it - CS-420, CS-421, CS-422 - are all closed.
+But CS-421 closed by filing CS-826, whose subject is precisely the population the objection
+named. So what is established is that the three items closed and the population is now CS-826,
+not that the unevenness is resolved. Writing "discharged" was the letter-of-the-acceptance move
+this same entry refuses one level up for CS-400's clause 1.
+
+**FIVE RESIDUALS ARE FILED. AN EARLIER DRAFT FILED TWO AND ASSERTED THE SEARCH HAD BEEN
+EXHAUSTIVE.** It had not been. The draft filed the largest region and the one `docs/GATED.md`
+names, and left every other entry of `UNMEASURED_PAYLOAD_REGIONS` unfiled - the count is that
+table's to state, not this entry's. An adjudicator and an adversary found it independently.
+
+- **CS-828** - the trailing run, which `docs/GATED.md` assigned to CS-413 by name and which the
+  close would otherwise have orphaned. **SCOPED TO THREE PAIRS**, because the (14,60) pair
+  reaches a terminator on no payload and its half is GATED as CS-G05. A draft scoped it to every
+  measured pair, which is exactly what that file forbids in the sentence the draft quoted.
+- **CS-829** - `StructProperty`'s interior, the largest opaque region by count.
+- **CS-830** - the container types' ELEMENT framing. `ArrayProperty` is the second-largest region
+  and was covered only by CS-489, which grades the table's PROSE and reads no bytes.
+- **CS-831** - resolving an `ObjectProperty` cross-reference to the record it names.
+- **CS-832** - `TextProperty`, declined on sample size, and `Int64Property`, which is decoded
+  nowhere and is NOT in `DECLINED_VALUE_READINGS` - an earlier wording called both "declined"
+  and an adjudicator corrected it. `TextProperty` had ZERO mentions across every
+  open-work file.
+
+**THE FACTUAL ERROR THAT MATTERED MOST, AND IT REACHED THE OPERATOR.** An earlier draft stated
+that inventory lives inside `StructProperty`'s interior, and an operator ruling on CS-400's
+clause 1 was obtained on that basis. **MEASURED over the real library and contradicting it: no
+building record carries an `InventoryStack`.** A building holds an `ObjectProperty` REFERENCE to
+a separate inventory component; the stacks live on that component inside a container property. So
+inventory sits behind three layers - CS-831, then CS-830, then CS-829 - and the operator had been
+given a one-blocker map. The ruling was re-put and is now stated by SUBSTANCE: clause 1 waits
+until a building's inventory is actually readable, which does not depend on this author's
+decomposition being right.
+
+**PILLAR 3's THREE NEEDS, ALL THREE GRADED, because an earlier draft graded two and dropped the
+third silently.** Clock speed is `FloatProperty` and decodes. Connection state is
+`ObjectProperty` and decodes AS A VALUE, though following it to the record it names is CS-831.
+Inventory is not readable.
+
+**WHAT THIS CLOSE DOES NOT ASSERT.** That a world can be INSPECTED. It cannot: inventory is
+unreadable, and CS-400's clause 1 stays open for that reason.
+
+Verification:
+- `clockspeed/save/objects.py` plus `tests/save/test_objects.py::test_every_real_save_attributes_a_payload_extent_to_every_record` - clause 1.
+- `tests/save/test_objects.py::test_the_payload_to_record_alignment_is_the_one_the_bytes_choose` - clause 1's alignment, with both neighbouring alignments rejected.
+- `tests/save/test_objects.py::test_every_real_save_of_a_measured_pair_walks_to_the_end_of_its_body` - clause 2. This is CS-407's acceptance test, disclosed above.
+- `tests/save/test_properties.py::test_a_real_building_yields_at_least_one_decoded_property_value` - clause 3, as an equality rather than the clause's floor.
+- `tests/save/test_phase4_gate.py` - CS-400's clauses 2, 3 and 4, unaffected by this close.
+- The first four pointers open a save and SKIP where there is no library, so CI cannot grade them; that is why they are the evidence that matters and why a green CI run is not this close's evidence.
+- The residuals: `ROADMAP.md` under CS-828, CS-829, CS-830, CS-831 and CS-832. The open acceptance question: `ROADMAP.md` under CS-400.
+
 ### 2026-08-23 - CS-421 - CLOSED under an OPERATOR RULING that amended clause 3. Both residuals are filed, as CS-825 and CS-826
 CS-421 CLOSES. This entry supersedes the DO-NOT-CLOSE adjudication recorded below on the same
 date. It was itself routed to an adjudicator and three adversaries before landing. The
