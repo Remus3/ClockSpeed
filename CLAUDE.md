@@ -143,7 +143,8 @@ restated fact is a fact that will drift. This table is the anti-drift control.
 |---|---|---|
 | `CLAUDE.md` | Rules, hard constraints, frozen list, settled decisions, paths, topology | Per-item history, counts, ledger entries |
 | `README.md` | Outsider-facing: what it is, install, run, first result | Internal process, roadmap, session notes |
-| `ROADMAP.md` | OPEN work only, with IDs and acceptance criteria | Completed work, aspirational ideas |
+| `ROADMAP.md` | OPEN work only - the item LINE alone, with its ID, acceptance and tier | Completed work, aspirational ideas, NOTE bodies |
+| `docs/item_notes.md` | LIVE per-item detail for OPEN work, one section per item ID | Item lines, completion records, history, closed items |
 | `BACKLOG.md` | Aspirational and conditional-trigger items, one line each | Anything currently being worked |
 | `WAKEUP_NOTES.md` | Last two to three sessions at full fidelity | Anything older - archive it |
 | `docs/LEDGER.md` | Append-only, newest-first per-item completion record | Rules, open work |
@@ -151,7 +152,8 @@ restated fact is a fact that will drift. This table is the anti-drift control.
 | `docs/OPERATIONS.md` | Commands, restart, scheduled tasks, runbooks | Architecture, rationale |
 | `docs/adr/` | One file per architectural decision, indexed in `docs/adr/README.md` | Anything not a decision |
 | `docs/GATED.md` | Items blocked on something outside the repo | Items merely unstarted |
-| `docs/history_notes.md` | Deep archive of pruned notes and old ledger items | Current state |
+| `docs/upstream_watch.md` | The upstream wiki watch list and the ordering it is read in | Lifted upstream content, the CS-485 licence verdict |
+| `docs/history_notes.md` | Deep archive of pruned notes and retired ledger entries | Current state, live instructions for OPEN work |
 | `memory/` | Durable cross-project and cross-session facts | Project state derivable from code |
 | `config/ports.json` | The port allocation record | Anything not a port allocation |
 | `clockspeed/data/version.py` | The game build pin and content hash | Advice, parsing, presentation |

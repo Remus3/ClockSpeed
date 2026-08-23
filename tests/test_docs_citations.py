@@ -141,7 +141,23 @@ ENTRIES_HEADING: Final = "## Entries"
 # nothing verifies, which is the shape that ships false declarations.
 ADR_0008: Final = "docs/adr/0008-detection-claims-are-derived-never-written.md"
 
-GUARDED_DOCS: Final = (LEDGER, "ROADMAP.md", "docs/GATED.md", "WAKEUP_NOTES.md", ADR_0008)
+#: The LIVE per-item detail file, created 2026-08-23 when the operator ruled the
+#: NOTE bodies out of `ROADMAP.md`. IT IS GUARDED RATHER THAN RECORDED UNGUARDED,
+#: and the reason is the move itself: every body in it came VERBATIM out of
+#: `ROADMAP.md`, which is guarded. Recording it unguarded would have dropped that
+#: coverage at the instant the text changed file, leaving citations that were
+#: checked yesterday unchecked today with nothing red - which is the exact shape
+#: this contract exists to make impossible.
+ITEM_NOTES: Final = "docs/item_notes.md"
+
+GUARDED_DOCS: Final = (
+    LEDGER,
+    "ROADMAP.md",
+    "docs/GATED.md",
+    "WAKEUP_NOTES.md",
+    ADR_0008,
+    ITEM_NOTES,
+)
 
 # `.claude/` is OUT OF DOMAIN rather than exempt. It is Claude Code
 # configuration, it appears nowhere in the CLAUDE.md doc-topology table, and
@@ -352,6 +368,22 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "no test bears this meaning: CS-441 records 26 of 46 spliced shapes"
         " still escaping, and stays OPEN.",
         2,
+    ),
+    (
+        ITEM_NOTES,
+        "test_a_parameter_spelled_like_a_primitive"
+        "_binds_nothing_and_serves_nothing",
+    ): Disposition(
+        NO_TARGET,
+        "",
+        "no test bears this name in any tracked file: it names a test CS-492"
+        " round nine PROPOSED and never merged, and the nine rounds are"
+        " refuted. THE POINTER WAS ALWAYS DEAD - it sat in docs/history_notes"
+        ".md, which is recorded UNGUARDED, so nothing checked it. The"
+        " 2026-08-23 relocation moved the text into a guarded doc and the"
+        " guard found it on first contact, which is the arm working rather"
+        " than a defect the move introduced.",
+        1,
     ),
     # --- the bare-identifier arm, which sees what a path scanner cannot.
     (LEDGER, "test_the_header_scan_advertises_no_bound_it_cannot_enforce"): Disposition(

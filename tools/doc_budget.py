@@ -5,11 +5,13 @@ Enforces exactly the table in CONVENTIONS.md section 2.1. Context is the binding
 budget in every session, so a doc that grows past its budget spends the
 operator's scarcest resource on every turn of every session.
 
-    CLAUDE.md                  < 40 KB   hard fail
-    any single auto-loaded     < 40 KB   hard fail
-    memory/MEMORY.md (index)   < 20 KB   hard fail
-    any memory/*.md leaf       <  6 KB   warn
-    ROADMAP.md                 < 60 KB   warn, triggers a relocate pass
+    CLAUDE.md                  <  40 KB  hard fail
+    any single auto-loaded     <  40 KB  hard fail
+    memory/MEMORY.md (index)   <  20 KB  hard fail
+    any memory/*.md leaf       <   6 KB  warn
+    ROADMAP.md                 <  60 KB  warn, triggers a relocate pass
+    docs/item_notes.md         < 224 KB  warn, triggers a relocate pass
+    docs/upstream_watch.md     <  16 KB  warn
 
 Exits non-zero only on a HARD failure. A WARN prints loudly and returns zero,
 because a warn that blocks a commit gets disabled and then enforces nothing.
@@ -66,6 +68,38 @@ AUTOLOADED_BUDGET = 40 * KB
 MEMORY_INDEX_BUDGET = 20 * KB
 MEMORY_LEAF_BUDGET = 6 * KB
 ROADMAP_BUDGET = 60 * KB
+
+# docs/item_notes.md owns the LIVE per-item detail for OPEN work, one section
+# per item ID (CLAUDE.md section 4). It was created 2026-08-23 under an operator
+# ruling that moved every NOTE body out of ROADMAP.md and every live instruction
+# block out of docs/history_notes.md, and it MEASURED 163.7 KB the moment it
+# landed. 224 KB is chosen as the round number roughly 37 per cent above that.
+#
+# THE HEADROOM IS THE POINT, and it is sized against how this file grows rather
+# than picked to fit. A budget with no headroom fires on the next edit and
+# teaches everyone to ignore it - which is precisely what happened to
+# ROADMAP.md, whose WARN this file exists to relieve and which needed two
+# relocate passes in one day at 9 then 97 bytes of margin. This file gains a
+# section per newly filed item and loses one per item CLOSED, because a closed
+# item's detail moves to docs/history_notes.md; 224 KB leaves room for roughly
+# forty more items' worth of detail before a relocate pass is due, which is a
+# horizon long enough that the warn means something when it finally prints.
+ITEM_NOTES_BUDGET = 224 * KB
+
+# docs/upstream_watch.md owns the upstream wiki watch list and the ordering it
+# is read in (CLAUDE.md section 4). It MEASURED 5.4 KB on creation 2026-08-23.
+# 16 KB is chosen deliberately TIGHT relative to the others - roughly three
+# times the observed size, which is ample for the one thing legitimately
+# missing from it (a per-page change signal for each group, unrecorded since
+# the CS-485 research pass) and nowhere near enough to hold a page dump.
+#
+# A tight budget is a FEATURE on this specific file rather than an oversight.
+# The file's stated "never contains" is lifted upstream content, and the CS-485
+# licence gate REFUSED vendoring, so the failure mode worth catching early is
+# this file growing because someone pasted a wiki table into it. A size warn is
+# a weak signal for that and it is not the primary control - but it is a free
+# one, and it points at the right file.
+UPSTREAM_WATCH_BUDGET = 16 * KB
 
 RELOCATE_GUIDANCE = (
     "RELOCATE, DO NOT DELETE - move detail to a sub-index (INDEX_<domain>.md) or "
@@ -579,6 +613,24 @@ def evaluate(root: Path | None = None, observed: Survey | None = None) -> list[d
         for leaf in _memory_leaves(root)
     )
     rows.append(_entry(root, root / "ROADMAP.md", ROADMAP_BUDGET, "WARN", "ROADMAP.md"))
+    rows.append(
+        _entry(
+            root,
+            root / "docs" / "item_notes.md",
+            ITEM_NOTES_BUDGET,
+            "WARN",
+            "docs/item_notes.md",
+        )
+    )
+    rows.append(
+        _entry(
+            root,
+            root / "docs" / "upstream_watch.md",
+            UPSTREAM_WATCH_BUDGET,
+            "WARN",
+            "docs/upstream_watch.md",
+        )
+    )
     return rows
 
 

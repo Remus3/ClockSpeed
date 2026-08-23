@@ -40,18 +40,25 @@ below is deliberately deferred. **Trigger for all three: phase 6 completes.**
 
 ## Doc topology
 
-- `ROADMAP.md` needed TWO relocate passes in one day - 9 bytes of margin, then 97 after two
-  filings - so it is structurally at its 61440 ceiling rather than occasionally near it, and
-  the budget is severity WARN so CI never says so; find a durable answer other than a manual
-  pass per session, noting CS-495 settled that raising the number is not it - conditional on
-  ROADMAP.md hit its budget a third time, or on an operator call.
-- `docs/history_notes.md` opens with "This file holds NOTHING current" and is now the home of
-  the LIVE instructions for CS-442, CS-456, CS-460, CS-465, CS-468, CS-472, CS-479, CS-500,
-  CS-825, CS-826, CS-828, CS-829,
-  CS-484, CS-492, CS-702, CS-806 and CS-807, which `ROADMAP.md` points at with "MUST BE READ
-  BEFORE TAKING THIS ITEM" - the file is doing two contradictory jobs and its header is the
-  half that is false; conditional on an operator ruling, the same shape as the WAKEUP_NOTES
-  ordering ruling of session 26.
+**BOTH ITEMS HERE WERE RULED ON BY THE OPERATOR 2026-08-23 AND ARE ANSWERED. Nothing below
+is a live trigger; this is the record of a decision already made, kept so the two defects
+are not re-filed.** The ruling created `docs/item_notes.md`, which now OWNS live per-item
+detail, and `docs/upstream_watch.md`, which owns the CS-486 upstream watch list. Both are
+named in the `CLAUDE.md` section 4 and `CONVENTIONS.md` section 2 topology tables and both
+carry a doc budget.
+
+- **RULED: `ROADMAP.md` structurally at its ceiling.** The answer is not a bigger number -
+  CS-495 settled that and the ruling did not disturb it - and not a manual relocate pass per
+  session either. The NOTE BODIES MOVE OUT. `ROADMAP.md` keeps the item LINE alone, plus a
+  short pointer where a NOTE was, and every NOTE body lives in `docs/item_notes.md` keyed by
+  item ID. The topology tables were amended so a NOTE body is now something `ROADMAP.md`
+  never contains, which is what makes this durable rather than another pass.
+- **RULED: `docs/history_notes.md` was doing two contradictory jobs.** Its header says the
+  file holds nothing current and that was the TRUE half; the live instruction blocks were the
+  false half, so they moved rather than the header. Every block whose item is OPEN moved to
+  `docs/item_notes.md`. A block whose item is CLOSED stayed, because a closed item's detail
+  IS history - that is the rule that keeps the header true from here on, and it is recorded
+  in both topology tables.
 
 ## Ingestion lanes
 

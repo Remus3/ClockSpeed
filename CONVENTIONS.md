@@ -68,15 +68,17 @@ A restated fact is a fact that will drift.
 |---|---|---|
 | `CLAUDE.md` | Rules, hard constraints, frozen list, settled decisions, paths, topology | Per-item history, counts, ledger entries |
 | `README.md` | Outsider-facing: what it is, install, run, first result | Internal process, roadmap, session notes |
-| `ROADMAP.md` | OPEN work only, with IDs and acceptance criteria | Completed work, aspirational ideas |
+| `ROADMAP.md` | OPEN work only - the item LINE alone, with its ID, acceptance and tier | Completed work, aspirational ideas, NOTE bodies |
+| `docs/item_notes.md` | LIVE per-item detail for OPEN work, one section per item ID | Item lines, completion records, history, closed items |
 | `BACKLOG.md` | Aspirational and conditional-trigger items, one line each | Anything currently being worked |
 | `docs/LEDGER.md` | Append-only, newest-first per-item completion record | Rules, open work |
 | `docs/ARCHITECTURE.md` | Module map, data flow, seams, ownership | Ops commands, counts |
 | `docs/OPERATIONS.md` | Commands, restart, scheduled tasks, runbooks | Architecture, rationale |
 | `docs/adr/` | One file per architectural decision, indexed in `docs/adr/README.md` | Anything not a decision |
 | `docs/GATED.md` | Items blocked on something outside the repo | Items merely unstarted |
+| `docs/upstream_watch.md` | The upstream wiki watch list and the ordering it is read in | Lifted upstream content, the CS-485 licence verdict |
 | `WAKEUP_NOTES.md` | Last 2-3 sessions at full fidelity | Anything older (archive it) |
-| `docs/history_notes.md` | Deep archive of pruned notes and old ledger items | Current state |
+| `docs/history_notes.md` | Deep archive of pruned notes and retired ledger entries | Current state, live instructions for OPEN work |
 | `memory/` | Durable cross-project and cross-session facts (section 11) | Project state derivable from code |
 
 **Rules:**
@@ -102,6 +104,8 @@ Context is the binding budget in every session. Enforce in CI:
 | `memory/MEMORY.md` (index) | < 20 KB | CI hard fail |
 | Any `memory/*.md` leaf | < 6 KB | CI warn |
 | `ROADMAP.md` | < 60 KB | CI warn, triggers a relocate pass |
+| `docs/item_notes.md` | < 224 KB | CI warn, triggers a relocate pass |
+| `docs/upstream_watch.md` | < 16 KB | CI warn |
 
 When a budget is hit, **relocate, do not delete**. Move detail to a sub-index or an
 archive file and leave a one-line pointer. A sub-index (`INDEX_<domain>.md`) holds the
