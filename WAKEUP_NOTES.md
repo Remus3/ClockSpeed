@@ -68,7 +68,18 @@ the line becomes a pointer.
 
 - **Next action: NONE IS FORCED.** CI must be read for the pushed head. Then CS-830 is the head of
   the product path - the SECOND of the three layers under CS-400's clause 1, and the one holding
-  the inventory arrays. The six worktrees are still unsalvaged and untouched.
+  the inventory arrays.
+
+- **WORKTREES: SIX remain, the inherited ones, UNTOUCHED and still unsalvaged.** A seventh,
+  `agent-a8b7284852bf73422`, was created this session and REMOVED on the operator's instruction
+  before the session ended, along with its branch. It was safe to remove and the check is worth
+  copying rather than the outcome: its work was already merged - the merger applied its patch and
+  TWO repair passes then corrected the result - and a set difference over the test names proved
+  main was a STRICT SUPERSET, three tests added by the repairs and none lost. What it still held
+  was a superseded `objects.py` carrying the false prose both repairs removed, so keeping it was
+  the live hazard: a later merge from it would have reintroduced every corrected sentence.
+  **`--force` was required because the worktree was dirty, and dirty is exactly why the set
+  difference came first.**
 
 
 ## Session 35 - 2026-08-23 - CS-421 AND CS-413 both CLOSE on operator rulings; eight review agents refuse four drafts and the transferable finding is that I fix the instance instead of the population
