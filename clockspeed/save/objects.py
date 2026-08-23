@@ -2922,7 +2922,9 @@ BYTE_ORDER_UNSCORED: Final = "unscored"
 #: library happens to carry, not a structural property of the oracle meeting the
 #: type: a population of the same size and shape carrying almost any other value
 #: would drive the same oracle to a green verdict instead. That is recorded where
-#: it is derived, and it is why CS-421 does not close on this word.
+#: it is derived, and it is why CS-421 did not close ON this word: the close of
+#: 2026-08-23 amended its clause 3 and filed this word's population as CS-825,
+#: rather than reading the word as a settlement. It still is not one.
 #:
 #: WHY IT IS NOT :data:`BYTE_ORDER_VACUOUS`: that word is arithmetic about a
 #: WIDTH - one byte has one order. This is a fact about an ORACLE meeting a

@@ -73,6 +73,128 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-23 - CS-421 - CLOSED under an OPERATOR RULING that amended clause 3. Both residuals are filed, as CS-825 and CS-826
+CS-421 CLOSES. This entry supersedes the DO-NOT-CLOSE adjudication recorded below on the same
+date. It was itself routed to an adjudicator and three adversaries before landing. The
+adjudicator returned DO-NOT-CLOSE and two adversaries returned REFUTED against an earlier
+draft; what follows is the repaired version, and the repairs are named rather than silently
+applied.
+
+**THE TWO RULINGS, recorded because amending an acceptance clause is fence 1's forbidden move
+for every agent in this project.** Asked directly and answered on 2026-08-23: (1) amend
+clause 3, and file the `UInt32Property` residual as its own item; then, after an adversary
+measured that `UInt32Property` is not the only unsettled population, (2) file BOTH residuals
+and repair the false sentences. No adjudicator granted either, and none could.
+
+**THE FIRST QUESTION CARRIED AN INCOMPLETE PREMISE, AND THE RECORD SAYS SO RATHER THAN HIDING
+IT.** It asked the operator to file "the `UInt32Property` residual", a phrasing inherited from
+the adjudication below without checking what else sat at a non-settled status. `IntProperty`
+and `FloatProperty` carry `anchored_not_unique`, which is also not a settlement, and no open
+item covered them. The operator ruled correctly on the picture they were given; the picture was
+short. That is why there are two residual items and not one.
+
+**CLAUSE 3 AS FILED, verbatim:** "the endianness question is settled against something that is
+not this project's own writer".
+
+**CLAUSE 3 AS AMENDED, verbatim:** "the endianness question is settled JOINTLY over the scored
+populations against the real save library, with the per-type residual recorded in shipped
+data".
+
+**WHAT THE ADJUDICATION BELOW ACTUALLY NAMED, AND AN EARLIER DRAFT OF THIS ENTRY GOT IT
+WRONG.** It named TWO routes, not one: an operator ruling amending clause 3, OR a second
+library-backed control catching the `">i"` flip through a predicate that is not
+`_int_oracle_holds`. **ROUTE TWO WAS BUILT** - commits `5c4b270` and `c2ecc5b` - and then
+measured by an adversary to be a second IMPLEMENTATION rather than a second SIGNAL, which is
+recorded in the two entries directly below. So the honest statement is that route two was
+attempted and did not deliver independence, and route one is what closed this. An earlier
+draft said only one route was ever named, which erased a real attempt.
+
+**THE EVIDENCE DID CHANGE BETWEEN THE ADJUDICATION AND THIS ENTRY, and an earlier draft of
+this entry denied it.** Two commits and a substantial body of oracle and control code landed
+in `tests/save/test_value_anchoring.py` between them, with their own entries below. What did
+NOT change is the INDEPENDENCE of the signal, which is the property the adjudication turned
+on. Those are different sentences and the draft collapsed them.
+
+**WHY THE FILED CLAUSE WAS NOT GRADEABLE ON THIS CORPUS - and note the direction of the
+reasoning, because an earlier draft had it backwards.** No word in `BYTE_ORDER_STATUSES` means
+settled. That is DOWNSTREAM of the evidence, not a definitional trick: the vocabulary lacks
+such a word BECAUSE nothing in this library settles the question, and the module says so where
+each word is derived. An earlier draft wrote this as though the vocabulary made the clause
+ungradeable by anyone, which both inverts the causation and contradicts the adjudication's own
+second route.
+
+**HOW THE THREE CLAUSES GRADE, each against a shipped artifact rather than against prose. No
+count is restated here - this file forbids it, and each pointer below produces its own.**
+
+CLAUSE 1 - every member of `MEASURED_VALUE_TYPES` states which oracle backs it. MET.
+`EVIDENCE_FOR_VALUE_TYPE` in `clockspeed/save/objects.py` is that statement, and the test
+below derives both directions in the same run rather than reading an allowlist. **NOTE THE
+LIMIT THE ADJUDICATION ATTACHED AND AN EARLIER DRAFT DROPPED:** it grades completeness and
+vocabulary, not the truth of the class named, and only `EVIDENCE_MAGNITUDE` is tied to a live
+control. That gap is CS-459 and CS-459 is OPEN.
+
+CLAUSE 2 - a type backed only by a declared width is marked as such in shipped DATA rather
+than prose. MET. `WIDTH_ONLY_VALUE_TYPES` in `clockspeed/save/objects.py` is that data, and it
+is DERIVED from the evidence table rather than hand-listed, so it cannot be written out of
+step with it. **THE SAME LIMIT AS CLAUSE 1 APPLIES AND IS RECORDED RATHER THAN GLOSSED:** the
+derivation cannot be written out of step with the table, and grades nothing about whether the
+table is TRUE. An adversary moved a genuinely width-only type off its evidence word and the
+whole save suite stayed green. **CS-459 ALREADY OWNS THAT GAP** - it says in terms that this
+set can become a lie in shipped data with nothing red - so no duplicate item was filed. The
+separate gap on the evidence vocabulary's STRING values is filed as CS-827.
+
+CLAUSE 3 AS AMENDED - settled jointly over the scored populations AGAINST THE REAL SAVE
+LIBRARY, with the per-type residual recorded in shipped data. MET, in two halves that need
+two different artifacts. The JOINT half is `BYTE_ORDER_SURVIVING_CANDIDATES`, a singleton,
+derived against the live library. The RESIDUAL half is `VALUE_BYTE_ORDER_STATUS`, which
+records the residual honestly rather than favourably. An earlier draft graded this clause
+citing only the residual half and dropped the words "against the real save library" from the
+criterion at the moment of grading, which is where an adversary caught it.
+
+**WHAT THIS CLOSE DOES NOT ASSERT.** It does not assert that the byte order of any four-byte
+type is KNOWN. The module refuses in writing to carry the joint result across to any single
+type - the premise that this format uses one byte order for every int32 field is recorded
+there as an assumption and not a measurement, and that boundary is not crossed here either.
+What is asserted is that the question is scored against the real library, that the score is
+recorded per type in shipped data, and that BOTH unsettled populations IN THAT TABLE are now
+named items. **THAT CLAIM IS BOUNDED TO THE FIXED-WIDTH VALUE READER AND THE BOUND IS STATED
+HERE BECAUSE AN ADVERSARY FOUND IT UNSTATED.** Six measured types carry no byte-order status
+at all and the status table's own control forbids giving them one; they rest on
+`EVIDENCE_REDUNDANCY` instead, which is a real argument because a mis-read length
+desynchronises the walk - but it is a different argument, and nothing here grades it.
+
+**THE TWO RESIDUALS, AND WHY BOTH HAD TO BE FILED.** `VALUE_BYTE_ORDER_STATUS` carries two
+words that are not settlements, and an item was filed for each:
+
+- **CS-826** - `IntProperty` and `FloatProperty` at `anchored_not_unique`. This is the large
+  population and it is the one pillar 3 needs, because those two types are inventory counts
+  and clock speeds. It was UNFILED until an adversary measured it, and the draft this entry
+  replaces asserted that "the unsettled part" was a single named item while this one had no
+  item at all.
+- **CS-825** - `UInt32Property` at `oracle_cannot_separate_readings`. The small population.
+
+**THE FENCE THAT TRAVELS WITH THEM, and it is a property of the data rather than of any
+design.** Every changed matched value in the local library is small at one end, so every
+CORRECT byte-order oracle must agree with the magnitude prior on it. What would separate two
+correct oracles is a save carrying LARGE integers that CHANGE. The counts behind that sentence
+are measured in the entries below and are not restated here. **DO NOT SPEND A SESSION
+DESIGNING A CLEVERER PREDICATE ON THE int32 POPULATION** - that route is measured closed.
+**THAT FENCE IS MEASURED ON int32 AND IS CARRIED BY CS-826 ONLY.** It is NOT transferred to
+CS-825: `UInt32Property` sits in no scored population, so the finding has never been measured
+on it, and transferring it would be the population carry this module refuses elsewhere. An
+adversary raised that and it was right.
+
+Verification:
+- `clockspeed/save/objects.py` plus `tests/save/test_properties.py::test_every_measured_value_type_names_the_oracle_that_backs_it` - clause 1.
+- `clockspeed/save/objects.py` plus `tests/save/test_properties.py::test_the_magnitude_oracle_covers_exactly_the_types_marked_with_it` - clause 2.
+- `clockspeed/save/objects.py` plus `tests/save/test_value_anchoring.py::test_the_shipped_candidate_set_is_what_the_value_oracles_cannot_separate` - clause 3's JOINT half, derived against the real save library. This is the pointer the earlier draft was missing.
+- `clockspeed/save/objects.py` plus `tests/save/test_value_anchoring.py::test_the_cannot_separate_status_is_derived_from_the_oracle` - that the residual word is derived from the oracle rather than transcribed.
+- `clockspeed/save/objects.py` plus `tests/save/test_byte_order_status.py::test_every_fixed_width_type_the_module_decodes_carries_a_recorded_status` - clause 3's RESIDUAL half, repo-shape only.
+- `tests/save/test_byte_order_status.py::test_no_type_is_marked_anchored_that_no_oracle_scores` and `tests/save/test_byte_order_status.py::test_no_type_an_oracle_scores_is_left_recorded_as_unscored` - the over-claim and under-claim directions on the status table.
+- `tests/save/test_byte_order_status.py::test_the_status_words_are_pinned_and_distinct` - the status words are pinned BY LITERAL, not by symbol. Without it, renaming a word to one that reads as a settlement passes every other pointer here. An adversary measured that.
+- **TWO of the pointers above open a save** - the two in `test_value_anchoring.py`. Forced absent, they SKIP and the other five pass in well under a second. So five of the seven are repo-shape assertions and grade nothing about the library. A draft of this block said only one opened a save; that was measured false.
+- The residuals: `ROADMAP.md` under CS-825 and CS-826.
+
 ### 2026-08-23 - CS-421 - ADVERSARY REFUTED the second oracle's headline claim. CORRECTION to the entry below, and the repair
 CS-421 STAYS OPEN. This corrects the entry immediately below rather than editing it, which is
 what this file requires. The second oracle was routed to an adversary before it was pushed;

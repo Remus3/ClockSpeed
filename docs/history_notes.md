@@ -1703,6 +1703,17 @@ load-bearing against the tree before acting on it.
 
 ### CS-421 - detail
 
+**STATUS 2026-08-23: CS-421 IS CLOSED. EVERYTHING IN THIS SECTION IS NOW HISTORY, the
+sentences below saying the item stays OPEN included.** They were true when written and are not
+edited, per this file's practice. The close is in `docs/LEDGER.md`.
+
+**THE FENCES BELOW ARE STILL LIVE and travel with the two residual items the close filed.**
+**CS-826** carries the int32 population and the fence against designing a cleverer predicate on
+it. **CS-825** carries `UInt32Property`, to which that fence is NOT transferred, because it was
+never measured on that type. Fence (4) - the non-negotiable-12 containment fence naming
+`test_a_raise_in_the_scoring_phase_carries_nothing_out_of_the_walk` - is unconditional, survives
+the close, and that test must not be deleted as redundant.
+
 ### Relocated 2026-08-22 (session 32) from `ROADMAP.md` - the CS-421 NOTE, verbatim
 
 Moved for budget, not deleted. The item itself stays OPEN in `ROADMAP.md`, which now
@@ -1715,9 +1726,116 @@ NOTE: filed 2026-08-15 by the measurement-validity adversary. Its split of the 1
 
 ### CS-421 - fences
 
+**STATUS 2026-08-23: CS-421 IS CLOSED - see `docs/LEDGER.md`. The sentences below saying it
+stays OPEN are history and are not edited. The live fences travel with CS-825 and CS-826; read
+the banner under `CS-421 - detail`.**
+
 Relocated from `ROADMAP.md` 2026-08-21 (session 27) for budget, not deleted. The item itself stays OPEN in `ROADMAP.md` and these fences are LIVE instructions rather than history - read them before taking CS-421.
 
 **THE FENCES, WHICH ARE WHAT THIS ENTRY OWNS. (1) DO NOT RE-PITCH THE CLOSE ON THE ARTIFACT EXISTING** - it is right, graded and shipped; what is refused is reading it as clause 3 settled, because 65280 of the 65535 values a population of this size and shape could carry would drive the same oracle to a GREEN verdict and only 255 reach the state recorded here, so the verdict is a fact about this type carrying 6400. **(2) DO NOT REWRITE THE THREE SENTENCES MEASURED FALSE AND CORRECTED IN PLACE:** that the derivation is threshold-free; that accumulator INVARIANCE under the reversal is the right predicate (equal counters also mean both ZERO - the predicate is the universal now); and the unqualified spelling `oracle_cannot_separate`. **(3) DO NOT RE-DERIVE THE ANCHOR** - it is CS-479. **(4) A NON-NEGOTIABLE 12 EXPOSURE WAS INTRODUCED AND REPAIRED IN THE SAME SESSION;** `test_a_raise_in_the_scoring_phase_carries_nothing_out_of_the_walk` grades the containment and must not be deleted as redundant. Residuals filed as CS-478 and CS-479.
+
+## CS-459 - detail
+
+Relocated from `ROADMAP.md` 2026-08-23 for budget, not deleted. The item stays OPEN in
+`ROADMAP.md`. This block is a LIVE instruction, not history.
+
+filed 2026-08-16 (session 14) independently by BOTH the CS-421 adjudicator and the CS-421 adversary, which is why it is filed rather than argued. The guard compares `EVIDENCE_FOR_VALUE_TYPE` to `_MAGNITUDE_SCORED_TYPES`, a hand-authored literal in `tests/save/test_properties.py`, never to what the oracles actually score - so the tie is between two transcriptions. Adding `EVIDENCE_MAGNITUDE` to `UInt32Property` IS caught; making the tally also score `UInt32Property` with the table untouched is NOT, and moves `int32_values` silently while `WIDTH_ONLY_VALUE_TYPES` becomes a lie in shipped data with nothing red. Neutering the `FloatProperty` scoring branch also leaves the coupling test green - only a separate emptiness floor catches it, so the docstring claiming the table is tied to the running controls overstates by one link, which is the ADR 0008 shape inside the control that grades ADR 0008 compliance.
+
+**CONFIRMED AGAIN 2026-08-23 by the CS-421 control-validity adversary and re-checked by the merger.**
+Moving `BoolProperty` off `declared_width` in `EVIDENCE_FOR_VALUE_TYPE` silently drops it from
+`WIDTH_ONLY_VALUE_TYPES`, and the whole of `tests/save` stays green. The only non-module reader of
+that set asserts it is non-empty and disjoint from the magnitude-scored set, and never that any
+particular type is in it. **THIS ITEM ALREADY OWNED THAT FINDING** - the NOTE above names it in terms -
+which is why no duplicate item was filed for it. The sibling gap on the vocabulary STRINGS is
+different and is CS-827.
+
+## CS-825 - detail
+
+Filed 2026-08-23 as the SMALL of the two residuals of CS-421's close; the item stays OPEN in
+`ROADMAP.md`. This block is a LIVE instruction, not history.
+
+`UInt32Property` is the one measured type whose byte-order status reads
+`oracle_cannot_separate_readings`: a shipped oracle was applied to this type's own values and
+came back unable to tell the as-stored reading from its reversal. The module documents that
+word where it is derived and states in terms that it IS NOT A SETTLEMENT and must never be read
+as one.
+
+**TWO ACCEPTANCE HOLES WERE CLOSED AT FILING TIME, BOTH FOUND BY REVIEW RATHER THAN BY THE
+AUTHOR, AND BOTH ARE THE REASON THE WORDING IS AWKWARD.** The first draft asked for "a status
+other than `oracle_cannot_separate_readings`" - which `unscored` satisfies, and `unscored` means
+NOTHING LOOKED. That is a regression that reads as an acceptance, and it is why the item now
+demands a word that MEANS SETTLED and says outright that `BYTE_ORDER_STATUSES` ships none today.
+The second draft asked for the missing ingredient to be "named in shipped data", which its own
+NOTE then named in prose - transcribing a NOTE into a module constant is not a measurement, and
+it is the trivially-satisfiable shape already recorded against CS-413.
+
+**THE int32 FENCE IS NOT TRANSFERRED TO THIS ITEM.** The finding that every changed matched
+value is small at one end, and therefore that no cleverer predicate can separate two correct
+oracles, was measured over the int32 population. `UInt32Property` sits in NO scored population,
+so that finding has never been measured on it. Carrying it across would be the population carry
+`clockspeed/save/objects.py` refuses in writing for the joint result. The fence lives on CS-826.
+
+**WHAT IS NOT KNOWN AND SHOULD BE MEASURED FIRST:** whether this type's own values can support
+any oracle at all. Derive its population before designing anything.
+
+## CS-826 - detail
+
+Filed 2026-08-23 as the LARGE of the two residuals of CS-421's close; the item stays OPEN in
+`ROADMAP.md`. This block is a LIVE instruction, not history.
+
+`IntProperty` and `FloatProperty` both carry `anchored_not_unique`. The module states where that
+word is derived that it is NOT a settlement - a candidate set was narrowed and no single type
+has a uniquely pinned order.
+
+**THIS ITEM EXISTED AS AN UNFILED RESIDUAL AND WAS FOUND BY AN ADVERSARY, WHICH IS THE FINDING
+WORTH CARRYING.** CS-421's close was first drafted filing only the `UInt32Property` residual,
+and asserted that "the unsettled part is now a named item rather than an unmeasured majority".
+The majority was this population, and it had no item at all. The shape of the error is worth
+more than the instance: a residual was named after the SMALLEST unsettled population because
+that was the one the prior adjudication happened to mention by name.
+
+**WHY THIS IS THE ONE THAT MATTERS FOR THE PRODUCT.** `IntProperty` and `FloatProperty` are
+inventory counts and clock speeds. CS-500's pillar 3 reads exactly these, so this item and not
+CS-825 is the decode-correctness question sitting under the advisor.
+
+**THE FENCE, MEASURED ON THIS POPULATION AND CARRIED BY THIS ITEM.** Every changed matched value
+in the local library is small at one end, so every CORRECT byte-order oracle must agree with the
+magnitude prior on it. The continuity oracle built on 2026-08-23 is therefore a second
+IMPLEMENTATION and not a second SIGNAL. **DO NOT SPEND A SESSION DESIGNING A CLEVERER
+PREDICATE.** What separates two correct oracles is a save carrying LARGE integers that CHANGE,
+which is an operator action rather than a design problem. The counts are in `docs/LEDGER.md`
+under the 2026-08-23 CS-421 entries.
+
+**DO NOT close this by carrying the joint result across.** `BYTE_ORDER_SURVIVING_CANDIDATES` is
+a singleton, and the module refuses in writing to carry it to any single type: that carry needs
+the premise that this format uses one byte order for every int32 field, and the module records
+that premise as an assumption and not a measurement.
+
+## CS-500 - detail
+
+Relocated from `ROADMAP.md` 2026-08-23 for budget, not deleted. The item stays OPEN in
+`ROADMAP.md`. This block is a LIVE instruction, not history.
+
+**THE 2026-08-15 RULING AND WHY IT WAS SUPERSEDED.** The operator ruled on 2026-08-15 that phase
+5 does not open until a real record's properties can be READ. They can be, and have been since
+session 7. What had quietly become the blocker was decode CORRECTNESS, which is a different
+claim from readability, and the operator was asked to weigh that difference on 2026-08-23 and
+ruled that phase 5 opens now.
+
+**THE 2026-08-15 REASON STILL GOVERNS WHAT THIS GATE NEEDS, rather than when it starts.** Pillars
+3 and 4 are IN this gate, and pillar 3 needs inventory, clock speed and connection state, all
+three of which live in the payload CS-413 is measuring. A rule written against a field no reader
+populates is still the failure to avoid; what changed is that a reader populates them.
+
+**NOTE THE TENSE, because a draft of this got it wrong.** CS-413 is OPEN, and its second
+acceptance clause - the object data section walking to its exact final byte - is unmet by the
+module's own shipped record, which keeps the walk terminator-exact rather than boundary-exact.
+Writing "the payload CS-413 measured" reads that item as finished and it is not.
+
+**ALSO CARRIES A CLAUSE MOVED HERE FROM CS-401**, which could not satisfy it in phase 4 because
+`clockspeed/advisor/ledger.py` does not exist yet: the ledger treats a world token it has never
+seen as a new world rather than failing.
+
 
 ## CS-468 - detail
 
@@ -2002,6 +2120,19 @@ the instance.
 and was raised directly. It is not a claim that any shipped hook echoes the environment today;
 proving that none does is half the acceptance. The other half is writing the rule where the next
 author of a hook will read it, so the third repetition of this pattern is the last.
+
+**ASKED AGAIN AND ANSWERED 2026-08-23. The answer sits with the operator and is deliberately
+NOT written here.** What this file records is only that the question has been PUT, so it stops
+being carried forward every session as though unasked.
+
+**THE ROTATION STATE OF A LIVE CREDENTIAL IS NEVER WRITTEN INTO A TRACKED FILE.** CS-G03 makes
+this repository public eventually, and a tracked sentence asserting the current state of a live
+credential is an adversary-useful standing fact that no phase-7 check would strip. A first
+version of this paragraph wrote that state down; an adversary caught it and was right.
+
+**THIS CHANGES NOTHING ABOUT THIS ITEM'S ACCEPTANCE**, which was never about rotation: the code
+half is still to write the env-echo rule where the next author of a hook will read it, and to
+prove no shipped hook path echoes the environment.
 
 ### Archived 2026-08-22 from `WAKEUP_NOTES.md` - session 28 at full fidelity
 
@@ -3595,6 +3726,10 @@ Relocated 2026-08-18 (session 19) from CS-454's `ROADMAP.md` entry, which carrie
 The code shipped in `60068a9` and `02523f9` and STAYS - the relocated-path form is closed in all four resolution states, the 8.3 form is closed, and three independent vacuity reasons were removed from the controls. Full record in `docs/LEDGER.md` under the 2026-08-16 CS-454 non-closure entry. **FOUR THINGS REMAIN AND ALL FOUR ARE INSIDE THIS ITEM - do not file them as follow-ups, because a follow-up does not satisfy the clause it was filed against, which is what kept CS-422 open.** (1) **THE JUNCTION DEFECT, and it is in the NEW design rather than pre-existing:** `_remember_save_root` stores `_path_forms(str(path))` and never resolves, while `clockspeed/save/workdir.py`'s `_resolved()` deliberately does, so a save root reached through a junction can never match an anchor and a hex account directory rendered WHOLE through the production refusal in `_refuse_if_forbidden`. Reproduced with a real `mklink /J`. (2) **PLACEHOLDER INJECTION DEFEATS POSITION:** the environment pass runs first and rewrites a matching needle to a token, injecting `<` into the account segment; `_PATH_SEGMENT_CLASS` excludes `<>` so position cannot match and the name pass hunts a literal that is gone. With `USERNAME=Ada` and account directory `Ada4f3a...`, 30 of 33 characters render in plaintext WITH THE MARKER PRESENT. Pre-existing, unchanged from `bb7a236`, and a pre-existing instance of the defect this item names does NOT excuse it - this item's own detail entry opens by calling the leak pre-existing. (3) **THE WHITESPACE TAIL:** `My Backup Copy` renders `<account-dir> Backup Copy`. Three widenings of the segment class were measured and ALL THREE ARE WORSE - one eats the diagnostic prose, one leaves the terminal segment fully intact. Do NOT close this by widening the class; the adjudicator verified that decline was correct. The cheap route it names is feeding the matched segment into the name memory after position fires. (4) **THE BARE-SEGMENT FORM** must be closed or recorded as a STATED exemption bounded by `tests/test_redaction_scope.py`'s fence, which currently bounds it without any exemption being written down.
 
 ### CS-421 - status history
+
+**STATUS 2026-08-23: CS-421 IS CLOSED - see `docs/LEDGER.md`. The sentences below saying it
+stays OPEN are history and are not edited. The live fences travel with CS-825 and CS-826; read
+the banner under `CS-421 - detail`.**
 
 
 **STATUS 2026-08-18 (session 19) - relocated from `ROADMAP.md` 2026-08-18 (session 20) for budget, not deleted.** ROUTE (b) IS BUILT AND SHIPPED AND CS-421 STILL DOES NOT CLOSE -
