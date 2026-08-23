@@ -73,6 +73,123 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-22 - CS-823 - FROZEN-FILE GRANT ISSUED by the OPERATOR for `.githooks/pre-commit`, then GRANT-SOUND with conditions from an adjudicator
+Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit, not a
+completion record. NOTHING IS CLOSED BY IT. CS-823 stays OPEN in `ROADMAP.md` until its own closure
+record. It does NOT widen the CS-703 or CS-819 grants recorded below on this same date; both
+explicitly EXCLUDED this file, and the operator decided on 2026-08-22 to file this rather than widen
+a third time in one session. GRANTED BY THE OPERATOR in direct answer to a question naming CS-823,
+this one file and the designed change; the adjudicator that then reviewed it produced none of the
+work it judged and returned GRANT-SOUND with seventeen conditions.
+THE DEFECT AS FILED. `.githooks/pre-commit` tested that the gate FILE existed and then ran it, taking
+the whole decision from `$?`. Nothing proved the gate EXECUTED. `tools/precommit_gate.py` ends in an
+`if __name__ ...` main guard, so a copy truncated anywhere before that guard defines everything and
+executes NOTHING - python exits 0, and the hook read that 0 as a pass.
+RE-MEASURED INDEPENDENTLY rather than inherited from the filing, with real commits staging an em dash
+and the gate truncated in the WORKING TREE only. Intact control: exit 1, HEAD unchanged, 576 bytes of
+stderr. Truncated to 2368 lines, truncated to 1 line, and emptied to 0 bytes: ALL exit 0, HEAD MOVED,
+ZERO bytes of stderr. Compiling every line-boundary prefix, 1020 of 2396 truncation points are
+syntactically valid. The filing recorded 561 bytes and 1019 of 2395. The census difference is a
+counting convention and is fully explained - this run counts the 0-line prefix as a truncation point
+and the filing did not, so both halves are one larger. THE 15-BYTE STDERR DIFFERENCE IS NOT EXPLAINED
+HERE AND NO CAUSE IS INVENTED FOR IT. What the control rests on is the SIGN, not the size: an intact
+gate produces hundreds of bytes of stderr and a gate that did not run produces ZERO.
+A SECOND ESCAPE, FOUND BY THE ADJUDICATOR AND RE-MEASURED INDEPENDENTLY BEFORE BEING BELIEVED. IT IS
+LIVE ON `main` AT `9d591cd` AND THE ITEM DOES NOT CLAIM IT. The CS-703 probe asks a candidate to run
+a `-c` program; the gate is invoked as a FILE. A four-line `sh` wrapper that execs the real
+interpreter for `-c` and exits 0 for anything else therefore answers BOTH probe halves HONESTLY - it
+printed `clockspeed-python-ok` and returned 97, both measured - and ignores the gate entirely.
+Against the TRACKED hook with that wrapper in `CLOCKSPEED_PYTHON`, a staged em dash COMMITTED: exit
+0, HEAD MOVED, ZERO bytes of stderr. The wrapper knows no token and is not built against the probe.
+CS-703 NEITHER CLOSED THIS NOR CLAIMED TO - it validates the `-c` shape and this is the FILE shape -
+and this is the pre-commit twin of the CS-819 silent-interpreter defect. The same guard refuses it.
+THE INDEX IS NO PROTECTION, which is what makes the first shape more than a curiosity. The hook loads
+the gate from the WORKING TREE while the gate reads the files under test from the INDEX, so a correct
+committed copy does not help.
+SCOPE, ONE REGION. In `.githooks/pre-commit` ONLY: replace the gate-invocation tail - lines 205 to
+213, from `cs_python "$GATE" --staged` to the final `exit` - with a captured invocation, a re-emit of
+the captured stdout, the existing non-zero branch unchanged, and a last-line check of the gate's own
+success banner; plus the comment block that documents it. NO line of the interpreter ladder, the
+`cs_probe` function, the `die` helper or the CLOCKSPEED_PYTHON refusal may change. NO line of
+`tools/precommit_gate.py`, `.githooks/commit-msg`, `.githooks/pre-push`, `.claude/settings.json` or
+`scripts/install_hooks.py` may change. The gate is separately frozen and is NOT part of this grant.
+WHY THE GATE'S EXISTING BANNER RATHER THAN A NEW SENTINEL. The gate already writes its success banner
+to stdout as the LAST thing it writes on a zero exit - verified by reading every stdout write in
+`emit`, which is the only function in the file that writes stdout at all. So the invariant is
+established with ZERO change to a separately-frozen file. This asserts exactly what CS-819's sentinel
+asserts, THE PROGRAM RAN TO COMPLETION, and differs only in reusing an existing observable.
+THE PATTERN IS ANCHORED AT BOTH ENDS AND THIS DOES NOT REOPEN THE CS-703 FENCE. That fence -
+EXACT EQUALITY, NOT CONTAINMENT - lives in three code comments and in no doctrine file, and each
+scopes itself by its own text to the PROBE token. It is untouched: the probe still compares a single
+fixed token for exact equality. The banner cannot be compared that way because it embeds two counts
+that differ per commit and the gate that renders them is frozen, so a `case` pattern with only those
+two counts wild is the strictest predicate REACHABLE. Because a `case` pattern matches the WHOLE
+word, it is not a substring search. MEASURED against nine replacement gates: a banner followed by
+another line, a banner preceded by text, a banner head followed by junk, non-numeric counts, and a
+non-zero blocking count are ALL REFUSED, and three of those five would have been ACCEPTED by the
+plain prefix test this replaced.
+THE CARRIAGE RETURN IS STRIPPED RATHER THAN TOLERATED. Because the pattern is anchored at its END, a
+surviving CR would refuse every commit. Python writes CR LF to a pipe on Windows and this bash strips
+both in a command substitution, which is exactly the version-specific tolerance CONVENTIONS.md
+section 16 forbids inheriting. `tr -d` removes the dependency; `tr` is already used by the flood cap
+in this hook, so it is no new dependency, and if `tr` were absent the capture goes empty and the hook
+fails CLOSED.
+THE CAPTURED STDOUT IS RE-EMITTED, NOT SWALLOWED, and this is the one place the design deliberately
+departs from CS-819. That hook's sentinel is noise and is consumed; a test pins that it leaks
+nothing. This gate's stdout is a REPORT - it carries the CS-209 coverage-skip lines, whose whole
+purpose is to tell the operator their detection was REDUCED. Copying CS-819's shape here would delete
+that channel from the only invocation that gates a commit.
+THE BLOCKED PATH REORDERS, DISCLOSED RATHER THAN HIDDEN. MEASURED as line multisets over stdout and
+stderr combined, PRE against POST: the ACCEPT path is SEQUENCE IDENTICAL, and the BLOCKED path is
+identical as a MULTISET with the CS-209 skip lines moving from before the gate's BLOCKED banner to
+after it. NO BYTES ARE LOST on either path. It is intrinsic to capturing one stream while the other
+streams live and is not fully mitigable. The alternatives are worse: a pipeline makes `$?` the LAST
+command's status, which is the exact escape this hook already fences, and a temporary file adds
+lifetime and cleanup for nothing.
+A NEW DEPENDENCY ON A FROZEN FILE IS CREATED AND IS PINNED FROM THE TEST SIDE. Command substitution
+waits for EOF ON THE PIPE rather than for the child to exit, so a gate that spawned a process holding
+stdout open would HANG this hook rather than fail it - and a hung hook reads as a hung credential
+dialog. The gate spawns twice, ruff and git, and both pass `capture_output`, so each child gets its
+own pipes. That is the ONLY thing standing between this capture and a hang, and nothing pinned it, so
+an AST arm now asserts every `subprocess` call in the gate redirects its child's stdout. The gate
+itself is not touched.
+THE CONDITIONS THAT BIND THIS GRANT are the adjudicator's; the load-bearing ones are recorded here
+because this is their only tracked home. PLAIN ASSIGNMENT ONLY on the capture - no `export`, `local`
+or `readonly`, each of which MASKS `$?` to 0 in both bash and dash - with a fence test, which existed
+for commit-msg and had NO pre-commit equivalent until this item. Both new variables initialised
+before first use, because `set -u` is on. The check fires ONLY on a zero exit; the non-zero path is
+behaviourally unchanged. Stderr is NEVER captured. The re-emit uses `printf '%s\n' "$var"` and never
+`printf "$var"`, because a percent sign in a skip reason or a file name would corrupt the output, and
+it is guarded on non-emptiness. The new constant is NOT named with a `CS_PROBE_` prefix, because the
+cross-hook byte-identity extractor sweeps every such line file-wide and a collision would redden an
+arm whose only in-scope repair is editing the other two hooks. The contract test has exactly TWO
+sides, both EXTRACTED from their own files rather than restated in a test constant, with a negative
+control that fails if the pattern degenerates to one matching anything. Every refusal arm asserts
+non-empty output as well as a non-zero exit, because the defect's signature is exit 0 WITH ZERO BYTES
+OF STDERR. Every truncating arm asserts its bytes still COMPILE, because a truncation that raised
+would make the hook refuse for a reason that is not this defect. The refusal text names the changed
+banner format as a candidate cause, so an operator who edits the gate is not sent hunting. The
+acceptance arms drive the REAL tracked hook through real commits. RED is demonstrated before GREEN.
+This record precedes the edit.
+WHAT THIS DOES NOT BUY, stated because a gate that overclaims is worse than none. It is an ACCIDENT
+DETECTOR, NOT A SECURITY BOUNDARY - the same disclosure the probe already carries. A program written
+on purpose to print a well-formed banner passes it - MEASURED, and accepted - and `git commit
+--no-verify` skips every hook regardless. It also makes the hook SAFE, not USABLE, while the gate is
+broken: every commit is refused then, including legitimate ones, which is the same accepted cost
+CS-819 records. And the banner coupling is a permanent cost: any future edit to the gate's PASS line
+refuses every commit until this hook is updated with it. Loud rather than silent, which is the trade
+this hook already states, and the refusal text is what keeps it from costing an hour.
+ONE SIBLING SITE IS REPORTED AND DELIBERATELY NOT FIXED HERE. `.githooks/pre-push` runs pytest and
+reads `$?`. The CS-823 shape does NOT transfer - pytest comes from site-packages, not the working
+tree, so there is no truncatable file - and the zero-collection case is already refused by its exit-5
+guard. What remains is the analogue one level up: THERE IS NO FLOOR ON WORK DONE. pytest exits 0
+having run one test exactly as it does having run the whole suite, and the hook never reads the count.
+That is `pre-push`-only, its fix is a count floor rather than a completion sentinel, and it needs its
+own item and its own grant. It is NOT covered by this grant and nothing here closes it.
+COMMON-MODE RISK. Every measurement here is Windows, msys bash 5.2.37, git 2.53.0.windows.3. CI tier
+2 runs `/bin/sh` as dash on Ubuntu, where python emits no CR at all. The CR strip removes the
+dependency rather than resting on either platform, and what would settle it is the new arms running
+green on the Ubuntu tier-1 job.
 ### 2026-08-22 - CS-819 - CORRECTION and a DISCHARGED RESIDUAL: glibc dash delivers the heredoc, measured by CI, and the platform arms were premised on the wrong shell
 Verification: `tier1` run `32609343989` at `be5cd81`, `ubuntu-latest`, is the measurement. Its log
 carries `AssertionError: the heredoc delivered 4535 bytes under dash`. The repair is
