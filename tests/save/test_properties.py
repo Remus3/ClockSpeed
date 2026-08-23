@@ -1607,10 +1607,28 @@ def test_the_int32_byte_order_is_discriminated_by_the_stored_high_byte() -> None
     whose own control is
     ``tests/save/test_value_anchoring.py::test_the_extent_anchor_control_catches_a_displaced_fixed_width_read``.
 
-    CS-421's sharpest finding is that flipping ``IntProperty`` to ``">i"``
-    reddens only synthetic-fixture tests - fixtures this project packs with the
-    same byte order the reader unpacks with, so they agree by construction and
-    are evidence about nothing.
+    CS-421'S DEMONSTRATION SAID FLIPPING ``IntProperty`` TO ``">i"`` REDDENS
+    ONLY SYNTHETIC-FIXTURE TESTS, AND THAT SENTENCE WAS MEASURED FALSE
+    2026-08-23. It stood in THIS docstring while this very test is one of the
+    things the flip reddens, which is the ADR 0008 shape: a reader checking the
+    claim by running the named mutant finds the thing it denies.
+
+    RE-MEASURED, not inherited. The mutant was asserted live in the LOADED
+    module rather than merely written to the file, the floor was a full-suite
+    green run at the same tree, and the same named tests were re-run 13 of 13
+    after the revert - so the reds are the mutant's and not a library that moved
+    under the run. The flip fails 13 tests in ``tests/save`` and FIVE are
+    LIBRARY-BACKED rather than synthetic: this one, plus
+    ``test_the_shipped_candidate_set_is_what_the_value_oracles_cannot_separate``,
+    ``test_the_int32_oracle_still_separates_a_type_it_can_separate``,
+    ``test_the_displacement_the_value_oracle_tolerates_is_the_one_the_anchor_catches``
+    and
+    ``test_the_mantissa_coarseness_oracle_separates_the_middle_swap_from_the_identity``.
+
+    THE SENTENCE WAS TRUE WHEN IT WAS WRITTEN. What made it false is the
+    magnitude oracle below and CS-469's third oracle, both of which landed under
+    it while nobody re-ran the demonstration. Do not restore it, and do not cite
+    the flip as an open gap without re-running it first.
 
     THE ORACLE'S PREMISE IS A FACT ABOUT THE GAME, WHICH IS WHY IT ESCAPES THAT
     CIRCULARITY. A save's int32 fields are counts, indices and enum ordinals,

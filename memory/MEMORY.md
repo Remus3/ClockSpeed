@@ -41,7 +41,7 @@ Budgets: this file under 20 KB (CI hard fail), each leaf under 6 KB (CI warn).
 
 ## Failure classes
 
-- [Test-quality failure classes](test-quality-failure-classes.md) - ten ways a suite is
+- [Test-quality failure classes](test-quality-failure-classes.md) - the ways a suite is
   green and proves nothing, with mechanisms.
 - [Verification failure classes](verification-failure-classes.md) - ways a check looks
   convincing and proves nothing, with mechanisms.

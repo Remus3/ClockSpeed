@@ -1,6 +1,6 @@
 ---
 name: test-quality-failure-classes
-description: Ten ways a test suite can be green and prove nothing, each with the mechanism that makes it happen.
+description: Ways a test suite can be green and prove nothing, each with the mechanism that makes it happen.
 metadata:
   type: reference
 ---
@@ -45,6 +45,16 @@ case in front of them is an instance of it.
 - **"Zero bad rows" is relative to a SET.** The same file is clean under one filter and
   filthy under another, so the number means nothing without its scope. State the set every
   time the count is reported.
+
+- **A recorded demonstration of a gap can OUTLIVE the gap.** An item's note carries a
+  one-command proof - "patch this constant and only synthetic fixtures redden" - later work
+  closes it, nobody re-runs the command, and the note goes on reading as a live gap. The
+  cost is a session rebuilding machinery that already exists. Measured on CS-421: the cited
+  flip now reddens FIVE library-backed tests, and the false sentence was sitting in the
+  docstring of one of the tests that refutes it. Re-run a cited demonstration before taking
+  the item it justifies. The same applies to a share or a percentage quoted beside it - on
+  CS-421 the population had not moved at all, the EVIDENCE TABLE had, and a headline of
+  "60.1 per cent" was 2.6 per cent by the time anyone re-measured it.
 
 Related: [[verification-failure-classes]], [[orchestrated-multi-agent-is-the-default]],
 [[unknown-content-is-flagged-not-fatal]].

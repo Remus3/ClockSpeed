@@ -73,6 +73,62 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-23 - CS-421 - NOT A COMPLETION RECORD. CS-421 STAYS OPEN; TWO of its own headline claims measured FALSE
+This entry records a MEASUREMENT and closes nothing. No clause was re-graded and no
+acceptance was declared met. It exists because CS-421's documentation described a gap the
+tree had ALREADY closed, and a session taking the item on the written framing would have
+rebuilt machinery that exists. Both corrections are in tracked files per `CLAUDE.md`
+section 8; the item stays OPEN in `ROADMAP.md`.
+
+CLAIM ONE - "60.1 PER CENT OF THE DECODE IS BACKED BY A DECLARED WIDTH AND NOTHING ELSE".
+STALE, and the population is NOT what moved. A census re-derived from the live library
+reproduces every archived figure digit for digit - 185382 measured tags, IntProperty 75136,
+FloatProperty 31318, BoolProperty 4077, Int8Property 824, UInt32Property 9, and 111364 =
+60.1 per cent under the ARCHIVED assumption. What moved is the EVIDENCE TABLE: CS-469
+(session 17) gave `IntProperty` and `FloatProperty` a second oracle, so
+`objects.EVIDENCE_FOR_VALUE_TYPE` records `magnitude_distribution` beside `declared_width`
+for both, and `objects.WIDTH_ONLY_VALUE_TYPES` is BoolProperty, Int8Property and
+UInt32Property alone - **4910 of 185382, which is 2.6 per cent.** The item's own title
+route, "raise the evidence standard for the width-only property types", was therefore
+largely EXECUTED across sessions 16 to 19 and nobody re-measured the headline.
+
+CLAIM TWO - "PATCHING IntProperty TO `">i"` REDDENS ONLY SYNTHETIC-FIXTURE TESTS". FALSE.
+The mutant was asserted live IN THE LOADED MODULE rather than merely written to the file,
+the floor was a full-suite green run at the same tree, and the same named tests were re-run
+after the revert so a save library that moved mid-session could not be mistaken for the
+mutant's effect. **13 tests fail in `tests/save` and FIVE ARE LIBRARY-BACKED**, each
+confirmed by its own skip guard rather than by its name:
+`tests/save/test_properties.py::test_the_int32_byte_order_is_discriminated_by_the_stored_high_byte`
+(`_decode_sweep_or_skip`), and in `test_value_anchoring.py`
+`test_the_shipped_candidate_set_is_what_the_value_oracles_cannot_separate` and
+`test_the_mantissa_coarseness_oracle_separates_the_middle_swap_from_the_identity`
+(`_permutations_or_skip`),
+`test_the_displacement_the_value_oracle_tolerates_is_the_one_the_anchor_catches`
+(`_anchor_or_skip`) and `test_the_int32_oracle_still_separates_a_type_it_can_separate`
+(`_separability_or_skip`). Six are synthetic and the thirteenth is the nested no-install
+gate. **THE FALSE SENTENCE WAS SITTING IN THE DOCSTRING OF ONE OF THE TESTS THAT REFUTES
+IT** - the ADR 0008 shape, where a reader checking the claim by running the named mutant
+finds the thing it denies. It was TRUE when written; the magnitude oracle and CS-469's
+third oracle landed under it and the demonstration was never re-run.
+
+WHAT WAS DELIBERATELY NOT DONE. No new test was added: the flip is already caught in five
+library-backed places, and an arm asserting what five existing arms assert is the
+redundancy this project refuses. No clause was marked met - `BYTE_ORDER_SURVIVING_CANDIDATES`
+being a library-derived SINGLETON is evidence about clause 3, not a verdict on it, and the
+measurement's author is the wrong party to grade it. Whether CS-421 now closes is left to
+the operator and an adjudicator that did not produce this measurement; the three prior
+refusals stand until then.
+
+Verification: claim one - `python -c "from clockspeed.save import objects as o;
+print(sorted(o.WIDTH_ONLY_VALUE_TYPES)); print(sorted(o.EVIDENCE_FOR_VALUE_TYPE['IntProperty']))"`,
+and the table is tied to the running controls by
+`tests/save/test_properties.py::test_the_magnitude_oracle_covers_exactly_the_types_marked_with_it`.
+Claim two - patch `"IntProperty": (4, "<i")` to `">i"` in `clockspeed/save/objects.py`,
+confirm `objects._FIXED_WIDTH_VALUES["IntProperty"] == (4, ">i")` in a FRESH interpreter
+before believing the mutant landed, run `python -m pytest tests/save -q --tb=no -rf` and
+expect 13 failed / 1191 passed with the five names above among them, then
+`git checkout -- clockspeed/save/objects.py` and re-run those 13 for 13 passed. Do NOT read
+the exit code of a `pytest | tail` pipeline - it is tail's, which is the CS-703 shape.
 ### 2026-08-22 - CS-823 - ADVERSARIAL REFUTATION of this session's own suite, and the repair: SIX wrong hooks passed all fourteen arms
 Verification: `tests/test_hook_interpreter_ladder.py::test_a_gate_that_talks_but_never_banners_is_refused`
 and `::test_a_banner_that_is_not_the_last_line_is_refused`. Both were added AFTER the closure record

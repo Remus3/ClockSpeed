@@ -31,6 +31,66 @@ the line becomes a pointer.
 
 ---
 
+## Session 34 - 2026-08-23 - the held push LANDS and CI is green; then TWO of CS-421's own headline claims are measured FALSE
+
+- **Shipped: NOTHING CLOSED, and that is the result rather than a shortfall.** CS-421 STAYS OPEN
+  with a ledger record that closes nothing and grades no clause. Detail in `docs/LEDGER.md`, not
+  here. The session's product is two measured corrections and the refutation of a stated CI risk.
+
+- **THE PUSH SESSION 33 HELD IS DONE, AND THE REASON FOR HOLDING WAS REFUTED FIRST.** Session 33
+  held on one stated risk: the new pre-commit guard's `tr -d` and anchored `case` had never run on
+  dash, and CI tier2 runs ubuntu where `/bin/sh` IS dash. MEASURED before deciding, not after:
+  the whole hook driven end to end under dash in a sandbox with real staged bytes is BYTE-IDENTICAL
+  to bash on all three arms - clean file accepts with the banner at 0 bytes of stderr, a staged em
+  dash blocks at exit 1 and 272 bytes, and a gate truncated to ONE LINE is caught by the CS-823
+  repair at exit 1 and 1187 bytes - plus 15 of 15 banner-logic cases identical. Pre-push then ran
+  the whole suite as its own gate at 2480 passed, 3 skipped, and tier1 `32620243989` is GREEN in
+  4m31s on the pushed head. **The risk was real to state and false to act on, and only measurement
+  could tell those apart.**
+
+- **CS-421's FRAMING WAS STALE IN TWO PLACES AND A SESSION TAKING IT ON THE WRITTEN FRAMING WOULD
+  HAVE REBUILT MACHINERY THAT EXISTS.** This is the session's real finding. FIRST, the "60.1 per
+  cent backed by a declared width and nothing else" headline: a census re-derived from the live
+  library reproduces every archived figure DIGIT FOR DIGIT, so the population never moved - the
+  EVIDENCE TABLE did. CS-469 gave `IntProperty` and `FloatProperty` a second oracle, and width-only
+  is now `objects.WIDTH_ONLY_VALUE_TYPES` alone at 4910 of 185382, **2.6 per cent**. SECOND, the
+  one-command demonstration that the `">i"` flip "reddens only synthetic-fixture tests": FALSE.
+  13 tests fail and **FIVE ARE LIBRARY-BACKED**, each confirmed by its own skip guard rather than
+  by its name. **THE FALSE SENTENCE WAS SITTING IN THE DOCSTRING OF ONE OF THE TESTS THAT REFUTES
+  IT** - the ADR 0008 shape, where a reader checking the claim by running the named mutant finds
+  the thing it denies.
+
+- **THE MUTANT WAS GRADED THE WAY THIS PROJECT REQUIRES, WHICH IS WHY THE RESULT IS BELIEVABLE.**
+  Asserted live in the LOADED module rather than merely written to the file; floored against a
+  full-suite green run at the same tree; and the same 13 names re-run 13 of 13 AFTER the revert, so
+  a save library that moved mid-session could not be mistaken for the mutant's effect. The revert
+  went through `git checkout --` rather than a rewrite, because the mutation script had already
+  turned the file CRLF - the known harness trap arriving through my own tooling.
+
+- **Decisions: no ADR. One fence.** Do not cite the `">i"` flip as an open gap without re-running
+  it. Recorded as an eleventh entry in `memory/test-quality-failure-classes.md`: **A RECORDED
+  DEMONSTRATION OF A GAP CAN OUTLIVE THE GAP.** The count was removed from that file's description
+  and from its index hook at the same time - it had already drifted once, and `CLAUDE.md` section 4
+  forbids restating a measured number in prose.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`. Two things contradicted CS-421's own docs**, and
+  both corrections are in tracked files per `CLAUDE.md` section 8 - `docs/history_notes.md` under
+  **CS-421 - detail**, the docstring in `tests/save/test_properties.py`, and the `ROADMAP.md` title,
+  where the restated "60 per cent" was DELETED rather than updated so it cannot drift a third time.
+
+- **Failed paths, so they are not retried.** A `pytest | tail` pipeline reports TAIL's exit code,
+  not pytest's - it read 0 over a run that failed, which is the CS-703 shape arriving in my own
+  harness. Capture `PYTEST_EXIT` explicitly. And the LEDGER citation guard caught a bare
+  `test_properties.py::...` that does not resolve from the repo root; guarded docs need the full
+  path.
+
+- **Next action: THE CS-421 CLOSE IS AN OPERATOR DECISION AND WAS DELIBERATELY NOT TAKEN.** Clauses
+  1 and 2 are met and graded. Clause 3's evidence exists - `BYTE_ORDER_SURVIVING_CANDIDATES` is a
+  library-derived SINGLETON and a wrong shipped byte order reddens in five library-backed places -
+  but three prior sessions refused this close, the measurement's author is the wrong party to grade
+  it, and `UInt32Property` still cannot be separated by its own population. Put it to an adjudicator
+  that did not produce the measurement, or take CS-817 / CS-821 / CS-824 instead.
+
 ## Session 33 - 2026-08-22 - CS-823 CLOSES and takes a SECOND, unfiled escape with it; then an adversary refuted this session's own suite and SIX wrong hooks passed it
 
 - **Shipped: CS-823 CLOSED. Filed CS-824.** Three commits. Detail in `docs/LEDGER.md`, not here.
@@ -193,76 +253,3 @@ the line becomes a pointer.
   frozen-file grant for `.githooks/pre-commit` before a line is written. `pre-commit` runs the gate
   with no proof of execution, so an empty or truncated `tools/precommit_gate.py` passes it silently -
   and 1019 of 2395 truncation points still compile.
-
-## Session 31 - 2026-08-22 - THREE items close and SIX are filed; every first build was refuted, and the largest finding is that a substituted interpreter disarms every tier-0 gate
-
-- **Shipped: CS-702, CS-809 and CS-810 CLOSED. Filed CS-703, CS-704, CS-811, CS-812, CS-813,
-  CS-814.** Six commits, `f348d85..bfa64e7`. Suite 2393 passed, 3 skipped, exit 0 on the final
-  bytes. Detail in `docs/LEDGER.md`, not here. **SIX NEW ITEMS CAME OUT OF TWO, and four of the six
-  are defects in things that were already green and already reported done.**
-
-- **EVERY FIRST BUILD THIS SESSION WAS REFUTED, and so was every second build of CS-702.** Not one
-  refutation came from reading the code; every one came from an agent RUNNING it - real commits,
-  proven-landed mutants, planted citations. Two builders reported green suites over live
-  fail-opens. **The transferable form: a suite is evidence about the shapes it enumerates and about
-  nothing else.** CS-702's suite was green through three fail-opens because every arm drove ONE
-  commit path and one arm ASSERTED AN ESCAPE AS INTENDED BEHAVIOUR. CS-809's carrier check was
-  blind to three of the four citation shapes its own module judges.
-
-- **THE BIGGEST FINDING IS CS-703 AND IT IS NOT WHAT ANYONE WAS LOOKING FOR.** All three hooks
-  share a byte-identical `cs_probe` that runs the candidate interpreter with `-c` and judges ONLY
-  the exit code, so `true`, `:` and `env` all pass it. The heredoc is then handed to that program,
-  which ignores it and exits 0, and the hook reports success. **`CLOCKSPEED_PYTHON=true` therefore
-  disarms the character-set gate, the secret scan, the commit-msg checks and the whole-suite
-  pre-push run, all at once.** Measured with a real commit that landed a forbidden trailer. This is
-  the CS-806 shape a THIRD time - a rule already decided, never carried to where it also applies.
-
-- **CS-702 CLOSED ON THE MATCHER ALONE, BY OPERATOR DECISION, AND THE PRE-FILTER REWRITE WAS
-  DELIBERATELY NOT SHIPPED.** That is a result, not an unfinished attempt. The rewrite closed four
-  escapes and was refuted anyway: reading the whole buffer is sound for a SCAN and unsound for a
-  SELECTION, so it chose a different subject line from the one git stores, and it rejected
-  `git commit --verbose` whenever the staged diff carried a byte above 0x7E - which blocks
-  precisely the work of fixing such a byte. Its measurements are preserved against CS-813.
-
-- **Decisions: no ADR. Four that must not be reopened as questions.** The trailer predicate is
-  NAME-FREE and deliberately wider than the `docs/GATED.md` operator decision - adjudicated on the
-  CS-209 precedent that narrowing a blocklist by default was DENIED BY MEASUREMENT. **A FENCE IS
-  NOT A SHIELD** - git parses a fenced block whole when a generated trailer shares it, so skipping
-  fences fails OPEN; indentation is the shield. `WAKEUP_NOTES.md` is now GUARDED rather than
-  recorded unguarded, which is what makes CS-809's "stays the only one" clause literally true.
-  Disposition SITES are pinned by COUNT, never by line number.
-
-- **Surprises: nothing contradicted `BOOTSTRAP.md`. Two things contradicted an adjudicator and one
-  contradicted a tracked file I wrote.** Ground truth won each time per CLAUDE.md section 8. The
-  widened grant required reading `commit.cleanup` to license narrowing; measurement says a
-  command-line `--cleanup=` outranks config and is INVISIBLE, so no observable can license it -
-  worse, config `verbatim` plus flag `strip` makes the hook actively wrong in a direction it cannot
-  detect. And **`docs/LEDGER.md` carried a wrong number I put there** - "215-character stored
-  subject" where the measurement is 200 - corrected by a later record, never by a rewrite.
-
-- **Failed paths, so they are not retried.** A resolver that inherits the last full citation seen
-  manufactures 14 false findings. A config-driven cleanup prediction leaves 8 fail-open cells.
-  `commit.verbose` as a truncation proxy reads `true` under `--no-verbose`. And a repair dispatched
-  with worktree ISOLATION is pinned to a NEW worktree and cannot reach the one holding the work -
-  it correctly refused rather than repairing the wrong copy.
-
-- **A TRIPWIRE THE NEXT SESSION WILL HIT AND WILL NOT SEE COMING, and this bullet is deliberately
-  written without spelling the name it is about.** `WAKEUP_NOTES.md` is GUARDED now, and
-  `tests/test_docs_citations.py` carries a RENAMED disposition keyed to this file that pins its
-  dead bare name at EXACTLY ONE site. Read the key out of the table rather than from here. That one
-  site lives inside SESSION 30's entry below. **Archiving session 30 drops the count to zero and
-  turns the suite RED on a correct doc-hygiene move.** When session 30 ages out, update that
-  disposition in the SAME commit. Writing the name into a new session note also breaks it, by
-  taking the count to two - which is how this bullet was first drafted, and the guard caught it.
-
-- **OPERATOR ACTION OUTSTANDING, unrelated to the code: rotate the GitHub personal access token.**
-  Five live credentials sit in the environment every git hook inherits, and an agent dumped that
-  environment into a transcript during a probe. Nothing is committed and no git config key carries
-  them, both checked. Filed as CS-814.
-
-- **In flight: NOTHING from this session.** Working tree clean. The four pre-existing worktrees
-  (CS-492 rounds seven to nine and the two-site spike) and branch `cs807-attribute-half` are
-  UNTOUCHED and still unmerged, exactly as session 30 left them.
-
-- **Next action: CS-703.** It needs a frozen-file grant for all three hooks, and it is tier 1 with
-  a blast radius wider than the item that found it.

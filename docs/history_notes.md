@@ -1711,7 +1711,7 @@ carries a one-line pointer here.
 filed 2026-08-15 by the measurement-validity adversary. **THE FULL ENTRY AND THE STATUS HISTORY FOR SESSIONS 14 AND 16 THROUGH 18 ARE IN `docs/history_notes.md` under **CS-421 - detail** and **CS-421 - status history**, and MUST BE READ BEFORE TAKING THIS ITEM** - relocated for budget, never deleted. They carry the population derivation, the session-16 anchoring fix, the session-17 singleton result and the fence forbidding the data-blocked sentence, and each records a sentence measured FALSE that must not be rewritten. **STATUS: ROUTE (b) IS BUILT AND SHIPPED AND CS-421 STILL DOES NOT CLOSE - THE REFUSAL IS THE RESULT, NOT AN UNFINISHED ATTEMPT.** The session-19 status block is relocated to `docs/history_notes.md` under **CS-421 - status history**. **THE FOUR FENCES THIS ENTRY OWNS ARE RELOCATED to `docs/history_notes.md` under **CS-421 - fences** and MUST BE READ BEFORE TAKING THIS ITEM** - relocated for budget, never deleted. Residuals filed as CS-478 and CS-479.
 
 
-NOTE: filed 2026-08-15 by the measurement-validity adversary. Its split of the 185382 decoded values: redundancy-oracle-backed by a string's own length prefix - ObjectProperty 52457, ByteProperty 5359, NameProperty 9804, EnumProperty 6245, SoftObjectProperty 116, StrProperty 37 = **74018**; cross-section-backed 26146, a strict SUBSET of the ObjectProperty 52457; and **backed by a declared width and nothing else - IntProperty 75136, FloatProperty 31318, BoolProperty 4077, Int8Property 824, UInt32Property 9 = 111364, which is 60.1 per cent of the total.** The width check carrying that 60.1 per cent is the one the module ITSELF records as "defensive rather than measured", and loosening it survives the whole suite. **The endianness half is the sharper problem and has a one-command demonstration:** patching `"IntProperty": (4, "<i")` to `">i"` turns all 75136 IntProperty values into byte-swapped garbage, and the ONLY tests that go red are synthetic-fixture tests whose own section comment states they are not evidence about the game's format. A fixture built from the same belief as the reader agrees with the reader by construction - the session-6 mutant incident in a new costume. What survives today is "185382 values were produced and are self-consistent with our own writer"; what is claimed is "correctly decoded", and the gap between those two sentences is this item.
+NOTE: filed 2026-08-15 by the measurement-validity adversary. Its split of the 185382 decoded values: redundancy-oracle-backed by a string's own length prefix - ObjectProperty 52457, ByteProperty 5359, NameProperty 9804, EnumProperty 6245, SoftObjectProperty 116, StrProperty 37 = **74018**; cross-section-backed 26146, a strict SUBSET of the ObjectProperty 52457; and **backed by a declared width and nothing else - IntProperty 75136, FloatProperty 31318, BoolProperty 4077, Int8Property 824, UInt32Property 9 = 111364, which is 60.1 per cent of the total.** **THAT 60.1 PER CENT WAS MEASURED STALE 2026-08-23 (session 34) AND MUST NOT BE CARRIED FORWARD AS THE HEADLINE.** The POPULATION has not drifted - a census re-derived from the live library reproduces every figure in this sentence digit for digit, the 185382 total included - so what moved is the EVIDENCE TABLE above it: CS-469 (session 17) gave `IntProperty` and `FloatProperty` a second oracle, and `objects.EVIDENCE_FOR_VALUE_TYPE` now records `magnitude_distribution` beside `declared_width` for both. Width-only is owned by `objects.WIDTH_ONLY_VALUE_TYPES` - BoolProperty, Int8Property, UInt32Property - and carries **4910 of 185382, which is 2.6 per cent**, with the table tied to the running controls by `tests/save/test_properties.py::test_the_magnitude_oracle_covers_exactly_the_types_marked_with_it`. Read the share from that constant and the census, never from this sentence. The width check carrying the remaining 2.6 per cent is the one the module ITSELF records as "defensive rather than measured", and loosening it survives the whole suite. **THE ENDIANNESS HALF CARRIED A ONE-COMMAND DEMONSTRATION AND ITS VERDICT WAS MEASURED FALSE 2026-08-23 (session 34).** The demonstration itself still stands: patching `"IntProperty": (4, "<i")` to `">i"` turns all 75136 IntProperty values into byte-swapped garbage. What is FALSE is the sentence that followed it - that the ONLY tests going red are synthetic-fixture ones whose own section comment disclaims them as evidence about the game's format. **RE-MEASURED rather than inherited, with the mutant asserted live in the LOADED module rather than merely written to the file, a full-suite green floor taken at the same tree, and the same named tests re-run 13 of 13 after the revert so the reds cannot be a library that moved mid-session: 13 tests fail and FIVE ARE LIBRARY-BACKED** - `tests/save/test_properties.py::test_the_int32_byte_order_is_discriminated_by_the_stored_high_byte`, whose OWN docstring carried the false sentence, plus `test_the_shipped_candidate_set_is_what_the_value_oracles_cannot_separate`, `test_the_int32_oracle_still_separates_a_type_it_can_separate`, `test_the_displacement_the_value_oracle_tolerates_is_the_one_the_anchor_catches` and `test_the_mantissa_coarseness_oracle_separates_the_middle_swap_from_the_identity` in `tests/save/test_value_anchoring.py`. Each was confirmed library-backed by its own skip guard, not by inspection of its name. The sentence was TRUE WHEN WRITTEN and was left standing while the magnitude oracle and CS-469's third oracle landed under it; nobody re-ran the demonstration. **Do not cite this flip as an open gap without re-running it first.** What the library evidence supports is accordingly narrower than the old closing sentence allowed: `objects.BYTE_ORDER_SURVIVING_CANDIDATES` is a SINGLETON derived from real saves by three oracles, and a wrong shipped byte order reddens in five library-backed places rather than none. Whether that MEETS clause 3 is a judgement this correction deliberately does not make - it records what was measured, and the close stays with the operator and an adjudicator that did not produce the measurement.
 
 ### CS-421 - fences
 
@@ -4397,3 +4397,78 @@ Aged out when session 32 landed and `WAKEUP_NOTES.md` keeps only the last three 
 - **Next action: CS-442 or CS-806, NOT a third narrowing of the attribute arm.** CS-807 has
   now consumed a sweep and two refuted builds, and the direction needs an operator decision
   about which side its acceptance buys before more work goes into it.
+
+## Relocated from WAKEUP_NOTES.md on 2026-08-23 (session 34)
+
+## Session 31 - 2026-08-22 - THREE items close and SIX are filed; every first build was refuted, and the largest finding is that a substituted interpreter disarms every tier-0 gate
+
+- **Shipped: CS-702, CS-809 and CS-810 CLOSED. Filed CS-703, CS-704, CS-811, CS-812, CS-813,
+  CS-814.** Six commits, `f348d85..bfa64e7`. Suite 2393 passed, 3 skipped, exit 0 on the final
+  bytes. Detail in `docs/LEDGER.md`, not here. **SIX NEW ITEMS CAME OUT OF TWO, and four of the six
+  are defects in things that were already green and already reported done.**
+
+- **EVERY FIRST BUILD THIS SESSION WAS REFUTED, and so was every second build of CS-702.** Not one
+  refutation came from reading the code; every one came from an agent RUNNING it - real commits,
+  proven-landed mutants, planted citations. Two builders reported green suites over live
+  fail-opens. **The transferable form: a suite is evidence about the shapes it enumerates and about
+  nothing else.** CS-702's suite was green through three fail-opens because every arm drove ONE
+  commit path and one arm ASSERTED AN ESCAPE AS INTENDED BEHAVIOUR. CS-809's carrier check was
+  blind to three of the four citation shapes its own module judges.
+
+- **THE BIGGEST FINDING IS CS-703 AND IT IS NOT WHAT ANYONE WAS LOOKING FOR.** All three hooks
+  share a byte-identical `cs_probe` that runs the candidate interpreter with `-c` and judges ONLY
+  the exit code, so `true`, `:` and `env` all pass it. The heredoc is then handed to that program,
+  which ignores it and exits 0, and the hook reports success. **`CLOCKSPEED_PYTHON=true` therefore
+  disarms the character-set gate, the secret scan, the commit-msg checks and the whole-suite
+  pre-push run, all at once.** Measured with a real commit that landed a forbidden trailer. This is
+  the CS-806 shape a THIRD time - a rule already decided, never carried to where it also applies.
+
+- **CS-702 CLOSED ON THE MATCHER ALONE, BY OPERATOR DECISION, AND THE PRE-FILTER REWRITE WAS
+  DELIBERATELY NOT SHIPPED.** That is a result, not an unfinished attempt. The rewrite closed four
+  escapes and was refuted anyway: reading the whole buffer is sound for a SCAN and unsound for a
+  SELECTION, so it chose a different subject line from the one git stores, and it rejected
+  `git commit --verbose` whenever the staged diff carried a byte above 0x7E - which blocks
+  precisely the work of fixing such a byte. Its measurements are preserved against CS-813.
+
+- **Decisions: no ADR. Four that must not be reopened as questions.** The trailer predicate is
+  NAME-FREE and deliberately wider than the `docs/GATED.md` operator decision - adjudicated on the
+  CS-209 precedent that narrowing a blocklist by default was DENIED BY MEASUREMENT. **A FENCE IS
+  NOT A SHIELD** - git parses a fenced block whole when a generated trailer shares it, so skipping
+  fences fails OPEN; indentation is the shield. `WAKEUP_NOTES.md` is now GUARDED rather than
+  recorded unguarded, which is what makes CS-809's "stays the only one" clause literally true.
+  Disposition SITES are pinned by COUNT, never by line number.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`. Two things contradicted an adjudicator and one
+  contradicted a tracked file I wrote.** Ground truth won each time per CLAUDE.md section 8. The
+  widened grant required reading `commit.cleanup` to license narrowing; measurement says a
+  command-line `--cleanup=` outranks config and is INVISIBLE, so no observable can license it -
+  worse, config `verbatim` plus flag `strip` makes the hook actively wrong in a direction it cannot
+  detect. And **`docs/LEDGER.md` carried a wrong number I put there** - "215-character stored
+  subject" where the measurement is 200 - corrected by a later record, never by a rewrite.
+
+- **Failed paths, so they are not retried.** A resolver that inherits the last full citation seen
+  manufactures 14 false findings. A config-driven cleanup prediction leaves 8 fail-open cells.
+  `commit.verbose` as a truncation proxy reads `true` under `--no-verbose`. And a repair dispatched
+  with worktree ISOLATION is pinned to a NEW worktree and cannot reach the one holding the work -
+  it correctly refused rather than repairing the wrong copy.
+
+- **A TRIPWIRE THE NEXT SESSION WILL HIT AND WILL NOT SEE COMING, and this bullet is deliberately
+  written without spelling the name it is about.** `WAKEUP_NOTES.md` is GUARDED now, and
+  `tests/test_docs_citations.py` carries a RENAMED disposition keyed to this file that pins its
+  dead bare name at EXACTLY ONE site. Read the key out of the table rather than from here. That one
+  site lives inside SESSION 30's entry below. **Archiving session 30 drops the count to zero and
+  turns the suite RED on a correct doc-hygiene move.** When session 30 ages out, update that
+  disposition in the SAME commit. Writing the name into a new session note also breaks it, by
+  taking the count to two - which is how this bullet was first drafted, and the guard caught it.
+
+- **OPERATOR ACTION OUTSTANDING, unrelated to the code: rotate the GitHub personal access token.**
+  Five live credentials sit in the environment every git hook inherits, and an agent dumped that
+  environment into a transcript during a probe. Nothing is committed and no git config key carries
+  them, both checked. Filed as CS-814.
+
+- **In flight: NOTHING from this session.** Working tree clean. The four pre-existing worktrees
+  (CS-492 rounds seven to nine and the two-site spike) and branch `cs807-attribute-half` are
+  UNTOUCHED and still unmerged, exactly as session 30 left them.
+
+- **Next action: CS-703.** It needs a frozen-file grant for all three hooks, and it is tier 1 with
+  a blast radius wider than the item that found it.
