@@ -202,12 +202,160 @@ else
         "The commit is BLOCKED: an unrunnable gate is not a passed gate."
 fi
 
-cs_python "$GATE" --staged
+# THE HOOK REQUIRES PROOF THE GATE RAN, NOT MERELY THAT IT EXITED 0.
+#
+# CS-823. The check at the top proves the gate FILE is present and the ladder
+# above proves the INTERPRETER runs a program and can report a failure. NEITHER
+# PROVES THE GATE EXECUTED, and two ordinary shapes exploit exactly that gap.
+#
+# ONE, A TRUNCATED GATE. `tools/precommit_gate.py` ends in an `if __name__ ...`
+# main guard, so a copy truncated anywhere before that guard defines everything
+# and executes NOTHING - python exits 0, and the old `exit $?` propagated that 0
+# faithfully. MEASURED with real commits staging an em dash, the gate truncated
+# in the WORKING TREE only: the intact gate refuses with exit 1, HEAD unchanged
+# and 576 bytes of stderr, while truncated to 2368 lines, truncated to 1 line,
+# and emptied ALL exit 0, MOVE HEAD, and write ZERO BYTES of stderr. Compiling
+# every line-boundary prefix, 1020 of 2396 truncation points are syntactically
+# valid - closer to a coin flip than to a corner case.
+#
+# TWO, AN INTERPRETER THAT ANSWERS THE PROBE AND RUNS NOTHING ELSE. The probe
+# asks the candidate to run a `-c` program; the gate is invoked as a FILE. A
+# wrapper that delegates `-c` faithfully therefore answers BOTH probe halves
+# with the computed token and the returned 97, and still ignores the gate
+# entirely. MEASURED on this hook before the repair: a four-line `sh` wrapper
+# that execs the real python for `-c` and exits 0 for anything else COMMITTED a
+# staged em dash - exit 0, HEAD moved, ZERO bytes of stderr - while passing the
+# probe. It knows no token and is not built against the probe. CS-703 neither
+# closed this nor claimed to: the probe validates the `-c` shape, and this is
+# the FILE shape.
+#
+# THE INDEX IS NO PROTECTION, and that is what makes the first one more than a
+# curiosity. This hook loads the gate from the WORKING TREE while the gate reads
+# the files under test from the INDEX, so a correct committed copy does not
+# help.
+#
+# THE PROOF IS THE GATE'S OWN SUCCESS BANNER, so nothing in the gate changes -
+# it is separately frozen and outside this item's grant. The gate writes that
+# banner to stdout as the LAST thing it writes on a zero exit. This captures
+# stdout and, on a ZERO exit, requires the banner AS THE LAST LINE. A gate that
+# never ran yields exit 0 with EMPTY stdout and is refused.
+#
+# THE PATTERN IS ANCHORED AT BOTH ENDS, with ONLY the two counts wild. A `case`
+# pattern matches the WHOLE word, so this is not a substring search: a banner
+# followed by anything, preceded by anything, or sitting mid-sentence is
+# REFUSED. Exact equality is unavailable rather than declined - the banner
+# embeds two counts that differ per commit, and the gate that renders them is
+# frozen - so this is the strictest predicate actually reachable here. It does
+# NOT relax the probe's exact-equality rule above, which compares a single fixed
+# token and still does.
+#
+# THE CARRIAGE RETURN IS STRIPPED RATHER THAN TOLERATED. Python writes CR LF to
+# a pipe on Windows, and the comment above the probe records that THIS bash
+# strips both in a command substitution - which is precisely the version
+# specific tolerance CONVENTIONS.md section 16 says to re-measure rather than
+# inherit. Because the pattern is anchored at its END, a surviving CR would
+# refuse every commit. Stripping removes the dependency instead of resting on
+# it. `tr` is already used by the flood cap above, so it is no new dependency.
+#
+# STDERR IS DELIBERATELY NOT CAPTURED, so the gate's BLOCKED banner and all of
+# its diagnostics still stream to the terminal as they are produced.
+#
+# THE CAPTURED STDOUT IS RE-EMITTED, NOT SWALLOWED, and this is where CS-823
+# departs from CS-819 ON PURPOSE. That hook's sentinel is noise, so it is
+# consumed. This gate's stdout is a REPORT: it carries the CS-209 coverage-skip
+# lines, which exist to tell the operator their detection was REDUCED. Swallowing
+# them would silence the one channel that says a check did not cover something.
+#
+# THE BLOCKED PATH REORDERS, AND THAT IS DISCLOSED RATHER THAN HIDDEN. Capturing
+# one stream while the other streams live means the gate's stdout is re-emitted
+# AFTER its stderr. MEASURED as line multisets over both streams: the ACCEPT
+# path is SEQUENCE IDENTICAL to the pre-capture hook, and the BLOCKED path is
+# identical as a MULTISET, with the CS-209 skip lines moving from before the
+# BLOCKED banner to after it. NO BYTES ARE LOST on either path. The alternatives
+# are worse: a pipeline makes `$?` the LAST command's status, which is the exact
+# escape fenced above, and a temporary file adds lifetime and cleanup for
+# nothing.
+#
+# PLAIN ASSIGNMENT ONLY, and this is the most dangerous line here to get wrong.
+# `export`, `local` and `readonly` in front of the capture each MASK $? to 0 in
+# both bash and dash, which would silently restore the exact fail-open this
+# guard exists to close.
+#
+# DISCLOSED, LATENT: command substitution waits for EOF ON THE PIPE rather than
+# for the child to exit, so a gate that spawned a process holding stdout open
+# would HANG this hook rather than fail it. Both subprocess calls in the gate
+# pass capture_output, so the child gets its own pipes and cannot inherit this
+# one. That is the only thing standing between this capture and a hang, so it is
+# pinned from the test side rather than left to a reader.
+#
+# THIS IS AN ACCIDENT DETECTOR, NOT A SECURITY BOUNDARY - the same disclosure
+# the probe carries above, repeated because this guard invites the same
+# misreading. It catches a gate that DID NOT RUN. It stops nobody who means to
+# get past it: a program written on purpose to print the banner passes it, and
+# `git commit --no-verify` skips every hook here without needing to. Never cite
+# this guard as evidence that a commit was checked.
+CS_GATE_PASS='precommit_gate: PASS - '
+
+# BOTH initialised BEFORE first use. The refusal below renders the last line,
+# and `set -u` would abort the hook on an unset one instead.
+CS_GATE_OUT=""
+CS_GATE_LAST=""
+CS_GATE_OUT=$(cs_python "$GATE" --staged)
 STATUS=$?
 
+# RE-EMITTED BEFORE ANY DECISION IS TAKEN, so the gate's own stdout reaches the
+# terminal on the refusal path as well as the success path. The format is FIXED
+# and the capture is an ARGUMENT: `printf "$CS_GATE_OUT"` would let a percent
+# sign in a skip reason or a file name corrupt the output. The emptiness guard
+# is load-bearing - printf on an empty capture would print a blank line the gate
+# never wrote.
+if [ -n "$CS_GATE_OUT" ]; then
+    printf '%s\n' "$CS_GATE_OUT"
+fi
+
+# THE NON-ZERO PATH IS UNCHANGED. The gate already refused and said why on
+# stderr; this guard has nothing to add and must not replace its verdict.
 if [ "$STATUS" -ne 0 ]; then
     printf 'clockspeed pre-commit: BLOCKED (gate exit %s). HEAD is unchanged.\n' \
         "$STATUS" >&2
+    exit "$STATUS"
 fi
 
-exit "$STATUS"
+# THE LAST LINE ONLY. A newline held in a variable is the portable way to ask
+# for one in a parameter expansion without spawning a process. On a capture with
+# no newline this yields the whole string, and on an EMPTY capture it yields the
+# empty string - which is the case that matters, and which the refusal catches.
+CS_NL='
+'
+CS_GATE_LAST=${CS_GATE_OUT##*"$CS_NL"}
+CS_GATE_LAST=$(printf '%s' "$CS_GATE_LAST" | tr -d '\r')
+
+case "$CS_GATE_LAST" in
+    "$CS_GATE_PASS"[0-9]*" checked, "[0-9]*" skipped, 0 blocking")
+        ;;
+    *)
+        die "the gate DID NOT RUN, so nothing staged was ever checked." \
+            "It exited 0 without writing its own success banner as the last" \
+            "line of its stdout." \
+            "Expected that line to read, with the two counts varying:" \
+            "[${CS_GATE_PASS}N checked, N skipped, 0 blocking]" \
+            "Observed last line, verbatim: [$CS_GATE_LAST]" \
+            "THREE CAUSES ARE KNOWN, and the third is the likeliest if you were" \
+            "just editing the gate:" \
+            "1. tools/precommit_gate.py is TRUNCATED or EMPTY in the WORKING" \
+            "TREE. It ends in a __main__ guard, so a truncated copy defines" \
+            "everything, executes nothing and exits 0; roughly two in five" \
+            "truncation points still compile. A correct COMMITTED copy does not" \
+            "help - this hook loads the gate from the working tree while the" \
+            "gate reads the staged bytes from the index." \
+            "2. CLOCKSPEED_PYTHON names a wrapper that answers the -c probe but" \
+            "does not run a FILE it is handed. Unset it and retry." \
+            "3. THE GATE'S PASS BANNER FORMAT CHANGED and this hook was not" \
+            "updated with it. The two are pinned together by" \
+            "tests/test_hook_interpreter_ladder.py; run that module and it will" \
+            "name which side moved." \
+            "The commit is BLOCKED: an unrun gate is not a passed gate."
+        ;;
+esac
+
+exit 0

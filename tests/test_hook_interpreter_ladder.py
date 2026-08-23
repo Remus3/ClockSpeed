@@ -46,6 +46,8 @@ sandbox withholds its paths from its repr; and the output filter drops any line
 carrying a drive-letter path (CLAUDE.md non-negotiables 3 and 12).
 """
 
+import ast
+import fnmatch
 import itertools
 import os
 import re
@@ -1615,4 +1617,416 @@ def test_no_violation_class_slips_through_under_dash(
         assert SENTINEL_REFUSAL.encode("ascii") not in err, (
             f"{label} was refused by the sentinel on a DELIVERING build, which means "
             "the program did not arrive after all and the branch selector is wrong"
+        )
+
+
+# --- CS-823: the gate must PROVE it ran -------------------------------------
+#
+# THE DEFECT, IN TWO SHAPES. `.githooks/pre-commit` tested that the gate FILE
+# existed and then ran it, taking the whole decision from `$?`. Nothing proved
+# the gate EXECUTED.
+#
+# SHAPE ONE, A TRUNCATED GATE. `tools/precommit_gate.py` ends in an
+# `if __name__ ...` main guard, so a copy truncated anywhere before that guard
+# defines everything and executes NOTHING - python exits 0, and the hook read
+# that 0 as a pass. MEASURED before the repair, with real commits staging an em
+# dash and the gate truncated in the WORKING TREE only: truncated to 2368 lines,
+# truncated to 1 line and emptied ALL exited 0, MOVED HEAD and wrote ZERO BYTES
+# of stderr, against an intact control that refused with exit 1 and 576 bytes.
+#
+# SHAPE TWO, AND IT IS NOT WHAT THE ITEM WAS FILED ABOUT. The CS-703 probe asks
+# a candidate to run a `-c` program; the gate is invoked as a FILE. A wrapper
+# that delegates `-c` faithfully answers BOTH probe halves - the computed token
+# and the returned 97 - while ignoring the gate entirely. MEASURED on the
+# tracked hook: such a wrapper COMMITTED a staged em dash with exit 0, HEAD
+# moved and ZERO bytes of stderr. It knows no token and is not built against the
+# probe. `FILE_BLIND_SHIM` below is that wrapper.
+#
+# THE INDEX IS NO PROTECTION, and the sandbox reproduces that faithfully rather
+# than by accident. The hook loads the gate from the WORKING TREE while the gate
+# reads the files under test from the INDEX, and ``make_sandbox`` copies the gate
+# in WITHOUT staging it - so truncating the working-tree copy leaves the index
+# untouched, which is exactly the exposure.
+#
+# THE COMPILE CONTROL IS NOT OPTIONAL AND IT IS WHY THESE ARMS MEAN ANYTHING. A
+# truncation that did NOT compile makes python exit 1, and the hook then refuses
+# for a reason that has nothing to do with this guard - the arm would go green
+# while proving nothing about the defect. Every arm that truncates asserts its
+# bytes still COMPILE first. Same control the CS-819 dash arms take from
+# delivered bytes.
+#
+# EVERY REFUSAL ARM ASSERTS NON-EMPTY OUTPUT AS WELL AS A NON-ZERO EXIT, because
+# the defect's signature is exit 0 WITH ZERO BYTES OF STDERR. An arm reading only
+# the exit code cannot tell the repair from the defect.
+#
+# WHY BOTH A DIRTY AND A CLEAN ARM. The dirty arm proves a forbidden byte cannot
+# get through an unrun gate. The clean arm proves the guard refuses on the GATE'S
+# state rather than on the CONTENT - an unrun gate is not a passed gate even when
+# there was nothing to find. Without the clean arm the guard could be satisfied
+# by a hook that merely re-checked the staged bytes itself in shell.
+
+GATE_REFUSAL: Final = "DID NOT RUN"
+
+# The gate's own main guard. Any truncation BEFORE this line that compiles
+# defines everything and executes nothing, which is the whole defect.
+GATE_MAIN_GUARD: Final = 'if __name__ == "__main__":'
+
+# The truncation points the arms drive: one line before the main guard, one at
+# the very top, and the empty file. ``None`` means empty.
+TRUNCATIONS: Final = (2368, 1, None)
+
+# Answers the `-c` probe by delegating to the real interpreter, and does nothing
+# at all with a FILE. This is the shape that makes the interpreter ladder
+# insufficient on its own: it passes both probe halves honestly.
+FILE_BLIND_SHIM: Final = (
+    '#!/bin/sh\nif [ "$1" = "-c" ]; then\n    exec "' + REAL_PYTHON_POSIX + '" "$@"\nfi\nexit 0\n'
+)
+
+
+def gate_success_format() -> str:
+    """The gate's success format string, LOCATED in its source rather than restated.
+
+    ONE SIDE OF THE CONTRACT. The locator is the fragment ``: PASS - ``, which is
+    narrow enough to find exactly one line and wide enough that it does not
+    restate the format it is looking for. What comes back is the gate's own
+    declaration, so a change there surfaces as a DISAGREEMENT with the hook
+    rather than as two files quietly agreeing with a stale constant in a test.
+    """
+    gate = TRACKED_GATE.read_bytes().decode("ascii")
+    hits = [line.strip() for line in gate.split("\n") if ": PASS - " in line]
+    assert len(hits) == 1, f"expected one PASS format line in the gate, found {len(hits)}"
+    literal = hits[0]
+    stale = "the gate's PASS line is no longer a bare string literal, so this locator is stale"
+    assert literal.startswith('"'), stale
+    assert literal.endswith('"'), stale
+    return literal[1:-1].replace("\\n", "")
+
+
+def gate_name() -> str:
+    """The gate's own tool name, read from its source."""
+    gate = TRACKED_GATE.read_bytes().decode("ascii")
+    marker = 'GATE_NAME = "'
+    assert gate.count(marker) == 1, "the gate's name declaration moved"
+    start = gate.index(marker) + len(marker)
+    return gate[start : gate.index('"', start)]
+
+
+def gate_success_line(checked: int, skipped: int) -> str:
+    """What the gate actually writes as its last stdout line on a zero exit."""
+    return gate_success_format() % (gate_name(), checked, skipped)
+
+
+# Derived, never restated. Used only to search raw output for the banner's head.
+GATE_SUCCESS_HEAD: Final = "%s: PASS - " % gate_name()
+
+
+def hook_head_and_pattern() -> tuple[str, str]:
+    """What the HOOK declares it requires: the banner head, and its case pattern.
+
+    THE OTHER SIDE OF THE CONTRACT, also extracted rather than restated. The
+    shell ``case`` pattern is translated into the glob ``fnmatch`` understands by
+    dropping the shell quoting - the two share the same ``*`` and ``[...]``
+    vocabulary for everything this pattern uses.
+    """
+    raw = (HOOKS_DIR / PRE_COMMIT).read_bytes().decode("ascii")
+    marker = "CS_GATE_PASS='"
+    assert raw.count(marker) == 1, "the hook does not declare the banner head exactly once"
+    start = raw.index(marker) + len(marker)
+    head = raw[start : raw.index("'", start)]
+
+    lines = [line.strip() for line in raw.split("\n") if line.strip().startswith('"$CS_GATE_PASS"')]
+    assert len(lines) == 1, f"expected one case pattern in the hook, found {len(lines)}"
+    pattern = lines[0].rstrip(")").replace('"$CS_GATE_PASS"', head).replace('"', "")
+    return head, pattern
+
+
+def gate_prefix(lines: int | None) -> bytes:
+    """The first ``lines`` lines of the tracked gate, or empty bytes for ``None``."""
+    if lines is None:
+        return b""
+    body = TRACKED_GATE.read_bytes().split(b"\n")[:lines]
+    return b"\n".join(body) + b"\n"
+
+
+def gate_compiles(lines: int | None) -> bool:
+    """Whether that prefix is syntactically valid python.
+
+    An empty file compiles, which is precisely why the empty case fails OPEN
+    rather than loudly: python accepts it, does nothing, and exits 0.
+    """
+    try:
+        compile(gate_prefix(lines), "gate-under-test", "exec")
+    except SyntaxError:
+        return False
+    return True
+
+
+def truncate_gate(box: Sandbox, lines: int | None) -> None:
+    """Rewrite the sandbox's WORKING-TREE gate. The index is deliberately untouched."""
+    (box.work / "tools" / "precommit_gate.py").write_bytes(gate_prefix(lines))
+
+
+def refused_as_unrun(attempt: Attempt) -> bool:
+    """Whether the CS-823 guard fired, not merely that something refused.
+
+    ``blocked`` alone is satisfied by any refusal at all - the gate's own
+    verdict, a bad identity, nothing staged - so an arm asserting only
+    ``blocked`` could go green while this guard did nothing. Same reasoning as
+    ``Attempt.blocked_by_the_interpreter_check``.
+    """
+    return attempt.blocked and any(GATE_REFUSAL in line for line in attempt.hook_output)
+
+
+def commit_and_scan(box: Sandbox, *, content: bytes, literal: str) -> tuple[Attempt, bool]:
+    """A real commit, plus whether the RAW output carried one fixed literal.
+
+    ``hook_output`` keeps only lines that begin with the hook's own banner or two
+    spaces, and the gate's success banner is neither - so it is filtered out by
+    design and an arm cannot see it through an ``Attempt``. This asks about ONE
+    FIXED LITERAL instead of widening that filter: the raw text may name the
+    sandbox path, so it is searched and then dropped, never returned and never
+    rendered into an assertion message (CLAUDE.md non-negotiables 3 and 12).
+    """
+    payload = box.work / f"{PAYLOAD_STEM}-{next(_PAYLOADS)}.txt"
+    payload.write_bytes(content)
+    env = env_naming(box, None)
+
+    staged = run_git(box, "add", payload.name, env=env)
+    assert staged.returncode == 0, "the sandbox change could not be staged"
+
+    message_file = box.hooks.parent / MESSAGE_NAME
+    message_file.write_bytes(LEGITIMATE.encode("utf-8"))
+
+    before = head_of(box, env)
+    proc = run_git(box, "commit", "-F", str(message_file), env=env)
+    after = head_of(box, env)
+    attempt = Attempt(proc.returncode, before, after, hook_output(proc.stderr, box.prefix))
+    return attempt, literal in (proc.stdout + proc.stderr)
+
+
+def test_the_main_guard_sits_where_the_truncation_arms_assume() -> None:
+    """The premise the arms rest on, measured rather than asserted in prose.
+
+    If the gate were restructured so that its main guard moved above 2368, the
+    2368-line arm would stop being a truncation-before-the-guard case and would
+    silently start testing something else. This fails instead.
+    """
+    lines = TRACKED_GATE.read_bytes().decode("ascii").split("\n")
+    hits = [number for number, line in enumerate(lines, 1) if line.startswith(GATE_MAIN_GUARD)]
+    assert len(hits) == 1, f"the gate carries {len(hits)} main guards, expected exactly one"
+    assert hits[0] > max(point for point in TRUNCATIONS if point is not None), (
+        "a truncation point now sits AFTER the main guard, so it would raise "
+        "rather than exit 0 and the arm would refuse for the wrong reason"
+    )
+
+
+@pytest.mark.parametrize("lines", TRUNCATIONS, ids=lambda value: f"lines={value}")
+def test_a_truncated_gate_cannot_wave_a_forbidden_byte_through(
+    tmp_path: Path, isolated: Environment, lines: int | None
+) -> None:
+    """The item, end to end: a gate that never ran must not pass a staged em dash.
+
+    Every one of these COMMITTED before the repair, with exit 0 and completely
+    empty stderr.
+    """
+    assert gate_compiles(lines), (
+        f"the {lines}-line prefix does not compile, so python would exit 1 and "
+        "this arm would pass for a reason that is not the defect"
+    )
+    box = make_sandbox(tmp_path, isolated, PRE_COMMIT)
+    truncate_gate(box, lines)
+
+    attempt = commit_attempt(box, content=EM_DASH_CONTENT)
+    assert attempt.hook_output, (
+        f"a gate truncated to {lines} lines was answered with NO hook output at "
+        "all, which is the defect's own signature"
+    )
+    assert refused_as_unrun(attempt), (
+        f"a gate truncated to {lines} lines did not refuse as unrun:\n{attempt.report}"
+    )
+
+
+@pytest.mark.parametrize("lines", TRUNCATIONS, ids=lambda value: f"lines={value}")
+def test_a_truncated_gate_refuses_a_clean_commit_too(
+    tmp_path: Path, isolated: Environment, lines: int | None
+) -> None:
+    """An unrun gate is not a passed gate, whatever was staged.
+
+    THE ACCEPTED COST, stated rather than discovered later. While the gate is
+    broken every commit is refused, including legitimate ones - the hook is SAFE,
+    not USABLE, in that state. That is the same trade CS-819 records, and it is
+    correct here for the same reason: the alternative is committing bytes nothing
+    ever checked.
+    """
+    assert gate_compiles(lines), f"the {lines}-line prefix does not compile"
+    box = make_sandbox(tmp_path, isolated, PRE_COMMIT)
+    truncate_gate(box, lines)
+
+    attempt = commit_attempt(box, content=CLEAN_CONTENT)
+    assert refused_as_unrun(attempt), (
+        f"a clean commit passed a gate truncated to {lines} lines, so the guard "
+        f"is judging the CONTENT rather than whether the gate ran:\n{attempt.report}"
+    )
+
+
+def test_an_interpreter_that_cannot_run_a_file_is_refused_by_the_gate_guard(
+    tmp_path: Path, isolated: Environment
+) -> None:
+    """SHAPE TWO: the probe passes honestly and the gate still never runs.
+
+    THE PROBE CANNOT CATCH THIS AND IS NOT SUPPOSED TO. It validates the ``-c``
+    invocation shape; the gate is invoked as a FILE. This wrapper delegates
+    ``-c`` faithfully - so it prints the computed token AND returns 97 - and
+    exits 0 on everything else. MEASURED on the tracked hook before this guard:
+    the staged em dash COMMITTED, exit 0, HEAD moved, zero bytes of stderr.
+
+    THE ATTRIBUTION MATTERS. The refusal must come from the GATE guard, not from
+    the interpreter probe, because the probe is satisfied. An arm asserting only
+    ``blocked`` would not be able to tell those apart.
+    """
+    box = make_sandbox(tmp_path, isolated, PRE_COMMIT)
+    shim = write_shim(box.hooks.parent / "shims", "file-blind.sh", FILE_BLIND_SHIM)
+
+    attempt = commit_attempt(box, content=EM_DASH_CONTENT, interpreter=shim.as_posix())
+    assert attempt.hook_output, (
+        "the file-blind interpreter was answered with NO hook output at all, "
+        "which is the defect's own signature"
+    )
+    assert refused_as_unrun(attempt), (
+        f"a file-blind interpreter was not refused by the gate guard:\n{attempt.report}"
+    )
+    assert not attempt.blocked_by_the_interpreter_check, (
+        f"the PROBE refused this, so the arm is not measuring the gate guard and "
+        f"the shim no longer answers the probe honestly:\n{attempt.report}"
+    )
+
+
+def test_an_intact_gate_still_blocks_by_its_own_rule(tmp_path: Path, isolated: Environment) -> None:
+    """The regression control. The gate's own verdict must not be replaced by this guard.
+
+    A guard that refused everything would pass every arm above and would have
+    broken the hook completely. This pins that an intact gate still refuses an em
+    dash BY ITS OWN RULE and NOT as unrun.
+    """
+    box = make_sandbox(tmp_path, isolated, PRE_COMMIT)
+    attempt = commit_attempt(box, content=EM_DASH_CONTENT)
+    assert attempt.blocked, f"an intact gate did not block an em dash:\n{attempt.report}"
+    assert not refused_as_unrun(attempt), (
+        f"an INTACT gate was reported as unrun, so the guard fires on a gate that "
+        f"did run and the hook is broken:\n{attempt.report}"
+    )
+
+
+def test_an_intact_gate_still_accepts_a_clean_commit(tmp_path: Path, isolated: Environment) -> None:
+    """The arm that proves the sandbox can say YES, and the LIVE half of the contract.
+
+    THIS IS THE EXECUTABLE CONTRACT TEST. The hook demands the gate's success
+    banner, so if the gate's banner text ever changed, this arm goes RED - a
+    clean commit would be refused as unrun. The text arm below pins the same
+    coupling statically; this one pins it against what the gate actually emits.
+    """
+    box = make_sandbox(tmp_path, isolated, PRE_COMMIT)
+    attempt = commit_attempt(box, content=CLEAN_CONTENT)
+    assert attempt.accepted, (
+        f"a clean commit through an intact gate was refused, so the hook and the "
+        f"gate no longer agree on the success banner:\n{attempt.report}"
+    )
+
+
+def test_the_gate_output_still_reaches_the_terminal(tmp_path: Path, isolated: Environment) -> None:
+    """The capture must not SWALLOW what the operator used to see.
+
+    CS-819 consumes its sentinel on purpose - it is noise. This is the opposite
+    case: the gate's stdout carries the CS-209 coverage-skip lines, which exist
+    to say a check's detection was REDUCED. Swallowing them would silence the one
+    channel that reports a gap. Measured when the guard shipped: the accept path
+    is SEQUENCE IDENTICAL to the pre-capture hook and the blocked path is
+    identical as a MULTISET, with the skip lines moving after the gate's stderr.
+    """
+    box = make_sandbox(tmp_path, isolated, PRE_COMMIT)
+    attempt, carried = commit_and_scan(box, content=CLEAN_CONTENT, literal=GATE_SUCCESS_HEAD)
+    assert attempt.accepted, f"the clean commit was refused:\n{attempt.report}"
+    assert carried, (
+        "the gate's success banner never reached the terminal, so the capture "
+        "swallowed the report the operator relies on"
+    )
+
+
+def test_the_hook_and_the_gate_agree_on_the_success_banner() -> None:
+    """TWO SIDES, NEITHER RESTATED HERE. The static half of the contract.
+
+    The gate declares what it WRITES and the hook declares what it REQUIRES.
+    Both are extracted from their own files and matched against each other, so
+    this arm cannot go green because a constant in a test agrees with neither.
+    If an edit moved one side, EVERY commit would be refused with a message
+    saying the gate did not run - loudly, but for an invented reason.
+    """
+    head, pattern = hook_head_and_pattern()
+    rendered = gate_success_line(3, 1)
+
+    assert rendered.startswith(head), (
+        "the gate's rendered banner no longer begins with the head the hook declares"
+    )
+    assert fnmatch.fnmatchcase(rendered, pattern), (
+        "the gate's rendered banner does not match the pattern the hook requires"
+    )
+
+    # THE NEGATIVE CONTROL. Without it this arm would pass against a pattern that
+    # matched anything at all - an empty head, or a bare `*`, either of which
+    # would silently reopen the fail-open.
+    for mangled in (
+        rendered + " and then some",
+        "note: " + rendered,
+        rendered.replace("0 blocking", "9 blocking"),
+        rendered.replace("3 checked", "x checked"),
+    ):
+        assert not fnmatch.fnmatchcase(mangled, pattern), (
+            f"the hook's pattern accepts a mangled banner, so it is not anchored: {mangled!r}"
+        )
+
+
+def test_the_gate_capture_is_a_plain_assignment_with_no_status_masking_prefix() -> None:
+    """The single most dangerous way to get this wrong, pinned as a fence.
+
+    ``export``, ``local`` and ``readonly`` in front of the capture each MASK
+    ``$?`` to 0 in both bash and dash, which would make STATUS always 0 and
+    silently restore the fail-open. A future edit that adds one fails here. Same
+    fence as the commit-msg capture carries for CS-819, which had no pre-commit
+    equivalent until this item.
+    """
+    raw = (HOOKS_DIR / PRE_COMMIT).read_bytes().decode("ascii")
+    assert "\nCS_GATE_OUT=$(" in raw, "the capture is not a bare assignment at column zero"
+    for prefix in ("export CS_GATE_OUT", "local CS_GATE_OUT", "readonly CS_GATE_OUT"):
+        assert prefix not in raw, f"`{prefix}` masks $? to 0 and reopens CS-823"
+    assert "\nSTATUS=$?\n" in raw, "the status is not captured immediately after the assignment"
+
+
+def test_the_gate_spawns_no_child_that_could_inherit_the_captured_stdout() -> None:
+    """The only thing standing between the capture and a HANG, pinned from this side.
+
+    Command substitution waits for EOF ON THE PIPE rather than for the child to
+    exit, so a gate that spawned a process holding stdout open would hang the
+    hook instead of failing it - and a hung hook reads as a hung credential
+    dialog rather than as a defect. Every ``subprocess.run`` in the gate passes
+    ``capture_output`` today, so each child gets its own pipes. The gate is
+    FROZEN and this arm changes nothing in it; it just refuses to let that
+    property lapse silently.
+    """
+    tree = ast.parse(TRACKED_GATE.read_bytes())
+    spawns = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr in ("run", "Popen", "call", "check_output")
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "subprocess"
+    ]
+    assert spawns, "no subprocess call found in the gate, so this locator is stale"
+    for call in spawns:
+        named = {keyword.arg for keyword in call.keywords}
+        assert "capture_output" in named or "stdout" in named, (
+            f"a subprocess call at gate line {call.lineno} does not redirect its "
+            "child's stdout, so the child would inherit the hook's captured pipe "
+            "and could hang the commit instead of failing it"
         )

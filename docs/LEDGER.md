@@ -73,6 +73,69 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-22 - CS-823 - CLOSED: the pre-commit hook now PROVES the gate ran, instead of reading an unrun gate's exit 0 as a pass
+Verification: `tests/test_hook_interpreter_ladder.py`, the CS-823 section, driving REAL `git commit`
+in a throwaway repository. The arms that decide it are
+`::test_a_truncated_gate_cannot_wave_a_forbidden_byte_through` over three truncation points,
+`::test_a_truncated_gate_refuses_a_clean_commit_too` over the same three, and
+`::test_an_interpreter_that_cannot_run_a_file_is_refused_by_the_gate_guard`. All NINE were RED on the
+tracked hook before the edit, each with the defect's own signature - `exit=0 head_moved=True` and no
+hook output at all - and the module is 85 passed after it. Merged file: `.githooks/pre-commit`, under
+the operator grant recorded in this file immediately below, which PRECEDED the edit.
+WHAT WAS WRONG. The hook tested that the gate FILE existed and then ran it, taking the whole decision
+from `$?`. Nothing proved the gate EXECUTED. `tools/precommit_gate.py` ends in an `if __name__ ...`
+main guard, so a copy truncated anywhere before it defines everything and executes NOTHING - python
+exits 0 and the hook read that 0 as a pass. 1020 of 2396 line-boundary prefixes compile, so it is
+closer to a coin flip than to a corner case. THE INDEX WAS NO PROTECTION: the hook loads the gate
+from the WORKING TREE while the gate reads the files under test from the INDEX.
+WHAT SHIPPED. The gate invocation is wrapped in a command substitution; the captured stdout is
+RE-EMITTED before any decision; the non-zero path is unchanged; and on a ZERO exit the hook requires
+the gate's own success banner AS THE LAST LINE, matched by a `case` pattern anchored at both ends
+with only the two counts wild. A gate that never ran yields exit 0 with EMPTY stdout and is refused.
+NO line of `tools/precommit_gate.py` changed - it is separately frozen and was outside the grant.
+THE SECOND ESCAPE THIS CLOSED WAS NOT WHAT THE ITEM WAS FILED ABOUT, and it was LIVE on `main` at
+`9d591cd`. The CS-703 probe validates the `-c` invocation shape; the gate is invoked as a FILE. A
+four-line `sh` wrapper that execs the real interpreter for `-c` and exits 0 for anything else answers
+BOTH probe halves HONESTLY - measured, it printed `clockspeed-python-ok` and returned 97 - and never
+runs the gate. With it in `CLOCKSPEED_PYTHON`, a staged em dash COMMITTED through the tracked hook
+with exit 0, HEAD moved and ZERO bytes of stderr. It knows no token and is not built against the
+probe. CS-703 neither closed this nor claimed to. It is the pre-commit twin of CS-819's
+silent-interpreter defect, it was found by the ADJUDICATOR rather than by the builder, and it was
+believed only after being reproduced independently. `FILE_BLIND_SHIM` is that wrapper, and its arm
+asserts the refusal comes from the GATE guard and NOT from the probe - which is satisfied.
+THE PREDICATE IS ANCHORED, AND THAT IS STRONGER THAN THE PREFIX FIRST BUILT. MEASURED against nine
+replacement gates: a banner followed by another line, a banner preceded by text, a banner head
+followed by junk, non-numeric counts, and a non-zero blocking count are ALL REFUSED - and three of
+those five would have been ACCEPTED by the prefix test that shipped in the first draft. The
+disclosed limit is measured too: a stub printing one well-formed banner IS accepted.
+NO BYTES ARE LOST FROM WHAT THE OPERATOR SEES, and the one change is disclosed rather than hidden.
+MEASURED as line multisets over stdout and stderr combined, PRE against POST: the ACCEPT path is
+SEQUENCE IDENTICAL, and the BLOCKED path is identical as a MULTISET with the CS-209 coverage-skip
+lines moving from before the gate's BLOCKED banner to after it. That reordering is intrinsic to
+capturing one stream while the other streams live. The skip lines are re-emitted rather than consumed
+BECAUSE they are the channel that says a check's detection was REDUCED - which is where this
+deliberately departs from CS-819, whose sentinel is noise and is swallowed.
+A NEW DEPENDENCY ON A FROZEN FILE WAS CREATED AND IS NOW PINNED. Command substitution waits for EOF
+on the pipe rather than for the child to exit, so a gate that spawned a process holding stdout open
+would HANG the hook rather than fail it. Both `subprocess` calls in the gate pass `capture_output`,
+which was the only thing preventing that and was pinned nowhere;
+`::test_the_gate_spawns_no_child_that_could_inherit_the_captured_stdout` now asserts it by AST,
+without touching the gate.
+THE COUPLING IS PINNED FROM BOTH SIDES, NEITHER RESTATED IN A TEST. The gate's format string is
+LOCATED in its source and rendered; the hook's head and `case` pattern are EXTRACTED from the hook
+and applied with `fnmatch`; a negative control fails if the pattern degenerates into one that matches
+anything. The LIVE half is `::test_an_intact_gate_still_accepts_a_clean_commit`, which goes RED if
+the gate's banner ever changes, because a clean commit would then be refused as unrun.
+WHAT THIS DOES NOT BUY. It is an ACCIDENT DETECTOR, NOT A SECURITY BOUNDARY - the same disclosure the
+probe carries. A program written on purpose to print a well-formed banner passes it, and
+`git commit --no-verify` skips every hook regardless. While the gate is broken the hook is SAFE, not
+USABLE: every commit is refused then, including legitimate ones, the same accepted cost CS-819
+records. The refusal text names all three known causes, the changed banner format among them, so an
+operator who edits the gate is not sent hunting.
+ONE SIBLING SITE IS FILED RATHER THAN FIXED. `.githooks/pre-push` has no CS-823 shape - pytest comes
+from site-packages, not the working tree - but it has the analogue one level up: NO FLOOR ON WORK
+DONE. pytest exits 0 having run one test exactly as it does having run the whole suite, and the hook
+never reads the count. Filed as its own item; it needs its own grant and is not closed here.
 ### 2026-08-22 - CS-823 - FROZEN-FILE GRANT ISSUED by the OPERATOR for `.githooks/pre-commit`, then GRANT-SOUND with conditions from an adjudicator
 Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit, not a
 completion record. NOTHING IS CLOSED BY IT. CS-823 stays OPEN in `ROADMAP.md` until its own closure
