@@ -66,11 +66,14 @@ the line becomes a pointer.
   inventory is actually readable. **That form is immune to my decomposition being wrong again,
   which is why it is worth copying.**
 
-- **THREE RESIDUALS WERE FILED AS LIVENESS FLOORS - the exact defect that held CS-413 open for
+- **FOUR RESIDUALS WERE FILED AS LIVENESS FLOORS - the exact defect that held CS-413 open for
   eight days - inside the entry that congratulates itself for escaping it.** CS-829 asked for
   one decoded value, CS-831 had no floor at all and could be satisfied by resolving nothing,
-  CS-832 could close by editing one string in a table. An adjudicator caught all three. They now
-  carry equalities and explicit non-zero clauses.
+  CS-832 could close by editing one string in a table, and CS-830 asked for one decoded
+  element. An adjudicator caught three. **THE REPAIR PASS THEN FIXED THOSE THREE AND SKIPPED
+  THE FOURTH**, and a late adversary caught that - this session's own transferable finding
+  landing a fourth time, inside the fix for it. All four now carry equalities or explicit
+  non-zero clauses. **THE POPULATION WAS THE FIVE ACCEPTANCE LINES AND I ENUMERATED THREE.**
 
 - **Surprises: nothing contradicted `BOOTSTRAP.md`.** Ground truth beat several things that were
   written down, all of them mine or inherited, and every correction is in a tracked file.

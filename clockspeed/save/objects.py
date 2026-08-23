@@ -2473,8 +2473,9 @@ def parse_body(
 
 #: Type words carrying extra tag data before the guid flag, and how many
 #: length-prefixed strings of it. MEASURED: with these widths the tag walk
-#: reaches its terminator on every payload of every real save of a measured
-#: pair.
+#: reaches its terminator on every payload of every real save of the THREE
+#: pairs this grammar reads. NOT of every measured pair - (14,60) is measured
+#: and reaches a terminator on none of its payloads, which is CS-G05.
 #:
 #: MIS-STATING ONE DOES NOT DESYNCHRONISE THE WALK "IMMEDIATELY", WHICH THIS
 #: COMMENT USED TO CLAIM AND WHICH IS FALSE FOR EVERY ONE OF THEM. Each width,
@@ -3257,7 +3258,8 @@ UNMEASURED_PAYLOAD_REGIONS: Final[Mapping[str, str]] = MappingProxyType(
             "variable above that, spanning 4 to 5008 bytes on the (10,36) and "
             "(13,42) pairs and 4 to 1053802 on (14,52), across roughly 235 "
             "distinct widths per pair. A 4-byte floor holding on every payload "
-            "of every pair is the one regularity; whether it is one field or "
+            "of those three pairs is the one regularity - (14,60) has no such "
+            "run at all; whether it is one field or "
             "the head of a longer structure is NOT claimed, and no reading of "
             "its interior is offered. This is the region that keeps the PROPERTY "
             "walk terminator-exact rather than boundary-exact. The BODY walk is "
