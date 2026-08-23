@@ -118,6 +118,7 @@ reports it.
 from __future__ import annotations
 
 import ast
+import hashlib
 import itertools
 import math
 import struct
@@ -131,7 +132,7 @@ from typing import Final
 
 import pytest
 
-from clockspeed.save import chunks, header, objects
+from clockspeed.save import chunks, header, objects, usmap
 
 # IMPORTED RATHER THAN COPIED, for the reason ``test_decode_oracles`` gives at
 # its own import of this module: ``_library_save_paths`` and
@@ -3421,10 +3422,457 @@ def test_a_library_less_call_does_not_switch_the_graders_off_for_the_session() -
 # because two modules carrying this block sit inside that fence.
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# THE SECOND INT32 ORACLE - CONTINUITY BETWEEN SAVES OF ONE WORLD
+#
+# WHY A SECOND ONE EXISTS. CS-421's 2026-08-23 adjudication measured that the
+# five library-backed tests reddening under a flipped ``IntProperty`` byte order
+# are ONE predicate at five sites: :func:`_int_oracle_holds` feeds the
+# displacement, survivor and separability derivations alike, and four of the
+# five reds report that their own BASELINE is red rather than making a finding.
+# One detection and four guard trips, counted as five.
+#
+# EVERY PREDICATE TAKEN INSIDE ONE SAVE IS THAT SAME PREDICATE, and this is the
+# reason a second oracle had to look somewhere else rather than try harder in
+# the same place. Byte reversal is a BIJECTION on four-byte patterns, so any
+# statistic read off the multiset of stored patterns within one save is
+# INVARIANT under it - distinctness, repetition, equality classes and the whole
+# pattern histogram survive the reversal unchanged. What is left is the numeric
+# INTERPRETATION, and every claim about the interpretation of an ISOLATED value
+# reduces to the small-magnitude prior :func:`_int_oracle_holds` already owns.
+#
+# THE SYMMETRY IS BROKEN BY TIME RATHER THAN BY MAGNITUDE. The library holds
+# repeated saves of ONE world, so a field can be matched across two of them. A
+# value that ticks by a small amount moves its LOW stored bytes, and the
+# reversal promotes exactly those to the HIGH end, so the identical change reads
+# as a jump of millions. This oracle asks ONLY whether a matched value moved
+# LESS as stored than reversed, and NEVER whether a value is small.
+#
+# HOW FAR THAT INDEPENDENCE IS MEASURED, STATED EXACTLY, BECAUSE THE OBVIOUS
+# STRONGER SENTENCE IS ONE THIS LIBRARY CANNOT BACK. Independence here is a
+# property of the PREDICATE'S FORM: no magnitude is inspected, so a large value
+# that ticks by one separates exactly as well as a small one. Whether it does so
+# IN FACT is a different claim, and the population that would settle it is
+# EMPTY here - MEASURED 2026-08-23, ZERO of the changed matched values carry a
+# non-zero as-read high byte at both ends, which is the sub-population
+# :func:`_int_oracle_holds` draws no signal from. So the two oracles are
+# independent in what they ASK and are so far un-separated by any value this
+# world holds. An earlier draft of this banner asserted the stronger sentence
+# outright and it was cut before it shipped. Do not restore it; the assertion
+# in the grader below turns it into a measurement the day such a value appears.
+#
+# A HYPOTHESIS DIED HERE AND IS RECORDED SO IT IS NOT RETRIED. The first form of
+# this oracle was MONOTONICITY - "a save's integer counters only ever go up".
+# MEASURED over the changed matched values in this library: 49.9 per cent
+# non-decreasing as stored against 49.7 per cent reversed. NO SIGNAL WHATEVER.
+# This world's integers go up and down in about equal measure and the order
+# statistic is worthless. Do not re-pitch it. The movement predicate below
+# separated the same population completely in the same run.
+#
+# THE PAIRING IS THE LOCATOR'S OWN ORDER AND NOTHING IS SORTED BY TIME. The
+# predicate is SYMMETRIC in the pair, so ordering costs SENSITIVITY and never
+# correctness, and that was measured rather than argued: pairing as the locator
+# returns them yields fewer matched keys and fewer changed values than pairing
+# by modification time, and both separate the population completely with no
+# ties. Sorting would mean calling ``stat`` on a save path for no verdict.
+#
+# STATED LIMIT, AND IT IS ABOUT THE ANCHOR RATHER THAN THE PREDICATE. This
+# shares the LOCATOR with the oracles above - matched values are read at the
+# same ``value_at`` by the same shipped walk - so it is independent in its
+# PREDICATE and not in its anchoring. CS-455's gap is untouched: a decoder
+# returning a plausible small constant does not move at all between saves, and
+# this oracle would not see that either.
+#
+# CONTAINMENT. The match key is a BLAKE2b digest of the instance name and the
+# property name rather than the names themselves, so NO WORLD CONTENT is held in
+# any structure that outlives the record it came from, and the sweep returns
+# COUNTS ONLY - never a decoded value, which is world content in its own right.
+# ---------------------------------------------------------------------------
+
+#: Width of the match-key digest. Wide enough that a collision across the tens
+#: of thousands of keys one library yields is not a thing that happens.
+_KEY_DIGEST_BYTES: Final = 16
+
+#: The four-byte mask, so both readings are derived from the STORED PATTERN
+#: rather than from whatever a mutated decoder happened to return.
+_INT32_MASK: Final = 0xFFFFFFFF
+
+_INT32_SIGN_BIT: Final = 1 << 31
+
+_INT32_MODULUS: Final = 1 << 32
+
+
+def _signed(pattern: int) -> int:
+    """Read one four-byte pattern as a signed int32."""
+    return pattern - _INT32_MODULUS if pattern & _INT32_SIGN_BIT else pattern
+
+
+def _as_read_int32(value: int) -> int:
+    """The decoded value's own stored pattern, read as a signed int32.
+
+    DERIVED BY MASKING rather than by re-packing, for the reason
+    :func:`test_properties._tally_int32_byte_order` gives for doing the same: it
+    is total over any Python int and cannot raise on a value a mutated decoder
+    put outside the int32 range.
+    """
+    return _signed(value & _INT32_MASK)
+
+
+def _reversed_int32(value: int) -> int:
+    """The same four stored bytes read in the OPPOSITE order, signed."""
+    stored = value & _INT32_MASK
+    flipped = (
+        ((stored & 0xFF) << 24)
+        | ((stored & 0xFF00) << 8)
+        | ((stored >> 8) & 0xFF00)
+        | ((stored >> 24) & 0xFF)
+    )
+    return _signed(flipped)
+
+
+@dataclass(frozen=True)
+class _ContinuitySweep:
+    """What the continuity sweep observed, as scalars and nothing else.
+
+    Attributes:
+        snapshots: Saves that yielded at least one IntProperty value.
+        matched: Keys present in both halves of some adjacent pair.
+        changed: Of those, ones whose stored pattern differs between the two.
+            The only ones carrying any information - an unchanged value moves by
+            zero under BOTH readings and is a tie by construction.
+        closer_as_read: Changed matches that moved LESS as stored than reversed.
+        closer_swapped: Changed matches that moved less reversed than as stored.
+        tied: Changed matches whose two movements are equal.
+        changed_high_byte_set: Changed matches whose AS-READ high byte is
+            non-zero at BOTH ends. This is the sub-population
+            :func:`_int_oracle_holds` draws no signal from, so it is the one
+            that could separate the two oracles by MEASUREMENT rather than by
+            form. Measured EMPTY on this library 2026-08-23.
+        high_byte_set_closer_as_read: Of those, the ones that still moved less
+            as stored.
+    """
+
+    snapshots: int
+    matched: int
+    changed: int
+    closer_as_read: int
+    closer_swapped: int
+    tied: int
+    changed_high_byte_set: int = 0
+    high_byte_set_closer_as_read: int = 0
+
+
+def _int_digest_map(path: Path, property_map: usmap.PropertyMap) -> dict[bytes, int] | None:
+    """One save's IntProperty values, keyed by a digest of where each came from.
+
+    EVERY STATEMENT IS INSIDE THE ``try``, INCLUDING THE RETURN, for the reason
+    :func:`_read_tagged_save` states: an exception escaping here would unwind
+    through frames binding ``path``, the body and a decoded property name, and
+    pytest renders the locals of every frame it unwinds under ``-l``.
+
+    Args:
+        path: One save path.
+        property_map: The parsed usmap.
+
+    Returns:
+        Digest to decoded int, or None when this save is not one this grammar
+        reads.
+    """
+    try:
+        found: dict[bytes, int] = {}
+        data = path.read_bytes()
+        parsed = header.parse_header(data)
+        if (parsed.header_version, parsed.save_version) not in test_properties.TAGGED_PAIRS:
+            return None
+        body = chunks.decompress_body(
+            data, parsed.body_offset, header_version=parsed.header_version
+        ).payload
+        table = objects.parse_body(
+            body, save_version=parsed.save_version, header_version=parsed.header_version
+        )
+        for record in table.records:
+            end = record.body_offset + record.body_length
+            start: int | None = record.body_offset
+            if record.kind == objects.KIND_ACTOR:
+                start = test_properties._skip_actor_head(body, record.body_offset, end)  # noqa: SLF001
+            if start is None:
+                continue
+            walk = test_properties._walk_tags(body, start, end)  # noqa: SLF001
+            if walk is None:
+                continue
+            types = walk[1]
+            decoded = objects.read_properties(body, record, property_map).properties
+            for prop_name, value in decoded.items():
+                if types.get(prop_name) != _INT_WORD:
+                    continue
+                if isinstance(value, bool) or not isinstance(value, int):
+                    continue
+                key = hashlib.blake2b(
+                    (record.instance_name + "\x00" + prop_name).encode("utf-8"),
+                    digest_size=_KEY_DIGEST_BYTES,
+                ).digest()
+                found[key] = value
+        return found
+    except (Exception, SystemExit):
+        return None
+
+
+def _derive_continuity() -> _ContinuitySweep | None:
+    """Score every adjacent pair of snapshots, UNCACHED.
+
+    IT IS UNCACHED ON PURPOSE - see :func:`_sweep_continuity` for the wrapper and
+    for what a cached ``None`` did to this module's graders once already.
+
+    ONE SNAPSHOT IS ALIVE AT A TIME BESIDES THE ONE BEING BUILT. The previous
+    map is kept and the rest are dropped, so the largest thing this holds is two
+    saves' worth of digests and integers rather than the library's.
+
+    Returns:
+        The sweep, or None when no save library is reachable.
+    """
+    saves = test_properties._library_save_paths()  # noqa: SLF001
+    property_map = test_properties._cached_usmap_or_none()  # noqa: SLF001
+    if not saves or property_map is None:
+        return None
+
+    snapshots = 0
+    matched = 0
+    changed = 0
+    closer_as_read = 0
+    closer_swapped = 0
+    tied = 0
+    changed_high_byte_set = 0
+    high_byte_set_closer_as_read = 0
+    previous: dict[bytes, int] | None = None
+
+    for path in saves:
+        current = _int_digest_map(path, property_map)
+        if not current:
+            continue
+        snapshots += 1
+        if previous is not None:
+            for key in previous.keys() & current.keys():
+                before, after = previous[key], current[key]
+                matched += 1
+                read_before, read_after = _as_read_int32(before), _as_read_int32(after)
+                if read_before == read_after:
+                    continue
+                changed += 1
+                swap_before, swap_after = _reversed_int32(before), _reversed_int32(after)
+                as_read_move = abs(read_after - read_before)
+                swapped_move = abs(swap_after - swap_before)
+                if as_read_move < swapped_move:
+                    closer_as_read += 1
+                elif swapped_move < as_read_move:
+                    closer_swapped += 1
+                else:
+                    tied += 1
+                # THE HIGH BYTE IS TAKEN FROM THE STORED PATTERN, not from the
+                # signed value, so a negative reading cannot shift it.
+                high_before = (before & _INT32_MASK) >> 24
+                high_after = (after & _INT32_MASK) >> 24
+                if high_before and high_after:
+                    changed_high_byte_set += 1
+                    if as_read_move < swapped_move:
+                        high_byte_set_closer_as_read += 1
+        previous = current
+
+    return _ContinuitySweep(
+        snapshots=snapshots,
+        matched=matched,
+        changed=changed,
+        closer_as_read=closer_as_read,
+        closer_swapped=closer_swapped,
+        tied=tied,
+        changed_high_byte_set=changed_high_byte_set,
+        high_byte_set_closer_as_read=high_byte_set_closer_as_read,
+    )
+
+
+def _continuity_holds(sweep: _ContinuitySweep) -> bool:
+    """Whether the continuity oracle returns its green verdict.
+
+    ONE OWNER FOR THE PREDICATE, so the oracle below and its control cannot
+    drift into asking slightly different questions and reporting one answer -
+    the discipline :func:`_int_oracle_holds` states and this oracle copies
+    WITHOUT copying the predicate itself.
+
+    IT IS A CONJUNCTION, and the second half is the half that matters. A
+    majority moving less as stored is only half a finding; the reversal must
+    also be a MINORITY, or both readings are being called plausible at once.
+
+    Args:
+        sweep: A completed continuity sweep.
+
+    Returns:
+        True when the oracle passes on this population.
+    """
+    return (
+        sweep.changed > 0
+        and sweep.closer_as_read * 2 > sweep.changed
+        and sweep.closer_swapped * 2 < sweep.changed
+    )
+
+
+#: Populated by :func:`_sweep_continuity` and never holding a ``None`` - see
+#: :func:`_sweep_separability` for the incident that rule exists for.
+_CONTINUITY_CACHE: list[_ContinuitySweep] = []
+
+
+def _sweep_continuity() -> _ContinuitySweep | None:
+    """The memoised derivation the grader reads.
+
+    A ``None`` IS NEVER CACHED, for exactly the reason :func:`_sweep_separability`
+    records: one call made with library discovery patched empty would otherwise
+    cache that ``None`` and switch this grader off for the rest of the session,
+    green with a skip and indistinguishable from a machine with no game.
+
+    Returns:
+        The sweep, or None when no save library is reachable.
+    """
+    if _CONTINUITY_CACHE:
+        return _CONTINUITY_CACHE[0]
+    sweep = _derive_continuity()
+    if sweep is not None:
+        _CONTINUITY_CACHE.append(sweep)
+    return sweep
+
+
+def _continuity_or_skip() -> _ContinuitySweep:
+    """The sweep, or a skip when this machine has no save library."""
+    sweep = _sweep_continuity()
+    if sweep is None:
+        pytest.skip("no save library on this machine, so no continuity to score")
+    return sweep
+
+
+def test_the_shipped_int32_reading_moves_less_between_saves_than_its_reversal() -> None:
+    """CS-421 clause 3 - a SECOND int32 oracle sharing no predicate with the first.
+
+    WHAT MAKES THIS INDEPENDENT is set out in the section banner above and is
+    the whole reason it exists: it never asks whether an int32 is small, only
+    whether a matched value MOVED LESS between two saves of one world as stored
+    than it does read backwards. Nothing here touches
+    :func:`_int_oracle_holds`, its accumulator, or any derivation that consumes
+    it, so a red baseline in that predicate cannot mask or manufacture this
+    verdict.
+
+    THE PREMISE IS A FACT ABOUT THE GAME rather than about this project's
+    writer, which is what clause 3 asks for. A world saved repeatedly changes a
+    little between saves: a machine's counter ticks, a container gains an item.
+    Those changes move the LOW stored bytes, and reading the four bytes
+    backwards promotes exactly those to the HIGH end, so the same small change
+    reads as a jump of millions. Nothing in that argument refers to how this
+    project packs a fixture, and no fixture could satisfy it - it needs two real
+    saves of one real world.
+
+    NO MEASURED CONSTANT APPEARS HERE. Majority against minority is structural,
+    and a floor on the population size would be the corpus-coupled constant
+    CS-432 exists to delete. What the population happens to be is an
+    observation of a run rather than a claim this test carries.
+
+    It is library-backed and skips with no game installed, which is the CI gap
+    CS-426 owns.
+    """
+    sweep = _continuity_or_skip()
+
+    assert sweep.snapshots > 1, (
+        f"only {sweep.snapshots} save in this library yielded IntProperty values, so no "
+        "pair could be matched and this oracle scored an empty population"
+    )
+    assert sweep.changed > 0, (
+        f"{sweep.matched} matched values and not one of them differs between saves, so "
+        "every comparison below is a tie by construction and the oracle says nothing"
+    )
+    assert _continuity_holds(sweep), (
+        f"of {sweep.changed} matched values that changed between saves, "
+        f"{sweep.closer_as_read} moved less as stored and {sweep.closer_swapped} moved "
+        f"less read backwards, with {sweep.tied} tied. World state changes a little "
+        "between saves, so the reading under which matched values move less is the "
+        "stored one - a minority here means the shipped byte order is not it"
+    )
+
+    # INERT ON THIS LIBRARY AND KEPT DELIBERATELY, which is disclosed rather
+    # than left for a reader to discover. The sub-population that would separate
+    # this oracle from the magnitude one BY MEASUREMENT rather than by form is
+    # EMPTY here - measured 2026-08-23 at ZERO of the changed matches - so this
+    # grades nothing today. It cannot redden on an empty sub-population, so it
+    # carries no corpus-coupled floor, and it becomes a real measurement the day
+    # this world holds a large value that ticks. DO NOT CITE IT as what makes
+    # this oracle independent; the banner above states exactly how far that goes.
+    if sweep.changed_high_byte_set:
+        assert sweep.high_byte_set_closer_as_read * 2 > sweep.changed_high_byte_set, (
+            f"of {sweep.changed_high_byte_set} changed matches carrying a non-zero as-read "
+            f"high byte at both ends - the sub-population the magnitude oracle draws no "
+            f"signal from - only {sweep.high_byte_set_closer_as_read} moved less as stored. "
+            "On the one population that could tell these two oracles apart, this one is "
+            "tracking the magnitude prior rather than standing on its own"
+        )
+
+
+def test_the_continuity_oracle_refuses_a_flipped_shipped_byte_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The control: this oracle CAN go red, and the flip is what turns it.
+
+    WITHOUT THIS THE ORACLE ABOVE IS UNGRADED. A test asserting that a
+    conjunction holds proves nothing about whether anything could ever break it,
+    and an oracle that cannot refuse is the vacuity this project keeps finding
+    in its own suite.
+
+    IT MUTATES THE SHIPPED TABLE RATHER THAN THE ORACLE. ``_decode_fixed_width``
+    takes its spec from a module-global lookup at call time, so replacing
+    :data:`objects._FIXED_WIDTH_VALUES` puts the whole shipped decode path onto
+    the other byte order - the same defect CS-421's demonstration patches into
+    the file, reproduced here inside the suite where it is graded on every run
+    rather than by a reader who remembers to try it.
+
+    IT CALLS THE UNCACHED DERIVATION, for the reason
+    :func:`test_the_derivation_stops_holding_when_the_int32_tally_is_neutered`
+    gives: the memoised wrapper takes no argument, so it cannot be keyed on the
+    mutation, and a caller that forgot to restore would poison every later test
+    in the session.
+    """
+    live = _continuity_or_skip()
+    assert _continuity_holds(live), (
+        "this control assumes the oracle passes as shipped, and it does not. Read the "
+        "test above first - that is the failure, and this one can say nothing until it "
+        "is fixed."
+    )
+
+    flipped = dict(objects._FIXED_WIDTH_VALUES)  # noqa: SLF001
+    width, code = flipped[_INT_WORD]
+    flipped[_INT_WORD] = (width, ">" + code[1:])
+    monkeypatch.setattr(objects, "_FIXED_WIDTH_VALUES", MappingProxyType(flipped))
+
+    # THE MUTATION IS ASSERTED TO HAVE LANDED before anything is concluded from
+    # its result. A mutant that never applied is indistinguishable from one the
+    # suite failed to catch, and this project has been caught by that before.
+    assert objects._FIXED_WIDTH_VALUES[_INT_WORD] == (width, ">" + code[1:])  # noqa: SLF001
+
+    mutated = _derive_continuity()
+    assert mutated is not None, (
+        "the uncached derivation found no library while the memoised one did, so the two "
+        "are not reading the same machine and this control grades nothing"
+    )
+    assert mutated.changed > 0, (
+        "the mutated derivation scored no changed values at all, so it refuses for want "
+        "of a population rather than because the oracle discriminates"
+    )
+    assert not _continuity_holds(mutated), (
+        f"with the shipped int32 reading flipped, {mutated.closer_as_read} of "
+        f"{mutated.changed} changed values still moved less as read and the oracle STILL "
+        "returns its green verdict. It does not discriminate byte order, so the test "
+        "above is passing for some reason other than the one it states"
+    )
+
+
 #: Helpers that genuinely reach the save library, name to why each reaches.
 _GRADED_LIBRARY_REACH: Final = MappingProxyType(
     {
         "_census_stored_patterns": ("reads every save in the library, counts only "),
+        "_derive_continuity": ("reads every save in the library, counts only "),
+        "_int_digest_map": ("reads one real save and reduces it to digests "),
         "_read_tagged_save": ("reads one real save and hands back its body "),
         "_sweep_anchor": ("reads every save in the library "),
         "_sweep_permutations": ("reads every save in the library "),

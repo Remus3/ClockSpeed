@@ -73,6 +73,70 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-23 - CS-421 - a SECOND and genuinely independent int32 oracle ships. CS-421 STAYS OPEN
+NOT A COMPLETION RECORD. This is the "smallest thing that improves the evidence rather than
+the wording" the adjudication below named, built because that adjudication measured the
+premise for declining it FALSE. CS-421 is not re-graded here and no clause is claimed met.
+
+**WHAT SHIPPED.** `tests/save/test_value_anchoring.py` gains a continuity oracle over
+`IntProperty` and a control for it. The oracle matches the SAME field across two saves of one
+world and asks only whether it MOVED LESS as stored than read backwards. It touches
+`_int_oracle_holds` nowhere - not the predicate, not its accumulator, not any derivation
+consuming it - so a red baseline there can neither mask nor manufacture this verdict.
+
+**WHY IT COULD NOT HAVE BEEN ANOTHER PREDICATE INSIDE ONE SAVE, which is the part worth
+keeping.** Byte reversal is a BIJECTION on four-byte patterns, so every statistic read off the
+multiset of stored patterns within a single save is INVARIANT under it - distinctness,
+repetition, equality classes and the whole pattern histogram survive unchanged. What is left
+is the numeric INTERPRETATION, and every claim about an ISOLATED value's interpretation
+reduces to the small-magnitude prior `_int_oracle_holds` already owns. The symmetry had to be
+broken by TIME: a value that ticks moves its LOW stored bytes, and the reversal promotes those
+to the HIGH end, so the same small change reads as a jump of millions.
+
+**A HYPOTHESIS DIED AND IS RECORDED SO IT IS NOT RETRIED.** The first form was MONOTONICITY -
+"a save's integer counters only go up". Measured over the changed matched values: **49.9 per
+cent non-decreasing as stored against 49.7 per cent reversed. NO SIGNAL WHATEVER.** This
+world's integers go up and down in about equal measure. The movement predicate separated the
+same population completely in the same run. Do not re-pitch the order statistic.
+
+**MEASURED, and the mutant was graded the way this project requires.** On the shipped tree the
+sweep reads 12 snapshots, 34820 matched keys, 145 of them changed, and **145 moved less as
+stored against 0 reversed with 0 tied**. With `"IntProperty": (4, "<i")` patched to `">i"` and
+the mutant ASSERTED LIVE IN THE LOADED MODULE before anything was concluded, those two
+counters INVERT COMPLETELY to 0 and 145 and the oracle fails at its own conjunction with the
+message it is written to give. Reverted through `git checkout --` and the restore confirmed in
+a fresh interpreter. The control reproduces that flip INSIDE the suite by replacing
+`objects._FIXED_WIDTH_VALUES`, which `_decode_fixed_width` looks up at call time, so the
+demonstration is graded on every run rather than by a reader who remembers to try it.
+
+**THE STATED LIMIT, AND IT IS THE PART A LATER SESSION MUST NOT OVERREAD.** Independence here
+is a property of the PREDICATE'S FORM - no magnitude is inspected - and NOT a measurement. The
+population that would settle it by measurement is the one `_int_oracle_holds` draws no signal
+from, changed matches carrying a non-zero as-read high byte at both ends, and that population
+is **EMPTY on this library: ZERO of the 145.** An earlier draft of the module banner asserted
+the stronger sentence outright and it was cut before it shipped. The grader carries a
+conditional assertion over that sub-population which is INERT TODAY, cannot redden while the
+sub-population is empty so it carries no corpus-coupled floor, and becomes a real measurement
+the day this world holds a large value that ticks. It is disclosed as inert in the tree.
+
+**IT SHARES THE ANCHOR, NOT THE PREDICATE.** Matched values are read at the same `value_at` by
+the same shipped walk as the oracles above, so the common-mode locator risk the adjudication
+recorded is NARROWED FROM THREE SHARED INPUTS TO TWO and is not removed. CS-455 is untouched:
+a decoder returning a plausible small constant does not move between saves either.
+
+**SIBLING CONSIDERED AND DELIBERATELY EXCLUDED.** `_float_oracle_holds` is single-owner in the
+same way, but `FloatProperty` already carries a SECOND independent predicate in CS-469's
+mantissa-coarseness oracle, so the one-predicate defect this entry repairs does not apply
+there. No item filed; extending continuity to floats would add a third float predicate rather
+than a first.
+
+Verification: `python -m pytest
+"tests/save/test_value_anchoring.py::test_the_shipped_int32_reading_moves_less_between_saves_than_its_reversal"
+"tests/save/test_value_anchoring.py::test_the_continuity_oracle_refuses_a_flipped_shipped_byte_order" -q`
+passes on the shipped tree and skips with no library. To see it discriminate, patch
+`"IntProperty": (4, "<i")` to `">i"`, confirm `objects._FIXED_WIDTH_VALUES["IntProperty"]` in a
+FRESH interpreter before believing the mutant landed, and re-run the first of those two - it
+fails reporting 0 of 145. Restore with `git checkout -- clockspeed/save/objects.py`.
 ### 2026-08-23 - CS-421 - ADJUDICATED DO-NOT-CLOSE, and a CORRECTION to the entry below
 CS-421 STAYS OPEN. This corrects the record immediately below rather than editing it, which
 is what this file requires. The close was routed to an adjudicator on the operator's

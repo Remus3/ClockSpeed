@@ -31,7 +31,7 @@ the line becomes a pointer.
 
 ---
 
-## Session 34 - 2026-08-23 - the held push LANDS and CI is green; then TWO of CS-421's own headline claims are measured FALSE
+## Session 34 - 2026-08-23 - the held push LANDS; TWO of CS-421's own headline claims are measured FALSE; a SECOND independent int32 oracle ships
 
 - **Shipped: NOTHING CLOSED, and that is the result rather than a shortfall.** CS-421 STAYS OPEN
   with a ledger record that closes nothing and grades no clause. Detail in `docs/LEDGER.md`, not
@@ -99,14 +99,35 @@ the line becomes a pointer.
   denies it - so closing clause 3 would put the ledger in contradiction with the module, and clause 2
   is the clause that gave the module that fact. Fence 1 was CROSSED by my `UInt32Property` bullet.
 
-- **Next action: TWO ROUTES AND THE FIRST IS THE OPERATOR'S ALONE.** Either amend clause 3 to say
-  what it now means - settled JOINTLY over the scored populations against the real library, with the
-  per-type residual in shipped data - and file the `UInt32Property` residual as its own item; an
-  adjudicator CANNOT grant that narrowing, because narrowing an acceptance clause is fence 1's
-  forbidden move. Or build the smaller thing: **a second library-backed control catching the `">i"`
-  flip through a predicate that is NOT `_int_oracle_holds`**, which is real work the 2026-08-23 entry
-  declined on the false premise above. Otherwise take CS-817 / CS-821 / CS-824, which are smaller and
-  independent.
+- **THE SECOND ORACLE WAS THEN BUILT, ON THE OPERATOR'S INSTRUCTION, AND IT IS GENUINELY A SECOND
+  ONE.** `tests/save/test_value_anchoring.py` gains a CONTINUITY oracle over `IntProperty` plus a
+  control for it: it matches the same field across two saves of one world and asks only whether it
+  MOVED LESS as stored than read backwards, touching `_int_oracle_holds` nowhere. **Why it had to
+  look outside a single save is the keeper:** byte reversal is a BIJECTION on four-byte patterns, so
+  every statistic taken from the pattern multiset within ONE save is invariant under it, and every
+  claim about an isolated value's interpretation collapses back into the small-magnitude prior the
+  first oracle already owns. TIME was the only symmetry-breaker available. Measured: 12 snapshots,
+  34820 matched keys, 145 changed, **145 closer as stored against 0 reversed with 0 tied**, and the
+  two counters INVERT COMPLETELY to 0 and 145 under the real `">i"` mutant, asserted live in the
+  LOADED module first. `tests/save` 1206 passed, exit 0.
+
+- **A HYPOTHESIS DIED IN THE SPIKE AND ONE OVERCLAIM WAS CUT BEFORE IT SHIPPED.** MONOTONICITY -
+  "a save's counters only go up" - measured 49.9 per cent against 49.7 per cent. NO SIGNAL; recorded
+  in the tree so it is not retried. And my first section banner claimed the oracle "still separates
+  on a population whose every high byte is non-zero"; I went to measure it and that sub-population is
+  **EMPTY, 0 of 145**. So independence here is a property of the PREDICATE'S FORM and NOT a
+  measurement, the banner now says exactly that, and the grader carries a conditional assertion over
+  that sub-population which is INERT TODAY, disclosed as inert, carries no corpus-coupled floor, and
+  becomes a real measurement the day this world holds a large value that ticks.
+
+- **Next action: THE REMAINING ROUTE IS THE OPERATOR'S ALONE.** Amend clause 3 to say what it now
+  means - settled JOINTLY over the scored populations against the real library, with the per-type
+  residual in shipped data - and file the `UInt32Property` residual as its own item. An adjudicator
+  CANNOT grant that narrowing; narrowing an acceptance clause is fence 1's forbidden move. What the
+  build changed is the evidence, not the wording: the common-mode risk is narrowed from THREE shared
+  inputs to TWO, because the new oracle still shares the LOCATOR with the old ones. Otherwise take
+  CS-817 / CS-821 / CS-824, which are smaller and independent. NOTE the new work has had NO
+  adversarial pass - the producer built it and the producer graded it, which section 5 forbids.
 
 ## Session 33 - 2026-08-22 - CS-823 CLOSES and takes a SECOND, unfiled escape with it; then an adversary refuted this session's own suite and SIX wrong hooks passed it
 
