@@ -52,6 +52,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Final, NamedTuple
 
@@ -1268,6 +1269,54 @@ SENTINEL_REFUSAL: Final = "DID NOT RUN"
 DASH: Final = shutil.which("dash")
 DEFAULT_SHELL: Final = shutil.which("sh")
 
+
+def _dash_heredoc_delivery() -> int | None:
+    """How many bytes does THIS dash deliver for an OVER-THRESHOLD heredoc?
+
+    THE TRUNCATION IS A PROPERTY OF THE BUILD, NOT OF DASH, and the arms below
+    branch on this rather than on whether dash exists. The MSYS2 build delivers
+    ZERO above 4096 because MSYS fork emulation breaks dash's ``openhere()``
+    writer path. GLIBC dash delivers the whole body - measured at 4535 bytes on
+    ubuntu-latest by tier1 run 32609343989, which is the run that refuted the
+    first version of these arms and turned an INFERRED residual in the CS-819
+    grant into a measurement.
+
+    Returns the delivered byte count, or None when there is no dash to ask.
+    """
+    if DASH is None:
+        return None
+    body = "\n".join(f"# pad {index:04d}" for index in range(500))
+    if len(body) <= DASH_HEREDOC_THRESHOLD:
+        return None
+    script = "consume() { wc -c; }\nconsume <<'CS_END'\n" + body + "\nCS_END\n"
+    with tempfile.TemporaryDirectory(prefix="cs819-delivery-") as box:
+        path = Path(box) / "probe.sh"
+        path.write_text(script, encoding="ascii", newline="\n")
+        try:
+            proc = subprocess.run(
+                [DASH, str(path)],
+                capture_output=True,
+                text=True,
+                timeout=GIT_TIMEOUT,
+                stdin=subprocess.DEVNULL,
+                check=False,
+            )
+        except OSError:
+            return None
+    if proc.returncode != 0:
+        return None
+    try:
+        return int(proc.stdout.strip())
+    except ValueError:
+        return None
+
+
+# The delivery cliff, and what this machine's dash actually does with it.
+DASH_HEREDOC_THRESHOLD: Final = 4096
+DASH_DELIVERED: Final = _dash_heredoc_delivery()
+DASH_TRUNCATES: Final = DASH_DELIVERED == 0
+
+
 # Delegates -c so the probe still passes, and swallows the program otherwise.
 # This is exactly what the hook observes under the CS-819 defect: no stdout,
 # exit 0 - and it reproduces that without needing an affected shell.
@@ -1467,11 +1516,15 @@ def test_every_message_class_still_reports_its_own_reason_on_stderr(
 
 
 @pytest.mark.skipif(
-    DASH is None,
+    DASH is None or not DASH_TRUNCATES,
     reason=(
-        "NOT RUN, NOT PASSED: no dash on this machine, so the MSYS2 heredoc "
-        "truncation cannot be reproduced here. The property itself is proven "
-        "shell-independently by test_a_silent_interpreter_is_refused_through_real_git."
+        "NOT RUN, NOT PASSED: this machine's dash DELIVERS an over-threshold "
+        f"heredoc ({DASH_DELIVERED} bytes), so the MSYS2 truncation cannot be "
+        "reproduced here and this arm has nothing to measure. It is NOT a silent "
+        "pass: the DELIVERING case is asserted by "
+        "test_no_violation_class_slips_through_under_dash, which takes its other "
+        "branch, and the property itself is proven shell-independently by "
+        "test_a_silent_interpreter_is_refused_through_real_git."
     ),
 )
 def test_the_msys2_dash_truncation_reproduces_and_is_now_refused(
@@ -1538,14 +1591,28 @@ def test_no_violation_class_slips_through_under_dash(
     assert code != 0, f"{label} exited 0 under dash"
     assert err != b"", f"{label} was refused with completely empty stderr"
     assert out == b"", f"{label} leaked stdout"
-    # THE RULE'S OWN REASON MUST BE ABSENT, and that is the point rather than an
-    # oversight. On this shell the program never arrives, so no rule can have
-    # judged anything. Seeing the rule's reason here would mean the heredoc DID
-    # arrive and this arm is no longer measuring the defect.
-    assert reason.encode("ascii") not in err, (
-        f"{label} reported its own rule's reason under dash, so the program arrived "
-        "after all and this arm's premise needs re-measuring"
-    )
-    assert SENTINEL_REFUSAL.encode("ascii") in err, (
-        f"{label} was refused, but not by the sentinel that CS-819 added"
-    )
+    if DASH_TRUNCATES:
+        # THE RULE'S OWN REASON MUST BE ABSENT on a TRUNCATING build, and that is
+        # the point rather than an oversight. The program never arrives, so no rule
+        # can have judged anything, and the sentinel is the only thing that can
+        # refuse. This is CS-819's accepted cost: SAFE on such a shell, not USABLE.
+        assert reason.encode("ascii") not in err, (
+            f"{label} reported its own rule's reason on a build measured to deliver "
+            f"{DASH_DELIVERED} bytes, which contradicts the branch selector"
+        )
+        assert SENTINEL_REFUSAL.encode("ascii") in err, (
+            f"{label} was refused, but not by the sentinel that CS-819 added"
+        )
+    else:
+        # A DELIVERING build gets the STRONGER assertion, and on CI this is the
+        # branch that runs. The program arrives, so each class must be refused BY
+        # ITS OWN RULE - which proves the hook behaves identically under dash and
+        # bash, and that CS-819's sentinel costs a delivering shell nothing.
+        assert reason.encode("ascii") in err, (
+            f"{label} did not report its own reason on a build measured to deliver "
+            f"{DASH_DELIVERED} bytes, where the program does arrive"
+        )
+        assert SENTINEL_REFUSAL.encode("ascii") not in err, (
+            f"{label} was refused by the sentinel on a DELIVERING build, which means "
+            "the program did not arrive after all and the branch selector is wrong"
+        )
