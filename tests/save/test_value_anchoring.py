@@ -3423,7 +3423,7 @@ def test_a_library_less_call_does_not_switch_the_graders_off_for_the_session() -
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# THE SECOND INT32 ORACLE - CONTINUITY BETWEEN SAVES OF ONE WORLD
+# THE SECOND INT32 ORACLE - CONTINUITY BETWEEN MATCHED SAVES
 #
 # WHY A SECOND ONE EXISTS. CS-421's 2026-08-23 adjudication measured that the
 # five library-backed tests reddening under a flipped ``IntProperty`` byte order
@@ -3432,34 +3432,49 @@ def test_a_library_less_call_does_not_switch_the_graders_off_for_the_session() -
 # five reds report that their own BASELINE is red rather than making a finding.
 # One detection and four guard trips, counted as five.
 #
-# EVERY PREDICATE TAKEN INSIDE ONE SAVE IS THAT SAME PREDICATE, and this is the
-# reason a second oracle had to look somewhere else rather than try harder in
-# the same place. Byte reversal is a BIJECTION on four-byte patterns, so any
-# statistic read off the multiset of stored patterns within one save is
-# INVARIANT under it - distinctness, repetition, equality classes and the whole
-# pattern histogram survive the reversal unchanged. What is left is the numeric
-# INTERPRETATION, and every claim about the interpretation of an ISOLATED value
-# reduces to the small-magnitude prior :func:`_int_oracle_holds` already owns.
+# WHAT THIS IS AND WHAT IT IS NOT, PUT FIRST BECAUSE AN EARLIER DRAFT OF THIS
+# BANNER GOT IT WRONG AND AN ADVERSARY REFUTED IT. This is a second predicate
+# that is CODE-INDEPENDENT of :func:`_int_oracle_holds` - it touches neither
+# that function, nor its accumulator, nor any derivation consuming it, so a
+# defect or a red baseline THERE cannot mask or manufacture the verdict HERE.
+# IT IS NOT YET A SECOND SIGNAL, and that was MEASURED 2026-08-23 rather than
+# suspected: a predicate that inspects NO MOVEMENT AT ALL - the small-magnitude
+# prior applied to the pair's two endpoints, which is exactly
+# :func:`_int_oracle_holds`'s own two counters restricted to the pair -
+# reproduces this oracle's verdict on 145 OF 145 pairs with ZERO disagreements.
+# Do not describe this module as carrying two independent oracles. It carries
+# two independent IMPLEMENTATIONS of what is, on this library, one signal.
 #
-# THE SYMMETRY IS BROKEN BY TIME RATHER THAN BY MAGNITUDE. The library holds
-# repeated saves of ONE world, so a field can be matched across two of them. A
-# value that ticks by a small amount moves its LOW stored bytes, and the
-# reversal promotes exactly those to the HIGH end, so the identical change reads
-# as a jump of millions. This oracle asks ONLY whether a matched value moved
-# LESS as stored than reversed, and NEVER whether a value is small.
+# WHY NO CHOICE OF PREDICATE FIXES THAT HERE, WHICH IS THE FINDING WORTH
+# KEEPING. ZERO of the 145 changed matched values carry a non-zero as-read high
+# byte at BOTH ends, and 135 of the 145 differ only in their lowest stored byte.
+# Every changed value in this corpus is small at one end, so EVERY correct
+# byte-order oracle must agree with the small-magnitude prior on it. Evidential
+# independence is not a predicate-design problem on this library - it needs data
+# this world does not contain. A later session should not read the existence of
+# this oracle as having supplied it.
 #
-# HOW FAR THAT INDEPENDENCE IS MEASURED, STATED EXACTLY, BECAUSE THE OBVIOUS
-# STRONGER SENTENCE IS ONE THIS LIBRARY CANNOT BACK. Independence here is a
-# property of the PREDICATE'S FORM: no magnitude is inspected, so a large value
-# that ticks by one separates exactly as well as a small one. Whether it does so
-# IN FACT is a different claim, and the population that would settle it is
-# EMPTY here - MEASURED 2026-08-23, ZERO of the changed matched values carry a
-# non-zero as-read high byte at both ends, which is the sub-population
-# :func:`_int_oracle_holds` draws no signal from. So the two oracles are
-# independent in what they ASK and are so far un-separated by any value this
-# world holds. An earlier draft of this banner asserted the stronger sentence
-# outright and it was cut before it shipped. Do not restore it; the assertion
-# in the grader below turns it into a measurement the day such a value appears.
+# TWO SENTENCES THAT STOOD HERE WERE MEASURED FALSE AND ARE NOT TO BE RESTORED.
+# FIRST, that every predicate available inside ONE save is the magnitude prior,
+# so time was the only symmetry-breaker. FALSE by construction: a SPACING
+# statistic over one save - how many distinct values ``v`` have ``v + 1`` also
+# present - scores 98 as stored against 0 reversed on a single save, asks
+# nothing about magnitude, and needs no second world-state. This oracle's route
+# was a choice, not a necessity. SECOND, that the whole pattern histogram is
+# invariant under byte reversal. FALSE as written: 202 patterns change count
+# under reversal in one measured save. What IS invariant is the MULTISET OF
+# COUNTS - the histogram's shape rather than the histogram - and the stronger
+# sentence would have denied that :func:`_int_oracle_holds`, itself a statistic
+# over one save's patterns, can work at all.
+#
+# HOW THE MATCHING ACTUALLY BEHAVES, AND THE PREMISE IT DOES NOT REST ON. An
+# earlier draft said the library holds repeated saves of ONE world. It does not:
+# three distinct world tokens were measured on this machine, and 8 of the 145
+# changed pairs match a digest across two DIFFERENT worlds while more straddle
+# save-format versions. The verdict does not depend on that - restricted to
+# same-world adjacencies the population still separates completely - so what was
+# wrong is the DESCRIPTION rather than the result. The predicate is symmetric in
+# the pair, so ordering and provenance cost SENSITIVITY and never correctness.
 #
 # A HYPOTHESIS DIED HERE AND IS RECORDED SO IT IS NOT RETRIED. The first form of
 # this oracle was MONOTONICITY - "a save's integer counters only ever go up".
@@ -3487,6 +3502,22 @@ def test_a_library_less_call_does_not_switch_the_graders_off_for_the_session() -
 # property name rather than the names themselves, so NO WORLD CONTENT is held in
 # any structure that outlives the record it came from, and the sweep returns
 # COUNTS ONLY - never a decoded value, which is world content in its own right.
+#
+# KNOWN SURVIVING MUTANTS, LISTED RATHER THAN LEFT FOR THE NEXT ADVERSARY TO
+# FIND. An adversarial pass measured thirteen mutants against these arms; five
+# survived the first draft and were killed, and four survive on purpose:
+#   - DROPPING THE MINORITY CONJUNCT from :func:`_continuity_holds` is an
+#     EQUIVALENT mutant - the buckets partition, so it cannot change a verdict.
+#     Chasing it would mean weakening an arm for nothing.
+#   - NARROWING THE SWEEP to the first two saves, and DROPPING EITHER HALF of
+#     the match key, all shrink the population without reversing the verdict.
+#     Killing them needs a FLOOR on how many saves or keys must be reached, and
+#     a floor sitting at an observed count is the corpus-coupled constant CS-432
+#     exists to delete - the operator's next session would redden it by playing.
+#   - WIDENING the high-byte guard from ``and`` to ``or`` changes only which
+#     values enter a sub-population that is EMPTY here, so no arm can see it.
+# Each is a coverage or a population mutant rather than a correctness one, and
+# every mutant that reverses the ORACLE'S VERDICT is killed.
 # ---------------------------------------------------------------------------
 
 #: Width of the match-key digest. Wide enough that a collision across the tens
@@ -3500,6 +3531,18 @@ _INT32_MASK: Final = 0xFFFFFFFF
 _INT32_SIGN_BIT: Final = 1 << 31
 
 _INT32_MODULUS: Final = 1 << 32
+
+#: Two snapshots is the fewest that can be paired at all.
+_PAIRABLE_MINIMUM: Final = 2
+
+#: Hand-authored patterns for the byte-helper arm. Named because ruff refuses a
+#: bare literal in a comparison, and because naming them says what each is FOR:
+#: the first pair moves a byte end to end, and the second moves an INNER one,
+#: which is the position the real library never exercises.
+_LOWEST_BYTE_SET: Final = 0x00000001
+_HIGHEST_BYTE_SET: Final = 0x01000000
+_INNER_BYTE_SET: Final = 0x00FF0000
+_INNER_BYTE_REVERSED: Final = 0x0000FF00
 
 
 def _signed(pattern: int) -> int:
@@ -3677,6 +3720,19 @@ def _derive_continuity() -> _ContinuitySweep | None:
                         high_byte_set_closer_as_read += 1
         previous = current
 
+    # NO EVIDENCE IS A SKIP RATHER THAN A REFUSAL, and this is a corpus-coupling
+    # repair an adversary forced rather than a preference. Returning a sweep from
+    # here sent both graders RED - not skipped - on a library holding saves this
+    # grammar cannot read, and SEVEN of the nineteen files on this machine are
+    # already at a save version outside ``test_properties.TAGGED_PAIRS``. The
+    # operator playing the game would have reddened the suite with no defect,
+    # which is exactly CS-432's shape. Routing that state to None sends it to the
+    # same skip a missing library takes, and it also means a degenerate sweep can
+    # never reach the cache below - which is the OTHER hole the same adversary
+    # demonstrated, by caching a zero sweep and poisoning the session.
+    if snapshots < _PAIRABLE_MINIMUM or changed == 0:
+        return None
+
     return _ContinuitySweep(
         snapshots=snapshots,
         matched=matched,
@@ -3697,9 +3753,27 @@ def _continuity_holds(sweep: _ContinuitySweep) -> bool:
     the discipline :func:`_int_oracle_holds` states and this oracle copies
     WITHOUT copying the predicate itself.
 
-    IT IS A CONJUNCTION, and the second half is the half that matters. A
-    majority moving less as stored is only half a finding; the reversal must
-    also be a MINORITY, or both readings are being called plausible at once.
+    THE MINORITY CONJUNCT IS IMPLIED BY THE MAJORITY ONE AND IS KEPT ANYWAY.
+    An earlier revision of this docstring said the reverse - that the minority
+    half "is the half that matters" - and an adversary measured that dropping it
+    changes no verdict. It cannot: the three buckets PARTITION ``changed``, so
+    ``closer_as_read * 2 > changed`` forces ``closer_swapped`` below half on
+    arithmetic alone. Dropping it is an EQUIVALENT MUTANT, and this project's
+    rule is to swap the mutant rather than weaken a test to catch one, so no arm
+    chases it. It stays because it states the invariant a reader would otherwise
+    have to re-derive.
+
+    THAT IS NOT TRUE OF :func:`_int_oracle_holds` AND THE DIFFERENCE IS WHY THIS
+    NOTE EXISTS. Its two counters OVERLAP - a pattern with a zero high byte and
+    a zero low byte increments both - so they do not partition its population
+    and its conjunction is genuinely two-sided. Reading the shape of this
+    predicate off that one is the mistake the earlier revision made.
+
+    WHAT IS NOT IMPLIED, AND IS THEREFORE GRADED. The majority half does not
+    follow from the minority half: a population that is almost entirely TIED
+    satisfies ``closer_swapped * 2 < changed`` while carrying no majority at
+    all. :func:`test_the_continuity_predicate_needs_a_majority` holds that arm,
+    library-free, on a hand-authored sweep.
 
     Args:
         sweep: A completed continuity sweep.
@@ -3739,10 +3813,19 @@ def _sweep_continuity() -> _ContinuitySweep | None:
 
 
 def _continuity_or_skip() -> _ContinuitySweep:
-    """The sweep, or a skip when this machine has no save library."""
+    """The sweep, or a skip when this machine holds no evidence to score.
+
+    THREE STATES TAKE THE SAME SKIP and the distinction is deliberately not
+    drawn here: no save library at all, a library whose saves this grammar
+    cannot read, and a library where nothing changed between any two of them.
+    None of the three is a defect and all three are outside this oracle's
+    reach, so refusing on any of them would be a red that the operator's play
+    could produce. The cost is CS-426's recorded gap - a silent skip is
+    indistinguishable from a machine with no game.
+    """
     sweep = _sweep_continuity()
     if sweep is None:
-        pytest.skip("no save library on this machine, so no continuity to score")
+        pytest.skip("no two readable saves carrying a changed IntProperty on this machine")
     return sweep
 
 
@@ -3776,14 +3859,6 @@ def test_the_shipped_int32_reading_moves_less_between_saves_than_its_reversal() 
     """
     sweep = _continuity_or_skip()
 
-    assert sweep.snapshots > 1, (
-        f"only {sweep.snapshots} save in this library yielded IntProperty values, so no "
-        "pair could be matched and this oracle scored an empty population"
-    )
-    assert sweep.changed > 0, (
-        f"{sweep.matched} matched values and not one of them differs between saves, so "
-        "every comparison below is a tie by construction and the oracle says nothing"
-    )
     assert _continuity_holds(sweep), (
         f"of {sweep.changed} matched values that changed between saves, "
         f"{sweep.closer_as_read} moved less as stored and {sweep.closer_swapped} moved "
@@ -3864,6 +3939,130 @@ def test_the_continuity_oracle_refuses_a_flipped_shipped_byte_order(
         f"{mutated.changed} changed values still moved less as read and the oracle STILL "
         "returns its green verdict. It does not discriminate byte order, so the test "
         "above is passing for some reason other than the one it states"
+    )
+
+    # THE INVERSION IS ASSERTED, NOT MERELY THE REFUSAL, and an adversary is why.
+    # Judging only that the mutated sweep fails :func:`_continuity_holds` accepts
+    # ANY reason for failing - a counter that stopped being incremented at all
+    # satisfies it just as well as a byte order that genuinely reversed. That was
+    # a MEASURED survivor: a mutant that never increments ``closer_swapped``
+    # leaves both this control and the oracle green. Requiring the two counters
+    # to EXCHANGE places is what makes this control say something about byte
+    # order rather than about failure.
+    assert mutated.closer_swapped * 2 > mutated.changed, (
+        f"with the reading flipped, only {mutated.closer_swapped} of {mutated.changed} "
+        "changed values moved less under the REVERSAL. The oracle refused, but not "
+        "because the two readings traded places - so its refusal is not evidence about "
+        "byte order"
+    )
+    assert mutated.closer_as_read * 2 < mutated.changed, (
+        f"with the reading flipped, {mutated.closer_as_read} of {mutated.changed} changed "
+        "values still moved less as read, which is not the minority the exchange "
+        "requires"
+    )
+
+
+def test_the_continuity_predicate_needs_a_majority() -> None:
+    """The predicate's majority half is graded, and it is LIBRARY-FREE.
+
+    WHY THIS ARM EXISTS AND ITS SIBLING DOES NOT. An adversary measured that
+    dropping the MINORITY conjunct from :func:`_continuity_holds` changes no
+    verdict, and that is correct and unfixable: the three buckets partition
+    ``changed``, so a majority moving less as stored forces the reversal below
+    half arithmetically. Chasing that equivalent mutant would mean weakening a
+    test for nothing. The MAJORITY half carries no such implication - a
+    population that is almost entirely TIED clears the minority test while
+    carrying no majority at all - and that is the mutant this kills.
+
+    THE SWEEPS ARE HAND-AUTHORED, so it runs on a machine with no game and
+    reaches CI, which none of the library-backed arms in this module do.
+    """
+    healthy = _ContinuitySweep(
+        snapshots=2, matched=10, changed=10, closer_as_read=8, closer_swapped=1, tied=1
+    )
+    assert _continuity_holds(healthy), "a clean majority as stored must pass"
+
+    mostly_tied = _ContinuitySweep(
+        snapshots=2, matched=100, changed=100, closer_as_read=1, closer_swapped=1, tied=98
+    )
+    assert not _continuity_holds(mostly_tied), (
+        "a population that is 98 per cent TIED carries no majority either way, yet it "
+        "satisfies the minority conjunct on its own. Accepting it would mean the oracle "
+        "reports a byte-order finding from a population that separates nothing"
+    )
+
+    empty = _ContinuitySweep(
+        snapshots=2, matched=10, changed=0, closer_as_read=0, closer_swapped=0, tied=0
+    )
+    assert not _continuity_holds(empty), (
+        "an empty changed population must not pass - every comparison in it is a tie by "
+        "construction"
+    )
+
+
+def test_the_two_readings_are_exact_byte_reversals() -> None:
+    """The two byte helpers are pinned on hand-authored patterns, LIBRARY-FREE.
+
+    BOTH WERE MEASURED UNGRADED. An adversary mutated
+    :func:`_as_read_int32` to drop its sign conversion, and :func:`_reversed_int32`
+    to exchange only the OUTER two bytes and leave the inner pair in place, and
+    the whole module stayed green through each. The reason is the population
+    rather than the tests: 135 of the 145 changed values in this library differ
+    only in their lowest stored byte, so nothing in the real corpus ever
+    exercises the middle two bytes or the sign bit. The degeneracy of the data
+    and the vacuity of a library-backed arm are the same fact, which is why this
+    arm is authored rather than measured.
+
+    THE PATTERNS ARE CHOSEN TO SEPARATE THOSE TWO MUTANTS SPECIFICALLY: one
+    moves only an INNER byte, and one sets the sign bit.
+    """
+    assert _reversed_int32(_LOWEST_BYTE_SET) == _HIGHEST_BYTE_SET, (
+        "the low byte must reach the high end"
+    )
+    assert _reversed_int32(_HIGHEST_BYTE_SET) == _LOWEST_BYTE_SET, "and back again"
+
+    # THE INNER PAIR. A reversal that swaps only the outer bytes leaves this at
+    # zero, which is the measured survivor.
+    assert _reversed_int32(_INNER_BYTE_SET) == _INNER_BYTE_REVERSED, (
+        "reversing four bytes must move the INNER two as well, so 00 FF 00 00 becomes "
+        "00 00 FF 00. A mutant exchanging only the outer pair yields 0 here and the real "
+        "library never notices, because almost every value it holds changes only its "
+        "lowest byte"
+    )
+
+    # THE SIGN. Read unsigned these are 4294967295 and 2147483648.
+    assert _as_read_int32(0xFFFFFFFF) == -1, "the as-read helper must return a SIGNED int32"
+    assert _as_read_int32(0x80000000) == -(2**31), "including at the sign bit itself"
+    assert _as_read_int32(0x7FFFFFFF) == 2**31 - 1, "and must not sign the largest positive"
+
+    # THE SYMMETRIC PATTERN, recorded because the library leans on it: an
+    # all-ones word reads -1 under BOTH orders and discriminates nothing.
+    assert _reversed_int32(0xFFFFFFFF) == _as_read_int32(0xFFFFFFFF)
+
+
+def test_a_library_less_call_does_not_switch_the_continuity_grader_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A ``None`` must never reach the cache, and this is what says so.
+
+    THE SIBLING GRADER EXISTS BECAUSE THAT HOLE SHIPPED ONCE - see
+    :func:`test_a_library_less_call_does_not_switch_the_graders_off_for_the_session`
+    and the CS-421 route (b) incident it records, where one call made with
+    discovery patched empty cached a ``None`` and switched four graders off for
+    the rest of the session, green with skips. :func:`_sweep_continuity` carried
+    that docstring citation and no arm of its own; an adversary measured that
+    appending unconditionally survives every test in this module.
+
+    IT TAKES A COLD CACHE DELIBERATELY, because the hole only exists on the
+    first call.
+    """
+    monkeypatch.setattr("tests.save.test_value_anchoring._CONTINUITY_CACHE", [])
+    monkeypatch.setattr("tests.save.test_value_anchoring._derive_continuity", lambda: None)
+
+    assert _sweep_continuity() is None, "a derivation returning None must be passed through"
+    assert _CONTINUITY_CACHE == [], (
+        "a None was cached. Every later call in this session now reads it, so the graders "
+        "skip on a machine that has a full save library and nothing reports that they did"
     )
 
 

@@ -99,35 +99,53 @@ the line becomes a pointer.
   denies it - so closing clause 3 would put the ledger in contradiction with the module, and clause 2
   is the clause that gave the module that fact. Fence 1 was CROSSED by my `UInt32Property` bullet.
 
-- **THE SECOND ORACLE WAS THEN BUILT, ON THE OPERATOR'S INSTRUCTION, AND IT IS GENUINELY A SECOND
-  ONE.** `tests/save/test_value_anchoring.py` gains a CONTINUITY oracle over `IntProperty` plus a
-  control for it: it matches the same field across two saves of one world and asks only whether it
-  MOVED LESS as stored than read backwards, touching `_int_oracle_holds` nowhere. **Why it had to
-  look outside a single save is the keeper:** byte reversal is a BIJECTION on four-byte patterns, so
-  every statistic taken from the pattern multiset within ONE save is invariant under it, and every
-  claim about an isolated value's interpretation collapses back into the small-magnitude prior the
-  first oracle already owns. TIME was the only symmetry-breaker available. Measured: 12 snapshots,
-  34820 matched keys, 145 changed, **145 closer as stored against 0 reversed with 0 tied**, and the
-  two counters INVERT COMPLETELY to 0 and 145 under the real `">i"` mutant, asserted live in the
-  LOADED module first. `tests/save` 1206 passed, exit 0.
+- **THE SECOND ORACLE WAS BUILT ON THE OPERATOR'S INSTRUCTION, AND AN ADVERSARY THEN REFUTED ITS
+  HEADLINE CLAIM - MINE, WRITTEN THE SAME DAY.** The artifact is a CONTINUITY oracle over
+  `IntProperty` in `tests/save/test_value_anchoring.py`: it matches the same field across two saves
+  and asks only whether it MOVED LESS as stored than read backwards, touching `_int_oracle_holds`
+  nowhere. Measured: 12 snapshots, 34820 matched keys, 145 changed, **145 closer as stored against 0
+  reversed**, inverting completely to 0 and 145 under the real `">i"` mutant. **THEN THE REFUTATION,
+  RE-DERIVED HERE WITH AN INDEPENDENTLY WRITTEN PREDICATE: a rule inspecting NO MOVEMENT AT ALL -
+  the magnitude prior applied to the pair's two endpoints - reproduces that verdict on 145 OF 145
+  pairs, ZERO disagreements.** It is a second IMPLEMENTATION, not a second SIGNAL, and my
+  "narrows three shared inputs to two" was unsupported.
 
-- **A HYPOTHESIS DIED IN THE SPIKE AND ONE OVERCLAIM WAS CUT BEFORE IT SHIPPED.** MONOTONICITY -
-  "a save's counters only go up" - measured 49.9 per cent against 49.7 per cent. NO SIGNAL; recorded
-  in the tree so it is not retried. And my first section banner claimed the oracle "still separates
-  on a population whose every high byte is non-zero"; I went to measure it and that sub-population is
-  **EMPTY, 0 of 145**. So independence here is a property of the PREDICATE'S FORM and NOT a
-  measurement, the banner now says exactly that, and the grader carries a conditional assertion over
-  that sub-population which is INERT TODAY, disclosed as inert, carries no corpus-coupled floor, and
-  becomes a real measurement the day this world holds a large value that ticks.
+- **THE FINDING WORTH KEEPING IS WHY NO PREDICATE COULD HAVE FIXED IT.** ZERO of the 145 changed
+  values carry a non-zero as-read high byte at BOTH ends, and 135 of 145 differ only in their lowest
+  byte. Every changed value in this corpus is small at one end, so EVERY correct byte-order oracle
+  must agree with the magnitude prior on it. **Evidential independence is not a predicate-design
+  problem here - it needs data this world does not contain.** Do not read a second oracle's
+  existence as having supplied it.
+
+- **THREE MORE SENTENCES OF MINE WERE MEASURED FALSE AND ARE CORRECTED IN THE TREE.** That time was
+  the only symmetry-breaker - FALSE by construction, the adversary built a within-one-save SPACING
+  statistic scoring 98 against 0. That the whole pattern histogram is invariant under reversal -
+  FALSE, 202 patterns change count; what is invariant is the MULTISET OF COUNTS, and read literally
+  the stronger sentence denied `_int_oracle_holds` can work. And "repeated saves of ONE world" -
+  there are THREE world tokens here and 8 pairs match across two of them.
+
+- **TEN OF THIRTEEN MUTANTS SURVIVED THE FIRST DRAFT; FIVE ARE NOW KILLED and each kill was
+  re-verified with the mutation asserted to have LANDED.** Dropping the MAJORITY conjunct, never
+  incrementing `closer_swapped`, stripping the sign from `_as_read_int32`, reversing only the OUTER
+  two bytes, and caching a `None`. Three LIBRARY-FREE arms were added, which also give this work its
+  first arms that RUN ON CI. **One survivor is an EQUIVALENT mutant and chasing it was refused** -
+  the buckets partition, so the minority conjunct is implied; my docstring claimed the opposite and
+  is corrected. Three others are population mutants whose only kill is a corpus-coupled floor, and
+  all four are listed in the module.
+
+- **A CORPUS-COUPLED RED WAS ALREADY LIVE AND IS CLOSED.** Both arms went RED - not skipped - on a
+  library holding saves this grammar cannot read, and SEVEN of the nineteen files here are already
+  at a save version outside `TAGGED_PAIRS`. Playing the game would have reddened the suite with no
+  defect. No-evidence states now route to the same skip a missing library takes, which also stops a
+  degenerate sweep reaching the cache.
 
 - **Next action: THE REMAINING ROUTE IS THE OPERATOR'S ALONE.** Amend clause 3 to say what it now
   means - settled JOINTLY over the scored populations against the real library, with the per-type
   residual in shipped data - and file the `UInt32Property` residual as its own item. An adjudicator
-  CANNOT grant that narrowing; narrowing an acceptance clause is fence 1's forbidden move. What the
-  build changed is the evidence, not the wording: the common-mode risk is narrowed from THREE shared
-  inputs to TWO, because the new oracle still shares the LOCATOR with the old ones. Otherwise take
-  CS-817 / CS-821 / CS-824, which are smaller and independent. NOTE the new work has had NO
-  adversarial pass - the producer built it and the producer graded it, which section 5 forbids.
+  CANNOT grant that narrowing; narrowing an acceptance clause is fence 1's forbidden move. **What
+  the build did NOT change is the evidence:** the common-mode signal is unnarrowed, and this corpus
+  cannot separate two correct oracles at all. Otherwise take CS-817 / CS-821 / CS-824, which are
+  smaller and independent.
 
 ## Session 33 - 2026-08-22 - CS-823 CLOSES and takes a SECOND, unfiled escape with it; then an adversary refuted this session's own suite and SIX wrong hooks passed it
 

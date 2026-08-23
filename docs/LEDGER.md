@@ -73,6 +73,79 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-23 - CS-421 - ADVERSARY REFUTED the second oracle's headline claim. CORRECTION to the entry below, and the repair
+CS-421 STAYS OPEN. This corrects the entry immediately below rather than editing it, which is
+what this file requires. The second oracle was routed to an adversary before it was pushed;
+the adversary built none of it, ran its mutants in an OUT-OF-TREE copy so the working tree was
+never touched, and returned REFUTED. Every finding below was RE-MEASURED here before it was
+written, and two of them were re-derived independently rather than checked.
+
+**THE HEADLINE CLAIM WAS FALSE AND IT WAS MINE, WRITTEN THE SAME DAY.** The entry below calls
+the continuity oracle a SECOND ORACLE. It is a second IMPLEMENTATION, not a second SIGNAL.
+**RE-DERIVED HERE with an independently written predicate: a rule that inspects NO MOVEMENT AT
+ALL - the small-magnitude prior applied to the pair's two endpoints, which is
+`_int_oracle_holds`'s own two counters restricted to the pair - reproduces the continuity
+verdict on 145 OF 145 pairs with ZERO disagreements.** 135 of the 145 changed pairs differ only
+in their lowest stored byte. The claim in the entry below that this narrows the common-mode
+risk "from three shared inputs to two" is NOT SUPPORTED: the SIGNAL is a third shared input and
+it was not narrowed.
+
+**WHY NO PREDICATE FIXES THAT HERE, WHICH IS THE FINDING WORTH KEEPING.** ZERO of the 145
+changed matched values carry a non-zero as-read high byte at both ends. Every changed value in
+this corpus is small at one end, so EVERY correct byte-order oracle must agree with the
+magnitude prior on it. **Evidential independence is not a predicate-design problem on this
+library - it needs data this world does not contain.** A later session must not read the
+existence of a second oracle as having supplied it.
+
+**TWO FURTHER SENTENCES OF MINE WERE MEASURED FALSE AND ARE CORRECTED IN THE TREE.** That every
+predicate available inside ONE save is the magnitude prior, so time was the only
+symmetry-breaker: FALSE BY CONSTRUCTION - the adversary built a SPACING statistic over a single
+save, how many distinct values `v` have `v + 1` also present, scoring 98 as stored against 0
+reversed, asking nothing about magnitude. And that the whole pattern histogram is invariant
+under byte reversal: FALSE AS WRITTEN, 202 patterns change count under reversal in one measured
+save. What is invariant is the MULTISET OF COUNTS. Read literally the stronger sentence denied
+that `_int_oracle_holds` can work at all. A third sentence, that the library holds repeated
+saves of ONE world, is also false - THREE distinct world tokens are present and 8 of the 145
+pairs match across two different worlds - though the verdict survives restriction to
+same-world adjacencies, so what was wrong there is the description rather than the result.
+
+**TEN OF THIRTEEN MUTANTS SURVIVED THE FIRST DRAFT. FIVE ARE NOW KILLED, each re-verified here
+with the mutation asserted to have LANDED IN THE FILE before the run.** Dropping the MAJORITY
+conjunct, never incrementing `closer_swapped`, stripping the sign conversion from
+`_as_read_int32`, reversing only the OUTER two bytes, and caching a `None`. The repairs are an
+inversion assertion in the control, and three LIBRARY-FREE arms -
+`test_the_continuity_predicate_needs_a_majority`, `test_the_two_readings_are_exact_byte_reversals`
+and `test_a_library_less_call_does_not_switch_the_continuity_grader_off` - which also give this
+work its first arms that run on CI, where every library-backed arm here skips.
+
+**ONE SURVIVOR IS AN EQUIVALENT MUTANT AND CHASING IT WAS REFUSED.** Dropping the MINORITY
+conjunct from `_continuity_holds` cannot change a verdict: the three buckets PARTITION
+`changed`, so a majority as stored forces the reversal below half arithmetically. The docstring
+said the opposite - that the minority half "is the half that matters" - and that sentence is
+corrected in the tree. It does NOT hold of `_int_oracle_holds`, whose two counters overlap and
+whose conjunction is genuinely two-sided. Three further survivors are population and coverage
+mutants whose only kill is a floor at an observed count, which is CS-432's shape; all four are
+listed in the module rather than left for the next adversary.
+
+**A CORPUS-COUPLED RED IS CLOSED, AND IT WAS ALREADY LIVE.** Both arms went RED - not skipped -
+on a library holding saves this grammar cannot read, and SEVEN of the nineteen files on this
+machine are already at a save version outside `TAGGED_PAIRS`. The operator playing the game
+would have reddened the suite with no defect. `_derive_continuity` now returns `None` on any
+no-evidence state, routing it to the same skip a missing library takes, which also stops a
+degenerate sweep reaching the cache - the second hole the adversary demonstrated by caching a
+zero sweep and poisoning a session. Both states re-verified here as skips.
+
+**WHAT SURVIVED THE REFUTATION.** Code-independence is real and the adversary could not break
+it: no executable statement in the new section touches `_int_oracle_holds`, its accumulator or
+any derivation consuming it, so a defect THERE cannot mask or manufacture the verdict HERE.
+Containment holds - forced failures render scalars only, no world content, no save path, no
+account directory. The control genuinely grades: swapping its uncached derivation for the
+memoised one is KILLED.
+
+Verification: `python -m pytest tests/save/test_value_anchoring.py -k "continuity or moves_less
+or byte_reversals" -q` - five arms, three of which need no save library. To re-run the
+refutation, compare the continuity verdict against `((a >> 24) & 0xFF == 0) + ((b >> 24) & 0xFF
+== 0) > ((a & 0xFF) == 0) + ((b & 0xFF) == 0)` over the changed pairs; it agrees 145 of 145.
 ### 2026-08-23 - CS-421 - a SECOND and genuinely independent int32 oracle ships. CS-421 STAYS OPEN
 NOT A COMPLETION RECORD. This is the "smallest thing that improves the evidence rather than
 the wording" the adjudication below named, built because that adjudication measured the
