@@ -73,6 +73,36 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-22 - CS-819 - CORRECTION and a DISCHARGED RESIDUAL: glibc dash delivers the heredoc, measured by CI, and the platform arms were premised on the wrong shell
+Verification: `tier1` run `32609343989` at `be5cd81`, `ubuntu-latest`, is the measurement. Its log
+carries `AssertionError: the heredoc delivered 4535 bytes under dash`. The repair is
+`tests/test_hook_interpreter_ladder.py::test_no_violation_class_slips_through_under_dash`, which now
+takes a branch selected by `_dash_heredoc_delivery()` rather than by whether dash exists.
+THE CLOSURE RECORD ABOVE LISTS AS AN OPEN RESIDUAL that "whether glibc dash delivers a heredoc above
+4096 is INFERRED, not measured". **IT IS NOW MEASURED: 4535 delivered bytes on `ubuntu-latest`,
+against 0 on the MSYS2 build.** The residual is DISCHARGED, and the Ubuntu conclusion the CS-819
+grant reached from a green CI log is confirmed by direct observation rather than by inference.
+**THE TRUNCATION IS A PROPERTY OF THE BUILD, NOT OF DASH,** and this entry states it that way because
+the first filing did not. MSYS fork emulation breaks dash's `openhere()` writer path above the
+4096-byte pipe threshold; glibc dash takes the same path correctly.
+**WHAT WAS WRONG WITH THE SHIPPED TESTS, and it is a defect in the acceptance rather than in the
+hooks.** Both platform arms encoded "dash truncates". On CI the program therefore ARRIVED, every rule
+fired correctly and reported its own reason, and the arms read CORRECT BEHAVIOUR as a broken premise -
+six failures, all one cause. The hooks were never wrong on either shell.
+**THE DELIVERED-BYTES CONTROL IS WHAT MEASURED THIS, BY FAILING LOUDLY RATHER THAN PASSING QUIETLY.**
+The CS-819 grant's condition TWO asked for exactly that control, on the reasoning that a future dash
+which fixed the bug would otherwise turn the arm into a tautology. It did its job on the first CI run
+after it shipped. It is kept, and it is now the BRANCH SELECTOR rather than a bare assertion.
+**BOTH BRANCHES NOW ASSERT SOMETHING TRUE AND NEITHER IS A SKIP.** A truncating build must refuse
+every violation class BY THE SENTINEL - CS-819's accepted cost. A delivering build gets the STRONGER
+property: every class refused BY ITS OWN RULE with the sentinel ABSENT, which proves the hook behaves
+identically under dash and bash and that the sentinel costs a delivering shell nothing. Only the
+total absence of dash is loudly not-run.
+**THE TRANSFERABLE PART, and it is the same shape as CS-703's.** A local suite and a green pre-push
+are evidence about THIS toolchain and nothing else. `CONVENTIONS.md` section 16 already says hook
+findings are version-specific and expire; this entry adds that a PLATFORM PREMISE BAKED INTO A TEST is
+a defect of the same class as a hook that trusts a name - it is an assumption asserted rather than
+measured. The fix in both cases is to measure the property at run time and branch on it.
 ### 2026-08-22 - CS-703 - CLOSED: an interpreter must now PROVE it ran the program AND can report a failure, and a pinned-but-broken one is refused rather than silently replaced
 Verification: `.githooks/pre-commit`, `.githooks/commit-msg` and `.githooks/pre-push` carry a
 byte-identical `cs_probe`; the acceptance is

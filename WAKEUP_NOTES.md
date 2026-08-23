@@ -83,6 +83,29 @@ the line becomes a pointer.
   backslash continuations AGAIN, silently, on a patch script - the Write tool is the answer, every
   time, and this is the fifth session it has cost.
 
+- **CI CAUGHT A DEFECT THAT THE LOCAL SUITE AND THE PRE-PUSH HOOK BOTH PASSED, and it is the last
+  lesson of the session.** `be5cd81` was green locally at 2464 passed and green through the whole-suite
+  pre-push run, and `tier1` was RED on it: six failures, one cause. Both dash platform arms encoded
+  **"dash truncates the heredoc"**, which is false - the truncation is a property of the MSYS2 BUILD,
+  not of dash. On `ubuntu-latest` the program ARRIVED, every rule fired correctly and reported its own
+  reason, and the arms read CORRECT BEHAVIOUR as a broken premise. The hooks were never wrong on either
+  shell; the acceptance was. **A PLATFORM PREMISE BAKED INTO A TEST IS THE SAME DEFECT CLASS AS A HOOK
+  THAT TRUSTS A NAME** - an assumption asserted rather than measured - and the fix is the same: measure
+  the property at run time and branch on it. Fixed in `a2a89ed`; both branches now assert something
+  true and neither is a skip.
+
+- **THAT FAILURE DISCHARGED A RECORDED RESIDUAL, which is the one good thing about it.** The CS-819
+  grant listed "whether glibc dash delivers a heredoc above 4096 is INFERRED, not measured" as open.
+  The CI log measures it: **4535 delivered bytes**, against 0 on the MSYS2 build. The delivered-bytes
+  control the adjudicator insisted on is what measured it, by FAILING LOUDLY rather than passing
+  quietly, on the first CI run after it shipped.
+
+- **A PROCESS MISTAKE WORTH NOT REPEATING: I pruned the builder's worktree before CI was green.** When
+  CI went red the agent that knew the module could not be resumed - its worktree was gone and the
+  fallback directory was outside the session's fences. **Do not prune a worktree until CI is green on
+  the commit that merged it.** The repair was done in the main checkout instead, which was fine here
+  only because the diagnosis was precise and the change was one file.
+
 - **A DEVIATION RECORDED RATHER THAN CLAIMED MET.** Both grants ask that `scripts/install_hooks.py`
   run clean. Its `inspect_hook` was run over all three hooks and passed; the WHOLE script was not,
   because `install()` writes `core.hooksPath` RELATIVE where this machine holds it ABSOLUTE - from a
