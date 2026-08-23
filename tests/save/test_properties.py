@@ -9,10 +9,12 @@ returns decoded values for the types whose encoding was measured. A grammar
 that lives only in a test file cannot be used by ``world.py``, which was the
 point of the item.
 
-WHAT DID NOT CHANGE IS THE LIMIT. The walk is TERMINATOR-exact and still not
-BOUNDARY-exact - a variable trailing run follows the terminator on every
-payload in the library - and save version 60 still refuses this grammar
-outright. Both are asserted below rather than described, because a comment
+WHAT DID NOT CHANGE IS THE LIMIT. The PROPERTY walk - not the body walk, which
+is boundary-exact - is TERMINATOR-exact: a variable trailing run follows the
+terminator on every payload of the three pairs this grammar reads, which is not
+the same as every payload in the library - and save version 60 still refuses
+this grammar outright. Both are asserted below rather than described, because
+a comment
 does not fail.
 
 So this module is the ARTIFACT for that measurement. It re-derives the result
@@ -664,7 +666,8 @@ def test_the_run_after_the_terminator_is_unmeasured() -> None:
 
     Reaching the terminator is NOT reaching the payload's final byte. A
     variable trailing run follows it whose grammar nobody here has measured, so
-    this asserts that the walk is terminator-exact and is NOT boundary-exact.
+    this asserts that the PROPERTY walk is terminator-exact and is NOT
+    boundary-exact. The BODY walk is boundary-exact; they are different walks.
 
     It is written as an assertion rather than a comment because a comment does
     not fail. If a later slice measures the trailing run, this test is what
@@ -2058,7 +2061,7 @@ def test_every_unmeasured_type_the_library_holds_is_recorded_as_data() -> None:
     decoder SKIPS must appear by name in
     :data:`objects.UNMEASURED_PAYLOAD_REGIONS`, which is the structure a later
     slice executes against. The trailing run is in that table too, and is the
-    reason the walk is terminator-exact rather than boundary-exact.
+    reason the PROPERTY walk is terminator-exact rather than boundary-exact.
 
     THE ASSERTION RUNS AGAINST THE LIBRARY, not against a hardcoded list, so a
     game update introducing a new property type turns this red instead of

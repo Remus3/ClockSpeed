@@ -153,11 +153,13 @@ NOT measured, and deliberately not invented:
    executes against that table instead of re-deriving it.
 
    TWO LIMITS ARE WORTH STATING AT THE TOP, because both are easy to misread
-   as closed. The walk is TERMINATOR-exact and NOT boundary-exact: a variable
-   trailing run follows the property terminator on every payload in the
-   library, and it is the ``trailing_run`` entry of that table. And the
-   (14,60) pair reads under this grammar on NO payload at all, so it reports
-   exactly what it reported before any of this landed.
+   as closed. The PROPERTY walk - not the body walk, which is boundary-exact
+   and asserted so against every real save - is TERMINATOR-exact: a variable
+   trailing run follows the property terminator on every payload of the three
+   pairs this grammar reads, and it is the ``trailing_run`` entry of that
+   table. It is NOT every payload in the library, and the next sentence is
+   why: the (14,60) pair reads under this grammar on NO payload at all, so it
+   reports exactly what it reported before any of this landed.
 
 An unrecognised object-type discriminator is refused rather than skipped, and
 that is not a contradiction of non-negotiable 7. That rule covers unknown
@@ -3247,15 +3249,20 @@ UNMEASURED_PAYLOAD_REGIONS: Final[Mapping[str, str]] = MappingProxyType(
     {
         "trailing_run": (
             "the run between a payload's property terminator and its declared "
-            "final byte. It is UNIVERSAL - not one payload in the library ends "
-            "at its terminator - and its width is 4 on the large majority and "
+            "final byte. It is UNIVERSAL ACROSS THE THREE PAIRS THIS GRAMMAR "
+            "READS - not one of their payloads ends at its terminator - while "
+            "(14,60) reaches no terminator at all, so it has no such run and is "
+            "scoped out of CS-828 and into CS-G05. Its width is 4 on the large "
+            "majority and "
             "variable above that, spanning 4 to 5008 bytes on the (10,36) and "
             "(13,42) pairs and 4 to 1053802 on (14,52), across roughly 235 "
             "distinct widths per pair. A 4-byte floor holding on every payload "
             "of every pair is the one regularity; whether it is one field or "
             "the head of a longer structure is NOT claimed, and no reading of "
-            "its interior is offered. This is the region that keeps the walk "
-            "terminator-exact rather than boundary-exact"
+            "its interior is offered. This is the region that keeps the PROPERTY "
+            "walk terminator-exact rather than boundary-exact. The BODY walk is "
+            "boundary-exact and is a different question - conflating the two put a "
+            "false sentence in a tracked file on 2026-08-23"
         ),
         "StructProperty": (
             "45208 instances, the largest opaque region by count. The tag's "
@@ -3263,8 +3270,11 @@ UNMEASURED_PAYLOAD_REGIONS: Final[Mapping[str, str]] = MappingProxyType(
             "costs no synchronisation - the interior is what is unmeasured. "
             "The struct's own type word is present in the tag and the observed "
             "vocabulary is led by FactoryCustomizationData, InventoryStack, "
-            "Box and LinearColor. InventoryStack is the one pillar 3 needs "
-            "for inventory, so it is the natural next measurement"
+            "Box and LinearColor. InventoryStack is NOT reachable from a "
+            "building directly - measured 2026-08-23, no building record "
+            "carries one; a building holds an ObjectProperty reference to an "
+            "inventory component and the stacks sit there inside an array. So "
+            "the chain is CS-831, then CS-830, then this region"
         ),
         "ArrayProperty": (
             "31983 instances. NOT decoded here, and the reason is that the "
