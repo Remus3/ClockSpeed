@@ -1703,6 +1703,14 @@ load-bearing against the tree before acting on it.
 
 ### CS-421 - detail
 
+### Relocated 2026-08-22 (session 32) from `ROADMAP.md` - the CS-421 NOTE, verbatim
+
+Moved for budget, not deleted. The item itself stays OPEN in `ROADMAP.md`, which now
+carries a one-line pointer here.
+
+filed 2026-08-15 by the measurement-validity adversary. **THE FULL ENTRY AND THE STATUS HISTORY FOR SESSIONS 14 AND 16 THROUGH 18 ARE IN `docs/history_notes.md` under **CS-421 - detail** and **CS-421 - status history**, and MUST BE READ BEFORE TAKING THIS ITEM** - relocated for budget, never deleted. They carry the population derivation, the session-16 anchoring fix, the session-17 singleton result and the fence forbidding the data-blocked sentence, and each records a sentence measured FALSE that must not be rewritten. **STATUS: ROUTE (b) IS BUILT AND SHIPPED AND CS-421 STILL DOES NOT CLOSE - THE REFUSAL IS THE RESULT, NOT AN UNFINISHED ATTEMPT.** The session-19 status block is relocated to `docs/history_notes.md` under **CS-421 - status history**. **THE FOUR FENCES THIS ENTRY OWNS ARE RELOCATED to `docs/history_notes.md` under **CS-421 - fences** and MUST BE READ BEFORE TAKING THIS ITEM** - relocated for budget, never deleted. Residuals filed as CS-478 and CS-479.
+
+
 NOTE: filed 2026-08-15 by the measurement-validity adversary. Its split of the 185382 decoded values: redundancy-oracle-backed by a string's own length prefix - ObjectProperty 52457, ByteProperty 5359, NameProperty 9804, EnumProperty 6245, SoftObjectProperty 116, StrProperty 37 = **74018**; cross-section-backed 26146, a strict SUBSET of the ObjectProperty 52457; and **backed by a declared width and nothing else - IntProperty 75136, FloatProperty 31318, BoolProperty 4077, Int8Property 824, UInt32Property 9 = 111364, which is 60.1 per cent of the total.** The width check carrying that 60.1 per cent is the one the module ITSELF records as "defensive rather than measured", and loosening it survives the whole suite. **The endianness half is the sharper problem and has a one-command demonstration:** patching `"IntProperty": (4, "<i")` to `">i"` turns all 75136 IntProperty values into byte-swapped garbage, and the ONLY tests that go red are synthetic-fixture tests whose own section comment states they are not evidence about the game's format. A fixture built from the same belief as the reader agrees with the reader by construction - the session-6 mutant incident in a new costume. What survives today is "185382 values were produced and are self-consistent with our own writer"; what is claimed is "correctly decoded", and the gap between those two sentences is this item.
 
 ### CS-421 - fences
@@ -1843,6 +1851,14 @@ NOTE: filed 2026-08-16 from the CS-438 repair, which measured them and correctly
 NOTE: filed 2026-08-16 as CS-428's stated residual, measured rather than assumed, and deliberately kept out of that item because neither is a forced-failure render. **THE SESSION HEADER IS THE LIVE ONE AND ONLY ON LINUX:** pytest's `rootdir:` line prints the checkout path on EVERY run, pass or fail, and on a Linux CI runner the checkout sits beneath the runner account's home directory, so a home path is printed on every CI run of every lane. **THE LITERAL RUNNER PATH IS DELIBERATELY NOT WRITTEN HERE: the commit gate BLOCKED the first version of this entry for exactly that, which is CONVENTIONS section 10 and non-negotiable 3 doing their job on the entry that describes the leak.** It is harmless on this operator's machine because `C:\Clockspeed` is not under a home directory - which is LAYOUT LUCK and not a property of anything. The warnings summary is inside the region CS-428's own oracle scans but outside what its remedy can rewrite; CS-428 resolved that contradiction toward the statement and left the gap named and tested rather than implied. Also uncovered and confirmed by measurement: a collection error exiting rc 2, and `--co`.
 
 ### CS-448 - detail
+
+### Relocated 2026-08-22 (session 32) from `ROADMAP.md` - the CS-448 NOTE, verbatim
+
+Moved for budget, not deleted. The item itself stays OPEN in `ROADMAP.md`, which now
+carries a one-line pointer here.
+
+**ROOT-CAUSED 2026-08-16 (session 12) AND STILL OPEN.** The mechanism is the CHECKOUT LOCATION, not contention: a checkout sharing a large ancestor with the temp root makes pytest's rootdir climb, so collection walks the whole temp tree. Still open: whether tier-2 CI is actually exposed - measure `rootdir` inside a real job. **ONE ATTEMPT MADE AND IT FAILED FOR A NAMED REASON 2026-08-16, recorded so the next session does not repeat it:** a tier-2 `workflow_dispatch` on `8620238` went green on all five jobs INCLUDING both `full suite` jobs, which run under `-n auto` when xdist is available - so the flake did not fire that run. But the log carries **ZERO** occurrences of `rootdir` across 332 KB, because the lane invokes `pytest tests -q` and `-q` suppresses the header line that prints it. **A GREEN RUN IS NOT THE MEASUREMENT THIS ITEM ASKS FOR.** To actually measure it, the job needs a step that prints the rootdir the innermost probe computes - not a rerun of the suite. FULL ENTRY relocated to `docs/history_notes.md` under **CS-448 - detail**; read it before taking this item.
+
 
 NOTE: filed 2026-08-16 by the final adversary auditing merged main, and it is a LIVE TIER-2 CI RISK. **IT IS PRE-EXISTING AND NOT INTRODUCED BY THIS SESSION, WHICH IS ESTABLISHED RATHER THAN ASSUMED:** measured 1 failure in 3 runs at `76f6c82` AND 1 in 3 at `ee36d0d`, the same test both times, and `git diff --name-only 76f6c82 ee36d0d -- tests/save/test_synthetic.py` is empty. The tier-2 lane runs `-n auto`, so this is the lane that flakes. Mechanism as far as it was traced: the gate spawns a nested child pytest run, and that child fails at `tests/save/test_synthetic.py::test_a_failing_builder_call_renders_its_arguments` with a collection error in its own SUB-subprocess, taking 61 seconds against 28 warm. So it is a three-level process nest under parallel load, and the honest reading is contention rather than a logic fault. DO NOT close this by raising a timeout or by marking the test flaky - a nested run that fails under load is telling you the nesting is the cost, and CS-426 already wants a no-install path that runs everywhere. Note the interaction to check first: this session's CS-428 added report hooks that fire in every worker AND controller-side, so re-measure at a revision before and after that commit even though the flake predates it. **SOLVED 2026-08-16 (session 12). THE MECHANISM IS MEASURED AND IT IS NOT CONTENTION - IT IS THE CHECKOUT LOCATION.** The merger first reported 32 runs with 0 failures and concluded it did not reproduce. **AN ADVERSARY REFUTED THAT AND REPRODUCED IT SIX TIMES**, at BOTH cited revisions, with a signature byte-identical to the original evidence: 3 failures in 10 runs at `a267705`, 3 of 4 at `ee36d0d`. **THE MERGER'S 32 RUNS WERE ALL EXECUTED IN THE TWO LOCATIONS ON THIS MACHINE WHERE THE FAILURE IS STRUCTURALLY IMPOSSIBLE**, so they were a control rather than a null result - as were a further 460 runs the adversary took there, junit-verified to confirm the gate testcase actually ran in 20 of 20. **THE CHAIN, each link measured.** When the checkout shares a large ancestor with `tempfile.gettempdir()`, pytest's rootdir for the innermost probe climbs to the TEMP ROOT, and collection then walks the whole temp tree: the same probe with only the cwd varied took 0.4s from three ordinary locations and **42.7s from a clone under the temp root, 107x from checkout location alone**. During that walk a sibling xdist worker creates and destroys `%TEMP%\clockspeed_gate_*` directories through `tools/precommit_gate.py`, `os.lstat` on the vanished entry raises `FileNotFoundError`, collection is Interrupted, the sentinel is never printed, the level-2 child exits 1 and the gate goes red. **xdist supplies only the concurrent creator and deleter - it is NOT CPU contention, and the 42.7s walk happens single-process with nothing else running.** THE MERGER'S FIRST MECHANISM STORY WAS WRONG in both halves and its fixture count was wrong too - that file defines 12 sandbox spawns, not the seven the merger wrote. **WHAT SURVIVED THE REFUTATION:** the CI-history reading is confirmed independently - 7 tier-2 runs is the COMPLETE history rather than a first page, the one red was a different test, and the gate is NOT skipped on hosted runners. **WHAT IS STILL OPEN, and it is the only thing left:** whether tier-2 CI is actually exposed is UNSETTLED, because a hosted workspace probably does not share a large ancestor with its temp directory - but that is inference from this machine, which is the same species of inference this entry criticised. **Measure `rootdir` inside a real tier-2 job before closing.** Housekeeping that feeds the defect and should be fixed regardless: the temp tree held hundreds of stale `pytest-of-*` entries, and the bigger it grows the longer the walk and the wider the race window. Do not close by raising a timeout; the fix is to stop the rootdir climbing, which also removes the 100-second walk.
 
@@ -4021,3 +4037,135 @@ Relocated 2026-08-22 (session 29) because a fourth session entry landed and that
   whether a name-keyed guard can satisfy this acceptance at all - CS-491's own note warned
   "do not close this by widening the name list alone", and nine rounds have now tested that
   warning to destruction.
+
+## CS-815 - detail
+
+Filed 2026-08-22 (session 32); the item stays OPEN in `ROADMAP.md`.
+
+Filed by the CS-703 adjudicator as the FOURTH site of that defect class, found by grepping for the
+shape rather than by reasoning about it. `.claude/settings.json` names `pythonw tools/pretooluse_gate.py`
+and `python tools/edit_lint_check.py` with NO resolution ladder and NO probe of any kind. By that
+gate's own stated protocol - exit 2 denies and every other status is non-blocking - a missing or
+substituted interpreter yields a non-2 status and the gate FAILS OPEN.
+
+**IT IS MILDER THAN THE GIT HOOKS AND THAT IS RECORDED SO NOBODY RE-RATES IT UPWARDS.** CLAUDE.md
+section 2.2 makes the Claude hooks a convenience layer and `.githooks` authoritative, so the tier-0
+guarantee does not rest on this file. **IT IS ALSO NOT FIXABLE THE WAY CS-703 WAS,** because JSON
+cannot express a probe: the fix has to live in the tools the JSON names, or in a wrapper.
+
+`.claude/settings.json` is on the CLAUDE.md section 6 frozen list, so this needs its own operator
+grant and its own adjudication. It was explicitly OUT of the CS-703 grant and is not claimed closed
+by it.
+
+## CS-816 - detail
+
+Filed 2026-08-22 (session 32); the item stays OPEN in `ROADMAP.md`.
+
+TWO SHAPES, both measured, one pre-existing and one introduced by CS-819's capture.
+
+**Shape one, PRE-EXISTING in the old probe and unchanged by the repair.** `PYTHONINSPECT=1` makes the
+candidate enter interactive mode after running the program, and it never returns. Measured at a
+bounded six seconds returning 124 - **WITH stdin already redirected from `/dev/null`**, so closing
+stdin does NOT close this. Neither the old probe nor the new one is timeout-bounded, and a hung hook
+looks like frozen git rather than a refusal.
+
+**Shape two, introduced by the CS-819 capture and disclosed in its grant.** Command substitution
+waits for EOF on the pipe rather than for the child to exit, so a program that spawns a background
+process holding stdout stalls the hook for that process's whole lifetime. Measured at 124 under a
+bound. LATENT today: the program the hook delivers spawns nothing.
+
+**The route, and its cost.** `timeout` exists at `/usr/bin/timeout` here and on a POSIX runner, but
+adding it makes the hooks depend on a binary they currently do not need, and `CONVENTIONS.md` section
+16 says such findings are version-specific. Whatever ships must FAIL CLOSED on a timeout - a probe
+that times out and then proceeds is the CS-703 defect wearing a clock.
+
+## CS-817 - detail
+
+Filed 2026-08-22 (session 32); the item stays OPEN in `ROADMAP.md`.
+
+**This is the residual CS-703 explicitly did not close, and it is recorded so the two are never
+confused.** CS-703's probe proves the candidate is a python that runs a program and can report a
+failure. It proves NOTHING about what that python can import.
+
+Measured: `py -3` PASSES the repaired probe and `py -3 -c "import pytest"` raises
+`ModuleNotFoundError`. That is exactly the `BOOTSTRAP.md` section 2.5 trap - two installations both
+reporting the same version, one carrying the toolchain and one not - arriving at a different door
+from the one CS-806 closed.
+
+**The exposure differs per hook and that is the part worth carrying.** `pre-push` DOES check
+`import pytest` after resolution, and that check is sound now that the interpreter is proven. But
+`pre-commit` never checks ruff at all, and `tools/precommit_gate.py` treats a missing ruff as
+LINT SKIPPED rather than blocking - so a resolved python without ruff silently degrades the
+character-set gate's sibling checks rather than refusing.
+
+## CS-818 - detail
+
+Filed 2026-08-22 (session 32); the item stays OPEN in `ROADMAP.md`.
+
+Filed by the CS-703 adjudicator. `scripts/verify_env.py` asserts properties of `sys.executable` - the
+interpreter RUNNING IT - and never reads `CLOCKSPEED_PYTHON` or performs the hooks' four-rung
+resolution. So `verify_env` can pass while the hooks resolve a DIFFERENT interpreter, and a green
+environment report is not evidence about the thing that will actually gate a commit.
+
+**THIS IS THE CS-806 SHAPE ONE DOOR ALONG.** CS-806 closed by making this file assert the RESOLVED
+interpreter instead of trusting a name; the assertion was never extended to the resolution the HOOKS
+perform. Recorded that way deliberately: the pattern is now the finding rather than the instance,
+and this is its fourth appearance.
+
+The cheap route is for `verify_env` to run the same ladder and report the winner, failing when that
+winner is not the interpreter it just graded.
+
+## CS-820 - detail
+
+Filed 2026-08-22 (session 32); the item stays OPEN in `ROADMAP.md`.
+
+**MEASURED, and reported as counts rather than values throughout - the finding is that this class of
+output leaks, so the check for it must not leak in turn.** `tests/conftest.py` carries a redaction
+hook that covers home paths and account names. It has NO rule for a secret, a token or a credential
+of any shape. pytest renders a failing test's ARGUMENTS at the top of its report, so any test taking
+an environment mapping as a parameter prints that mapping's values.
+
+One forced failure of one arm rendered an Anthropic API-key-shaped credential IN FULL, together with
+several other long opaque tokens. In CI that output goes to the run log.
+
+**THIS IS CS-814's SHAPE ARRIVING THROUGH A SECOND DOOR.** Non-negotiable 12 already rules that error
+messages, debug dumps, log lines and exception context ALL COUNT as echo paths; it is written for
+save headers and, again, was never carried across. CS-814 records five live credentials in the hook
+environment and an outstanding rotation; this item is the reason a test failure is also an exposure.
+
+**THE POPULATION IS UNMEASURED AND THAT IS STATED RATHER THAN GUESSED.** One narrow scan matched two
+tracked modules; a broader scan by a different agent reported more. Measuring it is part of the work.
+The module that surfaced it, `tests/test_hook_interpreter_ladder.py`, was fixed in place at
+`CS-703`'s merge by routing the mapping through a carrier whose repr withholds its contents - so the
+instance is closed and the CLASS is this item.
+
+## CS-821 - detail
+
+Filed 2026-08-22 (session 32); the item stays OPEN in `ROADMAP.md`.
+
+Filed by the CS-703 escape adversary and confirmed with a real push that landed a RED suite on a
+remote. `.githooks/pre-push` decides pytest is available with `cs_python -c "import pytest"`, judging
+the EXIT CODE alone. A directory on `PYTHONPATH` holding a one-comment `pytest.py` satisfies that:
+the import succeeds, and `-m pytest` then runs the stub, exits **0**, and collects nothing.
+
+**THE INTERPRETER IS GENUINE, WHICH IS WHY THIS IS NOT CS-703.** The repaired probe correctly accepts
+it - it is a real python that runs programs and reports failures. This is TOOLCHAIN SHADOWING, a
+sibling of CS-817 rather than the same item: CS-817 is the tool being ABSENT, this is the tool being
+REPLACED.
+
+**THE EXISTING GUARD DOES NOT FIRE.** The hook treats exit 5 as "collected zero tests" and blocks on
+it. The stub returns 0, not 5, so the empty-suite guard never runs. Any fix must refuse a run that
+collected nothing whether it reports 5 or 0, rather than trusting the code pytest chose to return.
+
+## CS-822 - detail
+
+Filed 2026-08-22 (session 32); the item stays OPEN in `ROADMAP.md`.
+
+Noticed by the CS-819 adjudicator while reading the offender test, and confirmed to exit 0 under bash
+with a real message. The commit-msg byte check builds its offender list with `b > 0x7E` only, so it
+catches every byte ABOVE printable ASCII and nothing BELOW it. NUL and the rest of the C0 control
+range are accepted into a commit message.
+
+PRE-EXISTING, unrelated to CS-819, and EXPLICITLY EXCLUDED from that grant so the fix is not smuggled
+in beside it. Any repair has to permit tab and newline deliberately rather than by omission, which is
+the reason this is its own item rather than a one-character change to a comparison.
