@@ -13,6 +13,33 @@ whole point of writing it down here instead of doing it.
 
 ---
 
+## Save reader - CS-831 residuals too small to file
+
+All measured 2026-08-23 by the CS-831 review rounds, none blocking its close. **Trigger for
+the first: a consumer actually needs to follow a component to its parent.**
+
+- A component's `parent` is a cross-reference that resolves for every component in the
+  library and nothing follows it - the join already exists, only a consumer is missing;
+  the strongest sibling CS-831 found - conditional on a consumer needing it.
+- `ReferenceResolution.targets` is keyed by PROPERTY NAME, so two reference tags sharing a
+  name would collapse and one target would silently become unreachable - measured zero
+  occurrences across the whole library, so a latent shape hazard rather than a live defect,
+  and `PropertyResult.references` argues against exactly this collapse - conditional on a
+  record appearing that bears two references under one name.
+- `_ReferenceSweep` is the one new frozen dataclass without `repr=False`, safe today only
+  because every field is an int or a tuple of exception type names - conditional on any
+  string-bearing field being added to it.
+- The CS-831 module's ledger-recording test cannot fail unless another test in the same
+  module also fails, so it grades nothing of its own - conditional on someone touching that
+  module.
+- CS-831's ambiguity margin - how many resolutions land on a name borne by more than one
+  record - is asserted but never recorded anywhere a reader sees it without running pytest.
+- `read_properties` returns early on a zero-length payload, a third abandon condition the
+  CS-831 second join does not mirror; measured zero such payloads, and both passes
+  contribute zero from it either way.
+- `clockspeed/save/objects.py` is now the largest module in the package by a wide margin
+  and is a splitting candidate - conditional on a change that would grow it again.
+
 ## Mod content support
 
 Architecture is first-class from phase 0 - namespaced identifiers, unknown classes

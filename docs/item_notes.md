@@ -197,11 +197,119 @@ as the thing that rots. Derive the population.
 
 NOTE: filed 2026-08-23 and REWRITTEN the same day. **IT WAS THE FOURTH LIVENESS FLOOR AND THE REPAIR PASS THAT FIXED THE OTHER THREE SKIPPED IT** - an adversary caught that, which is this session's own transferable finding landing a fourth time. Its first wording asked for `an element` to decode, closeable by three single decodes while the 19910 `ArrayProperty`-of-`StructProperty` instances that hold the inventory stayed unmeasured. **THE THREE WORDS ARE NAMED RATHER THAN DERIVED, DELIBERATELY:** no shipped table equals that triple - every candidate over-includes `StructProperty` (CS-829) or `TextProperty` (CS-832) - so the second acceptance arm guards the transcription instead of pretending it is derived. **DISTINCT FROM CS-426 AND CS-456**, which cover the tag-extra WIDTH, and from CS-489, which grades PROSE.
 
-## CS-831
+## CS-833
 
-### NOTE - relocated from `ROADMAP.md` 2026-08-23
+### NOTE - filed 2026-08-23 by the CS-831 close
 
-NOTE: filed 2026-08-23. **THE NON-ZERO CLAUSE IS NOT DECORATION:** without it a join that resolves nothing and flags everything unresolved satisfies the words, and an adjudicator caught exactly that in the first wording. **THIS IS THE FIRST OF THREE LAYERS BETWEEN THE ADVISOR AND AN INVENTORY**, and it was missed because a building was assumed to CONTAIN its inventory. Measured 2026-08-23: a building's `mStorageInventory`, `mInputInventory` and `mOutputInventory` are all `ObjectProperty`, and no building record carries an `InventoryStack`. The other two layers are CS-830 and CS-829.
+Filed as a residual of CS-831, which shipped the gloss rather than introducing it. THREE
+SHIPPED SITES state it as a UNIVERSAL over the unresolved bucket: `ReferenceResolution`'s
+class docstring, `resolve_references`'s docstring, and the CS-831 test module's header.
+The sentence is that a reference resolving to nothing names an ASSET, and that
+non-negotiable 7 therefore licenses skipping it.
+
+MEASURED 2026-08-23 against the real library by two agents independently, and the counts
+differ because their shape heuristics differ: SIXTEEN unresolved references carry an
+EMPTY object path, and roughly one hundred more are save-object-shaped and carry a level
+head that IS a known root of the same save. Neither is an asset. A null reference is not
+content shipped with the game.
+
+**THE COUNTS ARE NOT THE DEFECT - THE UNIVERSAL IS.** CS-831's partition is right and its
+buckets are right; what is wrong is a causal explanation attached to a whole bucket that
+is false for part of it. An adjudicator considered DO-NOT-CLOSE on non-negotiable 7 for
+exactly this and ruled it a documentation defect rather than a handling defect, because
+the references ARE flagged in a named counted bucket and NN7 does not require the flag to
+carry a correct reason. Do not re-litigate that ruling; fix the sentence and split the
+count.
+
+## CS-834
+
+### NOTE - filed 2026-08-23 by the CS-831 close
+
+CS-831 resolves TOP-LEVEL `ObjectProperty` tags - the ones its property walk steps over.
+That boundary is real, is correct for CS-831, and is stated NOWHERE a reader of
+`resolve_references` would find it.
+
+MEASURED 2026-08-23: a raw byte scan for the length-prefixed type word finds far more
+occurrences than the walk reports, and the merger independently confirmed that ZERO of
+them fall outside every record extent - so the excess is entirely INSIDE payloads, in
+regions the top-level walk steps over as opaque bytes. Those regions are `StructProperty`,
+`ArrayProperty` and `MapProperty` values, which `MEASURED_VALUE_TYPES` excludes. A first
+attempt to split that excess into nested-versus-outside was INVENTED and shipped as
+measurement; the split is one number, not two, and the reason it looked measured is that
+the two invented halves summed to the correct total.
+
+**WHY THIS MATTERS BEYOND TIDINESS:** the inventory path runs through exactly those
+containers. CS-830 and CS-829 own DECODING those interiors. Neither owns RE-SCOPING
+CS-831's population, so when they land, a test still named
+`test_every_object_property_reference_in_the_library_resolves_or_is_flagged` silently
+becomes a statement about a subset. A THIRD class is also unowned: the actor head's
+component list is stepped over by `_skip_actor_head` and never returned, so those
+references are not unresolved - they are never decoded at all.
+
+## CS-835
+
+### NOTE - filed 2026-08-23 by the CS-831 close, raised by its adjudicator as the largest risk in the comparison
+
+CS-831's confidence rests on two passes agreeing. THEY ARE NOT INDEPENDENT READERS.
+Measured 2026-08-23: both share `_payload_text`, `_read_tag_header`,
+`_MAX_TAGS_PER_PAYLOAD`, `_decode_value`, `_as_reference` and `_skip_actor_head`; both
+abandon a payload on the same conditions; and the CS-831 repair deliberately tied
+`objects.REFERENCE_TYPE_WORD` to the oracle module's own copy of the word, which kills
+drift and GUARANTEES that one wrong word makes both passes wrong identically.
+
+Every synthetic case in the module derives from ONE fixture builder in
+`tests/save/test_properties.py`, so a wrong belief encoded in that tag builder is
+invisible to all of them.
+
+**SO THE REFERENCE COUNTS ARE ONE READER'S OPINION STATED TWICE.** The second join is
+genuine evidence about the JOIN and is NOT evidence about the DECODER. The only thing
+standing against a wrong grammar is the length-prefix redundancy argument. The module
+states all of this plainly rather than hiding it, which is why it did not block the close.
+A grammar-free count is measured IMPOSSIBLE without a second reader this project has
+declined to build - see the CS-831 ledger entry - so the honest form of this item may well
+be the recorded-limit arm rather than the second-count arm.
+
+## CS-836
+
+### NOTE - filed 2026-08-23 by the CS-831 repair adversary
+
+MEASURED 2026-08-23 on a simulated no-game machine: making `resolve_references` skip a
+reference whose object path is empty, instead of bucketing it, SURVIVES - the module
+reports passed with the library cases skipped, while the skipped references vanish from
+the partition. Only the library-backed cases catch it, and those skip on a clean clone,
+which is the CS-426 shape all over again: the protection exists only on the one machine
+that has the game installed.
+
+The CS-831 module's own stated standard says a defect of this class must die on a bare box
+too. This item is that test.
+
+## CS-837
+
+### NOTE - filed 2026-08-23 by the CS-831 repair adversary
+
+`tests/save/test_absolute_claims.py`'s `FENCED_MODULES` holds `test_absolute_claims.py`
+and `test_decode_oracles.py` and nothing else, so the CS-831 test module's prose is
+ungoverned by the CS-420 quantifier fence. `clockspeed/save/objects.py` is not in it
+either. That is how a false universal survived in `objects.py` across a whole repair pass
+whose write-list included that file: nothing was watching the prose.
+
+This is ADR 0008's unguarded tier, the same class as CS-437 and CS-422.
+
+## CS-838
+
+### NOTE - filed 2026-08-23 by the merger, against its own commit
+
+MEASURED 2026-08-23, not reasoned. A commit was made in this session carrying a
+`ruff format` violation. `tools/precommit_gate.py --staged` reported PASS on it, and the
+FULL suite passed with the violation present - only an explicit `ruff format --check .`
+found it. So neither tier-0 gate nor the suite enforces formatting, and the only thing
+that caught it was a human running the checker by hand.
+
+**THE FILE IS FROZEN.** An adjudicator grant recorded in `docs/LEDGER.md` comes BEFORE any
+edit, per `CLAUDE.md` section 6. Note the standing constraint that applies to every change
+to this gate: coverage may not be reduced to buy anything, and the only valid proof the
+gate still blocks is end to end - stage a real violation, attempt a real `git commit`,
+assert exit 1 and HEAD unchanged.
 
 ## CS-832
 

@@ -73,6 +73,63 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-23 - CS-831 - CLOSED. A record's cross-references RESOLVE to the records they name; the acceptance was AMENDED by the operator the same day and the amended wording is preserved here
+`clockspeed/save/objects.py` ships `index_records`, `resolve_references`, `ObjectReference`,
+`RecordIndex`, `ReferenceResolution` and `REFERENCE_TYPE_WORD`. A caller can now follow an
+`ObjectProperty` from the record that bears it to the record it names. This is the FIRST of the
+three layers between the advisor and a building's inventory; CS-830 and CS-829 are the other two,
+and the operator's CS-400 clause-1 ruling is stated by substance rather than by item id, so it is
+unaffected by which layer lands when.
+
+**THE ACCEPTANCE WAS AMENDED BY THE OPERATOR ON 2026-08-23, MID-REPAIR, AND IS RECORDED HERE
+VERBATIM BECAUSE CLOSING DELETES THE `ROADMAP.md` LINE THAT HELD IT.** Amending an acceptance
+clause is the operator's act alone. The amended clause, in full:
+
+> EVERY `ObjectProperty` reference on a real record either resolves to a record in the same save
+> or is flagged unresolved, asserted as an EQUALITY over the reference population WHOSE TOTAL IS
+> OBTAINED FROM A SOURCE THE BUCKET-FILLING LOOP CANNOT MOVE, AND the resolved count is non-zero
+> and recorded, proven by a skip-if-absent real-library test reporting COUNTS ONLY.
+
+The words added were the total's provenance. They were added because the ORIGINAL clause permitted
+a vacuous reading, which the builder itself flagged and an adversary then demonstrated: the first
+version's equality reduced to an identity, and two landed mutants left every test green - one
+dropping component records from the index, which destroys most of the join, and one calling every
+resolution ambiguous. An adjudicator ruled the amendment bought REAL detection rather than only
+tidier wording: the partition against the walk's own total is an identity, but the partition
+against a tag total this module does not count is not, and the same defect that used to read as
+zero equals zero now reddens.
+
+**WHAT THIS ENTRY DOES NOT CLAIM.** The two passes that agree are not independent READERS - they
+share the payload primitives, they abandon a payload on the same conditions, and every synthetic
+case derives from one fixture builder. The second join is evidence about the JOIN and is NOT
+evidence about the DECODER. A count obtained without the shipped grammar was MEASURED impossible:
+the only grammar-free candidate over-counts, because the type word also occurs inside container and
+struct values the top-level walk steps over, and restricting it to the walk's own offsets requires
+the grammar under test. That limit is filed as CS-835 rather than left as an adjective, and the
+population boundary it implies is CS-834.
+
+Route: one builder, then two adversaries on distinct lenses which BOTH returned REFUTED, then a
+repair; then an adjudicator which returned CLOSE on all six clauses and an adversary which returned
+REFUTED on four blockers the adjudicator had not looked for; then a second repair. The adjudicator
+graded the CLAUSES and the adversary graded the RECORD around them, and that split is the reason
+both were run. **A third adversarial round was NOT run against the second repair.** The merger
+graded its new prose directly instead, and re-ran the mutants itself. That is a stated limit of
+this close, not a claim of exhaustion.
+
+Residuals filed rather than absorbed: CS-833, CS-834, CS-835, CS-836, CS-837 and CS-838. The first
+repair corrected a false claim in the test and left the identical claim standing at four sites in
+`clockspeed/save/objects.py`, a file on its own write-list; the second repair found the fourth site
+the merger's own brief had missed. Both facts are recorded because the failure mode - fixing the
+instance in front of you instead of deriving the population - is this project's most expensive
+recurring defect and it recurred twice inside this one item.
+
+Verification: `python -m pytest tests/save/test_reference_resolution.py -q` derives every figure
+from the live library on each run and hardcodes none, so nothing here rots when the operator plays;
+`python -m pytest "tests/save/test_reference_resolution.py::test_an_unexpected_read_failure_does_not_unwind_through_the_reference_sweep"` must pass ALONE, which is what a
+prior version did not; and the close rests on mutants, so re-apply them - drop non-actor records in
+`index_records`, change `len(found) > 1` to `>= 1`, and wrap `references` in `reversed` - each must
+turn the module RED, and each is killed by a synthetic case that needs no game installed.
+
 ### 2026-08-23 - CS-486 - CLOSED. The upstream wiki watch list gets an owning file, a topology row and a budget; clause 1 closed on an operator ruling, not on new research
 `docs/upstream_watch.md` now owns the upstream watch list - the page groups, the ordering that makes them usable, and the standing refusal of any automated fetch. It is named in the `CLAUDE.md` section 4 ownership table and in the `CONVENTIONS.md` section 2 table that `tools/drift_guard.py` guard d parses at runtime, and `tools/doc_budget.py` was extended to measure it, which is what clause 3 asked for.
 

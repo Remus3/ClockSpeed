@@ -241,6 +241,7 @@ __all__ = [
     "REASON_NO_DISCRIMINATION_TEST",
     "REASON_SAMPLE_SIZE",
     "REASON_SHIPPED_ALIGNMENT_ONLY",
+    "REFERENCE_TYPE_WORD",
     "TRANSFORM_BYTES",
     "TRANSFORM_DELTA_BY_SAVE_VERSION",
     "TRANSFORM_FLOAT_COUNT",
@@ -267,19 +268,24 @@ __all__ = [
     "ObjectError",
     "ObjectFormatError",
     "ObjectRecord",
+    "ObjectReference",
     "ObjectTable",
     "ObjectTruncatedError",
     "ObjectWarning",
     "PropertyResult",
+    "RecordIndex",
+    "ReferenceResolution",
     "Transform",
     "UnknownClass",
     "UnsupportedBodyLayoutError",
     "UnsupportedSaveVersionError",
     "class_name_of",
+    "index_records",
     "parse_body",
     "parse_object_headers",
     "parse_properties",
     "read_properties",
+    "resolve_references",
 ]
 
 # ---------------------------------------------------------------------------
@@ -1144,6 +1150,52 @@ class ObjectTable:
 
 
 @dataclass(frozen=True, repr=False)
+class ObjectReference:
+    """One decoded ``ObjectProperty`` value, carrying the tag it came from.
+
+    ``repr`` is hand written and withholds every string, for the reason given
+    on :class:`ObjectRecord`. ALL THREE FIELDS ARE WORLD CONTENT: the property
+    name is read out of the save's own bytes, and the two halves of the value
+    name a level and an object inside the player's world.
+
+    WHY THE REFERENCE TRAVELS AS ITS OWN TYPE RATHER THAN AS A TUPLE IN
+    :attr:`PropertyResult.properties`. The value map is keyed by property name
+    and holds the decoded value, and a ``SoftObjectProperty`` decodes to a
+    ``tuple[str, str]`` indistinguishable from this one. A consumer recovering
+    references from that map by shape therefore takes both type words silently.
+    Carrying the reference separately is what makes the population TYPED - see
+    :data:`REFERENCE_TYPE_WORD` for what the other word was measured to do.
+
+    Attributes:
+        property_name: The tag's own name, as the payload spells it.
+        level_reference: The value's first string. Carried rather than
+            interpreted: it was measured to equal the named record's
+            ``root_object`` on most of the local library's resolving
+            references and to differ on some, so this module states no
+            relation between the two.
+        object_path: The value's second string. THIS IS THE JOIN KEY - it is
+            matched against a record's ``instance_name``, which is the pairing
+            the cross-section oracle grades.
+    """
+
+    property_name: str
+    level_reference: str
+    object_path: str
+
+    def __repr__(self) -> str:
+        """Render lengths only, and withhold every string.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(property_name_len={len(self.property_name)}, "
+            f"level_reference_len={len(self.level_reference)}, "
+            f"object_path_len={len(self.object_path)})"
+        )
+
+
+@dataclass(frozen=True, repr=False)
 class PropertyResult:
     """What :func:`read_properties` could and could not do with one record.
 
@@ -1177,6 +1229,31 @@ class PropertyResult:
             opposite things - see :func:`_decode_payload`. Non-zero here is a
             reason to distrust this record's other values; non-zero above is
             not. Defaulted for the same reason.
+        references: The decoded :data:`REFERENCE_TYPE_WORD` values, ONE PER
+            TAG and in tag order. A tuple rather than a mapping so that two
+            tags sharing a name cannot collapse into one - ``properties``
+            tolerates that collapse because a caller there asks by name, where
+            a population may not lose a member and stay a population. DECODED
+            WORLD CONTENT, on the same terms as ``properties``.
+        reference_tag_count: How many :data:`REFERENCE_TYPE_WORD` TAGS the walk
+            stepped over, whether or not each yielded a value. THE DENOMINATOR
+            THE DECODER CANNOT SHRINK, and the reason the population is the tag
+            rather than the successful decode: counting only what decoded would
+            let a walk that has lost its place drop members instead of
+            reporting them. IT IS NOT INDEPENDENT OF THE TWO FIELDS IT
+            BOUNDS, and a sentence here said that it was.
+            :func:`_walk_payload` moves this counter and the refusal inside one
+            exhaustive if/else with nothing between them, so
+            ``reference_tag_count == undecoded_reference_count +
+            len(references)`` holds by construction on every iteration.
+            Relating the three to one another therefore restates one number
+            three ways. Relating this one to a tag total taken by some OTHER
+            walk does not, and that is where it is graded.
+        undecoded_reference_count: How many of those tags yielded no pair,
+            because the two strings did not account for the declared size.
+            Included in ``disagreeing_value_count`` as well, which counts the
+            same condition across every measured type; this field narrows it to
+            the reference population so the partition can be checked there.
     """
 
     properties: Mapping[str, object]
@@ -1185,6 +1262,9 @@ class PropertyResult:
     warnings: tuple[ObjectWarning, ...]
     unmeasured_value_count: int = 0
     disagreeing_value_count: int = 0
+    references: tuple[ObjectReference, ...] = ()
+    reference_tag_count: int = 0
+    undecoded_reference_count: int = 0
 
     def __repr__(self) -> str:
         """Render counts and flags, and withhold every string.
@@ -1197,7 +1277,133 @@ class PropertyResult:
             f"resolved={self.resolved}, "
             f"warnings={len(self.warnings)}, "
             f"unmeasured_value_count={self.unmeasured_value_count}, "
-            f"disagreeing_value_count={self.disagreeing_value_count})"
+            f"disagreeing_value_count={self.disagreeing_value_count}, "
+            f"references={len(self.references)}, "
+            f"reference_tag_count={self.reference_tag_count}, "
+            f"undecoded_reference_count={self.undecoded_reference_count})"
+        )
+
+
+@dataclass(frozen=True, repr=False)
+class RecordIndex:
+    """A record table arranged so a reference can be followed to what it names.
+
+    ``repr`` renders counts only, for the reason given on :class:`ObjectRecord`
+    - the keys here are instance names read out of the save's own bytes.
+
+    AN INSTANCE NAME IS NOT UNIQUE, and that is measured rather than assumed:
+    the local library holds saves in which a name is borne by more than one
+    record, with the same root object and the same kind at different payload
+    offsets. So the index maps a name to EVERY record bearing it. A mapping to
+    a single record would have to pick one, and picking silently turns an
+    ambiguity into a wrong answer that reads like a right one.
+
+    Attributes:
+        records_by_name: Instance name to every record bearing it, each tuple
+            in table order. WORLD CONTENT in both halves; a caller that renders
+            it is an echo path under non-negotiable 12.
+    """
+
+    records_by_name: Mapping[str, tuple[ObjectRecord, ...]]
+
+    @property
+    def name_count(self) -> int:
+        """How many distinct instance names the table carries.
+
+        Returns:
+            The count.
+        """
+        return len(self.records_by_name)
+
+    @property
+    def ambiguous_name_count(self) -> int:
+        """How many names are borne by more than one record.
+
+        Returns:
+            The count. Non-zero is normal on this project's own library and is
+            not an error - see the class docstring.
+        """
+        return sum(1 for found in self.records_by_name.values() if len(found) > 1)
+
+    def records_for(self, object_path: str) -> tuple[ObjectRecord, ...]:
+        """Follow one object path to the records bearing it.
+
+        THE ACCESSOR IS TOTAL AND CONFLATES NOTHING. An empty tuple means no
+        record bears the path, one means an unambiguous target, and more than
+        one means the name is ambiguous. A single-record accessor returning
+        None would have to spell "absent" and "ambiguous" the same way, which
+        is the conflation :func:`_decode_payload` records one seam over.
+
+        Args:
+            object_path: A reference's second string.
+
+        Returns:
+            Every record whose instance name is that path, in table order.
+        """
+        return self.records_by_name.get(object_path, ())
+
+    def __repr__(self) -> str:
+        """Render counts only, and withhold every name.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(names={self.name_count}, "
+            f"ambiguous_names={self.ambiguous_name_count})"
+        )
+
+
+@dataclass(frozen=True, repr=False)
+class ReferenceResolution:
+    """How one record's references landed against the table, as a partition.
+
+    ``repr`` renders counts only, for the reason given on :class:`ObjectRecord`
+    - ``targets`` is keyed by property name and holds records.
+
+    THE PARTITION IS A SHAPE, NOT A CHECK, AND A SENTENCE HERE SOLD IT AS A
+    CHECK. ``resolved``, ``unresolved`` and ``undecoded`` do sum to ``total``,
+    but they sum to it BY CONSTRUCTION rather than by agreement - see
+    :func:`resolve_references` for the derivation - so a reference this module
+    drops does not show up in that sum. What the three buckets buy is a stated
+    landing place for every tag, and every tag having one is what
+    non-negotiable 7 asks of a reader that meets content it cannot follow.
+    UNRESOLVED IS THE EXPECTED CASE rather than a
+    fault: a reference that names nothing in the table names an ASSET, which is
+    content shipped with the game rather than an object saved in the world, and
+    non-negotiable 7 says to flag and skip it.
+
+    Attributes:
+        targets: Property name to the records that name resolved to. Resolved
+            entries only - a name absent here either did not resolve or did not
+            decode. WORLD CONTENT; rendering it is an echo path.
+        resolved: References whose path is borne by at least one record.
+        unresolved: References that decoded and matched no record.
+        undecoded: Reference TAGS whose bytes yielded no pair at all.
+        ambiguous: How many of ``resolved`` landed on a path borne by more than
+            one record. A subset of ``resolved`` and NOT a fourth bucket, so it
+            is deliberately outside the sum.
+        total: Every reference tag the walk stepped over.
+    """
+
+    targets: Mapping[str, tuple[ObjectRecord, ...]]
+    resolved: int
+    unresolved: int
+    undecoded: int
+    ambiguous: int
+    total: int
+
+    def __repr__(self) -> str:
+        """Render counts only, and withhold every name.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(targets={len(self.targets)}, "
+            f"resolved={self.resolved}, unresolved={self.unresolved}, "
+            f"undecoded={self.undecoded}, ambiguous={self.ambiguous}, "
+            f"total={self.total})"
         )
 
 
@@ -2550,8 +2756,34 @@ _FIXED_WIDTH_VALUES: Final[Mapping[str, tuple[int, str]]] = MappingProxyType(
 #: Value types that are exactly one length-prefixed string.
 _ONE_STRING_VALUES: Final = frozenset({"StrProperty", "NameProperty", "EnumProperty"})
 
-#: Value types that are a level reference followed by an object path.
-_TWO_STRING_VALUES: Final = frozenset({"ObjectProperty", "SoftObjectProperty"})
+#: The one type word of the two below whose value names a SAVED OBJECT, and so
+#: the only one a record-table join has anything to look for.
+#:
+#: IT IS A SEPARATE NAME BECAUSE THE PAIR IS NOT THE POPULATION, and the shape
+#: gives a reader no way to tell. SoftObjectProperty carries the identical two
+#: strings and decodes to an identical ``tuple[str, str]``, so a consumer
+#: filtering :attr:`PropertyResult.properties` by SHAPE takes both and cannot
+#: know it did. It names ASSETS: measured against the record table across the
+#: local library, not one of them resolved to a saved object when this constant
+#: was written. THAT IS PAST TENSE ON PURPOSE - it is an observation of a
+#: library that grows whenever the operator plays, so stating it as a standing
+#: rate would be a claim that can go false with nobody looking (CLAUDE.md
+#: section 4). What the constant expresses is the observation, and expressing
+#: it here is what
+#: ``tests/save/test_decode_oracles.py`` recorded as needing doing - its own
+#: copy of the word had no shipped name to source from except the frozenset
+#: below, which would have widened the population back to the pair.
+REFERENCE_TYPE_WORD: Final = "ObjectProperty"
+
+#: Value types that are a level reference followed by an object path. DERIVED
+#: from the constant above rather than repeating its literal, so the membership
+#: the reference join depends on cannot drift from the word it filters by.
+_TWO_STRING_VALUES: Final = frozenset({REFERENCE_TYPE_WORD, "SoftObjectProperty"})
+
+#: How many strings a decoded reference is. The GRAMMAR's number, not a
+#: measurement of the corpus - :func:`_decode_object_reference` reads exactly
+#: this many and returns None on anything else.
+_REFERENCE_PARTS: Final = 2
 
 #: The trailing int32 a SoftObjectProperty carries after its two strings. Its
 #: WIDTH is pinned by exact consumption on all 116 instances; its meaning is
@@ -3651,20 +3883,126 @@ def _decode_payload(
         walk reached its terminator. None when the walk broke, which is every
         payload of an unmeasured pair.
     """
+    walked = _walk_payload(body, at, end)
+    if walked is None:
+        return None
+    return (walked.properties, walked.unmeasured, walked.disagreed, walked.terminated)
+
+
+@dataclass(frozen=True, repr=False)
+class _PayloadWalk:
+    """Everything one payload walk observed, references included.
+
+    ``repr`` renders counts only: ``properties`` and ``references`` are both
+    decoded world content, for the reason :class:`PropertyResult` gives.
+
+    Attributes:
+        properties: The decoded values, by name.
+        unmeasured: Tags whose type has no measured value encoding.
+        disagreed: Tags whose measured type disagreed with its declared size.
+        terminated: Whether the walk reached its terminator.
+        references: One entry per DECODED reference tag, in tag order.
+        reference_tags: Every reference tag stepped over, decoded or not.
+        undecoded_references: Reference tags that yielded no pair.
+    """
+
+    properties: dict[str, object]
+    unmeasured: int
+    disagreed: int
+    terminated: bool
+    references: tuple[ObjectReference, ...]
+    reference_tags: int
+    undecoded_references: int
+
+    def __repr__(self) -> str:
+        """Render counts only, and withhold every string.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(properties={len(self.properties)}, "
+            f"unmeasured={self.unmeasured}, disagreed={self.disagreed}, "
+            f"terminated={self.terminated}, references={len(self.references)}, "
+            f"reference_tags={self.reference_tags}, "
+            f"undecoded_references={self.undecoded_references})"
+        )
+
+
+def _walk_payload(body: bytes, at: int, end: int) -> _PayloadWalk | None:
+    """Walk one payload's tags, decoding values and collecting references.
+
+    THE WALK ITSELF, which :func:`_decode_payload` narrows for the consumers
+    that predate the reference collection. The narrowing exists so that adding
+    CS-831's three counters could not change a shape those consumers unpack
+    positionally - a return shape is an interface, and widening one in place is
+    how a caller starts reading the wrong element in silence.
+
+    THE REFERENCE COUNTERS ARE WRITTEN AT THREE SITES AND ARE NOT THEREBY
+    INDEPENDENT, and a sentence here claimed that they were. ``reference_tags``
+    counts the tag, ``references`` collects the decode and
+    ``undecoded_references`` counts the refusal - but all three move inside one
+    exhaustive if/else with no ``continue``, ``break`` or ``return`` between
+    them, so ``reference_tags == undecoded_references + len(references)`` is a
+    LOOP INVARIANT of this walk. THREE SITES IS NOT THREE DERIVATIONS, and the
+    partition :func:`resolve_references` states against this total is therefore
+    an identity that no miscount inside this loop can make false.
+
+    WHAT A MISCOUNT HERE DOES MOVE is this total against a tag count taken by a
+    walk this module does not own, which is the only form of the partition that
+    can come out false and is where the grading lives - see
+    ``tests/save/test_reference_resolution.py``.
+
+    THE TYPE WORD IS READ HERE BECAUSE HERE IS WHERE IT EXISTS. By the time a
+    value reaches a caller it is a ``tuple[str, str]`` that ``ObjectProperty``
+    and ``SoftObjectProperty`` share, and the word that told them apart is
+    gone - see :data:`REFERENCE_TYPE_WORD`.
+
+    Args:
+        body: The decompressed body.
+        at: Where the first tag begins.
+        end: The first byte past the payload.
+
+    Returns:
+        What the walk observed, or None when it broke before its terminator.
+    """
     decoded: dict[str, object] = {}
+    references: list[ObjectReference] = []
     unmeasured = 0
     disagreed = 0
+    reference_tags = 0
+    undecoded_references = 0
     for _ in range(_MAX_TAGS_PER_PAYLOAD):
         name = _payload_text(body, at, end)
         if name is None:
             return None
         if name[0] == "None":
-            return (decoded, unmeasured, disagreed, True)
+            return _PayloadWalk(
+                properties=decoded,
+                unmeasured=unmeasured,
+                disagreed=disagreed,
+                terminated=True,
+                references=tuple(references),
+                reference_tags=reference_tags,
+                undecoded_references=undecoded_references,
+            )
         tag = _read_tag_header(body, name[1], end)
         if tag is None:
             return None
         type_word, value_start, size, in_tag_byte = tag
         value = _decode_value(body, type_word, value_start, size, in_tag_byte)
+        if type_word == REFERENCE_TYPE_WORD:
+            # KEPT AS ONE BLOCK, and separate from the bookkeeping below it.
+            # The two answer different questions - that one asks whether the
+            # value came back at all, this one asks whether the reference
+            # population gained a member - and interleaving them is how the
+            # tag count and the decode count drift apart.
+            reference_tags += 1
+            reference = _as_reference(name[0], value)
+            if reference is None:
+                undecoded_references += 1
+            else:
+                references.append(reference)
         if value is not None:
             decoded[name[0]] = value
         elif type_word in MEASURED_VALUE_TYPES:
@@ -3673,6 +4011,36 @@ def _decode_payload(
             unmeasured += 1
         at = value_start + size
     return None
+
+
+def _as_reference(property_name: str, value: object) -> ObjectReference | None:
+    """Narrow a decoded value to a reference, or refuse it.
+
+    THE SHAPE IS CHECKED RATHER THAN ASSUMED. ``_decode_value`` is typed as
+    returning ``object``, and its reference branch returns the pair only when
+    the two strings consume the declared size exactly - so None arrives here
+    routinely and means the bytes disagreed. A value of any other shape is
+    content this module does not model, and refusing it is what keeps an
+    unpack that would raise out of a decoder whose contract is to flag and
+    skip (non-negotiable 7).
+
+    Args:
+        property_name: The tag's own name.
+        value: Whatever :func:`_decode_value` returned for it.
+
+    Returns:
+        The reference, or None when the value is not the measured pair.
+    """
+    if not isinstance(value, tuple) or len(value) != _REFERENCE_PARTS:
+        return None
+    level_reference, object_path = value
+    if not isinstance(level_reference, str) or not isinstance(object_path, str):
+        return None
+    return ObjectReference(
+        property_name=property_name,
+        level_reference=level_reference,
+        object_path=object_path,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -3777,7 +4145,7 @@ def read_properties(body: bytes, record: ObjectRecord, property_map: PropertyMap
     start: int | None = record.body_offset
     if record.kind == KIND_ACTOR:
         start = _skip_actor_head(body, record.body_offset, end)
-    walked = None if start is None else _decode_payload(body, start, end)
+    walked = None if start is None else _walk_payload(body, start, end)
     if walked is None:
         # The payload does not read under the measured grammar at all - which
         # is every payload of the (14,60) pair. Flagged exactly as before, so
@@ -3794,7 +4162,7 @@ def read_properties(body: bytes, record: ObjectRecord, property_map: PropertyMap
             ),
         )
 
-    decoded, unmeasured, disagreed, _terminated = walked
+    decoded, unmeasured, disagreed = walked.properties, walked.unmeasured, walked.disagreed
     warnings = schema_warnings
     if disagreed:
         # A SEPARATE CODE FROM THE ONE BELOW, because the two mean opposite
@@ -3830,6 +4198,120 @@ def read_properties(body: bytes, record: ObjectRecord, property_map: PropertyMap
         warnings=warnings,
         unmeasured_value_count=unmeasured,
         disagreeing_value_count=disagreed,
+        references=walked.references,
+        reference_tag_count=walked.reference_tags,
+        undecoded_reference_count=walked.undecoded_references,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Reference resolution (CS-831)
+#
+# THE SEAM. This joins two things this module already owns - the record table
+# it walked, and the reference values it decoded - and it reaches for nothing
+# else. It takes no body, which is deliberate: a resolver needing one would
+# make the join a third parse of the save rather than a join, and would put the
+# decompressed world into one more frame that a traceback can render
+# (non-negotiable 12).
+#
+# WHAT WAS THERE BEFORE. The pairing was already MEASURED - the cross-section
+# oracle in tests/save/test_decode_oracles.py resolves each reference against
+# the record table and reports a rate. What it does with the record it finds is
+# add one to a counter and drop it. That is the correct shape for an oracle and
+# it is not a capability: no consumer under clockspeed/ could ask which record
+# a reference names, which is why a building's mStorageInventory could not be
+# followed to the inventory it points at.
+# ---------------------------------------------------------------------------
+
+
+def index_records(table: ObjectTable) -> RecordIndex:
+    """Arrange a walked record table for reference lookup.
+
+    KEYED ON ``instance_name`` BECAUSE THAT IS THE MEASURED PAIRING. A
+    reference's second string is matched against a record's instance name, and
+    the two sections are parsed by different passes over different parts of the
+    body - which is what makes the cross-section oracle evidence about the
+    grammar rather than a restatement of one reader's opinion.
+
+    EVERY RECORD IS INDEXED, including one whose class the registry does not
+    model. An unknown class is flagged elsewhere and is still a real object
+    that a reference may legitimately name, so dropping it here would turn
+    unmodelled content into a broken link (non-negotiable 7).
+
+    Args:
+        table: The walked record table.
+
+    Returns:
+        The index. Names map to EVERY record bearing them - see
+        :class:`RecordIndex` for why that is not a single record.
+    """
+    grouped: dict[str, list[ObjectRecord]] = {}
+    for record in table.records:
+        grouped.setdefault(record.instance_name, []).append(record)
+    return RecordIndex(
+        records_by_name=MappingProxyType({name: tuple(found) for name, found in grouped.items()})
+    )
+
+
+def resolve_references(index: RecordIndex, result: PropertyResult) -> ReferenceResolution:
+    """Resolve one record's references against the table, and partition them.
+
+    NOTHING HERE RAISES, and nothing here is an error. A reference that matches
+    no record names an ASSET rather than a saved object - content the game
+    ships - so it is counted as unresolved and skipped, which is exactly what
+    non-negotiable 7 asks for. So is a tag whose bytes yielded no pair.
+
+    THE PARTITION AGAINST ``total`` IS AN IDENTITY, AND SAYING SO REPLACES A
+    SENTENCE THAT CLAIMED THE OPPOSITE. The loop below does exactly one of
+    ``resolved += 1`` or ``unresolved += 1`` per member of
+    ``result.references``, and :func:`_walk_payload` already holds
+    ``reference_tag_count == undecoded_reference_count + len(references)`` as a
+    loop invariant, so ``resolved + unresolved + undecoded == total`` reduces to
+    a restatement of both and cannot come out false. A ``ReferenceResolution``
+    property that advertised itself as where a caller asks whether it did was
+    removed together with the claim, because a self-check that is constant True
+    over everything its own producer can build grades nothing.
+
+    THE SAME SUM AGAINST A TAG TOTAL THIS MODULE DID NOT COUNT IS NOT AN
+    IDENTITY, and the distinction is the whole of what is gradeable here. A
+    defect in this module's tag counting moves ``total`` and leaves a total
+    taken by an independent walk where it was, so the two part company - which
+    is why the check is made against such a walk in
+    ``tests/save/test_reference_resolution.py`` and not against ``total`` here.
+
+    AMBIGUITY IS COUNTED, NOT RESOLVED. An instance name borne by more than one
+    record is measured to occur on this project's own library, and this
+    function does not guess which one was meant - the resolution counts it and
+    hands back all of them.
+
+    Args:
+        index: The record table, arranged by :func:`index_records`.
+        result: One record's decoded properties, carrying its typed
+            references.
+
+    Returns:
+        The partition, and the records each resolved reference names.
+    """
+    targets: dict[str, tuple[ObjectRecord, ...]] = {}
+    resolved = 0
+    unresolved = 0
+    ambiguous = 0
+    for reference in result.references:
+        found = index.records_for(reference.object_path)
+        if not found:
+            unresolved += 1
+            continue
+        resolved += 1
+        if len(found) > 1:
+            ambiguous += 1
+        targets[reference.property_name] = found
+    return ReferenceResolution(
+        targets=MappingProxyType(targets),
+        resolved=resolved,
+        unresolved=unresolved,
+        undecoded=result.undecoded_reference_count,
+        ambiguous=ambiguous,
+        total=result.reference_tag_count,
     )
 
 

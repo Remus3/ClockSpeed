@@ -31,6 +31,46 @@ the line becomes a pointer.
 
 ---
 
+## Session 36 - 2026-08-23 - the operator answers four questions; CS-486 and CS-831 both CLOSE, and the adjudicator-versus-adversary SPLIT is the finding
+
+- **Shipped: CS-486 and CS-831 CLOSED. Filed CS-833 through CS-838.** Detail in `docs/LEDGER.md`,
+  not here. The ROADMAP budget ruling landed too, so `ROADMAP.md` went from about a kilobyte of
+  headroom to roughly a third of its budget used.
+
+- **THE SESSION OPENED BY ASKING THE OPERATOR FOUR QUESTIONS AND ALL FOUR PAID.** This is session
+  35's finding applied deliberately rather than rediscovered. Two answers closed items - the doc
+  topology ruling and CS-486's home - and one AMENDED CS-831's acceptance mid-flight, which no
+  agent may do. **CS-486 had sat since session 21 waiting on one decision nobody had asked for.**
+
+- **THE TRANSFERABLE FINDING: AN ADJUDICATOR AND AN ADVERSARY ON THE SAME ARTIFACT RETURNED
+  OPPOSITE VERDICTS, AND BOTH WERE RIGHT.** The adjudicator graded the six acceptance clauses and
+  returned CLOSE, all MET. The adversary graded the RECORD around them and returned REFUTED on four
+  blockers, two of which were live defects nothing in the suite caught. **The clauses were met and
+  the prose was false, for the THIRD session running.** Never let a CLOSE stand without an
+  adversary behind it - the two are not redundant, they read different things.
+
+- **THE POPULATION DEFECT RECURRED TWICE INSIDE ONE ITEM, AND ONCE IT WAS MINE.** The first repair
+  corrected a false claim in the test and left it standing at FOUR sites in `objects.py`, a file on
+  its own write-list. I then wrote the repair brief naming THREE of those four sites, having warned
+  it in the same brief about fixing the instance instead of the population. The second repair found
+  my missing site. **The warning does not immunise the person writing it.**
+
+- **THREE OF EIGHT NEW CORPUS NUMBERS IN A DOCSTRING WERE FALSE**, including a split invented to
+  explain a total that was itself correct. The systemic fix, and it held: `CLAUDE.md` section 4
+  already forbids restating a measured number in prose, so the second repair DELETED the figures
+  and stated the shape. Neither file now carries a hardcoded corpus figure.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** A grammar-free reference count was measured
+  IMPOSSIBLE without a second reader this project has declined to build; that is filed as CS-835
+  rather than recorded as an adjective.
+
+- **Failed paths: none abandoned.** Two repair passes were needed and both were kept.
+
+- **Next action: NONE IS FORCED.** CI must be read for the pushed head. Then CS-830 is the head of
+  the product path - the SECOND of the three layers under CS-400's clause 1, and the one holding
+  the inventory arrays. The six worktrees are still unsalvaged and untouched.
+
+
 ## Session 35 - 2026-08-23 - CS-421 AND CS-413 both CLOSE on operator rulings; eight review agents refuse four drafts and the transferable finding is that I fix the instance instead of the population
 
 - **Shipped: CS-421 and CS-413 CLOSED. Filed CS-825, CS-826, CS-827, CS-828, CS-829, CS-830,
@@ -221,74 +261,3 @@ the line becomes a pointer.
   the build did NOT change is the evidence:** the common-mode signal is unnarrowed, and this corpus
   cannot separate two correct oracles at all. Otherwise take CS-817 / CS-821 / CS-824, which are
   smaller and independent.
-
-## Session 33 - 2026-08-22 - CS-823 CLOSES and takes a SECOND, unfiled escape with it; then an adversary refuted this session's own suite and SIX wrong hooks passed it
-
-- **Shipped: CS-823 CLOSED. Filed CS-824.** Three commits. Detail in `docs/LEDGER.md`, not here.
-  One frozen-file grant was issued, adjudicated and recorded in its OWN commit BEFORE any edit.
-
-- **THE ITEM WAS FILED AS ONE ESCAPE AND CLOSED TWO.** `.githooks/pre-commit` ran the gate and took
-  its whole decision from `$?`. Re-measured rather than inherited: truncated to 2368 lines, to 1
-  line, and emptied, a staged em dash COMMITTED every time - exit 0, HEAD moved, ZERO bytes of
-  stderr - against an intact control refusing with exit 1 and 576 bytes. 1020 of 2396 line-boundary
-  prefixes compile, because the gate ends in a `__main__` guard.
-
-- **THE SECOND ESCAPE WAS LIVE ON `main` AND NOBODY HAD FILED IT.** The CS-703 probe validates the
-  `-c` invocation shape; the gate is invoked as a FILE. A four-line `sh` wrapper that delegates `-c`
-  and exits 0 otherwise answers BOTH probe halves HONESTLY - it prints the computed token and
-  returns 97, both measured - and never runs the gate. With it set, the em dash COMMITTED through
-  the tracked hook. **Found by the ADJUDICATOR, not the builder, and believed only after being
-  reproduced here.** It is the pre-commit twin of CS-819's silent-interpreter defect, and CS-703
-  neither closed it nor claimed to.
-
-- **THEN AN ADVERSARY REFUTED MY OWN SUITE AND THAT IS THE SESSION'S REAL LESSON.** The claim was
-  that no wrong implementation could pass the 14 arms. SIX did. The sharpest -
-  `grep -F "$CS_GATE_PASS" | tail -n 1` - keeps the declared pattern BYTE-IDENTICAL and changes only
-  which line it is applied to. It has NO DEAD CODE and is exactly what a "make it less brittle" edit
-  looks like. **The hook's own comment asserted the property that mutant violates, and no arm
-  exercised that sentence.** Two arms were added and PROVEN to kill the survivors in a mirror, each
-  mutation asserted to have LANDED first. **A GUARD'S COMMENT IS NOT A TEST, and a suite written by
-  the person who wrote the guard tests the guard they MEANT to write.**
-
-- **Decisions: no ADR. Fenced.** The banner check is an ANCHORED `case` pattern, both ends, only the
-  two counts wild - NOT a prefix and NOT containment; the prefix version was built first and three
-  of five adversarial gates passed it. Exact equality is unavailable rather than declined, because
-  the counts vary and the gate is frozen, so the CS-703 exact-equality fence is untouched and still
-  governs the PROBE. The captured stdout is RE-EMITTED rather than consumed - the opposite of
-  CS-819 - because it carries the CS-209 coverage-skip lines, the channel that says detection was
-  REDUCED. The CR strip stays even though it is an EQUIVALENT MUTANT on this toolchain.
-
-- **Surprises: nothing contradicted `BOOTSTRAP.md`. Three things contradicted ME.** The designed fix
-  I inherited said "require the banner" and a plain prefix test was too weak - measured. My section
-  banner called the `gate_compiles` assertions "why these arms mean anything"; ablation says they are
-  INERT today, and the sentence is rewritten in the tree. And I told the operator CS-413 was the
-  item that makes a save's properties readable; its detail says the decode ALREADY LANDED and what is
-  open is evidence quality. All three corrections are in tracked files.
-
-- **Failed paths, so they are not retried.** A PREFIX test on the last line - refuted by measurement.
-  Judging that stdout is non-empty, or counting its bytes, or matching the gate's NAME - all three
-  are live survivors an adversary demonstrated, and all three are now killed. And the harness bash
-  heredoc ate backslash escapes AGAIN, on a python payload this time; the Write tool is the answer,
-  every time, and this is the SIXTH session it has cost.
-
-- **THE PRODUCT PATH IS SHORTER THAN THE ROADMAP MAKES IT LOOK, and this is the most useful thing
-  here for the next session.** CS-500 - the advisor - is blocked on CS-413; CS-413's own detail says
-  CS-420, CS-421 and CS-422 carry its acceptance; CS-420 and CS-422 are CLOSED. **CS-421 is the ONLY
-  item between this repo and the advisor.** Its open clause is the endianness question settled
-  against something that is not this project's own writer. It is NOT small - 5712 lines of
-  byte-order and value-anchoring machinery already exist across
-  `tests/save/test_byte_order_status.py` and `tests/save/test_value_anchoring.py`, it carries FOUR
-  fences, and route (b) shipped without closing it.
-
-- **In flight: NOTHING half-done, but THE SESSION'S COMMITS ARE UNPUSHED and that is
-  deliberate.** The operator DECLINED the push, so `main` is ahead of `origin/main` and NO CI
-  RUN EXISTS for any commit this session produced. The count and the head SHA are deliberately
-  not written here - read them with `git log --oneline origin/main..HEAD`, which cannot go
-  stale the way a number in prose does. Working tree clean. The four
-  pre-existing worktrees (CS-492 rounds seven to nine and the two-site spike) and branch
-  `cs807-attribute-half` are UNTOUCHED, exactly as sessions 31 and 32 left them.
-
-- **Next action: read `docs/history_notes.md` under CS-421 - detail, - status history and - fences
-  BEFORE touching anything, then take CS-421.** Or ask the operator to revise the 2026-08-15 ruling:
-  it says phase 5 waits until a record's properties can be READ, and they can be - the blocker has
-  quietly become decode CORRECTNESS, which is a different claim and theirs to weigh.
