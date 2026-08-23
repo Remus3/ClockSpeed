@@ -89,9 +89,11 @@ the line becomes a pointer.
   `tests/save/test_byte_order_status.py` and `tests/save/test_value_anchoring.py`, it carries FOUR
   fences, and route (b) shipped without closing it.
 
-- **In flight: NOTHING from this session.** Working tree clean. The four pre-existing worktrees
-  (CS-492 rounds seven to nine and the two-site spike) and branch `cs807-attribute-half` are
-  UNTOUCHED, exactly as sessions 31 and 32 left them.
+- **In flight: NOTHING half-done, but THREE COMMITS ARE UNPUSHED and that is deliberate.** The
+  operator DECLINED the push at the end of the session, so `main` is three ahead of
+  `origin/main` at `33a5624` and NO CI RUN EXISTS for any of them. Working tree clean. The four
+  pre-existing worktrees (CS-492 rounds seven to nine and the two-site spike) and branch
+  `cs807-attribute-half` are UNTOUCHED, exactly as sessions 31 and 32 left them.
 
 - **Next action: read `docs/history_notes.md` under CS-421 - detail, - status history and - fences
   BEFORE touching anything, then take CS-421.** Or ask the operator to revise the 2026-08-15 ruling:
