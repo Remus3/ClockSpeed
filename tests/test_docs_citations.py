@@ -361,22 +361,17 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "added by ee36d0d, the CS-436 commit, alongside the live sibling the same entry cites.",
         3,
     ),
-    # THE WHOLE COST OF GUARDING WAKEUP_NOTES.md, and the entry that had to
-    # exist before that file could be guarded at all. Same dead name as the
-    # ledger-keyed entry above and the same live target - the notes and the
-    # ledger record the same CS-436 work - but the key carries the DOC, so a
-    # name forgiven in one file is not forgiven in another by accident.
-    (
-        "WAKEUP_NOTES.md",
-        "test_the_header_scan_advertises_no_bound_it_cannot_enforce",
-    ): Disposition(
-        RENAMED,
-        "tests/test_precommit_gate.py"
-        "::test_the_header_scan_time_bound_declares_the_scope_it_actually_has",
-        "the same ee36d0d rename the ledger entry records, restated in the notes"
-        " that were written from it.",
-        1,
-    ),
+    # THE WAKEUP_NOTES.md ENTRY FOR THAT SAME DEAD NAME IS GONE, RETIRED
+    # 2026-08-22 (session 33), and it is worth one comment because it is the
+    # only disposition this table has ever had to retire. It forgave exactly ONE
+    # site, and that site lived inside session 30's note. Session 33 landed,
+    # `WAKEUP_NOTES.md` keeps three sessions, session 30 moved to
+    # `docs/history_notes.md` - which is the ONE unguarded doc - and the count
+    # went to zero. Both site arms went RED on a correct doc-hygiene move,
+    # exactly as predicted, and the fix is retirement rather than a recount.
+    # THE LEDGER-KEYED ENTRY ABOVE STAYS: the ledger still spells the name, and
+    # the key carries the DOC precisely so one file's forgiveness is never
+    # another's.
     (LEDGER, "test_the_scanned_prose_carries_no_unbacked_absolute_claim"): Disposition(
         RENAMED,
         "tests/save/test_absolute_claims.py"

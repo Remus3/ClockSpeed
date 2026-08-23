@@ -4247,6 +4247,73 @@ sentinel-agreement arm does.
 was explicitly OUT of both the CS-703 and CS-819 grants, and the operator decided on 2026-08-22 to
 FILE it rather than widen a third time in the same session.
 
+### Archived 2026-08-22 from `WAKEUP_NOTES.md` - session 30 at full fidelity
+
+Aged out when session 33 landed and `WAKEUP_NOTES.md` keeps only the last three sessions.
+**Nothing here is current.**
+
+## Session 30 - 2026-08-22 - CS-806 and CS-442 both CLOSE; each was larger than filed, and each closed an unimplemented clause rather than the typo it was reported as
+
+- **Shipped: CS-806 and CS-442, both CLOSED, both tier 1, both pushed with tier1 CI SUCCESS
+  READ rather than predicted.** `6e37a11` and `ae25547`. This ends three consecutive sessions
+  that closed nothing. Detail in `docs/LEDGER.md`, not here.
+
+- **BOTH ITEMS WERE BIGGER THAN THEIR FILING, AND IN THE SAME WAY: a rule was already written
+  down and simply never implemented.** That is worth carrying forward as a pattern rather than
+  as two anecdotes. CS-806 was filed as a docs typo; `BOOTSTRAP.md` section 2.5 has required
+  since the FIRST COMMIT that `verify_env` assert the RESOLVED interpreter can import pytest and
+  ruff and HARD-fail if it cannot, and nothing did. CS-442 was filed on one dead citation; the
+  item was that NOTHING IN THE REPOSITORY READ `docs/` at all.
+
+- **CS-806's detail block was SUPERSEDED and the ledger says so.** It told the closer to "decide
+  whether that contract is the right one" - but the contract had already been decided in
+  `BOOTSTRAP.md` 2.5 before any code existed, so it was not a live design question. Both detail
+  blocks now carry a CLOSED marker in `docs/history_notes.md` so neither reads as a live
+  instruction again.
+
+- **CS-442's population is EIGHT, not the recorded seven, and the eighth is the shape the item
+  itself predicted would be missed.** `test_the_header_scan_advertises_no_bound_it_cannot_enforce`
+  is cited by the CS-436 entry BARE, with no path, so a `path::name` scanner is structurally
+  blind to it. Its target is not an inference: `ee36d0d`, the CS-436 commit, added it alongside
+  the live sibling the same Verification field cites. The "seven is a FLOOR" caveat is discharged.
+
+- **A NINTH CANDIDATE WAS REJECTED, and the near-miss is the lesson.**
+  `clockspeed/save/objects.py::_BYTE_ORDER_CANNOT_SEPARATE_VALUES` reads dead to any resolver
+  that looks for `def` alone, and is a live module-level CONSTANT. It was briefly counted as an
+  eighth dead citation off a TRUNCATED `grep` whose first ten hits were all worktree copies.
+  Checking the tracked file directly is what reversed it. Same artifact class the item already
+  recorded on the `file:line` arm, arriving on the other one.
+
+- **A TRAP FOUND THIS SESSION THAT WAS RECORDED NOWHERE: a citation can assert an ABSENCE.** The
+  CS-411 correction record cites a dead name ON PURPOSE - `grep -c` returning 0 IS its evidence -
+  so a checker that reddens on every dead name reddens on a record doing exactly the right thing.
+  That is the `DELIBERATE` disposition in `tests/test_docs_citations.py` and it is load-bearing.
+
+- **Decisions: no ADR. Two dispositions recorded that must not be re-opened as questions.**
+  CS-442's class-3 citation gets NO TARGET, because CS-441 records 26 of 46 spliced shapes still
+  escaping - assigning one would launder an aspirational claim into a verified pointer. And
+  `docs/history_notes.md` is deliberately NOT guarded, because its detail blocks QUOTE dead names
+  while discussing them; that is CS-809, not an oversight.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** The opposite - `BOOTSTRAP.md` 2.5 was
+  RIGHT and the code was behind it. Two tracked docs were corrected against ground truth per
+  CLAUDE.md section 8: `docs/OPERATIONS.md` claimed "`py -3` is equivalent on this machine",
+  which was false and contradicted 2.5; and CS-806's own detail block, above.
+
+- **Failed paths, so they are not retried:** a naive `path::name` census that resolves only `def`
+  manufactures a false finding on a live constant. A `file:line` arm that judges an unqualified
+  basename manufactures six. Neither is a checker bug to fix later - both are DECLINED-and-printed
+  by design now. Also: the harness bash heredoc ate backslash escapes FOUR separate times this
+  session, silently corrupting patch scripts; the working answer is the Write tool, every time.
+
+- **In flight: NOTHING.** Working tree clean, nothing unpushed, both CI runs green. The four
+  pre-existing worktrees (CS-492 rounds seven to nine and the two-site spike) and branch
+  `cs807-attribute-half` are UNTOUCHED and still unmerged.
+
+- **Next action: CS-702, but it is BLOCKED ON AN OPERATOR GRANT and must not be started without
+  one** - `.githooks/commit-msg` is frozen. If the grant is not forthcoming, take CS-809 or
+  CS-810, which are CS-442's residuals and need no grant.
+
 ### Archived 2026-08-22 from `WAKEUP_NOTES.md` - session 29 at full fidelity
 
 Aged out when session 32 landed and `WAKEUP_NOTES.md` keeps only the last three sessions.

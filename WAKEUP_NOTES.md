@@ -31,6 +31,73 @@ the line becomes a pointer.
 
 ---
 
+## Session 33 - 2026-08-22 - CS-823 CLOSES and takes a SECOND, unfiled escape with it; then an adversary refuted this session's own suite and SIX wrong hooks passed it
+
+- **Shipped: CS-823 CLOSED. Filed CS-824.** Three commits. Detail in `docs/LEDGER.md`, not here.
+  One frozen-file grant was issued, adjudicated and recorded in its OWN commit BEFORE any edit.
+
+- **THE ITEM WAS FILED AS ONE ESCAPE AND CLOSED TWO.** `.githooks/pre-commit` ran the gate and took
+  its whole decision from `$?`. Re-measured rather than inherited: truncated to 2368 lines, to 1
+  line, and emptied, a staged em dash COMMITTED every time - exit 0, HEAD moved, ZERO bytes of
+  stderr - against an intact control refusing with exit 1 and 576 bytes. 1020 of 2396 line-boundary
+  prefixes compile, because the gate ends in a `__main__` guard.
+
+- **THE SECOND ESCAPE WAS LIVE ON `main` AND NOBODY HAD FILED IT.** The CS-703 probe validates the
+  `-c` invocation shape; the gate is invoked as a FILE. A four-line `sh` wrapper that delegates `-c`
+  and exits 0 otherwise answers BOTH probe halves HONESTLY - it prints the computed token and
+  returns 97, both measured - and never runs the gate. With it set, the em dash COMMITTED through
+  the tracked hook. **Found by the ADJUDICATOR, not the builder, and believed only after being
+  reproduced here.** It is the pre-commit twin of CS-819's silent-interpreter defect, and CS-703
+  neither closed it nor claimed to.
+
+- **THEN AN ADVERSARY REFUTED MY OWN SUITE AND THAT IS THE SESSION'S REAL LESSON.** The claim was
+  that no wrong implementation could pass the 14 arms. SIX did. The sharpest -
+  `grep -F "$CS_GATE_PASS" | tail -n 1` - keeps the declared pattern BYTE-IDENTICAL and changes only
+  which line it is applied to. It has NO DEAD CODE and is exactly what a "make it less brittle" edit
+  looks like. **The hook's own comment asserted the property that mutant violates, and no arm
+  exercised that sentence.** Two arms were added and PROVEN to kill the survivors in a mirror, each
+  mutation asserted to have LANDED first. **A GUARD'S COMMENT IS NOT A TEST, and a suite written by
+  the person who wrote the guard tests the guard they MEANT to write.**
+
+- **Decisions: no ADR. Fenced.** The banner check is an ANCHORED `case` pattern, both ends, only the
+  two counts wild - NOT a prefix and NOT containment; the prefix version was built first and three
+  of five adversarial gates passed it. Exact equality is unavailable rather than declined, because
+  the counts vary and the gate is frozen, so the CS-703 exact-equality fence is untouched and still
+  governs the PROBE. The captured stdout is RE-EMITTED rather than consumed - the opposite of
+  CS-819 - because it carries the CS-209 coverage-skip lines, the channel that says detection was
+  REDUCED. The CR strip stays even though it is an EQUIVALENT MUTANT on this toolchain.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`. Three things contradicted ME.** The designed fix
+  I inherited said "require the banner" and a plain prefix test was too weak - measured. My section
+  banner called the `gate_compiles` assertions "why these arms mean anything"; ablation says they are
+  INERT today, and the sentence is rewritten in the tree. And I told the operator CS-413 was the
+  item that makes a save's properties readable; its detail says the decode ALREADY LANDED and what is
+  open is evidence quality. All three corrections are in tracked files.
+
+- **Failed paths, so they are not retried.** A PREFIX test on the last line - refuted by measurement.
+  Judging that stdout is non-empty, or counting its bytes, or matching the gate's NAME - all three
+  are live survivors an adversary demonstrated, and all three are now killed. And the harness bash
+  heredoc ate backslash escapes AGAIN, on a python payload this time; the Write tool is the answer,
+  every time, and this is the SIXTH session it has cost.
+
+- **THE PRODUCT PATH IS SHORTER THAN THE ROADMAP MAKES IT LOOK, and this is the most useful thing
+  here for the next session.** CS-500 - the advisor - is blocked on CS-413; CS-413's own detail says
+  CS-420, CS-421 and CS-422 carry its acceptance; CS-420 and CS-422 are CLOSED. **CS-421 is the ONLY
+  item between this repo and the advisor.** Its open clause is the endianness question settled
+  against something that is not this project's own writer. It is NOT small - 5712 lines of
+  byte-order and value-anchoring machinery already exist across
+  `tests/save/test_byte_order_status.py` and `tests/save/test_value_anchoring.py`, it carries FOUR
+  fences, and route (b) shipped without closing it.
+
+- **In flight: NOTHING from this session.** Working tree clean. The four pre-existing worktrees
+  (CS-492 rounds seven to nine and the two-site spike) and branch `cs807-attribute-half` are
+  UNTOUCHED, exactly as sessions 31 and 32 left them.
+
+- **Next action: read `docs/history_notes.md` under CS-421 - detail, - status history and - fences
+  BEFORE touching anything, then take CS-421.** Or ask the operator to revise the 2026-08-15 ruling:
+  it says phase 5 waits until a record's properties can be READ, and they can be - the blocker has
+  quietly become decode CORRECTNESS, which is a different claim and theirs to weigh.
+
 ## Session 32 - 2026-08-22 - CS-703 and CS-819 both CLOSE after FOUR refutations, and the transferable finding is that a probe validated one channel while every gate read another
 
 - **Shipped: CS-703 and CS-819 CLOSED. Filed CS-815, CS-816, CS-817, CS-818, CS-820, CS-821,
@@ -195,65 +262,3 @@ the line becomes a pointer.
 
 - **Next action: CS-703.** It needs a frozen-file grant for all three hooks, and it is tier 1 with
   a blast radius wider than the item that found it.
-
-## Session 30 - 2026-08-22 - CS-806 and CS-442 both CLOSE; each was larger than filed, and each closed an unimplemented clause rather than the typo it was reported as
-
-- **Shipped: CS-806 and CS-442, both CLOSED, both tier 1, both pushed with tier1 CI SUCCESS
-  READ rather than predicted.** `6e37a11` and `ae25547`. This ends three consecutive sessions
-  that closed nothing. Detail in `docs/LEDGER.md`, not here.
-
-- **BOTH ITEMS WERE BIGGER THAN THEIR FILING, AND IN THE SAME WAY: a rule was already written
-  down and simply never implemented.** That is worth carrying forward as a pattern rather than
-  as two anecdotes. CS-806 was filed as a docs typo; `BOOTSTRAP.md` section 2.5 has required
-  since the FIRST COMMIT that `verify_env` assert the RESOLVED interpreter can import pytest and
-  ruff and HARD-fail if it cannot, and nothing did. CS-442 was filed on one dead citation; the
-  item was that NOTHING IN THE REPOSITORY READ `docs/` at all.
-
-- **CS-806's detail block was SUPERSEDED and the ledger says so.** It told the closer to "decide
-  whether that contract is the right one" - but the contract had already been decided in
-  `BOOTSTRAP.md` 2.5 before any code existed, so it was not a live design question. Both detail
-  blocks now carry a CLOSED marker in `docs/history_notes.md` so neither reads as a live
-  instruction again.
-
-- **CS-442's population is EIGHT, not the recorded seven, and the eighth is the shape the item
-  itself predicted would be missed.** `test_the_header_scan_advertises_no_bound_it_cannot_enforce`
-  is cited by the CS-436 entry BARE, with no path, so a `path::name` scanner is structurally
-  blind to it. Its target is not an inference: `ee36d0d`, the CS-436 commit, added it alongside
-  the live sibling the same Verification field cites. The "seven is a FLOOR" caveat is discharged.
-
-- **A NINTH CANDIDATE WAS REJECTED, and the near-miss is the lesson.**
-  `clockspeed/save/objects.py::_BYTE_ORDER_CANNOT_SEPARATE_VALUES` reads dead to any resolver
-  that looks for `def` alone, and is a live module-level CONSTANT. It was briefly counted as an
-  eighth dead citation off a TRUNCATED `grep` whose first ten hits were all worktree copies.
-  Checking the tracked file directly is what reversed it. Same artifact class the item already
-  recorded on the `file:line` arm, arriving on the other one.
-
-- **A TRAP FOUND THIS SESSION THAT WAS RECORDED NOWHERE: a citation can assert an ABSENCE.** The
-  CS-411 correction record cites a dead name ON PURPOSE - `grep -c` returning 0 IS its evidence -
-  so a checker that reddens on every dead name reddens on a record doing exactly the right thing.
-  That is the `DELIBERATE` disposition in `tests/test_docs_citations.py` and it is load-bearing.
-
-- **Decisions: no ADR. Two dispositions recorded that must not be re-opened as questions.**
-  CS-442's class-3 citation gets NO TARGET, because CS-441 records 26 of 46 spliced shapes still
-  escaping - assigning one would launder an aspirational claim into a verified pointer. And
-  `docs/history_notes.md` is deliberately NOT guarded, because its detail blocks QUOTE dead names
-  while discussing them; that is CS-809, not an oversight.
-
-- **Surprises: nothing contradicted `BOOTSTRAP.md`.** The opposite - `BOOTSTRAP.md` 2.5 was
-  RIGHT and the code was behind it. Two tracked docs were corrected against ground truth per
-  CLAUDE.md section 8: `docs/OPERATIONS.md` claimed "`py -3` is equivalent on this machine",
-  which was false and contradicted 2.5; and CS-806's own detail block, above.
-
-- **Failed paths, so they are not retried:** a naive `path::name` census that resolves only `def`
-  manufactures a false finding on a live constant. A `file:line` arm that judges an unqualified
-  basename manufactures six. Neither is a checker bug to fix later - both are DECLINED-and-printed
-  by design now. Also: the harness bash heredoc ate backslash escapes FOUR separate times this
-  session, silently corrupting patch scripts; the working answer is the Write tool, every time.
-
-- **In flight: NOTHING.** Working tree clean, nothing unpushed, both CI runs green. The four
-  pre-existing worktrees (CS-492 rounds seven to nine and the two-site spike) and branch
-  `cs807-attribute-half` are UNTOUCHED and still unmerged.
-
-- **Next action: CS-702, but it is BLOCKED ON AN OPERATOR GRANT and must not be started without
-  one** - `.githooks/commit-msg` is frozen. If the grant is not forthcoming, take CS-809 or
-  CS-810, which are CS-442's residuals and need no grant.

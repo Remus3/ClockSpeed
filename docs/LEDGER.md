@@ -73,6 +73,43 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-22 - CS-823 - ADVERSARIAL REFUTATION of this session's own suite, and the repair: SIX wrong hooks passed all fourteen arms
+Verification: `tests/test_hook_interpreter_ladder.py::test_a_gate_that_talks_but_never_banners_is_refused`
+and `::test_a_banner_that_is_not_the_last_line_is_refused`. Both were added AFTER the closure record
+below and both were proven to KILL the survivors in a mirror, with each mutation asserted to have
+LANDED first. Measured: against the shipped hook both pass; against a `grep -F | tail -n 1` mutant one
+fails; against a `?*)` accept-any-non-empty mutant both fail. The module is 87 passed, not the 85 the
+entry below records, and that entry is CORRECT AS WRITTEN FOR THE TREE IT DESCRIBED - this record
+supersedes its count rather than contradicting its claims.
+WHAT THE ADVERSARY REFUTED. The claim was that no wrong implementation of the repair could pass the
+suite. It is FALSE, and six did: accept when the last line is NON-EMPTY, accept on a non-zero BYTE
+COUNT, accept when the last line merely starts with the gate's NAME, plain CONTAINMENT, and - the
+sharpest - `CS_GATE_LAST=$(printf ... | grep -F "$CS_GATE_PASS" | tail -n 1)`, which leaves the
+declared pattern BYTE-IDENTICAL and changes only which line it is applied to. Every one of them
+commits a staged em dash through a gate that checked nothing.
+THE SHARPEST SURVIVOR IS THE ONE WITH NO DEAD CODE, and that is why it matters more than the count.
+It is what an ordinary "make this less brittle" edit looks like, and the hook's own comment claimed
+the property it violates - "a banner anywhere but the final line is refused" - while NO ARM
+EXERCISED THAT SENTENCE. A claim in a comment that no test backs is the ADR 0008 shape, inside the
+item that was supposed to be careful about it.
+A SECOND FINDING, AND THE CORRECTION IS IN THE TREE RATHER THAN ONLY HERE. The section banner said
+the `gate_compiles` assertions were "why these arms mean anything". MEASURED BY ABLATION: deleting
+both leaves the module GREEN, so they are inert today. They are a premise fence for a future gate
+restructure, the premise is separately fenced by the main-guard arm, and what actually makes the
+truncation arms mean something is that each one COMMITTED before the repair. The sentence is
+rewritten in place to say that.
+ONE EQUIVALENT MUTANT IS RECORDED AND DELIBERATELY NOT CHASED. Dropping `tr -d` survives, because
+this toolchain's command substitution already strips the CR - measured with `od -c`, no CR present.
+That is an equivalent mutant on THIS machine, not a hole; the strip stays because the anchored
+pattern would refuse every commit on any toolchain where a CR did survive, and CONVENTIONS.md
+section 16 forbids inheriting one shell's tolerance. Do not delete it and do not weaken an arm to
+kill it.
+THE METHOD NOTE WORTH CARRYING. The refutation came from an agent that RAN mutants, not from one
+that read the arms - 18 mutants against 12 arms, then 14 against 14, plus harness ablations and about
+30 real-commit divergence measurements. It also caught that the artifact moved underneath it
+mid-run, and said so rather than reporting a stale result. THREE ARMS STILL PASS AGAINST A HOOK THAT
+IS LITERALLY `exit 0`, which is recorded as a known property rather than repaired: the accept arm is
+not tautological in context, because the truncation and file-blind arms prove the hook runs.
 ### 2026-08-22 - CS-823 - CLOSED: the pre-commit hook now PROVES the gate ran, instead of reading an unrun gate's exit 0 as a pass
 Verification: `tests/test_hook_interpreter_ladder.py`, the CS-823 section, driving REAL `git commit`
 in a throwaway repository. The arms that decide it are

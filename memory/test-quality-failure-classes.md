@@ -1,6 +1,6 @@
 ---
 name: test-quality-failure-classes
-description: Nine ways a test suite can be green and prove nothing, each with the mechanism that makes it happen.
+description: Ten ways a test suite can be green and prove nothing, each with the mechanism that makes it happen.
 metadata:
   type: reference
 ---
@@ -34,6 +34,14 @@ case in front of them is an instance of it.
   not from the code's own model of the data.
 - **The unrun gate is where the bug hides.** A skipped suite is not a passing suite, and a
   skip is invisible in a green summary line. Check what ran, not what reported.
+- **The author's own suite tests the guard they MEANT to write.** The arms exercise the
+  property the author had in mind; the guard's COMMENT states a stronger property; and
+  nothing tests the gap. Measured on CS-823: the hook claimed "a banner anywhere but the
+  final line is refused" and no arm exercised it, so a mutant that kept the declared pattern
+  BYTE-IDENTICAL and changed only which line it was applied to - `grep -F ... | tail -n 1` -
+  passed every arm while letting a forbidden byte commit. It had no dead code and looked
+  exactly like a routine "make it less brittle" edit. **A comment is not a test.** Read the
+  guard's own prose as a list of claims, and require an arm per claim.
 - **"Zero bad rows" is relative to a SET.** The same file is clean under one filter and
   filthy under another, so the number means nothing without its scope. State the set every
   time the count is reported.

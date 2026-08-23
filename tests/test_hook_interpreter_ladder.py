@@ -1648,12 +1648,14 @@ def test_no_violation_class_slips_through_under_dash(
 # in WITHOUT staging it - so truncating the working-tree copy leaves the index
 # untouched, which is exactly the exposure.
 #
-# THE COMPILE CONTROL IS NOT OPTIONAL AND IT IS WHY THESE ARMS MEAN ANYTHING. A
-# truncation that did NOT compile makes python exit 1, and the hook then refuses
-# for a reason that has nothing to do with this guard - the arm would go green
-# while proving nothing about the defect. Every arm that truncates asserts its
-# bytes still COMPILE first. Same control the CS-819 dash arms take from
-# delivered bytes.
+# THE COMPILE ASSERTION IS A PREMISE FENCE, AND THIS PARAGRAPH USED TO OVERSTATE
+# IT. It said the control was "why these arms mean anything"; an adversary then
+# MEASURED that deleting both `gate_compiles` assertions leaves this module
+# GREEN, so today they are inert. They are kept for what they will catch LATER -
+# a truncation that stopped compiling would make python exit 1, and the hook
+# would refuse for a reason that is not this defect - and the premise they guard
+# is separately fenced by the main-guard arm below. What actually makes the
+# truncation arms mean something is that each one COMMITTED before the repair.
 #
 # EVERY REFUSAL ARM ASSERTS NON-EMPTY OUTPUT AS WELL AS A NON-ZERO EXIT, because
 # the defect's signature is exit 0 WITH ZERO BYTES OF STDERR. An arm reading only
@@ -2030,3 +2032,74 @@ def test_the_gate_spawns_no_child_that_could_inherit_the_captured_stdout() -> No
             "child's stdout, so the child would inherit the hook's captured pipe "
             "and could hang the commit instead of failing it"
         )
+
+
+def replace_gate(box: Sandbox, source: str) -> None:
+    """Put a tiny synthetic gate in the sandbox's WORKING TREE. Index untouched.
+
+    A hand-authored stub rather than a slice of the real gate, which is the rule
+    for fixtures here. What each stub varies is ONE property of the gate's
+    stdout, so an arm names the property it is measuring instead of measuring a
+    truncation and hoping.
+    """
+    (box.work / "tools" / "precommit_gate.py").write_bytes(source.encode("ascii"))
+
+
+def test_a_gate_that_talks_but_never_banners_is_refused(
+    tmp_path: Path, isolated: Environment
+) -> None:
+    """NON-EMPTY stdout is not proof of execution. Exit 0, output, no banner.
+
+    ADDED AFTER AN ADVERSARY REFUTED THE FIRST SUITE, and it is worth recording
+    what got through rather than only that something did. THREE wrong hooks
+    passed every other arm in this section: accept when the last line is
+    non-empty, accept when the capture has a non-zero byte count, and accept
+    when the last line merely starts with the gate's NAME. All three commit a
+    staged em dash through a gate that checked nothing. This stub is what
+    separates them from the shipped hook - it says something, it says it on
+    stdout, it even opens with the gate's own name, and it never banners.
+    """
+    box = make_sandbox(tmp_path, isolated, PRE_COMMIT)
+    replace_gate(box, 'print("precommit_gate: BLOCKED - 1 finding")\n')
+
+    attempt = commit_attempt(box, content=EM_DASH_CONTENT)
+    assert attempt.hook_output, (
+        "a talking-but-bannerless gate was answered with NO hook output at all"
+    )
+    assert refused_as_unrun(attempt), (
+        f"a gate that printed a non-banner line and exited 0 was accepted, so the "
+        f"hook is judging that stdout is NON-EMPTY rather than what it says:\n{attempt.report}"
+    )
+
+
+def test_a_banner_that_is_not_the_last_line_is_refused(
+    tmp_path: Path, isolated: Environment
+) -> None:
+    """LAST LINE, not anywhere. The arm the hook's own comment needs and lacked.
+
+    THE COMMENT CLAIMED THIS AND NOTHING TESTED IT. `.githooks/pre-commit` says
+    the check "is stronger than a plain search: a banner anywhere but the final
+    line is refused". An adversary measured that sentence unbacked: a mutant
+    that kept the declared pattern BYTE-IDENTICAL and only changed which line it
+    was applied to - `grep -F "$CS_GATE_PASS" | tail -n 1` - passed every arm in
+    this section, and so did a plain containment test. Neither has dead code and
+    the first is what an ordinary "make it less brittle" edit looks like.
+
+    The stub writes a WELL-FORMED banner and then one more line. A containment
+    test finds the banner and accepts; a last-line test sees the trailing line
+    and refuses. `gate_success_line` renders the banner from the gate's own
+    format string, so this arm restates nothing.
+    """
+    box = make_sandbox(tmp_path, isolated, PRE_COMMIT)
+    replace_gate(
+        box,
+        "print(%r)\n" % gate_success_line(1, 0)
+        + 'print("precommit_gate: note - 3 units were skipped")\n',
+    )
+
+    attempt = commit_attempt(box, content=EM_DASH_CONTENT)
+    assert attempt.hook_output, "a banner-then-trailer gate was answered with NO hook output"
+    assert refused_as_unrun(attempt), (
+        f"a banner that was NOT the last line was accepted, so the check is a "
+        f"search rather than a last-line test:\n{attempt.report}"
+    )
