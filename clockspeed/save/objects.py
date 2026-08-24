@@ -2635,9 +2635,15 @@ def parse_body(
 #   rather than transcribed.
 #
 #   CROSS-SECTION - an ObjectProperty names a record, and the record table is
-#   parsed by a different pass over a different section. The references that do
-#   not resolve name assets rather than saved objects, which is why that oracle
-#   is reported as a rate and never as a total. The count that stood here is
+#   parsed by a different pass over a different section. Not every reference
+#   resolves, which is why that oracle is reported as a rate and never as a
+#   total. WHAT THE UNRESOLVED ONES NAME IS NOT GLOSSED HERE - the sentence
+#   that stood in this clause said they name assets rather than saved objects,
+#   as a universal over the whole of them, and CS-833 withdrew that against the
+#   library; UNRESOLVED_SHAPES holds the partition that replaced it. The
+#   sentence is called out rather than quietly rewritten because it was the
+#   FOURTH site of one claim, and three is what the item went looking for. The
+#   count that stood here is
 #   deleted rather than corrected, for the reason the paragraph above gives: it
 #   is one corpus at one moment, and that corpus is a live save library which
 #   grows. tests/save/test_decode_oracles.py::test_object_references_resolve_
