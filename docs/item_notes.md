@@ -1531,6 +1531,38 @@ stored message violates - rather than asserting against its own model of what gi
 The trailer half of the same defect is CS-702 and the routes no client-side hook can cover are
 CS-704. This item owns the cleanup model, the ASCII escape and the subject-cap escape.
 
+### Measured 2026-08-24 (session 38): the FOURTH leak, salvaged from an inherited worktree and re-derived
+
+**SALVAGED, THEN RE-DERIVED RATHER THAN IMPORTED.** This was built in an inherited worktree
+on 2026-08-22, never committed, and was the only record of it anywhere in the project. It was
+re-measured from scratch on 2026-08-24 against git 2.53.0.windows.3 in a throwaway repository
+before being written here, so what follows is a measurement and not a quotation.
+
+**THE CLEANUP TABLE ABOVE IS INCOMPLETE IN ONE ROW.** `verbatim` additionally preserves
+TRAILING WHITESPACE on every line. Under `whitespace`, `strip`, `default` and `scissors`, git
+runs its trailing-whitespace pass BEFORE the commit-msg hook; under `verbatim` it does not run
+at all. Measured with a first line of 70 characters followed by five spaces:
+
+| cleanup mode | bytes the hook is handed | bytes the commit object stores |
+|---|---|---|
+| `verbatim` | 75 | 75 |
+| `whitespace`, `strip`, `default`, `scissors` | 70 | 70 |
+
+**THE FOURTH LEAK ITSELF.** A subject measured AFTER trimming reads 70 against a cap of 72 and
+commits, while the object stores 75. The subject must be measured UNTRIMMED. This is a fourth
+escape distinct from the three this item already owns, and it bites under `verbatim` and only
+under `verbatim`.
+
+**AND THE ORACLE THIS SECTION PRESCRIBES CANNOT SEE IT.** The paragraph above instructs any
+acceptance suite to use git as the oracle by reading `git log -1` back from the landed commit.
+MEASURED: `git log -1 --format=%s` renders 70 for the very commit whose object stores 75 - the
+placeholder normalises the trailing run away. So the prescribed oracle is BLIND to exactly this
+leak, and a suite built on it would stay green while the escape is live. Read the raw bytes
+with `git cat-file commit HEAD` and split the header from the body instead. THIS WAS FOUND BY
+FALLING INTO IT: the first probe run for this block used `%s`, reported 70 stored under
+`verbatim`, and would have refuted a true claim. It is the standing "a probe can validate the
+wrong channel" failure, landing on this item's own written instruction.
+
 ## CS-814
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
