@@ -703,16 +703,26 @@ def test_the_run_after_the_terminator_is_unmeasured() -> None:
 #: above its own ``Measured layout constants`` block. THE CITATION IS BY NAME
 #: RATHER THAN BY LINE: a line number is the same rot as a restated count, and
 #: correcting one only resets the clock - this one had already drifted.
+#: THE THREE CONTAINER WORDS ARE HERE FOR THEIR ELEMENT FRAMING - CS-830, and
+#: what that promotes is narrower than the others in this set. For a scalar the
+#: whole VALUE is measured; for a container what is measured is the element
+#: count, the element type words and every element's EXTENT, and the interior of
+#: a struct element is not. That distinction is graded in
+#: ``tests/save/test_container_elements.py`` rather than restated here - what
+#: this transcription owes is agreement with the shipped set, and nothing else.
 _MEASURED_VALUE_TYPES: Final = frozenset(
     {
+        "ArrayProperty",
         "BoolProperty",
         "ByteProperty",
         "EnumProperty",
         "FloatProperty",
         "Int8Property",
         "IntProperty",
+        "MapProperty",
         "NameProperty",
         "ObjectProperty",
+        "SetProperty",
         "SoftObjectProperty",
         "StrProperty",
         "UInt32Property",
@@ -874,11 +884,19 @@ class _DecodeTally:
 def _is_measured_shape(value: object) -> bool:
     """Whether a decoded value has a shape the measured types can produce.
 
-    The measured types yield exactly four Python shapes: ``bool`` from
-    BoolProperty, ``int`` from the integer widths and a raw ByteProperty,
-    ``float`` from FloatProperty, ``str`` from the one-string types, and a
-    2-tuple of ``str`` from the object references. Anything else means a
-    decoder returned something no measured branch can produce.
+    The measured types yield these Python shapes: ``bool`` from BoolProperty,
+    ``int`` from the integer widths and a raw ByteProperty, ``float`` from
+    FloatProperty, ``str`` from the one-string types, a 2-tuple of ``str`` from
+    the object references, and - since CS-830 - an ``objects.ContainerValue``
+    from the three container words. Anything else means a decoder returned
+    something no measured branch can produce.
+
+    THE CONTAINER SHAPE IS ADMITTED BY ITS TYPE RATHER THAN BY DUCK-TYPING, so
+    a decoder returning some other structure for a container still reddens
+    here. It remains the WEAK check its field docstring says it is: the point
+    of admitting the shape is not to grade containers - that is
+    ``tests/save/test_container_elements.py`` - it is to stop this check going
+    red for a value it was never about.
 
     Args:
         value: One decoded property value.
@@ -886,6 +904,8 @@ def _is_measured_shape(value: object) -> bool:
     Returns:
         True when the shape is one a measured type produces.
     """
+    if isinstance(value, objects.ContainerValue):
+        return True
     if isinstance(value, tuple):
         return len(value) == _OBJECT_REFERENCE_PARTS and all(
             isinstance(part, str) for part in value
@@ -2177,9 +2197,30 @@ _SYNTHETIC_BYTE_ENUM_MEMBER: Final = "ESyntheticByteEnum::Third"
 _SYNTHETIC_STRUCT_WORD: Final = "SyntheticStructPayload"
 _SYNTHETIC_ARRAY_INNER: Final = "IntProperty"
 
+#: The three containers the fixture carries - CS-830. EACH HOLDS MORE THAN ONE
+#: ELEMENT, deliberately: a container of one element is bounded by dividing its
+#: region by one, which any width satisfies, so a single-element fixture would
+#: grade the framing far more weakly than it appears to.
+#:
+#: THE MAP'S TWO HALVES ARE DIFFERENT WIDTHS AND DIFFERENT SHAPES - a
+#: fixed-width key beside a length-prefixed value - so a decoder that read one
+#: half twice, or that swapped the key word for the value word, cannot close the
+#: region by accident.
+#: How wide an int32 element is. TRANSCRIBED rather than imported from
+#: ``objects``, on the same terms as the measured set above: a suite that
+#: imports the constant it checks asserts only that the module equals itself.
+_INT32_BYTES: Final = 4
+
+_SYNTHETIC_ARRAY: Final = (7, 9, 11)
+_SYNTHETIC_SET_INNER: Final = "IntProperty"
+_SYNTHETIC_SET: Final = (13, 17)
+_SYNTHETIC_MAP_KEY: Final = "IntProperty"
+_SYNTHETIC_MAP_VALUE: Final = "StrProperty"
+_SYNTHETIC_MAP: Final = ((23, "SyntheticMapFirst"), (29, "SyntheticMapSecond"))
+
 #: How many tags of an UNMEASURED type the fixture payload carries. Named so
 #: the expected warning count is not a bare literal in three assertions.
-_SYNTHETIC_UNMEASURED_TAGS: Final = 2
+_SYNTHETIC_UNMEASURED_TAGS: Final = 1
 
 #: The object-type discriminator for an actor, carried by the record rather
 #: than interpreted by :func:`objects.read_properties`.
@@ -2317,18 +2358,88 @@ def _struct_tag(name: str, struct_word: str, opaque: bytes) -> bytes:
     return _tag_head(name, "StructProperty", len(opaque), extra) + opaque
 
 
-def _array_tag(name: str, inner_word: str, opaque: bytes) -> bytes:
-    """An UNMEASURED ArrayProperty, present for the same reason.
+def _array_tag(name: str, inner_word: str, value: bytes) -> bytes:
+    """An ArrayProperty - an element count and its elements, since CS-830.
 
     Args:
         name: The property name.
         inner_word: The element type word, carried in the tag data.
-        opaque: The elements, which this project does not read.
+        value: The element count and the elements.
 
     Returns:
         The whole tag.
     """
-    return _tag_head(name, "ArrayProperty", len(opaque), _fstring(inner_word)) + opaque
+    return _tag_head(name, "ArrayProperty", len(value), _fstring(inner_word)) + value
+
+
+def _set_tag(name: str, inner_word: str, value: bytes) -> bytes:
+    """A SetProperty - a lead field, an element count and its elements.
+
+    Args:
+        name: The property name.
+        inner_word: The element type word, carried in the tag data.
+        value: The lead field, the element count and the elements.
+
+    Returns:
+        The whole tag.
+    """
+    return _tag_head(name, "SetProperty", len(value), _fstring(inner_word)) + value
+
+
+def _map_tag(name: str, key_word: str, value_word: str, value: bytes) -> bytes:
+    """A MapProperty, whose tag carries TWO element type words rather than one.
+
+    Args:
+        name: The property name.
+        key_word: The key half's type word.
+        value_word: The value half's type word.
+        value: The lead field, the entry count and the entries.
+
+    Returns:
+        The whole tag.
+    """
+    extra = _fstring(key_word) + _fstring(value_word)
+    return _tag_head(name, "MapProperty", len(value), extra) + value
+
+
+def _decoded_shape(properties: Mapping[str, object]) -> dict[str, object]:
+    """Reduce decoded properties to a form an expectation can be written against.
+
+    A :class:`objects.ContainerValue` carries ABSOLUTE body offsets on every
+    element, so comparing one against a hand-written literal would mean
+    hand-computing where each element lands in the fixture payload. That is the
+    fragile transcription this suite exists to avoid, and getting it wrong would
+    show up as a test that has to be edited whenever an unrelated tag ahead of
+    it changes length.
+
+    WHAT IS DROPPED IS THE OFFSET AND NOTHING ELSE. Every element's type word,
+    its LENGTH and its decoded value survive, so a framing that bounded the
+    wrong number of elements, at the wrong widths, or decoded the wrong values
+    still reddens. Where each element sits is graded on the real library by
+    ``tests/save/test_container_elements.py``, which checks the elements consume
+    the declared size exactly - a check an offset-free comparison cannot make
+    and this fixture was never making.
+
+    Args:
+        properties: What the shipped reader decoded.
+
+    Returns:
+        The same mapping with every container reduced to a comparable tuple.
+    """
+    reduced: dict[str, object] = {}
+    for name, value in properties.items():
+        if isinstance(value, objects.ContainerValue):
+            reduced[name] = (
+                value.type_word,
+                value.element_words,
+                value.element_count,
+                value.element_shape,
+                value.struct_word,
+                tuple((item.type_word, item.length, item.value) for item in value.elements),
+            )
+        else:
+            reduced[name] = value
+    return reduced
 
 
 #: Padding appended past a string value so the tag's DECLARED size exceeds what
@@ -2400,13 +2511,39 @@ _MEASURED_TAGS: Final = (
     _reference_tag(
         "mSyntheticSoftObject", "SoftObjectProperty", _SYNTHETIC_LEVEL, _SYNTHETIC_ASSET
     ),
+    # THE THREE CONTAINERS - CS-830. They are here rather than among the
+    # unmeasured tags because their element framing is decoded now, and
+    # ``test_the_synthetic_fixture_exercises_every_measured_type_word`` requires
+    # one tag of every measured word. THE SET IS DELIBERATELY NOT THE ARRAY WITH
+    # A DIFFERENT WORD: it carries a LEAD FIELD ahead of its count, so a fixture
+    # that built it like an array would leave a decoder ignoring that field
+    # green here and red on the first real save.
+    _array_tag(
+        "mSyntheticArray",
+        _SYNTHETIC_ARRAY_INNER,
+        _i32(len(_SYNTHETIC_ARRAY)) + b"".join(_i32(value) for value in _SYNTHETIC_ARRAY),
+    ),
+    _set_tag(
+        "mSyntheticSet",
+        _SYNTHETIC_SET_INNER,
+        _i32(0) + _i32(len(_SYNTHETIC_SET)) + b"".join(_i32(value) for value in _SYNTHETIC_SET),
+    ),
+    _map_tag(
+        "mSyntheticMap",
+        _SYNTHETIC_MAP_KEY,
+        _SYNTHETIC_MAP_VALUE,
+        _i32(0)
+        + _i32(len(_SYNTHETIC_MAP))
+        + b"".join(_i32(key) + _fstring(text) for key, text in _SYNTHETIC_MAP),
+    ),
 )
 
-#: The two UNMEASURED regions the fixture carries, so "flagged and skipped" is
-#: exercised rather than described.
+#: The one UNMEASURED region the fixture carries, so "flagged and skipped" is
+#: exercised rather than described. IT WAS TWO UNTIL CS-830 decoded the array's
+#: element framing; the struct's interior is what is still opaque, and it is
+#: CS-829's.
 _UNMEASURED_TAGS: Final = (
     _struct_tag("mSyntheticStruct", _SYNTHETIC_STRUCT_WORD, bytes(range(32))),
-    _array_tag("mSyntheticArray", _SYNTHETIC_ARRAY_INNER, _i32(2) + _i32(7) + _i32(9)),
 )
 
 #: What the shipped decoder must return for the payload above. Written out in
@@ -2428,6 +2565,40 @@ _EXPECTED_PROPERTIES: Final[Mapping[str, object]] = MappingProxyType(
         "mSyntheticEnum": _SYNTHETIC_ENUM_MEMBER,
         "mSyntheticObject": (_SYNTHETIC_LEVEL, _SYNTHETIC_TARGET),
         "mSyntheticSoftObject": (_SYNTHETIC_LEVEL, _SYNTHETIC_ASSET),
+        # THE CONTAINERS, in the offset-free shape :func:`_decoded_shape`
+        # produces. Every element's WORD, LENGTH and VALUE is stated; only
+        # where it sits in the payload is not - see that function for why.
+        "mSyntheticArray": (
+            "ArrayProperty",
+            (_SYNTHETIC_ARRAY_INNER,),
+            len(_SYNTHETIC_ARRAY),
+            objects.ELEMENT_SHAPE_SELF_DELIMITING,
+            None,
+            tuple((_SYNTHETIC_ARRAY_INNER, _INT32_BYTES, value) for value in _SYNTHETIC_ARRAY),
+        ),
+        "mSyntheticSet": (
+            "SetProperty",
+            (_SYNTHETIC_SET_INNER,),
+            len(_SYNTHETIC_SET),
+            objects.ELEMENT_SHAPE_SELF_DELIMITING,
+            None,
+            tuple((_SYNTHETIC_SET_INNER, _INT32_BYTES, value) for value in _SYNTHETIC_SET),
+        ),
+        "mSyntheticMap": (
+            "MapProperty",
+            (_SYNTHETIC_MAP_KEY, _SYNTHETIC_MAP_VALUE),
+            len(_SYNTHETIC_MAP),
+            objects.ELEMENT_SHAPE_SELF_DELIMITING,
+            None,
+            tuple(
+                half
+                for key, text in _SYNTHETIC_MAP
+                for half in (
+                    (_SYNTHETIC_MAP_KEY, _INT32_BYTES, key),
+                    (_SYNTHETIC_MAP_VALUE, len(_fstring(text)), text),
+                )
+            ),
+        ),
     }
 )
 
@@ -2540,7 +2711,7 @@ def test_the_synthetic_actor_payload_decodes_to_exactly_the_values_encoded() -> 
 
     result = objects.read_properties(body, record, _synthetic_map(_SYNTHETIC_SCHEMA))
 
-    assert dict(result.properties) == dict(_EXPECTED_PROPERTIES)
+    assert _decoded_shape(result.properties) == dict(_EXPECTED_PROPERTIES)
     assert result.resolved
     assert result.schema_name == _SYNTHETIC_SCHEMA
 
@@ -2593,7 +2764,7 @@ def test_the_synthetic_component_payload_needs_no_actor_head() -> None:
 
     result = objects.read_properties(body, record, _synthetic_map(_SYNTHETIC_SCHEMA))
 
-    assert dict(result.properties) == dict(_EXPECTED_PROPERTIES)
+    assert _decoded_shape(result.properties) == dict(_EXPECTED_PROPERTIES)
 
 
 def test_reading_a_component_payload_as_an_actor_desynchronises() -> None:
@@ -2616,8 +2787,14 @@ def test_reading_a_component_payload_as_an_actor_desynchronises() -> None:
 def test_the_synthetic_payload_flags_and_skips_every_unmeasured_type() -> None:
     """Non-negotiable 7 at the value seam, provable with no save library.
 
-    The two unmeasured tags are stepped over by their DECLARED size, so their
-    presence must cost the walk nothing and must be counted rather than guessed.
+    The unmeasured tag is stepped over by its DECLARED size, so its presence
+    must cost the walk nothing and must be counted rather than guessed.
+
+    THE ARRAY USED TO BE THE SECOND ONE AND NOW DECODES - CS-830 - so what is
+    asserted here narrowed rather than weakened: the struct's interior is what
+    is still unmeasured, and it is the one this case pins. The containers'
+    element framing is graded in ``tests/save/test_container_elements.py``, and
+    the counter below is what stops a decode being credited to both halves.
     """
     payload = _synthetic_payload(actor=True)
     body = _synthetic_body(payload)
@@ -2627,7 +2804,6 @@ def test_the_synthetic_payload_flags_and_skips_every_unmeasured_type() -> None:
 
     assert result.unmeasured_value_count == _SYNTHETIC_UNMEASURED_TAGS
     assert "mSyntheticStruct" not in result.properties
-    assert "mSyntheticArray" not in result.properties
     assert [warning.code for warning in result.warnings] == [objects.WARN_UNMEASURED_PROPERTY_TYPE]
     assert result.warnings[0].actual == _SYNTHETIC_UNMEASURED_TAGS
 
@@ -2650,7 +2826,7 @@ def test_the_synthetic_walk_stops_at_the_terminator_and_not_at_the_boundary() ->
     without_run = objects.read_properties(body, clipped, property_map)
 
     assert dict(with_run.properties) == dict(without_run.properties)
-    assert dict(with_run.properties) == dict(_EXPECTED_PROPERTIES)
+    assert _decoded_shape(with_run.properties) == dict(_EXPECTED_PROPERTIES)
 
 
 def _disagreement_payload() -> bytes:
@@ -2750,7 +2926,7 @@ def test_an_unresolved_schema_still_decodes_and_is_still_flagged() -> None:
     result = objects.read_properties(body, record, _synthetic_map("SomeOtherSchema_C"))
 
     assert not result.resolved
-    assert dict(result.properties) == dict(_EXPECTED_PROPERTIES)
+    assert _decoded_shape(result.properties) == dict(_EXPECTED_PROPERTIES)
     assert objects.WARN_UNRESOLVED_SCHEMA in [warning.code for warning in result.warnings]
 
 
@@ -2774,7 +2950,7 @@ def test_the_synthetic_decode_touches_no_save_locator(monkeypatch) -> None:
         _synthetic_body(payload), _synthetic_record(payload), _synthetic_map(_SYNTHETIC_SCHEMA)
     )
 
-    assert dict(result.properties) == dict(_EXPECTED_PROPERTIES)
+    assert _decoded_shape(result.properties) == dict(_EXPECTED_PROPERTIES)
 
 
 # ---------------------------------------------------------------------------
@@ -3196,7 +3372,7 @@ def test_parse_properties_claims_no_emptiness_read_properties_has_refuted() -> N
         _synthetic_body(payload), _synthetic_record(payload), _synthetic_map(_SYNTHETIC_SCHEMA)
     )
 
-    assert dict(decoded) == dict(_EXPECTED_PROPERTIES), (
+    assert _decoded_shape(decoded) == dict(_EXPECTED_PROPERTIES), (
         "parse_properties no longer returns what read_properties decoded, so the "
         "docstring assertion below is about the wrong function"
     )

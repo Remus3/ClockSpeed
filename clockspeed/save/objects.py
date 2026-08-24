@@ -211,10 +211,16 @@ __all__ = [
     "BYTE_ORDER_SURVIVING_CANDIDATES",
     "BYTE_ORDER_UNSCORED",
     "BYTE_ORDER_VACUOUS",
+    "CONTAINER_ADJACENT_OWNERS",
+    "CONTAINER_TYPE_WORDS",
     "CRITERION_CURSOR_REACH",
     "CRITERION_VALUE_DISAGREEMENT",
     "CURSOR_WIDTHS",
     "DECLINED_VALUE_READINGS",
+    "ELEMENT_SHAPES",
+    "ELEMENT_SHAPE_SELF_DELIMITING",
+    "ELEMENT_SHAPE_SOLVED_WIDTH",
+    "ELEMENT_SHAPE_UNIFORM_WIDTH",
     "EVIDENCE_CROSS_SECTION",
     "EVIDENCE_DECLARED_WIDTH",
     "EVIDENCE_FOR_VALUE_TYPE",
@@ -264,6 +270,8 @@ __all__ = [
     "WIDTH_SHIPPING_GROUNDS",
     "WIDTH_SHIPPING_RULE",
     "BodyLayout",
+    "ContainerElement",
+    "ContainerValue",
     "ObjectBudgetExceededError",
     "ObjectError",
     "ObjectFormatError",
@@ -280,6 +288,7 @@ __all__ = [
     "UnsupportedBodyLayoutError",
     "UnsupportedSaveVersionError",
     "class_name_of",
+    "container_candidate_words",
     "index_records",
     "parse_body",
     "parse_object_headers",
@@ -3041,24 +3050,23 @@ WIDTH_SHIPPING_GROUNDS: Final[Mapping[str, str]] = MappingProxyType(
 #: forbids - so these entries carry no figure at all and point instead.
 #:
 #: IT IS ABOUT VALUE READINGS AND NOT ABOUT TAG-EXTRA WIDTHS, which matters
-#: because one type word can carry both. `ArrayProperty` appears here AND in
+#: because one type word can carry both. `StructProperty` appears here AND in
 #: :data:`CURSOR_WIDTHS`: its tag-extra width ships and is discriminated, while
 #: its VALUE reading is declined. Keying this by the bare type word once read as
 #: though the whole word were declined, which is why the distinction is stated
 #: rather than left to the name.
+#:
+#: THREE ENTRIES LEFT THIS TABLE RATHER THAN BEING RE-JUSTIFIED IN IT - CS-830.
+#: The three container words were declined here, each pointing at a region entry
+#: for its population. Their element framing is measured now, so the decline is
+#: retired and the region entries with it; what a reader wants in their place is
+#: :data:`CONTAINER_TYPE_WORDS` and the commentary block above it. A DECLINE IS
+#: WITHDRAWN BY MEASURING THE READING, never by softening the reason, and the
+#: shape of this table is what makes the difference visible: a withdrawn decline
+#: leaves no entry at all, where a softened one would leave an entry carrying a
+#: gentler code.
 DECLINED_VALUE_READINGS: Final[Mapping[str, tuple[str, str]]] = MappingProxyType(
     {
-        "ArrayProperty": (
-            REASON_SHIPPED_ALIGNMENT_ONLY,
-            "consumes its declared size exactly on the arrays whose inner word "
-            "this module measures - the ArrayProperty entry of "
-            "UNMEASURED_PAYLOAD_REGIONS owns that population - but at the "
-            "SHIPPED ALIGNMENT ONLY, never under a rotation - which is what "
-            "that entry records and where this code comes from. Consumption at "
-            "one alignment is not discrimination, so the rule declines it. What "
-            "would settle it is a control showing a wrong reading costs "
-            "something, not a larger sample",
-        ),
         "TextProperty": (
             REASON_SAMPLE_SIZE,
             "declined on SAMPLE SIZE, which is a criterion the rule above does "
@@ -3070,26 +3078,6 @@ DECLINED_VALUE_READINGS: Final[Mapping[str, tuple[str, str]]] = MappingProxyType
             "UNMEASURED_PAYLOAD_REGIONS, which owns the population and the one "
             "declared size it is seen at and records that the instances present "
             "cannot distinguish the cases of a tagged union",
-        ),
-        "SetProperty": (
-            REASON_SAMPLE_SIZE,
-            "declined on SAMPLE SIZE, so an exception to the rule rather than "
-            "an application of it. It poses the element-framing question "
-            "ArrayProperty poses, over a population the SetProperty entry of "
-            "UNMEASURED_PAYLOAD_REGIONS owns and records as far too small to "
-            "separate the answers - which is where this code comes from",
-        ),
-        "MapProperty": (
-            REASON_NO_DISCRIMINATION_TEST,
-            "declined because no discrimination test has been put to it, which "
-            "is a reason the rule does not admit, so this is an exception to "
-            "the rule rather than an application of it. SAMPLE SIZE IS NOT THE "
-            "OBJECTION HERE: the MapProperty entry of UNMEASURED_PAYLOAD_REGIONS "
-            "records the tag carrying two extra type words rather than one as "
-            "MEASURED and the key and value element framing as not, and says "
-            "nothing about the population being too small. Recording it under "
-            "sample size would read as a measurement of a population that no "
-            "one has taken",
         ),
         "StructProperty": (
             REASON_NO_DISCRIMINATION_TEST,
@@ -3407,14 +3395,305 @@ BYTE_ORDER_SURVIVING_CANDIDATES: Final[frozenset[tuple[int, int, int, int]]] = f
     }
 )
 
+# ---------------------------------------------------------------------------
+# CS-830 - the CONTAINER element framing
+#
+# WHAT A CONTAINER DECODE CLAIMS. The element COUNT, the element type word or
+# words, and the EXTENT of every element - where each one starts and how many
+# bytes it spans - and those only when the elements so bounded consume the
+# tag's declared size EXACTLY. A VALUE comes back only for an element whose own
+# type word this module already decodes at top level.
+#
+# WHAT IT REFUSES TO CLAIM. A `StructProperty` element comes back as a bounded,
+# typed region carrying no value at all. The struct INTERIOR is CS-829, and
+# reading it here would be this module publishing a guess about a grammar
+# nobody has measured. `CONTAINER_ADJACENT_OWNERS` records that hand-off as
+# data rather than as a sentence, and the test named below turns red if a
+# container-shaped word ever arrives in the shipped tables with no item behind
+# it.
+#
+# THE THREE SHAPES ARE ORDERED BY STRENGTH AND THE ORDER IS LOAD-BEARING, not a
+# preference. A SELF-DELIMITING reading is the element's own grammar saying
+# where it ends and is falsifiable - get it wrong and the region does not
+# close. The two DERIVED readings are weaker, and are reached only where the
+# self-delimiting reading has already failed to close. MEASURED, which is why
+# the fallback is not an alternative: taken as alternatives, both closed on a
+# large majority of the struct arrays, because a container holding ONE element
+# is divided by one and any width closes it. Which shape bounded a given
+# container therefore travels on the value, so a consumer can tell the strong
+# reading from the weak one instead of being handed an average.
+#
+# THE ELEMENT GRAMMAR IS NOT THE TOP-LEVEL VALUE GRAMMAR, and conflating them
+# is the mistake this block exists to avoid. Inside a container an element
+# carries no tag, no index field, no guid flag and no declared size, so
+# `_FIXED_WIDTH_VALUES` and `_ONE_STRING_VALUES` do not describe it. The two
+# tables below describe it, and a word in them is a claim about an ELEMENT and
+# never about a top-level value - which is why a word can appear there and not
+# in :data:`MEASURED_VALUE_TYPES`.
+#
+# THE COUNTS ARE DELIBERATELY NOT WRITTEN HERE. The operator plays this game,
+# so a population figure in this comment would be false on the next autosave -
+# CLAUDE.md section 4. What the corpus says on any given day is derived on
+# every run by the sweep in tests/save/test_container_elements.py, and the
+# equality it stands in is the acceptance.
+# ---------------------------------------------------------------------------
+
+#: The type words whose value is a COUNTED SEQUENCE of elements - CS-830.
+#:
+#: NAMED RATHER THAN DERIVED, DELIBERATELY. No shipped table equals this
+#: triple: every candidate over-includes a word whose interior belongs to
+#: another item. :func:`container_candidate_words` derives the wider set and
+#: the test named in the commentary block above holds this triple against it,
+#: so the transcription is GUARDED rather than pretended to be a derivation.
+CONTAINER_TYPE_WORDS: Final = frozenset({"ArrayProperty", "SetProperty", "MapProperty"})
+
+#: Which item owns each container-adjacent word this module does NOT decode.
+#: An entry here is a route to the work, not an excuse for the gap.
+CONTAINER_ADJACENT_OWNERS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "StructProperty": "CS-829",
+        "TextProperty": "CS-832",
+    }
+)
+
+#: How many int32 fields stand between a container's value start and its
+#: element count. MEASURED: the set and the map carry one field ahead of the
+#: count and the array carries none. Mis-stating one shifts the count read by
+#: four bytes, which the region then fails to close on.
+_CONTAINER_LEAD_FIELDS: Final[Mapping[str, int]] = MappingProxyType(
+    {
+        "ArrayProperty": 0,
+        "SetProperty": 1,
+        "MapProperty": 1,
+    }
+)
+
+#: How the shape that bounded a container's elements is recorded.
+#:
+#: `ELEMENT_SHAPE_SELF_DELIMITING` - every element half was bounded by its own
+#: grammar: a stated width, a length-prefixed string, or a nested tag list
+#: closed by the terminator name. The strongest of the three, and the only one
+#: that is falsifiable element by element.
+#: `ELEMENT_SHAPE_UNIFORM_WIDTH` - no element grammar applied, and one width
+#: was DERIVED by dividing the element region by the number of slots. Its whole
+#: discriminator is that the division is exact, so over a SINGLE slot it is the
+#: identity and discriminates nothing.
+#: `ELEMENT_SHAPE_SOLVED_WIDTH` - one half's width was derived by requiring the
+#: region to close, and admitted only because exactly one width in the searched
+#: range does. Ambiguity is refused rather than resolved by preference.
+ELEMENT_SHAPE_SELF_DELIMITING: Final = "self_delimiting"
+ELEMENT_SHAPE_UNIFORM_WIDTH: Final = "uniform_width"
+ELEMENT_SHAPE_SOLVED_WIDTH: Final = "solved_width"
+ELEMENT_SHAPES: Final = frozenset(
+    {
+        ELEMENT_SHAPE_SELF_DELIMITING,
+        ELEMENT_SHAPE_UNIFORM_WIDTH,
+        ELEMENT_SHAPE_SOLVED_WIDTH,
+    }
+)
+
+#: An ELEMENT of a fixed-width inner word, and how many bytes it spans. These
+#: are ELEMENT widths and not tag-value widths - see the commentary block
+#: above for why the distinction matters.
+#:
+#: `Int64Property` IS HERE AND IS NOT IN :data:`MEASURED_VALUE_TYPES`, and that
+#: pair of facts is the whole of what this module claims about the word. Its
+#: ELEMENT width is measured - the arrays carrying it close on it - and its
+#: TOP-LEVEL value is not, so a top-level instance is flagged and skipped like
+#: any other unmeasured type. IT HAS NO ENTRY IN
+#: :data:`UNMEASURED_PAYLOAD_REGIONS` AND THE ABSENCE IS DELIBERATE: that table
+#: records regions the library actually produces, and this library holds no
+#: top-level tag of this word at all. An entry there would be a record of a
+#: measurement nobody was ever in a position to make, which is what
+#: ``tests/save/test_properties.py`` refuses. If one ever appears, that test
+#: reddens and asks for the entry then.
+_ELEMENT_FIXED_WIDTHS: Final[Mapping[str, int]] = MappingProxyType(
+    {
+        "ByteProperty": 1,
+        "Int8Property": 1,
+        "FloatProperty": 4,
+        "IntProperty": 4,
+        "UInt32Property": 4,
+        "Int64Property": 8,
+    }
+)
+
+#: An ELEMENT that is one or more length-prefixed strings, and how many.
+#:
+#: `InterfaceProperty` IS HERE AND IS NOT IN :data:`MEASURED_VALUE_TYPES`, and
+#: that is the distinction the commentary block above draws rather than an
+#: oversight. This module has measured its ELEMENT shape - every array of it in
+#: the library closes on two strings - and has measured nothing about a
+#: top-level `InterfaceProperty` value, of which it has seen none. Promoting it
+#: on the strength of the element result would carry a claim across a boundary
+#: no measurement crosses.
+_ELEMENT_STRING_COUNTS: Final[Mapping[str, int]] = MappingProxyType(
+    {
+        "EnumProperty": 1,
+        "NameProperty": 1,
+        "StrProperty": 1,
+        "InterfaceProperty": 2,
+        "ObjectProperty": 2,
+        "SoftObjectProperty": 2,
+    }
+)
+
+#: The one inner word whose element is a NESTED property tag list, closed by
+#: the same terminator name a payload uses. Its interior is CS-829's.
+_ELEMENT_TAG_LIST_WORD: Final = "StructProperty"
+
+#: The inner words carrying TWO element shapes, and so the only ones a
+#: DERIVED width may ever be forced on.
+#:
+#: WHY THE RESTRICTION EXISTS, measured rather than reasoned. A struct element
+#: is written either as a nested tag list or as a RAW body of uniform width -
+#: both are real shapes of this format, so falling back from the first to the
+#: second reads a known alternative rather than fitting an unknown one. Every
+#: other element word has exactly ONE shape, and letting a derived width
+#: override it published a wrong value: an array declaring four IntProperty
+#: elements while carrying three was rescued by dividing twelve bytes into four
+#: threes, where the element's own width said plainly that the region did not
+#: close. The test named in the commentary block above is what caught it and is
+#: what keeps it caught.
+_RAW_SHAPE_ELEMENT_WORDS: Final = frozenset({_ELEMENT_TAG_LIST_WORD})
+
+#: The widest element a SOLVED width may be. A BOUND, not a measurement: the
+#: solve exists for the one mixed shape where a fixed-width half sits beside a
+#: self-delimiting one, and this only stops the search running the length of a
+#: payload. Widening it cannot make a refused container decode - it can only
+#: turn a determination into an ambiguity, which is refused.
+_SOLVED_WIDTH_CAP: Final = 64
+
+#: A container cannot declare more elements than this. A bound, not a
+#: measurement - it stops a corrupt count spinning, exactly as
+#: :data:`_MAX_TAGS_PER_PAYLOAD` does one level up.
+_MAX_CONTAINER_ELEMENTS: Final = 1 << 20
+
+#: How deep a nested element tag list may run before the walk gives up.
+_MAX_ELEMENT_TAGS: Final = 1 << 12
+
+
+def container_candidate_words() -> frozenset[str]:
+    """Derive every word the shipped tables treat as carrying an interior.
+
+    IT DELIBERATELY OVER-INCLUDES. The derivation cannot equal
+    :data:`CONTAINER_TYPE_WORDS` - it picks up every word that ships a tag-extra
+    string without being a decoded scalar, plus every word whose value reading
+    is declined - so it always carries the words other items own. That is what
+    makes it a GUARD on the naming rather than a replacement for it: a fourth
+    container-shaped word entering any of the four tables it reads lands here,
+    and the test named in the commentary block above asks who owns it.
+
+    Returns:
+        The candidate words. Safe to render: every one came out of a literal in
+        tracked source, never out of a save.
+    """
+    carries_extra = frozenset(_TAG_EXTRA_STRINGS)
+    decoded_scalars = MEASURED_VALUE_TYPES - CONTAINER_TYPE_WORDS
+    return (carries_extra - decoded_scalars) | frozenset(DECLINED_VALUE_READINGS)
+
+
+@dataclass(frozen=True, repr=False)
+class ContainerElement:
+    """One bounded element of a container, and its value where there is one.
+
+    ``repr`` renders no value, for the reason :class:`PropertyResult` gives:
+    an element's bytes are world content and a test runner reprs a frame local
+    before a human chooses what to print.
+
+    Attributes:
+        type_word: The element's own type word, from the container's tag.
+        start: Where the element begins in the decompressed body.
+        length: How many bytes it spans.
+        value: The decoded value, or None when this module does not decode that
+            element's type. NONE MEANS "NOT DECODED HERE", NEVER "EMPTY" - a
+            ``StructProperty`` element is bounded and typed and deliberately
+            unread, because its interior is CS-829's.
+    """
+
+    type_word: str
+    start: int
+    length: int
+    value: object | None = None
+
+    def __repr__(self) -> str:
+        """Render the type word and the extent, and withhold the value.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(type_word={self.type_word!r}, "
+            f"start={self.start}, length={self.length}, "
+            f"decoded={self.value is not None})"
+        )
+
+
+@dataclass(frozen=True, repr=False)
+class ContainerValue:
+    """What one container tag's value decoded to - CS-830.
+
+    ``repr`` renders counts and shipped words only, on the same terms as
+    :class:`ContainerElement`.
+
+    Attributes:
+        type_word: The container's own type word.
+        element_words: The element type words the tag carries - one for an
+            array or a set, a key word and a value word for a map.
+        element_count: The count the container itself declared.
+        elements: One entry per element HALF, in the order the bytes carry
+            them. A map yields two per declared entry, which is why this is not
+            the same length as ``element_count``.
+        element_shape: Which of :data:`ELEMENT_SHAPES` bounded the elements.
+            CARRIED RATHER THAN DISCARDED because the three are not equally
+            strong - see the commentary block above.
+        struct_word: The struct type word an array of ``StructProperty`` names
+            in its inner tag, or None. It is what CS-829 needs to read the
+            interior this decode leaves alone.
+    """
+
+    type_word: str
+    element_words: tuple[str, ...]
+    element_count: int
+    elements: tuple[ContainerElement, ...]
+    element_shape: str
+    struct_word: str | None = None
+
+    def __repr__(self) -> str:
+        """Render counts and shipped words only.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(type_word={self.type_word!r}, "
+            f"element_words={self.element_words!r}, "
+            f"element_count={self.element_count}, "
+            f"elements={len(self.elements)}, "
+            f"element_shape={self.element_shape!r}, "
+            f"struct_word={self.struct_word is not None})"
+        )
+
+
 #: The type words whose VALUE encoding is measured and is therefore decoded.
 #: EVERY OTHER TYPE IS FLAGGED AND SKIPPED - non-negotiable 7 - and the ones
 #: seen in the library are recorded in :data:`UNMEASURED_PAYLOAD_REGIONS`
 #: rather than guessed at from a neighbouring type's shape.
+#:
+#: THE CONTAINER WORDS ARE HERE FOR THEIR ELEMENT FRAMING AND FOR NOTHING BELOW
+#: IT - CS-830. What is measured is the count, the element words and every
+#: element's extent, checked by the elements consuming the tag's declared size
+#: exactly. What is NOT measured is the interior of a struct element, which
+#: stays with :data:`CONTAINER_ADJACENT_OWNERS`. Membership here is what makes
+#: :func:`_walk_payload` count a REFUSED container decode as a walk that has
+#: lost its place rather than as unmodelled content - and the one case where
+#: that would be the wrong reading, an element word with no grammar at all, is
+#: separated there rather than collapsed into it.
 MEASURED_VALUE_TYPES: Final = (
     frozenset(_FIXED_WIDTH_VALUES)
     | _ONE_STRING_VALUES
     | _TWO_STRING_VALUES
+    | CONTAINER_TYPE_WORDS
     | frozenset({"BoolProperty", "ByteProperty"})
 )
 
@@ -3450,14 +3729,27 @@ EVIDENCE_MAGNITUDE: Final = "magnitude_distribution"
 #: shipped check would say so.
 EVIDENCE_FOR_VALUE_TYPE: Final[Mapping[str, frozenset[str]]] = MappingProxyType(
     {
+        # THE CONTAINER ENTRIES DIFFER FROM ONE ANOTHER, AND THE DIFFERENCE IS
+        # MEASURED RATHER THAN TIDY. An array's and a map's elements are
+        # bounded by their own grammar on the overwhelming majority of the
+        # library, so a mis-read desynchronises inside the region instead of
+        # returning a wrong answer - which is what redundancy names. Every SET
+        # in the library falls to the DERIVED width instead, whose only backing
+        # is that the tag's declared extent divides by the declared count. That
+        # is `EVIDENCE_DECLARED_WIDTH` and nothing more, so `SetProperty`
+        # belongs in :data:`WIDTH_ONLY_VALUE_TYPES` and is left there rather
+        # than lent its neighbours' evidence.
+        "ArrayProperty": frozenset({EVIDENCE_DECLARED_WIDTH, EVIDENCE_REDUNDANCY}),
         "BoolProperty": frozenset({EVIDENCE_DECLARED_WIDTH}),
         "ByteProperty": frozenset({EVIDENCE_REDUNDANCY}),
         "EnumProperty": frozenset({EVIDENCE_REDUNDANCY}),
         "FloatProperty": frozenset({EVIDENCE_DECLARED_WIDTH, EVIDENCE_MAGNITUDE}),
         "Int8Property": frozenset({EVIDENCE_DECLARED_WIDTH}),
         "IntProperty": frozenset({EVIDENCE_DECLARED_WIDTH, EVIDENCE_MAGNITUDE}),
+        "MapProperty": frozenset({EVIDENCE_DECLARED_WIDTH, EVIDENCE_REDUNDANCY}),
         "NameProperty": frozenset({EVIDENCE_REDUNDANCY}),
         "ObjectProperty": frozenset({EVIDENCE_REDUNDANCY, EVIDENCE_CROSS_SECTION}),
+        "SetProperty": frozenset({EVIDENCE_DECLARED_WIDTH}),
         "SoftObjectProperty": frozenset({EVIDENCE_REDUNDANCY}),
         "StrProperty": frozenset({EVIDENCE_REDUNDANCY}),
         "UInt32Property": frozenset({EVIDENCE_DECLARED_WIDTH}),
@@ -3508,41 +3800,13 @@ UNMEASURED_PAYLOAD_REGIONS: Final[Mapping[str, str]] = MappingProxyType(
             "building directly - measured 2026-08-23, no building record "
             "carries one; a building holds an ObjectProperty reference to an "
             "inventory component and the stacks sit there inside an array. So "
-            "the chain is CS-831, then CS-830, then this region"
-        ),
-        "ArrayProperty": (
-            "31983 instances. NOT decoded here, and the reason is that the "
-            "evidence is weaker than for the scalars rather than absent: an "
-            "int32 count followed by elements consumes the declared size "
-            "exactly on all 11976 arrays whose inner type word is IntProperty, "
-            "Int64Property, ObjectProperty or SoftObjectProperty, but that was "
-            "measured at the shipped alignment ONLY and never put through the "
-            "rotation control the scalar types survived. THREE OF THOSE FOUR "
-            "WORDS ARE IN MEASURED_VALUE_TYPES AND Int64Property IS NOT, which "
-            "is why it has its own entry below rather than being described here "
-            "as measured - it was the one word this module named and placed in "
-            "neither half of its own classification. The remaining 20007 are "
-            "chiefly arrays of StructProperty, whose element framing carries an "
-            "inner tag header this project has not measured"
-        ),
-        "Int64Property": (
-            "NAMED BY THE ArrayProperty ENTRY ABOVE as an array inner type, and "
-            "recorded here so that every type word this table mentions sits on "
-            "one side of the measured/unmeasured split rather than in neither. "
-            "Nothing about its VALUE encoding is claimed: not a width, not a "
-            "byte order, not an instance count. It is decoded nowhere - not at "
-            "top level, and not inside an array, since arrays are not decoded "
-            "at all - so a top-level instance is flagged and skipped like any "
-            "other unmeasured type. How often one occurs is deliberately not "
-            "stated, because nothing here has measured that either"
-        ),
-        "SetProperty": (
-            "81 instances. Same framing question as ArrayProperty and a sample "
-            "far too small to separate the answers"
-        ),
-        "MapProperty": (
-            "72 instances. The tag carries TWO extra type words rather than "
-            "one, which is measured, and the key/value element framing is not"
+            "the chain is CS-831, then CS-830, then this region. TWO OF THE "
+            "THREE HAVE LANDED AND THIS ONE HAS NOT, which changes what is "
+            "opaque without changing that it is opaque: CS-830 now BOUNDS a "
+            "struct element inside a container, carries out the inner tag's own "
+            "struct word, and reads nothing between those bounds. So the region "
+            "is smaller and better addressed than it was, and every byte of it "
+            "is still unmeasured"
         ),
         "TextProperty": (
             "10 instances, all of declared size 45. Unreal's text serialization "
@@ -3572,6 +3836,11 @@ _TAG_INDEX_FIELD_BYTES: Final = 4
 #: the largest real payload holds far fewer, and this only stops a corrupt
 #: length from spinning.
 _MAX_TAGS_PER_PAYLOAD: Final = 1 << 14
+
+#: The name that closes a tag list. SPELLED ONCE because CS-830 gave it a
+#: second reader: an element of a struct is a nested tag list closed by this
+#: same name, and two copies of one literal are two places for it to drift.
+_PAYLOAD_TERMINATOR: Final = "None"
 
 
 def _payload_text(body: bytes, at: int, end: int) -> tuple[str, int] | None:
@@ -3812,8 +4081,424 @@ def _decode_text_value(body: bytes, type_word: str, at: int, size: int) -> objec
     return None
 
 
+def _container_element_words(
+    body: bytes, at: int, end: int, type_word: str
+) -> tuple[str, ...] | None:
+    """Collect the element type words a container's tag carries.
+
+    IT RE-READS RATHER THAN WIDENING :func:`_read_tag_header`'s RETURN SHAPE,
+    and that is deliberate. A return shape is an interface: widening one in
+    place is how a caller starts reading the wrong tuple element in silence,
+    which is the failure ``_walk_payload`` records CS-831 designing around. The
+    re-read is a handful of string reads over bytes already in cache.
+
+    Args:
+        body: The decompressed body.
+        at: Where the tag's TYPE WORD begins - that is, just past its name.
+        end: The first byte past the payload.
+        type_word: The tag's type word.
+
+    Returns:
+        The element type words in tag order, or None when they do not read.
+        An empty tuple for a word that carries none, which is not the same as
+        None and is why the caller checks for None rather than for falsehood.
+    """
+    type_read = _payload_text(body, at, end)
+    if type_read is None:
+        return None
+    cursor = type_read[1] + INT32_SIZE + _TAG_INDEX_FIELD_BYTES
+    words: list[str] = []
+    for _ in range(_TAG_EXTRA_STRINGS.get(type_word, 0)):
+        step = _payload_text(body, cursor, end)
+        if step is None:
+            return None
+        words.append(step[0])
+        cursor = step[1]
+    return tuple(words)
+
+
+def _element_tag_list_end(body: bytes, at: int, end: int) -> int | None:
+    """Walk one NESTED property tag list and report where it closes.
+
+    An element of a struct is a tag list closed by the same terminator name a
+    payload uses. NOTHING INSIDE IT IS DECODED HERE - the walk reads each tag's
+    header only, to step by its declared size. The interior is CS-829's, and
+    reading a value out of it would be exactly the guess this decode declines.
+
+    Args:
+        body: The decompressed body.
+        at: Where the first nested tag begins.
+        end: The first byte past the element region.
+
+    Returns:
+        The first byte past the terminator, or None when the list does not close.
+    """
+    cursor = at
+    for _ in range(_MAX_ELEMENT_TAGS):
+        name = _payload_text(body, cursor, end)
+        if name is None:
+            return None
+        if name[0] == _PAYLOAD_TERMINATOR:
+            return name[1]
+        tag = _read_tag_header(body, name[1], end)
+        if tag is None:
+            return None
+        _word, value_at, size, _in_tag_byte = tag
+        cursor = value_at + size
+    return None
+
+
+def _element_half_end(body: bytes, word: str, at: int, end: int, width: int | None) -> int | None:
+    """Where one element half ends, by its own grammar or by a forced width.
+
+    Args:
+        body: The decompressed body.
+        word: The element half's type word.
+        at: The half's first byte.
+        end: The first byte past the element region.
+        width: A forced raw width, or None to use the word's own grammar.
+
+    Returns:
+        The first byte past the half, or None when it does not read.
+    """
+    if width is not None:
+        return at + width if 0 <= width <= end - at else None
+    fixed = _ELEMENT_FIXED_WIDTHS.get(word)
+    if fixed is not None:
+        return at + fixed if at + fixed <= end else None
+    strings = _ELEMENT_STRING_COUNTS.get(word)
+    if strings is not None:
+        cursor = at
+        for _ in range(strings):
+            step = _payload_text(body, cursor, end)
+            if step is None:
+                return None
+            cursor = step[1]
+        if word == "SoftObjectProperty":
+            cursor += _SOFT_OBJECT_TAIL_BYTES
+        return cursor if cursor <= end else None
+    if word == _ELEMENT_TAG_LIST_WORD:
+        return _element_tag_list_end(body, at, end)
+    return None
+
+
+def _walk_elements(
+    body: bytes,
+    words: tuple[str, ...],
+    at: int,
+    end: int,
+    count: int,
+    widths: tuple[int | None, ...],
+) -> tuple[ContainerElement, ...] | None:
+    """Bound every element half, refusing anything that does not close exactly.
+
+    THE EXACT CLOSE IS THE WHOLE DISCRIMINATOR. Returning what could be read
+    would make the acceptance equality hold by construction on any framing at
+    all, which is why a short or an overrunning walk yields None rather than a
+    truncated list.
+
+    Args:
+        body: The decompressed body.
+        words: The element type words, one per half of an entry.
+        at: Where the first element begins.
+        end: The first byte past the element region.
+        count: How many entries the container declared.
+        widths: A forced width per half, each None to use that word's grammar.
+
+    Returns:
+        One entry per element half in byte order, or None when the halves do
+        not consume the region exactly.
+    """
+    cursor = at
+    found: list[ContainerElement] = []
+    for _ in range(count):
+        for position, word in enumerate(words):
+            step = _element_half_end(body, word, cursor, end, widths[position])
+            if step is None:
+                return None
+            found.append(
+                ContainerElement(
+                    type_word=word,
+                    start=cursor,
+                    length=step - cursor,
+                    value=_decode_element_value(body, word, cursor, step),
+                )
+            )
+            cursor = step
+    return tuple(found) if cursor == end else None
+
+
+def _decode_element_value(body: bytes, word: str, at: int, end: int) -> object | None:
+    """Decode one element's value, or refuse to.
+
+    IT REFUSES FOR A TYPE WHOSE TOP-LEVEL VALUE THIS MODULE DOES NOT DECODE,
+    which is why a struct element and an `InterfaceProperty` element come back
+    bounded and unread. Bounding an element is a claim about the CONTAINER's
+    framing; reading it is a claim about that type's own encoding, and CS-830
+    earns only the first.
+
+    Args:
+        body: The decompressed body.
+        word: The element's type word.
+        at: The element's first byte.
+        end: The first byte past the element.
+
+    Returns:
+        The value, or None when the element's type is not decoded here.
+    """
+    if word not in MEASURED_VALUE_TYPES or word in CONTAINER_TYPE_WORDS:
+        return None
+    fixed = _FIXED_WIDTH_VALUES.get(word)
+    if fixed is not None:
+        return _decode_fixed_width(body, at, end - at, fixed)
+    if word in _TWO_STRING_VALUES:
+        return _decode_object_reference(body, word, at, end)
+    if word in _ONE_STRING_VALUES:
+        step = _payload_text(body, at, end)
+        return None if step is None or step[1] != end else step[0]
+    return None
+
+
+def _bound_container_elements(
+    body: bytes, words: tuple[str, ...], at: int, end: int, count: int
+) -> tuple[str, tuple[ContainerElement, ...]] | None:
+    """Bound a container's elements by the STRONGEST shape that closes the region.
+
+    THE ORDER IS LOAD-BEARING AND IS NOT A PREFERENCE. Taking the shapes as
+    alternatives rather than as a fallback chain made two of them close on a
+    large majority of the struct arrays, because a container holding one element
+    is divided by one and ANY width closes it. Trying the falsifiable reading
+    first means the derived ones are reached only where nothing stronger applies.
+
+    Args:
+        body: The decompressed body.
+        words: The element type words, one per half of an entry.
+        at: Where the first element begins.
+        end: The first byte past the element region.
+        count: How many entries the container declared.
+
+    Returns:
+        The shape that bounded them and the elements, or None when none did.
+    """
+    blank: tuple[int | None, ...] = (None,) * len(words)
+    found = _walk_elements(body, words, at, end, count, blank)
+    if found is not None:
+        return (ELEMENT_SHAPE_SELF_DELIMITING, found)
+
+    # ONLY A HALF WITH A SECOND KNOWN SHAPE MAY BE FORCED TO A WIDTH, and that
+    # restriction is the repair for a real defect rather than a caution. Without
+    # it an array of four IntProperty carrying only three of them was rescued by
+    # dividing twelve bytes into four threes: the element word's OWN width said
+    # the region did not close, and a derived width overrode it and published a
+    # value. That is the "silently wrong" half of non-negotiable 7. A word with
+    # exactly one element shape is now never overridden - if its shape does not
+    # close, the container is refused.
+    if not all(word in _RAW_SHAPE_ELEMENT_WORDS for word in words):
+        return None
+
+    # ONE WIDTH FOR EVERY HALF, DERIVED BY DIVISION. Its only discriminator is
+    # that the division is exact, so over a single slot it is the identity.
+    slots = count * len(words)
+    if slots > 0 and (end - at) % slots == 0:
+        width = (end - at) // slots
+        found = _walk_elements(body, words, at, end, count, (width,) * len(words))
+        if found is not None:
+            return (ELEMENT_SHAPE_UNIFORM_WIDTH, found)
+
+    # ONE HALF'S WIDTH SOLVED, THE REST BY THEIR OWN GRAMMAR. Admitted only
+    # when exactly one width closes the region: two would mean the width is not
+    # determined by the bytes, and a decoder that picked one would be fitting.
+    for position in range(len(words)):
+        solutions: list[tuple[ContainerElement, ...]] = []
+        for width in range(_SOLVED_WIDTH_CAP + 1):
+            forced: list[int | None] = [None] * len(words)
+            forced[position] = width
+            found = _walk_elements(body, words, at, end, count, tuple(forced))
+            if found is not None:
+                solutions.append(found)
+                if len(solutions) > 1:
+                    break
+        if len(solutions) == 1:
+            return (ELEMENT_SHAPE_SOLVED_WIDTH, solutions[0])
+    return None
+
+
+def _read_array_struct_tag(body: bytes, at: int, end: int) -> tuple[str, int] | None:
+    """Read the inner tag an array of struct carries ahead of its elements.
+
+    An array of ``StructProperty`` writes ONE tag naming the struct and
+    declaring the extent of the WHOLE element region, then the elements. The
+    struct word is carried out because it is what CS-829 needs; the extent is
+    checked against the value's own end rather than trusted.
+
+    Args:
+        body: The decompressed body.
+        at: Where the inner tag begins.
+        end: The first byte past the container's value.
+
+    Returns:
+        The struct type word and where the elements begin, or None when the
+        inner tag does not read or does not account for the region exactly.
+    """
+    name = _payload_text(body, at, end)
+    if name is None:
+        return None
+    word = _payload_text(body, name[1], end)
+    if word is None or word[0] != _ELEMENT_TAG_LIST_WORD:
+        return None
+    cursor = word[1]
+    if cursor + INT32_SIZE + _TAG_INDEX_FIELD_BYTES > end:
+        return None
+    (region,) = struct.unpack_from("<i", body, cursor)
+    struct_read = _payload_text(body, cursor + INT32_SIZE + _TAG_INDEX_FIELD_BYTES, end)
+    if struct_read is None:
+        return None
+    elements_at = struct_read[1] + GUID_BYTES + 1
+    if region < 0 or elements_at > end or elements_at + region != end:
+        return None
+    return (struct_read[0], elements_at)
+
+
+def _open_container(
+    body: bytes, type_word: str, element_words: tuple[str, ...], at: int, size: int
+) -> tuple[int, int, int] | None:
+    """Read a container's lead fields and its element count, or refuse.
+
+    THE ELEMENT WORD COUNT IS CHECKED AGAINST THE SHIPPED TAG-EXTRA TABLE
+    rather than trusted from the caller. A map reached with one word instead of
+    two would otherwise decode its keys as though they were whole entries, and
+    the region would close on some population by luck.
+
+    Args:
+        body: The decompressed body.
+        type_word: The container's type word.
+        element_words: The element type words its tag carried.
+        at: The value's first byte.
+        size: The value's declared extent.
+
+    Returns:
+        The declared element count, where the elements begin and the first byte
+        past the value, or None when any of it does not read.
+    """
+    lead = _CONTAINER_LEAD_FIELDS.get(type_word)
+    if lead is None or size < 0 or at + size > len(body):
+        return None
+    if not element_words or len(element_words) != _TAG_EXTRA_STRINGS.get(type_word, 0):
+        return None
+    end = at + size
+    cursor = at + lead * INT32_SIZE
+    if cursor + INT32_SIZE > end:
+        return None
+    (count,) = struct.unpack_from("<i", body, cursor)
+    if count < 0 or count > _MAX_CONTAINER_ELEMENTS:
+        return None
+    return (count, cursor + INT32_SIZE, end)
+
+
+def _decode_container(
+    body: bytes, type_word: str, element_words: tuple[str, ...], at: int, size: int
+) -> ContainerValue | None:
+    """Decode one container tag's element framing - CS-830.
+
+    NONE MEANS THE FRAMING DID NOT CLOSE, and the caller decides what that
+    means: a container whose element word has no grammar at all is UNMODELLED
+    CONTENT, where one this module can bound whose bytes then disagree is a walk
+    that has lost its place. :func:`_walk_payload` separates the two rather than
+    collapsing them, because they mean opposite things.
+
+    Args:
+        body: The decompressed body.
+        type_word: The container's type word.
+        element_words: The element type words its tag carried.
+        at: The value's first byte.
+        size: The value's declared extent.
+
+    Returns:
+        The container, or None when the elements do not consume the declared
+        size exactly.
+    """
+    opened = _open_container(body, type_word, element_words, at, size)
+    if opened is None:
+        return None
+    count, cursor, end = opened
+
+    struct_word: str | None = None
+    if type_word == "ArrayProperty" and element_words == (_ELEMENT_TAG_LIST_WORD,):
+        inner = _read_array_struct_tag(body, cursor, end)
+        if inner is None:
+            return None
+        struct_word, cursor = inner
+
+    bounded = _bound_container_elements(body, element_words, cursor, end, count)
+    if bounded is None:
+        return None
+    shape, elements = bounded
+    return ContainerValue(
+        type_word=type_word,
+        element_words=element_words,
+        element_count=count,
+        elements=elements,
+        element_shape=shape,
+        struct_word=struct_word,
+    )
+
+
+def _container_grammar_is_modelled(element_words: tuple[str, ...]) -> bool:
+    """Whether every element half of a container has a grammar this module reads.
+
+    Args:
+        element_words: The element type words the container's tag carried.
+
+    Returns:
+        Whether every half is a word this module has an element grammar for.
+    """
+    return bool(element_words) and all(
+        word in _ELEMENT_FIXED_WIDTHS
+        or word in _ELEMENT_STRING_COUNTS
+        or word == _ELEMENT_TAG_LIST_WORD
+        for word in element_words
+    )
+
+
+def _refusal_is_unmodelled_content(type_word: str, element_words: tuple[str, ...]) -> bool:
+    """Which counter a refused value belongs in - unmodelled content, or a lost walk.
+
+    THE TWO MEAN OPPOSITE THINGS AND THE WHOLE POINT IS NOT COLLAPSING THEM.
+    An unmeasured type is content this project has not modelled: expected,
+    benign, and exactly what non-negotiable 7 says to flag and skip. A MEASURED
+    type whose bytes disagreed is the redundancy oracle running in production -
+    the reader is not where it believes it is, and every value after it in the
+    same payload is suspect.
+
+    THE CONTAINER CASE IS WHY THIS IS A FUNCTION AND NOT AN ``in`` TEST -
+    CS-830. A container's FRAMING is measured, so the word is in
+    :data:`MEASURED_VALUE_TYPES` and a refusal normally means the oracle fired.
+    But a container whose ELEMENT word this module has no grammar for is
+    unmodelled content sitting inside a frame that read perfectly, and the walk
+    is not lost - the caller's advance steps by the tag's own declared size and
+    is unaffected. Counting that as a disagreement reports new game content as a
+    broken reader, which is the direction with no second chance.
+
+    Args:
+        type_word: The tag's type word.
+        element_words: The element type words a container's tag carried, empty
+            for every other type.
+
+    Returns:
+        Whether the refusal is unmodelled content rather than a lost walk.
+    """
+    if type_word in CONTAINER_TYPE_WORDS:
+        return not _container_grammar_is_modelled(element_words)
+    return type_word not in MEASURED_VALUE_TYPES
+
+
 def _decode_value(
-    body: bytes, type_word: str, at: int, size: int, in_tag_byte: int | None
+    body: bytes,
+    type_word: str,
+    at: int,
+    size: int,
+    in_tag_byte: int | None,
+    element_words: tuple[str, ...] = (),
 ) -> object | None:
     """Decode one property value, or return None when its type is unmeasured.
 
@@ -3833,11 +4518,21 @@ def _decode_value(
         at: The value's first byte.
         size: The value's declared extent.
         in_tag_byte: The byte carried in a BoolProperty's tag, or None.
+        element_words: The element type words a CONTAINER's tag carried, empty
+            for every other type. DEFAULTED so that adding it could not change
+            any existing call, which is the same reason the counters on
+            :class:`PropertyResult` are defaulted - a caller that predates
+            CS-830 passes five arguments and still decodes exactly what it did.
+            A container reached WITHOUT them cannot be decoded and comes back
+            None, which is honest: the element words are in the tag, and a
+            caller that did not read them has not supplied the value's grammar.
 
     Returns:
         The decoded value, or None when the type is unmeasured or the bytes
         disagree with the declaration.
     """
+    if type_word in CONTAINER_TYPE_WORDS:
+        return _decode_container(body, type_word, element_words, at, size)
     if type_word == "BoolProperty":
         # The value rides in the TAG and the declared size is 0. Measured: the
         # byte takes only 0 and 1 across all 4077 instances in the library.
@@ -3976,7 +4671,7 @@ def _walk_payload(body: bytes, at: int, end: int) -> _PayloadWalk | None:
         name = _payload_text(body, at, end)
         if name is None:
             return None
-        if name[0] == "None":
+        if name[0] == _PAYLOAD_TERMINATOR:
             return _PayloadWalk(
                 properties=decoded,
                 unmeasured=unmeasured,
@@ -3990,7 +4685,19 @@ def _walk_payload(body: bytes, at: int, end: int) -> _PayloadWalk | None:
         if tag is None:
             return None
         type_word, value_start, size, in_tag_byte = tag
-        value = _decode_value(body, type_word, value_start, size, in_tag_byte)
+        # THE ELEMENT WORDS ARE READ HERE BECAUSE HERE IS WHERE THE OFFSET
+        # STILL EXISTS - CS-830. They sit inside the tag, between the index
+        # field and the guid flag, and `_read_tag_header` steps over them
+        # without handing them back. Widening its return shape in place is how
+        # a caller starts unpacking the wrong element in silence, so they are
+        # re-read from the name offset this loop already holds.
+        element_words: tuple[str, ...] = ()
+        if type_word in CONTAINER_TYPE_WORDS:
+            read_words = _container_element_words(body, name[1], end, type_word)
+            if read_words is None:
+                return None
+            element_words = read_words
+        value = _decode_value(body, type_word, value_start, size, in_tag_byte, element_words)
         if type_word == REFERENCE_TYPE_WORD:
             # KEPT AS ONE BLOCK, and separate from the bookkeeping below it.
             # The two answer different questions - that one asks whether the
@@ -4005,10 +4712,10 @@ def _walk_payload(body: bytes, at: int, end: int) -> _PayloadWalk | None:
                 references.append(reference)
         if value is not None:
             decoded[name[0]] = value
-        elif type_word in MEASURED_VALUE_TYPES:
-            disagreed += 1
-        else:
+        elif _refusal_is_unmodelled_content(type_word, element_words):
             unmeasured += 1
+        else:
+            disagreed += 1
         at = value_start + size
     return None
 
