@@ -1854,8 +1854,21 @@ def test_the_main_guard_sits_where_the_truncation_arms_assume() -> None:
     """
     lines = TRACKED_GATE.read_bytes().decode("ascii").split("\n")
     hits = [number for number, line in enumerate(lines, 1) if line.startswith(GATE_MAIN_GUARD)]
+    # UNREACHABLE BY CONSTRUCTION, and kept deliberately rather than deleted:
+    # gate_main_guard_line asserts this same property at MODULE scope, so a
+    # second guard fails COLLECTION and this line never runs. It stays because
+    # it is the property the arms below depend on, and it starts firing again
+    # the day that locator stops asserting.
     assert len(hits) == 1, f"the gate carries {len(hits)} main guards, expected exactly one"
     assert hits[0] < len(lines), "the main guard is the last line, so it defines no arm"
+
+    # WITHOUT THIS THE LOOP BELOW IS VACUOUS on an all-None tuple: it would pass
+    # having asserted nothing, where the pre-derivation form raised from max().
+    # Green where the old code was LOUD is a coverage reduction, so it is pinned
+    # rather than left to whoever next simplifies the tuple by hand.
+    assert any(point is not None for point in TRUNCATIONS), (
+        "every truncation point is None, so the arms below assert nothing at all"
+    )
 
     for point in TRUNCATIONS:
         if point is None:

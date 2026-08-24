@@ -3591,15 +3591,38 @@ def test_the_format_check_does_not_rewrite_the_file_it_checks(
 ) -> None:
     """`--check` only, proven by the bytes on disk rather than by reading argv.
 
-    stage_for_lint returns REAL working-tree paths for every unit whose checked
-    bytes match what is on disk, so a bare `ruff format` here would rewrite the
-    operator's own files - and in CI's `--files` step it would rewrite the
-    checkout. This is the arm that would catch that.
+    THIS ARM DRIVES --files, AND THAT IS THE WHOLE POINT. An earlier version
+    drove --staged alone and COULD NOT FAIL: mode_staged builds every Unit
+    WITHOUT a disk_path, so stage_for_lint copies to a temp directory and ruff
+    never sees a working-tree path at all. Deleting `--check` from the argv left
+    that version passing. The sentence that justified it - that stage_for_lint
+    returns real working-tree paths for every unit whose bytes match disk - is
+    never true in --staged mode.
+
+    The exposure is EXCLUSIVE to --files, where mode_files sets disk_path to the
+    operator's own path, and CI runs exactly that mode over every tracked file.
     """
     attempt_commit(tracked_hook_repo, tmp_path, "dirty.py", FORMAT_DIRTY)
 
     assert (tracked_hook_repo / "dirty.py").read_bytes() == FORMAT_DIRTY, (
         "the gate REWROTE a file it was only asked to check"
+    )
+
+    target = write(tmp_path / "loose.py", FORMAT_DIRTY.decode("ascii"))
+    before = target.read_bytes()
+    result = run_gate("--files", str(target), env=base_env(tmp_path))
+
+    # THE INVARIANT FIRST, so a rewrite is reported AS a rewrite. Dropping
+    # `--check` from the argv makes ruff rewrite this file and exit 0, which is
+    # the exact defect this arm exists to catch.
+    assert target.read_bytes() == before, (
+        "the gate REWROTE a working-tree file in --files mode, which is the one "
+        "mode where stage_for_lint hands ruff the operator's real disk path"
+    )
+    # Then non-vacuity: a check that never ran rewrites nothing either, so
+    # without this the assertion above would pass for the wrong reason.
+    assert "FORMAT" in result.stderr, (
+        f"the format check did not run in --files mode, so this arm is vacuous: {result.stderr}"
     )
 
 

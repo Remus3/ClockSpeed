@@ -1871,13 +1871,19 @@ def run_ruff_format(
     trains the operator to ignore it. It does NOT make the two agree - see the
     ruff-version residual recorded with CS-838.
 
-    `--check` ONLY, and never `--diff`. stage_for_lint returns REAL
-    working-tree paths for every unit whose checked bytes match what is on
-    disk, so a bare `ruff format` here would rewrite the operator's own files,
-    and in CI's --files step it would rewrite the checkout. `--diff` is refused
-    for a different reason: it prints SOURCE LINES verbatim, and a staged file
-    can carry a world name or an account id (CLAUDE.md non-negotiables 3
-    and 12).
+    `--check` ONLY, and never `--diff`. In --files mode stage_for_lint hands
+    ruff the operator's REAL disk path, so a bare `ruff format` here would
+    rewrite the operator's own files, and in CI's --files step it would rewrite
+    the checkout. That exposure is exclusive to --files: mode_staged sets no
+    disk_path, so every unit it checks is a temp copy and ruff never sees a
+    working-tree path at all. An earlier wording claimed the real-path case held
+    for every unit whose bytes match disk, which is never true under --staged
+    and left the arm that pinned it unable to fail. `--diff` is refused for a
+    different reason: it prints SOURCE LINES verbatim, and a staged file can
+    carry a world name or an account id (CLAUDE.md non-negotiables 3 and 12).
+    Ruff 0.16.3 prints source lines from plain `--check` too, so the property
+    that actually holds the line is that this function never re-emits ruff's
+    stdout - not the flag alone.
 
     THE EXIT CODE IS THE VERDICT - 0 clean, 1 would reformat, anything else no
     verdict at all - and RUFF_FORMAT_PREFIX only NAMES the files. A prefix

@@ -73,6 +73,60 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-23 - CS-838 - CORRECTION to the frozen-file grant recorded earlier this day: condition SEVEN's RATIONALE carried a false sentence, and the sentence had shipped to three sites
+Verification: this record CORRECTS the grant entry below, headed "CS-838 - FROZEN-FILE GRANT
+ISSUED WITH SEVENTEEN CONDITIONS". That entry is not edited - this file is append-only and a
+record that turns out to be wrong gets a new, later record that says so. The GRANT ITSELF
+STANDS and every one of its seventeen conditions stands. What was wrong is one sentence of
+REASONING inside condition SEVEN, not the condition.
+
+THE FALSE SENTENCE, quoted from the grant: "stage_for_lint returns REAL working-tree paths
+for units whose bytes match disk". MEASURED FALSE for --staged mode by the adversary that
+graded the implementation: `mode_staged` builds every unit WITHOUT a disk_path, so
+`stage_for_lint` copies to a temporary directory and ruff never sees a working-tree path at
+all under --staged. The sentence is true only of --files, where `mode_files` sets disk_path.
+
+WHY IT MATTERED RATHER THAN BEING A WORDING SLIP. The arm that pinned condition SEVEN -
+`test_the_format_check_does_not_rewrite_the_file_it_checks` - drove --staged alone, and
+therefore COULD NOT FAIL. Proven by mutation: with `--check` deleted from the argv, that arm
+PASSED while a sibling arm correctly failed. A test that cannot fail is the shape this
+project has repeatedly paid to close, and it reached here through a rationale nobody
+re-measured.
+
+THE SENTENCE HAD SHIPPED TO THREE SITES, which is the population defect this project has now
+recorded in five consecutive sessions: the grant's condition SEVEN rationale, the
+`run_ruff_format` docstring in `tools/precommit_gate.py`, and the test's own docstring. TWO
+OF THE THREE WERE FIXED IN CODE and the third is this record. Fixing the instance and leaving
+the population is the specific error being avoided here.
+
+THE REPAIR, made by the merger on main and not by the implementer. The arm now ALSO drives
+--files, which is the only mode carrying the exposure and the mode CI runs over every tracked
+file. It asserts the bytes first so a rewrite is reported AS a rewrite, then asserts the check
+actually fired so the byte assertion cannot pass for the wrong reason. PROVEN BY MUTATION with
+the mutation asserted landed and the restore asserted byte-identical: dropping `--check` now
+turns the arm RED on the byte assertion, where the previous version passed.
+
+THE GRANT'S BOUNDED REGION WAS NOT WIDENED BY THIS REPAIR. The docstring corrected in
+`tools/precommit_gate.py` is inside the text CS-838 itself inserted. Condition ONE was
+re-verified against the grant commit rather than asserted: every one of the 2395 lines the
+gate carried at grant time is still present, in order, in the file today.
+
+TWO FURTHER FINDINGS FROM THE SAME GRADING, RECORDED HERE BECAUSE THEY BEAR ON THE GRANT'S
+OWN COMMON-MODE DISCLOSURE AND ARE NOT ITEMS OF THEIR OWN.
+FIRST, THE VERSION RISK IS NOT HYPOTHETICAL AND IS ALREADY LIVE. The grant disclosed that
+`ruff` is pinned with no upper bound and that CI resolves a different version. MEASURED this
+session on a real commit: the version CI resolves has ALREADY REWORDED the line the earlier
+proposal wanted to parse for its verdict. Condition FIVE - the verdict is the EXIT CODE and
+the prefix only NAMES files - is what kept the gate blocking. Had the prefix decided the
+verdict, CI's own ruff would have silently passed everything. The cost that remains is that a
+block on such a machine names no file.
+SECOND, CONDITION EIGHT'S PREMISE IS STALE. `--diff` was forbidden because it prints source
+lines. The newer ruff prints source lines from plain `--check` as well. The privacy property
+survives, but NOT because of the flag: it survives because `run_ruff_format` never re-emits
+ruff's stdout. Anyone who later makes the gate print ruff's output to recover the missing
+filename would leak source lines while believing the flag protects them. The docstring now
+records the property that actually holds the line.
+
 ### 2026-08-23 - CS-838 - FROZEN-FILE GRANT ISSUED WITH SEVENTEEN CONDITIONS by an adjudicator for `tools/precommit_gate.py`
 Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit, not a
 completion record. NOTHING IS CLOSED BY IT. CS-838 STAYS OPEN in `ROADMAP.md` until its own closure
