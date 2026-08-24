@@ -1850,6 +1850,122 @@ def record_ruff_findings(findings: list[dict], mapping: dict[str, str], report: 
         )
 
 
+# Ruff's per-file format verdict, used ONLY to NAME the files in the finding.
+# THE BLOCKING SIGNAL IS THE EXIT CODE, never this string - see run_ruff_format.
+RUFF_FORMAT_PREFIX = "Would reformat: "
+
+
+def run_ruff_format(
+    command: list[str],
+    paths: list[str],
+    mapping: dict[str, str],
+    report: Report,
+    root: Path | None,
+) -> None:
+    """Block a staged file that `ruff format --check` would rewrite.
+
+    WHY THIS EXISTS. .github/workflows/tier1.yml already runs
+    `ruff format --check .`, so a file this rejects never reaches the default
+    branch. What was broken is the tier-0 gate's AGREEMENT with CI: this gate
+    said PASS on a tree CI refuses, and a gate that passes what CI rejects
+    trains the operator to ignore it. It does NOT make the two agree - see the
+    ruff-version residual recorded with CS-838.
+
+    `--check` ONLY, and never `--diff`. stage_for_lint returns REAL
+    working-tree paths for every unit whose checked bytes match what is on
+    disk, so a bare `ruff format` here would rewrite the operator's own files,
+    and in CI's --files step it would rewrite the checkout. `--diff` is refused
+    for a different reason: it prints SOURCE LINES verbatim, and a staged file
+    can carry a world name or an account id (CLAUDE.md non-negotiables 3
+    and 12).
+
+    THE EXIT CODE IS THE VERDICT - 0 clean, 1 would reformat, anything else no
+    verdict at all - and RUFF_FORMAT_PREFIX only NAMES the files. A prefix
+    contract with a tool pinned without an upper bound would pass everything
+    the day ruff reworded that line, which is the CS-819 and CS-823 shape this
+    project has twice paid to close. Exit 2, a file ruff cannot parse, is a
+    NOTE and is never read as clean: check_python_syntax already reports that
+    file, and with the line and column this check does not have.
+
+    THE FILE IDENTITY GOES IN Diagnostic.path AND NEVER IN reason, because
+    display_diagnostic redacts the first through display_label and does not
+    touch the second. Neither of ruff's channels is re-emitted: stdout carries
+    the temp staging path and stderr carries the parse failure with the path
+    inside it.
+
+    SKIPPED WHEN NO PROJECT CONFIG RESOLVES, which is a mitigation rather than
+    a tidiness. MEASURED with ruff 0.15.12 over the 90 tracked .py files: 90 of
+    90 are clean WITH this project's config and 75 of 90 would be reformatted
+    WITHOUT it. tools/edit_lint_check.py builds its Unit with no disk_path and
+    passes no root, so every unit it checks is staged to a temp directory where
+    ruff discovers no config at all - unguarded, that hook would refuse most of
+    the tree. Fail-open matches the rest of run_ruff: every failure to RUN ruff
+    is a note, never a block.
+    """
+    config = ruff_config_args(root)
+    if not config:
+        report.notes.append(
+            "ruff format: no project config resolved, so the format check was "
+            "SKIPPED and is NOT blocking; ruff's own defaults disagree with "
+            "this project's and would flag most of the tree"
+        )
+        return
+    argv = [*command, "format", "--check", "--no-cache", *config, *paths]
+    try:
+        # capture_output, like every other spawn in this file. .githooks/pre-commit
+        # reads this gate's stdout through a COMMAND SUBSTITUTION, which waits for
+        # EOF ON THE PIPE rather than for the child to exit, so a child that
+        # inherited it would HANG the commit - and any byte it wrote would land
+        # after the PASS banner that hook requires as the LAST LINE. MEASURED:
+        # ruff format --check writes both "Would reformat:" and its summary to
+        # STDOUT, with stderr empty, so stdout is the channel that had to be caught.
+        proc = subprocess.run(argv, capture_output=True, timeout=RUFF_TIMEOUT, check=False)
+    except (OSError, subprocess.SubprocessError) as exc:
+        report.notes.append(
+            "ruff format: could not be run (%s) - format check skipped, not blocking"
+            % (safe_exc_text(exc),)
+        )
+        return
+    if proc.returncode == 0:
+        return
+    if proc.returncode != 1:
+        report.notes.append(
+            "ruff format: exited %d without a verdict - format check skipped, not blocking"
+            % (proc.returncode,)
+        )
+        return
+    named: list[str] = []
+    for line in proc.stdout.decode("utf-8", "replace").splitlines():
+        text = line.strip()
+        if text.startswith(RUFF_FORMAT_PREFIX):
+            reported = text[len(RUFF_FORMAT_PREFIX) :]
+            named.append(mapping.get(normalized_key(reported), reported))
+    if not named:
+        # Exit 1 with nothing attributable STILL BLOCKS. The alternative is a
+        # check that goes silent the day ruff rewords one line of output.
+        report.add(
+            Diagnostic(
+                "<ruff format>",
+                0,
+                0,
+                "FORMAT",
+                "ruff format --check refused the staged python but named no file "
+                "this gate could match; run `ruff format` on the tree",
+            )
+        )
+        return
+    for label in named:
+        report.add(
+            Diagnostic(
+                label,
+                0,
+                0,
+                "FORMAT",
+                "ruff format --check would rewrite this file; run `ruff format` on it",
+            )
+        )
+
+
 def run_ruff(units: list[Unit], report: Report, root: Path | None = None) -> None:
     """Lint the checked bytes. Only the real-error band blocks.
 
@@ -1871,6 +1987,7 @@ def run_ruff(units: list[Unit], report: Report, root: Path | None = None) -> Non
 
     with tempfile.TemporaryDirectory(prefix="clockspeed_gate_") as tmp:
         paths, mapping = stage_for_lint(targets, Path(tmp), report)
+        run_ruff_format(command, paths, mapping, report, root)
         argv = [
             *command,
             "check",

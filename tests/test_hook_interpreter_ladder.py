@@ -1673,9 +1673,34 @@ GATE_REFUSAL: Final = "DID NOT RUN"
 # defines everything and executes nothing, which is the whole defect.
 GATE_MAIN_GUARD: Final = 'if __name__ == "__main__":'
 
+
+def gate_main_guard_line() -> int:
+    """The 1-based line the gate's main guard sits on, LOCATED rather than restated.
+
+    The same locate-rather-than-restate rule ``gate_success_format`` applies to
+    the PASS banner, applied to the one line number the truncation arms depend
+    on. What comes back is the gate's own structure, so a change there moves
+    the arms with it instead of leaving them pointed at a stale constant.
+    """
+    lines = TRACKED_GATE.read_bytes().decode("ascii").split("\n")
+    hits = [number for number, line in enumerate(lines, 1) if line.startswith(GATE_MAIN_GUARD)]
+    assert len(hits) == 1, f"the gate carries {len(hits)} main guards, expected exactly one"
+    return hits[0]
+
+
 # The truncation points the arms drive: one line before the main guard, one at
 # the very top, and the empty file. ``None`` means empty.
-TRUNCATIONS: Final = (2368, 1, None)
+#
+# DERIVED, NEVER RESTATED, and this cost a real failure before it was. The first
+# element was the literal 2368, which was correct only for the gate as it stood
+# on the day it was written: MEASURED across insertion sizes 0 to 60 above the
+# guard, 24 of 61 leave the 2368-line prefix no longer COMPILING, and a prefix
+# that does not compile makes python exit 1 - so the arm would refuse for a
+# reason that is not this defect and would pass while proving nothing. CS-838
+# then inserted 117 lines above the guard and 2368 stopped compiling exactly as
+# predicted. "One line before the main guard" is invariant under any insertion
+# above it, which is the whole point.
+TRUNCATIONS: Final = (gate_main_guard_line() - 1, 1, None)
 
 # Answers the `-c` probe by delegating to the real interpreter, and does nothing
 # at all with a FILE. This is the shape that makes the interpreter ladder
@@ -1809,17 +1834,40 @@ def commit_and_scan(box: Sandbox, *, content: bytes, literal: str) -> tuple[Atte
 def test_the_main_guard_sits_where_the_truncation_arms_assume() -> None:
     """The premise the arms rest on, measured rather than asserted in prose.
 
-    If the gate were restructured so that its main guard moved above 2368, the
-    2368-line arm would stop being a truncation-before-the-guard case and would
-    silently start testing something else. This fails instead.
+    THIS TEST WAS REWRITTEN WHEN TRUNCATIONS BECAME DERIVED, and the reason is
+    worth stating so it is not read as a weakening. It used to assert that the
+    guard sat AFTER the largest truncation point, which was a real check while
+    that point was the literal 2368. Against a point derived as
+    ``gate_main_guard_line() - 1`` the same comparison reduces to
+    ``guard > guard - 1`` - an identity that can never fail and therefore
+    detects nothing. Leaving it would have been a coverage reduction wearing
+    the shape of a passing test.
+
+    WHAT IS ASSERTED INSTEAD IS THE PROPERTY THAT ACTUALLY BREAKS. Every arm
+    below rests on the truncated prefix being SYNTACTICALLY VALID: a prefix
+    that does not compile makes python exit 1, the hook refuses for a reason
+    that is not this defect, and the arm goes green having tested nothing.
+    That is not hypothetical - CS-838 inserted 117 lines above the guard and
+    the old hardcoded 2368 stopped compiling. Ordering is still checked, but
+    against the FILE rather than against the derived value, so it remains
+    capable of failing.
     """
     lines = TRACKED_GATE.read_bytes().decode("ascii").split("\n")
     hits = [number for number, line in enumerate(lines, 1) if line.startswith(GATE_MAIN_GUARD)]
     assert len(hits) == 1, f"the gate carries {len(hits)} main guards, expected exactly one"
-    assert hits[0] > max(point for point in TRUNCATIONS if point is not None), (
-        "a truncation point now sits AFTER the main guard, so it would raise "
-        "rather than exit 0 and the arm would refuse for the wrong reason"
-    )
+    assert hits[0] < len(lines), "the main guard is the last line, so it defines no arm"
+
+    for point in TRUNCATIONS:
+        if point is None:
+            continue
+        assert point < hits[0], (
+            f"truncation point {point} sits AT OR AFTER the main guard, so it would "
+            "raise rather than exit 0 and the arm would refuse for the wrong reason"
+        )
+        assert gate_compiles(point), (
+            f"the {point}-line prefix does not compile, so python would exit 1 and "
+            "the arm would pass for a reason that is not the defect"
+        )
 
 
 @pytest.mark.parametrize("lines", TRUNCATIONS, ids=lambda value: f"lines={value}")

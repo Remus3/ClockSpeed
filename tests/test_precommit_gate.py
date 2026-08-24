@@ -1477,8 +1477,16 @@ def test_ruff_style_note_drops_the_out_of_repo_directory(tmp_path: Path) -> None
     `ruff (style, not blocking) <label>:<row>:<col>: ...` puts the label after
     a fixed prefix rather than at the start, so a fix that only handles the
     leading-label shape passes the test above and fails this one.
+
+    THE BLANK LINE AFTER THE IMPORT IS LOAD-BEARING AND IS NOT COSMETIC. CS-838
+    made the gate run `ruff format --check`, and without that line this fixture
+    is format-DIRTY, so the gate blocks it and the exit-code assertion below
+    fails. The line is the MINIMAL repair on purpose: killing the unused import
+    instead would have removed the F401 that produces the `ruff (style` finding
+    this test is about, and the guard below would then have SKIPPED the test
+    rather than failed it - a coverage reduction wearing the shape of a pass.
     """
-    target = outside_target(tmp_path, ".py", b"import os\nVALUE = 1\n")
+    target = outside_target(tmp_path, ".py", b"import os\n\nVALUE = 1\n")
     result = run_gate("--files", str(target), "--verbose", env=base_env(tmp_path))
 
     if "ruff (style" not in result.stdout:
@@ -3391,3 +3399,333 @@ def test_text_stdin_still_reports_the_coverage_skips_with_no_flags(tmp_path: Pat
     assert "<pii:world>" in result.stdout, result.stdout
     assert "no world name is discoverable" in result.stdout, result.stdout
     assert "no world token is discoverable" in result.stdout, result.stdout
+
+
+# ==========================================================================
+# CS-838 - a staged file `ruff format --check` rejects must block a commit
+# ==========================================================================
+#
+# THE DEFECT. The gate ran `ruff check` and never `ruff format --check`, so a
+# staged file CI rejects committed cleanly at tier 0. What was broken is the
+# tier-0 gate's AGREEMENT with CI rather than the project's protection:
+# .github/workflows/tier1.yml already runs `ruff format --check .`, and would
+# have caught the commit that prompted this item. A gate that passes what CI
+# rejects trains the operator to ignore it.
+#
+# WHY THESE ARMS WIRE THE REAL TRACKED HOOK RATHER THAN REUSE hooked_repo.
+# That fixture writes its OWN minimal one-line hook, so it grades the GATE'S
+# VERDICT and says nothing about the path a real commit takes. The tracked
+# hook captures the gate's stdout in a COMMAND SUBSTITUTION and requires the
+# PASS banner as the LAST LINE of it, so a new child that inherited that pipe
+# would HANG the commit rather than fail it, and any stray child output would
+# break the anchored `case` pattern. Only the tracked hook grades those two,
+# and both are properties of THIS change.
+#
+# THE SANDBOX CARRIES pyproject.toml ON PURPOSE. The format check arms only
+# when ruff_config_args resolves a project config - the R1 mitigation pinned
+# by test_the_format_check_skips_when_no_ruff_config_resolves below. A sandbox
+# without one would make every arm here silently vacuous.
+
+# Format-dirty and format-clean by ONE property each, measured with ruff
+# 0.15.12: the first answers `Would reformat`, the second `already formatted`.
+# Both carry a module docstring so D100 stays quiet, and neither trips the
+# blocking band (E9, F63, F7, F82) - so a block here can only be the new check.
+FORMAT_DIRTY = b'"""Doc."""\n\nVALUE = [1,2,3]\n'
+FORMAT_CLEAN = b'"""Doc."""\n\nVALUE = [1, 2, 3]\n'
+
+# The one source fragment that separates the two. Asserted ABSENT from the
+# gate's output: `ruff format --diff` prints source lines verbatim, and a
+# staged file can carry a world name or an account id.
+FORMAT_SOURCE_FRAGMENT = "[1,2,3]"
+
+TRACKED_PRE_COMMIT = REPO_ROOT / ".githooks" / "pre-commit"
+
+
+@pytest.fixture
+def tracked_hook_repo(tmp_path: Path) -> Path:
+    """A throwaway repo wired to the REAL .githooks/pre-commit, plus a base commit.
+
+    THE BASE COMMIT IS MADE BEFORE THE HOOK IS WIRED, so "HEAD is unchanged"
+    after a blocked commit is a real assertion rather than "HEAD never
+    existed".
+
+    The gate and pyproject.toml are left UNTRACKED on purpose. The hook
+    resolves the gate from the WORKING TREE and ruff resolves its config from
+    disk, so neither needs to be in the index - and keeping them out of it
+    keeps them off the list of units every arm here checks, which is what
+    makes the checked count below small enough to read.
+    """
+    root = tmp_path / "trackedhookrepo"
+    root.mkdir()
+    assert git("init", "-q", "-b", "main", cwd=root).returncode == 0
+    git("config", "user.email", "gate@example.invalid", cwd=root)
+    git("config", "user.name", "Gate Test", cwd=root)
+    git("config", "commit.gpgsign", "false", cwd=root)
+
+    (root / "seed.txt").write_bytes(b"seed\n")
+    assert git("add", "seed.txt", cwd=root).returncode == 0
+    assert git("commit", "-q", "-m", "seed", cwd=root).returncode == 0
+
+    (root / "tools").mkdir()
+    shutil.copy2(GATE, root / "tools" / "precommit_gate.py")
+    shutil.copy2(REPO_ROOT / "pyproject.toml", root / "pyproject.toml")
+
+    hooks = root / "gate-hooks"
+    hooks.mkdir()
+    installed = hooks / "pre-commit"
+    installed.write_bytes(TRACKED_PRE_COMMIT.read_bytes())
+    installed.chmod(0o755)
+    assert git("config", "core.hooksPath", "gate-hooks", cwd=root).returncode == 0
+
+    # Setting a value is not evidence the value took - scripts/install_hooks.py
+    # reads its own write back for exactly this reason.
+    readback = git("config", "--get", "core.hooksPath", cwd=root)
+    assert readback.stdout.strip() == "gate-hooks", "core.hooksPath did not take"
+    return root
+
+
+def attempt_commit(
+    root: Path, tmp_path: Path, name: str, body: bytes
+) -> tuple[subprocess.CompletedProcess[str], str, str]:
+    """Stage one file and drive a REAL git commit. Returns the attempt and both HEADs."""
+    (root / name).write_bytes(body)
+    assert git("add", name, cwd=root).returncode == 0
+
+    before = git("rev-parse", "HEAD", cwd=root).stdout.strip()
+    assert before, "there is no base commit, so HEAD-unchanged would prove nothing"
+
+    attempt = git_with_env(
+        "commit",
+        "-m",
+        "CS-838: stage " + name,
+        cwd=root,
+        env=base_env(tmp_path),
+    )
+    after = git("rev-parse", "HEAD", cwd=root).stdout.strip()
+    return attempt, before, after
+
+
+def test_the_wired_hook_is_the_tracked_pre_commit_byte_for_byte(
+    tracked_hook_repo: Path,
+) -> None:
+    """Without this, every arm below could be grading a copy that drifted."""
+    wired = (tracked_hook_repo / "gate-hooks" / "pre-commit").read_bytes()
+    assert wired == TRACKED_PRE_COMMIT.read_bytes(), (
+        "the sandbox hook is not the tracked hook, so nothing below grades the real file"
+    )
+
+
+def test_a_format_violation_is_blocked_by_a_real_commit(
+    tracked_hook_repo: Path, tmp_path: Path
+) -> None:
+    """CS-838 acceptance, the blocking direction. Real hook, real commit, HEAD unchanged.
+
+    MEASURED before the repair, in this exact harness: the same staged file
+    COMMITTED with exit 0, HEAD moved, and the gate printed its PASS banner.
+    """
+    attempt, before, after = attempt_commit(tracked_hook_repo, tmp_path, "dirty.py", FORMAT_DIRTY)
+    combined = attempt.stdout + attempt.stderr
+
+    assert attempt.returncode != 0, combined
+    assert after == before, "HEAD MOVED, so the commit was not blocked"
+    assert "precommit_gate: BLOCKED" in combined, combined
+    assert " FORMAT " in combined, combined
+
+
+def test_the_format_finding_names_the_repo_relative_label_and_leaks_no_path(
+    tracked_hook_repo: Path, tmp_path: Path
+) -> None:
+    """The identity goes in Diagnostic.path, which display_label redacts. Two rules.
+
+    ONE, the blocked file is named by its REPO-RELATIVE label, because that is
+    what identifies it to the operator. TWO, nothing above that label survives:
+    not the sandbox directory, not the gate's own temp staging directory, and
+    not the account name that both of those sit under (CLAUDE.md
+    non-negotiables 3 and 12).
+
+    The SOURCE LINE is asserted absent as well. `ruff format --diff` prints
+    source verbatim, and a staged file can carry a world name or an account id,
+    so the check must never reach for it.
+    """
+    attempt, _before, _after = attempt_commit(tracked_hook_repo, tmp_path, "dirty.py", FORMAT_DIRTY)
+    combined = attempt.stdout + attempt.stderr
+
+    assert "dirty.py:" in combined, combined
+    assert str(tmp_path) not in combined, "an absolute sandbox path reached the output"
+    assert str(tmp_path).replace("\\", "/") not in combined, "same, with forward slashes"
+    assert "clockspeed_gate_" not in combined, "the gate's temp staging dir reached the output"
+    assert FORMAT_SOURCE_FRAGMENT not in combined, "a source line reached the output"
+
+
+def test_a_format_clean_file_still_commits_through_the_tracked_hook(
+    tracked_hook_repo: Path, tmp_path: Path
+) -> None:
+    """THE CONTROL. An always-refuse gate passes every arm above and fails here.
+
+    A ZERO EXIT HERE IS ALSO THE LAST-LINE PROOF, and it is worth saying why
+    rather than adding a weaker assertion that looks like one. The hook matches
+    the gate's PASS banner against an ANCHORED `case` pattern applied to the
+    LAST LINE of the captured stdout, and refuses with "the gate DID NOT RUN"
+    on any mismatch. So a new child whose output was NOT captured - appending
+    its own lines after the banner - could not reach exit 0 through this path
+    at all. The banner is matched here too, for a legible failure when it is
+    the banner rather than the exit code that moved.
+
+    Git delivers hook output on ITS stderr, so both streams are searched. That
+    is a property of git, not of the hook, and asserting on stdout alone would
+    make this arm fail for a reason that is not the gate's.
+    """
+    attempt, before, after = attempt_commit(tracked_hook_repo, tmp_path, "clean.py", FORMAT_CLEAN)
+    combined = attempt.stdout + attempt.stderr
+
+    assert attempt.returncode == 0, combined
+    assert after != before, "HEAD did not move, so the clean file did not commit"
+
+    banner = [line for line in combined.splitlines() if "precommit_gate: PASS - " in line]
+    assert len(banner) == 1, combined
+    assert banner[0].rstrip().endswith(" blocking"), banner[0]
+
+
+def test_the_format_check_does_not_rewrite_the_file_it_checks(
+    tracked_hook_repo: Path, tmp_path: Path
+) -> None:
+    """`--check` only, proven by the bytes on disk rather than by reading argv.
+
+    stage_for_lint returns REAL working-tree paths for every unit whose checked
+    bytes match what is on disk, so a bare `ruff format` here would rewrite the
+    operator's own files - and in CI's `--files` step it would rewrite the
+    checkout. This is the arm that would catch that.
+    """
+    attempt_commit(tracked_hook_repo, tmp_path, "dirty.py", FORMAT_DIRTY)
+
+    assert (tracked_hook_repo / "dirty.py").read_bytes() == FORMAT_DIRTY, (
+        "the gate REWROTE a file it was only asked to check"
+    )
+
+
+def test_the_format_check_skips_when_no_ruff_config_resolves() -> None:
+    """R1, pinned rather than left to a reader. Ruff's defaults are not this project's.
+
+    MEASURED with ruff 0.15.12 over the 90 tracked .py files: 90 of 90 are
+    clean WITH the project config and 75 of 90 would be reformatted WITHOUT it.
+    tools/edit_lint_check.py builds its Unit with no disk_path and calls
+    run_ruff with no root, so every unit it checks is staged into a temp
+    directory where ruff discovers no config at all. Without this skip that
+    hook would refuse most of the tree.
+
+    THE RESIDUAL THIS LEAVES IS SILENT, and that is recorded rather than
+    hidden: emit prints notes only under --verbose, and the PostToolUse entry
+    invokes tools/edit_lint_check.py without it. Repairing that would arm a
+    blocking check on a path this item holds no grant for, so it is filed
+    separately instead of absorbed here.
+    """
+    gate = load_gate()
+    if gate.ruff_command() is None:
+        pytest.skip("ruff is not installed, so run_ruff returns before the format check")
+
+    unit = gate.Unit(label="dirty.py", origin="test", data=FORMAT_DIRTY, ext=".py")
+    report = gate.Report()
+
+    gate.run_ruff([unit], report, None)
+
+    assert not report.diagnostics, [diag.render() for diag in report.diagnostics]
+    assert any("no project config" in note for note in report.notes), report.notes
+
+
+def test_a_format_dirty_unit_blocks_when_the_project_config_does_resolve(tmp_path: Path) -> None:
+    """The other half of the arm above: the skip is the CONFIG's doing, not the check's.
+
+    Without this, a format check that never fired at all would satisfy the skip
+    test and look like a working mitigation.
+    """
+    gate = load_gate()
+    if gate.ruff_command() is None:
+        pytest.skip("ruff is not installed, so run_ruff returns before the format check")
+
+    unit = gate.Unit(label="dirty.py", origin="test", data=FORMAT_DIRTY, ext=".py")
+    report = gate.Report()
+
+    gate.run_ruff([unit], report, REPO_ROOT)
+
+    formats = [diag for diag in report.diagnostics if diag.code == "FORMAT"]
+    assert len(formats) == 1, [diag.render() for diag in report.diagnostics]
+    assert formats[0].path == "dirty.py", formats[0].render()
+    assert FORMAT_SOURCE_FRAGMENT not in formats[0].reason, formats[0].reason
+    assert str(tmp_path) not in formats[0].reason, formats[0].reason
+
+
+def test_an_unparseable_python_file_is_a_note_and_never_a_format_block() -> None:
+    """`ruff format --check` exits 2 on a file it cannot parse. That is neither verdict.
+
+    Read as clean it would wave the file through; read as "would reformat" it
+    would block on a file whose real defect is a syntax error the gate already
+    reports on its own. It is a NOTE, and the note names the exit code and
+    nothing ruff wrote - ruff sends the parse failure to stderr WITH THE PATH
+    IN IT, so neither channel may be re-emitted.
+    """
+    gate = load_gate()
+    if gate.ruff_command() is None:
+        pytest.skip("ruff is not installed, so run_ruff returns before the format check")
+
+    unit = gate.Unit(label="broken.py", origin="test", data=b"def broken(\n", ext=".py")
+    report = gate.Report()
+
+    gate.run_ruff([unit], report, REPO_ROOT)
+
+    assert "FORMAT" not in {diag.code for diag in report.diagnostics}, [
+        diag.render() for diag in report.diagnostics
+    ]
+    assert any("ruff format: exited 2" in note for note in report.notes), report.notes
+
+
+def test_the_format_check_reads_its_timeout_at_call_time() -> None:
+    """tools/edit_lint_check.py monkeypatches gate.RUFF_TIMEOUT around its call.
+
+    A DEFAULT ARGUMENT BINDS AT IMPORT, so it would ignore that assignment and
+    silently restore the 90-second budget on the PostToolUse path, where the
+    whole point of that module's own 20-second value is that an editor hook
+    must not stall. The name has to be read in the BODY.
+    """
+    tree = ast.parse(GATE.read_bytes())
+    found = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "run_ruff_format"
+    ]
+    assert len(found) == 1, f"expected one run_ruff_format in the gate, found {len(found)}"
+    function = found[0]
+
+    defaults = [node for node in function.args.defaults if node is not None]
+    defaults.extend(node for node in function.args.kw_defaults if node is not None)
+    for default in defaults:
+        names = {node.id for node in ast.walk(default) if isinstance(node, ast.Name)}
+        assert "RUFF_TIMEOUT" not in names, "the timeout is bound at import, not read at call time"
+
+    body_names = {node.id for node in ast.walk(function) if isinstance(node, ast.Name)}
+    assert "RUFF_TIMEOUT" in body_names, "the format check does not bound its child at all"
+
+
+def test_the_format_prefix_names_files_and_never_decides_the_verdict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Condition FIVE. The blocking signal is the EXIT CODE, not the prefix string.
+
+    pyproject.toml pins ruff with NO upper bound, so a release that reworded
+    `Would reformat: ` must not turn this into a check that exits 0 having done
+    nothing. That is the CS-819 and CS-823 shape this project has twice paid to
+    close. Proven behaviourally rather than by reading the source: the constant
+    is replaced with a string ruff will never print, and the gate must STILL
+    refuse - it just cannot say which file any more.
+    """
+    gate = load_gate()
+    if gate.ruff_command() is None:
+        pytest.skip("ruff is not installed, so run_ruff returns before the format check")
+
+    monkeypatch.setattr(gate, "RUFF_FORMAT_PREFIX", "This is not what ruff prints: ")
+    unit = gate.Unit(label="dirty.py", origin="test", data=FORMAT_DIRTY, ext=".py")
+    report = gate.Report()
+
+    gate.run_ruff([unit], report, REPO_ROOT)
+
+    formats = [diag for diag in report.diagnostics if diag.code == "FORMAT"]
+    assert formats, "a reworded prefix silently disarmed the format check"
