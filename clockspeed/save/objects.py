@@ -213,6 +213,7 @@ __all__ = [
     "BYTE_ORDER_VACUOUS",
     "CONTAINER_ADJACENT_OWNERS",
     "CONTAINER_TYPE_WORDS",
+    "CONTAINER_WORDS_WITHOUT_ELEMENT_GRAMMAR_EVIDENCE",
     "CRITERION_CURSOR_REACH",
     "CRITERION_VALUE_DISAGREEMENT",
     "CURSOR_WIDTHS",
@@ -252,6 +253,7 @@ __all__ = [
     "TRANSFORM_BYTES",
     "TRANSFORM_DELTA_BY_SAVE_VERSION",
     "TRANSFORM_FLOAT_COUNT",
+    "UNDISCRIMINATED_ELEMENT_SHAPES",
     "UNKNOWN_CLASS_REASONS",
     "UNMEASURED_PAYLOAD_REGIONS",
     "UNRESOLVED_ASSET_SHAPED",
@@ -259,6 +261,7 @@ __all__ = [
     "UNRESOLVED_SAVE_OBJECT_SHAPED",
     "UNRESOLVED_SHAPES",
     "VALUE_BYTE_ORDER_STATUS",
+    "VALUE_READING_CRITERIA",
     "WARN_BODY_LENGTH_DISAGREEMENT",
     "WARN_MEASURED_VALUE_DISAGREED",
     "WARN_PAYLOAD_COUNT_DISAGREEMENT",
@@ -3531,6 +3534,101 @@ ELEMENT_SHAPES: Final = frozenset(
     }
 )
 
+# ---------------------------------------------------------------------------
+# CS-830, NARROWED ON AN OPERATOR RULING - WHAT A BOUNDED ELEMENT DOES NOT SAY.
+#
+# THE ITEM WAS MERGED AND THEN REFUTED, and the two records below are what the
+# refutation left standing. The distinction it turns on is between the EXTENT of
+# a container's element region and the PARTITION of that region into elements.
+#
+# THE EXTENT IS READ. The tag declares the region's size, the walk requires the
+# elements to consume it EXACTLY, and a region that does not close is refused
+# rather than truncated. Nothing below weakens that, and it is the bulk of what
+# a consumer needs: a container's element region is bounded, typed and stepped
+# over exactly.
+#
+# THE PARTITION IS READ FOR ONE SHAPE AND DERIVED FOR ANOTHER. A
+# SELF-DELIMITING element says where it ends in its own grammar, so a wrong
+# reading fails to close and the container is refused - the boundaries are
+# falsifiable one element at a time. A UNIFORM width is a SPAN DIVIDED BY A
+# DECLARED COUNT, and its whole admission test is that the division came out
+# even. That is a fact about two integers. It is not a fact about the bytes
+# between them, and it does not become one by being checked.
+#
+# THE DIVISION IS A TAUTOLOGY ONCE IT IS EXACT, which is why no walk failure can
+# be read as evidence for it. Under a forced width `_element_half_end` returns
+# `at + width` after a bounds check that cannot fail while slots remain, so the
+# walk consumes exactly `slots * width` bytes and closes by arithmetic. THE
+# CONSEQUENCE IS THAT ANY OTHER PARTITION SUMMING TO THE SPAN WOULD ALSO CLOSE,
+# including partitions that are wrong on any reading of the format. Measured, on
+# this project's own corpus, by replacing the even division with a deliberately
+# wrong one and re-running every library-backed equality: all of them stayed
+# green - ``tests/save/test_container_elements.py`` under
+# ``test_a_provably_wrong_partition_survives_every_library_backed_equality``.
+#
+# THE DECLARED COUNT IS NOT CROSS-CHECKED EITHER, and that is the same defect
+# CS-830 caught in its own first draft wearing different clothes. A region truly
+# holding a few wide elements, declared as one slot per byte, divides exactly
+# and is published as that many one-byte elements. Nothing refuses it. The case
+# is kept as a test rather than as a sentence, under
+# ``test_a_uniform_region_is_partitioned_by_a_declared_count_nothing_cross_checks``.
+#
+# WHY THE DECODE IS KEPT RATHER THAN DELETED. The elements are still bounded and
+# the region still closes; the unproven claim is narrower than the decode. What
+# a consumer may rely on for a shape recorded below is the region, the count as
+# DECLARED and the element type word - not the extent of any individual element.
+#
+# NO POPULATION FIGURE IS WRITTEN HERE - CLAUDE.md section 4. Which words are
+# affected is a classification and is recorded as data; how many instances each
+# holds changes on the operator's next autosave and is derived on every run.
+# ---------------------------------------------------------------------------
+
+#: The element shapes whose INTERNAL PARTITION nothing discriminates - the
+#: boundaries between one element and the next are DERIVED rather than read, and
+#: an equally-closing alternative partition would be accepted identically.
+#:
+#: A CONSUMER READS THIS BEFORE TRUSTING AN ELEMENT'S EXTENT. The shape word
+#: already travels on :class:`ContainerValue`; this is what makes it actionable
+#: rather than descriptive.
+#:
+#: THE SOLVED SHAPE IS DELIBERATELY ABSENT. It admits a width only when EXACTLY
+#: ONE in the searched range closes the region and refuses ambiguity rather than
+#: resolving it by preference, so its boundaries are pinned by the bytes.
+UNDISCRIMINATED_ELEMENT_SHAPES: Final = frozenset({ELEMENT_SHAPE_UNIFORM_WIDTH})
+
+#: A container word for which NOT ONE instance in this project's corpus was
+#: bounded by the element's own grammar, name to what that leaves unproven.
+#:
+#: WHAT MEMBERSHIP MEANS. The word's element framing has never once been tested
+#: against a reading that could have failed. Every instance fell to a derived
+#: partition, so the framing has no falsifiable evidence behind it at all - as
+#: distinct from a word that carries derived instances alongside instances its
+#: own grammar closed on, where the grammar has at least been exercised.
+#:
+#: IT IS HELD EQUAL TO WHAT A RUN MEASURES, NOT AS A FLOOR, so it reddens in
+#: both directions and cannot come to describe a corpus that has moved. A word
+#: that gains grammar evidence has to LEAVE this table.
+#:
+#: THIS IS NOT THE WHOLE UNDISCRIMINATED POPULATION, and reading it as though it
+#: were is the error it is worded against. A word absent from here can still
+#: carry containers bounded by a shape in
+#: :data:`UNDISCRIMINATED_ELEMENT_SHAPES`, and those carry exactly the same
+#: limit - the arrays whose elements are structs are the measured case. The
+#: shape is the property; this table records only where a whole word rests on it.
+CONTAINER_WORDS_WITHOUT_ELEMENT_GRAMMAR_EVIDENCE: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "SetProperty": (
+            "every instance carries an element word whose raw shape has no "
+            "grammar of its own, so the region is divided by the declared count "
+            "and no reading that could have failed was ever attempted. What is "
+            "measured is the region and the declared count; the element "
+            "boundaries inside it are derived and are not evidence. The "
+            "undiscriminated remainder is filed as its own item rather than "
+            "left as a note"
+        ),
+    }
+)
+
 #: An ELEMENT of a fixed-width inner word, and how many bytes it spans. These
 #: are ELEMENT widths and not tag-value widths - see the commentary block
 #: above for why the distinction matters.
@@ -3851,6 +3949,42 @@ UNMEASURED_PAYLOAD_REGIONS: Final[Mapping[str, str]] = MappingProxyType(
             "10 instances, all of declared size 45. Unreal's text serialization "
             "is a tagged union over history types and 10 instances of one size "
             "cannot distinguish its cases"
+        ),
+    }
+)
+
+#: A type word whose TOP-LEVEL value this module declines to read, name to THE
+#: EVIDENCE THAT WOULD SETTLE THE READING.
+#:
+#: WHY THIS IS NOT :data:`UNMEASURED_PAYLOAD_REGIONS`, which is the obvious
+#: place and is the wrong one. That table records REGIONS THIS LIBRARY ACTUALLY
+#: PRODUCES, and ``tests/save/test_properties.py`` refuses a key nothing
+#: justifies - an entry for a type no corpus has ever emitted would be a record
+#: of a measurement nobody was in a position to make. A word with NO top-level
+#: instance therefore cannot be recorded there, and before this table it had
+#: nowhere at all to be recorded: CS-830 removed the entry that had been
+#: standing in, correctly, and left the refusal with no home. THE TWO TABLES ARE
+#: INDEPENDENT. A word may appear in either, both, or neither, and neither one
+#: implies the other.
+#:
+#: WHAT AN ENTRY MUST SAY, AND WHAT IT MAY NOT. It names EVIDENCE - an
+#: observation that, if made, would settle the reading. It may not turn on how
+#: many instances exist. A sample-size refusal cannot be acted on, because it
+#: does not say what a larger sample would have to CONTAIN, and it goes stale
+#: silently: a corpus can grow without ever producing the observation that
+#: matters. This is the distinction CS-832 is open on.
+VALUE_READING_CRITERIA: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "Int64Property": (
+            "the ELEMENT width is measured - the arrays carrying this word "
+            "close on it - and the TOP-LEVEL value encoding is not, because "
+            "this library emits no top-level tag of the word at all. THE "
+            "CRITERION IS A SINGLE TOP-LEVEL INSTANCE, of any provenance, whose "
+            "declared size can be read against the element width already "
+            "measured. One such tag settles it or falsifies it; no number of "
+            "further ARRAY instances can, since they are evidence about the "
+            "element and the element is not in question. This is a refusal for "
+            "want of an observation and not for want of a sample"
         ),
     }
 )
@@ -4189,6 +4323,14 @@ def _element_tag_list_end(body: bytes, at: int, end: int) -> int | None:
 
 def _element_half_end(body: bytes, word: str, at: int, end: int, width: int | None) -> int | None:
     """Where one element half ends, by its own grammar or by a forced width.
+
+    THE TWO BRANCHES ARE NOT EQUALLY STRONG AND THE FORCED ONE CANNOT FAIL
+    USEFULLY. Under a width it returns ``at + width`` after a bounds check, and
+    while slots remain that check holds by arithmetic - so a walk under an even
+    division closes whatever the bytes say, and its closing is not evidence
+    about them. Under ``None`` the word's own grammar decides, a wrong reading
+    does not close, and the refusal IS evidence. See the commentary block above
+    :data:`UNDISCRIMINATED_ELEMENT_SHAPES`.
 
     Args:
         body: The decompressed body.

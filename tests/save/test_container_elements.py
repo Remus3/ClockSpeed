@@ -42,12 +42,31 @@ described, so what rests on the weaker reading is visible instead of averaged in
 
 WHAT THE EQUALITY CATCHES AND WHAT IT CANNOT. It catches an element framing that
 stops closing on any part of the population - a wrong lead-field count, a wrong
-element width, a wrong inner-tag shape - because the decode is refused rather
-than approximated when the region does not close. It does NOT catch a record the
-walk skipped: the tag total and the decode total are both taken inside the same
-sweep off the same walk, so a payload that never reaches the walk moves neither.
-That is the same limit CS-831 records for its own partition, and it is written
-here rather than left for a reader to discover.
+element width where the word's own grammar states one, a wrong inner-tag shape -
+because the decode is refused rather than approximated when the region does not
+close. It does NOT catch a record the walk skipped: the tag total and the decode
+total are both taken inside the same sweep off the same walk, so a payload that
+never reaches the walk moves neither. That is the same limit CS-831 records for
+its own partition, and it is written here rather than left for a reader to
+discover.
+
+AND IT DOES NOT CATCH A WRONG PARTITION OF A REGION THAT CLOSES - CS-830 WAS
+MERGED AND THEN REFUTED ON EXACTLY THIS, AND THE ITEM IS NARROWED RATHER THAN
+RESTATED. Where an element word has no grammar of its own, the region is divided
+by the DECLARED count and admitted because the division came out even. Any other
+partition summing to the span closes identically, the element total is unchanged
+because the walk computes it from the same declared count, and neither equality
+above can see the difference. Measured here rather than reasoned about, by
+running a deliberately wrong partition through both:
+``test_a_provably_wrong_partition_survives_every_library_backed_equality``.
+
+SO THE EVIDENCE IS GRADED PER CONTAINER WORD AND NO LONGER POOLED. The pooled
+majority assertion this module used to make was true of the whole population and
+false of one word inside it, which is the shape of error pooling produces. What
+each word rests on is now asserted against that word's own instances, and a word
+resting entirely on a derived reading is named in a shipped table rather than
+averaged away. The undiscriminated remainder is filed as its own item; this
+module records the limit and does not claim to have closed it.
 
 COUNTS ONLY, on the terms ``tests/save/test_decode_oracles.py`` sets out. An
 element's bytes, a property name and a save path are world content under
@@ -112,6 +131,11 @@ _UNMODELLED_INNER_WORD: Final = "SyntheticUnmodelledProperty"
 #: A save version pair the fixture record is built against.
 _SYNTHETIC_SAVE_VERSION: Final = 52
 _SYNTHETIC_HEADER_VERSION: Final = 14
+
+#: The fewest slots a region needs before an ALTERNATIVE partition of it exists.
+#: One element admits exactly one partition, so mutating it is a no-op that would
+#: inflate a landed-mutation count with cases grading nothing.
+_SLOTS_WITH_AN_ALTERNATIVE_PARTITION: Final = 2
 
 
 def _array_value(inner: str, elements: bytes, count: int) -> bytes:
@@ -420,6 +444,119 @@ def test_a_set_region_that_does_not_divide_by_its_count_is_refused() -> None:
     assert result.disagreeing_value_count == 1
 
 
+# ---------------------------------------------------------------------------
+# CS-830, NARROWED - what the UNIFORM shape does NOT discriminate.
+#
+# The cases below are the ones an adversary used to REFUTE the merged item, kept
+# as tests rather than paraphrased in a note. Each one records a limit that
+# still stands; none of them claims it has been repaired.
+# ---------------------------------------------------------------------------
+
+
+def test_the_element_shapes_whose_partition_is_not_discriminated_are_recorded() -> None:
+    """The module ships WHICH readings leave the internal division underdetermined.
+
+    A consumer handed a bounded element list cannot tell from the list whether
+    the boundaries were read off the bytes or divided out of a span. The shape
+    word already travels on the value; what was missing is the module saying
+    which shape words carry a partition nothing checked.
+
+    NEEDS NO SAVE LIBRARY - it is a claim about the repo.
+    """
+    undiscriminated = objects.UNDISCRIMINATED_ELEMENT_SHAPES
+
+    assert undiscriminated, (
+        "objects.UNDISCRIMINATED_ELEMENT_SHAPES is empty, so the module records no "
+        "limit at all and this test grades nothing"
+    )
+    unknown = sorted(undiscriminated - objects.ELEMENT_SHAPES)
+    assert not unknown, f"{unknown} are recorded as shapes the module does not ship"
+    assert objects.ELEMENT_SHAPE_UNIFORM_WIDTH in undiscriminated, (
+        "the uniform shape divides a span by a count and admits the answer because "
+        "the division came out even. That is a property of two integers and not of "
+        "the bytes between them, so it has to be recorded as underdetermined"
+    )
+    assert objects.ELEMENT_SHAPE_SELF_DELIMITING not in undiscriminated, (
+        "the self-delimiting reading IS the element's own grammar saying where it "
+        "ends, and recording it as underdetermined would erase the one distinction "
+        "the shape words exist to carry"
+    )
+
+
+def test_a_uniform_region_is_partitioned_by_a_declared_count_nothing_cross_checks() -> None:
+    """The defect CS-830 caught in its own first draft, alive in the shape it permits.
+
+    A region genuinely holding a few wide elements, declared as one slot per
+    BYTE, divides exactly and is published as that many one-byte elements. The
+    region closes, the count agrees with the declaration, and every element
+    extent is wrong. Nothing in the container cross-checks the declared count
+    against the bytes, so this is not caught and is not claimed to be.
+
+    NEEDS NO SAVE LIBRARY.
+    """
+    carried = 3
+    width = 9
+    region = bytes(carried * width)
+    declared = len(region)
+    tag = _container_tag(
+        "mSyntheticMisdeclaredSet",
+        "SetProperty",
+        ("StructProperty",),
+        _set_value(region, declared),
+    )
+
+    result = _read_payload_of(tag)
+    decoded = result.properties["mSyntheticMisdeclaredSet"]
+
+    assert isinstance(decoded, objects.ContainerValue)
+    assert decoded.element_shape == objects.ELEMENT_SHAPE_UNIFORM_WIDTH
+    assert len(decoded.elements) == declared, (
+        "the region did not partition by the DECLARED count, which is the whole of "
+        "what this case records"
+    )
+    assert all(bounded.length == 1 for bounded in decoded.elements), (
+        "the declared count divided the span into one-byte elements and the decode "
+        "published them. This assertion is a RECORD of that, not an endorsement"
+    )
+    assert result.disagreeing_value_count == 0, (
+        "the decode was accepted rather than refused, which is what makes the "
+        "misdeclaration invisible to every equality taken over accepted decodes"
+    )
+    assert decoded.element_shape in objects.UNDISCRIMINATED_ELEMENT_SHAPES, (
+        "the shape this decode came back under is not recorded as one whose "
+        "partition nothing discriminates, so a consumer reading these extents has "
+        "no way to learn they were divided out rather than read"
+    )
+
+
+def test_the_element_total_holds_by_construction_whatever_the_widths_are() -> None:
+    """The count equality is an IDENTITY, and saying so is worth a test.
+
+    ``_walk_elements`` appends exactly one entry per ``count x words`` step and
+    returns None otherwise, so its length is ``count * len(words)`` for EVERY
+    width tuple that closes the region. Any equality between the bounded total
+    and the declared total therefore holds however the region was partitioned -
+    it grades the walk's arithmetic and nothing about the element widths.
+
+    NEEDS NO SAVE LIBRARY.
+    """
+    span = 24
+    body = bytes(span)
+    words = ("StructProperty",)
+    closing = [width for width in range(1, span + 1) if span % width == 0]
+    assert len(closing) > 1, "one closing width grades no alternative, so this is vacuous"
+
+    for width in closing:
+        count = span // width
+        found = objects._walk_elements(body, words, 0, span, count, (width,))  # noqa: SLF001
+        assert found is not None, "a width dividing the span exactly failed to close"
+        assert len(found) == count * len(words), (
+            "the walk returned a length other than count x words, which would mean "
+            "the identity this test records is not one"
+        )
+        assert sum(bounded.length for bounded in found) == span
+
+
 def test_a_map_yields_a_key_half_and_a_value_half_for_every_entry() -> None:
     """The map is the only container whose entry is a pair, and both halves are bounded.
 
@@ -579,9 +716,14 @@ class _ContainerSweep:
             word, multiplied out by how many halves an entry carries. Held
             against ``elements`` so a bounded list of the wrong length is
             caught by something other than the framing that produced it.
-        shapes: How many containers each element shape bounded.
+        shapes: How many containers each element shape bounded, keyed by
+            (CONTAINER WORD, shape word). THE CONTAINER WORD IS HALF THE KEY
+            AND ITS ABSENCE WAS A DEFECT: pooled on the shape word alone, a
+            word with no grammar evidence at all was invisible behind a word
+            that had plenty, and the guard over the pooled total passed.
         single_slot: Containers bounded by a DERIVED shape over a single slot,
-            where the division is the identity and grades nothing.
+            where the division is the identity and grades nothing, by
+            container word.
         failures: Exception TYPE NAMES, and nothing else about them.
     """
 
@@ -591,8 +733,8 @@ class _ContainerSweep:
     decoded: Mapping[str, int]
     elements: Mapping[str, int]
     declared: Mapping[str, int]
-    shapes: Mapping[str, int]
-    single_slot: int
+    shapes: Mapping[tuple[str, str], int]
+    single_slot: Mapping[str, int]
     failures: tuple[str, ...]
 
     def __repr__(self) -> str:
@@ -608,7 +750,8 @@ class _ContainerSweep:
             f"elements={dict(sorted(self.elements.items()))}, "
             f"declared={dict(sorted(self.declared.items()))}, "
             f"shapes={dict(sorted(self.shapes.items()))}, "
-            f"single_slot={self.single_slot}, failures={self.failures})"
+            f"single_slot={dict(sorted(self.single_slot.items()))}, "
+            f"failures={self.failures})"
         )
 
 
@@ -630,22 +773,23 @@ class _ContainerTally:
     Attributes:
         saves: How many saves of a tagged pair were walked.
         records: How many records the reader was asked about.
-        single_slot: Derived bounds taken over a single slot.
+        single_slot: Derived bounds over a single slot, by container word.
         tags: Container tags stepped over, by container word.
         decoded: Container tags that yielded elements, by container word.
         elements: Element halves bounded, by container word.
         declared: Slots the containers themselves declared, by container word.
-        shapes: How many containers each element shape bounded.
+        shapes: How many containers each shape bounded, keyed by (container
+            word, shape word).
     """
 
     saves: int = 0
     records: int = 0
-    single_slot: int = 0
+    single_slot: dict[str, int] = field(default_factory=dict)
     tags: dict[str, int] = field(default_factory=dict)
     decoded: dict[str, int] = field(default_factory=dict)
     elements: dict[str, int] = field(default_factory=dict)
     declared: dict[str, int] = field(default_factory=dict)
-    shapes: dict[str, int] = field(default_factory=dict)
+    shapes: dict[tuple[str, str], int] = field(default_factory=dict)
 
 
 def _sweep_one_save(data: bytes, parsed: header.SaveHeader, into: _ContainerTally) -> None:
@@ -711,16 +855,22 @@ def _sweep_one_save(data: bytes, parsed: header.SaveHeader, into: _ContainerTall
             decoded[word] = decoded.get(word, 0) + 1
             elements[word] = elements.get(word, 0) + len(value.elements)
             declared[word] = declared.get(word, 0) + value.element_count * len(value.element_words)
-            shapes[value.element_shape] = shapes.get(value.element_shape, 0) + 1
+            key = (word, value.element_shape)
+            shapes[key] = shapes.get(key, 0) + 1
             if value.element_shape != objects.ELEMENT_SHAPE_SELF_DELIMITING and (
                 value.element_count * len(value.element_words) <= 1
             ):
-                into.single_slot += 1
+                into.single_slot[word] = into.single_slot.get(word, 0) + 1
 
 
-@lru_cache(maxsize=1)
-def _sweep_containers() -> _ContainerSweep | None:
+def _sweep_the_library() -> _ContainerSweep | None:
     """Walk each real save once and return COUNTS ONLY.
+
+    IT IS UNCACHED AND THE CACHE SITS ON ITS CALLER, so a pass that has to run
+    under a patched decoder gets its own walk without evicting the pristine
+    one. Sharing a cache between the two would make the pristine floor and the
+    mutated run each other's cost, and a floor that is re-derived under a patch
+    is not a floor.
 
     IT CONTAINS ``Exception`` AND ``SystemExit``, AND STOPS THERE, on the terms
     ``tests/save/test_decode_oracles.py`` argues at length: a save path, a body
@@ -767,9 +917,88 @@ def _sweep_containers() -> _ContainerSweep | None:
         elements=MappingProxyType(dict(into.elements)),
         declared=MappingProxyType(dict(into.declared)),
         shapes=MappingProxyType(dict(into.shapes)),
-        single_slot=into.single_slot,
+        single_slot=MappingProxyType(dict(into.single_slot)),
         failures=tuple(sorted(set(failures))),
     )
+
+
+@lru_cache(maxsize=1)
+def _sweep_containers() -> _ContainerSweep | None:
+    """The pristine sweep, walked once per session.
+
+    Returns:
+        The sweep, or None when no save library is reachable.
+    """
+    return _sweep_the_library()
+
+
+@lru_cache(maxsize=1)
+def _sweep_with_a_wrong_partition() -> tuple[_ContainerSweep, int]:
+    """Re-walk the library with the even division replaced by a WRONG one.
+
+    THE MUTANT. Wherever the shipped decoder would divide an element region
+    evenly, the first element takes the whole span less one byte per remaining
+    slot and every other element takes exactly one. The region still closes and
+    the element total is unchanged, because neither of those facts depends on
+    where the boundaries fall - which is the point being measured.
+
+    IT PATCHES AND RESTORES IN A ``finally``, and it counts the applications so
+    a patch that never landed cannot be read as a partition nothing detected.
+    Those two outcomes produce identical green, and this project has a recorded
+    incident of exactly that confusion.
+
+    A SINGLE SLOT IS LEFT ALONE. There is no alternative partition of one
+    element, so mutating it would be a no-op recorded as an application and
+    would inflate the landed count with cases that grade nothing.
+
+    Returns:
+        The mutated sweep and how many containers the wrong partition was
+        applied to.
+    """
+    applied = 0
+    real = objects._bound_container_elements  # noqa: SLF001
+
+    def _mutated(
+        body: bytes, words: tuple[str, ...], at: int, end: int, count: int
+    ) -> tuple[str, tuple[objects.ContainerElement, ...]] | None:
+        nonlocal applied
+        bounded = real(body, words, at, end, count)
+        if bounded is None or bounded[0] != objects.ELEMENT_SHAPE_UNIFORM_WIDTH:
+            return bounded
+        slots = count * len(words)
+        span = end - at
+        if slots < _SLOTS_WITH_AN_ALTERNATIVE_PARTITION or span < slots:
+            return bounded
+        widths = [span - (slots - 1)] + [1] * (slots - 1)
+        found: list[objects.ContainerElement] = []
+        cursor = at
+        halves = [half for _ in range(count) for half in words]
+        for position, half in enumerate(halves):
+            found.append(
+                objects.ContainerElement(
+                    type_word=half,
+                    start=cursor,
+                    length=widths[position],
+                    value=None,
+                )
+            )
+            cursor += widths[position]
+        if cursor != end:
+            return bounded
+        applied += 1
+        return (objects.ELEMENT_SHAPE_UNIFORM_WIDTH, tuple(found))
+
+    objects._bound_container_elements = _mutated  # noqa: SLF001
+    try:
+        sweep = _sweep_the_library()
+    finally:
+        objects._bound_container_elements = real  # noqa: SLF001
+    assert objects._bound_container_elements is real, (  # noqa: SLF001
+        "the shipped decoder was not put back, so every later test in this "
+        "session would grade a patched module"
+    )
+    assert sweep is not None, "the pristine floor was taken first, so a library was reachable"
+    return (sweep, applied)
 
 
 def _sweep_or_skip() -> _ContainerSweep:
@@ -834,12 +1063,22 @@ def test_every_container_instance_in_the_library_yields_a_decoded_element() -> N
 
 
 def test_the_bounded_elements_agree_with_the_counts_the_containers_declared() -> None:
-    """A second derivation of the same total, off the containers' own count fields.
+    """The walk's arithmetic, held against the containers' own count fields.
 
-    The equality above counts CONTAINERS. This counts ELEMENTS, against the
-    element counts the containers declared rather than against the list the
-    framing produced - so a framing that bounded the wrong NUMBER of elements
-    while still closing the region moves one side and not the other.
+    WHAT THIS DOES NOT CATCH, CORRECTED. Its first wording claimed a framing
+    that bounded the wrong NUMBER of elements would move one side and not the
+    other. THAT IS FALSE AND WAS FALSE WHEN WRITTEN. ``_walk_elements`` appends
+    exactly one entry per ``count x words`` step or returns None, so both sides
+    are computed from the same declared count and the equality is an IDENTITY -
+    it moves both sides together or neither. The identity is exercised directly
+    in ``test_the_element_total_holds_by_construction_whatever_the_widths_are``.
+
+    WHAT IT IS STILL WORTH. An identity over the walk is a real check on the
+    FOLD around it: a sweep that double-counted a half, dropped a container
+    between the two tallies, or mismatched the map's two-halves-per-entry
+    arithmetic would break it. It grades the accounting, not the widths, and the
+    difference is the whole reason the sentence above was corrected rather than
+    deleted.
 
     SKIP-IF-ABSENT, COUNTS ONLY.
     """
@@ -861,8 +1100,15 @@ def test_the_library_container_counts_are_recorded_for_the_ledger() -> None:
     NO FIGURE FROM THIS RUN GOES INTO PROSE. The operator plays this game, so
     every count here changes on the next autosave and a number copied into a
     docstring is false on a timer - CLAUDE.md section 4. What is asserted is the
-    SHAPE: that each shape word was exercised, and that the weaker derived
-    readings did not quietly become the majority.
+    SHAPE: that every shipped shape word was exercised somewhere in the corpus.
+
+    THE POOLED MAJORITY ASSERTION THAT STOOD HERE IS GONE, and its removal is
+    the item's narrowing rather than a simplification. Summed over the three
+    container words it read as evidence about all of them while being evidence
+    about the largest one, and a word with no grammar evidence at all passed
+    behind it. It is replaced by the per-word form in
+    ``test_the_shape_evidence_is_graded_per_container_word_and_not_pooled``,
+    which grades each word against its own population.
 
     SKIP-IF-ABSENT, COUNTS ONLY.
     """
@@ -871,20 +1117,126 @@ def test_the_library_container_counts_are_recorded_for_the_ledger() -> None:
     assert sweep.records > 0, "no record was walked"
     assert sweep.shapes, "no element shape was recorded, so nothing was bounded"
 
-    unknown = sorted(frozenset(sweep.shapes) - objects.ELEMENT_SHAPES)
+    seen = frozenset(shape for _word, shape in sweep.shapes)
+    unknown = sorted(seen - objects.ELEMENT_SHAPES)
     assert not unknown, f"the sweep recorded element shapes the module does not ship: {unknown}"
 
-    total = sum(sweep.shapes.values())
-    self_delimiting = sweep.shapes.get(objects.ELEMENT_SHAPE_SELF_DELIMITING, 0)
-    assert self_delimiting * 2 > total, (
-        f"{self_delimiting} of {total} containers were bounded by the element's own "
-        "grammar and the rest by a DERIVED width. The derived readings are the weaker "
-        "evidence and were never meant to carry the population; if they now do, the "
-        "self-delimiting reading has stopped closing somewhere"
+
+def test_the_shape_evidence_is_graded_per_container_word_and_not_pooled() -> None:
+    """CS-830, NARROWED - one word's grammar evidence may not stand in for another's.
+
+    THE POOLED FORM OF THIS GUARD WAS THE DEFECT. Summed over all three words,
+    the strong reading is the large majority and the assertion passed while one
+    container word had NOT ONE instance bounded by the element's own grammar.
+    Pooling let the word with the evidence answer for the word without it, and
+    the failure was silent because both figures went into one total.
+
+    WHAT THE SPLIT ASSERTS. Each word is graded against its OWN population, and
+    a word carried entirely by a derived reading has to be named in
+    ``objects.CONTAINER_WORDS_WITHOUT_ELEMENT_GRAMMAR_EVIDENCE``. The record is
+    held EQUAL to what this run measures, so it reddens in both directions: a
+    word losing its grammar evidence reddens, and a word gaining it reddens too
+    and asks for the record to be narrowed.
+
+    SKIP-IF-ABSENT, COUNTS ONLY. Every word rendered here is a shipped constant
+    and every number is an integer.
+    """
+    sweep = _sweep_or_skip()
+    assert sweep.shapes, "no element shape was recorded, so nothing was bounded"
+
+    unknown = sorted(
+        (word, shape)
+        for word, shape in sweep.shapes
+        if word not in objects.CONTAINER_TYPE_WORDS or shape not in objects.ELEMENT_SHAPES
     )
-    assert sweep.single_slot < total, (
-        "every derived bound in the library was taken over a single slot, where the "
-        "division is the identity and grades nothing"
+    assert not unknown, f"the sweep recorded pairs the module does not ship: {unknown}"
+
+    recorded = objects.CONTAINER_WORDS_WITHOUT_ELEMENT_GRAMMAR_EVIDENCE
+    measured: set[str] = set()
+    for word in sorted(sweep.decoded):
+        total = sum(count for (this, _shape), count in sweep.shapes.items() if this == word)
+        assert total > 0, f"{word}: decoded instances recorded no shape at all"
+        grammar = sweep.shapes.get((word, objects.ELEMENT_SHAPE_SELF_DELIMITING), 0)
+        if grammar == 0:
+            measured.add(word)
+            continue
+        assert grammar * 2 > total, (
+            f"{word}: {grammar} of {total} of THIS WORD's containers were bounded by "
+            "the element's own grammar and the rest by a DERIVED width. The derived "
+            "readings are the weaker evidence and were never meant to carry a word's "
+            "population - and this is the per-word form precisely so another word's "
+            "surplus cannot pay for it"
+        )
+
+    assert measured == set(recorded), (
+        f"this run measures {sorted(measured)} as container words with NO instance "
+        f"bounded by the element's own grammar, and the module records {sorted(recorded)}. "
+        "A word that gained grammar evidence should leave the record; a word that lost "
+        "it must join. The record is held equal rather than as a floor so it cannot "
+        "quietly describe a corpus that has moved"
+    )
+
+    for word in sorted(recorded):
+        single = sweep.single_slot.get(word, 0)
+        derived = sum(
+            count
+            for (this, shape), count in sweep.shapes.items()
+            if this == word and shape != objects.ELEMENT_SHAPE_SELF_DELIMITING
+        )
+        assert single < derived, (
+            f"{word}: every derived bound was taken over a single slot, where the "
+            "division is the identity and grades nothing at all"
+        )
+
+
+def test_a_provably_wrong_partition_survives_every_library_backed_equality() -> None:
+    """The refutation, kept as a MEASUREMENT rather than settled by argument.
+
+    THE MUTANT. Where the shipped decoder divides an element region evenly, this
+    run takes the first element as the whole span less one byte per remaining
+    slot and every other element as exactly one byte. It is wrong on any reading
+    of the format, it closes the region, and it yields the same number of
+    elements. Both library-backed equalities stay green under it.
+
+    A RED HERE IS GOOD NEWS AND MEANS THE RECORD MUST BE NARROWED. This asserts
+    that the corpus does NOT discriminate the partition, so the day something in
+    it does, this test is what says so and
+    ``objects.UNDISCRIMINATED_ELEMENT_SHAPES`` is what gets corrected. Asserting
+    the limit is the only way to stop the limit being quietly overstated later.
+
+    THE MUTATION IS ASSERTED TO HAVE LANDED. A patch that never applied and a
+    partition the equalities cannot see produce the same green, and this project
+    has recorded being caught by exactly that.
+
+    SKIP-IF-ABSENT, COUNTS ONLY.
+    """
+    _sweep_or_skip()
+    mutated, applied = _sweep_with_a_wrong_partition()
+
+    assert applied > 0, (
+        "the wrong partition was never applied to a single container, so this run "
+        "grades nothing - a mutant that did not land and a mutant the tests cannot "
+        "see are the same green"
+    )
+    assert mutated.failures == (), f"failures walking real bodies: {mutated.failures}"
+    assert mutated.tags, "the mutated sweep bounded no container at all"
+
+    for word in sorted(mutated.tags):
+        assert mutated.decoded.get(word, 0) == mutated.tags[word], (
+            f"{word}: the wrong partition changed how many instances decoded. If that "
+            "is real the region-closing check now discriminates it, and the recorded "
+            "limit is too wide"
+        )
+    for word in sorted(mutated.elements):
+        assert mutated.elements[word] == mutated.declared.get(word, 0), (
+            f"{word}: the wrong partition moved the bounded total off the declared "
+            "total. That equality is an identity over the walk, so this would mean "
+            "the walk changed rather than the widths"
+        )
+
+    assert objects.ELEMENT_SHAPE_UNIFORM_WIDTH in objects.UNDISCRIMINATED_ELEMENT_SHAPES, (
+        "a wrong partition just survived every equality this project has, and the "
+        "module does not record that shape's partition as underdetermined"
     )
 
 
@@ -957,8 +1309,17 @@ def test_the_container_surface_is_on_the_module_s_stated_public_surface() -> Non
 #: Helpers that genuinely reach the save library, name to why each reaches. The
 #: key is the function's own ``__name__`` and the reason comes from
 #: ``reach_guard``, so a rename moves both together.
+#:
+#: ONE ENTRY, THOUGH THREE FUNCTIONS SWEEP. Splitting the cached wrapper off the
+#: walk moved the reach: ``_sweep_the_library`` is the only one that ever holds a
+#: save path, and its two callers take a COUNTS-ONLY record back from it. Listing
+#: them here as reaching was tried and the package-wide guard REFUSED IT - a
+#: declaration that names a function which no longer reaches is an exemption
+#: outliving the code it described, which is the failure that guard exists to
+#: catch. The containment grader below still forces its failure through this
+#: entry, because it drives the walk by way of the cached wrapper.
 _GRADED_LIBRARY_REACH: Final = MappingProxyType(
-    {_sweep_containers.__name__: reach_guard.REACH_READS_THE_LIBRARY}
+    {_sweep_the_library.__name__: reach_guard.REACH_READS_THE_LIBRARY}
 )
 
 #: Touches a primitive WITHOUT consuming a real save path, name to why. Empty
