@@ -70,7 +70,23 @@ classifiers = [
 dev = [
   "mypy>=1.11",
   "pytest>=8.0",
-  "ruff>=0.13",
+  # UPPER BOUND ADDED 2026-08-23 AND IT IS LOAD-BEARING, NOT TIDINESS. `ruff
+  # format --check` changes its OUTPUT SHAPE between minor versions, and 0.16
+  # reworded the line CS-838's pre-commit format check reads to NAME the
+  # offending file. MEASURED: with no upper bound, CI resolved 0.16.x while this
+  # machine ran 0.15.x, the gate still BLOCKED correctly - its verdict is ruff's
+  # EXIT CODE and never the message - but it could match no filename, rendered a
+  # placeholder instead, and two arms that assert the finding names the file
+  # went RED on the runner while passing locally. That is the "a green local
+  # suite is evidence about ONE toolchain" trap, and an unbounded pin is what
+  # made the two toolchains different.
+  #
+  # DO NOT WIDEN THIS BACK to a bare floor. Bump the bound DELIBERATELY, and when
+  # you do, re-run `ruff format --check .` and the precommit gate suite FIRST -
+  # a formatter bump can rewrite the tree and re-shape that output in one step.
+  # This NARROWS CS-484's local-versus-CI divergence and does NOT close it: the
+  # range still permits drift inside the 0.15 line.
+  "ruff>=0.13,<0.16",
 ]
 
 
