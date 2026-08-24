@@ -18,9 +18,16 @@ ways, and every tag lands in exactly one bucket:
 
   RESOLVED    the object path is borne by at least one record in the same save.
   UNRESOLVED  the pair decoded and no record bears that path. EXPECTED AND
-              BENIGN - ``clockspeed/save/objects.py`` records that references
-              which do not resolve name ASSETS rather than saved objects, and
-              non-negotiable 7 says to flag and skip rather than to fail.
+              BENIGN - non-negotiable 7 says to flag and skip rather than fail.
+              IT IS NOT ONE THING, and a sentence here said it was: it said
+              such references name ASSETS rather than saved objects, as a
+              universal over the whole bucket. CS-833 withdrew that. The bucket
+              is partitioned by ``objects.classify_unresolved`` into paths in
+              the content-tree shape, paths in the SAVED-OBJECT shape that no
+              record bears, and references carrying no path at all - and the
+              sweep below measures every one of the three inhabited on this
+              machine's library. No count of them is written here; the shapes
+              are the claim and the counts are derived on each run.
   UNDECODED   the tag is an ``ObjectProperty`` and its bytes yielded no pair.
 
 THE PARTITION EQUALITY IS AN IDENTITY, AND SAYING SO IS THIS MODULE'S CORRECTION
@@ -59,27 +66,32 @@ can reach - so the clause is met in its own terms. It is NOT met in the stronger
 sense of a total independent of the shipped reader, and no such total exists to
 reach for. The one grammar-free count available - a byte scan for the
 length-prefixed type word across a whole body - runs well ahead of the walk,
-because the word also occurs NESTED inside StructProperty, ArrayProperty and
-MapProperty values that the top-level walk steps over as opaque bytes.
+because the word also occurs inside values the top-level walk steps over.
 Restricted to the offsets the walk reports it agrees exactly, but performing
 that restriction requires the grammar whose reader is under test. So the scan
-can bound the population and can never equal it, and it is deliberately NOT
-asserted here: a clause carrying that much slack would be one more assertion
-that reads as protection and grades nothing, which is the defect this file is
-being repaired for. THE NESTED REFERENCES ARE A SCOPE FACT WORTH AN ITEM, not a
-defect in the resolver: CS-831's population is the top-level tag.
+can bound the population and can never equal it, and the equality is deliberately
+NOT asserted: a clause carrying that much slack would be one more assertion that
+reads as protection and grades nothing, which is the defect this file is being
+repaired for. THE SCAN IS NO LONGER ONLY DESCRIBED, THOUGH - the DIFFERENCE is
+now derived on every run and asserted positive, which is CS-834 and the case
+``test_the_type_word_occurrences_the_top_level_walk_does_not_reach_are_counted``.
+The scope fact behind it is not a defect in the resolver: CS-831's population is
+the top-level tag, and ``objects.resolve_references`` now states that boundary
+where the resolver is defined and names the classes of reference outside it.
 
 THE FIGURES THAT STOOD IN THAT PARAGRAPH ARE DELETED RATHER THAN CORRECTED, AND
 THE DELETION IS THE POINT. They apportioned the scan's excess between tags
 nested inside opaque values and occurrences falling outside every record's
 payload extent, and re-measurement did not support the apportionment. NO
-FIGURE REPLACES THEM. Every count of this kind is taken over the operator's own
-live library, which grows on each autosave, so a corpus number written into a
-docstring is false on a timer even where it starts true - CLAUDE.md section 4
-forbids restating a measured number in prose for exactly that reason, and a
-docstring is prose. What this file needs from the scan is its DIRECTION and the
-reason for it, and that is all that is now claimed. What the corpus says on any
-given day is derived on every run by the sweep below instead.
+FIGURE REPLACES THEM, AND NEITHER DOES A FRESH SPLIT. Re-measured again after
+CS-830 - which decoded container element FRAMING and so changed which values the
+walk can say anything about - the named regions still do not account for the
+difference. It is carried as ONE number for that reason. Every count of this kind
+is taken over the operator's own live library, which grows on each autosave, so a
+corpus number written into a docstring is false on a timer even where it starts
+true - CLAUDE.md section 4 forbids restating a measured number in prose for
+exactly that reason, and a docstring is prose. What the corpus says on any given
+day is derived on every run by the sweep below instead.
 
 TWO CLAIMS THAT STOOD HERE WERE FALSE AND ARE CORRECTED RATHER THAN DELETED.
 They said "a record the reader skipped, or an early return that abandoned a
@@ -125,10 +137,13 @@ install and no save library. The library case skips there.
 
 from __future__ import annotations
 
+import ast
+import struct
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 from types import MappingProxyType
 from typing import Final
 
@@ -182,6 +197,35 @@ _FIRST_TAG_NAME: Final = "mFirstSyntheticObject"
 _SECOND_TAG_NAME: Final = "mSecondSyntheticObject"
 _FIRST_TARGET: Final = "Persistent_Level:PersistentLevel.SyntheticFirstTarget_0"
 _SECOND_TARGET: Final = "Persistent_Level:PersistentLevel.SyntheticSecondTarget_0"
+
+#: THE THREE SHAPES THE UNRESOLVED BUCKET ACTUALLY HOLDS - CS-833. One tag name
+#: and one path per shape, so a fixture carrying all three drives all three
+#: counters and a collapse of the three into one is detectable without a game
+#: installed.
+#:
+#: The ASSET path is sourced from the sibling module's own fixture rather than
+#: transcribed, so the shape this file calls asset-shaped and the shape that
+#: file plants under a SoftObjectProperty cannot drift apart.
+_ASSET_TAG_NAME: Final = "mSyntheticAssetShaped"
+_ASSET_SHAPED_PATH: Final = test_properties._SYNTHETIC_ASSET  # noqa: SLF001
+
+#: A path in the SAVED-OBJECT shape - the same shape every resolving reference
+#: in a real save carries - that NO record in the fixture table bears. THIS IS
+#: THE CLASS THE ASSET GLOSS DENIED EXISTED, and it is measured to be inhabited
+#: on this project's own library by the sweep below.
+_UNBORNE_TAG_NAME: Final = "mSyntheticUnborneObject"
+_UNBORNE_SAVE_OBJECT_PATH: Final = "Persistent_Level:PersistentLevel.SyntheticUnborne_0"
+
+#: The EMPTY object path. A reference whose second string is zero length decodes
+#: like any other - the decoder checks that the two strings consume the declared
+#: size, and a zero-length string consumes its own prefix exactly - so it is a
+#: member of the population and needs a landing place. It names no asset and no
+#: saved object; it names nothing.
+_EMPTY_TAG_NAME: Final = "mSyntheticEmptyPath"
+_EMPTY_OBJECT_PATH: Final = ""
+
+#: How many shapes the unresolved bucket is partitioned into.
+_UNRESOLVED_SHAPE_COUNT: Final = 3
 
 
 def _record(
@@ -516,6 +560,177 @@ def test_an_empty_record_table_resolves_nothing_and_still_partitions() -> None:
 
 
 # ---------------------------------------------------------------------------
+# What the unresolved bucket actually holds - CS-833 and CS-836
+#
+# NEEDS NO GAME AT ALL. Every case in this section runs on hand-authored tags,
+# which is what CS-836 asks for: the resolver dropping a reference has to be
+# catchable on a machine with no install and no save library, because that is
+# the machine CI runs on and a drop there is silent by construction.
+# ---------------------------------------------------------------------------
+
+
+def _unresolvable_payload() -> objects.PropertyResult:
+    """One component payload carrying one reference tag of each unresolved shape.
+
+    ALL THREE IN ONE PAYLOAD ON PURPOSE. Three separate fixtures would each
+    drive one counter, and three counters each shown to move once is not the
+    same claim as three counters shown to move APART - collapsing them into one
+    accumulator leaves three single-shape fixtures entirely green.
+
+    Returns:
+        The decoded result, carrying three references and nothing else.
+    """
+    reference_tag = test_properties._reference_tag  # noqa: SLF001
+    level = test_properties._SYNTHETIC_LEVEL  # noqa: SLF001
+    return _read_payload_of(
+        reference_tag(_ASSET_TAG_NAME, "ObjectProperty", level, _ASSET_SHAPED_PATH)
+        + reference_tag(_UNBORNE_TAG_NAME, "ObjectProperty", level, _UNBORNE_SAVE_OBJECT_PATH)
+        + reference_tag(_EMPTY_TAG_NAME, "ObjectProperty", level, _EMPTY_OBJECT_PATH)
+    )
+
+
+def test_a_reference_whose_object_path_is_empty_is_bucketed_rather_than_skipped() -> None:
+    """CS-836. A resolver that SKIPS a reference loses it silently, and here it cannot.
+
+    THE EMPTY PATH IS THE ONE A SKIP LOOKS REASONABLE FOR. Nothing can bear it,
+    so a ``continue`` before the lookup reads like an optimisation rather than a
+    defect - and on a machine with no save library nothing else in this file
+    would have said otherwise. That is the whole reason this case is synthetic.
+
+    WHAT REDDENS AND WHY IT IS NOT THE IDENTITY BEING CIRCULAR. ``total`` comes
+    from ``_walk_payload``'s tag counter, which counts the tag when the walk
+    steps over it and knows nothing about what the join later does with it. A
+    skip inside ``resolve_references`` moves the buckets and leaves ``total``
+    where it was, so the sum parts company with it. That is the ONE defect class
+    the identity does catch, and it is exactly this one.
+
+    NEEDS NO SAVE LIBRARY AND NO INSTALL.
+    """
+    result = _read_payload_of(
+        test_properties._reference_tag(  # noqa: SLF001
+            _EMPTY_TAG_NAME,
+            "ObjectProperty",
+            test_properties._SYNTHETIC_LEVEL,  # noqa: SLF001
+            _EMPTY_OBJECT_PATH,
+        )
+    )
+    index = objects.index_records(_table(_record(_FIRST_TARGET)))
+
+    resolution = objects.resolve_references(index, result)
+
+    assert result.reference_tag_count == 1, (
+        "the fixture stopped carrying exactly one reference tag, so every count "
+        "below is about a different population than the one this case describes"
+    )
+    assert resolution.total == 1
+    assert resolution.resolved + resolution.unresolved + resolution.undecoded == resolution.total, (
+        f"resolved {resolution.resolved} plus unresolved {resolution.unresolved} plus "
+        f"undecoded {resolution.undecoded} does not account for the {resolution.total} tags "
+        "the walk stepped over, so a reference was skipped rather than bucketed"
+    )
+    assert resolution.unresolved == 1, (
+        "an empty object path landed somewhere other than the unresolved bucket"
+    )
+    assert resolution.unresolved_empty_path == 1, (
+        "an empty object path was counted as some other unresolved shape"
+    )
+
+
+def test_the_unresolved_bucket_counts_its_three_shapes_apart() -> None:
+    """CS-833. The three shapes are counted APART, and a collapse reddens here.
+
+    WHY THIS IS THE CASE THAT GRADES THE SPLIT rather than the library sweep.
+    Collapsing the three counters back into one leaves every SUM green - the
+    three still add to ``unresolved`` - so a sum is not evidence the split
+    exists. What dies under a collapse is three counters each holding ONE while
+    the payload carries one tag of each shape, and that is asserted here.
+
+    THE ASSET GLOSS IS FALSIFIED BY CONSTRUCTION HERE AND BY MEASUREMENT IN THE
+    SWEEP. Two of these three references name no asset: one carries a path in
+    the same shape every resolving reference carries and simply finds no bearer,
+    and one carries no path at all.
+
+    NEEDS NO SAVE LIBRARY AND NO INSTALL.
+    """
+    result = _unresolvable_payload()
+    index = objects.index_records(_table(_record(_FIRST_TARGET)))
+
+    resolution = objects.resolve_references(index, result)
+
+    assert resolution.total == _UNRESOLVED_SHAPE_COUNT
+    assert resolution.unresolved == _UNRESOLVED_SHAPE_COUNT
+    assert resolution.resolved == 0
+    assert resolution.unresolved_asset_shaped == 1, (
+        "the asset-shaped reference did not land in its own counter"
+    )
+    assert resolution.unresolved_save_object_shaped == 1, (
+        "a path in the saved-object shape that no record bears did not land in "
+        "its own counter - this is the class the asset gloss denied existed"
+    )
+    assert resolution.unresolved_empty_path == 1, (
+        "the empty object path did not land in its own counter"
+    )
+
+
+def test_the_three_unresolved_shapes_partition_the_bucket_and_leave_nothing_over() -> None:
+    """The split is TOTAL. A fourth shape has a home or this equality says so.
+
+    A CLASSIFIER THAT SILENTLY DROPS AN UNRECOGNISED SHAPE would reproduce, one
+    layer down, exactly the defect CS-833 is about: a reference counted in a
+    bucket whose stated meaning does not cover it. The shipped classifier is
+    total by construction - its last branch is unconditional - and this holds
+    the three counters to the bucket they refine so that stops being a promise.
+
+    NEEDS NO SAVE LIBRARY AND NO INSTALL.
+    """
+    result = _unresolvable_payload()
+    index = objects.index_records(_table(_record(_FIRST_TARGET)))
+
+    resolution = objects.resolve_references(index, result)
+    shapes = (
+        resolution.unresolved_asset_shaped,
+        resolution.unresolved_save_object_shaped,
+        resolution.unresolved_empty_path,
+    )
+
+    assert sum(shapes) == resolution.unresolved, (
+        f"the three unresolved shapes {shapes} do not account for the "
+        f"{resolution.unresolved} references in the bucket they refine"
+    )
+    assert len(objects.UNRESOLVED_SHAPES) == _UNRESOLVED_SHAPE_COUNT
+    assert set(objects.UNRESOLVED_SHAPES) == {
+        objects.UNRESOLVED_ASSET_SHAPED,
+        objects.UNRESOLVED_SAVE_OBJECT_SHAPED,
+        objects.UNRESOLVED_EMPTY_PATH,
+    }
+
+
+def test_the_unresolved_classifier_names_a_shape_for_every_string_it_is_given() -> None:
+    """The classifier is TOTAL over strings, including ones no save produces.
+
+    IT IS A SHAPE TEST AND NOT A CLAIM ABOUT WHAT THE REFERENCE NAMES, which is
+    the distinction CS-833 exists to restore. Asking it about a string that is
+    neither is therefore a fair question with an answer, not an error - and the
+    answer has to be one of the three shipped shapes rather than None, because a
+    None here is the silent drop one layer down.
+
+    NEEDS NO SAVE LIBRARY AND NO INSTALL.
+    """
+    for path in (
+        _EMPTY_OBJECT_PATH,
+        _ASSET_SHAPED_PATH,
+        _UNBORNE_SAVE_OBJECT_PATH,
+        _FIRST_TARGET,
+        "not-a-path-in-any-shape",
+        "/",
+    ):
+        shape = objects.classify_unresolved(path)
+        assert shape in objects.UNRESOLVED_SHAPES, (
+            f"the classifier returned {shape!r}, which is not a shipped shape"
+        )
+
+
+# ---------------------------------------------------------------------------
 # The two conditions a naive join gets silently wrong
 # ---------------------------------------------------------------------------
 
@@ -638,9 +853,20 @@ class _ReferenceSweep:
         walked_undecoded: Tags the second pass decoded to no pair.
         walked_ambiguous: Second-join landings on a name borne more than once,
             counted off a plain multiset of ``table.records``.
+        scanned_type_words: Every occurrence of the length-prefixed reference
+            TYPE WORD in the decompressed body, found by a byte scan that knows
+            no grammar at all. It is a BOUND on the population and never an
+            equal - see the case that reads it for why, and CS-834.
         total: The population the shipped resolver reported, summed.
         resolved: References landing on a record in the same save.
-        unresolved: References landing on nothing - assets, expected.
+        unresolved: References landing on nothing. THE BUCKET IS NOT ONE THING -
+            it is refined by the three fields below, which is CS-833.
+        unresolved_asset_shaped: Unresolved references whose path is in the
+            content-tree shape.
+        unresolved_save_object_shaped: Unresolved references whose path is in
+            the SAME shape a resolving reference carries and which no record in
+            that save bears.
+        unresolved_empty_path: Unresolved references carrying no path at all.
         undecoded: ObjectProperty tags whose bytes yielded no pair.
         ambiguous: Resolutions onto a path borne by more than one record.
         failures: Exception TYPE NAMES, and nothing else about them.
@@ -654,12 +880,51 @@ class _ReferenceSweep:
     walked_unresolved: int
     walked_undecoded: int
     walked_ambiguous: int
+    scanned_type_words: int
     total: int
     resolved: int
     unresolved: int
+    unresolved_asset_shaped: int
+    unresolved_save_object_shaped: int
+    unresolved_empty_path: int
     undecoded: int
     ambiguous: int
     failures: tuple[str, ...]
+
+
+#: The reference type word as it appears in a body: a little-endian int32 byte
+#: length that INCLUDES the NUL terminator, the ASCII bytes, then the NUL.
+#: Derived from the shipped constant rather than typed out, so the scan cannot
+#: end up hunting a word the module no longer calls a reference.
+_TYPE_WORD_NEEDLE: Final = (
+    struct.pack("<i", len(objects.REFERENCE_TYPE_WORD) + 1)
+    + objects.REFERENCE_TYPE_WORD.encode("ascii")
+    + b"\x00"
+)
+
+
+def _scan_type_words(body: bytes) -> int:
+    """Count every occurrence of the length-prefixed type word in a whole body.
+
+    THE ONE COUNT IN THIS FILE THAT KNOWS NO GRAMMAR. It does not walk, it does
+    not consult a record extent and it cannot tell a tag from a coincidence - it
+    finds a byte pattern. That is exactly its value and exactly its limit: it
+    reaches regions no walk visits, so it BOUNDS the population from above and
+    can never equal it. See the case that reads it.
+
+    Args:
+        body: The decompressed body.
+
+    Returns:
+        How many times the pattern occurs. COUNTS ONLY - no offset is returned
+        and no byte of the body leaves this frame.
+    """
+    found = 0
+    at = body.find(_TYPE_WORD_NEEDLE)
+    while at != -1:
+        found += 1
+        at = body.find(_TYPE_WORD_NEEDLE, at + 1)
+    return found
 
 
 def _second_join(
@@ -741,6 +1006,7 @@ def _sweep_one_save(
     )
     index = objects.index_records(table)
     into["saves"] += 1
+    into["scanned_type_words"] += _scan_type_words(body)
     into["indexed_records"] += sum(len(found) for found in index.records_by_name.values())
     # PASS TWO'S OWN VIEW OF THE TABLE, counted here with a plain multiset rather
     # than read back out of the index under test. That is the whole reason a
@@ -754,6 +1020,9 @@ def _sweep_one_save(
         into["total"] += resolution.total
         into["resolved"] += resolution.resolved
         into["unresolved"] += resolution.unresolved
+        into["unresolved_asset_shaped"] += resolution.unresolved_asset_shaped
+        into["unresolved_save_object_shaped"] += resolution.unresolved_save_object_shaped
+        into["unresolved_empty_path"] += resolution.unresolved_empty_path
         into["undecoded"] += resolution.undecoded
         into["ambiguous"] += resolution.ambiguous
         # PASS TWO - the same tags reached again and joined against `borne`,
@@ -798,9 +1067,13 @@ def _sweep_references() -> _ReferenceSweep | None:
             "walked_unresolved",
             "walked_undecoded",
             "walked_ambiguous",
+            "scanned_type_words",
             "total",
             "resolved",
             "unresolved",
+            "unresolved_asset_shaped",
+            "unresolved_save_object_shaped",
+            "unresolved_empty_path",
             "undecoded",
             "ambiguous",
         ),
@@ -1022,6 +1295,95 @@ def test_the_undecoded_bucket_is_reachable_rather_than_dead_on_the_library() -> 
     )
 
 
+def test_the_type_word_occurrences_the_top_level_walk_does_not_reach_are_counted() -> None:
+    """CS-834. The population is TOP-LEVEL tags, and the rest is counted rather than denied.
+
+    ONE NUMBER, DELIBERATELY. The count derived here is the grammar-free scan
+    minus the tags the top-level walk reached, and it is left as a single
+    difference. AN EARLIER ATTEMPT AT THIS ITEM SPLIT IT IN TWO - nested inside
+    opaque values against falling outside every payload - and the two halves
+    summed to a total that was itself correct, which is precisely why the split
+    read as measured when it was invented. Re-measured on this library the named
+    regions do NOT account for the difference, so any apportionment written here
+    would be a fresh version of the same false sentence. The difference is the
+    measurement; where every member of it lives is not claimed.
+
+    WHAT REDDENS. This asserts the count is positive, so the day anyone asserts
+    it is zero - that the top-level walk reaches every occurrence of the word -
+    this case says otherwise. That claim is what CS-834 was filed against.
+
+    WHY IT CANNOT BE DRIVEN TO ZERO BY FIXING ANYTHING. The scan matches a byte
+    pattern with no grammar, so it also matches the word wherever it appears
+    inside a value the walk steps over as opaque bytes, and a walk that chased
+    every match would be reading offsets its own grammar never gave it. The
+    boundary is a property of the population CS-831 chose, and
+    ``objects.resolve_references`` now states it where the resolver is defined.
+
+    SKIPS on a machine with no save library, no shipped property mapping, or no
+    save of a version pair this project parses. Reports COUNTS ONLY.
+    """
+    sweep = _sweep_or_skip()
+    unreached = sweep.scanned_type_words - sweep.walked_tags
+
+    assert sweep.scanned_type_words > 0, (
+        "the grammar-free scan found no occurrence of the reference type word at "
+        f"all across {sweep.saves} saves, so the bound below is vacuous"
+    )
+    assert unreached > 0, (
+        f"the grammar-free scan found {sweep.scanned_type_words} occurrences of the "
+        f"reference type word and the top-level walk reached {sweep.walked_tags} of "
+        "them, leaving nothing unreached. CS-831's population is top-level tags only "
+        "and the word is measured to occur below that level, so a zero here means "
+        "the scan or the walk stopped measuring rather than that the gap closed"
+    )
+    assert sweep.walked_tags < sweep.scanned_type_words, (
+        "the walk reached at least as many tags as a scan that also matches the word "
+        "inside opaque values, which cannot be true of a bound"
+    )
+
+
+def test_the_library_unresolved_bucket_holds_more_than_one_kind_of_thing() -> None:
+    """CS-833. The asset gloss is falsified on this project's own library.
+
+    WHAT THE SHIPPED SENTENCES USED TO SAY was that a reference resolving to no
+    record NAMES AN ASSET - stated as a universal over the whole bucket, at
+    three sites. It is not universal. Two other shapes are measured to be
+    inhabited here: a path in the SAME shape every resolving reference carries
+    that simply no record bears, and a reference carrying no path at all.
+
+    THIS IS A PRESENCE FLOOR AND THAT IS SAID PLAINLY. It asserts the non-asset
+    remainder is non-empty rather than pinning any count, because the corpus is
+    the operator's live library and grows on every autosave. A presence floor
+    can in principle go red on correct code the day the library holds nothing
+    but asset-shaped misses - but the claim under test IS a presence claim, and
+    the collapse this item is really about is graded without a library at all by
+    ``test_the_unresolved_bucket_counts_its_three_shapes_apart``.
+
+    SKIPS on a machine with no save library, no shipped property mapping, or no
+    save of a version pair this project parses. Reports COUNTS ONLY.
+    """
+    sweep = _sweep_or_skip()
+    shapes = (
+        sweep.unresolved_asset_shaped,
+        sweep.unresolved_save_object_shaped,
+        sweep.unresolved_empty_path,
+    )
+
+    assert sweep.unresolved > 0, (
+        f"nothing was unresolved across {sweep.walked_tags} references, so the "
+        "partition of the unresolved bucket is vacuous here"
+    )
+    assert sum(shapes) == sweep.unresolved, (
+        f"the three unresolved shapes {shapes} do not account for the "
+        f"{sweep.unresolved} references in the bucket they refine"
+    )
+    assert sweep.unresolved_asset_shaped < sweep.unresolved, (
+        f"all {sweep.unresolved} unresolved references are asset-shaped, which is "
+        "the universal three shipped sentences used to state. Either the corpus "
+        "changed shape or the three counters were collapsed back into one"
+    )
+
+
 def test_the_synthetic_broken_tag_would_be_caught_by_the_library_assertion() -> None:
     """The CONTROL for the case above. An assertion pinned at zero needs one.
 
@@ -1051,6 +1413,234 @@ def test_the_synthetic_broken_tag_would_be_caught_by_the_library_assertion() -> 
 
     assert objects.resolve_references(index, clean).undecoded == 0
     assert objects.resolve_references(index, broken).undecoded == 1
+
+
+# ---------------------------------------------------------------------------
+# CS-835 - the common mode, recorded rather than argued away
+#
+# WHICH ARM OF THE ACCEPTANCE THIS IS, SAID PLAINLY. CS-835 offers two: a second
+# reference count obtained WITHOUT the shipped primitives, or the common-mode
+# limit recorded as a shipped constant a test holds against the real shared
+# surface. THIS IS THE SECOND ARM. The first was measured impossible without a
+# second reader of the save grammar, which this project has declined to build
+# and has recorded declining - a grammar-free count can bound the population and
+# never equal it, which is the measurement CS-834 above now ships. Recording the
+# limit is therefore not a weaker version of the first arm; it is the honest
+# statement of what the second pass is, and it turns a fact that lived in a
+# docstring into one a test holds.
+#
+# THE DERIVATION READS SOURCE, NOT BEHAVIOUR, and that is deliberate: the claim
+# is about which symbols the two passes SHARE, and two passes agreeing at
+# runtime is exactly the evidence that would be worthless here.
+# ---------------------------------------------------------------------------
+
+#: The AST node types a function definition can be.
+_ANY_FUNCTION: Final = (ast.FunctionDef, ast.AsyncFunctionDef)
+
+
+def _definitions_of(tree: ast.Module) -> dict[str, ast.AST]:
+    """Map every module-level function and class to its node.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        Name to definition node.
+    """
+    return {
+        node.name: node for node in tree.body if isinstance(node, (*_ANY_FUNCTION, ast.ClassDef))
+    }
+
+
+def _module_universe(tree: ast.Module) -> frozenset[str]:
+    """Every name bound at a module's top level - definitions and assignments.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        The names.
+    """
+    names = set(_definitions_of(tree))
+    for node in tree.body:
+        for target in getattr(node, "targets", ()) or ():
+            if isinstance(target, ast.Name):
+                names.add(target.id)
+        annotated = getattr(node, "target", None)
+        if isinstance(annotated, ast.Name):
+            names.add(annotated.id)
+    return frozenset(names)
+
+
+def _executed_nodes(scope: ast.AST) -> list[ast.AST]:
+    """Every node under ``scope`` that RUNS, with annotations excluded.
+
+    ANNOTATIONS ARE NOT EXECUTION AND COUNTING THEM WOULD OVERSTATE THE LIMIT.
+    A parameter typed ``ObjectRecord`` does not make the record walker part of
+    what a pass runs, and this module is under ``from __future__ import
+    annotations`` where such a name is never evaluated at all. Including them
+    would also make the shipped record churn on a cosmetic type change, which is
+    how a record stops being read.
+
+    Args:
+        scope: A function, a class or any expression node.
+
+    Returns:
+        The nodes, ``scope`` itself included when it is not a definition.
+    """
+    stack: list[ast.AST] = list(
+        scope.body if isinstance(scope, (*_ANY_FUNCTION, ast.ClassDef)) else [scope]
+    )
+    seen: list[ast.AST] = []
+    while stack:
+        node = stack.pop()
+        seen.append(node)
+        for field, value in ast.iter_fields(node):
+            if field in {"annotation", "returns"}:
+                continue
+            if field == "args" and isinstance(node, _ANY_FUNCTION):
+                continue
+            stack.extend(
+                item
+                for item in (value if isinstance(value, list) else [value])
+                if isinstance(item, ast.AST)
+            )
+    return seen
+
+
+def _local_names(scope: ast.AST, universe: frozenset[str]) -> set[str]:
+    """The module-level names of ``universe`` that ``scope`` executes.
+
+    Args:
+        scope: The node to read.
+        universe: The defining module's own top-level names.
+
+    Returns:
+        The names used.
+    """
+    return {
+        node.id
+        for node in _executed_nodes(scope)
+        if isinstance(node, ast.Name) and node.id in universe
+    }
+
+
+def _objects_attributes(scope: ast.AST, universe: frozenset[str]) -> set[str]:
+    """The ``objects.<name>`` attributes ``scope`` executes.
+
+    QUALIFIED ACCESS ONLY. Matching a bare attribute name would pick up
+    ``record.kind`` and every other attribute that happens to share a spelling
+    with a module-level name, which would inflate the recorded limit with
+    symbols neither pass touches.
+
+    Args:
+        scope: The node to read.
+        universe: ``objects``' own top-level names.
+
+    Returns:
+        The attribute names used.
+    """
+    return {
+        node.attr
+        for node in _executed_nodes(scope)
+        if isinstance(node, ast.Attribute)
+        and isinstance(node.value, ast.Name)
+        and node.value.id == objects.__name__.rsplit(".", 1)[-1]
+        and node.attr in universe
+    }
+
+
+def _objects_closure(
+    seeds: set[str], definitions: Mapping[str, ast.AST], universe: frozenset[str]
+) -> frozenset[str]:
+    """Close a seed set over ``objects``' own call graph.
+
+    Args:
+        seeds: The names a pass reaches directly.
+        definitions: ``objects``' module-level definitions.
+        universe: ``objects``' top-level names.
+
+    Returns:
+        Every name reachable from a seed, the seeds included.
+    """
+    seen: set[str] = set()
+    stack = list(seeds)
+    while stack:
+        name = stack.pop()
+        if name in seen:
+            continue
+        seen.add(name)
+        node = definitions.get(name)
+        if node is not None:
+            stack.extend(_local_names(node, universe) - seen)
+    return frozenset(seen)
+
+
+@lru_cache(maxsize=1)
+def _shared_reference_symbols() -> tuple[frozenset[str], frozenset[str], frozenset[str]]:
+    """Derive what each reference-counting pass reaches inside ``objects``.
+
+    Returns:
+        Pass one's reach, pass two's reach, and their intersection.
+    """
+    tree = ast.parse(Path(objects.__file__).read_text(encoding="ascii"))
+    definitions = _definitions_of(tree)
+    universe = _module_universe(tree)
+
+    here = _definitions_of(ast.parse(Path(__file__).read_text(encoding="ascii")))
+    oracles = _definitions_of(
+        ast.parse(Path(test_decode_oracles.__file__).read_text(encoding="ascii"))
+    )
+
+    first = _objects_closure(
+        _objects_attributes(here["_sweep_one_save"], universe), definitions, universe
+    )
+    second = _objects_closure(
+        _objects_attributes(here["_second_join"], universe)
+        | _objects_attributes(oracles["_walk_with_the_shipped_reader"], universe),
+        definitions,
+        universe,
+    )
+    return first, second, first & second
+
+
+def test_the_common_mode_the_second_count_cannot_escape_is_recorded_and_accurate() -> None:
+    """CS-835. The limit is a shipped constant, and this holds it to the real set.
+
+    A SYMBOL LEAVING OR JOINING THE SHARED SET REDDENS HERE, which is the whole
+    of what the recorded-limit arm buys. Before this, the fact that both passes
+    run the same reader lived in a docstring, and a docstring cannot notice a
+    refactor that widens or narrows the surface it describes.
+
+    WHAT THE CONSTANT MEANS. Every name in it is a symbol of
+    ``clockspeed/save/objects.py`` that BOTH reference counts execute. A defect
+    in any of them moves both counts the same way, so no agreement between them
+    is evidence about it. It is deliberately not a short list - the discomfort is
+    the finding.
+
+    NEEDS NO SAVE LIBRARY AND NO INSTALL - it is a claim about the repo.
+    """
+    first, second, shared = _shared_reference_symbols()
+    recorded = set(objects.REFERENCE_COUNT_COMMON_MODE)
+
+    assert shared == recorded, (
+        "the recorded common mode no longer matches the shared surface. "
+        f"joined since it was recorded: {sorted(shared - recorded)}; "
+        f"left it: {sorted(recorded - shared)}"
+    )
+    assert second - first == frozenset(), (
+        "the second count reaches something the first does not, which would make "
+        f"it partly independent: {sorted(second - first)}"
+    )
+    assert second == shared, (
+        "the second count's whole reach is no longer inside the common mode, so "
+        "the recorded limit understates what the two passes share"
+    )
+    for named in ("_payload_text", "_read_tag_header", "_decode_value", "_skip_actor_head"):
+        assert named in objects.REFERENCE_COUNT_COMMON_MODE, (
+            f"{named} is one of the four primitives CS-835 names and it is not in "
+            "the recorded common mode"
+        )
 
 
 def test_the_reference_type_word_the_oracles_transcribe_is_the_one_the_module_ships() -> None:

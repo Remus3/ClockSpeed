@@ -247,12 +247,17 @@ __all__ = [
     "REASON_NO_DISCRIMINATION_TEST",
     "REASON_SAMPLE_SIZE",
     "REASON_SHIPPED_ALIGNMENT_ONLY",
+    "REFERENCE_COUNT_COMMON_MODE",
     "REFERENCE_TYPE_WORD",
     "TRANSFORM_BYTES",
     "TRANSFORM_DELTA_BY_SAVE_VERSION",
     "TRANSFORM_FLOAT_COUNT",
     "UNKNOWN_CLASS_REASONS",
     "UNMEASURED_PAYLOAD_REGIONS",
+    "UNRESOLVED_ASSET_SHAPED",
+    "UNRESOLVED_EMPTY_PATH",
+    "UNRESOLVED_SAVE_OBJECT_SHAPED",
+    "UNRESOLVED_SHAPES",
     "VALUE_BYTE_ORDER_STATUS",
     "WARN_BODY_LENGTH_DISAGREEMENT",
     "WARN_MEASURED_VALUE_DISAGREED",
@@ -288,6 +293,7 @@ __all__ = [
     "UnsupportedBodyLayoutError",
     "UnsupportedSaveVersionError",
     "class_name_of",
+    "classify_unresolved",
     "container_candidate_words",
     "index_records",
     "parse_body",
@@ -1377,17 +1383,34 @@ class ReferenceResolution:
     drops does not show up in that sum. What the three buckets buy is a stated
     landing place for every tag, and every tag having one is what
     non-negotiable 7 asks of a reader that meets content it cannot follow.
-    UNRESOLVED IS THE EXPECTED CASE rather than a
-    fault: a reference that names nothing in the table names an ASSET, which is
-    content shipped with the game rather than an object saved in the world, and
-    non-negotiable 7 says to flag and skip it.
+    UNRESOLVED IS THE EXPECTED CASE rather than a fault, and flagging it instead
+    of failing is what non-negotiable 7 asks for.
+
+    WHAT UNRESOLVED IS NOT IS ONE THING, AND A SENTENCE HERE SAID IT WAS -
+    CS-833. It claimed that a reference naming nothing in the table names an
+    ASSET, stated as a universal over the whole bucket. The library falsifies
+    it. Members of the bucket carry a path in the SAME shape every resolving
+    reference carries and are simply borne by no record in that save, and
+    members carry no path at all - neither names an asset. The universal is
+    withdrawn and replaced by a partition: :func:`classify_unresolved` sorts
+    every member into one of :data:`UNRESOLVED_SHAPES`, and the three counts
+    below are carried APART so no consumer has to take the gloss on trust. What
+    is still true, and all that is claimed, is that the asset-shaped members are
+    the bulk of it.
 
     Attributes:
         targets: Property name to the records that name resolved to. Resolved
             entries only - a name absent here either did not resolve or did not
             decode. WORLD CONTENT; rendering it is an echo path.
         resolved: References whose path is borne by at least one record.
-        unresolved: References that decoded and matched no record.
+        unresolved: References that decoded and matched no record. REFINED BY
+            THE THREE COUNTS BELOW, which partition it.
+        unresolved_asset_shaped: Of ``unresolved``, those whose path begins at
+            the content-tree root - the shape a shipped asset carries.
+        unresolved_save_object_shaped: Of ``unresolved``, those whose path is in
+            the shape a SAVED OBJECT carries and which no record in this table
+            bears. THE CLASS THE WITHDRAWN UNIVERSAL DENIED EXISTED.
+        unresolved_empty_path: Of ``unresolved``, those carrying no path at all.
         undecoded: Reference TAGS whose bytes yielded no pair at all.
         ambiguous: How many of ``resolved`` landed on a path borne by more than
             one record. A subset of ``resolved`` and NOT a fourth bucket, so it
@@ -1401,6 +1424,13 @@ class ReferenceResolution:
     undecoded: int
     ambiguous: int
     total: int
+    # DEFAULTED FOR THE REASON CS-830 DEFAULTED ITS OWN COUNTERS: adding a field
+    # to a frozen dataclass that a caller builds by keyword must not break that
+    # caller. A consumer predating CS-833 constructs six fields and gets three
+    # zeroes, which is honest - it counted no shapes.
+    unresolved_asset_shaped: int = 0
+    unresolved_save_object_shaped: int = 0
+    unresolved_empty_path: int = 0
 
     def __repr__(self) -> str:
         """Render counts only, and withhold every name.
@@ -1411,6 +1441,9 @@ class ReferenceResolution:
         return (
             f"{type(self).__name__}(targets={len(self.targets)}, "
             f"resolved={self.resolved}, unresolved={self.unresolved}, "
+            f"unresolved_asset_shaped={self.unresolved_asset_shaped}, "
+            f"unresolved_save_object_shaped={self.unresolved_save_object_shaped}, "
+            f"unresolved_empty_path={self.unresolved_empty_path}, "
             f"undecoded={self.undecoded}, ambiguous={self.ambiguous}, "
             f"total={self.total})"
         )
@@ -4931,6 +4964,162 @@ def read_properties(body: bytes, record: ObjectRecord, property_map: PropertyMap
 # ---------------------------------------------------------------------------
 
 
+#: EVERY SYMBOL OF THIS MODULE THAT BOTH REFERENCE COUNTS EXECUTE - CS-835.
+#:
+#: WHAT IT IS FOR. ``tests/save/test_reference_resolution.py`` grades the join
+#: by counting the same references a SECOND time and comparing. That second
+#: count re-uses this module's reader wholesale, so the two counts are not two
+#: pieces of evidence about anything named below: a defect in any of these
+#: symbols moves both counts the same way and the comparison stays green. Two
+#: derivations off one reader are one reader's opinion stated twice (CLAUDE.md
+#: section 5), and this is the list of what that covers.
+#:
+#: WHY A LIST AND NOT A SECOND READER. CS-835's other arm was a reference count
+#: obtained without these primitives. It was measured impossible short of a
+#: second implementation of the save grammar, which this project has not built
+#: and has recorded not building - the one grammar-free count available bounds
+#: the population and cannot equal it (see :func:`resolve_references`). So the
+#: limit is written down instead of argued away, and a test holds this list
+#: against the surface actually shared, going red when a symbol joins or leaves.
+#:
+#: IT IS LONG ON PURPOSE AND THE LENGTH IS THE FINDING. The four primitives the
+#: item names - ``_payload_text``, ``_read_tag_header``, ``_decode_value`` and
+#: ``_skip_actor_head`` - drag in everything they call, and the honest surface
+#: is the closure rather than the four. NO COUNT OF THESE NAMES IS WRITTEN IN
+#: PROSE anywhere; the set is the record and ``len`` is how anyone asks.
+REFERENCE_COUNT_COMMON_MODE: Final = frozenset(
+    {
+        "CONTAINER_TYPE_WORDS",
+        "ContainerElement",
+        "ContainerValue",
+        "ELEMENT_SHAPE_SELF_DELIMITING",
+        "ELEMENT_SHAPE_SOLVED_WIDTH",
+        "ELEMENT_SHAPE_UNIFORM_WIDTH",
+        "GUID_BYTES",
+        "INT32_SIZE",
+        "KIND_ACTOR",
+        "MAX_OBJECTS",
+        "MAX_STRING_BYTES",
+        "MEASURED_VALUE_TYPES",
+        "ObjectReference",
+        "REFERENCE_TYPE_WORD",
+        "UTF16_CHAR_SIZE",
+        "_CONTAINER_LEAD_FIELDS",
+        "_ELEMENT_FIXED_WIDTHS",
+        "_ELEMENT_STRING_COUNTS",
+        "_ELEMENT_TAG_LIST_WORD",
+        "_FIXED_WIDTH_VALUES",
+        "_MAX_CONTAINER_ELEMENTS",
+        "_MAX_ELEMENT_TAGS",
+        "_MAX_TAGS_PER_PAYLOAD",
+        "_ONE_STRING_VALUES",
+        "_PAYLOAD_TERMINATOR",
+        "_RAW_SHAPE_ELEMENT_WORDS",
+        "_REFERENCE_PARTS",
+        "_SOFT_OBJECT_TAIL_BYTES",
+        "_SOLVED_WIDTH_CAP",
+        "_TAG_EXTRA_STRINGS",
+        "_TAG_INDEX_FIELD_BYTES",
+        "_TWO_STRING_VALUES",
+        "_as_reference",
+        "_bound_container_elements",
+        "_decode_container",
+        "_decode_element_value",
+        "_decode_fixed_width",
+        "_decode_object_reference",
+        "_decode_text_value",
+        "_decode_value",
+        "_element_half_end",
+        "_element_tag_list_end",
+        "_open_container",
+        "_payload_text",
+        "_read_array_struct_tag",
+        "_read_tag_header",
+        "_skip_actor_head",
+        "_skip_guid_flag",
+        "_skip_tag_extra",
+        "_walk_elements",
+    }
+)
+
+#: The leading separator that opens a path into the game's own content tree.
+#: THE CRITERION IS THE SEPARATOR, NOT ANY ROOT NAME. Naming an observed root
+#: would put a corpus fact in a constant and make the classifier go wrong the
+#: first time a save references a root nobody had seen (CLAUDE.md section 4).
+_CONTENT_PATH_ROOT: Final = "/"
+
+#: The three shapes an UNRESOLVED reference's path takes, name to what the shape
+#: does and does not say - CS-833.
+#:
+#: THESE ARE SHAPE TESTS AND NOT CLAIMS ABOUT WHAT THE REFERENCE NAMES, and
+#: keeping that distinction is the whole of this item. The withdrawn universal
+#: went wrong by reading a shape as an identity: it saw that most unresolved
+#: paths look like assets and concluded that unresolved MEANS asset. A shape can
+#: only ever say what the string looks like, and the two members below that look
+#: nothing like an asset are what proved the difference matters.
+UNRESOLVED_ASSET_SHAPED: Final = "asset_shaped"
+UNRESOLVED_SAVE_OBJECT_SHAPED: Final = "save_object_shaped"
+UNRESOLVED_EMPTY_PATH: Final = "empty_path"
+
+UNRESOLVED_SHAPES: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        UNRESOLVED_ASSET_SHAPED: (
+            "the path opens at the content-tree root, which is the shape a "
+            "reference to content SHIPPED WITH THE GAME carries. It is the bulk "
+            "of the bucket on this project's library and it is the reading the "
+            "withdrawn universal generalised from. What it claims is the SHAPE; "
+            "that the asset exists, or that the game would resolve it, is not "
+            "checked here and could not be without reading the install"
+        ),
+        UNRESOLVED_SAVE_OBJECT_SHAPED: (
+            "the path is in the same shape every RESOLVING reference carries and "
+            "no record in this table bears it. THIS IS THE CLASS THAT FALSIFIED "
+            "THE UNIVERSAL - it names no asset. What it means is deliberately NOT "
+            "claimed: a reference to an object in a level this save did not "
+            "carry, a stale link, and a defect in this module's own record walk "
+            "would all land here, and separating them needs an oracle this "
+            "project does not have. Counting it apart is what makes the question "
+            "askable at all"
+        ),
+        UNRESOLVED_EMPTY_PATH: (
+            "the reference decoded and its object path is the empty string. It "
+            "names nothing - not an asset and not a saved object - so both other "
+            "readings are wrong for it. It is the member a resolver is most "
+            "likely to drop silently, because skipping a lookup that cannot "
+            "succeed reads as an optimisation (CS-836)"
+        ),
+    }
+)
+
+
+def classify_unresolved(object_path: str) -> str:
+    """Sort one unresolved reference's path into a shape.
+
+    TOTAL BY CONSTRUCTION. The last branch is unconditional, so every string has
+    a shape and none is dropped. A classifier that could return nothing would
+    rebuild the CS-833 defect one layer down - a reference counted under a
+    heading whose stated meaning does not cover it.
+
+    THE ORDER OF THE TESTS IS LOAD-BEARING. The empty string is asked about
+    first because it is the one path that is in no shape at all, and asking the
+    content-root test first would sort it by the accident that the empty string
+    starts with nothing.
+
+    Args:
+        object_path: A reference's second string. Not required to be unresolved
+            - the function is a shape test and takes any string - though only
+            unresolved paths are counted with it.
+
+    Returns:
+        One of :data:`UNRESOLVED_SHAPES`.
+    """
+    if not object_path:
+        return UNRESOLVED_EMPTY_PATH
+    if object_path.startswith(_CONTENT_PATH_ROOT):
+        return UNRESOLVED_ASSET_SHAPED
+    return UNRESOLVED_SAVE_OBJECT_SHAPED
+
+
 def index_records(table: ObjectTable) -> RecordIndex:
     """Arrange a walked record table for reference lookup.
 
@@ -4964,9 +5153,46 @@ def resolve_references(index: RecordIndex, result: PropertyResult) -> ReferenceR
     """Resolve one record's references against the table, and partition them.
 
     NOTHING HERE RAISES, and nothing here is an error. A reference that matches
-    no record names an ASSET rather than a saved object - content the game
-    ships - so it is counted as unresolved and skipped, which is exactly what
+    no record is counted as unresolved and skipped, which is exactly what
     non-negotiable 7 asks for. So is a tag whose bytes yielded no pair.
+
+    WHAT AN UNRESOLVED REFERENCE NAMES IS NO LONGER GLOSSED HERE - CS-833. This
+    clause used to say it names an ASSET, as a universal over the bucket, and
+    the library falsifies that: see :class:`ReferenceResolution` for what the
+    bucket actually holds and :func:`classify_unresolved` for the partition that
+    replaced the gloss. Every member is sorted into a shape as it is counted, so
+    a consumer reads the split rather than the sentence.
+
+    THE POPULATION IS THE TOP-LEVEL PROPERTY TAG, AND THAT BOUNDARY IS STATED
+    HERE BECAUSE NOTHING ELSE OWNED IT - CS-834. What enters
+    ``result.references`` is a tag :func:`_walk_payload` stepped over at the top
+    level of a payload. THREE CLASSES OF REFERENCE ARE THEREFORE OUTSIDE THIS
+    FUNCTION'S REACH, and none of them is a defect in it:
+
+    - A reference nested inside a value the walk steps over as OPAQUE BYTES. A
+      :data:`UNMEASURED_PAYLOAD_REGIONS` entry names the struct interior as
+      exactly that. CS-830 measured a CONTAINER's element framing, which is not
+      the same thing as descending into an element: the walk advances by the
+      tag's own declared size either way, so a reference inside an element is
+      stepped over with it.
+    - A reference in a region of the payload no tag covers, the trailing run
+      that :data:`UNMEASURED_PAYLOAD_REGIONS` records among them.
+    - THE ACTOR HEAD'S COMPONENT LIST, stepped over by :func:`_skip_actor_head`
+      before the first tag is read. It is the one worth naming separately
+      because it is the only class that is not opaque at all: the head is parsed
+      exactly, the parent reference and the component pairs ARE references in
+      this same two-string shape, and they are skipped because they carry no
+      property tag rather than because their bytes are unmeasured. A count of
+      the reference TYPE WORD does not see them for the same reason.
+
+    HOW FAR THAT BOUNDARY IS MEASURED, AND NO FURTHER. A grammar-free byte scan
+    for the length-prefixed type word runs well ahead of this population, and
+    ``tests/save/test_reference_resolution.py`` derives the difference on every
+    run rather than recording a figure here. It is ONE number and is left as
+    one: an earlier attempt apportioned it between named regions, the halves
+    summed to a correct total, and re-measurement did not support the split.
+    Naming the classes above is not apportioning the count between them, and
+    this module claims no such apportionment.
 
     THE PARTITION AGAINST ``total`` IS AN IDENTITY, AND SAYING SO REPLACES A
     SENTENCE THAT CLAIMED THE OPPOSITE. The loop below does exactly one of
@@ -5001,12 +5227,19 @@ def resolve_references(index: RecordIndex, result: PropertyResult) -> ReferenceR
     """
     targets: dict[str, tuple[ObjectRecord, ...]] = {}
     resolved = 0
-    unresolved = 0
     ambiguous = 0
+    shapes = dict.fromkeys(UNRESOLVED_SHAPES, 0)
     for reference in result.references:
         found = index.records_for(reference.object_path)
         if not found:
-            unresolved += 1
+            # THE LOOKUP HAPPENS FIRST AND UNCONDITIONALLY, INCLUDING FOR THE
+            # EMPTY PATH - CS-836. Short-circuiting a path nothing can bear
+            # reads as an optimisation and is a silent drop: the reference would
+            # leave this loop in no bucket, and `total` comes from the walk's own
+            # tag counter, so the partition would stop summing to it. A
+            # synthetic case holds that sum precisely so the drop cannot survive
+            # on a machine with no save library.
+            shapes[classify_unresolved(reference.object_path)] += 1
             continue
         resolved += 1
         if len(found) > 1:
@@ -5015,10 +5248,16 @@ def resolve_references(index: RecordIndex, result: PropertyResult) -> ReferenceR
     return ReferenceResolution(
         targets=MappingProxyType(targets),
         resolved=resolved,
-        unresolved=unresolved,
+        # DERIVED FROM THE SHAPES RATHER THAN COUNTED ALONGSIDE THEM, so the
+        # bucket and its partition cannot disagree. A second accumulator here
+        # would be a fourth site for the same number and the drift that follows.
+        unresolved=sum(shapes.values()),
         undecoded=result.undecoded_reference_count,
         ambiguous=ambiguous,
         total=result.reference_tag_count,
+        unresolved_asset_shaped=shapes[UNRESOLVED_ASSET_SHAPED],
+        unresolved_save_object_shaped=shapes[UNRESOLVED_SAVE_OBJECT_SHAPED],
+        unresolved_empty_path=shapes[UNRESOLVED_EMPTY_PATH],
     )
 
 
