@@ -164,6 +164,17 @@ stated in contract 3:
   rather than a matter of framing - a register is READ BY THE SCANNER to
   suppress a finding, while this criterion is read by that test alone, which
   takes no way to go red away and adds one.
+- THE RECORD ABOVE IS READ BACK OUT AND GRADED, which is the direction the
+  citation coupling lacked when it was first written. That coupling ran
+  test-to-prose alone: deleting the cited test stopped a citation resolving and
+  reddened the scan, while deleting the criterion prose left the suite green.
+  ``test_the_recorded_exclusion_criterion_is_present_and_still_true`` closes
+  the other direction: it takes the derivation's own name off the function
+  object, finds the module-docstring prose citing that name, and grades every
+  module that prose names against the derivation. What it does NOT buy is a
+  guard on a PARTIAL repair - the ratchet admits on a state reached, so prose
+  repaired part of the way leaves the record standing, and one quantifier
+  written back releases the obligation again.
 - THE CENSUS IS SCOPED NARROWER STILL, to one module. The positions that tile
   the censused module do NOT tile this one, and the shapes that escape them are
   named rather than counted: the grammar table is regexes inside a dict, the
@@ -308,6 +319,13 @@ ABSOLUTE_PATTERNS: Final[Mapping[str, str]] = MappingProxyType(
 #: backs a sentence when the enclosing module defines a function of that name
 #: at module scope, and is read as ordinary prose when it does not.
 LOCAL_CITATION_RE: Final = re.compile(r"``(test_\w+)``")
+
+#: A repo-relative POSIX module path written as a double-backticked literal,
+#: which is how the residual record below names a module the fence leaves
+#: outside. The record is read back out through this pattern rather than
+#: through a hand-copied path, so a record naming a module that has since been
+#: fenced is reported instead of read past.
+_RECORDED_PATH_RE: Final = re.compile(r"``((?:[\w.-]+/)+[\w.-]+\.py)``")
 
 #: A sentence boundary: a terminator followed by whitespace. See the residual.
 _SENTENCE_SPLIT_RE: Final = re.compile(r"(?<=[.!?])\s+")
@@ -1015,6 +1033,41 @@ def fence_qualifiers(sources: Mapping[str, str]) -> tuple[str, ...]:
     )
 
 
+def module_docstring_paragraphs(source: str) -> list[ProseParagraph]:
+    """The prose paragraphs of a module's own docstring, and of no other.
+
+    A record written at module scope is graded where it was written. Reading it
+    out of any docstring would let a docstring that merely QUOTES the record
+    stand in for the record, which is the shape that lets a thing under test
+    supply its own evidence.
+
+    The span is taken from the same literal :func:`prose_paragraphs` reads, so
+    the two agree on where a paragraph sits by construction rather than by a
+    second line count that could drift from the first.
+
+    Args:
+        source: A module's full text.
+
+    Returns:
+        The docstring paragraphs lying inside the module docstring. Empty when
+        the module opens with something other than a string literal.
+
+    Raises:
+        SyntaxError: If the source does not parse.
+    """
+    tree = ast.parse(source)
+    opening = tree.body[0] if tree.body else None
+    literal = _string_literal(opening.value) if isinstance(opening, ast.Expr) else None
+    if literal is None:
+        return []
+    last = literal.lineno + literal.text.count("\n")
+    return [
+        paragraph
+        for paragraph in prose_paragraphs(source)
+        if paragraph.kind == "docstring" and literal.lineno <= paragraph.lineno <= last
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Paragraph references - contract 4
 # ---------------------------------------------------------------------------
@@ -1307,6 +1360,60 @@ def test_a_module_whose_prose_already_satisfies_the_fence_is_inside_it(repo_root
         "while the scan either reports a finding against it or reads no prose "
         "there. The fenced scan above names the sentences; this is the same "
         "failure read from the scope side."
+    )
+
+
+def test_the_recorded_exclusion_criterion_is_present_and_still_true(repo_root: Path) -> None:
+    sources = _sources_under(repo_root, "tests")
+    self_path = __name__.replace(".", "/") + ".py"
+    assert self_path in sources, (
+        f"{self_path} was derived from this module's own import name and the "
+        "scan read no such module, so the record below would be looked for in "
+        "a file that has been renamed or moved out of the scanned root."
+    )
+    derivation = test_a_module_whose_prose_already_satisfies_the_fence_is_inside_it.__name__
+
+    recording = [
+        paragraph
+        for paragraph in module_docstring_paragraphs(sources[self_path])
+        if derivation in LOCAL_CITATION_RE.findall(paragraph.text)
+    ]
+    assert recording, (
+        f"the module docstring of {self_path} carries no prose citing "
+        f"{derivation}. The criterion recorded in place of fencing a module is "
+        "what that citation sits in, so its absence means the record is gone "
+        "and the scope rests on a memory. Restore the ratchet residual, or "
+        "fence the modules it excused and delete this test with it."
+    )
+
+    named = sorted(
+        {path for paragraph in recording for path in _RECORDED_PATH_RE.findall(paragraph.text)}
+    )
+    excluded = [path for path in named if path not in FENCED_MODULES]
+    assert excluded, (
+        "the record cites the derivation and then names no module outside the "
+        f"fence: it names {named}. A criterion excusing no module carries no "
+        "exclusion, so what it was written to carry has been taken out of it "
+        "while the citation that makes it look intact stayed behind."
+    )
+
+    in_scan = [path for path in excluded if path in sources]
+    assert in_scan, (
+        f"the record names {excluded} and the scan reads none of them, so the "
+        "claim it makes about them is graded by no run and the arm below would "
+        "hold against any prose. At least one excluded module named there has "
+        "to sit under the scanned root."
+    )
+
+    qualifying = set(fence_qualifiers(sources))
+    stale = sorted(path for path in in_scan if path in qualifying)
+    assert not stale, (
+        f"{stale} is recorded as outside the fence on the ratchet criterion "
+        "while the scan reports no finding against it, so the record is out of "
+        "date rather than wrong: the module reached the state the criterion "
+        "admits on and the record still says it has not. Fencing it is the "
+        "same repair the scope side asks for in "
+        "``test_a_module_whose_prose_already_satisfies_the_fence_is_inside_it``."
     )
 
 
