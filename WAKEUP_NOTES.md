@@ -33,9 +33,10 @@ the line becomes a pointer.
 
 ## Session 36 - 2026-08-23 - the operator answers four questions; CS-486 and CS-831 both CLOSE, and the adjudicator-versus-adversary SPLIT is the finding
 
-- **Shipped: CS-486 and CS-831 CLOSED. Filed CS-833 through CS-838.** Detail in `docs/LEDGER.md`,
-  not here. The ROADMAP budget ruling landed too, so `ROADMAP.md` went from about a kilobyte of
-  headroom to roughly a third of its budget used.
+- **Shipped: CS-486 and CS-831 CLOSED. Filed CS-833 through CS-838**, plus seven smaller CS-831
+  residuals and one Node 20 CI-action item in `BACKLOG.md`. Detail in `docs/LEDGER.md`, not here.
+  The ROADMAP budget ruling landed too, so `ROADMAP.md` went from about a kilobyte of headroom to
+  roughly a third of its budget used - and absorbed six new items without moving off that.
 
 - **THE SESSION OPENED BY ASKING THE OPERATOR FOUR QUESTIONS AND ALL FOUR PAID.** This is session
   35's finding applied deliberately rather than rediscovered. Two answers closed items - the doc
@@ -66,9 +67,19 @@ the line becomes a pointer.
 
 - **Failed paths: none abandoned.** Two repair passes were needed and both were kept.
 
-- **Next action: NONE IS FORCED.** CI must be read for the pushed head. Then CS-830 is the head of
-  the product path - the SECOND of the three layers under CS-400's clause 1, and the one holding
-  the inventory arrays.
+- **THE MACHINE'S DISK FILLED DURING THE CLOSING RITUAL - 954G, 100 per cent, zero free.** Even a
+  pipe write failed, so the ritual's suite step could not run at first. NOT CAUSED BY THIS REPO:
+  the checkout is a few hundred megabytes. The harness temp tree measured 182G across roughly five
+  thousand entries from six projects. **The operator scoped the cleanup to this session's own
+  files**, which freed about 147M - four full repo copies the CS-831 adversaries made for
+  out-of-tree mutation testing, which should never have outlived the session. **A mutation harness
+  that copies the repo must delete the copy when it is done.** The suite then ran clean.
+
+- **Next action: NONE IS FORCED. CI WAS READ AND IS GREEN** on all three pushed heads, so do NOT
+  spend the first action re-checking it. Check FREE DISK SPACE first - roughly 772G is consumed
+  outside the harness temp tree and was never measured. Then CS-830 is the head of the product
+  path - the SECOND of the three layers under CS-400's clause 1, and the one holding the inventory
+  arrays.
 
 - **WORKTREES: SIX remain, the inherited ones, UNTOUCHED and still unsalvaged.** A seventh,
   `agent-a8b7284852bf73422`, was created this session and REMOVED on the operator's instruction
