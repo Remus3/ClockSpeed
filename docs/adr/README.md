@@ -77,6 +77,7 @@ Status line to point at the successor and leave every other word of it untouched
 | [0006](0006-unsharded-clock-base-and-the-ceiling-fence.md) | The un-sharded clock base in the registry, and the ceiling fence | `accepted` |
 | [0007](0007-header-and-chunk-framing-are-version-dependent.md) | Save header and chunk framing are version dependent | `accepted` |
 | [0008](0008-detection-claims-are-derived-never-written.md) | A detection claim is derived by the suite, never written in prose | `accepted` |
+| [0009](0009-inventory-potential-top-level-carries-no-slot-count.md) | The serialized potential component's top level carries no slot count | `proposed` |
 
 Slots 0002, 0003 and 0004 were reserved for the three phase-1 spike decisions and have now
 been written, in the order the spikes ran: S8, then S4, then S6. These three are the spikes
