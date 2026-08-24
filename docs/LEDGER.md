@@ -73,6 +73,103 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-23 - CS-838 - FROZEN-FILE GRANT ISSUED WITH SEVENTEEN CONDITIONS by an adjudicator for `tools/precommit_gate.py`
+Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit, not a
+completion record. NOTHING IS CLOSED BY IT. CS-838 STAYS OPEN in `ROADMAP.md` until its own closure
+record. The adjudicator that issued it WROTE NO PART of the proposal, the implementation or the tests,
+and will implement none of it. It does NOT widen the CS-703, CS-819, CS-823 or CS-702/CS-813 grants
+recorded below; every one of those explicitly EXCLUDED this file.
+THE DEFECT, REPRODUCED INDEPENDENTLY rather than inherited from the filing. In a throwaway clone at
+`b91aa45` with `core.hooksPath=.githooks`, a staged `.py` that `ruff format --check` rejects
+COMMITTED: exit 0, HEAD MOVED, and the gate printed `precommit_gate: PASS - 1 checked, 0 skipped, 0
+blocking`. The filing recorded 2 skipped and this run recorded 0; that is what else was staged, not a
+difference of substance, and the load-bearing facts - exit 0, HEAD moved, PASS banner - reproduce
+exactly. The FULL suite is green with the violation present: 2509 passed, 3 skipped, exit 0, measured
+this session on the pristine tree.
+THE DEFECT IS A LOCAL-GATE GAP, NOT AN UNPROTECTED PROJECT, and this entry says so rather than
+overstating it. `.github/workflows/tier1.yml:130` already runs `python -m ruff format --check .`, and
+line 118 runs this gate in `--files` mode over all tracked files. CI would have caught the commit that
+prompted this item. What is broken is the tier-0 gate's agreement with CI, which is worth fixing
+because a gate that passes what CI rejects trains the operator to ignore it.
+SCOPE, ONE FILE, TWO INSERTION POINTS. In `tools/precommit_gate.py` ONLY, for CS-838 ALONE:
+(A) a module constant and one new function inserted in the blank gap between the end of
+`record_ruff_findings` (line 1850) and `def run_ruff` (line 1853); and (B) exactly one call line
+inserted immediately after `paths, mapping = stage_for_lint(...)` (line 1873), which is INSIDE the
+`tempfile.TemporaryDirectory` opened at 1872 and BELOW the ruff-absent early return at 1870.
+INSERTIONS ONLY: NO existing line 1 to 1850 and NO existing line 1853 to the end of file may be
+modified or deleted. THE GRANT IS BOUND BY REGION AND PROPERTY, NOT BY LINE COUNT - a count is the
+same fragile coupling condition ELEVEN exists to remove.
+WHY THAT PLACEMENT IS THE NARROWEST AVAILABLE, verified by reading rather than assumed. Below 1870 the
+new code INHERITS both early returns - no `.py` targets, and ruff absent - structurally rather than by
+promise, and it reuses the `paths` and `mapping` line 1873 already built. A top-level pass called from
+`main` would have to re-stage temp copies and touch a second region.
+NO OTHER FROZEN PATH IS COVERED, and each would need its own grant: `.githooks/pre-commit`,
+`.githooks/commit-msg`, `.githooks/pre-push`, `scripts/install_hooks.py`, `.claude/settings.json` and
+`LICENSE`. `.githooks/pre-commit` was CHECKED BY READING rather than assumed: `tools/precommit_gate.py:2311`
+emits the PASS banner only when `report.diagnostics` is empty, so a blocking diagnostic returns
+non-zero WITHOUT the banner and the hook's existing `STATUS -ne 0` branch handles it untouched. That
+holds ONLY under conditions THREE and FOUR. `tests/` and `tools/edit_lint_check.py` are NOT frozen and
+are NOT part of this grant.
+SEVENTEEN CONDITIONS BIND THIS GRANT. They are written here because this is their only tracked home.
+ONE, insertions only: zero existing lines of the gate modified or deleted.
+TWO, the two insertion points above and no others.
+THREE, the PASS banner and the code that renders it are BYTE-IDENTICAL after the edit.
+`.githooks/pre-commit` matches it with an anchored `case` pattern on `precommit_gate: PASS - `.
+FOUR, the new `subprocess` call passes `capture_output=True`, capturing STDOUT as well as stderr. Both
+the hook's no-hang property and its banner-as-LAST-LINE assertion depend on the child not inheriting
+the gate's stdout. MEASURED: `ruff format --check` writes `Would reformat: <path>` AND its summary to
+STDOUT, and stderr was EMPTY - so the exclusion as proposed named the wrong channel.
+FIVE, the BLOCKING SIGNAL IS THE EXIT CODE, not the prefix string. `RUFF_FORMAT_PREFIX` is used ONLY
+to name files in the finding. A prefix contract with an unpinned tool that reworded it would silently
+pass everything, which is the CS-819 and CS-823 shape this project has twice paid to close.
+SIX, exit-code discipline, measured: 0 clean, 1 would reformat, 2 error. Exit 2 - an unparseable file -
+is a NOTE, never a block, and is never read as clean.
+SEVEN, `--check` ONLY. Bare `ruff format` is FORBIDDEN: `stage_for_lint` returns REAL working-tree
+paths for units whose bytes match disk, so it would rewrite the operator's own files, and in CI's
+`--files` step it would rewrite the checkout.
+EIGHT, `--diff` is FORBIDDEN. It prints SOURCE LINES verbatim, measured, and a staged file may carry a
+world name or an account id.
+NINE, the file identity goes in `Diagnostic.path`, resolved through `mapping` with `normalized_key`,
+and is NEVER interpolated into `reason`. Only `path` is redacted, by `display_diagnostic` via
+`display_label`; `reason` is not. Raw ruff stdout is never re-emitted.
+TEN, `RUFF_TIMEOUT` is read at CALL time, not bound as a default argument.
+`tools/edit_lint_check.py` monkeypatches `gate.RUFF_TIMEOUT` around its call, and a default would bind
+at import and ignore it.
+ELEVEN, `TRUNCATIONS` in `tests/test_hook_interpreter_ladder.py:1678` is RE-DERIVED from the located
+`GATE_MAIN_GUARD` rather than left as the hardcoded 2368. MEASURED: across insertion sizes 0 to 60,
+24 of 61 break the 2368-prefix compile. The proposal's 47 lines happening to survive where 36 did not
+is LUCK. Deriving as `main guard line minus one` is INVARIANT under any insertion above it. The module
+already carries the idiom in `gate_success_format`. `tests/` is not frozen, so this costs no grant.
+TWELVE, the fixture repair to `tests/test_precommit_gate.py::test_ruff_style_note_drops_the_out_of_repo_directory`
+is the MINIMAL blank line, and after it the test must still ASSERT rather than SKIP. That module's
+line 1484 skips itself when no `ruff (style` finding appears, so a repair that killed the F401 unused
+import would silently disable the test instead of failing it. Show it did not skip.
+THIRTEEN, the R1 mitigation - skip when no ruff config resolves - is PINNED BY A TEST and RECORDED AS
+A NAMED RESIDUAL. MEASURED: 90 tracked `.py`, 90 of 90 clean with the project config, 75 of 90 would
+be reformatted without it. `tools/edit_lint_check.py` builds its `Unit` without `disk_path`, so every
+unit is staged to temp where ruff discovers no config, and it passes `root=None`.
+FOURTEEN, the residual is recorded as SILENT and SELF-ARMING rather than as a note the operator sees.
+`emit` prints notes ONLY under `--verbose`, and the PostToolUse hook entry invokes
+`tools/edit_lint_check.py --files` WITHOUT it. A later one-line change passing a `root` would ARM a
+blocking check with no grant, because that file is not frozen. That repair is FILED as its own item,
+not absorbed here.
+FIFTEEN, the acceptance is proven END TO END IN BOTH DIRECTIONS with a real `git commit`: a staged
+format violation gives exit 1 with HEAD UNCHANGED, and a clean staged file still COMMITS. Demonstrated
+RED against the current gate first. The before-transcript is recorded so the after-transcript means
+something.
+SIXTEEN, the suite floor is RE-MEASURED after the edit and reported as observed on that run. The
+pristine floor measured this session is 2509 passed, 3 skipped, exit 0. No count is carried forward.
+SEVENTEEN, this grant is recorded here BEFORE the edit is made.
+COMMON-MODE RISK: THE RUFF VERSION, WHICH NOTHING IN THE PROPOSAL TESTS. `pyproject.toml:73` pins
+`ruff>=0.13` with NO upper bound. This machine has 0.15.12; CS-484 records CI resolved 0.16.3, taken
+from a tier1 log. `ruff format` output is version-dependent, so 90 of 90, 75 of 90, the fixture's
+dirtiness and the literal `Would reformat: ` are all ONE ruff's opinion. THE NEW FAILURE MODE THIS
+CHANGE INTRODUCES: the local ruff refuses a tree CI's ruff accepts, blocking the operator at tier 0
+with no override short of `--no-verify`. CS-838 DOES NOT CLOSE CS-484 AND MUST NOT BE RECORDED AS
+MAKING THE GATE AGREE WITH CI. Nothing was measured on the Ubuntu runner; CI's own `--files` gate step
+will exercise this code on the first push, so the tier1 log is READ after that push and the resolved
+ruff version recorded.
+
 ### 2026-08-23 - CS-831 - CLOSED. A record's cross-references RESOLVE to the records they name; the acceptance was AMENDED by the operator the same day and the amended wording is preserved here
 `clockspeed/save/objects.py` ships `index_records`, `resolve_references`, `ObjectReference`,
 `RecordIndex`, `ReferenceResolution` and `REFERENCE_TYPE_WORD`. A caller can now follow an
