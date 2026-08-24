@@ -311,6 +311,122 @@ to this gate: coverage may not be reduced to buy anything, and the only valid pr
 gate still blocks is end to end - stage a real violation, attempt a real `git commit`,
 assert exit 1 and HEAD unchanged.
 
+## CS-839
+
+### NOTE - filed 2026-08-23 by the merger
+
+MEASURED 2026-08-23 on one commit, not reasoned. The same tree, the same pytest
+invocation, two shells:
+
+- Git Bash - `tests/test_hook_interpreter_ladder.py` green.
+- PowerShell - 6 failed, 75 passed, 6 skipped, exit 1.
+
+The cause is a module-scope constant: `DEFAULT_SHELL` is resolved from the interpreter's
+PATH at import time, and PowerShell's PATH lacks the directory that carries `sh`, so it
+resolves to nothing and every arm that needs a shell asserts instead of skipping. The
+module was UNTOUCHED between the session's base commit and the measurement, so this is a
+standing property of the repo rather than session damage.
+
+**WHY IT IS TIER 1 AND NOT COSMETIC.** The failures name a missing shell, which reads as a
+broken machine rather than as a harness artifact. An operator or an agent checking their
+work from the wrong shell sees six red and hunts a regression that does not exist - and
+the reverse is worse, because a green run proves less than it appears to. This is the
+standing "a green local suite is evidence about ONE toolchain" trap made concrete and
+reproducible.
+
+**DO NOT FIX IT BY WIDENING THE PATH.** That makes the measurement agree by changing the
+machine, not by changing the property. The two honest routes are in the acceptance: make
+the sets identical, or make the dependency a declared skip that names its requirement. A
+skip that says why is evidence; an assertion failure that says `no /bin/sh on this
+machine` is not.
+
+## CS-840
+
+### NOTE - filed 2026-08-23 by the merger, on an operator ruling
+
+**RULED BY THE OPERATOR 2026-08-23, ASKED DIRECTLY: file it, do not resolve it.** The
+relocate slice that surfaced it was told to leave every dated heading exactly as it stood,
+and did.
+
+The contradiction, both sides tracked and both live: `CLAUDE.md` states that a doc heading
+carrying an explicit date marks its own section HISTORICAL. `docs/item_notes.md` states
+that a block in it is a LIVE INSTRUCTION. The drift guard's dated-heading arm reports the
+population in that file rather than failing on it, so nothing is red and both sentences
+stay shipped.
+
+**THE REPORT-ONLY ARM IS WHY THIS SURVIVED.** A guard that reports cannot lose, so the
+contradiction has no cost until someone acts on the wrong half of it. The acceptance asks
+for an arm that FAILS, because that is the only version that settles which sentence is
+true.
+
+**DO NOT RESOLVE IT BY DATING FEWER HEADINGS.** Stripping a date from a section changes
+what an outside reader believes about that section's status, which is a semantic change
+wearing a formatting hat. Whichever rule survives, it is a ruling about the topology and
+belongs to whoever makes it, not to a sweep.
+
+## CS-841
+
+### NOTE - filed 2026-08-23 by the merger, required by CS-838's grant
+
+**FILED BECAUSE CONDITION FOURTEEN OF CS-838's FROZEN-FILE GRANT REQUIRES IT.** That grant
+is recorded in `docs/LEDGER.md`. The implementer reported the condition as only PARTIALLY
+met precisely because this item did not exist and none of the files that could hold it
+were on its write-list. This section is the discharge.
+
+MEASURED during CS-838, by two agents independently: `tools/edit_lint_check.py` builds its
+work unit without a disk path and passes no root, so every unit is staged to a temporary
+directory where ruff discovers no project configuration. Line length then falls back to
+ruff's default instead of the project's, and the great majority of this repo's tracked
+Python "would be reformatted" - a false positive on nearly every file. CS-838 therefore
+SKIPS its format check when no configuration resolves. That mitigation is correct and
+shipping without it would have been worse than the defect it fixes.
+
+**THE RESIDUAL HAS TWO PROPERTIES AND BOTH MATTER.**
+
+It is SILENT: notes print only under a verbose flag, and the hook entry that invokes this
+path passes none. So on the one path the mitigation targets, the skip is never rendered.
+This is NOT a coverage reduction - there is no format coverage there today - but it is a
+permanent disablement that no output discloses.
+
+It is SELF-ARMING: `tools/edit_lint_check.py` is NOT a frozen file. A later one-line change
+passing a root would activate a blocking check on that path with no grant and no review,
+and the first sign of it would be an operator's edit being refused.
+
+**DO NOT ABSORB THIS INTO CS-838.** The grant says so, and the reason is that the repair
+belongs to a file the grant does not cover.
+
+## CS-842
+
+### NOTE - filed 2026-08-23 by the merger, from CS-837's adversary
+
+MEASURED by the adversary that graded CS-837, and recorded here rather than repaired,
+because the item's acceptance was MET and this is a property of the record it produced.
+
+CS-837 closed on its second acceptance arm: the exclusion of a module from the CS-420
+quantifier fence is recorded against a derived criterion rather than the module being
+fenced. The criterion itself - the literal deliverable of that arm - is prose in
+`tests/save/test_absolute_claims.py`.
+
+**THE COUPLING RUNS ONE WAY ONLY.** Deleting the live TEST does not go quiet: the criterion
+prose backs its own quantifiers with a citation naming that exact test, so the citation
+stops resolving and a different arm turns red. Deleting the criterion PROSE leaves the
+suite green. The record is guarded against the test disappearing and not against itself
+disappearing.
+
+**THE SECOND HALF OF THE ACCEPTANCE IS THE HARDER HALF, AND IT IS WHY THIS IS NOT A
+ONE-LINE FIX.** The same adversary measured that the LIVE test alone cannot tell a derived
+qualifying set from a restatement of the list it is compared against - substituting the
+fenced tuple for the derivation leaves the live test green, and only a synthetic control
+catches it. That control is load-bearing. Any repair that couples the prose in must not
+weaken it, or this item trades one unguarded direction for another.
+
+Two further residuals from the same grading, recorded so they are not rediscovered: a
+PARTIAL repair of the excluded module leaves the criterion green, so the obligation is
+all-or-nothing and is releasable by writing one quantifier back; and the first red will
+most likely fire on a package docstring nobody associates with this item, because the
+nearest unfenced modules are boilerplate `__init__.py` files a single future sweep would
+flip.
+
 ## CS-832
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
