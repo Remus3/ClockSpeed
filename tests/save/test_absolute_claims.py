@@ -146,6 +146,24 @@ stated in contract 3:
   a single ``_TAG_EXTRA_STRINGS`` docstring was another item's to repair - was
   measured against the module and does not account for what the scan finds
   there.
+- THE SCOPE IS A RATCHET ON A STATE ALREADY REACHED, and that is the criterion
+  a module outside it is outside BY. Declaring the marker costs a module no
+  disposition at the moment its prose already satisfies contract 1, and costs
+  one per sentence written from then on, so the declaration is the LAST step of
+  a prose repair rather than the first. ``tests/save/test_reference_resolution.py``
+  is outside on that criterion: the scan finds prose there to reject, and
+  repairing it belongs to whichever item owns that module rather than to this
+  one. The criterion is re-derived on every run by
+  ``test_a_module_whose_prose_already_satisfies_the_fence_is_inside_it``, which
+  names a module the scan clears that the fence does not hold and stays red
+  until the marker is written - so nothing here rests on the exclusion being
+  remembered. A SYNONYM SWEEP THEREFORE BUYS NO EXEMPTION: it drives a module
+  toward the state the criterion admits on, which triggers the obligation to
+  declare rather than discharging it, and sweeping is how a module JOINS. This
+  is NOT the register contract 1 refuses, and the difference is mechanical
+  rather than a matter of framing - a register is READ BY THE SCANNER to
+  suppress a finding, while this criterion is read by that test alone, which
+  takes no way to go red away and adds one.
 - THE CENSUS IS SCOPED NARROWER STILL, to one module. The positions that tile
   the censused module do NOT tile this one, and the shapes that escape them are
   named rather than counted: the grammar table is regexes inside a dict, the
@@ -975,6 +993,28 @@ def modules_declaring(marker: str, sources: Mapping[str, str]) -> tuple[str, ...
     return tuple(found)
 
 
+def fence_qualifiers(sources: Mapping[str, str]) -> tuple[str, ...]:
+    """The modules whose prose the scan reports no finding against.
+
+    A module here has reached the state :data:`FENCED_MODULES` records, so
+    declaring the marker in it costs no disposition on the prose already
+    written. A module holding NO prose is left out: the fence would govern a
+    scan that reads zero sentences, which is the vacuous green the controls
+    below exist to stop.
+
+    Args:
+        sources: Repo-relative POSIX path mapped to module text.
+
+    Returns:
+        The qualifying paths, sorted.
+    """
+    return tuple(
+        path
+        for path, source in sorted(sources.items())
+        if sentence_count(source) and not unbacked_absolutes(path, source, sources)
+    )
+
+
 # ---------------------------------------------------------------------------
 # Paragraph references - contract 4
 # ---------------------------------------------------------------------------
@@ -1241,6 +1281,35 @@ def test_the_fenced_and_censused_scopes_are_derived_from_the_tree(repo_root: Pat
     )
 
 
+def test_a_module_whose_prose_already_satisfies_the_fence_is_inside_it(repo_root: Path) -> None:
+    sources = _sources_under(repo_root, "tests")
+    qualifying = fence_qualifiers(sources)
+
+    assert qualifying, (
+        "the derivation named no module at all, so the comparison below would "
+        "hold against any tuple and would grade the scope with a scan that "
+        "read zero prose."
+    )
+
+    unclaimed = tuple(path for path in qualifying if path not in FENCED_MODULES)
+    assert not unclaimed, (
+        f"{list(unclaimed)} carries prose the scan reports no finding against "
+        "and declares no marker. The fence records a state a module has "
+        "REACHED - see the ratchet residual in the module docstring - so a "
+        "module that has reached it is declared, or this record is out of "
+        "date. Repairing prose INTO that state belongs to whichever item owns "
+        "the module; arriving there and staying outside is what this test "
+        "reports."
+    )
+
+    assert set(FENCED_MODULES) <= set(qualifying), (
+        f"{sorted(set(FENCED_MODULES) - set(qualifying))} declares the marker "
+        "while the scan either reports a finding against it or reads no prose "
+        "there. The fenced scan above names the sentences; this is the same "
+        "failure read from the scope side."
+    )
+
+
 def test_every_string_and_comment_in_a_censused_module_is_read_or_exempt(repo_root: Path) -> None:
     sources = _sources_under(repo_root, "tests")
     for path in CENSUSED_MODULES:
@@ -1440,6 +1509,18 @@ def test_the_scanner_passes_prose_with_no_unbounded_quantifier() -> None:
         f"clean prose was reported: {[(f.markers, f.sentence) for f in findings]}. "
         "Without this the red control proves only that the scanner rejects all "
         "prose put to it, which is a different and worthless property."
+    )
+
+
+def test_the_qualifier_derivation_separates_clean_prose_from_dirty_and_from_none() -> None:
+    corpus = {"clean.py": _CONTROL_CLEAN, "dirty.py": _CONTROL_RED, "silent.py": "VALUE = 1\n"}
+
+    assert fence_qualifiers(corpus) == ("clean.py",), (
+        f"the derivation named {list(fence_qualifiers(corpus))}. It has to name "
+        "the module the scan clears and neither of the other two: naming the "
+        "dirty one would admit a module the fence would immediately report, and "
+        "naming the prose-free one would admit a module whose scan reads zero "
+        "sentences, which is the vacuous green the controls here exist to stop."
     )
 
 
