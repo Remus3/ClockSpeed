@@ -31,6 +31,73 @@ the line becomes a pointer.
 
 ---
 
+## Session 37 - 2026-08-23 - the operator takes ALL FOUR units; CS-830 is CLOSED, REFUTED and re-closed NARROWED, and an adversary is the only thing that caught it
+
+- **Shipped: CS-830 (narrowed), CS-405, CS-833, CS-834, CS-835, CS-836, CS-837 and CS-838 CLOSED.
+  Filed CS-839 through CS-844.** The proactive relocate pass STOOD DOWN on measurement rather than
+  shipping. Detail in `docs/LEDGER.md`, not here.
+
+- **THE OPERATOR ANSWERED NINE QUESTIONS ACROSS FOUR ROUNDS AND EVERY ROUND CHANGED THE WORK.**
+  Session 36's finding applied deliberately again, and the compounding is the point: the first round
+  set the scope, the second corrected a premise I had given wrong, the third ruled on a refutation
+  that arrived mid-session. **Asking is not a phase at the start. It is how the session steers.**
+
+- **THE HEADLINE: AN ADVERSARY REFUTED THE HEAD OF THE PRODUCT PATH AFTER IT HAD ALREADY MERGED.**
+  CS-830's acceptance clause was MET - equality over every instance of all three container words,
+  not a floor - and the thing the item existed for was NOT achieved for `SetProperty`. A mutant
+  substituting a provably WRONG partition kept every library-backed test green. **THAT IS FOUR
+  CONSECUTIVE SESSIONS OF CLAUSES MET AND PROSE FALSE, and the first time it was caught before the
+  ledger entry rather than after.** Never let a close stand without an adversary behind it.
+
+- **THE STRUCTURAL CAUSE IS REUSABLE AND WORTH MORE THAN THE ITEM: A POOLED GUARD HIDES ITS WORST
+  MEMBER.** The evidence-strength check summed shapes across all three container words, so a word
+  that was one hundred per cent derived vanished behind another word's self-delimiting bulk. Any
+  guard that aggregates over a population it does not also grade PER MEMBER can be satisfied by its
+  strongest member alone. The repair grades per word.
+
+- **AND THE HONEST CLOSE IS A TEST THAT ASSERTS ITS OWN LIMIT SURVIVES.** No test can redden on the
+  wrong partition without encoding a struct width whose only source is the module's own belief -
+  the circularity the adversary caught in the synthetic fixture. So the narrowing SHIPS THE
+  SURVIVAL AS AN ASSERTION, which gives the limit a failure direction: the day the corpus
+  discriminates it, that test goes red and forces the record to narrow. Prefer this to a silent
+  caveat.
+
+- **THE POPULATION DEFECT HIT TWICE MORE AND BOTH TIMES IT WAS IN A BRIEF I WROTE.** I named three
+  sites of the asset gloss and there were four. I gave an exclusion set covering one citation arm
+  when the guard ships four. Session 36 recorded that the warning does not immunise the person
+  writing it; this session it happened to the person QUOTING that warning into the brief.
+  **THE TECHNIQUE THAT ACTUALLY WORKED: the builder loaded the guard AS A MODULE and used its own
+  compiled patterns, instead of deriving the population by hand.** Do that.
+
+- **A PERCENTAGE IS NOT PRESSURE UNTIL YOU READ THE BUDGET'S OWN RATIONALE.** I framed
+  `docs/item_notes.md` at 75 per cent as urgent and cited ROADMAP.md as precedent. `tools/doc_budget.py`
+  says the opposite in its own comment: the ceiling was chosen roughly 37 per cent above the file's
+  landing size, THE HEADROOM IS THE POINT, and ROADMAP.md's failure is what this file's headroom
+  exists to RELIEVE. The builder refused to ship and routed it back. **Closing eight items this
+  session moved the file from 78 to 77 per cent - item CLOSURE is its designed shrink mechanism,
+  and relocation cannot substitute for it** because every section is a live instruction for an OPEN
+  item and `CLAUDE.md` forbids the archive from holding those.
+
+- **Decisions: ADR 0009 recorded** - the `mInventoryPotential` FOURTH state. Detail in `docs/adr/`.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** Two measured facts contradicted BRIEFS I wrote,
+  and both are recorded above rather than quietly corrected.
+
+- **Failed paths: the relocate pass.** Attempted, refused by its own builder on a topology
+  contradiction, and stood down by operator ruling. NOT retried - the finding is that it cannot
+  work, not that it was done badly.
+
+- **Next action: NONE IS FORCED.** CS-829 is now the head of the product path - the THIRD layer under
+  CS-400's clause 1, and the one CS-405's fourth state names as its blocker. CS-843 is its natural
+  companion: all 81 undiscriminated sets are of `StructProperty`, so CS-829 may settle both.
+
+- **WORKTREES: FIVE OF SIX AGENTS THIS SESSION WERE CUT BEHIND THEIR STATED BASE.** One had no grant
+  commit in history and would have edited a frozen file without authorisation had it not checked.
+  Every dispatch ordered verify-and-fast-forward and every one that needed it said so. **Keep
+  ordering it.** Six inherited worktrees remain untouched and unsalvaged; this session added its own,
+  listed in the continuation prompt.
+---
+
 ## Session 36 - 2026-08-23 - the operator answers four questions; CS-486 and CS-831 both CLOSE, and the adjudicator-versus-adversary SPLIT is the finding
 
 - **Shipped: CS-486 and CS-831 CLOSED. Filed CS-833 through CS-838**, plus seven smaller CS-831
@@ -146,140 +213,3 @@ the line becomes a pointer.
 
 - **Next action: NONE IS FORCED.** CI must be read for `a812690`. Then the head of the queue is
   the ROADMAP budget ruling, which is the operator's, and the worktree salvage.
-
-
----
-
-## Session 34 - 2026-08-23 - the held push LANDS; TWO of CS-421's own headline claims are measured FALSE; a SECOND independent int32 oracle ships
-
-- **Shipped: NOTHING CLOSED, and that is the result rather than a shortfall.** CS-421 STAYS OPEN
-  with a ledger record that closes nothing and grades no clause. Detail in `docs/LEDGER.md`, not
-  here. The session's product is two measured corrections and the refutation of a stated CI risk.
-
-- **THE PUSH SESSION 33 HELD IS DONE, AND THE REASON FOR HOLDING WAS REFUTED FIRST.** Session 33
-  held on one stated risk: the new pre-commit guard's `tr -d` and anchored `case` had never run on
-  dash, and CI tier2 runs ubuntu where `/bin/sh` IS dash. MEASURED before deciding, not after:
-  the whole hook driven end to end under dash in a sandbox with real staged bytes is BYTE-IDENTICAL
-  to bash on all three arms - clean file accepts with the banner at 0 bytes of stderr, a staged em
-  dash blocks at exit 1 and 272 bytes, and a gate truncated to ONE LINE is caught by the CS-823
-  repair at exit 1 and 1187 bytes - plus 15 of 15 banner-logic cases identical. Pre-push then ran
-  the whole suite as its own gate at 2480 passed, 3 skipped, and tier1 `32620243989` is GREEN in
-  4m31s on the pushed head. **The risk was real to state and false to act on, and only measurement
-  could tell those apart.**
-
-- **CS-421's FRAMING WAS STALE IN TWO PLACES AND A SESSION TAKING IT ON THE WRITTEN FRAMING WOULD
-  HAVE REBUILT MACHINERY THAT EXISTS.** This is the session's real finding. FIRST, the "60.1 per
-  cent backed by a declared width and nothing else" headline: a census re-derived from the live
-  library reproduces every archived figure DIGIT FOR DIGIT, so the population never moved - the
-  EVIDENCE TABLE did. CS-469 gave `IntProperty` and `FloatProperty` a second oracle, and width-only
-  is now `objects.WIDTH_ONLY_VALUE_TYPES` alone at 4910 of 185382, **2.6 per cent**. SECOND, the
-  one-command demonstration that the `">i"` flip "reddens only synthetic-fixture tests": FALSE.
-  13 tests fail and **FIVE ARE LIBRARY-BACKED**, each confirmed by its own skip guard rather than
-  by its name. **THE FALSE SENTENCE WAS SITTING IN THE DOCSTRING OF ONE OF THE TESTS THAT REFUTES
-  IT** - the ADR 0008 shape, where a reader checking the claim by running the named mutant finds
-  the thing it denies.
-
-- **THE MUTANT WAS GRADED THE WAY THIS PROJECT REQUIRES, WHICH IS WHY THE RESULT IS BELIEVABLE.**
-  Asserted live in the LOADED module rather than merely written to the file; floored against a
-  full-suite green run at the same tree; and the same 13 names re-run 13 of 13 AFTER the revert, so
-  a save library that moved mid-session could not be mistaken for the mutant's effect. The revert
-  went through `git checkout --` rather than a rewrite, because the mutation script had already
-  turned the file CRLF - the known harness trap arriving through my own tooling.
-
-- **Decisions: no ADR. One fence.** Do not cite the `">i"` flip as an open gap without re-running
-  it. Recorded as an eleventh entry in `memory/test-quality-failure-classes.md`: **A RECORDED
-  DEMONSTRATION OF A GAP CAN OUTLIVE THE GAP.** The count was removed from that file's description
-  and from its index hook at the same time - it had already drifted once, and `CLAUDE.md` section 4
-  forbids restating a measured number in prose.
-
-- **Surprises: nothing contradicted `BOOTSTRAP.md`. Two things contradicted CS-421's own docs**, and
-  both corrections are in tracked files per `CLAUDE.md` section 8 - `docs/history_notes.md` under
-  **CS-421 - detail**, the docstring in `tests/save/test_properties.py`, and the `ROADMAP.md` title,
-  where the restated "60 per cent" was DELETED rather than updated so it cannot drift a third time.
-
-- **Failed paths, so they are not retried.** A `pytest | tail` pipeline reports TAIL's exit code,
-  not pytest's - it read 0 over a run that failed, which is the CS-703 shape arriving in my own
-  harness. Capture `PYTEST_EXIT` explicitly. And the LEDGER citation guard caught a bare
-  `test_properties.py::...` that does not resolve from the repo root; guarded docs need the full
-  path.
-
-- **THE CLOSE WENT TO AN ADJUDICATOR ON THE OPERATOR'S INSTRUCTION AND CAME BACK DO-NOT-CLOSE, AND
-  IT REFUTED MY OWN ENTRY TWICE.** It graded none of its own work and ran its mutation in an
-  OUT-OF-TREE copy so it never touched this tree. FIRST, MY LEDGER ENTRY COULD NOT COUNT: "five
-  library-backed, six synthetic, one gate" is TWELVE, and the split is 5 + 7 + 1. SECOND, AND THIS
-  IS THE ONE THAT MATTERS, **"five library-backed places" OVERSTATES INDEPENDENCE - it is ONE
-  predicate at five sites.** `_int_oracle_holds` is single-owner by its own docstring and feeds the
-  anchor, permutation and separability sweeps alike, and the fifth red spells the same conjunction
-  inline; FOUR OF THE FIVE DISCLAIM THEIR OWN RESULT IN THEIR FAILURE TEXT, reporting that their
-  baseline is red so the comparison means nothing. So my stated reason for adding no test - that it
-  would be redundant against five arms - rests on a FALSE PREMISE. All of it re-verified here before
-  it reached `docs/LEDGER.md`. The decisive ground was simpler than any of that:
-  `objects.BYTE_ORDER_STATUSES` HAS NO WORD MEANING SETTLED, and every four-byte type ships one that
-  denies it - so closing clause 3 would put the ledger in contradiction with the module, and clause 2
-  is the clause that gave the module that fact. Fence 1 was CROSSED by my `UInt32Property` bullet.
-
-- **THE SECOND ORACLE WAS BUILT ON THE OPERATOR'S INSTRUCTION, AND AN ADVERSARY THEN REFUTED ITS
-  HEADLINE CLAIM - MINE, WRITTEN THE SAME DAY.** The artifact is a CONTINUITY oracle over
-  `IntProperty` in `tests/save/test_value_anchoring.py`: it matches the same field across two saves
-  and asks only whether it MOVED LESS as stored than read backwards, touching `_int_oracle_holds`
-  nowhere. Measured: 12 snapshots, 34820 matched keys, 145 changed, **145 closer as stored against 0
-  reversed**, inverting completely to 0 and 145 under the real `">i"` mutant. **THEN THE REFUTATION,
-  RE-DERIVED HERE WITH AN INDEPENDENTLY WRITTEN PREDICATE: a rule inspecting NO MOVEMENT AT ALL -
-  the magnitude prior applied to the pair's two endpoints - reproduces that verdict on 145 OF 145
-  pairs, ZERO disagreements.** It is a second IMPLEMENTATION, not a second SIGNAL, and my
-  "narrows three shared inputs to two" was unsupported.
-
-- **THE FINDING WORTH KEEPING IS WHY NO PREDICATE COULD HAVE FIXED IT.** ZERO of the 145 changed
-  values carry a non-zero as-read high byte at BOTH ends, and 135 of 145 differ only in their lowest
-  byte. Every changed value in this corpus is small at one end, so EVERY correct byte-order oracle
-  must agree with the magnitude prior on it. **Evidential independence is not a predicate-design
-  problem here - it needs data this world does not contain.** Do not read a second oracle's
-  existence as having supplied it.
-
-- **THREE MORE SENTENCES OF MINE WERE MEASURED FALSE AND ARE CORRECTED IN THE TREE.** That time was
-  the only symmetry-breaker - FALSE by construction, the adversary built a within-one-save SPACING
-  statistic scoring 98 against 0. That the whole pattern histogram is invariant under reversal -
-  FALSE, 202 patterns change count; what is invariant is the MULTISET OF COUNTS, and read literally
-  the stronger sentence denied `_int_oracle_holds` can work. And "repeated saves of ONE world" -
-  there are THREE world tokens here and 8 pairs match across two of them.
-
-- **TEN OF THIRTEEN MUTANTS SURVIVED THE FIRST DRAFT; FIVE ARE NOW KILLED and each kill was
-  re-verified with the mutation asserted to have LANDED.** Dropping the MAJORITY conjunct, never
-  incrementing `closer_swapped`, stripping the sign from `_as_read_int32`, reversing only the OUTER
-  two bytes, and caching a `None`. Three LIBRARY-FREE arms were added, which also give this work its
-  first arms that RUN ON CI. **One survivor is an EQUIVALENT mutant and chasing it was refused** -
-  the buckets partition, so the minority conjunct is implied; my docstring claimed the opposite and
-  is corrected. Three others are population mutants whose only kill is a corpus-coupled floor, and
-  all four are listed in the module.
-
-- **A CORPUS-COUPLED RED WAS ALREADY LIVE AND IS CLOSED.** Both arms went RED - not skipped - on a
-  library holding saves this grammar cannot read, and SEVEN of the nineteen files here are already
-  at a save version outside `TAGGED_PAIRS`. Playing the game would have reddened the suite with no
-  defect. No-evidence states now route to the same skip a missing library takes, which also stops a
-  degenerate sweep reaching the cache.
-
-- **WORKTREE PRUNE: ONE REMOVED, SIX KEPT, AND THE INHERITED NOTE THAT SENT ME THERE WAS WRONG IN A
-  WAY THAT WOULD HAVE DESTROYED WORK.** The note said "FOUR WORKTREES REMAIN MERGED AND PRUNABLE"
-  and then named THREE. Measured instead of trusted: **only `agent-a8f0774be4d10c1fe` was clean, and
-  it is the only one removed.** Of the other two the note named, `agent-a1d0d1c85dd5bc8fc` holds
-  1567 uncommitted insertions across `.githooks/commit-msg` - a FROZEN file - `docs/GATED.md` and
-  `tests/test_commit_msg_gate.py`, and `agent-ac95f3565beb2209d` holds 1049 across
-  `docs/history_notes.md` and `tests/test_docs_citations.py`. Both carry content that is NOT in
-  main, checked file by file rather than inferred.
-
-- **THE TRAP IS GENERAL AND IS THE REASON THIS IS WRITTEN DOWN.** `git merge-base --is-ancestor`
-  reports ALL SEVEN of these worktrees as "merged into main", and that verdict is WORTHLESS here:
-  their checked-out HEAD is the BASE commit the agent started from, which of course is in main,
-  while the work sits UNCOMMITTED in the working tree. **A worktree is prunable only if it is
-  ancestor-merged AND clean.** Six of the seven are dirty, so the six that remain - the four CS-492
-  and spike worktrees plus those two - are ALL still holding work and none is prunable. Branch
-  `worktree-agent-ab7fcd5c63f9193ea` (32a982c) is genuinely merged and its worktree is already gone,
-  so only the branch is left to delete; `cs807-attribute-half` is NOT merged and stays.
-
-- **Next action: THE REMAINING ROUTE IS THE OPERATOR'S ALONE.** Amend clause 3 to say what it now
-  means - settled JOINTLY over the scored populations against the real library, with the per-type
-  residual in shipped data - and file the `UInt32Property` residual as its own item. An adjudicator
-  CANNOT grant that narrowing; narrowing an acceptance clause is fence 1's forbidden move. **What
-  the build did NOT change is the evidence:** the common-mode signal is unnarrowed, and this corpus
-  cannot separate two correct oracles at all. Otherwise take CS-817 / CS-821 / CS-824, which are
-  smaller and independent.

@@ -22,6 +22,304 @@ Where current truth actually lives:
 
 ---
 
+## Session 34 wakeup note - relocated 2026-08-23 (session 37)
+
+## Session 34 - 2026-08-23 - the held push LANDS; TWO of CS-421's own headline claims are measured FALSE; a SECOND independent int32 oracle ships
+
+- **Shipped: NOTHING CLOSED, and that is the result rather than a shortfall.** CS-421 STAYS OPEN
+  with a ledger record that closes nothing and grades no clause. Detail in `docs/LEDGER.md`, not
+  here. The session's product is two measured corrections and the refutation of a stated CI risk.
+
+- **THE PUSH SESSION 33 HELD IS DONE, AND THE REASON FOR HOLDING WAS REFUTED FIRST.** Session 33
+  held on one stated risk: the new pre-commit guard's `tr -d` and anchored `case` had never run on
+  dash, and CI tier2 runs ubuntu where `/bin/sh` IS dash. MEASURED before deciding, not after:
+  the whole hook driven end to end under dash in a sandbox with real staged bytes is BYTE-IDENTICAL
+  to bash on all three arms - clean file accepts with the banner at 0 bytes of stderr, a staged em
+  dash blocks at exit 1 and 272 bytes, and a gate truncated to ONE LINE is caught by the CS-823
+  repair at exit 1 and 1187 bytes - plus 15 of 15 banner-logic cases identical. Pre-push then ran
+  the whole suite as its own gate at 2480 passed, 3 skipped, and tier1 `32620243989` is GREEN in
+  4m31s on the pushed head. **The risk was real to state and false to act on, and only measurement
+  could tell those apart.**
+
+- **CS-421's FRAMING WAS STALE IN TWO PLACES AND A SESSION TAKING IT ON THE WRITTEN FRAMING WOULD
+  HAVE REBUILT MACHINERY THAT EXISTS.** This is the session's real finding. FIRST, the "60.1 per
+  cent backed by a declared width and nothing else" headline: a census re-derived from the live
+  library reproduces every archived figure DIGIT FOR DIGIT, so the population never moved - the
+  EVIDENCE TABLE did. CS-469 gave `IntProperty` and `FloatProperty` a second oracle, and width-only
+  is now `objects.WIDTH_ONLY_VALUE_TYPES` alone at 4910 of 185382, **2.6 per cent**. SECOND, the
+  one-command demonstration that the `">i"` flip "reddens only synthetic-fixture tests": FALSE.
+  13 tests fail and **FIVE ARE LIBRARY-BACKED**, each confirmed by its own skip guard rather than
+  by its name. **THE FALSE SENTENCE WAS SITTING IN THE DOCSTRING OF ONE OF THE TESTS THAT REFUTES
+  IT** - the ADR 0008 shape, where a reader checking the claim by running the named mutant finds
+  the thing it denies.
+
+- **THE MUTANT WAS GRADED THE WAY THIS PROJECT REQUIRES, WHICH IS WHY THE RESULT IS BELIEVABLE.**
+  Asserted live in the LOADED module rather than merely written to the file; floored against a
+  full-suite green run at the same tree; and the same 13 names re-run 13 of 13 AFTER the revert, so
+  a save library that moved mid-session could not be mistaken for the mutant's effect. The revert
+  went through `git checkout --` rather than a rewrite, because the mutation script had already
+  turned the file CRLF - the known harness trap arriving through my own tooling.
+
+- **Decisions: no ADR. One fence.** Do not cite the `">i"` flip as an open gap without re-running
+  it. Recorded as an eleventh entry in `memory/test-quality-failure-classes.md`: **A RECORDED
+  DEMONSTRATION OF A GAP CAN OUTLIVE THE GAP.** The count was removed from that file's description
+  and from its index hook at the same time - it had already drifted once, and `CLAUDE.md` section 4
+  forbids restating a measured number in prose.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`. Two things contradicted CS-421's own docs**, and
+  both corrections are in tracked files per `CLAUDE.md` section 8 - `docs/history_notes.md` under
+  **CS-421 - detail**, the docstring in `tests/save/test_properties.py`, and the `ROADMAP.md` title,
+  where the restated "60 per cent" was DELETED rather than updated so it cannot drift a third time.
+
+- **Failed paths, so they are not retried.** A `pytest | tail` pipeline reports TAIL's exit code,
+  not pytest's - it read 0 over a run that failed, which is the CS-703 shape arriving in my own
+  harness. Capture `PYTEST_EXIT` explicitly. And the LEDGER citation guard caught a bare
+  `test_properties.py::...` that does not resolve from the repo root; guarded docs need the full
+  path.
+
+- **THE CLOSE WENT TO AN ADJUDICATOR ON THE OPERATOR'S INSTRUCTION AND CAME BACK DO-NOT-CLOSE, AND
+  IT REFUTED MY OWN ENTRY TWICE.** It graded none of its own work and ran its mutation in an
+  OUT-OF-TREE copy so it never touched this tree. FIRST, MY LEDGER ENTRY COULD NOT COUNT: "five
+  library-backed, six synthetic, one gate" is TWELVE, and the split is 5 + 7 + 1. SECOND, AND THIS
+  IS THE ONE THAT MATTERS, **"five library-backed places" OVERSTATES INDEPENDENCE - it is ONE
+  predicate at five sites.** `_int_oracle_holds` is single-owner by its own docstring and feeds the
+  anchor, permutation and separability sweeps alike, and the fifth red spells the same conjunction
+  inline; FOUR OF THE FIVE DISCLAIM THEIR OWN RESULT IN THEIR FAILURE TEXT, reporting that their
+  baseline is red so the comparison means nothing. So my stated reason for adding no test - that it
+  would be redundant against five arms - rests on a FALSE PREMISE. All of it re-verified here before
+  it reached `docs/LEDGER.md`. The decisive ground was simpler than any of that:
+  `objects.BYTE_ORDER_STATUSES` HAS NO WORD MEANING SETTLED, and every four-byte type ships one that
+  denies it - so closing clause 3 would put the ledger in contradiction with the module, and clause 2
+  is the clause that gave the module that fact. Fence 1 was CROSSED by my `UInt32Property` bullet.
+
+- **THE SECOND ORACLE WAS BUILT ON THE OPERATOR'S INSTRUCTION, AND AN ADVERSARY THEN REFUTED ITS
+  HEADLINE CLAIM - MINE, WRITTEN THE SAME DAY.** The artifact is a CONTINUITY oracle over
+  `IntProperty` in `tests/save/test_value_anchoring.py`: it matches the same field across two saves
+  and asks only whether it MOVED LESS as stored than read backwards, touching `_int_oracle_holds`
+  nowhere. Measured: 12 snapshots, 34820 matched keys, 145 changed, **145 closer as stored against 0
+  reversed**, inverting completely to 0 and 145 under the real `">i"` mutant. **THEN THE REFUTATION,
+  RE-DERIVED HERE WITH AN INDEPENDENTLY WRITTEN PREDICATE: a rule inspecting NO MOVEMENT AT ALL -
+  the magnitude prior applied to the pair's two endpoints - reproduces that verdict on 145 OF 145
+  pairs, ZERO disagreements.** It is a second IMPLEMENTATION, not a second SIGNAL, and my
+  "narrows three shared inputs to two" was unsupported.
+
+- **THE FINDING WORTH KEEPING IS WHY NO PREDICATE COULD HAVE FIXED IT.** ZERO of the 145 changed
+  values carry a non-zero as-read high byte at BOTH ends, and 135 of 145 differ only in their lowest
+  byte. Every changed value in this corpus is small at one end, so EVERY correct byte-order oracle
+  must agree with the magnitude prior on it. **Evidential independence is not a predicate-design
+  problem here - it needs data this world does not contain.** Do not read a second oracle's
+  existence as having supplied it.
+
+- **THREE MORE SENTENCES OF MINE WERE MEASURED FALSE AND ARE CORRECTED IN THE TREE.** That time was
+  the only symmetry-breaker - FALSE by construction, the adversary built a within-one-save SPACING
+  statistic scoring 98 against 0. That the whole pattern histogram is invariant under reversal -
+  FALSE, 202 patterns change count; what is invariant is the MULTISET OF COUNTS, and read literally
+  the stronger sentence denied `_int_oracle_holds` can work. And "repeated saves of ONE world" -
+  there are THREE world tokens here and 8 pairs match across two of them.
+
+- **TEN OF THIRTEEN MUTANTS SURVIVED THE FIRST DRAFT; FIVE ARE NOW KILLED and each kill was
+  re-verified with the mutation asserted to have LANDED.** Dropping the MAJORITY conjunct, never
+  incrementing `closer_swapped`, stripping the sign from `_as_read_int32`, reversing only the OUTER
+  two bytes, and caching a `None`. Three LIBRARY-FREE arms were added, which also give this work its
+  first arms that RUN ON CI. **One survivor is an EQUIVALENT mutant and chasing it was refused** -
+  the buckets partition, so the minority conjunct is implied; my docstring claimed the opposite and
+  is corrected. Three others are population mutants whose only kill is a corpus-coupled floor, and
+  all four are listed in the module.
+
+- **A CORPUS-COUPLED RED WAS ALREADY LIVE AND IS CLOSED.** Both arms went RED - not skipped - on a
+  library holding saves this grammar cannot read, and SEVEN of the nineteen files here are already
+  at a save version outside `TAGGED_PAIRS`. Playing the game would have reddened the suite with no
+  defect. No-evidence states now route to the same skip a missing library takes, which also stops a
+  degenerate sweep reaching the cache.
+
+- **WORKTREE PRUNE: ONE REMOVED, SIX KEPT, AND THE INHERITED NOTE THAT SENT ME THERE WAS WRONG IN A
+  WAY THAT WOULD HAVE DESTROYED WORK.** The note said "FOUR WORKTREES REMAIN MERGED AND PRUNABLE"
+  and then named THREE. Measured instead of trusted: **only `agent-a8f0774be4d10c1fe` was clean, and
+  it is the only one removed.** Of the other two the note named, `agent-a1d0d1c85dd5bc8fc` holds
+  1567 uncommitted insertions across `.githooks/commit-msg` - a FROZEN file - `docs/GATED.md` and
+  `tests/test_commit_msg_gate.py`, and `agent-ac95f3565beb2209d` holds 1049 across
+  `docs/history_notes.md` and `tests/test_docs_citations.py`. Both carry content that is NOT in
+  main, checked file by file rather than inferred.
+
+- **THE TRAP IS GENERAL AND IS THE REASON THIS IS WRITTEN DOWN.** `git merge-base --is-ancestor`
+  reports ALL SEVEN of these worktrees as "merged into main", and that verdict is WORTHLESS here:
+  their checked-out HEAD is the BASE commit the agent started from, which of course is in main,
+  while the work sits UNCOMMITTED in the working tree. **A worktree is prunable only if it is
+  ancestor-merged AND clean.** Six of the seven are dirty, so the six that remain - the four CS-492
+  and spike worktrees plus those two - are ALL still holding work and none is prunable. Branch
+  `worktree-agent-ab7fcd5c63f9193ea` (32a982c) is genuinely merged and its worktree is already gone,
+  so only the branch is left to delete; `cs807-attribute-half` is NOT merged and stays.
+
+- **Next action: THE REMAINING ROUTE IS THE OPERATOR'S ALONE.** Amend clause 3 to say what it now
+  means - settled JOINTLY over the scored populations against the real library, with the per-type
+  residual in shipped data - and file the `UInt32Property` residual as its own item. An adjudicator
+  CANNOT grant that narrowing; narrowing an acceptance clause is fence 1's forbidden move. **What
+  the build did NOT change is the evidence:** the common-mode signal is unnarrowed, and this corpus
+  cannot separate two correct oracles at all. Otherwise take CS-817 / CS-821 / CS-824, which are
+  smaller and independent.
+
+## CS-830 - detail - CLOSED 2026-08-23
+
+**CS-830 CLOSED 2026-08-23 - see `docs/LEDGER.md`. This block is the record of how it
+was filed and is NO LONGER A LIVE INSTRUCTION.**
+
+
+### NOTE - relocated from `ROADMAP.md` 2026-08-23
+
+NOTE: filed 2026-08-23 and REWRITTEN the same day. **IT WAS THE FOURTH LIVENESS FLOOR AND THE REPAIR PASS THAT FIXED THE OTHER THREE SKIPPED IT** - an adversary caught that, which is this session's own transferable finding landing a fourth time. Its first wording asked for `an element` to decode, closeable by three single decodes while the 19910 `ArrayProperty`-of-`StructProperty` instances that hold the inventory stayed unmeasured. **THE THREE WORDS ARE NAMED RATHER THAN DERIVED, DELIBERATELY:** no shipped table equals that triple - every candidate over-includes `StructProperty` (CS-829) or `TextProperty` (CS-832) - so the second acceptance arm guards the transcription instead of pretending it is derived. **DISTINCT FROM CS-426 AND CS-456**, which cover the tag-extra WIDTH, and from CS-489, which grades PROSE.
+
+## CS-405 - detail - CLOSED 2026-08-23
+
+**CS-405 CLOSED 2026-08-23 - see `docs/LEDGER.md`. This block is the record of how it
+was filed and is NO LONGER A LIVE INSTRUCTION.**
+
+
+### NOTE - relocated from `ROADMAP.md` 2026-08-23
+
+NOTE: **UNBLOCKED 2026-08-15, BOTH BLOCKERS GONE, AND THE EXPERIMENT IS PARTLY ANSWERED ALREADY.** The object walk reaches real buildings across the whole local library and CS-413's decode half landed, so the superseded revision of this note - ... FULL ENTRY relocated to this file under **CS-405 - detail**; read it before taking this item.
+
+### detail - relocated from `docs/history_notes.md` 2026-08-23
+
+**UNBLOCKED 2026-08-15, BOTH BLOCKERS GONE, AND THE EXPERIMENT IS PARTLY ANSWERED ALREADY.** The object walk reaches real buildings across the whole local library and CS-413's decode half landed, so the superseded revision of this note - which said the walk was a skeleton and no property VALUE was readable - is relocated to `docs/history_notes.md`. Measured in passing by the CS-413 builder and NOT adjudicated by it, which is the correct boundary: **`mInventoryPotential` decodes, 962 instances across three version pairs, as an OBJECT REFERENCE - a 2-tuple - and not as an integer slot count.** Read that carefully before mapping it onto the three outcomes, because it is not any of them yet: it refutes the naive form of YES (the component does not carry a bare count) without establishing NO (a count may live behind the reference, in the referenced record). Resolving that is this item's own slice. Note also that ObjectProperty is one of the type words backed by the cross-section oracle rather than by width alone, so the 2-tuple reading is among the better-evidenced parts of CS-413's decode - see CS-421 for which types are not. THREE outcomes, not two, and the third is the one a careless agent collapses into NO: YES, the serialized component carries a slot count, which is a direct measurement of ADR 0005's last operand and licenses a LATER slice writing `OVERCLOCK_POTENTIAL_SHARD_SLOTS` into `clockspeed/data/version.py` WITH the four-invariant drift-guard entry ADR 0005 requires - it does NOT license `power.py` publishing a ceiling in the same slice; NO, it is serialized and carries no slot count, which fully refutes ADR 0005 option (b) and is worth as much as YES; or INCONCLUSIVE, meaning no world in the library has a built overclockable building with that component serialized at all, in which case the probe DID NOT RUN and the answer is "not yet measured" - the operator ruled on 2026-08-14 that this is an acceptable outcome and is filed as a re-run against the world growing, NOT converted into either answer. Do NOT derive the number any other way: ADR 0005 fences four routes and the arithmetic one, `slots = (2.5 - 1.0) / 0.5 = 3`, FEELS derived because it uses only shipped values and is not.
+
+## CS-833 - detail - CLOSED 2026-08-23
+
+**CS-833 CLOSED 2026-08-23 - see `docs/LEDGER.md`. This block is the record of how it
+was filed and is NO LONGER A LIVE INSTRUCTION.**
+
+
+### NOTE - filed 2026-08-23 by the CS-831 close
+
+Filed as a residual of CS-831, which shipped the gloss rather than introducing it. THREE
+SHIPPED SITES state it as a UNIVERSAL over the unresolved bucket: `ReferenceResolution`'s
+class docstring, `resolve_references`'s docstring, and the CS-831 test module's header.
+The sentence is that a reference resolving to nothing names an ASSET, and that
+non-negotiable 7 therefore licenses skipping it.
+
+MEASURED 2026-08-23 against the real library by two agents independently, and the counts
+differ because their shape heuristics differ: SIXTEEN unresolved references carry an
+EMPTY object path, and roughly one hundred more are save-object-shaped and carry a level
+head that IS a known root of the same save. Neither is an asset. A null reference is not
+content shipped with the game.
+
+**THE COUNTS ARE NOT THE DEFECT - THE UNIVERSAL IS.** CS-831's partition is right and its
+buckets are right; what is wrong is a causal explanation attached to a whole bucket that
+is false for part of it. An adjudicator considered DO-NOT-CLOSE on non-negotiable 7 for
+exactly this and ruled it a documentation defect rather than a handling defect, because
+the references ARE flagged in a named counted bucket and NN7 does not require the flag to
+carry a correct reason. Do not re-litigate that ruling; fix the sentence and split the
+count.
+
+## CS-834 - detail - CLOSED 2026-08-23
+
+**CS-834 CLOSED 2026-08-23 - see `docs/LEDGER.md`. This block is the record of how it
+was filed and is NO LONGER A LIVE INSTRUCTION.**
+
+
+### NOTE - filed 2026-08-23 by the CS-831 close
+
+CS-831 resolves TOP-LEVEL `ObjectProperty` tags - the ones its property walk steps over.
+That boundary is real, is correct for CS-831, and is stated NOWHERE a reader of
+`resolve_references` would find it.
+
+MEASURED 2026-08-23: a raw byte scan for the length-prefixed type word finds far more
+occurrences than the walk reports, and the merger independently confirmed that ZERO of
+them fall outside every record extent - so the excess is entirely INSIDE payloads, in
+regions the top-level walk steps over as opaque bytes. Those regions are `StructProperty`,
+`ArrayProperty` and `MapProperty` values, which `MEASURED_VALUE_TYPES` excludes. A first
+attempt to split that excess into nested-versus-outside was INVENTED and shipped as
+measurement; the split is one number, not two, and the reason it looked measured is that
+the two invented halves summed to the correct total.
+
+**WHY THIS MATTERS BEYOND TIDINESS:** the inventory path runs through exactly those
+containers. CS-830 and CS-829 own DECODING those interiors. Neither owns RE-SCOPING
+CS-831's population, so when they land, a test still named
+`test_every_object_property_reference_in_the_library_resolves_or_is_flagged` silently
+becomes a statement about a subset. A THIRD class is also unowned: the actor head's
+component list is stepped over by `_skip_actor_head` and never returned, so those
+references are not unresolved - they are never decoded at all.
+
+## CS-835 - detail - CLOSED 2026-08-23
+
+**CS-835 CLOSED 2026-08-23 - see `docs/LEDGER.md`. This block is the record of how it
+was filed and is NO LONGER A LIVE INSTRUCTION.**
+
+
+### NOTE - filed 2026-08-23 by the CS-831 close, raised by its adjudicator as the largest risk in the comparison
+
+CS-831's confidence rests on two passes agreeing. THEY ARE NOT INDEPENDENT READERS.
+Measured 2026-08-23: both share `_payload_text`, `_read_tag_header`,
+`_MAX_TAGS_PER_PAYLOAD`, `_decode_value`, `_as_reference` and `_skip_actor_head`; both
+abandon a payload on the same conditions; and the CS-831 repair deliberately tied
+`objects.REFERENCE_TYPE_WORD` to the oracle module's own copy of the word, which kills
+drift and GUARANTEES that one wrong word makes both passes wrong identically.
+
+Every synthetic case in the module derives from ONE fixture builder in
+`tests/save/test_properties.py`, so a wrong belief encoded in that tag builder is
+invisible to all of them.
+
+**SO THE REFERENCE COUNTS ARE ONE READER'S OPINION STATED TWICE.** The second join is
+genuine evidence about the JOIN and is NOT evidence about the DECODER. The only thing
+standing against a wrong grammar is the length-prefix redundancy argument. The module
+states all of this plainly rather than hiding it, which is why it did not block the close.
+A grammar-free count is measured IMPOSSIBLE without a second reader this project has
+declined to build - see the CS-831 ledger entry - so the honest form of this item may well
+be the recorded-limit arm rather than the second-count arm.
+
+## CS-836 - detail - CLOSED 2026-08-23
+
+**CS-836 CLOSED 2026-08-23 - see `docs/LEDGER.md`. This block is the record of how it
+was filed and is NO LONGER A LIVE INSTRUCTION.**
+
+
+### NOTE - filed 2026-08-23 by the CS-831 repair adversary
+
+MEASURED 2026-08-23 on a simulated no-game machine: making `resolve_references` skip a
+reference whose object path is empty, instead of bucketing it, SURVIVES - the module
+reports passed with the library cases skipped, while the skipped references vanish from
+the partition. Only the library-backed cases catch it, and those skip on a clean clone,
+which is the CS-426 shape all over again: the protection exists only on the one machine
+that has the game installed.
+
+The CS-831 module's own stated standard says a defect of this class must die on a bare box
+too. This item is that test.
+
+## CS-837 - detail - CLOSED 2026-08-23
+
+**CS-837 CLOSED 2026-08-23 - see `docs/LEDGER.md`. This block is the record of how it
+was filed and is NO LONGER A LIVE INSTRUCTION.**
+
+
+### NOTE - filed 2026-08-23 by the CS-831 repair adversary
+
+`tests/save/test_absolute_claims.py`'s `FENCED_MODULES` holds `test_absolute_claims.py`
+and `test_decode_oracles.py` and nothing else, so the CS-831 test module's prose is
+ungoverned by the CS-420 quantifier fence. `clockspeed/save/objects.py` is not in it
+either. That is how a false universal survived in `objects.py` across a whole repair pass
+whose write-list included that file: nothing was watching the prose.
+
+This is ADR 0008's unguarded tier, the same class as CS-437 and CS-422.
+
+## CS-838 - detail - CLOSED 2026-08-23
+
+**CS-838 CLOSED 2026-08-23 - see `docs/LEDGER.md`. This block is the record of how it
+was filed and is NO LONGER A LIVE INSTRUCTION.**
+
+
+### NOTE - filed 2026-08-23 by the merger, against its own commit
+
+MEASURED 2026-08-23, not reasoned. A commit was made in this session carrying a
+`ruff format` violation. `tools/precommit_gate.py --staged` reported PASS on it, and the
+FULL suite passed with the violation present - only an explicit `ruff format --check .`
+found it. So neither tier-0 gate nor the suite enforces formatting, and the only thing
+that caught it was a human running the checker by hand.
+
+**THE FILE IS FROZEN.** An adjudicator grant recorded in `docs/LEDGER.md` comes BEFORE any
+edit, per `CLAUDE.md` section 6. Note the standing constraint that applies to every change
+to this gate: coverage may not be reduced to buy anything, and the only valid proof the
+gate still blocks is end to end - stage a real violation, attempt a real `git commit`,
+assert exit 1 and HEAD unchanged.
+
 ## CS-486 - detail - CLOSED 2026-08-23
 
 **CS-486 CLOSED 2026-08-23 - see `docs/LEDGER.md`. This block is the record of how it

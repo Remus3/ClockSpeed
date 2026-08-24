@@ -73,6 +73,157 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-23 - CS-830 - CLOSED NARROWED. Container element EXTENTS are read over the whole library; the internal PARTITION is recorded as undiscriminated, after an adversary refuted the first close
+Verification: `clockspeed/save/objects.py` ships the container element walk plus
+`UNDISCRIMINATED_ELEMENT_SHAPES` and `CONTAINER_WORDS_WITHOUT_ELEMENT_GRAMMAR_EVIDENCE`.
+`tests/save/test_container_elements.py::test_every_container_instance_in_the_library_yields_a_decoded_element`
+holds the equality per word, skip-if-absent and counts only.
+THE FIRST CLOSE WAS REFUTED AND THIS ENTRY RECORDS THE REFUTATION RATHER THAN THE CLAIM.
+The acceptance clause was MET - equality, not a floor, over every instance of the three
+words - and the thing the item existed for was NOT achieved for `SetProperty`. An adversary
+that wrote none of the code measured: every `SetProperty` instance in the library is of
+`StructProperty` and every one falls to a DERIVED width, pure division, with zero
+self-delimiting readings; a large minority are single-slot, where the division is the
+identity and grades nothing; and the MEDIAN count of ALTERNATIVE element counts that would
+also have divided each region evenly is eleven. A mutant replacing the partition with a
+provably WRONG one - first element takes the span less one byte per remaining slot, every
+other element takes one byte - still closes the region and still yields the declared number
+of elements, and EVERY LIBRARY-BACKED TEST STAYED GREEN. Only a hand-authored fixture
+reddened, and that fixture's truth was the implementation's own assumption.
+TWO STRUCTURAL CAUSES, both now closed. The evidence-strength guard POOLED all three
+container words, so a word that was one hundred per cent derived hid behind another word's
+self-delimiting bulk; it now grades PER CONTAINER WORD. And the elements-agree-with-counts
+arm was an IDENTITY - the walk appends exactly one element per declared slot with no early
+exit - so it could not move independently of the count it was checking. That is recorded as
+an identity rather than deleted.
+THE LIMIT IS RECORDED AS A TEST THAT ASSERTS ITS OWN SURVIVAL:
+`tests/save/test_container_elements.py::test_a_provably_wrong_partition_survives_every_library_backed_equality`.
+No test can redden on the wrong partition today without encoding a struct width whose only
+source is this module's own belief, which is the circularity the adversary caught. Asserting
+the survival gives the limit a FAILURE DIRECTION: the day the corpus discriminates the
+partition, that test goes red and forces this record to narrow.
+DECISION, OPERATOR, 2026-08-23: narrow, record the limit, close. The undiscriminated
+remainder is filed as CS-843. Do NOT re-pitch deleting the element decode - the extent IS
+read and the region DOES close; what is unproven is that the division is the right one.
+Do NOT re-pitch a synthetic fixture as evidence for a real-library partition.
+
+### 2026-08-23 - CS-405 - CLOSED. The `mInventoryPotential` experiment ran against the real library and recorded a FOURTH outcome the three-outcome menu did not cover
+Verification: `docs/adr/0009-inventory-potential-top-level-carries-no-slot-count.md`, indexed
+in `docs/adr/README.md`. `tests/save/test_inventory_potential.py` reproduces the evidence,
+skip-if-absent and counts only, and passes with the library forced empty.
+THE OUTCOME IS "NO AT THE TOP LEVEL, UNREAD BELOW IT" and it is deliberately NOT filed as
+INCONCLUSIVE. Inconclusive was ruled by the operator on 2026-08-14 to mean that no world in
+the library carries such a building serialized at all, so the probe DID NOT RUN. The
+population exists and the probe RAN. The named component is read completely at its top level
+and carries no slot count there, under ADR 0005's names or any other. The residue is the
+struct element interior CS-829 owns.
+DECISION, OPERATOR, 2026-08-23: the fourth state is an acceptable outcome and is named
+rather than collapsed. Fence: do NOT re-record this as INCONCLUSIVE and do NOT read it as a
+flat NO. A flat NO would refute ADR 0005 option (b), and this does not - integer-valued
+container elements exist on those records and are unattributed.
+CS-830 IS THE LOAD-BEARING DEPENDENCY, stated as a measured counterfactual rather than as
+history: it drove the top-level unmeasured residue to zero, and per non-negotiable 7 an
+unread tag is flagged and never assumed absent, so before it nobody could write the sentence
+this ADR rests on.
+The ADR restates all EIGHT of ADR 0005's re-pitch fences - the item note's summary of "four
+routes and the arithmetic one" is five and is NOT the acceptance - and adds three of its own.
+`clockspeed/data/version.py` and `clockspeed/solve/power.py` are UNTOUCHED:
+`OVERCLOCK_POTENTIAL_SHARD_SLOTS` stays unset and no ceiling is published.
+A SEAM WORTH KNOWING, found here and general: no ADR can name a test by identifier without
+an edit to the citation guard's hand-maintained tuple. Naming which test reddens under which
+fault is also exactly the derived-not-written detection claim ADR 0008 forbids, so removing
+the names was compliance rather than a workaround.
+
+### 2026-08-23 - CS-833 - CLOSED. The unresolved bucket is partitioned three ways and the asset gloss is falsified rather than softened
+Verification: `clockspeed/save/objects.py` ships `classify_unresolved` and
+`UNRESOLVED_SHAPES`; `ReferenceResolution` carries the three counts apart and DERIVES the
+bucket total from their sum, so bucket and partition cannot disagree.
+`tests/save/test_reference_resolution.py::test_the_unresolved_bucket_counts_its_three_shapes_apart`
+kills the collapse SYNTHETICALLY, so it runs on a machine with no game.
+A FOURTH SITE OF THE GLOSS WAS FOUND THAT THE DISPATCH DID NOT NAME. The brief named three
+and warned that a `SoftObjectProperty` claim would look like a fourth and must be left alone
+- that warning was correct and the claim was left. The genuine fourth carried the same
+universal at the same scope in the cross-section paragraph of the oracle commentary. THE
+POPULATION DEFECT AGAIN, in the brief that warned about it, for the fifth session running.
+
+### 2026-08-23 - CS-834 - CLOSED. The reference population boundary is stated where `resolve_references` is defined, as ONE number
+Verification: `clockspeed/save/objects.py` at `resolve_references`, naming three unowned
+classes including the actor head's component list. `tests/save/test_reference_resolution.py`
+derives the unreached count and goes RED if it is asserted to be zero.
+THE INVENTED SPLIT WAS CONFIRMED IMPOSSIBLE RATHER THAN AVOIDED BY INSTRUCTION. A prior
+attempt invented a nested-versus-outside split whose two halves summed to a correct total,
+which is exactly why it read as measured. This slice checked: the two candidate halves do
+NOT sum to the difference, so any apportionment would have been invented. It is ONE number.
+An honest nuance is recorded in the boundary rather than glossed: the component list
+contributes ZERO to the type-word scan, because those references carry no property tag. It
+is an unowned class of REFERENCE, not an unreached TYPE WORD.
+
+### 2026-08-23 - CS-835 - CLOSED on the RECORDED-LIMIT arm, and the measurement that forced that choice is the finding
+Verification: `clockspeed/save/objects.py` ships `REFERENCE_COUNT_COMMON_MODE`, a frozenset
+of every symbol both passes execute, derived as the closure of the four named primitives
+rather than transcribed. `tests/save/test_reference_resolution.py` holds it against the
+actual shared-symbol set and goes RED when a symbol joins or leaves.
+THE SECOND-COUNT ARM WAS NOT DECLINED FOR COST. It was measured unreachable: PASS TWO REACHES
+NOTHING PASS ONE DOES NOT. Its entire objects-surface is common mode, so the second count has
+no independent surface at all, and CS-831's two agreeing counts were one reader stating its
+opinion twice. Fence: do NOT re-pitch the second-count arm as merely unattempted.
+
+### 2026-08-23 - CS-836 - CLOSED. An empty-path reference is bucketed rather than skipped, proven on a machine with no game
+Verification: `clockspeed/save/objects.py` - the lookup in `resolve_references` is
+unconditional. Proven with the save library forced absent: the library cases skipped and the
+mutant still produced failures, so the guard does not depend on a game being installed.
+The mutant was applied IN PLACE with a `finally` restore, its anchor asserted to match
+exactly once, the change re-read from disk to confirm it landed, and the restore asserted
+byte-identical. No repo copy was made.
+
+### 2026-08-23 - CS-837 - CLOSED on the SECOND acceptance arm: the fence exclusion is recorded against a derived criterion
+Verification: `tests/save/test_absolute_claims.py` ships `fence_qualifiers` and the recorded
+criterion;
+`tests/save/test_absolute_claims.py::test_the_qualifier_derivation_separates_clean_prose_from_dirty_and_from_none`
+is the load-bearing control.
+THE CRITERION: the fence is a RATCHET ON A STATE ALREADY REACHED. A module declares the
+marker when its prose ALREADY satisfies the contract, so the declaration is the LAST step of
+a prose repair and never the first. That makes a synonym sweep TRIGGER the obligation rather
+than discharge it, which is the escape the fence's own residual warned about. No exemption
+list ships - the qualifying set is derived, so there is no artifact to add a module to.
+DECISION, OPERATOR, 2026-08-23: take the second arm. Fencing the module was measured to cost
+a large prose repair of a module another slice was rewriting the same session, which would
+have put the rework on the wrong slice.
+GRADED BY AN ADVERSARY ON SIX ATTACKS, ALL NOT REFUTED - which is the strongest statement
+available and is NOT "verified". Its residuals are recorded rather than absorbed: the
+criterion prose itself is deletable with the suite green, because the citation coupling runs
+test-to-prose and never prose-to-test. That is filed as CS-842. The live assertion alone
+cannot tell a derived set from a restatement of the list it is compared against, so the
+synthetic control is load-bearing and must never be weakened.
+
+### 2026-08-23 - CS-838 - CLOSED. A staged file that `ruff format --check` rejects now BLOCKS a real commit, implemented under the frozen-file grant recorded earlier this day
+Verification: `tools/precommit_gate.py` - two insertions only, zero existing lines modified,
+re-verified against the grant commit by confirming all lines the gate carried at grant time
+are still present in order. `tests/test_precommit_gate.py::test_the_format_check_does_not_rewrite_the_file_it_checks`
+and its sibling blocking arm; `tests/test_hook_interpreter_ladder.py` carries the derived
+`TRUNCATIONS`.
+THE ROUTE WAS THE POINT: proposer, adjudicator and implementer were three different agents,
+the grant preceded the edit in COMMIT ORDER and not merely in prose, and no agent graded its
+own work.
+CONDITION ELEVEN EARNED ITS COST. It required `TRUNCATIONS` to be RE-DERIVED rather than
+re-checked. The implementation's insertion made the previously hardcoded prefix stop
+compiling, so a re-check condition would have refused for the wrong reason. Measured: across
+a range of insertion sizes the hardcoded form fails a large minority, the derived form fails
+none - and the reason is structural rather than statistical, because in a file that parses, a
+column-zero compound statement can only begin where every enclosing bracket, string and block
+is complete, so the derived prefix is a syntactically complete program by construction.
+CONDITION FIVE EARNED ITS COST TOO, and this is the sharpest lesson: the verdict comes from
+ruff's EXIT CODE and never from its output prefix. The ruff version CI resolves has ALREADY
+reworded the line an earlier proposal wanted to parse. Had the prefix decided the verdict,
+CI's own ruff would have silently passed everything.
+CS-838 DOES NOT CLOSE CS-484 AND IS NOT RECORDED AS MAKING THE GATE AGREE WITH CI. The ruff
+pin still carries no upper bound. A block on a newer-ruff machine names no file.
+A CORRECTION TO THIS ITEM'S OWN GRANT is recorded separately above: condition SEVEN's
+RATIONALE carried a sentence measured false, the arm that pinned it could not fail, and the
+sentence had shipped to three sites.
+RESIDUALS FILED RATHER THAN ABSORBED: CS-841, the silent and self-arming format gap on the
+PostToolUse path, which condition FOURTEEN required be filed as its own item.
+
 ### 2026-08-23 - CS-838 - CORRECTION to the frozen-file grant recorded earlier this day: condition SEVEN's RATIONALE carried a false sentence, and the sentence had shipped to three sites
 Verification: this record CORRECTS the grant entry below, headed "CS-838 - FROZEN-FILE GRANT
 ISSUED WITH SEVENTEEN CONDITIONS". That entry is not edited - this file is append-only and a
