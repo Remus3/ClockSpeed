@@ -73,6 +73,37 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-23 - CS-838 - CI WENT RED on the first push carrying the format check, exactly as this item's own adversary predicted, and the fix was the ruff PIN rather than the gate
+Verification: `pyproject.toml` now pins `ruff>=0.13,<0.16` with the reasoning in place.
+tier1 on the pushed commit was READ and is GREEN; the preceding commit's tier1 was READ and
+is RED. Both conclusions were taken from the run status, not from a watcher's exit code -
+`gh run watch` was wrapped in a compound command whose exit was the LAST command's, which
+reported success over a failing run. That is the `pytest | tail` trap in a second costume.
+WHAT FAILED, and it is worth stating precisely because the gate was NOT wrong. Two arms
+assert the format finding NAMES the offending file. Ruff 0.16 reworded the line the gate
+reads to recover that name, so on the runner the gate matched no filename and rendered a
+placeholder. The gate BLOCKED correctly throughout - exit 1, HEAD unchanged - because
+condition FIVE of the grant puts the VERDICT on ruff's EXIT CODE and never on its message.
+HAD THE ORIGINAL PREFIX-PARSING PROPOSAL BEEN GRANTED AS WRITTEN, CI's own ruff would have
+passed every format violation while reporting success. The adjudicator's refusal to let a
+string contract decide the verdict is the reason this was a degraded diagnostic instead of a
+silent hole.
+THE FAILURE WAS PREDICTED, LOCATED AND RECORDED BEFORE THE PUSH, AND SHIPPED ANYWAY. The
+adversary measured the reword on a real commit against an isolated newer ruff, and named the
+CI step where it would first appear. Both facts were written into the grant as disclosed
+risks. THE SILENT half of that risk was filed as an item; the LOUD half was left as prose and
+nothing forced it before the push. **A measured, located, predicted failure is a work item
+with a due date, not a residual.** That is the transferable lesson and it is recorded here
+rather than in a session note because it is about this item's own handling.
+WHY THE PIN AND NOT THE GATE. The gate's behaviour is correct on both versions; what differed
+was the toolchain. An unbounded dependency is what made this machine and the runner disagree,
+so the divergence is fixed where it was created. Editing the gate would also have meant
+amending a frozen-file grant to parse a SECOND output shape - and the newer ruff prints SOURCE
+LINES from plain `--check`, so a parser aimed at its output is the change most likely to leak
+the very thing conditions EIGHT and NINE forbid.
+CS-484 IS NARROWED AND NOT CLOSED. The range still permits drift inside the 0.15 line, and
+nothing asserts that the runner and this machine resolve the same patch.
+
 ### 2026-08-23 - CS-830 - CLOSED NARROWED. Container element EXTENTS are read over the whole library; the internal PARTITION is recorded as undiscriminated, after an adversary refuted the first close
 Verification: `clockspeed/save/objects.py` ships the container element walk plus
 `UNDISCRIMINATED_ELEMENT_SHAPES` and `CONTAINER_WORDS_WITHOUT_ELEMENT_GRAMMAR_EVIDENCE`.

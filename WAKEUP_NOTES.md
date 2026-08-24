@@ -78,6 +78,16 @@ the line becomes a pointer.
   and relocation cannot substitute for it** because every section is a live instruction for an OPEN
   item and `CLAUDE.md` forbids the archive from holding those.
 
+- **CI WENT RED ON THE FIRST PUSH AND THE FAILURE HAD BEEN PREDICTED, LOCATED AND WRITTEN
+  DOWN BEFORE IT.** CS-838's adversary measured that the newer ruff reworded the line the format
+  check reads, and named the CI step where it would surface. Both went into the grant as
+  disclosed risks; the SILENT half was filed as an item and the LOUD half was left as prose.
+  **A measured, located, predicted failure is a work item with a due date, not a residual.**
+  Fixed by PINNING ruff below 0.16 in `pyproject.toml` - not frozen, no grant needed - because
+  the gate was correct on both versions and an unbounded dependency is what made the two
+  toolchains differ. tier1 READ GREEN on the fix. **The gate BLOCKED correctly throughout**,
+  because the grant put the verdict on ruff's EXIT CODE and never on its message.
+
 - **Decisions: ADR 0009 recorded** - the `mInventoryPotential` FOURTH state. Detail in `docs/adr/`.
 
 - **Surprises: nothing contradicted `BOOTSTRAP.md`.** Two measured facts contradicted BRIEFS I wrote,
