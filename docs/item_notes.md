@@ -395,6 +395,101 @@ and the first sign of it would be an operator's edit being refused.
 **DO NOT ABSORB THIS INTO CS-838.** The grant says so, and the reason is that the repair
 belongs to a file the grant does not cover.
 
+## CS-843
+
+### NOTE - filed 2026-08-23 by the CS-830 narrowing builder, from an adversary that wrote none of the code
+
+**CS-830 WAS MERGED AND THEN REFUTED, AND THIS IS THE PART OF IT THAT DID NOT SURVIVE.**
+The item is narrowed on an operator ruling rather than reopened: what it decodes is kept,
+what it could not prove is recorded, and the unproven remainder is this item.
+
+**THE DISTINCTION THE WHOLE ITEM TURNS ON IS EXTENT VERSUS PARTITION.** A container's
+element region is bounded - the tag declares its size, the walk requires the elements to
+consume it exactly, and a region that does not close is refused rather than truncated.
+That is real and it is kept. What is NOT established is the PARTITION: where inside that
+region one element ends and the next begins.
+
+**WHY THE REGION CLOSING IS NOT EVIDENCE FOR THE PARTITION.** Where the element word has
+no grammar of its own, the region is divided by the DECLARED count and admitted because
+the division came out even. Under a forced width the walk returns `at + width` after a
+bounds check that cannot fail while slots remain, so it closes by arithmetic - the walk
+CANNOT fail once the division is exact, and a check that cannot fail is not a check.
+
+**MEASURED, NOT ARGUED.** A partition giving the first element the whole span less one
+byte per remaining slot and every other element exactly one byte was run through every
+library-backed equality this project has. All of them stayed green. That measurement now
+ships as a test - `tests/save/test_container_elements.py::test_a_provably_wrong_partition_survives_every_library_backed_equality` -
+which ASSERTS the survival, so the day anything in the corpus does discriminate the
+partition, that test is what says so. **A RED THERE IS GOOD NEWS AND IS THIS ITEM
+PROGRESSING.**
+
+**THE SECOND EQUALITY CANNOT HELP AND IT IS WORTH KNOWING WHY.** `_walk_elements` appends
+exactly one entry per `count x words` step or returns None, so the bounded total equals
+the declared total identically, for every width tuple that closes. Both sides are computed
+from the same declared count. It grades the fold's accounting, never the widths.
+
+**THE DECLARED COUNT IS NOT CROSS-CHECKED EITHER, AND THIS IS CS-830'S OWN FIRST-DRAFT
+DEFECT ALIVE IN THE SHAPE ITS REPAIR PERMITS.** A region truly holding a few wide elements,
+declared as one slot per byte, divides exactly and is published as that many one-byte
+elements with nothing refused. The case ships as
+`test_a_uniform_region_is_partitioned_by_a_declared_count_nothing_cross_checks`, which
+records the behaviour and does not endorse it.
+
+**THE POPULATION IS TWO SHAPES, NOT ONE WORD, AND READING IT AS ONE WORD IS THE ERROR TO
+AVOID.** `SetProperty` is the whole-word case: not one instance in the corpus was bounded
+by the element's own grammar, so its framing has never once been tested against a reading
+that could have failed, and it is named in
+`objects.CONTAINER_WORDS_WITHOUT_ELEMENT_GRAMMAR_EVIDENCE`. But the STRUCT-SHAPED ARRAYS
+carry the same limit while sitting inside a word that is overwhelmingly self-delimiting,
+so they are invisible to any per-word record. **THE SHAPE IS THE PROPERTY** -
+`objects.UNDISCRIMINATED_ELEMENT_SHAPES` is the table that generalises, and the per-word
+one records only where a whole word rests on it.
+
+**NO POPULATION FIGURE IS WRITTEN HERE - CLAUDE.md section 4.** The operator plays this
+game and every count moves on the next autosave. Which words and which shapes is a
+classification and is shipped as data; how many instances each holds is derived on every
+run.
+
+**DO NOT CLOSE THIS BY DELETING THE DECODE.** The elements are bounded and the region
+closes; the unproven claim is narrower than the decode, and deleting it would give up
+something real to avoid admitting something unproven.
+
+**DO NOT CLOSE THIS WITH A SYNTHETIC FIXTURE ALONE.** A hand-authored set of struct
+elements is packed from the same belief the reader unpacks it with, so it grades the
+fixture author's assumption and not the format - the adversary's finding was precisely
+that the only red the wrong partition produced came from such a fixture. The evidence has
+to come from somewhere that could have disagreed: the struct's own interior grammar
+(CS-829), an element width the shipped assets state, or a cross-check between the declared
+count and the region that a misdeclaration would break.
+
+## CS-844
+
+### NOTE - filed 2026-08-23 by the CS-830 narrowing builder
+
+**MEASURED, from the same adversarial pass.** `objects.CONTAINER_ADJACENT_OWNERS` records
+which item owns a container-shaped word this module does not decode, and the guard over it
+in `tests/save/test_container_elements.py` asserts only `item.startswith("CS-")`. So
+`CS-99999` - an id naming nothing anywhere in the work-item files - satisfies it, and the
+guard's own failure message calls a non-id "a sentence rather than a route" while
+accepting a route that leads nowhere.
+
+**THE FAILURE MODE IS NOT THE TYPO, IT IS THE CLOSE.** The realistic way this bites is an
+owner id that WAS real: the owning item closes, its section relocates to
+`docs/history_notes.md`, and the entry goes on naming it forever with every guard green.
+The word then has a recorded owner that cannot be acted on, which is the same class of
+defect as a region entry recording a measurement nobody made.
+
+**IT IS NOT CONFINED TO THIS ONE TABLE.** Look for the sibling cases before repairing the
+one - any shipped table recording a `CS-` id as an owner, a route or a hand-off has the
+same weakness unless something resolves the id. Grep for the prefix in shipped data rather
+than assuming the container table is the only site; the CS-830 pass found four sites of one
+gloss by doing exactly that.
+
+**AN OPEN OWNER AND A CLOSED OWNER ARE DIFFERENT ANSWERS AND THE ACCEPTANCE ASKS FOR BOTH.**
+A closed owner is not a broken pointer - it means the hand-off has ALREADY HAPPENED and the
+entry is stale rather than wrong - so a check that treats the two alike would force a false
+choice between deleting live records and keeping dead ones.
+
 ## CS-842
 
 ### NOTE - filed 2026-08-23 by the merger, from CS-837's adversary
@@ -432,6 +527,10 @@ flip.
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
 
 NOTE: filed 2026-08-23, headline CORRECTED the same day: `Int64Property` is NOT in `DECLINED_VALUE_READINGS` - it is named by the `ArrayProperty` entry as an inner type and recorded in `UNMEASURED_PAYLOAD_REGIONS`, so 'declined' was the wrong word for it. **THE TEST CLAUSE IS LOAD-BEARING:** without it this closes by editing one string in a table, which is what the first wording allowed. `TextProperty` had ZERO mentions across `ROADMAP.md`, `BACKLOG.md` and `docs/GATED.md` before this item. Neither blocks pillar 3.
+
+**BOTH CLAUSES OF THAT CORRECTION WERE THEMSELVES MEASURED FALSE 2026-08-23 (session 37), and the cause is CS-830's merge rather than a mis-reading.** The sentence above says `Int64Property` "is named by the `ArrayProperty` entry as an inner type and recorded in `UNMEASURED_PAYLOAD_REGIONS`". Neither holds today. CS-830 PROMOTED the three container words out of that table, so there is no `ArrayProperty` entry left to name anything, and it DELETED the `Int64Property` entry outright. **THAT DELETION WAS FORCED AND IT STANDS.** `tests/save/test_properties.py::test_the_region_table_holds_no_key_nothing_justifies` refuses a key the library does not justify, and the library holds no top-level `Int64Property` tag at all - so an entry there would record a measurement nobody was ever in a position to make. **DO NOT RESTORE THE ENTRY AND DO NOT WEAKEN THAT TEST** to make room for one; that is the disposition an operator ruled on the same day.
+
+**THE CRITERION NOW HAS A HOME THAT IS NOT THAT TABLE**, added by the CS-830 narrowing so this item has a reachable route: `objects.VALUE_READING_CRITERIA` records a type word whose TOP-LEVEL value is declined, against the EVIDENCE that would settle the reading. It is independent of `UNMEASURED_PAYLOAD_REGIONS` by construction - that table records regions the library PRODUCES, this one records a refusal and what would end it - so a word with zero top-level instances can legitimately live in it. `Int64Property` is entered there already, with the criterion phrased as an observation (one top-level tag, of any provenance, read against the element width the arrays already close on) rather than as a sample size. **THIS ITEM'S ACCEPTANCE IS UNCHANGED** and is NOT satisfied by that entry existing: what is still owed is `TextProperty`'s own criterion - its `UNMEASURED_PAYLOAD_REGIONS` entry still turns on an instance count, which is the exact phrasing the acceptance rejects - and the test that goes RED when a criterion is replaced by a sample-size one. **DO NOT CLOSE THIS BY MOVING `TextProperty` ACROSS:** it has real top-level instances, so its region entry is legitimate where it is and the criterion is what needs rewriting, not the table it sits in.
 
 ## CS-825
 
