@@ -25,10 +25,18 @@ pinned probes in the test module.
 
 PROVEN BY WHAT PYTEST ACTUALLY PRINTS. Reading the message text would grade
 exactly the half of the channel that is not the channel, so the proof below
-forces a representative arm of each guarded module to FAIL inside a real pytest
-subprocess, with a synthetic token planted in the withheld field, and greps the
-rendered output for it. Three token classes are planted - a save-derived name, a
-home path and an account directory - and
+forces one arm per covered module to FAIL inside a real pytest subprocess, with
+a synthetic token planted in the withheld field, and greps the rendered output
+for it.
+
+WHAT THOSE ARMS PROVE, STATED EXACTLY. Each runs a GENERATED stand-in carrying
+the module's own (class, field) shape and no imports, so what is measured is
+that pytest's rewriter renders that shape - not that the shipped code path
+does. The shipped path is graded statically by the sweep; these arms are what
+stop the sweep's premise from being an assumption.
+
+Three token classes are planted - a save-derived name, a home path and an
+account directory - and
 ``test_every_sensitive_class_is_covered_by_the_forced_arms`` asserts all three
 are actually exercised rather than merely defined.
 
@@ -459,15 +467,31 @@ def test_the_partition_is_read_from_provenance_and_not_from_the_file():
     )
 
 
-def test_both_partitions_are_populated_on_the_real_tree():
-    # A PARTITION WITH ONE EMPTY SIDE IS A CONSTANT WEARING A PREDICATE'S NAME.
-    _, findings = scan_repo()
-    live = _live(findings)
-    latent = _latent(findings)
-    both_sides_populated = bool(live) and bool(latent)
-    assert both_sides_populated, (
-        f"the sweep put {len(live)} findings live and {len(latent)} latent. With "
-        "either side empty the partition below is not grading provenance at all"
+def test_the_liveness_flag_is_not_a_constant():
+    # A PARTITION WITH ONE EMPTY SIDE IS A CONSTANT WEARING A PREDICATE'S NAME -
+    # and the first spelling of this test proved that against the REAL TREE, by
+    # requiring the live side to be non-empty. So a tree with zero live leaks
+    # turned this module RED, and a green run still certified that at least one
+    # module leaks. MEASURED: with every live flag cleared - which is exactly
+    # the tree that repairing the last residual produces - it reported "0
+    # findings live and 206 latent" and failed.
+    #
+    # THAT IS THE SAME DEFECT AS DERIVING THE FORCED ARMS FROM LIVE FINDINGS. It
+    # moved function and did not leave the module. A guard must not require the
+    # defect to exist, anywhere in it, so non-vacuity is proven HERE against
+    # SYNTHETIC sources whose verdicts cannot change when the tree is repaired.
+    verdicts: set[bool] = set()
+    for label, source in (
+        ("provenance", PROVENANCE_SOURCE),
+        ("declared", DECLARED_SOURCE),
+        ("undeclared", UNDECLARED_SOURCE),
+    ):
+        verdicts.update(finding.live for finding in scan_source(f"<{label}>", source))
+    takes_both_values = verdicts == {True, False}
+    assert takes_both_values, (
+        f"the liveness flag took the values {sorted(verdicts)} across the "
+        "synthetic corpus. With one value it is a constant, and every "
+        "partition assertion in this module is about nothing"
     )
 
 
@@ -1158,15 +1182,6 @@ def test_the_wrapper_vocabularies_do_not_overlap():
     assert overlap == 0, f"these names are classed as both mask and disclosure: {both}"
 
 
-def test_min_and_max_are_not_read_as_masks():
-    # EACH RETURNS AN ELEMENT, so over a set of struct words it prints one of
-    # them. Neither appears in any __repr__ in this tree, so excluding them
-    # changes no verdict today and is the safe answer the day one does.
-    classed = sorted({"min", "max"} & CONTENT_REDUCERS)
-    misclassed = len(classed)
-    assert misclassed == 0, f"an element-returning builtin is classed as a mask: {classed}"
-
-
 SCALAR_FIELD_SOURCE: Final = """
 \"\"\"A withheld field that is a number discloses a number.\"\"\"
 
@@ -1309,4 +1324,90 @@ def test_an_imported_mask_is_resolved_across_modules():
         f"module by module withheld {local_only}. With no difference the "
         "cross-module hop is dead code, and an imported mask is being read as "
         "disclosure somewhere"
+    )
+
+
+BOOLEAN_MASK_SOURCE: Final = """
+\"\"\"Three masks that render a boolean or a literal word, not a value.\"\"\"
+
+
+class Holder:
+    struct_word: str | None
+    value: str | None
+    super_name: str | None
+    words: frozenset[str]
+
+    def __repr__(self) -> str:
+        return (
+            f"Holder(struct_word={self.struct_word is not None}, "
+            f"decoded={self.value is not None}, "
+            f"super={'present' if self.super_name is not None else 'absent'}, "
+            f"any_words={'yes' if self.words else 'no'})"
+        )
+
+
+def render(holder: Holder) -> None:
+    assert holder.struct_word == ""
+    assert holder.value == ""
+    assert holder.super_name == ""
+    assert holder.words == frozenset()
+"""
+
+#: The four fields the source above masks. Named so a lost one reddens by name.
+BOOLEAN_MASKED_FIELDS: Final = ("struct_word", "super_name", "value", "words")
+
+
+def test_a_comparison_and_a_conditional_are_masks():
+    # THREE OF THESE ARE SHIPPED SHAPES, and the mask rule stopped reading them
+    # when it was rewritten to walk the parent chain for a reducing CALL - an
+    # ast.Compare is not a call and neither is an ast.IfExp.
+    # ContainerValue.struct_word, ContainerElement.value and Schema.super_name
+    # each render a boolean or a literal word and each went WITHHELD ->
+    # DISCLOSED, so every assertion over them stopped being graded.
+    # ContainerValue.struct_word is a decoded struct type word off a real save -
+    # the same data class as this module's one recorded residual.
+    found = scan_source("<boolean>", BOOLEAN_MASK_SOURCE)
+    flagged = sorted({finding.field for finding in found})
+    missing = [name for name in BOOLEAN_MASKED_FIELDS if name not in flagged]
+    unseen = len(missing)
+    assert unseen == 0, (
+        f"{unseen} of {len(BOOLEAN_MASKED_FIELDS)} boolean-masked fields are "
+        f"being read as DISCLOSED, so nothing grades them: {missing}. A repr "
+        "that prints `x is not None` prints a boolean"
+    )
+
+
+ELEMENT_REDUCTION_SOURCE: Final = """
+\"\"\"A repr masking with max(), which returns an element rather than a count.\"\"\"
+
+
+class Holder:
+    words: frozenset[str]
+
+    def __repr__(self) -> str:
+        return f"Holder(widest={max(self.words)})"
+
+
+def render(holder: Holder) -> None:
+    assert holder.words == frozenset()
+"""
+
+
+def test_an_element_returning_reduction_still_keeps_the_field_withheld():
+    # THE FAILURE DIRECTION, MEASURED, AND IT IS THE OPPOSITE OF WHAT EXCLUDING
+    # min AND max WAS MEANT TO BUY. Anything absent from CONTENT_REDUCERS is
+    # read as NOT a mask, hence as disclosure, hence the field leaves `withheld`
+    # and EVERY assertion over that container goes unflagged. So excluding them
+    # does not make the guard louder about a repr that prints one word - it
+    # makes the guard go SILENT on the whole frozenset.
+    #
+    # This replaces an assertion that compared CONTENT_REDUCERS against a
+    # literal set, which restated a constant and would have survived the
+    # detector being gutted.
+    found = scan_source("<element>", ELEMENT_REDUCTION_SOURCE)
+    graded = len(found)
+    assert graded == 1, (
+        f"a field masked with max() yielded {graded} findings, expected 1. "
+        "Reading an element-returning reduction as disclosure drops the field "
+        "out of the withheld set and stops the guard grading it at all"
     )

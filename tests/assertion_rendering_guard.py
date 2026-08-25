@@ -103,11 +103,45 @@ the guard in one file. It is a BINDING problem and not a naming one: isolating
 it with the variable name held constant across both arms flagged only the
 single-target form.
 
-WHAT IS STILL NOT TRACKED, named rather than implied away. A subscript or
-attribute assignment target - ``holder["w"] = sweep.words`` - binds nothing this
-can follow, so a later read of ``holder["w"]`` is invisible. And an alias is ONE
-HOP: a field routed through a helper and rendered from that helper's RETURN is
-not flagged, because the class made no declaration about the helper's return.
+THE ACCEPTANCE'S SUBJECT IS STRICTLY LARGER THAN THIS GUARD'S SUBJECT, and that
+gap is measured rather than hedged. The acceptance asks that nothing sensitive
+reach a FAILURE REPORT. This guard grades ONE thing that reaches one: the
+ASSERTED EXPRESSION. At least two other channels put a value in the same report
+and neither is covered here.
+
+  THE LOCALS CHANNEL. Under ``-l`` (or ``--showlocals``) pytest renders the
+  failing frame's locals, so a perfectly remedied assertion still discloses::
+
+      words = sweep.words          # the local survives the remedy
+      count = len(words)
+      assert count <= 0            # renders "assert 1 <= 0" and nothing else
+
+  Reproduced here on a synthetic module with a planted token: ZERO occurrences
+  under default flags, ONE under ``-l``. Nothing in this module reads
+  ``showlocals``, and the remedy this guard asks for - bind the aggregate to a
+  scalar first - LEAVES THE ORIGINAL LOCAL IN THE FRAME. It is quiet on this
+  tree today only because the suite does not pass ``-l``, and it becomes a live
+  hole the moment any slice binds a save-keyed mapping to a local.
+
+  THE SOURCE-ECHO CHANNEL. pytest prints the failing function's own source
+  lines above the assertion, so a sensitive LITERAL in the test body is rendered
+  by the traceback rather than by the rewriter. Measured while building the
+  forced arms below, which is why they bind their planted token at module scope.
+
+Neither is closed here and neither should be read as covered. Frame arguments
+are a third such channel and belong to ``tests/test_tmp_path_privacy.py``.
+
+WHAT IS STILL NOT TRACKED INSIDE THIS GUARD'S OWN SUBJECT, named rather than
+implied away. A subscript or attribute assignment target -
+``holder["w"] = sweep.words`` - binds nothing this can follow, so a later read
+of ``holder["w"]`` is invisible; there is no live instance of that shape in the
+tree today. And an alias is ONE HOP: a field routed through a helper and
+rendered from that helper's RETURN is not flagged, because the class made no
+declaration about the helper's return. That one DOES have live instances -
+``tests/test_tmp_path_privacy.py`` renders a slice of captured output at lines
+880-882 and 961-963 - and they are left alone deliberately: both classes are
+covered by the ``tests/conftest.py`` runtime redactor, and no save-derived name
+flows through either.
 
 LIVE AND LATENT, a partition and not a severity opinion, and LIVE IS THE DEFAULT.
 The same construct is a DISCLOSURE when the holder was built from the real save
@@ -167,14 +201,20 @@ CONTENT_TRANSPARENT: Final = frozenset(
     }
 )
 
-#: Wrappers that CANNOT carry their argument's contents through - the result is
-#: a number, a flag or a digest whatever the input was.
+#: Wrappers that stop their argument's contents reaching the rendering whole.
 #:
-#: ``min`` AND ``max`` ARE DELIBERATELY ABSENT, and the choice is free rather
-#: than cautious: each returns an ELEMENT, so over a set of struct words it
-#: prints one of them, and a sweep of every ``__repr__`` in this tree finds
-#: neither used in one. Excluding them changes no verdict today and is the safe
-#: answer the day somebody writes ``f"{max(self.words)}"``.
+#: ``min`` AND ``max`` ARE HERE, AND THE ARGUMENT FOR LEAVING THEM OUT WAS
+#: BACKWARDS. Each returns an ELEMENT, so a repr calling one over a set of
+#: struct words does print a word - that much was right. What was wrong is what
+#: excluding them BUYS. A name in neither vocabulary is read as NOT a mask,
+#: hence as disclosure, hence the field leaves ``withheld``, hence every
+#: assertion over that container goes UNFLAGGED. Measured on a synthetic repr:
+#: ``max(self.words)`` yielded 0 findings while ``len(self.words)`` yielded 1.
+#: So excluding them does not make the guard louder about a repr that prints one
+#: word - it makes the guard go SILENT on the whole frozenset. Including them
+#: keeps the field graded, which is the failure direction that keeps working.
+#: ``test_an_element_returning_reduction_still_keeps_the_field_withheld`` pins
+#: it behaviourally rather than by restating this set.
 CONTENT_REDUCERS: Final = frozenset(
     {
         "abs",
@@ -187,7 +227,9 @@ CONTENT_REDUCERS: Final = frozenset(
         "hexdigest",
         "id",
         "len",
+        "max",
         "md5",
+        "min",
         "ord",
         "round",
         "sha1",
@@ -463,6 +505,35 @@ def _function_reduces(
     return True
 
 
+def _masks_at(
+    parent: ast.AST,
+    current: ast.AST,
+    functions: Mapping[str, ast.FunctionDef | ast.AsyncFunctionDef],
+    hops: int,
+) -> bool:
+    """Whether one step up the parent chain reduces the value to a scalar.
+
+    Args:
+        parent: The enclosing node.
+        current: The node being stepped out of.
+        functions: Module-level functions, for resolving a project mask.
+        hops: Recursion budget for the derived mask check.
+
+    Returns:
+        True when the parent cannot carry ``current``'s contents any further.
+    """
+    if isinstance(parent, ast.Call):
+        return current is not parent.func and _is_reduction(parent, functions, hops)
+    if isinstance(parent, ast.Compare):
+        return True
+    if isinstance(parent, ast.UnaryOp):
+        return isinstance(parent.op, ast.Not)
+    if isinstance(parent, ast.IfExp):
+        # The TEST is consumed and never printed; a BRANCH is what gets printed.
+        return current is parent.test
+    return False
+
+
 def _reaches_unmasked(
     node: ast.AST,
     kin: Mapping[int, ast.AST],
@@ -475,6 +546,14 @@ def _reaches_unmasked(
     Walks UP the parent chain. A call in FUNC position is stepped over rather
     than judged - in ``self.tags.values()`` the attribute is the callee, not an
     argument, and treating it as one would call every method access a mask.
+
+    A REDUCTION IS NOT ALWAYS A CALL, and reading only calls was a regression
+    this walk introduced. ``f"{self.struct_word is not None}"`` prints a
+    boolean; ``f"{'present' if self.super_name is not None else 'absent'}"``
+    prints one of two literal words. Three shipped classes render exactly those
+    shapes - ``ContainerValue.struct_word``, ``ContainerElement.value`` and
+    ``Schema.super_name`` - and all three went WITHHELD to DISCLOSED, so
+    nothing graded an assertion over any of them. See :func:`_masks_at`.
 
     Args:
         node: Where the value is read.
@@ -493,11 +572,7 @@ def _reaches_unmasked(
         parent = kin.get(id(current))
         if parent is None:
             return False
-        if (
-            isinstance(parent, ast.Call)
-            and current is not parent.func
-            and _is_reduction(parent, functions, hops)
-        ):
+        if _masks_at(parent, current, functions, hops):
             return False
         current = parent
 
@@ -1065,10 +1140,19 @@ def reach_seeds(tree: ast.Module) -> tuple[frozenset[str], bool]:
 def must_declare_reach(tree: ast.Module) -> bool:
     """Whether a module touches anything that could hand it real data.
 
-    Mirrors ``reach_guard._module_reaches``: a module calling a filesystem
-    primitive or a discovery locator is one whose reach has to be declared, and
-    a module calling none had nothing to declare. Only the first kind can
-    UNDER-declare, and only the first kind is graded live for staying silent.
+    A module calling a filesystem primitive or a discovery locator is one whose
+    reach has to be declared; a module calling none had nothing to declare. Only
+    the first kind can UNDER-declare, and only the first kind is graded live for
+    staying silent.
+
+    IT IS NOT THE SAME PREDICATE AS ``reach_guard._module_reaches``, and saying
+    it "mirrors" that one overstated it. That one resolves through SIBLING
+    MODULES and through aliases; this is a flat callee-name check over the
+    module's own tree. Measured, the two agree on all 96 tracked modules with
+    zero disagreement, and forcing this to ``return True`` moves 23 findings and
+    all 23 sit in one file - so the difference is latent rather than live. A
+    module reaching the library only through a sibling's declared sweep would
+    be classed silent here and is not classed silent there.
 
     Args:
         tree: The parsed module.
