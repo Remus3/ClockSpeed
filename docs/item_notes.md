@@ -1,5 +1,8 @@
 # Clockspeed - live per-item detail
 
+**Section status: LIVE.** A dated heading in this file records provenance - when the
+text was filed, moved or measured - and never that the section itself is historical.
+
 **This file owns the LIVE per-item detail for OPEN work.** One section per item ID.
 A block here is a LIVE INSTRUCTION: read an item's section BEFORE taking that item.
 

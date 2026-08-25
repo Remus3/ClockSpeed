@@ -1,5 +1,8 @@
 # Clockspeed - operating rules
 
+**Section status: LIVE.** A dated heading in this file records provenance - when the
+text was filed, moved or measured - and never that the section itself is historical.
+
 Auto-loaded every turn. Budget: under 40 KB, CI hard fail above it. Every byte here costs
 context on every turn of every session.
 
@@ -169,11 +172,14 @@ Rules that follow from the table:
   in a doc is a lie with a timestamp on it. If a doc must display one, generate it.
 - Dated artifacts go to `docs/_archive/`, excluded from search, so they never pollute a
   search for current truth.
-- A doc heading whose date LEADS the heading marks its own section historical. A date
-  sitting after a provenance verb records only when the text was filed, moved or
-  measured, and marks the section's status not at all - so a live instruction is free
-  to carry one. Shape decides, never a per-file carve-out. The vocabulary is closed and
-  `tools/drift_guard.py` guard (g) owns it, FAILING on a dated heading fitting neither.
+- A doc heading whose date LEADS the heading marks its own section historical; a date
+  after a provenance verb records only when the text was filed, moved or measured, and
+  marks status not at all - so a live document is free to carry one. **A file carrying
+  dated headings declares its own status in its header** - `Section status: LIVE` or
+  `HISTORICAL` - and a status date inside a file declaring itself LIVE is drift. The
+  declaration lives inside the file it describes, so the two cannot drift apart the way
+  a list held in code does. `tools/drift_guard.py` guard (g) owns the closed idiom
+  vocabulary and FAILS on either fault.
 - When a size budget is hit, **relocate, do not delete.** Move detail to a sub-index or an
   archive file and leave a one-line pointer.
 

@@ -1,5 +1,8 @@
 # Clockspeed - Ledger
 
+**Section status: HISTORICAL.** Every section in this file is a record, so a dated
+heading here may mark its own section historical.
+
 **Append-only, NEWEST FIRST. One record per closed work item.**
 
 **This file owns:** the per-item completion record - what closed, when, and how to verify

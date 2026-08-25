@@ -154,13 +154,27 @@ FIRST_PRINTABLE = 0x20
 ALLOWED_CONTROL = frozenset({0x09, 0x0A, 0x0D})
 MAX_HITS_PER_FILE = 3
 
+# WHY THESE USE A DIGIT LOOKAROUND AND NOT ``\b`` (CS-840). An underscore is a
+# word character, so ``\b`` finds NO boundary in ``_2026-08-23_`` and the date
+# was invisible to this guard - a leading status date could be smuggled past it
+# by italicising the date. The real hazard a boundary guards against is
+# splitting a longer run of digits, so the lookaround tests for a DIGIT and
+# nothing else. Markdown emphasis, brackets and backticks now fall outside the
+# token instead of hiding it.
+#
+# WHY THE MONTH-NAME PATTERN REQUIRES THE YEAR TO BE THE MONTH'S OWN (CS-840).
+# The gap here was ``[^\n]{0,12}``, which let any twelve characters sit between
+# a month name and a year: "This May need 2031 rework" was read as a date and
+# reddened a heading carrying none. A year now has to follow the month
+# directly, or follow a day number that follows the month.
 DATE_PATTERNS = (
-    re.compile(r"\b\d{4}-\d{2}-\d{2}\b"),
-    re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b"),
+    re.compile(r"(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)"),
+    re.compile(r"(?<!\d)\d{1,2}/\d{1,2}/\d{2,4}(?!\d)"),
     re.compile(
         r"\b(?:January|February|March|April|May|June|July|August|September"
         r"|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept"
-        r"|Oct|Nov|Dec)\b[^\n]{0,12}\b\d{4}\b"
+        r"|Oct|Nov|Dec)\b[ \t]*,?[ \t]*(?:\d{1,2}(?:st|nd|rd|th)?[ \t]*,?[ \t]*)?"
+        r"\d{4}(?!\d)"
     ),
 )
 
@@ -838,10 +852,7 @@ def guard_frozen(root: Path) -> tuple[Guard, list[Skip]]:
 # long as they did: a guard that reports cannot lose, so the contradiction had
 # no cost until somebody acted on the wrong half of it.
 #
-# THE OPERATOR RULED THAT SHAPE DECIDES, and ruled specifically against a
-# per-file carve-out: a hand-maintained list of exempt files is the thing this
-# project keeps recording as the thing that rots. So there is no file list
-# here. The criterion reads the heading and nothing else:
+# THE OPERATOR RULED THAT SHAPE DECIDES what a date MEANS:
 #
 #   STATUS      the date is in the LEADING position - the heading opens with
 #               it - or it follows a verb declaring the subject reached a
@@ -850,17 +861,56 @@ def guard_frozen(root: Path) -> tuple[Guard, list[Skip]]:
 #               session. It records WHEN the text was filed, moved or
 #               measured. It marks the section's status NOT AT ALL.
 #
-# THE VOCABULARY IS CLOSED, AND THAT IS THE WHOLE FAILURE DIRECTION. A dated
-# heading matching neither family is DRIFT. Silently absorbing a new idiom is
-# what the old arm did; making its author say which family it belongs to is
-# the repair. Widening either tuple is a deliberate act - and the two mean
-# different things, so do not widen one because a heading landed in the other.
+# THE VOCABULARY IS CLOSED. A dated heading matching neither family is DRIFT.
+# Silently absorbing a new idiom is what the old arm did; making its author say
+# which family it belongs to is the repair.
+#
+# CLASSIFYING WAS NOT ENOUGH, AND THIS IS THE DEFECT AN ADVERSARY FOUND. The
+# first build failed only when classification returned None, so a STATUS
+# classification was a PASS outcome - and nine plants of a leading status date
+# into live files all left this guard at exit 0. The guard could not redden for
+# the one thing CS-840 exists to catch: a LIVE section marked historical by its
+# own heading.
+#
+# SO A FILE DECLARES ITS OWN STATUS AND THIS GUARD READS THE DECLARATION. That
+# is NOT the per-file list the operator rejected. A list lives in code, is
+# hand-maintained, and rots the moment a file is renamed, split or archived -
+# the list and the file drift apart because nothing binds them. A DECLARATION
+# lives inside the file it describes: it is moved by the same edit that moves
+# the file, deleted by the same edit that deletes it, and read by the same
+# person who reads the header. It cannot drift from its subject because it has
+# no separate existence. Most of these files already said this in prose; the
+# declaration only makes the sentence machine-readable.
+#
+#   A STATUS DATE INSIDE A FILE THAT DECLARES ITSELF LIVE IS DRIFT.
+#
+# A file with dated headings and NO declaration is recorded as a SKIP rather
+# than failed. The live arm has nothing to grade there, and CONVENTIONS 15.1
+# is explicit that a guard which cannot look must SAY so rather than pass
+# quietly. The tracked tree's completeness - that every dated file declares -
+# is asserted by the suite against the real tree, which is where this project
+# already puts its real-tree invariants.
 
 
 STATUS_DATE = "status"
 PROVENANCE_DATE = "provenance"
 
+LIVE = "LIVE"
+HISTORICAL = "HISTORICAL"
+
+# The declaration, as it appears in the header of a file that carries dated
+# headings. Read only from the header - the region before the first level-2
+# heading - so a quotation of the sentence further down the file cannot be
+# mistaken for the file's own declaration.
+STATUS_DECLARATION = re.compile(r"^\*\*Section status:[ \t]*(LIVE|HISTORICAL)\b", re.MULTILINE)
+
 _HEADING_MARK = re.compile(r"^#+[ \t]*")
+
+# Markdown emphasis and brackets wrapped around a leading date. The operator's
+# ruling is about POSITION, and "**2026-08-23** - CS-901" opens with its date
+# exactly as "2026-08-23 - CS-901" does. Stripping the decoration is what makes
+# the code honour the ruling it claims to implement.
+_LEADING_DECORATION = re.compile(r"^[\s*_`~\"'([{<]+")
 
 # Filing, relocation and measurement verbs, plus the numbered-session ordinal.
 # A date after one of these says when the text arrived or when the reading was
@@ -888,6 +938,20 @@ STATUS_IDIOMS = (
 )
 
 DATE_IDIOMS = PROVENANCE_IDIOMS + STATUS_IDIOMS
+
+# THE DATE HAS TO BE THE VERB'S OWN OBJECT (CS-840). Matching a verb anywhere
+# before the date let "closed" the ADJECTIVE claim a date it had nothing to do
+# with - "The closed vocabulary and its fence - reviewed 2031-02-03" read as a
+# status date, which is this project's own idiom for a bounded set. So the gap
+# between the verb and the date may hold only connective words and the name of
+# a file being moved. Any other prose in the gap means the verb is not
+# governing the date, the heading classifies as NEITHER, and its author is
+# asked which family it belongs to.
+_GAP_CONNECTIVES = frozenset(
+    {"from", "to", "on", "in", "into", "out", "of", "by", "at", "as", "via", "continued"}
+)
+_PATH_TOKEN = re.compile(r"`[^`]*`|\b[\w-]+\.[A-Za-z]{2,4}\b|\b[\w.-]+/[\w./-]+\b")
+_GAP_WORD = re.compile(r"[A-Za-z][A-Za-z'-]*")
 
 
 def _date_position(text: str) -> int | None:
@@ -927,13 +991,51 @@ def dated_headings(text: str) -> list[tuple[int, str]]:
     ]
 
 
+def heading_lead_in(heading: str) -> str | None:
+    """Return the text a heading places BEFORE its date, stripped of decoration.
+
+    THE ONLY REGION THE CLASSIFIER EVER CONSULTS, exposed so that a control
+    grading the vocabulary reads the same region rather than the whole heading.
+    A verb appearing only in a heading's TAIL - after the date - can never
+    affect classification, so a control that searched whole headings would
+    report a spare entry as dead weight.
+
+    Args:
+        heading: One heading line, with or without its leading hash marks.
+
+    Returns:
+        The lead-in, empty when the date is in the leading position, or None
+        when the heading carries no date at all.
+    """
+    body = _LEADING_DECORATION.sub("", _HEADING_MARK.sub("", heading)).strip()
+    at = _date_position(body)
+    if at is None:
+        return None
+    return body[:at]
+
+
+def _governs_the_date(gap: str) -> bool:
+    """Is a verb ending ``gap`` chars before a date actually governing that date?
+
+    Args:
+        gap: The text between the end of the verb and the start of the date.
+
+    Returns:
+        True when the gap holds only connectives and file names.
+    """
+    remainder = _PATH_TOKEN.sub(" ", gap)
+    return all(word.lower() in _GAP_CONNECTIVES for word in _GAP_WORD.findall(remainder))
+
+
 def classify_dated_heading(heading: str) -> str | None:
     """Classify a heading's date by SHAPE as a status date or a provenance date.
 
-    The verb NEAREST the date decides. "After a provenance verb" can only mean
-    after the LAST one before the date - the tree already carries headings
-    holding a session ordinal and a relocation verb both - and reading the
-    nearest one is the only reading that needs no precedence table.
+    A verb qualifies only if it GOVERNS the date - see ``_governs_the_date``.
+    Among qualifying verbs the nearest one wins, which is deterministic and
+    needs no precedence table; in practice the governing rule leaves at most
+    one. The nearest-verb rule no longer carries the weight it did: a heading
+    reworded so that a status verb captures the date is now caught by the
+    live-file arm in ``guard_dated`` rather than having to be caught here.
 
     Args:
         heading: One heading line, with or without its leading hash marks.
@@ -945,21 +1047,43 @@ def classify_dated_heading(heading: str) -> str | None:
         cover. Guard (g) knows the heading was dated, so guard (g) is what
         turns the second case into drift.
     """
-    body = _HEADING_MARK.sub("", heading).strip()
-    at = _date_position(body)
-    if at is None:
+    lead = heading_lead_in(heading)
+    if lead is None:
         return None
-    if at == 0:
+    if not lead:
         return STATUS_DATE
 
-    lead = body[:at]
     nearest: tuple[int, str] | None = None
     for family, patterns in ((PROVENANCE_DATE, PROVENANCE_IDIOMS), (STATUS_DATE, STATUS_IDIOMS)):
         for pattern in patterns:
             for match in pattern.finditer(lead):
+                if not _governs_the_date(lead[match.end() :]):
+                    continue
                 if nearest is None or match.end() > nearest[0]:
                     nearest = (match.end(), family)
     return nearest[1] if nearest else None
+
+
+def read_status_declaration(text: str) -> str | None:
+    """Read a document's own declaration of whether its sections are live.
+
+    Read from the HEADER only - everything before the first level-2 heading -
+    so that a section quoting the declaration sentence cannot be mistaken for
+    the file declaring itself.
+
+    Args:
+        text: A whole markdown document.
+
+    Returns:
+        ``LIVE``, ``HISTORICAL``, or None when the file does not declare.
+    """
+    header: list[str] = []
+    for line in text.splitlines():
+        if line.startswith("## "):
+            break
+        header.append(line)
+    match = STATUS_DECLARATION.search("\n".join(header))
+    return match.group(1) if match else None
 
 
 def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
@@ -975,6 +1099,7 @@ def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
     skips: list[Skip] = []
     classified: dict[str, list[str]] = {STATUS_DATE: [], PROVENANCE_DATE: []}
     unclassified: list[str] = []
+    historical_in_live: list[str] = []
     scanned = 0
     for path in files:
         if path.suffix.lower() not in (".md", ".markdown"):
@@ -987,15 +1112,40 @@ def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
             )
             continue
         scanned += 1
-        for number, heading in dated_headings(text):
-            record = f"{_rel(root, path)}:{number}  {heading.strip()}"
+        headings = dated_headings(text)
+        if not headings:
+            continue
+        relative = _rel(root, path)
+        declaration = read_status_declaration(text)
+        if declaration is None:
+            skips.append(
+                {
+                    "path": relative,
+                    "reason": "carries dated headings but declares no section status, so the "
+                    "live-file arm could not grade it",
+                }
+            )
+        for number, heading in headings:
+            record = f"{relative}:{number}  {heading.strip()}"
             family = classify_dated_heading(heading)
             if family is None:
                 unclassified.append(record)
-            else:
-                classified[family].append(record)
+                continue
+            classified[family].append(record)
+            if family == STATUS_DATE and declaration == LIVE:
+                historical_in_live.append(record)
 
     detail = _dated_detail(scanned, classified)
+    if historical_in_live:
+        detail.append(
+            f"DRIFT - a {STATUS_DATE} date inside a file that declares itself {LIVE}. The "
+            "heading marks its own section historical while the file says its sections are "
+            "current, and those two cannot both be true. Either the heading's date belongs "
+            "after a provenance verb - because it records when the text was filed rather "
+            f"than a status - or the file is no longer {LIVE} and its header should say so. "
+            "Do NOT resolve it by deleting the date:"
+        )
+        detail.extend(f"  {item}" for item in historical_in_live)
     if unclassified:
         detail.append(
             "DRIFT - dated headings in an idiom the closed vocabulary does not cover. "
@@ -1006,6 +1156,7 @@ def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
             "reader believes about the section:"
         )
         detail.extend(f"  {item}" for item in unclassified)
+    if historical_in_live or unclassified:
         return _guard("g", "dated sections", "FAIL", detail), skips
     return _guard("g", "dated sections", "PASS", detail), skips
 

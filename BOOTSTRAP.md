@@ -1,5 +1,8 @@
 # Clockspeed - Project Bootstrap
 
+**Section status: LIVE.** A dated heading in this file records provenance - when the
+text was filed, moved or measured - and never that the section itself is historical.
+
 **Read this first, then read `CONVENTIONS.md` in this same folder, then start.**
 
 This is the complete specification for a project that does not exist yet. Nothing has

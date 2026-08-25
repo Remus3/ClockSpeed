@@ -1,5 +1,8 @@
 # Clockspeed - History notes
 
+**Section status: HISTORICAL.** Every section in this file is a record, so a dated
+heading here may mark its own section historical.
+
 **Deep archive. Pruned session notes and retired ledger entries live here.**
 
 **This file holds NOTHING current.** Nothing in it may be cited as the present state of

@@ -1,5 +1,8 @@
 # Clockspeed - Gated items
 
+**Section status: LIVE.** A dated heading in this file records provenance - when the
+text was filed, moved or measured - and never that the section itself is historical.
+
 **Owner file for:** work items blocked on something OUTSIDE the repo.
 
 One line per item, plus the exact external condition that unblocks it. An item that is
