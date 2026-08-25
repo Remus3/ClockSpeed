@@ -971,8 +971,11 @@ def test_an_absent_property_map_warns_and_still_loads(
 
     model = _load_flat(synthetic.SAVE_V60.blob)
 
-    codes = {warning.code for warning in model.warnings}
-    assert world.WARN_NO_PROPERTY_MAP in codes
+    # The membership is reduced to a BOOLEAN before the assert. `warnings` is a
+    # field `WorldModel.__repr__` withholds, and a set comprehension over it
+    # carries its contents into whatever the assert renders.
+    saw_no_property_map = world.WARN_NO_PROPERTY_MAP in {warning.code for warning in model.warnings}
+    assert saw_no_property_map
     assert len(model.objects.records) == len(synthetic.SAVE_V60.objects)
 
 
@@ -2290,6 +2293,44 @@ def test_a_real_save_of_a_measured_pair_loads_end_to_end_into_a_world_model(
     assert unparsed == 0
 
 
+def _repr_disclosure_counts(model: world.WorldModel) -> tuple[int, int, bool]:
+    """Compare a real world's own strings against its repr and return COUNTS.
+
+    THE COMPARISON LIVES HERE SO THE ASSERTING FRAME CANNOT HOLD IT, and that
+    is the whole reason this helper exists. Its caller used to do this inline,
+    which left four names bound in the frame that fails, and pytest renders an
+    asserted expression's sub-expressions with NO opt-in flag. Measured on this
+    exact site with planted tokens under completely default flags:
+    ``assert len(checked) > _TRIPLE`` rendered the whole list, because an
+    inline ``len`` reduces the VALUE and the rewriter renders the ARGUMENT.
+    ``conftest``'s redactor does not reach it either - its rules are built from
+    home-path and Windows-account spellings, and a world token, a map name, a
+    type path and an instance name are none of those.
+
+    Every name here holds a real world's strings, so nothing in this frame may
+    be asserted on. It computes and RETURNS; the frame is gone by the time its
+    caller compares anything.
+
+    Args:
+        model: A world loaded from a real save.
+
+    Returns:
+        How many non-empty strings were checked, how many of them the repr
+        rendered, and whether the repr was ASCII.
+    """
+    rendered = repr(model)
+    # An EMPTY string is in every string, so a blank field would make an
+    # absence check pass or fail for a reason that has nothing to do with the
+    # repr. Blanks are dropped and the count of what was actually checked is
+    # returned, so this cannot quietly degrade into checking nothing.
+    candidates = [model.token, model.header.map_name]
+    candidates.extend(record.type_path for record in model.objects.records)
+    candidates.extend(record.instance_name for record in model.objects.records)
+    checked = [value for value in candidates if value]
+    leaked = sum(1 for value in checked if value in rendered)
+    return (len(checked), leaked, rendered.isascii())
+
+
 def test_a_real_world_model_reprs_without_leaking_it(isolated_work_root: Path) -> None:
     """The repr guarantee, asserted against a REAL world rather than a fixture.
 
@@ -2297,24 +2338,19 @@ def test_a_real_world_model_reprs_without_leaking_it(isolated_work_root: Path) -
     It cannot prove the repr withholds a string only a real save has - and a
     test runner or a logger reprs an object before a human chooses what to
     print, so this is the surface that decides whether a crash discloses.
+
+    THE MODEL IS NEVER BOUND HERE. It is passed straight through, because
+    ``assert leaked == 0`` fails if and only if a value from the real save is a
+    substring of the repr - so in the arm that fails, "the repr disclosed" and
+    "this frame holds the disclosure" are the same proposition. Three scalars
+    and a redacted work root are all that is left to render.
     """
     assert isolated_work_root
-    model = _load_real_save_or_skip()
-    rendered = repr(model)
+    checked_count, leaked, renders_ascii = _repr_disclosure_counts(_load_real_save_or_skip())
 
-    # An EMPTY string is in every string, so a blank field would make an
-    # absence check pass or fail for a reason that has nothing to do with the
-    # repr. Blanks are dropped and the count of what was actually checked is
-    # asserted, so this cannot quietly degrade into checking nothing.
-    strings = [model.token, model.header.map_name]
-    strings.extend(r.type_path for r in model.objects.records)
-    strings.extend(r.instance_name for r in model.objects.records)
-    checked = [value for value in strings if value]
-    leaked = len([value for value in checked if value in rendered])
-
-    assert len(checked) > _TRIPLE
+    assert checked_count > _TRIPLE
     assert leaked == 0
-    assert rendered.isascii()
+    assert renders_ascii
 
 
 # ---------------------------------------------------------------------------

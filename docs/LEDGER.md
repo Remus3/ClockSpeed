@@ -77,6 +77,79 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-25 - CS-829, CS-846, CS-850, CS-851 - NOT A COMPLETION RECORD. NOTHING CLOSED. All four merged as IMPROVEMENTS after a build round and a repair round, and every one STAYS OPEN
+
+**A LIVE TIER-1 PRIVACY LEAK WAS FOUND ON `main` AND CLOSED.**
+`tests/save/test_world.py::test_a_real_world_model_reprs_without_leaking_it` rendered the
+RAW world token and map name into a failure report **under default flags** - on the
+pre-push hook and in both CI lanes, not merely under `-l`. Assertion rewriting renders the
+ARGUMENT of an inline `len()`. The test whose stated purpose is proving the world model
+reprs without leaking, leaked. Measured before and after, planted tokens, all four rows
+forced: leaking 2 default / 6 under `-l`; remedied 0 / 0.
+
+- Fixed file plus test: `tests/save/test_world.py`, arm
+  `test_a_real_world_model_reprs_without_leaking_it`, graded by
+  `tests/test_assertion_rendering.py` and `tests/test_locals_rendering.py`
+- The guard that missed it: `tests/assertion_rendering_guard.py::_ScopeScan._bind` used a
+  SHALLOW hit test answering only for a bare `Name`/`Attribute`, so any binding that
+  WRAPPED the field dropped the alias. Ten wrapping shapes: 0 flagged before, 10 after
+
+**THE SESSION'S FINDING, AND IT UNIFIES FIVE SEPARATE INSTANCES.** An assertion that a count
+is zero passes when the property holds AND when nothing was measured; the two outputs are
+byte-identical. Filed as `memory/an-empty-population-satisfies-every-zero.md`. Instances:
+a second reading of the save grammar that omitted a 16-byte guid step, desynchronised at the
+first struct tag, found ZERO struct sites in 87302 accepted records, and satisfied
+`refused_but_independent == 0` for roughly forty sessions; a liveness rule set scoring zero
+because it matched nothing; four privacy fixtures pinning their own scanner's silence; an
+accounting closure that is an arithmetic identity over a tiling; and two tools -
+`gh run list --commit` with a short SHA, and `precommit_gate --staged` with nothing staged -
+that answer an unasked question with an empty result and exit 0.
+
+**FIVE ADVERSARIAL PASSES, FOUR REFUTATIONS AND ONE CONFIRMATION.** Not one finding would
+have been produced by the agent that built the thing.
+
+- CS-829 - the root cause was found and fixed, and the defect RELOCATED A FOURTH TIME, from
+  the tag reader to `objects.parse_body`, the record table both readings share. A shaped
+  degradation there deletes 8362 struct sites - 18.5 per cent - moves both denominators
+  together, improves the residue 12 to 10, and leaves all 32 arms green at exit 0. Subsets
+  exiting 0 went 12 of 26 to 24 of 26. `tests/save/test_struct_interior.py`,
+  `test_the_site_total_is_pinned_by_a_reading_no_shipped_walk_can_shorten`
+- CS-846 - rule 1 narrowed to the only genuinely language-decided form, rule 3 WITHDRAWN
+  after its stated justification was itself refuted and the real `dead_grading` hole closed,
+  silent guttings 8 of 20 to 1 of 20, and the two detector modules brought under a DERIVED
+  population. `tests/liveness.py`, `tests/test_liveness.py::test_no_shipped_control_or_grader_can_exit_without_grading`
+- CS-850 - forced arms now execute SHIPPED code, 10 of 10 with no fallback; the source-echo
+  channel added at 3804 functions over 101 files with zero echoes; the stated decorator
+  boundary measured FALSE and 791 decorator lines brought inside the sweep.
+  `tests/assertion_rendering_guard.py`, `tests/test_assertion_rendering.py`
+- CS-851 - the binding census was blind to `ast.Try` ENTIRELY: `except-target` 0 to 115
+  named handlers, `ast.TypeAlias` 0 to 1, both verified independently by the merger. The
+  residual record was re-keyed by `(module, scope, local)` after a count ceiling was
+  defeated 8-for-8 by replacement, and it caught a cross-slice repair on its first run.
+  `tests/locals_rendering_guard.py`, `tests/test_locals_rendering.py`
+
+**A DEFECT REPAIRED AT ITS SITE STILL RELOCATES RATHER THAN DYING** - CS-829's is now on its
+fourth site. And its mirror, new this session: **a repair can be refuted by the measurement
+that validates it.** The slice told to make a fitted ceiling SKIP built it, measured that the
+skip let a real defect survive - an in-process mutant refusing the weakest reading word at
+`objects._decode_struct_interior` is caught by that arm and no other - and REVERTED its own
+instructed fix, recording the attempt and its refutation at the constant.
+
+**A VERIFICATION TABLE PROVES WHAT IT LISTS, AGAIN.** A repair slice shipped a caught-
+exception rendering into `tests/liveness.py` because its table listed four pytest targets
+and not `tests/test_exception_rendering.py`, the guard that grades its own file. Caught by
+the full suite at the merge, fixed to render the exception's TYPE with `raise ... from exc`
+carrying the detail.
+
+**FILED: CS-852, CS-853, CS-854, CS-855**, each with a detail block in `docs/item_notes.md`.
+CS-852 is a SHIPPED class - `clockspeed/save/chunks.py`'s `DecompressedBody` is a frozen
+dataclass with no `__repr__` at all, so its default one renders raw save bytes, and it is
+invisible to CS-850's guard by construction because a class shipping no redacting `__repr__`
+cannot enter a population derived from redacting declarations.
+
+**A COUNT IN A NOTE WAS MEASURED FALSE.** The session-39 continuation prompt recorded 99 open
+items; `d813e22` carried 97. Counts are not restated in this file for exactly this reason.
+
 ### 2026-08-25 - CS-829, CS-846, CS-850 - NOT A COMPLETION RECORD. These three merged as IMPROVEMENTS and every one STAYS OPEN. CS-845 closed and has its own entry above
 
 **THE RESULT IS THE FAILURE CLASS, NOT THE MERGES.** Every graded item was refuted at

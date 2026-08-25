@@ -34,6 +34,68 @@ the line becomes a pointer.
 
 ---
 
+## Session 40 - 2026-08-25 - a LIVE tier-1 leak found on main and closed; four items build, all four are REFUTED, all four are repaired, and NOTHING CLOSES; the finding is that an empty population satisfies every assertion of zero
+
+- **Shipped: NOTHING CLOSED.** CS-829, CS-846, CS-850 and CS-851 all merged as improvements
+  after a build round AND a repair round, and every one STAYS OPEN. Filed CS-852 through
+  CS-855. Detail in `docs/LEDGER.md` and `docs/item_notes.md`, not here.
+
+- **A LIVE TIER-1 PRIVACY LEAK WAS ON `main` AND IS NOW CLOSED.**
+  `tests/save/test_world.py` rendered the RAW world token and map name into a failure report
+  **under default flags** - pre-push hook and both CI lanes - because assertion rewriting
+  renders the ARGUMENT of an inline `len()`. The test whose purpose is proving the world
+  model reprs without leaking, leaked. Found by an adversary sent to grade a different item.
+
+- **THE HEADLINE FINDING: AN EMPTY POPULATION SATISFIES EVERY ASSERTION OF ZERO.**
+  `assert count == 0` passes when the property holds AND when nothing was measured, and the
+  two produce byte-identical output. Five instances in one session, filed as
+  `memory/an-empty-population-satisfies-every-zero.md`. The worst: a second reading of the
+  save grammar omitted a 16-byte guid step, desynchronised at the FIRST struct tag, found
+  ZERO struct sites in 87302 accepted records, and satisfied its `== 0` arm for roughly
+  forty sessions while being sold in prose as independent corroboration.
+  **This is the mirror of session 39's finding** - that one was green because the defect was
+  present; this one is green because the DETECTOR IS SILENT.
+
+- **FIVE ADVERSARIAL PASSES: FOUR REFUTATIONS, ONE CONFIRMATION.** Not one finding would
+  have come from the agent that built the thing. Two refutations landed on the same shape -
+  a guard green because its detector is blind, not because the property holds.
+
+- **A DEFECT REPAIRED AT ITS SITE RELOCATES - CS-829's IS NOW ON ITS FOURTH SITE**, having
+  moved to `objects.parse_body`, the record table BOTH readings share. The independence
+  audit is clean and the module DISCLOSES the shared substrate; disclosure is not a guard.
+
+- **NEW, AND IT IS THE GOOD KIND OF SURPRISE: A REPAIR WAS REFUTED BY ITS OWN VALIDATION.**
+  The slice instructed to make a fitted ceiling SKIP built it, measured that the skip let a
+  real defect survive, REVERTED its own instructed fix, and recorded the attempt and its
+  refutation at the constant. Three of four repair slices pushed back on the merger's brief
+  with measurements, and all three were right.
+
+- **Decisions: none recorded as an ADR.** One operator round at the start, taking all four
+  units and ruling CS-844 HELD for a third session.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But the binding census in the CS-851
+  guard was blind to `ast.Try` ENTIRELY - `except-target` went 0 to 115 named handlers - so
+  every count derived from it before this session was an UNDER-count, including an
+  adversary's own false-negative analysis.
+
+- **Failed paths: none abandoned.** CS-844 remains held, its worktree and three commits
+  intact.
+
+- **Next action: NONE IS FORCED.** CS-829 remains the head of the product path and now needs
+  a denominator independent of the RECORD TABLE, not merely of the tag-list reader.
+
+- **A COUNT IN THE LAST NOTE WAS FALSE.** It recorded 99 open items; `d813e22` carried 97.
+  Do not restate counts here - read them from the tool.
+
+- **DOC BUDGET IS THE BINDING CONSTRAINT NOW.** `docs/item_notes.md` finished at 96 per cent
+  after 6.5 KB was relocated to `docs/history_notes.md`, and it holds ZERO closed-item
+  sections, so relocation is nearly exhausted. Four merged-without-closing items plus four
+  new ones is what 96 per cent looks like. **This needs an operator decision next session** -
+  split the file per phase with an index, raise the budget, or accept that a session can add
+  at most one or two item blocks.
+
+---
+
 ## Session 39 - 2026-08-25 - CS-845 CLOSES on END-TO-END proof after 40 sessions of a gate that never once worked; three items merge REFUTED-then-repaired; the finding is proofs that require the defect
 
 - **Shipped: CS-845 CLOSED.** CS-829, CS-846 and CS-850 merged as IMPROVEMENTS and all three
@@ -174,82 +236,3 @@ the line becomes a pointer.
   they kept reading as prunable. All committed to their own branches, all deregistered, nothing
   discarded. **`docs/item_notes.md` is at 86 per cent, up from 77**: six items filed, none
   closed, and closure is its only designed shrink.
-
----
-
-## Session 37 - 2026-08-23 - the operator takes ALL FOUR units; CS-830 is CLOSED, REFUTED and re-closed NARROWED, and an adversary is the only thing that caught it
-
-- **Shipped: CS-830 (narrowed), CS-405, CS-833, CS-834, CS-835, CS-836, CS-837 and CS-838 CLOSED.
-  Filed CS-839 through CS-844.** The proactive relocate pass STOOD DOWN on measurement rather than
-  shipping. Detail in `docs/LEDGER.md`, not here.
-
-- **THE OPERATOR ANSWERED NINE QUESTIONS ACROSS FOUR ROUNDS AND EVERY ROUND CHANGED THE WORK.**
-  Session 36's finding applied deliberately again, and the compounding is the point: the first round
-  set the scope, the second corrected a premise I had given wrong, the third ruled on a refutation
-  that arrived mid-session. **Asking is not a phase at the start. It is how the session steers.**
-
-- **THE HEADLINE: AN ADVERSARY REFUTED THE HEAD OF THE PRODUCT PATH AFTER IT HAD ALREADY MERGED.**
-  CS-830's acceptance clause was MET - equality over every instance of all three container words,
-  not a floor - and the thing the item existed for was NOT achieved for `SetProperty`. A mutant
-  substituting a provably WRONG partition kept every library-backed test green. **THAT IS FOUR
-  CONSECUTIVE SESSIONS OF CLAUSES MET AND PROSE FALSE, and the first time it was caught before the
-  ledger entry rather than after.** Never let a close stand without an adversary behind it.
-
-- **THE STRUCTURAL CAUSE IS REUSABLE AND WORTH MORE THAN THE ITEM: A POOLED GUARD HIDES ITS WORST
-  MEMBER.** The evidence-strength check summed shapes across all three container words, so a word
-  that was one hundred per cent derived vanished behind another word's self-delimiting bulk. Any
-  guard that aggregates over a population it does not also grade PER MEMBER can be satisfied by its
-  strongest member alone. The repair grades per word.
-
-- **AND THE HONEST CLOSE IS A TEST THAT ASSERTS ITS OWN LIMIT SURVIVES.** No test can redden on the
-  wrong partition without encoding a struct width whose only source is the module's own belief -
-  the circularity the adversary caught in the synthetic fixture. So the narrowing SHIPS THE
-  SURVIVAL AS AN ASSERTION, which gives the limit a failure direction: the day the corpus
-  discriminates it, that test goes red and forces the record to narrow. Prefer this to a silent
-  caveat.
-
-- **THE POPULATION DEFECT HIT TWICE MORE AND BOTH TIMES IT WAS IN A BRIEF I WROTE.** I named three
-  sites of the asset gloss and there were four. I gave an exclusion set covering one citation arm
-  when the guard ships four. Session 36 recorded that the warning does not immunise the person
-  writing it; this session it happened to the person QUOTING that warning into the brief.
-  **THE TECHNIQUE THAT ACTUALLY WORKED: the builder loaded the guard AS A MODULE and used its own
-  compiled patterns, instead of deriving the population by hand.** Do that.
-
-- **A PERCENTAGE IS NOT PRESSURE UNTIL YOU READ THE BUDGET'S OWN RATIONALE.** I framed
-  `docs/item_notes.md` at 75 per cent as urgent and cited ROADMAP.md as precedent. `tools/doc_budget.py`
-  says the opposite in its own comment: the ceiling was chosen roughly 37 per cent above the file's
-  landing size, THE HEADROOM IS THE POINT, and ROADMAP.md's failure is what this file's headroom
-  exists to RELIEVE. The builder refused to ship and routed it back. **Closing eight items this
-  session moved the file from 78 to 77 per cent - item CLOSURE is its designed shrink mechanism,
-  and relocation cannot substitute for it** because every section is a live instruction for an OPEN
-  item and `CLAUDE.md` forbids the archive from holding those.
-
-- **CI WENT RED ON THE FIRST PUSH AND THE FAILURE HAD BEEN PREDICTED, LOCATED AND WRITTEN
-  DOWN BEFORE IT.** CS-838's adversary measured that the newer ruff reworded the line the format
-  check reads, and named the CI step where it would surface. Both went into the grant as
-  disclosed risks; the SILENT half was filed as an item and the LOUD half was left as prose.
-  **A measured, located, predicted failure is a work item with a due date, not a residual.**
-  Fixed by PINNING ruff below 0.16 in `pyproject.toml` - not frozen, no grant needed - because
-  the gate was correct on both versions and an unbounded dependency is what made the two
-  toolchains differ. tier1 READ GREEN on the fix. **The gate BLOCKED correctly throughout**,
-  because the grant put the verdict on ruff's EXIT CODE and never on its message.
-
-- **Decisions: ADR 0009 recorded** - the `mInventoryPotential` FOURTH state. Detail in `docs/adr/`.
-
-- **Surprises: nothing contradicted `BOOTSTRAP.md`.** Two measured facts contradicted BRIEFS I wrote,
-  and both are recorded above rather than quietly corrected.
-
-- **Failed paths: the relocate pass.** Attempted, refused by its own builder on a topology
-  contradiction, and stood down by operator ruling. NOT retried - the finding is that it cannot
-  work, not that it was done badly.
-
-- **Next action: NONE IS FORCED.** CS-829 is now the head of the product path - the THIRD layer under
-  CS-400's clause 1, and the one CS-405's fourth state names as its blocker. CS-843 is its natural
-  companion: all 81 undiscriminated sets are of `StructProperty`, so CS-829 may settle both.
-
-- **WORKTREES: FIVE OF SIX AGENTS THIS SESSION WERE CUT BEHIND THEIR STATED BASE.** One had no grant
-  commit in history and would have edited a frozen file without authorisation had it not checked.
-  Every dispatch ordered verify-and-fast-forward and every one that needed it said so. **Keep
-  ordering it.** Six inherited worktrees remain untouched and unsalvaged; this session added its own,
-  listed in the continuation prompt.
----

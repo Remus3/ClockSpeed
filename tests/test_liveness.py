@@ -13,34 +13,74 @@ COVERED, each with a test below and each measured silent first:
   - a bare ``return`` before the assertions;
   - a conditional ``return`` before them, which no unreachable-code check sees;
   - the body WRAPPED so it never runs, with no return anywhere;
-  - the assertions SWALLOWED by a ``try`` whose handler discards the failure;
+  - THE BODY WRAPPED IN A LOOP THAT NEVER RUNS - ``for _ in []``,
+    ``for _ in range(0)`` and ``while False``, all three of which folded
+    nowhere while the module's own words said a constant branch is folded;
+  - the assertions SWALLOWED by a ``try`` whose handler discards the failure,
+    INCLUDING one that logs it rather than passing, and one spelled
+    ``with contextlib.suppress(AssertionError):`` with no ``try`` in it at all;
   - an unconditional ``pytest.skip`` at the head;
   - a skip written to look conditional - ``if globals(): pytest.skip(...)``;
   - the same thing spelled ``raise pytest.skip.Exception(...)``;
   - ``@pytest.mark.skip`` as a DECORATOR, which is not a statement at all;
+  - ``@pytest.mark.parametrize("unused", [])``, which runs the body zero times
+    while pytest reports the module passed;
   - ``assert True`` appended to any of the above to satisfy a naive check;
-  - a value-returning grader made to hand back a FABRICATED literal;
-  - grading placed where it can never run.
+  - grading placed where it can never run, INCLUDING below a constant branch
+    that always returns - which is what a value-returning grader gutted to
+    fabricate a literal or to decline on every call actually is;
+  - AN ASSERTION REWRITTEN TO COMPARE ONE LOCAL WITH ITSELF BY ``is``, and one
+    whose predicate the language decides rather than the input, in any of its
+    respellings;
+  - A CONTROL RENAMED OUT OF PYTEST'S COLLECTION and named nowhere else, which
+    no rule over its own source can see at all;
+  - A DETECTOR LIBRARY NOTHING GRADED CALLS, which contributes no member, is
+    not named ``test_`` and ships no ``guard_`` function, so every population
+    above missed it;
+  - A GRADER RENAMED OUT OF THE VOCABULARY, wherever the call resolves inside
+    the surveyed set;
+  - THE VOCABULARY ITSELF narrowed or respelled, which every control here
+    selects by symbol and none of them could see;
+  - WHETHER AN ASSERTION RAN, for one call of one function handed to
+    :func:`liveness.observed_grading`.
 
-NOT COVERED, and this half is the one that matters:
+NOT COVERED, AND THIS HALF IS STILL THE ONE THAT MATTERS. Shapes named here
+keep MOVING rather than vanishing, because each is closed for a DECIDABLE
+SUB-CLASS and left open for the rest. What remains:
 
-  - AN ASSERTION REWRITTEN TO A NON-CONSTANT TAUTOLOGY. ``assert True`` is
-    caught because it is decidable; ``assert x == x`` and the shape this
-    repository actually shipped, ``empty + (records - empty) == records``, are
-    not. That one was removed from the tree during the session this item was
-    worked. It is a hole in the middle, not a boundary.
+  - THE ALGEBRAIC TAUTOLOGY THIS REPOSITORY ACTUALLY SHIPPED.
+    ``empty + (records - empty) == records`` is not caught: its operands were
+    built in ANOTHER function, so nothing about this assertion's own syntax
+    decides it. Nor is a bound its own construction makes unexceedable, which
+    the same control carried more than once. This is a hole in the middle, not
+    a boundary, and the sub-class that is closed is the smaller half of it.
+  - A SELF-COMPARISON UNDER AN OPERATOR THE PROGRAM DEFINES. ``assert x == x``
+    was reported and is not any more, and the reason is that the claim made
+    about it was FALSE: ``__eq__``, ``__ge__``, ``__getattr__`` and
+    ``__getitem__`` are all program code, so ``assert version >= version`` and
+    ``assert parser.parsed is parser.parsed`` each fail against a real defect
+    and are each the standard test for it. BOUNDED RATHER THAN DECIDED, by
+    :func:`liveness.self_comparison`, and the cost of that is stated where the
+    rule is: a gutter typing ``assert x == x`` is no longer refused.
+  - A CONTROL WHOSE ASSERTIONS ARE SIMPLY DELETED, leaving the calls. It grades
+    by the code under test not raising, which is a real if weaker test, and it
+    is COUNTED by the outside-the-population census rather than reported.
   - A GUTTING BRANCH WHOSE CONDITION IS GENUINELY UNKNOWN AT PARSE TIME.
     ``if globals():`` is folded; ``if _looks_fine():`` is not, and it is
-    structurally identical to a real precondition.
-  - A GRADER NAMED OUTSIDE THE VOCABULARY. The population is derived from
-    calls beginning with ``assert`` plus pytest's own spellings. Renaming a
-    grader takes its callers out of the population - which is why
-    :func:`liveness.vocabulary_boundary` re-derives that difference every run
-    and a ``test_`` function inside it is a hard finding here.
-  - A VALUE-RETURNING GRADER GUTTED TO RETURN ``None`` EARLY. Returning a
-    literal is fabricating an answer and is caught; returning ``None`` is
-    declining to give one, which this tree does legitimately.
-  - ANYTHING AT ALL ABOUT WHETHER AN ASSERTION RAN. Every rule here is static.
+    structurally identical to a real precondition. BOUNDED RATHER THAN DECIDED
+    - :func:`liveness.conditional_exits` counts how much of the population a
+    gutting of this shape could hide in, and counting is the whole of what is
+    honest to do with it.
+  - A GRADER RENAMED AND THEN REACHED BY A ROUTE NOTHING RESOLVES: a method
+    call, an alias, a call through a variable, or a call into a module outside
+    the surveyed set. The resolution under-reports by construction, which is
+    the same direction the loop and ``try`` generosities already take.
+  - WHETHER AN ASSERTION RAN, FOR THE POPULATION. The channel exists and is
+    exact, and it is demonstrated below on a real shipped grader. It is not
+    applied to the population: that means counting while the suite runs, which
+    is a collection hook in ``tests/conftest.py``, and this module does not own
+    that file. The population is covered STATICALLY and that sentence is the
+    residual, not a formality.
 
 WHY THE RULES ARE STATED AS SEMANTICS. The second refutation found that the
 rules had been picked by their false-positive count on this tree - the
@@ -65,6 +105,7 @@ from __future__ import annotations
 import ast
 import importlib.util
 import subprocess
+import sys
 from pathlib import Path
 from types import ModuleType
 from typing import Final
@@ -85,6 +126,18 @@ OPT_IN_HELPER: Final = "_assert_no_test_is_gutted"
 
 #: This module and its helper.
 OWN_MODULES: Final = ("tests/liveness.py", "tests/test_liveness.py")
+
+#: THE GRADING VOCABULARY, TRANSCRIBED AS LITERALS. This is the one deliberate
+#: transcription in the file and it exists for the reason
+#: ``tests/save/test_byte_order_status.py`` records for the byte-order status
+#: words: every control in the checker selects these sets by SYMBOL, so
+#: narrowing one to nothing, or respelling a word inside it, changes what
+#: counts as grading while every symbol still resolves and every control stays
+#: green. A word added or removed there is added or removed HERE, together with
+#: whatever grades it.
+PINNED_GRADING_PREFIXES: Final = ("assert",)
+PINNED_PYTEST_GRADING_CALLS: Final = frozenset({"fail", "raises", "warns"})
+PINNED_EXITING_CALLS: Final = frozenset({"skip", "xfail", "exit"})
 
 
 # ---------------------------------------------------------------------------
@@ -311,6 +364,367 @@ def test_sigma(tree: list[object]) -> None:
             assert node
 '''
 
+# --- the non-constant tautology, and the correct code beside it ------------
+#
+# EVERY FIXTURE IN THIS BLOCK IS DERIVED FROM A REAL MEMBER OF THE POPULATION,
+# because a fixture authored beside the analysis is green through the real
+# defect. The two boundaries below are reductions of code this tree ships
+# TODAY, at tests/solve/test_optimize.py and tests/save/test_container_
+# elements.py, and each is the reason a wider rule was measured and refused.
+
+#: THE SHAPE THIS REPOSITORY ACTUALLY SHIPPED AND REMOVED, reduced to the half
+#: that is decidable. The real one asserted that the two parts of a census
+#: added back up to the census - true of every possible input - and its
+#: operands were built in ANOTHER function, so no static rule reaches it. What
+#: is decidable is the same defect written without the indirection.
+_SELF_COMPARISON = '''\
+def test_upsilon(found: object) -> None:
+    """Grades nothing: the comparison holds for every possible input."""
+    records = found.records
+    assert records == records
+'''
+
+#: The language guarantees the answer, so the input cannot change it.
+_VACUOUS_LENGTH = '''\
+def test_phi(rows: list[int]) -> None:
+    """Grades nothing: len() is non-negative whatever it is handed."""
+    assert len(rows) >= 0
+'''
+
+#: Every value is an instance of object, so the first argument is not read.
+_VACUOUS_ISINSTANCE = '''\
+def test_chi(row: object) -> None:
+    """Grades nothing: object is the root of the type hierarchy."""
+    assert isinstance(row, object)
+'''
+
+#: REDUCED FROM tests/solve/test_optimize.py, WHICH SHIPS THIS TODAY. Two calls
+#: written the same way are not the same value: this asserts the solver is
+#: DETERMINISTIC, and it fails the moment it stops being. A reflexive rule that
+#: ignored the calls would report it, which is why the shipped rule requires the
+#: compared expression to be call-free.
+_DETERMINISM_CHECK = '''\
+def test_omega_two(registry: object, request: object) -> None:
+    """Two runs on one input must agree, and the calls may disagree."""
+    assert repr(_run(registry, request)) == repr(_run(registry, request))
+'''
+
+#: REDUCED FROM tests/save/test_container_elements.py, WHICH SHIPS THIS TODAY,
+#: and it is this project's own mutation discipline - assert the revert landed.
+#: Inlining single-assignment locals before comparing would rewrite the left
+#: side into the right and report it, because the ATTRIBUTE was reassigned
+#: between the binding and the assertion. That is why no inlining is done.
+_REVERT_LANDED = '''\
+def test_psi(objects: object, real: object) -> None:
+    """The shipped decoder must be back, and the attribute moved in between."""
+    objects._bound_container_elements = _mutated
+    try:
+        sweep = _sweep_the_library()
+    finally:
+        objects._bound_container_elements = real
+    assert objects._bound_container_elements is real
+'''
+
+# --- the value-returning grader gutted to decline --------------------------
+
+#: The residual :data:`_DECLINING_RETURN` names. Declining is legitimate; a
+#: decline that happens on every call is a stop wearing a decline's clothes.
+_UNCONDITIONAL_DECLINE = '''\
+def _census(paths: list[str]) -> int | None:
+    """Gutted to decline every time, which is not declining."""
+    if globals():
+        return None
+    assert paths
+    return len(paths)
+'''
+
+# --- the grader renamed out of the vocabulary ------------------------------
+
+#: A grader whose name no vocabulary reaches, and the control that grades only
+#: through it. Renaming ``_assert_every_row_balances`` to this is the whole
+#: defect: nothing about the caller changed, and the vocabulary stopped seeing
+#: that it grades at all.
+_RENAMED_GRADER = '''\
+def _every_row_balances(rows: list[int]) -> None:
+    """A grader named outside every vocabulary this module carries."""
+    assert not [row for row in rows if row < 0]
+
+
+def test_tau(rows: list[int]) -> None:
+    """Grades only by calling the renamed grader."""
+    _every_row_balances(rows)
+'''
+
+#: The same pair with the caller gutted. The route is what makes this visible.
+_RENAMED_GRADER_GUTTED = '''\
+def _every_row_balances(rows: list[int]) -> None:
+    """A grader named outside every vocabulary this module carries."""
+    assert not [row for row in rows if row < 0]
+
+
+def test_tau(rows: list[int]) -> None:
+    """Gutted, and no vocabulary can see that it ever graded."""
+    if globals():
+        return
+    _every_row_balances(rows)
+'''
+
+#: THE SAME RENAME ACROSS A FILE BOUNDARY, AND IT IS A SEPARATE FIXTURE BECAUSE
+#: THE ONE-MODULE VERSION ABOVE WAS GREEN THROUGH A REAL DEFECT. The resolution
+#: first returned the names each module DEFINES, which resolves the pair above -
+#: they sit together - and resolves NOTHING in this tree, where every grader
+#: worth renaming is imported by the module that calls it. A plant against a
+#: real shipped grader is what reported it. This is the shape that occurs in the
+#: wild; the one above is the reduction of it.
+#:
+#: THE REAL MEMBER IT IS DERIVED FROM IS IN THIS FILE.
+#: :func:`test_no_test_in_this_module_is_gutted_to_an_early_return` grades ONLY
+#: by calling ``_assert_no_test_is_gutted``, which it imports from
+#: ``tests/save/reach_guard.py`` - one module defines the grader, another calls
+#: it, and the caller ships no assertion of its own. The pair below is that
+#: member with the grader RENAMED, which is the one edit the shipped vocabulary
+#: cannot see. Nothing in this tree recovers a member through the route rule
+#: today, and that number is derived rather than written down - see
+#: :func:`test_resolving_routes_only_ever_widens_the_population`.
+_CROSS_MODULE_GRADER = '''\
+def _every_row_balances(rows: list[int]) -> None:
+    """A grader named outside every vocabulary, in its own module."""
+    assert not [row for row in rows if row < 0]
+'''
+
+_CROSS_MODULE_CALLER = '''\
+from grader import _every_row_balances
+
+
+def test_tau(rows: list[int]) -> None:
+    """Gutted, and its grading route crosses a file boundary."""
+    if globals():
+        return
+    _every_row_balances(rows)
+'''
+
+# --- the self-comparison family, split by whether the program participates --
+#
+# THE RULE THAT WAS STATED AND THE RULE THAT WAS IMPLEMENTED WERE NOT THE SAME
+# RULE. The stated ground was "both sides evaluate the same object in the same
+# frame, so nothing about the program can change the answer". The code excluded
+# only ``ast.Call`` - but an attribute access runs ``__get__`` or
+# ``__getattr__``, a subscription runs ``__getitem__``, and the comparison
+# operator itself runs ``__eq__``, ``__ge__`` or ``__le__``. None of those is a
+# ``Call`` node and every one of them is arbitrary program code.
+#
+# NEITHER OF THE TWO REFUSED FIXTURES BELOW IS DERIVED FROM A MEMBER OF THIS
+# TREE, and that is said here rather than left implicit: this tree ships
+# neither idiom, which is the whole reason the rule could score zero while
+# being wrong. They are warranted by EXECUTION instead, which is stronger than a
+# structural analogue - see
+# :func:`test_the_self_comparisons_this_rule_refuses_to_decide_really_can_fail`,
+# which builds both objects and watches each assertion fail once the code under
+# test breaks.
+
+#: THE ONE THE LANGUAGE DECIDES. ``is`` is the only comparison Python never
+#: dispatches to program code, and a bare ``Name`` load runs none either.
+_SELF_IDENTITY = '''\
+def test_upsilon_one(found: object) -> None:
+    """Grades nothing: identity of one local with itself, decided by the language."""
+    records = found.records
+    assert records is records
+'''
+
+#: The standard ``functools.cached_property`` memoization test. One access must
+#: return the object the previous access returned, and it FAILS the moment the
+#: cache is removed.
+_MEMOIZED_ATTRIBUTE = '''\
+def test_upsilon_two(parser: object) -> None:
+    """Two accesses of a memoized attribute must be the same object."""
+    assert parser.parsed is parser.parsed
+'''
+
+#: The standard ordering-reflexivity test. It FAILS the moment ``__ge__`` stops
+#: being reflexive, which is exactly the defect it exists to find.
+_REFLEXIVE_ORDER = '''\
+def test_upsilon_three(version: object) -> None:
+    """A total order must place every value at least as high as itself."""
+    assert version >= version
+'''
+
+# --- respellings of the class the language decides -------------------------
+#
+# EACH IS THE SAME GUARANTEE THE SHIPPED RULE ALREADY CLAIMS, WRITTEN ANOTHER
+# WAY. None has an analogue in this tree, because this tree ships no vacuous
+# length or type predicate at all - so their warrant is the language's own
+# contract rather than a member, and the contract is what the rule cites. A
+# gutter typing any of them restored the gutting the rule exists to close.
+
+_VACUOUS_LENGTH_MIRRORED = '''\
+def test_phi_two(rows: list[int]) -> None:
+    """The same floor with the operands the other way round."""
+    assert 0 <= len(rows)
+'''
+
+_VACUOUS_LENGTH_FLOOR = '''\
+def test_phi_three(rows: list[int]) -> None:
+    """A floor one below the one the language guarantees."""
+    assert len(rows) > -1
+'''
+
+_VACUOUS_ISINSTANCE_TUPLE = '''\
+def test_chi_two(row: object) -> None:
+    """A tuple of types passes when ANY of them matches, and object always does."""
+    assert isinstance(row, (int, object))
+'''
+
+_VACUOUS_MEMBERSHIP = '''\
+def test_chi_three(row: object) -> None:
+    """Container membership shortcuts on identity, so this holds for every input."""
+    assert row in (row,)
+'''
+
+# --- the body wrapped in a loop that never runs ----------------------------
+#
+# THE SAME SHAPE AS :data:`_WRAPPED_BODY`, which is validated, respelled three
+# ways. The module folds a constant ``if`` and says out loud that a statically
+# constant branch is not a branch; a loop over an empty literal is the same
+# claim and was not folded, so all three gutted a real shipped control in
+# silence.
+
+_WRAPPED_IN_AN_EMPTY_LOOP = '''\
+def test_gamma_two(corpus: list[int]) -> None:
+    """Gutted by a loop over a literal that has nothing in it."""
+    for _ in []:
+        total = sum(corpus)
+        assert total == 1
+'''
+
+_WRAPPED_IN_A_ZERO_RANGE = '''\
+def test_gamma_three(corpus: list[int]) -> None:
+    """Gutted by a range that yields nothing."""
+    for _ in range(0):
+        total = sum(corpus)
+        assert total == 1
+'''
+
+_WRAPPED_IN_WHILE_FALSE = '''\
+def test_gamma_four(corpus: list[int]) -> None:
+    """Gutted by a while whose condition this module already folds to False."""
+    while False:
+        total = sum(corpus)
+        assert total == 1
+'''
+
+# --- the failure swallowed by something other than `pass` ------------------
+
+#: THE WAY ANYONE ACTUALLY WRITES A SWALLOW. The shipped rule accepted a handler
+#: body only when every statement was ``pass`` or a bare constant, so one print
+#: call defeated it.
+_SWALLOWED_INTO_A_LOG = '''\
+def test_delta_two(corpus: list[int]) -> None:
+    """Gutted by logging the failure instead of raising it."""
+    try:
+        assert sum(corpus) == 1
+    except AssertionError as exc:
+        print(exc)
+'''
+
+#: The same swallow with no ``try`` in it at all, which is why inspecting only
+#: ``ast.Try`` missed it.
+_SUPPRESSED = '''\
+def test_delta_three(corpus: list[int]) -> None:
+    """Gutted by suppressing the failure in a context manager."""
+    with contextlib.suppress(AssertionError):
+        assert sum(corpus) == 1
+'''
+
+#: BOUNDARY, AND ITS ANALOGUE IS SHIPPED: ``tests/save/reach_guard.py`` catches
+#: ``AssertionError`` from a delegated grader and appends the rejection to a
+#: list its caller then grades. The failure is CONVERTED into a value, not
+#: discarded, and a rule that could not tell the two apart would redden it.
+_CONVERTED_TO_A_RECORD = '''\
+def _rejected(paths: list[str]) -> list[str]:
+    """Record which inputs the delegated grader refuses."""
+    rejected: list[str] = []
+    for path in paths:
+        try:
+            _assert_declared(path)
+        except AssertionError:
+            rejected.append(path)
+    return rejected
+'''
+
+#: Verified end to end against a real shipped control: pytest reports
+#: ``1 passed, 1 skipped`` and exits 0 while the body never runs once.
+_DISABLED_BY_AN_EMPTY_PARAMETRIZE = '''\
+@pytest.mark.parametrize("unused", [])
+def test_theta_two(corpus: list[int], unused: int) -> None:
+    """Switched off by giving the parametrizer nothing to run it with."""
+    assert sum(corpus) == 1
+'''
+
+# --- the ordinary shapes the fabricated-return rule reported ---------------
+#
+# NONE OF THE THREE HAS A MEMBER IN THIS TREE TODAY, and that is exactly why
+# the rule's cost was never measured: a rule whose false positives are absent
+# from the tree it was written against reads as exact. Their warrant is
+# EXECUTION - :func:`test_the_shapes_the_withdrawn_return_rule_reported_do_grade`
+# calls each one and counts the grading statements that really ran.
+
+_GRADES_THE_NON_EMPTY_CASE = '''\
+def _census(paths: list[str]) -> int:
+    """Grade the non-empty case, then answer either way."""
+    if paths:
+        assert all(paths)
+    return len(paths)
+'''
+
+_ORDINARY_LITERAL_EARLY_RETURN = '''\
+def _severity(kind: str, known: set[str], levels: dict[str, int]) -> int:
+    """An early return of a literal on a boundary the caller relies on."""
+    if kind == "info":
+        return 0
+    assert kind in known
+    return levels[kind]
+'''
+
+_GRADES_ONLY_IN_STRICT_MODE = '''\
+def _measured(text: str, strict: bool) -> int:
+    """Grade only when the caller asked for it, and answer either way."""
+    if strict:
+        assert text
+    return len(text)
+'''
+
+# --- the rename that takes a control out of pytest's collection ------------
+#
+# THE SHAPE THAT IS NOT A SHAPE. Every rule above reads the function's own
+# source, and this one is invisible there: the body is untouched, every
+# assertion is intact, and the control is a full population member with no
+# finding against it. What changed is whether anything ever CALLS it, and that
+# is a fact about pytest's collection rather than about the source.
+#
+# It is decidable from the tree all the same, on a narrower ground than
+# collection: a module-level grader in a test module that pytest will not
+# collect and that NOTHING IN THE TREE NAMES can never run, whoever was
+# supposed to call it.
+
+_RENAMED_OUT_OF_COLLECTION = '''\
+def not_a_test_gamma(corpus: list[int]) -> None:
+    """Gutted by a rename that takes it out of pytest's collection."""
+    assert sum(corpus) == 1
+'''
+
+#: The boundary beside it: the same shape, named by a caller, which is every
+#: delegated grader this tree ships.
+_NAMED_BY_A_CALLER = '''\
+def _assert_balanced(corpus: list[int]) -> None:
+    """A delegated grader, which pytest never collects and a caller names."""
+    assert sum(corpus) == 1
+
+
+def test_gamma_five(corpus: list[int]) -> None:
+    """Grades by delegating."""
+    _assert_balanced(corpus)
+'''
+
 #: A stand-in guard tool. ``{VERDICT}`` and ``{SKIPS}`` are substituted with
 #: literals, so the guard under the criteria is real code in a real file.
 _STUB_CONSTANT = "\n".join(
@@ -438,6 +852,25 @@ def _blind(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(Path, name, liveness.unreadable)
 
 
+def _written(tmp_path: Path, name: str, source: str) -> Path:
+    """Write a synthetic module to a real file, so it has a readable source.
+
+    The runtime counter derives its grading lines from the function's own
+    source file, so a module compiled from a string has nothing to read.
+
+    Args:
+        tmp_path: Where to write it.
+        name: The file name.
+        source: The module's source.
+
+    Returns:
+        The path written.
+    """
+    path = tmp_path / name
+    path.write_text(source, encoding="utf-8", newline="\n")
+    return path
+
+
 def _load(path: Path, name: str) -> ModuleType:
     """Load a module by path under a private name.
 
@@ -472,6 +905,22 @@ def tracked(repo_root: Path) -> list[str]:
         Repo-relative paths.
     """
     return liveness.tracked_python_files(repo_root)
+
+
+@pytest.fixture(scope="module")
+def routes(repo_root: Path, tracked: list[str]) -> dict[str, frozenset[str]]:
+    """The resolved grading routes, re-derived rather than taken from a survey.
+
+    Args:
+        repo_root: Repository root.
+        tracked: Repo-relative Python paths.
+
+    Returns:
+        Repo-relative path to the names that reach grading from it.
+    """
+    return liveness.grading_routes(
+        {relative: (repo_root / relative).read_text(encoding="utf-8") for relative in tracked}
+    )
 
 
 @pytest.fixture(scope="module")
@@ -758,11 +1207,14 @@ def test_a_value_returning_grader_made_to_fabricate_a_value_is_reported() -> Non
 
     Handing a caller a literal nothing measured turns that caller's assertion
     into a tautology. The function is still outside the population - it returns
-    a value - and it is graded by the one rule that is decidable for it.
+    a value - and it is still reported, by the rule that was ALREADY meant to
+    cover it: ``if globals(): return 1`` always returns, so the grading below
+    it can never run. The rule that used to report this shape was withdrawn
+    because that was the only thing it added.
     """
     survey = _survey(_FABRICATED_RETURN)
-    assert [finding.kind for finding in survey.findings] == ["returns a fabricated value"], (
-        f"got {[finding.rendered() for finding in survey.findings]}"
+    assert [finding.kind for finding in survey.dead_grading] == ["unreachable grading"], (
+        f"got {[finding.rendered() for finding in survey.dead_grading]}"
     )
     assert [member.name for member in survey.value_returning] == ["_reported_file_count"]
 
@@ -839,23 +1291,22 @@ def test_a_value_returning_helper_that_declines_to_answer_is_not_reported() -> N
     assert not _findings(_DECLINING_RETURN), f"got {_findings(_DECLINING_RETURN)}"
 
 
-def test_a_value_returning_helper_is_counted_and_its_literal_return_is_reported() -> None:
-    """THE COST OF THE FABRICATED-RETURN RULE, STATED RATHER THAN HIDDEN.
+def test_a_value_returning_helper_is_counted_and_not_reported() -> None:
+    """THE RULE THAT WAS WITHDRAWN, AND THE SHAPE THAT WITHDREW IT.
 
     ``if exponent == 0: return 1`` is a correct boundary and ``if globals():
-    return 1`` is a gutting, and they are the same three tokens. The rule
-    reports both. Measured on this tree it reports NEITHER, because no
-    value-returning grader here has an ungraded literal return - but the false
-    positive class is real and this test is where it is written down, so nobody
-    reads the zero on the tree as a claim that the rule is exact.
+    return 1`` is a gutting, and to a rule reading the returned value they are
+    the same three tokens - so it reported both. The gutting is now reported
+    where it belongs, as grading a folded branch makes unreachable, and what
+    was left of the rule was this false positive and two more like it.
 
     The population filter itself is unaffected: the helper is still excluded
     from the member population and still counted.
     """
     survey = _survey(_VALUE_RETURNING_HELPER)
     assert not survey.members, "a value-returning utility entered the grader population"
-    assert [finding.kind for finding in survey.findings] == ["returns a fabricated value"], (
-        f"the cost of this rule changed shape: {[f.rendered() for f in survey.findings]}"
+    assert not survey.findings, (
+        f"a correct boundary return was reported: {[f.rendered() for f in survey.findings]}"
     )
     assert [member.name for member in survey.value_returning] == ["_power"], (
         "the excluded utility was dropped instead of counted"
@@ -877,6 +1328,556 @@ def test_grading_inside_a_branch_inside_a_loop_is_counted_rather_than_reported()
     survey = _survey(_LOOP_THEN_BRANCH)
     assert not survey.findings, f"the commonest correct idiom was reported: {survey.findings}"
     assert [member.name for member in survey.loop_leaned] == ["test_sigma"]
+
+
+# ---------------------------------------------------------------------------
+# THE NON-CONSTANT TAUTOLOGY AND THE RENAMED GRADER, each stated as a semantic
+# claim and each with its cost on this tree measured in the census tests
+# further down rather than asserted from memory here.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("corpus", "why"),
+    [
+        (_VACUOUS_LENGTH, "len() is non-negative by the language's own contract"),
+        (_VACUOUS_ISINSTANCE, "object is the root of the type hierarchy"),
+    ],
+)
+def test_a_predicate_the_language_decides_grades_nothing(corpus: str, why: str) -> None:
+    """SHAPE 1 again, where the guarantee is the interpreter's rather than the shape's."""
+    survey = _survey(corpus)
+    kinds = [finding.kind for finding in survey.vacuous_grading]
+    assert kinds == ["cannot discriminate"], f"{why}, and it was not reported: {survey}"
+
+
+@pytest.mark.parametrize(
+    ("corpus", "why"),
+    [
+        (_DETERMINISM_CHECK, "two calls written alike are not the same value"),
+        (_REVERT_LANDED, "the attribute was reassigned between the binding and the assert"),
+    ],
+)
+def test_the_wider_tautology_rules_that_were_refused_stay_refused(corpus: str, why: str) -> None:
+    """THE COST OF THE WIDER RULES, PAID BY REAL CODE THIS TREE SHIPS TODAY.
+
+    Both fixtures are reductions of live members of the population. A reflexive
+    rule that ignored calls reports the first; one that inlined
+    single-assignment locals reports the second. Neither ships, and the reason
+    is that each of these assertions genuinely CAN fail - not that the count
+    looked better.
+    """
+    survey = _survey(corpus)
+    assert not survey.vacuous_grading, f"{why}, and it was reported anyway: {survey}"
+    assert not survey.findings, f"{why}, and the walk reported it: {survey.findings}"
+
+
+# ---------------------------------------------------------------------------
+# SESSION 40 - THE SHAPES AN ADVERSARY MEASURED SILENT OR WRONGLY REPORTED.
+#
+# Every rule below is stated as a SEMANTIC claim and its cost is measured by
+# the census tests further down rather than asserted from memory here.
+# ---------------------------------------------------------------------------
+
+
+def test_a_local_compared_with_itself_by_identity_grades_nothing() -> None:
+    """THE ONLY SELF-COMPARISON THE LANGUAGE DECIDES, AND NOW THE ONLY ONE REPORTED.
+
+    ``is`` is the one comparison Python never dispatches to program code, and a
+    bare ``Name`` load runs none either - so the two sides are the same object
+    and the answer is fixed whatever the program does. That is the claim the
+    docstring always made; it is now also the code.
+    """
+    survey = _survey(_SELF_IDENTITY)
+    assert [finding.kind for finding in survey.vacuous_grading] == ["cannot discriminate"], (
+        f"the self-identity was not reported: {survey.vacuous_grading}"
+    )
+    assert not survey.members, (
+        "a control whose only assertion cannot discriminate is still counted as grading, "
+        "so eleven more characters restore every gutting this module closes"
+    )
+
+
+def test_the_self_comparisons_this_rule_refuses_to_decide_really_can_fail() -> None:
+    """WHY THE RULE WAS NARROWED, DEMONSTRATED BY RUNNING IT RATHER THAN BY ARGUING.
+
+    THE STATED GROUND WAS FALSE FOR THE EXPRESSIONS THE CODE ACCEPTED. Excluding
+    only ``ast.Call`` leaves attribute access, which runs ``__get__`` or
+    ``__getattr__``, and leaves the comparison operator, which runs ``__eq__``,
+    ``__ge__`` or ``__le__``. Neither is a ``Call`` node and both are arbitrary
+    program code.
+
+    So both shapes below are built here and executed. Each PASSES against sound
+    code and FAILS against broken code, which is the definition of an assertion
+    that discriminates - and each is the standard idiom for the property it
+    tests, one for ``functools.cached_property`` and one for an ordering.
+    """
+
+    class Memoized:
+        """A parser whose parse is cached, and whose cache can be removed."""
+
+        def __init__(self, *, cached: bool) -> None:
+            """Build one with the cache present or absent.
+
+            Args:
+                cached: Whether the memoization is in place.
+            """
+            self._cached = cached
+            self._value: object = object()
+
+        @property
+        def parsed(self) -> object:
+            """The parse, memoized or recomputed.
+
+            Returns:
+                The same object every time when cached, a new one when not.
+            """
+            return self._value if self._cached else object()
+
+    class Ordered:
+        """A value whose ordering can be made non-reflexive."""
+
+        def __init__(self, *, sound: bool) -> None:
+            """Build one with a sound or a broken ordering.
+
+            Args:
+                sound: Whether the ordering places a value at least as high as
+                    itself.
+            """
+            self._sound = sound
+
+        def __ge__(self, other: object) -> bool:
+            """Compare, soundly or otherwise.
+
+            Args:
+                other: The right-hand operand, which is ignored.
+
+            Returns:
+                Whether this value is at least as high as the other.
+            """
+            return self._sound
+
+    def memoization_holds(subject: Memoized) -> None:
+        """Two accesses of a memoized attribute must be the same object.
+
+        Args:
+            subject: The parser to grade.
+        """
+        assert subject.parsed is subject.parsed
+
+    def reflexivity_holds(subject: Ordered) -> None:
+        """A total order must place every value at least as high as itself.
+
+        Args:
+            subject: The value to grade.
+        """
+        # PLR0124 IS THE SAME RULE THIS MODULE JUST NARROWED, AND IT IS WRONG
+        # HERE FOR THE SAME REASON: the ordering is what is under test, so the
+        # comparison discriminates. The lint is suppressed for one line, and
+        # the two arms below prove the suppression is earned rather than
+        # convenient.
+        assert subject >= subject  # noqa: PLR0124
+
+    memoization_holds(Memoized(cached=True))
+    reflexivity_holds(Ordered(sound=True))
+    with pytest.raises(AssertionError):
+        memoization_holds(Memoized(cached=False))
+    with pytest.raises(AssertionError):
+        reflexivity_holds(Ordered(sound=False))
+
+
+@pytest.mark.parametrize(
+    ("corpus", "why"),
+    [
+        (_MEMOIZED_ATTRIBUTE, "an attribute access runs __get__ and __getattr__"),
+        (_REFLEXIVE_ORDER, "the comparison itself runs __ge__"),
+        (_SELF_COMPARISON, "the comparison itself runs __eq__, which NaN fails"),
+    ],
+)
+def test_a_self_comparison_the_program_joins_in_is_bounded_rather_than_decided(
+    corpus: str, why: str
+) -> None:
+    """SHAPE 1's OTHER HALF, HANDLED THE WAY THIS MODULE HANDLES EVERY UNDECIDABLE SHAPE.
+
+    A self-comparison whose operator or whose operand access dispatches to
+    program code is STRUCTURALLY IDENTICAL to a deliberate test of that code,
+    and no rule over the assertion's own syntax separates them. It is therefore
+    COUNTED rather than decided, exactly as :func:`liveness.conditional_exits`
+    counts the undecidable exits.
+
+    THE DISCLOSED COST OF THIS IS REAL AND IS NOT ARGUED AWAY: such an assertion
+    is credited as grading, so ``assert x == x`` is a vacuity this module no
+    longer refuses to count. What replaces the refusal is the bound, which is
+    re-derived every run and is where the number lives.
+    """
+    survey = _survey(corpus)
+    assert not survey.vacuous_grading, f"{why}, so it is not decidable: {survey.vacuous_grading}"
+    assert [finding.kind for finding in survey.self_comparisons] == ["compared with itself"], (
+        f"{why}, and the bound did not count it: {survey.self_comparisons}"
+    )
+    assert not survey.findings, f"{why}, and the walk reported it anyway: {survey.findings}"
+
+
+@pytest.mark.parametrize(
+    ("corpus", "why"),
+    [
+        (_VACUOUS_LENGTH_MIRRORED, "0 <= len(x) is len(x) >= 0 written the other way round"),
+        (_VACUOUS_LENGTH_FLOOR, "len(x) > -1 is the same floor one below itself"),
+        (_VACUOUS_ISINSTANCE_TUPLE, "a tuple of types passes when any of them matches"),
+        (_VACUOUS_MEMBERSHIP, "container membership shortcuts on identity"),
+    ],
+)
+def test_every_respelling_of_the_language_decided_class_is_reported(corpus: str, why: str) -> None:
+    """SHAPE 2 WIDENED FROM A BLOCKLIST TOWARDS THE CLASS IT CLAIMED TO BE.
+
+    The rule matched exactly two spellings while claiming a semantic class, and
+    a gutter typing any of the four respellings below restored the gutting the
+    rule exists to close. Comparisons are normalised before they are decided, so
+    the operand order stops mattering.
+    """
+    survey = _survey(corpus)
+    kinds = [finding.kind for finding in survey.vacuous_grading]
+    assert kinds == ["cannot discriminate"], f"{why}, and it was not reported: {survey}"
+
+
+@pytest.mark.parametrize(
+    ("expression", "why"),
+    [
+        ("not (x != x)", "__ne__ is program code, so this is not decided by the language"),
+        ("id(x) == id(x)", "trusting the name id is a spelling, not a semantic class"),
+    ],
+)
+def test_the_predicates_this_rule_deliberately_leaves_alone_are_named(
+    expression: str, why: str
+) -> None:
+    """THE BOUNDARY OF SHAPE 2, NAMED RATHER THAN DISCOVERED.
+
+    Widening towards the class is not widening without limit. Both spellings
+    below LOOK like the class and are outside it, and each is left alone for a
+    reason about meaning rather than about the count it would produce here.
+    """
+    verdict = liveness.cannot_discriminate(ast.parse(expression, mode="eval").body)
+    assert verdict is None, f"{why}, and it was decided anyway as {verdict!r}"
+
+
+@pytest.mark.parametrize(
+    ("corpus", "why"),
+    [
+        (_WRAPPED_IN_AN_EMPTY_LOOP, "a literal with nothing in it yields nothing"),
+        (_WRAPPED_IN_A_ZERO_RANGE, "range(0) yields nothing"),
+        (_WRAPPED_IN_WHILE_FALSE, "False is the constant this module already folds"),
+    ],
+)
+def test_a_body_wrapped_in_a_loop_that_never_runs_is_reported(corpus: str, why: str) -> None:
+    """THE MODULE CONTRADICTED ITS OWN STATED CLAIM, AND THE LOOP IS WHERE.
+
+    "A STATICALLY CONSTANT BRANCH IS NOT A BRANCH" is the module's own words and
+    it folds every ``if`` through :func:`liveness.static_truth`. The loop was
+    never folded, so all three spellings below gutted a real shipped control
+    while producing no finding, no vacuous assertion and no dead grading - and
+    still counted the control as a live member.
+    """
+    kinds = _kinds(corpus)
+    assert "end of function" in kinds, f"{why}, and it was not reported: {_findings(corpus)}"
+
+
+def test_grading_a_folded_branch_jumps_over_can_never_run() -> None:
+    """THE HOLE THAT MADE THE FABRICATED-RETURN RULE LOOK NECESSARY.
+
+    ``if globals(): return 1`` always returns, so every statement after it is
+    dead - and the dead-grading walk propagated deadness INSIDE a folded branch
+    without propagating it PAST one. Both shapes the withdrawn return rule was
+    built for are unreachable grading and are reported as exactly that.
+    """
+    one = _survey(_FABRICATED_RETURN).dead_grading
+    two = _survey(_UNCONDITIONAL_DECLINE).dead_grading
+    fabricated = [finding.kind for finding in one]
+    declined = [finding.kind for finding in two]
+    assert fabricated == ["unreachable grading"], f"got {[f.rendered() for f in one]}"
+    assert declined == ["unreachable grading"], f"got {[f.rendered() for f in two]}"
+
+
+@pytest.mark.parametrize(
+    ("corpus", "why"),
+    [
+        (_GRADES_THE_NON_EMPTY_CASE, "grade the non-empty case, answer either way"),
+        (_ORDINARY_LITERAL_EARLY_RETURN, "an early return of a literal on a boundary"),
+        (_GRADES_ONLY_IN_STRICT_MODE, "grade only when the caller asked for it"),
+    ],
+)
+def test_an_ordinary_return_beside_conditional_grading_is_not_reported(
+    corpus: str, why: str
+) -> None:
+    """THE COST THAT WITHDREW THE RULE, PAID BY THREE ORDINARY SHAPES.
+
+    Once the dead-grading walk propagates past a folded branch, every case the
+    fabricated-return rule caught is reported as unreachable grading - and the
+    only thing left that was unique to it is this class, which is one of the
+    most ordinary shapes in Python. Withdrawing a rule that adds nothing but
+    false positives is the correct outcome for it.
+    """
+    survey = _survey(corpus)
+    rendered = [finding.rendered() for finding in survey.findings]
+    assert not rendered, f"{why}, and it was reported: {rendered}"
+    assert survey.value_returning, f"{why}, and it left the excluded census entirely"
+
+
+def test_the_shapes_the_withdrawn_return_rule_reported_do_grade(tmp_path: Path) -> None:
+    """THE WARRANT FOR THE THREE FIXTURES ABOVE, WHICH THIS TREE HAS NO MEMBER OF.
+
+    A rule whose false positives are absent from the tree it was written against
+    reads as exact, and that is the whole reason this cost went unmeasured. So
+    the fixtures are warranted by EXECUTION instead of by a structural analogue:
+    each is called and the grading statements that really ran are counted by
+    this module's own runtime channel.
+    """
+    path = _written(tmp_path, "counting.py", _GRADES_THE_NON_EMPTY_CASE)
+    module = _load(path, "cs846_counting")
+    # SLF001: the fixture's leading underscore is part of the shape under test.
+    # A delegated grader in this tree is private by convention, and renaming
+    # this one to satisfy a lint would validate the rule against a shape that
+    # does not occur.
+    census = module._census  # noqa: SLF001
+    graded = liveness.observed_grading(census, ["one"])
+    idle = liveness.observed_grading(census, [])
+    assert graded == 1, (
+        f"the shape reported as declining without ever grading ran {graded} grading "
+        "statement(s) on a non-empty input, so the report was about a call that grades"
+    )
+    assert idle == 0, (
+        f"the same shape ran {idle} grading statement(s) on an empty input, so the "
+        "fixture is not the conditional shape it is claimed to be"
+    )
+
+
+def test_a_failure_logged_instead_of_raised_is_reported() -> None:
+    """THE WAY ANYONE ACTUALLY WRITES A SWALLOW.
+
+    The handler test accepted a body only when every statement was ``pass`` or a
+    bare constant, so one ``print`` call defeated it. A handler that catches
+    what an ``assert`` raises and neither re-raises it, converts it to a
+    failure, nor leaves the function has discarded it.
+    """
+    assert "failure discarded" in _kinds(_SWALLOWED_INTO_A_LOG), (
+        f"got {_findings(_SWALLOWED_INTO_A_LOG)}"
+    )
+
+
+def test_a_failure_suppressed_by_a_context_manager_is_reported() -> None:
+    """THE SAME SWALLOW WITH NO ``try`` IN IT AT ALL.
+
+    ``contextlib.suppress`` is the standard spelling and the handler test
+    inspected ``ast.Try`` only, so this one had nothing to inspect.
+    """
+    assert "failure discarded" in _kinds(_SUPPRESSED), f"got {_findings(_SUPPRESSED)}"
+
+
+def test_a_handler_that_converts_a_failure_into_a_record_is_not_reported() -> None:
+    """BOUNDARY, AND ITS ANALOGUE IS SHIPPED IN ``tests/save/reach_guard.py``.
+
+    That module catches ``AssertionError`` from a delegated grader and appends
+    the rejection to a list its caller then grades. The failure is CONVERTED
+    into a value rather than discarded, and a rule that could not tell those
+    apart would redden a correct control.
+    """
+    survey = _survey(_CONVERTED_TO_A_RECORD)
+    discarded = [finding.kind for finding in survey.findings if finding.kind == "failure discarded"]
+    assert not discarded, f"a converted failure was read as discarded: {survey.findings}"
+
+
+def test_a_test_disabled_by_an_empty_parametrize_is_reported() -> None:
+    """ONE DECORATOR, NO STATEMENT, AND PYTEST REPORTS ``1 passed, 1 skipped``.
+
+    An empty literal argvalues gives the parametrizer nothing to run the body
+    with, which is decidable from the decorator exactly as a constant ``skipif``
+    condition is. What is NOT decidable is an argvalues built elsewhere and
+    named here, and that residual is stated rather than closed.
+    """
+    kinds = _kinds(_DISABLED_BY_AN_EMPTY_PARAMETRIZE)
+    assert any(kind.startswith("disabled by") for kind in kinds), (
+        f"got {_findings(_DISABLED_BY_AN_EMPTY_PARAMETRIZE)}"
+    )
+
+
+def test_a_control_renamed_out_of_pytest_collection_is_reported() -> None:
+    """THE GUTTING NO RULE OVER THE FUNCTION'S OWN SOURCE CAN SEE.
+
+    The body is untouched, every assertion is intact, and the control is a full
+    population member with nothing against it - what changed is whether pytest
+    ever calls it. That is a fact about collection rather than about the
+    source, so it is decided on a NARROWER ground that is decidable: a
+    module-level grader in a test module which pytest will not collect and
+    which nothing in the tree names can never run, whoever was meant to call
+    it.
+
+    THE COLLECTION PREFIX IS READ FROM THE PROJECT'S OWN pytest CONFIGURATION
+    rather than written down here, so a project that changes it changes this
+    rule with it instead of silently invalidating it.
+    """
+    prefixes = liveness.collection_prefixes(Path(__file__).resolve().parents[1])
+    orphaned = liveness.uncollected_graders(
+        {"tests/test_synthetic.py": _RENAMED_OUT_OF_COLLECTION}, prefixes
+    )
+    assert [member.name for member in orphaned] == ["not_a_test_gamma"], (
+        f"the rename out of collection was not reported: {orphaned}"
+    )
+
+
+def test_a_delegated_grader_a_caller_names_is_not_reported() -> None:
+    """BOUNDARY, AND IT IS EVERY DELEGATED GRADER THIS TREE SHIPS.
+
+    pytest collects none of them either. The difference is that something names
+    them, and being named is the whole of what separates a helper from a
+    control nothing will ever call.
+    """
+    prefixes = liveness.collection_prefixes(Path(__file__).resolve().parents[1])
+    orphaned = liveness.uncollected_graders(
+        {"tests/test_synthetic.py": _NAMED_BY_A_CALLER}, prefixes
+    )
+    assert not orphaned, f"a named delegated grader was reported as unreachable: {orphaned}"
+
+
+def test_no_shipped_grader_sits_in_a_test_module_that_nothing_will_ever_call(
+    repo_root: Path, tracked: list[str]
+) -> None:
+    """THE COST OF THAT RULE, PAID ON THE REAL TREE.
+
+    Every delegated grader in the suite is a candidate and the great majority
+    of them are correct code, so the number that matters is how many are
+    CANDIDATES rather than how many are reported. A decorated one is exempted
+    with its reason: a decorator can hand a function to a framework that
+    reaches it without any name load, which is exactly what a ``pytest.fixture``
+    does.
+    """
+    sources = {relative: (repo_root / relative).read_text(encoding="utf-8") for relative in tracked}
+    prefixes = liveness.collection_prefixes(repo_root)
+    candidates = liveness.uncollectable_graders(sources, prefixes)
+    orphaned = liveness.uncollected_graders(sources, prefixes)
+    rendered = [member.rendered() for member in orphaned]
+    count = len(rendered)
+    population = len(candidates)
+    assert prefixes, "no collection prefix was derived, so nothing here knows what pytest runs"
+    assert population > 1, (
+        f"{population} grader(s) in test modules are outside pytest's collection, so a "
+        "clean result here is a claim about nothing"
+    )
+    assert not count, (
+        f"{count} of {population} grader(s) sit in a test module, are not collected by "
+        f"pytest and are named nowhere in the tree, so nothing can ever run them: "
+        f"{rendered[:20]}"
+    )
+
+
+def test_a_value_returning_grader_that_declines_every_time_is_reported() -> None:
+    """SHAPE 4. A decline reached on every call is a stop wearing a decline's clothes.
+
+    :data:`_DECLINING_RETURN` is the legitimate shape and stays legitimate, and
+    it is now legitimate for a reason that holds for every ordinary shape like
+    it rather than for one the rule happened to spell out. What separates the
+    two is not the returned value at all: it is that the grading below an
+    UNCONDITIONAL decline can never run, and that is decidable.
+    """
+    survey = _survey(_UNCONDITIONAL_DECLINE)
+    assert [finding.kind for finding in survey.dead_grading] == ["unreachable grading"], (
+        f"the unconditional decline was not reported: {survey.dead_grading}"
+    )
+    assert [member.name for member in survey.value_returning] == ["_census"], (
+        "the gutted grader left the excluded census as well, so nothing counts it"
+    )
+
+
+def test_a_grader_renamed_out_of_the_vocabulary_keeps_its_callers_in_the_population() -> None:
+    """SHAPE 3. A grading route is a route whatever it is spelled.
+
+    The vocabulary is a naming convention and this is its failure mode: rename
+    ``_assert_every_row_balances`` and every caller leaves the population with
+    nothing red. The route is resolved from the call graph instead, so the name
+    stops deciding membership.
+    """
+    routes = liveness.grading_routes({"synthetic.py": _RENAMED_GRADER})
+    survey = liveness.survey_source("synthetic.py", _RENAMED_GRADER, routes=routes["synthetic.py"])
+    named = sorted(member.name for member in survey.members)
+    assert named == ["_every_row_balances", "test_tau"], (
+        f"the caller of the renamed grader is not in the population: {named}"
+    )
+
+
+def test_a_caller_of_a_renamed_grader_is_graded_once_the_route_is_resolved() -> None:
+    """SHAPE 3, and the half that makes it worth resolving at all.
+
+    Membership is not the point; being GRADED is. Without the route the gutted
+    caller is invisible because it is not in the population; with it, the same
+    walk that grades every other member reports it.
+    """
+    routes = liveness.grading_routes({"synthetic.py": _RENAMED_GRADER_GUTTED})
+    resolved = liveness.survey_source(
+        "synthetic.py", _RENAMED_GRADER_GUTTED, routes=routes["synthetic.py"]
+    )
+    blind = liveness.survey_source("synthetic.py", _RENAMED_GRADER_GUTTED)
+    assert [finding.kind for finding in resolved.findings] == ["return"], (
+        f"the gutted caller was not reported once its route was resolved: {resolved.findings}"
+    )
+    assert not blind.findings, (
+        "the vocabulary alone already reported this, so the route resolution is not what "
+        "closes the shape and this test is not measuring it"
+    )
+
+
+def test_a_renamed_grader_resolves_across_a_file_boundary() -> None:
+    """SHAPE 3 AS IT ACTUALLY OCCURS, WHICH IS NOT HOW THE FIXTURE ABOVE WRITES IT.
+
+    THIS TEST EXISTS BECAUSE THE ONE-MODULE FIXTURE PASSED WHILE THE ANALYSIS
+    RESOLVED NOTHING IN THE REAL TREE. Returning the names each module DEFINES
+    is enough when the grader and its caller sit in the same file, and every
+    grader in this tree worth renaming is IMPORTED by the module that calls it,
+    so the whole rule was inert where it mattered. Only a plant against a real
+    shipped grader reported it.
+
+    So the route set is what a call in a module can REACH, under the local
+    spelling, and the boundary is what this grades.
+    """
+    sources = {"grader.py": _CROSS_MODULE_GRADER, "caller.py": _CROSS_MODULE_CALLER}
+    routes = liveness.grading_routes(sources)
+    resolved = liveness.survey_source("caller.py", _CROSS_MODULE_CALLER, routes["caller.py"])
+    blind = liveness.survey_source("caller.py", _CROSS_MODULE_CALLER)
+
+    assert "_every_row_balances" in routes["caller.py"], (
+        f"the imported grader is not callable-as-grading from the module that calls it: "
+        f"{sorted(routes['caller.py'])}"
+    )
+    assert [finding.kind for finding in resolved.findings] == ["return"], (
+        f"the gutted caller was not reported across the boundary: {resolved.findings}"
+    )
+    assert not blind.findings, (
+        "the vocabulary alone already reported this, so the cross-module resolution is "
+        "not what closes it and this test is not measuring it"
+    )
+
+
+def test_the_grading_vocabulary_is_pinned_by_literal() -> None:
+    """SHAPE 3's other half - the vocabulary itself moving without anything red.
+
+    THE PRECEDENT IS ``tests/save/test_byte_order_status.py``. Every control in
+    this module selects the vocabulary by SYMBOL, so emptying it or respelling
+    a word changes what is graded while every symbol still resolves. The words
+    are transcribed here as literals for that reason, and this is the one
+    deliberate transcription in the file.
+    """
+    assert liveness.GRADING_PREFIXES == PINNED_GRADING_PREFIXES, (
+        f"the grading prefix vocabulary is now {liveness.GRADING_PREFIXES}. Every control "
+        "here selects it by symbol, so narrowing it to nothing empties the population with "
+        "every one of them still green. Change this literal together with whatever grades "
+        "the new word."
+    )
+    assert liveness.PYTEST_GRADING_CALLS == PINNED_PYTEST_GRADING_CALLS, (
+        f"pytest's grading spellings are now {sorted(liveness.PYTEST_GRADING_CALLS)}; a word "
+        "removed here stops being read as grading and every caller of it leaves the "
+        "population silently"
+    )
+    assert liveness.EXITING_CALLS == PINNED_EXITING_CALLS, (
+        f"the exiting vocabulary is now {sorted(liveness.EXITING_CALLS)}; a word removed "
+        "here stops being read as an exit, so a gutting spelled with it reads as grading"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -954,23 +1955,266 @@ def test_every_member_credited_to_the_try_generosity_really_carries_a_try(
     assert not wrong, f"{len(wrong)} member(s) credited to a try that does not grade: {wrong}"
 
 
-def test_every_grader_the_population_filter_excludes_is_counted_and_returns_a_value(
+def test_no_shipped_assertion_is_one_that_cannot_discriminate(
+    surveyed: liveness.Survey,
+) -> None:
+    """THE COST OF THE TAUTOLOGY RULES, PAID ON THE REAL TREE.
+
+    This is the census the shape tests above are proven against, and it is the
+    number that is disclosed rather than designed around. It grades every
+    assert statement in the tree, not only the ones inside the population, so a
+    vacuous assertion sitting beside a real one is still reported - the real
+    one would otherwise hide it.
+    """
+    rendered = [finding.rendered() for finding in surveyed.vacuous_grading]
+    count = len(rendered)
+    candidates = surveyed.asserted
+    assert candidates > 1, (
+        f"{candidates} assert statement(s) were read, so a clean result here is a claim "
+        "about nothing"
+    )
+    assert not count, (
+        f"{count} shipped assertion(s) hold for every possible input, so they execute and "
+        f"pass and report nothing: {rendered[:20]}. Compare against an independently "
+        f"derived expectation rather than against the same value twice"
+    )
+
+
+def test_every_self_comparison_the_bound_counts_really_compares_something_with_itself(
     repo_root: Path, surveyed: liveness.Survey
 ) -> None:
-    """The excluded set, re-derived, and each re-read to confirm the excluded shape."""
+    """THE SECOND BOUND, RE-DERIVED AND HELD TO ITS OWN SHAPE.
+
+    NO FLOOR ON THE NUMERATOR, AND THAT IS DELIBERATE. A tree that ships no
+    reflexive assertion at all is a tree with nothing for this bound to say,
+    not a tree where the bound stopped working - and asserting the count is
+    non-zero would make the check require the shape it exists to measure. The
+    denominator IS floored: the census must have read assertions to be clean
+    about them.
+
+    What is graded instead is that every entry really has the shape, re-read
+    from its own source rather than taken from the census that produced it.
+    """
+    census = surveyed.self_comparisons
+    wrong: list[str] = []
+    for finding in census:
+        tree = ast.parse((repo_root / finding.module).read_text(encoding="utf-8"))
+        statement = next(
+            (
+                item
+                for item in ast.walk(tree)
+                if isinstance(item, ast.Assert) and item.lineno == finding.line
+            ),
+            None,
+        )
+        if statement is None or liveness.self_comparison(statement.test) is None:
+            wrong.append(finding.rendered())
+    counted = len(census)
+    candidates = surveyed.asserted
+    assert candidates > 1, (
+        f"{candidates} assert statement(s) were read, so this bound is a claim about nothing"
+    )
+    assert not wrong, (
+        f"{len(wrong)} of {counted} entr(ies) in the self-comparison bound do not compare "
+        f"anything with itself, so the bound is measuring something else: {wrong}"
+    )
+
+
+def test_the_conditional_exits_this_module_cannot_decide_are_counted_and_bounded(
+    repo_root: Path, surveyed: liveness.Survey
+) -> None:
+    """SHAPE 2, REPORTED RATHER THAN DECIDED, WHICH IS THE HONEST ANSWER FOR IT.
+
+    ``if globals(): pytest.skip(...)`` is folded and reported. ``if not
+    corpus: pytest.skip(...)`` is the legitimate idiom every skip in this tree
+    uses. ``if _looks_fine(): pytest.skip(...)`` is a gutting and is
+    STRUCTURALLY IDENTICAL to the second - no static rule separates them, and
+    claiming one does would be the false coverage this item was refuted for
+    twice.
+
+    So the set is bounded instead: every member is re-derived, and each is
+    re-read to confirm it really is an undecidable condition guarding a real
+    exit. What that buys is a number - this is exactly how much of the
+    population a gutting could hide in, and it is recomputed rather than
+    written down.
+    """
+    census = surveyed.conditional_exits
+    count = len(census)
+    wrong: list[str] = []
+    for member in census:
+        tree = ast.parse((repo_root / member.module).read_text(encoding="utf-8"))
+        node = next(item for item in liveness.functions(tree) if item.name == member.name)
+        guarded = [
+            statement
+            for statement in liveness.own_statements(node)
+            if isinstance(statement, ast.If)
+            and liveness.static_truth(statement.test) is None
+            and any(liveness.is_exiting_statement(inner) for inner in statement.body)
+        ]
+        if not guarded:
+            wrong.append(member.rendered())
+    assert count, (
+        "no member exits behind a condition this module cannot decide, so either the tree "
+        "changed shape or this bound stopped being computed - and an uncomputed bound is "
+        "the silence the whole item is about"
+    )
+    assert not wrong, (
+        f"{len(wrong)} member(s) are counted against the undecidable-exit bound and carry "
+        f"no such exit, so the bound is measuring something else: {wrong}"
+    )
+
+
+def test_every_grader_the_population_filter_excludes_is_counted_and_returns_a_value(
+    repo_root: Path, surveyed: liveness.Survey, routes: dict[str, frozenset[str]]
+) -> None:
+    """The excluded set, re-derived, and each re-read to confirm the excluded shape.
+
+    THE RE-DERIVATION RESOLVES ROUTES TOO, and it has to. A grader that reaches
+    its grading through a call rather than through an ``assert`` of its own is
+    in this set for a reason the vocabulary alone cannot see, so re-deriving
+    without the routes would report it as the wrong shape - which is the same
+    census disagreeing with itself about what it derived.
+    """
     excluded = surveyed.value_returning
     count = len(excluded)
     wrong: list[str] = []
     for member in excluded:
         tree = ast.parse((repo_root / member.module).read_text(encoding="utf-8"))
         node = next(item for item in liveness.functions(tree) if item.name == member.name)
-        if not liveness.returns_a_value(node) or not liveness.ships_a_grading_statement(node):
+        resolved = routes.get(member.module, frozenset())
+        if not liveness.returns_a_value(node) or not liveness.ships_a_grading_statement(
+            node, resolved
+        ):
             wrong.append(member.rendered())
     assert count, (
         "the population filter excluded nothing, so it is either inert or the census "
         "stopped being computed"
     )
     assert not wrong, f"{len(wrong)} excluded function(s) do not have the excluded shape: {wrong}"
+
+
+def test_the_resolved_routes_recover_only_functions_that_really_reach_grading(
+    repo_root: Path, tracked: list[str], routes: dict[str, frozenset[str]]
+) -> None:
+    """THE COST OF THE ROUTE RULE, AND THERE IS NO FLOOR UNDER IT ON PURPOSE.
+
+    Every name a route recovers is re-read here and has to either grade
+    directly or call something in the same resolved set. Nothing asserts that
+    the recovered set is NON-empty, and that omission is deliberate: a tree
+    where every grader is spelled ``assert_...`` recovers nothing and is a tree
+    with none of this defect in it. A floor here would make the check require
+    the defect it exists to find.
+    """
+    sources = {relative: (repo_root / relative).read_text(encoding="utf-8") for relative in tracked}
+    defined: dict[str, set[str]] = {}
+    for relative, text in sources.items():
+        module = relative.removesuffix(".py").replace("/", ".")
+        defined[module] = {
+            node.name
+            for node in ast.parse(text).body
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        }
+
+    recovered = 0
+    wrong: list[str] = []
+    for relative in tracked:
+        resolved = routes[relative]
+        tree = ast.parse(sources[relative])
+        brought_in = {
+            alias.asname or alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom) and node.module in defined and not node.level
+            for alias in node.names
+        }
+        for name in sorted(resolved):
+            node = liveness.module_function(sources[relative], name)
+            if node is None:
+                if name not in brought_in:
+                    wrong.append(f"{relative}::{name} is neither defined here nor imported")
+                continue
+            if liveness.ships_a_grading_statement(node):
+                continue
+            recovered += 1
+            if not liveness.ships_a_grading_statement(node, resolved):
+                wrong.append(f"{relative}::{name} reaches no grading by any route")
+    count = len(wrong)
+    assert not count, (
+        f"{count} of {recovered} recovered route(s) reach no grading at all, so the "
+        f"resolution is crediting grading that never happens: {wrong[:20]}"
+    )
+
+
+def test_resolving_routes_only_ever_widens_the_population(
+    repo_root: Path, tracked: list[str], surveyed: liveness.Survey
+) -> None:
+    """THE ROUTE RULE'S LIVE EFFECT, DERIVED HERE AND ALLOWED TO BE ZERO.
+
+    THE FLOOR THAT WAS MISSING. The check beside this one re-reads every name
+    the resolution recovers, and its own denominator is whatever the tree
+    happens to offer - which on a tree where every grader is spelled
+    ``assert_...`` is nothing at all. That is not a defect in the rule and a
+    floor on the numerator would make the check require the very defect it
+    exists to find, so what is graded here is the DIRECTION instead.
+
+    Resolving a route may only ever ADD a member: it credits a call that
+    reaches grading and it withdraws nothing. A member that LEAVES the
+    population once routes are resolved means resolution is shadowing a name
+    rather than following it, and that is a real failure mode with a real
+    signal. The count it adds is derived beside it and is not asserted.
+    """
+    blind: set[tuple[str, str]] = set()
+    for relative in tracked:
+        tree = ast.parse((repo_root / relative).read_text(encoding="utf-8"))
+        blind |= {
+            (relative, node.name)
+            for node in liveness.functions(tree)
+            if liveness.is_population_member(node)
+        }
+    resolved = {(member.module, member.name) for member in surveyed.members}
+    lost = sorted(f"{module}::{name}" for module, name in blind - resolved)
+    added = len(resolved - blind)
+    assert blind, (
+        "the shipped vocabulary alone derives no member at all, so comparing the two "
+        "derivations has nothing to discriminate"
+    )
+    assert not lost, (
+        f"{len(lost)} member(s) LEFT the population once routes were resolved, so the "
+        f"resolution is narrowing it rather than widening it - it added {added} and "
+        f"lost these: {lost[:20]}"
+    )
+
+
+def test_every_detector_module_is_reached_from_the_graded_population(
+    repo_root: Path, tracked: list[str]
+) -> None:
+    """THE HALF OF THE ACCEPTANCE NEITHER POPULATION REACHED.
+
+    A DETECTOR LIBRARY SHIPS NO ASSERTION OF ITS OWN, so it contributes no
+    member; it is not named ``test_``, so no test population holds it; it ships
+    no ``guard_`` function in a tool directory, so the guard half does not
+    derive it. This module is one, and so are the two rendering guards beside
+    it - together they fall through every filter while being exactly the kind of
+    thing the acceptance means by a shipped guard.
+
+    THE POPULATION IS DERIVED RATHER THAN LISTED, because a fourth such module
+    will arrive and a hand-maintained list is the thing this repository keeps
+    recording as the thing that rots. A detector grades nothing by itself; it is
+    covered exactly when something that IS graded calls into it, and a detector
+    nothing graded calls is a detector nothing grades.
+    """
+    sources = {relative: (repo_root / relative).read_text(encoding="utf-8") for relative in tracked}
+    coverage = liveness.detector_coverage(sources)
+    unreached = sorted(module for module, callers in coverage.items() if not callers)
+    derived = len(coverage)
+    assert derived, (
+        "no detector module was derived at all, so either the tree changed shape or this "
+        "derivation stopped running - and an underived population is the silence the "
+        "whole item is about"
+    )
+    assert not unreached, (
+        f"{len(unreached)} of {derived} detector module(s) are called by no graded member, "
+        f"so nothing in the suite grades whether they still detect anything: {unreached}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1370,3 +2614,111 @@ def test_a_guard_that_says_something_about_a_blind_tree_is_not_reported_silent(
     answers = liveness.guard_answers(tool, tmp_path, [], "stub enumeration")
     silent = [answer.function for answer in answers if liveness.silently_green(answer)]
     assert not silent, f"{why}, and it was reported anyway: {answers}"
+
+
+# ---------------------------------------------------------------------------
+# SHAPE 5 - WHETHER AN ASSERTION ACTUALLY RAN. Everything above this line is
+# static, and no amount of static analysis answers this question: the shapes
+# above are the ones a reader can name, and execution is what actually happened.
+#
+# WHAT IS DELIVERED AND WHAT IS NOT. The channel exists, it is exact, and it is
+# demonstrated below on a REAL SHIPPED GRADER rather than only on a fixture.
+# What is NOT delivered is the channel applied to the whole population: doing
+# that means counting during the suite's own run, which is a collection hook in
+# tests/conftest.py, and that file is not this slice's to write. So this is a
+# mechanism plus one real member, and the population remains covered statically
+# only. Saying that plainly is the point - an unstated residual here is the
+# exact defect the item is about.
+# ---------------------------------------------------------------------------
+
+#: DERIVED FROM ``_assert_no_test_is_gutted`` ITSELF, which is a real shipped
+#: grader with exactly this shape: read something, grade it, derive again,
+#: grade that. Two grading statements at the top level and no loop.
+_RUNTIME_GRADER = "\n".join(
+    [
+        '"""A stand-in grader with the shape of a real one."""',
+        "",
+        "",
+        "def check(rows):",
+        '    """Grade a list of rows twice, as the real grader does."""',
+        '    assert rows, "no rows, so this guard is vacuous"',
+        "    bad = [row for row in rows if row < 0]",
+        '    assert not bad, f"negative rows: {len(bad)}"',
+        "",
+    ]
+)
+
+#: The same grader with the gutting this whole item is about. It is STILL a
+#: valid call and it STILL returns without complaint.
+_RUNTIME_GRADER_GUTTED = _RUNTIME_GRADER.replace(
+    '    assert rows, "no rows, so this guard is vacuous"',
+    "    if rows:\n        return\n    assert rows",
+)
+
+
+def test_the_runtime_channel_counts_the_grading_that_actually_ran(tmp_path: Path) -> None:
+    """The mechanism, on a module whose gutting is the only difference.
+
+    Both modules are written, loaded and CALLED. The live one runs both of its
+    grading statements; the gutted one runs neither and returns normally, which
+    is precisely the pair of outcomes every static rule in this file exists to
+    tell apart from the outside.
+    """
+    live = _load(_written(tmp_path, "live.py", _RUNTIME_GRADER), "cs846_runtime_live")
+    gutted = _load(_written(tmp_path, "gutted.py", _RUNTIME_GRADER_GUTTED), "cs846_runtime_gutted")
+
+    shipped = len(liveness.grading_statement_lines(live.check))
+    ran = liveness.observed_grading(live.check, [1, 2, 3])
+    silent = liveness.observed_grading(gutted.check, [1, 2, 3])
+
+    assert shipped > 1, f"the live grader was read as shipping {shipped} grading statement(s)"
+    assert ran == shipped, f"the live grader ran {ran} of its {shipped} grading statements"
+    assert silent == 0, (
+        f"the gutted grader ran {silent} grading statement(s); it returns without "
+        "complaint either way, so the count is the only thing that separates them"
+    )
+
+
+def test_a_real_shipped_grader_is_observed_grading_when_it_is_called() -> None:
+    """THE ONE REAL MEMBER, and it is deliberately not a fixture.
+
+    ``_assert_no_test_is_gutted`` ships, is called by this file's own fourth
+    consumer, and takes an argument this file can supply. Running it under the
+    counter answers the question no static rule here can: its assertions did
+    not merely exist, they EXECUTED, and the count matches what the source
+    says it should be.
+    """
+    static = liveness.grading_statement_lines(_assert_no_test_is_gutted)
+    expected = len(static)
+    observed = liveness.observed_grading(_assert_no_test_is_gutted, Path(__file__))
+    assert expected > 1, (
+        f"{OPT_IN_HELPER} was read as shipping {expected} grading statement(s), so the "
+        "count below is a claim about nothing"
+    )
+    assert observed == expected, (
+        f"{OPT_IN_HELPER} ships {expected} grading statement(s) and {observed} of them ran. "
+        "The source says it grades and the execution says otherwise"
+    )
+
+
+def test_the_runtime_counter_leaves_no_trace_function_behind(tmp_path: Path) -> None:
+    """A counter that leaked its hook would poison every later test in the session.
+
+    The same discipline this project applies to a planted mutation: assert the
+    revert landed. The hook is installed globally and restored in a ``finally``,
+    and this is what checks the restore rather than trusting it.
+    """
+    live = _load(_written(tmp_path, "restore.py", _RUNTIME_GRADER), "cs846_runtime_restore")
+    before = sys.gettrace()
+    liveness.observed_grading(live.check, [1])
+    assert sys.gettrace() is before, (
+        "the runtime counter left its trace hook installed, so every frame entered after "
+        "it would be traced by a hook nothing owns"
+    )
+
+    with pytest.raises(AssertionError):
+        liveness.observed_grading(live.check, [])
+    assert sys.gettrace() is before, (
+        "the trace hook survived a call that raised, so a single failing grader would "
+        "leave it installed for the rest of the session"
+    )

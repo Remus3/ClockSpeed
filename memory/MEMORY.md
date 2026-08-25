@@ -46,6 +46,9 @@ Budgets: this file under 20 KB (CI hard fail), each leaf under 6 KB (CI warn).
 - [A proof can require the defect](a-proof-can-require-the-defect.md) - a check that
   derives its cases from today's tree goes RED when the defect is fixed; green means
   the defect is still there.
+- [An empty population satisfies every zero](an-empty-population-satisfies-every-zero.md) -
+  `assert count == 0` passes when the property holds AND when nothing was measured;
+  the two are byte-identical. Assert the population, not just the zero.
 - [Verification failure classes](verification-failure-classes.md) - ways a check looks
   convincing and proves nothing, with mechanisms.
 - [A probe can validate the wrong channel](a-probe-can-validate-the-wrong-channel.md) -

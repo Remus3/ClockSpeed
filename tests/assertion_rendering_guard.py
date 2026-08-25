@@ -128,8 +128,14 @@ and neither is covered here.
   by the traceback rather than by the rewriter. Measured while building the
   forced arms below, which is why they bind their planted token at module scope.
 
-Neither is closed here and neither should be read as covered. Frame arguments
-are a third such channel and belong to ``tests/test_tmp_path_privacy.py``.
+THE LOCALS CHANNEL IS NOT CLOSED HERE AND MUST NOT BE READ AS COVERED. A local
+that is never asserted on is invisible to this guard BY CONSTRUCTION - there is
+no asserted expression to walk - and CS-851 owns it. Frame arguments are a
+third such channel and belong to ``tests/test_tmp_path_privacy.py``.
+
+THE SOURCE-ECHO CHANNEL IS NOW GRADED HERE, in the section at the foot of this
+module, and it reaches TWO of the three classes the acceptance names rather
+than all three. Its own boundary is stated there and pinned behaviourally.
 
 WHAT IS STILL NOT TRACKED INSIDE THIS GUARD'S OWN SUBJECT, named rather than
 implied away. A subscript or attribute assignment target -
@@ -137,11 +143,13 @@ implied away. A subscript or attribute assignment target -
 of ``holder["w"]`` is invisible; there is no live instance of that shape in the
 tree today. And an alias is ONE HOP: a field routed through a helper and
 rendered from that helper's RETURN is not flagged, because the class made no
-declaration about the helper's return. That one DOES have live instances -
-``tests/test_tmp_path_privacy.py`` renders a slice of captured output at lines
-880-882 and 961-963 - and they are left alone deliberately: both classes are
-covered by the ``tests/conftest.py`` runtime redactor, and no save-derived name
-flows through either.
+declaration about the helper's return. That one DOES have live instances - a
+sandbox run's captured output sliced by a module-level helper and then asserted
+on, in ``tests/test_tmp_path_privacy.py`` - and they are left alone
+deliberately: both classes are covered by the ``tests/conftest.py`` runtime
+redactor, and no save-derived name flows through either. The shape is named
+rather than the line numbers, which drift on the next edit to that file and
+would then describe whatever had moved into them.
 
 LIVE AND LATENT, a partition and not a severity opinion, and LIVE IS THE DEFAULT.
 The same construct is a DISCLOSURE when the holder was built from the real save
@@ -158,8 +166,9 @@ direction that hides a disclosure.
 from __future__ import annotations
 
 import ast
+import re
 import subprocess
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
@@ -230,6 +239,49 @@ CONTENT_REDUCERS: Final = frozenset(
         "max",
         "md5",
         "min",
+        "ord",
+        "round",
+        "sha1",
+        "sha256",
+        "sum",
+    }
+)
+
+#: The reducers whose result is an ELEMENT OF the argument rather than a
+#: MEASURE of it. Rendering one prints a member of the container.
+#:
+#: THE TWO CHANNELS NEED OPPOSITE ANSWERS HERE, which is why this partition
+#: exists at all. In the REPR channel a class whose ``__repr__`` calls
+#: ``max(self.words)`` keeps ``words`` WITHHELD, because reading it as
+#: disclosure takes the whole field out of ``withheld`` and silences every
+#: assertion over it - the argument :data:`CONTENT_REDUCERS` records, and
+#: ``test_an_element_returning_reduction_still_keeps_the_field_withheld`` pins.
+#: In the BINDING channel the direction inverts: ``word = max(holder.words)``
+#: puts a real word in a local, and reading that as a mask loses it.
+ELEMENT_REDUCERS: Final = frozenset({"max", "min"})
+
+#: The reducers whose result is a number or a flag COMPUTED FROM the argument.
+#: Nothing of the argument's contents survives one.
+#:
+#: BOTH HALVES ARE WRITTEN DOWN AND ASSERTED TO PARTITION, WHICH IS CS-497. The
+#: cheaper spelling - deriving this half as "the reducers minus the element ones"
+#: - means a name added to :data:`CONTENT_REDUCERS` and classified nowhere lands
+#: here BY ARITHMETIC, on the side that withholds, in the direction that hides a
+#: leak. ``test_the_reducer_vocabulary_is_partitioned_by_what_survives`` reads
+#: both and fails by name, so forgetting one costs a red rather than a silence.
+MEASURE_REDUCERS: Final = frozenset(
+    {
+        "abs",
+        "all",
+        "any",
+        "bit_length",
+        "blake2b",
+        "bool",
+        "count",
+        "hexdigest",
+        "id",
+        "len",
+        "md5",
         "ord",
         "round",
         "sha1",
@@ -573,6 +625,82 @@ def _reaches_unmasked(
         if parent is None:
             return False
         if _masks_at(parent, current, functions, hops):
+            return False
+        current = parent
+
+
+def _carries_out_of(
+    parent: ast.AST,
+    current: ast.AST,
+    functions: Mapping[str, ast.FunctionDef | ast.AsyncFunctionDef],
+) -> bool:
+    """Whether a value survives one step OUT into the expression enclosing it.
+
+    :func:`_masks_at` answers the same question for the repr channel and is
+    delegated to for every case but one, so there is a single vocabulary rather
+    than a second hand-maintained copy of it - CS-433's defect was two lists of
+    one kind of thing in two places, drifting apart.
+
+    A CALL IS DECIDED HERE RATHER THAN DELEGATED, and the reason is that the
+    UNRESOLVED default inverts between the two channels. ``_is_reduction``
+    answers "not a reduction" for a call it cannot resolve, which in the repr
+    channel moves the field to DISCLOSED and reports FEWER findings - the
+    direction it was tuned for. Read through a binding it means the opposite:
+    the local keeps the alias and every later assertion over it is reported.
+    Inheriting that default reported, across several modules, findings that
+    route a withheld field through a project helper - ``run_git(box, ...)``,
+    ``failures_section(run.output)`` - and land on a value of some OTHER class,
+    about whose repr nothing was ever declared. That is the module docstring's
+    ONE HOP limit, which is deliberate, so a call is followed only when the
+    declared vocabulary says what it does with its argument.
+
+    Args:
+        parent: The enclosing node.
+        current: The node being stepped out of.
+        functions: Module-level functions, for resolving a project mask.
+
+    Returns:
+        True when ``parent``'s value still holds ``current``'s contents.
+    """
+    if isinstance(parent, ast.Call):
+        # Read off the CALLEE rather than the argument's position, so
+        # ``sorted(words)`` and ``words.count(x)`` are graded by the same rule.
+        name = _callee_name(parent)
+        if name in MEASURE_REDUCERS:
+            return False
+        return name in CONTENT_TRANSPARENT or name in ELEMENT_REDUCERS
+    return not _masks_at(parent, current, functions, MASK_RESOLUTION_HOPS)
+
+
+def _carries_into(
+    node: ast.AST,
+    kin: Mapping[int, ast.AST],
+    targets: frozenset[int] | set[int],
+    functions: Mapping[str, ast.FunctionDef | ast.AsyncFunctionDef],
+) -> bool:
+    """Whether a value read here still reaches a target expression's own value.
+
+    The BINDING counterpart of :func:`_reaches_unmasked`: that one asks what a
+    ``__repr__`` prints, this one asks what a local still holds after the
+    right-hand side has been evaluated into it.
+
+    Args:
+        node: Where the value is read.
+        kin: Parent map for the enclosing tree.
+        targets: Node identities that count as "the bound value".
+        functions: Module-level functions, for resolving a project mask.
+
+    Returns:
+        True when the target's value carries what was read here.
+    """
+    current: ast.AST = node
+    while True:
+        if id(current) in targets:
+            return True
+        parent = kin.get(id(current))
+        if parent is None:
+            return False
+        if not _carries_out_of(parent, current, functions):
             return False
         current = parent
 
@@ -1148,11 +1276,17 @@ def must_declare_reach(tree: ast.Module) -> bool:
     IT IS NOT THE SAME PREDICATE AS ``reach_guard._module_reaches``, and saying
     it "mirrors" that one overstated it. That one resolves through SIBLING
     MODULES and through aliases; this is a flat callee-name check over the
-    module's own tree. Measured, the two agree on all 96 tracked modules with
-    zero disagreement, and forcing this to ``return True`` moves 23 findings and
-    all 23 sit in one file - so the difference is latent rather than live. A
-    module reaching the library only through a sibling's declared sweep would
-    be classed silent here and is not classed silent there.
+    module's own tree. Measured over EVERY tracked module, the two agree with
+    ZERO disagreement, and forcing this to ``return True`` moves findings that
+    all sit in ONE file - so the difference is latent rather than live. A module
+    reaching the library only through a sibling's declared sweep would be
+    classed silent here and is not classed silent there.
+
+    THE COUNTS THAT USED TO STAND HERE WERE STALE, which is why the properties
+    are stated instead. Both a module total and a moved-finding total were
+    written into this docstring, and re-measuring found each one had drifted
+    past the tree it described. Neither was load-bearing - zero disagreement and
+    a single file are - and a count in prose is a claim nothing re-derives.
 
     Args:
         tree: The parsed module.
@@ -1391,6 +1525,7 @@ class _ModuleScan:
             for entry in entries
             if entry.module == module
         }
+        self.functions = module_functions(tree)
         self.returns = dict(returns or {})
         self.returns.update(
             {
@@ -1524,6 +1659,42 @@ class _ScopeScan:
             return self.aliases.get(expr.id)
         return None
 
+    def carried(self, value: ast.expr) -> tuple[str, str] | None:
+        """The withheld field a BOUND value still holds, however it was wrapped.
+
+        THE SHALLOW READ THAT USED TO SIT HERE WAS THE COMPLETENESS DEFECT.
+        ``self.hit`` answers only for a bare ``Name`` or ``Attribute``, so every
+        binding that wrapped the field in anything at all - ``[model.token]``,
+        ``[v for v in strings]``, ``f"{holder.words}"``, ``sorted(...)``, a
+        conditional - returned None, dropped the alias, and left every later
+        assertion over that local unflagged. Ten shapes were measured missing on
+        one file, and one of them was a LIVE tier-1 disclosure under default
+        flags. It is decided by what SURVIVES the wrapping rather than by a list
+        of wrapper spellings, so a shape nobody enumerated is still graded.
+
+        STATED LIMIT: a project mask is resolved out of THIS module's functions.
+        One imported from a sibling is read as transparent, which over-reports.
+
+        Args:
+            value: The bound right-hand side.
+
+        Returns:
+            Holder class and field name, or None.
+        """
+        direct = self.hit(value)
+        if direct is not None:
+            return direct
+        kin = _parent_map(value)
+        for inner in ast.walk(value):
+            if not isinstance(inner, (ast.Attribute, ast.Name)):
+                continue
+            found = self.hit(inner)
+            if found is None:
+                continue
+            if _carries_into(inner, kin, {id(value)}, self.owner.functions):
+                return found
+        return None
+
     def _subtree_hit(self, expr: ast.expr) -> tuple[ast.expr, tuple[str, str]] | None:
         """The first withheld read whose VALUE a node rendered whole embeds.
 
@@ -1561,7 +1732,7 @@ class _ScopeScan:
             declared = self.holder_of(value)
         if declared is not None:
             self.holders[target.id] = declared
-        carried = self.hit(value) if value is not None else None
+        carried = self.carried(value) if value is not None else None
         if carried is not None:
             self.aliases[target.id] = carried
         else:
@@ -1772,3 +1943,245 @@ def scan_source(module: str, source: str) -> list[Finding]:
     for entry in redacting_classes(module, tree, opaque):
         registry.setdefault(entry.name, []).append(entry)
     return _ModuleScan(module, tree, registry).findings()
+
+
+# ---------------------------------------------------------------------------
+# THE SECOND CHANNEL: the failing function's own source lines
+# ---------------------------------------------------------------------------
+#
+# A DIFFERENT CHANNEL WITH A DIFFERENT REMEDY, and everything above is blind to
+# it. The rewriter is not involved at all: pytest prints the failing frame's
+# SOURCE, so a sensitive value written literally into a function body reaches
+# the report whatever the assertion does with it. The remedy is deletion, not
+# a scalar binding.
+#
+# WHAT PYTEST RENDERS WAS MEASURED, NOT ASSUMED, because the two halves look
+# alike in the source. Against a planted token: a binding at MODULE scope
+# rendered ZERO times, the failing function's own DOCSTRING rendered ONCE, a
+# literal in its body rendered once, and a helper frame further down the
+# traceback rendered its docstring and its body too. So the subject is every
+# line of every function from its ``def`` to its end, docstring included, and
+# module scope is outside it. ``_arm_source`` binds its planted token at module
+# scope for exactly this reason.
+#
+# EVERY RULE HERE IS BORROWED FROM THE MODULE THAT OWNS IT. A second spelling
+# of the home-path shape or of the account-directory rule would be CS-433's
+# defect - two hand-maintained lists of one kind of thing, drifting until one
+# of them names none of what the other enumerates.
+
+#: A spelling the project's own RUNTIME redactor recognises: this machine's
+#: home directory, account name or machine name. It cannot false-positive,
+#: because it fires on an actual value rather than on a shape.
+ECHO_MACHINE: Final = "a spelling this machine's redactor recognises"
+
+#: An absolute path under a user home directory, in any of the renderings the
+#: scaffold guard knows. Owned by that guard and read from it.
+ECHO_HOME: Final = "an absolute home path"
+
+#: The path segment sitting directly below the save root, which is the platform
+#: account directory. This is the PRIMARY rule ``clockspeed/data/locate.py``
+#: states for itself - the account directory is identified by WHERE IT SITS and
+#: never by what it is made of.
+#:
+#: THE DIGIT-RUN BACKSTOP IS DELIBERATELY NOT APPLIED HERE, and the cost of
+#: leaving it out is disclosed rather than hidden. That backstop exists for
+#: runtime output, where the surrounding path has already been lost; authored
+#: source still carries its context. Measured over every rendered source line
+#: in the tree, that backstop reported 15 matches on 12 distinct lines, and
+#: every one was a decimal fraction in prose, a byte count, an int64 fixture
+#: value or a deliberately fake credential - NOT ONE was an account directory.
+#: The boundary is pinned behaviourally rather than restated, so it cannot move
+#: in silence.
+ECHO_ACCOUNT: Final = "an account directory below the save root"
+
+
+@dataclass(frozen=True)
+class SourceEcho:
+    """One line of one function whose own source carries a personal value.
+
+    Attributes:
+        module: Repo-relative path of the file.
+        lineno: The line pytest renders.
+        function: The function whose frame renders it.
+        kind: Which rule fired - one of :data:`ECHO_MACHINE`,
+            :data:`ECHO_HOME` or :data:`ECHO_ACCOUNT`.
+        hint: A description carrying SHAPE ONLY. Nothing here ever holds the
+            matched text: a finding that printed the value would be the echo
+            path it reports, opened by the report itself.
+    """
+
+    module: str
+    lineno: int
+    function: str
+    kind: str
+    hint: str
+
+
+def describe_echoes(echoes: Sequence[SourceEcho]) -> str:
+    """Render source echoes as file, line, function and shape.
+
+    Args:
+        echoes: What to render.
+
+    Returns:
+        One indented line each, sorted, carrying no matched value.
+    """
+    lines = sorted(f"  {e.module}:{e.lineno}  {e.function}  {e.kind} - {e.hint}" for e in echoes)
+    return "\n".join(lines)
+
+
+def _borrowed_machine_redactor() -> Callable[[str], str] | None:
+    """``conftest``'s own redactor, which knows what THIS MACHINE is called.
+
+    Returns:
+        The redactor, or None when the test package will not import. Lazy for
+        the same reason the declaration reader is: this module grades the whole
+        tree and must not make every module's grade depend on one import.
+    """
+    try:
+        from tests.conftest import redact_personal_data  # noqa: PLC0415
+    except Exception:
+        return None
+    return redact_personal_data
+
+
+def _borrowed_home_path_reader() -> Callable[[str], str | None] | None:
+    """The scaffold guard's home-path detector, which owns that shape.
+
+    Returns:
+        A reader returning a REDACTED description of the home path on a line,
+        or None when the scaffold module will not import. The description it
+        returns already withholds the account name, which is why it is safe to
+        carry into a finding.
+    """
+    try:
+        from tests.test_scaffold import _find_home_path  # noqa: PLC0415
+    except Exception:
+        return None
+    return _find_home_path
+
+
+def _borrowed_account_position_rule() -> re.Pattern[str] | None:
+    """``locate``'s positional account-directory rule, compiled for the marker.
+
+    Returns:
+        The pattern, or None when the save package will not import or has
+        stopped exposing the rule. Built from the module's own save-root marker
+        rather than from a spelling repeated here, so a relocation of the
+        marker moves this with it.
+    """
+    try:
+        from clockspeed.data import locate  # noqa: PLC0415
+    except Exception:
+        return None
+    marker = getattr(locate, "_SAVE_ROOT_MARKER", None)
+    compile_rule = getattr(locate, "_account_position_re", None)
+    if not isinstance(marker, str) or compile_rule is None:
+        return None
+    compiled = compile_rule(marker)
+    return compiled if isinstance(compiled, re.Pattern) else None
+
+
+def rendered_source_lines(
+    lines: Sequence[str], node: ast.FunctionDef | ast.AsyncFunctionDef
+) -> list[tuple[int, str]]:
+    """The lines of one function that a failure report can print.
+
+    DECORATOR LINES ARE INCLUDED, AND THE SENTENCE THAT USED TO SIT HERE SAID
+    THE OPPOSITE. It read "pytest starts its rendering at the ``def``", which
+    put the floor at ``FunctionDef.lineno`` - the ``def`` line - and left every
+    decorator line below it. MEASURED FALSE under real pytest: a home-path
+    token planted in ``@pytest.mark.skipif(False, reason=...)`` - not a
+    parametrize value, not an argument, so neither the test id nor the argument
+    rendering can account for it - was printed VERBATIM above the ``def`` under
+    completely default flags, in a report this sweep called clean. A decorator
+    can carry a marker reason, a fixture name or a path, so the surface is real.
+
+    Args:
+        lines: The module's source, split.
+        node: The function.
+
+    Returns:
+        Line number and text for every line from the first decorator, or the
+        ``def`` when there is none, to the end of the body, docstring included.
+    """
+    first = min([node.lineno, *(item.lineno for item in node.decorator_list)])
+    last = min(node.end_lineno or node.lineno, len(lines))
+    return [(number, lines[number - 1]) for number in range(first, last + 1)]
+
+
+def _echo_kinds(
+    line: str,
+    redactor: Callable[[str], str] | None,
+    home: Callable[[str], str | None] | None,
+    account: re.Pattern[str] | None,
+) -> Iterator[tuple[str, str]]:
+    """Which rules fire on one rendered source line.
+
+    Args:
+        line: The line.
+        redactor: The machine redactor, or None when it did not load.
+        home: The home-path reader, or None when it did not load.
+        account: The positional account rule, or None when it did not load.
+
+    Yields:
+        Kind and a shape-only hint. A rule that did not load yields nothing,
+        and its absence is what
+        ``test_every_source_echo_rule_is_borrowed_rather_than_respelled``
+        exists to catch - a silent rule and a clean tree look identical here.
+    """
+    if redactor is not None and redactor(line) != line:
+        yield (ECHO_MACHINE, "the runtime redactor rewrote this line")
+    if home is not None:
+        found = home(line)
+        if found is not None:
+            yield (ECHO_HOME, found)
+    if account is not None and account.search(line.replace("\\", "/")) is not None:
+        yield (ECHO_ACCOUNT, "a segment sits directly below the save-root marker")
+
+
+def source_echoes(module: str, source: str) -> list[SourceEcho]:
+    """Every rendered source line of one module that carries a personal value.
+
+    Args:
+        module: A label for the findings.
+        source: Python source.
+
+    Returns:
+        The echoes, one per (line, kind).
+    """
+    tree = ast.parse(source)
+    lines = source.splitlines()
+    redactor = _borrowed_machine_redactor()
+    home = _borrowed_home_path_reader()
+    account = _borrowed_account_position_rule()
+    out: list[SourceEcho] = []
+    seen: set[tuple[int, str]] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ANY_FUNCTION):
+            continue
+        for number, line in rendered_source_lines(lines, node):
+            for kind, hint in _echo_kinds(line, redactor, home, account):
+                if (number, kind) in seen:
+                    continue
+                seen.add((number, kind))
+                out.append(SourceEcho(module, number, node.name, kind, hint))
+    return out
+
+
+@cache
+def scan_repo_source_echoes() -> tuple[int, tuple[SourceEcho, ...]]:
+    """Sweep every tracked module's function bodies for the source channel.
+
+    Returns:
+        How many functions were read, and the echoes. The count is what stops
+        a green sweep meaning "the walk found no files" - an empty result and
+        an empty population are the same output otherwise.
+    """
+    scanned = 0
+    found: list[SourceEcho] = []
+    for relative in tracked_python_files():
+        source = (REPO_ROOT / relative).read_text(encoding="utf-8", errors="replace")
+        scanned += sum(1 for node in ast.walk(ast.parse(source)) if isinstance(node, ANY_FUNCTION))
+        found += source_echoes(relative, source)
+    return (scanned, tuple(found))

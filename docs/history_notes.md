@@ -4408,3 +4408,193 @@ Aged out when session 32 landed and `WAKEUP_NOTES.md` keeps only the last three 
 
 - **Next action: CS-703.** It needs a frozen-file grant for all three hooks, and it is tier 1 with
   a blast radius wider than the item that found it.
+
+## CS-829 - block relocated from `docs/item_notes.md` 2026-08-25 (session 40)
+
+### MERGED AND STILL OPEN - recorded 2026-08-24 by the merger, from two adversarial lenses
+
+**READ THIS BEFORE TAKING THE ITEM. WHAT MERGED IS AN IMPROVEMENT OF A DIFFERENT KIND, NOT A
+CLOSE.** The first build repeated CS-830's disease one layer up: the population was DEFINED as
+the words where decoded equals tags, and the acceptance asserted decoded equals tags over that
+set. Of 200000 arbitrary wrong decoders, ZERO failed either arm.
+
+**THE REPAIR IS REAL AND MEASURED ON THAT SAME YARDSTICK.** The population is now every site
+whose declared size ADMITS a tag list, decided by arithmetic that never calls the decoder. It
+catches 3936 of 4096 whole-word refusal subsets and 2000 of 2000 per-site refusal mutants.
+
+**THE SURVIVING REFUTATION, AND IT IS THE NEXT THING TO SOLVE. THE CRITERION IS ARITHMETIC BUT
+THE POPULATION IT IS APPLIED TO IS STILL CHOSEN BY THE DECODER.** A site is graded only if
+three reader functions upstream all succeed. A defect in any of them DELETES sites from the
+population rather than landing them in the residue - the same "the word leaves the class"
+structure the repair removed, moved one call earlier. Measured: a four-line guard inside
+`_container_element_words` deletes 24349 of 45208 sites and the module prints 20 passed, exit
+0, while the IDENTICAL loss placed inside the decoder reddens two arms. Any close must grade
+the sites the reader never reached, not only the ones it reached and refused.
+
+**THREE SMALLER FINDINGS, ALL MEASURED.**
+
+- `_MIN_TAG_LIST_BYTES` IS NOT EARNED. The earned-widths test earns the terminator width and
+  the minimal tag width and touches neither this constant nor the admission gate - the two
+  things that actually decide the population. Raising it from 26 to 52 reclassifies 10506
+  sites with every arm green. And HALF THE CRITERION IS DEAD CODE: no site in this corpus has
+  the empty-list declared size, so that disjunct can be deleted entirely and nothing reddens.
+  That is the same shape the repair honourably retracted for the exact-close comparison,
+  except the exact-close now ASSERTS its own inertness and this does not.
+- THE PER-WORD REFUSAL CEILING ADMITS TOTAL LOSS OF ANY SMALL WORD. Observed max is 8 against
+  a ceiling of 16, so a whole word with 16 or fewer size-compatible sites can be refused
+  entirely and stay green. Four of the seven read words qualify. By contrast the unexplained-
+  word ceiling of 2 is genuinely load-bearing and was the sole red on a two-word mutant.
+- THE END-FREEDOM ARM REPORTS ONE INTEGER AS TWO MEASUREMENTS. Its sampler returns the same
+  value in two positions and the test unpacks them as separate quantities with two
+  contradictory failure messages, so "no early closes and no alternative ends" is one
+  measurement presented as two. Its sampler also draws only from sites that ALREADY DECODE,
+  which is the decoder's own success set - the circularity this module is otherwise careful
+  about.
+
+**WHAT NOT TO DO.** Do not re-pitch the exact-close comparison as the discriminator; it is
+measured inert on this corpus, the retraction is shipped in five places, and its inertness is
+asserted so it will announce itself if that ever changes.
+
+## CS-829 - block relocated from `docs/item_notes.md` 2026-08-25 (session 40)
+
+### REFUTED A THIRD TIME - recorded 2026-08-25, after two repair rounds
+
+**THE DEPENDENCE RELOCATED TWICE MORE UNDER REPAIR AND IS NOW PRECISELY LOCATED.** It was
+refuted at `_container_element_words`, repaired; refuted at `_read_tag_header`, repaired
+and that repair VERIFIED DEAD by an adversary; and refuted again at
+`objects._payload_text`'s terminator verdict, which feeds BOTH denominators identically so
+they move together. Measured: a truncation that never changes any record's accept status
+deletes 3549 sites and the residue IMPROVES from 12 to 11, every arm green, exit 0. At a
+coarser modulus it deletes 19668 of 45208 - 43.5 per cent - and the residue falls to 5.
+
+**THE ROUTE THE ADVERSARY PROPOSES:** take the denominator from something no tag-list reader
+can shorten. `_census_hits` already is that. `census_records - census_unreached` = 154007
+against `sites_seen` = 45208; the difference must be ACCOUNTED FOR AND ASSERTED - nested
+interiors, container element words, coincidental bytes - so that a fall in `sites_seen` with
+`census_reached` flat is RED rather than a smaller population.
+
+**THE INDEPENDENT SECOND READING COVERS ZERO PER CENT OF THIS LOSS CLASS.**
+`refused_but_independent` is incremented only inside the two `walked is None` branches, so a
+record that is truncated but still ACCEPTED never reaches it. It accepts 87302 records where
+the shipped walk accepts 129775. Evaluate it on accepted records too.
+
+**`census_unreached` IS STILL ASSERTED AGAINST NOTHING** - two increments, a constructor
+arg, a repr field and one skip guard. Zero assertions.
+
+**CORRECTED, AND IT REVERSES A DISPOSITION THIS FILE CARRIED.** Two agents measured version
+60's refusal at DIFFERENT OFFSETS and BOTH WERE ARITHMETICALLY RIGHT: 5706 of 18893 exceed
+1024 at the record's declared payload start, 18893 of 18893 at the post-actor-head offset
+where the refusal is actually decided. THE INFERENCE WAS FALSE. 23529 struct type-word
+occurrences sit INSIDE those refused records - 13.25 per cent of the whole census, across
+4712 records. An arithmetic refusal under the three-pair grammar is the signature of a
+DIFFERENT grammar, not evidence of absent struct content. **Those sites are ungraded and
+they are CS-G05's territory.** Say UNREACHABLE, never "disjoint".
+
+**TWO RESIDUALS THE PREVIOUS NOTE LISTED ARE NOW FALSE.** `_MIN_TAG_LIST_BYTES` IS pinned -
+setting it to 49 reddens `test_the_admission_gate_itself_is_earned_against_the_shipped_decoder`
+(though the corpus does not pin it, only the synthetic gate test). And the end-freedom
+sampler WAS repaired: it reports two genuine measurements now, 17420 late candidate ends
+against 16098 early. **A SIBLING WAS NOT SWEPT:** `_sample_one_record` still selects sites
+by the tag reader's word rather than by the byte compare `_fold_one_tag` now uses - the
+Defect-1 repair was applied at one site, not to the population sharing its root cause.
+
+## CS-850 - block relocated from `docs/item_notes.md` 2026-08-25 (session 40)
+
+### CONFIRMED LIVE - recorded 2026-08-24 by the merger, on a third instance
+
+**A THIRD AGENT HIT THIS CHANNEL, AND THIS TIME THE SITE IS STILL LIVE ON MAIN.** The CS-829
+adversary forced a confinement assertion in `tests/save/test_struct_interior.py` and measured
+a real save-derived name rendered into the failure report - counts only: one word rendered out
+of a population of eleven. The assertion compares a `len()` of a frozenset, and pytest
+explains the ATTRIBUTE'S OWN repr inside that `len()`, bypassing the counts-only `__repr__`
+the sweep object carries specifically to prevent this.
+
+**THE PARTIAL FIX IS ITSELF THE LESSON.** The CS-829 builder found this channel, fixed it at
+the site where it found it, and did not sweep the module. Two further sites in the same file
+are safe ONLY because their failure condition happens to be an empty set - change either
+comparison and they leak. That is the instance-not-population defect, inside the fix for a
+privacy channel.
+
+**AND THE LEAK NEEDS THE RIGHT ARM TO FAIL FIRST.** Under a broader failure the miss-factor
+arm short-circuits and nothing leaks. The rendering appears only when the confinement arm is
+the first to fail - which is exactly what a real confinement regression produces. So the
+channel is quiet in every rehearsal and open in the real case.
+
+## Session 37 wakeup entry - relocated from `WAKEUP_NOTES.md` 2026-08-25 (session 40)
+
+## Session 37 - 2026-08-23 - the operator takes ALL FOUR units; CS-830 is CLOSED, REFUTED and re-closed NARROWED, and an adversary is the only thing that caught it
+
+- **Shipped: CS-830 (narrowed), CS-405, CS-833, CS-834, CS-835, CS-836, CS-837 and CS-838 CLOSED.
+  Filed CS-839 through CS-844.** The proactive relocate pass STOOD DOWN on measurement rather than
+  shipping. Detail in `docs/LEDGER.md`, not here.
+
+- **THE OPERATOR ANSWERED NINE QUESTIONS ACROSS FOUR ROUNDS AND EVERY ROUND CHANGED THE WORK.**
+  Session 36's finding applied deliberately again, and the compounding is the point: the first round
+  set the scope, the second corrected a premise I had given wrong, the third ruled on a refutation
+  that arrived mid-session. **Asking is not a phase at the start. It is how the session steers.**
+
+- **THE HEADLINE: AN ADVERSARY REFUTED THE HEAD OF THE PRODUCT PATH AFTER IT HAD ALREADY MERGED.**
+  CS-830's acceptance clause was MET - equality over every instance of all three container words,
+  not a floor - and the thing the item existed for was NOT achieved for `SetProperty`. A mutant
+  substituting a provably WRONG partition kept every library-backed test green. **THAT IS FOUR
+  CONSECUTIVE SESSIONS OF CLAUSES MET AND PROSE FALSE, and the first time it was caught before the
+  ledger entry rather than after.** Never let a close stand without an adversary behind it.
+
+- **THE STRUCTURAL CAUSE IS REUSABLE AND WORTH MORE THAN THE ITEM: A POOLED GUARD HIDES ITS WORST
+  MEMBER.** The evidence-strength check summed shapes across all three container words, so a word
+  that was one hundred per cent derived vanished behind another word's self-delimiting bulk. Any
+  guard that aggregates over a population it does not also grade PER MEMBER can be satisfied by its
+  strongest member alone. The repair grades per word.
+
+- **AND THE HONEST CLOSE IS A TEST THAT ASSERTS ITS OWN LIMIT SURVIVES.** No test can redden on the
+  wrong partition without encoding a struct width whose only source is the module's own belief -
+  the circularity the adversary caught in the synthetic fixture. So the narrowing SHIPS THE
+  SURVIVAL AS AN ASSERTION, which gives the limit a failure direction: the day the corpus
+  discriminates it, that test goes red and forces the record to narrow. Prefer this to a silent
+  caveat.
+
+- **THE POPULATION DEFECT HIT TWICE MORE AND BOTH TIMES IT WAS IN A BRIEF I WROTE.** I named three
+  sites of the asset gloss and there were four. I gave an exclusion set covering one citation arm
+  when the guard ships four. Session 36 recorded that the warning does not immunise the person
+  writing it; this session it happened to the person QUOTING that warning into the brief.
+  **THE TECHNIQUE THAT ACTUALLY WORKED: the builder loaded the guard AS A MODULE and used its own
+  compiled patterns, instead of deriving the population by hand.** Do that.
+
+- **A PERCENTAGE IS NOT PRESSURE UNTIL YOU READ THE BUDGET'S OWN RATIONALE.** I framed
+  `docs/item_notes.md` at 75 per cent as urgent and cited ROADMAP.md as precedent. `tools/doc_budget.py`
+  says the opposite in its own comment: the ceiling was chosen roughly 37 per cent above the file's
+  landing size, THE HEADROOM IS THE POINT, and ROADMAP.md's failure is what this file's headroom
+  exists to RELIEVE. The builder refused to ship and routed it back. **Closing eight items this
+  session moved the file from 78 to 77 per cent - item CLOSURE is its designed shrink mechanism,
+  and relocation cannot substitute for it** because every section is a live instruction for an OPEN
+  item and `CLAUDE.md` forbids the archive from holding those.
+
+- **CI WENT RED ON THE FIRST PUSH AND THE FAILURE HAD BEEN PREDICTED, LOCATED AND WRITTEN
+  DOWN BEFORE IT.** CS-838's adversary measured that the newer ruff reworded the line the format
+  check reads, and named the CI step where it would surface. Both went into the grant as
+  disclosed risks; the SILENT half was filed as an item and the LOUD half was left as prose.
+  **A measured, located, predicted failure is a work item with a due date, not a residual.**
+  Fixed by PINNING ruff below 0.16 in `pyproject.toml` - not frozen, no grant needed - because
+  the gate was correct on both versions and an unbounded dependency is what made the two
+  toolchains differ. tier1 READ GREEN on the fix. **The gate BLOCKED correctly throughout**,
+  because the grant put the verdict on ruff's EXIT CODE and never on its message.
+
+- **Decisions: ADR 0009 recorded** - the `mInventoryPotential` FOURTH state. Detail in `docs/adr/`.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** Two measured facts contradicted BRIEFS I wrote,
+  and both are recorded above rather than quietly corrected.
+
+- **Failed paths: the relocate pass.** Attempted, refused by its own builder on a topology
+  contradiction, and stood down by operator ruling. NOT retried - the finding is that it cannot
+  work, not that it was done badly.
+
+- **Next action: NONE IS FORCED.** CS-829 is now the head of the product path - the THIRD layer under
+  CS-400's clause 1, and the one CS-405's fourth state names as its blocker. CS-843 is its natural
+  companion: all 81 undiscriminated sets are of `StructProperty`, so CS-829 may settle both.
+
+- **WORKTREES: FIVE OF SIX AGENTS THIS SESSION WERE CUT BEHIND THEIR STATED BASE.** One had no grant
+  commit in history and would have edited a frozen file without authorisation had it not checked.
+  Every dispatch ordered verify-and-fast-forward and every one that needed it said so. **Keep
+  ordering it.** Six inherited worktrees remain untouched and unsalvaged; this session added its own,
+  listed in the continuation prompt.
+---

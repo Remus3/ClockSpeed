@@ -194,90 +194,82 @@ than the first, which is the opposite of what its first draft said.
 names, and transcribing them is the hand-maintained list this project has repeatedly recorded
 as the thing that rots. Derive the population.
 
-### MERGED AND STILL OPEN - recorded 2026-08-24 by the merger, from two adversarial lenses
+### MERGED AND STILL OPEN - recorded 2026-08-24 - RELOCATED 2026-08-25 (session 40)
 
-**READ THIS BEFORE TAKING THE ITEM. WHAT MERGED IS AN IMPROVEMENT OF A DIFFERENT KIND, NOT A
-CLOSE.** The first build repeated CS-830's disease one layer up: the population was DEFINED as
-the words where decoded equals tags, and the acceptance asserted decoded equals tags over that
-set. Of 200000 arbitrary wrong decoders, ZERO failed either arm.
+Superseded by the fourth refutation below, which relocates the defect from the tag
+reader to `objects.parse_body`. Full text in `docs/history_notes.md` under CS-829.
 
-**THE REPAIR IS REAL AND MEASURED ON THAT SAME YARDSTICK.** The population is now every site
-whose declared size ADMITS a tag list, decided by arithmetic that never calls the decoder. It
-catches 3936 of 4096 whole-word refusal subsets and 2000 of 2000 per-site refusal mutants.
+### REFUTED A THIRD TIME - recorded 2026-08-25 - RELOCATED 2026-08-25 (session 40)
 
-**THE SURVIVING REFUTATION, AND IT IS THE NEXT THING TO SOLVE. THE CRITERION IS ARITHMETIC BUT
-THE POPULATION IT IS APPLIED TO IS STILL CHOSEN BY THE DECODER.** A site is graded only if
-three reader functions upstream all succeed. A defect in any of them DELETES sites from the
-population rather than landing them in the residue - the same "the word leaves the class"
-structure the repair removed, moved one call earlier. Measured: a four-line guard inside
-`_container_element_words` deletes 24349 of 45208 sites and the module prints 20 passed, exit
-0, while the IDENTICAL loss placed inside the decoder reddens two arms. Any close must grade
-the sites the reader never reached, not only the ones it reached and refused.
+Its live content is carried forward into the fourth refutation below, which locates
+the defect one layer deeper. Full text in `docs/history_notes.md` under CS-829.
 
-**THREE SMALLER FINDINGS, ALL MEASURED.**
+### REFUTED A FOURTH TIME - recorded 2026-08-25 (session 40), after the root cause was found and fixed
 
-- `_MIN_TAG_LIST_BYTES` IS NOT EARNED. The earned-widths test earns the terminator width and
-  the minimal tag width and touches neither this constant nor the admission gate - the two
-  things that actually decide the population. Raising it from 26 to 52 reclassifies 10506
-  sites with every arm green. And HALF THE CRITERION IS DEAD CODE: no site in this corpus has
-  the empty-list declared size, so that disjunct can be deleted entirely and nothing reddens.
-  That is the same shape the repair honourably retracted for the exact-close comparison,
-  except the exact-close now ASSERTS its own inertness and this does not.
-- THE PER-WORD REFUSAL CEILING ADMITS TOTAL LOSS OF ANY SMALL WORD. Observed max is 8 against
-  a ceiling of 16, so a whole word with 16 or fewer size-compatible sites can be refused
-  entirely and stay green. Four of the seven read words qualify. By contrast the unexplained-
-  word ceiling of 2 is genuinely load-bearing and was the sole red on a two-word mutant.
-- THE END-FREEDOM ARM REPORTS ONE INTEGER AS TWO MEASUREMENTS. Its sampler returns the same
-  value in two positions and the test unpacks them as separate quantities with two
-  contradictory failure messages, so "no early closes and no alternative ends" is one
-  measurement presented as two. Its sampler also draws only from sites that ALREADY DECODE,
-  which is the decoder's own success set - the circularity this module is otherwise careful
-  about.
+**THE ROOT CAUSE WAS FOUND, AND IT WAS NOT WHERE THE THIRD REFUTATION PREDICTED.** This
+module's own `_independent_tag_end` DID NOT STEP THE STRUCT GUID. `objects._skip_tag_extra`
+adds `GUID_BYTES` after a `StructProperty` tag's struct-name string; the second reading
+looped the extra strings and went straight to the guid flag, with that block absent. It
+desynchronised by exactly 16 bytes at the FIRST struct tag in a record and refused
+everything after it.
 
-**WHAT NOT TO DO.** Do not re-pitch the exact-close comparison as the discriminator; it is
-measured inert on this corpus, the retraction is shipped in five places, and its inertness is
-asserted so it will announce itself if that ever changes.
+**MEASURED, AND CONFIRMED BY AN ADVERSARY THAT RE-DERIVED IT BY A DIFFERENT ROUTE:** the
+second reading accepted 87302 of 148668 records and found **ZERO struct sites in any of
+them**, while the shipped walk accepted 129775 carrying 45208. The arm sold in prose as
+independent corroboration of a refusal covered **zero per cent** of the population this
+item is about, and `assert refused_but_independent == 0` passed BECAUSE THE POPULATION WAS
+EMPTY. See `memory/an-empty-population-satisfies-every-zero.md`; this is that finding's
+founding instance. After the one-line repair: the same 129775 records, the same 45208
+sites, 0 per-record disagreements.
 
-### REFUTED A THIRD TIME - recorded 2026-08-25, after two repair rounds
+**THE DEFECT RELOCATED A FOURTH TIME - now to `objects.parse_body`, the record table BOTH
+READINGS SHARE.** Counter-example measured by the adversary: relabel every `KIND_ACTOR`
+record non-actor for ONE version pair and shift each non-actor payload start by one byte,
+extent end held. Both readings then take the same wrong start and refuse together.
 
-**THE DEPENDENCE RELOCATED TWICE MORE UNDER REPAIR AND IS NOW PRECISELY LOCATED.** It was
-refuted at `_container_element_words`, repaired; refuted at `_read_tag_header`, repaired
-and that repair VERIFIED DEAD by an adversary; and refuted again at
-`objects._payload_text`'s terminator verdict, which feeds BOTH denominators identically so
-they move together. Measured: a truncation that never changes any record's accept status
-deletes 3549 sites and the residue IMPROVES from 12 to 11, every arm green, exit 0. At a
-coarser modulus it deletes 19668 of 45208 - 43.5 per cent - and the residue falls to 5.
+    sites_seen 45208 -> 36846, independent_sites 45208 -> 36846, residue 12 -> 10,
+    all 32 arms GREEN, exit 0
 
-**THE ROUTE THE ADVERSARY PROPOSES:** take the denominator from something no tag-list reader
-can shorten. `_census_hits` already is that. `census_records - census_unreached` = 154007
-against `sites_seen` = 45208; the difference must be ACCOUNTED FOR AND ASSERTED - nested
-interiors, container element words, coincidental bytes - so that a fall in `sites_seen` with
-`census_reached` flat is RED rather than a smaller population.
+**8362 struct sites deleted - 18.5 per cent - and the residue IMPROVED.** The prior
+sites are the chain: `_container_element_words`, then `_read_tag_header`, then
+`_payload_text`, now `parse_body`. **The independence audit is CLEAN** - zero shipped-reader
+callables; the only coupling is the record table and the decompression, which is exactly
+the substrate the counter-example drives through. The module's docstring DISCLOSES that
+shared substrate. Disclosure is not a guard.
 
-**THE INDEPENDENT SECOND READING COVERS ZERO PER CENT OF THIS LOSS CLASS.**
-`refused_but_independent` is incremented only inside the two `walked is None` branches, so a
-record that is truncated but still ACCEPTED never reaches it. It accepts 87302 records where
-the shipped walk accepts 129775. Evaluate it on accepted records too.
+**THE ACCOUNTING CLOSES AND PROVES NOTHING.** `45208 + 4047 + 20050 + 84702 = 154007`
+reproduces exactly and no class is a residual, but `sum(hits over a partition) == hits over
+the whole` is an ARITHMETIC IDENTITY over a contiguous tiling. It survived all nine of the
+adversary's degradations, including one that drove every count to zero. The module concedes
+this in its own prose; do not cite the closure as evidence.
 
-**`census_unreached` IS STILL ASSERTED AGAINST NOTHING** - two increments, a constructor
-arg, a repr field and one skip guard. Zero assertions.
+**SUBSETS: 12 of 26 exiting 0 -> 24 of 26.** The cause was structural, not five instances:
+every assertion that fails on a legitimate subset fails on the saves of the ONE version
+pair this project does not parse, where `_sweep_or_skip` already skips 17 arms. Three arms
+reached the library past that guard; routing them through it closed 18 of 20 at once. The
+population was DERIVED - 35 corpus-dependent assertions found, 14 changed - and the
+derivation disagreed with the hand list in BOTH directions.
 
-**CORRECTED, AND IT REVERSES A DISPOSITION THIS FILE CARRIED.** Two agents measured version
-60's refusal at DIFFERENT OFFSETS and BOTH WERE ARITHMETICALLY RIGHT: 5706 of 18893 exceed
-1024 at the record's declared payload start, 18893 of 18893 at the post-actor-head offset
-where the refusal is actually decided. THE INFERENCE WAS FALSE. 23529 struct type-word
-occurrences sit INSIDE those refused records - 13.25 per cent of the whole census, across
-4712 records. An arithmetic refusal under the three-pair grammar is the signature of a
-DIFFERENT grammar, not evidence of absent struct content. **Those sites are ungraded and
-they are CS-G05's territory.** Say UNREACHABLE, never "disjoint".
+**`_UNEXPLAINED_WORD_CEILING` IS STILL FITTED AND STAYS RED ON TWO SUBSETS. DO NOT SKIP
+IT.** The skip was built, measured and REVERTED: an in-process mutant refusing the weakest
+reading word at `objects._decode_struct_interior` - the function BOTH readings route
+through - is caught by that arm and NO OTHER. Skipping it made a real defect survive.
+A word carrying overwhelming size-excluded evidence library-wide contributes only
+size-compatible refusing instances inside one version pair, producing a corpus
+structurally identical to one where a reading word was lost; both give
+`unexplained_words == 2`. Any ceiling passing the subset passes the mutant.
 
-**TWO RESIDUALS THE PREVIOUS NOTE LISTED ARE NOW FALSE.** `_MIN_TAG_LIST_BYTES` IS pinned -
-setting it to 49 reddens `test_the_admission_gate_itself_is_earned_against_the_shipped_decoder`
-(though the corpus does not pin it, only the synthetic gate test). And the end-freedom
-sampler WAS repaired: it reports two genuine measurements now, 17420 late candidate ends
-against 16098 early. **A SIBLING WAS NOT SWEPT:** `_sample_one_record` still selects sites
-by the tag reader's word rather than by the byte compare `_fold_one_tag` now uses - the
-Defect-1 repair was applied at one site, not to the population sharing its root cause.
+**CS-G05 unchanged and CONFIRMED at both offsets:** `census_unreached == 23529` is now an
+equality against the independent reading's own unreached census, 18893 == 18893 records,
+4712 carrying at least one struct literal, 13.25 per cent of the census. 5706 of 18893
+exceed 1024 at the DECLARED PAYLOAD START and 18893 of 18893 at the POST-ACTOR-HEAD offset
+where the refusal is decided; `head_unread` is 0 for all of them, so the second is the
+operative figure. Say UNREACHABLE, never "disjoint".
+
+**WHAT THE NEXT ROUND NEEDS.** A denominator independent of the RECORD TABLE, not merely of
+the tag-list reader. Nothing short of that closes the anti-monotone hole, and the shipped
+anti-monotone control exercises `_payload_text` alone - it does not test the substrate
+where the signature is still live.
 
 ## CS-839
 
@@ -562,6 +554,67 @@ so the item stays open on the gap between eleven and every.**
 by stated semantics and REPORT the cost - the strict end-of-function rule reports 129 correct
 bodies and that number is disclosed rather than designed around.
 
+### REFUTED AGAIN, THEN SUBSTANTIALLY REPAIRED - recorded 2026-08-25 (session 40)
+
+**THE ADVERSARY REPRODUCED THE PREDICTED FAILURE MODE, AND IT WAS THE SAME ONE AS LAST
+TIME, ONE LEVEL DOWN.** Four new rules each scoring zero false positives was the pattern
+this item was refuted for; the refusal of two WIDER variants on soundness was genuine, but
+the four ADOPTED rules did not survive:
+
+- **Rule 1's stated semantics was not what the code implemented.** It excluded only
+  `ast.Call`, while attribute access runs `__get__`, subscription runs `__getitem__`, and
+  the comparison operator itself runs `__eq__`/`__ge__`. Demonstrated live: a
+  `functools.cached_property` memoization test and an ordering-reflexivity test both FAIL
+  when the code under test breaks, and both were flagged "cannot discriminate". They scored
+  zero only because this tree ships neither idiom.
+- **Rule 3 had false positives on a very ordinary shape** - grade the non-empty case, return
+  a count unconditionally.
+- **Rule 2 was a two-spelling blocklist** claiming a semantic class; eight always-true
+  respellings were missed, including `0 <= len(x)`.
+- **Rule 4 added ZERO members** (1986 with routes, 1986 without) and its fixture was the
+  fixture trap recurring - a two-module corpus with no live analogue.
+
+**THE REPAIR, AND IT WENT FURTHER THAN THE REFUTATION ASKED.**
+
+- Rule 1 narrowed to `is` between two identical bare `Name` loads - the only genuinely
+  language-decided form, since `is` never dispatches and a `Name` load runs nothing. `==`
+  was NOT kept: `x == x` fails for NaN and a non-reflexive `__eq__` exactly as `v >= v`
+  does, so drawing the line at `==` would have been score-driven. The removed shapes go to
+  a counted bound, `Survey.self_comparisons`, still credited as grading. Cost bounded
+  rather than argued away: ruff `PLR0124` already catches the bare-`Name` shape tree-wide.
+- **Rule 3 WITHDRAWN - after its stated justification was refuted.** The claim that
+  `dead_grading` already reports every genuinely dead assert is FALSE as stated: measured,
+  two true positives were reported by rule 3 and by nothing else. The real cause was that
+  `dead_grading` propagated deadness INSIDE a folded branch but never PAST one. That hole
+  is closed (`always_leaves`), after which rule 3 added only its three false positives, and
+  it was withdrawn. Both true positives now report as `unreachable grading`.
+- Rule 2 widened to a normalised semantic class with the two refused spellings named.
+- Loops now fold through `never_iterates()`, matching the `if` handling the module already
+  claimed - `while False:` was a constant its own `_literal_truth` decided.
+
+**SILENT GUTTINGS: 8 of 20 -> 1 of 20**, measured in memory against the real shipped control
+`tests/test_doc_budget.py::test_a_tree_git_cannot_answer_for_states_its_degradation`.
+Newly reported: log-swallow, `contextlib.suppress`, `for _ in []`, `for _ in range(0)`,
+`while False`, empty-literal `parametrize`, and the collection rename - the last closed on a
+narrower decidable ground than collection itself, reading the prefix from
+`[tool.pytest.ini_options] python_functions` rather than hardcoding it.
+
+**THE TWO GUARD MODULES ARE NOW COVERED.** `detector_modules()` is DERIVED - a module under
+`tests/` that is not `test_*`, not `__init__.py`, and ships no grading statement. 6 derived,
+0 unreached. `conftest.py` carries a stated exemption with a reachability reason, which was
+a latent false positive in the new rule, closed rather than banked.
+
+**9 OF 9 drift_guard GUARDS STILL DIE** - re-verified independently twice this session,
+pristine floor first, every plant landed and reported, 0 collateral, `tools/drift_guard.py`
+sha256 unchanged.
+
+**WHY IT STAYS OPEN.** The acceptance word is "every". Gutting #18 - every assertion
+deleted - remains silent, bounded by the module's own outside-the-population census; and
+`observed_grading` is still a MECHANISM rather than a population property, because applying
+it needs a collection hook in `tests/conftest.py`. **The tree also gained 8 `match`
+statements this session**, so the shape the second refutation said scored zero only for want
+of a population now has one.
+
 ## CS-847
 
 ### NOTE - filed 2026-08-24 by the merger, from the CS-844 widening
@@ -656,25 +709,10 @@ that happened to be found.
 **PROVE IT BY THE RENDERED OUTPUT, NOT BY READING THE MESSAGE.** The message text is the part
 that gets reviewed and is exactly the part that does not control this channel.
 
-### CONFIRMED LIVE - recorded 2026-08-24 by the merger, on a third instance
+### CONFIRMED LIVE - recorded 2026-08-24 - RELOCATED 2026-08-25 (session 40)
 
-**A THIRD AGENT HIT THIS CHANNEL, AND THIS TIME THE SITE IS STILL LIVE ON MAIN.** The CS-829
-adversary forced a confinement assertion in `tests/save/test_struct_interior.py` and measured
-a real save-derived name rendered into the failure report - counts only: one word rendered out
-of a population of eleven. The assertion compares a `len()` of a frozenset, and pytest
-explains the ATTRIBUTE'S OWN repr inside that `len()`, bypassing the counts-only `__repr__`
-the sweep object carries specifically to prevent this.
-
-**THE PARTIAL FIX IS ITSELF THE LESSON.** The CS-829 builder found this channel, fixed it at
-the site where it found it, and did not sweep the module. Two further sites in the same file
-are safe ONLY because their failure condition happens to be an empty set - change either
-comparison and they leak. That is the instance-not-population defect, inside the fix for a
-privacy channel.
-
-**AND THE LEAK NEEDS THE RIGHT ARM TO FAIL FIRST.** Under a broader failure the miss-factor
-arm short-circuits and nothing leaks. The rendering appears only when the confinement arm is
-the first to fail - which is exactly what a real confinement regression produces. So the
-channel is quiet in every rehearsal and open in the real case.
+The site it names was REPAIRED in session 40; see the block below. Full text in
+`docs/history_notes.md` under CS-850.
 
 ### REFUTED TWICE, MERGED WITH ITS BOUNDARY STATED - recorded 2026-08-25
 
@@ -708,6 +746,69 @@ found and closed on main this session by removing the BINDING - and the sweep th
 them turned up ONE SITE MORE than the adversary had named. **The forced arms also execute
 GENERATED STAND-INS, not shipped code,** so they prove a property of pytest's rewriter rather
 than that any shipped arm is remedied.
+
+### A LIVE LEAK FOUND AND CLOSED, AND THE GUARD THAT MISSED IT REPAIRED - recorded 2026-08-25 (session 40)
+
+**A TIER-1 LEAK WAS LIVE ON `main` UNDER DEFAULT FLAGS, AND THIS GUARD DID NOT SEE IT.**
+`tests/save/test_world.py::test_a_real_world_model_reprs_without_leaking_it` bound
+`strings = [model.token, model.header.map_name]` plus every record's `type_path` and
+`instance_name`, then asserted `len(checked) > _TRIPLE`. **Assertion rewriting renders the
+ARGUMENT of an inline `len()`**, so the raw world token and map name reached the failure
+report with NO FLAG AT ALL - on the pre-push hook and in both CI lanes.
+
+Measured, planted tokens, four rows all forced:
+
+    leaking  len(checked) > _TRIPLE      default 2   -l  6
+    remedied checked_count > _TRIPLE     default 0   -l  0
+
+The irony is exact: the test whose stated purpose is proving the world model reprs without
+leaking, leaked. `tests/conftest.py`'s redactor does not save it - `_build_redaction_rules`
+builds from home-path and account-name spellings ONLY, and no rule exists for a world token,
+map name, type path or instance name.
+
+**THE MECHANISM FIRST BLAMED WAS WRONG, AND THE CORRECTION MATTERS.** An adversary inferred
+that the guard treats an inline `len(X)` as DISCHARGING X and LABELLED THAT UNVERIFIED; the
+merger repeated it as fact. Measured false - `assert len(holder.words) == 0` yields a
+finding today and that shape is already pinned. **The real cause was one line:**
+`_ScopeScan._bind` used the SHALLOW `self.hit(value)`, which answers only for a bare
+`Name`/`Attribute`, so every binding that WRAPPED the field dropped the alias. `checked =
+[value for value in strings if value]` is a comprehension, hence invisible. Ten wrapping
+shapes measured: **0 flagged before, 10 after** - list/tuple/set/dict literal,
+comprehension, f-string, conditional, transparent call, element reducer, two-hop.
+
+The rule is derived from semantics via `_carries_out_of`/`_carries_into`, reading the
+already-declared vocabularies. **An over-reach was caught and reverted:** inheriting
+`_is_reduction`'s "unresolved implies transparent" default gave 30 live findings, because
+that default reports FEWER findings in the repr channel and MORE in the binding channel.
+Tightened to follow only calls the vocabulary names: 30 -> 4, all ten shapes still caught.
+
+**THE STATED DECORATOR BOUNDARY WAS FALSE.** `rendered_source_lines` claimed decorator lines
+are excluded because "pytest starts its rendering at the `def`". Disproved with a literal
+inside `@pytest.mark.skipif(False, reason=...)`, which neither the test id nor the argument
+rendering can explain - pytest printed the decorator source line verbatim under default
+flags. **357 decorated functions, 791 decorator lines, now inside the sweep, 0 new
+findings.**
+
+**`gained > 0` DIED ON A LEAK-FREE REFACTOR.** Margin was exactly 1, from
+`WorldModel.token` alone. Inlining `masked_token` into `clockspeed/save/world.py` -
+identical body, no privacy change - drove it to 0 and reddened the suite. Now SKIPS with a
+reason; the retained assertion still catches a NEGATIVE margin, so it is not vacuous. Weaker
+than the original defect and stated as such: a green run certified that a cross-module mask
+EXISTS, not that a leak exists.
+
+**A RESIDUAL WAS CORRECTED BY MEASUREMENT AFTER TWO AGENTS DISAGREED.**
+`tests/save/test_usmap.py` is FLAGGED ON SHAPE, CLEAN ON CONTENT - it never loads a real
+save, every `PropertyMap` comes from `synthetic.build_usmap`, and its only mention of
+`load_world` is inside a comment. The shape is a true positive; no save-derived value
+reaches that frame.
+
+**WHY IT STAYS OPEN.** The guard's population is still derived from shipped DECLARATIONS -
+classes shipping a redacting `__repr__` - rather than from the three kinds of DATA the
+acceptance names, so a save-derived name, home path or account directory held by a class
+that declared nothing stays invisible to both the assertion sweep and the source-echo
+sweep. One live finding remains outside the repairing slice's write-list, recorded rather
+than repaired. `REPR_RAISING_HOLDERS` is one bidirectionally-pinned allowance, not the
+"0 exemptions" earlier prose implied.
 
 ## CS-851
 
@@ -749,6 +850,168 @@ tree with no such bindings. Three items were refuted this session for proofs tha
 their cases from the current tree and therefore went RED once the defect was fixed. See
 `memory/a-proof-can-require-the-defect.md`. Do NOT derive this item's forced arms from the
 findings.
+
+### SHIPPED, REFUTED, REPAIRED - recorded 2026-08-25 (session 40)
+
+**THE GUARD PROVED ITSELF ON DAY ONE AND WAS THEN REFUTED ON THREE COUNTS.** At the merge it
+caught a genuinely NEW locals leak a sibling slice had just introduced in
+`tests/save/test_struct_interior.py` - neither slice could have found it alone. That is the
+item working. Then an adversary broke it:
+
+- **The residual record was defeated by REPLACEMENT.** Keyed on a per-module COUNT, it could
+  not distinguish "still the same 8" from "8 completely different ones". Measured: 8 real
+  findings repaired and 8 BRAND-NEW leaky bindings planted at new lines under new names ->
+  `22 passed, exit 0`. The module's own docstring claimed a new leaky binding in a recorded
+  file is still red. It was false.
+- **12 false negatives across 21 synthetic binding forms**, 9 outside any disclosed family,
+  plus a structural caller-frame gap.
+- **Four of its own seven pinning fixtures were false** - pinned SAFE while leaking under a
+  real forced run. The zero being asserted was THE SCANNER'S SILENCE, true by construction
+  for a form the scanner has no code for.
+
+**THE REPAIR, AND IT FOUND MORE THAN THE REFUTATION DID.**
+
+- **The census was blind to `ast.Try` entirely.** `except-target` went 0 -> **115**
+  occurrences; sweeping for the same shape found `ast.TypeAlias` at 0 -> 1. Verified
+  independently by the merger: 115 named except-handlers, 1 type-alias, 8 match statements.
+  **Every count derived from that census before this repair was an UNDER-count, including
+  the adversary's own false-negative analysis.** The `statement_forms` docstring claimed to
+  be "EXHAUSTIVE OVER STATEMENT KINDS"; it now lists what it covers and discloses what it
+  does not.
+- **The record is re-keyed by `(module, scope, local)`** - stable identity, never a line
+  number. A finding whose key is absent is RED, catching replacement; a key with no finding
+  is reported STALE with the exact entry to delete. **It worked across slices on its first
+  run**, naming three residuals that a different slice had repaired without knowing this
+  record existed. The staleness direction is a WARNING, not an assertion, deliberately:
+  asserting it would require the live population to still hold every recorded site, which is
+  the anti-monotone shape the fence forbids.
+- **It was FIVE false fixtures, not four.** Swapping `class Sink: pass` - whose repr is
+  `<Sink object at 0x...>` - for a plain dataclass made `attribute-target` leak too. Each of
+  the five is now an ADMITTED GAP opening with "LEAKS, NOT COVERED", not an exemption.
+  `subscript-target`'s reason was PRECISELY BACKWARDS - a plain dict's repr IS the leak. The
+  `except-target` hand-off to `tests/test_exception_rendering.py` was DELETED: that file has
+  zero occurrences of `showlocals`/`f_locals` and is scoped to CS-205.
+- `global` is fixed - it was a false positive whose own recorded reason said it should not
+  fire. `nonlocal` was CHECKED and correctly left alone: suppressing it would have traded a
+  false positive for a false negative.
+
+**A TREE-CLAIM SWEEP FOUND 24 CHECKABLE CLAIMS, 11 MEASURABLY FALSE OR MISLEADING.** The
+worst was the file stating `match-capture` was recorded "PRECISELY BECAUSE THIS TREE
+CONTAINS NONE" while containing three of them itself. Presence is now a measured
+`Recorded.in_tree` field and a declared-absent form that ARRIVES is reported. Four counts
+the repair had itself written into prose were removed - restating a measured number is the
+same defect it was sent to fix.
+
+**WHY IT STAYS OPEN.** Five recorded forms remain measured-leaking and uncovered;
+`except-target` leaks under DEFAULT flags and no module grades a handler name on this
+channel; and the caller-frame gap is structural - `-l` renders locals for EVERY frame in the
+traceback, while the scan emits only where an `Assert` sits in the same scope. 10
+live-flagged scopes over 9 modules have no assert in scope, one of them
+`clockspeed/save/world.py`.
+
+## CS-852
+
+### NOTE - filed 2026-08-25 (session 40) by the merger, from a CS-851 adversary, MEASURED ON MAIN
+
+**A SHIPPED CLASS, NOT A TEST.** `clockspeed/save/chunks.py:474` declares
+`DecompressedBody` as `@dataclass(frozen=True)`. Merger measured directly:
+`grep -c "def __repr__" clockspeed/save/chunks.py` is **0**. Its default dataclass repr
+renders `payload=b'...'` - the concatenated decompressed body of a real save, which carries
+type paths and instance names. pytest's `saferepr` caps at roughly 240 characters, so the
+leak is bounded but real.
+
+**IT IS INVISIBLE TO EVERY GUARD THIS PROJECT SHIPS.** CS-850's sweep derives its population
+from classes that ship a redacting `__repr__` - a class shipping NONE cannot enter that
+population BY CONSTRUCTION. It is named in no doc. Every `body = ` local in the save test
+sweep helpers renders it.
+
+**DO NOT CLOSE THIS BY ADDING A `__repr__` TO ONE CLASS.** That is the instance-not-
+population error this project keeps paying for. Derive the set from the shipped FIELD
+ANNOTATIONS - any class whose fields can hold `bytes` off a save, or a save-derived name -
+and grade every member.
+
+**THE DERIVATION IS THE HARD PART AND IT IS WHY THIS IS NOT A CS-850 WIDENING.** CS-850
+reasons about withholding declarations; this item's population is defined by what a field
+CAN HOLD, which is a different question with a different failure mode. See
+`memory/an-empty-population-satisfies-every-zero.md`: a guard whose population is derived
+from declarations returns zero for classes that declared nothing, and zero is what a broken
+derivation also returns.
+
+## CS-853
+
+### NOTE - filed 2026-08-25 (session 40) by the merger, from the CS-850 repairing slice
+
+**A FOURTH ECHO PATH.** After the assertion channel (CS-850), the locals channel (CS-851)
+and the source-line channel (closed inside CS-850 this session), pytest renders a
+FIXTURE'S VALUE in the failure header of every test that names it.
+
+**MEASURED IN PASSING, NOT SOUGHT.** The slice repairing CS-850 observed that its sandbox
+fixtures return captured pytest output whose header line carries a `tmp_path` rootdir under
+the operator's profile. It mitigated that at source by redacting the captured text inside
+its own helper before returning it, and its control confirms all ten planted tokens survive
+that redaction - so the mitigation is bounded and local, not general.
+
+**THE GENERAL CASE IS UNOWNED.** `tests/assertion_rendering_guard.py` declares the
+frame-argument channel out of its scope at its own line ~134. An adversary incidentally
+proved the channel live: a crashing arm rendered a planted dict into the report even though
+the token was bound at MODULE scope, which the source channel's "module-scope binding
+renders zero times" result does not cover.
+
+**THE FENCE.** Derive the forced cases from shipped fixture RETURN ANNOTATIONS or from
+synthetic fixtures - never from live findings - and the check must stay green on a tree with
+no such fixture. Three items were refuted in session 39 for proofs that required the defect;
+see `memory/a-proof-can-require-the-defect.md`.
+
+## CS-855
+
+### NOTE - filed 2026-08-25 (session 40) by the merger, from the CS-851 repairing slice
+
+**THE ONLY BINDING FORM MEASURED TO LEAK UNDER DEFAULT FLAGS.** Of the five forms the
+CS-851 guard now records as leaking-but-uncovered, `except-target` is the one that renders
+WITHOUT `-l`, through the exception's own rendering rather than through the locals block.
+Every other recorded form needs the flag.
+
+**NOTHING GRADES IT.** The CS-851 guard's hand-off to `tests/test_exception_rendering.py`
+was DELETED this session after measurement: that file holds **zero** occurrences of
+`showlocals`, `f_locals` or `show_locals`, and its own docstring scopes it to CS-205, "no
+tracked module renders a caught exception OBJECT into a message" - a different channel. The
+hand-off pointed at a file that does not grade this.
+
+**THE POPULATION IS LARGER THAN ANYONE THOUGHT.** The CS-851 census could not see `ast.Try`
+at all until session 40; `except-target` went from 0 to **115** named handlers. Merger
+verified independently: 115. Any earlier reasoning about this form rested on an empty
+population - see `memory/an-empty-population-satisfies-every-zero.md`.
+
+**ONE MEASURED SUBTLETY, DO NOT LOSE IT.** Python deletes the handler's name at the end of
+the handler, so an assert AFTER the handler renders nothing - measured. The exposure is an
+assert INSIDE the handler body, which is exactly where a test that grades an error path puts
+it. A fixture that puts the assert outside the handler will validate a shape that does not
+occur.
+
+## CS-854
+
+### NOTE - filed 2026-08-25 (session 40) by the merger, from the CS-829 repairing slice
+
+**THREE UNSWEPT SIBLINGS OF A DEFECT REPAIRED ELSEWHERE.** The shape: selecting a tag by the
+tag reader's REPORTED TYPE WORD after a walk, into a population an arm then asserts a zero
+or an equality over. When the reader is wrong the population shrinks and the assertion gets
+EASIER - the anti-monotone signature CS-829 has now been refuted for four times.
+
+The CS-829 slice repaired `_fold_one_tag`, `_sample_one_record` and
+`_uniform_width_struct_words` inside its own file, and reported these three as outside its
+write-list:
+
+    tests/save/test_container_elements.py:839
+    tests/save/test_inventory_potential.py:316
+    tests/save/test_reference_resolution.py:968
+
+**TWO NEAR-MISSES ARE EXPLICITLY NOT SIBLINGS** and must not be "fixed":
+`tests/save/test_container_elements.py:1168` is a validation assertion, and
+`tests/save/test_value_anchoring.py:1082` is a deliberate privacy intersection.
+
+**DERIVE, DO NOT WORK THE LIST.** Three line numbers in a note are the hand-maintained thing
+this repo records as the thing that rots, and the CS-829 slice found one site the brief had
+not named by sweeping rather than by working its list. Sweep for the SHAPE.
 
 ## CS-842
 

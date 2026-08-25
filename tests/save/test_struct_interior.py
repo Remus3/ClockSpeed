@@ -78,6 +78,37 @@ property name, a decoded value, a path, a world name or an account id. The
 sweep types below hold integers keyed by strings and repr only the integers,
 on the same terms as ``tests/save/test_container_elements.py``.
 
+NO EVIDENCE IS A SKIP, NOT A RED, AND THAT IS ENFORCED HERE RATHER THAN MEANT.
+An arm that asserts a count is NON-ZERO is asserting that the operator's library
+is LARGE ENOUGH, which is a proof fitted to one machine at one instant on the
+same terms as a bound fitted to it. The operator plays this game while a session
+runs; autosave rotation alone changes which saves are present. So every arm
+below whose population can legitimately be empty SKIPS with a reason naming the
+missing ingredient, and the ingredient is derived from what the arm NEEDS rather
+than from which corpora were observed failing - a skip condition fitted to the
+failing subsets is the same defect one level up.
+
+WHAT SEPARATES A SKIP FROM A RED IS WHETHER THE BYTES SAY ANYTHING. A zero that
+the byte census contradicts - struct type words sitting inside records the walk
+opened while the walk reports no site - is EVIDENCE DESTROYED and stays an
+assertion; :func:`_sweep_or_skip` draws that line and every library arm here
+opens with it, including the three that measure their own population and used to
+reach the library past it.
+
+MEASURED, AND THE MEASUREMENT IS THE REASON THIS SHAPE IS ENFORCED. Run against
+each save of this machine's library alone, against each version pair alone, and
+against the library minus its newest save, the arms that bypassed the shared
+guard went RED on the saves of one whole version pair while seventeen arms that
+used it SKIPPED on the identical corpus for the identical reason.
+
+ONE ARM IS EXEMPT AND THE EXEMPTION IS MEASURED RATHER THAN ASSUMED.
+``_UNEXPLAINED_WORD_CEILING`` is a FITTED bound and it does redden on some
+legitimate subsets of this library. Skipping its excess was built and REFUTED:
+the corpus one version pair presents is structurally identical to a corpus where
+a reading word was refused entirely, so the skip that spares the subset also
+spares the defect - measured, at zero failures for the whole module under an
+in-process mutant. It keeps its red, and the note on the constant says why.
+
 NEEDS NO GAME FOR MOST OF WHAT IS HERE. Every synthetic case runs on a machine
 with no install and no save library. The library cases skip there.
 """
@@ -85,7 +116,7 @@ with no install and no save library. The library cases skip there.
 from __future__ import annotations
 
 import struct
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import lru_cache
 from types import MappingProxyType
@@ -690,21 +721,57 @@ def _independent_tag_list(body: bytes, at: int, end: int) -> bool:
     Returns:
         Whether this module's own reading of the grammar closes.
     """
+    return _independent_tag_walk(body, at, end) is not None
+
+
+def _independent_tag_walk(
+    body: bytes, at: int, end: int
+) -> tuple[tuple[int, int, str, int, int], ...] | None:
+    """EVERY TAG IN ONE LIST, read without calling any shipped reader.
+
+    THE BOOLEAN ABOVE COULD ONLY EVER GRADE A REFUSAL, AND THAT IS THE HOLE
+    THIS FUNCTION CLOSES. ``_independent_tag_list`` is consulted only where the
+    shipped walk returned None, so a record the shipped walk ACCEPTS while
+    yielding fewer tags than it holds was outside every arm in this module. That
+    is the loss class the third refutation of CS-829 measured: an early
+    terminator verdict inside ``objects._payload_text`` leaves a record accepted,
+    deletes struct sites from BOTH the sweep's own walk and
+    ``read_properties``'s, and every count derived from either moves down
+    together while the residue gets smaller.
+
+    Returning the TAGS rather than a verdict is what lets the site total be
+    taken from this reading instead, so the population stops being something a
+    shipped reader can shorten.
+
+    Args:
+        body: The decompressed body.
+        at: Where the first tag begins.
+        end: The first byte past the payload.
+
+    Returns:
+        Each tag as its name offset, its type-word offset, its type word, its
+        value's first byte and its value's declared extent - or None when this
+        module's own reading of the grammar does not close.
+    """
+    tags: list[tuple[int, int, str, int, int]] = []
+    cursor = at
     for _ in range(objects._MAX_TAGS_PER_PAYLOAD):  # noqa: SLF001
-        name = _independent_string(body, at, end)
+        name = _independent_string(body, cursor, end)
         if name is None:
-            return False
+            return None
         if name[0] == objects._PAYLOAD_TERMINATOR:  # noqa: SLF001
-            return True
-        step = _independent_tag_end(body, name[1], end)
+            return tuple(tags)
+        step = _independent_tag_header(body, name[1], end)
         if step is None:
-            return False
-        at = step
-    return False
+            return None
+        word, value_at, size = step
+        tags.append((cursor, name[1], word, value_at, size))
+        cursor = value_at + size
+    return None
 
 
-def _independent_tag_end(body: bytes, at: int, end: int) -> int | None:
-    """Where one tag ends, read without calling the shipped reader.
+def _independent_tag_header(body: bytes, at: int, end: int) -> tuple[str, int, int] | None:
+    """One tag's header, read without calling the shipped reader.
 
     Args:
         body: The decompressed body.
@@ -712,7 +779,8 @@ def _independent_tag_end(body: bytes, at: int, end: int) -> int | None:
         end: The first byte past the payload.
 
     Returns:
-        The first byte past this tag's value, or None when it does not read.
+        The type word, the value's first byte and its declared extent, or None
+        when the header does not read.
     """
     word = _independent_string(body, at, end)
     if word is None:
@@ -730,10 +798,25 @@ def _independent_tag_end(body: bytes, at: int, end: int) -> int | None:
             if extra is None:
                 return None
             cursor = extra[1]
+        # THE STRUCT GUID, AND ITS ABSENCE HERE IS WHY THIS READING GRADED
+        # NOTHING. A struct tag carries a sixteen-byte guid after its struct
+        # name, which ``objects._skip_tag_extra`` steps and this function did
+        # not - so the reading desynchronised by exactly sixteen bytes at the
+        # FIRST struct tag in a record and refused everything after it.
+        # Measured on this corpus: it accepted 87302 of 148668 records and
+        # found ZERO struct sites in any of them, while the shipped walk
+        # accepted 129775 carrying 45208. The arm sold as the independent
+        # corroboration of a refusal therefore covered zero per cent of the
+        # population this item is about. With the step it accepts exactly the
+        # 129775 the shipped walk does and finds exactly the same 45208.
+        if word[0] == objects.STRUCT_TYPE_WORD:
+            cursor += objects.GUID_BYTES
+            if cursor > end:
+                return None
     past_flag = _independent_guid_flag(body, cursor, end)
     if past_flag is None or size < 0 or past_flag + size > end:
         return None
-    return past_flag + size
+    return (word[0], past_flag, size)
 
 
 def _independent_guid_flag(body: bytes, at: int, end: int) -> int | None:
@@ -781,6 +864,128 @@ class _SaveShape:
     pair: tuple[int, int]
     records: int
     unreached: int
+
+
+@dataclass(frozen=True)
+class _SaveCensus:
+    """One save's counts, so the arms can be re-aggregated over a SUBSET.
+
+    WHY IT EXISTS. The bound this module used to carry was fitted to one
+    machine's save library at one instant, and an adversary reddened it in BOTH
+    directions by dropping legitimate subsets - the saves of one version pair
+    taking the figure to two, another pair's taking it to zero. Autosave
+    rotation does that on its own, and the operator plays the game while a
+    session runs. An assertion that only ever sees the whole library cannot
+    know whether it is stating a property or a coincidence.
+
+    So every count an arm needs is kept PER SAVE, and
+    :func:`test_the_site_equality_survives_every_legitimate_subset` re-asserts
+    the equality over every leave-one-out subset, every single save alone and
+    every version pair alone. A property survives all of them; a fitted number
+    does not survive the first.
+
+    EVERY FIELD IS AN INTEGER AND ``pair_id`` IS AN ORDINAL. It is assigned in
+    first-seen order at sweep time and is NOT a version number, so grouping by
+    version pair costs this module no rendering of one - the discipline
+    :class:`_SaveShape` states, kept while exposing the grouping.
+
+    Attributes:
+        pair_id: An ordinal standing for this save's version pair.
+        records: How many records the save's table carried.
+        shipped_reached: Records the shipped walk enumerated.
+        independent_reached: Records this module's own reading enumerated.
+        sites_seen: Struct sites the shipped walk reached here.
+        independent_sites: Struct sites this module's own reading found here.
+        census_records: Struct type words inside the records' declared extents.
+        census_unreached: The same, over records the shipped walk never opened.
+        independent_unreached_census: The same, over records this module's own
+            reading never opened.
+        site_disagreements: Records where the two site counts differ.
+    """
+
+    pair_id: int
+    records: int
+    shipped_reached: int
+    independent_reached: int
+    sites_seen: int
+    independent_sites: int
+    census_records: int
+    census_unreached: int
+    independent_unreached_census: int
+    site_disagreements: int
+
+
+#: How deep the census tiling will descend into a struct interior. A BOUND ON
+#: THE WORK, not a measurement: a region past it lands in ``census_struct_values``
+#: rather than being lost, so the accounting closes whatever the depth is.
+_MAX_CENSUS_DEPTH: Final = 8
+
+
+def _tile_independently(body: bytes, at: int, end: int, into: _StructTally, depth: int) -> bool:
+    """Attribute EVERY struct type word in this span to a named class.
+
+    THE ACCOUNTING THE THIRD REFUTATION ASKED FOR. ``_census_hits`` is the one
+    number in this module no reader can move, and over the records the sweep
+    reached it stands at far more than the site count - the difference used to
+    be waved at as "nested interiors, container element words, coincidental
+    bytes" without a count against any of them. An unaccounted difference is a
+    place a site can go missing to, so the difference is TILED here: the span is
+    partitioned into tag names, type words, tag headers, values and the tail,
+    every partition is counted, and the sum is asserted against the census.
+
+    IT READS WITH THIS MODULE'S OWN GRAMMAR AND NOT THE SHIPPED ONE, which is
+    the whole point. A shipped tag-list reader that starts refusing cannot move
+    a single number this function produces.
+
+    NOTHING IS MUTATED ON A REFUSAL. The walk is taken before the loop, so a
+    span this reading cannot follow leaves every counter exactly as it found
+    them and the caller attributes the whole span to one class instead.
+
+    Args:
+        body: The decompressed body.
+        at: Where the first tag begins.
+        end: The first byte past the span.
+        into: The accumulator, mutated in place.
+        depth: How many interiors deep this span sits.
+
+    Returns:
+        Whether this reading walked the span - False leaves the counters
+        untouched.
+    """
+    tags = _independent_tag_walk(body, at, end)
+    if tags is None:
+        return False
+    cursor = at
+    for _name_at, type_at, word, value_at, size in tags:
+        into.census_names += _census_hits(body, cursor, type_at)
+        is_struct = body.startswith(_STRUCT_WORD_LITERAL, type_at)
+        if is_struct:
+            if depth == 0:
+                into.independent_sites += 1
+            else:
+                into.census_nested_sites += 1
+            into.census_element_words += _census_hits(
+                body, type_at + len(_STRUCT_WORD_LITERAL), value_at
+            )
+        else:
+            into.census_element_words += _census_hits(body, type_at, value_at)
+        inside = _census_hits(body, value_at, value_at + size)
+        if inside:
+            descended = (
+                is_struct
+                and depth < _MAX_CENSUS_DEPTH
+                and _tile_independently(body, value_at, value_at + size, into, depth + 1)
+            )
+            if not descended:
+                if word in objects.CONTAINER_TYPE_WORDS:
+                    into.census_container_values += inside
+                elif is_struct:
+                    into.census_struct_values += inside
+                else:
+                    into.census_other_values += inside
+        cursor = value_at + size
+    into.census_tails += _census_hits(body, cursor, end)
+    return True
 
 
 @dataclass
@@ -855,6 +1060,34 @@ class _StructTally:
             this module did not write, through an entry point it does not use
             for anything else here.
         shipped_interiors: The shipped reader's own decoded interior total.
+        independent_only_refused: Records the shipped walk ACCEPTS and this
+            module's own reading refuses. The converse of
+            ``refused_but_independent``, and asserting both to zero is what
+            makes the two readings one population rather than two.
+        independent_sites: Top-level struct sites THIS MODULE'S OWN READING
+            finds, over the records it accepts. THE DENOMINATOR NO SHIPPED
+            TAG-LIST READER CAN SHORTEN - see
+            :func:`test_the_site_total_is_pinned_by_a_reading_no_shipped_walk_can_shorten`.
+        site_disagreements: Records where the two readings report a DIFFERENT
+            struct site count. Asserted per record rather than only in the
+            pool, because a pooled equality is met by offsetting errors.
+        independent_unreached_census: Struct type words the BYTES carry inside
+            records this module's own reading does not walk.
+        census_nested_sites: Struct type words standing at a tag's type-word
+            offset INSIDE a decoded interior - the nested class.
+        census_element_words: Struct type words inside a tag's header past its
+            type word - a container naming a struct as its element type.
+        census_container_values: Struct type words inside a CONTAINER tag's
+            value.
+        census_struct_values: Struct type words inside a struct tag's value
+            that does not itself walk as a tag list - the native class.
+        census_other_values: Struct type words inside any other tag's value.
+        census_head: Struct type words inside an actor payload's head.
+        census_names: Struct type words inside a tag's NAME string.
+        census_tails: Struct type words past a tag list's last tag.
+        censuses: One per save, for the subset re-aggregation.
+        pair_ids: Version pair to the ordinal that stands for it, so no version
+            number leaves this frame.
     """
 
     saves: int = 0
@@ -864,6 +1097,20 @@ class _StructTally:
     bytes_only_struct: int = 0
     independent_walkable: int = 0
     refused_but_independent: int = 0
+    independent_only_refused: int = 0
+    independent_sites: int = 0
+    site_disagreements: int = 0
+    independent_unreached_census: int = 0
+    census_nested_sites: int = 0
+    census_element_words: int = 0
+    census_container_values: int = 0
+    census_struct_values: int = 0
+    census_other_values: int = 0
+    census_head: int = 0
+    census_names: int = 0
+    census_tails: int = 0
+    censuses: list[_SaveCensus] = field(default_factory=list)
+    pair_ids: dict[tuple[int, int], int] = field(default_factory=dict)
     sites_seen: int = 0
     name_unread: int = 0
     word_unread: int = 0
@@ -942,6 +1189,26 @@ class _StructSweep:
             entirely and a save it walked not at all.
         shipped_tags: The shipped reader's own struct tag total.
         shipped_interiors: The shipped reader's own decoded interior total.
+        independent_only_refused: Records the shipped walk accepts and this
+            module's own reading refuses.
+        independent_sites: Top-level struct sites this module's own reading
+            found - THE DENOMINATOR NO SHIPPED TAG-LIST READER CAN SHORTEN.
+        site_disagreements: Records where the two readings disagree about how
+            many struct sites the record holds.
+        independent_unreached_census: Struct type words inside records this
+            module's own reading does not walk.
+        census_nested_sites: Struct type words at a tag's type-word offset
+            inside a decoded interior.
+        census_element_words: Struct type words inside a tag's header past its
+            own type word.
+        census_container_values: Struct type words inside a container value.
+        census_struct_values: Struct type words inside a struct value that does
+            not itself walk as a tag list.
+        census_other_values: Struct type words inside any other value.
+        census_head: Struct type words inside an actor payload's head.
+        census_names: Struct type words inside a tag's name string.
+        census_tails: Struct type words past a tag list's last tag.
+        censuses: One entry per save, for the subset re-aggregation.
     """
 
     saves: int
@@ -951,6 +1218,19 @@ class _StructSweep:
     bytes_only_struct: int
     independent_walkable: int
     refused_but_independent: int
+    independent_only_refused: int
+    independent_sites: int
+    site_disagreements: int
+    independent_unreached_census: int
+    census_nested_sites: int
+    census_element_words: int
+    census_container_values: int
+    census_struct_values: int
+    census_other_values: int
+    census_head: int
+    census_names: int
+    census_tails: int
+    censuses: tuple[_SaveCensus, ...]
     sites_seen: int
     name_unread: int
     word_unread: int
@@ -992,6 +1272,17 @@ class _StructSweep:
             f"bytes_only_struct={self.bytes_only_struct}, "
             f"independent_walkable={self.independent_walkable}, "
             f"refused_but_independent={self.refused_but_independent}, "
+            f"independent_only_refused={self.independent_only_refused}, "
+            f"independent_sites={self.independent_sites}, "
+            f"site_disagreements={self.site_disagreements}, "
+            f"independent_unreached_census={self.independent_unreached_census}, "
+            f"census_nested_sites={self.census_nested_sites}, "
+            f"census_element_words={self.census_element_words}, "
+            f"census_container_values={self.census_container_values}, "
+            f"census_struct_values={self.census_struct_values}, "
+            f"census_other_values={self.census_other_values}, "
+            f"census_head={self.census_head}, census_names={self.census_names}, "
+            f"census_tails={self.census_tails}, censuses={len(self.censuses)}, "
             f"sites_seen={self.sites_seen}, name_unread={self.name_unread}, "
             f"word_unread={self.word_unread}, "
             f"wordless_compatible={self.wordless_compatible}, "
@@ -1298,6 +1589,150 @@ def _fold_one_tag(
     _fold_one_struct_tag(body, struct_word, value_at, value_at + size, property_map, into)
 
 
+def _pair_ordinal(into: _StructTally, pair: tuple[int, int]) -> int:
+    """An ordinal standing for a save version pair, assigned in first-seen order.
+
+    THE ORDINAL RATHER THAN THE PAIR IS WHAT LEAVES THIS FRAME. Grouping the
+    subset re-aggregation by version pair needs only that two saves of the same
+    pair get the same key - it does not need the pair's numbers, and this
+    module's rule is that only counts leave. An exception argued case by case is
+    how such a rule stops holding.
+
+    Args:
+        into: The accumulator, whose ordinal table is extended in place.
+        pair: The save and header version.
+
+    Returns:
+        The ordinal for that pair.
+    """
+    return into.pair_ids.setdefault(pair, len(into.pair_ids))
+
+
+@dataclass
+class _SaveRun:
+    """One save's running counters, so the per-save census can be exact.
+
+    THEY ARE PER SAVE RATHER THAN DERIVED AT THE END because the subset
+    re-aggregation has to be able to drop a save and re-assert, and a figure
+    reconstructed from the pooled totals could not be dropped from them.
+
+    Attributes:
+        sites_before: The pooled site total when this save started.
+        independent_before: The pooled independent site total when it started.
+        records: Records seen in this save.
+        unreached: Records the shipped walk never opened.
+        independent_reached: Records this module's own reading opened.
+        hits: Struct type words inside this save's record extents.
+        unreached_hits: The same, over records the shipped walk never opened.
+        independent_unreached_hits: The same, for this module's own reading.
+        disagreements: Records where the two site counts differ.
+    """
+
+    sites_before: int
+    independent_before: int
+    records: int = 0
+    unreached: int = 0
+    independent_reached: int = 0
+    hits: int = 0
+    unreached_hits: int = 0
+    independent_unreached_hits: int = 0
+    disagreements: int = 0
+
+
+def _sweep_one_record(
+    body: bytes,
+    record: objects.ObjectRecord,
+    property_map: usmap.PropertyMap,
+    into: _StructTally,
+    run: _SaveRun,
+) -> None:
+    """Fold ONE record into the accumulator, by both readings.
+
+    EVERY DROP IS COUNTED AND NOTHING LEAVES SILENTLY. Four readers stand
+    between a record and a graded site: the actor-head step, the payload walk,
+    the tag-name re-read and the tag extra. Each used to end in a bare
+    ``continue``. Now each has a counter, the records the first two refuse are
+    additionally measured IN BYTES by :func:`_census_hits`, and the site total
+    is taken a SECOND time by a reading that shares no function with the walk.
+
+    Args:
+        body: The decompressed body.
+        record: The record to fold.
+        property_map: The parsed usmap.
+        into: The accumulator, mutated in place.
+        run: This save's running counters, mutated in place.
+    """
+    into.records += 1
+    run.records += 1
+    end = record.body_offset + record.body_length
+    hits = _census_hits(body, record.body_offset, end)
+    into.census_records += hits
+    run.hits += hits
+    # THE SHIPPED READER'S OWN TOTALS, taken through an entry point this module
+    # uses for nothing else. ``struct_tag_count`` is incremented in
+    # ``objects._walk_payload`` BEFORE the struct word is read, so it is a
+    # denominator no tag-extra defect can move - and it comes from a loop
+    # written independently of the one below. WHAT IT CANNOT SEE is a defect in
+    # a primitive BOTH loops call, which is why the reading below exists.
+    shipped = objects.read_properties(body, record, property_map)
+    into.shipped_tags += shipped.struct_tag_count
+    into.shipped_interiors += len(shipped.struct_interiors)
+    # THIS MODULE'S OWN READING OF THE SAME RECORD, taken BEFORE the shipped
+    # walk and sharing no function with it - see :func:`_independent_tag_walk`.
+    # IT IS THE DENOMINATOR, not merely a corroborator of a refusal. Counting
+    # sites here is what the third refutation asked for: a record the shipped
+    # walk ACCEPTS while yielding fewer tags than it holds used to be outside
+    # every arm, because the only question ever asked of this reading was about
+    # records the shipped walk had already refused.
+    own_start = (
+        _independent_actor_head(body, record.body_offset, end)
+        if record.kind == objects.KIND_ACTOR
+        else record.body_offset
+    )
+    own_sites = into.independent_sites
+    own_reads = own_start is not None and _tile_independently(body, own_start, end, into, 0)
+    if own_reads and own_start is not None:
+        into.independent_walkable += 1
+        run.independent_reached += 1
+        into.census_head += _census_hits(body, record.body_offset, own_start)
+    else:
+        into.independent_unreached_census += hits
+        run.independent_unreached_hits += hits
+    own_sites = into.independent_sites - own_sites
+    start: int | None = record.body_offset
+    if record.kind == objects.KIND_ACTOR:
+        start = objects._skip_actor_head(body, record.body_offset, end)  # noqa: SLF001
+    walked = (
+        None
+        if start is None
+        else test_decode_oracles._walk_with_the_shipped_reader(body, start, end)  # noqa: SLF001
+    )
+    if start is None or walked is None:
+        into.head_unread += start is None
+        into.unwalked += start is not None
+        into.census_unreached += hits
+        run.unreached_hits += hits
+        into.refused_but_independent += own_reads
+        run.unreached += 1
+        return
+    if not own_reads:
+        into.independent_only_refused += 1
+    shipped_sites = into.sites_seen
+    at = start
+    for _name, word, value_at, size in walked:
+        head = at
+        at = value_at + size
+        _fold_one_tag(body, word, head, value_at, size, end, property_map, into)
+    # PER RECORD, NEVER ONLY IN THE POOL. A pooled equality is met by
+    # offsetting errors - a reader losing a site here and inventing one there
+    # sums to zero - which is the shape CLAUDE.md section 5 and this repo's
+    # pooled-guard finding both name as a threshold met by its strongest member.
+    shipped_sites = into.sites_seen - shipped_sites
+    if own_reads and shipped_sites != own_sites:
+        into.site_disagreements += 1
+        run.disagreements += 1
+
+
 def _sweep_one_save(
     data: bytes, parsed: header.SaveHeader, property_map: usmap.PropertyMap, into: _StructTally
 ) -> None:
@@ -1313,13 +1748,9 @@ def _sweep_one_save(
     total taken OUTSIDE ``objects._walk_payload`` - and the equality that total
     stands in.
 
-    EVERY DROP IS COUNTED AND NOTHING LEAVES SILENTLY, which is the repair this
-    revision exists for. Four readers stand between a record and a graded site:
-    the actor-head step, the payload walk, the tag-name re-read and the tag
-    extra. Each used to end in a bare ``continue``. Now each has a counter, and
-    the records the first two refuse are additionally measured IN BYTES by
-    :func:`_census_hits`, which no reader can move - so a record the sweep never
-    opened still carries a number into the arms below.
+    THE PER-RECORD JUDGEMENT IS :func:`_sweep_one_record`, which is where every
+    drop is counted; this function owns the save-level bookkeeping and the two
+    per-save records the shape reduction and the subset re-aggregation need.
 
     Args:
         data: The save file's bytes.
@@ -1335,59 +1766,31 @@ def _sweep_one_save(
     )
     into.saves += 1
     into.census_body += _census_hits(body, 0, len(body))
-    records = 0
-    unreached = 0
+    # SNAPSHOTS, because the site totals are raised deep inside the fold and
+    # the tiling rather than here, and the subset re-aggregation needs them PER
+    # SAVE. Subtracting at the end of the loop is exact and costs two integers.
+    run = _SaveRun(sites_before=into.sites_seen, independent_before=into.independent_sites)
     for record in table.records:
-        into.records += 1
-        records += 1
-        end = record.body_offset + record.body_length
-        hits = _census_hits(body, record.body_offset, end)
-        into.census_records += hits
-        # THE SHIPPED READER'S OWN TOTALS, taken through an entry point this
-        # module uses for nothing else. ``struct_tag_count`` is incremented in
-        # ``objects._walk_payload`` BEFORE the struct word is read, so it is a
-        # denominator no tag-extra defect can move - and it comes from a loop
-        # written independently of the one below.
-        shipped = objects.read_properties(body, record, property_map)
-        into.shipped_tags += shipped.struct_tag_count
-        into.shipped_interiors += len(shipped.struct_interiors)
-        # THIS MODULE'S OWN READING OF THE SAME RECORD, taken BEFORE the
-        # shipped walk and sharing no function with it - see
-        # :func:`_independent_tag_list`. It is what makes a refusal gradeable.
-        own_start = (
-            _independent_actor_head(body, record.body_offset, end)
-            if record.kind == objects.KIND_ACTOR
-            else record.body_offset
-        )
-        own_reads = own_start is not None and _independent_tag_list(body, own_start, end)
-        if own_reads:
-            into.independent_walkable += 1
-        start: int | None = record.body_offset
-        if record.kind == objects.KIND_ACTOR:
-            start = objects._skip_actor_head(body, record.body_offset, end)  # noqa: SLF001
-        if start is None:
-            into.head_unread += 1
-            into.census_unreached += hits
-            into.refused_but_independent += own_reads
-            unreached += 1
-            continue
-        walked = test_decode_oracles._walk_with_the_shipped_reader(body, start, end)  # noqa: SLF001
-        if walked is None:
-            into.unwalked += 1
-            into.census_unreached += hits
-            into.refused_but_independent += own_reads
-            unreached += 1
-            continue
-        at = start
-        for _name, word, value_at, size in walked:
-            head = at
-            at = value_at + size
-            _fold_one_tag(body, word, head, value_at, size, end, property_map, into)
+        _sweep_one_record(body, record, property_map, into, run)
     into.shapes.append(
         _SaveShape(
             pair=(parsed.save_version, parsed.header_version),
-            records=records,
-            unreached=unreached,
+            records=run.records,
+            unreached=run.unreached,
+        )
+    )
+    into.censuses.append(
+        _SaveCensus(
+            pair_id=_pair_ordinal(into, (parsed.save_version, parsed.header_version)),
+            records=run.records,
+            shipped_reached=run.records - run.unreached,
+            independent_reached=run.independent_reached,
+            sites_seen=into.sites_seen - run.sites_before,
+            independent_sites=into.independent_sites - run.independent_before,
+            census_records=run.hits,
+            census_unreached=run.unreached_hits,
+            independent_unreached_census=run.independent_unreached_hits,
+            site_disagreements=run.disagreements,
         )
     )
 
@@ -1494,6 +1897,19 @@ def _sweep_the_library() -> _StructSweep | None:
         bytes_only_struct=tally.bytes_only_struct,
         independent_walkable=tally.independent_walkable,
         refused_but_independent=tally.refused_but_independent,
+        independent_only_refused=tally.independent_only_refused,
+        independent_sites=tally.independent_sites,
+        site_disagreements=tally.site_disagreements,
+        independent_unreached_census=tally.independent_unreached_census,
+        census_nested_sites=tally.census_nested_sites,
+        census_element_words=tally.census_element_words,
+        census_container_values=tally.census_container_values,
+        census_struct_values=tally.census_struct_values,
+        census_other_values=tally.census_other_values,
+        census_head=tally.census_head,
+        census_names=tally.census_names,
+        census_tails=tally.census_tails,
+        censuses=tuple(tally.censuses),
         sites_seen=tally.sites_seen,
         name_unread=tally.name_unread,
         word_unread=tally.word_unread,
@@ -1644,11 +2060,32 @@ _COMPATIBLE_REFUSAL_CEILING: Final = 64
 #: TIGHTENED FROM TWO TO ONE, AND THE ONE IS THE WHOLE POINT. Every word that
 #: reads in this corpus carries ZERO size-excluded sites, so refusing any one of
 #: them outright puts it here. At two, exactly one reading word could be lost
-#: entirely and stay green - and four of the seven have few enough sites that
-#: nothing else would have noticed. At one, with one word already observed
-#: unexplained, the bound has no headroom left and the loss of ANY reading word
-#: reddens. That the observed figure meets the bound exactly is asserted below
-#: rather than left as a coincidence.
+#: entirely and stay green - and several of the reading words have few enough
+#: sites that nothing else would have noticed. At one the bound has no headroom
+#: left, so the loss of ANY reading word crosses it.
+#:
+#: IT IS A FITTED BOUND AND IT STAYS ONE, WHICH IS A KNOWN OPEN DEFECT RATHER
+#: THAN AN OVERSIGHT. A word lands in the residue for two reasons - a decoder
+#: that stopped reading it, or size-excluded siblings that live in saves this
+#: run did not read - and nothing a single sweep computes separates them.
+#: Measured: reading one version pair of this machine's library alone moves a
+#: word that is overwhelmingly native by arithmetic across the whole library into
+#: the residue, and reddens this bound on nothing but which saves were present.
+#:
+#: CONVERTING THAT RED INTO A SKIP WAS BUILT, MEASURED AND REJECTED. The corpus a
+#: single version pair presents is structurally identical to a corpus where a
+#: reading word was lost, so every condition that skips the one skips the other:
+#: with the excess skipping, an in-process mutant refusing the WEAKEST reading
+#: word outright at ``objects._decode_struct_interior`` - the function both
+#: readings route through - left the whole module at zero failures. The bound
+#: reddens on some legitimate subsets and that cost is paid deliberately.
+#: De-fitting it needs per-word evidence independent of which saves are present,
+#: which is CS-829's open problem rather than this arm's.
+#:
+#: A SENTENCE CLAIMING THE OBSERVED FIGURE WAS ASSERTED TO MEET THE BOUND EXACTLY
+#: USED TO STAND HERE AND IS DELETED. The assertion it described had already been
+#: removed at the call site - see the note there - so the constant's own
+#: documentation was describing code that no longer existed.
 _UNEXPLAINED_WORD_CEILING: Final = 1
 
 
@@ -1993,6 +2430,630 @@ def test_the_sweep_reaches_every_struct_site_the_shipped_reader_counts() -> None
     )
 
 
+def test_the_site_total_is_pinned_by_a_reading_no_shipped_walk_can_shorten() -> None:
+    """CS-829's THIRD REFUTATION, ANSWERED - the denominator moves out of reach.
+
+    WHAT WAS STILL WRONG. Every denominator this module had came, one way or
+    another, through ``objects._payload_text``. The sweep's own walk consumes
+    its terminator verdict and so does ``read_properties``, so the two move
+    TOGETHER: an early terminator leaves a record accepted, deletes struct sites
+    from both loops at once, and every cross-check between them stays green
+    while the residue gets SMALLER. Measured on this corpus by an adversary: a
+    truncation that changed no record's accept status deleted 3549 sites and the
+    residue improved from 12 to 11, exit 0; at a coarser modulus it deleted
+    19668 of 45208 and the residue fell to 5. The check got BETTER as the reader
+    got WORSE.
+
+    WHAT MAKES IT FAIL NOW. ``independent_sites`` is counted by
+    :func:`_independent_tag_walk`, which takes nothing from the shipped module
+    but CONSTANTS - widths, a terminator name, a tag-extra table. No shipped
+    tag-list reader can move it. The shipped side's total is then asserted
+    EQUAL to it, so a shipped reader that loses sites opens a gap instead of
+    shrinking a population.
+
+    IT IS ASSERTED PER RECORD AS WELL AS IN THE POOL, because a pooled equality
+    is met by offsetting errors and this repo has already shipped one guard that
+    a population's strongest member satisfied on behalf of its weakest.
+
+    THE LIMIT, STATED. The two readings share the record TABLE and the
+    decompression - ``objects.parse_body`` and ``chunks.decompress_body`` - so a
+    defect in either still moves both sides. What they no longer share is a
+    single line of the tag-list grammar, which is where every refutation of this
+    item has landed.
+    """
+    sweep = _sweep_or_skip()
+
+    assert sweep.independent_sites > 0, (
+        "this module's own reading of the tag grammar finds no struct site anywhere "
+        "in this library, so the denominator below is empty and the equality holds "
+        "against any shipped reader at all - including one that refuses everything"
+    )
+    assert sweep.independent_walkable > 0, (
+        "this module's own reading accepts no record at all, so it pins nothing"
+    )
+
+    assert sweep.sites_seen == sweep.independent_sites, (
+        f"the shipped walk reached {sweep.sites_seen} struct sites where this module's "
+        f"OWN reading of the same records finds {sweep.independent_sites}. The two "
+        "share no tag-list function, so this is a reader losing or inventing sites "
+        "rather than a smaller population - which is exactly the direction every "
+        "count derived from the shipped walk cannot show on its own"
+    )
+
+    assert sweep.site_disagreements == 0, (
+        f"{sweep.site_disagreements} records carry a different struct site count under "
+        "the two readings. The pooled equality above can be met by a reader that loses "
+        "a site in one record and invents one in another; this cannot"
+    )
+
+    assert sweep.refused_but_independent == 0, (
+        f"the shipped walk refused {sweep.refused_but_independent} records that this "
+        "module reads for itself as a closing tag list. Its refusals are then "
+        "shrinking the denominator rather than landing in any residue"
+    )
+    assert sweep.independent_only_refused == 0, (
+        f"this module's own reading refuses {sweep.independent_only_refused} records "
+        "the shipped walk accepts. THE EQUALITY ABOVE NEEDS BOTH DIRECTIONS: a "
+        "conservative second reading that covers only the easy records grades the easy "
+        "records. Before this arm existed the second reading could not follow a single "
+        "STRUCT tag - it did not step the struct guid - so it accepted 87302 records "
+        "carrying no struct site at all and corroborated nothing this item is about"
+    )
+
+
+def test_every_struct_type_word_the_sweep_reached_falls_in_exactly_one_named_class() -> None:
+    """THE DIFFERENCE BETWEEN THE CENSUS AND THE SITE TOTAL, ACCOUNTED FOR.
+
+    ``_census_hits`` counts a fixed nineteen-byte literal and no reader can move
+    it. Over the records the sweep reached it stands far above the site total,
+    and the gap used to be waved at in prose - "nested interiors, container
+    element words, coincidental bytes" - with no count against any of them. AN
+    UNACCOUNTED DIFFERENCE IS SOMEWHERE A SITE CAN GO MISSING TO: a reader that
+    loses sites can always be explained as a population that was smaller than it
+    looked, because nothing says what the rest of the occurrences are.
+
+    SO EVERY OCCURRENCE IS ATTRIBUTED. :func:`_tile_independently` partitions
+    each reached record into tag names, type words, tag headers, values and the
+    tail, descends into any struct value that itself walks as a tag list, and
+    counts the literal in each partition. The classes are disjoint by
+    construction and this asserts they are exhaustive.
+
+    WHAT THIS IS AND IS NOT. The closure is an identity over a tiling - it says
+    the partition covers the span, not that the reader is right. What it BUYS is
+    that the difference now has names and numbers, so the classes a lost site
+    would have to have moved into are counted, and the site total is pinned
+    against the independent reading by the arm above rather than being whatever
+    is left over.
+
+    NO CLASS IS ASSERTED TO ANY PARTICULAR VALUE. Which classes a library
+    exhibits is a property of that library - a tag NAME spelling the struct type
+    word is rare rather than impossible - and a count fitted to today's corpus
+    is the exact defect that reddened this module's previous bound in both
+    directions under legitimate subsets.
+    """
+    sweep = _sweep_or_skip()
+
+    reached = sweep.census_records - sweep.independent_unreached_census
+    classified = (
+        sweep.independent_sites
+        + sweep.census_nested_sites
+        + sweep.census_element_words
+        + sweep.census_container_values
+        + sweep.census_struct_values
+        + sweep.census_other_values
+        + sweep.census_head
+        + sweep.census_names
+        + sweep.census_tails
+    )
+
+    assert reached > 0, (
+        "the records this module's own reading opened carry no struct type word at "
+        "all, so there is nothing here to account for and every class below is empty"
+    )
+    assert classified == reached, (
+        f"{reached} struct type words lie inside records this module's own reading "
+        f"walked, and {classified} of them were attributed to a class. The partition "
+        "does not cover the span, so an occurrence can sit in a region no class names "
+        "- which is where a lost site becomes indistinguishable from a smaller "
+        "population"
+    )
+
+
+def test_the_census_still_exceeds_the_top_level_site_total() -> None:
+    """THE STALENESS HALF OF THE ACCOUNTING, SPLIT OUT SO ITS SKIP IS PRECISE.
+
+    IT USED TO SIT BESIDE THE PARTITION ASSERTION AND COULD NOT BE SKIPPED
+    THERE. The claim is that the census and the top-level site total still
+    DIFFER, so the accounting above has something to account for. A corpus that
+    carries no struct type word outside a top-level tag's type-word offset - no
+    nested interior, no container element word, no coincidental byte - makes the
+    two equal, and that is an absent population rather than a reading that
+    improved. Skipping it where it stood would have taken the partition
+    assertion with it, and the partition is the arm that can actually fail.
+
+    THE INGREDIENT IS COUNTED FROM THE BYTES. The eight classes other than the
+    site total are counted by literal byte match through :func:`_tile_independently`
+    with no reader involved, so "this corpus has no non-top-level occurrence" is
+    a statement about the save and not about anything that could have degraded.
+    """
+    sweep = _sweep_or_skip()
+
+    reached = sweep.census_records - sweep.independent_unreached_census
+    elsewhere = (
+        sweep.census_nested_sites
+        + sweep.census_element_words
+        + sweep.census_container_values
+        + sweep.census_struct_values
+        + sweep.census_other_values
+        + sweep.census_head
+        + sweep.census_names
+        + sweep.census_tails
+    )
+    if elsewhere == 0:
+        pytest.skip(
+            "the saves this run read carry no struct type word anywhere but at a "
+            "TOP-LEVEL tag's type-word offset, so the census and the site total have "
+            "nothing to differ by. That is a corpus with no nested or incidental "
+            "occurrence rather than an accounting that has gone stale"
+        )
+    assert sweep.independent_sites < reached, (
+        f"every one of {reached} struct type words in the reached records stands at a "
+        "TOP-LEVEL tag's type-word offset, while the byte census attributes "
+        f"{elsewhere} of them elsewhere. The two readings of the same bytes disagree "
+        "about where the occurrences are"
+    )
+
+
+def test_the_records_no_reading_opened_are_the_same_under_both_readings() -> None:
+    """``census_unreached`` GRADED - it was asserted against nothing at all.
+
+    IT IS LOAD-BEARING AND IT WAS UNGRADED. Two increments, a constructor
+    argument, a repr field and one skip guard, and not one assertion: the
+    reached census that every arm here divides by is ``census_records`` minus
+    this number, so a reader that starts refusing records raises it, lowers the
+    reached population, and every grade computed over what is left improves. The
+    one number in this module that no reader can move was being reduced by one
+    that any reader can.
+
+    WHAT GRADES IT. This module's own reading of the tag grammar shares no
+    function with the shipped walk, so the records IT cannot open are an
+    independent verdict on the same bytes. The two are asserted equal - both in
+    RECORDS and in the CENSUS those records carry.
+
+    THE UNREACHED POPULATION IS NOT DISJOINT FROM THIS ITEM AND IS NOT CLAIMED
+    TO BE. Those records belong to a save version pair whose payload grammar
+    this project has not measured, and struct type words sit inside them in
+    quantity. They are UNREACHABLE here and they are CS-G05's territory; an
+    arithmetic refusal under the three-pair grammar is the signature of a
+    DIFFERENT grammar rather than evidence of absent struct content.
+    """
+    sweep = _sweep_or_skip()
+
+    unreached_records = sweep.head_unread + sweep.unwalked
+    own_unreached_records = sweep.records - sweep.independent_walkable
+
+    assert unreached_records == own_unreached_records, (
+        f"the shipped walk left {unreached_records} records unopened and this module's "
+        f"own reading left {own_unreached_records}. One of the two is refusing records "
+        "the other can read, and because the reached census is what every arm here "
+        "divides by, the refusing one shrinks the population rather than failing"
+    )
+    assert sweep.census_unreached == sweep.independent_unreached_census, (
+        f"{sweep.census_unreached} struct type words sit inside records the shipped "
+        f"walk never opened, against {sweep.independent_unreached_census} inside the "
+        "records this module's own reading never opened. The two readings disagree "
+        "about which bytes are out of reach, so the reached population - the "
+        "denominator of every equality in this module - rests on one reader's opinion"
+    )
+    assert sweep.census_unreached < sweep.census_records, (
+        "every struct type word in this library sits inside a record no reading can "
+        "open, so the reached population is empty and every arm here is vacuous"
+    )
+
+
+def _subset_faults(censuses: Sequence[_SaveCensus]) -> int:
+    """How many of the site equalities fail over one subset of the library.
+
+    Args:
+        censuses: The per-save counts making up the subset.
+
+    Returns:
+        How many of the four equalities the subset violates - zero when it
+        satisfies all of them.
+    """
+    faults = 0
+    faults += sum(c.sites_seen for c in censuses) != sum(c.independent_sites for c in censuses)
+    faults += sum(c.census_unreached for c in censuses) != sum(
+        c.independent_unreached_census for c in censuses
+    )
+    faults += sum(c.shipped_reached for c in censuses) != sum(
+        c.independent_reached for c in censuses
+    )
+    faults += sum(c.site_disagreements for c in censuses) != 0
+    return faults
+
+
+def _subset_grades(sweep: _StructSweep) -> tuple[int, int, int]:
+    """Grade every legitimate subset of this library, returning COUNTS ONLY.
+
+    The censuses and the subsets built from them never reach the caller's frame,
+    so an assertion over these three numbers cannot render a save-derived value
+    under -l/--showlocals. Binding a scalar BESIDE the aggregate would not
+    achieve that: the aggregate's own local would stay in the frame and render
+    whatever the assertion said. The remedy is to stop binding it in the scope
+    that asserts. See CLAUDE.md non-negotiables 11 and 12, and the guard in
+    tests/test_locals_rendering.py that reported this exact site.
+
+    Args:
+        sweep: The completed sweep, whose per-save censuses this reads.
+
+    Returns:
+        How many non-empty subsets were graded, how many of them faulted, and
+        how many save version pairs the library holds.
+    """
+    censuses = sweep.censuses
+    subsets: list[tuple[_SaveCensus, ...]] = []
+    subsets.extend(tuple(c for j, c in enumerate(censuses) if j != i) for i in range(len(censuses)))
+    subsets.extend((c,) for c in censuses)
+    subsets.extend(
+        tuple(c for c in censuses if c.pair_id == pid)
+        for pid in sorted({c.pair_id for c in censuses})
+    )
+    graded = sum(1 for subset in subsets if subset)
+    faulted = sum(1 for subset in subsets if subset and _subset_faults(subset))
+    pairs = len({c.pair_id for c in censuses})
+    return graded, faulted, pairs
+
+
+def test_the_site_equality_survives_every_legitimate_subset_of_this_library() -> None:
+    """THE TEST THE PREVIOUS BOUND FAILED, RUN AGAINST THE NEW ONE.
+
+    THE BOUND THIS MODULE USED TO CARRY WAS FITTED TO ONE MACHINE'S LIBRARY AT
+    ONE INSTANT, and an adversary reddened it in BOTH DIRECTIONS with no shipped
+    function touched: dropping the saves of one version pair took the figure to
+    two and failed, dropping another pair's took it to zero and failed. Autosave
+    rotation does that on its own and the operator plays the game while a
+    session runs, so that bound was going to redden on its own schedule.
+
+    A PROPERTY SURVIVES A SUBSET; A FITTED NUMBER DOES NOT. The equalities this
+    slice adds are between two readings of the SAME bytes, so they hold over any
+    set of saves whatsoever - and this asserts that over every subset the
+    library's own shape offers: each save dropped in turn, each save alone, and
+    each version pair alone. Nothing here is chosen because it passes.
+
+    IT IS ASSERTED PER SUBSET, NOT OVER THE POOL, for the reason a pooled
+    threshold is met by its strongest member - which is how this repo has
+    already shipped a guard whose weakest member went unmeasured.
+    """
+    graded, faulted, pairs = _subset_grades(_sweep_or_skip())
+
+    assert graded > 0, (
+        "no non-empty subset of this library could be formed, so this arm grades "
+        "nothing about how the equalities behave when the corpus changes"
+    )
+    assert pairs > 0, "the sweep recorded no save version pair, so the grouping is empty"
+    assert faulted == 0, (
+        f"{faulted} of {graded} legitimate subsets of this library violate an equality "
+        "the whole library satisfies. An assertion that holds over the corpus and "
+        "fails over part of it is fitted to the corpus, which is the defect that "
+        "reddened this module's previous bound in both directions on nothing but "
+        "autosave rotation"
+    )
+
+
+@dataclass
+class _EarlyTerminator:
+    """A shipped tag-list degradation applied IN PROCESS and never on disk.
+
+    IT IS THE MUTANT THE THIRD REFUTATION MEASURED, in the class that every arm
+    this module carried was blind to. Claiming a tag NAME is the payload
+    terminator makes the shipped walk CLOSE EARLY: the record is still
+    ACCEPTED, its later tags are never enumerated, and ``objects._walk_payload``
+    behind ``read_properties`` closes at the very same byte because both consume
+    this one verdict. So ``sites_seen`` and ``shipped_tags`` fall together, the
+    cross-check between them stays green, ``head_unread``, ``partial_saves``,
+    ``contested_pairs`` and ``census_unreached`` do not move, and the residue
+    gets SMALLER - the check improving as the reader gets worse.
+
+    IN PROCESS RATHER THAN ON DISK, and that is not a preference. The harness
+    Bash tool's timeout KILLS rather than unwinds, so a ``finally`` that would
+    restore a mutated file never runs and the mutation survives to poison every
+    later measurement in the session.
+
+    Attributes:
+        original: The shipped reader, called for every read.
+        armed: Whether the degradation is currently active.
+        fired: How many reads it actually altered - a COUNT, because a mutant
+            that never applied and one that survived produce identical output.
+    """
+
+    original: Callable[[bytes, int, int], tuple[str, int] | None]
+    armed: bool = False
+    fired: int = 0
+
+    def __call__(self, body: bytes, at: int, end: int) -> tuple[str, int] | None:
+        """Read one string, sometimes claiming it is the payload terminator.
+
+        Args:
+            body: The decompressed body.
+            at: Where the length prefix starts.
+            end: The first byte past this payload.
+
+        Returns:
+            What the shipped reader returned, or a terminator verdict in its
+            place.
+        """
+        read = self.original(body, at, end)
+        if read is None or not self.armed:
+            return read
+        if read[0] == objects._PAYLOAD_TERMINATOR or at % _CONTROL_MODULUS:  # noqa: SLF001
+            return read
+        self.fired += 1
+        return (objects._PAYLOAD_TERMINATOR, read[1])  # noqa: SLF001
+
+
+#: Which string offsets the control degrades. A BOUND ON HOW OFTEN THE MUTANT
+#: FIRES, not a measurement of anything: any modulus exercises the same loss
+#: class, and the arm asserts the firing count rather than assuming it.
+_CONTROL_MODULUS: Final = 16
+
+
+def _shipped_sites_of(body: bytes, record: objects.ObjectRecord, end: int) -> tuple[bool, int]:
+    """The SHIPPED walk's struct site count for one record.
+
+    Args:
+        body: The decompressed body.
+        record: The record to walk.
+        end: The first byte past the record's payload.
+
+    Returns:
+        Whether the shipped walk enumerated the record, and how many of its
+        tags carry the struct type word in their bytes.
+    """
+    start: int | None = record.body_offset
+    if record.kind == objects.KIND_ACTOR:
+        start = objects._skip_actor_head(body, record.body_offset, end)  # noqa: SLF001
+    if start is None:
+        return (False, 0)
+    walked = test_decode_oracles._walk_with_the_shipped_reader(body, start, end)  # noqa: SLF001
+    if walked is None:
+        return (False, 0)
+    at = start
+    found = 0
+    for _name, _word, value_at, size in walked:
+        head = at
+        at = value_at + size
+        name_read = objects._payload_text(body, head, end)  # noqa: SLF001
+        if name_read is not None and body.startswith(_STRUCT_WORD_LITERAL, name_read[1]):
+            found += 1
+    return (True, found)
+
+
+def _independent_sites_of(body: bytes, record: objects.ObjectRecord, end: int) -> tuple[bool, int]:
+    """THIS MODULE'S OWN struct site count for one record.
+
+    Args:
+        body: The decompressed body.
+        record: The record to walk.
+        end: The first byte past the record's payload.
+
+    Returns:
+        Whether this module's own reading enumerated the record, and how many
+        of its tags carry the struct type word in their bytes.
+    """
+    own_start = (
+        _independent_actor_head(body, record.body_offset, end)
+        if record.kind == objects.KIND_ACTOR
+        else record.body_offset
+    )
+    if own_start is None:
+        return (False, 0)
+    tags = _independent_tag_walk(body, own_start, end)
+    if tags is None:
+        return (False, 0)
+    return (True, sum(1 for tag in tags if body.startswith(_STRUCT_WORD_LITERAL, tag[1])))
+
+
+@dataclass
+class _ControlCounts:
+    """What the degradation control observed. COUNTS ONLY.
+
+    Attributes:
+        records: Records measured under both readings.
+        pristine_sites: Struct sites the shipped walk reached undegraded.
+        degraded_sites: The same under the degradation.
+        independent_pristine: Struct sites this module's own reading found
+            while the degradation was disarmed.
+        independent_degraded: The same while it was armed - it must not move,
+            which is the entire claim.
+        pristine_reached: Records the shipped walk enumerated undegraded.
+        degraded_reached: The same under the degradation.
+        still_accepted: Records the shipped walk enumerated BOTH times.
+        lost_in_still_accepted: Sites deleted from records that stayed
+            accepted. THE LOSS CLASS every other arm here is blind to.
+    """
+
+    records: int = 0
+    pristine_sites: int = 0
+    degraded_sites: int = 0
+    independent_pristine: int = 0
+    independent_degraded: int = 0
+    pristine_reached: int = 0
+    degraded_reached: int = 0
+    still_accepted: int = 0
+    lost_in_still_accepted: int = 0
+
+
+def _run_degradation_control(probe: _EarlyTerminator) -> _ControlCounts | None:
+    """Measure every record twice, with the degradation disarmed and armed.
+
+    EACH SAVE IS READ ONCE AND MEASURED TWICE. The operator plays this game
+    while a session runs, so re-reading the library between the two passes
+    would race a real autosave and report the difference as a defect.
+
+    Args:
+        probe: The installed degradation, armed and disarmed around each pass.
+
+    Returns:
+        The counts, or None when no save library is reachable.
+    """
+    saves = test_properties._library_save_paths()  # noqa: SLF001
+    if not saves:
+        return None
+    counts = _ControlCounts()
+    for path in saves:
+        try:
+            data = path.read_bytes()
+            parsed = header.parse_header(data)
+            body = chunks.decompress_body(
+                data, parsed.body_offset, header_version=parsed.header_version
+            ).payload
+            table = objects.parse_body(
+                body, save_version=parsed.save_version, header_version=parsed.header_version
+            )
+        except (Exception, SystemExit):  # noqa: S112 - reporting it IS the leak
+            continue
+        for record in table.records:
+            end = record.body_offset + record.body_length
+            counts.records += 1
+            probe.armed = False
+            pristine_ok, pristine = _shipped_sites_of(body, record, end)
+            _own_ok, own_pristine = _independent_sites_of(body, record, end)
+            probe.armed = True
+            degraded_ok, degraded = _shipped_sites_of(body, record, end)
+            _own_degraded_ok, own_degraded = _independent_sites_of(body, record, end)
+            probe.armed = False
+            counts.pristine_sites += pristine
+            counts.degraded_sites += degraded
+            counts.independent_pristine += own_pristine
+            counts.independent_degraded += own_degraded
+            counts.pristine_reached += pristine_ok
+            counts.degraded_reached += degraded_ok
+            if pristine_ok and degraded_ok:
+                counts.still_accepted += 1
+                counts.lost_in_still_accepted += max(pristine - degraded, 0)
+    return counts
+
+
+def test_degrading_the_shipped_tag_reader_cannot_improve_this_modules_grade(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """THE ANTI-MONOTONE CONTROL - the check must get WORSE when the reader does.
+
+    THE HEADLINE FINDING THAT KEPT CS-829 OPEN was that this module's grade
+    IMPROVED as the shipped reader was degraded, three times, at three different
+    functions, each time after a repair at the previous one. A green run is
+    worth nothing until something asserts that direction, so this asserts it
+    directly rather than arguing it.
+
+    FOUR THINGS ARE ASSERTED, because a mutant that NEVER APPLIED and one that
+    SURVIVED produce identical output: that the patch LANDED, that it FIRED with
+    a count, that the pristine floor was measured BEFORE it was armed, and that
+    the revert LANDED.
+
+    WHAT THE DEGRADATION DOES AND WHY IT IS THE RIGHT ONE. See
+    :class:`_EarlyTerminator`: it leaves records ACCEPTED and deletes tags from
+    inside them, which is the one loss class every shape guard, every cross-check
+    against ``read_properties`` and every census in this module is blind to,
+    because both walks consume the one verdict it moves.
+
+    NO EVIDENCE IS A SKIP AND THAT IS WHY THIS OPENS WITH THE SWEEP GUARD. This
+    arm used to reach the library through :func:`_run_degradation_control`
+    alone, which skips only when there is no library AT ALL - so on a library
+    holding nothing but saves of a version pair this project does not parse it
+    went RED at ``pristine_sites > 0`` while seventeen sibling arms SKIPPED on
+    the identical corpus, for the identical reason, through
+    :func:`_sweep_or_skip`. Measured on this machine: every single save of one
+    of the four version pairs present reddens three arms that bypass that guard
+    and none of the seventeen that use it. Autosave rotation alone reaches that
+    state, so the guard is shared rather than re-derived here.
+
+    THE THREE SKIPS BELOW ARE INGREDIENTS, NOT OUTCOMES. Each names a thing the
+    control needs before its comparison means anything - a record to measure, a
+    site to take away, and a record that stayed accepted while losing one - and
+    none of them is derived from which corpora were observed failing, which
+    would be the fitted-proof defect one level up.
+    """
+    _sweep_or_skip()
+
+    original = objects._payload_text  # noqa: SLF001
+    probe = _EarlyTerminator(original=original)
+    monkeypatch.setattr(objects, "_payload_text", probe)
+    assert objects._payload_text is probe, (  # noqa: SLF001
+        "the degradation was not installed, so everything measured below is the "
+        "pristine reader twice and this control proves nothing"
+    )
+
+    counts = _run_degradation_control(probe)
+
+    # THE REVERT IS ASSERTED BEFORE ANY SKIP CAN LEAVE, and the ordering is the
+    # repair rather than a tidy-up. Every guard below is a skip, and a skip taken
+    # while the module is still patched would leave the fourth of the four
+    # mutation assertions - that the revert LANDED - unrun on exactly the corpora
+    # that take it. The fixture's own teardown would still restore the reader;
+    # what would be lost is the check that says so.
+    monkeypatch.undo()
+    assert objects._payload_text is original, (  # noqa: SLF001
+        "the shipped reader was NOT restored, so every later measurement in this "
+        "process is taken against a degraded module"
+    )
+
+    if counts is None:
+        pytest.skip("no save library on this machine - the control has nothing to degrade")
+    if counts.records == 0:
+        pytest.skip(
+            "no save this run read parses into a record table, so the control "
+            "measured no record at all and a degradation has nothing to cost"
+        )
+
+    assert probe.fired > 0, (
+        "the degradation never altered a single read. A mutant that did not apply and "
+        "one that survived produce the same output, so this run says nothing about "
+        "whether the arms above can see reader loss. THIS STAYS AN ASSERTION rather "
+        "than joining the skips below: its population is the reads taken while the "
+        "patch was armed, and the guard above has already established that records "
+        "were measured, so a zero here is the patch being inert and not an absent "
+        "corpus"
+    )
+
+    if counts.pristine_sites == 0:
+        pytest.skip(
+            "the undegraded reader found no struct site in the records this run read, "
+            "so there is nothing for the degradation to take away and a fall below "
+            "would measure an absent population rather than a loss"
+        )
+    if counts.lost_in_still_accepted == 0:
+        pytest.skip(
+            f"the degradation fired {probe.fired} times and deleted no struct site "
+            "from a record that stayed ACCEPTED, so the one loss class this control "
+            "exists to exercise is absent from the saves this run read. Either every "
+            "degraded record here was refused outright - which other arms catch - or "
+            "this corpus is too small to hold one, and nothing measured in a single "
+            "run separates those two"
+        )
+
+    assert counts.independent_degraded == counts.independent_pristine, (
+        f"this module's own reading found {counts.independent_pristine} struct sites "
+        f"undegraded and {counts.independent_degraded} with the shipped reader "
+        "degraded. IT MUST NOT MOVE: it is the denominator precisely because it takes "
+        "nothing from the shipped module but constants, and if a shipped patch can "
+        "move it then the equality above is two views of one reader again"
+    )
+
+    assert counts.degraded_sites < counts.pristine_sites, (
+        f"the degraded shipped walk reached {counts.degraded_sites} struct sites where "
+        f"the pristine one reached {counts.pristine_sites}. The degradation did not "
+        "cost the shipped reader anything measurable, so this control is not "
+        "exercising the direction it claims to"
+    )
+    assert counts.degraded_sites < counts.independent_degraded, (
+        f"the shipped walk lost sites under degradation and the equality still holds "
+        f"at {counts.degraded_sites} against {counts.independent_degraded}. THE CHECK "
+        "IS STILL ANTI-MONOTONE: the population shrank with the reader instead of the "
+        "grade going red, which is the exact shape that refuted this item three times"
+    )
+
+
 def test_a_record_leaves_the_population_only_with_its_whole_version_pair() -> None:
     """RECORDS THE SWEEP NEVER OPENED, COUNTED IN BYTES AND GRADED.
 
@@ -2072,18 +3133,12 @@ def test_every_size_compatible_struct_site_yields_a_decoded_interior() -> None:
     sweep = _sweep_or_skip()
 
     compatible = sum(sweep.size_compatible.values())
-    excluded = sum(sweep.size_excluded.values())
     decoded = sum(sweep.compatible_decoded.values())
     refused = sum(sweep.compatible_refused.values())
 
     assert compatible > 0, (
         "no site in this corpus has a size a tag list could take, so this equality "
         "ranges over an empty population and would pass on any decoder at all"
-    )
-    assert excluded > 0, (
-        "no site is size-excluded, so nothing here is classified native on arithmetic "
-        "and the whole population rests on the reader - which is the shape this test "
-        "exists to avoid"
     )
     assert decoded > 0, "not one size-compatible site decoded, so the reading is absent"
 
@@ -2121,6 +3176,46 @@ def test_every_size_compatible_struct_site_yields_a_decoded_interior() -> None:
     )
 
 
+def test_the_corpus_still_classifies_a_native_site_by_arithmetic_alone() -> None:
+    """THE ONLY POSITIVE EVIDENCE THIS MODULE HAS, SPLIT OUT SO IT CAN SKIP.
+
+    A SIZE-EXCLUDED SITE IS THE ONE CLASSIFICATION NO READER MADE. Its declared
+    width falls between a bare terminator and one minimal tag plus a terminator,
+    which is a window no tag list can occupy whatever any decoder does - so a
+    word holding one is native on arithmetic rather than on a refusal, and that
+    is what keeps the equality above from resting entirely on the reader.
+
+    THE WINDOW IS NARROW AND A SMALL CORPUS CAN MISS IT ENTIRELY. This used to
+    be asserted beside the equality, where an empty result reddened and took the
+    refusal ceiling, the wordless check and the per-word split down with it. A
+    corpus carrying no site in that window has told this module nothing; it has
+    not degraded. So it skips here, and the equality above keeps running.
+    """
+    sweep = _sweep_or_skip()
+
+    excluded = sum(sweep.size_excluded.values())
+    compatible = sum(sweep.size_compatible.values())
+    if excluded == 0:
+        pytest.skip(
+            f"not one of {compatible} struct sites in the saves this run read declares "
+            "a width inside the size-excluded window, so nothing here is classified "
+            "native on arithmetic. The window is a few bytes wide and a corpus can "
+            "carry no instance of it, which is an absent population rather than a "
+            "classification that has stopped working"
+        )
+    # NO RESTATEMENT OF THE GUARD ABOVE AS AN ASSERTION. ``assert excluded > 0``
+    # here could not fail, and a check that cannot fail is not a check - it is
+    # the defect this module retracted the exact-close comparison for. What
+    # follows is a claim the guard does not imply: that the pooled total and the
+    # per-word classification account for the same sites.
+    proven = len(sweep.words_proven_native_by_size)
+    assert proven > 0, (
+        f"{excluded} sites are size-excluded and not one struct word is credited with "
+        "carrying them, so the per-word classification and the pooled total disagree "
+        "about the same sites"
+    )
+
+
 def test_the_size_compatible_refusals_rest_on_the_reader_alone() -> None:
     """THE NARROWING, RECORDED AS THE ADVERSARY MEASURED IT.
 
@@ -2131,8 +3226,16 @@ def test_the_size_compatible_refusals_rest_on_the_reader_alone() -> None:
     reader refusing them.
 
     THAT IS THE HONEST LIMIT OF THIS SLICE, and it is far narrower than the
-    limit first shipped - which was the whole native class. It is asserted so it
-    has a failure direction: the day the residue empties, this record is stale.
+    limit first shipped - which was the whole native class.
+
+    AN EMPTY RESIDUE IS NOT A STALE RECORD - IT IS NO EVIDENCE, and the two used
+    to be the same line here. "The day the residue empties, this record is
+    stale" is true of the WHOLE library and false of a part of it: measured on
+    this machine, four of the twenty saves carry no size-compatible refusal at
+    all on their own, and one whole version pair carries none either. Autosave
+    rotation produces exactly that, so the old assertion reddened on the
+    operator playing the game. The emptiness now SKIPS and says which of the two
+    readings it cannot distinguish.
 
     NO FIGURE IS WRITTEN HERE. The operator plays this game and the corpus moves
     on the next autosave; the counts are derived on every run.
@@ -2140,11 +3243,14 @@ def test_the_size_compatible_refusals_rest_on_the_reader_alone() -> None:
     sweep = _sweep_or_skip()
 
     refused = sum(sweep.compatible_refused.values())
-    assert refused > 0, (
-        "every size-compatible site now decodes. THIS RECORD IS STALE: nothing in the "
-        "native class rests on the reader's refusal any more, so the residue this "
-        "test exists to record is gone and the narrowing it states should go with it"
-    )
+    if refused == 0:
+        pytest.skip(
+            "every size-compatible site in the saves this run read decodes, so no "
+            "residue formed and there is nothing here resting on the reader's refusal. "
+            "Either the residue is gone from the corpus - which would make this record "
+            "stale - or the saves this run read do not happen to carry one, and a "
+            "single sweep cannot tell those apart"
+        )
 
     # THE MAPPING IS NEVER BOUND TO A LOCAL, and that is a privacy fix on a
     # channel an assertion-expression audit structurally cannot see.
@@ -2157,11 +3263,32 @@ def test_the_size_compatible_refusals_rest_on_the_reader_alone() -> None:
     # the mapping a temporary that no frame renderer reaches.
     unexplained_words = len(sweep.unexplained_refusals)
     unexplained_sites = sum(sweep.unexplained_refusals.values())
+    # THIS ONE STAYS AN ASSERTION AND THE ATTEMPT TO MAKE IT A SKIP IS RECORDED
+    # AS REFUTED. A word lands in the residue for two reasons - a decoder that
+    # stopped reading it, or size-excluded siblings that live in saves this run
+    # did not read - and MEASURED, THE TWO CORPORA ARE STRUCTURALLY IDENTICAL:
+    # reading one version pair of this machine's library alone moves a word that
+    # is overwhelmingly native by arithmetic across the whole library into the
+    # residue, producing exactly the count a refused reading word produces. So
+    # every condition that would skip the one also skips the other. Built and
+    # measured: with the excess converted to a skip, an in-process mutant
+    # refusing the WEAKEST reading word outright at
+    # ``objects._decode_struct_interior`` - the function BOTH readings route
+    # through, so no cross-check separates them - left the whole module at zero
+    # failures. This assertion is the only arm that catches it. Converting it
+    # would trade a red on a legitimate subset for a green on a real defect,
+    # which is the wrong direction of the same disease. The bound remains FITTED
+    # and reddens on some legitimate subsets; de-fitting it needs per-word
+    # evidence independent of which saves are present, which is CS-829's open
+    # problem rather than this arm's.
     assert unexplained_words <= _UNEXPLAINED_WORD_CEILING, (
         f"{unexplained_words} struct words hold a size-compatible refusal AND carry no "
         "size-excluded site at all, so nothing but this module's reader says they are "
         "native. A word refused entirely by a broken decoder lands here, which is what "
-        "makes this bound worth having rather than a formality"
+        "makes this bound worth having rather than a formality. IT ALSO REDDENS ON A "
+        "CORPUS TOO SMALL TO CARRY A WORD'S SIZE-EXCLUDED SIBLINGS, and nothing "
+        "computed in one sweep tells the two apart - read the note on the ceiling "
+        "before treating a red here as a reading failure"
     )
     # AN EQUALITY AGAINST THIS BOUND USED TO STAND HERE AND IS REMOVED. It
     # asserted that the observed figure sat exactly ON the ceiling, so that no
@@ -2211,11 +3338,19 @@ def test_the_interiors_decode_to_fields_the_shipped_asset_declares() -> None:
     """
     sweep = _sweep_or_skip()
 
+    total = sweep.field_hits + sweep.field_misses
+    if total == 0:
+        pytest.skip(
+            "no interior decoded to a single tag name in the saves this run read, so "
+            "there is no name for the shipped usmap to be joined against and both "
+            "counts below range over an empty population"
+        )
     assert sweep.field_hits > 0, (
         "not one decoded interior name is a field the shipped usmap declares for that "
-        "struct, so the second oracle agrees with nothing and this test grades nothing"
+        "struct, so the second oracle agrees with nothing and this test grades nothing. "
+        "THE POPULATION IS NON-EMPTY BY THE GUARD ABOVE, so this is the two sources "
+        "disagreeing rather than an absent corpus"
     )
-    total = sweep.field_hits + sweep.field_misses
     assert sweep.field_misses * _MISS_RESIDUE_FACTOR < total, (
         f"{sweep.field_misses} of {total} decoded interior names are not fields the "
         "shipped usmap declares for their struct. A residue is expected and measured; "
@@ -2275,6 +3410,12 @@ def test_the_native_form_is_reached_from_inside_a_decoded_interior_too() -> None
 
     stepped = sum(sweep.interior_tags.get(word) or 0 for word in sweep.words_decoded_throughout)
     valued = sum(sweep.interior_values.get(word) or 0 for word in sweep.words_decoded_throughout)
+    if stepped == 0:
+        pytest.skip(
+            "no interior tag was stepped over at all in the saves this run read, so "
+            "there is no nested population here and both counts below are zero for the "
+            "absence of one rather than for a gap in a reading"
+        )
     assert valued < stepped, (
         f"every one of {stepped} interior tags now yields a value. THIS RECORD IS "
         "STALE: no interior tag is left carrying a type this module cannot read, so "
@@ -2292,7 +3433,7 @@ def test_the_native_form_is_reached_from_inside_a_decoded_interior_too() -> None
 
 
 @lru_cache(maxsize=1)
-def _uniform_width_struct_words() -> tuple[int, int, int] | None:
+def _uniform_width_struct_words() -> tuple[int, int, int, int] | None:
     """Classify every container the UNIFORM_WIDTH shape bounded, by struct form.
 
     THE UNIFORM_WIDTH SHAPE IS THE UNDISCRIMINATED ONE - CS-843. It divides a
@@ -2308,8 +3449,9 @@ def _uniform_width_struct_words() -> tuple[int, int, int] | None:
 
     Returns:
         How many uniform-width containers were seen, how many named an inner
-        struct word, and how many of those words this module reads at top
-        level. None when no library or no usmap is reachable.
+        struct word, how many of those words this module reads at top level,
+        and how many tags the tag reader and the bytes disagree about. None
+        when no library or no usmap is reachable.
     """
     sweep = _sweep_the_library()
     saves = test_properties._library_save_paths()  # noqa: SLF001
@@ -2319,6 +3461,7 @@ def _uniform_width_struct_words() -> tuple[int, int, int] | None:
     seen = 0
     named = 0
     readable = 0
+    disagreed = 0
     for path in saves:
         try:
             data = path.read_bytes()
@@ -2335,30 +3478,90 @@ def _uniform_width_struct_words() -> tuple[int, int, int] | None:
             # because the frames reach the save's own bytes.
             continue
         for record in table.records:
-            end = record.body_offset + record.body_length
-            start: int | None = record.body_offset
-            if record.kind == objects.KIND_ACTOR:
-                start = objects._skip_actor_head(body, record.body_offset, end)  # noqa: SLF001
-            if start is None:
-                continue
-            walked = test_decode_oracles._walk_with_the_shipped_reader(body, start, end)  # noqa: SLF001
-            if walked is None:
-                continue
-            at = start
-            for _name, word, value_at, size in walked:
-                head = at
-                at = value_at + size
-                if word not in objects.CONTAINER_TYPE_WORDS:
-                    continue
-                step = _uniform_container_at(body, word, head, value_at, size, end)
-                if step is None:
-                    continue
-                seen += 1
-                if step.struct_word is None:
-                    continue
-                named += 1
-                readable += 1 if step.struct_word in sweep.words_decoded_throughout else 0
-    return (seen, named, readable)
+            one = _uniform_containers_of(body, record, sweep)
+            seen += one[0]
+            named += one[1]
+            readable += one[2]
+            disagreed += one[3]
+    return (seen, named, readable, disagreed)
+
+
+def _uniform_containers_of(
+    body: bytes, record: objects.ObjectRecord, sweep: _StructSweep
+) -> tuple[int, int, int, int]:
+    """Classify one record's uniform-width containers by their inner struct form.
+
+    Args:
+        body: The decompressed body.
+        record: The record to walk.
+        sweep: The library sweep, for the set of words read at top level.
+
+    Returns:
+        Uniform-width containers seen, how many named an inner struct word, how
+        many of those words are read at top level, and how many tags the tag
+        reader and the bytes disagree about.
+    """
+    end = record.body_offset + record.body_length
+    start: int | None = record.body_offset
+    if record.kind == objects.KIND_ACTOR:
+        start = objects._skip_actor_head(body, record.body_offset, end)  # noqa: SLF001
+    walked = (
+        None
+        if start is None
+        else test_decode_oracles._walk_with_the_shipped_reader(body, start, end)  # noqa: SLF001
+    )
+    if start is None or walked is None:
+        return (0, 0, 0, 0)
+    seen = named = readable = disagreed = 0
+    at = start
+    for _name, word, value_at, size in walked:
+        head = at
+        at = value_at + size
+        name_read = objects._payload_text(body, head, end)  # noqa: SLF001
+        # THE CONTAINER IS CHOSEN BY ITS BYTES - the third site of the shape
+        # repaired in ``_fold_one_tag``, and the second one that repair did not
+        # sweep. Selecting on the tag reader's reported word deletes a
+        # mislabelled container from this population before anything counts it,
+        # and the arm below asserts a count is ZERO - so every deletion makes it
+        # easier to satisfy.
+        bytes_word = None if name_read is None else _container_word_at(body, name_read[1])
+        if bytes_word is None or name_read is None:
+            continue
+        disagreed += bytes_word != word
+        step = _uniform_container_at(body, bytes_word, head, value_at, size, end)
+        if step is None:
+            continue
+        seen += 1
+        if step.struct_word is None:
+            continue
+        named += 1
+        readable += step.struct_word in sweep.words_decoded_throughout
+    return (seen, named, readable, disagreed)
+
+
+#: The container type words as they stand IN THE BYTES, length prefix and all.
+#: DERIVED from the shipped set through the same fixture encoder the synthetic
+#: cases build their payloads with, so no container word is transcribed here.
+_CONTAINER_WORD_LITERALS: Final[Mapping[bytes, str]] = MappingProxyType(
+    {_fstring(word): word for word in objects.CONTAINER_TYPE_WORDS}
+)
+
+
+def _container_word_at(body: bytes, at: int) -> str | None:
+    """Which container type word the BYTES carry at this offset, if any.
+
+    Args:
+        body: The decompressed body.
+        at: Where a tag's type word begins.
+
+    Returns:
+        The container word, or None when the bytes carry no container word
+        here - which includes every non-container tag.
+    """
+    for literal, word in _CONTAINER_WORD_LITERALS.items():
+        if body.startswith(literal, at):
+            return word
+    return None
 
 
 def _uniform_container_at(
@@ -2407,25 +3610,49 @@ def test_the_tag_list_finding_does_not_reach_the_undiscriminated_partition() -> 
     save. A word this module reads at top level while an array of it falls back
     to a division would be a real contradiction, and this is what would say so.
 
-    A RED HERE IS PROGRESS, IN EITHER DIRECTION. If the readable count rises,
-    the interior grammar has reached the partition and CS-843's first arm is
-    live. If the uniform-width population empties, the undiscriminated shape is
-    gone from this corpus and the record is stale either way.
+    A RED IS PROGRESS AND AN EMPTY POPULATION IS NEITHER. If the readable count
+    rises, the interior grammar has reached the partition and CS-843's first arm
+    is live - that is the assertion at the end. If the uniform-width population
+    is EMPTY, the undiscriminated shape is either gone from the corpus or absent
+    from the saves this run happened to read, and no single sweep separates
+    those: that is a SKIP naming the missing ingredient, not a red. It used to
+    be a red, and it fired on every single save of one of this machine's four
+    version pairs while seventeen sibling arms skipped on the identical corpus
+    through :func:`_sweep_or_skip` - which this now opens with, for the same
+    reason they do.
     """
+    _sweep_or_skip()
+
     counts = _uniform_width_struct_words()
     if counts is None:
         pytest.skip("no save library or no shipped usmap on this machine")
-    seen, named, readable = counts
+    seen, named, readable, disagreed = counts
 
-    assert seen > 0, (
-        "no container in this corpus is bounded by the derived uniform width any "
-        "more. THIS RECORD IS STALE: the undiscriminated shape CS-843 is about is "
-        "not present, so what this test measures the reach of no longer exists"
+    # ASSERTED BEFORE THE INGREDIENT SKIPS, because it is decidable on any
+    # corpus that walks a record at all: it compares two readings of the same
+    # tag and does not need a uniform-width container to exist.
+    assert disagreed == 0, (
+        f"{disagreed} tags were called a container by the tag reader where the bytes at "
+        "the type-word offset carry a different container word, or the other way round. "
+        "The population below is taken from the BYTES for exactly that reason - before "
+        "it was, a mislabelled container left this join silently and the zero asserted "
+        "at the end got easier to satisfy for the loss"
     )
-    assert named > 0, (
-        f"{seen} containers were bounded by the derived width and not one names an "
-        "inner struct word, so this join has nothing to join and grades nothing"
-    )
+
+    if seen == 0:
+        pytest.skip(
+            "no container in the saves this run read is bounded by the derived uniform "
+            "width, so the undiscriminated shape CS-843 is about has no instance here "
+            "and there is nothing for this join to measure the reach of. Either the "
+            "corpus has stopped carrying one, which would make this record stale, or "
+            "this run read too few saves to hold one"
+        )
+    if named == 0:
+        pytest.skip(
+            f"{seen} containers were bounded by the derived width and not one names an "
+            "inner struct word, so this join has nothing to join. That is an absent "
+            "population rather than a disagreement between the two readings"
+        )
     assert readable == 0, (
         f"{readable} of {named} inner struct words are ones this module READS at top "
         "level, while an array of them was still bounded by dividing the region. THE "
@@ -2475,6 +3702,9 @@ class _EndSample:
         late: Candidate ends AFTER the declared one that also closed, within
             the stated overrun.
         seen: Sampling-eligible sites passed over, which drives the stride.
+        name_unread: Sampled sites whose tag NAME would not re-read at the
+            offset the walk reports the tag starting at.
+        word_unread: Sampled sites whose struct word would not read.
     """
 
     sites: int = 0
@@ -2482,10 +3712,23 @@ class _EndSample:
     early: int = 0
     late: int = 0
     seen: int = 0
+    name_unread: int = 0
+    word_unread: int = 0
 
 
 def _sample_one_record(body: bytes, record: objects.ObjectRecord, state: _EndSample) -> None:
     """Sample the struct sites in one record, folding into the running state.
+
+    THE SITE IS CHOSEN BY THE BYTES, NOT BY THE TAG READER'S WORD, and that is
+    a SIBLING OF THE DEFECT REPAIRED IN :func:`_fold_one_tag` rather than a new
+    finding. That repair was applied at one site; this function kept selecting
+    on ``objects._read_tag_header``'s reported type word, so a site the reader
+    mislabelled left this sample silently and the arm measuring how strongly the
+    grammar pins an end graded whatever survived - the same
+    grade-improves-as-the-reader-worsens shape, one function over. The
+    classification here is now the same length-prefixed byte comparison the fold
+    uses, and the two readers this function still needs are COUNTED rather than
+    ending in a bare ``continue``.
 
     Args:
         body: The decompressed body.
@@ -2502,10 +3745,10 @@ def _sample_one_record(body: bytes, record: objects.ObjectRecord, state: _EndSam
     if walked is None:
         return
     at = start
-    for _name, word, value_at, size in walked:
+    for _name, _word, value_at, size in walked:
         head = at
         at = value_at + size
-        if word != objects.STRUCT_TYPE_WORD or size > _END_SAMPLE_MAX_SIZE:
+        if size > _END_SAMPLE_MAX_SIZE:
             continue
         # THE SAMPLE IS DRAWN BY ARITHMETIC, NOT BY THE DECODER. It used to skip
         # every site the decoder refused, which made the population the
@@ -2516,14 +3759,18 @@ def _sample_one_record(body: bytes, record: objects.ObjectRecord, state: _EndSam
         # COUNTED rather than used as a filter.
         if not _size_admits_a_tag_list(size):
             continue
+        name_read = objects._payload_text(body, head, payload_end)  # noqa: SLF001
+        if name_read is None:
+            state.name_unread += 1
+            continue
+        if not body.startswith(_STRUCT_WORD_LITERAL, name_read[1]):
+            continue
         state.seen += 1
         if state.seen % _END_SAMPLE_STRIDE or state.sites >= _END_SAMPLE_SITES:
             continue
-        name_read = objects._payload_text(body, head, payload_end)  # noqa: SLF001
-        if name_read is None:
-            continue
         struct_word = objects._struct_word_of_tag(body, name_read[1], payload_end)  # noqa: SLF001
         if struct_word is None:
+            state.word_unread += 1
             continue
         true_end = value_at + size
         state.sites += 1
@@ -2569,13 +3816,15 @@ def _ends_that_close(body: bytes, struct_word: str, at: int, first: int, stop: i
 
 
 @lru_cache(maxsize=1)
-def _end_freedom_sample() -> tuple[int, int, int, int] | None:
+def _end_freedom_sample() -> tuple[int, int, int, int, int, int] | None:
     """How many ends close at a sampled struct site, besides the declared one.
 
     Returns:
         Sites sampled, how many of them close at their DECLARED end, ends that
-        closed BEFORE it and ends that closed AFTER it. None when no library is
-        reachable.
+        closed BEFORE it, ends that closed AFTER it, and the two reader
+        refusals the sampler now counts rather than skipping - a tag name that
+        would not re-read and a struct word that would not read. None when no
+        library is reachable.
     """
     saves = test_properties._library_save_paths()  # noqa: SLF001
     if not saves:
@@ -2599,7 +3848,14 @@ def _end_freedom_sample() -> tuple[int, int, int, int] | None:
             if state.sites >= _END_SAMPLE_SITES:
                 break
             _sample_one_record(body, record, state)
-    return (state.sites, state.declared, state.early, state.late)
+    return (
+        state.sites,
+        state.declared,
+        state.early,
+        state.late,
+        state.name_unread,
+        state.word_unread,
+    )
 
 
 def test_the_tag_grammar_pins_the_end_and_the_equality_is_not_what_discriminates() -> None:
@@ -2632,22 +3888,50 @@ def test_the_tag_grammar_pins_the_end_and_the_equality_is_not_what_discriminates
     measures real freedom there: a large majority of payload terminators still
     land exactly under a mis-stated tag width. Offsets inside an interior are
     pinned; the grammar's constants are not equally so.
+
+    A SAMPLE THAT EXAMINED NOTHING IS A SKIP. The two counts below are a
+    STRENGTH measurement, and a strength measured over no site is not a weak
+    result - it is no result. This used to assert the sample non-empty, which
+    reddened on every single save of one of this machine's four version pairs
+    while seventeen sibling arms skipped on the identical corpus through
+    :func:`_sweep_or_skip`; that guard is now shared rather than re-derived.
     """
+    _sweep_or_skip()
+
     sample = _end_freedom_sample()
     if sample is None:
         pytest.skip("no save library on this machine - end freedom is not gradeable here")
-    sites, declared, early, late = sample
+    sites, declared, early, late, name_unread, word_unread = sample
 
-    assert sites > 0, (
-        "the sample examined no struct site at all, so it grades nothing. Either the "
-        "corpus carries none narrow enough to sample or the stride skipped every one"
+    # THE SAMPLER'S OWN REFUSALS, COUNTED RATHER THAN SKIPPED. Both used to end
+    # in a bare ``continue``, so a reader failing here deleted the site from the
+    # sample and the arm below graded whatever was left - the sibling of the
+    # defect repaired in the sweep, at the one function the repair did not reach.
+    assert name_unread == 0, (
+        f"{name_unread} sampled struct sites have a tag NAME that will not re-read at "
+        "the offset the walk reports the tag starting at, so this sampler and the walk "
+        "disagree about where a tag begins"
     )
-    assert declared > 0, (
-        f"not one of {sites} sampled sites closes at its DECLARED end. The sample is "
-        "drawn by size arithmetic rather than by the decoder, so a run of native "
-        "structs could land here legitimately - but none of them closing means the two "
-        "counts below are measuring the absence of a reading rather than its strength"
+    assert word_unread == 0, (
+        f"{word_unread} sampled struct sites carry a struct word that will not read, so "
+        "the site left this sample without being measured and the counts below describe "
+        "a smaller and easier sample"
     )
+
+    if sites == 0:
+        pytest.skip(
+            "the sample examined no struct site in the saves this run read, so it "
+            "grades nothing. Either the corpus carries none narrow enough to sample, "
+            "or the stride skipped every one - and both are an absent population "
+            "rather than a grammar that has stopped pinning the end"
+        )
+    if declared == 0:
+        pytest.skip(
+            f"not one of {sites} sampled sites closes at its DECLARED end. The sample "
+            "is drawn by size arithmetic rather than by the decoder, so a run of native "
+            "structs lands here legitimately - and the two counts below would then be "
+            "measuring the absence of a reading rather than its strength"
+        )
     assert early == 0, (
         f"{early} candidate ends BEFORE the declared one close across {sites} sampled "
         "sites. The reader's exact-close comparison is therefore no longer inert, and "
@@ -2730,6 +4014,7 @@ _GRADED_LIBRARY_REACH: Final = MappingProxyType(
         _sweep_the_library.__name__: reach_guard.REACH_READS_THE_LIBRARY,
         _uniform_width_struct_words.__name__: reach_guard.REACH_READS_THE_LIBRARY,
         _end_freedom_sample.__name__: reach_guard.REACH_READS_THE_LIBRARY,
+        _run_degradation_control.__name__: reach_guard.REACH_READS_THE_LIBRARY,
     }
 )
 
