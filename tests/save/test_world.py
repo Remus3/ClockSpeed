@@ -988,7 +988,8 @@ def test_an_absent_property_map_claims_nothing_about_unknown_content(
 
     model = _load_flat(synthetic.unknown_actor_class().blob)
 
-    assert model.objects.unknown_classes == ()
+    unknown_count = len(model.objects.unknown_classes)
+    assert unknown_count == 0, "the fixture actor was classed unknown"
     assert model.contains_unmodeled_content is False
 
 

@@ -446,7 +446,8 @@ def test_default_payload_withholds_the_account_names_and_the_newest_save_filenam
     assert "newest_name" not in payload["save"]
     # Non-vacuity: the keys are absent because they were WITHHELD, not because
     # the probe found nothing to report about.
-    assert payload["save"]["accounts"] == len(machine.account_dirs)
+    account_count = len(machine.account_dirs)
+    assert payload["save"]["accounts"] == account_count
     assert payload["save"]["savs"] == 1
 
 
@@ -968,8 +969,12 @@ def test_probing_writes_nothing_into_the_save_tree_or_the_install(
 
     probe_payload(unredacted=unredacted)
 
-    assert tree_snapshot(machine.save_root) == saves_before
-    assert tree_snapshot(machine.game_dir) == install_before
+    saves_after = tree_snapshot(machine.save_root)
+    install_after = tree_snapshot(machine.game_dir)
+    saves_unchanged = saves_after == saves_before
+    install_unchanged = install_after == install_before
+    assert saves_unchanged, "the probe changed the save tree"
+    assert install_unchanged, "the probe changed the install tree"
 
 
 def test_probe_answers_without_an_install_a_save_root_or_localappdata(

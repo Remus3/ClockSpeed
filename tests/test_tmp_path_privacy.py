@@ -874,9 +874,8 @@ def test_a_line_style_traceback_renders_no_crash_path(
     # the rendered traceback text. --tb=no -ra reads the same crash message.
     for run in (control_tb_line_run, guarded_tb_line_run):
         assert_ran_and_rendered(run, ())
-        assert f"{EXPECTED_FAILURES} failed" in run.output, (
-            f"the {run.label} sandbox did not report {EXPECTED_FAILURES} failures"
-        )
+        failed = f"{EXPECTED_FAILURES} failed" in run.output
+        assert failed, f"the {run.label} sandbox did not report {EXPECTED_FAILURES} failures"
 
     control_region = guarded_region(control_tb_line_run.output)
     markers = (*home_path_spellings(), *account_name_spellings())

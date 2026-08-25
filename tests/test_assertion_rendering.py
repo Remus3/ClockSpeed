@@ -6,15 +6,22 @@ with their own reprs, independently of MESSAGE. The part a reviewer reads is the
 part that does not control what is printed. ``tests/assertion_rendering_guard``
 carries the mechanism in full; this module is what drives it and what proves it.
 
-THE POPULATION IS DERIVED TWICE OVER, and neither derivation is a list. A class
+WHAT IS DERIVED, AND WHAT IS NOT. The POPULATION is derived twice over: a class
 that ships a hand-written ``__repr__`` in order to withhold its contents has
-DECLARED its fields unsafe to render - twenty-six of them do, and every one says
-so in its own docstring. Which fields are withheld is read out of that
-``__repr__``'s body. Which assertions reach one is read out of pytest's own
-rewriting rules. Nothing below names a module, a class or a field, so a
-redacting class added tomorrow is covered the moment it exists. CS-205 records
-why that matters: a hand-listed acceptance in this project went stale between
-being written and being worked, every time.
+DECLARED its fields unsafe to render, which fields are withheld is read out of
+that ``__repr__``'s body, and which assertions reach one is read out of pytest's
+own rewriting rules. No module, class or field is named anywhere, so a redacting
+class added tomorrow is covered the moment it exists. What IS written down is
+vocabulary - which wrappers mask, which types are scalars, which fixtures carry
+this machine - and each of those is a partition with a test on it rather than a
+list of the things being graded. CS-205 records why the distinction matters: a
+hand-listed POPULATION in this project went stale between being written and
+being worked, every time.
+
+AND THE POPULATION IS A PROXY FOR THE ACCEPTANCE'S, NOT THE SAME SET. The
+acceptance names three kinds of DATA. This names a set of DECLARATIONS. Where
+they differ is measured, not guessed - see the boundary paragraph above and the
+pinned probes in the test module.
 
 PROVEN BY WHAT PYTEST ACTUALLY PRINTS. Reading the message text would grade
 exactly the half of the channel that is not the channel, so the proof below
@@ -68,8 +75,12 @@ from typing import Final
 
 import pytest
 
+from tests import assertion_rendering_guard as guard
 from tests.assertion_rendering_guard import (
+    CONTENT_REDUCERS,
+    CONTENT_TRANSPARENT,
     LIBRARY_LOCATORS,
+    REACH_PRIMITIVES,
     Finding,
     describe,
     explained,
@@ -133,30 +144,18 @@ GIT_PY_GLOB: Final = "*.py"
 #: exemption after the code it describes has gone.
 LIVE_DISCLOSURE_RESIDUALS: Final[Mapping[str, str]] = MappingProxyType(
     {
-        "tests/save/test_container_elements.py": (
-            "Seven arms render a field the module's own _ContainerSweep withholds, "
-            "and that sweep is fed by the real save library rather than by a "
-            "synthetic fixture. Not repaired in the change that added this guard: "
-            "the file was owned by another unit of work at the time, and a repair "
-            "applied to a file from two places at once lands on one copy and is "
-            "merged from the other."
-        ),
         "tests/save/test_struct_interior.py": (
-            "The site this item was opened on, and it is still live. A confinement "
-            "arm compares a len() of the frozenset of struct words, and pytest "
-            "reprs the frozenset INSIDE that len() - bypassing the counts-only "
-            "__repr__ the sweep object carries specifically to prevent it. Two "
-            "further arms in the same file were repaired at the site where they "
-            "were found and the module was never swept, which is the "
-            "instance-not-population defect this guard replaces. Same ownership "
-            "reason as the entry above."
-        ),
-        "tests/test_facts_probe.py": (
-            "Three arms render a FakeMachine path field. Every one of those fields "
-            "is built under tmp_path, which on Windows sits inside the operator's "
-            "profile directory, so the rendered value carries a home path and the "
-            "account name. Outside the write-list of the change that added this "
-            "guard."
+            "The site this item was opened on, and it is still live: a "
+            "confinement arm compares a len() of the frozenset of struct words, "
+            "and pytest reprs the frozenset INSIDE that len(), bypassing the "
+            "counts-only __repr__ the sweep carries to prevent exactly that. An "
+            "adversary reproduced it against the real save library on this "
+            "machine. Two further arms in the same file were repaired at the "
+            "site where they were found and the module was never swept, which "
+            "is the instance-not-population defect this guard replaces. Not "
+            "repaired here: the file is owned by another unit of work, and a "
+            "repair applied to a file from two places at once lands on one copy "
+            "and is merged from the other."
         ),
     }
 )
@@ -351,10 +350,16 @@ def test_the_sweep_parses_a_population_that_is_not_empty():
     )
 
 
-def test_the_sweep_enumerates_rather_than_hardcoding_a_module_list():
-    # THE ANTI-STALENESS PROPERTY, ASSERTED ON THE GUARD'S OWN SOURCE. CS-205
-    # records a hand-written instance set that was stale before it was worked.
-    # A path literal in the guard would be that set coming back.
+def test_the_guard_names_no_module_path_of_its_own():
+    # WHAT THIS ENFORCES, STATED EXACTLY, because the name it used to carry
+    # claimed more than it checks. It forbids a MODULE PATH literal - a
+    # single-token string ending in .py - and nothing else. The guard DOES ship
+    # vocabularies: CONTENT_TRANSPARENT, CONTENT_REDUCERS, SCALAR_TYPES,
+    # PASS_THROUGH_TYPES, MACHINE_FIXTURES, LIBRARY_LOCATORS and
+    # REACH_PRIMITIVES. Those are language and platform vocabularies, each
+    # partitioned and each pinned by a test; they are not a list of the things
+    # being graded. The population - modules, classes, fields - is what carries
+    # no list, and this is the half of that claim a machine can check.
     #
     # A LITERAL IS A ONE-TOKEN STRING ENDING IN .py. Prose ending in a module
     # name is a citation, not a population - the first spelling of this test
@@ -517,22 +522,65 @@ def test_the_latent_population_is_visible_rather_than_absent():
 # ---------------------------------------------------------------------------
 
 
-def _representative_arms() -> list[tuple[str, str, str, str]]:
-    """One forced arm per guarded module, derived from the live findings.
+def _covered_modules() -> list[tuple[str, str, str]]:
+    """One (module, class, withheld field) per module this guard COVERS.
+
+    DERIVED FROM THE DECLARATIONS, NEVER FROM THE FINDINGS, and that is the
+    whole of defect 1. Deriving the forced arms from LIVE FINDINGS made this
+    module's proof ANTI-MONOTONE in the property it certifies: three live
+    modules were needed to plant the three sensitive classes, so repairing a
+    leak dropped the count and turned the acceptance RED, and a green run
+    therefore certified that at least three modules still leaked. A tier 1
+    privacy guard whose green state requires the defect to exist punishes the
+    next person who fixes one.
+
+    The declarations do not shrink when a leak is repaired - a class keeps its
+    redacting ``__repr__`` - so this population is stable under exactly the
+    change the guard exists to cause.
 
     Returns:
-        Module, holder class, withheld field and planted token, one tuple per
-        module carrying a live finding. The token cycles through the three
-        classes the acceptance names so every one is exercised.
+        The first withheld field of the first redacting class in each module
+        that ships one, sorted so the arm-to-token assignment is deterministic.
     """
+    declarations, _ = scan_repo()
+    chosen: dict[str, tuple[str, str]] = {}
+    for entry in sorted(declarations, key=lambda entry: (entry.module, entry.lineno)):
+        if entry.withheld:
+            chosen.setdefault(entry.module, (entry.name, sorted(entry.withheld)[0]))
+    return [(module, holder, field) for module, (holder, field) in sorted(chosen.items())]
+
+
+def _representative_arms() -> list[tuple[str, str, str, str]]:
+    """One forced arm per COVERED module, with a sensitive token planted in it.
+
+    Returns:
+        Module, holder class, withheld field and planted token. The token cycles
+        through the three classes the acceptance names so every one is
+        exercised.
+    """
+    return [
+        (module, holder, field, SENSITIVE_TOKENS[index % len(SENSITIVE_TOKENS)])
+        for index, (module, holder, field) in enumerate(_covered_modules())
+    ]
+
+
+def test_the_forced_arms_survive_every_leak_being_repaired():
+    # THE PROOF MUST NOT BE ANTI-MONOTONE IN THE PROPERTY IT CERTIFIES.
+    # Measured on the previous spelling: live=3 green, live=2 red, live=1 red,
+    # live=0 red. Repairing a leak broke the proof that leaks are repaired, and
+    # a sibling slice hardening seven sites that were never leaks would have
+    # done it at the merge rather than hypothetically.
     _, findings = scan_repo()
-    chosen: dict[str, Finding] = {}
-    for finding in sorted(_live(findings), key=lambda f: (f.module, f.lineno)):
-        chosen.setdefault(finding.module, finding)
-    arms = []
-    for index, (module, finding) in enumerate(sorted(chosen.items())):
-        arms.append((module, finding.holder, finding.field, SENSITIVE_TOKENS[index % 3]))
-    return arms
+    leaking = {finding.module for finding in findings if finding.live}
+    covered = {module for module, _, _, _ in _representative_arms()}
+    survivors = sorted(covered - leaking)
+    remaining = len(survivors)
+    assert remaining >= len(SENSITIVE_TOKENS), (
+        f"only {remaining} of {len(covered)} forced arms sit in a module with "
+        f"no live finding, and {len(SENSITIVE_TOKENS)} are needed to plant one "
+        "of each sensitive class. Repairing the remaining leaks would turn this "
+        "module's own acceptance red"
+    )
 
 
 def _arm_source(index: int, holder: str, field: str, token: str, *, remedied: bool) -> str:
@@ -743,4 +791,522 @@ def test_the_runtime_redactor_cannot_reach_a_save_derived_name():
         "the redactor replaced a synthetic save-derived name. If that is now "
         "true, this module's premise has changed and the static guard's "
         "justification must be rewritten rather than left standing"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The mask rule - what a redacting __repr__ actually withholds
+# ---------------------------------------------------------------------------
+
+MASK_RULE_SOURCE: Final = """
+\"\"\"Three renderings: one masked, one transformed, one bare.\"\"\"
+
+MASK_PREFIX = "sha256:"
+
+
+def masked(token):
+    if not token:
+        return MASK_PREFIX
+    digest = sha256(token).hexdigest()
+    return MASK_PREFIX + digest[:8]
+
+
+class Holder:
+    counted: frozenset[str]
+    transformed: dict[str, int]
+    digested: str
+    bare: int
+
+    def __repr__(self) -> str:
+        return (
+            f"Holder(counted={len(self.counted)}, "
+            f"transformed={dict(sorted(self.transformed.items()))}, "
+            f"digested={masked(self.digested)!r}, "
+            f"bare={self.bare})"
+        )
+
+
+def render(holder: Holder) -> None:
+    assert holder.counted == frozenset()
+    assert holder.transformed == {}
+    assert holder.digested == ""
+    assert holder.bare == 0
+"""
+
+
+def test_a_container_transform_in_a_repr_is_disclosure_and_not_a_mask():
+    # THE FALSE-POSITIVE HALF, and it is the one that gets a guard ignored.
+    # `len(x)` and `sum(x)` cannot carry their argument's contents. `dict(
+    # sorted(x.items()))` renders every key and every value, so a class writing
+    # that has DISCLOSED the field and an assertion rendering it discloses
+    # nothing new. Reading any wrapping call as a mask reported seven leaks in
+    # a class whose own docstring reads "COUNTS ONLY. No field here can hold a
+    # path, a name, a word or a value" - and every one of them was wrong.
+    found = scan_source("<mask>", MASK_RULE_SOURCE)
+    flagged = sorted({finding.field for finding in found})
+    assert flagged == ["counted", "digested"], (
+        "expected only the count-masked and the digest-masked fields to be "
+        f"withheld; got {flagged}. A container transform and a bare "
+        "interpolation are both disclosure"
+    )
+
+
+def test_a_digest_helper_is_derived_as_a_mask_rather_than_named():
+    # `masked_token()` in clockspeed/save/header.py is a real mask and is not a
+    # builtin, so a rule that knows only builtins reports the world token as
+    # disclosed and stops grading the one field that matters most. It is
+    # derived: no return in that helper reaches its parameter except through a
+    # hashing primitive, and that is checkable rather than declared.
+    found = scan_source("<mask>", MASK_RULE_SOURCE)
+    digested = [finding for finding in found if finding.field == "digested"]
+    reached = len(digested)
+    assert reached == 1, (
+        f"the digest-masked field yielded {reached} findings, expected 1. A "
+        "helper whose returns never carry its parameter through is a mask"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The evasion shapes - one token each, all inside the declared population
+# ---------------------------------------------------------------------------
+
+EVASION_SOURCE: Final = """
+\"\"\"Six renderings of one withheld field, none of them the plain form.\"\"\"
+
+
+class Sweep:
+    words: frozenset[str]
+    count: int
+
+    def __repr__(self) -> str:
+        return f"Sweep(words={len(self.words)}, count={self.count})"
+
+
+class Model:
+    sweep: Sweep
+    count: int
+
+    def __repr__(self) -> str:
+        return f"Model(count={self.count})"
+
+
+def interpolated(sweep: Sweep) -> None:
+    assert f"{sweep.words}" == ""
+
+
+def walrused(sweep: Sweep) -> None:
+    assert len(words := sweep.words) == 0
+
+
+def chain_assigned(sweep: Sweep) -> None:
+    first = second = sweep.words
+    assert len(first) == 0
+    assert len(second) == 0
+
+
+def tuple_assigned(sweep: Sweep) -> None:
+    words, other = sweep.words, None
+    assert len(words) == 0
+
+
+def looped(one: Sweep, two: Sweep) -> None:
+    for sweep in (one, two):
+        assert len(sweep.words) == 0
+
+
+def chained(model: Model) -> None:
+    assert len(model.sweep.words) == 0
+"""
+
+#: The six evasion shapes, named so a lost one reddens by name.
+EVASION_FUNCTIONS: Final = (
+    "interpolated",
+    "walrused",
+    "chain_assigned",
+    "tuple_assigned",
+    "looped",
+    "chained",
+)
+
+
+def test_the_detector_flags_every_evasion_shape():
+    # MEASURED UNDER REAL PYTEST: all six render the field's own repr into the
+    # failure report past a counts-only message. An adversary found the
+    # detector caught ONE. Four of the five it missed are DIRECT bindings, so
+    # they were never covered by the one-hop limit this module admits to - they
+    # were undisclosed.
+    found = scan_source("<evasion>", EVASION_SOURCE)
+    lines = {finding.lineno for finding in found}
+    caught = len(lines)
+    expected = len(EVASION_FUNCTIONS) + 1
+    assert caught >= expected, (
+        f"the detector reached {caught} of the {expected} rendered sites in "
+        "the evasion probe. Each shape below renders the same frozenset:\n"
+        + "\n".join(f"  {name}" for name in EVASION_FUNCTIONS)
+    )
+    fields = sorted({finding.field for finding in found})
+    strays = [name for name in fields if name != "words"]
+    assert not strays, f"flagged something other than the withheld field: {strays}"
+
+
+# ---------------------------------------------------------------------------
+# Under-declaration must fail loudly, not demote a live leak to latent
+# ---------------------------------------------------------------------------
+
+#: A module that genuinely REACHES - it opens a discovered path - and so owes a
+#: declaration. A module that reaches nothing owes none, and grading its silence
+#: as under-declaration is a different defect wearing the same word.
+UNDECLARED_SOURCE: Final = """
+\"\"\"A module that reads the library and declares nothing about it.\"\"\"
+
+
+class Sweep:
+    words: frozenset[str]
+
+    def __repr__(self) -> str:
+        return f"Sweep(words={len(self.words)})"
+
+
+def _read_the_library() -> Sweep:
+    for path in resolve_save_root().iterdir():
+        open(path, "rb").close()
+    return Sweep()
+
+
+def test_it() -> None:
+    sweep = _read_the_library()
+    assert len(sweep.words) == 0
+"""
+
+MISDECLARED_SOURCE: Final = (
+    UNDECLARED_SOURCE
+    + """
+
+_GRADED_LIBRARY_REACHES = {"_read_the_library": "misspelt binding name"}
+"""
+)
+
+UNREADABLE_SOURCE: Final = (
+    UNDECLARED_SOURCE
+    + """
+
+_GRADED_LIBRARY_REACH = frozenset({"_read_the_library"})
+"""
+)
+
+#: The positive control for the rule above: the same reach, DECLARED readably.
+#: Without it the test is satisfied by grading every module live, and the
+#: partition has quietly stopped existing.
+DECLARED_SOURCE: Final = (
+    UNDECLARED_SOURCE
+    + """
+
+def test_from_a_fixture() -> None:
+    sweep = Sweep()
+    assert len(sweep.words) == 0
+
+
+_GRADED_LIBRARY_REACH = {"_read_the_library": "reads the library"}
+"""
+)
+
+
+def test_a_module_that_declares_no_reach_defaults_to_live():
+    # THE PARTITION RESTS ON A SELF-DECLARATION, so under-declaration must cost
+    # something. Measured on identical source with only the declaration varied,
+    # an absent one, a misspelt binding and a `{**BASE}` merge whose key reads
+    # as None each demoted a live leak to latent - silently, and in the
+    # direction that hides a disclosure.
+    for label, source in (
+        ("absent", UNDECLARED_SOURCE),
+        ("misspelt", MISDECLARED_SOURCE),
+        ("unreadable", UNREADABLE_SOURCE),
+    ):
+        found = scan_source(f"<{label}>", source)
+        live = [finding for finding in found if finding.live]
+        graded_live = len(live)
+        all_live = graded_live == len(found)
+        assert graded_live > 0, f"the {label} probe found nothing, so it grades nothing"
+        assert all_live, (
+            f"the {label} declaration produced {graded_live} live of "
+            f"{len(found)} findings. Latent is a claim, and a module that "
+            "makes no readable claim has not made it"
+        )
+
+
+def test_a_readable_declaration_is_what_earns_the_latent_grade():
+    # The other direction, or the test above is satisfied by grading
+    # everything live and the partition has stopped existing.
+    found = scan_source("<provenance>", PROVENANCE_SOURCE)
+    latent = [finding for finding in found if not finding.live]
+    earned = len(latent)
+    assert earned == 1, (
+        f"a readable declaration earned {earned} latent findings, expected 1. "
+        "With none, the partition is a constant wearing a predicate's name"
+    )
+
+
+# ---------------------------------------------------------------------------
+# THE BOUNDARY, PINNED. These shapes are NOT covered, and that is measured.
+# ---------------------------------------------------------------------------
+
+UNCOVERED_SOURCES: Final = MappingProxyType(
+    {
+        "a frozen dataclass with the DEFAULT repr": """
+from dataclasses import dataclass
+
+@dataclass(frozen=True)
+class Plain:
+    world_name: str
+
+def render(plain: Plain) -> None:
+    assert plain.world_name == ""
+""",
+        "a bare str holding a world name": """
+def render(world_name: str) -> None:
+    assert world_name == ""
+""",
+        "a pathlib Path from tmp_path": """
+from pathlib import Path
+
+def render(tmp_path: Path) -> None:
+    assert tmp_path.exists()
+""",
+        "a plain dict, list or set": """
+def render(names: dict[str, int]) -> None:
+    assert names == {}
+""",
+        "a NamedTuple with no hand-written repr": """
+from typing import NamedTuple
+
+class Machine(NamedTuple):
+    home: str
+
+def render(machine: Machine) -> None:
+    assert machine.home == ""
+""",
+        "a value returned straight from a fixture with no class": """
+import pytest
+
+@pytest.fixture
+def world_name(tmp_path) -> str:
+    return str(tmp_path)
+
+def test_it(world_name) -> None:
+    assert world_name == ""
+""",
+        "fields assigned in __init__ with no class-level annotation": """
+class Holder:
+    def __init__(self, words):
+        self.words = words
+
+    def __repr__(self) -> str:
+        return f"Holder(words={len(self.words)})"
+
+def render(holder: Holder) -> None:
+    assert len(holder.words) == 0
+""",
+    }
+)
+
+
+def test_the_uncovered_shapes_are_pinned_rather_than_silently_absent():
+    # THE POPULATION IS STRUCTURAL AND THE ACCEPTANCE'S IS NOT. The acceptance
+    # names three kinds of DATA; this guard derives a set of DECLARATIONS, and
+    # a value that is personal but whose holder never declared a redacting
+    # __repr__ is invisible here because there is no declaration to bypass.
+    # Every source below carries a save-derived name or a home path and yields
+    # ZERO findings. That is recorded as the guard's boundary rather than left
+    # for the next adversary to discover, and the one shape that CAN be closed
+    # without a type checker - fields assigned in __init__ - is closed, so its
+    # entry here is asserted to have moved rather than left standing.
+    still_uncovered = []
+    for label, source in UNCOVERED_SOURCES.items():
+        if not scan_source(f"<{label}>", source):
+            still_uncovered.append(label)
+    closed = sorted(set(UNCOVERED_SOURCES) - set(still_uncovered))
+    assert closed == ["fields assigned in __init__ with no class-level annotation"], (
+        "the pinned boundary has moved. Shapes now COVERED that this record "
+        f"still calls uncovered: {closed}. Update the record - a boundary "
+        "statement that is no longer true is worse than none"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The vocabularies are partitions, and each is pinned
+# ---------------------------------------------------------------------------
+
+
+def test_the_reach_primitives_match_the_reach_guard():
+    # ONE VOCABULARY, TWO READERS, on the same terms as the locator seeds.
+    # These decide only whether a module OWED a reach declaration, and reading
+    # a shrunken set would call a reaching module silent - the direction that
+    # lets an under-declared module keep a latent grade.
+    agreed = REACH_PRIMITIVES == reach_guard._REACHES_THE_LIBRARY  # noqa: SLF001
+    assert agreed, (
+        "the reach primitives and the reach guard's own set have drifted. A "
+        "name added there and forgotten here shrinks the set of modules this "
+        "guard holds to a declaration"
+    )
+
+
+def test_the_wrapper_vocabularies_do_not_overlap():
+    # A name in BOTH would make the mask verdict depend on which set was
+    # consulted first, which is a coin toss wearing a rule's name.
+    both = sorted(CONTENT_TRANSPARENT & CONTENT_REDUCERS)
+    overlap = len(both)
+    assert overlap == 0, f"these names are classed as both mask and disclosure: {both}"
+
+
+def test_min_and_max_are_not_read_as_masks():
+    # EACH RETURNS AN ELEMENT, so over a set of struct words it prints one of
+    # them. Neither appears in any __repr__ in this tree, so excluding them
+    # changes no verdict today and is the safe answer the day one does.
+    classed = sorted({"min", "max"} & CONTENT_REDUCERS)
+    misclassed = len(classed)
+    assert misclassed == 0, f"an element-returning builtin is classed as a mask: {classed}"
+
+
+SCALAR_FIELD_SOURCE: Final = """
+\"\"\"A withheld field that is a number discloses a number.\"\"\"
+
+
+class Table:
+    consumed: int
+    declared: int
+    ratio: float
+    words: frozenset[str]
+
+    def __repr__(self) -> str:
+        return f"Table(words={len(self.words)})"
+
+
+def render(table: Table) -> None:
+    assert table.consumed == table.declared
+    assert table.ratio == 0.0
+    assert table.words == frozenset()
+"""
+
+
+def test_a_withheld_field_that_is_a_number_is_not_a_finding():
+    # WITHHELD IS NOT THE SAME CLAIM AS DISCLOSING. A __repr__ may leave an int
+    # out for brevity; that does not make an assertion over it a leak. Before
+    # this rule the guard reported `assert table.body_consumed ==
+    # table.declared_body_length` - two integers - as a live disclosure.
+    found = scan_source("<scalar>", SCALAR_FIELD_SOURCE)
+    flagged = sorted({finding.field for finding in found})
+    assert flagged == ["words"], (
+        f"expected only the string-bearing field to be flagged, got {flagged}"
+    )
+
+
+COMPREHENSION_SOURCE: Final = """
+\"\"\"A generator renders a memory address; a comprehension renders its result.\"\"\"
+
+
+class Sweep:
+    words: frozenset[str]
+
+    def __repr__(self) -> str:
+        return f"Sweep(words={len(self.words)})"
+
+
+def opaque(sweep: Sweep) -> None:
+    assert not any(name for name in sweep.words)
+
+
+def transparent(sweep: Sweep) -> None:
+    assert [name.upper() for name in sweep.words] == []
+"""
+
+
+def test_a_generator_is_opaque_and_a_comprehension_is_not():
+    # MEASURED UNDER REAL PYTEST RATHER THAN REASONED ABOUT, because the two
+    # look identical in the source. `any(x for x in sweep.words)` renders
+    # "<generator object ... at 0x...>" and carries nothing; the list
+    # comprehension beside it renders its RESULT, which carries what the field
+    # held. Reading them alike cost three false findings in one file.
+    found = scan_source("<comprehension>", COMPREHENSION_SOURCE)
+    lines = sorted({finding.lineno for finding in found})
+    caught = len(lines)
+    assert caught == 1, (
+        f"expected exactly the comprehension to be flagged, got {caught} "
+        f"findings at lines {lines}. A generator's repr is a memory address"
+    )
+
+
+def test_a_readable_declaration_on_a_reaching_module_earns_latent():
+    # THE POSITIVE CONTROL for the under-declaration rule, and it is the SAME
+    # REACHING MODULE as the three probes above with only the declaration added.
+    # Two arms of identical shape: one holder from the DECLARED reader, which
+    # must stay live, and one built in the process, which the declaration is
+    # what earns latent for. Without this the under-declaration rule is
+    # satisfied by grading every module live, and the partition has quietly
+    # stopped existing.
+    found = scan_source("<declared>", DECLARED_SOURCE)
+    live = sorted(finding.lineno for finding in found if finding.live)
+    latent = sorted(finding.lineno for finding in found if not finding.live)
+    split_one_each = (len(live), len(latent)) == (1, 1)
+    assert split_one_each, (
+        f"the declared reaching module split {len(live)} live and "
+        f"{len(latent)} latent, expected one of each. Declaring correctly has "
+        "to buy something, and it must not buy the declared reader a pass"
+    )
+    assert live[0] < latent[0], (
+        "the live finding is not the one fed by the declared reader, so the partition has inverted"
+    )
+
+
+def test_the_declaration_reader_is_the_reach_guard_own_one():
+    # THE COMPREHENSION SPELLING IS REAL AND IS SHIPPED. A literal-only reader
+    # called a module UNDER-DECLARED whose declaration is a comprehension over a
+    # table of (label, function) pairs, and graded 36 of its assertions live on
+    # the strength of it. reach_guard owns that grammar and is refuted over it;
+    # this asserts the borrowed reader is actually reachable, so the fallback
+    # cannot become the silent normal case.
+    borrowed = guard._borrowed_declaration_reader()  # noqa: SLF001
+    assert borrowed is not None, (
+        "the reach guard's declaration reader did not load, so every module "
+        "whose declaration is not a plain dict literal is being graded "
+        "under-declared. That is louder than wrong, but it is still wrong"
+    )
+
+
+def test_an_imported_mask_is_resolved_across_modules():
+    # A SURVIVING MUTANT IS WHAT CAUGHT THIS, and nothing else would have.
+    # `masked_token` is defined in clockspeed/save/header.py and IMPORTED by
+    # clockspeed/save/world.py, so a reader resolving only a module's own
+    # functions could not see that `f"{masked_token(self.token)!r}"` masks
+    # anything - and graded the world token DISCLOSED. A re-introduced leak over
+    # that exact field then passed the sweep in silence, and a mutation that
+    # survives looks exactly like one that never applied.
+    #
+    # Asserted as a DIFFERENCE rather than by naming the class, so it stays a
+    # derived property: resolving tree-wide must withhold strictly more than
+    # resolving module by module, or the cross-module hop is buying nothing.
+    declarations, _ = scan_repo()
+    tree_wide = sum(len(entry.withheld) for entry in declarations)
+
+    trees = {}
+    for relative in guard.tracked_python_files():
+        source = (REPO_ROOT / relative).read_text(encoding="utf-8", errors="replace")
+        trees[relative] = ast.parse(source)
+    opaque = frozenset(
+        node.name
+        for parsed in trees.values()
+        for node in ast.walk(parsed)
+        if isinstance(node, ast.ClassDef) and guard.repr_method(node) is not None
+    )
+    local_only = sum(
+        len(entry.withheld)
+        for relative, parsed in trees.items()
+        for entry in guard.redacting_classes(relative, parsed, opaque)
+    )
+
+    gained = tree_wide - local_only
+    assert gained > 0, (
+        f"resolving masks tree-wide withheld {tree_wide} fields and resolving "
+        f"module by module withheld {local_only}. With no difference the "
+        "cross-module hop is dead code, and an imported mask is being read as "
+        "disclosure somewhere"
     )
