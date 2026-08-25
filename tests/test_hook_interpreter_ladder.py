@@ -49,6 +49,7 @@ carrying a drive-letter path (CLAUDE.md non-negotiables 3 and 12).
 import ast
 import fnmatch
 import itertools
+import json
 import os
 import re
 import shutil
@@ -1268,8 +1269,103 @@ def test_output_that_merely_contains_the_answer_is_refused(
 SENTINEL: Final = "clockspeed-commit-msg-ran"
 SENTINEL_REFUSAL: Final = "DID NOT RUN"
 
-DASH: Final = shutil.which("dash")
-DEFAULT_SHELL: Final = shutil.which("sh")
+# The two shells this section can reach for, each named ONCE so a resolution
+# and the skip reason that explains its absence cannot drift apart.
+DASH_NAME: Final = "dash"
+DEFAULT_SHELL_NAME: Final = "sh"
+
+DASH: Final = shutil.which(DASH_NAME)
+DEFAULT_SHELL: Final = shutil.which(DEFAULT_SHELL_NAME)
+
+# The phrase every skip in this module opens with, owned here rather than
+# retyped, so an arm added later cannot quietly ship a reason that lets a
+# reader count a skip as a pass (docs/LEDGER.md CS-428).
+NOT_RUN_MARKER: Final = "NOT RUN, NOT PASSED"
+
+# The phrase a shell-dependent skip names its requirement with. The arm at the
+# foot of this module asserts every such reason carries it.
+SHELL_REQUIREMENT: Final = "requires an executable named"
+
+# The phrase an arm names a BUILD requirement with, for the one skip whose
+# requirement is a behaviour of a resolvable executable rather than its presence.
+BUILD_REQUIREMENT: Final = "requires a build of"
+
+# WHAT EVERY SKIP REASON SAYS INSTEAD OF NAMING A COVERING ARM. It asserts
+# nothing this harness cannot check, in either direction - it does not claim the
+# property is covered elsewhere, and it does not claim it is not.
+UNCOVERED: Final = (
+    "This reason makes NO claim about whether anything else covers the property; "
+    "nothing here can check such a claim (CS-839). Read the arm as NOT RUN, never "
+    "as covered."
+)
+
+
+def shell_requirement(executable: str) -> str:
+    """Render the skip reason for an arm that cannot run without ``executable``.
+
+    IT NAMES WHAT IT REQUIRES AND STOPS THERE. The first version closed by
+    saying the property was proven shell-independently by a named arm. That
+    sentence was MEASURED FALSE: a stdout leak planted in a COPY of the
+    commit-msg hook left the cited arm GREEN while the defect was live, because
+    that arm installs a silent stub as the interpreter and so never executes the
+    hook's inline program at all. An honest gap is evidence; a false reassurance
+    is worse than silence, because it makes a false green read as a considered
+    one.
+    """
+    return (
+        f"{NOT_RUN_MARKER}: this arm {SHELL_REQUIREMENT} `{executable}`, resolvable "
+        "through shutil.which on the PATH of the interpreter that imported this "
+        "module. WHICH SHELL INVOKED PYTEST decides whether that resolution "
+        "succeeds, so an absence here is a harness artifact and not a broken "
+        f"machine (CS-839). {UNCOVERED}"
+    )
+
+
+DEFAULT_SHELL_SKIP: Final = shell_requirement(DEFAULT_SHELL_NAME)
+DASH_ABSENT_SKIP: Final = shell_requirement(DASH_NAME)
+
+# A dash that RESOLVED and then would not answer. This is the third verdict
+# class - present but not working - and before it was named the arms below ran
+# against it and failed with text about the machine, which is the exact shape
+# this item was filed against.
+DASH_UNUSABLE_SKIP: Final = (
+    f"{NOT_RUN_MARKER}: this arm {SHELL_REQUIREMENT} `{DASH_NAME}` that can actually "
+    "RUN. The one on this machine RESOLVED and then did not answer the delivery "
+    "probe - it failed to exec, exited non-zero, or could not find the counter the "
+    "probe pipes into - so its behaviour above the heredoc threshold is unmeasured "
+    f"and no branch here can be selected honestly. {UNCOVERED}"
+)
+
+
+def dash_usability_skip() -> str:
+    """Why an arm needing a WORKING dash did not run - absent, or present and mute."""
+    if DASH is None:
+        return DASH_ABSENT_SKIP
+    return DASH_UNUSABLE_SKIP
+
+
+def dash_truncation_skip() -> str:
+    """Why the MSYS2 truncation arm did not run, branch by branch.
+
+    THE REASON IS COMPUTED, NOT WRITTEN ONCE FOR THREE BRANCHES. The single
+    reason this replaced described a DELIVERING dash and rendered
+    ``DASH_DELIVERED`` into itself, so on a machine with no dash at all it
+    reported that this machine's dash delivers an over-threshold heredoc of
+    ``None`` bytes - which names nothing the arm requires and states something
+    about the machine that is not true. MEASURED under PowerShell before the
+    repair; each branch now says only what was actually observed.
+
+    THE THIRD BRANCH NAMES A BUILD, NOT AN EXECUTABLE, and that is the honest
+    wording rather than a dodge: on a machine whose dash resolves and answers,
+    what this arm still lacks is a build that TRUNCATES.
+    """
+    if not DASH_USABLE:
+        return dash_usability_skip()
+    return (
+        f"{NOT_RUN_MARKER}: this arm {BUILD_REQUIREMENT} `{DASH_NAME}` that TRUNCATES an "
+        f"over-threshold heredoc; the one on this machine DELIVERS ({DASH_DELIVERED} "
+        f"bytes), so the MSYS2 truncation cannot be reproduced here. {UNCOVERED}"
+    )
 
 
 def _dash_heredoc_delivery() -> int | None:
@@ -1317,6 +1413,14 @@ def _dash_heredoc_delivery() -> int | None:
 DASH_HEREDOC_THRESHOLD: Final = 4096
 DASH_DELIVERED: Final = _dash_heredoc_delivery()
 DASH_TRUNCATES: Final = DASH_DELIVERED == 0
+
+# PRESENT IS NOT USABLE, and conflating the two was a false-green risk. The
+# probe above returns None when dash cannot exec, exits non-zero, or when the
+# counter it pipes into is missing - so a fully resolvable dash that merely
+# ERRORS made `DASH_TRUNCATES` false and skipped the truncation arm under a
+# reason about delivery, while the other dash arm ran anyway and failed. This
+# is the one predicate that separates the two.
+DASH_USABLE: Final = DASH is not None and DASH_DELIVERED is not None
 
 
 # Delegates -c so the probe still passes, and swallows the program otherwise.
@@ -1467,6 +1571,7 @@ def test_the_capture_is_a_plain_assignment_with_no_status_masking_prefix() -> No
         assert prefix not in raw, f"`{prefix}` masks $? to 0 and reopens CS-819"
 
 
+@pytest.mark.skipif(DEFAULT_SHELL is None, reason=DEFAULT_SHELL_SKIP)
 def test_the_success_path_leaks_no_stdout_and_still_reports_on_stderr(
     tmp_path: Path, isolated: Environment
 ) -> None:
@@ -1477,7 +1582,7 @@ def test_the_success_path_leaks_no_stdout_and_still_reports_on_stderr(
     legitimate message, and the rejection text still arriving on stderr for a bad
     one - the capture must not have swallowed the diagnostics too.
     """
-    assert DEFAULT_SHELL is not None, "no /bin/sh on this machine"
+    assert DEFAULT_SHELL is not None
     code, out, err = run_commit_msg_under(DEFAULT_SHELL, tmp_path, isolated.variables, LEGITIMATE)
     assert code == 0, "a legitimate message was refused"
     assert out == b"", "the hook leaked stdout on the success path"
@@ -1491,6 +1596,7 @@ def test_the_success_path_leaks_no_stdout_and_still_reports_on_stderr(
     assert b"co-authorship trailer" in err, "the rejection did not reach stderr"
 
 
+@pytest.mark.skipif(DEFAULT_SHELL is None, reason=DEFAULT_SHELL_SKIP)
 @pytest.mark.parametrize(
     ("label", "message", "reason"), MESSAGE_CLASSES, ids=lambda value: str(value)[:20]
 )
@@ -1506,7 +1612,7 @@ def test_every_message_class_still_reports_its_own_reason_on_stderr(
     is the observable it was protecting - each class still refused, by its own
     rule, with its reason on stderr and nothing on stdout.
     """
-    assert DEFAULT_SHELL is not None, "no /bin/sh on this machine"
+    assert DEFAULT_SHELL is not None
     code, out, err = run_commit_msg_under(DEFAULT_SHELL, tmp_path, isolated.variables, message)
     assert code != 0, f"{label} was accepted"
     assert out == b"", f"{label} leaked stdout"
@@ -1517,18 +1623,7 @@ def test_every_message_class_still_reports_its_own_reason_on_stderr(
     )
 
 
-@pytest.mark.skipif(
-    DASH is None or not DASH_TRUNCATES,
-    reason=(
-        "NOT RUN, NOT PASSED: this machine's dash DELIVERS an over-threshold "
-        f"heredoc ({DASH_DELIVERED} bytes), so the MSYS2 truncation cannot be "
-        "reproduced here and this arm has nothing to measure. It is NOT a silent "
-        "pass: the DELIVERING case is asserted by "
-        "test_no_violation_class_slips_through_under_dash, which takes its other "
-        "branch, and the property itself is proven shell-independently by "
-        "test_a_silent_interpreter_is_refused_through_real_git."
-    ),
-)
+@pytest.mark.skipif(not DASH_USABLE or not DASH_TRUNCATES, reason=dash_truncation_skip())
 def test_the_msys2_dash_truncation_reproduces_and_is_now_refused(
     tmp_path: Path, isolated: Environment
 ) -> None:
@@ -1567,13 +1662,7 @@ def test_the_msys2_dash_truncation_reproduces_and_is_now_refused(
     assert out == b"", "the hook leaked stdout"
 
 
-@pytest.mark.skipif(
-    DASH is None,
-    reason=(
-        "NOT RUN, NOT PASSED: no dash on this machine. See the arm above; the "
-        "property is proven shell-independently elsewhere in this module."
-    ),
-)
+@pytest.mark.skipif(not DASH_USABLE, reason=dash_usability_skip())
 @pytest.mark.parametrize(
     ("label", "message", "reason"), MESSAGE_CLASSES, ids=lambda value: str(value)[:20]
 )
@@ -2164,3 +2253,426 @@ def test_a_banner_that_is_not_the_last_line_is_refused(
         f"a banner that was NOT the last line was accepted, so the check is a "
         f"search rather than a last-line test:\n{attempt.report}"
     )
+
+
+# --- CS-839: a shell resolved at IMPORT time must SKIP, never assert ---------
+#
+# THE DEFECT, MEASURED ON ONE COMMIT UNDER TWO SHELLS. `DASH` and
+# `DEFAULT_SHELL` above are resolved from the invoking interpreter's PATH at
+# IMPORT time. Git Bash carries both; PowerShell's PATH carries neither. The two
+# `sh` arms used to assert `DEFAULT_SHELL is not None` with the message `no
+# /bin/sh on this machine`, so the SAME TREE was green under one shell and red
+# under the other - and the red named a MISSING SHELL, which reads as a broken
+# machine rather than as a harness artifact. An agent or an operator checking
+# their work from the wrong shell hunts a regression that is not there; the
+# reverse is worse, because a green run then proves less than it appears to.
+#
+# WHY A DECLARED SKIP AND NOT A WIDER PATH. Putting the missing directory on
+# PATH makes the two measurements agree by changing the MACHINE rather than the
+# property, and leaves the next machine to rediscover it. This section already
+# declared a skip criterion for `dash` for exactly that reason - a skip is not a
+# pass (docs/LEDGER.md CS-428) - and the `sh` arms were the two that escaped the
+# discipline the rest of the section already followed.
+#
+# THE HALF THAT IS NOT THE ONE-LINE FIX. Turning two asserts into two skips
+# repairs the INSTANCE. The arm below repairs the POPULATION: it DERIVES, from
+# this module's own syntax tree, every name that depends on a shell resolved at
+# import time - the constants, anything computed from them, and every arm that
+# reads either - re-runs exactly the arms among them in a child interpreter that
+# cannot resolve those shells, and reddens if any one reports a FAILURE instead
+# of a skip, or a skip whose reason does not name what it requires. That
+# derivation is what found the two dash arms as well as the two named in the
+# item: their skip reason interpolated an unresolved value and told a machine
+# with no dash at all that its dash DELIVERS.
+#
+# THE ARM IS SHELL-INDEPENDENT ITSELF, DELIBERATELY. The child gets no narrowed
+# PATH; `shutil.which` is stubbed to refuse the derived names. So it reproduces
+# the PowerShell condition while running under Git Bash, under PowerShell and
+# under CI alike. A guard that only reddened under the shell that happens to
+# have the defect would be the same one-toolchain evidence this item exists to
+# end.
+#
+# WHAT A SKIP REASON MAY NOT SAY, AND THIS WAS MEASURED RATHER THAN REASONED.
+# The first version of these reasons closed by naming an arm that "proves the
+# property shell-independently". An adversary planted a stdout leak in a COPY of
+# the commit-msg hook and measured the cited arm GREEN with the defect live: it
+# installs a silent stub as the interpreter, so the hook's inline program never
+# executes and no defect inside it is observable. The skip did not reduce
+# coverage - before the repair the same arms asserted and died on that shell
+# without detecting it either. The SENTENCE did the damage, by making a false
+# green readable as a considered one. So a reason may name WHAT IT REQUIRES and
+# must stop there, and the arm below refuses any reason that names a test at
+# all. It does NOT check coverage and must not grow into something that tries.
+#
+# THE THIRD VERDICT CLASS, AND ONLY HALF OF IT IS HANDLED - THE OTHER HALF IS
+# RECORDED, NOT FIXED. A shell that RESOLVES BUT DOES NOT WORK is neither of the
+# two cases above: the arm runs and fails with text about the machine, which is
+# the exact shape this item was filed against. For dash it is now handled, and
+# for free, because `_dash_heredoc_delivery` already has to RUN dash to answer -
+# so a dash that resolves and then cannot exec, exits non-zero, or lacks the
+# counter the probe pipes into yields no measurement, `DASH_USABLE` is false,
+# and both dash arms skip naming what they require. Demonstrated with a `dash`
+# on PATH that exits 1. For `sh` it is NOT handled, and that is a JUDGEMENT
+# rather than a measurement: a broken `sh` also breaks every sandbox arm in this
+# module, since real git runs hooks through one, so it is a genuinely broken
+# machine rather than a harness artifact - and probing it would add an
+# import-time subprocess under every shell to cover a case nothing else in this
+# module survives either.
+
+PLUGIN_NAME: Final = "cs839_no_shell"
+HIDDEN_ENV: Final = "CS839_HIDDEN"
+REPORT_ENV: Final = "CS839_REPORT"
+CONTROL_MODULE: Final = "test_cs839_control.py"
+CHILD_TIMEOUT: Final = 300
+WITHHELD_TEXT: Final = "<withheld: the text carried a filesystem path>"
+
+# Ranked so a node id reported across several phases reduces to ONE outcome the
+# way pytest's own summary reduces it: a failure anywhere wins, then a skip.
+OUTCOME_RANK: Final = {"passed": 0, "skipped": 1, "failed": 2}
+
+# Any test a skip reason names. The arm below refuses ALL of them: a citation in
+# a skip reason is a coverage claim, and this harness can check that a name
+# EXISTS but never that the arm it names COVERS anything. One such claim shipped
+# and was measured false, so the fence is on making the claim, not on its spelling.
+CITED_TEST: Final = re.compile(r"\btest_[A-Za-z0-9_]+")
+
+NO_SHELL_PLUGIN: Final = '''"""Hide named executables from shutil.which, and record outcomes.
+
+Loaded with ``-p`` so it is installed BEFORE collection, which is when the
+module under test resolves its shells. Generated by, and meaningful only to,
+tests/test_hook_interpreter_ladder.py.
+"""
+
+import json
+import os
+import shutil
+
+_REAL_WHICH = shutil.which
+_HIDDEN = frozenset(json.loads(os.environ["%(hidden)s"]))
+_REPORT = os.environ["%(report)s"]
+
+
+def _which(cmd, *args, **kwargs):
+    """Refuse the hidden names, and defer to the real resolver for everything else."""
+    if cmd in _HIDDEN:
+        return None
+    return _REAL_WHICH(cmd, *args, **kwargs)
+
+
+shutil.which = _which
+
+
+def pytest_runtest_logreport(report):
+    """Append one JSON record per phase, so the parent reads outcomes not text."""
+    longrepr = report.longrepr
+    if isinstance(longrepr, tuple):
+        reason = str(longrepr[2])
+    elif longrepr is None:
+        reason = ""
+    else:
+        reason = str(longrepr)
+    record = {
+        "nodeid": report.nodeid,
+        "when": report.when,
+        "outcome": report.outcome,
+        "reason": reason,
+    }
+    with open(_REPORT, "a", encoding="ascii", errors="backslashreplace") as handle:
+        print(json.dumps(record), file=handle)
+'''
+
+CONTROL_HEAD: Final = '''"""The CS-839 defect in miniature - this guard's control arm.
+
+Each arm below reproduces the exact pre-repair shape: a shell resolved at IMPORT
+time and a bare assert on it, carrying the message the repaired arms used to
+carry. If the stub did not land, every arm here PASSES and the guard reddens for
+that instead - which is what stops the guard from being satisfied by a child that
+quietly resolved its shells after all.
+"""
+
+import shutil
+'''
+
+CONTROL_ARM: Final = '''
+
+SHELL_%(index)d = shutil.which(%(executable)r)
+
+
+def test_the_control_asserts_on_shell_%(index)d():
+    """Fail exactly the way the arms under test used to fail."""
+    assert SHELL_%(index)d is not None, "no /bin/sh on this machine"
+'''
+
+
+class ChildOutcome(NamedTuple):
+    """One test's reduced outcome in a child run, with any path text withheld."""
+
+    nodeid: str
+    outcome: str
+    reason: str
+
+
+def module_tree() -> ast.Module:
+    """This module's own syntax tree, read as bytes and decoded as ASCII."""
+    return ast.parse(Path(__file__).resolve().read_bytes().decode("ascii"))
+
+
+def module_assignments(tree: ast.Module) -> list[tuple[list[str], ast.expr]]:
+    """Every module-level assignment, as its target names and its value."""
+    found: list[tuple[list[str], ast.expr]] = []
+    for node in tree.body:
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.value:
+            found.append(([node.target.id], node.value))
+        elif isinstance(node, ast.Assign):
+            names = [target.id for target in node.targets if isinstance(target, ast.Name)]
+            if names:
+                found.append((names, node.value))
+    return found
+
+
+def module_string_literals(tree: ast.Module) -> dict[str, str]:
+    """Every module-level name bound to a plain string, for indirect which() arguments."""
+    literals: dict[str, str] = {}
+    for names, value in module_assignments(tree):
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            for name in names:
+                literals[name] = value.value
+    return literals
+
+
+def names_read_in(node: ast.AST) -> set[str]:
+    """Every bare name the sub-tree reads, which is how dependence travels here."""
+    return {item.id for item in ast.walk(node) if isinstance(item, ast.Name)}
+
+
+def which_arguments(node: ast.AST, literals: dict[str, str]) -> set[str]:
+    """The executable names a sub-tree hands to shutil.which, literal or by constant."""
+    found: set[str] = set()
+    for item in ast.walk(node):
+        if not isinstance(item, ast.Call):
+            continue
+        function = item.func
+        if not isinstance(function, ast.Attribute) or function.attr != "which" or not item.args:
+            continue
+        argument = item.args[0]
+        if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
+            found.add(argument.value)
+        elif isinstance(argument, ast.Name) and argument.id in literals:
+            found.add(literals[argument.id])
+    return found
+
+
+def shell_dependence(tree: ast.Module) -> tuple[set[str], set[str]]:
+    """Derive the required executables and every name that depends on one.
+
+    THE POPULATION IS DERIVED, NEVER LISTED. The roots are every module-level
+    name resolved through ``shutil.which`` and every module-level function that
+    calls it. The closure then follows ordinary name reads - through the
+    functions that read a root and the constants computed from those functions -
+    until it stops growing, so a sibling constant resolved the same way and an
+    arm that reads either are both caught with nobody maintaining a list.
+    """
+    literals = module_string_literals(tree)
+    required: set[str] = set()
+    dependent: set[str] = set()
+    for names, value in module_assignments(tree):
+        arguments = which_arguments(value, literals)
+        if arguments:
+            required |= arguments
+            dependent |= set(names)
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef):
+            arguments = which_arguments(node, literals)
+            if arguments:
+                required |= arguments
+                dependent.add(node.name)
+    growing = True
+    while growing:
+        growing = False
+        for node in tree.body:
+            if (
+                isinstance(node, ast.FunctionDef)
+                and node.name not in dependent
+                and names_read_in(node) & dependent
+            ):
+                dependent.add(node.name)
+                growing = True
+        for names, value in module_assignments(tree):
+            if names_read_in(value) & dependent and not set(names) <= dependent:
+                dependent |= set(names)
+                growing = True
+    return required, dependent
+
+
+def withhold(text: str) -> str:
+    """Replace any text carrying a filesystem path, which must never be asserted on."""
+    return WITHHELD_TEXT if DRIVE_PATH.search(text) else text
+
+
+def write_child_plugin(directory: Path) -> None:
+    """Write the stub-and-record plugin the child loads with ``-p``."""
+    source = NO_SHELL_PLUGIN % {"hidden": HIDDEN_ENV, "report": REPORT_ENV}
+    (directory / (PLUGIN_NAME + ".py")).write_bytes(source.encode("ascii"))
+
+
+def write_control_module(directory: Path, executables: tuple[str, ...]) -> None:
+    """Write one control arm per executable the derivation says is required."""
+    body = CONTROL_HEAD
+    for index, executable in enumerate(executables):
+        body += CONTROL_ARM % {"index": index, "executable": executable}
+    (directory / CONTROL_MODULE).write_bytes(body.encode("ascii"))
+
+
+def read_child_outcomes(report: Path) -> tuple[ChildOutcome, ...]:
+    """Reduce the child's per-phase records to one outcome per node id."""
+    if not report.exists():
+        return ()
+    best: dict[str, tuple[int, str, str]] = {}
+    for line in report.read_bytes().decode("ascii", "replace").splitlines():
+        if not line.strip():
+            continue
+        record = json.loads(line)
+        rank = OUTCOME_RANK.get(record["outcome"], max(OUTCOME_RANK.values()))
+        current = best.get(record["nodeid"])
+        if current is None or rank > current[0]:
+            best[record["nodeid"]] = (rank, record["outcome"], withhold(record["reason"]))
+    return tuple(ChildOutcome(nodeid, entry[1], entry[2]) for nodeid, entry in sorted(best.items()))
+
+
+def run_child_pytest(
+    plugin_directory: Path,
+    report: Path,
+    hidden: tuple[str, ...],
+    cwd: Path,
+    *arguments: str,
+) -> tuple[ChildOutcome, ...]:
+    """Run pytest in a child that cannot resolve ``hidden``, and read its outcomes.
+
+    THE CHILD'S PATH IS UNTOUCHED, deliberately. Only ``shutil.which`` is
+    stubbed, so this reproduces the unresolvable-shell condition under ANY
+    invoking shell rather than only under the one that happens to have it.
+    """
+    env = dict(os.environ)
+    for name in ("PYTEST_ADDOPTS", "PYTEST_CURRENT_TEST", "PYTEST_DEBUG_TEMPROOT"):
+        env.pop(name, None)
+    env["PYTHONPATH"] = str(plugin_directory)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env[HIDDEN_ENV] = json.dumps(sorted(hidden))
+    env[REPORT_ENV] = str(report)
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-p",
+            PLUGIN_NAME,
+            "-p",
+            "no:cacheprovider",
+            "--tb=no",
+            "-q",
+            *arguments,
+        ],
+        cwd=str(cwd),
+        capture_output=True,
+        timeout=CHILD_TIMEOUT,
+        check=False,
+        env=env,
+    )
+    return read_child_outcomes(report)
+
+
+def test_no_arm_needing_an_import_time_shell_fails_when_it_cannot_be_resolved(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    """CS-839's second half - the POPULATION, not the two arms that were caught.
+
+    Converting an assert into a skip repairs one instance. This derives EVERY
+    name in this module that depends on a shell resolved at import time, re-runs
+    exactly the arms among them in a child that cannot resolve those shells, and
+    reddens if any one of them reports a FAILURE instead of a skip, or a skip
+    whose reason does not name what it requires.
+
+    THE CONTROL RUNS FIRST AND IS NOT OPTIONAL. A child that quietly resolved
+    its shells after all, or a harness that could not see a failure, would make
+    every assertion below pass while measuring nothing. The control is the
+    pre-repair shape itself, and it must FAIL.
+    """
+    tree = module_tree()
+    required, dependent = shell_dependence(tree)
+    population = {name for name in dependent if name.startswith("test_")}
+
+    assert required, "no module-level shutil.which() resolution was derived - the scan is broken"
+    assert population, "no arm was derived as depending on a shell resolved at import time"
+    assert request.function.__name__ not in population, (
+        "this arm derived ITSELF into the population, which would make the child run recurse"
+    )
+
+    plugin_directory = tmp_path / "plugin"
+    plugin_directory.mkdir()
+    write_child_plugin(plugin_directory)
+    hidden = tuple(sorted(required))
+
+    control_directory = tmp_path / "control"
+    control_directory.mkdir()
+    write_control_module(control_directory, hidden)
+    control = run_child_pytest(
+        plugin_directory, tmp_path / "control.jsonl", hidden, control_directory, CONTROL_MODULE
+    )
+    assert len(control) == len(hidden), (
+        f"the control run reported {len(control)} arms for {len(hidden)} hidden executables, "
+        "so this harness did not run what it believes it ran"
+    )
+    surviving = sorted(item.nodeid for item in control if item.outcome != "failed")
+    assert not surviving, (
+        "the control did NOT fail, so either the child resolved the executables after all or "
+        "this harness cannot see a failure - every assertion below would be vacuous:\n"
+        + "\n".join(surviving)
+    )
+
+    observed = run_child_pytest(
+        plugin_directory,
+        tmp_path / "population.jsonl",
+        hidden,
+        REPO_ROOT,
+        Path(__file__).resolve().relative_to(REPO_ROOT).as_posix(),
+        "-k",
+        " or ".join(sorted(population)),
+    )
+    reached = {item.nodeid.split("::")[-1].split("[")[0] for item in observed}
+    assert reached == population, (
+        "the child did not reach every derived arm, so this proves nothing about the ones it "
+        f"missed: derived {sorted(population)}, reached {sorted(reached)}"
+    )
+
+    failed = sorted(item.nodeid for item in observed if item.outcome == "failed")
+    assert not failed, (
+        "these arms FAILED instead of SKIPPING when the shell could not be resolved. That is "
+        "CS-839 itself: a harness artifact rendered as a broken machine, and it makes this "
+        "suite's verdict depend on which shell invoked it:\n" + "\n".join(failed)
+    )
+    ran = sorted(item.nodeid for item in observed if item.outcome == "passed")
+    assert not ran, (
+        "these arms PASSED with their shells hidden, so they do not depend on one after all "
+        "and the derivation above is over-broad:\n" + "\n".join(ran)
+    )
+
+    for item in observed:
+        assert NOT_RUN_MARKER in item.reason, (
+            f"{item.nodeid} skipped without saying that a skip is not a pass, so a reader "
+            f"counting green cannot tell it never ran:\n{item.reason}"
+        )
+        assert SHELL_REQUIREMENT in item.reason, (
+            f"{item.nodeid} skipped without naming what it requires, which is the whole of "
+            f"CS-839's second route - a skip that says why is evidence:\n{item.reason}"
+        )
+        assert "None" not in item.reason, (
+            f"{item.nodeid} rendered an unresolved value into its own skip reason, so the "
+            f"reason states something about this machine that is not true:\n{item.reason}"
+        )
+        cited = sorted(set(CITED_TEST.findall(item.reason)))
+        assert not cited, (
+            f"{item.nodeid} names another test in its skip reason. A citation there is a "
+            "COVERAGE CLAIM, and nothing in this harness can check that the cited arm covers "
+            "anything - the one such claim that shipped was measured FALSE, and a false "
+            f"reassurance is worse than silence: {cited}"
+        )
