@@ -709,6 +709,47 @@ them turned up ONE SITE MORE than the adversary had named. **The forced arms als
 GENERATED STAND-INS, not shipped code,** so they prove a property of pytest's rewriter rather
 than that any shipped arm is remedied.
 
+## CS-851
+
+### NOTE - filed 2026-08-25 by the merger, from the CS-829 adversary, MEASURED LIVE ON MAIN
+
+**A THIRD ECHO PATH, AFTER THE ASSERTION CHANNEL AND THE SOURCE-ECHO CHANNEL.** CS-850
+closed the first; `_arm_source` recorded the second in passing. This is the third and no
+item owned it. pytest's `--showlocals` renders the failing frame's LOCALS, so a
+save-derived frozenset or mapping bound to a local reaches the failure report even when
+every asserted expression is a scalar - which is exactly the remedy CS-850 asks for.
+
+**MEASURED, NOT REASONED.** Forcing an arm in `tests/save/test_struct_interior.py` against
+the real save library: with `--tb=long` and no `-l`, ZERO save-derived words rendered; with
+`-l`, SIX of twelve rendered, and none of the six appears anywhere in the module's own
+source, so they came from a live repr past the counts-only `__repr__`. Independently
+reproduced on a synthetic sandbox: 0 occurrences by default, 1 under `-l`.
+
+**TWO LIVE SITES WERE CLOSED ON MAIN IN SESSION 39** by removing the BINDING - not by `del`,
+because the name is live until then. **The sweep that found them turned up ONE SITE MORE
+THAN THE ADVERSARY HAD NAMED**, which is the instance-versus-population lesson landing on
+the finding itself. This item is the POPULATION.
+
+**WHY CS-850 CANNOT ABSORB IT.** CS-850's guard reasons about sub-expressions of an ASSERTED
+EXPRESSION. A local that is never asserted on is invisible to it BY CONSTRUCTION - not by a
+bug and not by a one-hop limit. Verified against the shipped guard: the shape
+`unexplained = sweep.words; count = len(unexplained); assert count == 0` yields ZERO
+findings. CS-850's module now STATES this boundary rather than implying coverage; this item
+is the discharge of that statement.
+
+**SEVERITY, STATED HONESTLY RATHER THAN MAXIMALLY.** `addopts` is `-ra --strict-markers
+--strict-config`, so `-l` is NOT on by default. The honest severity is "a routine debugging
+flag leaks a save-derived word", not "every failure leaks". It is tier 1 because
+non-negotiables 11 and 12 forbid the echo regardless of which flag opens it, and because
+`tests/conftest.py`'s redactor covers home paths and the account name only - a struct word
+passes straight through it.
+
+**THE ACCEPTANCE CARRIES SESSION 39's FENCE, DELIBERATELY.** The check must STAY GREEN on a
+tree with no such bindings. Three items were refuted this session for proofs that derived
+their cases from the current tree and therefore went RED once the defect was fixed. See
+`memory/a-proof-can-require-the-defect.md`. Do NOT derive this item's forced arms from the
+findings.
+
 ## CS-842
 
 ### NOTE - filed 2026-08-23 by the merger, from CS-837's adversary
