@@ -1,5 +1,8 @@
 # Roadmap - OPEN work only
 
+**Section status: LIVE.** A dated heading in this file records provenance - when the
+text was filed, moved or measured - and never that the section itself is historical.
+
 One line per item. No narrative. Shape:
 
 ```

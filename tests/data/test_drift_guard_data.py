@@ -796,7 +796,21 @@ _WORK_ITEM_GATED = """# Fake gated file
 Condition: a synthetic external condition. CS-901 is mentioned here and not owned.
 """
 
+# WHY THIS SYNTHETIC LEDGER DECLARES A SECTION STATUS (CS-840). Guard (g)
+# FAILS on a file that carries dated headings and declares nothing, because
+# without the declaration it cannot tell a closure record from a live section
+# marked historical by its own heading. Every record below opens with a date,
+# so this file needs the declaration to reach guard (i) at all.
+#
+# IT IS DECLARED FOR THE REASON IT IS TRUE, not to quiet a guard: this is the
+# synthetic CLOSED owner file, and a file of completion records IS historical.
+# Nothing else about the fixture moves - the path stays synthetic, no work
+# item ID is added, and the declaration is a bold paragraph rather than a
+# heading, so the guard (i) parse this file exists to exercise reads exactly
+# what it read before.
 _WORK_ITEM_CLOSED = """# Fake closure file
+
+**Section status: HISTORICAL.** Every section in this file is a record.
 
 ## Entries
 

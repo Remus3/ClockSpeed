@@ -57,8 +57,11 @@ file that OWNS it.
 - [ ] A `Settled` entry states what was decided AND what specifically not to re-pitch. An
       entry recording only the conclusion invites someone to rebuild the argument. Record
       the fence.
-- [ ] A heading carrying an explicit DATE marks its own section historical. Do not audit it
-      as current and do not update it.
+- [ ] A heading whose DATE LEADS it marks its own section historical: do not audit it as
+      current, do not update it. A date sitting AFTER a provenance verb records only when
+      the text was filed, moved or measured - that section is LIVE content and is audited
+      normally. Do not skip a section merely because its heading carries a date. The file
+      header declares which kind it holds; `CLAUDE.md` section 4 owns the rule.
 - [ ] Dated artifacts live in `docs/_archive/` and are excluded from ripgrep via `.rgignore`
       so they never pollute a search for current truth.
 

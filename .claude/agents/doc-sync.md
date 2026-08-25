@@ -83,8 +83,13 @@ and you do not restate measured numbers.
    `memory/MEMORY.md` under 20 KB (hard), any `memory/*.md` leaf under 6 KB (warn),
    `ROADMAP.md` under 60 KB (warn). When a budget is hit, RELOCATE, DO NOT DELETE: move
    detail to a sub-index or archive and leave a one-line pointer.
-5. A heading carrying an explicit date marks its own section historical. Do not audit a
-   dated section as current, and do not update it.
+5. A heading whose date LEADS it marks its own section historical: do not audit that
+   section as current, and do not update it. A date sitting AFTER a provenance verb
+   records only when the text was filed, moved or measured - that section is ordinary
+   LIVE content and is audited and updated like any other. Do not skip a section merely
+   because its heading carries a date. The file's own header declares which kind it
+   holds; `CLAUDE.md` section 4 owns the rule and `tools/drift_guard.py` guard (g)
+   enforces it.
 6. Never append a per-item completion entry to `CLAUDE.md`. Ledger entries go to
    `docs/LEDGER.md`.
 7. Confirm every memory file is reachable from `memory/MEMORY.md` or an `INDEX_<domain>.md`.

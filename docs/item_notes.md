@@ -1,5 +1,8 @@
 # Clockspeed - live per-item detail
 
+**Section status: LIVE.** A dated heading in this file records provenance - when the
+text was filed, moved or measured - and never that the section itself is historical.
+
 **This file owns the LIVE per-item detail for OPEN work.** One section per item ID.
 A block here is a LIVE INSTRUCTION: read an item's section BEFORE taking that item.
 
@@ -428,7 +431,7 @@ presence of a negative result.
 liveness check to the one control that was measured. Derive the set of shipped controls and
 grade every member, or record an exemption per member with its own reason.
 
-### WIDENED 2026-08-24, same day, on a SECOND measured instance in a DIFFERENT structure
+### WIDENED - recorded 2026-08-24, same day, on a SECOND measured instance in a DIFFERENT structure
 
 Filed against a CONTROL. Hours later the CS-839 builder reported the identical shape in a
 GUARD: gutting its body to a bare `return` leaves the module green, and it declined to build

@@ -90,8 +90,12 @@ A restated fact is a fact that will drift.
   count in a doc is a lie with a timestamp on it. If a doc must display one, generate it.
 - **Dated artifacts go to `docs/_archive/`**, excluded from ripgrep searches via
   `.rgignore` or an explicit glob, so they never pollute a search for current truth.
-- A doc heading carrying an explicit date marks its own section historical. A drift guard
-  should encode that so dated sections are not audited as current.
+- A doc heading whose date LEADS the heading marks its own section historical; a date
+  after a provenance verb - filed, relocated, measured, session N - records only when the
+  text was filed and marks status not at all. A file carrying dated headings declares its
+  own status in its header, so the declaration cannot drift from its subject the way a
+  list held in code does. A drift guard should FAIL on a status date inside a file that
+  declares itself live.
 
 ### 2.1 File-size budgets (context management)
 

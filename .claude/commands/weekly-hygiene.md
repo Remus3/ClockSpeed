@@ -23,8 +23,11 @@ here is allowed to close a work item - hygiene never drains a backlog.
       one-line pointer.
 - [ ] Move any dated artifact to `docs/_archive/` and confirm `.rgignore` excludes it so it
       never pollutes a search for current truth.
-- [ ] A heading carrying an explicit DATE marks its own section historical - leave it alone,
-      do not update it, do not audit it as current.
+- [ ] A heading whose DATE LEADS it marks its own section historical - leave it alone, do
+      not update it, do not audit it as current. A date sitting AFTER a provenance verb
+      records only when the text was filed, moved or measured - that section is LIVE
+      content, so do NOT skip it. The file header declares which kind it holds;
+      `CLAUDE.md` section 4 owns the rule.
 
 ## 2. Scan memory for staleness
 

@@ -17,9 +17,11 @@ Guards, in the order they are reported:
                          port, and no allocation conflicts with another.
   f  frozen files        read out of CLAUDE.md and reported so the operator can
                          see what is protected. Never fails.
-  g  dated sections      a doc heading carrying an explicit date marks its own
-                         section historical. Detected and reported so those
-                         sections are not audited as current. Never fails.
+  g  dated sections      every dated heading classifies as a STATUS date - the
+                         date leads the heading, so the section is historical -
+                         or as a PROVENANCE date, which records when the text
+                         was filed and marks the status not at all. A dated
+                         heading fitting NEITHER idiom is drift.
   h  version pin         clockspeed/data/version.py is internally consistent -
                          its integrity checksum matches its own fields - and,
                          where an install is resolvable, matches the live docs
@@ -152,13 +154,38 @@ FIRST_PRINTABLE = 0x20
 ALLOWED_CONTROL = frozenset({0x09, 0x0A, 0x0D})
 MAX_HITS_PER_FILE = 3
 
+# WHY THESE USE A DIGIT LOOKAROUND AND NOT ``\b`` (CS-840). An underscore is a
+# word character, so ``\b`` finds NO boundary in ``_2026-08-23_`` and the date
+# was invisible to this guard - a leading status date could be smuggled past it
+# by italicising the date. The real hazard a boundary guards against is
+# splitting a longer run of digits, so the lookaround tests for a DIGIT and
+# nothing else. Markdown emphasis, brackets and backticks now fall outside the
+# token instead of hiding it.
+#
+# WHY THE MONTH-NAME PATTERN REQUIRES THE YEAR TO BE THE MONTH'S OWN (CS-840).
+# The gap here was ``[^\n]{0,12}``, which let any twelve characters sit between
+# a month name and a year: "This May need 2031 rework" was read as a date and
+# reddened a heading carrying none. A year now has to follow the month
+# directly, or follow a day number that follows the month.
+# WHY THE NUMERIC SHAPES ARE WIDER THAN THIS PROJECT'S HOUSE STYLE (CS-840).
+# The guard used to see only a zero-padded four-digit-year ISO date and a
+# day-first slash date. Three ordinary shapes were therefore INVISIBLE, and an
+# invisible date is not "dated" at all - no arm of this guard can fire on it,
+# whatever it says. ``2031/02/03`` (year-first slash), ``2031-2-3``
+# (unpadded) and ``31-02-03`` (two-digit year) are all read now. Every
+# addition carries the same digit lookaround, so none of them can match inside
+# a longer run of digits - a two-digit-year shape cannot bite the tail off a
+# four-digit-year one.
 DATE_PATTERNS = (
-    re.compile(r"\b\d{4}-\d{2}-\d{2}\b"),
-    re.compile(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b"),
+    re.compile(r"(?<!\d)\d{4}-\d{1,2}-\d{1,2}(?!\d)"),
+    re.compile(r"(?<!\d)\d{2}-\d{2}-\d{2}(?!\d)"),
+    re.compile(r"(?<!\d)\d{4}/\d{1,2}/\d{1,2}(?!\d)"),
+    re.compile(r"(?<!\d)\d{1,2}/\d{1,2}/\d{2,4}(?!\d)"),
     re.compile(
         r"\b(?:January|February|March|April|May|June|July|August|September"
         r"|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept"
-        r"|Oct|Nov|Dec)\b[^\n]{0,12}\b\d{4}\b"
+        r"|Oct|Nov|Dec)\b[ \t]*,?[ \t]*(?:\d{1,2}(?:st|nd|rd|th)?[ \t]*,?[ \t]*)?"
+        r"\d{4}(?!\d)"
     ),
 )
 
@@ -828,12 +855,396 @@ def guard_frozen(root: Path) -> tuple[Guard, list[Skip]]:
 
 
 # --- guard g: dated sections ------------------------------------------------
+#
+# CS-840. A dated heading used to mean exactly one thing - "this section is
+# historical" - and the arm that found them REPORTED the population instead of
+# failing on it. That is how CLAUDE.md's dated-heading rule and
+# docs/item_notes.md's live-instruction header contradicted each other for as
+# long as they did: a guard that reports cannot lose, so the contradiction had
+# no cost until somebody acted on the wrong half of it.
+#
+# THE OPERATOR RULED THAT SHAPE DECIDES what a date MEANS:
+#
+#   STATUS      the date is in the LEADING position - the heading opens with
+#               it - or it follows a verb declaring the subject reached a
+#               terminal state. The section IS historical.
+#   PROVENANCE  the date follows a filing or measurement verb, or a numbered
+#               session. It records WHEN the text was filed, moved or
+#               measured. It marks the section's status NOT AT ALL.
+#
+# THE VOCABULARY IS CLOSED. A dated heading matching neither family is DRIFT.
+# Silently absorbing a new idiom is what the old arm did; making its author say
+# which family it belongs to is the repair.
+#
+# CLASSIFYING WAS NOT ENOUGH, AND THIS IS THE DEFECT AN ADVERSARY FOUND. The
+# first build failed only when classification returned None, so a STATUS
+# classification was a PASS outcome - and nine plants of a leading status date
+# into live files all left this guard at exit 0. The guard could not redden for
+# the one thing CS-840 exists to catch: a LIVE section marked historical by its
+# own heading.
+#
+# SO A FILE DECLARES ITS OWN STATUS AND THIS GUARD READS THE DECLARATION. That
+# is NOT the per-file list the operator rejected. A list lives in code, is
+# hand-maintained, and rots the moment a file is renamed, split or archived -
+# the list and the file drift apart because nothing binds them. A DECLARATION
+# lives inside the file it describes: it is moved by the same edit that moves
+# the file, deleted by the same edit that deletes it, and read by the same
+# person who reads the header. It cannot drift from its subject because it has
+# no separate existence. Most of these files already said this in prose; the
+# declaration only makes the sentence machine-readable.
+#
+#   A STATUS DATE INSIDE A FILE THAT DECLARES ITSELF LIVE IS DRIFT.
+#
+# A FILE WITH DATED HEADINGS AND NO DECLARATION IS DRIFT TOO, and the first
+# build of this repair got that wrong. It recorded a skip and passed, on the
+# reasoning that the live arm had nothing to grade. But CS-840 was filed
+# BECAUSE this guard reported its population instead of failing on it, and its
+# item note says in terms that a guard which reports cannot lose. Shipping a
+# fresh skip-instead-of-fail inside the repair reproduced the defect one level
+# along, in the fix for it. An undeclared file is the case where this guard
+# cannot tell a record from a live section marked historical - which is the
+# most important case to fail on, not the one to excuse.
+
+
+STATUS_DATE = "status"
+PROVENANCE_DATE = "provenance"
+
+LIVE = "LIVE"
+HISTORICAL = "HISTORICAL"
+
+# The declaration, as it appears in the header of a file that carries dated
+# headings. Read only from the header - the region before the first level-2
+# heading - so a quotation of the sentence further down the file cannot be
+# mistaken for the file's own declaration.
+STATUS_DECLARATION = re.compile(r"^\*\*Section status:[ \t]*(LIVE|HISTORICAL)\b", re.MULTILINE)
+
+# A heading of ANY level, and the no-space form too. CommonMark does not call
+# "##S" a heading, but ending the header early is the conservative direction -
+# it shrinks the region a declaration may hide in rather than widening it.
+_ATX_HEADING = re.compile(r"^[ \t]{0,3}#{1,6}")
+_SETEXT_UNDERLINE = re.compile(r"^[ \t]{0,3}(?:=+|-+)[ \t]*$")
+_FENCE_OPEN = re.compile(r"^[ \t]{0,3}(```|~~~)")
+_HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+
+_HEADING_MARK = re.compile(r"^#+[ \t]*")
+
+# Markdown emphasis and brackets wrapped around a leading date. The operator's
+# ruling is about POSITION, and "**2026-08-23** - CS-901" opens with its date
+# exactly as "2026-08-23 - CS-901" does. Stripping the decoration is what makes
+# the code honour the ruling it claims to implement.
+_LEADING_DECORATION = re.compile(r"^[\s*_`~\"'([{<]+")
+
+# Filing, relocation and measurement verbs, plus the numbered-session ordinal.
+# A date after one of these says when the text arrived or when the reading was
+# taken - never what the section's status is now.
+PROVENANCE_IDIOMS = (
+    re.compile(r"\brelocated\b", re.IGNORECASE),
+    re.compile(r"\bmoved\b", re.IGNORECASE),
+    re.compile(r"\bfiled\b", re.IGNORECASE),
+    re.compile(r"\barchived\b", re.IGNORECASE),
+    re.compile(r"\brecorded\b", re.IGNORECASE),
+    re.compile(r"\bmeasured\b", re.IGNORECASE),
+    re.compile(r"\bprobed\b", re.IGNORECASE),
+    re.compile(r"\bobserved\b", re.IGNORECASE),
+    re.compile(r"\boperator[ \t]+(?:decision|ruling)\b", re.IGNORECASE),
+    re.compile(r"\bsession[ \t]+\d+\b", re.IGNORECASE),
+)
+
+# Terminal-state verbs. A date after one of these dates the state change, so
+# the section it heads is historical for the same reason a leading date is.
+STATUS_IDIOMS = (
+    re.compile(r"\bclosed\b", re.IGNORECASE),
+    re.compile(r"\bsuperseded\b", re.IGNORECASE),
+    re.compile(r"\bretired\b", re.IGNORECASE),
+    re.compile(r"\bwithdrawn\b", re.IGNORECASE),
+)
+
+DATE_IDIOMS = PROVENANCE_IDIOMS + STATUS_IDIOMS
+
+# THE DATE HAS TO BE THE VERB'S OWN OBJECT (CS-840). Matching a verb anywhere
+# before the date let "closed" the ADJECTIVE claim a date it had nothing to do
+# with - "The closed vocabulary and its fence - reviewed 2031-02-03" read as a
+# status date, which is this project's own idiom for a bounded set. So the gap
+# between the verb and the date may hold only connective words and the name of
+# a file being moved. Any other prose in the gap means the verb is not
+# governing the date, the heading classifies as NEITHER, and its author is
+# asked which family it belongs to.
+_GAP_CONNECTIVES = frozenset(
+    {"from", "to", "on", "in", "into", "out", "of", "by", "at", "as", "via", "continued", "and"}
+)
+_PATH_TOKEN = re.compile(r"`[^`]*`|\b[\w-]+\.[A-Za-z]{2,4}\b|\b[\w.-]+/[\w./-]+\b")
+_GAP_WORD = re.compile(r"[A-Za-z][A-Za-z'-]*")
+
+
+def _date_position(text: str) -> int | None:
+    """Return where the EARLIEST date in ``text`` starts, or None if there is none.
+
+    Args:
+        text: One line.
+
+    Returns:
+        The start offset of the first date, or None.
+    """
+    starts = []
+    for pattern in DATE_PATTERNS:
+        match = pattern.search(text)
+        if match is not None:
+            starts.append(match.start())
+    return min(starts) if starts else None
+
+
+def dated_headings(text: str) -> list[tuple[int, str]]:
+    """Return (line number, heading) for every heading in ``text`` carrying a date.
+
+    The one implementation of "this heading is dated". Guard (g) grades what
+    this yields and the suite derives its population from it, so a second scan
+    written somewhere else cannot disagree with the one being graded.
+
+    Args:
+        text: A whole markdown document.
+
+    Returns:
+        One row per dated heading, in file order.
+    """
+    return [
+        (number, line.rstrip())
+        for number, line in enumerate(text.splitlines(), start=1)
+        if line.startswith("#") and _date_position(line) is not None
+    ]
+
+
+def heading_lead_in(heading: str) -> str | None:
+    """Return the text a heading places BEFORE its date, stripped of decoration.
+
+    THE ONLY REGION THE CLASSIFIER EVER CONSULTS, exposed so that a control
+    grading the vocabulary reads the same region rather than the whole heading.
+    A verb appearing only in a heading's TAIL - after the date - can never
+    affect classification, so a control that searched whole headings would
+    report a spare entry as dead weight.
+
+    Args:
+        heading: One heading line, with or without its leading hash marks.
+
+    Returns:
+        The lead-in, empty when the date is in the leading position, or None
+        when the heading carries no date at all.
+    """
+    body = _LEADING_DECORATION.sub("", _HEADING_MARK.sub("", heading)).strip()
+    at = _date_position(body)
+    if at is None:
+        return None
+    return body[:at]
+
+
+def _governs_the_date(gap: str) -> bool:
+    """Is a verb ending ``gap`` chars before a date actually governing that date?
+
+    The gap may hold connectives, the name of a file being moved, and OTHER
+    VOCABULARY VERBS - nothing else. Admitting other verbs is what lets a
+    terminal verb keep hold of a date that a filing verb also sits beside:
+    in "Superseded - filed 2031-02-03" the gap after "Superseded" is a
+    connective and a filing verb, so "Superseded" still governs. Ordinary
+    prose in the gap still disqualifies, which is what stops "closed" the
+    ADJECTIVE claiming a date from the far end of a sentence.
+
+    Args:
+        gap: The text between the end of the verb and the start of the date.
+
+    Returns:
+        True when the gap holds only connectives, file names and other verbs.
+    """
+    remainder = _PATH_TOKEN.sub(" ", gap)
+    return all(
+        word.lower() in _GAP_CONNECTIVES or _is_vocabulary_word(word)
+        for word in _GAP_WORD.findall(remainder)
+    )
+
+
+def _is_vocabulary_word(word: str) -> bool:
+    """Is ``word`` one of the idioms this guard already knows?
+
+    Args:
+        word: A single word from a gap.
+
+    Returns:
+        True when some idiom matches the word exactly.
+    """
+    return any(
+        match is not None and match.group(0) == word
+        for pattern in DATE_IDIOMS
+        for match in [pattern.search(word)]
+    )
+
+
+def classify_dated_heading(heading: str) -> str | None:
+    """Classify a heading's date by SHAPE as a status date or a provenance date.
+
+    A verb qualifies only if it GOVERNS the date - see ``_governs_the_date``.
+
+    A GOVERNING TERMINAL VERB BEATS A FILING VERB WHEREVER IT SITS, and
+    nearest-wins only breaks ties WITHIN a class. Letting proximity decide
+    across the classes was a compliance failure against the ruling this
+    function implements - the ruling says a terminal-state verb before the
+    date IS a status date, and nearest-wins silently dropped it whenever a
+    filing verb sat closer. "Superseded - filed 2031-02-03" read as
+    provenance, which meant the guard's own error message - telling an author
+    to put the date after a provenance verb - doubled as a recipe for
+    laundering a historical section into a live file.
+
+    Args:
+        heading: One heading line, with or without its leading hash marks.
+
+    Returns:
+        ``STATUS_DATE``, ``PROVENANCE_DATE``, or None. None covers two cases
+        that only the caller can tell apart: a heading carrying no date at
+        all, and a dated heading whose idiom the closed vocabulary does not
+        cover. Guard (g) knows the heading was dated, so guard (g) is what
+        turns the second case into drift.
+    """
+    lead = heading_lead_in(heading)
+    if lead is None:
+        return None
+    if not lead:
+        return STATUS_DATE
+
+    # STATUS first: the first class with any governing verb decides, so a
+    # terminal verb anywhere before the date outranks every filing verb.
+    for family, patterns in ((STATUS_DATE, STATUS_IDIOMS), (PROVENANCE_DATE, PROVENANCE_IDIOMS)):
+        nearest: int | None = None
+        for pattern in patterns:
+            for match in pattern.finditer(lead):
+                if not _governs_the_date(lead[match.end() :]):
+                    continue
+                if nearest is None or match.end() > nearest:
+                    nearest = match.end()
+        if nearest is not None:
+            return family
+    return None
+
+
+def _strip_unrendered(lines: list[str]) -> list[str]:
+    """Blank out every line a reader of the RENDERED document cannot see.
+
+    THE DECLARATION MUST SAY WHAT THE READER SEES (CS-840). Reading raw text
+    meant a file could be forged from inside itself: three invisible lines at
+    the top -
+
+        <!--
+        **Section status: HISTORICAL.**
+        -->
+
+    - and the guard read HISTORICAL while every human reading the file saw
+    LIVE. A fenced code block did the same. Both are removed before the
+    declaration is looked for, so a declaration nobody can see is not a
+    declaration.
+
+    An UNTERMINATED fence or comment blanks everything after it rather than
+    being ignored: text the renderer will swallow is text the reader cannot
+    see, and guessing the author meant otherwise is how the forge got in.
+
+    Args:
+        lines: The header lines, in order.
+
+    Returns:
+        The same number of lines, with unrendered ones replaced by blanks.
+    """
+    out: list[str] = []
+    fence: str | None = None
+    in_comment = False
+    for line in lines:
+        if fence is not None:
+            out.append("")
+            if line.strip().startswith(fence):
+                fence = None
+            continue
+        if in_comment:
+            out.append("")
+            if "-->" in line:
+                in_comment = False
+            continue
+        opener = _FENCE_OPEN.match(line)
+        if opener:
+            fence = opener.group(1)
+            out.append("")
+            continue
+        without_comments = _HTML_COMMENT.sub(" ", line)
+        if "<!--" in without_comments:
+            in_comment = True
+            out.append("")
+            continue
+        # A DECLARATION IS A PARAGRAPH, NEVER A TABLE CELL. A pipe table with
+        # no leading pipe puts its first cell at the start of the line, which
+        # is a third way to write a declaration the rendered document shows
+        # only as one cell of a table. No real declaration contains a pipe.
+        out.append("" if "|" in without_comments else without_comments)
+    return out
+
+
+def _header_lines(text: str) -> list[str]:
+    """Return the document header - everything before its SECOND heading.
+
+    A HEADING OF ANY LEVEL AND ANY STYLE ENDS THE HEADER (CS-840). Ending it
+    only at ``## `` meant a level-three heading, a setext heading, or a line
+    like ``##S`` could sit above a declaration and the declaration was still
+    read as the file's own - so a SECTION could declare on the file's behalf
+    simply by being level three.
+
+    The first heading is allowed through because it is the document title;
+    every file in this repository opens with one and the declaration sits
+    directly beneath it. The second heading ends the header, whatever it is.
+
+    Args:
+        text: A whole markdown document.
+
+    Returns:
+        The header lines, with unrendered content blanked out.
+    """
+    lines = text.splitlines()
+    header: list[str] = []
+    headings = 0
+    for index, line in enumerate(lines):
+        previous = lines[index - 1] if index else ""
+        is_setext = bool(_SETEXT_UNDERLINE.match(line)) and bool(previous.strip())
+        if _ATX_HEADING.match(line) or is_setext:
+            headings += 1
+            if headings > 1:
+                break
+        header.append(line)
+    return _strip_unrendered(header)
+
+
+def read_status_declaration(text: str) -> str | None:
+    """Read a document's own declaration of whether its sections are live.
+
+    Read from the HEADER only, and only from text the rendered document
+    actually shows - see :func:`_header_lines` and :func:`_strip_unrendered`
+    for the two ways this was forgeable before.
+
+    Args:
+        text: A whole markdown document.
+
+    Returns:
+        ``LIVE``, ``HISTORICAL``, or None when the file does not declare.
+    """
+    match = STATUS_DECLARATION.search("\n".join(_header_lines(text)))
+    return match.group(1) if match else None
 
 
 def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
-    """Report headings carrying an explicit date. Never fails."""
+    """Classify every dated heading. FAILS on one that fits neither idiom.
+
+    Args:
+        root: The repository root under audit.
+        files: The enumerated candidate files.
+
+    Returns:
+        (the guard record, skip records).
+    """
     skips: list[Skip] = []
-    findings: list[str] = []
+    classified: dict[str, list[str]] = {STATUS_DATE: [], PROVENANCE_DATE: []}
+    unclassified: list[str] = []
+    historical_in_live: list[str] = []
+    undeclared: list[str] = []
     scanned = 0
     for path in files:
         if path.suffix.lower() not in (".md", ".markdown"):
@@ -846,22 +1257,90 @@ def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
             )
             continue
         scanned += 1
-        findings.extend(
-            f"{_rel(root, path)}:{number}  {line.strip()}"
-            for number, line in enumerate(text.splitlines(), start=1)
-            if line.startswith("#") and any(p.search(line) for p in DATE_PATTERNS)
-        )
+        headings = dated_headings(text)
+        if not headings:
+            continue
+        relative = _rel(root, path)
+        declaration = read_status_declaration(text)
+        if declaration is None:
+            undeclared.append(relative)
+        for number, heading in headings:
+            record = f"{relative}:{number}  {heading.strip()}"
+            family = classify_dated_heading(heading)
+            if family is None:
+                unclassified.append(record)
+                continue
+            classified[family].append(record)
+            if family == STATUS_DATE and declaration == LIVE:
+                historical_in_live.append(record)
 
-    detail = [f"markdown files scanned: {scanned}"]
-    if findings:
+    detail = _dated_detail(scanned, classified)
+    if undeclared:
         detail.append(
-            "headings carrying an explicit date - each marks its OWN section historical "
-            "and must not be audited as current:"
+            "DRIFT - files carrying dated headings that declare no section status. This "
+            "guard cannot tell a record from a live section marked historical without the "
+            "declaration, and REPORTING that rather than failing on it is the exact defect "
+            "CS-840 was filed for. Add one line to the file's header, above its first "
+            f"level-2 heading: **Section status: {LIVE}** or **Section status: "
+            f"{HISTORICAL}**:"
         )
-        detail.extend(f"  {item}" for item in findings)
-    else:
+        detail.extend(f"  {item}" for item in undeclared)
+    if historical_in_live:
+        detail.append(
+            f"DRIFT - a {STATUS_DATE} date inside a file that declares itself {LIVE}. The "
+            "heading marks its own section historical while the file says its sections are "
+            "current, and those two cannot both be true. RESOLVE IT BY DECIDING WHICH IS "
+            "TRUE, and then say so: if the section really is history, MOVE it to a file "
+            f"that declares itself {HISTORICAL}, or change this file's declaration. If the "
+            "section is current, the heading is misdescribing it and the HEADING is what "
+            "has to change. Do NOT reword the heading to get past this check while leaving "
+            "a historical section in a live file, and do NOT delete the date - both leave "
+            "the reader believing something the tree does not support:"
+        )
+        detail.extend(f"  {item}" for item in historical_in_live)
+    if unclassified:
+        detail.append(
+            "DRIFT - dated headings in an idiom the closed vocabulary does not cover. "
+            "Whoever wrote each one decides what its date MEANS and makes the heading say "
+            f"it: a {STATUS_DATE} date, which marks the section historical, or a "
+            f"{PROVENANCE_DATE} date, which records only when the text was filed. If the "
+            "idiom is a real one this project should know, widen the vocabulary in "
+            "tools/drift_guard.py deliberately. Choose by what is TRUE of the section, "
+            "never by which answer clears the check, and do NOT delete the date:"
+        )
+        detail.extend(f"  {item}" for item in unclassified)
+    if undeclared or historical_in_live or unclassified:
+        return _guard("g", "dated sections", "FAIL", detail), skips
+    return _guard("g", "dated sections", "PASS", detail), skips
+
+
+def _dated_detail(scanned: int, classified: dict[str, list[str]]) -> list[str]:
+    """Render the classified populations. Counts are DERIVED here, never written.
+
+    Args:
+        scanned: How many markdown files were read.
+        classified: Records per family.
+
+    Returns:
+        The detail lines.
+    """
+    status = classified[STATUS_DATE]
+    provenance = classified[PROVENANCE_DATE]
+    detail = [
+        f"markdown files scanned: {scanned}",
+        f"{STATUS_DATE} dates ({len(status)}) - the section IS historical and must not be "
+        "audited as current:",
+    ]
+    detail.extend(f"  {item}" for item in status)
+    detail.append(
+        f"{PROVENANCE_DATE} dates ({len(provenance)}) - these record WHEN the text was "
+        "filed, moved or measured. They say nothing about the section's status, and a "
+        "live instruction is free to carry one:"
+    )
+    detail.extend(f"  {item}" for item in provenance)
+    if not status and not provenance:
         detail.append("no dated headings found; nothing is self-marked historical")
-    return _guard("g", "dated sections (report only)", "PASS", detail), skips
+    return detail
 
 
 # --- guard a: doc budgets ---------------------------------------------------

@@ -1,5 +1,8 @@
 # Wakeup notes
 
+**Section status: LIVE.** A dated heading in this file records provenance - when the
+text was filed, moved or measured - and never that the section itself is historical.
+
 **The last two to three sessions at full fidelity, newest first. Nothing older.** When a
 fourth session lands, the oldest entry is moved to `docs/history_notes.md` - relocated,
 never deleted.
