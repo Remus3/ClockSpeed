@@ -1259,12 +1259,21 @@ def test_output_that_merely_contains_the_answer_is_refused(
 # CS-702 IS ENFORCED ON UBUNTU CI. On this machine `/bin/sh` is bash, so git
 # never invokes the affected dash here either. The defect is LATENT.
 #
-# THE ARM THAT CARRIES THE PROOF NEEDS NO DASH. `test_a_silent_interpreter_...`
-# below drives REAL git through the sandbox with an interpreter that consumes the
-# program and prints nothing - which is what the hook observes under the defect -
-# and it runs everywhere. The dash arms are ADDITIONAL platform confirmation. A
-# skip is not a pass (docs/LEDGER.md CS-428), so the property is never left to a
-# shell that may be absent.
+# NO ARM HERE CARRIES THE PROOF WITHOUT A SHELL, AND THIS COMMENT USED TO SAY
+# OTHERWISE. It claimed `test_a_silent_interpreter_...` below proved the property
+# shell-independently and ran everywhere. MEASURED FALSE TWICE, by two adversaries
+# that wrote none of this module. A real defect planted in a COPY of the hook - a
+# stdout leak before the final exit - left that arm PASSING, because it installs a
+# silent stub as the interpreter so the hook's own program never executes and no
+# defect inside it is observable. And with a broken `sh` first on PATH that same
+# arm FAILED, so it does not run everywhere either.
+#
+# WHAT IS TRUE: where no shell resolves, these arms DO NOT RUN, and this module
+# claims nothing about whether anything else covers what they would have graded.
+# Nothing in this harness can check such a claim, which is why the skip reasons
+# refuse to make one and why a citation in a skip reason is now refused outright.
+# A skip is not a pass (docs/LEDGER.md CS-428) - it is a stated gap, and a stated
+# gap is evidence where a false reassurance is worse than silence.
 
 SENTINEL: Final = "clockspeed-commit-msg-ran"
 SENTINEL_REFUSAL: Final = "DID NOT RUN"
