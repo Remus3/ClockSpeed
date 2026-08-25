@@ -45,6 +45,29 @@ silent both when there is nothing to find and when it is broken, misaimed or unr
   `[]` and exits 0 while CI is green - it needs the full SHA. `precommit_gate --staged`
   reports PASS with **0 CHECKED** when nothing is staged. Both read as a negative finding.
 
+## The sixth instance, added the same day: the population can be empty because of WHO IS
+## RUNNING THE CHECK
+
+A source-echo rule ran the project's runtime redactor over every source line and flagged any
+line the redactor rewrote. Its note claimed it "cannot false-positive, because it fires on an
+ACTUAL VALUE rather than on a shape". The whole local suite passed - 2892 tests - and CI
+FAILED on the same commit with 33 findings.
+
+The redactor's rules are built from the machine's own account name. On the authoring machine
+that name appears in no source, so the rule found nothing and its zero looked like proof. On
+the CI runner the account is `runner` - an ordinary English substring sitting inside
+identifiers like `..._is_reached_by_its_runner` and `run_all` across the tree.
+
+**AN ACTUAL VALUE IS STILL A SHAPE WHEN THE VALUE IS A COMMON WORD.** And more generally: a
+check whose RULES are derived from the environment returns a verdict about that environment,
+not about the tree. A green run on one machine is evidence about one machine.
+
+The repair is the discrimination the neighbouring rule already stated - apply the redactor to
+the PATH-SHAPED TOKENS of a line rather than to the line, because a backstop belongs to
+runtime output where the surrounding path has been lost, while authored source still carries
+its context. Measured with a CI-shaped redactor: 70 hits over 33 files before, 0 after, still
+firing on a planted absolute home path.
+
 ## The rule
 
 **Never assert a zero without asserting the population that produced it.** Every
