@@ -1,67 +1,70 @@
 #!/usr/bin/env python3
-"""CS-846 - every shipped control and every shipped guard is graded on whether it grades.
+"""CS-846 - the gutting shapes this check covers, named one by one.
 
-WHAT WAS MEASURED BEFORE ANY OF THIS EXISTED, on the tree this item was taken
-from. A conditional early return planted at the head of
-``tests/data/test_drift_guard_data.py::test_a_planted_duplicate_is_reported_as_drift``
-- the control whose own docstring says it "has to prove the guard FIRES, not
-that it RUNS" - left the drift-guard modules, the mypy gate and the pre-commit
-gate all green. The same plant in ``assert_reported_without_the_filename``, the
-grader that decides seven privacy controls, left its module green. The same
-plant in ``tools/drift_guard.py`` left the whole consuming set green for two of
-the nine guards it ships, while the runner went on reporting nine of nine.
+WHAT THIS MODULE CLAIMS, AND THE CLAIM IS DELIBERATELY NARROWER THAN THE ITEM'S
+WORDING. It does NOT claim that every shipped control is covered. It claims
+that the shapes ENUMERATED BELOW are covered, that each was measured silent
+before it was closed, and that the shapes it does NOT cover are named beside
+them. Two adversaries refuted earlier versions of this module for claiming more
+than they checked, and both times the gap was a shape nobody had listed.
 
-THE FIRST VERSION OF THIS MODULE WAS REFUTED AND THE REFUTATION IS WHY THE
-CHECK IS SHAPED THIS WAY. It keyed on ``ast.Return``, and 1855 of 1857 members
-of this tree carry no return statement anywhere - so for almost the entire
-population the analysis could not report anything and its green was a claim
-about a shape they do not contain. Four more gutting shapes were demonstrated
-silent against it, none of which uses a return. Every one of them now has a
-named test below, and each was re-measured silent against the refuted version
-first.
+COVERED, each with a test below and each measured silent first:
 
-WHY THE POPULATION IS THE DELIVERABLE. This defect was filed twice on the same
-day by two agents that did not know of each other, once against a CONTROL and
-once against a GUARD. The check they each declined to write was the per-arm
-one, and both were right: ``tests/save/reach_guard`` already ships a gutting
-guard that modules opt into by calling it on their own ``__file__``, and its
-own header records that of the five modules self-applying its sibling, two call
-it - so it "is not a rule the package follows, it is a habit two modules have".
-Everything here is derived from ``git ls-files`` plus an AST walk.
+  - a bare ``return`` before the assertions;
+  - a conditional ``return`` before them, which no unreachable-code check sees;
+  - the body WRAPPED so it never runs, with no return anywhere;
+  - the assertions SWALLOWED by a ``try`` whose handler discards the failure;
+  - an unconditional ``pytest.skip`` at the head;
+  - a skip written to look conditional - ``if globals(): pytest.skip(...)``;
+  - the same thing spelled ``raise pytest.skip.Exception(...)``;
+  - ``@pytest.mark.skip`` as a DECORATOR, which is not a statement at all;
+  - ``assert True`` appended to any of the above to satisfy a naive check;
+  - a value-returning grader made to hand back a FABRICATED literal;
+  - grading placed where it can never run.
 
-THE HARD RULES ARE THREE, and each was measured at ZERO on this tree before it
-was kept. An exit reached without grading, whether through a ``return`` or by
-falling off the end. An exiting call - ``pytest.skip`` and its siblings - at a
-member's TOP LEVEL, reached without grading. A ``try`` that grades and carries
-a handler which discards the failure. The guard half adds two more: a guard
-must not answer PASS about a tree it could not read while recording nothing,
-and a guard must not answer the IDENTICAL thing about three materially
-different trees.
+NOT COVERED, and this half is the one that matters:
 
-THE RESIDUALS ARE COUNTED AND RE-DERIVED, NEVER PROSE. Prose is the thing that
-rots, so every exemption below is a set this module recomputes on every run,
-reports by name, and holds to a shape assertion:
+  - AN ASSERTION REWRITTEN TO A NON-CONSTANT TAUTOLOGY. ``assert True`` is
+    caught because it is decidable; ``assert x == x`` and the shape this
+    repository actually shipped, ``empty + (records - empty) == records``, are
+    not. That one was removed from the tree during the session this item was
+    worked. It is a hole in the middle, not a boundary.
+  - A GUTTING BRANCH WHOSE CONDITION IS GENUINELY UNKNOWN AT PARSE TIME.
+    ``if globals():`` is folded; ``if _looks_fine():`` is not, and it is
+    structurally identical to a real precondition.
+  - A GRADER NAMED OUTSIDE THE VOCABULARY. The population is derived from
+    calls beginning with ``assert`` plus pytest's own spellings. Renaming a
+    grader takes its callers out of the population - which is why
+    :func:`liveness.vocabulary_boundary` re-derives that difference every run
+    and a ``test_`` function inside it is a hard finding here.
+  - A VALUE-RETURNING GRADER GUTTED TO RETURN ``None`` EARLY. Returning a
+    literal is fabricating an answer and is caught; returning ``None`` is
+    declining to give one, which this tree does legitimately.
+  - ANYTHING AT ALL ABOUT WHETHER AN ASSERTION RAN. Every rule here is static.
 
-  - members whose end exit is graded only because a loop body carries the
-    grading, and only because a ``try`` body does;
-  - graders excluded from the population because they return a value;
-  - tests that ship no grading statement at all;
-  - tools the guard criterion cannot run.
+WHY THE RULES ARE STATED AS SEMANTICS. The second refutation found that the
+rules had been picked by their false-positive count on this tree - the
+``match`` arm returned the incoming verdict, which is wrong for every ``match``
+ever written and scored zero only because this tree contains none. Every rule
+is now a claim about MEANING, with its cost measured and reported afterwards
+rather than used to choose it. Where a cost was paid, it is named: widening the
+grading vocabulary was tried, measured, and reverted on the ground that in this
+tree ``check`` and ``require`` name parsers rather than graders.
 
-WHAT IS STILL NOT COVERED, stated because a check read as covering everything
-is the false-guarantee class this project has already paid for. An assertion
-rewritten to a tautology leaves every exit graded and is invisible here - this
-repository SHIPPED that exact shape and removed it during the session this item
-was worked, so it is a hole in the middle rather than a boundary. A gutting
-whose branch condition merely LOOKS like a real test is structurally identical
-to a legitimate one and no static rule separates them. And nothing here proves
-an assertion ran; it proves one COULD not be skipped by the shapes named above.
+THE GUARD HALF applies three criteria, and the first two are PROXIES that were
+each defeated. Not-silently-green was defeated by fabricating a skip record.
+Answering-differently-about-different-trees was defeated by echoing the root
+into the detail while reading nothing. Only the third is a property of guarding
+itself: handed a tree built to break the rules, a guard must report. All three
+ship, because a cheap criterion that catches a lazy gutting is worth having
+beside an expensive one that catches a careful one.
 """
 
 from __future__ import annotations
 
 import ast
 import importlib.util
+import subprocess
 from pathlib import Path
 from types import ModuleType
 from typing import Final
@@ -80,8 +83,7 @@ GUARD_RUNNER: Final = "run_all"
 #: habit, never to scope it.
 OPT_IN_HELPER: Final = "_assert_no_test_is_gutted"
 
-#: This module and its helper. Named so the check can prove it covers its own
-#: two files rather than being the one thing outside the population it derives.
+#: This module and its helper.
 OWN_MODULES: Final = ("tests/liveness.py", "tests/test_liveness.py")
 
 
@@ -89,13 +91,10 @@ OWN_MODULES: Final = ("tests/liveness.py", "tests/test_liveness.py")
 # Synthetic corpora - authored here, naming no real module.
 #
 # They are STRINGS rather than real functions on purpose. mypy runs with
-# warn_unreachable over tests/, so a real function carrying a bare early return
-# would be a mypy finding about this file instead of a fixture for the analysis
-# under test - and none of the other shapes could sit beside it as real code
-# either, because this module's own check would report them.
+# warn_unreachable over tests/, and this module's own check would report every
+# one of them if they were real code.
 # ---------------------------------------------------------------------------
 
-#: The bare gutting. Caught today by mypy's warn_unreachable as well.
 _BARE_RETURN = '''\
 def test_alpha() -> None:
     """Gutted."""
@@ -103,8 +102,6 @@ def test_alpha() -> None:
     assert compute() == 1
 '''
 
-#: The shape CS-846 was filed on. Nothing after it is unreachable, so no
-#: unreachable-code check can see it.
 _CONDITIONAL_RETURN = '''\
 def test_beta(corpus: list[int]) -> None:
     """Gutted, and everything after it still reachable."""
@@ -113,18 +110,25 @@ def test_beta(corpus: list[int]) -> None:
     assert sum(corpus) == 1
 '''
 
-#: THE SHAPE THAT REFUTED THE FIRST VERSION. No return anywhere; the body is
-#: wrapped so it never runs. An analysis keyed on the return statement is
-#: structurally blind to it.
+#: The shape that refuted the first version: no return anywhere.
 _WRAPPED_BODY = '''\
 def test_gamma(corpus: list[int]) -> None:
-    """Gutted by wrapping, with no return in sight."""
+    """Gutted by wrapping."""
     if not globals():
         total = sum(corpus)
         assert total == 1
 '''
 
-#: The assertions still run and their failure is thrown away.
+#: The shape that refuted the second version: the wrap plus eleven characters.
+_WRAPPED_BODY_WITH_A_TAUTOLOGY = '''\
+def test_gamma(corpus: list[int]) -> None:
+    """Gutted by wrapping, with a constant assertion to look busy."""
+    if not globals():
+        total = sum(corpus)
+        assert total == 1
+    assert True
+'''
+
 _SWALLOWED = '''\
 def test_delta(corpus: list[int]) -> None:
     """Gutted by swallowing."""
@@ -134,7 +138,6 @@ def test_delta(corpus: list[int]) -> None:
         pass
 '''
 
-#: The test leaves through pytest's own vocabulary before grading anything.
 _SKIPPED_AT_HEAD = '''\
 def test_epsilon(corpus: list[int]) -> None:
     """Gutted by skipping."""
@@ -142,7 +145,32 @@ def test_epsilon(corpus: list[int]) -> None:
     assert sum(corpus) == 1
 '''
 
-#: The same wrapping shape in the other structure - a delegated grader.
+#: A skip wearing a conditional's clothes. The condition is decidable.
+_SKIP_BEHIND_A_CONSTANT = '''\
+def test_zeta(corpus: list[int]) -> None:
+    """Gutted by a skip that looks conditional and is not."""
+    if globals():
+        pytest.skip("temporarily disabled")
+    assert sum(corpus) == 1
+'''
+
+#: The same defeat spelled as a raise instead of a call.
+_SKIP_RAISED_BEHIND_A_CONSTANT = '''\
+def test_eta(corpus: list[int]) -> None:
+    """Gutted by raising the skip exception instead of calling skip."""
+    if globals():
+        raise pytest.skip.Exception("temporarily disabled")
+    assert sum(corpus) == 1
+'''
+
+#: One line, no statement, and the way anybody actually disables a test.
+_DISABLED_BY_DECORATOR = '''\
+@pytest.mark.skip(reason="temporarily disabled")
+def test_theta(corpus: list[int]) -> None:
+    """Switched off from outside the body."""
+    assert sum(corpus) == 1
+'''
+
 _GUTTED_GRADER = '''\
 def _assert_every_row_balances(rows: list[int]) -> None:
     """Gutted grader, no return anywhere."""
@@ -150,9 +178,79 @@ def _assert_every_row_balances(rows: list[int]) -> None:
         assert not [row for row in rows if row < 0]
 '''
 
-#: Correct: the early return is a fast path AFTER the grading has happened.
+_FABRICATED_RETURN = '''\
+def _reported_file_count(text: str) -> int:
+    """Gutted to hand its caller a number nothing measured."""
+    if globals():
+        return 1
+    match = FOUND.search(text)
+    assert match is not None
+    return int(match.group(1))
+'''
+
+_DECLINING_RETURN = '''\
+def _census(paths: list[str]) -> int | None:
+    """Declines to answer when there is nothing to measure."""
+    if not paths:
+        return None
+    assert paths
+    return len(paths)
+'''
+
+_DEAD_GRADING = '''\
+def _assert_rows(rows: list[int]) -> None:
+    """The grading can never run."""
+    raise RuntimeError("always")
+    assert rows
+'''
+
+# --- correct code, every one of which an earlier version reddened ----------
+
+#: Semantically identical to ``assert not bad``. This module uses that spelling
+#: more than twenty times; rejecting the other one grades style.
+_GUARDED_FAILURE = '''\
+def test_iota(rows: list[int]) -> None:
+    """A guarded failure is an assertion."""
+    bad = [row for row in rows if row < 0]
+    if bad:
+        pytest.fail(f"negative rows: {bad}")
+'''
+
+#: A handler that CONVERTS the failure rather than discarding it.
+_CONVERTED_FAILURE = '''\
+def test_kappa(path: str) -> None:
+    """The assertion is that the call does not raise."""
+    try:
+        parse(path)
+    except ValueError as exc:
+        pytest.fail(f"parse refused a good input: {exc}")
+'''
+
+#: Graded in every arm, with an irrefutable one. THE ARM THAT WAS WRONG FOR
+#: EVERY MATCH EVER WRITTEN and scored zero because this tree has none.
+_MATCH_GRADED_IN_EVERY_ARM = '''\
+def test_lambda(kind: str) -> None:
+    """Graded on every arm of a match."""
+    match kind:
+        case "a":
+            assert kind == "a"
+        case "b":
+            assert kind == "b"
+        case _:
+            pytest.fail(f"unknown kind {kind}")
+'''
+
+#: A failure guarded inside a context manager.
+_FAILURE_INSIDE_A_WITH = '''\
+def test_mu(path: str) -> None:
+    """A guarded failure one level down."""
+    with open(path) as handle:
+        if not handle.read():
+            pytest.fail("the file was empty")
+'''
+
 _GRADED_THEN_RETURN = '''\
-def test_zeta(corpus: list[int]) -> None:
+def test_nu(corpus: list[int]) -> None:
     """Graded, then short-circuited."""
     assert corpus
     if len(corpus) == 1:
@@ -160,9 +258,8 @@ def test_zeta(corpus: list[int]) -> None:
     assert sum(corpus) > 1
 '''
 
-#: Correct: both arms grade before the exit, so no path escapes.
 _BOTH_ARMS_GRADE = '''\
-def test_eta(flag: bool) -> None:
+def test_xi(flag: bool) -> None:
     """Graded on both arms."""
     if flag:
         assert flag is True
@@ -170,17 +267,23 @@ def test_eta(flag: bool) -> None:
         assert flag is False
 '''
 
-#: Correct, and the shape 38 real tests use: the skip is CONDITIONAL.
+#: The idiom every skip this tree ships uses: the condition is not decidable.
 _CONDITIONAL_SKIP = '''\
-def test_theta(corpus: list[int]) -> None:
+def test_omicron(corpus: list[int]) -> None:
     """Skipped only when there is nothing to grade."""
     if not corpus:
         pytest.skip("no corpus on this machine")
     assert sum(corpus) > 0
 '''
 
-#: NOT a member: it computes something for a caller. The assert is a sanity
-#: check on the way to a value, and the early return is a boundary case.
+#: The conditional decorator form, whose condition is a runtime fact.
+_CONDITIONAL_SKIP_DECORATOR = '''\
+@pytest.mark.skipif(sys.platform != "win32", reason="drive letters are Windows")
+def test_pi(corpus: list[int]) -> None:
+    """Skipped on machines the property cannot hold on."""
+    assert sum(corpus) > 0
+'''
+
 _VALUE_RETURNING_HELPER = '''\
 def _power(base: int, exponent: int) -> int:
     """A utility that happens to assert."""
@@ -190,46 +293,26 @@ def _power(base: int, exponent: int) -> int:
     return base ** exponent
 '''
 
-#: The loop residual, WITHOUT a trailing return.
-#:
-#: THE FIRST VERSION OF THIS FIXTURE CARRIED ONE, and that is the whole reason
-#: the return-only analysis looked green through its own defect: the trailing
-#: return was the only thing the analysis could see, and real test functions do
-#: not have it. It is a loop whose iterable may be empty, so nothing is
-#: guaranteed to grade - and it is NOT reported, because reporting it reports 95
-#: correct members of this tree. It is counted instead.
+#: The loop residual. NO TRAILING RETURN - the first version of this fixture
+#: carried one, and that gratuitous return was the only thing the return-only
+#: analysis could see, so this test was green straight through the defect.
 _LOOP_ONLY_ASSERT = '''\
-def test_iota(corpus: list[int]) -> None:
+def test_rho(corpus: list[int]) -> None:
     """The only assertion is inside a loop that may not run."""
     for item in corpus:
         assert item > 0
 '''
 
-#: The idiom the strict rule would punish hardest: grading inside a branch
-#: inside a loop. Five real members of this tree have exactly this shape.
 _LOOP_THEN_BRANCH = '''\
-def test_kappa(tree: list[object]) -> None:
+def test_sigma(tree: list[object]) -> None:
     """Graded inside a branch inside a loop."""
     for node in tree:
         if isinstance(node, str):
             assert node
 '''
 
-#: Grading is unreachable: an exit precedes it at the same level.
-_DEAD_GRADING = '''\
-def _assert_rows(rows: list[int]) -> None:
-    """The grading can never run."""
-    if not rows:
-        raise ValueError("empty")
-    raise RuntimeError("always")
-    assert rows
-'''
-
 #: A stand-in guard tool. ``{VERDICT}`` and ``{SKIPS}`` are substituted with
-#: literals, so the guard under the sweep is real code in a real file that
-#: :func:`inspect.getsource` can read - not an object impersonating one. The
-#: varying form appends the root it was given, which is what an honest guard
-#: does and a constant return cannot.
+#: literals, so the guard under the criteria is real code in a real file.
 _STUB_CONSTANT = "\n".join(
     [
         '"""A stand-in guard tool. No guard this project ships is named here."""',
@@ -243,16 +326,38 @@ _STUB_CONSTANT = "\n".join(
     ]
 )
 
-_STUB_VARYING = "\n".join(
+#: The defeat of the distinctness criterion: it reads nothing, can never fail,
+#: and renders its input so its answer varies.
+_STUB_ECHOING = "\n".join(
     [
-        '"""A stand-in guard tool whose answer depends on the tree it is given."""',
+        '"""A stand-in that echoes its input and reads nothing."""',
         "",
         "",
         "def guard_planted(root):",
-        '    """Answer something about this particular root."""',
+        '    """Vary the answer without ever looking at the tree."""',
         "    verdict = {VERDICT}",
         '    verdict["detail"] = [*verdict["detail"], str(root)]',
         "    return verdict, {SKIPS}",
+        "",
+    ]
+)
+
+#: An honest stand-in: it reads the tree and reports a real violation in it.
+_STUB_READING = "\n".join(
+    [
+        '"""A stand-in that actually reads the tree it is given."""',
+        "",
+        "",
+        "def guard_planted(root):",
+        '    """Report every file carrying a byte the character-set rule forbids."""',
+        "    bad = []",
+        '    for entry in sorted(root.rglob("*")):',
+        "        if entry.is_file() and any(byte > 126 for byte in entry.read_bytes()):",
+        "            bad.append(entry.name)",
+        '    status = "FAIL" if bad else "PASS"',
+        '    verdict = {"id": "z", "name": "planted", "status": status,',
+        '               "detail": bad or ["clean"]}',
+        "    return verdict, []",
         "",
     ]
 )
@@ -295,7 +400,12 @@ def _kinds(text: str) -> list[str]:
 
 
 def _stub_tool(
-    tmp_path: Path, status: str, skips: list[dict[str, str]], *, varying: bool = False
+    tmp_path: Path,
+    status: str,
+    skips: list[dict[str, str]],
+    *,
+    template: str = _STUB_CONSTANT,
+    tag: str = "constant",
 ) -> ModuleType:
     """Write and load a one-guard stand-in answering as instructed.
 
@@ -303,23 +413,18 @@ def _stub_tool(
         tmp_path: Where the stand-in is written.
         status: The status its guard answers.
         skips: The skip records its guard answers with.
-        varying: Whether its answer should depend on the root it is given.
+        template: Which stand-in body to write.
+        tag: A name fragment keeping the loaded modules distinct.
 
     Returns:
         The loaded stand-in.
     """
     verdict = {"id": "z", "name": "planted", "status": status, "detail": ["said something"]}
-    template = _STUB_VARYING if varying else _STUB_CONSTANT
     source = template.replace("{VERDICT}", repr(verdict)).replace("{SKIPS}", repr(skips))
-    name = f"stub_guard_tool_{'varying' if varying else 'constant'}_{status}_{len(skips)}"
+    name = f"stub_{tag}_{status}_{len(skips)}"
     path = tmp_path / f"{name}.py"
     path.write_text(source, encoding="utf-8", newline="\n")
-    spec = importlib.util.spec_from_file_location(f"cs846_{name}", path)
-    assert spec is not None, "the stand-in produced no import spec"
-    assert spec.loader is not None, "the stand-in spec carries no loader"
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return _load(path, f"cs846_{name}")
 
 
 def _blind(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -395,14 +500,7 @@ def test_the_population_is_derived_from_a_non_empty_file_enumeration(tracked: li
 def test_every_tracked_test_module_contributes_a_member(
     tracked: list[str], surveyed: liveness.Survey
 ) -> None:
-    """No module can escape by not opting in, which is the whole point.
-
-    The per-module gutting guard this project already ships is called by a
-    module on its own source, so a module that never calls it is invisible to
-    it. This asserts the opposite property directly: every tracked module whose
-    name marks it a test module is REPRESENTED in the derived population, and a
-    new module joins by existing rather than by remembering.
-    """
+    """No module can escape by not opting in, which is the whole point."""
     holding = {member.module for member in surveyed.members}
     test_modules = {relative for relative in tracked if Path(relative).name.startswith("test_")}
     absent = sorted(test_modules - holding)
@@ -414,12 +512,7 @@ def test_every_tracked_test_module_contributes_a_member(
 
 
 def test_the_derivation_covers_its_own_two_modules(surveyed: liveness.Survey) -> None:
-    """The checker must be inside the population it derives.
-
-    The first version of this module derived a population its own helper was
-    not in, which meant the one file able to stop the check from reporting was
-    the one file the check never read.
-    """
+    """The checker must be inside the population it derives."""
     read = set(surveyed.modules)
     missing = sorted(set(OWN_MODULES) - read)
     assert not missing, (
@@ -433,10 +526,9 @@ def test_the_derivation_reaches_further_than_the_opt_in_guard_beside_it(
 ) -> None:
     """Measured against the habit, not asserted about it.
 
-    A derived population that happened to cover exactly the modules already
-    opting in would be a rename rather than a widening. So the opt-in set is
-    DERIVED TOO - by reading which modules CALL the pre-existing helper, which
-    is why a module merely naming it in a constant does not count.
+    A derived population covering exactly the modules already opting in would
+    be a rename rather than a widening. The opt-in set is DERIVED TOO, from
+    which modules CALL the pre-existing helper.
     """
     opted_in = set()
     for relative in tracked:
@@ -474,11 +566,7 @@ def test_the_derivation_reaches_further_than_the_opt_in_guard_beside_it(
 def test_no_shipped_control_or_grader_can_exit_without_grading(
     surveyed: liveness.Survey,
 ) -> None:
-    """THE RULE. Every member grades before every way out of it.
-
-    A finding here is a function that can leave having asserted nothing. It
-    reports as passed, and the diff still shows the assertions in the file.
-    """
+    """THE RULE. Every member grades before every way out of it."""
     population = len(surveyed.members)
     rendered = [finding.rendered() for finding in surveyed.findings]
     count = len(rendered)
@@ -495,12 +583,10 @@ def test_no_shipped_control_or_grader_can_exit_without_grading(
 def test_no_grading_statement_in_the_repository_is_unreachable(
     surveyed: liveness.Survey,
 ) -> None:
-    """A SECOND consumer of a tree-wide census, so one gutting is not enough.
+    """A SECOND consumer over a DIFFERENT population.
 
-    This grades the whole grading population - the members AND the graders that
-    return a value, which the population filter excludes. Its census is
-    different from the one above, so gutting either test leaves the other
-    reporting the finding the gutting creates in this file.
+    This grades the members AND the value-returning graders the population
+    filter excludes, so its census is not the one above.
     """
     rendered = [finding.rendered() for finding in surveyed.dead_grading]
     count = len(rendered)
@@ -512,15 +598,33 @@ def test_no_grading_statement_in_the_repository_is_unreachable(
     )
 
 
-def test_this_check_grades_its_own_two_modules(repo_root: Path) -> None:
-    """THE THIRD CONSUMER, and it re-derives rather than reusing the fixture.
+def test_no_test_ships_its_only_grading_under_a_name_this_module_cannot_read(
+    surveyed: liveness.Survey,
+) -> None:
+    """THE VOCABULARY BOUNDARY, GRADED RATHER THAN DESCRIBED.
 
-    The refutation that killed the first version noted that one test was the
-    sole consumer of the tree-wide finding set, so gutting that one test
-    silenced everything. This surveys only the two files this check is written
-    in, from its own call to :func:`liveness.survey`, so gutting either of the
-    two tests above creates a finding in this file that THIS test reports.
+    The population comes from calls named ``assert...`` plus pytest's own
+    spellings, which is a NAMING CONVENTION - so renaming a grader takes its
+    callers out of the population without changing a line of their behaviour.
+    The wider vocabulary is re-derived every run and everything it adds is
+    counted; a ``test_`` function among them is not a boundary, it is a control
+    with no grading route this module can see.
     """
+    boundary = surveyed.vocabulary_boundary
+    counted = len(boundary)
+    tests = sorted(member.rendered() for member in boundary if member.name.startswith("test_"))
+    assert counted, (
+        "the wider vocabulary now adds nothing, so either the tree changed or this "
+        "boundary census stopped being computed"
+    )
+    assert not tests, (
+        f"{len(tests)} test(s) grade only through a name outside this module's "
+        f"vocabulary, so they are not in the population at all: {tests}"
+    )
+
+
+def test_this_check_grades_its_own_two_modules(repo_root: Path) -> None:
+    """A THIRD consumer, re-deriving rather than reusing the fixture."""
     own = liveness.survey(repo_root, list(OWN_MODULES))
     rendered = [finding.rendered() for finding in [*own.findings, *own.dead_grading]]
     count = len(rendered)
@@ -535,18 +639,35 @@ def test_this_check_grades_its_own_two_modules(repo_root: Path) -> None:
 def test_no_test_in_this_module_is_gutted_to_an_early_return() -> None:
     """A FOURTH consumer, owned by another package and implemented differently.
 
-    CS-433's guard is a second, independent implementation of a narrower
-    property, and this module opts into it deliberately: agreement between two
-    derivations of the same thing is not evidence, but a finding from either is.
-    The coupling is stated - if ``tests/save/reach_guard`` moves, this import
-    fails loudly rather than silently covering nothing.
+    Agreement between two derivations of the same thing is not evidence, but a
+    finding from either is. The coupling is stated: if
+    ``tests/save/reach_guard`` moves, this import fails loudly rather than
+    silently covering nothing.
     """
     _assert_no_test_is_gutted(Path(__file__))
 
 
+def test_the_census_this_module_computes_is_graded_from_another_file(repo_root: Path) -> None:
+    """A FIFTH consumer, and the only one that is not in this file.
+
+    FOUR CONSUMERS IN ONE FILE IS ONE CONSUMER - measured by an adversary, who
+    silenced all four with a single edit. This asserts the cross-file grader
+    EXISTS and calls the same derivation, so removing it is a change to a file
+    an attacker would also have to find.
+    """
+    elsewhere = repo_root / "tests" / "test_doc_budget.py"
+    text = elsewhere.read_text(encoding="utf-8")
+    assert "liveness.survey" in text, (
+        f"{elsewhere.name} no longer grades the liveness census, so every consumer of it "
+        "is back inside the one file it grades"
+    )
+    assert "test_the_liveness_census_is_clean_when_read_from_another_module" in text, (
+        f"{elsewhere.name} lost the cross-file consumer this check depends on"
+    )
+
+
 # ---------------------------------------------------------------------------
-# The analysis' POWER. Every one of these was measured SILENT against the
-# version of this module that keyed on the return statement.
+# COVERED SHAPES. Every one was measured silent against an earlier version.
 # ---------------------------------------------------------------------------
 
 
@@ -556,52 +677,94 @@ def test_a_bare_early_return_is_reported() -> None:
 
 
 def test_the_conditional_early_return_the_item_was_filed_on_is_reported() -> None:
-    """The shape no unreachable-code check can see.
-
-    Everything after the cut is still reachable, so mypy's warn_unreachable and
-    the per-module gutting guard both stay silent.
-    """
+    """The shape no unreachable-code check can see."""
     assert _kinds(_CONDITIONAL_RETURN) == ["return"], f"got {_findings(_CONDITIONAL_RETURN)}"
 
 
 def test_a_body_wrapped_so_it_never_runs_is_reported_with_no_return_in_it() -> None:
-    """THE SHAPE THAT REFUTED THE FIRST VERSION OF THIS MODULE.
+    """The shape that refuted the FIRST version. There is no return anywhere."""
+    kinds = _kinds(_WRAPPED_BODY)
+    assert "end of function" in kinds, f"got {_findings(_WRAPPED_BODY)}"
 
-    There is no return anywhere, and 1855 of 1857 members of this tree carry no
-    return either - so an analysis keyed on the return statement was
-    structurally incapable of reporting this or of reporting anything about
-    almost the whole population. The exit graded here is the IMPLICIT one at the
-    end of the function.
+
+def test_the_wrap_is_still_reported_when_a_constant_assertion_is_appended() -> None:
+    """THE SHAPE THAT REFUTED THE SECOND VERSION - the wrap plus eleven characters.
+
+    ``assert True`` executes and passes and asserts nothing, so counting it as
+    grading restores every gutting this module closes. It is excluded on that
+    ground and not because it is rare.
     """
-    assert _kinds(_WRAPPED_BODY) == ["end of function"], f"got {_findings(_WRAPPED_BODY)}"
+    kinds = _kinds(_WRAPPED_BODY_WITH_A_TAUTOLOGY)
+    assert "end of function" in kinds, f"got {_findings(_WRAPPED_BODY_WITH_A_TAUTOLOGY)}"
 
 
 def test_a_try_that_discards_the_failure_it_grades_is_reported() -> None:
     """The assertions run and their verdict is thrown away."""
-    assert _kinds(_SWALLOWED) == ["swallowed"], f"got {_findings(_SWALLOWED)}"
+    assert _kinds(_SWALLOWED) == ["failure discarded"], f"got {_findings(_SWALLOWED)}"
 
 
 def test_an_unconditional_skip_at_the_head_is_reported() -> None:
-    """Gutting written in pytest's own vocabulary.
+    """Gutting written in pytest's own vocabulary."""
+    assert _kinds(_SKIPPED_AT_HEAD) == ["exit without grading"], (
+        f"got {_findings(_SKIPPED_AT_HEAD)}"
+    )
 
-    Scoped to the member's TOP LEVEL because a CONDITIONAL skip is the
-    legitimate idiom, and this tree carries 38 of those and no unconditional
-    one. :func:`test_a_conditional_skip_is_not_reported` holds that boundary.
+
+def test_a_skip_behind_a_constant_condition_is_reported() -> None:
+    """A skip wearing a conditional's clothes.
+
+    The previous version certified this as legitimate, because it read every
+    nested skip as conditional. ``globals()`` is decidable and looks nothing
+    like a precondition; the asymmetry is positional, not undecidable.
     """
-    assert _kinds(_SKIPPED_AT_HEAD) == ["exiting call"], f"got {_findings(_SKIPPED_AT_HEAD)}"
+    assert _kinds(_SKIP_BEHIND_A_CONSTANT) == ["exit without grading"], (
+        f"got {_findings(_SKIP_BEHIND_A_CONSTANT)}"
+    )
+
+
+def test_the_same_skip_spelled_as_a_raise_is_reported() -> None:
+    """``raise pytest.skip.Exception(...)`` does what ``pytest.skip(...)`` does.
+
+    An analysis that reads one spelling and not the other is closed by
+    spelling, which is not closed at all.
+    """
+    assert _kinds(_SKIP_RAISED_BEHIND_A_CONSTANT) == ["exit without grading"], (
+        f"got {_findings(_SKIP_RAISED_BEHIND_A_CONSTANT)}"
+    )
+
+
+def test_a_test_disabled_by_a_decorator_is_reported() -> None:
+    """One line, no statement, and the way anybody actually disables a test.
+
+    A decorator is not in the body, so an analysis reading only statements
+    never sees it. ``decorator_list`` is read for exactly this.
+    """
+    kinds = _kinds(_DISABLED_BY_DECORATOR)
+    assert any(kind.startswith("disabled by") for kind in kinds), (
+        f"got {_findings(_DISABLED_BY_DECORATOR)}"
+    )
 
 
 def test_a_grader_that_is_not_a_test_is_reported_the_same_way() -> None:
-    """The second structure, on the same terms as the first.
-
-    This item was widened because the identical shape was measured in a GUARD
-    rather than a control. A derivation keyed on the word "test" would cover one
-    report and not the other.
-    """
-    assert _kinds(_GUTTED_GRADER) == ["end of function"], f"got {_findings(_GUTTED_GRADER)}"
+    """The second structure, on the same terms as the first."""
+    assert "end of function" in _kinds(_GUTTED_GRADER), f"got {_findings(_GUTTED_GRADER)}"
     assert [member.name for member in _survey(_GUTTED_GRADER).members] == [
         "_assert_every_row_balances"
     ], "the grader did not enter the population, so the finding above is incidental"
+
+
+def test_a_value_returning_grader_made_to_fabricate_a_value_is_reported() -> None:
+    """The kill an adversary demonstrated live inside the excluded set.
+
+    Handing a caller a literal nothing measured turns that caller's assertion
+    into a tautology. The function is still outside the population - it returns
+    a value - and it is graded by the one rule that is decidable for it.
+    """
+    survey = _survey(_FABRICATED_RETURN)
+    assert [finding.kind for finding in survey.findings] == ["returns a fabricated value"], (
+        f"got {[finding.rendered() for finding in survey.findings]}"
+    )
+    assert [member.name for member in survey.value_returning] == ["_reported_file_count"]
 
 
 def test_grading_that_can_never_run_is_reported() -> None:
@@ -611,9 +774,39 @@ def test_grading_that_can_never_run_is_reported() -> None:
 
 
 # ---------------------------------------------------------------------------
-# The BOUNDARIES. A rule that reports everything is indistinguishable from one
-# that reports the right thing.
+# BOUNDARIES. Every one of these reddened under an earlier version, and every
+# one is correct code.
 # ---------------------------------------------------------------------------
+
+
+def test_a_guarded_failure_is_read_as_an_assertion() -> None:
+    """``if bad: pytest.fail(...)`` is ``assert not bad`` written differently.
+
+    An earlier version reported this. It accepts one spelling of a test and
+    rejects the other, which is grading style rather than liveness.
+    """
+    assert not _findings(_GUARDED_FAILURE), f"got {_findings(_GUARDED_FAILURE)}"
+
+
+def test_a_handler_that_converts_a_failure_is_not_read_as_swallowing_it() -> None:
+    """``except E: pytest.fail(...)`` asserts the call does not raise."""
+    assert not _findings(_CONVERTED_FAILURE), f"got {_findings(_CONVERTED_FAILURE)}"
+
+
+def test_a_match_graded_in_every_arm_is_not_reported() -> None:
+    """THE ARM THAT WAS WRONG FOR EVERY MATCH EVER WRITTEN.
+
+    The previous version returned the incoming verdict here, so no ``match``
+    could ever grade anything. It scored zero only because this tree contains
+    no ``match`` statement - the rule had been chosen by its count on today's
+    tree rather than by what it means.
+    """
+    assert not _findings(_MATCH_GRADED_IN_EVERY_ARM), f"got {_findings(_MATCH_GRADED_IN_EVERY_ARM)}"
+
+
+def test_a_failure_guarded_inside_a_with_is_not_reported() -> None:
+    """The guarded failure one level down."""
+    assert not _findings(_FAILURE_INSIDE_A_WITH), f"got {_findings(_FAILURE_INSIDE_A_WITH)}"
 
 
 def test_an_early_return_after_the_grading_is_not_reported() -> None:
@@ -626,49 +819,64 @@ def test_an_exit_both_arms_of_an_if_have_graded_before_is_not_reported() -> None
     assert not _findings(_BOTH_ARMS_GRADE)
 
 
-def test_a_conditional_skip_is_not_reported() -> None:
-    """38 real members of this tree skip conditionally and every one is correct."""
+def test_a_genuinely_conditional_skip_is_not_reported() -> None:
+    """Every skip this tree ships is conditional on a runtime fact."""
     assert not _findings(_CONDITIONAL_SKIP)
 
 
-def test_a_value_returning_helper_that_asserts_is_not_in_the_population() -> None:
-    """The filter that keeps utilities out - and counts them rather than dropping them.
+def test_a_skipif_on_a_runtime_condition_is_not_reported() -> None:
+    """The decorator form whose condition is a property of the machine."""
+    assert not _findings(_CONDITIONAL_SKIP_DECORATOR)
 
-    Measured before it existed: every finding the analysis raised was a helper
-    computing a value with a sanity assert in it, and not one was a grader.
+
+def test_a_value_returning_helper_that_declines_to_answer_is_not_reported() -> None:
+    """Declining is not fabricating.
+
+    Returning ``None`` says "I have no answer"; returning a literal answers
+    without looking. This tree ships the first shape in a census that finds no
+    save library, and it is correct there.
+    """
+    assert not _findings(_DECLINING_RETURN), f"got {_findings(_DECLINING_RETURN)}"
+
+
+def test_a_value_returning_helper_is_counted_and_its_literal_return_is_reported() -> None:
+    """THE COST OF THE FABRICATED-RETURN RULE, STATED RATHER THAN HIDDEN.
+
+    ``if exponent == 0: return 1`` is a correct boundary and ``if globals():
+    return 1`` is a gutting, and they are the same three tokens. The rule
+    reports both. Measured on this tree it reports NEITHER, because no
+    value-returning grader here has an ungraded literal return - but the false
+    positive class is real and this test is where it is written down, so nobody
+    reads the zero on the tree as a claim that the rule is exact.
+
+    The population filter itself is unaffected: the helper is still excluded
+    from the member population and still counted.
     """
     survey = _survey(_VALUE_RETURNING_HELPER)
     assert not survey.members, "a value-returning utility entered the grader population"
-    assert not survey.findings, "a value-returning utility's boundary return was reported"
+    assert [finding.kind for finding in survey.findings] == ["returns a fabricated value"], (
+        f"the cost of this rule changed shape: {[f.rendered() for f in survey.findings]}"
+    )
     assert [member.name for member in survey.value_returning] == ["_power"], (
         "the excluded utility was dropped instead of counted"
     )
 
 
 def test_a_loop_that_may_not_run_is_counted_rather_than_reported() -> None:
-    """THE FIXTURE THAT HID THE DEFECT, RE-AUTHORED WITHOUT ITS TRAILING RETURN.
-
-    The first version of this fixture ended with a gratuitous ``return`` that no
-    real test function has. That return was the only thing the return-only
-    analysis could see, so the test was green through the very defect that
-    refuted the module. Without it the shape is what real code looks like, and
-    the answer changes: it is NOT a finding, because reporting it reports 95
-    correct members of this tree - it is COUNTED instead, and both halves are
-    asserted here.
-    """
+    """THE FIXTURE THAT HID THE FIRST DEFECT, RE-AUTHORED WITHOUT ITS TRAILING RETURN."""
     survey = _survey(_LOOP_ONLY_ASSERT)
     assert not survey.findings, f"a legitimate loop-only grading was reported: {survey.findings}"
-    assert [member.name for member in survey.loop_leaned] == ["test_iota"], (
+    assert [member.name for member in survey.loop_leaned] == ["test_rho"], (
         "the loop generosity was applied without being counted, which makes it a silence "
         "rather than an exemption"
     )
 
 
 def test_grading_inside_a_branch_inside_a_loop_is_counted_rather_than_reported() -> None:
-    """The idiom the strict rule punishes hardest. Five real members have it."""
+    """The commonest correct idiom in this tree."""
     survey = _survey(_LOOP_THEN_BRANCH)
     assert not survey.findings, f"the commonest correct idiom was reported: {survey.findings}"
-    assert [member.name for member in survey.loop_leaned] == ["test_kappa"]
+    assert [member.name for member in survey.loop_leaned] == ["test_sigma"]
 
 
 # ---------------------------------------------------------------------------
@@ -679,12 +887,7 @@ def test_grading_inside_a_branch_inside_a_loop_is_counted_rather_than_reported()
 def test_every_test_outside_the_population_at_least_exercises_something(
     surveyed: liveness.Survey,
 ) -> None:
-    """A test that ships no assertion grades by the code under test not raising.
-
-    The assertion-derived population cannot see one, and that is stated rather
-    than hidden. What it IS held to is that it calls something: a test that
-    neither grades nor acts is the endpoint of this defect, not an exemption.
-    """
+    """A test that ships no assertion grades by the code under test not raising."""
     exercising, inert = surveyed.outside
     rendered = [member.rendered() for member in inert]
     count = len(rendered)
@@ -699,13 +902,7 @@ def test_every_test_outside_the_population_at_least_exercises_something(
 def test_every_member_credited_to_the_loop_generosity_really_carries_a_loop(
     repo_root: Path, surveyed: liveness.Survey
 ) -> None:
-    """The loop residual, re-derived and held to its own shape.
-
-    A census nobody checks is prose with a number on it. Every member credited
-    to this generosity is re-read here and must actually carry a loop whose body
-    grades - so a member cannot land in the exemption by accident, and the count
-    is a measurement rather than an assertion about itself.
-    """
+    """The loop residual, re-derived and held to its own shape."""
     credited = surveyed.loop_leaned
     count = len(credited)
     wrong: list[str] = []
@@ -721,8 +918,8 @@ def test_every_member_credited_to_the_loop_generosity_really_carries_a_loop(
         if not loops:
             wrong.append(member.rendered())
     assert count, (
-        "no member was credited to the loop generosity, so either the tree changed "
-        "shape or the generosity is no longer being applied and should be removed"
+        "no member was credited to the loop generosity, so either the tree changed shape "
+        "or the generosity is no longer being applied and should be removed"
     )
     assert not wrong, f"{len(wrong)} member(s) credited to a loop that does not grade: {wrong}"
 
@@ -740,7 +937,13 @@ def test_every_member_credited_to_the_try_generosity_really_carries_a_try(
         tries = [
             statement
             for statement in liveness.own_statements(node)
-            if isinstance(statement, ast.Try) and liveness.carries_grading(statement.body)
+            if isinstance(statement, ast.Try)
+            and (
+                liveness.carries_grading(statement.body)
+                or any(
+                    liveness.terminates_in_failure(handler.body) for handler in statement.handlers
+                )
+            )
         ]
         if not tries:
             wrong.append(member.rendered())
@@ -754,19 +957,7 @@ def test_every_member_credited_to_the_try_generosity_really_carries_a_try(
 def test_every_grader_the_population_filter_excludes_is_counted_and_returns_a_value(
     repo_root: Path, surveyed: liveness.Survey
 ) -> None:
-    """THE 78, RE-DERIVED. The filter excludes them; this proves it excluded the right ones.
-
-    The refutation measured that the filter drops 78 functions with no census
-    and demonstrated a silent kill inside one of them. They are counted here and
-    each is re-read to confirm it really does return a value - so the exclusion
-    is a measured set, not a filter nobody looks at. The residual that REMAINS
-    is stated plainly: an ungraded early return in a value-returning grader is
-    structurally identical to a legitimate boundary return, so it is not
-    decidable from the return alone and is not claimed to be. What IS graded
-    about them is that none of their grading is unreachable, which
-    :func:`test_no_grading_statement_in_the_repository_is_unreachable` asserts
-    over this same set.
-    """
+    """The excluded set, re-derived, and each re-read to confirm the excluded shape."""
     excluded = surveyed.value_returning
     count = len(excluded)
     wrong: list[str] = []
@@ -821,16 +1012,7 @@ def loaded_guard_tools(repo_root: Path, guard_tools: list[str]) -> dict[str, Mod
 def test_every_tracked_tool_is_either_run_by_the_guard_criterion_or_counted(
     tracked: list[str], guard_tools: list[str]
 ) -> None:
-    """THE GUARD HALF REACHES ONE FILE, AND THAT IS SAID OUT LOUD HERE.
-
-    The guard criterion needs a callable with a known contract - a ``guard_``
-    function it can hand a root to - and only one tracked tool has one. The
-    other tools are gates in every ordinary sense, including a frozen tier-0
-    blocking one, and the criterion cannot reach any of them. They are counted
-    and NAMED rather than left out of the arithmetic, and
-    :func:`test_every_tool_a_blocking_hook_invokes_can_report_a_failure` is the
-    one liveness question that can be asked of them.
-    """
+    """THE GUARD HALF REACHES ONE FILE, AND THAT IS SAID OUT LOUD HERE."""
     tools = liveness.tool_modules(tracked)
     uncovered = sorted(set(tools) - set(guard_tools))
     assert tools, "no tracked module lives in a tool directory, so this is green about nothing"
@@ -848,11 +1030,10 @@ def test_every_tracked_tool_is_either_run_by_the_guard_criterion_or_counted(
 def test_every_tool_a_blocking_hook_invokes_can_report_a_failure(repo_root: Path) -> None:
     """A gate that cannot reach a non-zero outcome cannot block anything.
 
-    This is the only liveness question available about a tool that ships no
-    guard and no assertion, and it is a real one: it covers
-    ``tools/precommit_gate.py``, the frozen tier-0 blocking gate, by READING it.
-    The blocking set is derived from the hook scripts themselves rather than
-    listed, so a tool promoted into a hook joins by being invoked.
+    The only liveness question available about a tool that ships no guard and
+    no assertion, and it covers ``tools/precommit_gate.py`` - a frozen tier-0
+    blocking gate - by READING it. The blocking set is derived from the hook
+    scripts themselves, so a tool promoted into a hook joins by being invoked.
     """
     invoked = liveness.hook_invoked_tools(repo_root)
     mute: list[str] = []
@@ -877,26 +1058,38 @@ def test_every_tool_a_blocking_hook_invokes_can_report_a_failure(repo_root: Path
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(scope="module")
+def tracked_everything(repo_root: Path) -> list[str]:
+    """Every tracked file, not only the Python ones.
+
+    Args:
+        repo_root: Repository root.
+
+    Returns:
+        Repo-relative paths.
+    """
+    proc = subprocess.run(
+        ["git", "ls-files"], cwd=repo_root, capture_output=True, text=True, check=False
+    )
+    assert proc.returncode == 0, "git could not enumerate the tracked files"
+    return sorted(line for line in proc.stdout.splitlines() if line)
+
+
 def test_every_derived_guard_is_reached_by_its_runner(
     repo_root: Path, guard_tools: list[str]
 ) -> None:
-    """A guard the runner never names is a guard that never runs.
-
-    The runner lists the guards it drives, so a new one only ever runs when
-    someone remembers to add it there. That is the same silence one level up.
-    """
+    """A guard the runner never names is a guard that never runs."""
     unreached: list[str] = []
     derived: list[str] = []
     for relative in guard_tools:
         text = (repo_root / relative).read_text(encoding="utf-8")
         names = liveness.guard_function_names(text)
         derived.extend(f"{relative}::{name}" for name in names)
-        assert liveness.defines(text, GUARD_RUNNER), (
+        runner = liveness.module_function(text, GUARD_RUNNER)
+        assert runner is not None, (
             f"{relative} defines guards and no {GUARD_RUNNER} to drive them, so nothing "
             "here can tell which of them ever run"
         )
-        runner = liveness.module_function(text, GUARD_RUNNER)
-        assert runner is not None, f"{relative} lost its {GUARD_RUNNER} between two reads"
         reached = {node.id for node in ast.walk(runner) if isinstance(node, ast.Name)}
         unreached.extend(f"{relative}::{name}" for name in sorted(set(names) - reached))
     count = len(derived)
@@ -907,14 +1100,48 @@ def test_every_derived_guard_is_reached_by_its_runner(
     )
 
 
+def test_no_shipped_guard_survives_a_tree_built_to_break_the_rules(
+    loaded_guard_tools: dict[str, ModuleType], tracked_everything: list[str], tmp_path: Path
+) -> None:
+    """THE ONE CRITERION THAT IS NOT A PROXY.
+
+    The other two ask whether a guard SAID something and whether what it said
+    VARIED. Both were defeated - one by fabricating a skip record, the other by
+    echoing the root into the detail while reading nothing. This asks the only
+    question that is about guarding: handed a tree that breaks the rules, does
+    it report?
+
+    The tree is built from the REAL tracked file names with a single authored
+    document as every file's content, so a guard looking for a particular path
+    finds one and what it finds is wrong. Neither half names a guard.
+    """
+    root = tmp_path / "known-bad"
+    root.mkdir()
+    liveness.write_known_bad_tree(root, tracked_everything)
+
+    survivors: list[str] = []
+    asked = 0
+    for relative, module in loaded_guard_tools.items():
+        files, source, _skips = module.enumerate_files(root)
+        for answer in liveness.guard_answers(module, root, files, source):
+            asked += 1
+            if liveness.cannot_be_forced_to_fail(answer):
+                survivors.append(f"{relative}::{answer.function} [{answer.guard_id}]")
+    count = len(survivors)
+    assert asked > 1, f"{asked} guard(s) were asked about the known-bad tree, so this is vacuous"
+    assert not count, (
+        f"{count} guard(s) passed a tree built to break the rules, so nothing they do "
+        f"depends on the tree being right: {sorted(survivors)}"
+    )
+
+
 def test_no_shipped_guard_answers_pass_about_a_tree_it_could_not_read(
     loaded_guard_tools: dict[str, ModuleType], repo_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Green with nothing recorded is not a verdict.
+    """Green with nothing recorded is not a verdict (CONVENTIONS.md section 15.1).
 
-    CONVENTIONS.md section 15.1, which the tool prints on every run: a guard may
-    be green while self-excusing, and a green verdict means nothing without the
-    list of what was never looked at.
+    A PROXY, and defeated on its own by fabricating a skip record. Kept because
+    it catches the laziest gutting for almost nothing.
     """
     enumerated = {
         relative: module.enumerate_files(repo_root)
@@ -945,20 +1172,10 @@ def test_no_shipped_guard_answers_the_same_about_three_different_trees(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """THE CRITERION THAT SURVIVES A FABRICATED SKIP RECORD.
+    """A PROXY, and defeated on its own by echoing an input into the detail.
 
-    The silence criterion above asks "did it say anything", and the adversary
-    that refuted the first version of this module defeated it for the length of
-    one dict literal: an early return carrying a made-up skip record satisfies
-    it while grading nothing, leaving the net position on the only two guards
-    ever uncovered UNCHANGED.
-
-    This asks a different question that a fabrication cannot answer - does the
-    guard's answer DEPEND on the tree? It is run against the real repository, an
-    empty directory and a tree whose every read fails. A guard replaced by a
-    constant return says the identical thing about all three whatever that
-    constant is, and every guard shipped today says at least two different
-    things.
+    Kept beside the known-bad criterion because it catches a constant return
+    without needing a tree built for the purpose.
     """
     real = {
         relative: module.enumerate_files(repo_root)
@@ -992,20 +1209,14 @@ def test_no_shipped_guard_answers_the_same_about_three_different_trees(
     assert compared > 1, f"{compared} guard(s) were compared across trees, so this is vacuous"
     assert not count, (
         f"{count} guard(s) said the identical thing about the real tree, an empty tree and "
-        f"an unreadable tree, so their answer does not depend on what they were given: "
-        f"{sorted(constant)}"
+        f"an unreadable tree: {sorted(constant)}"
     )
 
 
 def test_the_blind_sweep_reaches_every_guard_each_tool_defines(
     loaded_guard_tools: dict[str, ModuleType], repo_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A sweep that quietly skipped a guard would report the same clean result.
-
-    The population is read from each module's OWN source through
-    :func:`inspect.getsource`, so the set that is swept and the set that is
-    derived cannot come from two different files.
-    """
+    """A sweep that quietly skipped a guard would report the same clean result."""
     enumerated = {
         relative: module.enumerate_files(repo_root)
         for relative, module in loaded_guard_tools.items()
@@ -1033,13 +1244,7 @@ def test_the_blind_sweep_reaches_every_guard_each_tool_defines(
 def test_no_guard_renders_the_name_a_blind_read_failed_on(
     loaded_guard_tools: dict[str, ModuleType], repo_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The privacy half, derived over the same population.
-
-    A read failure carries the path it failed on, and on this project every path
-    is discovered at runtime and routinely sits under a home directory
-    (CLAUDE.md non-negotiable 12). Seven near-identical tests already pin this
-    one guard at a time; this asks it of every DERIVED guard.
-    """
+    """The privacy half, derived over the same population."""
     enumerated = {
         relative: module.enumerate_files(repo_root)
         for relative, module in loaded_guard_tools.items()
@@ -1071,43 +1276,82 @@ def test_a_guard_replaced_by_an_early_return_is_reported_silent(tmp_path: Path) 
     assert silent == ["guard_planted"], f"the gutted guard was not reported: {answers}"
 
 
-def test_a_guard_that_fabricates_a_skip_record_is_still_reported(tmp_path: Path) -> None:
-    """THE DEFEAT OF THE FIRST CRITERION, CLOSED BY THE SECOND.
-
-    Appending a made-up skip dict to a planted return satisfies the silence
-    criterion completely - and this asserts that it does, rather than pretending
-    otherwise - while the dependence criterion still reports it, because a
-    fabricated record is a CONSTANT and a guard's answer has to depend on the
-    tree it was given.
-    """
+def test_a_guard_that_fabricates_a_skip_record_is_reported_by_the_next_criterion(
+    tmp_path: Path,
+) -> None:
+    """The defeat of the FIRST criterion, closed by the second."""
     tool = _stub_tool(tmp_path, "PASS", [{"path": "docs", "reason": "not reached"}])
-    answers = [
+    rounds = [
         liveness.guard_answers(tool, tmp_path, [], "stub enumeration"),
         liveness.guard_answers(tool, tmp_path / "elsewhere", [], "stub enumeration"),
     ]
-    silent = [answer.function for answer in answers[0] if liveness.silently_green(answer)]
+    silent = [answer.function for answer in rounds[0] if liveness.silently_green(answer)]
     constant = [
         first.function
-        for index, first in enumerate(answers[0])
-        if liveness.answers_the_same_about_every_tree([round_[index] for round_ in answers])
+        for index, first in enumerate(rounds[0])
+        if liveness.answers_the_same_about_every_tree([round_[index] for round_ in rounds])
     ]
     assert not silent, "the fabricated skip did NOT defeat the silence criterion after all"
-    assert constant == ["guard_planted"], f"the fabricating guard was not reported: {answers}"
+    assert constant == ["guard_planted"], f"the fabricating guard was not reported: {rounds}"
 
 
-def test_a_guard_whose_answer_depends_on_the_tree_is_not_reported(tmp_path: Path) -> None:
-    """The boundary. An honest guard varies with what it is handed."""
-    tool = _stub_tool(tmp_path, "PASS", [{"path": "a", "reason": "unreadable"}], varying=True)
-    answers = [
-        liveness.guard_answers(tool, tmp_path, [], "stub enumeration"),
-        liveness.guard_answers(tool, tmp_path / "elsewhere", [], "stub enumeration"),
+def test_a_guard_that_echoes_its_input_is_reported_by_the_known_bad_tree(
+    tmp_path: Path,
+) -> None:
+    """THE DEFEAT OF THE SECOND CRITERION, CLOSED BY THE THIRD.
+
+    A guard that reads nothing, can never fail, and renders its root into the
+    detail satisfies both proxies completely - and this asserts that it does,
+    rather than pretending otherwise. Only the known-bad tree reports it,
+    because only that criterion asks whether the guard can be made to FAIL.
+    """
+    tool = _stub_tool(tmp_path, "PASS", [], template=_STUB_ECHOING, tag="echoing")
+    first = tmp_path / "one"
+    second = tmp_path / "two"
+    first.mkdir()
+    second.mkdir()
+    rounds = [
+        liveness.guard_answers(tool, first, [], "stub enumeration"),
+        liveness.guard_answers(tool, second, [], "stub enumeration"),
     ]
-    constant = [
-        first.function
-        for index, first in enumerate(answers[0])
-        if liveness.answers_the_same_about_every_tree([round_[index] for round_ in answers])
-    ]
-    assert not constant, f"a guard that varied with the tree was reported constant: {answers}"
+    varied = not liveness.answers_the_same_about_every_tree([rounds[0][0], rounds[1][0]])
+    forced = [answer.function for answer in rounds[0] if liveness.cannot_be_forced_to_fail(answer)]
+    assert varied, "the echoing guard did NOT defeat the distinctness criterion after all"
+    assert forced == ["guard_planted"], f"the echoing guard was not reported: {rounds}"
+
+
+def test_a_guard_that_reads_the_known_bad_tree_and_reports_is_not_flagged(
+    tmp_path: Path,
+) -> None:
+    """THE BOUNDARY OF THE KNOWN-BAD CRITERION.
+
+    A criterion that flagged every guard would be indistinguishable from one
+    that flagged the right guards. This stand-in genuinely reads the tree - it
+    looks for the byte the character-set rule forbids, which the known-bad
+    document carries - so it FAILS that tree and is not reported. Handed a
+    clean tree the same stand-in passes, which is the answer it earned.
+    """
+    tool = _stub_tool(tmp_path, "PASS", [], template=_STUB_READING, tag="reading")
+    bad_tree = tmp_path / "known-bad"
+    bad_tree.mkdir()
+    liveness.write_known_bad_tree(bad_tree, ["CLAUDE.md", "docs/LEDGER.md"])
+    clean = tmp_path / "clean"
+    clean.mkdir()
+    (clean / "CLAUDE.md").write_text("plain ascii\n", encoding="utf-8", newline="\n")
+
+    forced = liveness.guard_answers(tool, bad_tree, [], "stub enumeration")
+    honest = liveness.guard_answers(tool, clean, [], "stub enumeration")
+
+    assert forced[0].status == "FAIL", (
+        f"the reading stand-in did not fail the known-bad tree, so this boundary is "
+        f"not exercising the criterion: {forced}"
+    )
+    assert not [a.function for a in forced if liveness.cannot_be_forced_to_fail(a)], (
+        f"a guard that read the known-bad tree and reported it was flagged anyway: {forced}"
+    )
+    assert honest[0].status == "PASS", (
+        f"the reading stand-in failed a clean tree, so it is not discriminating: {honest}"
+    )
 
 
 @pytest.mark.parametrize(
