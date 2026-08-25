@@ -146,6 +146,7 @@ stated in contract 3:
   a single ``_TAG_EXTRA_STRINGS`` docstring was another item's to repair - was
   measured against the module and does not account for what the scan finds
   there.
+
 - THE SCOPE IS A RATCHET ON A STATE ALREADY REACHED, and that is the criterion
   a module outside it is outside BY. Declaring the marker costs a module no
   disposition at the moment its prose already satisfies contract 1, and costs
@@ -164,17 +165,22 @@ stated in contract 3:
   rather than a matter of framing - a register is READ BY THE SCANNER to
   suppress a finding, while this criterion is read by that test alone, which
   takes no way to go red away and adds one.
+
 - THE RECORD ABOVE IS READ BACK OUT AND GRADED, which is the direction the
   citation coupling lacked when it was first written. That coupling ran
   test-to-prose alone: deleting the cited test stopped a citation resolving and
   reddened the scan, while deleting the criterion prose left the suite green.
-  ``test_the_recorded_exclusion_criterion_is_present_and_still_true`` closes
-  the other direction: it takes the derivation's own name off the function
-  object, finds the module-docstring prose citing that name, and grades every
-  module that prose names against the derivation. What it does NOT buy is a
-  guard on a PARTIAL repair - the ratchet admits on a state reached, so prose
-  repaired part of the way leaves the record standing, and one quantifier
-  written back releases the obligation again.
+  ``test_the_recorded_exclusion_criterion_is_present_and_still_true`` requires
+  the criterion to state every module it excludes in the shape
+  :data:`_CRITERION_FORM` renders, and requires the scan to still find prose to
+  reject in each module this docstring names, under ``clockspeed`` as well as
+  under ``tests``. TOKEN PRESENCE WAS MEASURED INSUFFICIENT: prose denying that
+  a criterion is recorded, with the cited name and the excluded path both left
+  in place, passed an earlier arm that looked for those two tokens and no more.
+  What it does NOT buy is a guard on a PARTIAL repair - the ratchet admits on a
+  state reached, so prose repaired part of the way leaves the record standing,
+  and one quantifier written back releases the obligation again.
+
 - THE CENSUS IS SCOPED NARROWER STILL, to one module. The positions that tile
   the censused module do NOT tile this one, and the shapes that escape them are
   named rather than counted: the grammar table is regexes inside a dict, the
@@ -184,12 +190,14 @@ stated in contract 3:
   refuses. What that costs is stated plainly rather than implied away: a
   sentence written into a dict value HERE is read by no channel, and no count
   notices.
+
 - A CLAIM THAT CONTINUES A SENTENCE INHERITS ITS CITATIONS. The rule's unit is
   a sentence, and a citation anywhere in one backs the whole of it, so a marked
   claim appended to a clause that already names a resolving test satisfies
   contract 1. That is contract 3's limit reached from a second direction rather
   than a fresh gap, and it is why the comment probe closes the preceding
   fragment before writing its claim.
+
 - A SYNONYM ESCAPES, and this is the residual most likely to be mistaken for a
   stronger result than it is. Swapping a universal determiner for a
   distributive one - "each" in place of the listed marker - satisfies the fence
@@ -198,9 +206,11 @@ stated in contract 3:
   and that is all. Where a sentence was DELETED or made to name a test, more
   was bought. The marker set is a floor on what may be written, not evidence
   that the surviving prose is true.
+
 - THE SENTENCE SPLIT IS A HEURISTIC over a period followed by whitespace. A bad
   split shortens a sentence, which can separate a marker from the citation that
   backs it. That direction over-reports and is loud; it does not hide a claim.
+
 - A MARKER INSIDE A QUOTED FRAGMENT still counts. A sentence quoting a banned
   phrase in order to ban it has to cite a test like any other, which is a cost
   paid to keep the rule free of a judgement call about intent.
@@ -326,6 +336,17 @@ LOCAL_CITATION_RE: Final = re.compile(r"``(test_\w+)``")
 #: through a hand-copied path, so a record naming a module that has since been
 #: fenced is reported instead of read past.
 _RECORDED_PATH_RE: Final = re.compile(r"``((?:[\w.-]+/)+[\w.-]+\.py)``")
+
+#: The SHAPE the recorded criterion states an exclusion in. The path is the one
+#: variable part and it is filled from the prose, so this carries no module of
+#: its own and there is no slot to add one to - a shape, not a register of
+#: pardons. Requiring it is what makes the arm grade a criterion rather than two
+#: tokens: prose DENYING that a criterion is recorded, with the cited test name
+#: and the excluded path both left in place, was measured to satisfy an arm that
+#: looked for those tokens and no more.
+_CRITERION_FORM: Final = (
+    "``{path}`` is outside on that criterion: the scan finds prose there to reject"
+)
 
 #: A sentence boundary: a terminator followed by whitespace. See the residual.
 _SENTENCE_SPLIT_RE: Final = re.compile(r"(?<=[.!?])\s+")
@@ -1036,10 +1057,13 @@ def fence_qualifiers(sources: Mapping[str, str]) -> tuple[str, ...]:
 def module_docstring_paragraphs(source: str) -> list[ProseParagraph]:
     """The prose paragraphs of a module's own docstring, and of no other.
 
-    A record written at module scope is graded where it was written. Reading it
-    out of any docstring would let a docstring that merely QUOTES the record
-    stand in for the record, which is the shape that lets a thing under test
-    supply its own evidence.
+    A record written at module scope is graded where it was written. THE PROSE
+    KIND ALONE DOES NOT DO IT, and the earlier wording here claimed it did: an
+    ASSERT message quoting the record is excluded by its KIND, so the span is
+    idle against that one. What the span separates is a FUNCTION docstring,
+    which is a docstring like any other and would otherwise stand in for the
+    record. ``test_the_record_is_read_from_the_module_docstring_alone`` is
+    where deleting the span is measured caught.
 
     The span is taken from the same literal :func:`prose_paragraphs` reads, so
     the two agree on where a paragraph sits by construction rather than by a
@@ -1211,6 +1235,23 @@ _CONTROL_UNRESOLVED_CITATIONS: Final = 2
 #: module-scope assignment slot, and a direct call argument beside a string
 #: nested one level inside one. A control that only showed the exempted thing
 #: exempted would pin neither edge.
+#: A module whose MODULE docstring records no criterion and whose FUNCTION
+#: docstring quotes one. Inert like the corpora beside it - a module-scope
+#: assignment is read by no prose kind - and it is what makes the line-span half
+#: of :func:`module_docstring_paragraphs` load-bearing rather than decorative.
+_CONTROL_SPAN = '''\
+"""A module docstring that records no criterion of any kind."""
+
+
+def helper() -> None:
+    """A function docstring QUOTING the record it must not stand in for.
+
+    ``test_a_module_whose_prose_already_satisfies_the_fence_is_inside_it`` says
+    ``tests/save/test_reference_resolution.py`` is outside on that criterion:
+    the scan finds prose there to reject.
+    """
+'''
+
 _CONTROL_CENSUS = '''\
 """A synthetic module docstring."""
 
@@ -1373,9 +1414,10 @@ def test_the_recorded_exclusion_criterion_is_present_and_still_true(repo_root: P
     )
     derivation = test_a_module_whose_prose_already_satisfies_the_fence_is_inside_it.__name__
 
+    paragraphs = module_docstring_paragraphs(sources[self_path])
     recording = [
         paragraph
-        for paragraph in module_docstring_paragraphs(sources[self_path])
+        for paragraph in paragraphs
         if derivation in LOCAL_CITATION_RE.findall(paragraph.text)
     ]
     assert recording, (
@@ -1397,23 +1439,61 @@ def test_the_recorded_exclusion_criterion_is_present_and_still_true(repo_root: P
         "while the citation that makes it look intact stayed behind."
     )
 
-    in_scan = [path for path in excluded if path in sources]
-    assert in_scan, (
-        f"the record names {excluded} and the scan reads none of them, so the "
-        "claim it makes about them is graded by no run and the arm below would "
-        "hold against any prose. At least one excluded module named there has "
-        "to sit under the scanned root."
+    unstated = [
+        path
+        for path in excluded
+        if not any(_CRITERION_FORM.format(path=path) in paragraph.text for paragraph in recording)
+    ]
+    assert not unstated, (
+        f"{unstated} is named as excluded and the record states no exclusion of "
+        "it in the shape _CRITERION_FORM renders. The cited test name and the "
+        "path are both present, and that pair was measured satisfiable by prose "
+        "DENYING that a criterion is recorded, so their presence grades no "
+        "criterion. State the exclusion in that shape, or fence the module."
     )
 
-    qualifying = set(fence_qualifiers(sources))
-    stale = sorted(path for path in in_scan if path in qualifying)
-    assert not stale, (
-        f"{stale} is recorded as outside the fence on the ratchet criterion "
-        "while the scan reports no finding against it, so the record is out of "
-        "date rather than wrong: the module reached the state the criterion "
-        "admits on and the record still says it has not. Fencing it is the "
-        "same repair the scope side asks for in "
-        "``test_a_module_whose_prose_already_satisfies_the_fence_is_inside_it``."
+    combined = {**_sources_under(repo_root, "clockspeed"), **sources}
+    docstring_named = sorted(
+        {path for paragraph in paragraphs for path in _RECORDED_PATH_RE.findall(paragraph.text)}
+    )
+    unread = [path for path in docstring_named if path not in combined]
+    assert not unread, (
+        f"{unread} is named in this module docstring and was read under neither "
+        "clockspeed nor tests, so what the record claims about it is graded by "
+        "no run. A record naming a module that has been renamed or moved is a "
+        "record that stopped tracking the tree."
+    )
+
+    cleared = sorted(
+        path
+        for path in docstring_named
+        if path not in FENCED_MODULES
+        and sentence_count(combined[path])
+        and not unbacked_absolutes(path, combined[path], combined)
+    )
+    assert not cleared, (
+        f"{cleared} is named in this module docstring as sitting outside the "
+        "fence while the scan now clears it, so the record is out of date "
+        "rather than wrong: the module reached the state the criterion admits "
+        "on. Fence it and rewrite the residual that names it."
+    )
+
+
+def test_the_record_is_read_from_the_module_docstring_alone() -> None:
+    texts = [paragraph.text for paragraph in module_docstring_paragraphs(_CONTROL_SPAN)]
+    assert texts, (
+        "the corpus module docstring was not read at all, so the exclusion "
+        "below would hold for the wrong reason and grade no prose."
+    )
+
+    derivation = test_a_module_whose_prose_already_satisfies_the_fence_is_inside_it.__name__
+    quoting = [text for text in texts if derivation in text]
+    assert not quoting, (
+        f"a FUNCTION docstring quoting {derivation} was read as though it were "
+        "the module-scope record. The line span is what separates the two - the "
+        "prose KIND does not, because both are docstrings - and without it a "
+        "helper docstring that merely quotes the criterion stands in for the "
+        "record the arm above is supposed to grade."
     )
 
 
