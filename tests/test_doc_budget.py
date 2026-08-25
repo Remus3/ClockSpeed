@@ -54,6 +54,8 @@ from types import ModuleType
 
 import pytest
 
+from tests import liveness
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOC_BUDGET_SOURCE = REPO_ROOT / "tools" / "doc_budget.py"
 
@@ -809,3 +811,46 @@ def test_the_walk_does_not_touch_the_process_environment() -> None:
     before = dict(os.environ)
     doc_budget.evaluate(REPO_ROOT)
     assert dict(os.environ) == before
+
+
+# ---------------------------------------------------------------------------
+# CS-846 - the liveness census, graded from a file that is not its own
+# ---------------------------------------------------------------------------
+#
+# WHY THIS LIVES HERE, since it has nothing to do with byte budgets. The
+# liveness check in tests/test_liveness.py grades every control and grader in
+# the tree, and every consumer of its census used to sit inside the file it
+# grades. An adversary silenced all of them with ONE edit - wrapping the
+# consumer's body so it never ran - because the thing that would have reported
+# the wrap was the thing wrapped. Four consumers in one file is one consumer.
+#
+# So one consumer lives OUTSIDE that file, and it re-derives rather than
+# importing a result. Its home is this module because the property needs a file
+# that is not tests/test_liveness.py and that already runs in the fast tier;
+# the choice of WHICH other file is arbitrary and the requirement that it be
+# another file is not. tests/test_liveness.py asserts this test still exists,
+# so deleting it is a second edit in a second file rather than a silent one.
+
+
+def test_the_liveness_census_is_clean_when_read_from_another_module() -> None:
+    """Grade the liveness checker's own source from outside it.
+
+    A gutting planted in tests/test_liveness.py shows up as a finding in the
+    census computed here, and nothing in that file can suppress this.
+    """
+    own = [
+        "tests/liveness.py",
+        "tests/test_liveness.py",
+    ]
+    survey = liveness.survey(REPO_ROOT, own)
+    findings = [finding.rendered() for finding in [*survey.findings, *survey.dead_grading]]
+    count = len(findings)
+    population = len(survey.members)
+    assert population > 1, (
+        f"the liveness checker's own modules contribute {population} member(s) to its "
+        "own population, so this cross-file grader is green about nothing"
+    )
+    assert not count, (
+        f"{count} finding(s) in the liveness checker's own source, read from outside it: "
+        f"{findings[:20]}"
+    )
