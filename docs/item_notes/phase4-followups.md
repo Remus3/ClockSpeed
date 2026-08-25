@@ -845,6 +845,103 @@ CAN HOLD, which is a different question with a different failure mode. See
 from declarations returns zero for classes that declared nothing, and zero is what a broken
 derivation also returns.
 
+### NOTE - filed 2026-08-25 (session 42) by the merger, AFTER FOUR ADVERSARIES, ALL FOUR REFUTED
+
+**THE GUARD SHIPPED, FOUR LIVE LEAKS ARE CLOSED, AND THE ITEM STAYS OPEN.**
+`tests/repr_rendering_guard.py` derives the population from shipped FIELD ANNOTATIONS by
+two mechanical rules - R1 every generated-repr class under `clockspeed/save/` with a field
+that is not provably non-disclosing, R2 every generated-repr class anywhere under
+`clockspeed/` carrying a `bytes`/`Path` word. `tests/test_repr_rendering.py` grades it in
+42 arms. Measured at merge: population 43, findings 0, exemptions 11, stale 0.
+
+**THE DERIVATION FOUND MORE THAN THE NOTE ABOVE NAMED, WHICH IS THE POINT OF DERIVING IT.**
+The note named `DecompressedBody`. The sweep also found `SaveListing.saves` - a tuple of
+`.sav` paths, so the account id and the home directory - and `ForbiddenRoot.resolved`, an
+absolute install path in a class whose own attribute docstring says `label` exists so a
+refusal need not render a path. All three were confirmed leaking with a planted marker
+before repair and silent after. All three now carry `repr=False` plus a withholding
+`__repr__`.
+
+**REPAIRING THEM EXPOSED A FOURTH LEAK THAT CS-851 WAS BLIND TO BY CONSTRUCTION.** Giving
+`DecompressedBody` a `__repr__` moved it into CS-850's population - which is derived from
+classes SHIPPING one - and CS-851 immediately flagged `tests/save/test_properties.py`
+holding the raw decompressed body in a local at an assert. A class that declares nothing
+is invisible to the guards, not just to readers.
+
+**THE DISCRIMINATOR IS "GENERATED", NOT "ABSENT", AND IT WAS MEASURED.** A plain class with
+no `__repr__` inherits `object.__repr__` and renders no field - both `_Cursor` types hold a
+raw save buffer and leak nothing. A `@dataclass` with no `__repr__` renders every field.
+Grading on "ships no `__repr__`" reports both cursors and buries the real findings.
+
+**WHY IT STAYS OPEN. FOUR GAPS, EVERY ONE MEASURED BY AN ADVERSARY, NONE WITHDRAWN.**
+
+1. **THE EXCEPTION CHANNEL IS RECORDED, NOT GRADED.** `BaseException.__repr__` is NOT
+   `object.__repr__` - it renders `args`, and `__str__` renders it too. So the
+   `KIND_INHERITED` grade is sound for a plain class and UNSOUND for every error class.
+   An adversary added a save-derived `instance_name` to a shipped error, interpolated it
+   into the message, and every arm stayed green. 24 save-layer error classes are pinned in
+   `UNGRADED_EXCEPTION_CHANNEL` so the gap cannot grow silently, but they are NOT graded.
+   Closing this needs the message-building CODE PATH, not field annotations - a different
+   analysis from the one this item built. **That is the next round's work.**
+2. **TWO CLASSES ARE OUTSIDE THE POPULATION AND SHOULD NOT BE.**
+   `clockspeed/data/locate.py::LocalConfigWarning` takes a `pathlib.Path` at five of six
+   `_note` sites into a field annotated `str`; it escapes R1 (not under `save/`) and R2
+   (annotation is not a carrier). Its only protection is `redact()`, which this guard never
+   reads. And `clockspeed/save/objects.py::Transform` renders exact save-derived world
+   coordinates through a generated repr, invisible because `tuple[float, ...]` is scalar -
+   yet `ObjectRecord.__repr__` deliberately withholds that very value as `transform=present`.
+   **The derivation keys on the ANNOTATION and the leak is in the VALUE.**
+3. **`UnknownClass` IS AN ACCEPTED DISCLOSURE, NOT A PROVEN-SAFE ONE.** `type_path` is
+   `cursor.string(...)` read straight from the save body with nothing validating it is a
+   class path; a planted marker rendered verbatim. BOOTSTRAP.md section 9 REQUIRES naming
+   unmodelled content, so the disclosure is the type's purpose - but the same module 240
+   lines away discards a level name for exactly this reason. The tension is recorded in the
+   exemption rather than argued away.
+4. **HYPOTHETICALS, MECHANICALLY VERIFIED, NO LIVE INSTANCE TODAY.** A dataclass SUBCLASS
+   inheriting a carrier is missed - `declared_fields` reads only the class's own body, and
+   `repr=False` does not inherit. So are an aliased decorator import (`dataclass as dc`),
+   `TypedDict`, `Enum` member values, `attrs`, and `os.PathLike`/`BinaryIO`/`mmap`/PEP-695
+   aliases. Also `opaque_class_names` matches BY BARE NAME across the whole tree including
+   tests, and "opaque" means SHIPS a `__repr__`, not REDACTS one.
+
+**DO NOT RE-PITCH FOLDING THIS INTO CS-850.** The note above already fenced it and four
+adversaries confirmed the seam: a GENERATED repr made no per-field decision and is this
+item's; a HAND-WRITTEN one did and is CS-850's. This module re-grades a hand-written repr
+ONLY for carrier fields. Widening that re-grade to plain `str` reported six correctly
+redacting classes, `ResourceNode` among them, whose repr shows the game `class_name` on
+purpose.
+
+**TRAPS THIS ROUND PAID FOR, ALL FOUR FOUND BY AN ADVERSARY AND NOT BY REVIEW.**
+- **A HOISTED ASSERT CAN LEAK MORE THAN THE ONE IT REPLACED.** The merger moved a
+  loop-invariant assert out of a per-save loop to escape a CS-851 finding. The original sat
+  under `except (Exception, SystemExit)`, which CATCHES `AssertionError` - so it could never
+  render anything and the CS-851 finding was a STATIC FALSE POSITIVE. The hoisted copy
+  propagated through a frame holding the real library save paths. One marker occurrence
+  hoisted, zero inside the try. It now lives in
+  `test_the_two_width_classes_are_disjoint`, a frame that holds two dicts of width names
+  and nothing else. **Check what a frame HOLDS before moving an assert into it.**
+- **A REPR THAT RAISES IS WORSE THAN ONE THAT DISCLOSES.** Two drafts raised - first
+  `is_complete` reading `problem.code` off every element, then `len()` on `payload=None`,
+  where the GENERATED repr it replaced had been total. Lengths now go through a
+  `Sized` check.
+- **`assert MARKER not in rendered` PASSES WHEN THE MARKER WAS NEVER PLANTED.** The forced
+  arms had no positive control; emptying one payload left the suite green while a genuinely
+  leaking repr rendered a real type path. `test_a_forced_subject_actually_carries_the_marker`
+  is the control. This is `memory/an-empty-population-satisfies-every-zero.md` AGAIN, in a
+  module whose own docstring cites it.
+- **A LENGTH CHECK ON A PROSE REASON ENFORCES NOTHING.** All 11 exemption reasons replaced
+  with 40 literal characters passed every arm, which is how a reason shipped citing a
+  private helper THAT HAS NEVER EXISTED in this repository, transcribed from a sibling
+  module. `test_every_identifier_an_exemption_cites_exists_in_the_module_it_names` now
+  checks every underscore-carrying token against the module the key names - and it caught a
+  SECOND fabricated name on its first run, one the merger had copied from an adversary's
+  report without verifying.
+
+**WHAT A NEXT ROUND SHOULD NOT REDO.** The three repairs and the `test_properties`
+relocation are merged and mutation-proven; 8 of 8 targeted mutants killed, including a true
+revert of each repair. The population, the exemption record and the exception record are all
+asserted in BOTH directions. Start at gap 1.
+
 ## CS-853
 
 ### NOTE - filed 2026-08-25 (session 40) by the merger, from the CS-850 repairing slice

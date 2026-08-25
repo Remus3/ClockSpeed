@@ -80,6 +80,7 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Sized
 from dataclasses import dataclass
 from errno import ENOENT, ENOTDIR
 from pathlib import Path
@@ -235,7 +236,7 @@ class ListingProblem:
     errno: int | None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class SaveListing:
     """What one directory scan found, and what it could not read.
 
@@ -253,6 +254,41 @@ class SaveListing:
 
     saves: tuple[Path, ...]
     problems: tuple[ListingProblem, ...]
+
+    def __repr__(self) -> str:
+        """Count the saves, show the problems, and never render a path.
+
+        A save's filename is ``<world>_<...>.sav`` and the directory holding it
+        is named for the platform account id, so every element of ``saves`` is
+        personal data - non-negotiables 3, 11 and 12. This type rendered those
+        paths in full until CS-852, because a dataclass with no ``__repr__``
+        generates one from its fields and nobody had written one.
+
+        ``problems`` IS SHOWN RATHER THAN COUNTED, and that is deliberate on two
+        grounds. :class:`ListingProblem` carries no name and no path by
+        construction - its own docstring is explicit that only ``errno`` is
+        lifted off the ``OSError`` - so there is nothing in it to withhold.
+        And withholding it would be a CLAIM that it is sensitive: a field this
+        repr does not disclose is one the CS-850 sweep then treats as withheld,
+        which turned an existing errno-only assertion in the workdir tests into
+        a leak finding. Counting a safe field is not a free precaution.
+
+        THE COUNT CANNOT RAISE, AND THE STATED BOUND IS NARROWER THAN THE
+        FIRST DRAFT CLAIMED. ``is_complete`` was called originally and reads
+        ``problem.code`` off every element, so a forced arm planting a value
+        the tuple cannot really hold turned the repr into an exception. The
+        replacement then called ``len`` directly and STILL raised on
+        ``saves=None``, which a CS-852 adversary demonstrated against a
+        GENERATED repr that had been total there. The count is now guarded.
+        ``problems`` is rendered with ``!r``, so an element whose own repr
+        raises still propagates - that exposure is identical to the generated
+        repr this replaced, and is stated rather than claimed away.
+
+        Returns:
+            The safe rendering.
+        """
+        saves = str(len(self.saves)) if isinstance(self.saves, Sized) else "?"
+        return f"{type(self).__name__}(saves={saves}, problems={self.problems!r})"
 
     @property
     def is_complete(self) -> bool:
@@ -360,7 +396,7 @@ LABEL_ACCOUNT_DIR: Final = "the account directory"
 LABEL_GAME_INSTALL: Final = "the game install"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class ForbiddenRoot:
     """One directory a copy must not land in, and whether it could be resolved.
 
@@ -387,6 +423,21 @@ class ForbiddenRoot:
 
     label: str
     resolved: Path | None
+
+    def __repr__(self) -> str:
+        """Render the fixed label and WHETHER it resolved, never where.
+
+        ``label`` exists so a refusal can say which root it could not clear
+        WITHOUT rendering a path - this class's own attribute docstring says so
+        in those words. The generated repr rendered ``resolved`` in full anyway,
+        an absolute directory under the user profile, which is the design intent
+        defeated by the field-rendering repr nobody chose. That is CS-852.
+
+        Returns:
+            The safe rendering.
+        """
+        state = "resolved" if self.resolved is not None else "unresolved"
+        return f"{type(self).__name__}(label={self.label!r}, {state})"
 
 
 def _forbidden_roots() -> list[ForbiddenRoot]:

@@ -77,6 +77,48 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-25 - CS-852 - NOT A COMPLETION RECORD. CS-852 STAYS OPEN. Four live repr leaks closed, a repr-channel guard shipped, and four adversaries refuted the closure claim
+
+**What merged.** `tests/repr_rendering_guard.py` derives, from shipped FIELD ANNOTATIONS,
+every class that renders save bytes, a save-derived name or a home path through a GENERATED
+`__repr__`; `tests/test_repr_rendering.py` grades it in 42 arms. Three shipped classes were
+repaired - `clockspeed/save/chunks.py::DecompressedBody`,
+`clockspeed/save/workdir.py::SaveListing` and `clockspeed/save/workdir.py::ForbiddenRoot` -
+each gaining `repr=False` and a withholding `__repr__`. Only the first was named in the
+item; the derivation found the other two. Repairing them moved `DecompressedBody` into
+CS-850's population and exposed a fourth leak, the raw decompressed body held in a local at
+an assert in `tests/save/test_properties.py`, now relocated to
+`tests/save/test_properties.py::test_the_two_width_classes_are_disjoint`.
+
+**Why it does not close.** Four adversaries with distinct lenses all returned REFUTED, and
+none was withdrawn. The `KIND_INHERITED` grade rests on `BaseException.__repr__` being
+`object.__repr__`, which is FALSE - it renders `args` - so 24 save-layer error classes are
+recorded in `UNGRADED_EXCEPTION_CHANNEL` rather than graded. Two classes that should be in
+the population are outside it, `clockspeed/data/locate.py::LocalConfigWarning` and
+`clockspeed/save/objects.py::Transform`, because the derivation keys on the annotation while
+the leak is in the value. `clockspeed/save/objects.py::UnknownClass` is an ACCEPTED
+disclosure required by BOOTSTRAP.md section 9, not a proven-safe one. Full detail, including
+four traps that cost this session, is in `docs/item_notes/phase4-followups.md` under CS-852.
+
+**Two defects in the merger's own work, both caught by an adversary and not by review.** A
+loop-invariant assert was hoisted out of a per-save loop to clear a CS-851 finding; the
+original sat under a handler that catches `AssertionError`, so the finding was a static
+false positive and the hoisted copy unwound through a frame holding the real library save
+paths. And an exemption reason cited a private helper that has never existed in this
+repository. Both are repaired, and both now have a control that would have caught them.
+
+Verification: `tests/test_repr_rendering.py` - 42 arms, notably
+`test_no_shipped_class_renders_a_graded_field`,
+`test_a_planted_dataclass_carrying_bytes_is_a_finding`,
+`test_a_forced_subject_actually_carries_the_marker`,
+`test_every_identifier_an_exemption_cites_exists_in_the_module_it_names`,
+`test_the_population_membership_is_pinned_in_both_directions` and
+`test_the_exception_rendering_channel_is_recorded_not_silently_ungraded`. The population,
+the exemption record and the exception record are each asserted in BOTH directions.
+Mutation evidence: 8 of 8 targeted mutants killed, including a true revert of each of the
+three repairs; three earlier mutants were proven EQUIVALENT because `@dataclass` does not
+overwrite a `__repr__` already in the class body.
+
 ### 2026-08-25 - CS-856 - ADR 0010 ACCEPTED by operator ruling; the `proposed` status stated in the CS-856 record below is SUPERSEDED
 
 **THIS RECORD CORRECTS THE ONE BELOW RATHER THAN EDITING IT**, per this file's own rule that

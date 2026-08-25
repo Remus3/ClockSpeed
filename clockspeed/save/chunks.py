@@ -79,7 +79,7 @@ from __future__ import annotations
 
 import struct
 import zlib
-from collections.abc import Iterator
+from collections.abc import Iterator, Sized
 from dataclasses import dataclass
 from typing import Final
 
@@ -470,7 +470,34 @@ class ChunkWarning:
     count: int = 1
 
 
-@dataclass(frozen=True)
+def _rendered_length(value: object) -> str:
+    """A length for a value that has one, and a placeholder for one that does not.
+
+    A ``__repr__`` THAT RAISES FAILS EXACTLY WHEN SOMETHING HAS ALREADY GONE
+    WRONG, which is the one moment it exists for. The first CS-852 draft called
+    ``len`` straight onto the field and an adversary constructed the type with
+    ``payload=None``, turning the safe rendering into a ``TypeError`` where the
+    GENERATED repr it replaced had been total.
+
+    ``payload`` ITSELF DOES NOT USE THIS HELPER, and the reason is a second
+    guard rather than a preference. The phase-4 absence gate declares
+    ``retained-bytes-are-never-rendered`` over this module and derives its
+    needles from the retained attributes; it excludes ``len(...)`` as a count
+    that cannot disclose a byte, but it cannot see through a named helper, so
+    routing the buffer here read as a rendering. ``payload`` is therefore
+    counted by a bare ``len`` under a ``TypeError`` guard, which satisfies both
+    checks at once.
+
+    Args:
+        value: The field value, whatever a caller actually put there.
+
+    Returns:
+        The length, or ``?`` for a value that cannot report one.
+    """
+    return str(len(value)) if isinstance(value, Sized) else "?"
+
+
+@dataclass(frozen=True, repr=False)
 class DecompressedBody:
     """The concatenated body of every chunk, and what was noticed on the way.
 
@@ -489,6 +516,28 @@ class DecompressedBody:
     payload: bytes
     chunk_count: int
     warnings: tuple[ChunkWarning, ...] = ()
+
+    def __repr__(self) -> str:
+        """Render the frame count and the payload's SIZE, never its bytes.
+
+        ``payload`` is the concatenated body of a real save and carries type
+        paths and instance names. A dataclass with no ``__repr__`` generates one
+        that renders every field, so this type disclosed the body wholesale
+        until CS-852 - and non-negotiable 12 counts a debug dump, a log line and
+        a failure report as echo paths, which makes the safe rendering the one
+        that has to be the DEFAULT rather than an opt-in.
+
+        Returns:
+            The safe rendering.
+        """
+        try:
+            payload_bytes: object = len(self.payload)
+        except TypeError:
+            payload_bytes = "?"
+        return (
+            f"{type(self).__name__}(payload_bytes={payload_bytes}, "
+            f"chunk_count={self.chunk_count}, warnings={_rendered_length(self.warnings)})"
+        )
 
 
 # ---------------------------------------------------------------------------

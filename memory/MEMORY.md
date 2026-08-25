@@ -51,6 +51,9 @@ Budgets: this file under 20 KB (CI hard fail), each leaf under 6 KB (CI warn).
   the two are byte-identical. Assert the population, not just the zero.
 - [Verification failure classes](verification-failure-classes.md) - ways a check looks
   convincing and proves nothing, with mechanisms.
+- [Moving an assert can create the leak](moving-an-assert-can-create-the-leak.md) - a
+  static finding names a SCOPE, not a disclosure; the remedy that relocates the assertion
+  changes which frame unwinds, and the new frame has its own locals.
 - [A probe can validate the wrong channel](a-probe-can-validate-the-wrong-channel.md) -
   a check that validates one channel while its consumer reads another proves nothing;
   a harness that cannot reach that channel cannot grade it.

@@ -1295,6 +1295,52 @@ def _extents_of(body: bytes, table: objects.ObjectTable) -> list[tuple[bytes, in
     return out
 
 
+def _width_classes() -> tuple[dict[str, int], dict[str, int]]:
+    """The two width classes, built from the shipped module's own tables.
+
+    Extracted so the disjointness check below can run in a frame that holds no
+    save data. See :func:`test_the_two_width_classes_are_disjoint`.
+
+    Returns:
+        The cursor-advancing widths and the fixed-extent widths.
+    """
+    cursor = dict.fromkeys(objects._TAG_EXTRA_STRINGS, _WIDTH_MUTATION)  # noqa: SLF001
+    cursor[_GUID_WIDTH_NAME] = _WIDTH_MUTATION
+    extent = dict.fromkeys(objects._FIXED_WIDTH_VALUES, _WIDTH_MUTATION)  # noqa: SLF001
+    extent[_SOFT_TAIL_NAME] = _WIDTH_MUTATION
+    return cursor, extent
+
+
+def test_the_two_width_classes_are_disjoint() -> None:
+    """A width name in both classes would make one class's count the other's.
+
+    IT LIVES HERE RATHER THAN IN THE SWEEP, AND THE PLACEMENT IS THE WHOLE
+    POINT. Inside ``_sweep_width_census`` this check had two bad homes and no
+    good one. In the per-save loop it sat under ``except (Exception,
+    SystemExit)``, which catches ``AssertionError`` - so it could never
+    actually fail a run, only add the bare word ``AssertionError`` to a
+    failures list, and ``@lru_cache`` then cached that result. Hoisted above
+    the loop it DID propagate, but it unwound through a frame where ``saves``
+    holds the real library paths, and those carry the Windows account name, the
+    numeric platform account id and the world name (non-negotiables 3 and 11).
+    A CS-852 adversary measured one marker occurrence hoisted against zero
+    inside the try. Trading a swallowed check for a real disclosure is not a
+    repair.
+
+    In its own function the frame holds two dicts of width NAMES and nothing
+    else, no caller frame holds a save path, and the check finally does what it
+    says: it runs once, it propagates, and it keeps its message. It also stops
+    depending on the library being reachable and on some save reaching a tagged
+    version pair, which is why it grades more than it did in either old home.
+    """
+    cursor, extent = _width_classes()
+    overlap = sorted(cursor.keys() & extent.keys())
+    assert overlap == [], (
+        "a width name is in both classes, so one class's count would silently "
+        f"be the other's: {overlap}"
+    )
+
+
 @lru_cache(maxsize=1)
 def _sweep_width_census() -> _WidthCensus | None:
     """Score every shipped width by what mis-stating it costs. COUNTS ONLY.
@@ -1315,10 +1361,7 @@ def _sweep_width_census() -> _WidthCensus | None:
     if not saves:
         return None
 
-    cursor = dict.fromkeys(objects._TAG_EXTRA_STRINGS, _WIDTH_MUTATION)  # noqa: SLF001
-    cursor[_GUID_WIDTH_NAME] = _WIDTH_MUTATION
-    extent = dict.fromkeys(objects._FIXED_WIDTH_VALUES, _WIDTH_MUTATION)  # noqa: SLF001
-    extent[_SOFT_TAIL_NAME] = _WIDTH_MUTATION
+    cursor, extent = _width_classes()
 
     reach: Counter[str] = Counter()
     disagree: Counter[str] = Counter()
@@ -1342,10 +1385,6 @@ def _sweep_width_census() -> _WidthCensus | None:
             ).payload
             table = objects.parse_body(
                 body, save_version=parsed.save_version, header_version=parsed.header_version
-            )
-            assert not (cursor.keys() & extent.keys()), (
-                "a width name is in both classes, so one class's count would "
-                "silently be the other's"
             )
             extents = _extents_of(body, table)
             payloads += len(extents)

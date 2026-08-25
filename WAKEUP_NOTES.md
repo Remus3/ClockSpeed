@@ -34,6 +34,64 @@ the line becomes a pointer.
 
 ---
 
+## Session 42 - 2026-08-25 - CS-852's repr-channel guard ships and four live leaks close; four adversaries all REFUTE the closure; the finding is that the guard reproduced the very blindness it was built against
+
+- **Shipped: NOTHING CLOSED. CS-852 STAYS OPEN.** The guard merged, three shipped classes
+  were repaired and a fourth leak was closed, and four adversaries with distinct lenses all
+  returned REFUTED. Detail in `docs/LEDGER.md` and
+  `docs/item_notes/phase4-followups.md`, not here.
+
+- **THE DERIVATION FOUND TWICE WHAT THE ITEM NAMED.** CS-852 named `DecompressedBody`.
+  Deriving the population from shipped field annotations also found `SaveListing.saves` -
+  a tuple of `.sav` paths, so the account id and the home directory - and
+  `ForbiddenRoot.resolved`, in a class whose own docstring says `label` exists so a refusal
+  need not render a path. Both were named in no note, no doc and no guard.
+
+- **REPAIRING THEM EXPOSED A FOURTH LEAK NO GUARD COULD SEE.** Giving `DecompressedBody` a
+  `__repr__` moved it into CS-850's population - which is derived from classes SHIPPING one
+  - and CS-851 immediately flagged the raw decompressed body held in a local at an assert.
+  A class that declares nothing is invisible to the guards, not merely to readers. That is
+  the item's own thesis turned on the guards themselves.
+
+- **THE HEADLINE FINDING: THE GUARD BUILT AGAINST A BLIND POPULATION WAS ITSELF BLIND, IN
+  FOUR PLACES.** `BaseException.__repr__` is NOT `object.__repr__` - it renders `args` - so
+  the `KIND_INHERITED` grade silenced 24 save-layer error classes, and an adversary added a
+  save-derived field to one, interpolated it into the message, and stayed green. The forced
+  arms had NO POSITIVE CONTROL, so `assert MARKER not in rendered` passed equally when the
+  marker was never planted. The exemption reasons were graded by LENGTH, so forty literal
+  characters passed. And the population was pinned for 14 of 43 members, so the other 29
+  could leave one at a time. All four are now closed or recorded; the exception channel is
+  recorded rather than graded, and that is why the item stays open.
+
+- **A REPAIR OF MINE MADE THE TREE WORSE AND AN ADVERSARY CAUGHT IT.** I hoisted a
+  loop-invariant assert out of a per-save loop to clear a CS-851 finding. The original sat
+  under `except (Exception, SystemExit)`, which CATCHES `AssertionError` - so it could never
+  render anything and the finding was a STATIC FALSE POSITIVE - while my hoisted copy
+  unwound through a frame holding the real library save paths. One marker occurrence
+  hoisted, zero inside the try. **Check what a frame HOLDS before moving an assert into
+  it.** It now lives in its own test whose frame holds two dicts of width names.
+
+- **Decisions: none recorded as an ADR.** One operator round chose CS-852 as the unit, and a
+  second ruled that adversaries be dispatched before any closure - the section 5 shape,
+  since the merger produced the work and may not grade it.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But two names I wrote were fabricated:
+  an exemption cited a private helper that has never existed in this repository, and a
+  corrected reason then cited a function name copied from an adversary's report without
+  checking it. The new identifier check caught the second on its first run.
+
+- **Failed paths: one, abandoned on measurement.** Grading a hand-written `__repr__` for
+  every disclosing `str` field, not just carriers, reported six correctly redacting classes
+  including `ResourceNode`, whose repr shows the game `class_name` on purpose. The seam is
+  that a GENERATED repr made no per-field decision and is CS-852's; a hand-written one did
+  and is CS-850's.
+
+- **Next action: NONE IS FORCED.** If CS-852 is resumed, start at the exception channel -
+  it needs the message-building CODE PATH, not field annotations, which is a different
+  analysis from the one this session built.
+
+---
+
 ## Session 41 - 2026-08-25 - `docs/item_notes.md` SPLIT per phase with an index; CS-856 closes; guard (j) ships; two controls were one edit away from grading an empty population
 
 - **Shipped: CS-856 CLOSES.** `docs/item_notes.md` is now an index over `docs/item_notes/`,
@@ -127,78 +185,3 @@ the line becomes a pointer.
   new ones is what 96 per cent looks like. **This needs an operator decision next session** -
   split the file per phase with an index, raise the budget, or accept that a session can add
   at most one or two item blocks.
-
----
-
-## Session 39 - 2026-08-25 - CS-845 CLOSES on END-TO-END proof after 40 sessions of a gate that never once worked; three items merge REFUTED-then-repaired; the finding is proofs that require the defect
-
-- **Shipped: CS-845 CLOSED.** CS-829, CS-846 and CS-850 merged as IMPROVEMENTS and all three
-  STAY OPEN. Detail in `docs/LEDGER.md`, not here.
-
-- **THE CLOSURE BROKE A FIVE-SESSION STREAK, AND IT WAS PROVEN THE ONLY WAY THAT COUNTS.**
-  The PostToolUse edit check had never once succeeded in roughly 40 sessions - zero
-  successes, zero non-empty stdout - while printing a failure on every edit. After the merge
-  the harness itself spawned the merged tool against a real edited path and the derived
-  census reported ONE record with exit 0 and non-empty stdout out of 961. Hook presence is
-  not hook firing; only end to end counts, and this is the first time this project has had
-  it. Its adversary tried five over-correction mutants and an eighteen-case hostile battery
-  and could not make it fail.
-
-- **THE HEADLINE FINDING, NEW AND FOUND IN THREE ITEMS INDEPENDENTLY: A PROOF THAT MEASURES
-  ITSELF AGAINST TODAY'S TREE ENCODES TODAY'S DEFECTS AS ITS PASSING CONDITION.** CS-850's
-  proof went RED when leaks were repaired - green certified that three modules still leaked.
-  CS-829's bound was fitted to this machine's save library, and autosave rotation alone would
-  break it. CS-846's rules were chosen BECAUSE they scored zero on today's tree. The previous
-  five sessions found acceptance clauses too WEAK; this session found proofs ANTI-CORRELATED
-  WITH SUCCESS.
-
-- **A DEFECT REPAIRED AT ITS SITE RELOCATES RATHER THAN DYING.** CS-829's central defect was
-  refuted at `_container_element_words`, then at `_read_tag_header`, then at `_payload_text`
-  - three times, each after a repair. CS-850's anti-monotone defect moved one function and
-  stayed in the module. **Sweep the whole structure after a repair; do not re-test the site.**
-  CS-850's final round swept its whole module against a zero-live tree and that is why it
-  merged.
-
-- **A THIRD ECHO PATH FOR PERSONAL DATA.** After the assertion channel and the source-echo
-  channel there is the LOCALS channel: a save-derived frozenset in a local renders under
-  `-l` even when every asserted expression is a scalar. Live on main, 6 of 12 struct words.
-  Two sites closed by removing the BINDING. The merger's own sweep found one site more than
-  the adversary named.
-
-- **A MERGE VALIDATED A FIX THAT WOULD OTHERWISE HAVE BEEN UNTESTABLE.** CS-850's residual
-  record asserts in BOTH directions, so merging CS-829 turned it RED with "these residuals
-  were repaired; delete their entries". And zero live findings is now a GREEN state - before
-  the anti-monotone repair, the CS-829 merge could not have been made green at all.
-
-- **Decisions: none recorded as an ADR.** One operator round, at the start, selecting all
-  four units and ruling CS-844 held.
-
-- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But a disposition in this project's own
-  notes is REVERSED: version 60's arithmetic refusal is NOT evidence that CS-G05 is
-  unimplicated - 23529 struct type-word occurrences sit inside the refused records, 13.25 per
-  cent of the census. Two agents disagreed on the number and BOTH were right; they measured
-  at different offsets. Corrected in `docs/LEDGER.md` and `docs/item_notes.md`.
-
-- **Failed paths: none abandoned.** CS-844 remains held by operator ruling, its worktree and
-  three commits intact.
-
-- **Next action: NONE IS FORCED.** CS-829 remains the head of the product path with the
-  dependence now precisely located at `_payload_text`'s terminator verdict; the adversary's
-  proposed route is to take the denominator from `_census_hits`, which no tag-list reader can
-  shorten.
-
-- **A MERGER MISTAKE WORTH KEEPING.** A `git push ... | tail` reported exit 0 while the push
-  had been BLOCKED by the pre-push hook on a mypy error - the same pipeline-exit-code trap
-  this project already records for `pytest` and `gh run watch`. And that mypy error reached
-  main because the slice's verification table listed six checks and omitted mypy: A
-  VERIFICATION TABLE PROVES WHAT IT LISTS, AND ITS POWER IS IN WHAT IT OMITS. A long table
-  reads as a complete one.
-
-- **The suite is 555s, NOT the 815-860s the last note projected.** The "more than doubling
-  each session" projection did not hold; last session's figure was taken with several agents
-  running concurrently. A trend extrapolated across different machine loads is not a trend.
-
-- **DISK: the session-36 unknown is CLOSED.** Nothing is unaccounted for. Clockspeed is 0.1 GB
-  of drive C:; the bulk is the user profile, a game install and a sibling project. Measured,
-  not deleted.
-

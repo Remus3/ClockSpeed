@@ -200,6 +200,10 @@ GUARDED_DOCS: Final = (
     ADR_0010,
     ITEM_NOTES,
     *ITEM_NOTES_LEAVES,
+    # A memory leaf that cites a test by name. Guarded rather than recorded,
+    # because every pointer in it resolves today and a durable lesson whose
+    # cited proof has been deleted is worse than no lesson.
+    "memory/moving-an-assert-can-create-the-leak.md",
 )
 
 # `.claude/` is OUT OF DOMAIN rather than exempt. It is Claude Code
