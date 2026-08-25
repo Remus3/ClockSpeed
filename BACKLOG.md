@@ -83,6 +83,12 @@ detail, and `docs/upstream_watch.md`, which owns the CS-486 upstream watch list.
 named in the `CLAUDE.md` section 4 and `CONVENTIONS.md` section 2 topology tables and both
 carry a doc budget.
 
+**Relocated 2026-08-25, and the record below is left as it was written.** `docs/item_notes.md`
+outgrew its budget and was SPLIT: it is now an INDEX over `docs/item_notes/`, one leaf per
+phase, and the bodies moved into the leaves byte-for-byte. Where the record below says a body
+lives in `docs/item_notes.md`, it lives in the leaf that file's routing table names. The
+ruling itself is undisturbed - what it created still owns what it was given.
+
 - **RULED: `ROADMAP.md` structurally at its ceiling.** The answer is not a bigger number -
   CS-495 settled that and the ruling did not disturb it - and not a manual relocate pass per
   session either. The NOTE BODIES MOVE OUT. `ROADMAP.md` keeps the item LINE alone, plus a

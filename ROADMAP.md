@@ -13,14 +13,23 @@ Closed work lives in `docs/LEDGER.md`. Aspirational and conditional-trigger item
 `BACKLOG.md`. Items blocked on something outside the repo live in `docs/GATED.md`. An item
 is in exactly one of those four places.
 
-**THE DETAIL DOES NOT GO ON THE ITEM LINE. IT GOES IN `docs/item_notes.md`.** That file
-owns the live per-item detail, one section per item ID, and this file owns the LINE alone -
-the ID, the headline, the acceptance criterion and the tier. Filing an item means writing
-the line here and the reasoning THERE, with a short pointer on the line. Operator ruling
+**THE DETAIL DOES NOT GO ON THE ITEM LINE. IT GOES IN THE `docs/item_notes.md` FAMILY.**
+That file is the INDEX; the bodies live in `docs/item_notes/`, one leaf per phase and one
+section per item ID, and the index's routing table says which leaf holds which item. This
+file owns the LINE alone - the ID, the headline, the acceptance criterion and the tier.
+Filing an item means writing the line here and the reasoning THERE, with a short pointer on
+the line.
+
+**A LINE POINTS AT THE INDEX, NEVER AT A LEAF, AND THAT IS DELIBERATE.** The phase headings
+in THIS file are the single owner of which phase an item belongs to, which is what decides
+its leaf. Spelling the leaf on the item line would restate that mapping once per item, and a
+restated fact is a fact that will drift. One hop through the index is the cost of keeping one
+owner. Relocated 2026-08-25. Operator ruling
 2026-08-23: NOTE bodies are something this file never contains, recorded in the `CLAUDE.md`
 section 4 and `CONVENTIONS.md` section 2 topology tables.
 
-**Read an item's section in `docs/item_notes.md` BEFORE taking that item.** Those sections
+**Read an item's section BEFORE taking that item**, via the routing table in
+`docs/item_notes.md`. Those sections
 are live instructions, not background - several record a wording measured false, a fence
 against a re-pitch, or a first attempt that an adversary refuted. They arrived there from
 two places: the NOTE bodies that used to trail these lines, and the live instruction blocks

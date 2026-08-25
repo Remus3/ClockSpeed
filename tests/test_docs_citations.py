@@ -141,6 +141,13 @@ ENTRIES_HEADING: Final = "## Entries"
 # nothing verifies, which is the shape that ships false declarations.
 ADR_0008: Final = "docs/adr/0008-detection-claims-are-derived-never-written.md"
 
+#: The ADR recording the 2026-08-25 split of `docs/item_notes.md` into an index
+#: over per-phase leaves. GUARDED on arrival rather than left to be noticed: it
+#: cites the guard, the budget tool and this module by path, and an ADR is the
+#: kind of doc that is written once and read for years, so a pointer that rots
+#: in it rots unobserved.
+ADR_0010: Final = "docs/adr/0010-item-notes-is-an-index-over-per-phase-leaves.md"
+
 #: The LIVE per-item detail file, created 2026-08-23 when the operator ruled the
 #: NOTE bodies out of `ROADMAP.md`. IT IS GUARDED RATHER THAN RECORDED UNGUARDED,
 #: and the reason is the move itself: every body in it came VERBATIM out of
@@ -150,13 +157,49 @@ ADR_0008: Final = "docs/adr/0008-detection-claims-are-derived-never-written.md"
 #: this contract exists to make impossible.
 ITEM_NOTES: Final = "docs/item_notes.md"
 
+
+def _item_notes_leaves() -> tuple[str, ...]:
+    """Return every leaf of the item-notes family, repo-relative and sorted.
+
+    DERIVED, NOT LISTED, and the reason is this module's own founding finding
+    one level up. A hand-typed tuple of leaf names would let a leaf added by a
+    later relocate pass carry citations that nothing checks, silently, exactly
+    as a doc that STARTS carrying citations used to join the unguarded set in
+    silence. The set-boundary contract below would catch it - but catching it
+    as a FAILURE the next session has to adjudicate is worse than never letting
+    it happen.
+
+    Returns:
+        Each leaf's repo-relative path, sorted, empty if the family is absent.
+    """
+    leaves = REPO_ROOT / "docs" / "item_notes"
+    if not leaves.is_dir():
+        return ()
+    return tuple(f"docs/item_notes/{path.name}" for path in sorted(leaves.glob("*.md")))
+
+
+#: The leaves of the item-notes family. `docs/item_notes.md` was ONE file until
+#: 2026-08-25, when it became an index over `docs/item_notes/` with one leaf per
+#: phase; the bodies - and so every citation in them - moved into the leaves.
+ITEM_NOTES_LEAVES: Final = _item_notes_leaves()
+
+#: The leaf whose detail spends the elided CS-492 pointer recorded in
+#: :data:`DISPOSITIONS`. MEASURED, not reasoned about: the pointer sits in a
+#: CS-8nn block discussing CS-492's residuals, not in CS-492's own section, so
+#: the leaf that carries it is the FOLLOW-UP leaf and not the one holding the
+#: item the pointer names. Named rather than spelled inline so a later relocate
+#: pass moves the key with the body.
+ITEM_NOTES_DEAD_POINTER_LEAF: Final = "docs/item_notes/phase4-followups.md"
+
 GUARDED_DOCS: Final = (
     LEDGER,
     "ROADMAP.md",
     "docs/GATED.md",
     "WAKEUP_NOTES.md",
     ADR_0008,
+    ADR_0010,
     ITEM_NOTES,
+    *ITEM_NOTES_LEAVES,
 )
 
 # `.claude/` is OUT OF DOMAIN rather than exempt. It is Claude Code
@@ -370,7 +413,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         2,
     ),
     (
-        ITEM_NOTES,
+        ITEM_NOTES_DEAD_POINTER_LEAF,
         "test_a_parameter_spelled_like_a_primitive_binds_nothing_and_serves_nothing",
     ): Disposition(
         NO_TARGET,

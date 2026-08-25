@@ -1,7 +1,7 @@
 """CS-840 - a dated heading classifies, and a live file may not mark itself historical.
 
 THE CONTRADICTION THIS MODULE SETTLES. `CLAUDE.md` said a doc heading carrying
-an explicit date marks its own section historical, while `docs/item_notes.md`
+an explicit date marks its own section historical, while `docs/item_notes/`
 says the blocks inside it are LIVE INSTRUCTIONS. Both sentences shipped and
 neither had a cost, because the drift guard's dated-heading arm REPORTED its
 population instead of failing on it.
@@ -82,9 +82,17 @@ DRIFT_GUARD_SOURCE = REPO_ROOT / "tools" / "drift_guard.py"
 
 GUARD_ID = "g"
 
-# CS-840's named subject. The file whose header declares its blocks LIVE while
-# every section heading in it carries a date.
-LIVE_INSTRUCTION_DOC = "docs/item_notes.md"
+# CS-840's named subject. The files whose headers declare their blocks LIVE
+# while every section heading in them carries a date.
+#
+# A DIRECTORY PREFIX RATHER THAN A FILENAME, since 2026-08-25. The subject was
+# one file, `docs/item_notes.md`, until that file was split into an index over
+# `docs/item_notes/` and the dated section headings moved into the leaves. Left
+# naming the index, this control would have gone on asserting a property of a
+# file that no longer carries a single dated heading - which is not a red, it is
+# the EMPTY POPULATION that satisfies the assertion for free. The population is
+# now every leaf, and it is asserted non-empty below for the same reason.
+LIVE_INSTRUCTION_PREFIX = "docs/item_notes/"
 
 # A date this module owns, far outside the range any real entry uses.
 PLANTED = "2031-02-03"
@@ -1040,8 +1048,11 @@ def test_the_live_instruction_file_carries_no_status_date(
     FILED or RELOCATED, so none of them marks its section historical - and not
     one heading had to lose its date for that to be true.
     """
-    live = [row for row in tracked_dated_headings if row[0] == LIVE_INSTRUCTION_DOC]
-    assert live, f"{LIVE_INSTRUCTION_DOC} carries no dated heading - this control proves nothing"
+    live = [row for row in tracked_dated_headings if row[0].startswith(LIVE_INSTRUCTION_PREFIX)]
+    assert live, (
+        f"no file under {LIVE_INSTRUCTION_PREFIX} carries a dated heading"
+        " - this control proves nothing"
+    )
 
     marked_historical = [
         f"{path}:{number}  {heading}"

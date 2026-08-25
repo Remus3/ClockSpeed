@@ -2223,6 +2223,173 @@ def re_extract(root: Path) -> int:
     return 0
 
 
+# --- guard j: item-notes index ----------------------------------------------
+
+# docs/item_notes.md stopped holding item bodies on 2026-08-25 and became an
+# index over docs/item_notes/. THE INDEX IS A RESTATED FACT, which CLAUDE.md
+# section 4 names as the one thing that will drift, so it is checked in both
+# directions rather than trusted: a routed item with no section is red, a
+# section with no routing row is red, and a row naming the wrong leaf is red.
+#
+# SET EQUALITY ALONE WOULD NOT BE ENOUGH. Two sets can match exactly while a
+# row points at the wrong leaf, which sends a reader to a file that does not
+# hold the block and reads as "the detail was never written" - the same silent
+# shape as a missing body. The destination is compared per item, not pooled.
+#
+# AN EMPTY FAMILY IS A SKIP, NOT A PASS. Zero routed items and zero sections
+# satisfy every equality below for free. Session 40 recorded six instances of
+# an empty population passing an assertion of zero and being read as evidence,
+# so the empty case is graded explicitly and names itself in the skip list.
+# A HALF-empty family is different and is FAIL: rows routing to nothing, or
+# sections nothing routes to, is drift rather than a wrong root.
+ITEM_NOTES_INDEX_RELATIVE = "docs/item_notes.md"
+ITEM_NOTES_LEAF_DIR_RELATIVE = "docs/item_notes"
+
+_ITEM_NOTES_SECTION = re.compile(r"(?m)^## (CS-G?\d+)[ \t]*$")
+# A routing row: "| CS-nnn | `docs/item_notes/<leaf>.md` |". The leaf is read
+# from the row rather than assumed, so a row naming a path outside the family
+# is reported as the wrong destination instead of quietly matching.
+_ITEM_NOTES_ROW = re.compile(
+    r"(?m)^\|\s*(CS-G?\d+)\s*\|\s*`([^`]+)`\s*\|\s*$",
+)
+
+
+def item_notes_routing(text: str) -> dict[str, str]:
+    """Return item id mapped to the leaf path each routing row names.
+
+    Args:
+        text: The index file's text.
+
+    Returns:
+        Item id mapped to the repo-relative leaf path written in its row.
+    """
+    return {match.group(1): match.group(2) for match in _ITEM_NOTES_ROW.finditer(text)}
+
+
+def item_notes_sections(root: Path) -> tuple[dict[str, str], list[str]]:
+    """Return item id mapped to the leaf holding it, plus ids found twice.
+
+    Args:
+        root: The repository root under audit.
+
+    Returns:
+        (item id mapped to repo-relative leaf path, duplicated ids).
+    """
+    found: dict[str, str] = {}
+    duplicated: list[str] = []
+    leaf_dir = root / ITEM_NOTES_LEAF_DIR_RELATIVE
+    for leaf in sorted(leaf_dir.glob("*.md")):
+        relative = f"{ITEM_NOTES_LEAF_DIR_RELATIVE}/{leaf.name}"
+        try:
+            text = leaf.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for match in _ITEM_NOTES_SECTION.finditer(text):
+            item = match.group(1)
+            if item in found:
+                duplicated.append(f"{item} in {found[item]} and {relative}")
+                continue
+            found[item] = relative
+    return found, duplicated
+
+
+def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
+    """Assert the item-notes index routes to exactly the sections that exist.
+
+    Args:
+        root: The repository root under audit.
+
+    Returns:
+        (the guard verdict, skip records).
+    """
+    skips: list[Skip] = []
+    name = "item-notes index"
+    index_path = root / ITEM_NOTES_INDEX_RELATIVE
+    leaf_dir = root / ITEM_NOTES_LEAF_DIR_RELATIVE
+
+    try:
+        index_text = index_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        skips.append(
+            {"path": ITEM_NOTES_INDEX_RELATIVE, "reason": f"index not read ({_exc_text(exc)})"}
+        )
+        return _guard("j", name, "WARN", ["the index was not read - nothing was graded"]), skips
+
+    if not leaf_dir.is_dir():
+        skips.append(
+            {
+                "path": ITEM_NOTES_LEAF_DIR_RELATIVE,
+                "reason": "leaf directory absent - a wrong root rather than drift",
+            }
+        )
+        return (
+            _guard("j", name, "WARN", [f"{ITEM_NOTES_LEAF_DIR_RELATIVE} is not a directory"]),
+            skips,
+        )
+
+    bodies = [match.group(1) for match in _ITEM_NOTES_SECTION.finditer(index_text)]
+    routed = item_notes_routing(index_text)
+    sections, duplicated = item_notes_sections(root)
+
+    detail = [
+        f"routing rows in {ITEM_NOTES_INDEX_RELATIVE}: {len(routed)}",
+        f"sections under {ITEM_NOTES_LEAF_DIR_RELATIVE}/: {len(sections)}",
+    ]
+
+    if not routed and not sections:
+        skips.append(
+            {
+                "path": ITEM_NOTES_LEAF_DIR_RELATIVE,
+                "reason": (
+                    "the family holds no routing row and no section - every equality "
+                    "below is satisfied by an empty population, so nothing was graded"
+                ),
+            }
+        )
+        detail.append("NOTHING TO GRADE - an empty family is a skip, never a pass")
+        return _guard("j", name, "WARN", detail), skips
+
+    problems: list[str] = []
+    if bodies:
+        problems.append(
+            "the index carries item bodies, which are invisible to a reader following "
+            "the routing table - move them to the leaf the membership rule names:"
+        )
+        problems.extend(
+            f"  {ITEM_NOTES_INDEX_RELATIVE} holds a section for {item}" for item in bodies
+        )
+
+    if duplicated:
+        problems.append("an item carries detail in more than one leaf:")
+        problems.extend(f"  {row}" for row in duplicated)
+
+    unrouted = sorted(set(sections) - set(routed))
+    if unrouted:
+        problems.append("these carry detail no routing row names, so nothing can find them:")
+        problems.extend(f"  {item} in {sections[item]}" for item in unrouted)
+
+    dangling = sorted(set(routed) - set(sections))
+    if dangling:
+        problems.append("these are routed to a section that does not exist:")
+        problems.extend(f"  {item} routed to {routed[item]}" for item in dangling)
+
+    misrouted = sorted(
+        item for item in set(routed) & set(sections) if routed[item] != sections[item]
+    )
+    if misrouted:
+        problems.append("these are routed to the wrong leaf:")
+        problems.extend(
+            f"  {item} routed to {routed[item]}, detail is in {sections[item]}"
+            for item in misrouted
+        )
+
+    if problems:
+        return _guard("j", name, "FAIL", detail + problems), skips
+
+    detail.append(f"every routed item resolves to its own section across {len(sections)} id(s)")
+    return _guard("j", name, "PASS", detail), skips
+
+
 # --- driver -----------------------------------------------------------------
 
 
@@ -2239,6 +2406,7 @@ def run_all(root: Path) -> tuple[list[Guard], list[Skip], str]:
         guard_frozen,
         guard_version_pin,
         guard_work_items,
+        guard_index,
     ):
         guard, guard_skips = runner(root)
         guards.append(guard)

@@ -34,6 +34,29 @@ the line becomes a pointer.
 
 ---
 
+## Session 41 - 2026-08-25 - `docs/item_notes.md` SPLIT per phase with an index; CS-856 closes; guard (j) ships; two controls were one edit away from grading an empty population
+
+- **Shipped: CS-856 CLOSES.** `docs/item_notes.md` is now an index over `docs/item_notes/`,
+  six leaves, 97 bodies moved byte-for-byte. Detail in `docs/LEDGER.md`, not here.
+- **In flight: NOTHING.** No half-done work, no dirty file, no held branch beyond the four
+  already preserved. ADR 0010 is `proposed` and wants an adjudicator that did not do the
+  split - there is NO roadmap item for that, matching ADR 0009, which is also `proposed`
+  with no item.
+- **Decisions: ADR 0010.** Three operator choices, each with its fence: split at the
+  `CS-4nn`/`CS-8nn` seam rather than one 182 KB phase-4 leaf; ROADMAP item lines point at
+  the INDEX and never at a leaf; record it as an ADR plus both topology tables.
+- **Surprises: none contradicted `BOOTSTRAP.md`.** The measurement that DID change the
+  design was that a literal per-phase split leaves 84 per cent of the content in one file,
+  which was taken before any file was written and is why phase 4 is two leaves.
+- **Failed paths: two, both mine, both caught by a contract rather than by review.** A
+  byte-conservation check summed `for v in written` - the KEYS, not the values - and read as
+  a catastrophic loss; and the `CS-492` disposition key was repointed at `phase4.md` by
+  reasoning from the item id when the pointer actually sits in `phase4-followups.md`. Do not
+  infer a body's leaf from the item id it names.
+- **Next action: NONE IS FORCED.** CS-829 remains the head of the product path.
+
+---
+
 ## Session 40 - 2026-08-25 - a LIVE tier-1 leak found on main and closed; four items build, all four are REFUTED, all four are repaired, and NOTHING CLOSES; the finding is that an empty population satisfies every assertion of zero
 
 - **Shipped: NOTHING CLOSED.** CS-829, CS-846, CS-850 and CS-851 all merged as improvements
@@ -180,71 +203,3 @@ the line becomes a pointer.
   of drive C:; the bulk is the user profile, a game install and a sibling project. Measured,
   not deleted.
 
----
-
-## Session 38 - 2026-08-24 - the operator takes ALL FOUR units again; SIX items are graded by adversaries and SIX are REFUTED; four merge as improvements and NOTHING CLOSES
-
-- **Shipped: NOTHING CLOSED, and that is the result rather than a shortfall.** CS-829, CS-839,
-  CS-840, CS-841 and CS-842 MERGED as improvements and every one STAYS OPEN. CS-844 did NOT
-  merge. Filed CS-845 through CS-850 and WIDENED CS-846 the same day. Detail in
-  `docs/LEDGER.md` and `docs/item_notes.md`, not here.
-
-- **THE HEADLINE: SIX OF SIX GRADED ITEMS WERE REFUTED, ALL ON ONE SHAPE.** The acceptance
-  clause was satisfiable without achieving the thing the item exists for, every time. CS-842 is
-  the cleanest specimen - deleting the criterion DID redden a test exactly as its acceptance
-  demanded, and replacing that criterion with prose stating no criterion is recorded left 204
-  tests green. **FIFTH CONSECUTIVE SESSION OF CLAUSES MET AND PROSE FALSE, and the first where
-  it was caught on six items before anything reached the ledger.** Not one would have been
-  caught by the agent that built it.
-
-- **A GUARD WHOSE ERROR MESSAGE TEACHES THE ATTACK.** CS-840's red advised moving the date
-  after a provenance verb; doing exactly that laundered a terminal verb and turned the heading
-  green with its section still marked historical. **A guard that explains how to satisfy it is
-  explaining how to defeat it wherever the two differ.** Rewrite the diagnostic, not only the
-  check.
-
-- **FIXED IN THE OWNER, ALIVE IN THE CONSUMER - the population defect's most consequential
-  form yet.** The dated-heading rule was narrowed in the two files that STATE it and left
-  verbatim in three files agents ACT on. The next doc-sync run would have skipped every live
-  per-item note: CS-840's own defect relocated into the doc-sync agent's instructions.
-
-- **A CORRECT REJECTION DOES NOT MAKE THE ALTERNATIVE CORRECT.** CS-841 refused a bait location
-  on a sound measurement and moved it somewhere unmeasured - trading a loud CI flake for a
-  quiet hole in the tripwire. The remedy is not to move it back; every property that made the
-  new home invisible to CI also made it invisible to an arming predicate.
-
-- **THE SUITE'S VERDICT DEPENDS ON HOW IT IS INVOKED, TWICE OVER.** On which shell runs it, and
-  on whether it runs in parallel - the pre-push hook is serial and CI is not, so a whole class
-  of defect is green locally and red nightly.
-
-- **AN ADVERSARY SUPPLIED THE FIX, NOT ONLY THE REFUTATION.** CS-829's independent
-  classification criterion - a tag list is one terminator wide when empty and otherwise at
-  least one minimal tag plus a terminator - came from the lens that destroyed its predecessor.
-  Adversaries are not only demolition.
-
-- **THREE DEFECTS FIXED THAT BELONGED TO NO ITEM.** The CS-813 fourth leak, salvaged from an
-  inherited worktree and RE-DERIVED rather than imported - and the re-derivation found that the
-  oracle this project's own note PRESCRIBES cannot observe the leak it prescribes for. A ledger
-  entry head that parsed to ZERO ids. A slash-command example wired to real closed ids, caught
-  by a bound the merger had asked for and which fired on its first run.
-
-- **Decisions: none recorded as an ADR.** Nine operator rulings across six rounds, every one
-  changing the work. Asking remains how the session steers.
-
-- **Surprises: nothing contradicted `BOOTSTRAP.md`.** Two things the MERGER stated were
-  measured wrong and both are corrected in tracked files rather than quietly: CS-493 was never
-  orphaned (only CS-494 was), and CS-829's repair changes no production behaviour at all - the
-  decoder lines came from its predecessor.
-
-- **Failed paths: none abandoned.** CS-844 is held rather than failed; its guard is good and
-  its classifier is over-broad by one predictable case.
-
-- **Next action: NONE IS FORCED.** CS-829 remains the head of the product path and its central
-  defect is unsolved and now precisely stated: the criterion is arithmetic, but the population
-  it grades is still chosen by the decoder. CS-850 is tier 1 and live on main.
-
-- **WORKTREES: THE SEVEN INHERITED ONES ARE RESOLVED** after seven sessions. Every one had HEAD
-  equal to its base with ZERO commits, so all their work was uncommitted - which is exactly why
-  they kept reading as prunable. All committed to their own branches, all deregistered, nothing
-  discarded. **`docs/item_notes.md` is at 86 per cent, up from 77**: six items filed, none
-  closed, and closure is its only designed shrink.

@@ -77,6 +77,56 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-25 - CS-856 - `docs/item_notes.md` SPLIT into an index over per-phase leaves under `docs/item_notes/`; all 97 bodies moved byte-for-byte
+
+**FILED AND CLOSED THE SAME DAY, on an operator ruling, not from `ROADMAP.md`.** Session 40
+ended with the file at 96 per cent of its 224 KB budget holding ZERO closed sections, so the
+relocate pass the budget prescribes had nothing left to move. The operator was offered three
+options and chose the split.
+
+- Merged files plus the test that proves it: `docs/item_notes.md` (now the index),
+  `docs/item_notes/` (six leaves), graded by
+  `tests/data/test_item_notes_index.py::test_the_real_tree_index_is_green` and
+  `tests/data/test_item_notes_index.py::test_every_section_sits_in_the_leaf_the_membership_rule_names`
+- New guard: `tools/drift_guard.py::guard_index`, guard letter (j). Checks the routing table
+  in BOTH directions plus wrong-leaf and body-in-index. Eleven tests, four of them firing
+  arms on planted defects, written BEFORE the guard existed and observed failing on
+  `AttributeError: no attribute 'guard_index'`
+- Budgets: `tools/doc_budget.py` - index 16 KB, EACH leaf 128 KB over a population DERIVED
+  from the directory rather than listed. 128 KB is 37 per cent above the largest measured
+  leaf, the same margin and the same reasoning the retired 224 KB constant was chosen with
+
+**VERBATIM WAS PROVEN, NOT ASSERTED.** Every one of the 97 sections was diffed against
+`git show HEAD:docs/item_notes.md` - 97 sections and 217344 body bytes on both sides, each
+section byte-identical and in exactly one leaf, with the check failing loudly if the
+population were empty.
+
+**A LITERAL PER-PHASE SPLIT WOULD NOT HAVE RELIEVED THE PRESSURE, and this was measured
+before the design.** Phase 4 held 78 of 97 sections and 181.9 KB - 84 per cent of the
+content. Phase 4 was therefore split at the `CS-8nn` follow-up seam the operator already
+decided on 2026-08-21, giving 48 items at 91.2 KB and 30 at 90.8 KB.
+
+**TWO TEST CONTRACTS WERE ABOUT TO GO SILENT, and both were found by prediction and then
+confirmed by running them.**
+
+- `tests/test_dated_headings.py` asserted `docs/item_notes.md` carries a dated heading, whose
+  own failure message reads "this control proves nothing". Emptying that file into leaves
+  would have left the control grading an EMPTY POPULATION - session 40's finding, arriving in
+  the very next session. The constant is now a DIRECTORY PREFIX over the leaves
+- `tests/test_docs_citations.py` checks its guarded set in BOTH directions, so six leaves
+  carrying citations had to join `GUARDED_DOCS`; the leaf population is DERIVED there too.
+  The `CS-492` disposition key was repointed - and the first repoint was WRONG. The pointer
+  sits in a `CS-8nn` block discussing CS-492's residuals, not in CS-492's own section, so it
+  landed in `phase4-followups.md`. The contract caught the wrong guess; the constant is now
+  set from a measurement rather than from where the item id said it should be
+
+**THE LIMIT IS RECORDED RATHER THAN LEFT TO BE DISCOVERED.** The split divides the
+population; it does not shrink it. New items land in the `CS-8nn` leaf, so that leaf is the
+one that grows. CLOSURE IS STILL THE ONLY DESIGNED SHRINK.
+
+ADR: `docs/adr/0010-item-notes-is-an-index-over-per-phase-leaves.md` - `proposed`, NOT
+`accepted`. The session that performed the split does not grade it.
+
 ### 2026-08-25 - CS-829, CS-846, CS-850, CS-851 - NOT A COMPLETION RECORD. NOTHING CLOSED. All four merged as IMPROVEMENTS after a build round and a repair round, and every one STAYS OPEN
 
 **A LIVE TIER-1 PRIVACY LEAK WAS FOUND ON `main` AND CLOSED.**

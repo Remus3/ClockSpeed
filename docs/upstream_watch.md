@@ -8,7 +8,8 @@ topology table, which is the drift `CLAUDE.md` section 4 exists to prevent.
 **This file NEVER contains:** lifted upstream content of any kind - no tables, no
 datasets, no quoted page bodies, no node lists; the licence verdict (`docs/LEDGER.md`
 owns that under CS-485); an item's acceptance criterion (`ROADMAP.md` owns those); or
-per-item working detail (`docs/item_notes.md` owns that).
+per-item working detail (the `docs/item_notes.md` family owns that, and its index
+routes to the leaf).
 
 ---
 

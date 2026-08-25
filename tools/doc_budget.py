@@ -10,7 +10,8 @@ operator's scarcest resource on every turn of every session.
     memory/MEMORY.md (index)   <  20 KB  hard fail
     any memory/*.md leaf       <   6 KB  warn
     ROADMAP.md                 <  60 KB  warn, triggers a relocate pass
-    docs/item_notes.md         < 224 KB  warn, triggers a relocate pass
+    docs/item_notes.md (index) <  16 KB  warn
+    any docs/item_notes/*.md   < 128 KB  warn, triggers a relocate pass
     docs/upstream_watch.md     <  16 KB  warn
 
 Exits non-zero only on a HARD failure. A WARN prints loudly and returns zero,
@@ -69,22 +70,41 @@ MEMORY_INDEX_BUDGET = 20 * KB
 MEMORY_LEAF_BUDGET = 6 * KB
 ROADMAP_BUDGET = 60 * KB
 
-# docs/item_notes.md owns the LIVE per-item detail for OPEN work, one section
-# per item ID (CLAUDE.md section 4). It was created 2026-08-23 under an operator
-# ruling that moved every NOTE body out of ROADMAP.md and every live instruction
-# block out of docs/history_notes.md, and it MEASURED 163.7 KB the moment it
-# landed. 224 KB is chosen as the round number roughly 37 per cent above that.
+# docs/item_notes.md owned the LIVE per-item detail for OPEN work as ONE file
+# from 2026-08-23 until 2026-08-25, when it was SPLIT: it is now an index over
+# docs/item_notes/, one leaf per phase, and the leaves hold the bodies
+# (CLAUDE.md section 4). The split was taken at 96 per cent of the old 224 KB
+# budget with ZERO closed sections left to relocate - the file's only designed
+# shrink is an item CLOSING, and four items had merged that session without
+# closing.
 #
-# THE HEADROOM IS THE POINT, and it is sized against how this file grows rather
-# than picked to fit. A budget with no headroom fires on the next edit and
-# teaches everyone to ignore it - which is precisely what happened to
-# ROADMAP.md, whose WARN this file exists to relieve and which needed two
-# relocate passes in one day at 9 then 97 bytes of margin. This file gains a
-# section per newly filed item and loses one per item CLOSED, because a closed
-# item's detail moves to docs/history_notes.md; 224 KB leaves room for roughly
-# forty more items' worth of detail before a relocate pass is due, which is a
-# horizon long enough that the warn means something when it finally prints.
-ITEM_NOTES_BUDGET = 224 * KB
+# THE INDEX IS BUDGETED TIGHT, and deliberately so. It carries one routing row
+# per OPEN item plus the family's rules, and it MEASURED 9.1 KB on creation. A
+# row is roughly 45 bytes, so 16 KB holds well over a hundred more items than
+# the tree has - while being nowhere near enough to hold a body. The failure
+# worth catching on THIS file is someone writing an item's detail here instead
+# of in its leaf, which is also asserted directly by tools/drift_guard.py
+# guard (j); a size warn is a weak second signal for it and a free one.
+ITEM_NOTES_INDEX_BUDGET = 16 * KB
+
+# EACH LEAF carries a budget rather than the family carrying one. A budget
+# summed over a population is met by its strongest member while the weakest
+# goes unmeasured, so the total is not the thing to bound - the individual file
+# a session has to read is.
+#
+# THE TWO LARGEST LEAVES MEASURED 92.3 KB and 92.0 KB the moment they landed.
+# 128 KB is roughly 37 per cent above that, which is the SAME reasoning and the
+# same margin the 224 KB single-file budget was chosen with - kept identical on
+# purpose, so the number is inherited rather than re-argued.
+#
+# THE HEADROOM IS THE POINT and its limit is disclosed. The split divides the
+# population; it does not shrink it. Newly filed items land overwhelmingly in
+# the CS-8nn follow-up leaf, so that leaf is the one that grows, and 128 KB
+# leaves it roughly a dozen more items' worth of detail. CLOSURE IS STILL THE
+# ONLY DESIGNED SHRINK. When a leaf fills, the remedy is the one this file
+# already prescribes - relocate, do not delete - and the family's shape makes
+# room for a further leaf without another topology change.
+ITEM_NOTES_LEAF_BUDGET = 128 * KB
 
 # docs/upstream_watch.md owns the upstream wiki watch list and the ordering it
 # is read in (CLAUDE.md section 4). It MEASURED 5.4 KB on creation 2026-08-23.
@@ -552,6 +572,19 @@ def _memory_leaves(root: Path) -> list[Path]:
     return sorted(path for path in memory.glob("*.md") if path.name != "MEMORY.md")
 
 
+def _item_notes_leaves(root: Path) -> list[Path]:
+    """Return every leaf of the docs/item_notes/ family.
+
+    DERIVED, never listed. A hand-maintained list of leaf names would let a new
+    leaf join the tree unmeasured, which is the failure this tool's own
+    population statement exists to refuse.
+    """
+    leaves = root / "docs" / "item_notes"
+    if not leaves.is_dir():
+        return []
+    return sorted(leaves.glob("*.md"))
+
+
 def _size(path: Path) -> int | None:
     try:
         return path.stat().st_size
@@ -617,10 +650,14 @@ def evaluate(root: Path | None = None, observed: Survey | None = None) -> list[d
         _entry(
             root,
             root / "docs" / "item_notes.md",
-            ITEM_NOTES_BUDGET,
+            ITEM_NOTES_INDEX_BUDGET,
             "WARN",
-            "docs/item_notes.md",
+            "docs/item_notes.md (index)",
         )
+    )
+    rows.extend(
+        _entry(root, leaf, ITEM_NOTES_LEAF_BUDGET, "WARN", "item-notes leaf")
+        for leaf in _item_notes_leaves(root)
     )
     rows.append(
         _entry(
