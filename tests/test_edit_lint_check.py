@@ -20,10 +20,13 @@ would block the commit that adds it.
 
 from __future__ import annotations
 
+import ast
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -223,6 +226,17 @@ FORMAT_SKIP_MARKER = "ruff format --check is NOT enforced here"
 # surrounded by spaces. Matching the bare word would hit prose instead.
 FORMAT_CODE = " FORMAT "
 
+# gate.emit's clean verdict. Used only to pin the ORDERING the tool claims.
+# NOT named for the word it starts with: bandit's S105 reads any constant whose
+# NAME suggests a credential as a hardcoded secret, and this one is a banner.
+CLEAN_VERDICT = "precommit_gate: PASS"
+
+# The positional shapes the root-identity test asserts. In both calls the root
+# is the LAST positional argument, so the test reads it as args[-1] rather than
+# carrying a second pair of indices that could drift out of step with these.
+RUN_RUFF_ARGC = 3
+DISCLOSE_ARGC = 2
+
 GATE = REPO_ROOT / "tools" / "precommit_gate.py"
 
 
@@ -276,6 +290,16 @@ def test_the_format_skip_is_disclosed_without_verbose(tmp_path: Path) -> None:
         "the format check is disabled on this path and no output said so: " + repr(result.stdout)
     )
     assert FORMAT_SOURCE_FRAGMENT not in result.stdout + result.stderr
+
+    # ORDERING, pinned because the tool CLAIMS it in a comment. Moving the
+    # disclosure after gate.emit survives every other assertion in this file,
+    # so without this the claim is decoration. No consumer parses this stdout
+    # today - the point is that the code should not assert what nothing checks.
+    lines = [line for line in result.stdout.splitlines() if line.strip()]
+    assert lines[-1].startswith(CLEAN_VERDICT), (
+        "the tool claims the PASS banner stays its last line; it does not: " + repr(lines)
+    )
+    assert any(FORMAT_SKIP_MARKER in line for line in lines[:-1]), repr(lines)
 
 
 def test_a_non_python_edit_gets_no_format_notice(tmp_path: Path) -> None:
@@ -338,4 +362,167 @@ def test_a_root_reaching_this_tool_would_arm_a_blocking_format_check(tmp_path: P
     assert FORMAT_SKIP_MARKER in result.stdout, (
         "the format skip stopped being disclosed, which means either the check is "
         "now armed or the disclosure was dropped: " + repr(result.stdout)
+    )
+
+
+# --------------------------------------------------------------------------
+# CS-841 REPAIR - the tripwire above is SPECIFIC, and a specific tripwire over
+# the wrong path guards nothing. These generalise it.
+# --------------------------------------------------------------------------
+
+# The repository ROOT, and `data/` is the interesting rejected candidate.
+#
+# MEASURED, because it is exactly the trap the next person will fall into:
+# `data/` looks ideal - gitignored, and skipped by tests/conftest.py in every
+# tree walk - but the gate's PUBLISHER rule REFUSES any path under a
+# root-anchored gitignored directory before a single byte is read. The bait
+# never reaches ruff, the run reports "0 checked unit(s)", and the tripwire
+# grades a path rejection instead of a format verdict. Under the repo root the
+# gate reaches the format check, which is the whole point.
+#
+# Nothing in this suite walks the tree asserting format cleanliness and nothing
+# asserts a clean `git status`, both checked, so a transient untracked
+# directory here disturbs no other test. The fixture removes it either way.
+IN_REPO_BAIT_PARENT = REPO_ROOT
+
+
+@pytest.fixture
+def in_repo_bait() -> Iterator[Path]:
+    """A format-dirty .py INSIDE the repository, removed again afterwards.
+
+    THE BAIT ABOVE IS OUTSIDE ANY REPOSITORY AND THE OPERATOR'S EDIT PATH IS
+    NEVER OUTSIDE ONE. That gap is not academic. Any arming conditioned on the
+    edited file's LOCATION is invisible to an out-of-repo bait, and the most
+    natural way to arm this tool is exactly that: resolve the root from the
+    file being edited, which yields nothing for a temp copy and the project
+    config for a real edit.
+
+    Created at runtime rather than committed, because a format-dirty file
+    tracked in this repository would fail `ruff format --check .` in CI - the
+    very check whose absence here is the item.
+    """
+    IN_REPO_BAIT_PARENT.mkdir(parents=True, exist_ok=True)
+    directory = Path(tempfile.mkdtemp(dir=str(IN_REPO_BAIT_PARENT), prefix="cs841_bait_"))
+    target = directory / "bait.py"
+    target.write_bytes(FORMAT_DIRTY)
+    try:
+        yield target
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
+
+
+def test_a_root_reaching_this_tool_arms_it_on_an_in_repo_edit(
+    tmp_path: Path,
+    in_repo_bait: Path,
+) -> None:
+    """The tripwire GENERALISED to the path it actually protects.
+
+    The out-of-repo case pins a root taken from a CONSTANT and nothing more.
+    Two arming mutants sail straight past it, both leaving that case green
+    while a blocking `ruff format --check` fires on every real edit:
+
+      1. Resolve the root from the EDITED FILE's repository. Not exotic - it
+         is the most natural repair anyone would reach for, precisely because
+         the stated reason the root is None is that temp copies resolve no
+         config.
+      2. Swap gate.ruff_config_args around the lint call for in-repo paths,
+         which is THE SAME IDIOM this tool already uses on gate.RUFF_TIMEOUT.
+
+    Under the second the tool also PRINTS the skip notice while the check is
+    enforced and blocking, so this test is what stops that notice lying.
+    """
+    reference = run_gate("--files", str(in_repo_bait), env=base_env(tmp_path))
+
+    assert reference.returncode == 1, (
+        "the in-repo bait is no longer refused by the tool that DOES pass a root, "
+        "so this tripwire guards nothing: " + reference.stdout + reference.stderr
+    )
+    assert FORMAT_CODE in reference.stderr, (
+        "the sibling gate refused the in-repo bait for some reason OTHER than "
+        "formatting, so the differential under test is not the root: " + reference.stderr
+    )
+
+    result = run_tool("--files", str(in_repo_bait), env=base_env(tmp_path))
+
+    assert result.returncode == 0, (
+        "a root now reaches tools/edit_lint_check.py on an IN-REPO edit: the format "
+        "check is armed and BLOCKING on the operator's live edit path. CS-841 says "
+        "that needs a grant and a recorded review, not a one-line edit. " + result.stderr
+    )
+    assert FORMAT_CODE not in result.stderr, result.stderr
+    assert FORMAT_SKIP_MARKER in result.stdout, (
+        "the notice is absent on an in-repo edit, so either the check is now armed "
+        "or the disclosure never covered the real path: " + repr(result.stdout)
+    )
+
+
+def callee_name(node: ast.Call) -> str:
+    """The bare name of a call target, whether or not it is attribute-qualified."""
+    if isinstance(node.func, ast.Attribute):
+        return node.func.attr
+    if isinstance(node.func, ast.Name):
+        return node.func.id
+    return ""
+
+
+def test_main_hands_the_same_root_to_the_linter_and_to_the_disclosure() -> None:
+    """The notice has to describe the run that actually happened.
+
+    disclose_format_skip reads its CONDITION from gate.ruff_config_args, but
+    it can only read the root it is GIVEN, and main chooses that separately
+    for each call. Nothing in the types stops main resolving the linter's root
+    from the edited file while the disclosure still sees LINT_ROOT - and then
+    the tool prints "NOT enforced here" while the check is enforced and
+    blocking.
+
+    ASSERTED STATICALLY, because there is no runtime channel to assert it on:
+    gate.run_ruff returns None and never reports which root it used.
+
+    WHAT THIS DOES NOT COVER, recorded because the first draft of it claimed
+    more than it delivered. It catches a DIVERGENCE between the two arguments
+    and nothing else. It reddens on NEITHER arming mutant in the test above -
+    both keep the two arguments identical and change only what that single
+    root IS, so this test passes while a blocking check arms. Those are the
+    in-repo tripwire's job, and the two tests do not overlap.
+
+    Nor is it redundant with that tripwire. MEASURED: pointing the disclosure
+    at LINT_ROOT while the linter reads `root` reddens THIS test and leaves
+    every behavioural test green, because with LINT_ROOT None the two roots
+    are both None and the divergence has no observable effect yet. It is
+    caught before it can become a lie, which is the one thing a static check
+    can do here that a behavioural one cannot.
+    """
+    tree = ast.parse(TOOL.read_bytes())
+    functions = [
+        node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == "main"
+    ]
+    assert len(functions) == 1, f"expected one main in the tool, found {len(functions)}"
+
+    lint_root: ast.expr | None = None
+    notice_root: ast.expr | None = None
+    for node in ast.walk(functions[0]):
+        if not isinstance(node, ast.Call):
+            continue
+        name = callee_name(node)
+        if name == "run_ruff":
+            assert len(node.args) == RUN_RUFF_ARGC, "run_ruff is no longer handed an explicit root"
+            lint_root = node.args[-1]
+        elif name == "disclose_format_skip":
+            assert len(node.args) == DISCLOSE_ARGC, (
+                "the disclosure is no longer handed an explicit root"
+            )
+            notice_root = node.args[-1]
+
+    assert lint_root is not None, "main no longer calls run_ruff"
+    assert notice_root is not None, "main no longer discloses the format skip"
+    assert isinstance(lint_root, ast.Name), (
+        "the linter's root is now an expression rather than a name, so the "
+        "disclosure can no longer be shown to describe the same run: " + ast.dump(lint_root)
+    )
+    assert isinstance(notice_root, ast.Name), (
+        "the disclosure's root is now an expression rather than a name: " + ast.dump(notice_root)
+    )
+    assert lint_root.id == notice_root.id, (
+        "main hands the linter %r and the disclosure %r. The notice would then "
+        "describe a run that did not happen." % (lint_root.id, notice_root.id)
     )
