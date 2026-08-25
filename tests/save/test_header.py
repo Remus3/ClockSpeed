@@ -1013,7 +1013,8 @@ def test_read_header_parses_a_file_written_from_the_corpus(tmp_path: Path) -> No
     parsed = read_header(target)
 
     assert parsed.body_offset == synthetic.SAVE_V60.chunk_offset
-    assert parsed.world_token == synthetic.SYNTHETIC_WORLD_TOKEN
+    token_is_the_fixture_token = parsed.world_token == synthetic.SYNTHETIC_WORLD_TOKEN
+    assert token_is_the_fixture_token, "the header's world token is not the fixture's"
 
 
 def test_read_header_redacts_the_path_of_a_file_it_cannot_open(tmp_path: Path) -> None:
