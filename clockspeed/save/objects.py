@@ -242,6 +242,7 @@ __all__ = [
     "MAX_OBJECTS",
     "MAX_OBJECT_DATA_BYTES",
     "MAX_STRING_BYTES",
+    "MAX_STRUCT_DEPTH",
     "MEASURED_BODY_LAYOUTS",
     "MEASURED_HEADER_VERSIONS",
     "MEASURED_VALUE_TYPES",
@@ -250,6 +251,10 @@ __all__ = [
     "REASON_SHIPPED_ALIGNMENT_ONLY",
     "REFERENCE_COUNT_COMMON_MODE",
     "REFERENCE_TYPE_WORD",
+    "STRUCT_FORMS_READ",
+    "STRUCT_FORM_NATIVE",
+    "STRUCT_FORM_TAG_LIST",
+    "STRUCT_TYPE_WORD",
     "TRANSFORM_BYTES",
     "TRANSFORM_DELTA_BY_SAVE_VERSION",
     "TRANSFORM_FLOAT_COUNT",
@@ -291,6 +296,7 @@ __all__ = [
     "PropertyResult",
     "RecordIndex",
     "ReferenceResolution",
+    "StructValue",
     "Transform",
     "UnknownClass",
     "UnsupportedBodyLayoutError",
@@ -298,6 +304,7 @@ __all__ = [
     "class_name_of",
     "classify_unresolved",
     "container_candidate_words",
+    "decode_struct_interior",
     "index_records",
     "parse_body",
     "parse_object_headers",
@@ -1272,6 +1279,21 @@ class PropertyResult:
             Included in ``disagreeing_value_count`` as well, which counts the
             same condition across every measured type; this field narrows it to
             the reference population so the partition can be checked there.
+        struct_interiors: One :class:`StructValue` per top-level struct tag
+            whose interior READ, in tag order - CS-829. REPORTED APART FROM
+            ``properties`` RATHER THAN INSIDE IT, and that is a claim about what
+            is measured rather than a convenience. A struct word written as
+            native raw bytes is not read here at all, so ``StructProperty`` is
+            NOT in :data:`MEASURED_VALUE_TYPES` and a struct tag still counts in
+            ``unmeasured_value_count`` exactly as it did before this slice.
+            Putting the interior into ``properties`` would say the type's
+            top-level value is measured, which for the native form is false.
+            DECODED WORLD CONTENT, on the same terms as ``properties``.
+        struct_tag_count: How many top-level struct TAGS the walk stepped over,
+            whether or not each yielded an interior. THE DENOMINATOR THE
+            DECODER CANNOT SHRINK, on the same terms as ``reference_tag_count``:
+            an equality asserted over "the ones that decoded" holds by
+            construction, and this is the population it has to stand in.
     """
 
     properties: Mapping[str, object]
@@ -1283,6 +1305,8 @@ class PropertyResult:
     references: tuple[ObjectReference, ...] = ()
     reference_tag_count: int = 0
     undecoded_reference_count: int = 0
+    struct_interiors: tuple[StructValue, ...] = ()
+    struct_tag_count: int = 0
 
     def __repr__(self) -> str:
         """Render counts and flags, and withhold every string.
@@ -1298,7 +1322,9 @@ class PropertyResult:
             f"disagreeing_value_count={self.disagreeing_value_count}, "
             f"references={len(self.references)}, "
             f"reference_tag_count={self.reference_tag_count}, "
-            f"undecoded_reference_count={self.undecoded_reference_count})"
+            f"undecoded_reference_count={self.undecoded_reference_count}, "
+            f"struct_interiors={len(self.struct_interiors)}, "
+            f"struct_tag_count={self.struct_tag_count})"
         )
 
 
@@ -3123,13 +3149,20 @@ DECLINED_VALUE_READINGS: Final[Mapping[str, tuple[str, str]]] = MappingProxyType
         ),
         "StructProperty": (
             REASON_NO_DISCRIMINATION_TEST,
-            "declined because no discrimination test has been put to it, so an "
-            "exception to the rule rather than an application of it. The "
-            "StructProperty entry of UNMEASURED_PAYLOAD_REGIONS records that "
-            "the tag's declared size DOES bound the region, so it is stepped "
-            "over exactly and costs no synchronisation, and that THE INTERIOR "
-            "is what is unmeasured. That is what this code names. What would "
-            "settle it is a control against the interior framing",
+            "declined for the NATIVE form only, which is a narrowing of the "
+            "whole-type decline this entry used to record. NO FIGURE IS WRITTEN "
+            "HERE - the StructProperty entry of UNMEASURED_PAYLOAD_REGIONS owns "
+            "the population and this points at it. "
+            "A discrimination test HAS now been put to the tag_list form: its "
+            "terminator must arrive at exactly the declared end, a wrong "
+            "reading refuses, and the interior names cross-check against the "
+            "fields the shipped usmap declares for that struct - see the "
+            "StructProperty entry of UNMEASURED_PAYLOAD_REGIONS. What is still "
+            "declined is the native form, where the width is whatever the bytes "
+            "are and every partition closes by arithmetic, so no reading of it "
+            "could have failed. What would settle THAT is an element width a "
+            "shipped asset states, or any cross-check a misdeclaration would "
+            "break. THE TYPE STAYS OUT OF MEASURED_VALUE_TYPES until it does",
         ),
     }
 )
@@ -3675,9 +3708,50 @@ _ELEMENT_STRING_COUNTS: Final[Mapping[str, int]] = MappingProxyType(
     }
 )
 
+#: The tag type word whose value is a struct - CS-829. Shipped as a constant
+#: rather than spelled at each site for the reason CS-831 gave
+#: :data:`REFERENCE_TYPE_WORD`: a word repeated at five sites is five places to
+#: get one literal subtly wrong, and a test cannot hold a literal to anything.
+STRUCT_TYPE_WORD: Final = "StructProperty"
+
+#: THE TWO SERIALIZATION FORMS A STRUCT INTERIOR TAKES, and the distinction the
+#: whole of CS-829 turns on. A usmap schema names a struct's FIELDS. IT DOES NOT
+#: STATE ITS FORM, and no shipped asset this project reads does - so which form
+#: a struct word uses is MEASURED, per word, over the real library, by
+#: ``tests/save/test_struct_interior.py``.
+#:
+#: :data:`STRUCT_FORM_TAG_LIST` is a nested property tag list closed by the same
+#: terminator name a payload uses. IT GIVES A READING THAT CAN FAIL: the
+#: terminator must arrive at exactly the byte the tag's declared size points at,
+#: and a wrong offset, a wrong grammar or an overrun all refuse rather than
+#: return. That falsifiability is why this form is read.
+#:
+#: :data:`STRUCT_FORM_NATIVE` is raw bytes carrying no tags at all. IT GIVES NO
+#: SUCH READING: its width is whatever the bytes are, and any partition of it
+#: closes by arithmetic. A check that cannot fail is not a check - which is the
+#: finding that refuted CS-830 after it had already merged - so this form is
+#: classified here and DECODED NOWHERE.
+STRUCT_FORM_TAG_LIST: Final = "tag_list"
+STRUCT_FORM_NATIVE: Final = "native"
+
+#: The struct forms this module reads. A SET rather than a bare equality so the
+#: day the native form gains evidence - a shipped asset stating an element
+#: width, or any reading that could have disagreed - it joins here rather than
+#: being special-cased at a call site.
+STRUCT_FORMS_READ: Final = frozenset({STRUCT_FORM_TAG_LIST})
+
+#: How deep a struct interior may nest before the reader refuses it. A BOUND,
+#: not a measurement of any observed nesting: a payload is untrusted input and
+#: a self-referential one would otherwise recurse until the interpreter raises,
+#: which is a crash where non-negotiable 7 asks for a flag and a skip.
+MAX_STRUCT_DEPTH: Final = 16
+
 #: The one inner word whose element is a NESTED property tag list, closed by
-#: the same terminator name a payload uses. Its interior is CS-829's.
-_ELEMENT_TAG_LIST_WORD: Final = "StructProperty"
+#: the same terminator name a payload uses. THE SAME WORD AS
+#: :data:`STRUCT_TYPE_WORD` AND NOW SPELLED AS IT: an element tag list and a
+#: top-level struct interior are the same grammar reached from two directions,
+#: and keeping two literals let them drift apart in principle.
+_ELEMENT_TAG_LIST_WORD: Final = STRUCT_TYPE_WORD
 
 #: The inner words carrying TWO element shapes, and so the only ones a
 #: DERIVED width may ever be forced on.
@@ -3812,6 +3886,59 @@ class ContainerValue:
         )
 
 
+@dataclass(frozen=True, repr=False)
+class StructValue:
+    """What one ``StructProperty`` interior decoded to - CS-829.
+
+    ``repr`` RENDERS COUNTS ONLY AND WITHHOLDS THE STRUCT WORD, on the same
+    terms :class:`ContainerValue` withholds it. The word is read out of the
+    save's own bytes and the property names and values are decoded world
+    content; a test runner reprs a value BEFORE a human chooses what to print,
+    so the quiet rendering has to be the only one available.
+
+    Attributes:
+        struct_word: The struct type word the tag carried. DECODED CONTENT,
+            which is why the repr renders its presence rather than the word.
+        form: Which of the two forms this interior was read under. Always a
+            member of :data:`STRUCT_FORMS_READ` on a value that exists at all -
+            an interior in a form this module does not read is not decoded, so
+            it produces no ``StructValue`` rather than one flagged unread.
+        properties: The interior's decoded values, by name. A nested struct
+            comes back here as another :class:`StructValue`. DECODED WORLD
+            CONTENT: a caller that renders it is an echo path under
+            non-negotiable 12.
+        unmeasured: Interior tags carrying a type whose value encoding is
+            unmeasured. Counted rather than dropped for the reason
+            :func:`_decode_payload` gives one level up.
+        disagreed: Interior tags carrying a MEASURED type whose bytes did not
+            account for the declared size. COUNTED APART from the field above
+            because the two mean opposite things.
+        depth: How far inside another struct this one sat, 0 at top level.
+            Carried so a caller can tell a shallow reading from a deep one
+            without re-walking, and so the ceiling is observable.
+    """
+
+    struct_word: str
+    form: str
+    properties: Mapping[str, object]
+    unmeasured: int = 0
+    disagreed: int = 0
+    depth: int = 0
+
+    def __repr__(self) -> str:
+        """Render counts and the shipped form word, and withhold the rest.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(form={self.form!r}, "
+            f"properties={len(self.properties)}, "
+            f"unmeasured={self.unmeasured}, disagreed={self.disagreed}, "
+            f"depth={self.depth})"
+        )
+
+
 #: The type words whose VALUE encoding is measured and is therefore decoded.
 #: EVERY OTHER TYPE IS FLAGGED AND SKIPPED - non-negotiable 7 - and the ones
 #: seen in the library are recorded in :data:`UNMEASURED_PAYLOAD_REGIONS`
@@ -3928,22 +4055,33 @@ UNMEASURED_PAYLOAD_REGIONS: Final[Mapping[str, str]] = MappingProxyType(
             "false sentence in a tracked file on 2026-08-23"
         ),
         "StructProperty": (
-            "45208 instances, the largest opaque region by count. The tag's "
-            "declared size DOES bound it, so it is stepped over exactly and "
-            "costs no synchronisation - the interior is what is unmeasured. "
-            "The struct's own type word is present in the tag and the observed "
-            "vocabulary is led by FactoryCustomizationData, InventoryStack, "
-            "Box and LinearColor. InventoryStack is NOT reachable from a "
-            "building directly - measured 2026-08-23, no building record "
-            "carries one; a building holds an ObjectProperty reference to an "
-            "inventory component and the stacks sit there inside an array. So "
-            "the chain is CS-831, then CS-830, then this region. TWO OF THE "
-            "THREE HAVE LANDED AND THIS ONE HAS NOT, which changes what is "
-            "opaque without changing that it is opaque: CS-830 now BOUNDS a "
-            "struct element inside a container, carries out the inner tag's own "
-            "struct word, and reads nothing between those bounds. So the region "
-            "is smaller and better addressed than it was, and every byte of it "
-            "is still unmeasured"
+            "the interior of a struct tag, NARROWED BY CS-829 RATHER THAN "
+            "CLOSED. The tag's declared size DOES bound it, so it is stepped "
+            "over exactly and costs no synchronisation, and the struct's own "
+            "type word is present in the tag. WHAT IS NOW READ: the tag_list "
+            "form - a nested property tag list whose terminator must arrive at "
+            "exactly the declared end - decoded by decode_struct_interior and "
+            "reported on PropertyResult.struct_interiors. WHAT IS STILL "
+            "UNMEASURED: the native form, raw bytes carrying no tags at all. "
+            "Its width is whatever the bytes are, so any partition of it closes "
+            "by arithmetic and no reading of it could have failed - which is "
+            "the defect that refuted CS-830 after it had merged, and the reason "
+            "it is classified and not decoded. WHICH WORDS TAKE WHICH FORM IS "
+            "NOT WRITTEN HERE: it is derived from the shipped usmap and the "
+            "corpus on every run by tests/save/test_struct_interior.py, because "
+            "a transcribed struct vocabulary is the hand-maintained list this "
+            "project has repeatedly recorded as the thing that rots. THE FORM "
+            "IS A PROPERTY OF THE STRUCT TYPE AND THAT IS MEASURED, not "
+            "assumed - no word in the corpus is written both ways, and the day "
+            "one is, that test says so. StructProperty is deliberately NOT in "
+            "MEASURED_VALUE_TYPES while the native form is unread, so a struct "
+            "tag still counts as unmodelled content exactly as it did before. "
+            "InventoryStack is NOT reachable from a building directly - "
+            "measured 2026-08-23, no building record carries one; a building "
+            "holds an ObjectProperty reference to an inventory component and "
+            "the stacks sit there inside an array. So the chain is CS-831, then "
+            "CS-830, then this region, and reading a struct interior does not "
+            "shorten it"
         ),
         "TextProperty": (
             "10 instances, all of declared size 45. Unreal's text serialization "
@@ -4673,6 +4811,254 @@ def _refusal_is_unmodelled_content(type_word: str, element_words: tuple[str, ...
     return type_word not in MEASURED_VALUE_TYPES
 
 
+def _struct_word_of_tag(body: bytes, name_at: int, end: int) -> str | None:
+    """The struct type word a ``StructProperty`` tag carries, or None.
+
+    IT IS RE-READ FROM THE NAME OFFSET rather than handed back by
+    :func:`_read_tag_header`, for the reason CS-830 gives at the container
+    site: widening that function's return shape in place is how a caller starts
+    unpacking the wrong element in silence. The word sits between the tag's
+    index field and its guid, which is exactly where
+    :func:`_container_element_words` reads a container's element words from -
+    the two are the same tag-extra run, and :data:`_TAG_EXTRA_STRINGS` is what
+    says how many strings each type puts there.
+
+    Args:
+        body: The decompressed body.
+        name_at: Where the tag's TYPE WORD begins - that is, just past its name.
+        end: The first byte past the payload.
+
+    Returns:
+        The struct word, or None when the tag extra does not read.
+    """
+    words = _container_element_words(body, name_at, end, STRUCT_TYPE_WORD)
+    # THE EMPTINESS CHECK IS SEPARATE FROM THE COUNT CHECK AND IS NOT REDUNDANT
+    # WITH IT. The count comes from :data:`_TAG_EXTRA_STRINGS`, a SHIPPED WIDTH
+    # that the width-mutation census in ``tests/save/test_properties.py``
+    # deliberately mis-states on the real module. Mis-stated to zero, the count
+    # check passes against an EMPTY tuple and indexing it RAISED - out of a
+    # function whose whole contract is to return None on anything it cannot
+    # read. Found by that census, not by reasoning: the two conditions look like
+    # one until the number they are compared against can be zero.
+    if words is None or not words or len(words) != _TAG_EXTRA_STRINGS.get(STRUCT_TYPE_WORD, 0):
+        return None
+    return words[0]
+
+
+def _decode_struct_interior(
+    body: bytes, struct_word: str, at: int, end: int, depth: int = 0
+) -> StructValue | None:
+    """Decode one struct interior written as a nested property tag list - CS-829.
+
+    THE EXACT CLOSE IS THE WHOLE DISCRIMINATOR, and it is the reason this form
+    is read while the native one is not. The terminator must arrive at exactly
+    ``end`` - the byte the tag's own declared size points at. A walk that
+    terminates early is REFUSED rather than returned, because returning the
+    readable prefix would make every closure hold by construction, which is the
+    defect that refuted CS-830 one seam over. Under this rule a wrong reading
+    produces None, so a population of interiors closing is evidence about the
+    format rather than about the arithmetic.
+
+    NONE MEANS "NOT A TAG LIST", WHICH IS NOT THE SAME AS "BROKEN". Most
+    refusals here are the NATIVE form doing exactly what it does: raw bytes
+    carrying no tags. That is content this project has not measured, the
+    caller's own advance steps by the tag's declared size and is unaffected,
+    and non-negotiable 7 asks for a flag and a skip. See
+    :func:`_refusal_is_unmodelled_content`.
+
+    IT COLLECTS NO REFERENCES, AND THAT IS DELIBERATE RATHER THAN AN OVERSIGHT.
+    An ``ObjectProperty`` inside an interior decodes to its pair and lands in
+    ``properties`` like any other value, but it does NOT join the population
+    :func:`resolve_references` partitions. That population is a top-level tag
+    count CS-831 grades an identity against, and widening it here would move a
+    denominator this slice has measured nothing about.
+
+    THE LOOP IS NOT :func:`_walk_payload`'S AND THE DIFFERENCE IS THE CONTRACT.
+    That walk terminates wherever the terminator falls and collects references;
+    this one must close at a stated byte and does not. What the two share is the
+    part that matters - :func:`_read_tag_header` and :func:`_payload_text` - so
+    there is one tag grammar in this module and not two.
+
+    Args:
+        body: The decompressed body.
+        struct_word: The struct type word the tag carried.
+        at: The interior's first byte.
+        end: The first byte past the interior, from the tag's declared size.
+        depth: How far inside another struct this one sits.
+
+    Returns:
+        The decoded interior, or None when it is not a tag list closing exactly
+        at ``end``.
+    """
+    if depth > MAX_STRUCT_DEPTH or at < 0 or at > end or end > len(body):
+        return None
+    walked = _walk_struct_tags(body, at, end, depth)
+    if walked is None:
+        return None
+    decoded, unmeasured, disagreed = walked
+    return StructValue(
+        struct_word=struct_word,
+        form=STRUCT_FORM_TAG_LIST,
+        properties=MappingProxyType(decoded),
+        unmeasured=unmeasured,
+        disagreed=disagreed,
+        depth=depth,
+    )
+
+
+def _decode_interior_tag(
+    body: bytes,
+    type_word: str,
+    name_at: int,
+    value_at: int,
+    size: int,
+    in_tag_byte: int | None,
+    end: int,
+    depth: int,
+) -> tuple[object | None, tuple[str, ...]] | None:
+    """Decode one tag sitting inside a struct interior.
+
+    THREE OUTCOMES, NOT TWO, and collapsing any pair of them loses a
+    distinction the caller needs. A VALUE means the tag decoded. A ``(None,
+    words)`` pair means the tag's type is one this module does not read, or its
+    bytes disagreed - the caller sorts those two by the element words it is
+    handed back. A bare None means the TAG ITSELF did not read, which breaks
+    the walk rather than skipping a value.
+
+    Args:
+        body: The decompressed body.
+        type_word: The tag's type word.
+        name_at: Where the tag's type word begins.
+        value_at: The value's first byte.
+        size: The value's declared extent.
+        in_tag_byte: The byte a BoolProperty carries in its tag, or None.
+        end: The first byte past the interior.
+        depth: How deep the interior holding this tag sits.
+
+    Returns:
+        The value and the element words a container's tag carried, or None when
+        the tag's own extra data does not read.
+    """
+    if type_word == STRUCT_TYPE_WORD:
+        nested = _struct_word_of_tag(body, name_at, end)
+        if nested is None:
+            return (None, ())
+        return (_decode_struct_interior(body, nested, value_at, value_at + size, depth + 1), ())
+    element_words: tuple[str, ...] = ()
+    if type_word in CONTAINER_TYPE_WORDS:
+        read_words = _container_element_words(body, name_at, end, type_word)
+        if read_words is None:
+            return None
+        element_words = read_words
+    return (
+        _decode_value(body, type_word, value_at, size, in_tag_byte, element_words),
+        element_words,
+    )
+
+
+def _walk_struct_tags(
+    body: bytes, at: int, end: int, depth: int
+) -> tuple[dict[str, object], int, int] | None:
+    """Walk one struct interior's tag list, refusing anything that does not close.
+
+    Args:
+        body: The decompressed body.
+        at: The interior's first byte.
+        end: The first byte past the interior.
+        depth: How deep this interior sits.
+
+    Returns:
+        The decoded values, the unmeasured count and the disagreement count, or
+        None when the list does not close exactly at ``end``.
+    """
+    decoded: dict[str, object] = {}
+    unmeasured = 0
+    disagreed = 0
+    cursor = at
+    for _ in range(_MAX_ELEMENT_TAGS):
+        name = _payload_text(body, cursor, end)
+        if name is None:
+            return None
+        if name[0] == _PAYLOAD_TERMINATOR:
+            # THE EQUALITY, not a bound. A terminator short of the declared end
+            # means this reading is not the one the writer used.
+            return (decoded, unmeasured, disagreed) if name[1] == end else None
+        tag = _read_tag_header(body, name[1], end)
+        if tag is None:
+            return None
+        type_word, value_at, size, in_tag_byte = tag
+        step = _decode_interior_tag(
+            body, type_word, name[1], value_at, size, in_tag_byte, end, depth
+        )
+        if step is None:
+            return None
+        value, element_words = step
+        if value is not None:
+            decoded[name[0]] = value
+        elif _refusal_is_unmodelled_content(type_word, element_words):
+            unmeasured += 1
+        else:
+            disagreed += 1
+        cursor = value_at + size
+    return None
+
+
+def _fold_struct_tag(
+    body: bytes, type_word: str, name_at: int, value_at: int, size: int, end: int
+) -> tuple[int, tuple[StructValue, ...]]:
+    """Whether one tag is a struct, and its interior when the interior reads.
+
+    IT TAKES THE TYPE TEST RATHER THAN LEAVING IT TO THE CALLER, and that is
+    deliberate rather than golf. :func:`_walk_payload` sits at its branch
+    budget, and a walk that grows one more ``if`` per type word is the shape
+    that gets refactored badly later. Handing it a pair it can add and extend
+    unconditionally keeps the decision here, where the docstring for it is.
+
+    Args:
+        body: The decompressed body.
+        type_word: The tag's type word.
+        name_at: Where the tag's type word begins.
+        value_at: The value's first byte.
+        size: The value's declared extent.
+        end: The first byte past the payload.
+
+    Returns:
+        1 when the tag is a struct and 0 otherwise, and a tuple holding the
+        decoded interior or nothing at all.
+    """
+    if type_word != STRUCT_TYPE_WORD:
+        return (0, ())
+    struct_word = _struct_word_of_tag(body, name_at, end)
+    interior = (
+        None
+        if struct_word is None
+        else _decode_struct_interior(body, struct_word, value_at, value_at + size)
+    )
+    return (1, () if interior is None else (interior,))
+
+
+def decode_struct_interior(body: bytes, struct_word: str, at: int, end: int) -> StructValue | None:
+    """Decode one ``StructProperty`` interior, or refuse it - CS-829.
+
+    THE STATED SEAM for a caller holding a struct tag's own bounds, and the
+    entry point ``tests/save/test_struct_interior.py`` grades the library
+    population through. It reads the :data:`STRUCT_FORM_TAG_LIST` form and
+    NOTHING ELSE: a struct written as native raw bytes comes back None, because
+    its width is whatever the bytes are and no reading of it could have failed.
+
+    Args:
+        body: The decompressed body.
+        struct_word: The struct type word the tag carried.
+        at: The interior's first byte.
+        end: The first byte past the interior, from the tag's declared size.
+
+    Returns:
+        The decoded interior, or None when it is not a tag list closing exactly
+        at ``end``.
+    """
+    return _decode_struct_interior(body, struct_word, at, end)
+
+
 def _decode_value(
     body: bytes,
     type_word: str,
@@ -4780,6 +5166,14 @@ class _PayloadWalk:
         references: One entry per DECODED reference tag, in tag order.
         reference_tags: Every reference tag stepped over, decoded or not.
         undecoded_references: Reference tags that yielded no pair.
+        struct_interiors: One entry per top-level struct tag whose interior
+            READ, in tag order - CS-829. A tuple rather than a mapping for the
+            reason ``references`` is one: two tags sharing a name may not
+            collapse into one when the thing being counted is a population.
+        struct_tags: Every top-level struct tag stepped over, decoded or not.
+            THE DENOMINATOR THE DECODER CANNOT SHRINK, on the same terms as
+            ``reference_tags``: counting only what decoded would let a form this
+            module does not read leave the population instead of being reported.
     """
 
     properties: dict[str, object]
@@ -4789,6 +5183,8 @@ class _PayloadWalk:
     references: tuple[ObjectReference, ...]
     reference_tags: int
     undecoded_references: int
+    struct_interiors: tuple[StructValue, ...] = ()
+    struct_tags: int = 0
 
     def __repr__(self) -> str:
         """Render counts only, and withhold every string.
@@ -4801,7 +5197,9 @@ class _PayloadWalk:
             f"unmeasured={self.unmeasured}, disagreed={self.disagreed}, "
             f"terminated={self.terminated}, references={len(self.references)}, "
             f"reference_tags={self.reference_tags}, "
-            f"undecoded_references={self.undecoded_references})"
+            f"undecoded_references={self.undecoded_references}, "
+            f"struct_interiors={len(self.struct_interiors)}, "
+            f"struct_tags={self.struct_tags})"
         )
 
 
@@ -4844,10 +5242,12 @@ def _walk_payload(body: bytes, at: int, end: int) -> _PayloadWalk | None:
     """
     decoded: dict[str, object] = {}
     references: list[ObjectReference] = []
+    struct_interiors: list[StructValue] = []
     unmeasured = 0
     disagreed = 0
     reference_tags = 0
     undecoded_references = 0
+    struct_tags = 0
     for _ in range(_MAX_TAGS_PER_PAYLOAD):
         name = _payload_text(body, at, end)
         if name is None:
@@ -4861,6 +5261,8 @@ def _walk_payload(body: bytes, at: int, end: int) -> _PayloadWalk | None:
                 references=tuple(references),
                 reference_tags=reference_tags,
                 undecoded_references=undecoded_references,
+                struct_interiors=tuple(struct_interiors),
+                struct_tags=struct_tags,
             )
         tag = _read_tag_header(body, name[1], end)
         if tag is None:
@@ -4879,6 +5281,19 @@ def _walk_payload(body: bytes, at: int, end: int) -> _PayloadWalk | None:
                 return None
             element_words = read_words
         value = _decode_value(body, type_word, value_start, size, in_tag_byte, element_words)
+        # A SEPARATE POPULATION FROM ``properties``, AND THE SEPARATION IS THE
+        # DESIGN - CS-829. The interior is REPORTED here and the struct word
+        # stays OUT of MEASURED_VALUE_TYPES, because the corpus carries struct
+        # words written in a form this module does not read. Promoting the type
+        # on the strength of the form it DOES read would claim a top-level value
+        # reading for all of them, which is the overclaim the item's own note
+        # warns against - and it would move ``unmeasured`` for the native form,
+        # reporting shipped game content as a decoder that lost its place.
+        #
+        # NO BRANCH IS ADDED TO THIS LOOP and :func:`_fold_struct_tag` says why.
+        struct_step = _fold_struct_tag(body, type_word, name[1], value_start, size, end)
+        struct_tags += struct_step[0]
+        struct_interiors.extend(struct_step[1])
         if type_word == REFERENCE_TYPE_WORD:
             # KEPT AS ONE BLOCK, and separate from the bookkeeping below it.
             # The two answer different questions - that one asks whether the
@@ -5089,6 +5504,8 @@ def read_properties(body: bytes, record: ObjectRecord, property_map: PropertyMap
         references=walked.references,
         reference_tag_count=walked.reference_tags,
         undecoded_reference_count=walked.undecoded_references,
+        struct_interiors=walked.struct_interiors,
+        struct_tag_count=walked.struct_tags,
     )
 
 
