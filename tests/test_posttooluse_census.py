@@ -158,8 +158,11 @@ def _first_cwd(transcript: Path) -> str | None:
                     record = json.loads(stripped)
                 except ValueError:
                     continue
-                if isinstance(record, dict) and isinstance(record.get("cwd"), str):
-                    return record["cwd"]
+                if not isinstance(record, dict):
+                    continue
+                cwd = record.get("cwd")
+                if isinstance(cwd, str):
+                    return cwd
     except OSError:
         return None
     return None
