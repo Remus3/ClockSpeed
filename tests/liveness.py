@@ -1,34 +1,49 @@
 #!/usr/bin/env python3
 """CS-846 - is a shipped control still grading, and is a shipped guard still guarding?
 
-THE DEFECT. A control whose body is cut short by an early return before its
-only assertion still reports as passed. Nothing distinguishes "asserted and the
-assertion held" from "returned before asserting" - both produce a dot. It is
-the same shape as this project's standing finding about mutation testing, where
-a mutant that never applied and one that survived produce identical output: the
-ABSENCE of a signal is being read as the PRESENCE of a negative result.
+THE DEFECT. A control that stops grading still reports as passed, and a guard
+that stops guarding still answers PASS. Nothing distinguishes graded-and-held
+from stopped-before-grading. It is the same shape as this project's standing
+finding about mutation testing, where a mutant that never applied and one that
+survived produce identical output: the ABSENCE of a signal is being read as the
+PRESENCE of a negative result.
 
-THE MUTATION THAT MOTIVATES THE ANALYSIS IS CONDITIONAL, NOT BARE. Gutting a
-test with a bare ``return`` leaves every statement after it unreachable, and
-that IS caught today - mypy runs with ``warn_unreachable`` and
-``tests/test_mypy_gate.py`` puts it in the suite, and
-``tests/save/reach_guard._gutted_tests`` names the same property locally. Write
-it as ``if corpus: return`` instead and neither notices: the assertions below
-stay reachable, so no unreachable statement exists to report. The analysis here
-therefore keys on whether an exit can be REACHED without grading, not on
-whether anything after it is dead.
+THE FIRST VERSION OF THIS MODULE WAS REFUTED, AND THE REFUTATION SHAPES
+EVERYTHING BELOW. It reported a hole only at an explicit ``ast.Return``.
+Measured on this tree by the adversary that graded it: 1855 of 1857 members
+carry no ``return`` statement anywhere, so for all but two of them the analysis
+was structurally incapable of reporting anything and its green was a claim
+about a shape they do not contain. Four gutting shapes were demonstrated
+silent, none of which uses a return - wrapping a body in ``if not globals():``,
+swallowing the assertions in a ``try``, and an unconditional ``pytest.skip`` at
+the head. So the unit of analysis here is the EXIT, not the return statement,
+and the implicit end-of-function exit counts as one.
 
-WHY THE POPULATION IS DERIVED AND NOT LISTED. The property this module checks
-already existed, applied by hand: ``tests/save/reach_guard`` ships a gutting
-guard, and modules opt into it by calling it on their own ``__file__``. A
-refutation pass recorded in that module's own header measured the result - of
-the five modules that self-apply its sibling reach guard, two call the gutting
-one, and it concluded that the check "is not a rule the package follows, it is
-a habit two modules have". Every module that never opted in is invisible to it,
-and so is every module outside that package. So the population here comes from
-``git ls-files`` plus an AST walk, exactly the way
-``tests/test_exception_rendering`` derives its own: a module cannot escape by
-not being on a list, because there is no list.
+WHY THE ANALYSIS IS GENEROUS ABOUT LOOPS AND ``try``, WITH THE COST MEASURED
+RATHER THAN ASSUMED. Grading the end-of-function exit strictly - a loop that
+may not run grades nothing, a ``try`` body that may raise partway grades
+nothing - reports 95 members of this tree, and every one of them is correct
+idiomatic code of the form ``for node in walk(tree): if isinstance(...): assert
+...``. A check that reports 95 false positives is a check that gets switched
+off. Measured across the whole rule matrix, exactly one setting reports ZERO on
+this tree while still catching the wrapping shape: a loop grades if its body
+CONTAINS a grading statement anywhere, and a ``try`` grades if its body ends
+graded. That is the setting used, and the two generosities are not hidden -
+every member that leans on either is counted and re-derived by
+:func:`survey`, so the exemption is a measured set rather than a sentence.
+
+THE THREE HARD RULES, each measured at ZERO on this tree and each closing one
+demonstrated kill.
+
+  1. AN EXIT REACHED WITHOUT GRADING - a ``return``, or falling off the end.
+     Closes the bare return, the conditional return, and the ``if not
+     globals():`` wrap.
+  2. AN EXITING CALL AT A MEMBER'S TOP LEVEL, reached without grading -
+     ``pytest.skip``, ``xfail`` or ``exit``. Closes the skip-at-the-head shape.
+     It is scoped to the TOP LEVEL because a CONDITIONAL skip is the legitimate
+     idiom and this tree carries 38 of them and no unconditional one.
+  3. A ``try`` THAT GRADES AND CARRIES A SILENTLY SWALLOWING HANDLER. Closes
+     the swallow shape.
 
 WHAT IS IN THE POPULATION, and both halves of the filter are load-bearing.
 
@@ -36,82 +51,78 @@ A member is a function that SHIPS A GRADING STATEMENT and RETURNS NO VALUE.
 
   - Ships a grading statement. That is the derivation the acceptance asks for -
     the population comes from the shipped assertions rather than from the word
-    "control" or the word "guard". It therefore covers both structures this
-    item was filed on: a ``test_`` function that asserts, and a non-test helper
-    that asserts on a caller's behalf. The two were reported independently, by
-    agents that did not know of each other, which is the evidence the shape is
-    not specific to either word.
+    "control" or the word "guard" - so it covers both structures this item was
+    filed on: a ``test_`` function that asserts, and a non-test helper that
+    asserts on a caller's behalf.
 
-  - Returns no value. Without it the population swallows ordinary utilities
-    that happen to carry a sanity assert and legitimately return early on a
-    boundary case - a power helper returning 1 for a zero exponent, a census
-    builder returning its rows. Measured on this tree before the filter was
-    added: nine such functions, every one a false positive, and none of them a
-    grader. A grader computes nothing for a caller; it either says nothing or
-    it fails. That is the discriminator, taken from the code rather than from
-    an annotation, because an annotation is a claim and the return statement is
-    the fact.
-
-WHAT IS NOT COVERED, stated rather than implied, because a guard read as
-covering all gutting is the false-guarantee class this project has already paid
-for. An exit reached only from inside a loop body that may not run, an
-assertion rewritten to a tautology, and a test that grades by calling something
-that raises rather than by asserting - none of these leave an ungraded exit and
-none of them is reported here. The third is enumerated by
-:func:`tests_outside_the_population` so that it is a measured residual with a
-shape assertion on it rather than an unexamined remainder.
+  - Returns no value. A grader computes nothing for a caller; it either says
+    nothing or it fails. Without this the population swallows utilities that
+    carry a sanity assert on the way to a value and legitimately return early
+    on a boundary case. Those are NOT silently dropped - they are counted and
+    named by :func:`survey` as their own residual, because the adversary
+    measured that the filter excludes 78 functions and demonstrated a silent
+    kill inside one of them.
 
 THE GUARD HALF IS A DIFFERENT MECHANISM BECAUSE GUARDS GRADE DIFFERENTLY. A
-``guard_`` function in ``tools/drift_guard.py`` does not assert; it RETURNS a
-status, and returning ``PASS`` is its correct behaviour most of the time. So
-the ungraded-exit analysis cannot see it, and an early return that yields PASS
-is invisible to the whole suite unless something forces the guard to a verdict
-it cannot fake. :func:`blind_verdicts` runs each derived guard against a root
-whose every read raises, and :func:`silently_green` applies the criterion this
-project already states in ``tools/drift_guard.py``'s own skip banner, from
-CONVENTIONS.md section 15.1: a guard may be green while self-excusing, but a
-green verdict means nothing without the list of what was never looked at. A
-guard that can read nothing and reports neither a verdict nor a skip is not
-grading - it is returning.
+``guard_`` function does not assert; it RETURNS a status, and returning PASS is
+its correct answer nearly always. Two criteria are applied, and the second
+exists because the first was defeated for the length of one dict literal.
+
+  - NOT SILENTLY GREEN. Run against a tree it cannot read, a guard answering
+    PASS while recording no skip is not grading (CONVENTIONS.md section 15.1,
+    which ``tools/drift_guard.py`` prints a banner about on every run).
+  - THE ANSWER DEPENDS ON THE TREE. A guard is run against three materially
+    different trees - the real one, an empty one, and one whose every read
+    fails - and its rendered answers must not all be identical. A guard
+    replaced by a constant return answers the same thing about all three
+    WHATEVER that constant is, so fabricating a skip record to satisfy the
+    first criterion does not satisfy this one.
 """
 
 from __future__ import annotations
 
 import ast
 import inspect
+import re
 import subprocess
 from pathlib import Path
 from typing import Any, Final, NamedTuple
 
 #: Call names that grade. ``assert`` covers the delegated graders this project
 #: writes - ``assert_reported_without_the_filename``,
-#: ``_assert_no_test_is_gutted`` - and the leading underscore is stripped
-#: first so a private grader is not read as a different kind of thing.
-#: ``raises`` and ``warns`` are the context-manager spellings and ``fail`` is
-#: the unconditional one.
+#: ``_assert_no_test_is_gutted`` - and the leading underscore is stripped first
+#: so a private grader is not read as a different kind of thing. ``raises`` and
+#: ``warns`` are the context-manager spellings and ``fail`` is the
+#: unconditional one.
 _GRADING_CALLS: Final = frozenset({"fail", "raises", "warns"})
+
+#: Calls that LEAVE the function by raising. An unconditional one at a member's
+#: top level ends the test before anything below it runs, which is the gutting
+#: shape wearing pytest's own vocabulary.
+EXITING_CALLS: Final = frozenset({"skip", "xfail", "exit"})
 
 #: The name a blind read reports having failed on. It is a literal that appears
 #: nowhere else in the tree, so a test asserting its absence from guard output
 #: is asserting about the injected value and not about a coincidence.
 INJECTED_FILENAME: Final = "cs846-blind-read-target"
 
-#: Fields a guard record carries. Read from ``tools/drift_guard.py``'s ``Guard``
-#: at the call site rather than imported, because this module is handed the
-#: guard module by its caller and must not import a tool to describe one.
-_GUARD_FIELDS: Final = ("id", "name", "status", "detail")
+#: Where CLAUDE.md section 2.1 says gates and guards live. The DIRECTORIES are
+#: named because the topology table names them; the modules inside them and the
+#: guards inside those are derived. A bare ``guard_`` prefix match over the
+#: whole tree would also catch test helpers called ``guard_of``, so the
+#: directory is what separates a shipped guard from a fixture that reads one.
+TOOL_DIRECTORIES: Final = ("tools", "scripts")
+
+#: Where the authoritative blocking hooks live (CLAUDE.md section 2.2). Read to
+#: derive which tools actually stand in a blocking position; never written.
+HOOK_DIRECTORY: Final = ".githooks"
+
+#: How a tool is spelled inside a hook script.
+_TOOL_REFERENCE: Final = re.compile(r"(?:tools|scripts)/[A-Za-z0-9_]+\.py")
 
 
 class Member(NamedTuple):
     """One derived population member."""
-
-    module: str
-    name: str
-    line: int
-
-
-class Finding(NamedTuple):
-    """One exit a member can reach without grading."""
 
     module: str
     name: str
@@ -126,22 +137,67 @@ class Finding(NamedTuple):
         return f"{self.module}:{self.line} {self.name}"
 
 
+class Finding(NamedTuple):
+    """One way a member can stop grading without anything noticing."""
+
+    module: str
+    name: str
+    line: int
+    kind: str
+
+    def rendered(self) -> str:
+        """Render as a file:line pointer naming the kind of exit.
+
+        Returns:
+            ``module:line name (kind)``.
+        """
+        return f"{self.module}:{self.line} {self.name} ({self.kind})"
+
+
 class Survey(NamedTuple):
-    """What one pass over a set of modules found."""
+    """Everything one pass over a set of modules derived.
+
+    Attributes:
+        members: The population.
+        findings: Hard findings - a member that can stop grading.
+        loop_leaned: Members whose end exit is graded only because a loop body
+            carries the grading. Counted, not failed.
+        try_leaned: Members whose end exit is graded only because a ``try``
+            body carries it. Counted, not failed.
+        value_returning: Graders the population filter excludes because they
+            return a value. Counted, not failed.
+        dead_grading: Grading statements that can never run. Hard.
+        outside: Tests shipping no grading statement at all, split into those
+            that at least call something and those that do not.
+        modules: What was read.
+    """
 
     members: list[Member]
     findings: list[Finding]
+    loop_leaned: list[Member]
+    try_leaned: list[Member]
+    value_returning: list[Member]
+    dead_grading: list[Finding]
+    outside: tuple[list[Member], list[Member]]
     modules: list[str]
 
 
-class BlindVerdict(NamedTuple):
-    """What one guard said about a root it could not read."""
+class GuardAnswer(NamedTuple):
+    """What one guard said about one tree."""
 
     function: str
     guard_id: str
     status: str
     skips: int
     rendered: str
+
+    def signature(self) -> str:
+        """Everything the guard said, as one comparable string.
+
+        Returns:
+            Status, skip count and every rendered line.
+        """
+        return f"{self.status}|{self.skips}|{self.rendered}"
 
 
 # ---------------------------------------------------------------------------
@@ -202,6 +258,18 @@ def is_grading_statement(node: ast.stmt) -> bool:
     return False
 
 
+def is_exiting_statement(node: ast.stmt) -> bool:
+    """Whether a statement leaves the function by raising through pytest.
+
+    Args:
+        node: A statement.
+
+    Returns:
+        True for a bare ``pytest.skip``, ``pytest.xfail`` or ``pytest.exit``.
+    """
+    return isinstance(node, ast.Expr) and _called_name(node.value) in EXITING_CALLS
+
+
 def own_statements(node: ast.AST) -> list[ast.stmt]:
     """Every statement belonging to a function, excluding nested definitions.
 
@@ -225,6 +293,27 @@ def own_statements(node: ast.AST) -> list[ast.stmt]:
         for field in ("body", "orelse", "finalbody", "handlers", "cases"):
             pending.extend(getattr(current, field, None) or [])
     return found
+
+
+def carries_grading(body: list[ast.stmt]) -> bool:
+    """Whether a statement list holds a grading statement anywhere inside it.
+
+    This is the EXISTENTIAL question, used for a loop body only. A loop over an
+    empty collection grades nothing, so the honest answer for the exit after it
+    is "not graded" - and asking that honestly reports 95 correct members of
+    this tree. The generosity is taken deliberately and its cost is counted.
+
+    Args:
+        body: The statements to look through.
+
+    Returns:
+        True if grading appears anywhere within.
+    """
+    return any(
+        isinstance(inner, ast.stmt) and is_grading_statement(inner)
+        for node in body
+        for inner in ast.walk(node)
+    )
 
 
 def returns_a_value(node: ast.AST) -> bool:
@@ -271,96 +360,173 @@ def is_population_member(node: ast.AST) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _scan_compound(node: ast.stmt, graded: bool, holes: list[int]) -> bool:
-    """Walk one compound statement and report what the path leaving it knows.
+class _Walk:
+    """One pass over one function, accumulating holes and generosity flags."""
 
-    THE TWO CONSERVATIVE CASES ARE THE POINT, and both refuse to upgrade
-    ``graded``.
+    def __init__(self) -> None:
+        """Start with nothing found and neither generosity used."""
+        self.holes: list[tuple[int, str]] = []
+        self.leaned_on_loop = False
+        self.leaned_on_try = False
 
-    A LOOP over an empty collection runs nothing, so an assertion inside one
-    guarantees nothing to the code after it. That is the vacuous green this
-    project already fights one level down, and treating a loop body as
-    guaranteed would import it here.
+    def scan(self, body: list[ast.stmt], graded: bool, *, top: bool = False) -> bool:
+        """Walk a statement list, recording every exit reached without grading.
 
-    A ``try`` body can raise partway, so an assertion inside it is not
-    guaranteed either. Only a ``finally`` upgrades, because a ``finally`` runs
-    on every way out.
+        ``graded`` means grading has DEFINITELY happened on every path reaching
+        this point.
 
-    Args:
-        node: A compound statement.
-        graded: Whether grading has already happened on the path reaching it.
-        holes: Accumulator; the line of every ungraded exit is appended.
+        Args:
+            body: The statements to walk.
+            graded: Whether grading has already happened on this path.
+            top: Whether this is the function's own top-level statement list.
+                Only there does an exiting call count as a hole, because a
+                CONDITIONAL skip is the legitimate idiom.
 
-    Returns:
-        Whether the path leaving the statement is graded.
-    """
-    if isinstance(node, ast.If):
-        taken = _scan(node.body, graded, holes)
-        other = _scan(node.orelse, graded, holes) if node.orelse else graded
-        return graded or (taken and other)
-    if isinstance(node, ast.With | ast.AsyncWith):
-        return _scan(node.body, graded, holes) or graded
-    if isinstance(node, ast.For | ast.AsyncFor | ast.While):
-        _scan(node.body, graded, holes)
-        _scan(node.orelse, graded, holes)
-    elif isinstance(node, ast.Try):
-        _scan(node.body, graded, holes)
+        Returns:
+            Whether the path leaving this block is graded or has terminated.
+        """
+        for node in body:
+            if isinstance(node, ast.Return):
+                if not graded:
+                    self.holes.append((node.lineno, "return"))
+                return True
+            if isinstance(node, ast.Raise):
+                return True
+            if is_exiting_statement(node):
+                if top and not graded:
+                    self.holes.append((node.lineno, "exiting call"))
+                return True
+            if is_grading_statement(node):
+                if isinstance(node, ast.With | ast.AsyncWith):
+                    self.scan(node.body, True)
+                graded = True
+                continue
+            graded = self._compound(node, graded)
+        return graded
+
+    def _compound(self, node: ast.stmt, graded: bool) -> bool:
+        """Walk one compound statement and report what the path leaving it knows.
+
+        Args:
+            node: A compound statement.
+            graded: Whether grading has already happened on the path to it.
+
+        Returns:
+            Whether the path leaving the statement is graded.
+        """
+        if isinstance(node, ast.If):
+            taken = self.scan(node.body, graded)
+            other = self.scan(node.orelse, graded) if node.orelse else graded
+            return graded or (taken and other)
+        if isinstance(node, ast.With | ast.AsyncWith):
+            return self.scan(node.body, graded) or graded
+        if isinstance(node, ast.For | ast.AsyncFor | ast.While):
+            self.scan(node.body, graded)
+            self.scan(node.orelse, graded)
+            if not graded and carries_grading(node.body):
+                self.leaned_on_loop = True
+                return True
+            return graded
+        if isinstance(node, ast.Try):
+            self._swallowed(node)
+            body_graded = self.scan(node.body, graded)
+            for handler in node.handlers:
+                self.scan(handler.body, graded)
+            else_graded = self.scan(node.orelse, graded) if node.orelse else False
+            after = graded
+            if not graded and (body_graded or else_graded):
+                self.leaned_on_try = True
+                after = True
+            if node.finalbody:
+                after = self.scan(node.finalbody, after) or after
+            return after
+        if isinstance(node, ast.Match):
+            for case in node.cases:
+                self.scan(case.body, graded)
+        return graded
+
+    def _swallowed(self, node: ast.Try) -> None:
+        """Record a ``try`` that grades and whose handler discards the failure.
+
+        Args:
+            node: A ``try`` statement.
+        """
+        if not carries_grading(node.body):
+            return
         for handler in node.handlers:
-            _scan(handler.body, graded, holes)
-        _scan(node.orelse, graded, holes)
-        if node.finalbody:
-            return _scan(node.finalbody, graded, holes) or graded
-    elif isinstance(node, ast.Match):
-        for case in node.cases:
-            _scan(case.body, graded, holes)
-    return graded
+            silent = all(
+                isinstance(statement, ast.Pass)
+                or (isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Constant))
+                for statement in handler.body
+            )
+            if silent:
+                self.holes.append((handler.lineno, "swallowed"))
 
 
-def _scan(body: list[ast.stmt], graded: bool, holes: list[int]) -> bool:
-    """Walk a statement list recording every exit reached without grading.
-
-    ``graded`` means an assertion has DEFINITELY executed on every path that
-    reaches this point.
-
-    Args:
-        body: The statements to walk.
-        graded: Whether grading has already happened on this path.
-        holes: Accumulator; the line of every ungraded exit is appended.
-
-    Returns:
-        Whether the path leaving this block is graded or has terminated.
-    """
-    for node in body:
-        if isinstance(node, ast.Return):
-            if not graded:
-                holes.append(node.lineno)
-            return True
-        if isinstance(node, ast.Raise):
-            return True
-        if is_grading_statement(node):
-            if isinstance(node, ast.With | ast.AsyncWith):
-                _scan(node.body, True, holes)
-            graded = True
-            continue
-        graded = _scan_compound(node, graded, holes)
-    return graded
-
-
-def ungraded_exits(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[int]:
-    """Every line at which this function can return without having graded.
+def _significant_body(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[ast.stmt]:
+    """A function's body with a leading docstring dropped.
 
     Args:
         node: A function node.
 
     Returns:
-        Line numbers, in source order.
+        The statements that actually run.
     """
     body = node.body
     if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
-        body = body[1:]
-    holes: list[int] = []
-    _scan(body, False, holes)
-    return sorted(holes)
+        return body[1:]
+    return body
+
+
+def grade(node: ast.FunctionDef | ast.AsyncFunctionDef) -> _Walk:
+    """Run the analysis over one function.
+
+    Args:
+        node: A function node.
+
+    Returns:
+        The completed walk, holding every hole and both generosity flags. The
+        implicit end-of-function exit is recorded as a hole when the path
+        leaving the body is ungraded.
+    """
+    walk = _Walk()
+    if not walk.scan(_significant_body(node), False, top=True):
+        walk.holes.append((node.lineno, "end of function"))
+    return walk
+
+
+def dead_grading(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[int]:
+    """Grading statements that can never run because an exit precedes them.
+
+    This is the one property that holds for a value-returning grader too, so it
+    is applied to the whole grading population rather than only the members.
+
+    Args:
+        node: A function node.
+
+    Returns:
+        The lines of unreachable grading statements.
+    """
+    found: list[int] = []
+    lists: list[list[ast.stmt]] = [_significant_body(node)]
+    while lists:
+        body = lists.pop()
+        dead = False
+        for statement in body:
+            if dead and is_grading_statement(statement):
+                found.append(statement.lineno)
+            if isinstance(statement, ast.Return | ast.Raise) or is_exiting_statement(statement):
+                dead = True
+            if isinstance(statement, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+                continue
+            for field in ("body", "orelse", "finalbody"):
+                nested = getattr(statement, field, None)
+                if nested:
+                    lists.append(list(nested))
+            lists.extend(
+                list(handler.body) for handler in getattr(statement, "handlers", None) or []
+            )
+    return sorted(found)
 
 
 def functions(tree: ast.Module) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
@@ -375,27 +541,6 @@ def functions(tree: ast.Module) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
     return [
         node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
     ]
-
-
-def survey_source(module: str, text: str) -> tuple[list[Member], list[Finding]]:
-    """Derive the population of one module and grade every member of it.
-
-    Args:
-        module: How the module should be named in a report.
-        text: Its source.
-
-    Returns:
-        The members found and the ungraded exits among them.
-    """
-    tree = ast.parse(text)
-    members: list[Member] = []
-    findings: list[Finding] = []
-    for node in functions(tree):
-        if not is_population_member(node):
-            continue
-        members.append(Member(module, node.name, node.lineno))
-        findings.extend(Finding(module, node.name, line) for line in ungraded_exits(node))
-    return members, findings
 
 
 def tests_outside_the_population(module: str, text: str) -> tuple[list[Member], list[Member]]:
@@ -431,6 +576,52 @@ def tests_outside_the_population(module: str, text: str) -> tuple[list[Member], 
     return exercising, inert
 
 
+def survey_source(module: str, text: str) -> Survey:
+    """Derive every population and every residual for one module.
+
+    Args:
+        module: How the module should be named in a report.
+        text: Its source.
+
+    Returns:
+        The survey for that module alone.
+    """
+    tree = ast.parse(text)
+    members: list[Member] = []
+    findings: list[Finding] = []
+    loop_leaned: list[Member] = []
+    try_leaned: list[Member] = []
+    value_returning: list[Member] = []
+    dead: list[Finding] = []
+    for node in functions(tree):
+        if not ships_a_grading_statement(node):
+            continue
+        entry = Member(module, node.name, node.lineno)
+        dead.extend(
+            Finding(module, node.name, line, "unreachable grading") for line in dead_grading(node)
+        )
+        if returns_a_value(node):
+            value_returning.append(entry)
+            continue
+        members.append(entry)
+        walk = grade(node)
+        findings.extend(Finding(module, node.name, line, kind) for line, kind in walk.holes)
+        if walk.leaned_on_loop:
+            loop_leaned.append(entry)
+        if walk.leaned_on_try:
+            try_leaned.append(entry)
+    return Survey(
+        members=members,
+        findings=findings,
+        loop_leaned=loop_leaned,
+        try_leaned=try_leaned,
+        value_returning=value_returning,
+        dead_grading=dead,
+        outside=tests_outside_the_population(module, text),
+        modules=[module],
+    )
+
+
 def tracked_python_files(root: Path) -> list[str]:
     """Every Python file git tracks, repo-relative and sorted.
 
@@ -458,7 +649,7 @@ def tracked_python_files(root: Path) -> list[str]:
 
 
 def survey(root: Path, relatives: list[str]) -> Survey:
-    """Derive and grade the population across a set of modules.
+    """Derive and grade every population across a set of modules.
 
     Args:
         root: The repository root.
@@ -467,49 +658,24 @@ def survey(root: Path, relatives: list[str]) -> Survey:
     Returns:
         The whole survey.
     """
-    members: list[Member] = []
-    findings: list[Finding] = []
-    seen: list[str] = []
+    merged = Survey([], [], [], [], [], [], ([], []), [])
     for relative in relatives:
-        text = (root / relative).read_text(encoding="utf-8")
-        found, holes = survey_source(relative, text)
-        members.extend(found)
-        findings.extend(holes)
-        seen.append(relative)
-    return Survey(members=members, findings=findings, modules=seen)
+        one = survey_source(relative, (root / relative).read_text(encoding="utf-8"))
+        merged.members.extend(one.members)
+        merged.findings.extend(one.findings)
+        merged.loop_leaned.extend(one.loop_leaned)
+        merged.try_leaned.extend(one.try_leaned)
+        merged.value_returning.extend(one.value_returning)
+        merged.dead_grading.extend(one.dead_grading)
+        merged.outside[0].extend(one.outside[0])
+        merged.outside[1].extend(one.outside[1])
+        merged.modules.append(relative)
+    return merged
 
 
 # ---------------------------------------------------------------------------
-# The guard half
+# The tools, the gates and the guards
 # ---------------------------------------------------------------------------
-
-
-#: Where CLAUDE.md section 2.1 says guards live - "Gates, guards, sync,
-#: probes". The DIRECTORY is named because the topology table names it; the
-#: TOOLS inside it and the GUARDS inside those are both derived, which is the
-#: half that must never become a list. A bare ``guard_`` prefix match over the
-#: whole tree would also catch test helpers called ``guard_of``, so the
-#: directory is what separates a shipped guard from a fixture that reads one.
-GUARD_TOOL_DIRECTORY: Final = "tools"
-
-
-def guard_tools(root: Path, relatives: list[str]) -> list[str]:
-    """Every tracked tool that ships at least one guard.
-
-    Args:
-        root: The repository root.
-        relatives: Repo-relative Python paths.
-
-    Returns:
-        Repo-relative paths, sorted, of the tools defining a guard.
-    """
-    found: list[str] = []
-    for relative in relatives:
-        if Path(relative).parent.as_posix() != GUARD_TOOL_DIRECTORY:
-            continue
-        if guard_function_names((root / relative).read_text(encoding="utf-8")):
-            found.append(relative)
-    return sorted(found)
 
 
 def defines(text: str, name: str) -> bool:
@@ -528,8 +694,38 @@ def defines(text: str, name: str) -> bool:
     )
 
 
+def module_function(text: str, name: str) -> ast.FunctionDef | ast.AsyncFunctionDef | None:
+    """The named module-level function, if the module defines one.
+
+    Args:
+        text: The module's source.
+        name: The function name.
+
+    Returns:
+        The node, or None.
+    """
+    for node in ast.parse(text).body:
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name == name:
+            return node
+    return None
+
+
+def tool_modules(relatives: list[str]) -> list[str]:
+    """Every tracked module in a tool directory.
+
+    Args:
+        relatives: Repo-relative Python paths.
+
+    Returns:
+        Repo-relative paths, sorted.
+    """
+    return sorted(
+        relative for relative in relatives if Path(relative).parent.as_posix() in TOOL_DIRECTORIES
+    )
+
+
 def guard_function_names(text: str) -> list[str]:
-    """Every module-level ``guard_`` function a guard tool defines.
+    """Every module-level ``guard_`` function a tool defines.
 
     Args:
         text: The tool's source.
@@ -545,26 +741,79 @@ def guard_function_names(text: str) -> list[str]:
     ]
 
 
-def names_reached_by(text: str, runner: str) -> set[str]:
-    """Every bare name the named function mentions.
-
-    A guard the runner never mentions is a guard that never runs, which is the
-    same silence this module is about one level up.
+def guard_tools(root: Path, relatives: list[str]) -> list[str]:
+    """Every tracked tool that ships at least one guard.
 
     Args:
-        text: The tool's source.
-        runner: The function to read.
+        root: The repository root.
+        relatives: Repo-relative Python paths.
 
     Returns:
-        Every ``Name`` in its body.
-
-    Raises:
-        LookupError: If the tool defines no such function.
+        Repo-relative paths, sorted.
     """
-    for node in ast.parse(text).body:
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name == runner:
-            return {inner.id for inner in ast.walk(node) if isinstance(inner, ast.Name)}
-    raise LookupError(runner)
+    return sorted(
+        relative
+        for relative in tool_modules(relatives)
+        if guard_function_names((root / relative).read_text(encoding="utf-8"))
+    )
+
+
+def hook_invoked_tools(root: Path) -> list[str]:
+    """Every tool a tracked git hook invokes, read from the hooks themselves.
+
+    These are the modules standing in a BLOCKING position, so "can it report a
+    failure at all" is a real question about them. The hooks are frozen
+    (CLAUDE.md section 6); they are READ here and never written.
+
+    Args:
+        root: The repository root.
+
+    Returns:
+        Repo-relative paths, sorted.
+    """
+    found: set[str] = set()
+    directory = root / HOOK_DIRECTORY
+    if not directory.is_dir():
+        return []
+    for hook in sorted(directory.iterdir()):
+        if hook.is_file():
+            found.update(_TOOL_REFERENCE.findall(hook.read_text(encoding="utf-8")))
+    return sorted(found)
+
+
+def failure_exits(node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
+    """Every way a function can report failure to a caller or to the shell.
+
+    A gate that cannot reach a non-zero outcome cannot block anything, whatever
+    else it does. That is checkable from the source without running it, and it
+    is the only liveness question this module can ask of a tool that ships no
+    guard and no assertion.
+
+    Args:
+        node: A function node.
+
+    Returns:
+        A description of each failure route, in source order.
+    """
+    found: list[str] = []
+    for statement in own_statements(node):
+        if isinstance(statement, ast.Return) and statement.value is not None:
+            value = statement.value
+            if isinstance(value, ast.Constant):
+                if value.value not in (0, None, False):
+                    found.append(f"line {statement.lineno}: returns {value.value!r}")
+            else:
+                found.append(f"line {statement.lineno}: returns a computed code")
+        if isinstance(statement, ast.Raise):
+            exception = statement.exc
+            name = None
+            if isinstance(exception, ast.Call):
+                name = _called_name(exception)
+            elif isinstance(exception, ast.Name):
+                name = exception.id
+            if name == "SystemExit":
+                found.append(f"line {statement.lineno}: raises SystemExit")
+    return sorted(found)
 
 
 def unreadable(*_args: object, **_kwargs: object) -> bytes:
@@ -587,12 +836,8 @@ def unreadable(*_args: object, **_kwargs: object) -> bytes:
     raise PermissionError(13, "Permission denied", INJECTED_FILENAME)
 
 
-def blind_verdicts(module: Any, root: Path, files: list[Path], source: str) -> list[BlindVerdict]:
-    """Run every derived guard against a root it cannot read.
-
-    Reads must ALREADY be failing when this is called - the caller owns that
-    window, so the patching goes through pytest's monkeypatch and is undone
-    even when an assertion fires inside it.
+def guard_answers(module: Any, root: Path, files: list[Path], source: str) -> list[GuardAnswer]:
+    """Ask every derived guard about one tree.
 
     Arguments are dispatched by PARAMETER NAME rather than by position, so a
     guard taking a different set of them needs no entry anywhere: a name this
@@ -601,35 +846,34 @@ def blind_verdicts(module: Any, root: Path, files: list[Path], source: str) -> l
     Args:
         module: The loaded guard tool.
         root: The root to point every guard at.
-        files: The enumerated file list, gathered before reads began failing.
+        files: The enumerated file list.
         source: How that list was enumerated.
 
     Returns:
-        One verdict per derived guard, in the order the tool defines them.
+        One answer per derived guard, in the order the tool defines them.
     """
     available: dict[str, object] = {"root": root, "files": files, "source": source}
-    verdicts: list[BlindVerdict] = []
+    answers: list[GuardAnswer] = []
     for name in guard_function_names(inspect.getsource(module)):
         function = getattr(module, name)
         arguments = [available[parameter] for parameter in inspect.signature(function).parameters]
         guard, skips = function(*arguments)
-        rendered = " ".join(
-            [*guard["detail"], *(f"{skip['path']} {skip['reason']}" for skip in skips)]
-        )
-        verdicts.append(
-            BlindVerdict(
+        answers.append(
+            GuardAnswer(
                 function=name,
                 guard_id=guard["id"],
                 status=guard["status"],
                 skips=len(skips),
-                rendered=rendered,
+                rendered=" ".join(
+                    [*guard["detail"], *(f"{skip['path']} {skip['reason']}" for skip in skips)]
+                ),
             )
         )
-    return verdicts
+    return answers
 
 
-def silently_green(verdict: BlindVerdict) -> bool:
-    """Whether a guard passed a root it could not read while recording nothing.
+def silently_green(answer: GuardAnswer) -> bool:
+    """Whether a guard passed a tree it could not read while recording nothing.
 
     CONVENTIONS.md section 15.1, which ``tools/drift_guard.py`` prints on every
     run: a guard may be green while self-excusing, and a green verdict means
@@ -637,10 +881,32 @@ def silently_green(verdict: BlindVerdict) -> bool:
     about a tree it could not read, is what a guard replaced by an early return
     returns.
 
+    THIS CRITERION ALONE IS DEFEATED BY A FABRICATED SKIP RECORD, measured by
+    the adversary that graded the first version of this module.
+    :func:`answers_the_same_about_every_tree` is what closes that, because a
+    fabricated record is still a CONSTANT.
+
     Args:
-        verdict: One blind verdict.
+        answer: One answer about a blind tree.
 
     Returns:
         True if the guard is not grading.
     """
-    return verdict.status == "PASS" and verdict.skips == 0
+    return answer.status == "PASS" and answer.skips == 0
+
+
+def answers_the_same_about_every_tree(answers: list[GuardAnswer]) -> bool:
+    """Whether a guard said the identical thing about materially different trees.
+
+    A guard reads a tree and reports on it. One replaced by a constant return
+    reports that constant whatever it is handed - so this catches the plain
+    gutting and the gutting dressed up with a fabricated skip alike, without
+    knowing anything about what any particular guard does.
+
+    Args:
+        answers: The same guard's answers about two or more trees.
+
+    Returns:
+        True if every answer is identical.
+    """
+    return len({answer.signature() for answer in answers}) <= 1
