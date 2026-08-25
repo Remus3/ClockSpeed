@@ -370,6 +370,90 @@ A closed owner is not a broken pointer - it means the hand-off has ALREADY HAPPE
 entry is stale rather than wrong - so a check that treats the two alike would force a false
 choice between deleting live records and keeping dead ones.
 
+## CS-845
+
+### NOTE - filed 2026-08-24 by the merger, from the CS-841 adversary
+
+**MEASURED, THEN RE-DERIVED INDEPENDENTLY BY THE MERGER BEFORE FILING.** The adversary
+grading CS-841 probed the harness's own transcript store; the merger then re-ran the census
+with its own script rather than accepting the numbers. Both agree.
+
+Every `PostToolUse` record in that store is a non-blocking error. **Not one is a success**,
+and not one carries non-empty stdout. Essentially all of them render the same stderr - the
+tool reporting it could not read a file - because the argument it is handed expands to an
+EMPTY STRING. It therefore stages no unit, lints nothing, and exits non-zero.
+
+**THE HALF THAT IS ACTIONABLE WITHOUT A GRANT IS THE FALSE SENTENCE.** Having read no file,
+the tool still prints that the edit above left a problem on disk and to fix it now. That is
+a claim about an observation it did not make, and `tools/edit_lint_check.py` is NOT a frozen
+file. Close that half first; it needs no adjudicator.
+
+**THE OTHER HALF TOUCHES A FROZEN FILE AND MUST ROUTE.** The invocation lives in
+`.claude/settings.json`, which CLAUDE.md section 6 freezes. Any change there goes through an
+adjudicator with the grant recorded in `docs/LEDGER.md` BEFORE the edit. Do not let the
+frozen half block the unfrozen half.
+
+**DO NOT DIAGNOSE THE MECHANISM FROM THE FAILURE TEXT.** The message names a read failure,
+which reads as a permissions problem and is not one. Whether the path is meant to arrive as
+an environment variable, on stdin, or some other way is a property of the harness contract
+and was NOT established by either measurement. Establish it before proposing a fix - a fix
+built on the wrong mechanism will look correct and change nothing.
+
+**WHY TIER 1.** This is the check that catches a bad edit before the commit gate does. It has
+been failing open on every edit by every agent and by the operator, for the whole life of
+this store, while printing a failure each time. A gate that always cries wolf trains its
+reader to ignore it, which is worse than no gate.
+
+## CS-846
+
+### NOTE - filed 2026-08-24 by the merger, on the CS-842 builder's recommendation
+
+**MEASURED by the adversary grading CS-842, and the builder DECLINED to fix it inside that
+item - correctly.** Its reasoning is the reason this is its own item: CS-842's acceptance
+takes that control as a given, so strengthening it there would be the builder grading
+something it had just changed; and the defect is not specific to one control - every control
+in that cluster has the same shape, so repairing the instance and leaving the population is
+the exact error this project keeps paying for.
+
+**THE DEFECT.** A control's body replaced by an early return before its only assertion -
+`if corpus: return` - leaves the whole guard cluster green. The control stops grading and
+nothing reports it.
+
+**IT IS THE SAME SHAPE AS A STANDING FINDING, WHICH IS WHY IT IS WORTH GENERALISING.** A
+mutant that never applied and one that survived produce identical output; an early return and
+a pass produce identical output. In both cases the absence of a signal is being read as the
+presence of a negative result.
+
+**THE POPULATION IS THE DELIVERABLE, NOT THE INSTANCE.** Do not close this by adding a
+liveness check to the one control that was measured. Derive the set of shipped controls and
+grade every member, or record an exemption per member with its own reason.
+
+## CS-847
+
+### NOTE - filed 2026-08-24 by the merger, from the CS-844 widening
+
+**THE RESIDUAL CS-844 COULD NOT REACH, AND ITS BUILDER SAID SO RATHER THAN WIDENING INTO
+GUESSWORK.** CS-844's guard now grades ownership records across four channels. It still
+cannot hold a hand-off written as PROSE inside a binding whose NAME does not declare it
+records owners.
+
+**TWO SITES ARE LIVE TODAY AND BOTH HAND OFF TO THE SAME GATED ITEM.**
+`objects.UNMEASURED_PAYLOAD_REGIONS["trailing_run"]` says a case is scoped out of one item
+and into `CS-G05`; a second site on `_TAG_EXTRA_STRINGS` hands off to `CS-G05` as well. Both
+read as citations, so neither is held to actionability. **They are harmless only while
+`CS-G05` stays GATED. If it closed while those sentences stood, the module would stay
+green.**
+
+**PROSE CANNOT DECIDE THIS AND THAT IS MEASURED, NOT ASSUMED.** The CS-844 builder tried:
+the ownership idiom and the history idiom are the same words in this repo. Every candidate
+pattern reddens on correct history about closed items, at hundreds of sites for the loosest
+and at least one for the narrowest. That refutation SHIPS as a re-measured record, so it
+cannot rot and will announce itself if a pattern ever becomes usable.
+
+**SO THE LIKELY CLOSE IS RELOCATION, NOT DETECTION.** Move the hand-off into an owner-named
+binding where the existing guard already reaches it. Do NOT re-pitch widening the guard into
+reading English - that route is refuted in shipped data, not merely untried.
+
 ## CS-842
 
 ### NOTE - filed 2026-08-23 by the merger, from CS-837's adversary
