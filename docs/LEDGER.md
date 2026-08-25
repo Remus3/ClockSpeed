@@ -150,6 +150,32 @@ cannot enter a population derived from redacting declarations.
 **A COUNT IN A NOTE WAS MEASURED FALSE.** The session-39 continuation prompt recorded 99 open
 items; `d813e22` carried 97. Counts are not restated in this file for exactly this reason.
 
+**AND CI CAUGHT WHAT THE WHOLE LOCAL SUITE COULD NOT - A CHECK THAT READS THE MACHINE IT RUNS
+ON REPORTS ABOUT THE MACHINE, NOT THE TREE.** The pre-push hook ran the entire suite green -
+2892 passed - and tier1 then FAILED on the same commit. The new source-echo rule ran the
+project's runtime redactor over each whole source line and flagged any line the redactor
+rewrote. Its note claimed the rule "cannot false-positive, because it fires on an actual
+value rather than on a shape". **That claim was false.** This machine's account is
+a name that appears in no source at all; CI's is `runner`, an ordinary English substring
+sitting inside identifiers like `test_every_derived_guard_is_reached_by_its_runner` and
+`run_all` across the tree.
+
+Reproduced locally with a CI-shaped redactor: the old whole-line rule fires **70 times across
+33 distinct files** - matching tier1's 33 findings exactly - and the repaired rule, which
+applies the redactor to the PATH-SHAPED TOKENS of a line rather than to the line, fires
+**zero** while still firing on a planted `/home/<user>/...` path and staying quiet on an
+identifier carrying the account name. The restriction is the reasoning `ECHO_ACCOUNT` already
+stated one rule over: a backstop belongs to runtime output, where the surrounding path has
+been lost, and AUTHORED SOURCE STILL CARRIES ITS CONTEXT. The cost is disclosed at the
+constant rather than hidden.
+
+**AN ACTUAL VALUE IS STILL A SHAPE WHEN THE VALUE IS A COMMON WORD.** This is CS-839's
+subject - a green run is evidence about one environment rather than about the tree -
+generalised from which SHELL to which MACHINE, and it is the second time in one session that
+a zero turned out to be a property of the observer rather than of the observed. Fixed file
+plus test: `tests/assertion_rendering_guard.py`,
+`tests/test_assertion_rendering.py::test_no_shipped_function_echoes_personal_data_through_its_own_source`.
+
 ### 2026-08-25 - CS-829, CS-846, CS-850 - NOT A COMPLETION RECORD. These three merged as IMPROVEMENTS and every one STAYS OPEN. CS-845 closed and has its own entry above
 
 **THE RESULT IS THE FAILURE CLASS, NOT THE MERGES.** Every graded item was refuted at

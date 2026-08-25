@@ -1970,9 +1970,30 @@ def scan_source(module: str, source: str) -> list[Finding]:
 # of them names none of what the other enumerates.
 
 #: A spelling the project's own RUNTIME redactor recognises: this machine's
-#: home directory, account name or machine name. It cannot false-positive,
-#: because it fires on an actual value rather than on a shape.
-ECHO_MACHINE: Final = "a spelling this machine's redactor recognises"
+#: home directory, account name or machine name, appearing INSIDE A PATH.
+#:
+#: THE PATH RESTRICTION IS LOAD-BEARING AND WAS MEASURED, NOT REASONED. This
+#: rule once ran the redactor over the WHOLE line, and its note claimed it
+#: "cannot false-positive, because it fires on an actual value rather than on
+#: a shape". That claim was FALSE and CI proved it: 0 findings on the authoring
+#: machine, whose account name appears in no source, and 33 on the CI runner, whose
+#: account is ``runner`` - an ordinary English substring sitting inside
+#: identifiers like ``test_every_derived_guard_is_reached_by_its_runner`` and
+#: ``run_all`` all over the tree. An actual value is still a SHAPE when the
+#: value is a common word, and the rule's verdict then depends on what the
+#: machine's user happens to be called.
+#:
+#: The restriction is the same reasoning :data:`ECHO_ACCOUNT` already states
+#: for the digit-run backstop: that backstop is for runtime output, where the
+#: surrounding path has been lost, while AUTHORED SOURCE STILL CARRIES ITS
+#: CONTEXT. So the redactor is applied to the path-shaped tokens of a line
+#: rather than to the line.
+#:
+#: COST, DISCLOSED RATHER THAN HIDDEN: an account or machine name written into
+#: source OUTSIDE any path - ``EXPECTED_USER = "somebody"`` - is no longer
+#: caught by THIS rule. It remains caught by the tracked-file secret and PII
+#: scans, and :data:`ECHO_HOME` and :data:`ECHO_ACCOUNT` are unaffected.
+ECHO_MACHINE: Final = "a spelling this machine's redactor recognises inside a path"
 
 #: An absolute path under a user home directory, in any of the renderings the
 #: scaffold guard knows. Owned by that guard and read from it.
@@ -2110,6 +2131,31 @@ def rendered_source_lines(
     return [(number, lines[number - 1]) for number in range(first, last + 1)]
 
 
+#: What separates one path-shaped token from the prose around it in authored
+#: source: whitespace, quotes, and the bracket and comma characters a path
+#: literal is embedded between. Deliberately NOT a path grammar - it only has
+#: to isolate a candidate run so the borrowed redactor can judge it.
+_TOKEN_BREAK: Final = re.compile(r"[\s\"'`(),\[\]{}]+")
+
+
+def _path_tokens(line: str) -> list[str]:
+    """The runs of one source line that could be a filesystem path.
+
+    A run qualifies by containing a path separator. That is the context
+    authored source carries and runtime output has lost, and it is what keeps
+    :data:`ECHO_MACHINE` from firing on an account name that is also an
+    ordinary word - see that constant's note for the measurement.
+
+    Args:
+        line: One rendered source line.
+
+    Returns:
+        Every separator-bearing run, in order. Empty when the line holds none,
+        which is the common case and the reason the rule is cheap.
+    """
+    return [tok for tok in _TOKEN_BREAK.split(line) if "/" in tok or "\\" in tok]
+
+
 def _echo_kinds(
     line: str,
     redactor: Callable[[str], str] | None,
@@ -2130,8 +2176,8 @@ def _echo_kinds(
         ``test_every_source_echo_rule_is_borrowed_rather_than_respelled``
         exists to catch - a silent rule and a clean tree look identical here.
     """
-    if redactor is not None and redactor(line) != line:
-        yield (ECHO_MACHINE, "the runtime redactor rewrote this line")
+    if redactor is not None and any(redactor(tok) != tok for tok in _path_tokens(line)):
+        yield (ECHO_MACHINE, "the runtime redactor rewrote a path on this line")
     if home is not None:
         found = home(line)
         if found is not None:

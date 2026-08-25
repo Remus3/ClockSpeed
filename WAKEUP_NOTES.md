@@ -70,6 +70,18 @@ the line becomes a pointer.
   refutation at the constant. Three of four repair slices pushed back on the merger's brief
   with measurements, and all three were right.
 
+- **CI CAUGHT WHAT THE WHOLE LOCAL SUITE COULD NOT, AND THE LESSON IS THE SESSION'S THEME
+  AGAIN.** The pre-push hook ran the full suite green - 2892 passed - and tier1 FAILED on the
+  same commit with 33 findings. The new source-echo rule ran the runtime redactor over each
+  whole source line; this machine's account name appears in no source at all,
+  while CI's is `runner`, an ordinary English substring inside identifiers everywhere.
+  **A CHECK THAT READS THE MACHINE IT RUNS ON REPORTS ABOUT THE MACHINE, NOT THE TREE** - and
+  its note claimed it "cannot false-positive, because it fires on an actual value rather than
+  on a shape". An actual value is still a SHAPE when the value is a common word. Reproduced
+  locally with a CI-shaped redactor: 70 hits over 33 files before, 0 after, still firing on a
+  planted home path. **Do not read a green local suite as evidence about the tree** - this is
+  CS-839 generalised from which SHELL to which MACHINE.
+
 - **Decisions: none recorded as an ADR.** One operator round at the start, taking all four
   units and ruling CS-844 HELD for a third session.
 
