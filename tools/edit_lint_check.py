@@ -135,7 +135,30 @@ def check_yaml(label: str, data: bytes, report: gate.Report) -> None:
         )
 
 
-def disclose_format_skip(report: gate.Report, root: Path | None) -> bool:
+def lint_and_report_enforcement(report: gate.Report, root: Path | None) -> bool:
+    """Run the gate's linter and RETURN whether the format check was ENFORCED.
+
+    ONE function owns both the running and the verdict, and that is the entire
+    point of its shape. The previous version had main derive the verdict a
+    SECOND time from an argument it also chose, and a fact derived twice can
+    disagree with itself - which it did, twice, both measured.
+
+    gate.RUFF_TIMEOUT is swapped around the call rather than passed, because
+    run_ruff reads it from the module at call time. The swap is restored in a
+    finally so a raising linter cannot leak this tool's tighter editor budget
+    into a later caller.
+    """
+    config = gate.ruff_config_args(root)
+    saved = gate.RUFF_TIMEOUT
+    gate.RUFF_TIMEOUT = RUFF_TIMEOUT
+    try:
+        gate.run_ruff(report.units, report, root)
+    finally:
+        gate.RUFF_TIMEOUT = saved
+    return bool(config)
+
+
+def disclose_format_skip(report: gate.Report, enforced: bool) -> bool:
     """Say that the format check did not run, on a channel --verbose does not gate.
 
     gate.emit is in a frozen file (CLAUDE.md section 6) and prints report.notes
@@ -144,35 +167,27 @@ def disclose_format_skip(report: gate.Report, root: Path | None) -> bool:
     is the half of CS-841 this closes; the other half is the tripwire in
     tests/test_edit_lint_check.py.
 
-    THE CONDITION IS READ FROM THE GATE, AND THAT IS NOT ENOUGH. An earlier
-    version of this docstring claimed the notice "cannot outlive the skip it
-    describes". THAT WAS FALSE and is corrected here rather than quietly
-    dropped. ruff_config_args is indeed the same function run_ruff_format
-    branches on, so the two cannot disagree about a given root - but the
-    ARGUMENT is main's to choose, and this function can only read the root it
-    is GIVEN. Two ways for it to print a lie were measured, not imagined:
-    main hands the linter a root resolved from the EDITED FILE while handing
-    this one LINT_ROOT, or main swaps gate.ruff_config_args around the lint
-    call exactly the way this module already swaps gate.RUFF_TIMEOUT. Under
-    either, this prints "NOT enforced here" while the check is enforced and
-    BLOCKING.
+    THIS TAKES THE RUN'S OWN VERDICT AND NEVER RE-DERIVES IT. Two earlier
+    shapes are recorded because both shipped and both were refuted:
 
-    So the notice CAN lie - MEASURED rather than reasoned: under the second
-    mutant this prints "NOT enforced here" on stdout while stderr carries a
-    blocking FORMAT diagnostic and the process exits 1.
+      1. It read gate.ruff_config_args itself, and the docstring claimed the
+         notice "cannot outlive the skip it describes". FALSE. The CONDITION
+         was read from the gate but the ARGUMENT was main's to choose, and
+         swapping gate.ruff_config_args around the lint call - the same idiom
+         this module uses on gate.RUFF_TIMEOUT - printed "NOT enforced here"
+         while the check was enforced and BLOCKING.
+      2. It took a root, and a static test asserted main handed the same NAME
+         to both call sites. THAT IS A SPELLING CHECK. Rebinding that one name
+         between the two calls is invisible to it, and restored the lie in
+         full with the guard still green.
 
-    What holds the line is not this function. It is main binding ONE root for
-    both calls, plus two tests in tests/test_edit_lint_check.py that cover
-    DIFFERENT failures, neither subsuming the other:
-
-      - The IN-REPO TRIPWIRE is behavioural and reddens on both mutants above.
-        The out-of-repo case stays green on both, which is exactly why the
-        in-repo one had to be added.
-      - The ROOT-IDENTITY CHECK is static and catches NEITHER of them: both
-        keep the two arguments identical and change only what that single root
-        IS. What it catches is main handing the two calls DIFFERENT roots -
-        behaviourally invisible while LINT_ROOT is None, because then both are
-        None. It reddens on the divergence BEFORE the divergence can lie.
+    There is no argument left here to diverge. `enforced` is returned by the
+    call that did the linting, so the notice reports the run instead of taking
+    a second guess at it. What still needs testing is that main keeps wiring
+    it that way - and that is a BEHAVIOURAL question, not a syntactic one: the
+    notice and an enforced format check must never appear together, however
+    the wiring happens to be spelled. Checking the spelling instead is an arms
+    race against the AST, and it was already lost once.
 
     The python filter mirrors gate.run_ruff's target selection, so a markdown
     edit - which never reaches ruff at all - says nothing rather than
@@ -181,7 +196,7 @@ def disclose_format_skip(report: gate.Report, root: Path | None) -> bool:
     Returns whether the notice was written, which separates "disclosed" from
     "there was nothing to disclose".
     """
-    if gate.ruff_config_args(root):
+    if enforced:
         return False
     if not any(unit.ext == ".py" and unit.data is not None for unit in report.units):
         return False
@@ -232,25 +247,16 @@ def main(argv: list[str] | None = None) -> int:
             check_yaml(label, data, report)
 
     # One subprocess, bounded. Reuse the gate's runner so the blocking rule
-    # band cannot diverge between the two tools.
-    # ONE binding for BOTH calls. Two separate LINT_ROOT references would let a
-    # later edit move one and leave the other, and the disclosure would then
-    # describe a run that did not happen - see disclose_format_skip, which can
-    # only read the root it is GIVEN. tests/test_edit_lint_check.py asserts
-    # statically that these two calls are handed the same name.
-    root = LINT_ROOT
-
-    saved = gate.RUFF_TIMEOUT
-    gate.RUFF_TIMEOUT = RUFF_TIMEOUT
-    try:
-        gate.run_ruff(report.units, report, root)
-    finally:
-        gate.RUFF_TIMEOUT = saved
+    # band cannot diverge between the two tools. The call RETURNS whether the
+    # format check was enforced, and the disclosure below reads that RETURN
+    # VALUE rather than deriving the same fact again from an argument. Two
+    # derivations can disagree with each other; one cannot.
+    enforced = lint_and_report_enforcement(report, LINT_ROOT)
 
     # Before emit, so the PASS banner stays the last line the tool writes -
     # pinned by test_the_format_skip_is_disclosed_without_verbose rather than
     # merely asserted here.
-    disclose_format_skip(report, root)
+    disclose_format_skip(report, enforced)
 
     code = gate.emit(report, args.verbose, args.list_skipped)
     if code:

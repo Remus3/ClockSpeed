@@ -20,12 +20,13 @@ would block the commit that adds it.
 
 from __future__ import annotations
 
-import ast
+import importlib.util
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -226,18 +227,37 @@ FORMAT_SKIP_MARKER = "ruff format --check is NOT enforced here"
 # surrounded by spaces. Matching the bare word would hit prose instead.
 FORMAT_CODE = " FORMAT "
 
-# gate.emit's clean verdict. Used only to pin the ORDERING the tool claims.
-# NOT named for the word it starts with: bandit's S105 reads any constant whose
-# NAME suggests a credential as a hardcoded secret, and this one is a banner.
-CLEAN_VERDICT = "precommit_gate: PASS"
-
-# The positional shapes the root-identity test asserts. In both calls the root
-# is the LAST positional argument, so the test reads it as args[-1] rather than
-# carrying a second pair of indices that could drift out of step with these.
-RUN_RUFF_ARGC = 3
-DISCLOSE_ARGC = 2
-
 GATE = REPO_ROOT / "tools" / "precommit_gate.py"
+
+
+def clean_verdict() -> str:
+    """gate.emit's clean banner, with the movable half IMPORTED not restated.
+
+    CLAUDE.md section 4 gives every fact one owner, and this one's owner -
+    tools/precommit_gate.py - is FROZEN. Spelling "precommit_gate" out here
+    would mean that rewording it through the section-6 route reddens this test
+    for a reason with nothing to do with its subject. Only GATE_NAME is owned
+    over there; the literal ": PASS " belongs to emit's format string and has
+    no separate owner to import, so it stays.
+
+    Loaded by path rather than imported as tools.precommit_gate, which is the
+    same choice tests/test_precommit_gate.py::load_gate makes and for the same
+    reason: it keeps tools/ out of the import graph.
+    """
+    name = "clockspeed_gate_banner"
+    spec = importlib.util.spec_from_file_location(name, GATE)
+    assert spec is not None, "the gate could not be located for its banner token"
+    assert spec.loader is not None, "the gate has no loader"
+    module = importlib.util.module_from_spec(spec)
+    # Registered BEFORE exec_module, for the reason
+    # tests/test_precommit_gate.py::load_gate records: the gate declares
+    # dataclasses under `from __future__ import annotations`, and @dataclass
+    # resolves those string annotations through sys.modules[cls.__module__].
+    # Unregistered, that lookup returns None and the decorator raises while the
+    # class body is still running. Measured here the hard way.
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return str(module.GATE_NAME) + ": PASS"
 
 
 def run_gate(
@@ -296,7 +316,7 @@ def test_the_format_skip_is_disclosed_without_verbose(tmp_path: Path) -> None:
     # so without this the claim is decoration. No consumer parses this stdout
     # today - the point is that the code should not assert what nothing checks.
     lines = [line for line in result.stdout.splitlines() if line.strip()]
-    assert lines[-1].startswith(CLEAN_VERDICT), (
+    assert lines[-1].startswith(clean_verdict()), (
         "the tool claims the PASS banner stays its last line; it does not: " + repr(lines)
     )
     assert any(FORMAT_SKIP_MARKER in line for line in lines[:-1]), repr(lines)
@@ -370,20 +390,27 @@ def test_a_root_reaching_this_tool_would_arm_a_blocking_format_check(tmp_path: P
 # the wrong path guards nothing. These generalise it.
 # --------------------------------------------------------------------------
 
-# The repository ROOT, and `data/` is the interesting rejected candidate.
+# `work/`, and the two rejected candidates are why. FOUR criteria, all MEASURED,
+# and no candidate satisfying three of them is good enough:
 #
-# MEASURED, because it is exactly the trap the next person will fall into:
-# `data/` looks ideal - gitignored, and skipped by tests/conftest.py in every
-# tree walk - but the gate's PUBLISHER rule REFUSES any path under a
-# root-anchored gitignored directory before a single byte is read. The bait
-# never reaches ruff, the run reports "0 checked unit(s)", and the tripwire
-# grades a path rejection instead of a format verdict. Under the repo root the
-# gate reaches the format check, which is the whole point.
+#   1. NOT in `git ls-files --cached --others --exclude-standard`. That is the
+#      WOULD-BE-TRACKED inventory tests/conftest.py builds as `repo_files`, and
+#      tests/test_mypy_gate.py reads it. An untracked unignored directory is
+#      INSIDE it, so a bait at the repo root makes that module fail - only
+#      under `-n auto`, which is what .github/workflows/tier2.yml runs and what
+#      the serial pre-push hook does not. Green here, red in the nightly lane.
+#   2. NOT swept by `ruff format --check .` from the root, which is CI tier1.
+#   3. NOT refused by the gate's PUBLISHER rule, or the bait never reaches the
+#      format check and the tripwire grades a path rejection instead.
+#   4. Still inside THIS checkout, so a root resolved from the edited file and
+#      a root conditioned on this checkout BOTH still arm.
 #
-# Nothing in this suite walks the tree asserting format cleanliness and nothing
-# asserts a clean `git status`, both checked, so a transient untracked
-# directory here disturbs no other test. The fixture removes it either way.
-IN_REPO_BAIT_PARENT = REPO_ROOT
+# `data/` fails 3: PUBLISHER_ROOT_DIRS refuses it before a byte is read.
+# The repo ROOT fails 1 and 2. A throwaway git repo under tmp_path fails 4 -
+# measured, it disarms any mutant conditioned on this checkout, which would
+# have retired a live tripwire silently. `work/` is gitignored, is not a
+# PUBLISHER root dir, and is inside the checkout.
+IN_REPO_BAIT_PARENT = REPO_ROOT / "work"
 
 
 @pytest.fixture
@@ -400,6 +427,11 @@ def in_repo_bait() -> Iterator[Path]:
     Created at runtime rather than committed, because a format-dirty file
     tracked in this repository would fail `ruff format --check .` in CI - the
     very check whose absence here is the item.
+
+    THE TEARDOWN FAILS LOUDLY. An earlier version swallowed errors, so one open
+    handle on Windows left the directory behind and the mypy gate went
+    permanently red naming a directory nobody would recognise. A cleanup that
+    cannot report its own failure is how a test leaves landmines.
     """
     IN_REPO_BAIT_PARENT.mkdir(parents=True, exist_ok=True)
     directory = Path(tempfile.mkdtemp(dir=str(IN_REPO_BAIT_PARENT), prefix="cs841_bait_"))
@@ -408,7 +440,16 @@ def in_repo_bait() -> Iterator[Path]:
     try:
         yield target
     finally:
-        shutil.rmtree(directory, ignore_errors=True)
+        for _ in range(5):
+            shutil.rmtree(directory, ignore_errors=True)
+            if not directory.exists():
+                break
+            time.sleep(0.1)
+        assert not directory.exists(), (
+            "the bait directory survived teardown at " + str(directory) + " - remove it "
+            "before running the suite again, or tests that read the repository "
+            "inventory will fail naming a path that has nothing to do with them"
+        )
 
 
 def test_a_root_reaching_this_tool_arms_it_on_an_in_repo_edit(
@@ -456,73 +497,39 @@ def test_a_root_reaching_this_tool_arms_it_on_an_in_repo_edit(
     )
 
 
-def callee_name(node: ast.Call) -> str:
-    """The bare name of a call target, whether or not it is attribute-qualified."""
-    if isinstance(node.func, ast.Attribute):
-        return node.func.attr
-    if isinstance(node.func, ast.Name):
-        return node.func.id
-    return ""
+def test_the_notice_and_an_enforced_format_check_never_co_occur(
+    tmp_path: Path,
+    in_repo_bait: Path,
+) -> None:
+    """The notice must not be able to DISAGREE with the run it describes.
 
+    THIS REPLACED A STATIC CHECK THAT WAS A SPELLING CHECK. That one parsed
+    main and asserted the linter and the disclosure were handed the same
+    ast.Name. Rebinding that one name between the two call sites is invisible
+    to it, so an arming mutant plus a one-line rebind blocked a real in-repo
+    edit while printing that the check was not enforced - with the guard
+    green. Tightening the AST check would have been an arms race against
+    Python syntax, and there is no reason to expect to win it.
 
-def test_main_hands_the_same_root_to_the_linter_and_to_the_disclosure() -> None:
-    """The notice has to describe the run that actually happened.
+    So the property is asserted on BEHAVIOUR instead, where spelling cannot
+    reach it. For a format-dirty python file, exactly one of these is true and
+    never both and never neither:
 
-    disclose_format_skip reads its CONDITION from gate.ruff_config_args, but
-    it can only read the root it is GIVEN, and main chooses that separately
-    for each call. Nothing in the types stops main resolving the linter's root
-    from the edited file while the disclosure still sees LINT_ROOT - and then
-    the tool prints "NOT enforced here" while the check is enforced and
-    blocking.
+      - the format check was ENFORCED, so a FORMAT diagnostic names the file
+      - the format check was SKIPPED, so the notice says it is not enforced
 
-    ASSERTED STATICALLY, because there is no runtime channel to assert it on:
-    gate.run_ruff returns None and never reports which root it used.
-
-    WHAT THIS DOES NOT COVER, recorded because the first draft of it claimed
-    more than it delivered. It catches a DIVERGENCE between the two arguments
-    and nothing else. It reddens on NEITHER arming mutant in the test above -
-    both keep the two arguments identical and change only what that single
-    root IS, so this test passes while a blocking check arms. Those are the
-    in-repo tripwire's job, and the two tests do not overlap.
-
-    Nor is it redundant with that tripwire. MEASURED: pointing the disclosure
-    at LINT_ROOT while the linter reads `root` reddens THIS test and leaves
-    every behavioural test green, because with LINT_ROOT None the two roots
-    are both None and the divergence has no observable effect yet. It is
-    caught before it can become a lie, which is the one thing a static check
-    can do here that a behavioural one cannot.
+    Both at once is the lie. Neither is a disclosure that has gone silent
+    again, which is the original defect returning. Whatever the wiring looks
+    like, it has to land on exactly one.
     """
-    tree = ast.parse(TOOL.read_bytes())
-    functions = [
-        node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == "main"
-    ]
-    assert len(functions) == 1, f"expected one main in the tool, found {len(functions)}"
+    result = run_tool("--files", str(in_repo_bait), env=base_env(tmp_path))
 
-    lint_root: ast.expr | None = None
-    notice_root: ast.expr | None = None
-    for node in ast.walk(functions[0]):
-        if not isinstance(node, ast.Call):
-            continue
-        name = callee_name(node)
-        if name == "run_ruff":
-            assert len(node.args) == RUN_RUFF_ARGC, "run_ruff is no longer handed an explicit root"
-            lint_root = node.args[-1]
-        elif name == "disclose_format_skip":
-            assert len(node.args) == DISCLOSE_ARGC, (
-                "the disclosure is no longer handed an explicit root"
-            )
-            notice_root = node.args[-1]
+    enforced = FORMAT_CODE in result.stderr
+    disclosed = FORMAT_SKIP_MARKER in result.stdout
 
-    assert lint_root is not None, "main no longer calls run_ruff"
-    assert notice_root is not None, "main no longer discloses the format skip"
-    assert isinstance(lint_root, ast.Name), (
-        "the linter's root is now an expression rather than a name, so the "
-        "disclosure can no longer be shown to describe the same run: " + ast.dump(lint_root)
-    )
-    assert isinstance(notice_root, ast.Name), (
-        "the disclosure's root is now an expression rather than a name: " + ast.dump(notice_root)
-    )
-    assert lint_root.id == notice_root.id, (
-        "main hands the linter %r and the disclosure %r. The notice would then "
-        "describe a run that did not happen." % (lint_root.id, notice_root.id)
+    assert enforced != disclosed, (
+        "the notice and the run disagree. enforced=%r disclosed=%r. Either the "
+        "tool printed that the format check is off while a FORMAT diagnostic "
+        "blocked the edit, or it enforced nothing and said nothing.\nstdout: %s\n"
+        "stderr: %s" % (enforced, disclosed, result.stdout, result.stderr)
     )
