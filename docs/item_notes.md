@@ -468,6 +468,74 @@ cannot rot and will announce itself if a pattern ever becomes usable.
 binding where the existing guard already reaches it. Do NOT re-pitch widening the guard into
 reading English - that route is refuted in shipped data, not merely untried.
 
+## CS-848
+
+### NOTE - filed 2026-08-24 by the merger, from the CS-841 round-three adversary
+
+**MEASURED, WITH A CONTROL THAT ISOLATES THE CAUSE.** Arming the format check only for
+files `git check-ignore` does NOT ignore SURVIVES the whole suite at exit 0 with the bait at
+its current home, and is KILLED at the previous home. A pristine-tool control at the previous
+home passes, so the red is caused by the mutant and not by the relocation.
+
+**THE CRITERION THE BAIT WAS CHOSEN AGAINST IS THE CRITERION THAT DEFEATS IT.** The home was
+selected for four properties, all of which are reasons it is INVISIBLE TO CI - outside the
+would-be-tracked inventory, outside the formatter sweep, gitignored. Invisible to CI and
+invisible to an arming predicate are the same property. A second mutant keyed on project
+source roots also survives, and was shown blocking a real edit while the suite stayed green.
+
+**DO NOT CLOSE THIS BY MOVING THE BAIT BACK.** The previous home reddened the mypy gate in
+three of five parallel runs, which is what the move fixed. The adversary's own conclusion is
+that NO in-repo home a one-line predicate can distinguish from a real edit target will do -
+the guard needs an assertion keyed on the root argument reaching the linter for an arbitrary
+in-source path, rather than on the fate of one file in one directory.
+
+## CS-849
+
+### NOTE - filed 2026-08-24 by the merger, from the CS-841 round-three adversary
+
+**THE TEST SUITE NOW DOES WHAT THE PRODUCTION MODULE IS FORBIDDEN FROM DOING.**
+`clockspeed/save/workdir.py` goes out of its way not to create the work directory merely
+because something imported it and asked a question - its own prose says a module doing that
+would create a directory on every machine including one with no game and no save - and
+`tests/save/test_workdir.py` ships the test that pins it. The CS-841 fixture creates that
+directory unconditionally and its teardown removes only the inner temporary directory.
+
+**A SECOND-ORDER HAZARD, READ FROM THE CODE AND NOT REPRODUCED.** There is no autouse
+work-root isolation, so the pinning test resolves the REAL work directory and samples whether
+it exists. On a checkout where it does not yet exist - every fresh clone and every CI run -
+a fixture creating it between that test's two checks would turn it red naming a defect that
+is not there. Recorded as a code-read hazard because the directory already existed on the
+machine where this was found, so it could not be reproduced there.
+
+**THE WORK DIRECTORY IS PII-BEARING.** It is where save copies live. That is why it is
+gitignored and why its consumers are careful. Anything writing there needs to be as careful.
+
+## CS-850
+
+### NOTE - filed 2026-08-24 by the merger, from TWO agents independently
+
+**FOUND TWICE IN ONE SESSION, IN DIFFERENT MODULES, BY AGENTS THAT DID NOT KNOW OF EACH
+OTHER.** That is the evidence this is a channel rather than two bugs. The CS-829 builder hit
+it first: a test whose every message string was carefully counts-only emitted a mapping keyed
+by real save-derived names, because pytest rewrites the assertion and renders the asserted
+EXPRESSION independently of the message. The CS-841 adversary hit the same channel from the
+other side, on an absolute path rendered into a teardown assertion.
+
+**THE TREE ALREADY KNEW AND SAID SO.** `tests/test_tmp_path_privacy.py`'s own docstring
+records that this channel is uncovered - that it is not the assertion-message channel and not
+a rendering of a caught exception, so the exception-rendering sweep is structurally blind to
+it. The gap was documented and unowned.
+
+**WHY TIER 1.** Non-negotiables 11 and 12 forbid echoing personal data, and this defeats them
+on exactly the day a test fails, which is the day nobody is reading carefully. The CS-829
+builder's fix is the shape of the remedy - bind every aggregate to a plain scalar BEFORE
+asserting on it, so the rendered expression holds a number and nothing else - but the fix
+must be applied to the DERIVED POPULATION of shipped assertions, not to the two instances
+that happened to be found.
+
+**PROVE IT BY THE RENDERED OUTPUT, NOT BY READING THE MESSAGE.** The message text is the part
+that gets reviewed and is exactly the part that does not control this channel.
+
 ## CS-842
 
 ### NOTE - filed 2026-08-23 by the merger, from CS-837's adversary
