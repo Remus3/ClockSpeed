@@ -373,6 +373,46 @@ A closed owner is not a broken pointer - it means the hand-off has ALREADY HAPPE
 entry is stale rather than wrong - so a check that treats the two alike would force a false
 choice between deleting live records and keeping dead ones.
 
+### NOT MERGED - recorded 2026-08-24 by the merger, after a trial merge
+
+**THE WORK EXISTS AND IS GOOD. IT IS ON BRANCH `worktree-agent-abccd667b38e14135`,
+THREE COMMITS, AND IT DID NOT LAND.** The guard was widened from six sites to a derived
+population across four channels - literals, docstrings, comments reached by `tokenize`, and
+lines in tracked non-`.py` files - and it shipped the ownership-prose refutation as a record
+that re-measures itself every run rather than as an adjective. None of that is in question.
+
+**IT DID NOT LAND BECAUSE ITS SUITE IS RED ON A FALSE POSITIVE, AND A RED SUITE BLOCKS THE
+PRE-PUSH HOOK.** Measured by trial merge on 2026-08-24, then backed out: of the four findings
+the guard raised, THREE WERE REAL AND ARE NOW FIXED ON MAIN - the orphaned ledger entry head,
+the four citations downstream of it, and a slash-command example wired to real closed ids.
+Exactly one finding remained, and it is not a defect in the tree:
+
+    tests/test_hook_interpreter_ladder.py:122 records CS-703 as the owner, and it is CLOSED
+
+**IT IS A PIN, NOT A ROUTE.** `.githooks/commit-msg` renders that id inside its own refusal
+text, and the same module asserts that the hook's rendered output CITES it. The constant
+exists so an arm can pin WHICH rule refused. Following the guard's own advice - "redirect it
+to the item carrying the remainder, or delete it if nothing is left" - WOULD BREAK A TRUE
+ASSERTION, because the frozen hook still says it.
+
+**THIS WAS PREDICTED BY THE ITEM'S OWN ADVERSARY AND IT IS THE PREDICTION LANDING.** That
+grading measured that signal B - the binding name declaring it records owners - does no work
+against the real tree, so the effective classifier is signal A alone: the constant IS a whole
+work-item id. A pin on text an external process emits satisfies signal A and is not an owner.
+The classifier is over-broad, which is a defect in the guard rather than in the code it
+grades.
+
+**WHAT WOULD CLOSE IT.** A derived distinction between a ROUTE and a PIN. A pin is an id
+constant that a test asserts appears in output produced by something outside this repo's
+control - a frozen hook, a subprocess, a shipped asset. That is AST-detectable and does not
+require reading English, so it does not reopen the prose route the item already refuted. The
+merger deliberately did NOT author that exclusion, because an exclusion written by the person
+merging it is graded by nobody, which is the exact pattern this session spent itself
+demonstrating.
+
+**DO NOT close this by editing `ITEM_ID`.** It is correct as written and the assertion that
+consumes it is true.
+
 ## CS-845
 
 ### NOTE - filed 2026-08-24 by the merger, from the CS-841 adversary
