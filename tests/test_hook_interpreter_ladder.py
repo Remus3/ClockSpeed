@@ -1286,41 +1286,62 @@ NOT_RUN_MARKER: Final = "NOT RUN, NOT PASSED"
 # foot of this module asserts every such reason carries it.
 SHELL_REQUIREMENT: Final = "requires an executable named"
 
-# The arm that carries the same property with NO shell requirement at all. It
-# drives real git through the sandbox, so it runs under every shell - which is
-# what makes a skip here a deferral rather than a hole.
-PROVEN_SHELL_FREE: Final = "test_a_silent_interpreter_is_refused_through_real_git"
+# The phrase an arm names a BUILD requirement with, for the one skip whose
+# requirement is a behaviour of a resolvable executable rather than its presence.
+BUILD_REQUIREMENT: Final = "requires a build of"
+
+# WHAT EVERY SKIP REASON SAYS INSTEAD OF NAMING A COVERING ARM. It asserts
+# nothing this harness cannot check, in either direction - it does not claim the
+# property is covered elsewhere, and it does not claim it is not.
+UNCOVERED: Final = (
+    "This reason makes NO claim about whether anything else covers the property; "
+    "nothing here can check such a claim (CS-839). Read the arm as NOT RUN, never "
+    "as covered."
+)
 
 
 def shell_requirement(executable: str) -> str:
     """Render the skip reason for an arm that cannot run without ``executable``.
 
-    A SKIP THAT SAYS WHY IS EVIDENCE; an assertion reading `no /bin/sh on this
-    machine` is not - it names a broken machine for what is a property of the
-    shell that invoked pytest. So the reason names the executable, names where
-    it has to be resolvable, says plainly whose property the absence is, and
-    cites the arm that proves the same thing without any shell at all.
+    IT NAMES WHAT IT REQUIRES AND STOPS THERE. The first version closed by
+    saying the property was proven shell-independently by a named arm. That
+    sentence was MEASURED FALSE: a stdout leak planted in a COPY of the
+    commit-msg hook left the cited arm GREEN while the defect was live, because
+    that arm installs a silent stub as the interpreter and so never executes the
+    hook's inline program at all. An honest gap is evidence; a false reassurance
+    is worse than silence, because it makes a false green read as a considered
+    one.
     """
     return (
         f"{NOT_RUN_MARKER}: this arm {SHELL_REQUIREMENT} `{executable}`, resolvable "
         "through shutil.which on the PATH of the interpreter that imported this "
         "module. WHICH SHELL INVOKED PYTEST decides whether that resolution "
         "succeeds, so an absence here is a harness artifact and not a broken "
-        "machine (CS-839). The property is proven shell-independently by "
-        f"{PROVEN_SHELL_FREE}, which drives real git and needs no particular shell."
+        f"machine (CS-839). {UNCOVERED}"
     )
 
 
 DEFAULT_SHELL_SKIP: Final = shell_requirement(DEFAULT_SHELL_NAME)
 DASH_ABSENT_SKIP: Final = shell_requirement(DASH_NAME)
 
-# Where the two dash branches are covered when the arm below does not run. Held
-# apart from the branch texts because it is true of every one of them.
-DASH_ELSEWHERE: Final = (
-    "It is NOT a silent pass: the DELIVERING case is asserted by "
-    "test_no_violation_class_slips_through_under_dash, which takes its other branch, "
-    f"and the property itself is proven shell-independently by {PROVEN_SHELL_FREE}."
+# A dash that RESOLVED and then would not answer. This is the third verdict
+# class - present but not working - and before it was named the arms below ran
+# against it and failed with text about the machine, which is the exact shape
+# this item was filed against.
+DASH_UNUSABLE_SKIP: Final = (
+    f"{NOT_RUN_MARKER}: this arm {SHELL_REQUIREMENT} `{DASH_NAME}` that can actually "
+    "RUN. The one on this machine RESOLVED and then did not answer the delivery "
+    "probe - it failed to exec, exited non-zero, or could not find the counter the "
+    "probe pipes into - so its behaviour above the heredoc threshold is unmeasured "
+    f"and no branch here can be selected honestly. {UNCOVERED}"
 )
+
+
+def dash_usability_skip() -> str:
+    """Why an arm needing a WORKING dash did not run - absent, or present and mute."""
+    if DASH is None:
+        return DASH_ABSENT_SKIP
+    return DASH_UNUSABLE_SKIP
 
 
 def dash_truncation_skip() -> str:
@@ -1333,18 +1354,17 @@ def dash_truncation_skip() -> str:
     ``None`` bytes - which names nothing the arm requires and states something
     about the machine that is not true. MEASURED under PowerShell before the
     repair; each branch now says only what was actually observed.
+
+    THE THIRD BRANCH NAMES A BUILD, NOT AN EXECUTABLE, and that is the honest
+    wording rather than a dodge: on a machine whose dash resolves and answers,
+    what this arm still lacks is a build that TRUNCATES.
     """
-    if DASH is None:
-        return DASH_ABSENT_SKIP
-    if DASH_DELIVERED is None:
-        return (
-            f"{NOT_RUN_MARKER}: the dash on this machine did not answer the delivery "
-            "probe, so there is no measured delivery for this arm to branch on. " + DASH_ELSEWHERE
-        )
+    if not DASH_USABLE:
+        return dash_usability_skip()
     return (
-        f"{NOT_RUN_MARKER}: this machine's dash DELIVERS an over-threshold heredoc "
-        f"({DASH_DELIVERED} bytes), so the MSYS2 truncation cannot be reproduced here "
-        "and this arm has nothing to measure. " + DASH_ELSEWHERE
+        f"{NOT_RUN_MARKER}: this arm {BUILD_REQUIREMENT} `{DASH_NAME}` that TRUNCATES an "
+        f"over-threshold heredoc; the one on this machine DELIVERS ({DASH_DELIVERED} "
+        f"bytes), so the MSYS2 truncation cannot be reproduced here. {UNCOVERED}"
     )
 
 
@@ -1393,6 +1413,14 @@ def _dash_heredoc_delivery() -> int | None:
 DASH_HEREDOC_THRESHOLD: Final = 4096
 DASH_DELIVERED: Final = _dash_heredoc_delivery()
 DASH_TRUNCATES: Final = DASH_DELIVERED == 0
+
+# PRESENT IS NOT USABLE, and conflating the two was a false-green risk. The
+# probe above returns None when dash cannot exec, exits non-zero, or when the
+# counter it pipes into is missing - so a fully resolvable dash that merely
+# ERRORS made `DASH_TRUNCATES` false and skipped the truncation arm under a
+# reason about delivery, while the other dash arm ran anyway and failed. This
+# is the one predicate that separates the two.
+DASH_USABLE: Final = DASH is not None and DASH_DELIVERED is not None
 
 
 # Delegates -c so the probe still passes, and swallows the program otherwise.
@@ -1595,7 +1623,7 @@ def test_every_message_class_still_reports_its_own_reason_on_stderr(
     )
 
 
-@pytest.mark.skipif(DASH is None or not DASH_TRUNCATES, reason=dash_truncation_skip())
+@pytest.mark.skipif(not DASH_USABLE or not DASH_TRUNCATES, reason=dash_truncation_skip())
 def test_the_msys2_dash_truncation_reproduces_and_is_now_refused(
     tmp_path: Path, isolated: Environment
 ) -> None:
@@ -1634,7 +1662,7 @@ def test_the_msys2_dash_truncation_reproduces_and_is_now_refused(
     assert out == b"", "the hook leaked stdout"
 
 
-@pytest.mark.skipif(DASH is None, reason=DASH_ABSENT_SKIP)
+@pytest.mark.skipif(not DASH_USABLE, reason=dash_usability_skip())
 @pytest.mark.parametrize(
     ("label", "message", "reason"), MESSAGE_CLASSES, ids=lambda value: str(value)[:20]
 )
@@ -2263,6 +2291,33 @@ def test_a_banner_that_is_not_the_last_line_is_refused(
 # under CI alike. A guard that only reddened under the shell that happens to
 # have the defect would be the same one-toolchain evidence this item exists to
 # end.
+#
+# WHAT A SKIP REASON MAY NOT SAY, AND THIS WAS MEASURED RATHER THAN REASONED.
+# The first version of these reasons closed by naming an arm that "proves the
+# property shell-independently". An adversary planted a stdout leak in a COPY of
+# the commit-msg hook and measured the cited arm GREEN with the defect live: it
+# installs a silent stub as the interpreter, so the hook's inline program never
+# executes and no defect inside it is observable. The skip did not reduce
+# coverage - before the repair the same arms asserted and died on that shell
+# without detecting it either. The SENTENCE did the damage, by making a false
+# green readable as a considered one. So a reason may name WHAT IT REQUIRES and
+# must stop there, and the arm below refuses any reason that names a test at
+# all. It does NOT check coverage and must not grow into something that tries.
+#
+# THE THIRD VERDICT CLASS, AND ONLY HALF OF IT IS HANDLED - THE OTHER HALF IS
+# RECORDED, NOT FIXED. A shell that RESOLVES BUT DOES NOT WORK is neither of the
+# two cases above: the arm runs and fails with text about the machine, which is
+# the exact shape this item was filed against. For dash it is now handled, and
+# for free, because `_dash_heredoc_delivery` already has to RUN dash to answer -
+# so a dash that resolves and then cannot exec, exits non-zero, or lacks the
+# counter the probe pipes into yields no measurement, `DASH_USABLE` is false,
+# and both dash arms skip naming what they require. Demonstrated with a `dash`
+# on PATH that exits 1. For `sh` it is NOT handled, and that is a JUDGEMENT
+# rather than a measurement: a broken `sh` also breaks every sandbox arm in this
+# module, since real git runs hooks through one, so it is a genuinely broken
+# machine rather than a harness artifact - and probing it would add an
+# import-time subprocess under every shell to cover a case nothing else in this
+# module survives either.
 
 PLUGIN_NAME: Final = "cs839_no_shell"
 HIDDEN_ENV: Final = "CS839_HIDDEN"
@@ -2275,8 +2330,10 @@ WITHHELD_TEXT: Final = "<withheld: the text carried a filesystem path>"
 # way pytest's own summary reduces it: a failure anywhere wins, then a skip.
 OUTCOME_RANK: Final = {"passed": 0, "skipped": 1, "failed": 2}
 
-# Any test this module's skip reasons cite, so a stale cross-reference in a
-# reason - which is all a reader has when an arm did not run - cannot ship.
+# Any test a skip reason names. The arm below refuses ALL of them: a citation in
+# a skip reason is a coverage claim, and this harness can check that a name
+# EXISTS but never that the arm it names COVERS anything. One such claim shipped
+# and was measured false, so the fence is on making the claim, not on its spelling.
 CITED_TEST: Final = re.compile(r"\btest_[A-Za-z0-9_]+")
 
 NO_SHELL_PLUGIN: Final = '''"""Hide named executables from shutil.which, and record outcomes.
@@ -2447,15 +2504,6 @@ def shell_dependence(tree: ast.Module) -> tuple[set[str], set[str]]:
     return required, dependent
 
 
-def module_test_names(tree: ast.Module) -> set[str]:
-    """Every module-level test function name, from the tree rather than from a list."""
-    return {
-        node.name
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_")
-    }
-
-
 def withhold(text: str) -> str:
     """Replace any text carrying a filesystem path, which must never be asserted on."""
     return WITHHELD_TEXT if DRIVE_PATH.search(text) else text
@@ -2552,7 +2600,6 @@ def test_no_arm_needing_an_import_time_shell_fails_when_it_cannot_be_resolved(
     tree = module_tree()
     required, dependent = shell_dependence(tree)
     population = {name for name in dependent if name.startswith("test_")}
-    every_test = module_test_names(tree)
 
     assert required, "no module-level shutil.which() resolution was derived - the scan is broken"
     assert population, "no arm was derived as depending on a shell resolved at import time"
@@ -2622,8 +2669,10 @@ def test_no_arm_needing_an_import_time_shell_fails_when_it_cannot_be_resolved(
             f"{item.nodeid} rendered an unresolved value into its own skip reason, so the "
             f"reason states something about this machine that is not true:\n{item.reason}"
         )
-        stale = sorted(set(CITED_TEST.findall(item.reason)) - every_test)
-        assert not stale, (
-            f"{item.nodeid} cites a test this module does not define, so its skip points a "
-            f"reader at nothing: {stale}"
+        cited = sorted(set(CITED_TEST.findall(item.reason)))
+        assert not cited, (
+            f"{item.nodeid} names another test in its skip reason. A citation there is a "
+            "COVERAGE CLAIM, and nothing in this harness can check that the cited arm covers "
+            "anything - the one such claim that shipped was measured FALSE, and a false "
+            f"reassurance is worse than silence: {cited}"
         )
