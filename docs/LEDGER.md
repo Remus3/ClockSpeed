@@ -1937,7 +1937,7 @@ mechanism is working correctly; what is absent is the decision it asks for, whic
 when CS-601 tries to bind. Filed in `BACKLOG.md` with that trigger. **Nothing was killed, moved
 or re-recorded** - the port band is operator territory.
 
-### 2026-08-20 - CS-493 CORRECTED and CS-494 CLOSED - the declaration reader reads KEY POSITIONS only; the CS-493 entry below it contains a sentence measured FALSE
+### 2026-08-20 - CS-493, CS-494 - CORRECTED and CLOSED respectively; the declaration reader reads KEY POSITIONS only; the CS-493 entry below it contains a sentence measured FALSE
 Verification: `tests/save/test_reach_guard.py::test_every_graded_declaration_in_this_package_is_readable_from_the_source`
 and `::test_the_sibling_resolution_bound_is_the_number_this_module_declares` for CS-493;
 `tests/save/test_phase4_gate.py::test_the_two_walks_over_held_bytes_differ_only_where_recorded` for
