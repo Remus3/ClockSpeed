@@ -1038,7 +1038,17 @@ def test_every_container_instance_in_the_library_yields_a_decoded_element() -> N
     """
     sweep = _sweep_or_skip()
 
-    assert sweep.tags, (
+    # SCALARS BEFORE THE COMPARISON, UNIFORMLY. Nothing this sweep keys by
+    # can come out of a save - the container word is gated on
+    # objects.CONTAINER_TYPE_WORDS and the shape word on
+    # objects.ELEMENT_SHAPES - which is why this class's repr renders its
+    # mappings where the struct sweep's withholds them. So this is HARDENING
+    # rather than a leak fix: it drops the dependence on a failure condition
+    # that happens to be an empty mapping, and it lets ONE rule - an
+    # assertion renders numbers only - hold across both files with no
+    # exemption carved out for this one.
+    container_words = len(sweep.tags)
+    assert container_words > 0, (
         "the library holds no container tag at all, so this equality grades "
         "nothing. Either the walk stopped reaching them or the population is gone"
     )
@@ -1049,14 +1059,17 @@ def test_every_container_instance_in_the_library_yields_a_decoded_element() -> N
     )
 
     for word in sorted(sweep.tags):
-        assert sweep.decoded.get(word, 0) == sweep.tags[word], (
-            f"{word}: {sweep.decoded.get(word, 0)} of {sweep.tags[word]} instances "
+        decoded_here = sweep.decoded.get(word, 0)
+        tagged_here = sweep.tags[word]
+        elements_here = sweep.elements.get(word, 0)
+        assert decoded_here == tagged_here, (
+            f"{word}: {decoded_here} of {tagged_here} instances "
             "yielded a decoded element. The acceptance is an EQUALITY over the whole "
             "population and not a floor - a shortfall is an element framing that "
             "stops closing somewhere, and the containers it stops closing on are "
             "exactly the ones nobody has looked at"
         )
-        assert sweep.elements.get(word, 0) > 0, (
+        assert elements_here > 0, (
             f"{word}: every instance decoded and not one element came back, so the "
             "equality above is being satisfied by empty element lists"
         )
@@ -1084,11 +1097,14 @@ def test_the_bounded_elements_agree_with_the_counts_the_containers_declared() ->
     """
     sweep = _sweep_or_skip()
 
-    assert sweep.elements, "no element was bounded at all, so this grades nothing"
+    bounded_words = len(sweep.elements)
+    assert bounded_words > 0, "no element was bounded at all, so this grades nothing"
     for word in sorted(sweep.elements):
-        assert sweep.elements[word] == sweep.declared.get(word, 0), (
-            f"{word}: {sweep.elements[word]} element halves were bounded and the "
-            f"containers declared {sweep.declared.get(word, 0)}. A framing that "
+        bounded_here = sweep.elements[word]
+        declared_here = sweep.declared.get(word, 0)
+        assert bounded_here == declared_here, (
+            f"{word}: {bounded_here} element halves were bounded and the "
+            f"containers declared {declared_here}. A framing that "
             "closes the region with the wrong number of elements is a framing that "
             "has the element width wrong and the region right"
         )
@@ -1115,7 +1131,8 @@ def test_the_library_container_counts_are_recorded_for_the_ledger() -> None:
     sweep = _sweep_or_skip()
 
     assert sweep.records > 0, "no record was walked"
-    assert sweep.shapes, "no element shape was recorded, so nothing was bounded"
+    shape_pairs = len(sweep.shapes)
+    assert shape_pairs > 0, "no element shape was recorded, so nothing was bounded"
 
     seen = frozenset(shape for _word, shape in sweep.shapes)
     unknown = sorted(seen - objects.ELEMENT_SHAPES)
@@ -1142,7 +1159,8 @@ def test_the_shape_evidence_is_graded_per_container_word_and_not_pooled() -> Non
     and every number is an integer.
     """
     sweep = _sweep_or_skip()
-    assert sweep.shapes, "no element shape was recorded, so nothing was bounded"
+    shape_pairs = len(sweep.shapes)
+    assert shape_pairs > 0, "no element shape was recorded, so nothing was bounded"
 
     unknown = sorted(
         (word, shape)
@@ -1219,16 +1237,26 @@ def test_a_provably_wrong_partition_survives_every_library_backed_equality() -> 
         "see are the same green"
     )
     assert mutated.failures == (), f"failures walking real bodies: {mutated.failures}"
-    assert mutated.tags, "the mutated sweep bounded no container at all"
+    # THE SAME SCALAR RULE AS THE PRISTINE ARMS ABOVE, and these three are
+    # why it is worth stating as a rule rather than a fix. They are the
+    # MUTATED pass's copies of those arms, identical in shape, and a guard
+    # keyed on a variable named ``sweep`` walks straight past them. A rule
+    # that holds only where someone remembered to look is not a rule.
+    mutated_words = len(mutated.tags)
+    assert mutated_words > 0, "the mutated sweep bounded no container at all"
 
     for word in sorted(mutated.tags):
-        assert mutated.decoded.get(word, 0) == mutated.tags[word], (
+        mutated_decoded = mutated.decoded.get(word, 0)
+        mutated_tagged = mutated.tags[word]
+        assert mutated_decoded == mutated_tagged, (
             f"{word}: the wrong partition changed how many instances decoded. If that "
             "is real the region-closing check now discriminates it, and the recorded "
             "limit is too wide"
         )
     for word in sorted(mutated.elements):
-        assert mutated.elements[word] == mutated.declared.get(word, 0), (
+        mutated_bounded = mutated.elements[word]
+        mutated_declared = mutated.declared.get(word, 0)
+        assert mutated_bounded == mutated_declared, (
             f"{word}: the wrong partition moved the bounded total off the declared "
             "total. That equality is an identity over the walk, so this would mean "
             "the walk changed rather than the widths"

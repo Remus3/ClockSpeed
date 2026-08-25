@@ -150,23 +150,12 @@ GIT_PY_GLOB: Final = "*.py"
 #: :func:`test_no_live_assertion_renders_a_field_its_class_withheld`, which
 #: asserts the record in both directions so it cannot rot into a silent
 #: exemption after the code it describes has gone.
-LIVE_DISCLOSURE_RESIDUALS: Final[Mapping[str, str]] = MappingProxyType(
-    {
-        "tests/save/test_struct_interior.py": (
-            "The site this item was opened on, and it is still live: a "
-            "confinement arm compares a len() of the frozenset of struct words, "
-            "and pytest reprs the frozenset INSIDE that len(), bypassing the "
-            "counts-only __repr__ the sweep carries to prevent exactly that. An "
-            "adversary reproduced it against the real save library on this "
-            "machine. Two further arms in the same file were repaired at the "
-            "site where they were found and the module was never swept, which "
-            "is the instance-not-population defect this guard replaces. Not "
-            "repaired here: the file is owned by another unit of work, and a "
-            "repair applied to a file from two places at once lands on one copy "
-            "and is merged from the other."
-        ),
-    }
-)
+#:
+#: EMPTY, AND THAT IS THE DESIGNED OUTCOME. The sole entry named
+#: tests/save/test_struct_interior.py, whose confinement arm was repaired by
+#: the CS-829 merge. The both-directions assertion went RED on that merge and
+#: is what required this entry to be deleted rather than left to rot.
+LIVE_DISCLOSURE_RESIDUALS: Final[Mapping[str, str]] = MappingProxyType({})
 
 
 def _live(findings: tuple[Finding, ...]) -> list[Finding]:
