@@ -83,12 +83,8 @@ class Census:
     empty_stdout: int
     nonzero_exit: int
     claimed_a_problem: int
+    unreconstructable: int
     argvs: tuple[tuple[str, ...], ...]
-
-    @property
-    def observed_something(self) -> int:
-        """Records that produced any stdout at all - the live-gate count."""
-        return self.records - self.empty_stdout
 
 
 def main_checkout() -> Path | None:
@@ -256,6 +252,7 @@ def census() -> Census:
     empty_stdout = 0
     nonzero_exit = 0
     claimed = 0
+    unreconstructable = 0
     argvs: set[tuple[str, ...]] = set()
 
     for directory in store_dirs():
@@ -269,7 +266,9 @@ def census() -> Census:
                 if FAILURE_FRAGMENT in str(attachment.get("stderr") or ""):
                     claimed += 1
                 argv = argv_from_command(str(attachment.get("command")))
-                if argv is not None:
+                if argv is None:
+                    unreconstructable += 1
+                else:
                     argvs.add(argv)
 
     return Census(
@@ -277,36 +276,130 @@ def census() -> Census:
         empty_stdout=empty_stdout,
         nonzero_exit=nonzero_exit,
         claimed_a_problem=claimed,
+        unreconstructable=unreconstructable,
         argvs=tuple(sorted(argvs)),
     )
 
 
+@functools.cache
+def candidate_lines() -> int:
+    """Lines that COULD carry a record for this tool, counted by substring only.
+
+    DELIBERATELY INDEPENDENT of hook_attachments, and that independence is the
+    whole reason this function exists rather than being folded into the scan
+    above for a second's worth of speed.
+
+    It answers the one question the census cannot answer about itself: when
+    the census selects nothing, is the STORE empty or is the SELECTOR broken?
+    Those are opposite verdicts - the first is a legitimate skip on a machine
+    with no history, the second means this module has silently stopped
+    covering anything - and a census that routes both to the same skip reports
+    coverage it does not have.
+
+    That was a real defect here, not a hypothetical: patching hook_attachments
+    to return nothing made all three tests SKIP with a reason stating that no
+    record was present, while the store held hundreds. A check that observed
+    nothing, concluded something, and said so confidently is precisely the
+    shape of the tool this whole item exists to repair.
+
+    Substring matching is the right blunt instrument for the job. It shares no
+    parsing, no key name and no shape assumption with the selector it grades,
+    so the realistic break - the harness changing its attachment format - moves
+    one of these two numbers and not the other.
+
+    IT DELIBERATELY OVERCOUNTS, and tightening it is a mistake worth naming
+    before someone makes it. This returns more lines than there are records,
+    because a transcript that merely QUOTES the command matches too. Narrowing
+    the match - keying on an attachment-only key name, say - would cut that
+    overcount and would also mean a harness that RENAMED that key drove both
+    numbers to zero together, which is precisely the silent skip this exists
+    to prevent. The two strings matched here are the two most likely to
+    survive a format change.
+
+    So the overcount is the safe direction. It can only produce a loud FAILURE
+    on a machine that discusses this hook without ever running it, and that
+    failure says exactly what to look at. The opposite error is a quiet pass
+    over nothing.
+    """
+    total = 0
+    for directory in store_dirs():
+        for transcript in sorted(directory.glob("*.jsonl")):
+            try:
+                handle = transcript.open("r", encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            with handle:
+                total += sum(1 for line in handle if HOOK_EVENT in line and TOOL_FILENAME in line)
+    return total
+
+
 def require_population() -> Census:
-    """The census, or a skip. A vacuous pass is not a pass."""
+    """The census, or a PRECISE verdict on why there is not one.
+
+    THREE OUTCOMES, and collapsing any two of them is the defect this function
+    exists to prevent:
+
+      - records selected            -> grade them
+      - none selected, store HAS    -> FAIL. The selector broke. Skipping here
+        candidate lines                would be a false statement about the
+                                       store and a silent loss of coverage.
+      - none selected, none present -> skip, naming what it requires
+
+    Every skip reason below names its REQUIREMENT and claims nothing about
+    coverage, which is the rule CS-839 established for this repository. "No
+    record is present" is a claim about the store; "requires at least one
+    record" is a statement about this module. Only the second is honest when
+    the thing doing the looking may itself be broken.
+    """
     found = census()
-    if found.records == 0:
-        pytest.skip(
-            "no PostToolUse record for this tool is present in the harness "
-            "transcript store on this machine, so there is no population to "
-            "census. tests/test_edit_lint_check.py carries the proof that "
-            "does not need one."
+    if found.records:
+        return found
+
+    candidates = candidate_lines()
+    if candidates:
+        pytest.fail(
+            "THE SELECTOR MATCHED NOTHING AND THE STORE IS NOT EMPTY: %d "
+            "line(s) in this checkout's transcripts carry both the hook event "
+            "and this tool's filename, and the census selected 0 of them. "
+            "That is a broken selector, not a machine without history. The "
+            "attachment shape has probably changed - re-derive it before "
+            "trusting any other result in this module." % candidates
         )
-    return found
+
+    directories = len(store_dirs())
+    if not directories:
+        pytest.skip(
+            "requires: a harness transcript directory whose own recorded cwd "
+            "is inside this checkout. None was found, so this module graded "
+            "nothing and claims nothing about the tool."
+        )
+    pytest.skip(
+        "requires: at least one line naming both the hook event and this tool "
+        "in the %d matched transcript directory/directories. None was found, "
+        "so this module graded nothing and claims nothing about the tool." % directories
+    )
 
 
 def test_the_census_selects_a_real_population() -> None:
-    """The census found records AND reconstructed at least one argv from them.
+    """At least one argv was reconstructed, so the replay grades a real loop.
 
-    Without this, the replay below would pass on an empty loop - and it would
-    pass hardest on precisely the machine where the store had moved and the
-    selection had silently stopped matching anything.
+    THIS TEST DOES NOT DETECT A BROKEN SELECTOR, and an earlier version of
+    this docstring claimed it did. :func:`require_population` is what makes
+    that distinction, by comparing the selection against an independent
+    substring count, and it FAILS rather than skipping when the two disagree.
+    Stating the guarantee here instead put a claim about coverage in the one
+    place nothing checks it - the same defect, one level up, as the tool this
+    module grades.
+
+    What is left for this test is narrow and real: the replay below iterates
+    `argvs`, so an empty `argvs` would make it pass over nothing even with the
+    selection healthy.
     """
     found = require_population()
 
     reconstructed = len(found.argvs)
     records = found.records
 
-    assert records > 0, "the census selected no records"
     assert reconstructed > 0, (
         "%d record(s) were selected but no argument vector could be "
         "reconstructed from any of them, so the replay below would grade "
@@ -356,24 +449,34 @@ def test_no_recorded_invocation_claims_an_unobserved_problem(tmp_path: Path) -> 
     )
 
 
-def test_the_recorded_history_is_reported_rather_than_asserted() -> None:
-    """The historical finding, kept VISIBLE without being frozen into a number.
+def test_every_selected_record_yields_an_argument_vector() -> None:
+    """Reconstruction covers the WHOLE population, not just its best member.
 
-    This deliberately asserts an INEQUALITY that the fix does not change,
-    because the history it describes is immutable - those records are already
-    written and no code change can make them un-happen. Freezing the count
-    would break this test on the next edit; asserting nothing would let the
-    census rot unnoticed. What it does grade is that the derivation still
-    resolves the store, still selects records and still agrees with itself.
+    THIS REPLACES A TEST THAT COULD NOT FAIL. That one asserted
+    `empty_stdout + (records - empty_stdout) == records` and two bounds that
+    each counter could not exceed by construction - an algebraic identity true
+    of every possible input, reporting coverage it did not have. A test that
+    cannot fail is worse than no test, so it is gone rather than weakened.
+
+    What replaces it grades something the suite genuinely was not grading.
+    `argvs` is a SET, so the neighbouring check that it is non-empty is
+    satisfied by ONE parseable command out of any number - a pooled threshold
+    met by its strongest member while the weakest goes unmeasured. Counting
+    the FAILURES instead makes every record carry its own weight, which is
+    what the replay needs: an argv that could not be reconstructed is a
+    recorded invocation the replay never re-runs.
+
+    It is falsifiable today. Every record in the store currently reconstructs,
+    so a command shape this reader cannot parse turns it red immediately.
     """
     found = require_population()
 
+    unreconstructable = found.unreconstructable
     records = found.records
-    accounted = found.empty_stdout + found.observed_something
 
-    assert accounted == records, (
-        "the census disagrees with itself: %d record(s) selected but %d "
-        "accounted for. The derivation is broken, not the tool." % (records, accounted)
+    assert unreconstructable == 0, (
+        "%d of %d selected record(s) carry a command this module could not "
+        "turn back into an argument vector, so the replay silently skips "
+        "them. Either the recorded command shape has changed or the "
+        "reconstruction has rotted; both need re-deriving." % (unreconstructable, records)
     )
-    assert found.claimed_a_problem <= records
-    assert found.nonzero_exit <= records
