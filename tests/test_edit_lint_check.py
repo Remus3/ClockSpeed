@@ -20,10 +20,14 @@ would block the commit that adds it.
 
 from __future__ import annotations
 
+import importlib.util
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
+import time
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -197,3 +201,335 @@ def test_no_temp_staging_directory_is_rendered(tmp_path: Path) -> None:
 
     assert temp_root not in combined, combined
     assert temp_root.replace("\\", "/") not in combined, combined
+
+
+# --------------------------------------------------------------------------
+# CS-841 - the format check is OFF on this path. That must be DISCLOSED, and
+# the transition that switches it ON must redden a test.
+# --------------------------------------------------------------------------
+
+# Bytes `ruff format` rewrites and `ruff check` has nothing BLOCKING to say
+# about. MEASURED against this project's own config rather than assumed: the
+# format check exits 1 naming the file, and the E9/F63/F7/F82 band comes back
+# empty, so a refusal of these bytes can only have come from the format check.
+FORMAT_DIRTY = b'"""Doc."""\n\nVALUE = [1,2,3]\n'
+
+# The one source fragment separating those bytes from their formatted twin.
+# Asserted ABSENT from every channel: ruff prints source lines, and a checked
+# file can carry a world name or an account id (CLAUDE.md non-negotiables 3
+# and 12).
+FORMAT_SOURCE_FRAGMENT = "[1,2,3]"
+
+# The disclosure this tool owes the operator, as a substring contract.
+FORMAT_SKIP_MARKER = "ruff format --check is NOT enforced here"
+
+# gate.Diagnostic renders as `path:line:col: CODE reason`, so the code arrives
+# surrounded by spaces. Matching the bare word would hit prose instead.
+FORMAT_CODE = " FORMAT "
+
+GATE = REPO_ROOT / "tools" / "precommit_gate.py"
+
+
+def clean_verdict() -> str:
+    """gate.emit's clean banner, with the movable half IMPORTED not restated.
+
+    CLAUDE.md section 4 gives every fact one owner, and this one's owner -
+    tools/precommit_gate.py - is FROZEN. Spelling "precommit_gate" out here
+    would mean that rewording it through the section-6 route reddens this test
+    for a reason with nothing to do with its subject. Only GATE_NAME is owned
+    over there; the literal ": PASS " belongs to emit's format string and has
+    no separate owner to import, so it stays.
+
+    Loaded by path rather than imported as tools.precommit_gate, which is the
+    same choice tests/test_precommit_gate.py::load_gate makes and for the same
+    reason: it keeps tools/ out of the import graph.
+    """
+    name = "clockspeed_gate_banner"
+    spec = importlib.util.spec_from_file_location(name, GATE)
+    assert spec is not None, "the gate could not be located for its banner token"
+    assert spec.loader is not None, "the gate has no loader"
+    module = importlib.util.module_from_spec(spec)
+    # Registered BEFORE exec_module, for the reason
+    # tests/test_precommit_gate.py::load_gate records: the gate declares
+    # dataclasses under `from __future__ import annotations`, and @dataclass
+    # resolves those string annotations through sys.modules[cls.__module__].
+    # Unregistered, that lookup returns None and the decorator raises while the
+    # class body is still running. Measured here the hard way.
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return str(module.GATE_NAME) + ": PASS"
+
+
+def run_gate(
+    *args: str,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run the SIBLING gate - the tool that DOES hand the linter a root.
+
+    cwd is pinned to the repository root because that gate resolves its ruff
+    config from the git toplevel of the working directory. A suite invoked
+    from anywhere else would resolve no config, the gate would then skip the
+    format check exactly as this tool does, and the differential these tests
+    are built on would vanish with nothing failing to say so.
+    """
+    proc = subprocess.run(
+        [sys.executable, str(GATE), *args],
+        capture_output=True,
+        env=env,
+        cwd=str(REPO_ROOT),
+        timeout=TIMEOUT,
+        check=False,
+    )
+    return subprocess.CompletedProcess(
+        proc.args,
+        proc.returncode,
+        proc.stdout.decode("utf-8", "replace"),
+        proc.stderr.decode("utf-8", "replace"),
+    )
+
+
+def test_the_format_skip_is_disclosed_without_verbose(tmp_path: Path) -> None:
+    """CS-841's SILENT half, and the channel it was silent on.
+
+    gate.emit renders report.notes under --verbose, or on a run that already
+    BLOCKED. The PostToolUse entry in .claude/settings.json passes neither of
+    those, so on the one path the skip actually covers - a clean edit - the
+    mitigation was never rendered at all. That is NOT a coverage reduction,
+    because there is no format coverage here to reduce; it is a permanent
+    disablement that no output disclosed.
+
+    gate.emit lives in a frozen file (CLAUDE.md section 6), so the disclosure
+    is this tool's to make rather than the renderer's.
+    """
+    target = outside_target(tmp_path, ".py", FORMAT_DIRTY)
+
+    result = run_tool("--files", str(target), env=base_env(tmp_path))
+
+    assert result.returncode == 0, result.stderr
+    assert FORMAT_SKIP_MARKER in result.stdout, (
+        "the format check is disabled on this path and no output said so: " + repr(result.stdout)
+    )
+    assert FORMAT_SOURCE_FRAGMENT not in result.stdout + result.stderr
+
+    # ORDERING, pinned because the tool CLAIMS it in a comment. Moving the
+    # disclosure after gate.emit survives every other assertion in this file,
+    # so without this the claim is decoration. No consumer parses this stdout
+    # today - the point is that the code should not assert what nothing checks.
+    lines = [line for line in result.stdout.splitlines() if line.strip()]
+    assert lines[-1].startswith(clean_verdict()), (
+        "the tool claims the PASS banner stays its last line; it does not: " + repr(lines)
+    )
+    assert any(FORMAT_SKIP_MARKER in line for line in lines[:-1]), repr(lines)
+
+
+def test_a_non_python_edit_gets_no_format_notice(tmp_path: Path) -> None:
+    """The disclosure is PROPORTIONAL, or it becomes the noise nobody reads.
+
+    gate.run_ruff returns before the format check whenever no unit is python
+    at all, so a notice on a markdown edit would report a skip that was never
+    reached. This pins the filter in the second direction - the test above
+    proves the disclosure fires, this one proves it does not fire everywhere.
+    """
+    target = outside_target(tmp_path, ".md", b"# T\n\nAlpha b\n")
+
+    result = run_tool("--files", str(target), env=base_env(tmp_path))
+
+    assert result.returncode == 0, result.stderr
+    assert FORMAT_SKIP_MARKER not in result.stdout, result.stdout
+
+
+def test_a_root_reaching_this_tool_would_arm_a_blocking_format_check(tmp_path: Path) -> None:
+    """CS-841's SELF-ARMING half. WRITTEN TO FAIL ON A TRANSITION, NOT ON TODAY.
+
+    tools/edit_lint_check.py is not frozen, so a one-line change handing
+    gate.run_ruff a root needs no grant and no review. It would turn the
+    format check ON, blocking, on the operator's LIVE edit path - and the
+    first sign of it would be an edit being refused. This test is what says
+    so first, and it fails on the change rather than on the current state.
+
+    THE ARMING STEP COMES FIRST AND IS THE POINT. A tripwire whose bait has
+    stopped being a violation passes forever while guarding nothing, and a
+    survived mutant and a mutant that never applied produce identical output.
+    So the same bytes go through the SIBLING gate, which does pass a root, and
+    it must REFUSE them with a FORMAT diagnostic. That arm failing is a better
+    outcome than a green tripwire standing over a dead fixture.
+
+    It ASSERTS rather than skips when ruff is absent. A tripwire that disarms
+    itself whenever a tool is missing cannot promise the RED this item is
+    required to produce, and this project pins ruff.
+    """
+    target = outside_target(tmp_path, ".py", FORMAT_DIRTY)
+
+    reference = run_gate("--files", str(target), env=base_env(tmp_path))
+
+    assert reference.returncode == 1, (
+        "the bait is no longer refused by the tool that DOES pass a root, so this "
+        "tripwire guards nothing: " + reference.stdout + reference.stderr
+    )
+    assert FORMAT_CODE in reference.stderr, (
+        "the sibling gate refused these bytes for some reason OTHER than formatting, "
+        "so the differential under test is not the root: " + reference.stderr
+    )
+
+    result = run_tool("--files", str(target), env=base_env(tmp_path))
+
+    assert result.returncode == 0, (
+        "a root now reaches tools/edit_lint_check.py: the format check is armed and "
+        "BLOCKING on the operator's live edit path. CS-841 says that needs a grant "
+        "and a recorded review, not a one-line edit. " + result.stderr
+    )
+    assert FORMAT_CODE not in result.stderr, result.stderr
+    assert FORMAT_SKIP_MARKER in result.stdout, (
+        "the format skip stopped being disclosed, which means either the check is "
+        "now armed or the disclosure was dropped: " + repr(result.stdout)
+    )
+
+
+# --------------------------------------------------------------------------
+# CS-841 REPAIR - the tripwire above is SPECIFIC, and a specific tripwire over
+# the wrong path guards nothing. These generalise it.
+# --------------------------------------------------------------------------
+
+# `work/`, and the two rejected candidates are why. FOUR criteria, all MEASURED,
+# and no candidate satisfying three of them is good enough:
+#
+#   1. NOT in `git ls-files --cached --others --exclude-standard`. That is the
+#      WOULD-BE-TRACKED inventory tests/conftest.py builds as `repo_files`, and
+#      tests/test_mypy_gate.py reads it. An untracked unignored directory is
+#      INSIDE it, so a bait at the repo root makes that module fail - only
+#      under `-n auto`, which is what .github/workflows/tier2.yml runs and what
+#      the serial pre-push hook does not. Green here, red in the nightly lane.
+#   2. NOT swept by `ruff format --check .` from the root, which is CI tier1.
+#   3. NOT refused by the gate's PUBLISHER rule, or the bait never reaches the
+#      format check and the tripwire grades a path rejection instead.
+#   4. Still inside THIS checkout, so a root resolved from the edited file and
+#      a root conditioned on this checkout BOTH still arm.
+#
+# `data/` fails 3: PUBLISHER_ROOT_DIRS refuses it before a byte is read.
+# The repo ROOT fails 1 and 2. A throwaway git repo under tmp_path fails 4 -
+# measured, it disarms any mutant conditioned on this checkout, which would
+# have retired a live tripwire silently. `work/` is gitignored, is not a
+# PUBLISHER root dir, and is inside the checkout.
+IN_REPO_BAIT_PARENT = REPO_ROOT / "work"
+
+
+@pytest.fixture
+def in_repo_bait() -> Iterator[Path]:
+    """A format-dirty .py INSIDE the repository, removed again afterwards.
+
+    THE BAIT ABOVE IS OUTSIDE ANY REPOSITORY AND THE OPERATOR'S EDIT PATH IS
+    NEVER OUTSIDE ONE. That gap is not academic. Any arming conditioned on the
+    edited file's LOCATION is invisible to an out-of-repo bait, and the most
+    natural way to arm this tool is exactly that: resolve the root from the
+    file being edited, which yields nothing for a temp copy and the project
+    config for a real edit.
+
+    Created at runtime rather than committed, because a format-dirty file
+    tracked in this repository would fail `ruff format --check .` in CI - the
+    very check whose absence here is the item.
+
+    THE TEARDOWN FAILS LOUDLY. An earlier version swallowed errors, so one open
+    handle on Windows left the directory behind and the mypy gate went
+    permanently red naming a directory nobody would recognise. A cleanup that
+    cannot report its own failure is how a test leaves landmines.
+    """
+    IN_REPO_BAIT_PARENT.mkdir(parents=True, exist_ok=True)
+    directory = Path(tempfile.mkdtemp(dir=str(IN_REPO_BAIT_PARENT), prefix="cs841_bait_"))
+    target = directory / "bait.py"
+    target.write_bytes(FORMAT_DIRTY)
+    try:
+        yield target
+    finally:
+        for _ in range(5):
+            shutil.rmtree(directory, ignore_errors=True)
+            if not directory.exists():
+                break
+            time.sleep(0.1)
+        assert not directory.exists(), (
+            "the bait directory survived teardown at " + str(directory) + " - remove it "
+            "before running the suite again, or tests that read the repository "
+            "inventory will fail naming a path that has nothing to do with them"
+        )
+
+
+def test_a_root_reaching_this_tool_arms_it_on_an_in_repo_edit(
+    tmp_path: Path,
+    in_repo_bait: Path,
+) -> None:
+    """The tripwire GENERALISED to the path it actually protects.
+
+    The out-of-repo case pins a root taken from a CONSTANT and nothing more.
+    Two arming mutants sail straight past it, both leaving that case green
+    while a blocking `ruff format --check` fires on every real edit:
+
+      1. Resolve the root from the EDITED FILE's repository. Not exotic - it
+         is the most natural repair anyone would reach for, precisely because
+         the stated reason the root is None is that temp copies resolve no
+         config.
+      2. Swap gate.ruff_config_args around the lint call for in-repo paths,
+         which is THE SAME IDIOM this tool already uses on gate.RUFF_TIMEOUT.
+
+    Under the second the tool also PRINTS the skip notice while the check is
+    enforced and blocking, so this test is what stops that notice lying.
+    """
+    reference = run_gate("--files", str(in_repo_bait), env=base_env(tmp_path))
+
+    assert reference.returncode == 1, (
+        "the in-repo bait is no longer refused by the tool that DOES pass a root, "
+        "so this tripwire guards nothing: " + reference.stdout + reference.stderr
+    )
+    assert FORMAT_CODE in reference.stderr, (
+        "the sibling gate refused the in-repo bait for some reason OTHER than "
+        "formatting, so the differential under test is not the root: " + reference.stderr
+    )
+
+    result = run_tool("--files", str(in_repo_bait), env=base_env(tmp_path))
+
+    assert result.returncode == 0, (
+        "a root now reaches tools/edit_lint_check.py on an IN-REPO edit: the format "
+        "check is armed and BLOCKING on the operator's live edit path. CS-841 says "
+        "that needs a grant and a recorded review, not a one-line edit. " + result.stderr
+    )
+    assert FORMAT_CODE not in result.stderr, result.stderr
+    assert FORMAT_SKIP_MARKER in result.stdout, (
+        "the notice is absent on an in-repo edit, so either the check is now armed "
+        "or the disclosure never covered the real path: " + repr(result.stdout)
+    )
+
+
+def test_the_notice_and_an_enforced_format_check_never_co_occur(
+    tmp_path: Path,
+    in_repo_bait: Path,
+) -> None:
+    """The notice must not be able to DISAGREE with the run it describes.
+
+    THIS REPLACED A STATIC CHECK THAT WAS A SPELLING CHECK. That one parsed
+    main and asserted the linter and the disclosure were handed the same
+    ast.Name. Rebinding that one name between the two call sites is invisible
+    to it, so an arming mutant plus a one-line rebind blocked a real in-repo
+    edit while printing that the check was not enforced - with the guard
+    green. Tightening the AST check would have been an arms race against
+    Python syntax, and there is no reason to expect to win it.
+
+    So the property is asserted on BEHAVIOUR instead, where spelling cannot
+    reach it. For a format-dirty python file, exactly one of these is true and
+    never both and never neither:
+
+      - the format check was ENFORCED, so a FORMAT diagnostic names the file
+      - the format check was SKIPPED, so the notice says it is not enforced
+
+    Both at once is the lie. Neither is a disclosure that has gone silent
+    again, which is the original defect returning. Whatever the wiring looks
+    like, it has to land on exactly one.
+    """
+    result = run_tool("--files", str(in_repo_bait), env=base_env(tmp_path))
+
+    enforced = FORMAT_CODE in result.stderr
+    disclosed = FORMAT_SKIP_MARKER in result.stdout
+
+    assert enforced != disclosed, (
+        "the notice and the run disagree. enforced=%r disclosed=%r. Either the "
+        "tool printed that the format check is off while a FORMAT diagnostic "
+        "blocked the edit, or it enforced nothing and said nothing.\nstdout: %s\n"
+        "stderr: %s" % (enforced, disclosed, result.stdout, result.stderr)
+    )
