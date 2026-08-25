@@ -77,6 +77,30 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-25 - CS-856 - ADR 0010 ACCEPTED by operator ruling; the `proposed` status stated in the CS-856 record below is SUPERSEDED
+
+**THIS RECORD CORRECTS THE ONE BELOW RATHER THAN EDITING IT**, per this file's own rule that
+nothing here is ever edited or deleted once written. A record that turns out to be wrong gets
+a new, later record that says so.
+
+The CS-856 entry below closes by stating that ADR 0010 is `proposed`, NOT `accepted`, because
+the session that performed the split does not grade it. THE OPERATOR ADJUDICATED THE SAME DAY
+AND ACCEPTED IT. That sentence is therefore superseded, and ADR 0010 is IN FORCE and binding
+from 2026-08-25.
+
+- **The adjudicator is the OPERATOR, who did not perform the split** - which is precisely the
+  `CLAUDE.md` section 5 condition the `proposed` status was waiting on. It is not the
+  producing session grading its own output.
+- Changed files: the Status section of
+  `docs/adr/0010-item-notes-is-an-index-over-per-phase-leaves.md`, and its row in
+  `docs/adr/README.md`.
+- **Verification, stated honestly: NO TEST GRADES AN ADR'S STATUS.** Nothing in this tree
+  cross-checks an ADR file's Status line against the index row, so the pointer here is a
+  READ of the two, not an assertion: both must read `accepted`, and
+  `tests/test_docs_citations.py` keeps every citation inside that ADR resolving because
+  `ADR_0010` is in its `GUARDED_DOCS`. The absence of a status guard is recorded rather than
+  papered over.
+
 ### 2026-08-25 - CS-856 - `docs/item_notes.md` SPLIT into an index over per-phase leaves under `docs/item_notes/`; all 97 bodies moved byte-for-byte
 
 **FILED AND CLOSED THE SAME DAY, on an operator ruling, not from `ROADMAP.md`.** Session 40

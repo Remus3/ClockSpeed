@@ -2,11 +2,14 @@
 
 ## Status
 
-`proposed` - 2026-08-25
+`accepted` - 2026-08-25
 
-Written by the session that performed the split, which leaves it `proposed` because per
-`CLAUDE.md` section 5 the producing agent does not grade its own output. An adjudicator
-that did not perform the split decides whether it reaches `accepted`.
+**ACCEPTED BY OPERATOR RULING 2026-08-25**, the same day it was filed. It was written by the
+session that performed the split and filed `proposed`, because per `CLAUDE.md` section 5 the
+producing agent does not grade its own output. The operator is an adjudicator that did not
+perform the split, which is exactly the condition the `proposed` status was waiting on.
+
+This ADR is now IN FORCE and binding. Cite it freely.
 
 ## Context
 

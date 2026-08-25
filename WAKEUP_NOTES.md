@@ -39,9 +39,8 @@ the line becomes a pointer.
 - **Shipped: CS-856 CLOSES.** `docs/item_notes.md` is now an index over `docs/item_notes/`,
   six leaves, 97 bodies moved byte-for-byte. Detail in `docs/LEDGER.md`, not here.
 - **In flight: NOTHING.** No half-done work, no dirty file, no held branch beyond the four
-  already preserved. ADR 0010 is `proposed` and wants an adjudicator that did not do the
-  split - there is NO roadmap item for that, matching ADR 0009, which is also `proposed`
-  with no item.
+  already preserved. **ADR 0010 was ACCEPTED by operator ruling the same day**, so the split
+  is settled and binding. ADR 0009 remains `proposed` with no roadmap item.
 - **Decisions: ADR 0010.** Three operator choices, each with its fence: split at the
   `CS-4nn`/`CS-8nn` seam rather than one 182 KB phase-4 leaf; ROADMAP item lines point at
   the INDEX and never at a leaf; record it as an ADR plus both topology tables.
