@@ -3153,10 +3153,11 @@ DECLINED_VALUE_READINGS: Final[Mapping[str, tuple[str, str]]] = MappingProxyType
             "whole-type decline this entry used to record. NO FIGURE IS WRITTEN "
             "HERE - the StructProperty entry of UNMEASURED_PAYLOAD_REGIONS owns "
             "the population and this points at it. "
-            "A discrimination test HAS now been put to the tag_list form: its "
-            "terminator must arrive at exactly the declared end, a wrong "
-            "reading refuses, and the interior names cross-check against the "
-            "fields the shipped usmap declares for that struct - see the "
+            "A discrimination test HAS now been put to the tag_list form: the "
+            "tag-grammar chain admits exactly one end per site out of every end "
+            "the declared size allows, a wrong reading refuses, and the interior "
+            "names cross-check against the fields the shipped usmap declares "
+            "for that struct - see the "
             "StructProperty entry of UNMEASURED_PAYLOAD_REGIONS. What is still "
             "declined is the native form, where the width is whatever the bytes "
             "are and every partition closes by arithmetic, so no reading of it "
@@ -3721,10 +3722,17 @@ STRUCT_TYPE_WORD: Final = "StructProperty"
 #: ``tests/save/test_struct_interior.py``.
 #:
 #: :data:`STRUCT_FORM_TAG_LIST` is a nested property tag list closed by the same
-#: terminator name a payload uses. IT GIVES A READING THAT CAN FAIL: the
-#: terminator must arrive at exactly the byte the tag's declared size points at,
-#: and a wrong offset, a wrong grammar or an overrun all refuse rather than
-#: return. That falsifiability is why this form is read.
+#: terminator name a payload uses. IT GIVES A READING THAT CAN FAIL, and what
+#: makes it fail is the TAG-GRAMMAR CHAIN: every interior tag's name, type word,
+#: declared size and guid flag must read, and the cursor each computes must land
+#: on a tag that also reads, until a terminator. Measured, that chain admits
+#: exactly ONE end per site out of every end the declared size allows.
+#:
+#: THE EXACT-CLOSE COMPARISON IS NOT WHAT DISCRIMINATES, and an earlier version
+#: of this module said it was. Loosening it to "at or before" leaves the whole
+#: library census bit-identical, because on this corpus the first terminator is
+#: always the last byte. It is kept because a corpus that placed one earlier
+#: would need it, and a test asserts its inertness so that day is visible.
 #:
 #: :data:`STRUCT_FORM_NATIVE` is raw bytes carrying no tags at all. IT GIVES NO
 #: SUCH READING: its width is whatever the bytes are, and any partition of it
@@ -4059,8 +4067,9 @@ UNMEASURED_PAYLOAD_REGIONS: Final[Mapping[str, str]] = MappingProxyType(
             "CLOSED. The tag's declared size DOES bound it, so it is stepped "
             "over exactly and costs no synchronisation, and the struct's own "
             "type word is present in the tag. WHAT IS NOW READ: the tag_list "
-            "form - a nested property tag list whose terminator must arrive at "
-            "exactly the declared end - decoded by decode_struct_interior and "
+            "form - a nested property tag list, discriminated by the TAG-GRAMMAR "
+            "CHAIN rather than by its closing comparison, which is measured "
+            "inert on this corpus - decoded by decode_struct_interior and "
             "reported on PropertyResult.struct_interiors. WHAT IS STILL "
             "UNMEASURED: the native form, raw bytes carrying no tags at all. "
             "Its width is whatever the bytes are, so any partition of it closes "
@@ -4850,14 +4859,20 @@ def _decode_struct_interior(
 ) -> StructValue | None:
     """Decode one struct interior written as a nested property tag list - CS-829.
 
-    THE EXACT CLOSE IS THE WHOLE DISCRIMINATOR, and it is the reason this form
-    is read while the native one is not. The terminator must arrive at exactly
-    ``end`` - the byte the tag's own declared size points at. A walk that
-    terminates early is REFUSED rather than returned, because returning the
-    readable prefix would make every closure hold by construction, which is the
-    defect that refuted CS-830 one seam over. Under this rule a wrong reading
-    produces None, so a population of interiors closing is evidence about the
-    format rather than about the arithmetic.
+    WHAT DISCRIMINATES IS THE TAG-GRAMMAR CHAIN, not the closing comparison,
+    and saying otherwise was a measured overstatement in this docstring's first
+    version. Every interior tag's name, type word, declared size and guid flag
+    must read, and the cursor each computes must land on a tag that also reads,
+    until a terminator. That chain refuses a wrong offset, and it is strong
+    enough that exactly ONE end closes per site out of every end the declared
+    size admits - which is what makes a population of interiors closing evidence
+    about the format rather than about arithmetic.
+
+    THE ``end`` EQUALITY BELOW IS CURRENTLY INERT AND IS KEPT ANYWAY. Loosening
+    it to "at or before" leaves the entire library census bit-identical. It is
+    retained because a corpus that placed a terminator earlier would need it,
+    and ``tests/save/test_struct_interior.py`` asserts the inertness, so the day
+    it stops being inert is visible rather than silent.
 
     NONE MEANS "NOT A TAG LIST", WHICH IS NOT THE SAME AS "BROKEN". Most
     refusals here are the NATIVE form doing exactly what it does: raw bytes
@@ -4980,8 +4995,11 @@ def _walk_struct_tags(
         if name is None:
             return None
         if name[0] == _PAYLOAD_TERMINATOR:
-            # THE EQUALITY, not a bound. A terminator short of the declared end
-            # means this reading is not the one the writer used.
+            # A terminator short of the declared end means this reading is not
+            # the one the writer used. MEASURED INERT on the present corpus -
+            # no site closes early, so loosening this to `<=` changes no count -
+            # and kept for the corpus that does, with a test asserting the
+            # inertness rather than a comment claiming the strength.
             return (decoded, unmeasured, disagreed) if name[1] == end else None
         tag = _read_tag_header(body, name[1], end)
         if tag is None:
