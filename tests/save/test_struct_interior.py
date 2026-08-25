@@ -589,6 +589,178 @@ def _census_hits(body: bytes, at: int, end: int) -> int:
     return found
 
 
+# ---------------------------------------------------------------------------
+# A SECOND EXPRESSION OF THE TAG-LIST GRAMMAR - CS-829's shaped-loss arm
+#
+# WHY A SECOND ONE EXISTS AT ALL. Every guard this module had over a refused
+# record graded the SHAPE of the loss - is it whole-save, is it whole-pair - and
+# an adversary measured that shape guards do nothing against SHAPED loss.
+# Patching ``objects._payload_text`` to refuse for one version pair, filtered to
+# the payload walk so the actor-head step still reads, deleted 8362 sites and
+# 23046 further records with ``head_unread``, ``partial_saves`` and
+# ``contested_pairs`` all zero and every arm green. Shaped loss is also the loss
+# this corpus actually exhibits, so the guards were tuned against the one case
+# they cannot see.
+#
+# The functions below read the same grammar and SHARE NO FUNCTION WITH IT. They
+# call ``struct.unpack_from`` and slice bytes; the only things they take from
+# the shipped module are CONSTANTS - widths and a terminator name - which are
+# data rather than readers. A defect planted in any shipped reader therefore
+# separates the two, which is precisely what no arm could do before.
+#
+# THEY ARE DELIBERATELY CONSERVATIVE AND THE ASSERTION IS ONE-SIDED. Measured,
+# they accept 87302 of 148668 records where the shipped walk accepts 129775, and
+# they accept NOTHING the shipped walk refuses. So the claim graded is "no
+# record this module can read for itself is refused by the shipped walk", never
+# the converse - the records only the shipped walk accepts are outside this
+# arm's reach, and a loss confined entirely to them would still escape it.
+# ---------------------------------------------------------------------------
+
+
+def _independent_string(body: bytes, at: int, end: int) -> tuple[str, int] | None:
+    """One length-prefixed string, read without calling the shipped reader.
+
+    Args:
+        body: The decompressed body.
+        at: Where the length prefix starts.
+        end: The first byte past this payload.
+
+    Returns:
+        The text and the offset after it, or None when it does not read.
+    """
+    if at < 0 or at + objects.INT32_SIZE > end:
+        return None
+    (count,) = struct.unpack_from("<i", body, at)
+    if count == 0:
+        return ("", at + objects.INT32_SIZE)
+    if count > 0:
+        width, terminator, encoding = count, 1, "utf-8"
+    else:
+        width, terminator, encoding = -count * objects.UTF16_CHAR_SIZE, 2, "utf-16-le"
+    if width > objects.MAX_STRING_BYTES or at + objects.INT32_SIZE + width > end:
+        return None
+    start = at + objects.INT32_SIZE
+    try:
+        text = body[start : start + width - terminator].decode(encoding)
+    except UnicodeDecodeError:
+        # Returned, never raised - a UnicodeDecodeError QUOTES the offending
+        # bytes and exception context is an echo path (non-negotiable 12).
+        return None
+    return (text, start + width)
+
+
+def _independent_actor_head(body: bytes, at: int, end: int) -> int | None:
+    """Step an actor payload's head without calling the shipped reader.
+
+    Args:
+        body: The decompressed body.
+        at: The payload's first byte.
+        end: The first byte past the payload.
+
+    Returns:
+        Where the property tags begin, or None when the head does not read.
+    """
+    for _ in range(2):
+        step = _independent_string(body, at, end)
+        if step is None:
+            return None
+        at = step[1]
+    if at + objects.INT32_SIZE > end:
+        return None
+    (count,) = struct.unpack_from("<i", body, at)
+    at += objects.INT32_SIZE
+    if count < 0 or count > objects.MAX_OBJECTS:
+        return None
+    for _ in range(2 * count):
+        step = _independent_string(body, at, end)
+        if step is None:
+            return None
+        at = step[1]
+    return at
+
+
+def _independent_tag_list(body: bytes, at: int, end: int) -> bool:
+    """Whether a property tag list starts here and closes at its terminator.
+
+    Args:
+        body: The decompressed body.
+        at: Where the first tag begins.
+        end: The first byte past the payload.
+
+    Returns:
+        Whether this module's own reading of the grammar closes.
+    """
+    for _ in range(objects._MAX_TAGS_PER_PAYLOAD):  # noqa: SLF001
+        name = _independent_string(body, at, end)
+        if name is None:
+            return False
+        if name[0] == objects._PAYLOAD_TERMINATOR:  # noqa: SLF001
+            return True
+        step = _independent_tag_end(body, name[1], end)
+        if step is None:
+            return False
+        at = step
+    return False
+
+
+def _independent_tag_end(body: bytes, at: int, end: int) -> int | None:
+    """Where one tag ends, read without calling the shipped reader.
+
+    Args:
+        body: The decompressed body.
+        at: Where the tag's type word begins.
+        end: The first byte past the payload.
+
+    Returns:
+        The first byte past this tag's value, or None when it does not read.
+    """
+    word = _independent_string(body, at, end)
+    if word is None:
+        return None
+    cursor = word[1]
+    if cursor + objects.INT32_SIZE + objects._TAG_INDEX_FIELD_BYTES > end:  # noqa: SLF001
+        return None
+    size = int(struct.unpack_from("<i", body, cursor)[0])
+    cursor += objects.INT32_SIZE + objects._TAG_INDEX_FIELD_BYTES  # noqa: SLF001
+    if word[0] == _BOOL_TYPE_WORD:
+        cursor += 1
+    else:
+        for _extra in range(objects._TAG_EXTRA_STRINGS.get(word[0], 0)):  # noqa: SLF001
+            extra = _independent_string(body, cursor, end)
+            if extra is None:
+                return None
+            cursor = extra[1]
+    past_flag = _independent_guid_flag(body, cursor, end)
+    if past_flag is None or size < 0 or past_flag + size > end:
+        return None
+    return past_flag + size
+
+
+def _independent_guid_flag(body: bytes, at: int, end: int) -> int | None:
+    """Step the property-guid flag, and the guid when it is set.
+
+    Args:
+        body: The decompressed body.
+        at: Where the flag byte sits.
+        end: The first byte past the payload.
+
+    Returns:
+        Where the value begins, or None when the flag is neither 0 nor 1.
+    """
+    if at + 1 > end:
+        return None
+    flag = body[at]
+    if flag == 1:
+        return at + 1 + objects.GUID_BYTES
+    return at + 1 if flag == 0 else None
+
+
+#: The one type word whose tag extra is a BYTE rather than a string run. Spelled
+#: here because ``objects._read_tag_header`` spells it inline rather than
+#: exporting it, and the reading above has to branch on the same thing.
+_BOOL_TYPE_WORD: Final = "BoolProperty"
+
+
 @dataclass
 class _SaveShape:
     """One save's record outcome, in integers - the per-save reduction input.
@@ -646,9 +818,23 @@ class _StructTally:
         field_misses: Interior tag names it does not.
         miss_words: Struct words carrying at least one miss.
         failures: Exception TYPE NAMES, and nothing else about them.
-        sites_seen: EVERY struct-typed tag the walk yielded, counted BEFORE the
-            tag extra is read. THE DENOMINATOR THE REFUTATION DEMANDED - see
-            :func:`_sweep_one_save` for why counting it any later is the defect.
+        tags_seen: EVERY tag the walk yielded, of every type. The widest
+            denominator this module has, and the one the struct classification
+            below is graded against.
+        reader_only_struct: Tags the TAG READER called a struct where the bytes
+            at the type-word offset are not the struct literal.
+        bytes_only_struct: Tags whose bytes ARE the struct literal and which
+            the tag reader called something else. THE ARM THE SECOND
+            REFUTATION DEMANDED.
+        independent_walkable: Records this module's OWN reading accepts as a
+            tag list, sharing no function with the shipped walk.
+        refused_but_independent: Records the shipped walk refused that this
+            module's own reading accepts. The graded residue for a refusal.
+        sites_seen: Every tag whose BYTES carry the struct type word, counted
+            BEFORE the tag extra is read and without asking the tag reader what
+            type it is. THE DENOMINATOR THE REFUTATION DEMANDED - see
+            :func:`_sweep_one_save` for why taking it from the reader is the
+            defect.
         name_unread: Sites whose tag NAME would not re-read.
         word_unread: Sites whose tag EXTRA would not read, or read as a count
             the shipped tag-extra table does not state for a struct.
@@ -673,6 +859,11 @@ class _StructTally:
 
     saves: int = 0
     records: int = 0
+    tags_seen: int = 0
+    reader_only_struct: int = 0
+    bytes_only_struct: int = 0
+    independent_walkable: int = 0
+    refused_but_independent: int = 0
     sites_seen: int = 0
     name_unread: int = 0
     word_unread: int = 0
@@ -726,8 +917,16 @@ class _StructSweep:
         field_misses: Interior tag names it does not.
         miss_words: Struct words carrying at least one miss.
         failures: Exception TYPE NAMES, and nothing else about them.
-        sites_seen: Every struct-typed tag the walk yielded, counted before the
-            tag extra was read.
+        tags_seen: Every tag the walk yielded, of every type.
+        reader_only_struct: Tags the tag reader called a struct where the bytes
+            disagree.
+        bytes_only_struct: Tags whose bytes are the struct literal and which
+            the tag reader called something else.
+        independent_walkable: Records this module's own reading accepts.
+        refused_but_independent: Records the shipped walk refused that this
+            module's own reading accepts.
+        sites_seen: Every tag whose BYTES carry the struct type word, counted
+            before the tag extra was read.
         name_unread: Sites whose tag name would not re-read.
         word_unread: Sites whose tag extra would not read.
         wordless_compatible: How many of those are size-compatible.
@@ -747,6 +946,11 @@ class _StructSweep:
 
     saves: int
     records: int
+    tags_seen: int
+    reader_only_struct: int
+    bytes_only_struct: int
+    independent_walkable: int
+    refused_but_independent: int
     sites_seen: int
     name_unread: int
     word_unread: int
@@ -783,6 +987,11 @@ class _StructSweep:
         """
         return (
             f"{type(self).__name__}(saves={self.saves}, records={self.records}, "
+            f"tags_seen={self.tags_seen}, "
+            f"reader_only_struct={self.reader_only_struct}, "
+            f"bytes_only_struct={self.bytes_only_struct}, "
+            f"independent_walkable={self.independent_walkable}, "
+            f"refused_but_independent={self.refused_but_independent}, "
             f"sites_seen={self.sites_seen}, name_unread={self.name_unread}, "
             f"word_unread={self.word_unread}, "
             f"wordless_compatible={self.wordless_compatible}, "
@@ -982,7 +1191,7 @@ def _fold_one_struct_tag(
             into.miss_words.add(struct_word)
 
 
-def _struct_word_at(body: bytes, name_at: int, end: int, into: _StructTally) -> str | None:
+def _struct_word_at(body: bytes, type_at: int, end: int, into: _StructTally) -> str | None:
     """The struct word one tag carries, COUNTING its own refusals on the way.
 
     THE WHOLE POINT IS THAT IT RETURNS None LOUDLY. Every reader between the
@@ -1002,7 +1211,7 @@ def _struct_word_at(body: bytes, name_at: int, end: int, into: _StructTally) -> 
 
     Args:
         body: The decompressed body.
-        name_at: Where the tag's NAME begins - the walk's own cursor.
+        type_at: Where the tag's TYPE WORD begins - just past its name.
         end: The first byte past the payload.
         into: The accumulator, mutated in place.
 
@@ -1010,12 +1219,8 @@ def _struct_word_at(body: bytes, name_at: int, end: int, into: _StructTally) -> 
         The struct word, or None when a reader between the walk and the decoder
         refused - in which case the refusal has been counted.
     """
-    name_read = objects._payload_text(body, name_at, end)  # noqa: SLF001
-    if name_read is None:
-        into.name_unread += 1
-        return None
     words = objects._container_element_words(  # noqa: SLF001
-        body, name_read[1], end, objects.STRUCT_TYPE_WORD
+        body, type_at, end, objects.STRUCT_TYPE_WORD
     )
     if words is None or len(words) != _STRUCT_TAG_EXTRA_STRINGS:
         into.word_unread += 1
@@ -1028,6 +1233,69 @@ def _struct_word_at(body: bytes, name_at: int, end: int, into: _StructTally) -> 
 #: test_properties.py`` mis-states that table's widths on the real module, and a
 #: literal here would keep agreeing with itself while the shipped width moved.
 _STRUCT_TAG_EXTRA_STRINGS: Final = objects._TAG_EXTRA_STRINGS[objects.STRUCT_TYPE_WORD]  # noqa: SLF001
+
+
+def _fold_one_tag(
+    body: bytes,
+    word: str,
+    name_at: int,
+    value_at: int,
+    size: int,
+    end: int,
+    property_map: usmap.PropertyMap,
+    into: _StructTally,
+) -> None:
+    """Fold one tag of ANY type, classifying it by its bytes rather than by word.
+
+    EVERY TAG IS COUNTED, NOT EVERY STRUCT TAG, AND THAT IS THE REPAIR. The
+    previous revision skipped in the sweep's loop unless the walk's type word
+    said ``StructProperty`` - and that word comes from
+    ``objects._read_tag_header``, a READER standing between the walk and the
+    counting point. A site it mislabelled was deleted before anything could
+    count it: no counter, no residue, no census, and the population graded
+    better for the absence.
+
+    MEASURED: making that reader report a different word for struct tags at even
+    offsets on real bodies removed 22229 of 45208 sites, drove the
+    size-compatible residue from 12 to 5, and both modules stayed green at exit
+    0. The classification is taken from the BYTES here instead - a comparison
+    against the length-prefixed literal at the tag's type-word offset - and what
+    the reader says is graded against that in both directions.
+
+    Args:
+        body: The decompressed body.
+        word: The type word the shipped tag reader reported.
+        name_at: Where the tag's NAME begins - the walk's own cursor.
+        value_at: Where the tag's value begins.
+        size: The value's declared extent.
+        end: The first byte past the payload.
+        property_map: The parsed usmap.
+        into: The accumulator, mutated in place.
+    """
+    into.tags_seen += 1
+    name_read = objects._payload_text(body, name_at, end)  # noqa: SLF001
+    if name_read is None:
+        into.name_unread += 1
+        return
+    reader_says = word == objects.STRUCT_TYPE_WORD
+    bytes_say = body.startswith(_STRUCT_WORD_LITERAL, name_read[1])
+    if reader_says and not bytes_say:
+        into.reader_only_struct += 1
+    if bytes_say and not reader_says:
+        into.bytes_only_struct += 1
+    if not bytes_say:
+        return
+    # COUNTED HERE AND NOWHERE LATER. Every line below this one may refuse; none
+    # of them may shrink the number this line just raised.
+    into.sites_seen += 1
+    if size == _TERMINATOR_ONLY_BYTES:
+        into.bare_terminator_sites += 1
+    struct_word = _struct_word_at(body, name_read[1], end, into)
+    if struct_word is None:
+        if _size_admits_a_tag_list(size):
+            into.wordless_compatible += 1
+        return
+    _fold_one_struct_tag(body, struct_word, value_at, value_at + size, property_map, into)
 
 
 def _sweep_one_save(
@@ -1083,37 +1351,38 @@ def _sweep_one_save(
         shipped = objects.read_properties(body, record, property_map)
         into.shipped_tags += shipped.struct_tag_count
         into.shipped_interiors += len(shipped.struct_interiors)
+        # THIS MODULE'S OWN READING OF THE SAME RECORD, taken BEFORE the
+        # shipped walk and sharing no function with it - see
+        # :func:`_independent_tag_list`. It is what makes a refusal gradeable.
+        own_start = (
+            _independent_actor_head(body, record.body_offset, end)
+            if record.kind == objects.KIND_ACTOR
+            else record.body_offset
+        )
+        own_reads = own_start is not None and _independent_tag_list(body, own_start, end)
+        if own_reads:
+            into.independent_walkable += 1
         start: int | None = record.body_offset
         if record.kind == objects.KIND_ACTOR:
             start = objects._skip_actor_head(body, record.body_offset, end)  # noqa: SLF001
         if start is None:
             into.head_unread += 1
             into.census_unreached += hits
+            into.refused_but_independent += own_reads
             unreached += 1
             continue
         walked = test_decode_oracles._walk_with_the_shipped_reader(body, start, end)  # noqa: SLF001
         if walked is None:
             into.unwalked += 1
             into.census_unreached += hits
+            into.refused_but_independent += own_reads
             unreached += 1
             continue
         at = start
         for _name, word, value_at, size in walked:
             head = at
             at = value_at + size
-            if word != objects.STRUCT_TYPE_WORD:
-                continue
-            # COUNTED HERE AND NOWHERE LATER. Every line below this one may
-            # refuse; none of them may shrink the number this line just raised.
-            into.sites_seen += 1
-            if size == _TERMINATOR_ONLY_BYTES:
-                into.bare_terminator_sites += 1
-            struct_word = _struct_word_at(body, head, end, into)
-            if struct_word is None:
-                if _size_admits_a_tag_list(size):
-                    into.wordless_compatible += 1
-                continue
-            _fold_one_struct_tag(body, struct_word, value_at, value_at + size, property_map, into)
+            _fold_one_tag(body, word, head, value_at, size, end, property_map, into)
     into.shapes.append(
         _SaveShape(
             pair=(parsed.save_version, parsed.header_version),
@@ -1139,10 +1408,23 @@ def _reduce_shapes(shapes: Sequence[_SaveShape]) -> tuple[int, int]:
     version PAIR - no pair holds both a save that walked entirely and one that
     did not. Those two facts are what a bad reader cannot fake. A defect that
     drops a fraction of records makes some save partial; a defect that drops one
-    save whole makes its pair contested. Only a defect shaped exactly like a
-    whole version pair escapes both, and
-    :func:`test_the_sweep_reaches_every_struct_site_the_shipped_reader_counts`
-    is what stands in front of that one.
+    save whole makes its pair contested.
+
+    A DEFECT SHAPED EXACTLY LIKE A WHOLE VERSION PAIR ESCAPES BOTH, AND THE
+    SHIPPED CROSS-CHECK DOES NOT STAND IN FRONT OF IT. An earlier revision of
+    this docstring said it did. An adversary measured that claim false: patching
+    ``objects._payload_text`` to refuse for one version pair, filtered to the
+    payload walk so the actor-head step still reads, deleted 8362 sites and
+    23046 further records with ``head_unread``, ``partial_saves`` and
+    ``contested_pairs`` all zero and both modules green. The cross-check misses
+    it because the loss sits in a primitive BOTH loops call, so the two
+    denominators move together.
+
+    THE SHAPE GUARDS HERE WORK ON UN-SHAPED LOSS AND DO NOTHING AGAINST SHAPED
+    LOSS - which is the shape this corpus actually exhibits, its one genuinely
+    unreachable population being exactly a whole version pair. What grades that
+    case is :func:`test_a_record_the_shipped_walk_refuses_is_refused_by_an_independent_reading`,
+    which asks the BYTES why a record was refused rather than asking a reader.
 
     Args:
         shapes: One entry per save the sweep walked without raising.
@@ -1207,6 +1489,11 @@ def _sweep_the_library() -> _StructSweep | None:
     return _StructSweep(
         saves=tally.saves,
         records=tally.records,
+        tags_seen=tally.tags_seen,
+        reader_only_struct=tally.reader_only_struct,
+        bytes_only_struct=tally.bytes_only_struct,
+        independent_walkable=tally.independent_walkable,
+        refused_but_independent=tally.refused_but_independent,
         sites_seen=tally.sites_seen,
         name_unread=tally.name_unread,
         word_unread=tally.word_unread,
@@ -1563,6 +1850,105 @@ def test_no_struct_site_leaves_the_population_between_the_walk_and_the_decoder()
     )
 
 
+def test_a_tag_is_classified_struct_by_its_bytes_not_by_the_tag_reader() -> None:
+    """THE POPULATION IS TAKEN FROM THE BYTES - the second refutation answered.
+
+    WHAT WAS WRONG AFTER THE FIRST REPAIR. The sweep counted a site the instant
+    the walk reported a STRUCT-TYPED tag, and the qualifier did all the work.
+    The type word came from ``objects._read_tag_header``, which is a READER
+    standing between the walk and the counting point, so a site it mislabelled
+    was deleted before any counter, residue or census could see it. The first
+    repair moved the defect one function upstream rather than removing it.
+
+    MEASURED. Making that reader report a different word for struct tags at even
+    offsets on real bodies removed 22229 of 45208 sites, drove the
+    size-compatible residue from 12 down to 5 and the unexplained sites from 8
+    down to 3, and both modules reported green at exit 0 - the grade improving
+    as the reader got worse, for the third time in this item's history.
+
+    WHAT MAKES IT FAIL NOW. Struct-ness is decided by comparing the bytes at the
+    tag's type-word offset against the length-prefixed literal, which no reader
+    can move, and the site is folded on THAT. What the tag reader says is no
+    longer the population - it is a claim graded against the bytes, in both
+    directions, so a mislabel in either direction reddens here.
+    """
+    sweep = _sweep_or_skip()
+
+    assert sweep.tags_seen > 0, (
+        "the walk yielded no tag of any type in this whole library, so every count "
+        "below ranges over nothing"
+    )
+    assert sweep.sites_seen > 0, (
+        "not one tag in this library carries the struct type word in its bytes, so "
+        "this item's population is empty and every equality over it holds vacuously"
+    )
+    assert sweep.sites_seen <= sweep.tags_seen, (
+        f"{sweep.sites_seen} struct sites were counted out of {sweep.tags_seen} tags, "
+        "which cannot be - the struct population is a subset of the tags it was drawn "
+        "from, so one of the two counters is not counting what it says"
+    )
+
+    assert sweep.bytes_only_struct == 0, (
+        f"{sweep.bytes_only_struct} tags carry the struct type word IN THEIR BYTES and "
+        "the tag reader called them something else. THIS IS THE ARM THE SECOND "
+        "REFUTATION ASKED FOR: before it, such a tag left the population silently and "
+        "the remaining sites graded better for its absence. The site is now counted "
+        "from the bytes and the disagreement is reported here instead"
+    )
+    assert sweep.reader_only_struct == 0, (
+        f"{sweep.reader_only_struct} tags were called struct by the tag reader where "
+        "the bytes at the type-word offset are not the struct literal. That direction "
+        "cannot inflate the population - the fold is on the bytes - but it means the "
+        "reader and the bytes disagree about where a tag's type word sits, and every "
+        "offset this module derives from that reader is then suspect"
+    )
+
+
+def test_a_record_the_shipped_walk_refuses_is_refused_by_an_independent_reading() -> None:
+    """SHAPED LOSS, WHICH EVERY SHAPE GUARD IN THIS MODULE MISSES.
+
+    THE GUARDS ABOVE GRADE THE SHAPE OF A REFUSAL - whole save, whole version
+    pair - and an adversary measured that shaped loss walks straight through
+    them. Patching ``objects._payload_text`` for one version pair, filtered to
+    the payload walk so the actor-head step still reads, deleted 8362 sites and
+    23046 further records while ``head_unread``, ``partial_saves`` and
+    ``contested_pairs`` all stayed at zero and ``census_body`` still equalled
+    ``census_records``. Every arm green, exit 0. Shaped loss is also the only
+    kind this corpus exhibits, so the shape guards were tuned against the single
+    case they are blind to.
+
+    WHAT THIS ASKS INSTEAD. Not what shape the loss has, but whether the refusal
+    can be corroborated by a reading that shares no code with the one that
+    refused - see the block above :func:`_independent_tag_list`. A record the
+    shipped walk refuses AND this module cannot read either is a refusal with
+    two independent sources. A record the shipped walk refuses and this module
+    reads perfectly well is a reader that has stopped working.
+
+    IT IS ONE-SIDED AND THE LIMIT IS REAL. The independent reading is
+    conservative - it accepts fewer records than the shipped walk, not more -
+    so nothing is claimed about records only the shipped walk accepts, and a
+    loss confined entirely to those would still escape. What it does close is
+    the measured mutant: that pair's records remain readable here while the
+    shipped walk refuses them, and this reddens by five figures.
+    """
+    sweep = _sweep_or_skip()
+
+    assert sweep.independent_walkable > 0, (
+        "this module's own reading of the tag-list grammar accepts no record at all, "
+        "so it corroborates nothing and this arm grades nothing. Either the grammar "
+        "moved under it or the reading is broken"
+    )
+
+    assert sweep.refused_but_independent == 0, (
+        f"the shipped walk refused {sweep.refused_but_independent} records that this "
+        "module reads for itself as a closing tag list. Two readings of one grammar "
+        "disagree, and the one that refused is the one this suite's whole population "
+        "is drawn through - so its refusals are shrinking the denominator rather than "
+        "landing in any residue. A refusal is gradeable only when something that did "
+        "not refuse can be asked about it"
+    )
+
+
 def test_the_sweep_reaches_every_struct_site_the_shipped_reader_counts() -> None:
     """A DENOMINATOR FROM A LOOP THIS MODULE DID NOT WRITE.
 
@@ -1760,31 +2146,43 @@ def test_the_size_compatible_refusals_rest_on_the_reader_alone() -> None:
         "test exists to record is gone and the narrowing it states should go with it"
     )
 
-    unexplained = sweep.unexplained_refusals
-    unexplained_words = len(unexplained)
-    unexplained_sites = sum(unexplained.values())
+    # THE MAPPING IS NEVER BOUND TO A LOCAL, and that is a privacy fix on a
+    # channel an assertion-expression audit structurally cannot see.
+    # ``unexplained_refusals`` is keyed by struct words read out of the
+    # operator's save. Bound to a local, a failure anywhere in this function
+    # renders it under ``-l`` / ``--showlocals`` - a routine debugging flag
+    # rather than a configured one - and tests/conftest.py's redactor covers
+    # home paths and the account name only, so a struct word passes straight
+    # through it (non-negotiables 11 and 12). Reading the property twice keeps
+    # the mapping a temporary that no frame renderer reaches.
+    unexplained_words = len(sweep.unexplained_refusals)
+    unexplained_sites = sum(sweep.unexplained_refusals.values())
     assert unexplained_words <= _UNEXPLAINED_WORD_CEILING, (
         f"{unexplained_words} struct words hold a size-compatible refusal AND carry no "
         "size-excluded site at all, so nothing but this module's reader says they are "
         "native. A word refused entirely by a broken decoder lands here, which is what "
         "makes this bound worth having rather than a formality"
     )
-    # THE BOUND IS ASSERTED TO BE TIGHT, not merely satisfied. A ceiling with
-    # headroom is a ceiling that admits exactly as much silent failure as its
-    # slack, and the previous value had room for a whole struct word - measured,
-    # four of the seven that read are small enough that nothing else would have
-    # noticed. With the observed figure sitting ON the bound, the loss of any
-    # reading word raises it past and reddens. This line is what stops the slack
-    # creeping back in unremarked: if the residue ever empties, the ceiling has
-    # become slack again and must come down with it.
-    assert unexplained_words == _UNEXPLAINED_WORD_CEILING, (
-        f"{unexplained_words} words hold a refusal nothing but the reader explains, "
-        f"where the bound above allows {_UNEXPLAINED_WORD_CEILING}. Below the bound "
-        "there is headroom, and headroom here is exactly the room for one struct word "
-        "to be refused outright with every other arm still green. Bring the bound down "
-        "to what the corpus now shows - a red here is the residue narrowing, which is "
-        "this item progressing"
-    )
+    # AN EQUALITY AGAINST THIS BOUND USED TO STAND HERE AND IS REMOVED. It
+    # asserted that the observed figure sat exactly ON the ceiling, so that no
+    # slack remained - which reads well and was fitted to one machine's library
+    # at one instant. An adversary measured it reddening on LEGITIMATE CORPUS
+    # CHANGE in both directions with no shipped function touched: dropping the
+    # saves of one version pair takes the count to two and fails, dropping
+    # another pair's takes it to zero and fails. That is autosave rotation and
+    # world deletion, which happen on their own. Its message compounded the
+    # error by calling any red "the residue narrowing", when the first of those
+    # two is the residue WIDENING - a bound that misdiagnoses its own condition
+    # is worse than a loose one. It was also orthogonal to the defect it was
+    # sold as covering: it sat at exactly one under both of the population
+    # mutants above.
+    #
+    # WHAT REPLACES IT IS NOT A TIGHTER NUMBER. The per-word protection now
+    # comes from the arms that grade the population itself - the byte
+    # classification and the independent reading - which no corpus change can
+    # satisfy by accident. THE RESIDUAL HOLE IS STATED RATHER THAN CLOSED: at
+    # this bound one struct word carrying no size-excluded evidence can still
+    # be refused outright without reddening here.
     assert unexplained_sites <= _COMPATIBLE_REFUSAL_CEILING, (
         f"{unexplained_sites} sites are called native on the reader's word "
         "alone. At this scale that is a reading that has stopped working rather than a "
