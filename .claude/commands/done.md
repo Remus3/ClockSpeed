@@ -1,6 +1,6 @@
 ---
 description: The end-of-session ritual, end to end - suite, commit, push, ledger, roadmap, wakeup notes, drift guard, CI, and the next-session continuation prompt.
-argument-hint: [item ids, e.g. CS-004 CS-007]
+argument-hint: [item ids, e.g. CS-041 CS-042]
 ---
 
 # /done - end-of-session ritual
