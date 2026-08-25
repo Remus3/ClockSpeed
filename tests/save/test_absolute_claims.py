@@ -146,6 +146,7 @@ stated in contract 3:
   a single ``_TAG_EXTRA_STRINGS`` docstring was another item's to repair - was
   measured against the module and does not account for what the scan finds
   there.
+
 - THE SCOPE IS A RATCHET ON A STATE ALREADY REACHED, and that is the criterion
   a module outside it is outside BY. Declaring the marker costs a module no
   disposition at the moment its prose already satisfies contract 1, and costs
@@ -157,13 +158,42 @@ stated in contract 3:
   ``test_a_module_whose_prose_already_satisfies_the_fence_is_inside_it``, which
   names a module the scan clears that the fence does not hold and stays red
   until the marker is written - so nothing here rests on the exclusion being
-  remembered. A SYNONYM SWEEP THEREFORE BUYS NO EXEMPTION: it drives a module
+  remembered. ``clockspeed/save/objects.py`` is outside on that criterion: the
+  scan finds prose there to reject, and the scoping residual above records
+  whose work fencing it is. A SYNONYM SWEEP THEREFORE BUYS NO EXEMPTION: it
+  drives a module
   toward the state the criterion admits on, which triggers the obligation to
   declare rather than discharging it, and sweeping is how a module JOINS. This
   is NOT the register contract 1 refuses, and the difference is mechanical
   rather than a matter of framing - a register is READ BY THE SCANNER to
   suppress a finding, while this criterion is read by that test alone, which
   takes no way to go red away and adds one.
+
+- THE RECORD ABOVE IS READ BACK OUT AND GRADED, which is the direction the
+  citation coupling lacked when it was first written. That coupling ran
+  test-to-prose alone: deleting the cited test stopped a citation resolving and
+  reddened the scan, while deleting the criterion prose left the suite green.
+  ``test_the_recorded_exclusion_criterion_is_present_and_still_true`` requires
+  every module this docstring names as sitting outside the fence to be STATED
+  in the shape :func:`stated_exclusions` reads, and requires the scan to still
+  find prose to reject in each of them, under ``clockspeed`` as well as under
+  ``tests``. TOKEN PRESENCE WAS MEASURED INSUFFICIENT: prose denying that a
+  criterion is recorded, with the cited name and the excluded path both left in
+  place, passed an earlier arm that looked for those two tokens and no more.
+
+  WHAT THE GATE IS, AT ITS REAL STRENGTH RATHER THAN A REASSURING ONE: a
+  SUBSTRING test, not a reader. Any grammatical frame that leaves the shape's
+  characters contiguous discharges it - a bare statement with no argument
+  around it does, and so does a sentence denying the claim outright. That floor
+  is ASSERTED by
+  ``test_the_shape_gate_admits_a_bare_and_a_negated_statement`` rather than
+  described here, so the day anything makes the boundary gradeable that arm
+  reddens and forces this paragraph to narrow rather than letting it go stale.
+  What the gate does NOT buy is a guard on a PARTIAL repair - the ratchet
+  admits on a state reached, so prose repaired part of the way leaves the
+  record standing, and one quantifier written back releases the obligation
+  again.
+
 - THE CENSUS IS SCOPED NARROWER STILL, to one module. The positions that tile
   the censused module do NOT tile this one, and the shapes that escape them are
   named rather than counted: the grammar table is regexes inside a dict, the
@@ -173,12 +203,14 @@ stated in contract 3:
   refuses. What that costs is stated plainly rather than implied away: a
   sentence written into a dict value HERE is read by no channel, and no count
   notices.
+
 - A CLAIM THAT CONTINUES A SENTENCE INHERITS ITS CITATIONS. The rule's unit is
   a sentence, and a citation anywhere in one backs the whole of it, so a marked
   claim appended to a clause that already names a resolving test satisfies
   contract 1. That is contract 3's limit reached from a second direction rather
   than a fresh gap, and it is why the comment probe closes the preceding
   fragment before writing its claim.
+
 - A SYNONYM ESCAPES, and this is the residual most likely to be mistaken for a
   stronger result than it is. Swapping a universal determiner for a
   distributive one - "each" in place of the listed marker - satisfies the fence
@@ -187,9 +219,11 @@ stated in contract 3:
   and that is all. Where a sentence was DELETED or made to name a test, more
   was bought. The marker set is a floor on what may be written, not evidence
   that the surviving prose is true.
+
 - THE SENTENCE SPLIT IS A HEURISTIC over a period followed by whitespace. A bad
   split shortens a sentence, which can separate a marker from the citation that
   backs it. That direction over-reports and is loud; it does not hide a claim.
+
 - A MARKER INSIDE A QUOTED FRAGMENT still counts. A sentence quoting a banned
   phrase in order to ban it has to cite a test like any other, which is a cost
   paid to keep the rule free of a judgement call about intent.
@@ -308,6 +342,27 @@ ABSOLUTE_PATTERNS: Final[Mapping[str, str]] = MappingProxyType(
 #: backs a sentence when the enclosing module defines a function of that name
 #: at module scope, and is read as ordinary prose when it does not.
 LOCAL_CITATION_RE: Final = re.compile(r"``(test_\w+)``")
+
+#: A repo-relative POSIX module path written as a double-backticked literal,
+#: which is how the residual record below names a module the fence leaves
+#: outside. The record is read back out through this pattern rather than
+#: through a hand-copied path, so a record naming a module that has since been
+#: fenced is reported instead of read past.
+_RECORDED_PATH_RE: Final = re.compile(r"``((?:[\w.-]+/)+[\w.-]+\.py)``")
+
+#: The SHAPE a record states an exclusion in. The path is the one variable part
+#: and it is filled from the prose, so this carries no module of its own and
+#: there is no slot to add one to - a shape, not a register of pardons.
+#:
+#: EMPTYING THIS STRING OPENS THE GATE WIDE, because the empty string is
+#: contained in any text at all, and that one keystroke restores the two-token
+#: predicate an adversary refuted. It is not a hypothetical: it was the killer
+#: found against the previous round.
+#: ``test_the_shape_gate_separates_a_stated_exclusion_from_a_denial`` is where
+#: it is measured caught.
+_CRITERION_FORM: Final = (
+    "``{path}`` is outside on that criterion: the scan finds prose there to reject"
+)
 
 #: A sentence boundary: a terminator followed by whitespace. See the residual.
 _SENTENCE_SPLIT_RE: Final = re.compile(r"(?<=[.!?])\s+")
@@ -1015,6 +1070,74 @@ def fence_qualifiers(sources: Mapping[str, str]) -> tuple[str, ...]:
     )
 
 
+def module_docstring_paragraphs(source: str) -> list[ProseParagraph]:
+    """The prose paragraphs of a module's own docstring, and of no other.
+
+    A record written at module scope is graded where it was written. THE PROSE
+    KIND ALONE DOES NOT DO IT, and the earlier wording here claimed it did: an
+    ASSERT message quoting the record is excluded by its KIND, so the span is
+    idle against that one. What the span separates is a FUNCTION docstring,
+    which is a docstring like any other and would otherwise stand in for the
+    record. ``test_the_record_is_read_from_the_module_docstring_alone`` is
+    where deleting the span is measured caught.
+
+    The span is taken from the same literal :func:`prose_paragraphs` reads, so
+    the two agree on where a paragraph sits by construction rather than by a
+    second line count that could drift from the first.
+
+    Args:
+        source: A module's full text.
+
+    Returns:
+        The docstring paragraphs lying inside the module docstring. Empty when
+        the module opens with something other than a string literal.
+
+    Raises:
+        SyntaxError: If the source does not parse.
+    """
+    tree = ast.parse(source)
+    opening = tree.body[0] if tree.body else None
+    literal = _string_literal(opening.value) if isinstance(opening, ast.Expr) else None
+    if literal is None:
+        return []
+    last = literal.lineno + literal.text.count("\n")
+    return [
+        paragraph
+        for paragraph in prose_paragraphs(source)
+        if paragraph.kind == "docstring" and literal.lineno <= paragraph.lineno <= last
+    ]
+
+
+def stated_exclusions(paragraphs: Iterable[ProseParagraph]) -> list[str]:
+    """The modules a record STATES an exclusion of, in :data:`_CRITERION_FORM`.
+
+    A path NAMED in prose is not a path EXCLUDED by it, and the gate is what
+    separates the two. Prose denying that a criterion is recorded, with the
+    cited test name and the path both left in place, names the path and states
+    no exclusion of it - that pair is what discharged the arm above before this
+    existed, and ``test_the_shape_gate_separates_a_stated_exclusion_from_a_denial``
+    is where it is measured rejected.
+
+    THIS IS A SUBSTRING TEST AND NOT A READER, and the boundary is asserted
+    rather than described by
+    ``test_the_shape_gate_admits_a_bare_and_a_negated_statement``.
+
+    Args:
+        paragraphs: The prose paragraphs a record is read from.
+
+    Returns:
+        The paths stated in the shape, sorted, without duplicates.
+    """
+    return sorted(
+        {
+            path
+            for paragraph in paragraphs
+            for path in _RECORDED_PATH_RE.findall(paragraph.text)
+            if _CRITERION_FORM.format(path=path) in paragraph.text
+        }
+    )
+
+
 # ---------------------------------------------------------------------------
 # Paragraph references - contract 4
 # ---------------------------------------------------------------------------
@@ -1152,6 +1275,59 @@ _CONTROL_RED_DOCSTRING_FINDINGS: Final = 2
 #: Sentences of the cited control naming a test that fails to resolve: one per
 #: citation form, which is what pins both forms in the same run.
 _CONTROL_UNRESOLVED_CITATIONS: Final = 2
+
+#: The path the gate corpora below are written about. Synthetic, so no record
+#: in this repo is graded by what they assert.
+_CONTROL_SYNTHETIC_PATH: Final = "tests/synthetic/test_beta.py"
+
+#: A record that STATES an exclusion of that path, in the shape. Paired with
+#: the denial below, which carries the SAME two tokens and states no exclusion
+#: of it - the pair that discharged this arm before the shape was required.
+_CONTROL_STATED_EXCLUSION: Final = (
+    "The scope is a ratchet on a state already reached, re-derived by "
+    "``test_synthetic_backer``, and ``tests/synthetic/test_beta.py`` is "
+    "outside on that criterion: the scan finds prose there to reject."
+)
+
+#: The same two tokens with the exclusion DENIED rather than stated.
+_CONTROL_DENIED_EXCLUSION: Final = (
+    "No criterion is recorded for the scope. The tokens sit here to keep a "
+    "citation resolving: ``test_synthetic_backer`` and "
+    "``tests/synthetic/test_beta.py``. Whoever last edited the tuple decided "
+    "the scope."
+)
+
+#: The shape with no argument around it, and the shape inside a sentence
+#: DENYING its claim. Both discharge the gate, because the gate is a substring
+#: test. That boundary is ASSERTED rather than described, so it has a failure
+#: direction: the day it moves, the test naming these reddens.
+_CONTROL_BARE_SHAPE: Final = (
+    "``tests/synthetic/test_beta.py`` is outside on that criterion: the scan "
+    "finds prose there to reject."
+)
+
+_CONTROL_NEGATED_SHAPE: Final = (
+    "It is false that ``tests/synthetic/test_beta.py`` is outside on that "
+    "criterion: the scan finds prose there to reject."
+)
+
+#: A module whose MODULE docstring records no criterion and whose FUNCTION
+#: docstring quotes one, naming a synthetic module and a synthetic backer so
+#: the section heading above stays true of it. Inert like the corpora beside it
+#: - a module-scope assignment is read by no prose kind - and it is what makes
+#: the line-span half of :func:`module_docstring_paragraphs` load-bearing.
+_CONTROL_SPAN = '''\
+"""A module docstring that records no criterion of any kind."""
+
+
+def helper() -> None:
+    """A function docstring QUOTING the record it must not stand in for.
+
+    ``test_synthetic_backer`` says
+    ``tests/synthetic/test_beta.py`` is outside on that criterion:
+    the scan finds prose there to reject.
+    """
+'''
 
 #: One string in each position the census discriminates between. The pairs are
 #: what pin the exemption BOUNDARIES: a token and a sentence in the SAME
@@ -1307,6 +1483,142 @@ def test_a_module_whose_prose_already_satisfies_the_fence_is_inside_it(repo_root
         "while the scan either reports a finding against it or reads no prose "
         "there. The fenced scan above names the sentences; this is the same "
         "failure read from the scope side."
+    )
+
+
+def test_the_recorded_exclusion_criterion_is_present_and_still_true(repo_root: Path) -> None:
+    sources = _sources_under(repo_root, "tests")
+    self_path = __name__.replace(".", "/") + ".py"
+    assert self_path in sources, (
+        f"{self_path} was derived from this module's own import name and the "
+        "scan read no such module, so the record below would be looked for in "
+        "a file that has been renamed or moved out of the scanned root."
+    )
+    derivation = test_a_module_whose_prose_already_satisfies_the_fence_is_inside_it.__name__
+
+    paragraphs = module_docstring_paragraphs(sources[self_path])
+    recording = [
+        paragraph
+        for paragraph in paragraphs
+        if derivation in LOCAL_CITATION_RE.findall(paragraph.text)
+    ]
+    assert recording, (
+        f"the module docstring of {self_path} carries no prose citing "
+        f"{derivation}. The criterion recorded in place of fencing a module is "
+        "what that citation sits in, so its absence means the record is gone "
+        "and the scope rests on a memory. Restore the ratchet residual, or "
+        "fence the modules it excused and delete this test with it."
+    )
+
+    docstring_named = sorted(
+        {path for paragraph in paragraphs for path in _RECORDED_PATH_RE.findall(paragraph.text)}
+    )
+    outside = [path for path in docstring_named if path not in FENCED_MODULES]
+    assert outside, (
+        "the record cites the derivation and then names no module outside the "
+        f"fence: it names {docstring_named}. A criterion excusing no module "
+        "carries no exclusion, so what it was written to carry has been taken "
+        "out of it while the citation that makes it look intact stayed behind."
+    )
+
+    unstated = [path for path in outside if path not in stated_exclusions(paragraphs)]
+    assert not unstated, (
+        f"{unstated} is named as sitting outside the fence and the record "
+        "states no exclusion of it in the shape _CRITERION_FORM renders. Being "
+        "NAMED is not being EXCLUDED: prose denying that a criterion is "
+        "recorded, with the cited test name and the path both left in place, "
+        "names it and states no exclusion of it. State it in that shape, or "
+        "fence the module."
+    )
+
+    combined = {**_sources_under(repo_root, "clockspeed"), **sources}
+    unread = [path for path in docstring_named if path not in combined]
+    assert not unread, (
+        f"{unread} is named in this module docstring and was read under neither "
+        "clockspeed nor tests, so what the record claims about it is graded by "
+        "no run. A record naming a module that has been renamed or moved is a "
+        "record that stopped tracking the tree."
+    )
+
+    cleared = sorted(
+        path
+        for path in docstring_named
+        if path not in FENCED_MODULES
+        and sentence_count(combined[path])
+        and not unbacked_absolutes(path, combined[path], combined)
+    )
+    assert not cleared, (
+        f"{cleared} is named in this module docstring as sitting outside the "
+        "fence while the scan now clears it, so the record is out of date "
+        "rather than wrong: the module reached the state the criterion admits "
+        "on. Fence it and rewrite the residual that names it."
+    )
+
+
+def _docstring_paragraph(text: str) -> ProseParagraph:
+    """One synthetic docstring paragraph, for the filesystem-free gate controls.
+
+    Args:
+        text: The paragraph text.
+
+    Returns:
+        The paragraph, labelled the kind a module docstring carries.
+    """
+    return ProseParagraph(lineno=1, kind="docstring", text=text)
+
+
+def test_the_record_is_read_from_the_module_docstring_alone() -> None:
+    texts = [paragraph.text for paragraph in module_docstring_paragraphs(_CONTROL_SPAN)]
+    assert texts, (
+        "the corpus module docstring was not read at all, so the exclusion "
+        "below would hold for the wrong reason and grade no prose."
+    )
+
+    quoting = [text for text in texts if _CONTROL_SYNTHETIC_PATH in text]
+    assert not quoting, (
+        f"a FUNCTION docstring naming {_CONTROL_SYNTHETIC_PATH} was read as "
+        "though it were the module-scope record. The line span is what "
+        "separates the two - the prose KIND does not, because both are "
+        "docstrings - and without it a helper docstring that merely quotes the "
+        "criterion stands in for the record the arm above is supposed to grade."
+    )
+
+
+def test_the_shape_gate_separates_a_stated_exclusion_from_a_denial() -> None:
+    stated = stated_exclusions([_docstring_paragraph(_CONTROL_STATED_EXCLUSION)])
+    assert stated == [_CONTROL_SYNTHETIC_PATH], (
+        f"the gate read {stated} out of prose that states the exclusion in the "
+        "shape. A gate admitting no statement grades no record and would redden "
+        "against a correct one, which is the vacuous direction."
+    )
+
+    denied = stated_exclusions([_docstring_paragraph(_CONTROL_DENIED_EXCLUSION)])
+    assert not denied, (
+        f"the gate read {denied} out of prose that names the path, names the "
+        "test, and DENIES that any criterion is recorded. That pair alone is "
+        "what this arm accepted before the shape was required, so a gate "
+        "passing it has been emptied back to the refuted predicate - which one "
+        "keystroke on _CRITERION_FORM does, since any text contains the empty "
+        "string."
+    )
+
+
+def test_the_shape_gate_admits_a_bare_and_a_negated_statement() -> None:
+    bare = stated_exclusions([_docstring_paragraph(_CONTROL_BARE_SHAPE)])
+    assert bare == [_CONTROL_SYNTHETIC_PATH], (
+        f"the gate read {bare} where the RECORDED FLOOR says a bare shape with "
+        "no argument around it discharges it. This arm IS that floor: a gate "
+        "able to reject a bare statement grades more than the residual claims, "
+        "so narrow the residual and delete this arm together."
+    )
+
+    negated = stated_exclusions([_docstring_paragraph(_CONTROL_NEGATED_SHAPE)])
+    assert negated == [_CONTROL_SYNTHETIC_PATH], (
+        f"the gate read {negated} where the RECORDED FLOOR says a sentence "
+        "DENYING the shape's claim discharges it anyway, because the shape's "
+        "characters stay contiguous inside it. If that has changed, the gate is "
+        "stronger than the residual admits: rewrite the residual and this arm "
+        "together rather than leaving a floor nobody re-measured."
     )
 
 
