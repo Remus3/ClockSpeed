@@ -76,6 +76,71 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+
+### 2026-08-25 - CS-845 - CLOSED. The PostToolUse edit check reads the stdin envelope and stops claiming a problem it did not observe - VERIFIED END TO END, by the harness spawning the merged tool itself
+
+**THE FIRST SUCCESS IN THE STORE'S HISTORY.** Before this merge, every PostToolUse record
+this machine holds was a non-blocking error: zero successes, zero non-empty stdout, and
+essentially all of them rendering the same read failure, for roughly forty sessions. The
+tool was handed an argument that expanded to an empty string, so it staged no unit, linted
+nothing, and then reported that the edit above left a problem on disk. A gate that always
+cries wolf trains its reader to ignore it, which is why this was tier 1.
+
+**Verification, independently reproducible:** run the derived census in
+`tests/test_posttooluse_census.py` against the harness transcript store. It re-derives the
+population on every run and hardcodes no count. Immediately after this merge it reported
+961 records selected, 960 with empty stdout, and exactly ONE with a non-zero-length stdout
+and exit 0 - a record produced by the harness firing the hook against the merged tool on a
+real edited path. The acceptance test is
+`tests/test_edit_lint_check.py::test_an_empty_path_argument_claims_no_problem`, which goes
+RED against the pre-merge tool and GREEN against this one.
+
+**THE MECHANISM WAS ESTABLISHED, NOT GUESSED, AND THE ITEM'S NOTE WARNED THAT THIS WAS THE
+LIKELY FAILURE.** The message named a read failure and was not one. Measured:
+`CLAUDE_FILE_PATHS` is ABSENT from the hook process environment while more than twenty
+other `CLAUDE_` variables are present, so the quoted expansion yielded an empty string; the
+edited path arrives instead on stdin, as a JSON envelope carrying `tool_input.file_path`.
+Corroborated three ways, none of which depends on a probe that no longer exists: the
+recorded stderr itself proves the argument was an EMPTY STRING rather than an unexpanded
+literal, since the diagnostic renders `Path("")` as `Path(".")` and reports a directory read;
+a sibling `PostToolUse` hook belonging to a DIFFERENT project on this machine reads the same
+envelope and has been producing real findings all along; and `tools/pretooluse_gate.py`
+reads the envelope for the sibling event.
+
+**NO FROZEN-FILE GRANT WAS NEEDED, WHICH WAS NOT THE EXPECTED OUTCOME.** The item's note
+routed the invocation half to an adjudicator because it lives in `.claude/settings.json`.
+Making `--files` optional and reading the envelope fixes this entirely inside
+`tools/edit_lint_check.py`, which is not frozen. `.claude/settings.json` is UNTOUCHED and
+the dead argument is harmless; removing it remains optional hygiene that nobody needs to do.
+
+**GRADED BY AN ADVERSARY THAT WROTE NONE OF IT: NOT REFUTED** - the first item in six
+sessions to survive grading. That verdict rests on failed refutation attempts, not on
+agreement: five over-correction mutants were planted and all five were killed by tests that
+were green both before and after the fix, which proves those tests constrain the fixed code
+rather than passing vacuously; and an eighteen-case hostile battery found no swallowed
+failure - every genuine fault still exits non-zero and every no-observation case exits zero
+while SAYING it checked nothing.
+
+**TWO REAL DEFECTS WERE FOUND IN THE WORK AND BOTH WERE REPAIRED BEFORE MERGE.** A test
+whose assertion was an algebraic identity and could not fail under any input. And a census
+that answered SKIP when its own selector broke, while announcing that the store held no
+records - false, it held 959. That second one is THE SAME SHAPE AS THE TOOL BEING FIXED,
+one level up: a check that observed nothing, concluded something, and said so with
+confidence. It now separates three outcomes, and a broken selector goes RED against an
+independent raw line count that shares no parsing and no key name with the selector it
+grades. Repairing it surfaced a third vacuous assertion and a pooled threshold over a set,
+satisfied by one parseable command out of any number.
+
+**A CORRECTION THIS ENTRY OWES TO TWO EARLIER ONES.** Two citations in this file name
+`tools/edit_lint_check.py` by LINE - one at the CS-205 record and one at the CS-838 record.
+Both were already stale before this session and this merge moves those lines again. This
+file is append-only and they are deliberately NOT edited; this paragraph is the correction.
+Cite that module BY NAME, not by line, as `tests/test_edit_lint_check.py` now does.
+
+**WHAT IS NOT CLAIMED.** Why the hook's working directory varies between the main checkout
+and a worktree was not established, only observed. It does not affect the fix, because the
+envelope carries an absolute path.
+
 ### 2026-08-24 - CS-829, CS-839, CS-840, CS-841, CS-842, CS-844 - NOT A COMPLETION RECORD. NOTHING CLOSED. Six items were graded by adversaries and SIX WERE REFUTED; four merged as improvements and every one STAYS OPEN
 
 **THE SESSION'S RESULT IS THE REFUTATION RATE, NOT THE MERGES.** Six items were taken to
