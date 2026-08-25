@@ -902,7 +902,10 @@ def test_a_second_cached_usmap_call_does_not_reparse(
     assert first is not None
     assert first is second
     assert len(calls) == _ONE
-    assert first.names == ("Alpha", "Beta")
+    names_are_the_fixture_names = first.names == ("Alpha", "Beta")
+    assert names_are_the_fixture_names, (
+        f"the cached map holds {len(first.names)} names, not the two the fixture wrote"
+    )
 
 
 def test_clear_cache_forces_a_reparse(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -949,8 +952,10 @@ def test_the_cache_notices_a_changed_file(monkeypatch: pytest.MonkeyPatch, tmp_p
 
     assert before is not None
     assert after is not None
-    assert len(before.names) == _ONE
-    assert len(after.names) == _THREE
+    before_count = len(before.names)
+    after_count = len(after.names)
+    assert before_count == _ONE
+    assert after_count == _THREE
 
 
 # ---------------------------------------------------------------------------
@@ -2972,7 +2977,8 @@ def _assert_nothing_was_substituted(parsed: usmap.PropertyMap) -> None:
     invented name shows up as a key nothing will look up rather than as an
     absence anything reports.
     """
-    assert _SUBSTITUTED not in parsed.names
+    substituted_among_the_names = _SUBSTITUTED in parsed.names
+    assert not substituted_among_the_names
     assert not any(_SUBSTITUTED in name for name in parsed.names)
     assert not any(_SUBSTITUTED in name for name in parsed.enums)
     assert not any(_SUBSTITUTED in name for name in parsed.schemas)

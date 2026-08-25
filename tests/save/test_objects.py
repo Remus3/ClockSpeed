@@ -2904,7 +2904,8 @@ def test_a_real_save_of_a_measured_pair_walks_to_the_end_of_its_body() -> None:
 
     assert table.records != ()
     assert table.level_count > 1
-    assert not [w for w in table.warnings if w.code == objects.WARN_UNPARSED_DATA_SECTION]
+    unparsed = sum(1 for w in table.warnings if w.code == objects.WARN_UNPARSED_DATA_SECTION)
+    assert unparsed == 0, "the walk left a data section unparsed"
     assert table.body_consumed == len(body) - table.body_prefix_width
 
 

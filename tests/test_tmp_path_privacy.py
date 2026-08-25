@@ -622,7 +622,8 @@ def assert_ran_and_rendered(run: SandboxRun, expected_blocks: Sequence[str]) -> 
         f"that crashed or collected nothing renders no account name either, "
         f"and that is not the property under test."
     )
-    assert "INTERNALERROR" not in run.output, f"the {run.label} sandbox hit an internal error"
+    internal_error = "INTERNALERROR" in run.output
+    assert not internal_error, f"the {run.label} sandbox hit an internal error"
     blocks = failure_blocks(run.output)
     assert set(blocks) == set(expected_blocks), (
         f"the {run.label} sandbox rendered failure blocks {sorted(blocks)}, "
@@ -632,12 +633,10 @@ def assert_ran_and_rendered(run: SandboxRun, expected_blocks: Sequence[str]) -> 
 
 def assert_ran_and_failed_both(run: SandboxRun) -> None:
     """DETECTED, not CRASHED: two tests were collected and both failed."""
-    assert f"collected {EXPECTED_FAILURES} items" in run.output, (
-        f"the {run.label} sandbox did not collect {EXPECTED_FAILURES} tests"
-    )
-    assert f"{EXPECTED_FAILURES} failed" in run.output, (
-        f"the {run.label} sandbox did not report {EXPECTED_FAILURES} failures"
-    )
+    collected = f"collected {EXPECTED_FAILURES} items" in run.output
+    assert collected, f"the {run.label} sandbox did not collect {EXPECTED_FAILURES} tests"
+    failed = f"{EXPECTED_FAILURES} failed" in run.output
+    assert failed, f"the {run.label} sandbox did not report {EXPECTED_FAILURES} failures"
     assert_ran_and_rendered(run, (MEMORY_TEST, EXIT_TEST))
 
 
@@ -875,9 +874,8 @@ def test_a_line_style_traceback_renders_no_crash_path(
     # the rendered traceback text. --tb=no -ra reads the same crash message.
     for run in (control_tb_line_run, guarded_tb_line_run):
         assert_ran_and_rendered(run, ())
-        assert f"{EXPECTED_FAILURES} failed" in run.output, (
-            f"the {run.label} sandbox did not report {EXPECTED_FAILURES} failures"
-        )
+        failed = f"{EXPECTED_FAILURES} failed" in run.output
+        assert failed, f"the {run.label} sandbox did not report {EXPECTED_FAILURES} failures"
 
     control_region = guarded_region(control_tb_line_run.output)
     markers = (*home_path_spellings(), *account_name_spellings())
@@ -990,13 +988,14 @@ def test_the_warnings_summary_is_a_measured_residual_and_not_a_covered_channel(
     assert run.returncode == PYTEST_TESTS_FAILED, (
         f"the {run.label} sandbox exited {run.returncode}; expected a test failure"
     )
-    assert WARNINGS_BANNER in run.output, (
-        "the warning sandbox produced no warnings summary, so this test is vacuous"
-    )
-    assert SUMMARY_BANNER in run.output, "the warning sandbox produced no short summary"
+    warned = WARNINGS_BANNER in run.output
+    assert warned, "the warning sandbox produced no warnings summary, so this is vacuous"
+    summarised = SUMMARY_BANNER in run.output
+    assert summarised, "the warning sandbox produced no short summary"
 
     markers = (*home_path_spellings(), *account_name_spellings())
-    assert hit_counts(warnings_block(run.output), markers), (
+    carries_a_marker = bool(hit_counts(warnings_block(run.output), markers))
+    assert carries_a_marker, (
         "the warnings summary carries no marker, so this test is not measuring "
         "the residual it claims to measure"
     )

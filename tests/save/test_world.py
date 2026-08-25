@@ -567,7 +567,8 @@ def test_a_token_never_seen_before_returns_a_normal_world_model(
     model = _load_flat_path(source)
 
     assert isinstance(model, world.WorldModel)
-    assert model.token == _UNSEEN_TOKEN
+    token_is_the_unseen_one = model.token == _UNSEEN_TOKEN
+    assert token_is_the_unseen_one, "the model's token is not the unseen one written"
 
 
 def test_the_token_is_the_header_identifier_and_not_a_derived_value() -> None:
@@ -987,7 +988,8 @@ def test_an_absent_property_map_claims_nothing_about_unknown_content(
 
     model = _load_flat(synthetic.unknown_actor_class().blob)
 
-    assert model.objects.unknown_classes == ()
+    unknown_count = len(model.objects.unknown_classes)
+    assert unknown_count == 0, "the fixture actor was classed unknown"
     assert model.contains_unmodeled_content is False
 
 
@@ -1577,7 +1579,8 @@ def test_load_world_does_not_disturb_the_file_it_reads(
 
     model = _load_flat_path(source)
 
-    assert model.token == synthetic.SYNTHETIC_WORLD_TOKEN
+    token_is_the_fixture_token = model.token == synthetic.SYNTHETIC_WORLD_TOKEN
+    assert token_is_the_fixture_token, "the model's token is not the fixture's"
     assert _fingerprint(save_dir) == before
 
 
@@ -2055,8 +2058,11 @@ def test_a_real_save_is_not_required_by_this_module(
     _no_install(monkeypatch, tmp_path)
 
     for fixture in _LOADABLE_FIXTURES:
-        assert _load_flat(fixture.blob).token
-    assert world.load_world_from_bytes(synthetic.SAVE_LEVELLED_V36.blob).token
+        flat_has_a_token = bool(_load_flat(fixture.blob).token)
+        assert flat_has_a_token, "a fixture loaded through the flat reader has no token"
+    levelled = world.load_world_from_bytes(synthetic.SAVE_LEVELLED_V36.blob)
+    levelled_has_a_token = bool(levelled.token)
+    assert levelled_has_a_token, "the levelled reader produced a model with no token"
 
 
 def _newest_real_save() -> Path | None:
