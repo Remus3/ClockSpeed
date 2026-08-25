@@ -76,6 +76,78 @@ machine-checked artifact that produces it.
 ## Entries
 
 <!-- Newest first. Append new entries immediately below this line. -->
+### 2026-08-24 - CS-829, CS-839, CS-840, CS-841, CS-842, CS-844 - NOT A COMPLETION RECORD. NOTHING CLOSED. Six items were graded by adversaries and SIX WERE REFUTED; four merged as improvements and every one STAYS OPEN
+
+**THE SESSION'S RESULT IS THE REFUTATION RATE, NOT THE MERGES.** Six items were taken to
+adversaries that wrote none of the work. Six came back REFUTED, every one on the same shape:
+the acceptance clause was satisfiable without achieving the thing the item exists for. That is
+the fifth consecutive session of clauses-met-and-prose-false, and the first where it was
+caught on six items before a single closure entered this file.
+
+**WHAT MERGED, AND NONE OF IT CLOSES ANYTHING.**
+
+- CS-841 - the format skip is disclosed without a flag, the two most natural arming mutants
+  die, and the anti-lying mechanism is structural: the linter RETURNS whether the check ran
+  and the disclosure consumes that boolean, so there is no second derivation to diverge.
+- CS-840 - files declare their own status in their header and the guard READS it, which gives
+  it the failure direction it never had. Nine plants that previously left it green now fail.
+- CS-842 - the shape gate is a named function the controls drive, covering both named modules,
+  with its substring boundary shipped as an ASSERTED floor rather than a description.
+- CS-839 - every skip reason names what it requires and claims NOTHING about coverage, and the
+  citation check was INVERTED rather than enlarged: a citation in a skip reason is refused
+  outright, because a citation there IS a coverage claim and nothing here can check one.
+- CS-829 - the struct interior population is now decided by arithmetic that never calls the
+  decoder. Its predecessor caught NONE of 200000 arbitrary wrong decoders; this catches 3936
+  of 4096 whole-word refusal subsets and 2000 of 2000 per-site mutants.
+
+**CS-844 DID NOT MERGE AND THE REASON IS WORTH THE SPACE.** Its widened guard raised four
+findings. THREE WERE REAL AND ARE FIXED ON MAIN - it paid for itself before merging. The
+fourth is a false positive its own adversary had predicted: a test constant pinning text a
+FROZEN HOOK renders is not an owner, and following the guard's advice would have broken a true
+assertion. A red suite blocks pre-push, so it stays on its branch. The merger deliberately did
+NOT author the exclusion, because an exclusion written by the person merging it is graded by
+nobody.
+
+**FINDINGS WORTH MORE THAN THE ITEMS.**
+
+- A GUARD WHOSE ERROR MESSAGE TEACHES THE ATTACK. CS-840's red advised moving the date after a
+  provenance verb; doing exactly that laundered a terminal verb and turned the heading green
+  with its section still marked historical. A guard that explains how to satisfy it explains
+  how to defeat it wherever the two differ.
+- FIXED IN THE OWNER, ALIVE IN THE CONSUMER. The dated-heading rule was narrowed in the two
+  files that STATE it and left verbatim in three files agents ACT on, which would have made
+  the doc-sync agent skip every live per-item note - CS-840's own defect relocated into the
+  agent's instructions.
+- A CORRECT REJECTION DOES NOT MAKE THE ALTERNATIVE CORRECT. CS-841 refused a bait location on
+  a sound measurement and moved it somewhere unmeasured, trading a loud CI flake for a quiet
+  hole in the tripwire.
+- THE SUITE'S VERDICT DEPENDS ON HOW IT IS INVOKED, TWICE OVER - on which shell runs it
+  (CS-839) and on whether it runs in parallel, since the pre-push hook is serial and CI is not.
+- AN ADVERSARY SUPPLIED THE FIX, NOT ONLY THE REFUTATION. CS-829's independent criterion came
+  from the lens that destroyed its predecessor.
+
+**THREE DEFECTS FIXED THAT BELONGED TO NO ITEM.** The CS-813 fourth leak, salvaged from an
+inherited worktree and RE-DERIVED rather than imported - and the probe that re-derived it found
+that the oracle this project's own note prescribes cannot observe the leak it prescribes for.
+A ledger entry head that parsed to zero ids, leaving one item declared by no file while four
+citations pointed at it. And a slash-command example wired to real closed ids.
+
+**SIX ITEMS FILED: CS-845 through CS-850**, plus CS-846 WIDENED the same day on a second
+measured instance in a different structure. CS-845 and CS-850 are tier 1. CS-850 was found
+independently by three agents in three modules, and the tree had already documented the gap
+with nobody owning it.
+
+**THE SEVEN INHERITED WORKTREES ARE RESOLVED** after seven sessions of ambiguity. Every one had
+HEAD equal to its base with zero commits, so all their work was uncommitted - which is why
+they kept reading as prunable. All committed to their own branches, all deregistered.
+
+**LIMITS OF THIS RECORD.** No item here is closed and none should be read as closed. The four
+merges are improvements over what they replaced and each carries measured limits recorded in
+`docs/item_notes.md`. CS-829 remains the head of the product path and its central defect is
+unsolved: the criterion is arithmetic but the population it grades is still chosen by the
+decoder. CS-843 is not closed either, though its first named evidence arm is now MEASURED
+EXHAUSTED rather than merely unattempted.
+
 ### 2026-08-23 - CS-838 - CI WENT RED on the first push carrying the format check, exactly as this item's own adversary predicted, and the fix was the ruff PIN rather than the gate
 Verification: `pyproject.toml` now pins `ruff>=0.13,<0.16` with the reasoning in place.
 tier1 on the pushed commit was READ and is GREEN; the preceding commit's tier1 was READ and
