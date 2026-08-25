@@ -238,6 +238,47 @@ the sites the reader never reached, not only the ones it reached and refused.
 measured inert on this corpus, the retraction is shipped in five places, and its inertness is
 asserted so it will announce itself if that ever changes.
 
+### REFUTED A THIRD TIME - recorded 2026-08-25, after two repair rounds
+
+**THE DEPENDENCE RELOCATED TWICE MORE UNDER REPAIR AND IS NOW PRECISELY LOCATED.** It was
+refuted at `_container_element_words`, repaired; refuted at `_read_tag_header`, repaired
+and that repair VERIFIED DEAD by an adversary; and refuted again at
+`objects._payload_text`'s terminator verdict, which feeds BOTH denominators identically so
+they move together. Measured: a truncation that never changes any record's accept status
+deletes 3549 sites and the residue IMPROVES from 12 to 11, every arm green, exit 0. At a
+coarser modulus it deletes 19668 of 45208 - 43.5 per cent - and the residue falls to 5.
+
+**THE ROUTE THE ADVERSARY PROPOSES:** take the denominator from something no tag-list reader
+can shorten. `_census_hits` already is that. `census_records - census_unreached` = 154007
+against `sites_seen` = 45208; the difference must be ACCOUNTED FOR AND ASSERTED - nested
+interiors, container element words, coincidental bytes - so that a fall in `sites_seen` with
+`census_reached` flat is RED rather than a smaller population.
+
+**THE INDEPENDENT SECOND READING COVERS ZERO PER CENT OF THIS LOSS CLASS.**
+`refused_but_independent` is incremented only inside the two `walked is None` branches, so a
+record that is truncated but still ACCEPTED never reaches it. It accepts 87302 records where
+the shipped walk accepts 129775. Evaluate it on accepted records too.
+
+**`census_unreached` IS STILL ASSERTED AGAINST NOTHING** - two increments, a constructor
+arg, a repr field and one skip guard. Zero assertions.
+
+**CORRECTED, AND IT REVERSES A DISPOSITION THIS FILE CARRIED.** Two agents measured version
+60's refusal at DIFFERENT OFFSETS and BOTH WERE ARITHMETICALLY RIGHT: 5706 of 18893 exceed
+1024 at the record's declared payload start, 18893 of 18893 at the post-actor-head offset
+where the refusal is actually decided. THE INFERENCE WAS FALSE. 23529 struct type-word
+occurrences sit INSIDE those refused records - 13.25 per cent of the whole census, across
+4712 records. An arithmetic refusal under the three-pair grammar is the signature of a
+DIFFERENT grammar, not evidence of absent struct content. **Those sites are ungraded and
+they are CS-G05's territory.** Say UNREACHABLE, never "disjoint".
+
+**TWO RESIDUALS THE PREVIOUS NOTE LISTED ARE NOW FALSE.** `_MIN_TAG_LIST_BYTES` IS pinned -
+setting it to 49 reddens `test_the_admission_gate_itself_is_earned_against_the_shipped_decoder`
+(though the corpus does not pin it, only the synthetic gate test). And the end-freedom
+sampler WAS repaired: it reports two genuine measurements now, 17420 late candidate ends
+against 16098 early. **A SIBLING WAS NOT SWEPT:** `_sample_one_record` still selects sites
+by the tag reader's word rather than by the byte compare `_fold_one_tag` now uses - the
+Defect-1 repair was applied at one site, not to the population sharing its root cause.
+
 ## CS-839
 
 ### NOTE - filed 2026-08-23 by the merger
@@ -495,6 +536,32 @@ so the acceptance now says control AND guard and derives the set from the shippe
 rather than from either word. Anyone taking it should assume the real population is wider
 still and derive it rather than trust this sentence.
 
+### REFUTED TWICE, MERGED NARROWED - recorded 2026-08-25
+
+**THE MOTIVATION IS INDEPENDENTLY REPRODUCED AND IS THE BEST EVIDENCE THIS ITEM HAS EVER
+HAD:** planting an early return one guard at a time, 2 OF 9 SHIPPED GUARDS SURVIVED with the
+whole consuming set green while `tools/drift_guard.py` printed VERDICT: CLEAN. All 9 die now.
+
+**FIRST REFUTATION:** the check keyed on a literal `ast.Return` while 1855 of 1857 members
+contain no return statement at all - a detector for ONE mutation operator over a population
+that mostly could not exhibit it.
+
+**SECOND REFUTATION, AND IT IS THIS SESSION'S THEME:** the replacement rules were SELECTED
+BECAUSE THEY SCORED ZERO ON TODAY'S TREE. Four of eight genuinely correct idioms reddened,
+and `match` scored zero only because this tree contains no `match` statement. See
+`memory/a-proof-can-require-the-defect.md`.
+
+**WHAT IS NOT COVERED, and this is now enumerated in the module rather than implied away -
+ELEVEN shapes covered, FIVE not:** a non-constant tautology (the shape this repo actually
+shipped and removed this session); a gutting branch whose condition is genuinely unknown; a
+grader RENAMED out of the vocabulary; a value-returning grader gutted to `return None`; and
+ANYTHING AT ALL about whether an assertion actually RAN. **The acceptance word is "every",
+so the item stays open on the gap between eleven and every.**
+
+**DO NOT RE-PITCH** choosing a rule by its false-positive count on the current tree. Choose
+by stated semantics and REPORT the cost - the strict end-of-function rule reports 129 correct
+bodies and that number is disclosed rather than designed around.
+
 ## CS-847
 
 ### NOTE - filed 2026-08-24 by the merger, from the CS-844 widening
@@ -608,6 +675,39 @@ privacy channel.
 arm short-circuits and nothing leaks. The rendering appears only when the confinement arm is
 the first to fail - which is exactly what a real confinement regression produces. So the
 channel is quiet in every rehearsal and open in the real case.
+
+### REFUTED TWICE, MERGED WITH ITS BOUNDARY STATED - recorded 2026-08-25
+
+**FIRST REFUTATION - the derived population was a STRUCTURAL PROXY, not the acceptance's
+population.** The acceptance names three kinds of DATA; the guard derived annotated fields
+withheld by a hand-written `__repr__`. Seven probe modules carrying a save-derived name or a
+home path - a default-`__repr__` dataclass, a bare `str`, a `Path`, a plain dict, a
+`NamedTuple`, a fixture return - ALL returned ZERO findings.
+
+**SECOND REFUTATION - THE PROOF REQUIRED THE DEFECT.** Forced arms derived from LIVE
+findings, so repairing a leak turned the proof RED. Repaired - **and the same defect was then
+found ONE FUNCTION AWAY**, in a partition test requiring the live side to be non-empty. A
+tier 1 privacy guard whose green state requires a leak. Both are fixed, and the fix was
+validated for real at the CS-829 merge: zero live is now a green state.
+
+**SEVEN OF ELEVEN LIVE FINDINGS WERE FALSE POSITIVES** - 64 per cent of the live tier. A
+repr rendering `dict(sorted(self.field.items()))` DISCLOSES that field; it does not mask it.
+Only genuine REDUCTIONS withhold. `min` and `max` are NOT reductions in the safe direction:
+excluding them makes the guard go SILENT on the whole container rather than louder.
+
+**A DEFECT ITS OWN MUTATION CHECK FOUND THAT NO TEST WOULD HAVE:** `masked_token` is defined
+in `clockspeed/save/header.py` and IMPORTED by `clockspeed/save/world.py`, so a
+same-module-only mask reader graded `WorldModel.token` DISCLOSED and a re-introduced leak
+over the real world token SURVIVED THE SWEEP SILENTLY. Masks now resolve tree-wide.
+
+**WHY IT STAYS OPEN - THE GUARD'S SUBJECT IS STRICTLY SMALLER THAN THE ACCEPTANCE'S.** The
+guard reasons about ASSERTED EXPRESSIONS. A failure report ALSO renders the frame's LOCALS
+under `-l/--showlocals` and the failing function's own SOURCE LINES. Reproduced: 0
+occurrences of a planted token by default, 1 under `-l`. Two live locals-channel leaks were
+found and closed on main this session by removing the BINDING - and the sweep that found
+them turned up ONE SITE MORE than the adversary had named. **The forced arms also execute
+GENERATED STAND-INS, not shipped code,** so they prove a property of pytest's rewriter rather
+than that any shipped arm is remedied.
 
 ## CS-842
 

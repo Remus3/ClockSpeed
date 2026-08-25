@@ -34,6 +34,80 @@ the line becomes a pointer.
 
 ---
 
+## Session 39 - 2026-08-25 - CS-845 CLOSES on END-TO-END proof after 40 sessions of a gate that never once worked; three items merge REFUTED-then-repaired; the finding is proofs that require the defect
+
+- **Shipped: CS-845 CLOSED.** CS-829, CS-846 and CS-850 merged as IMPROVEMENTS and all three
+  STAY OPEN. Detail in `docs/LEDGER.md`, not here.
+
+- **THE CLOSURE BROKE A FIVE-SESSION STREAK, AND IT WAS PROVEN THE ONLY WAY THAT COUNTS.**
+  The PostToolUse edit check had never once succeeded in roughly 40 sessions - zero
+  successes, zero non-empty stdout - while printing a failure on every edit. After the merge
+  the harness itself spawned the merged tool against a real edited path and the derived
+  census reported ONE record with exit 0 and non-empty stdout out of 961. Hook presence is
+  not hook firing; only end to end counts, and this is the first time this project has had
+  it. Its adversary tried five over-correction mutants and an eighteen-case hostile battery
+  and could not make it fail.
+
+- **THE HEADLINE FINDING, NEW AND FOUND IN THREE ITEMS INDEPENDENTLY: A PROOF THAT MEASURES
+  ITSELF AGAINST TODAY'S TREE ENCODES TODAY'S DEFECTS AS ITS PASSING CONDITION.** CS-850's
+  proof went RED when leaks were repaired - green certified that three modules still leaked.
+  CS-829's bound was fitted to this machine's save library, and autosave rotation alone would
+  break it. CS-846's rules were chosen BECAUSE they scored zero on today's tree. The previous
+  five sessions found acceptance clauses too WEAK; this session found proofs ANTI-CORRELATED
+  WITH SUCCESS.
+
+- **A DEFECT REPAIRED AT ITS SITE RELOCATES RATHER THAN DYING.** CS-829's central defect was
+  refuted at `_container_element_words`, then at `_read_tag_header`, then at `_payload_text`
+  - three times, each after a repair. CS-850's anti-monotone defect moved one function and
+  stayed in the module. **Sweep the whole structure after a repair; do not re-test the site.**
+  CS-850's final round swept its whole module against a zero-live tree and that is why it
+  merged.
+
+- **A THIRD ECHO PATH FOR PERSONAL DATA.** After the assertion channel and the source-echo
+  channel there is the LOCALS channel: a save-derived frozenset in a local renders under
+  `-l` even when every asserted expression is a scalar. Live on main, 6 of 12 struct words.
+  Two sites closed by removing the BINDING. The merger's own sweep found one site more than
+  the adversary named.
+
+- **A MERGE VALIDATED A FIX THAT WOULD OTHERWISE HAVE BEEN UNTESTABLE.** CS-850's residual
+  record asserts in BOTH directions, so merging CS-829 turned it RED with "these residuals
+  were repaired; delete their entries". And zero live findings is now a GREEN state - before
+  the anti-monotone repair, the CS-829 merge could not have been made green at all.
+
+- **Decisions: none recorded as an ADR.** One operator round, at the start, selecting all
+  four units and ruling CS-844 held.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But a disposition in this project's own
+  notes is REVERSED: version 60's arithmetic refusal is NOT evidence that CS-G05 is
+  unimplicated - 23529 struct type-word occurrences sit inside the refused records, 13.25 per
+  cent of the census. Two agents disagreed on the number and BOTH were right; they measured
+  at different offsets. Corrected in `docs/LEDGER.md` and `docs/item_notes.md`.
+
+- **Failed paths: none abandoned.** CS-844 remains held by operator ruling, its worktree and
+  three commits intact.
+
+- **Next action: NONE IS FORCED.** CS-829 remains the head of the product path with the
+  dependence now precisely located at `_payload_text`'s terminator verdict; the adversary's
+  proposed route is to take the denominator from `_census_hits`, which no tag-list reader can
+  shorten.
+
+- **A MERGER MISTAKE WORTH KEEPING.** A `git push ... | tail` reported exit 0 while the push
+  had been BLOCKED by the pre-push hook on a mypy error - the same pipeline-exit-code trap
+  this project already records for `pytest` and `gh run watch`. And that mypy error reached
+  main because the slice's verification table listed six checks and omitted mypy: A
+  VERIFICATION TABLE PROVES WHAT IT LISTS, AND ITS POWER IS IN WHAT IT OMITS. A long table
+  reads as a complete one.
+
+- **The suite is 555s, NOT the 815-860s the last note projected.** The "more than doubling
+  each session" projection did not hold; last session's figure was taken with several agents
+  running concurrently. A trend extrapolated across different machine loads is not a trend.
+
+- **DISK: the session-36 unknown is CLOSED.** Nothing is unaccounted for. Clockspeed is 0.1 GB
+  of drive C:; the bulk is the user profile, a game install and a sibling project. Measured,
+  not deleted.
+
+---
+
 ## Session 38 - 2026-08-24 - the operator takes ALL FOUR units again; SIX items are graded by adversaries and SIX are REFUTED; four merge as improvements and NOTHING CLOSES
 
 - **Shipped: NOTHING CLOSED, and that is the result rather than a shortfall.** CS-829, CS-839,
@@ -179,64 +253,3 @@ the line becomes a pointer.
   ordering it.** Six inherited worktrees remain untouched and unsalvaged; this session added its own,
   listed in the continuation prompt.
 ---
-
-## Session 36 - 2026-08-23 - the operator answers four questions; CS-486 and CS-831 both CLOSE, and the adjudicator-versus-adversary SPLIT is the finding
-
-- **Shipped: CS-486 and CS-831 CLOSED. Filed CS-833 through CS-838**, plus seven smaller CS-831
-  residuals and one Node 20 CI-action item in `BACKLOG.md`. Detail in `docs/LEDGER.md`, not here.
-  The ROADMAP budget ruling landed too, so `ROADMAP.md` went from about a kilobyte of headroom to
-  roughly a third of its budget used - and absorbed six new items without moving off that.
-
-- **THE SESSION OPENED BY ASKING THE OPERATOR FOUR QUESTIONS AND ALL FOUR PAID.** This is session
-  35's finding applied deliberately rather than rediscovered. Two answers closed items - the doc
-  topology ruling and CS-486's home - and one AMENDED CS-831's acceptance mid-flight, which no
-  agent may do. **CS-486 had sat since session 21 waiting on one decision nobody had asked for.**
-
-- **THE TRANSFERABLE FINDING: AN ADJUDICATOR AND AN ADVERSARY ON THE SAME ARTIFACT RETURNED
-  OPPOSITE VERDICTS, AND BOTH WERE RIGHT.** The adjudicator graded the six acceptance clauses and
-  returned CLOSE, all MET. The adversary graded the RECORD around them and returned REFUTED on four
-  blockers, two of which were live defects nothing in the suite caught. **The clauses were met and
-  the prose was false, for the THIRD session running.** Never let a CLOSE stand without an
-  adversary behind it - the two are not redundant, they read different things.
-
-- **THE POPULATION DEFECT RECURRED TWICE INSIDE ONE ITEM, AND ONCE IT WAS MINE.** The first repair
-  corrected a false claim in the test and left it standing at FOUR sites in `objects.py`, a file on
-  its own write-list. I then wrote the repair brief naming THREE of those four sites, having warned
-  it in the same brief about fixing the instance instead of the population. The second repair found
-  my missing site. **The warning does not immunise the person writing it.**
-
-- **THREE OF EIGHT NEW CORPUS NUMBERS IN A DOCSTRING WERE FALSE**, including a split invented to
-  explain a total that was itself correct. The systemic fix, and it held: `CLAUDE.md` section 4
-  already forbids restating a measured number in prose, so the second repair DELETED the figures
-  and stated the shape. Neither file now carries a hardcoded corpus figure.
-
-- **Surprises: nothing contradicted `BOOTSTRAP.md`.** A grammar-free reference count was measured
-  IMPOSSIBLE without a second reader this project has declined to build; that is filed as CS-835
-  rather than recorded as an adjective.
-
-- **Failed paths: none abandoned.** Two repair passes were needed and both were kept.
-
-- **THE MACHINE'S DISK FILLED DURING THE CLOSING RITUAL - 954G, 100 per cent, zero free.** Even a
-  pipe write failed, so the ritual's suite step could not run at first. NOT CAUSED BY THIS REPO:
-  the checkout is a few hundred megabytes. The harness temp tree measured 182G across roughly five
-  thousand entries from six projects. **The operator scoped the cleanup to this session's own
-  files**, which freed about 147M - four full repo copies the CS-831 adversaries made for
-  out-of-tree mutation testing, which should never have outlived the session. **A mutation harness
-  that copies the repo must delete the copy when it is done.** The suite then ran clean.
-
-- **Next action: NONE IS FORCED. CI WAS READ AND IS GREEN** on all three pushed heads, so do NOT
-  spend the first action re-checking it. Check FREE DISK SPACE first - roughly 772G is consumed
-  outside the harness temp tree and was never measured. Then CS-830 is the head of the product
-  path - the SECOND of the three layers under CS-400's clause 1, and the one holding the inventory
-  arrays.
-
-- **WORKTREES: SIX remain, the inherited ones, UNTOUCHED and still unsalvaged.** A seventh,
-  `agent-a8b7284852bf73422`, was created this session and REMOVED on the operator's instruction
-  before the session ended, along with its branch. It was safe to remove and the check is worth
-  copying rather than the outcome: its work was already merged - the merger applied its patch and
-  TWO repair passes then corrected the result - and a set difference over the test names proved
-  main was a STRICT SUPERSET, three tests added by the repairs and none lost. What it still held
-  was a superseded `objects.py` carrying the false prose both repairs removed, so keeping it was
-  the live hazard: a later merge from it would have reintroduced every corrected sentence.
-  **`--force` was required because the worktree was dirty, and dirty is exactly why the set
-  difference came first.**

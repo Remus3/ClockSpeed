@@ -77,6 +77,83 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-25 - CS-829, CS-846, CS-850 - NOT A COMPLETION RECORD. These three merged as IMPROVEMENTS and every one STAYS OPEN. CS-845 closed and has its own entry above
+
+**THE RESULT IS THE FAILURE CLASS, NOT THE MERGES.** Every graded item was refuted at
+least once and every repair was re-graded by an adversary that wrote none of it. Six
+adversarial passes ran; one item survived and CLOSED, three did not and merged with their
+limits measured and recorded rather than implied away.
+
+**THE SESSION'S FINDING, AND IT IS NEW: A PROOF THAT MEASURES ITSELF AGAINST TODAY'S TREE
+ENCODES TODAY'S DEFECTS AS ITS PASSING CONDITION.** Found independently in three items by
+three adversaries that did not know of each other:
+
+- CS-850's forced arms derived from LIVE findings, so repairing a leak turned the proof RED
+  and a green run certified that at least three modules still leaked. Repaired - and the
+  SAME DEFECT WAS THEN FOUND ONE FUNCTION AWAY, in a partition test requiring the live side
+  to be non-empty. A tier 1 privacy guard whose green state requires a leak.
+- CS-829's `unexplained_words == ceiling` was fitted to this machine's save library at one
+  instant: two of three legitimate library subsets reddened it, in BOTH directions, with no
+  shipped function touched. Autosave rotation alone would have broken it.
+- CS-846's three replacement rules were SELECTED BECAUSE THEY SCORED ZERO ON TODAY'S TREE.
+  Four of eight genuinely correct idioms reddened, and `match` was reported only because
+  this tree contains no `match` statement.
+
+This is distinct from the standing clause-met-prose-false shape. Those five sessions found
+acceptance clauses that were too WEAK. This session found proofs ANTI-CORRELATED WITH
+SUCCESS - green because the defect is present.
+
+**A SECOND FINDING, ALSO NEW: A DEFECT REPAIRED AT ITS SITE RELOCATES RATHER THAN DYING.**
+CS-829's population-admission defect was refuted at `_container_element_words`, repaired,
+refuted again at `_read_tag_header`, repaired, and refuted a THIRD time at
+`_payload_text`'s terminator verdict - which feeds both denominators identically, so they
+move together. CS-850's anti-monotone defect moved function without leaving the module. The
+lesson both teach: after repairing a defect, SWEEP THE WHOLE STRUCTURE for the same shape
+rather than re-testing the site. CS-850's final round did exactly that - it swept its whole
+module against a zero-live tree instead of the one named arm - and that is why it merged.
+
+**A THIRD ECHO PATH FOR PERSONAL DATA WAS FOUND AND TWO LIVE INSTANCES CLOSED.** After the
+assertion channel (CS-850) and the failing function's own source lines, there is the
+LOCALS channel: a save-derived frozenset held in a local renders under `-l/--showlocals`
+even when every asserted expression is a scalar. Measured live on main: 6 of 12 struct
+words rendered at one site. The merger's own AST sweep of the module found ONE SITE MORE
+than the adversary had named. Closed by removing the BINDING, not by `del`. CS-850's guard
+is structurally blind to this - it reasons about asserted expressions - and now says so.
+
+**A DISPOSITION IN THIS PROJECT'S NOTES IS REVERSED.** Two agents measured version 60's
+refusal at DIFFERENT OFFSETS and both were arithmetically right - 5706 of 18893 exceed 1024
+at the record's declared payload start, 18893 of 18893 at the post-actor-head offset where
+the refusal is actually decided. The INFERENCE drawn from it was false: 23529 struct
+type-word occurrences sit inside those refused records, 13.25 per cent of the whole census
+across 4712 records. An arithmetic refusal under the three-pair grammar is the signature of
+a DIFFERENT grammar, not evidence of absent struct content. Those sites are ungraded and
+they are CS-G05's territory. Version 60's content is UNREACHABLE, not absent.
+
+**WHAT MERGED, AND NONE OF IT CLOSES ANYTHING.**
+
+- CS-829 - struct sites are classified by a byte compare rather than by a reader's type
+  word; the previous relocation is dead, verified. The sampler was repaired to report two
+  genuine measurements. STILL OPEN: the dependence sits in `_payload_text` and a truncation
+  that changes no record's accept status deletes 3549 sites while the residue IMPROVES.
+- CS-846 - the unit of analysis is the EXIT, not `ast.Return`; rules chosen by stated
+  semantics with the cost reported; the guard proxy replaced by a known-bad tree forcing 9
+  of 9 guards to non-PASS; a consumer in a SECOND FILE. STILL OPEN: it now enumerates
+  ELEVEN covered shapes and FIVE uncovered, and the acceptance word is "every".
+- CS-850 - population derived from shipped redacting declarations; live findings 11 to 1,
+  with seven of the eleven proven FALSE POSITIVES (a repr rendering `dict(sorted(...))`
+  discloses a field, it does not mask it). A defect its own mutation check found that no
+  test would have: `masked_token` is imported across modules, so a same-module-only reader
+  graded `WorldModel.token` disclosed and a re-introduced leak over the real world token
+  survived silently. STILL OPEN: the guard's subject is strictly smaller than the
+  acceptance's.
+
+**Verification.** Merged tree at the time of writing: `python -m mypy` Success over 99
+source files; drift_guard 9 of 9 PASS, VERDICT CLEAN; the pre-push hook ran the whole suite
+serially. All six frozen files - `tools/precommit_gate.py`, `scripts/install_hooks.py`,
+`.claude/settings.json` and the three `.githooks/*` - verified byte-identical to the
+session's base commit. No frozen-file grant was requested or given this session.
+
+
 ### 2026-08-25 - CS-845 - CLOSED. The PostToolUse edit check reads the stdin envelope and stops claiming a problem it did not observe - VERIFIED END TO END, by the harness spawning the merged tool itself
 
 **THE FIRST SUCCESS IN THE STORE'S HISTORY.** Before this merge, every PostToolUse record

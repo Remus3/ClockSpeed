@@ -43,6 +43,9 @@ Budgets: this file under 20 KB (CI hard fail), each leaf under 6 KB (CI warn).
 
 - [Test-quality failure classes](test-quality-failure-classes.md) - the ways a suite is
   green and proves nothing, with mechanisms.
+- [A proof can require the defect](a-proof-can-require-the-defect.md) - a check that
+  derives its cases from today's tree goes RED when the defect is fixed; green means
+  the defect is still there.
 - [Verification failure classes](verification-failure-classes.md) - ways a check looks
   convincing and proves nothing, with mechanisms.
 - [A probe can validate the wrong channel](a-probe-can-validate-the-wrong-channel.md) -

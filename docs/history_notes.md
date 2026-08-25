@@ -25,6 +25,69 @@ Where current truth actually lives:
 
 ---
 
+## Session 36 wakeup note - relocated 2026-08-25 (session 39)
+
+## Session 36 - 2026-08-23 - the operator answers four questions; CS-486 and CS-831 both CLOSE, and the adjudicator-versus-adversary SPLIT is the finding
+
+- **Shipped: CS-486 and CS-831 CLOSED. Filed CS-833 through CS-838**, plus seven smaller CS-831
+  residuals and one Node 20 CI-action item in `BACKLOG.md`. Detail in `docs/LEDGER.md`, not here.
+  The ROADMAP budget ruling landed too, so `ROADMAP.md` went from about a kilobyte of headroom to
+  roughly a third of its budget used - and absorbed six new items without moving off that.
+
+- **THE SESSION OPENED BY ASKING THE OPERATOR FOUR QUESTIONS AND ALL FOUR PAID.** This is session
+  35's finding applied deliberately rather than rediscovered. Two answers closed items - the doc
+  topology ruling and CS-486's home - and one AMENDED CS-831's acceptance mid-flight, which no
+  agent may do. **CS-486 had sat since session 21 waiting on one decision nobody had asked for.**
+
+- **THE TRANSFERABLE FINDING: AN ADJUDICATOR AND AN ADVERSARY ON THE SAME ARTIFACT RETURNED
+  OPPOSITE VERDICTS, AND BOTH WERE RIGHT.** The adjudicator graded the six acceptance clauses and
+  returned CLOSE, all MET. The adversary graded the RECORD around them and returned REFUTED on four
+  blockers, two of which were live defects nothing in the suite caught. **The clauses were met and
+  the prose was false, for the THIRD session running.** Never let a CLOSE stand without an
+  adversary behind it - the two are not redundant, they read different things.
+
+- **THE POPULATION DEFECT RECURRED TWICE INSIDE ONE ITEM, AND ONCE IT WAS MINE.** The first repair
+  corrected a false claim in the test and left it standing at FOUR sites in `objects.py`, a file on
+  its own write-list. I then wrote the repair brief naming THREE of those four sites, having warned
+  it in the same brief about fixing the instance instead of the population. The second repair found
+  my missing site. **The warning does not immunise the person writing it.**
+
+- **THREE OF EIGHT NEW CORPUS NUMBERS IN A DOCSTRING WERE FALSE**, including a split invented to
+  explain a total that was itself correct. The systemic fix, and it held: `CLAUDE.md` section 4
+  already forbids restating a measured number in prose, so the second repair DELETED the figures
+  and stated the shape. Neither file now carries a hardcoded corpus figure.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** A grammar-free reference count was measured
+  IMPOSSIBLE without a second reader this project has declined to build; that is filed as CS-835
+  rather than recorded as an adjective.
+
+- **Failed paths: none abandoned.** Two repair passes were needed and both were kept.
+
+- **THE MACHINE'S DISK FILLED DURING THE CLOSING RITUAL - 954G, 100 per cent, zero free.** Even a
+  pipe write failed, so the ritual's suite step could not run at first. NOT CAUSED BY THIS REPO:
+  the checkout is a few hundred megabytes. The harness temp tree measured 182G across roughly five
+  thousand entries from six projects. **The operator scoped the cleanup to this session's own
+  files**, which freed about 147M - four full repo copies the CS-831 adversaries made for
+  out-of-tree mutation testing, which should never have outlived the session. **A mutation harness
+  that copies the repo must delete the copy when it is done.** The suite then ran clean.
+
+- **Next action: NONE IS FORCED. CI WAS READ AND IS GREEN** on all three pushed heads, so do NOT
+  spend the first action re-checking it. Check FREE DISK SPACE first - roughly 772G is consumed
+  outside the harness temp tree and was never measured. Then CS-830 is the head of the product
+  path - the SECOND of the three layers under CS-400's clause 1, and the one holding the inventory
+  arrays.
+
+- **WORKTREES: SIX remain, the inherited ones, UNTOUCHED and still unsalvaged.** A seventh,
+  `agent-a8b7284852bf73422`, was created this session and REMOVED on the operator's instruction
+  before the session ended, along with its branch. It was safe to remove and the check is worth
+  copying rather than the outcome: its work was already merged - the merger applied its patch and
+  TWO repair passes then corrected the result - and a set difference over the test names proved
+  main was a STRICT SUPERSET, three tests added by the repairs and none lost. What it still held
+  was a superseded `objects.py` carrying the false prose both repairs removed, so keeping it was
+  the live hazard: a later merge from it would have reintroduced every corrected sentence.
+  **`--force` was required because the worktree was dirty, and dirty is exactly why the set
+  difference came first.**
+
 ## Session 35 wakeup note - relocated 2026-08-24 (session 38)
 
 ## Session 35 - 2026-08-23 - CS-421 AND CS-413 both CLOSE on operator rulings; eight review agents refuse four drafts and the transferable finding is that I fix the instance instead of the population
