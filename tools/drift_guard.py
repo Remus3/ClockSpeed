@@ -884,12 +884,15 @@ def guard_frozen(root: Path) -> tuple[Guard, list[Skip]]:
 #
 #   A STATUS DATE INSIDE A FILE THAT DECLARES ITSELF LIVE IS DRIFT.
 #
-# A file with dated headings and NO declaration is recorded as a SKIP rather
-# than failed. The live arm has nothing to grade there, and CONVENTIONS 15.1
-# is explicit that a guard which cannot look must SAY so rather than pass
-# quietly. The tracked tree's completeness - that every dated file declares -
-# is asserted by the suite against the real tree, which is where this project
-# already puts its real-tree invariants.
+# A FILE WITH DATED HEADINGS AND NO DECLARATION IS DRIFT TOO, and the first
+# build of this repair got that wrong. It recorded a skip and passed, on the
+# reasoning that the live arm had nothing to grade. But CS-840 was filed
+# BECAUSE this guard reported its population instead of failing on it, and its
+# item note says in terms that a guard which reports cannot lose. Shipping a
+# fresh skip-instead-of-fail inside the repair reproduced the defect one level
+# along, in the fix for it. An undeclared file is the case where this guard
+# cannot tell a record from a live section marked historical - which is the
+# most important case to fail on, not the one to excuse.
 
 
 STATUS_DATE = "status"
@@ -1100,6 +1103,7 @@ def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
     classified: dict[str, list[str]] = {STATUS_DATE: [], PROVENANCE_DATE: []}
     unclassified: list[str] = []
     historical_in_live: list[str] = []
+    undeclared: list[str] = []
     scanned = 0
     for path in files:
         if path.suffix.lower() not in (".md", ".markdown"):
@@ -1118,13 +1122,7 @@ def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
         relative = _rel(root, path)
         declaration = read_status_declaration(text)
         if declaration is None:
-            skips.append(
-                {
-                    "path": relative,
-                    "reason": "carries dated headings but declares no section status, so the "
-                    "live-file arm could not grade it",
-                }
-            )
+            undeclared.append(relative)
         for number, heading in headings:
             record = f"{relative}:{number}  {heading.strip()}"
             family = classify_dated_heading(heading)
@@ -1136,6 +1134,16 @@ def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
                 historical_in_live.append(record)
 
     detail = _dated_detail(scanned, classified)
+    if undeclared:
+        detail.append(
+            "DRIFT - files carrying dated headings that declare no section status. This "
+            "guard cannot tell a record from a live section marked historical without the "
+            "declaration, and REPORTING that rather than failing on it is the exact defect "
+            "CS-840 was filed for. Add one line to the file's header, above its first "
+            f"level-2 heading: **Section status: {LIVE}** or **Section status: "
+            f"{HISTORICAL}**:"
+        )
+        detail.extend(f"  {item}" for item in undeclared)
     if historical_in_live:
         detail.append(
             f"DRIFT - a {STATUS_DATE} date inside a file that declares itself {LIVE}. The "
@@ -1156,7 +1164,7 @@ def guard_dated(root: Path, files: list[Path]) -> tuple[Guard, list[Skip]]:
             "reader believes about the section:"
         )
         detail.extend(f"  {item}" for item in unclassified)
-    if historical_in_live or unclassified:
+    if undeclared or historical_in_live or unclassified:
         return _guard("g", "dated sections", "FAIL", detail), skips
     return _guard("g", "dated sections", "PASS", detail), skips
 

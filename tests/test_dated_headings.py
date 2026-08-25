@@ -263,6 +263,66 @@ def test_the_same_status_date_is_fine_in_a_file_that_declares_itself_historical(
     assert (code, report["drift"]) == (0, [])
 
 
+def drift_records(guard: dict[str, Any], marker: str) -> list[str]:
+    """Return the records listed under the DRIFT block whose header holds ``marker``.
+
+    Args:
+        guard: A guard record.
+        marker: Text identifying which DRIFT block to read.
+
+    Returns:
+        The indented record lines under that block.
+    """
+    out: list[str] = []
+    collecting = False
+    for line in guard["detail"]:
+        if line.startswith("DRIFT"):
+            collecting = marker in line
+        elif collecting and line.startswith("  "):
+            out.append(line)
+        elif collecting:
+            collecting = False
+    return out
+
+
+def test_the_guard_reds_the_live_copy_of_a_heading_and_leaves_the_historical_one(
+    clean_tree: Path,
+) -> None:
+    """A SECOND killer for a deleted live-file arm, approaching from another direction.
+
+    The plant-and-revert transcript drives ``main`` against one file and reads
+    an exit code. This drives ``guard_dated`` directly, against a different
+    pair of files, with BYTE-IDENTICAL heading text in both - so the
+    declaration is the only thing that can separate them.
+
+    That makes it a differential inside a single run rather than a comparison
+    between runs, and it closes from both sides at once. A deleted arm greens
+    both copies. An arm that reddened on any status date anywhere - which would
+    be a rule against `docs/LEDGER.md` existing - reds both copies. Only an arm
+    that actually reads the declaration produces exactly one of each, and only
+    this test can tell those three apart.
+    """
+    heading = f"## {PLANTED} - CS-902 - CLOSED, and this section is now history"
+    body = f"\n{heading}\n\nBody.\n".encode("ascii")
+    live = clean_tree / "second_live.md"
+    historical = clean_tree / "second_hist.md"
+    live.write_bytes(LIVE_HEADER.encode("ascii") + body)
+    historical.write_bytes(HISTORICAL_HEADER.encode("ascii") + body)
+    assert live.read_bytes().endswith(body), "the live copy did not land"
+    assert historical.read_bytes().endswith(body), "the historical copy did not land"
+
+    guard, _skips = drift_guard.guard_dated(clean_tree, [live, historical])
+
+    assert guard["status"] == "FAIL"
+    flagged = drift_records(guard, f"declares itself {drift_guard.LIVE}")
+    assert any("second_live.md" in record for record in flagged), (
+        "the live copy of the heading was not reported as drift"
+    )
+    assert not any("second_hist.md" in record for record in flagged), (
+        "the historical copy was reported too, so the declaration is not being read"
+    )
+
+
 def test_a_provenance_date_is_fine_in_a_live_file(
     clean_tree: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -275,28 +335,90 @@ def test_a_provenance_date_is_fine_in_a_live_file(
     assert (code, report["drift"]) == (0, [])
 
 
-def test_a_file_carrying_dated_headings_without_a_declaration_is_recorded_as_skipped(
+def test_a_file_carrying_dated_headings_without_a_declaration_turns_the_guard_red(
     clean_tree: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """An ungraded file has to SAY it was ungraded (CONVENTIONS 15.1).
+    """AN UNDECLARED DATED FILE IS DRIFT, and the first build of this repair got it wrong.
 
-    An undeclared file is not failed - the guard has nothing to grade it
-    against, and failing would make every synthetic fixture tree in this
-    project red. But a green verdict means nothing without the list of what was
-    never looked at, so the skip is printed every run. The tracked tree's own
-    completeness is asserted separately, against the real tree.
+    It recorded a skip and passed, reasoning that the live arm had nothing to
+    grade. But CS-840 was filed BECAUSE this guard reported its population
+    instead of failing on it, and a guard that reports cannot lose. A skip that
+    passes is a report, so the first build reproduced the item's own defect
+    inside the fix for it.
+
+    An undeclared file is precisely the case the guard cannot judge - a status
+    date in it may be a closure record or a live section marked historical -
+    which makes it the case to FAIL on rather than the one to excuse.
     """
-    (clean_tree / "mystery.md").write_bytes(
+    mystery = clean_tree / "mystery.md"
+
+    code, report = run_driver(capsys)
+    assert (code, report["drift"]) == (0, []), "the floor must be clean or the red proves nothing"
+
+    mystery.write_bytes(
         UNDECLARED_HEADER.encode("ascii") + f"\n## {PLANTED} - CS-901 - CLOSED\n".encode("ascii")
     )
+    assert mystery.exists(), "the plant did not apply"
+
+    code, report = run_driver(capsys)
+    guard = guard_of(report)
+    assert guard["status"] == "FAIL"
+    assert report["drift"] == [GUARD_ID], "the red must attribute to this guard and no other"
+    assert code != 0, "a skip that passes is a report - the exit code is what CI reads"
+    assert any("mystery.md" in line for line in guard["detail"]), "the red must name the file"
+
+    mystery.unlink()
+    code, report = run_driver(capsys)
+    assert (code, report["drift"]) == (0, []), "removing the file must restore the green"
+
+
+def test_the_guard_reds_the_undeclared_copy_of_a_heading_and_leaves_the_declared_one(
+    clean_tree: Path,
+) -> None:
+    """A SECOND killer for the undeclared arm, by the same differential shape.
+
+    The transcript above drives ``main`` and reads an exit code; this drives
+    ``guard_dated`` directly with byte-identical heading text in a declared and
+    an undeclared file, so the declaration is the only thing separating them.
+    An arm reverted to skip-and-pass greens both; an arm that demanded a
+    declaration of every markdown file would red both.
+    """
+    heading = f"## NOTE - filed {PLANTED} by the merger"
+    body = f"\n{heading}\n\nBody.\n".encode("ascii")
+    declared = clean_tree / "third_declared.md"
+    undeclared = clean_tree / "third_undeclared.md"
+    declared.write_bytes(LIVE_HEADER.encode("ascii") + body)
+    undeclared.write_bytes(UNDECLARED_HEADER.encode("ascii") + body)
+    assert declared.read_bytes().endswith(body), "the declared copy did not land"
+    assert undeclared.read_bytes().endswith(body), "the undeclared copy did not land"
+
+    guard, _skips = drift_guard.guard_dated(clean_tree, [declared, undeclared])
+
+    assert guard["status"] == "FAIL"
+    flagged = drift_records(guard, "declare no section status")
+    assert any("third_undeclared.md" in record for record in flagged), (
+        "the undeclared file was not reported as drift"
+    )
+    assert not any("third_declared.md" in record for record in flagged), (
+        "the declared file was reported too, so the declaration is not being read"
+    )
+
+
+def test_an_undeclared_file_with_no_dated_heading_is_not_anybodys_business(
+    clean_tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The bound on the arm above, without which it would demand a declaration everywhere.
+
+    Most markdown in this repository carries no dated heading and has no reason
+    to declare anything. The requirement attaches to dating a heading, not to
+    being a markdown file.
+    """
+    (clean_tree / "ordinary.md").write_bytes(UNDECLARED_HEADER.encode("ascii"))
 
     code, report = run_driver(capsys)
 
     assert guard_of(report)["status"] == "PASS"
-    assert code == 0
-    reasons = [s["reason"] for s in report["skipped"] if s["path"] == "mystery.md"]
-    assert reasons, "an undeclared dated file must be named in the skip list"
-    assert "declares no section status" in reasons[0]
+    assert (code, report["drift"]) == (0, [])
 
 
 def test_every_tracked_file_carrying_dated_headings_declares_its_status() -> None:
