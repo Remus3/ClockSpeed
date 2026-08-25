@@ -25,6 +25,64 @@ Where current truth actually lives:
 
 ---
 
+## Session 35 wakeup note - relocated 2026-08-24 (session 38)
+
+## Session 35 - 2026-08-23 - CS-421 AND CS-413 both CLOSE on operator rulings; eight review agents refuse four drafts and the transferable finding is that I fix the instance instead of the population
+
+- **Shipped: CS-421 and CS-413 CLOSED. Filed CS-825, CS-826, CS-827, CS-828, CS-829, CS-830,
+  CS-831, CS-832.** Three commits: `cb468e4`, `09344f4`, `a812690`. Detail in `docs/LEDGER.md`,
+  not here. **PHASE 5 IS OPEN.** The advisor is no longer blocked on a decode-evidence question.
+
+- **THE SESSION OPENED ON A QUESTION AND THE QUESTION WAS THE PRODUCT.** The operator asked what
+  was gated on THEM. Enumerating it truthfully surfaced two acceptance clauses that no agent
+  could amend, and both amendments closed an item that had been open for ten and eight sessions
+  respectively. **Neither close needed new evidence.** What they needed was a ruling, and nobody
+  had asked for one.
+
+- **BOTH CLOSES WERE REFUSED BY REVIEW, AND BOTH TIMES THE SUBSTANCE WAS FINE AND THE RECORD WAS
+  WRONG.** Two panels, eight agents, two DO-NOT-CLOSE and six REFUTED verdicts across four
+  drafts. Every round the acceptance clauses graded MET against the real library, verified
+  independently. Every round the prose around them carried a false sentence.
+
+- **THE TRANSFERABLE FINDING, AND IT IS MECHANICAL RATHER THAN A KNOWLEDGE GAP: I FIX THE
+  INSTANCE IN FRONT OF ME INSTEAD OF DERIVING THE POPULATION.** It happened four times in one
+  session, in three different shapes. CS-421's close named the SMALLEST unsettled population as
+  "the residual" and left 106454 values unfiled. CS-413's close named the LARGEST and left three
+  regions unfiled. A false sentence about the walk was fixed at one of six sites, twice. The
+  answer each time was a thirty-second grep or an `import` and a set difference, and I ran it
+  only after an agent ran it for me. **BEFORE EDITING ANY INSTANCE OF A PHRASE, SWEEP THE TREE
+  FOR EVERY INSTANCE. BEFORE FILING ANY RESIDUAL, ENUMERATE THE TABLE.**
+
+- **I GAVE THE OPERATOR A FALSE PREMISE AND IT MOVED A RULING.** I stated that a building's
+  inventory lives inside `StructProperty`'s interior. **MEASURED over the real library: no
+  building record carries an `InventoryStack`.** A building holds an `ObjectProperty` REFERENCE
+  to a separate inventory component; the stacks sit there inside an array. Inventory is behind
+  THREE layers - CS-831, then CS-830, then CS-829. The operator had ruled CS-400's clause 1 on
+  the one-layer map, was told, and re-ruled it BY SUBSTANCE: clause 1 waits until a building's
+  inventory is actually readable. **That form is immune to my decomposition being wrong again,
+  which is why it is worth copying.**
+
+- **FOUR RESIDUALS WERE FILED AS LIVENESS FLOORS - the exact defect that held CS-413 open for
+  eight days - inside the entry that congratulates itself for escaping it.** CS-829 asked for
+  one decoded value, CS-831 had no floor at all and could be satisfied by resolving nothing,
+  CS-832 could close by editing one string in a table, and CS-830 asked for one decoded
+  element. An adjudicator caught three. **THE REPAIR PASS THEN FIXED THOSE THREE AND SKIPPED
+  THE FOURTH**, and a late adversary caught that - this session's own transferable finding
+  landing a fourth time, inside the fix for it. All four now carry equalities or explicit
+  non-zero clauses. **THE POPULATION WAS THE FIVE ACCEPTANCE LINES AND I ENUMERATED THREE.**
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** Ground truth beat several things that were
+  written down, all of them mine or inherited, and every correction is in a tracked file.
+
+- **Failed paths: the repair passes.** Each of the first two generated new false sentences at
+  roughly the rate it fixed old ones, because they were written under the same
+  fix-what-you-can-see habit. The third worked because it started with a tree-wide sweep.
+
+- **Next action: NONE IS FORCED.** CI must be read for `a812690`. Then the head of the queue is
+  the ROADMAP budget ruling, which is the operator's, and the worktree salvage.
+
+---
+
 ## Session 34 wakeup note - relocated 2026-08-23 (session 37)
 
 ## Session 34 - 2026-08-23 - the held push LANDS; TWO of CS-421's own headline claims are measured FALSE; a SECOND independent int32 oracle ships

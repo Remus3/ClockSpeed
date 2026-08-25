@@ -34,6 +34,75 @@ the line becomes a pointer.
 
 ---
 
+## Session 38 - 2026-08-24 - the operator takes ALL FOUR units again; SIX items are graded by adversaries and SIX are REFUTED; four merge as improvements and NOTHING CLOSES
+
+- **Shipped: NOTHING CLOSED, and that is the result rather than a shortfall.** CS-829, CS-839,
+  CS-840, CS-841 and CS-842 MERGED as improvements and every one STAYS OPEN. CS-844 did NOT
+  merge. Filed CS-845 through CS-850 and WIDENED CS-846 the same day. Detail in
+  `docs/LEDGER.md` and `docs/item_notes.md`, not here.
+
+- **THE HEADLINE: SIX OF SIX GRADED ITEMS WERE REFUTED, ALL ON ONE SHAPE.** The acceptance
+  clause was satisfiable without achieving the thing the item exists for, every time. CS-842 is
+  the cleanest specimen - deleting the criterion DID redden a test exactly as its acceptance
+  demanded, and replacing that criterion with prose stating no criterion is recorded left 204
+  tests green. **FIFTH CONSECUTIVE SESSION OF CLAUSES MET AND PROSE FALSE, and the first where
+  it was caught on six items before anything reached the ledger.** Not one would have been
+  caught by the agent that built it.
+
+- **A GUARD WHOSE ERROR MESSAGE TEACHES THE ATTACK.** CS-840's red advised moving the date
+  after a provenance verb; doing exactly that laundered a terminal verb and turned the heading
+  green with its section still marked historical. **A guard that explains how to satisfy it is
+  explaining how to defeat it wherever the two differ.** Rewrite the diagnostic, not only the
+  check.
+
+- **FIXED IN THE OWNER, ALIVE IN THE CONSUMER - the population defect's most consequential
+  form yet.** The dated-heading rule was narrowed in the two files that STATE it and left
+  verbatim in three files agents ACT on. The next doc-sync run would have skipped every live
+  per-item note: CS-840's own defect relocated into the doc-sync agent's instructions.
+
+- **A CORRECT REJECTION DOES NOT MAKE THE ALTERNATIVE CORRECT.** CS-841 refused a bait location
+  on a sound measurement and moved it somewhere unmeasured - trading a loud CI flake for a
+  quiet hole in the tripwire. The remedy is not to move it back; every property that made the
+  new home invisible to CI also made it invisible to an arming predicate.
+
+- **THE SUITE'S VERDICT DEPENDS ON HOW IT IS INVOKED, TWICE OVER.** On which shell runs it, and
+  on whether it runs in parallel - the pre-push hook is serial and CI is not, so a whole class
+  of defect is green locally and red nightly.
+
+- **AN ADVERSARY SUPPLIED THE FIX, NOT ONLY THE REFUTATION.** CS-829's independent
+  classification criterion - a tag list is one terminator wide when empty and otherwise at
+  least one minimal tag plus a terminator - came from the lens that destroyed its predecessor.
+  Adversaries are not only demolition.
+
+- **THREE DEFECTS FIXED THAT BELONGED TO NO ITEM.** The CS-813 fourth leak, salvaged from an
+  inherited worktree and RE-DERIVED rather than imported - and the re-derivation found that the
+  oracle this project's own note PRESCRIBES cannot observe the leak it prescribes for. A ledger
+  entry head that parsed to ZERO ids. A slash-command example wired to real closed ids, caught
+  by a bound the merger had asked for and which fired on its first run.
+
+- **Decisions: none recorded as an ADR.** Nine operator rulings across six rounds, every one
+  changing the work. Asking remains how the session steers.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** Two things the MERGER stated were
+  measured wrong and both are corrected in tracked files rather than quietly: CS-493 was never
+  orphaned (only CS-494 was), and CS-829's repair changes no production behaviour at all - the
+  decoder lines came from its predecessor.
+
+- **Failed paths: none abandoned.** CS-844 is held rather than failed; its guard is good and
+  its classifier is over-broad by one predictable case.
+
+- **Next action: NONE IS FORCED.** CS-829 remains the head of the product path and its central
+  defect is unsolved and now precisely stated: the criterion is arithmetic, but the population
+  it grades is still chosen by the decoder. CS-850 is tier 1 and live on main.
+
+- **WORKTREES: THE SEVEN INHERITED ONES ARE RESOLVED** after seven sessions. Every one had HEAD
+  equal to its base with ZERO commits, so all their work was uncommitted - which is exactly why
+  they kept reading as prunable. All committed to their own branches, all deregistered, nothing
+  discarded. **`docs/item_notes.md` is at 86 per cent, up from 77**: six items filed, none
+  closed, and closure is its only designed shrink.
+
+---
+
 ## Session 37 - 2026-08-23 - the operator takes ALL FOUR units; CS-830 is CLOSED, REFUTED and re-closed NARROWED, and an adversary is the only thing that caught it
 
 - **Shipped: CS-830 (narrowed), CS-405, CS-833, CS-834, CS-835, CS-836, CS-837 and CS-838 CLOSED.
@@ -171,58 +240,3 @@ the line becomes a pointer.
   the live hazard: a later merge from it would have reintroduced every corrected sentence.
   **`--force` was required because the worktree was dirty, and dirty is exactly why the set
   difference came first.**
-
-
-## Session 35 - 2026-08-23 - CS-421 AND CS-413 both CLOSE on operator rulings; eight review agents refuse four drafts and the transferable finding is that I fix the instance instead of the population
-
-- **Shipped: CS-421 and CS-413 CLOSED. Filed CS-825, CS-826, CS-827, CS-828, CS-829, CS-830,
-  CS-831, CS-832.** Three commits: `cb468e4`, `09344f4`, `a812690`. Detail in `docs/LEDGER.md`,
-  not here. **PHASE 5 IS OPEN.** The advisor is no longer blocked on a decode-evidence question.
-
-- **THE SESSION OPENED ON A QUESTION AND THE QUESTION WAS THE PRODUCT.** The operator asked what
-  was gated on THEM. Enumerating it truthfully surfaced two acceptance clauses that no agent
-  could amend, and both amendments closed an item that had been open for ten and eight sessions
-  respectively. **Neither close needed new evidence.** What they needed was a ruling, and nobody
-  had asked for one.
-
-- **BOTH CLOSES WERE REFUSED BY REVIEW, AND BOTH TIMES THE SUBSTANCE WAS FINE AND THE RECORD WAS
-  WRONG.** Two panels, eight agents, two DO-NOT-CLOSE and six REFUTED verdicts across four
-  drafts. Every round the acceptance clauses graded MET against the real library, verified
-  independently. Every round the prose around them carried a false sentence.
-
-- **THE TRANSFERABLE FINDING, AND IT IS MECHANICAL RATHER THAN A KNOWLEDGE GAP: I FIX THE
-  INSTANCE IN FRONT OF ME INSTEAD OF DERIVING THE POPULATION.** It happened four times in one
-  session, in three different shapes. CS-421's close named the SMALLEST unsettled population as
-  "the residual" and left 106454 values unfiled. CS-413's close named the LARGEST and left three
-  regions unfiled. A false sentence about the walk was fixed at one of six sites, twice. The
-  answer each time was a thirty-second grep or an `import` and a set difference, and I ran it
-  only after an agent ran it for me. **BEFORE EDITING ANY INSTANCE OF A PHRASE, SWEEP THE TREE
-  FOR EVERY INSTANCE. BEFORE FILING ANY RESIDUAL, ENUMERATE THE TABLE.**
-
-- **I GAVE THE OPERATOR A FALSE PREMISE AND IT MOVED A RULING.** I stated that a building's
-  inventory lives inside `StructProperty`'s interior. **MEASURED over the real library: no
-  building record carries an `InventoryStack`.** A building holds an `ObjectProperty` REFERENCE
-  to a separate inventory component; the stacks sit there inside an array. Inventory is behind
-  THREE layers - CS-831, then CS-830, then CS-829. The operator had ruled CS-400's clause 1 on
-  the one-layer map, was told, and re-ruled it BY SUBSTANCE: clause 1 waits until a building's
-  inventory is actually readable. **That form is immune to my decomposition being wrong again,
-  which is why it is worth copying.**
-
-- **FOUR RESIDUALS WERE FILED AS LIVENESS FLOORS - the exact defect that held CS-413 open for
-  eight days - inside the entry that congratulates itself for escaping it.** CS-829 asked for
-  one decoded value, CS-831 had no floor at all and could be satisfied by resolving nothing,
-  CS-832 could close by editing one string in a table, and CS-830 asked for one decoded
-  element. An adjudicator caught three. **THE REPAIR PASS THEN FIXED THOSE THREE AND SKIPPED
-  THE FOURTH**, and a late adversary caught that - this session's own transferable finding
-  landing a fourth time, inside the fix for it. All four now carry equalities or explicit
-  non-zero clauses. **THE POPULATION WAS THE FIVE ACCEPTANCE LINES AND I ENUMERATED THREE.**
-
-- **Surprises: nothing contradicted `BOOTSTRAP.md`.** Ground truth beat several things that were
-  written down, all of them mine or inherited, and every correction is in a tracked file.
-
-- **Failed paths: the repair passes.** Each of the first two generated new false sentences at
-  roughly the rate it fixed old ones, because they were written under the same
-  fix-what-you-can-see habit. The third worked because it started with a tree-wide sweep.
-
-- **Next action: NONE IS FORCED.** CI must be read for `a812690`. Then the head of the queue is
-  the ROADMAP budget ruling, which is the operator's, and the worktree salvage.
