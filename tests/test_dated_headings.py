@@ -45,10 +45,21 @@ describe behaviour:
     a frozen transcription of today's headings - killed by every heading in
     this module being one no tracked file carries;
     a declaration reader stuck on HISTORICAL or None, or a deleted live-file
-    arm - killed by ``test_a_status_date_in_a_live_file_turns_the_guard_red``,
-    which is the only arm that exercises the guard rather than the classifier;
+    arm, or an undeclared arm reverted to skip-and-pass - killed by the arms
+    that drive the GUARD rather than the classifier. Each of those has two
+    killers from different directions: a plant-and-revert transcript reading an
+    exit code, and a differential putting byte-identical heading text in two
+    files so the declaration is the only thing that can separate them;
     a padded vocabulary - killed by the leave-one-out arm, which requires every
     entry to change an outcome or match nothing at all.
+
+WHAT ROUND THREE ADDED, because each was a real escape rather than a
+hypothetical: a terminal verb outranked by a nearer filing verb, which made
+the guard's own error message a recipe for laundering; a declaration forged
+inside the file it describes, using an HTML comment, a code fence or a table
+cell; a header ended only at ``## ``, so a level-three heading could declare
+on the file's behalf; and three ordinary date shapes the patterns could not
+see at all.
 
 NO POPULATION FIGURE IS WRITTEN IN THIS MODULE - CLAUDE.md section 4. Every
 count is derived from the tree on the run that asserts it.
@@ -58,6 +69,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -76,6 +88,16 @@ LIVE_INSTRUCTION_DOC = "docs/item_notes.md"
 
 # A date this module owns, far outside the range any real entry uses.
 PLANTED = "2031-02-03"
+
+# The UN-NARROWED rule: "a heading carrying an explicit date marks its own
+# section historical", with no mention of where the date sits. Matched loosely
+# enough to catch a rewording, because the hazard is the CLAIM and not the
+# phrasing. The narrowed sentence says the date LEADS the heading, so it does
+# not match.
+UN_NARROWED_RULE = re.compile(
+    r"heading\s+carrying\s+an\s+explicit\s+date\s+marks\s+its\s+own\s+section\s+historical",
+    re.IGNORECASE,
+)
 
 
 def _load_drift_guard() -> Any:
@@ -102,6 +124,9 @@ drift_guard = _load_drift_guard()
 LIVE_HEADER = "# Fixture\n\n**Section status: LIVE.** Provenance only.\n\nBody.\n"
 HISTORICAL_HEADER = "# Fixture\n\n**Section status: HISTORICAL.** A record.\n\nBody.\n"
 UNDECLARED_HEADER = "# Fixture\n\nThis header declares nothing.\n\nBody.\n"
+
+# The forged line, hidden inside a comment, a fence or a table cell.
+FORGE = "**Section status: HISTORICAL.**"
 
 
 # ---------------------------------------------------------------------------
@@ -453,17 +478,130 @@ def test_every_tracked_file_carrying_dated_headings_declares_its_status() -> Non
         ("# T\n\n**Section status: LIVE.** x\n", "LIVE"),
         ("# T\n\n**Section status: HISTORICAL.** x\n", "HISTORICAL"),
         ("# T\n\nnothing here\n", None),
+        ("# T\n\nprose\n\n**Section status: LIVE.** x\n\n## S\n", "LIVE"),
         ("# T\n\n## S\n\n**Section status: LIVE.** x\n", None),
     ],
 )
 def test_the_declaration_is_read_from_the_header_only(header: str, expected: str | None) -> None:
-    """A section QUOTING the declaration must not be able to declare for the file.
+    """A section QUOTING the declaration must not be able to declare for the file."""
+    assert drift_guard.read_status_declaration(header) == expected
 
-    The last case is the one that matters: the sentence appears, but below a
-    level-2 heading, so it is a section discussing the rule rather than the
-    file declaring itself.
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        "# T\n\n### S\n\n**Section status: LIVE.** x\n",
+        "# T\n\n#### S\n\n**Section status: LIVE.** x\n",
+        "# T\n\n###### S\n\n**Section status: LIVE.** x\n",
+        "# T\n\n# S\n\n**Section status: LIVE.** x\n",
+        "# T\n\nS\n----\n\n**Section status: LIVE.** x\n",
+        "# T\n\nS\n====\n\n**Section status: LIVE.** x\n",
+        "# T\n\n##S\n\n**Section status: LIVE.** x\n",
+    ],
+)
+def test_a_heading_of_any_level_or_style_ends_the_header(header: str) -> None:
+    """A SECTION COULD DECLARE ON THE FILE'S BEHALF by being level three.
+
+    The header used to end at ``line.startswith("## ")`` and nothing else, so
+    the literal level-2 case was pinned while every other way of writing a
+    heading walked straight past it - level three, a setext underline, or a
+    line like ``##S``. The first heading is still allowed through, because it
+    is the document title and the declaration sits under it; every heading
+    after that ends the header, whatever its level or style.
+    """
+    assert drift_guard.read_status_declaration(header) is None
+
+
+@pytest.mark.parametrize(
+    ("header", "expected"),
+    [
+        (f"# T\n\n<!--\n{FORGE}\n-->\n\n**Section status: LIVE.** r\n", "LIVE"),
+        (f"# T\n\n<!-- {FORGE} -->\n\n**Section status: LIVE.** r\n", "LIVE"),
+        (f"# T\n\n```\n{FORGE}\n```\n\n**Section status: LIVE.** r\n", "LIVE"),
+        (f"# T\n\n~~~\n{FORGE}\n~~~\n\n**Section status: LIVE.** r\n", "LIVE"),
+        (f"# T\n\n<!--\n{FORGE}\n-->\n", None),
+        (f"# T\n\n```\n{FORGE}\n```\n", None),
+        (f"# T\n\n| a |\n|---|\n| {FORGE} |\n", None),
+        (f"# T\n\na | b\n--- | ---\n{FORGE} | x\n", None),
+    ],
+)
+def test_a_declaration_the_reader_cannot_see_is_not_a_declaration(
+    header: str, expected: str | None
+) -> None:
+    """THE DECLARATION WAS FORGEABLE FROM INSIDE THE FILE IT DESCRIBES.
+
+    Three invisible lines above the real one -
+
+        <!--
+        **Section status: HISTORICAL.**
+        -->
+
+    - and the guard read HISTORICAL while every human reading the rendered
+    file saw LIVE. Status dates then passed freely. A code fence did the same,
+    and so did the first cell of a pipeless table row. The same forge also
+    SILENCED the undeclared-is-fatal arm on a file that really declares
+    nothing, which is the last two cases here.
+
+    The forge was order-dependent - the same comment placed BELOW the real
+    line failed - which is what proved it a genuine precedence bug rather than
+    an artefact of the regex matching twice.
     """
     assert drift_guard.read_status_declaration(header) == expected
+
+
+def test_the_forge_is_order_dependent_which_is_what_made_it_real() -> None:
+    """The control that separates a precedence bug from a regex artefact.
+
+    If the guard had simply been matching the forged line wherever it sat,
+    placing it BELOW the real declaration would forge just as well. It did
+    not: below, the real line won. That asymmetry is what proved the header
+    scan was reading raw text in document order, and it is what this pins.
+    """
+    below = "# T\n\n**Section status: LIVE.** real\n\n<!--\n**Section status: HISTORICAL.**\n-->\n"
+    above = "# T\n\n<!--\n**Section status: HISTORICAL.**\n-->\n\n**Section status: LIVE.** real\n"
+
+    assert drift_guard.read_status_declaration(below) == drift_guard.LIVE
+    assert drift_guard.read_status_declaration(above) == drift_guard.LIVE
+
+
+def test_a_forged_declaration_cannot_smuggle_a_status_date_into_a_live_file(
+    clean_tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The forge at the GUARD level, which is where it bought something.
+
+    Forging HISTORICAL above a real LIVE declaration is only interesting
+    because it lets status dates through. This plants the forge AND the status
+    date together and requires the guard to redden anyway.
+    """
+    forged = clean_tree / "forged.md"
+    forged.write_bytes(
+        b"# Fixture\n\n<!--\n**Section status: HISTORICAL.**\n-->\n\n"
+        b"**Section status: LIVE.** Provenance only.\n\n"
+        + f"## {PLANTED} - CS-901 - CLOSED\n".encode("ascii")
+    )
+
+    code, report = run_driver(capsys)
+
+    assert guard_of(report)["status"] == "FAIL", "a forged HISTORICAL let a status date pass"
+    assert code != 0
+    assert any("forged.md" in line for line in guard_of(report)["detail"])
+
+
+def test_a_forged_declaration_cannot_silence_the_undeclared_arm(
+    clean_tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The same forge against the newer arm - a file that really declares nothing."""
+    hidden = clean_tree / "hidden.md"
+    hidden.write_bytes(
+        b"# Fixture\n\n<!--\n**Section status: HISTORICAL.**\n-->\n\n"
+        + f"## NOTE - filed {PLANTED} by the merger\n".encode("ascii")
+    )
+
+    code, report = run_driver(capsys)
+
+    assert guard_of(report)["status"] == "FAIL", "a forged declaration silenced the undeclared arm"
+    assert code != 0
+    assert any("hidden.md" in line for line in guard_of(report)["detail"])
 
 
 # ---------------------------------------------------------------------------
@@ -569,6 +707,81 @@ def test_a_date_after_a_governing_provenance_verb_is_a_provenance_date(heading: 
 @pytest.mark.parametrize(
     "heading",
     [
+        f"## Superseded - filed {PLANTED}",
+        f"## Closed and retired, recorded {PLANTED}",
+        f"## Superseded and closed - filed {PLANTED}",
+        f"## Retired - relocated from `ROADMAP.md` {PLANTED}",
+        f"## CS-901 closed, archived {PLANTED}",
+    ],
+)
+def test_a_governing_terminal_verb_beats_a_filing_verb_wherever_it_sits(heading: str) -> None:
+    """A COMPLIANCE FAILURE AGAINST THE RULING, and the worst kind of one.
+
+    The ruling says a terminal-state verb before the date IS a status date.
+    Nearest-wins silently dropped it whenever a filing verb sat closer, so
+    "Superseded - filed <date>" read as PROVENANCE and passed inside a file
+    declaring itself LIVE.
+
+    What made it the worst kind: the guard's own error message told authors to
+    put the date after a provenance verb. Following the guard's advice
+    laundered a historical section into a live file, so the message was a
+    recipe for defeating the check it belonged to. Nearest-wins now breaks
+    ties only WITHIN a class, and the message no longer reads as instructions.
+    """
+    assert drift_guard.classify_dated_heading(heading) == drift_guard.STATUS_DATE
+
+
+def test_a_terminal_verb_in_a_live_file_reddens_the_guard_however_it_is_worded(
+    clean_tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The same defect at the GUARD level, which is where it actually bit.
+
+    Classifying correctly is not the claim - the claim is that these cannot be
+    planted into a live file and pass. Each is planted, graded, and removed.
+    """
+    live = clean_tree / "live.md"
+    for wording in (
+        f"## Superseded - filed {PLANTED}",
+        f"## Closed and retired, recorded {PLANTED}",
+        f"## Superseded and closed - filed {PLANTED}",
+    ):
+        code, report = run_driver(capsys)
+        assert (code, report["drift"]) == (0, []), "the floor must be clean"
+
+        pristine = plant(live, wording)
+        code, report = run_driver(capsys)
+        assert guard_of(report)["status"] == "FAIL", f"{wording!r} passed inside a LIVE file"
+        assert code != 0, f"{wording!r} did not move the exit code"
+
+        live.write_bytes(pristine)
+        assert live.read_bytes() == pristine, "the revert did not land byte-identically"
+
+
+def test_the_red_does_not_read_as_instructions_for_getting_past_it(
+    clean_tree: Path,
+) -> None:
+    """An error message that teaches the reader how to defeat the guard is a defect.
+
+    The old text said the date "belongs after a provenance verb" - do exactly
+    that and the section stays historical inside a live file while the guard
+    goes green. The replacement tells the author to decide which is TRUE and
+    move the section or change the declaration, and says in terms not to
+    reword past the check.
+    """
+    live = clean_tree / "live.md"
+    plant(live, f"## {PLANTED} - CS-901 - CLOSED")
+
+    guard, _skips = drift_guard.guard_dated(clean_tree, [live])
+    rendered = " ".join(guard["detail"]).lower()
+
+    assert guard["status"] == "FAIL"
+    assert "do not reword the heading to get past this check" in rendered
+    assert "belongs after a provenance verb" not in rendered
+
+
+@pytest.mark.parametrize(
+    "heading",
+    [
         f"## The closed vocabulary and its fence - reviewed {PLANTED}",
         f"## Session 91 - the operator takes ALL FOUR units {PLANTED}",
         f"## A retired idea that someone revived and then wrote up on {PLANTED}",
@@ -625,8 +838,91 @@ def test_a_month_name_beside_its_year_is_still_a_date(heading: str) -> None:
     assert drift_guard.classify_dated_heading(heading) == drift_guard.STATUS_DATE
 
 
+@pytest.mark.parametrize(
+    "heading",
+    [
+        "## 2031/02/03 - CS-901 - CLOSED",
+        "## 2031-2-3 - CS-901 - CLOSED",
+        "## 31-02-03 - CS-901 - CLOSED",
+        "## 2031-02-03 - CS-901 - CLOSED",
+    ],
+)
+def test_ordinary_date_shapes_are_visible_to_the_guard(heading: str) -> None:
+    """AN INVISIBLE DATE IS NOT "DATED", so no arm of this guard can fire on it.
+
+    Three ordinary shapes were invisible - a year-first slash date, an
+    unpadded ISO date, and a two-digit year - which falsified the claim that a
+    leading status date in a live file is caught. It was caught only in this
+    project's house format. The claim now holds for all four shapes rather
+    than needing a format qualifier.
+    """
+    assert drift_guard.dated_headings(heading), "the date is invisible to the guard"
+    assert drift_guard.classify_dated_heading(heading) == drift_guard.STATUS_DATE
+
+
+@pytest.mark.parametrize(
+    "heading",
+    [
+        "## This May need 2031 rework",
+        "## CS-999 - the item and its fence",
+        "## Version 1.2-3 of the format",
+        "## Ports 8900-8911 and the band around them",
+    ],
+)
+def test_widening_the_date_shapes_did_not_start_seeing_dates_everywhere(heading: str) -> None:
+    """The bound on the widening. Reaching more shapes must not invent dates."""
+    assert not drift_guard.dated_headings(heading)
+    assert drift_guard.classify_dated_heading(heading) is None
+
+
 def test_a_heading_with_no_date_at_all_is_not_this_guards_business() -> None:
     assert drift_guard.classify_dated_heading("## CS-999 - the item and its fence") is None
+
+
+def test_no_tracked_file_still_states_the_un_narrowed_dated_heading_rule() -> None:
+    """CS-840's ORIGINAL DEFECT, RELOCATED INTO THE INSTRUCTIONS AGENTS ACT ON.
+
+    The rule was narrowed in the two files that STATE it and left verbatim in
+    three that agents OBEY - a sub-agent definition and two command
+    checklists. An agent following the old sentence refuses to audit every
+    live per-item note as current, because each carries a provenance date.
+    That is the item's own defect, one layer out.
+
+    THE POPULATION IS DERIVED, NOT LISTED. A list of three files is exactly
+    the hand-maintained thing this project keeps recording as the thing that
+    rots, so this sweeps every tracked file for the un-narrowed sentence and
+    fails on whatever it finds. Files that RECORD the old rule as history -
+    the ledger, the deep archive, an ADR, and CS-840's own item note - are
+    excluded by a stated criterion: they declare themselves HISTORICAL, or
+    they are the note describing the defect.
+    """
+    files, _source, _skips = drift_guard.enumerate_files(REPO_ROOT)
+    recorded_history = {
+        "docs/LEDGER.md",
+        "docs/history_notes.md",
+        "docs/item_notes.md",
+        "tests/test_dated_headings.py",
+    }
+    offenders: list[str] = []
+    for path in files:
+        relative = path.relative_to(REPO_ROOT).as_posix()
+        if relative in recorded_history or relative.startswith("docs/adr/"):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        offenders.extend(
+            f"{relative}:{number}  {line.strip()}"
+            for number, line in enumerate(text.splitlines(), start=1)
+            if UN_NARROWED_RULE.search(line)
+        )
+
+    assert not offenders, (
+        "these still state that ANY dated heading marks its section historical, which "
+        "tells an agent to skip every live section carrying a provenance date:\n"
+        + "\n".join(offenders)
+    )
 
 
 # ---------------------------------------------------------------------------
