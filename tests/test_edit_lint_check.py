@@ -6,12 +6,18 @@ suite does it: the exit code is half the contract, 0 pass and 1 problem, and
 this runs as a PostToolUse hook where that code is the whole signal.
 
 CS-204 is why this file exists. edit_lint_check builds its own labels - it
-calls gate.label_for itself at tools/edit_lint_check.py:102 and constructs its
-own gate.Unit at :104 - but it renders them through the SAME gate.emit at :132.
-So a redaction applied in emit covers both tools, and a redaction applied
-anywhere else covers only one. The grant made this a test obligation rather
-than an inspection obligation precisely because "it shares the renderer" is
-the kind of claim that is true right up until someone adds a second printer.
+calls gate.label_for itself and constructs its own gate.Unit, both inside its
+`main` - but it renders them through the SAME gate.emit. So a redaction
+applied in emit covers both tools, and a redaction applied anywhere else
+covers only one. The grant made this a test obligation rather than an
+inspection obligation precisely because "it shares the renderer" is the kind
+of claim that is true right up until someone adds a second printer.
+
+Those three call sites were cited by LINE NUMBER until CS-845. All three had
+already rotted - :102 and :104 pointed at a closing paren and a blank line in
+an unrelated function before this item touched the file at all. A line number
+into a live source file is a fact with no owner and no guard (CLAUDE.md
+section 4), so the citation is by NAME now, which the tree moves with.
 
 Every violating literal is assembled at runtime rather than spelled out: this
 file is itself checked by the gate, so a literal em dash or home path here
@@ -21,6 +27,7 @@ would block the commit that adds it.
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import shutil
 import subprocess
@@ -70,10 +77,20 @@ def base_env(tmp_path: Path) -> dict[str, str]:
 def run_tool(
     *args: str,
     env: dict[str, str] | None = None,
+    stdin_text: str = "",
 ) -> subprocess.CompletedProcess[str]:
+    """Run the tool as a subprocess with stdin under the test's control.
+
+    stdin is PINNED rather than inherited. CS-845 gave this tool a stdin
+    fallback - the harness delivers the edited path in a JSON envelope there -
+    so a suite that let the subprocess inherit pytest's stdin would be
+    asserting against whatever the runner happened to leave attached. The
+    default is the empty string, which is what "no envelope" means.
+    """
     proc = subprocess.run(
         [sys.executable, str(TOOL), *args],
         capture_output=True,
+        input=stdin_text.encode("utf-8"),
         env=env,
         timeout=TIMEOUT,
         check=False,
@@ -533,3 +550,220 @@ def test_the_notice_and_an_enforced_format_check_never_co_occur(
         "blocked the edit, or it enforced nothing and said nothing.\nstdout: %s\n"
         "stderr: %s" % (enforced, disclosed, result.stdout, result.stderr)
     )
+
+
+# --------------------------------------------------------------------------
+# CS-845 - the tool was handed an EMPTY path set on every live invocation.
+#
+# MEASURED, not inferred. A probe temporarily installed in this tool and
+# triggered by one real edit captured the process it actually runs as:
+#
+#   argv                  ["tools/edit_lint_check.py", "--files", ""]
+#   CLAUDE_FILE_PATHS     ABSENT from the environment entirely, alongside 22
+#                         other CLAUDE_* variables that ARE set
+#   stdin                 19086 characters of JSON that parse to an object
+#                         whose hook_event_name is "PostToolUse" and whose
+#                         tool_input.file_path is the absolute edited path
+#
+# So `--files "$CLAUDE_FILE_PATHS"` expands to the empty string because the
+# variable does not exist. The tool then read nothing, staged nothing, linted
+# nothing, and printed that the edit had left a problem on disk.
+#
+# THE READ FAILURE IN THAT MESSAGE IS NOT A PERMISSIONS PROBLEM, which is
+# exactly what it reads like. Path("") is Path("."), and reading a directory
+# raises PermissionError on Windows. The label tracks the working directory
+# precisely as Path("") does, which is why the store's records carry a
+# worktree directory as the label whenever a subagent made the edit.
+# --------------------------------------------------------------------------
+
+# The sentence the tool must NOT print about an edit it never looked at. Held
+# as an independent literal rather than imported from the tool: importing it
+# would let a rename carry this test to green while the operator still reads a
+# claim the run did not earn.
+FAILURE_FRAGMENT = "left a problem on disk"
+
+# The distinct sentence a run that observed nothing owes its reader. Distinct
+# is the whole contract - tools/pretooluse_gate.py already records why "PASS"
+# and "NOT SCANNED" are deliberately different sentences, and a run that
+# checked nothing must not borrow either one.
+NOTHING_CHECKED_FRAGMENT = "NOTHING WAS CHECKED"
+
+# A basename that appears ONLY inside an envelope, so a channel naming it
+# proves the envelope was consumed rather than merely parsed.
+ENVELOPE_BASE = "zzenvelopezz"
+
+
+def envelope_for(target: Path, tool_name: str = "Edit") -> str:
+    """A PostToolUse envelope of the shape the harness was MEASURED to send.
+
+    Only the fields this tool consumes are populated. The measured envelope
+    also carries cwd, transcript_path, session_id and agent_id - absolute
+    paths and identifiers under the operator's home directory (CLAUDE.md
+    non-negotiable 3), and none of them anything this tool has any business
+    reading. Their absence here is the point: if the tool ever starts
+    depending on one, this fixture stops satisfying it.
+    """
+    return json.dumps(
+        {
+            "hook_event_name": "PostToolUse",
+            "tool_name": tool_name,
+            "tool_input": {"file_path": str(target)},
+        }
+    )
+
+
+def test_an_empty_path_argument_claims_no_problem(tmp_path: Path) -> None:
+    """THE CS-845 ACCEPTANCE TEST - no readable path, so no failure sentence.
+
+    This is the exact argv the harness was measured to produce, reproduced
+    WITHOUT the transcript store, so the proof runs on a fresh clone and on a
+    machine that has never run the harness at all.
+    """
+    result = run_tool("--files", "", env=base_env(tmp_path))
+
+    assert FAILURE_FRAGMENT not in result.stderr, (
+        "the tool reported a problem on disk after reading no file at all.\n"
+        "stdout: %s\nstderr: %s" % (result.stdout, result.stderr)
+    )
+
+
+def test_an_empty_path_argument_says_it_checked_nothing(tmp_path: Path) -> None:
+    """Silence is the other way to get this wrong, and it is worse.
+
+    A run that quietly exits 0 having checked nothing is the self-arming skip
+    class CS-841 was about: the gate goes dark and no output says so. The fix
+    for the false claim must not buy its silence.
+    """
+    result = run_tool("--files", "", env=base_env(tmp_path))
+    combined = result.stdout + result.stderr
+
+    assert NOTHING_CHECKED_FRAGMENT in combined, (
+        "the tool checked nothing and did not say so.\nstdout: %s\nstderr: %s"
+        % (result.stdout, result.stderr)
+    )
+
+
+def test_a_genuinely_unreadable_path_is_still_reported(tmp_path: Path) -> None:
+    """The over-broad fix, refused.
+
+    Dropping the empty argument must not drop a REAL observation beside it. A
+    non-empty path that cannot be read is something the run actually looked at
+    and failed on, and the failure sentence is earned there. A fix that
+    suppressed this too would satisfy the acceptance test above while quietly
+    disarming the tool.
+    """
+    missing = tmp_path / OUTSIDE_DIR / (OUTSIDE_BASE + ".py")
+    missing.parent.mkdir(parents=True, exist_ok=True)
+
+    result = run_tool("--files", str(missing), env=base_env(tmp_path))
+
+    # Bound to plain scalars before asserting. pytest renders the asserted
+    # EXPRESSION independently of the message, and `result` is a
+    # CompletedProcess whose repr carries the absolute interpreter path
+    # (CLAUDE.md non-negotiable 3). Every assertion below does the same.
+    code = result.returncode
+    reported = FAILURE_FRAGMENT in result.stderr
+
+    assert code == 1, "a path that cannot be read was not reported.\nstdout: %s\nstderr: %s" % (
+        result.stdout,
+        result.stderr,
+    )
+    assert reported, result.stderr
+
+
+def test_the_edited_path_arrives_on_the_stdin_envelope(tmp_path: Path) -> None:
+    """THE DELIVERY HALF, end to end.
+
+    The harness delivers the edited path as JSON on stdin. This drives the
+    tool exactly as the harness does - the same empty --files argument, the
+    same envelope shape - and asserts it reaches the file and produces the
+    verdict that file earns. Hook presence is not hook firing, and an argument
+    that parses is not a path that was read: the proof is the DIAGNOSTIC
+    naming the file, not the exit code alone.
+    """
+    body = ("# T\n\nAlpha " + EM_DASH + " b\n").encode("utf-8")
+    target = outside_target(tmp_path, ".md", body)
+
+    result = run_tool("--files", "", env=base_env(tmp_path), stdin_text=envelope_for(target))
+
+    code = result.returncode
+    names_the_file = OUTSIDE_BASE in result.stderr
+    said_nothing_checked = NOTHING_CHECKED_FRAGMENT in (result.stdout + result.stderr)
+
+    assert code == 1, "the envelope path was not checked.\nstdout: %s\nstderr: %s" % (
+        result.stdout,
+        result.stderr,
+    )
+    assert names_the_file, result.stderr
+    assert not said_nothing_checked, result.stdout
+
+
+def test_a_clean_file_on_the_stdin_envelope_passes(tmp_path: Path) -> None:
+    """The other verdict. Without this, "it refuses everything" would pass."""
+    target = outside_target(tmp_path, ".py", b'"""Doc."""\n\nVALUE = 1\n')
+
+    result = run_tool("--files", "", env=base_env(tmp_path), stdin_text=envelope_for(target))
+
+    code = result.returncode
+
+    assert code == 0, "a clean file delivered by envelope was refused.\nstdout: %s\nstderr: %s" % (
+        result.stdout,
+        result.stderr,
+    )
+
+
+def test_an_explicit_path_is_not_overridden_by_the_envelope(tmp_path: Path) -> None:
+    """The envelope is a FALLBACK, and a fallback that fires anyway is not one.
+
+    An explicit --files argument is what the suite, the operator at a shell
+    and every future caller use. If a stray envelope on stdin could add
+    targets to that run, the tool would check files nobody asked it about.
+    """
+    clean = outside_target(tmp_path, ".py", b'"""Doc."""\n\nVALUE = 1\n')
+    dirty = tmp_path / OUTSIDE_DIR / (ENVELOPE_BASE + ".md")
+    dirty.write_bytes(("# T\n\nAlpha " + EM_DASH + " b\n").encode("utf-8"))
+
+    result = run_tool("--files", str(clean), env=base_env(tmp_path), stdin_text=envelope_for(dirty))
+
+    code = result.returncode
+    envelope_was_consumed = ENVELOPE_BASE in (result.stdout + result.stderr)
+
+    assert code == 0, (
+        "the envelope was consumed even though an explicit path was given.\n"
+        "stdout: %s\nstderr: %s" % (result.stdout, result.stderr)
+    )
+    assert not envelope_was_consumed, result.stdout + result.stderr
+
+
+def test_an_explicit_path_never_reads_stdin_at_all(tmp_path: Path) -> None:
+    """The no-hang guard, on the one path where hanging became possible.
+
+    This module's opening promise is that it never hangs, and reading stdin is
+    the only thing that put that promise at risk.
+
+    stdin is left OPEN and never written to. A tool that reads it blocks
+    forever; a tool that never reaches the read exits normally. The test above
+    proves the envelope is not USED, which a tool that read stdin first and
+    then discarded it would also satisfy - and that tool would hang here.
+    """
+    target = outside_target(tmp_path, ".py", b'"""Doc."""\n\nVALUE = 1\n')
+
+    proc = subprocess.Popen(
+        [sys.executable, str(TOOL), "--files", str(target)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=base_env(tmp_path),
+    )
+    try:
+        code = proc.wait(timeout=TIMEOUT)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=30)
+        pytest.fail("the tool blocked on stdin even though an explicit path was given")
+    finally:
+        for stream in (proc.stdin, proc.stdout, proc.stderr):
+            if stream is not None:
+                stream.close()
+
+    assert code == 0
