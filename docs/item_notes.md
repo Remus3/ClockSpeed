@@ -194,6 +194,50 @@ than the first, which is the opposite of what its first draft said.
 names, and transcribing them is the hand-maintained list this project has repeatedly recorded
 as the thing that rots. Derive the population.
 
+### MERGED AND STILL OPEN - recorded 2026-08-24 by the merger, from two adversarial lenses
+
+**READ THIS BEFORE TAKING THE ITEM. WHAT MERGED IS AN IMPROVEMENT OF A DIFFERENT KIND, NOT A
+CLOSE.** The first build repeated CS-830's disease one layer up: the population was DEFINED as
+the words where decoded equals tags, and the acceptance asserted decoded equals tags over that
+set. Of 200000 arbitrary wrong decoders, ZERO failed either arm.
+
+**THE REPAIR IS REAL AND MEASURED ON THAT SAME YARDSTICK.** The population is now every site
+whose declared size ADMITS a tag list, decided by arithmetic that never calls the decoder. It
+catches 3936 of 4096 whole-word refusal subsets and 2000 of 2000 per-site refusal mutants.
+
+**THE SURVIVING REFUTATION, AND IT IS THE NEXT THING TO SOLVE. THE CRITERION IS ARITHMETIC BUT
+THE POPULATION IT IS APPLIED TO IS STILL CHOSEN BY THE DECODER.** A site is graded only if
+three reader functions upstream all succeed. A defect in any of them DELETES sites from the
+population rather than landing them in the residue - the same "the word leaves the class"
+structure the repair removed, moved one call earlier. Measured: a four-line guard inside
+`_container_element_words` deletes 24349 of 45208 sites and the module prints 20 passed, exit
+0, while the IDENTICAL loss placed inside the decoder reddens two arms. Any close must grade
+the sites the reader never reached, not only the ones it reached and refused.
+
+**THREE SMALLER FINDINGS, ALL MEASURED.**
+
+- `_MIN_TAG_LIST_BYTES` IS NOT EARNED. The earned-widths test earns the terminator width and
+  the minimal tag width and touches neither this constant nor the admission gate - the two
+  things that actually decide the population. Raising it from 26 to 52 reclassifies 10506
+  sites with every arm green. And HALF THE CRITERION IS DEAD CODE: no site in this corpus has
+  the empty-list declared size, so that disjunct can be deleted entirely and nothing reddens.
+  That is the same shape the repair honourably retracted for the exact-close comparison,
+  except the exact-close now ASSERTS its own inertness and this does not.
+- THE PER-WORD REFUSAL CEILING ADMITS TOTAL LOSS OF ANY SMALL WORD. Observed max is 8 against
+  a ceiling of 16, so a whole word with 16 or fewer size-compatible sites can be refused
+  entirely and stay green. Four of the seven read words qualify. By contrast the unexplained-
+  word ceiling of 2 is genuinely load-bearing and was the sole red on a two-word mutant.
+- THE END-FREEDOM ARM REPORTS ONE INTEGER AS TWO MEASUREMENTS. Its sampler returns the same
+  value in two positions and the test unpacks them as separate quantities with two
+  contradictory failure messages, so "no early closes and no alternative ends" is one
+  measurement presented as two. Its sampler also draws only from sites that ALREADY DECODE,
+  which is the decoder's own success set - the circularity this module is otherwise careful
+  about.
+
+**WHAT NOT TO DO.** Do not re-pitch the exact-close comparison as the discriminator; it is
+measured inert on this corpus, the retraction is shipped in five places, and its inertness is
+asserted so it will announce itself if that ever changes.
+
 ## CS-839
 
 ### NOTE - filed 2026-08-23 by the merger
@@ -578,6 +622,26 @@ that happened to be found.
 
 **PROVE IT BY THE RENDERED OUTPUT, NOT BY READING THE MESSAGE.** The message text is the part
 that gets reviewed and is exactly the part that does not control this channel.
+
+### CONFIRMED LIVE - recorded 2026-08-24 by the merger, on a third instance
+
+**A THIRD AGENT HIT THIS CHANNEL, AND THIS TIME THE SITE IS STILL LIVE ON MAIN.** The CS-829
+adversary forced a confinement assertion in `tests/save/test_struct_interior.py` and measured
+a real save-derived name rendered into the failure report - counts only: one word rendered out
+of a population of eleven. The assertion compares a `len()` of a frozenset, and pytest
+explains the ATTRIBUTE'S OWN repr inside that `len()`, bypassing the counts-only `__repr__`
+the sweep object carries specifically to prevent this.
+
+**THE PARTIAL FIX IS ITSELF THE LESSON.** The CS-829 builder found this channel, fixed it at
+the site where it found it, and did not sweep the module. Two further sites in the same file
+are safe ONLY because their failure condition happens to be an empty set - change either
+comparison and they leak. That is the instance-not-population defect, inside the fix for a
+privacy channel.
+
+**AND THE LEAK NEEDS THE RIGHT ARM TO FAIL FIRST.** Under a broader failure the miss-factor
+arm short-circuits and nothing leaks. The rendering appears only when the confinement arm is
+the first to fail - which is exactly what a real confinement regression produces. So the
+channel is quiet in every rehearsal and open in the real case.
 
 ## CS-842
 
