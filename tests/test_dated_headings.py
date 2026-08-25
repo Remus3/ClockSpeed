@@ -879,6 +879,77 @@ def test_a_heading_with_no_date_at_all_is_not_this_guards_business() -> None:
     assert drift_guard.classify_dated_heading("## CS-999 - the item and its fence") is None
 
 
+# ---------------------------------------------------------------------------
+# Asserted limits - a red below is GOOD NEWS and means the limit closed
+# ---------------------------------------------------------------------------
+
+
+def test_a_historicity_claim_in_prose_after_the_date_survives_every_arm(
+    clean_tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """AN ASSERTED LIMIT. A RED HERE IS GOOD NEWS AND IS THIS LIMIT CLOSING.
+
+    ``## Archived <date> - this is history`` passes inside a file declaring
+    itself LIVE. It was raised as a laundering case alongside three others; the
+    other three were nearest-wins failures and are fixed, and this one is not
+    the same defect. It is recorded here rather than left in a comment, because
+    a comment rots silently and an asserted limit cannot.
+
+    WHY IT IS NOT A NEAREST-WINS FAILURE. Nothing is being dropped. The three
+    that were fixed each carried a terminal verb in the lead-in that a nearer
+    filing verb outranked. This heading carries NO terminal verb at all, which
+    the assertions below derive from the module's own vocabulary rather than
+    asserting from memory.
+
+    WHY NO SHAPE RULE REACHES IT. The historicity claim lives in prose AFTER
+    the date - in the heading's tail, the region the classifier deliberately
+    never reads. That exclusion is not an oversight: reading the tail is what
+    made an earlier control report three vocabulary entries as dead weight when
+    they only ever matched after a date. Catching this would mean judging free
+    prose, which is a different kind of rule from the shape rule the operator
+    ruled.
+
+    WHY ``archived`` WAS NOT MOVED TO THE TERMINAL CLASS. It would close this
+    case, and it was MEASURED to keep the tracked tree green - every heading
+    whose lead-in holds the verb sits in a file declaring itself HISTORICAL.
+    The operator ruled on 2026-08-24 that it stays PROVENANCE: it is this
+    project's filing verb, the tree's own idiom is always "Archived <date> from
+    <file>", and amending the ruling's verb list to catch one synthetic case
+    would have traded a true classification for a convenient one.
+
+    WHAT A RED HERE MEANS. Any of: the vocabulary moved, the classifier began
+    reading the tail, or some new arm judges a prose claim. Each is this limit
+    closing, and this test is what says so.
+    """
+    heading = f"## Archived {PLANTED} - this is history"
+    lead = drift_guard.heading_lead_in(heading)
+    assert lead is not None, "the date must be visible, or this limit is about nothing"
+
+    terminal = [p.pattern for p in drift_guard.STATUS_IDIOMS if p.search(lead)]
+    filing = [p.pattern for p in drift_guard.PROVENANCE_IDIOMS if p.search(lead)]
+    assert not terminal, (
+        f"a terminal verb IS in the lead-in - this is a precedence bug now, not a limit: {lead!r}"
+    )
+    assert filing, "no filing verb governs the date either - the heading would be unclassifiable"
+
+    assert "history" not in lead.lower(), "the claim moved into the region the classifier reads"
+    assert "history" in heading.lower(), "the heading no longer makes a historicity claim"
+
+    assert drift_guard.classify_dated_heading(heading) == drift_guard.PROVENANCE_DATE
+
+    live = clean_tree / "live.md"
+    pristine = plant(live, heading)
+    code, report = run_driver(capsys)
+    live.write_bytes(pristine)
+    assert live.read_bytes() == pristine, "the revert did not land byte-identically"
+
+    assert guard_of(report)["status"] == "PASS", (
+        "THE LIMIT HAS CLOSED - a prose historicity claim after the date is now caught. "
+        "Delete this test, record the closure, and say what caught it."
+    )
+    assert (code, report["drift"]) == (0, [])
+
+
 def test_no_tracked_file_still_states_the_un_narrowed_dated_heading_rule() -> None:
     """CS-840's ORIGINAL DEFECT, RELOCATED INTO THE INSTRUCTIONS AGENTS ACT ON.
 
