@@ -428,6 +428,20 @@ presence of a negative result.
 liveness check to the one control that was measured. Derive the set of shipped controls and
 grade every member, or record an exemption per member with its own reason.
 
+### WIDENED 2026-08-24, same day, on a SECOND measured instance in a DIFFERENT structure
+
+Filed against a CONTROL. Hours later the CS-839 builder reported the identical shape in a
+GUARD: gutting its body to a bare `return` leaves the module green, and it declined to build
+one-arm protection on the grounds that a per-arm version is the hand-maintained thing this
+repo keeps recording as the thing that rots. It was right, and it could not file the item
+because `ROADMAP.md` was not on its write-list.
+
+**TWO AGENTS FOUND THE SAME DEFECT IN TWO DIFFERENT STRUCTURES WITHOUT KNOWING OF EACH
+OTHER.** That is the evidence the population is wider than the word this item was filed with,
+so the acceptance now says control AND guard and derives the set from the shipped assertions
+rather than from either word. Anyone taking it should assume the real population is wider
+still and derive it rather than trust this sentence.
+
 ## CS-847
 
 ### NOTE - filed 2026-08-24 by the merger, from the CS-844 widening
