@@ -1715,8 +1715,8 @@ grades content.
 
 **IT LANDS ON THE CS-852 EXEMPTION RECORD, NOT MERELY NEAR IT. 7 OF 11 EXEMPT KEYS SIT ON
 A CHAINED RAISE** - measured by walking each key's construction site and testing
-`ast.Raise.cause`: `usmap.py::UsmapError`, and `workdir.py`'s `SourceUnreadableError` and
-`WorkDirError` at four sites. The 11th, `header.py::HeaderReadError`, is `from None` at
+`ast.Raise.cause`: `clockspeed/save/usmap.py::UsmapError`, and `workdir.py`'s `SourceUnreadableError` and
+`WorkDirError` at four sites. The 11th, `clockspeed/save/header.py::HeaderReadError`, is `from None` at
 `header.py:931` and is the one site that closes the channel.
 
 **TWO EXEMPTION REASONS STATE A PRIVACY CONCLUSION THE SITE DOES NOT DELIVER.** Both

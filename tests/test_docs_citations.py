@@ -204,6 +204,7 @@ GUARDED_DOCS: Final = (
     # because every pointer in it resolves today and a durable lesson whose
     # cited proof has been deleted is worse than no lesson.
     "memory/moving-an-assert-can-create-the-leak.md",
+    "memory/a-guard-can-measure-spelling.md",
 )
 
 # `.claude/` is OUT OF DOMAIN rather than exempt. It is Claude Code
