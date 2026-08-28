@@ -87,6 +87,7 @@ __all__ = [
     "ALGORITHM_OFFSET",
     "ALGORITHM_ZLIB",
     "CHUNK_MAGIC",
+    "FIELD_NAMES",
     "FRAME_SIZE_WITHOUT_ALGORITHM",
     "FRAME_SIZE_WITH_ALGORITHM",
     "FRAMING_WITHOUT_ALGORITHM",
@@ -256,9 +257,61 @@ REASON_INFLATE_SHORT: Final = "inflated to a different length than the frame dec
 REASON_UNKNOWN_ALGORITHM: Final = "names a compression algorithm this reader cannot inflate"
 
 
+#: Every field name this module may report. THE ONE PARAMETER OF THE
+#: TAXONOMY THAT IS TEXT, so it is the only one that could carry a decoded
+#: value into a message, and :func:`_checked_field` is what stops it.
+#:
+#: DERIVED FROM THIS MODULE'S OWN RAISE SITES, not transcribed from a report,
+#: and ``tests/save/test_chunks.py`` asserts the two agree in BOTH directions.
+FIELD_NAMES: Final = frozenset(
+    {
+        "algorithm",
+        "body_size",
+        "chunk_count",
+        "compressed_size",
+        "frame",
+        "magic",
+        "marker",
+        "max_chunk_size",
+        "payload",
+        "uncompressed_size",
+    }
+)
+
+
 # ---------------------------------------------------------------------------
 # Errors
 # ---------------------------------------------------------------------------
+
+
+def _checked_field(name: str) -> str:
+    """Confirm a field name is in the closed vocabulary before it enters a message.
+
+    The static half of the taxonomy gate proves the parameter is a ``str``.
+    This is the runtime half: it proves the ``str`` was drawn from
+    :data:`FIELD_NAMES`, so the one parameter allowed to be text cannot smuggle
+    a decoded value into an error message.
+
+    Mirrors ``clockspeed/save/objects.py``. Before CS-852 this module stated
+    the guarantee in the :class:`ChunkError` docstring and enforced it with
+    nothing, so a caller could hand it any string at all.
+
+    Args:
+        name: The candidate field name.
+
+    Returns:
+        ``name``, unchanged.
+
+    Raises:
+        ValueError: The name is not in :data:`FIELD_NAMES`. The message states
+            the count of known names rather than echoing the rejected value,
+            because the rejected value is exactly the thing under suspicion.
+    """
+    if name not in FIELD_NAMES:
+        raise ValueError(
+            f"field name is not one of the {len(FIELD_NAMES)} names this module may report"
+        )
+    return name
 
 
 class ChunkError(Exception):
@@ -277,8 +330,9 @@ class ChunkError(Exception):
     Attributes:
         reason: One of the module's ``REASON_*`` constants. Never built from
             file content.
-        field: The name of the frame field at fault. A name from this module's
-            own vocabulary, never a value read from the file.
+        field: The name of the frame field at fault, from :data:`FIELD_NAMES`.
+            A name from this module's own vocabulary, never a value read from
+            the file - enforced by :func:`_checked_field` rather than stated.
         offset: The byte offset the fault was found at.
         expected: An expected length or count, or None.
         actual: The declared or observed length or count, or None.
@@ -305,9 +359,10 @@ class ChunkError(Exception):
             actual: An observed or declared length or count.
             version: A version scalar.
         """
-        super().__init__(_render(reason, field, offset, expected, actual, version))
+        checked = _checked_field(field)
+        super().__init__(_render(reason, checked, offset, expected, actual, version))
         self.reason = reason
-        self.field = field
+        self.field = checked
         self.offset = offset
         self.expected = expected
         self.actual = actual

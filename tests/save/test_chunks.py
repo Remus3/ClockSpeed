@@ -986,3 +986,116 @@ def test_the_chunk_module_reads_no_file_and_writes_none() -> None:
     }
     assert "open" not in called
     assert "Path" not in called
+
+
+# ---------------------------------------------------------------------------
+# CS-852 - the field vocabulary gate
+#
+# ``clockspeed/save/world.py`` wraps every failure from this module in a
+# WorldLoadError with ``raise ... from exc``, which makes THIS module's message
+# part of the world loader's formatted traceback. The paragraph there records
+# what that is safe on: a field name from a CLOSED VOCABULARY. Until CS-852 the
+# guarantee was stated in the ChunkError docstring and enforced by nothing but
+# the habit of passing a literal at every raise site.
+# ---------------------------------------------------------------------------
+
+#: A value no field name could be, planted into the one text channel a
+#: ChunkError carries besides its fixed reason. Obviously synthetic: never a
+#: real field name, path, token or account id.
+_PLANTED_FIELD: Final = "PLANTED_CS852_FIELD_zzz"
+
+
+def _field_arguments_in(module_source: str) -> set[str]:
+    """Every string literal this module hands to an error's ``field``.
+
+    DERIVED FROM THE RAISE SITES rather than transcribed from the vocabulary,
+    so the two cannot agree by having been copied from each other.
+
+    Args:
+        module_source: The parser module's text.
+
+    Returns:
+        The literal field names.
+    """
+    found: set[str] = set()
+    for node in ast.walk(ast.parse(module_source)):
+        if not isinstance(node, ast.Call):
+            continue
+        callee = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+        if callee is None or not callee.endswith("Error"):
+            continue
+        for keyword in node.keywords:
+            if (
+                keyword.arg == "field"
+                and isinstance(keyword.value, ast.Constant)
+                and isinstance(keyword.value.value, str)
+            ):
+                found.add(keyword.value.value)
+    return found
+
+
+def test_the_field_vocabulary_matches_the_modules_own_raise_sites() -> None:
+    """THE VOCABULARY IS DERIVED, NOT TRANSCRIBED, and asserted BOTH ways.
+
+    A name in the set that no site raises is dead vocabulary; a name raised
+    that the set does not hold would be refused at runtime and turn a parse
+    failure into a ValueError. Equality is what keeps the closed set honest,
+    and it is what makes a new raise site a deliberate decision.
+    """
+    raised = _field_arguments_in(Path(chunks.__file__).read_text(encoding="utf-8"))
+    assert raised, "no field literal found at any raise site - this arm is measuring nothing"
+    assert raised == set(chunks.FIELD_NAMES), (
+        f"raised but not in the vocabulary: {sorted(raised - set(chunks.FIELD_NAMES))}; "
+        f"in the vocabulary but never raised: {sorted(set(chunks.FIELD_NAMES) - raised)}"
+    )
+
+
+def test_a_planted_field_name_is_refused_before_it_reaches_the_message() -> None:
+    """THE PLANTED-MARKER REFUSAL that ``clockspeed/save/world.py`` claims exists.
+
+    ``field`` is the only parameter of this taxonomy that is text. Before
+    CS-852 this construction SUCCEEDED and the planted value rendered through
+    ``str()`` and ``repr()`` - ``BaseException`` renders ``args`` on both.
+    """
+    with pytest.raises(ValueError, match="is not one of the"):
+        chunks.ChunkError(chunks.REASON_BAD_MAGIC, field=_PLANTED_FIELD, offset=0)
+
+
+def test_the_refusal_does_not_echo_the_name_it_rejected() -> None:
+    """The rejected value is the thing under suspicion, so it may not be echoed.
+
+    A refusal that quoted the name it refused would be the disclosure the gate
+    exists to prevent, arriving through the gate itself.
+    """
+    with pytest.raises(ValueError, match="is not one of the") as caught:
+        chunks.ChunkError(chunks.REASON_BAD_MAGIC, field=_PLANTED_FIELD, offset=0)
+    rendered = str(caught.value) + repr(caught.value)
+    assert _PLANTED_FIELD not in rendered
+    assert str(len(chunks.FIELD_NAMES)) in rendered
+
+
+def test_every_subclass_inherits_the_refusal() -> None:
+    """The four subclasses ship no ``__init__``, so the base is what governs them.
+
+    A gate applied to the base only helps if nothing bypasses it, and every
+    raise site in this module builds a SUBCLASS rather than the base.
+    """
+    for cls in (
+        chunks.ChunkFramingError,
+        chunks.ChunkTruncatedError,
+        chunks.ChunkDecompressError,
+        chunks.ChunkBudgetExceededError,
+    ):
+        with pytest.raises(ValueError, match="is not one of the"):
+            cls(chunks.REASON_BAD_MAGIC, field=_PLANTED_FIELD, offset=0)
+
+
+def test_a_legitimate_field_name_still_constructs() -> None:
+    """THE NEGATIVE HALF. A gate that refused everything would pass the arms above.
+
+    Without this, replacing the membership test with an unconditional raise
+    would satisfy every refusal assertion in this section.
+    """
+    for name in sorted(chunks.FIELD_NAMES):
+        error = chunks.ChunkError(chunks.REASON_BAD_MAGIC, field=name, offset=0)
+        assert error.field == name

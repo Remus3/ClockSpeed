@@ -210,9 +210,27 @@ non-negotiable 12 governs.
 **It is safe here only because every sibling already guarantees its exception
 text is clean** - a field name from a closed vocabulary, a byte offset, an
 expected and an actual length, a version scalar, a fixed reason, and nothing
-else. ``header.py``, ``chunks.py``, ``objects.py`` and ``usmap.py`` each state
-that guarantee and each pin it with a planted-marker test;
-``workdir.py`` renders a path only through ``locate.redact()``. **Weakening any
+else. ``header.py``, ``chunks.py``, ``objects.py`` and ``usmap.py`` each ENFORCE
+the closed vocabulary at runtime: each declares ``FIELD_NAMES`` and routes the
+field through ``_checked_field``, which refuses anything outside it before a
+message exists. ``workdir.py`` renders a path only through ``locate.redact()``.
+
+WHAT IS PINNED BEYOND THAT DIFFERS BY MODULE, and the difference is recorded
+here rather than averaged into one reassuring sentence. ``header.py`` and
+``objects.py`` plant markers in the PARSED BYTES and assert they reach no
+exception surface on any failure path, which is the strongest form; neither has
+a test that plants a value outside the vocabulary and asserts the refusal.
+``chunks.py`` has that refusal test, and additionally pins its attribute set,
+its reason constants and its rendering, but plants nothing in its bytes.
+``usmap.py`` has the refusal test and nothing further, so it is the WEAKEST of
+the four - it also reads an INSTALL file rather than a save, which is why its
+field vocabulary is the largest and reaches the taxonomy through a reader
+parameter rather than as a literal at the raise site.
+
+AN EARLIER WORDING OF THIS PARAGRAPH SAID ALL FOUR PINNED THE GUARANTEE WITH A
+PLANTED-MARKER TEST. That was false when written and stayed false: two of the
+four enforced nothing at all, and this paragraph was the stated justification
+for every ``raise ... from exc`` below it (CS-852). **Weakening any
 one of those taxonomies silently converts every wrapped error here into a
 leak**, and this paragraph is the record of what that guarantee is holding up,
 so nobody relaxes one without seeing the load it carries.

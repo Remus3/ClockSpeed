@@ -1324,10 +1324,10 @@ def test_a_planted_marker_reaches_args_on_a_synthetic_error() -> None:
 #: an annotation, and cross-checked against the derivation by
 #: ``test_every_governing_class_with_an_at_site_channel_is_forced``.
 FORCED_AT_SITES: Final[dict[str, tuple[type[Exception], str, dict[str, object]]]] = {
-    "clockspeed/save/chunks.py::ChunkError::field": (
+    "clockspeed/save/chunks.py::ChunkError::reason": (
         ChunkError,
-        "field",
-        {"reason": REASON_BAD_MAGIC, "offset": 0},
+        "reason",
+        {"field": "magic", "offset": 0},
     ),
     "clockspeed/save/header.py::HeaderReadError::reason": (
         HeaderReadError,
@@ -1339,10 +1339,10 @@ FORCED_AT_SITES: Final[dict[str, tuple[type[Exception], str, dict[str, object]]]
         "reason",
         {"field": "object_count", "offset": 0},
     ),
-    "clockspeed/save/usmap.py::UsmapFormatError::field": (
+    "clockspeed/save/usmap.py::UsmapFormatError::reason": (
         UsmapFormatError,
-        "field",
-        {"offset": 0, "reason": "the file ends before this field"},
+        "reason",
+        {"field": "magic", "offset": 0},
     ),
     "clockspeed/save/world.py::WorldLoadError::stage": (
         WorldLoadError,
@@ -1356,30 +1356,48 @@ FORCED_AT_SITES: Final[dict[str, tuple[type[Exception], str, dict[str, object]]]
 #: text is part of the record because two DIFFERENT vocabularies are in play
 #: and a single expected message would let one of them pass on the other's
 #: error.
-FORCED_VOCABULARY: Final[dict[str, tuple[type[Exception], str, dict[str, object], str]]] = {
+FORCED_VOCABULARY: Final[dict[str, tuple[type[Exception], str, dict[str, object], str, str]]] = {
+    "clockspeed/save/chunks.py::ChunkError::field": (
+        ChunkError,
+        "field",
+        {"reason": REASON_BAD_MAGIC, "offset": 0},
+        "field name is not one of the",
+        "magic",
+    ),
     "clockspeed/save/header.py::HeaderFormatError::field": (
         HeaderFormatError,
         "field",
         {"offset": 0, "reason": REASON_DECLARED_LENGTH_ABOVE_CAP},
         "field name is not one of the",
+        "header_version",
     ),
     "clockspeed/save/header.py::HeaderFormatError::reason": (
         HeaderFormatError,
         "reason",
         {"field": "header_version", "offset": 0},
         "reason is not one of this module's fixed format reasons",
+        REASON_DECLARED_LENGTH_ABOVE_CAP,
     ),
     "clockspeed/save/header.py::HeaderTruncatedError::field": (
         HeaderTruncatedError,
         "field",
         {"offset": 0, "needed": 4, "available": 0},
         "field name is not one of the",
+        "header_version",
+    ),
+    "clockspeed/save/usmap.py::UsmapFormatError::field": (
+        UsmapFormatError,
+        "field",
+        {"offset": 0, "reason": "the file ends before this field"},
+        "field name is not one of the",
+        "magic",
     ),
     "clockspeed/save/objects.py::ObjectError::field": (
         ObjectError,
         "field",
         {"reason": "extends past the end of the supplied body", "offset": 0},
         "field name is not one of the",
+        "object_count",
     ),
 }
 
@@ -1412,7 +1430,7 @@ def test_a_channel_narrowed_by_a_vocabulary_refuses_a_planted_marker(key: str) -
     The static rule sees a membership test in the syntax tree. This confirms
     the test actually RUNS, on the shipped class, before the message exists.
     """
-    kind, channel, rest, refusal = FORCED_VOCABULARY[key]
+    kind, channel, rest, refusal, _ = FORCED_VOCABULARY[key]
     with pytest.raises(ValueError, match=re.escape(refusal)):
         kind(**{channel: MARKER}, **rest)
 
@@ -1442,13 +1460,12 @@ def test_a_vocabulary_subject_is_refused_on_the_marker_and_not_on_its_neighbours
     value has to SUCCEED, which is what pins the refusal on the planted
     channel rather than on the rest of the call.
     """
-    kind, channel, rest, _ = FORCED_VOCABULARY[key]
-    legitimate = {
-        "field": {"clockspeed/save/objects.py": "object_count"}.get(
-            key.split("::", 1)[0], "header_version"
-        ),
-        "reason": REASON_DECLARED_LENGTH_ABOVE_CAP,
-    }[channel]
+    # THE LEGITIMATE VALUE IS PART OF THE RECORD, not looked up by module.
+    # Four vocabularies are now in play and they do not share a member:
+    # "header_version" is legitimate to the header parser and would be
+    # REFUSED by chunks and usmap, which would have made this negative half
+    # pass for the wrong reason.
+    kind, channel, rest, _, legitimate = FORCED_VOCABULARY[key]
     exc = kind(**{channel: legitimate}, **rest)
     assert str(exc), f"{key} built cleanly from legitimate arguments but rendered nothing"
 

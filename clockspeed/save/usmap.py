@@ -118,6 +118,7 @@ from clockspeed.data.locate import redact, resolve_game_dir
 
 __all__ = [
     "COMPRESSION_NONE",
+    "FIELD_NAMES",
     "MAX_KNOWN_PROPERTY_TYPE",
     "MAX_KNOWN_VERSION",
     "USMAP_MAGIC",
@@ -223,9 +224,87 @@ _REASON_COUNT_RANGE: Final = "the declared count is outside the supported range"
 _REASON_UNREADABLE: Final = "the mapping file could not be read"
 
 
+#: Every field name this module may report. THE ONE PARAMETER OF THE
+#: TAXONOMY THAT IS TEXT, so it is the only one that could carry a decoded
+#: value into a message, and :func:`_checked_field` is what stops it.
+#:
+#: TWO HOPS, AND THAT IS WHY THIS SET IS LARGER THAN THE SIBLING PARSERS'.
+#: ``_Reader`` raises with ``field=field``, so the closed set is every literal
+#: handed to a reader primitive as well as every one at a raise site.
+#: ``tests/save/test_usmap.py`` derives both hops and asserts the two agree.
+FIELD_NAMES: Final = frozenset(
+    {
+        "body",
+        "compressed_size",
+        "compression_method",
+        "custom_version_count",
+        "custom_versions",
+        "decompressed_size",
+        "enum_count",
+        "enum_member_count",
+        "enum_member_index",
+        "enum_name_index",
+        "file_version_ue4",
+        "file_version_ue5",
+        "has_versioning",
+        "inner_property_type",
+        "key_property_type",
+        "magic",
+        "name",
+        "name_count",
+        "name_length",
+        "network_compatible_changelist",
+        "property_array_size",
+        "property_descriptor_depth",
+        "property_name_index",
+        "property_slot",
+        "property_type",
+        "property_type_name_index",
+        "schema_count",
+        "schema_name_index",
+        "schema_property_count",
+        "schema_serializable_count",
+        "schema_super_index",
+        "value_property_type",
+        "version",
+    }
+)
+
+
 # ---------------------------------------------------------------------------
 # Errors
 # ---------------------------------------------------------------------------
+
+
+def _checked_field(name: str) -> str:
+    """Confirm a field name is in the closed vocabulary before it enters a message.
+
+    The static half of the taxonomy gate proves the parameter is a ``str``.
+    This is the runtime half: it proves the ``str`` was drawn from
+    :data:`FIELD_NAMES`, so the one parameter allowed to be text cannot smuggle
+    a decoded value into an error message.
+
+    Mirrors ``clockspeed/save/objects.py``. This module is the WEAKER case
+    of the four parsers: its field name reaches the taxonomy as a
+    PARAMETER threaded through ``_Reader``, never as a literal at the
+    raise site, so nothing local to the raise made it a closed set.
+
+    Args:
+        name: The candidate field name.
+
+    Returns:
+        ``name``, unchanged.
+
+    Raises:
+        ValueError: The name is not in :data:`FIELD_NAMES`. The message states
+            the count of known names rather than echoing the rejected value,
+            because the rejected value is exactly the thing under suspicion.
+    """
+    if name not in FIELD_NAMES:
+        raise ValueError(
+            f"field name is not one of the {len(FIELD_NAMES)} names this module may report"
+        )
+    return name
 
 
 class UsmapError(Exception):
@@ -258,12 +337,12 @@ class UsmapFormatError(UsmapError):
             expected: Bytes or entries required, when that is the point.
             actual: Bytes or entries present, when that is the point.
         """
-        self.field = field
+        self.field = _checked_field(field)
         self.offset = offset
         self.reason = reason
         self.expected = expected
         self.actual = actual
-        message = f"usmap field {field} at byte {offset}: {reason}"
+        message = f"usmap field {self.field} at byte {offset}: {reason}"
         if expected is not None and actual is not None:
             message = f"{message} (expected {expected}, present {actual})"
         super().__init__(message)

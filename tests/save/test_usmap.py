@@ -3570,3 +3570,94 @@ _EXEMPT_LIBRARY_REACH: Final[Mapping[str, str]] = MappingProxyType(
         ),
     }
 )
+
+
+# ---------------------------------------------------------------------------
+# CS-852 - the field vocabulary gate
+#
+# The same guarantee ``clockspeed/save/world.py`` records for the sibling
+# parsers. This module is the WEAKER case of the four: its field name is not a
+# literal at the raise site but a parameter threaded from the reader
+# primitives, so the closed set spans two hops.
+# ---------------------------------------------------------------------------
+
+#: A value no field name could be. Obviously synthetic.
+_PLANTED_FIELD: Final = "PLANTED_CS852_FIELD_zzz"
+
+
+def _usmap_field_arguments() -> set[str]:
+    """Every string literal this module hands to a ``field`` parameter.
+
+    TWO HOPS, DERIVED. ``UsmapFormatError`` is raised inside ``_Reader._take``
+    with ``field=field``, so reading the raise sites alone finds a parameter
+    rather than a name. The functions that TAKE a ``field`` parameter are found
+    first, then every literal any call hands to one of them.
+
+    Returns:
+        The literal field names reaching the taxonomy.
+    """
+    tree = ast.parse(Path(usmap.__file__).read_text(encoding="utf-8"))
+    takers: dict[str, list[str]] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        positional = [a.arg for a in (*node.args.posonlyargs, *node.args.args)]
+        keyword_only = [a.arg for a in node.args.kwonlyargs]
+        if "field" in positional or "field" in keyword_only:
+            takers[node.name] = positional
+
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        callee = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+        bound = None
+        for keyword in node.keywords:
+            if keyword.arg == "field":
+                bound = keyword.value
+        if bound is None and callee in takers:
+            order = takers[callee]
+            if "field" in order:
+                index = order.index("field") - (1 if order and order[0] == "self" else 0)
+                if 0 <= index < len(node.args):
+                    bound = node.args[index]
+        if isinstance(bound, ast.Constant) and isinstance(bound.value, str):
+            found.add(bound.value)
+    return found
+
+
+def test_the_field_vocabulary_matches_every_literal_the_module_threads() -> None:
+    """THE VOCABULARY IS DERIVED ACROSS BOTH HOPS, and asserted BOTH ways.
+
+    A literal handed to ``u32`` reaches the message through ``_take``, so the
+    closed set has to hold it or a real parse failure would be replaced by a
+    ValueError from the gate.
+    """
+    threaded = _usmap_field_arguments()
+    assert threaded, "no field literal found anywhere - this arm is measuring nothing"
+    assert threaded == set(usmap.FIELD_NAMES), (
+        f"threaded but not in the vocabulary: {sorted(threaded - set(usmap.FIELD_NAMES))}; "
+        f"in the vocabulary but never threaded: {sorted(set(usmap.FIELD_NAMES) - threaded)}"
+    )
+
+
+def test_a_planted_field_name_is_refused_before_it_reaches_the_message() -> None:
+    """THE PLANTED-MARKER REFUSAL that ``clockspeed/save/world.py`` claims exists."""
+    with pytest.raises(ValueError, match="is not one of the"):
+        usmap.UsmapFormatError(field=_PLANTED_FIELD, offset=0, reason="truncated")
+
+
+def test_the_refusal_does_not_echo_the_name_it_rejected() -> None:
+    """The rejected value is the thing under suspicion, so it may not be echoed."""
+    with pytest.raises(ValueError, match="is not one of the") as caught:
+        usmap.UsmapFormatError(field=_PLANTED_FIELD, offset=0, reason="truncated")
+    rendered = str(caught.value) + repr(caught.value)
+    assert _PLANTED_FIELD not in rendered
+    assert str(len(usmap.FIELD_NAMES)) in rendered
+
+
+def test_a_legitimate_field_name_still_constructs() -> None:
+    """THE NEGATIVE HALF. A gate that refused everything would pass the arms above."""
+    for name in sorted(usmap.FIELD_NAMES):
+        error = usmap.UsmapFormatError(field=name, offset=0, reason="truncated")
+        assert error.field == name
