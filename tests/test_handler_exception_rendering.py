@@ -40,14 +40,30 @@ _renders_the_chained_context`` runs both halves on every run so the distinction
 cannot rot back into "the except-target form leaks".
 
 THE TWO MECHANISMS THAT REALLY ARE NAME-KEYED are FRAME_ARGUMENT and
-REWRITTEN_ASSERT, and they behave oppositely on this tree. No handler anywhere
-reads its binding inside an ``assert`` - that population is EMPTY and is
-asserted empty with a detector proven able to find a planted one, because an
-empty population satisfies every zero and this item's own history is the proof:
-the CS-851 census read ZERO named handlers for many sessions while the tree held
-more than a hundred, because nothing in it could match ``ast.Try``. The
+REWRITTEN_ASSERT, and they behave oppositely on this tree. The
 FRAME_ARGUMENT population is NOT empty, and it is the finding that keeps this
-module from grading nothing.
+module from grading nothing. The REWRITTEN_ASSERT population measures ZERO, and
+WHAT THAT ZERO MEANS IS NARROWER THAN ITS NAME - read the boundary below before
+quoting it. An empty population satisfies every zero, and this item's own
+history is the proof: the CS-851 census read ZERO named handlers for many
+sessions while the tree held more than a hundred, because nothing in it could
+match ``ast.Try``.
+
+WHAT THE REWRITTEN_ASSERT ZERO IS, EXACTLY. It is a SYNTACTIC result over the
+shipped AST: no ``except`` clause in the tree has an ``assert`` in its enclosing
+scope reading the bound name or a local aliased from it. It is NOT the claim
+that no assert can render a caught exception. Four constructs were measured to
+render while defeating an earlier, narrower version of this detector - an alias
+before the assert, a ``*[exc]`` unpack, an alias then a hand-off, and a call
+through a module-level name that shadows a builtin - and each is followed or
+counted now. There is no argument that the list is complete. A construct nobody
+has thought of renders and goes uncounted, and the zero would look identical.
+
+THE ALIAS IS FOLLOWED BECAUSE THE TREE SHIPS IT. ``last = exc`` inside a retry
+handler, with the object used after the loop, occurs in ``clockspeed/data/
+version.py`` and ``clockspeed/save/workdir.py``. A detector keyed on the bound
+name alone reported a clean sheet over a construct in live code, which is why
+``carriers`` is a measured field rather than the handler's name.
 
 THE SANCTIONED CS-205 REMEDY CREATES THE FRAME_ARGUMENT EXPOSURE, which is the
 cross-item result worth carrying. ``tests/test_exception_rendering.py`` asks
@@ -87,10 +103,32 @@ WHAT THIS MODULE DOES NOT GRADE, stated as a boundary rather than implied away.
   THE LOCALS CHANNEL. CS-851 owns it, and the ``-l`` arm here exists only to
   show that this channel is not it.
 
+  WHETHER PERSONAL DATA SPECIFICALLY REACHES A REPORT. THIS IS THE LIMITATION
+  THAT MATTERS MOST AND IT IS STATED RATHER THAN IMPLIED AWAY. Every arm runs
+  in a sandbox with ``--rootdir`` and ``cwd`` set to a temporary directory
+  OUTSIDE the repo, so neither ``pyproject.toml`` nor ``tests/conftest.py``
+  loads - a sandbox header carries no ``configfile:`` line where an in-repo run
+  carries one. The real pipeline has a redactor in front of it:
+  ``tests/conftest.py``'s CS-428 ``pytest_runtest_makereport`` wrapper, whose
+  own docstring names frame arguments as a channel ``longrepr`` carries, and
+  which rewrites home paths and the account name. So what these arms prove is
+  that AN ARBITRARY STRING REACHES THE REPORT. They do NOT prove that personal
+  data does, and a green run here is not a privacy result. Measuring through
+  the configured pipeline is unfinished work, recorded rather than claimed:
+  doing it needs the fixtures to sit inside the repo, where every tree-wide
+  guard would enumerate them - ``tracked_python_files`` lists untracked files
+  too - so the sandbox would perturb the very census this module derives.
+
 THE MARKERS ARE INVENTED ASCII TOKENS. Nothing forced by this module plants a
 real path, account id or world name, and every fixture binds its marker at
 MODULE scope so that the source echo prints the identifier rather than the
 value - the channel CS-850 measured while building its own forced arms.
+
+WHAT IS RECORDED AS STILL UNSOUND, so it is not rediscovered as a surprise.
+:func:`_hands_over` skips the builtin filter whenever the callee is an
+ATTRIBUTE, so a C-implemented method call is counted although it gets no Python
+frame. That over-reports, which is the safe direction, and every one of the
+callees it counts on this tree today is a Python function.
 """
 
 from __future__ import annotations
@@ -148,6 +186,15 @@ class Arm:
         twin: For a quiet arm, the key of the rendering arm it differs from by
             one construct. A quiet arm with no twin proves nothing - absence is
             satisfied by a fixture that never planted anything.
+        discriminator: The construct that differs, as text. IT IS NOT
+            DECORATION: repointing ``twin`` at an unrelated rendering arm
+            survived two mutation passes, because nothing checked the
+            "by one construct" half of the claim - the exact "prose wearing a
+            type" defect this module says it closed. The string must appear in
+            the twin's source and be absent from this one, so a repointed twin
+            fails the containment rather than passing quietly. A line-count
+            threshold cannot do this job: the closest NON-twin pair in this set
+            also differs by a single line.
     """
 
     source: str
@@ -155,6 +202,7 @@ class Arm:
     mechanism: str
     binds: bool
     twin: str | None = None
+    discriminator: tuple[str, str] | None = None
 
 
 def _module(body: str) -> str:
@@ -324,6 +372,7 @@ ARMS: Final[Mapping[str, Arm]] = MappingProxyType(
             mechanism=NOTHING,
             binds=True,
             twin="bare-reraise",
+            discriminator=(" from None", ""),
         ),
         "binding-not-handed-over": Arm(
             source=_module(
@@ -337,6 +386,7 @@ ARMS: Final[Mapping[str, Arm]] = MappingProxyType(
             mechanism=NOTHING,
             binds=True,
             twin="binding-handed-to-a-failing-call",
+            discriminator=('helper("inert")', "helper(exc)"),
         ),
         "assert-after-the-handler": Arm(
             source=_module(
@@ -352,6 +402,10 @@ ARMS: Final[Mapping[str, Arm]] = MappingProxyType(
             mechanism=NOTHING,
             binds=True,
             twin="chain-with-a-binding",
+            discriminator=(
+                "        seen = 1\n    count = 0\n    assert count == 1\n",
+                "        count = 0\n        assert count == 1\n",
+            ),
         ),
         "binding-reduced-inside-the-handler": Arm(
             source=_module(
@@ -366,20 +420,48 @@ ARMS: Final[Mapping[str, Arm]] = MappingProxyType(
             mechanism=NOTHING,
             binds=True,
             twin="object-kept-past-the-handler",
+            discriminator=(
+                "        count = len(exc.args)\n    assert count == 0\n",
+                "        kept = exc\n    assert kept.args == ()\n",
+            ),
         ),
-        "nothing-carried-through-the-binding": Arm(
+        # A REDUCTION INSIDE THE ASSERTED EXPRESSION DOES NOT HIDE ANYTHING, and
+        # this arm exists because the author assumed it did. pytest's rewriter
+        # reprs a call's ARGUMENTS as well as its result, so the comparison line
+        # reads "assert 15 == 0" while the explanation beneath it prints
+        # "where 15 = len('<the marker>')". Measured, not reasoned - it was
+        # declared quiet and the module reddened.
+        "reduction-inside-the-asserted-expression": Arm(
             source=_module(
-                "def test_it() -> None:\n"
+                _ATTRIBUTE_CARRIER + "def test_it() -> None:\n"
                 "    try:\n"
-                '        raise ValueError("inert")\n'
-                "    except ValueError as exc:\n"
-                "        count = len(MARK)\n"
+                "        raise Boom(MARK)\n"
+                "    except Boom as exc:\n"
+                "        assert len(exc.secret) == 0\n"
+            ),
+            renders=True,
+            mechanism=REWRITTEN_ASSERT,
+            binds=True,
+        ),
+        # REDUCED BEFORE THE ASSERT - CS-850's own remedy, and the only form
+        # measured to close this channel. One construct away from its twin.
+        "binding-reduced-before-the-assert": Arm(
+            source=_module(
+                _ATTRIBUTE_CARRIER + "def test_it() -> None:\n"
+                "    try:\n"
+                "        raise Boom(MARK)\n"
+                "    except Boom as exc:\n"
+                "        count = len(exc.secret)\n"
                 "        assert count == 0\n"
             ),
             renders=False,
             mechanism=NOTHING,
             binds=True,
-            twin="binding-read-in-an-assert",
+            twin="reduction-inside-the-asserted-expression",
+            discriminator=(
+                "        count = len(exc.secret)\n        assert count == 0\n",
+                "        assert len(exc.secret) == 0\n",
+            ),
         ),
     }
 )
@@ -464,31 +546,85 @@ BLOCK_BREAK: Final = re.compile(r"^(_{5,}|={5,}|-{5,})")
 CONTEXT_SENTENCE: Final = "During handling of the above exception"
 CAUSE_SENTENCE: Final = "The above exception was the direct cause"
 
+#: The crash line that opens a rendered exception - ``E   ValueError: ...``, a
+#: dotted type included. The colon must follow the name immediately, so an
+#: explanation line such as ``E   Left contains one more item: '...'`` does NOT
+#: match and is read as a continuation of the assertion above it.
+EXCEPTION_HEADER: Final = re.compile(r"^E\s+([A-Za-z_][A-Za-z_0-9.]*):\s")
 
-def _attribute_one(lines: list[str], token: str) -> str:
-    """Which mechanism carried one arm's marker into the report.
+
+#: Where pytest stops rendering failures and starts repeating them. The ``-ra``
+#: summary reprints a crash line, so counting it as a second rendering would
+#: report one mechanism twice.
+SUMMARY_HEADING: Final = "short test summary info"
+
+
+def _body_lines(report: str) -> list[str]:
+    """The failure bodies, with the repeated short summary cut off.
+
+    Args:
+        report: pytest's combined output.
+
+    Returns:
+        The lines up to the summary heading.
+    """
+    lines = report.splitlines()
+    end = next((index for index, line in enumerate(lines) if SUMMARY_HEADING in line), len(lines))
+    return lines[:end]
+
+
+def _attribute_all(lines: list[str], token: str) -> frozenset[str]:
+    """EVERY mechanism that carried one arm's marker into the report.
 
     ATTRIBUTED FROM THE RENDERED SHAPE, not from the fixture. A label nothing
     compares against a measurement is prose in a field, and this module shipped
     exactly that until a mutation of the label survived a full green run.
 
+    A SET RATHER THAN THE FIRST HIT. Reading only the first line holding the
+    token recorded one mechanism for a handler that fired two, and silently: the
+    second rendering had no way to redden anything. No shipped arm fires two
+    today, which is a measurement this returns rather than an assumption it
+    builds in.
+
     Args:
-        lines: The report, split into lines.
+        lines: The report bodies, split into lines.
         token: The arm's marker.
 
     Returns:
-        One of the mechanism labels, or :data:`NOTHING` when the marker never
-        reached the report.
+        The mechanism labels, or ``{NOTHING}`` when the marker never reached the
+        report.
     """
-    hit = next((index for index, line in enumerate(lines) if token in line), None)
-    if hit is None:
-        return NOTHING
-    line = lines[hit].strip()
+    found = {_attribute_line(lines, index) for index, line in enumerate(lines) if token in line}
+    return frozenset(found) if found else frozenset({NOTHING})
+
+
+def _attribute_line(lines: list[str], index: int) -> str:
+    """Which mechanism one token-bearing line represents.
+
+    Args:
+        lines: The report bodies.
+        index: The line holding the token.
+
+    Returns:
+        A mechanism label.
+    """
+    line = lines[index].strip()
     if FRAME_ARGUMENT_LINE.match(line):
         return FRAME_ARGUMENT
     if not line.startswith("E "):
         return "unattributed"
-    return REWRITTEN_ASSERT if "assert" in line else _chained_kind(lines[hit + 1 :])
+    # KEYED ON THE EXCEPTION HEADER, NOT ON A KEYWORD, because an assertion
+    # rendering spans several lines and only its FIRST says "assert". pytest
+    # prints "assert 15 == 0" and then "+ where 15 = len('<marker>')", or
+    # "Left contains one more item: '<marker>'", beneath it - and the line that
+    # actually carries the value names neither a keyword nor an exception type.
+    # Matching on words filed those continuations as UNCAUGHT: a rewriter
+    # rendering attributed to the chaining mechanism, which is the wrong remedy.
+    # Both misattributions were caught by the module reddening, not by review.
+    header = EXCEPTION_HEADER.match(line)
+    if header is None or header.group(1) == "AssertionError":
+        return REWRITTEN_ASSERT
+    return _chained_kind(lines[index + 1 :])
 
 
 def _chained_kind(following: list[str]) -> str:
@@ -511,17 +647,17 @@ def _chained_kind(following: list[str]) -> str:
     return UNCAUGHT
 
 
-def _attributed(report: str) -> dict[str, str]:
-    """Every arm's rendering, attributed to the mechanism that carried it.
+def _attributed(report: str) -> dict[str, frozenset[str]]:
+    """Every arm's rendering, attributed to the mechanisms that carried it.
 
     Args:
         report: pytest's combined output over the arm sandbox.
 
     Returns:
-        Arm key to mechanism label.
+        Arm key to the set of mechanism labels measured for it.
     """
-    lines = report.splitlines()
-    return {key: _attribute_one(lines, arm_token(key)) for key in ARMS}
+    lines = _body_lines(report)
+    return {key: _attribute_all(lines, arm_token(key)) for key in ARMS}
 
 
 @dataclass(frozen=True)
@@ -535,13 +671,15 @@ class RunResult:
     Attributes:
         exit_code: pytest's own exit code from the sandbox.
         rendered: Arm key to whether its marker reached the report.
-        attributed: Arm key to the mechanism that carried it.
+        attributed: Arm key to the SET of mechanisms measured for it. A set,
+            because a handler can fire two at once and recording only the first
+            hides the second with nothing able to redden.
         failed: How many arms pytest reported as failing.
     """
 
     exit_code: int
     rendered: Mapping[str, bool]
-    attributed: Mapping[str, str]
+    attributed: Mapping[str, frozenset[str]]
     failed: int
 
 
@@ -609,6 +747,31 @@ def test_every_quiet_arm_names_a_rendering_twin():
     assert unknown == ()
 
 
+def test_every_twin_is_one_stated_edit_away_from_its_quiet_arm():
+    """The "differs by one construct" half of the twin claim, made checkable.
+
+    REPOINTING ``twin`` AT AN UNRELATED RENDERING ARM SURVIVED TWO MUTATION
+    PASSES while every arm stayed green, because the twin was only checked to
+    exist and to render. An EXACT TRANSFORM is what closes that: applying the
+    stated edit to the quiet source must reproduce the twin's source byte for
+    byte, so a repointed twin cannot match. A line-count threshold was measured
+    and rejected - the closest NON-twin pair in this set also differs by one
+    line, so no threshold separates them.
+    """
+    missing = tuple(
+        sorted(key for key, arm in ARMS.items() if arm.twin is not None and not arm.discriminator)
+    )
+    assert missing == ()
+    unproven: list[str] = []
+    for key, arm in ARMS.items():
+        if arm.twin is None or arm.discriminator is None:
+            continue
+        old, new = arm.discriminator
+        if arm.source.replace(old, new) != ARMS[arm.twin].source:
+            unproven.append(key)
+    assert tuple(sorted(unproven)) == ()
+
+
 # ---------------------------------------------------------------------------
 # The mechanism, measured under the flags this project actually ships.
 # ---------------------------------------------------------------------------
@@ -637,7 +800,11 @@ def test_every_rendering_is_attributed_to_the_mechanism_it_declares(
     must not rot.
     """
     disagreed = tuple(
-        sorted(key for key, arm in ARMS.items() if default_run.attributed[key] != arm.mechanism)
+        sorted(
+            key
+            for key, arm in ARMS.items()
+            if default_run.attributed[key] != frozenset({arm.mechanism})
+        )
     )
     assert disagreed == ()
 
@@ -735,13 +902,43 @@ def test_the_binding_channel_leaks_with_an_inert_message(
 ):
     """Q1: can this channel leak when the exception's MESSAGE carries nothing?
 
-    Both arms raise an exception whose ``args`` are the literal "inert", so the
-    chained block prints nothing of interest and the producer side is clean.
+    ONLY THE ARMS BUILT ON THE ATTRIBUTE CARRIER ANSWER THIS, and an earlier
+    version of this arm got it wrong in a way worth recording.
+    ``binding-handed-to-a-failing-call`` raises ``Boom(MARK)`` on a bare
+    ``Exception`` subclass, so the marker IS its ``args`` - and the guard that
+    was supposed to catch that searched the source for the substring
+    ``"inert"``, which the unrelated helper text satisfies. A substring of the
+    fixture is not a property of the exception.
+
+    The carrier below is checked structurally instead, by
+    ``test_the_attribute_carrier_keeps_the_marker_out_of_args``: it hands
+    ``super().__init__`` a literal and nothing else, so no argument can reach
+    ``args`` whatever is passed in.
     """
     measured = default_run.rendered
-    for key in ("binding-read-in-an-assert", "binding-handed-to-a-failing-call"):
-        assert '"inert"' in ARMS[key].source
+    qualifying = tuple(
+        sorted(key for key, arm in ARMS.items() if _ATTRIBUTE_CARRIER in arm.source and arm.renders)
+    )
+    assert len(qualifying) > 0
+    for key in qualifying:
         assert measured[key]
+        assert default_run.attributed[key] == frozenset({REWRITTEN_ASSERT})
+
+
+def test_the_attribute_carrier_keeps_the_marker_out_of_args():
+    """The carrier the Q1 arms rest on cannot put its argument into ``args``."""
+    tree = ast.parse(_ATTRIBUTE_CARRIER)
+    supers = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "__init__"
+    ]
+    assert len(supers) == 1
+    assert supers[0].args
+    assert all(isinstance(argument, ast.Constant) for argument in supers[0].args)
+    assert not supers[0].keywords
 
 
 def test_the_message_channel_leaks_with_no_named_handler(
@@ -758,16 +955,40 @@ def test_the_message_channel_leaks_with_no_named_handler(
 def test_the_two_channels_are_measured_independent(
     default_run: RunResult,
 ):
-    """The verdict, as a live measurement rather than a sentence.
+    """The verdict, narrower than the one this module first reported.
 
-    Each channel leaks with the other's ingredient removed, so neither item
-    subsumes the other and both are needed.
+    THE HONEST SHAPE OF IT. Q2 is unqualified: the producer leaks with no
+    handler bound anywhere, and that has live instances. Q1 holds ONLY through
+    REWRITTEN_ASSERT reading a NON-ARGS attribute. FRAME_ARGUMENT does not
+    answer it, because a frame argument renders ``repr(exc)`` and a standard
+    exception's repr IS its args - the very content the chained line prints via
+    ``str()``. So the two channels are separable, and the separating construct
+    has ZERO live instances on this tree: every measured leak that a real
+    handler here could produce carries producer content.
+
+    That is weaker than "independent channels, both items needed" and it is
+    what was measured. The consumer-side item earns its keep by naming WHICH
+    construct renders and what closes it, not by carrying content the producer
+    side does not already own.
     """
     measured = default_run.rendered
-    binding_without_message = measured["binding-handed-to-a-failing-call"]
-    message_without_binding = measured["no-handler-anywhere"]
-    assert binding_without_message
-    assert message_without_binding
+    producer_independent = tuple(
+        sorted(
+            key
+            for key, arm in ARMS.items()
+            if _ATTRIBUTE_CARRIER in arm.source
+            and arm.renders
+            and default_run.attributed[key] == frozenset({REWRITTEN_ASSERT})
+        )
+    )
+    assert len(producer_independent) > 0
+    assert measured["no-handler-anywhere"]
+    # The frame-argument arm is NOT evidence for Q1: its marker is in args.
+    assert FRAME_ARGUMENT not in {
+        mechanism for key in producer_independent for mechanism in default_run.attributed[key]
+    }
+    live_producer_independent = sum(1 for site in tree_sites() if site.reads_binding_in_an_assert)
+    assert live_producer_independent == 0
 
 
 # ---------------------------------------------------------------------------
@@ -776,18 +997,32 @@ def test_the_two_channels_are_measured_independent(
 
 #: Scopes a handler body does not execute in line. A statement inside a nested
 #: function runs in ITS frame, not the handler's, so it is not this handler's
-#: exposure.
+#: exposure. THE SEED IS FILTERED TOO: an adversary measured that seeding the
+#: walk with ``list(handler.body)`` unfiltered descended into a ``def`` written
+#: directly in a handler body while skipping the same ``def`` one level deeper,
+#: so the rule depended on nesting depth rather than on scope.
 NESTED_SCOPES: Final = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
 
 #: The three constructs whose escape from a handler body was MEASURED above -
 #: ``escape-from-a-call``, ``bare-reraise`` and ``chain-with-a-binding``. The
 #: set is grounded in those arms rather than in an argument about what can
 #: raise, which would sweep in every attribute access in the tree.
+#:
+#: GRADED MEMBER BY MEMBER, not by a population floor.
+#: ``test_each_escaping_construct_is_classified_on_its_own`` plants one source
+#: per member, because a threshold over the pooled population is met by its
+#: strongest member: reducing this tuple to ``(ast.Raise,)`` collapsed the
+#: population by 77 per cent and left every arm green.
 ESCAPING_NODES: Final = (ast.Call, ast.Raise, ast.Assert)
 
 #: Names that resolve to a builtin. A builtin callee gets no Python frame, so
 #: ``type(exc)`` cannot render an argument. ``str(exc)`` is a real leak on
 #: CS-205's channel and is graded there, not here.
+#:
+#: A MODULE THAT BINDS ONE OF THESE NAMES ITSELF DEFEATS THAT REASONING, and
+#: the failure direction is the dangerous one - a project ``def format(...)``
+#: reads as a builtin and its hand-off goes uncounted. :func:`_shadowed` is
+#: subtracted per module for that reason.
 BUILTIN_NAMES: Final = frozenset(dir(builtins))
 
 
@@ -802,10 +1037,13 @@ class HandlerSite:
         escape_capable: Whether the body holds a construct measured to escape,
             which is what opens CHAINED_CONTEXT. True for unnamed clauses too -
             the mechanism does not read the binding.
-        reads_binding_in_an_assert: Whether the bound name is read inside an
-            ``assert`` in the body, which opens REWRITTEN_ASSERT.
-        hands_binding_to_a_call: Whether the bound name is passed as an argument
-            to a non-builtin call, which opens FRAME_ARGUMENT.
+        reads_binding_in_an_assert: Whether the binding, OR a local aliased from
+            it, is read inside an ``assert`` anywhere in the enclosing scope.
+            This opens REWRITTEN_ASSERT.
+        hands_binding_to_a_call: Whether the binding or an alias is passed to a
+            non-builtin call, which opens FRAME_ARGUMENT.
+        carriers: Every local measured to hold the caught exception. Always
+            contains the bound name itself when the clause binds one.
     """
 
     module: str
@@ -814,19 +1052,21 @@ class HandlerSite:
     escape_capable: bool
     reads_binding_in_an_assert: bool
     hands_binding_to_a_call: bool
+    carriers: frozenset[str]
 
 
-def _body_nodes(handler: ast.ExceptHandler) -> list[ast.AST]:
-    """Every node in a handler body, NOT descending into a nested scope.
+def _own_nodes(roots: list[ast.stmt]) -> list[ast.AST]:
+    """Every node under these statements that runs in the SAME frame.
 
     Args:
-        handler: The clause.
+        roots: The statements to walk.
 
     Returns:
-        The nodes that run in the handler's own frame.
+        The nodes, nested scopes pruned - the roots themselves included in the
+        pruning, so depth cannot change the answer.
     """
     found: list[ast.AST] = []
-    stack: list[ast.AST] = list(handler.body)
+    stack: list[ast.AST] = [node for node in roots if not isinstance(node, NESTED_SCOPES)]
     while stack:
         node = stack.pop()
         found.append(node)
@@ -836,27 +1076,133 @@ def _body_nodes(handler: ast.ExceptHandler) -> list[ast.AST]:
     return found
 
 
-def _reads_name(node: ast.AST | None, name: str) -> bool:
-    """Whether an expression reads a bare name.
+def _reads_any(node: ast.AST | None, names: frozenset[str]) -> bool:
+    """Whether an expression reads any of these bare names.
 
     Args:
         node: The expression, or None.
-        name: The name to look for.
+        names: The names to look for.
 
     Returns:
-        True when the name is read anywhere inside.
+        True when one is read anywhere inside.
     """
     if node is None:
         return False
-    return any(isinstance(inner, ast.Name) and inner.id == name for inner in ast.walk(node))
+    return any(isinstance(inner, ast.Name) and inner.id in names for inner in ast.walk(node))
 
 
-def _hands_over(nodes: list[ast.AST], name: str) -> bool:
-    """Whether the bound name is passed to a non-builtin call.
+def _carriers(handler: ast.ExceptHandler) -> frozenset[str]:
+    """Every local that holds the caught exception, following aliases.
+
+    THE ALIAS IDIOM IS LIVE IN SHIPPED CODE - ``last = exc`` inside the handler
+    with the object used after it - so a detector keyed on the bound name alone
+    reports a clean sheet over a construct the tree really ships. Followed
+    transitively to a fixed point, because ``a = exc`` then ``b = a`` is one
+    statement further out and the same defect.
+
+    Args:
+        handler: The clause.
+
+    Returns:
+        The bound name plus every alias, or an empty set for an unnamed clause.
+    """
+    if handler.name is None:
+        return frozenset()
+    carriers = {handler.name}
+    for _ in range(len(handler.body) + 1):
+        grown = set(carriers)
+        for node in _own_nodes(list(handler.body)):
+            value: ast.expr | None = None
+            targets: list[ast.expr] = []
+            if isinstance(node, ast.Assign):
+                value, targets = node.value, list(node.targets)
+            elif isinstance(node, (ast.AnnAssign, ast.NamedExpr)) and node.value is not None:
+                value, targets = node.value, [node.target]
+            if not (isinstance(value, ast.Name) and value.id in carriers):
+                continue
+            grown |= {target.id for target in targets if isinstance(target, ast.Name)}
+        if grown == carriers:
+            break
+        carriers = grown
+    return frozenset(carriers)
+
+
+def _shadowed(tree: ast.Module) -> frozenset[str]:
+    """Builtin names this module binds itself, so they are not builtins here.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        The shadowing names.
+    """
+    bound: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            bound.add(node.name)
+        elif isinstance(node, ast.Assign):
+            bound |= {t.id for t in node.targets if isinstance(t, ast.Name)}
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            bound.add(node.target.id)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            bound |= {alias.asname or alias.name.split(".")[0] for alias in node.names}
+    return frozenset(bound & BUILTIN_NAMES)
+
+
+def _call_arguments(node: ast.Call) -> list[ast.expr]:
+    """Every expression handed to a call, unpacking included.
+
+    ``f(*[exc])`` AND ``f(**{"k": exc})`` REACH THE CALLEE'S FRAME exactly as
+    ``f(exc)`` does - both measured to render - and reading only ``node.args``
+    and ``keyword.value`` misses them, because the starred form arrives as
+    ``ast.Starred`` and the double-star as a keyword whose ``arg`` is None.
+
+    WHAT IS DELIBERATELY NOT UNWRAPPED, because widening here silently merges
+    two channels. Only an expression that IS the object counts. ``f(str(exc))``
+    hands the callee a STRING, so the frame renders a message and not the
+    exception - that is CS-205's channel, graded in
+    ``tests/test_exception_rendering.py``. Walking every argument subtree for
+    the name instead took this population from 42 to 92 by absorbing exactly
+    those message-shaped calls.
+
+    Args:
+        node: The call.
+
+    Returns:
+        The expressions that ARE the handed-over object, one container level
+        unwrapped for the two unpacking forms.
+    """
+    passed: list[ast.expr] = []
+    for argument in node.args:
+        passed += _unwrapped(argument.value) if isinstance(argument, ast.Starred) else [argument]
+    for keyword in node.keywords:
+        passed += _unwrapped(keyword.value) if keyword.arg is None else [keyword.value]
+    return passed
+
+
+def _unwrapped(node: ast.expr) -> list[ast.expr]:
+    """One container level of an unpacked argument.
+
+    Args:
+        node: The expression after ``*`` or ``**``.
+
+    Returns:
+        Its elements when it is a literal container, else the expression itself.
+    """
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return list(node.elts)
+    if isinstance(node, ast.Dict):
+        return [value for value in node.values if value is not None]
+    return [node]
+
+
+def _hands_over(nodes: list[ast.AST], carriers: frozenset[str], shadowed: frozenset[str]) -> bool:
+    """Whether a carrier is passed to a call that gets a Python frame.
 
     Args:
         nodes: The handler body's nodes.
-        name: The bound name.
+        carriers: The bound name and its aliases.
+        shadowed: Builtin names this module rebinds.
 
     Returns:
         True when at least one such call exists.
@@ -864,12 +1210,29 @@ def _hands_over(nodes: list[ast.AST], name: str) -> bool:
     for node in nodes:
         if not isinstance(node, ast.Call):
             continue
-        if isinstance(node.func, ast.Name) and node.func.id in BUILTIN_NAMES:
+        func = node.func
+        if isinstance(func, ast.Name) and func.id in BUILTIN_NAMES and func.id not in shadowed:
             continue
-        passed = [*node.args, *(keyword.value for keyword in node.keywords)]
-        if any(isinstance(arg, ast.Name) and arg.id == name for arg in passed):
+        if any(
+            isinstance(argument, ast.Name) and argument.id in carriers
+            for argument in _call_arguments(node)
+        ):
             return True
     return False
+
+
+def _scopes(tree: ast.Module) -> list[ast.AST]:
+    """Every scope that can hold an assert able to read a handler's alias.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        The module and every function definition in it.
+    """
+    return [tree] + [
+        node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
 
 
 def sites_in_source(module: str, source: str) -> list[HandlerSite]:
@@ -879,6 +1242,13 @@ def sites_in_source(module: str, source: str) -> list[HandlerSite]:
     planted shape, so a detector that finds nothing in the tree is told apart
     from a detector that looks for nothing.
 
+    THE ASSERT SEARCH SPANS THE ENCLOSING SCOPE, not the handler body. An alias
+    OUTLIVES the handler - Python deletes the bound name and not what was
+    copied out of it - so ``kept = exc`` inside and ``assert kept.secret == ""``
+    after is a rendering this module measures as one. Searching the whole scope
+    over-approximates, since an assert BEFORE the try cannot read the alias, and
+    over-reporting is the direction that does not hide a disclosure.
+
     Args:
         module: A label for the sites.
         source: Python source.
@@ -886,25 +1256,39 @@ def sites_in_source(module: str, source: str) -> list[HandlerSite]:
     Returns:
         One record per clause.
     """
+    tree = ast.parse(source)
+    shadowed = _shadowed(tree)
+    asserts: dict[int, list[ast.AST]] = {}
+    owner: dict[int, int] = {}
+    for scope in _scopes(tree):
+        body = list(getattr(scope, "body", []))
+        own = _own_nodes(body)
+        asserts[id(scope)] = [node for node in own if isinstance(node, ast.Assert)]
+        for node in own:
+            if isinstance(node, ast.ExceptHandler):
+                owner[id(node)] = id(scope)
+
     sites: list[HandlerSite] = []
-    for node in ast.walk(ast.parse(source)):
+    for node in ast.walk(tree):
         if not isinstance(node, ast.ExceptHandler):
             continue
-        nodes = _body_nodes(node)
-        name = node.name
+        nodes = _own_nodes(list(node.body))
+        carriers = _carriers(node)
+        reachable = asserts.get(owner.get(id(node), id(tree)), [])
         sites.append(
             HandlerSite(
                 module=module,
                 lineno=node.lineno,
-                binds=name is not None,
+                binds=node.name is not None,
                 escape_capable=any(isinstance(item, ESCAPING_NODES) for item in nodes),
-                reads_binding_in_an_assert=name is not None
+                reads_binding_in_an_assert=bool(carriers)
                 and any(
                     isinstance(item, ast.Assert)
-                    and (_reads_name(item.test, name) or _reads_name(item.msg, name))
-                    for item in nodes
+                    and (_reads_any(item.test, carriers) or _reads_any(item.msg, carriers))
+                    for item in reachable
                 ),
-                hands_binding_to_a_call=name is not None and _hands_over(nodes, name),
+                hands_binding_to_a_call=bool(carriers) and _hands_over(nodes, carriers, shadowed),
+                carriers=carriers,
             )
         )
     return sites
@@ -931,10 +1315,44 @@ def test_the_derived_population_agrees_with_the_shipped_census():
     as absent for many sessions - the CS-851 census could not match ``ast.Try``
     at all, so it counted zero while the tree held more than a hundred. No
     number is written down here: both sides are measured on every run.
+
+    THE NUMBER IN THE ITEM NOTE WENT STALE; IT WAS NOT WRONG. Counting named
+    handlers out of git objects at the commit that closed the ``ast.Try`` hole
+    gives exactly the figure ``docs/LEDGER.md`` records, over fewer files than
+    the tree now holds, and the escape-capable subset was a DIFFERENT number
+    then - so the two were never the same measurement wearing one name. The
+    disposition is "derive it, do not quote it", which is what this arm does.
     """
     mine = sum(1 for site in tree_sites() if site.binds)
     theirs = shipped_binding_forms()[EXCEPT_TARGET]
     assert mine == theirs
+
+
+def test_each_escaping_construct_is_classified_on_its_own():
+    """Every member of :data:`ESCAPING_NODES`, planted alone.
+
+    A POPULATION FLOOR IS MET BY ITS STRONGEST MEMBER - see
+    ``memory/pooled-guard-hides-its-worst-member.md``. Reducing that tuple to
+    ``(ast.Raise,)`` collapsed the escape-capable population by 77 per cent and
+    left every arm in this module green, because the only checks over it were
+    "greater than zero". One planted source per member reddens on exactly the
+    member that was dropped, and the two negatives redden if the classifier is
+    forced true.
+    """
+    planted = {
+        "call": ("        g()\n", True),
+        "raise": ("        raise RuntimeError\n", True),
+        "assert": ("        assert seen == 0\n", True),
+        "assignment": ("        seen = 1\n", False),
+        "pass": ("        pass\n", False),
+    }
+    wrong = []
+    for label, (body, expected) in sorted(planted.items()):
+        source = "def f():\n    seen = 0\n    try:\n        h()\n    except ValueError as exc:\n"
+        sites = [site for site in sites_in_source(label, source + body) if site.binds]
+        if len(sites) != 1 or sites[0].escape_capable != expected:
+            wrong.append(label)
+    assert tuple(wrong) == ()
 
 
 def test_the_graded_population_is_not_empty():
@@ -947,6 +1365,13 @@ def test_the_graded_population_is_not_empty():
 
 def test_no_named_handler_in_the_tree_reads_its_binding_in_an_assert():
     """The REWRITTEN_ASSERT population, asserted empty - with a detector proven able.
+
+    THE ZERO IS SYNTACTIC AND ITS NAME OVERSTATES IT. What is measured: no
+    ``except`` clause has an ``assert`` in its enclosing scope reading the bound
+    name or a local aliased from it. What is NOT measured: that no assert can
+    render a caught exception. Five constructs defeated a narrower version of
+    this detector while rendering, and nothing proves the repaired list is
+    complete.
 
     An arrival reddens this. A departure cannot, because the set is already
     empty, and saying so is worth more than a both-directions claim that is
@@ -963,7 +1388,16 @@ def test_no_named_handler_in_the_tree_reads_its_binding_in_an_assert():
 
 
 def test_the_detector_finds_a_planted_binding_read_in_an_assert():
-    """The positive control for the zero above."""
+    """The positive control for the zero above, and the negative that bounds it.
+
+    THE ALIASED ARM USED TO BE PINNED AS A NON-FINDING HERE, and that was this
+    module contradicting itself in one file: the same source is
+    ``ARMS["object-kept-past-the-handler"]``, declared ``renders=True``. A
+    detector keyed on the bare bound name reported it clean while the arm beside
+    it measured the marker in the report. The alias is followed now, so the two
+    halves agree, and the negative below is a shape that really does read
+    nothing of the exception rather than one that merely renamed it.
+    """
     planted = sites_in_source(
         "<planted>",
         "def f():\n"
@@ -972,8 +1406,8 @@ def test_the_detector_finds_a_planted_binding_read_in_an_assert():
         "    except ValueError as exc:\n"
         "        assert exc.args == ()\n",
     )
-    outside = sites_in_source(
-        "<outside>",
+    aliased = sites_in_source(
+        "<aliased>",
         "def f():\n"
         "    try:\n"
         "        g()\n"
@@ -981,8 +1415,33 @@ def test_the_detector_finds_a_planted_binding_read_in_an_assert():
         "        kept = exc\n"
         "    assert kept.args == ()\n",
     )
+    unrelated = sites_in_source(
+        "<unrelated>",
+        "def f():\n"
+        "    seen = 0\n"
+        "    try:\n"
+        "        g()\n"
+        "    except ValueError as exc:\n"
+        "        seen = 1\n"
+        "    assert seen == 0\n",
+    )
     assert sum(1 for site in planted if site.reads_binding_in_an_assert) == 1
-    assert sum(1 for site in outside if site.reads_binding_in_an_assert) == 0
+    assert sum(1 for site in aliased if site.reads_binding_in_an_assert) == 1
+    assert sum(1 for site in unrelated if site.reads_binding_in_an_assert) == 0
+
+
+def test_the_detector_follows_the_alias_idiom_the_tree_actually_ships():
+    """`last = exc` inside the handler, the object used after it - a live shape.
+
+    Verified in shipped code at ``clockspeed/data/version.py`` and
+    ``clockspeed/save/workdir.py``, each a retry loop that keeps the last
+    failure. Keyed on the SHAPE rather than on those two line numbers, which
+    drift; the arm asserts only that the tree still contains the idiom and that
+    the detector resolves more than the bound name at those sites.
+    """
+    aliasing = tuple(site for site in tree_sites() if len(site.carriers) > 1)
+    assert len(aliasing) > 0
+    assert all(site.binds for site in aliasing)
 
 
 def test_the_frame_argument_population_is_not_empty():
@@ -998,21 +1457,49 @@ def test_the_frame_argument_population_is_not_empty():
 
 
 def test_the_detector_finds_a_planted_hand_off_and_ignores_a_builtin_one():
-    """The positive control, and the boundary that keeps it from over-reporting."""
-    handed = sites_in_source(
-        "<handed>",
-        "def f():\n    try:\n        g()\n    except ValueError as exc:\n        helper(exc)\n",
+    """Every hand-off shape this detector claims to see, planted one at a time.
+
+    EACH SHAPE HERE WAS MEASURED TO RENDER AND TO DEFEAT AN EARLIER VERSION OF
+    THIS DETECTOR. None of them has a live instance in the tree, so the tree
+    cannot grade them and only a planted source can: disabling the starred
+    unwrap, or the shadowed-builtin subtraction, left every other arm in this
+    module green. A repair with no control proving it is a claim, not a fix.
+
+    The two negatives bound it. ``type(exc)`` is a real builtin and gets no
+    Python frame; ``helper(str(exc))`` hands over a STRING, which is CS-205's
+    channel and not this one.
+    """
+    positives = {
+        "bare": "        helper(exc)\n",
+        "starred": "        helper(*[exc])\n",
+        "doublestar": '        helper(**{"problem": exc})\n',
+        "aliased": "        kept = exc\n        helper(kept)\n",
+    }
+    negatives = {
+        "builtin": "        name = type(exc).__name__\n",
+        "message-only": "        helper(str(exc))\n",
+    }
+    prologue = "def f():\n    try:\n        g()\n    except ValueError as exc:\n"
+    wrong = []
+    for label, body in sorted(positives.items()):
+        sites = sites_in_source(label, prologue + body)
+        if sum(1 for site in sites if site.hands_binding_to_a_call) != 1:
+            wrong.append(f"positive:{label}")
+    for label, body in sorted(negatives.items()):
+        sites = sites_in_source(label, prologue + body)
+        if sum(1 for site in sites if site.hands_binding_to_a_call) != 0:
+            wrong.append(f"negative:{label}")
+    # A module-level def SHADOWING a builtin name is not a builtin. Measured to
+    # render, and read as a builtin - hence uncounted - before this subtraction.
+    shadowing = sites_in_source(
+        "<shadowed>",
+        'def format(problem):\n    raise RuntimeError("inert") from None\n\n'
+        + prologue
+        + "        format(exc)\n",
     )
-    builtin_only = sites_in_source(
-        "<builtin>",
-        "def f():\n"
-        "    try:\n"
-        "        g()\n"
-        "    except ValueError as exc:\n"
-        "        name = type(exc).__name__\n",
-    )
-    assert sum(1 for site in handed if site.hands_binding_to_a_call) == 1
-    assert sum(1 for site in builtin_only if site.hands_binding_to_a_call) == 0
+    if sum(1 for site in shadowing if site.hands_binding_to_a_call) != 1:
+        wrong.append("positive:shadowed-builtin")
+    assert tuple(wrong) == ()
 
 
 def test_the_chained_population_is_not_confined_to_named_handlers():
