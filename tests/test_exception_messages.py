@@ -70,7 +70,9 @@ from tests.exception_message_guard import (
     UNPROVEN,
     Channel,
     ambiguous_callees,
+    ambiguous_error_names,
     build_index,
+    colliding_class_names,
     describe,
     findings_in,
     graded_classes,
@@ -184,6 +186,34 @@ def _verdicts(source: str) -> dict[str, str]:
         The mapping.
     """
     return {f"{c.class_name}.{c.channel}": c.verdict for c in _channels(source)}
+
+
+def _channels_across(sources: dict[str, str]) -> tuple[Channel, ...]:
+    """Every channel across a synthetic corpus of more than one module.
+
+    Needed because two of the unsound shapes this module fences are
+    CROSS-MODULE by construction: a namesake helper in a second module, and a
+    class name a later module reuses. Neither can be expressed in one file.
+
+    Args:
+        sources: Repo-relative module path to module text.
+
+    Returns:
+        The channels.
+    """
+    return scan_channels(build_index(sources))
+
+
+def _findings_across(sources: dict[str, str]) -> tuple[Channel, ...]:
+    """The unproven channels of a multi-module synthetic corpus.
+
+    Args:
+        sources: Repo-relative module path to module text.
+
+    Returns:
+        The findings.
+    """
+    return findings_in(_channels_across(sources), {})
 
 
 # ---------------------------------------------------------------------------
@@ -392,6 +422,229 @@ def open_it(path: object) -> None:
         raise ReaderError(f"cannot open: {held}") from None
 '''
 
+_OR_FALLBACK = '''
+"""A free-text error whose message falls back with `or`."""
+
+
+class ReaderError(Exception):
+    """No __init__ of its own."""
+
+
+def read(cursor: object) -> None:
+    """Raise with a decoded name behind an `or` fallback."""
+    name = cursor.string(64)
+    raise ReaderError(f"cannot read {name or 'unnamed'}")
+'''
+
+_FORMAT_KEYWORDS = '''
+"""A free-text error built with str.format and keyword arguments."""
+
+
+class ReaderError(Exception):
+    """No __init__ of its own."""
+
+
+def read(cursor: object) -> None:
+    """Raise with the decoded value passed as a format keyword."""
+    name = cursor.string(64)
+    raise ReaderError("cannot read {n}".format(n=name))
+'''
+
+_ASSIGNED_ARGS = '''
+"""A structured error that assigns self.args instead of calling super()."""
+
+
+class ReaderError(Exception):
+    """Sets args by hand."""
+
+    def __init__(self, *, field: str) -> None:
+        """Record the field and set args directly."""
+        self.field = field
+        self.args = (f"field {field}",)
+
+
+def read(cursor: object) -> None:
+    """Raise with a decoded value."""
+    raise ReaderError(field=cursor.string(64))
+'''
+
+_UNBOUND_BASE_INIT = '''
+"""A structured error calling the base initialiser unbound."""
+
+
+class ReaderError(Exception):
+    """Calls Exception.__init__ directly rather than through super()."""
+
+    def __init__(self, *, field: str) -> None:
+        """Build the message through the unbound base initialiser."""
+        Exception.__init__(self, f"field {field}")
+
+
+def read(cursor: object) -> None:
+    """Raise with a decoded value."""
+    raise ReaderError(field=cursor.string(64))
+'''
+
+_NESTED_VOCABULARY_GUARD = '''
+"""A structured error whose vocabulary check is nested under a condition."""
+
+FIELD_NAMES = frozenset({"magic", "marker"})
+
+
+class ReaderError(Exception):
+    """The check only runs when strict is set."""
+
+    def __init__(self, *, field: str, strict: bool = False) -> None:
+        """Render from the field, checking it only sometimes."""
+        if strict:
+            if field not in FIELD_NAMES:
+                raise ValueError("field name is not one this module may report")
+        super().__init__(f"field {field}")
+
+
+def read(cursor: object) -> None:
+    """Raise without the check running."""
+    raise ReaderError(field=cursor.string(64))
+'''
+
+_POOLED_SITE_WITH_NO_BINDING = '''
+"""A raise site whose enclosing function is only ever called by a namesake."""
+
+
+class ReaderError(Exception):
+    """No __init__ of its own."""
+
+
+def render(field: str) -> None:
+    """Raise with the field this function was handed."""
+    raise ReaderError(f"field {field}")
+
+
+class Other:
+    """Holds a namesake of the raising function."""
+
+    def render(self) -> str:
+        """Nothing binds `field` here."""
+        return "x"
+
+
+def use() -> None:
+    """Call the namesake only."""
+    Other().render()
+'''
+
+_SAVE_BODY_INTO_A_FALLBACK = '''
+"""The headline refutation shape, reduced to a corpus authored here."""
+
+REASON_UNMEASURED = "names a type this reader has no model for"
+
+
+class ReaderError(Exception):
+    """Builds its own message from a reason and a field."""
+
+    def __init__(self, reason: str, *, field: str, offset: int) -> None:
+        """Render from the taxonomy fields."""
+        super().__init__(f"save object field {field} at byte {offset} {reason}")
+
+
+def read(cursor: object) -> None:
+    """Raise with a body-read name standing in for the fixed reason."""
+    instance_name = cursor.string("instance_name")
+    raise ReaderError(instance_name or REASON_UNMEASURED, field="type_path", offset=0)
+'''
+
+#: A genuine narrower, and a NAMESAKE in a second module that validates
+#: nothing. The two modules are the point: a bare-name lookup finds the real
+#: one and clears the decoy's caller.
+_DECOY_NARROWER: Final[dict[str, str]] = {
+    f"{GRADED_LAYER}real_corpus.py": '''
+"""A module shipping a genuine narrower."""
+
+FIELD_NAMES = frozenset({"magic", "marker"})
+
+
+def _checked_field(name: str) -> str:
+    """Refuse a name outside the closed vocabulary."""
+    if name not in FIELD_NAMES:
+        raise ValueError("field name is not one this module may report")
+    return name
+''',
+    f"{GRADED_LAYER}decoy_corpus.py": '''
+"""A module shipping a namesake that validates nothing."""
+
+
+def _checked_field(name: str) -> str:
+    """Strip the name. It validates nothing at all."""
+    return name.strip()
+
+
+class ReaderError(Exception):
+    """Routes its field through the namesake above."""
+
+    def __init__(self, *, field: str) -> None:
+        """Render from the namesake's result."""
+        checked = _checked_field(field)
+        super().__init__(f"field {checked}")
+
+
+def read(cursor: object) -> None:
+    """Raise with a decoded value."""
+    raise ReaderError(field=cursor.string(64))
+''',
+}
+
+#: A save-layer error and a LATER module reusing its class name.
+_COLLIDING_CLASS_NAME: Final[dict[str, str]] = {
+    f"{GRADED_LAYER}a_corpus.py": '''
+"""A save-layer error that leaks."""
+
+
+class ReaderError(Exception):
+    """No __init__ of its own."""
+
+
+def read(cursor: object) -> None:
+    """Raise with a decoded value."""
+    raise ReaderError(f"cannot read {cursor.string(64)}")
+''',
+    "clockspeed/data/z_corpus.py": '''
+"""A later module declaring the same class name."""
+
+
+class ReaderError(Exception):
+    """A namesake above the graded layer."""
+''',
+}
+
+_EARLY_RETURN_NARROWER = '''
+"""A helper whose fast path hands the value back before it is checked."""
+
+FIELD_NAMES = frozenset({"magic", "marker"})
+
+
+def _checked(name: str, strict: bool = False) -> str:
+    """Check the name only on the slow path."""
+    if not strict:
+        return name
+    if name not in FIELD_NAMES:
+        raise ValueError("field name is not one this module may report")
+    return name
+
+
+class ReaderError(Exception):
+    """Routes its field through the helper above."""
+
+    def __init__(self, *, field: str) -> None:
+        """Render from the helper's result."""
+        checked = _checked(field)
+        super().__init__(f"field {checked}")
+
+
+def read(cursor: object) -> None:
+    """Raise with a decoded value the fast path never checks."""
+    raise ReaderError(field=cursor.string(64))
+'''
+
 _STRUCTURED_NEVER_BUILT = '''
 """A structured error with a text channel and no construction site at all."""
 
@@ -542,6 +795,176 @@ def test_an_alias_a_container_and_a_handler_binding_are_reported_not_skipped() -
     assert named == ["cursor.string(64)", "exc", "holder['n']"], describe(found)
 
 
+# ---------------------------------------------------------------------------
+# Shapes that returned a POSITIVE FALSE PROOF, each measured before the repair
+#
+# A `proven-*` verdict is a CLEARANCE a later session will cite as evidence a
+# channel is safe. A shape the rule cannot model soundly must therefore come
+# back `unproven`, never `proven-*`. Every arm below was watched failing with
+# the exact wrong verdict recorded in its docstring before the rule was
+# changed - the failure was a clean claim about a channel that leaks.
+# ---------------------------------------------------------------------------
+
+
+def test_an_or_fallback_is_composed_rather_than_read_as_a_boolean() -> None:
+    """WAS ``proven-scalar``. ``a or b`` YIELDS AN OPERAND, NOT A BOOLEAN.
+
+    ``ast.Compare`` really does yield a bool, and grouping ``ast.BoolOp`` with
+    it read ``{name or 'unnamed'}`` as an expression whose whole value space is
+    numbers and flags. It renders ``name``.
+
+    THIS IS LIVE HOUSE STYLE, not a hypothetical: ``clockspeed/solve/ratio.py``
+    and both optimizer backends build refusals as
+    ``{', '.join(...) or 'nothing'}``. None sits in the graded layer today, and
+    nothing stopped the idiom arriving there with a clearance attached.
+    """
+    verdicts = _verdicts(_OR_FALLBACK)
+    assert PROVEN_SCALAR not in verdicts.values(), verdicts
+    found = _findings(_OR_FALLBACK)
+    assert [c.channel for c in found] == ["cursor.string(64)"], describe(found)
+
+
+def test_a_format_keyword_argument_is_a_channel() -> None:
+    """WAS ``<no channel>``, WHICH IS A POSITIVE CLAIM THAT NOTHING RENDERS.
+
+    ``"{n}".format(n=value)`` puts ``value`` in the message through a KEYWORD.
+    The composition read only positional arguments, so the class came back with
+    no channel at all - indistinguishable from an error whose message is a
+    bare constant.
+    """
+    found = _findings(_FORMAT_KEYWORDS)
+    assert [c.channel for c in found] == ["cursor.string(64)"], describe(found)
+
+
+def test_assigning_self_args_is_a_channel() -> None:
+    """WAS ``<no channel>``. ``super().__init__`` IS NOT THE ONLY WAY IN.
+
+    ``self.args = (message,)`` sets the tuple ``__repr__`` and ``__str__``
+    render, without calling any initialiser. Reading only ``super().__init__``
+    graded such a class as rendering nothing.
+    """
+    found = _findings(_ASSIGNED_ARGS)
+    assert [c.channel for c in found] == ["field"], describe(found)
+
+
+def test_an_unbound_base_initialiser_call_is_a_channel() -> None:
+    """WAS ``<no channel>``. ``Exception.__init__(self, m)`` SETS ``args`` TOO.
+
+    The unbound spelling is ordinary Python and reaches ``args`` exactly as
+    ``super().__init__(m)`` does. Matching only the ``super()`` spelling made
+    the other one invisible.
+    """
+    found = _findings(_UNBOUND_BASE_INIT)
+    assert [c.channel for c in found] == ["field"], describe(found)
+
+
+def test_a_vocabulary_guard_under_a_condition_is_not_a_runtime_barrier() -> None:
+    """WAS ``proven-vocabulary``, WHICH CLAIMS THE VALUE CANNOT REACH ``args``.
+
+    The narrowing search walked the whole function, so a check nested under an
+    unrelated condition counted. Here the check runs only when ``strict`` is
+    set and the raise site never sets it, so the value reaches the message
+    unchecked while carrying the strongest clearance the rule can issue.
+
+    The repair is positional DOMINANCE: the guard has to be a direct statement
+    of the function body, and has to come before the statement that builds the
+    message.
+    """
+    verdicts = _verdicts(_NESTED_VOCABULARY_GUARD)
+    assert PROVEN_VOCABULARY not in verdicts.values(), verdicts
+    found = _findings(_NESTED_VOCABULARY_GUARD)
+    assert [c.channel for c in found] == ["field"], describe(found)
+
+
+def test_a_site_that_binds_nothing_does_not_prove_the_parameter() -> None:
+    """WAS ``proven-at-sites`` OVER ZERO BINDINGS - THE TWIN OF MUTANT M6.
+
+    ``test_a_call_site_proof_over_no_call_site_proves_nothing`` fixed the
+    empty-SITE-LIST spelling and left the empty-BINDING-SET spelling live: a
+    site that binds nothing was skipped with ``continue``, and a parameter
+    every site skipped fell through to the strongest call-site clearance.
+
+    Sites are pooled by callee name, so the namesake method here supplies a
+    site that cannot bind ``field`` at all. Reaching the end of the loop
+    having proven nothing is now UNPROVEN.
+    """
+    verdicts = _verdicts(_POOLED_SITE_WITH_NO_BINDING)
+    assert PROVEN_AT_SITES not in verdicts.values(), verdicts
+    assert [c.channel for c in _findings(_POOLED_SITE_WITH_NO_BINDING)] == ["field"]
+
+
+def test_a_namesake_helper_does_not_inherit_a_real_narrowers_clearance() -> None:
+    """WAS ``proven-vocabulary`` - THE SHAPE THAT DESTROYED THE SIBLING SLICE.
+
+    A bare-name lookup accepted the FIRST shipped definition that narrowed and
+    cleared a caller routing its value through a NAMESAKE that only calls
+    ``strip``. That is a syntactic name match standing in for a semantic
+    property, and ``_checked_field`` is a live resolved name in this tree.
+
+    The repair requires EVERY shipped definition of the name to carry the
+    property. Ambiguity now costs a clearance rather than granting one.
+    """
+    channels = _channels_across(_DECOY_NARROWER)
+    verdicts = {c.verdict for c in channels}
+    assert PROVEN_VOCABULARY not in verdicts, describe(channels)
+    found = _findings_across(_DECOY_NARROWER)
+    assert [c.channel for c in found] == ["_checked_field(field)"], describe(found)
+
+
+def test_a_later_namesake_class_does_not_evict_a_save_layer_error() -> None:
+    """WAS AN EMPTY POPULATION - the save-layer class vanished entirely.
+
+    The class index was keyed by bare NAME, so a later module declaring the
+    same name overwrote the save-layer entry and its channels were never
+    graded. Findings went from one to zero with nothing to say so.
+
+    The population is now built from every class DEFINITION. Base resolution
+    is still by name and cannot be otherwise without resolving imports, so
+    the collision is also CENSUSED - see
+    ``test_no_shipped_class_name_collides``.
+    """
+    found = _findings_across(_COLLIDING_CLASS_NAME)
+    assert [c.channel for c in found] == ["cursor.string(64)"], describe(found)
+
+
+def test_the_headline_refutation_shape_is_a_finding() -> None:
+    """THE ADVERSARY'S PLANTED LEAK, REDUCED TO A CORPUS AUTHORED HERE.
+
+    A value read straight off the save body, standing in for a fixed reason
+    behind an ``or``, interpolated into a shipped error message. Measured
+    reaching ``args``, ``str`` and ``repr`` on the real class; measured as
+    zero findings by this guard before the repair, with a byte-identical
+    report.
+    """
+    found = _findings(_SAVE_BODY_INTO_A_FALLBACK)
+    assert [c.channel for c in found] == ["reason"], describe(found)
+
+
+def test_a_helper_that_returns_before_its_guard_is_not_a_narrower() -> None:
+    """THE SUBJECT FOR THE RETURN-ORDERING RULE, and a mutant found it missing.
+
+    Reverting the ordering requirement survived every arm, which means the
+    requirement was a claim nothing supported. This corpus is the shape
+    that makes it load-bearing: the helper's FAST PATH hands the value
+    back before the membership test runs, and the raise site takes exactly
+    that path. Matching a single guarded return would clear the helper on
+    the strength of a branch the caller never enters.
+
+    The positional requirement was REMOVED from the parameter rule at the
+    same time, because there it had no subject: a direct-body guard that
+    raises either lets the value through as vocabulary or discards the
+    instance before a caller sees it. Keeping an untestable strictness
+    reads as rigour and is really an unsupported claim.
+    """
+    verdicts = _verdicts(_EARLY_RETURN_NARROWER)
+    assert PROVEN_VOCABULARY not in verdicts.values(), verdicts
+    found = _findings(_EARLY_RETURN_NARROWER)
+    # The helper is still descended into as a message builder - it returns a
+    # parameter unchanged - so the channel is named for the caller's own
+    # expression rather than for the call that failed to narrow it.
+    assert [c.channel for c in found] == ["field"], describe(found)
+
+
 def test_a_call_site_proof_over_no_call_site_proves_nothing() -> None:
     """AN EMPTY SITE LIST IS NOT A CLEAN ONE, AND A MUTANT FOUND THIS ARM MISSING.
 
@@ -597,6 +1020,7 @@ def test_the_synthetic_corpora_are_not_all_silent() -> None:
         _STRUCTURED_LEAKING_SITE,
         _STRUCTURED_NEVER_BUILT,
         _ALIASED_AND_CONTAINED,
+        _EARLY_RETURN_NARROWER,
         _INHERITED_INIT,
         _MESSAGE_BUILDER,
     )
@@ -1071,6 +1495,40 @@ def test_the_forbidden_root_label_is_a_module_constant_at_every_site() -> None:
         "the label a ForbiddenRoot is built with is not the loop variable the "
         f"producer pairs a module constant into: built from {sorted(bound)}, "
         f"carried as {sorted(carried)}"
+    )
+
+
+def test_the_collision_census_reports_a_real_collision() -> None:
+    """THE POSITIVE CONTROL for the census the arm below consumes.
+
+    An empty result on the live tree is also what a census that looks at
+    nothing returns. This runs it over a corpus built to collide.
+    """
+    index = build_index(_COLLIDING_CLASS_NAME)
+    assert colliding_class_names(index) == ("ReaderError",), colliding_class_names(index)
+
+
+def test_no_class_name_the_derivation_resolves_is_ambiguous() -> None:
+    """A BASE IS A BARE WORD, so a duplicated class name makes it ambiguous.
+
+    Resolving a base properly would mean resolving imports, which this
+    module does not do. So a class name declared in two modules makes
+    every answer about it ambiguous - which base a subclass reaches, which
+    initialiser governs it, which construction sites are its own.
+
+    MEASURED on this tree: two collisions exist and NEITHER is an error
+    name or a base of one, so the ambiguity does not reach this module's
+    answers today. The assertion is the narrow property rather than the
+    wide census, because reddening on a correct tree is how a guard gets
+    switched off - and the wide census is printed in the message so the
+    reader sees what was tolerated.
+    """
+    index = live_index()
+    ambiguous = ambiguous_error_names(index)
+    assert ambiguous == (), (
+        "class name(s) the derivation resolves are declared in more than "
+        f"one module, so every answer about them is ambiguous: {ambiguous}. "
+        f"Full collision census: {colliding_class_names(index)}"
     )
 
 

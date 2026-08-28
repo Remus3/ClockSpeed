@@ -78,26 +78,54 @@ accept a helper that redacted nothing. A redacted channel is therefore reported
 UNPROVEN and carries an exemption stating what was measured at the site, which
 keeps the judgement visible instead of laundering it through a name.
 
+A ``proven-*`` VERDICT IS A CLEARANCE, AND THE FAILURE MODE OF THIS MODULE IS
+ISSUING ONE IT CANNOT SUPPORT. A later session reads ``proven-scalar`` as
+evidence that a channel is safe, so a shape the rule cannot model soundly must
+come back UNPROVEN, never ``proven-*``, and never as no channel at all - which
+is itself a positive claim that the class renders nothing. Where a narrower rule
+reports more and a broader one proves more, this module takes the narrower one.
+
+THAT RULE WAS WRITTEN AFTER AN ADVERSARY BROKE IT FIVE WAYS, and every one is
+now fenced by a named arm in ``tests/test_exception_messages.py`` rather than by
+this paragraph. ``{name or 'unnamed'}`` was graded ``proven-scalar`` because
+``ast.BoolOp`` was grouped with ``ast.Compare``, and that idiom is live house
+style in the solver. ``"{n}".format(n=value)``, ``self.args = (m,)`` and
+``Exception.__init__(self, m)`` each produced NO CHANNEL. A vocabulary guard
+nested under an unrelated condition was graded ``proven-vocabulary`` - the
+strongest clearance here - while the raise site never ran the check. A namesake
+helper inherited a real narrower's clearance, which is the bare-name-match shape
+that refuted a sibling slice. A parameter no call site bound at all was cleared
+``proven-at-sites`` over zero bindings. A later class of the same name evicted a
+save-layer error from the population entirely.
+
 WHAT A ZERO FROM THIS MODULE MEANS, AND IT IS NARROWER THAN THE PROPERTY IT IS
 NAMED FOR. "No unproven channel" means every channel THIS COMPOSITION FOUND is
 proven or exempt. A value that reaches ``args`` by a route the composition does
-not model is not reported as a finding - it is invisible, and invisible and
-clean are the same green. Read that sentence together with the paragraph below,
-which is the list of routes, and never restate the result as "nothing
-discloses". A sibling slice was refuted in this project for generalising a
-syntactic match into a claim that a population was EMPTY, which one aliased
-binding then defeated while its arm stayed green.
+not enumerate is not reported as a finding - it is invisible, and invisible and
+clean are the same green. Never restate the result as "nothing discloses".
 
-WHAT THIS DOES NOT REACH, stated rather than left to be discovered. The rule is
-SYNTACTIC: it follows names, parameters and call sites through the syntax tree
-and does not model reassignment ORDER, a value arriving through a container, a
-subscript, a comprehension, or an attribute on anything but ``self``. Those
-shapes are graded UNPROVEN rather than skipped, so they surface as findings
-rather than as silence - but only when they sit ON a channel the composition
-already found. Call sites are matched by CALLEE NAME across the shipped tree, so
-two methods sharing a name pool their sites - which adds sites to prove and so
-errs toward reporting. :data:`REACH_HOPS` bounds the backward walk, and running
-out of budget is UNPROVEN rather than proven.
+WHAT THIS DOES NOT REACH, stated rather than left to be discovered, and stated
+WITHOUT the reassurance an earlier draft carried. The rule is SYNTACTIC: it
+follows names, parameters and call sites through the syntax tree and does not
+model reassignment ORDER, a value arriving through a container, a subscript, a
+comprehension, or an attribute on anything but ``self``. THAT EARLIER DRAFT SAID
+SUCH SHAPES 'SURFACE AS FINDINGS RATHER THAN AS SILENCE', AND AN ADVERSARY
+MEASURED THAT FALSE FIVE TIMES. What is true is narrower and is the whole of the
+claim: a shape sitting ON a channel the composition already enumerated is graded
+UNPROVEN rather than skipped, which
+``test_an_alias_a_container_and_a_handler_binding_are_reported_not_skipped``
+measures. A route that produces no channel is not covered by that sentence and
+not covered by this module.
+
+Call sites are matched by CALLEE NAME across the shipped tree. Pooling ADDS
+sites to prove, which errs toward reporting - but the per-name LOOKUPS do not,
+so both of them now require EVERY shipped definition of a name to carry the
+property before it clears anything. Class names are resolved the same way and
+cannot be otherwise without resolving imports, so a duplicated name is censused
+by :func:`colliding_class_names` and reddens through
+:func:`ambiguous_error_names` when the derivation depends on it.
+:data:`REACH_HOPS` bounds the backward walk, and running out of budget is
+UNPROVEN rather than proven.
 
 A BARE ``raise SomeError`` IS NOT A CONSTRUCTION SITE HERE, and that is safe
 rather than merely tolerated. The walk indexes call nodes, so the parenthesis
@@ -148,8 +176,10 @@ __all__ = [
     "UNPROVEN",
     "Channel",
     "ambiguous_callees",
+    "ambiguous_error_names",
     "build_index",
     "channels_of",
+    "colliding_class_names",
     "describe",
     "findings_in",
     "graded_classes",
@@ -396,6 +426,13 @@ class Channel:
 _ANY_FUNCTION: Final = (ast.FunctionDef, ast.AsyncFunctionDef)
 
 _Function = ast.FunctionDef | ast.AsyncFunctionDef
+
+#: Position of a node that could not be located among the numbered
+#: statements of its scope. It sorts BEFORE every real body index on
+#: purpose: a guard has to come STRICTLY BEFORE a return, so an
+#: unlocatable return can never be shown to be guarded - the direction
+#: that withholds a clearance.
+_NO_POSITION: Final = -1
 _Site = tuple[str, ast.Call, _Function | None]
 
 
@@ -416,6 +453,7 @@ class Index:
         """
         self.modules: dict[str, ast.Module] = {}
         self.classes: dict[str, tuple[str, ast.ClassDef]] = {}
+        self.definitions: list[tuple[str, ast.ClassDef]] = []
         self.functions: dict[str, list[tuple[str, _Function]]] = {}
         self.calls: dict[str, list[_Site]] = {}
         self.literals: dict[str, frozenset[str]] = {}
@@ -444,7 +482,18 @@ class Index:
         def visit(node: ast.AST, owner: str | None) -> None:
             here = owner
             if isinstance(node, ast.ClassDef):
+                # BOTH, AND THE SECOND ONE IS THE POPULATION. The
+                # name-keyed map is what base resolution has to use - a
+                # base is written as a bare word and resolving it properly
+                # would mean resolving imports - so a later module reusing
+                # a name EVICTS the earlier entry. Deriving the population
+                # from that map dropped a save-layer error out of grading
+                # entirely and findings fell to zero with nothing to say
+                # so. The definition list keeps every class, and
+                # colliding_class_names reddens on the ambiguity the
+                # name-keyed map still carries.
                 self.classes[node.name] = (module, node)
+                self.definitions.append((module, node))
                 here = node.name
             if isinstance(node, _ANY_FUNCTION):
                 self.functions.setdefault(node.name, []).append((module, node))
@@ -693,11 +742,60 @@ def _error_classes(index: Index) -> list[tuple[str, str, ast.ClassDef]]:
         Module, class name and node, sorted by key.
     """
     found = [
-        (module, name, node)
-        for name, (module, node) in index.classes.items()
+        (module, node.name, node)
+        for module, node in index.definitions
         if any(_reaches_args(index, base, frozenset()) for base in _base_words(node))
     ]
     return sorted(found, key=lambda item: (item[0], item[1]))
+
+
+def colliding_class_names(index: Index) -> tuple[str, ...]:
+    """Shipped class names declared in more than one module.
+
+    BASE RESOLUTION IS BY BARE NAME AND CANNOT BE OTHERWISE without
+    resolving imports, so a duplicated class name makes every answer about
+    that name ambiguous - which base a subclass reaches, which initialiser
+    governs it, which construction sites belong to it. The population no
+    longer LOSES a class to a collision, but the ambiguity is real and is
+    censused here so it reddens rather than degrading a verdict quietly.
+
+    Args:
+        index: The index.
+
+    Returns:
+        Each colliding class name, sorted.
+    """
+    seen: dict[str, set[str]] = {}
+    for module, node in index.definitions:
+        seen.setdefault(node.name, set()).add(module)
+    return tuple(sorted(name for name, modules in seen.items() if len(modules) > 1))
+
+
+def ambiguous_error_names(index: Index) -> tuple[str, ...]:
+    """Colliding class names this module's answers actually depend on.
+
+    THE CENSUS IS WIDER THAN THE PROPERTY, DELIBERATELY.
+    :func:`colliding_class_names` reports every duplicated class name in
+    the shipped tree, and MEASURED on this tree two exist that have
+    nothing to do with errors - two private cursors and two private
+    warning logs. Asserting the wider census empty would redden on a
+    correct tree, which is how a guard gets switched off. What has to hold
+    is narrower: no name this module RESOLVES may be ambiguous, so no
+    error class name and no base word of one.
+
+    Args:
+        index: The index.
+
+    Returns:
+        The colliding names the derivation depends on, sorted.
+    """
+    colliding = set(colliding_class_names(index))
+    if not colliding:
+        return ()
+    errors = _error_classes(index)
+    depended = {name for _, name, _ in errors}
+    depended |= {base for _, _, node in errors for base in _base_words(node)}
+    return tuple(sorted(colliding & depended))
 
 
 def graded_classes(index: Index) -> tuple[str, ...]:
@@ -849,8 +947,18 @@ def _narrow_target(
     return test.left.id
 
 
-def _narrowed_parameters(index: Index, module: str, node: _Function) -> frozenset[str]:
-    """Every parameter a function narrows to a closed vocabulary.
+def _narrowing_positions(index: Index, module: str, node: _Function) -> dict[str, int]:
+    """Each narrowed parameter to the body position of the guard that narrows it.
+
+    DOMINANCE, NOT PRESENCE, AND THE DIFFERENCE IS A CLEARANCE. The first
+    draft walked the whole function, so a guard nested under an unrelated
+    condition counted - a check that runs only when ``strict`` is set cleared
+    a value the raise site never checked, and the clearance issued was
+    :data:`PROVEN_VOCABULARY`, the strongest this rule has. A guard that is a
+    DIRECT statement of the function body and raises dominates everything
+    after it, which is the only case this rule now accepts. The position is
+    returned so the caller can require it to come BEFORE the statement that
+    builds the message.
 
     Args:
         index: The index.
@@ -858,20 +966,27 @@ def _narrowed_parameters(index: Index, module: str, node: _Function) -> frozense
         node: The function.
 
     Returns:
-        The parameter names.
+        Parameter name to the index of its guard within ``node.body``.
     """
     names = frozenset(_parameters(node))
     vocabularies = index.vocabularies.get(module, frozenset())
-    found = {
-        target
-        for statement in ast.walk(node)
-        if (target := _narrow_target(statement, names, vocabularies)) is not None
-    }
-    return frozenset(found)
+    found: dict[str, int] = {}
+    for position, statement in enumerate(node.body):
+        target = _narrow_target(statement, names, vocabularies)
+        if target is not None and target not in found:
+            found[target] = position
+    return found
 
 
 def _is_narrower(index: Index, module: str, node: _Function) -> bool:
-    """Whether a function returns a parameter it narrowed to a vocabulary.
+    """Whether a function returns a parameter a dominating guard narrowed.
+
+    EVERY RETURN OF THE PARAMETER, NOT JUST ONE. A helper that hands the
+    value back EARLY - a nested ``return name`` before the guard - never
+    runs the check on that path, and matching a single dominated return
+    would clear the whole helper. Nested returns are located by the body
+    statement they sit under, so an early return inside an ``if`` counts
+    at that statement's position.
 
     Args:
         index: The index.
@@ -879,17 +994,23 @@ def _is_narrower(index: Index, module: str, node: _Function) -> bool:
         node: The function.
 
     Returns:
-        True when a narrowed parameter is what the function hands back.
+        True when a narrowed parameter is what the function hands back on
+        EVERY path that hands it back, with the guard preceding all of
+        them.
     """
     cached = index._narrower.get(id(node))  # noqa: SLF001
     if cached is not None:
         return cached
-    returned = {
-        statement.value.id
-        for statement in ast.walk(node)
-        if isinstance(statement, ast.Return) and isinstance(statement.value, ast.Name)
-    }
-    verdict = bool(_narrowed_parameters(index, module, node) & returned)
+    positions = _narrowing_positions(index, module, node)
+    handed: dict[str, list[int]] = {}
+    for statement in ast.walk(node):
+        if isinstance(statement, ast.Return) and isinstance(statement.value, ast.Name):
+            handed.setdefault(statement.value.id, []).append(_statement_position(node, statement))
+    verdict = any(
+        guard is not None and all(guard < where for where in places)
+        for name, places in handed.items()
+        for guard in [positions.get(name)]
+    )
     index._narrower[id(node)] = verdict  # noqa: SLF001
     return verdict
 
@@ -1169,6 +1290,13 @@ def _composed_parts(node: ast.expr) -> list[ast.expr] | None:
     if isinstance(node, ast.IfExp):
         # The TEST is consumed and never rendered; a BRANCH is what gets shown.
         return [node.body, node.orelse]
+    if isinstance(node, ast.BoolOp):
+        # ``a or b`` YIELDS AN OPERAND, NOT A BOOLEAN, and grouping it with
+        # ``ast.Compare`` graded ``{name or 'unnamed'}`` as a number-or-flag
+        # value space. ``{', '.join(...) or 'nothing'}`` is live house style in
+        # the solver and both optimizer backends; nothing stopped it arriving
+        # in the graded layer carrying a scalar clearance.
+        return list(node.values)
     if isinstance(node, ast.List | ast.Tuple | ast.Set):
         return list(node.elts)
     return None
@@ -1228,27 +1356,74 @@ def _compose_call(node: ast.Call, frame: _Frame, hops: int) -> list[tuple[ast.ex
     if word in MEASURE_REDUCERS:
         return [(node, frame)]
     if word in COMPOSING_CALLS:
-        parts = [part for arg in node.args for part in _compose(arg, frame, hops)]
+        # KEYWORDS ARE ARGUMENTS TOO. ``"{n}".format(n=value)`` renders
+        # ``value`` through a keyword, and reading only ``node.args`` returned
+        # NO CHANNEL AT ALL - a positive claim that the class renders nothing.
+        supplied = [*node.args, *(keyword.value for keyword in node.keywords)]
+        parts = [part for arg in supplied for part in _compose(arg, frame, hops)]
         if isinstance(node.func, ast.Attribute):
             parts.extend(_compose(node.func.value, frame, hops))
         return parts
+    descended = _descended_builder(node, frame, hops)
+    return [(node, frame)] if descended is None else descended
+
+
+def _descended_builder(
+    node: ast.Call, frame: _Frame, hops: int
+) -> list[tuple[ast.expr, _Frame]] | None:
+    """Step inside a call, when doing so is one unambiguous operation.
+
+    Args:
+        node: The call.
+        frame: Where it is read.
+        hops: Remaining budget for descending a message builder.
+
+    Returns:
+        The channels inside the callee, or None when the call has to stay
+        an opaque channel of its own - out of budget, unresolvable, a
+        narrower, or a name whose shipped definitions do not agree.
+    """
     if hops >= REACH_HOPS:
-        return [(node, frame)]
-    for module, target in frame.index.functions.get(word or "", []):
-        if _is_narrower(frame.index, module, target):
-            frame.index.resolved.add(target.name)
-            return [(node, frame)]
-        if not _builds_a_message(frame.index, module, target):
-            continue
-        frame.index.resolved.add(target.name)
-        binds = {
-            name: (bound, frame)
-            for name in _parameters(target)
-            if (bound := _bound_at(node, target, name)) is not None
-        }
-        inner = _Frame(frame.index, module, target, None, binds)
-        return [part for value in _returned(target) for part in _compose(value, inner, hops + 1)]
-    return [(node, frame)]
+        return None
+    word = _callee(node) or ""
+    definitions = frame.index.functions.get(word, [])
+    if not definitions:
+        return None
+    if all(_is_narrower(frame.index, module, target) for module, target in definitions):
+        frame.index.resolved.add(word)
+        return None
+    if not _every_definition_builds(frame.index, definitions):
+        return None
+    module, target = definitions[0]
+    frame.index.resolved.add(target.name)
+    binds = {
+        name: (bound, frame)
+        for name in _parameters(target)
+        if (bound := _bound_at(node, target, name)) is not None
+    }
+    inner = _Frame(frame.index, module, target, None, binds)
+    return [part for value in _returned(target) for part in _compose(value, inner, hops + 1)]
+
+
+def _every_definition_builds(index: Index, definitions: Sequence[tuple[str, _Function]]) -> bool:
+    """Whether every shipped definition of one name is the same message builder.
+
+    A NAME IS NOT A FUNCTION. Descending the FIRST definition that happened to
+    build a message would rebind parameters against a signature the call site
+    may not have meant, so every definition has to build one AND agree on its
+    parameter names before the walk steps inside.
+
+    Args:
+        index: The index.
+        definitions: Every shipped definition carrying the name.
+
+    Returns:
+        True when descending any of them is the same operation.
+    """
+    if not all(_builds_a_message(index, module, node) for module, node in definitions):
+        return False
+    signatures = {tuple(_parameters(node)) for _, node in definitions}
+    return len(signatures) == 1
 
 
 def _bound_at(call: ast.Call, node: _Function, parameter: str) -> ast.expr | None:
@@ -1383,7 +1558,17 @@ def _verdict_parameter(name: str, frame: _Frame, hops: int) -> str:
     words = _annotation_words(_parameters(scope)[name].annotation)
     if words and words <= SCALAR_ANNOTATIONS:
         return PROVEN_SCALAR
-    if name in _narrowed_parameters(frame.index, frame.module, scope):
+    # POSITION IS NOT REQUIRED HERE, AND THE REASON IS AN ARGUMENT RATHER
+    # THAN AN OMISSION. A guard that is a DIRECT statement of the body and
+    # RAISES splits every later statement into the case where the value is
+    # in the vocabulary, and an earlier statement into the case where the
+    # instance is discarded before any caller sees it. Requiring the guard
+    # to precede the message as well was a stricter rule with NO SUBJECT -
+    # a mutant that removed it survived every arm, because no shape exists
+    # in which it is the thing that stops a disclosure. The requirement
+    # that DOES carry weight is the nesting one, in _narrowing_positions,
+    # and the return-ordering one, in _is_narrower; both have subjects.
+    if _narrowing_positions(frame.index, frame.module, scope).get(name) is not None:
         return PROVEN_VOCABULARY
     return _verdict_at_sites(name, frame, hops)
 
@@ -1396,10 +1581,23 @@ def _verdict_at_sites(name: str, frame: _Frame, hops: int) -> str:
         frame: Where it is read.
         hops: Remaining budget for the backward walk.
 
+    EVERY SITE HAS TO BIND IT, NOT MERELY FAIL TO DISCLOSE IT. The first draft
+    skipped a site that bound nothing with ``continue`` and fell through to the
+    clearance, so a parameter NO site bound was cleared over ZERO bindings -
+    the twin of the empty-site-list defect a mutant had already found, in the
+    same function, left live by a review that had just named the defect class
+    in writing. Sites are pooled by callee name, so a namesake's call site is
+    exactly the shape that binds nothing.
+
+    Args:
+        name: The parameter name.
+        frame: Where it is read.
+        hops: Remaining budget for the backward walk.
+
     Returns:
         :data:`PROVEN_AT_SITES` when every site binds a proven expression,
-        :data:`UNPROVEN` when one does not, when there is no site at all, or
-        when the budget is spent.
+        :data:`UNPROVEN` when one does not, when a site binds nothing at all,
+        when there is no site, or when the budget is spent.
     """
     if hops <= 0:
         return UNPROVEN
@@ -1412,7 +1610,7 @@ def _verdict_at_sites(name: str, frame: _Frame, hops: int) -> str:
     for module, call, holder in sites:
         bound = _bound_at(call, scope, name)
         if bound is None:
-            continue
+            return UNPROVEN
         outer = _Frame(frame.index, module, holder, _owner_for(frame.index, holder), {})
         if _weakest(_grade(bound, outer, hops - 1)) == UNPROVEN:
             return UNPROVEN
@@ -1489,10 +1687,19 @@ def _verdict_call(node: ast.Call, frame: _Frame) -> str:
     word = _callee(node)
     if word in MEASURE_REDUCERS:
         return PROVEN_SCALAR
-    for module, target in frame.index.functions.get(word or "", []):
-        if _is_narrower(frame.index, module, target):
-            frame.index.resolved.add(target.name)
-            return PROVEN_VOCABULARY
+    definitions = frame.index.functions.get(word or "", [])
+    if not definitions:
+        return UNPROVEN
+    # EVERY DEFINITION, NOT ANY. Clearing on the FIRST namesake that
+    # narrows is a syntactic name match standing in for a semantic
+    # property: a helper called _checked_field whose body only strips the
+    # string was cleared by a genuine narrower of the same name in another
+    # module. That is the shape a sibling slice was refuted for this
+    # session, and _checked_field is a live resolved name in this tree.
+    # Ambiguity now costs a clearance instead of granting one.
+    if all(_is_narrower(frame.index, module, target) for module, target in definitions):
+        frame.index.resolved.add(word or "")
+        return PROVEN_VOCABULARY
     return UNPROVEN
 
 
@@ -1562,37 +1769,127 @@ def _args_expressions(index: Index, name: str) -> tuple[str, list[tuple[ast.expr
     governing = _governing_init(index, name, frozenset())
     if governing is not None:
         module, owner, node = governing
-        frame = _Frame(index, module, node, owner, {})
-        return SHAPE_STRUCTURED, [(value, frame) for value in _super_arguments(node)]
+        found = [
+            (value, _Frame(index, module, node, owner, {})) for _, value in _args_assignments(node)
+        ]
+        return SHAPE_STRUCTURED, found
     sites = index.calls.get(name, [])
     if not sites:
         return SHAPE_UNRAISED, []
-    found: list[tuple[ast.expr, _Frame]] = []
+    loose: list[tuple[ast.expr, _Frame]] = []
     for module, call, holder in sites:
         frame = _Frame(index, module, holder, _owner_for(index, holder), {})
-        found.extend((argument, frame) for argument in call.args)
-    return SHAPE_FREE_TEXT, found
+        loose.extend((argument, frame) for argument in call.args)
+    return SHAPE_FREE_TEXT, loose
 
 
-def _super_arguments(node: _Function) -> list[ast.expr]:
-    """Every argument a ``super().__init__(...)`` call inside a function passes.
+def _statement_position(scope: _Function | None, node: ast.AST) -> int:
+    """Index within a function body of the statement holding one node.
+
+    Args:
+        scope: The enclosing function, or None.
+        node: The node to locate.
+
+    Returns:
+        The body index, or :data:`_NO_POSITION` when it cannot be located.
+    """
+    if scope is None:
+        return _NO_POSITION
+    for position, statement in enumerate(scope.body):
+        if any(inner is node for inner in ast.walk(statement)):
+            return position
+    return _NO_POSITION
+
+
+def _args_assignments(node: _Function) -> list[tuple[int, ast.expr]]:
+    """Every expression an initialiser puts into ``args``, with its body position.
+
+    THREE SPELLINGS REACH ``args`` AND THE FIRST DRAFT MATCHED ONE.
+    ``super().__init__(m)`` is the house one. ``Exception.__init__(self, m)``
+    is ordinary Python and sets ``args`` identically. ``self.args = (m,)``
+    sets the tuple directly without calling any initialiser at all. Matching
+    only the first graded the other two as classes that render NOTHING - a
+    positive clean claim, not a silence.
 
     Args:
         node: The initialiser.
 
     Returns:
-        The argument expressions.
+        One pair per expression, each with the index of the body statement it
+        was read from.
     """
-    found: list[ast.expr] = []
-    for inner in ast.walk(node):
-        if not isinstance(inner, ast.Call) or _callee(inner) != "__init__":
-            continue
-        func = inner.func
-        if not isinstance(func, ast.Attribute) or not isinstance(func.value, ast.Call):
-            continue
-        if _callee(func.value) == "super":
-            found.extend(inner.args)
+    found: list[tuple[int, ast.expr]] = []
+    for position, statement in enumerate(node.body):
+        for inner in ast.walk(statement):
+            if isinstance(inner, ast.Call):
+                found.extend((position, value) for value in _base_init_arguments(inner))
+            if isinstance(inner, ast.Assign | ast.AnnAssign):
+                found.extend((position, value) for value in _assigned_args(inner))
     return found
+
+
+def _base_init_arguments(call: ast.Call) -> list[ast.expr]:
+    """The message arguments an initialiser call passes to ``BaseException``.
+
+    Args:
+        call: The candidate call.
+
+    Returns:
+        The arguments, dropping the explicit ``self`` of an unbound call.
+    """
+    if _callee(call) != "__init__" or not isinstance(call.func, ast.Attribute):
+        return []
+    receiver = call.func.value
+    if isinstance(receiver, ast.Call) and _callee(receiver) == "super":
+        return list(call.args)
+    word = getattr(receiver, "id", None)
+    if word is None:
+        return []
+    explicit = call.args and isinstance(call.args[0], ast.Name) and call.args[0].id == "self"
+    return list(call.args[1:]) if explicit else []
+
+
+def _assigned_args(statement: ast.Assign | ast.AnnAssign) -> list[ast.expr]:
+    """The expressions a statement assigns into ``self.args``.
+
+    Args:
+        statement: The assignment.
+
+    Returns:
+        The assigned expressions, or an empty list.
+    """
+    targets = (
+        [statement.target] if isinstance(statement, ast.AnnAssign) else list(statement.targets)
+    )
+    hit = any(
+        isinstance(target, ast.Attribute)
+        and target.attr == "args"
+        and isinstance(target.value, ast.Name)
+        and target.value.id == "self"
+        for target in targets
+    )
+    return [statement.value] if hit and statement.value is not None else []
+
+
+def _declaring(index: Index, name: str) -> tuple[str, ast.ClassDef]:
+    """The definition this module treats as the declaration of a name.
+
+    Args:
+        index: The index.
+        name: The class name.
+
+    Returns:
+        The module and the node - the FIRST definition in sweep order
+        rather than the last, so a later namesake cannot silently take a
+        save-layer class's place in the report.
+
+    Raises:
+        KeyError: No shipped class carries the name.
+    """
+    for module, node in index.definitions:
+        if node.name == name:
+            return module, node
+    raise KeyError(name)
 
 
 def channels_of(index: Index, name: str) -> tuple[Channel, ...]:
@@ -1606,7 +1903,7 @@ def channels_of(index: Index, name: str) -> tuple[Channel, ...]:
         One record per channel, deduplicated by channel text and keeping the
         weakest verdict where a channel appears at more than one site.
     """
-    module, node = index.classes[name]
+    module, node = _declaring(index, name)
     shape, expressions = _args_expressions(index, name)
     governing = _governing_init(index, name, frozenset())
     governed = f"{governing[0]}::{governing[1]}" if governing else f"{module}::{name}"
