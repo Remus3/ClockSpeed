@@ -34,6 +34,76 @@ the line becomes a pointer.
 
 ---
 
+## Session 43 - 2026-08-28 - the exception channel graded from both ends; BOTH guards refuted on the SAME defect, independently, in one session - a syntactic bare-name match sold as a population zero
+
+- **Shipped: NOTHING CLOSED. CS-852 AND CS-855 BOTH STAY OPEN.** Both guards merged as
+  improvements after adversarial refutation and repair. CS-857 is newly filed. Detail in
+  `docs/LEDGER.md` and `docs/item_notes/phase4-followups.md`, not here.
+
+- **THE HEADLINE: TWO GUARDS, BUILT INDEPENDENTLY BY DIFFERENT AGENTS AGAINST DIFFERENT
+  CHANNELS, FAILED THE SAME WAY IN THE SAME SESSION.** CS-855's detector keyed on a bare
+  name, so `kept = exc` defeated it. CS-852's `proven-vocabulary` resolved a callee by bare
+  name, so a function merely NAMED `_checked_field` earned the proof. Neither author saw
+  it; both adversaries found it inside twenty minutes. **A SYNTACTIC MATCH STANDING IN FOR
+  A SEMANTIC PROPERTY, THEN REPORTED AS A POPULATION ZERO** is now the dominant failure
+  shape in this project, and it is the case for the producer-never-grades rule made twice
+  over in one sitting.
+
+- **CS-852's FAILURE WAS WORSE IN KIND AND THE DISTINCTION IS WORTH KEEPING.** CS-855
+  reported SILENCE; CS-852 returned POSITIVE FALSE PROOFS. A `proven-*` verdict is a
+  clearance a later session will cite as evidence. Nine such paths existed, one of them
+  grading `', '.join(free) or 'no recipe'` - LIVE HOUSE STYLE at four sites in
+  `clockspeed/solve/` - as an annotation whose whole value space is numbers and flags.
+
+- **A REAL SAVE-DERIVED VALUE REACHED `args` IN A REAL SHIPPED CLASS WITH THE GUARD GREEN
+  AND THE REPORT BYTE-IDENTICAL.** `instance_name` off the save body at
+  `clockspeed/save/objects.py:1747` into `ObjectFormatError`. That plant is now mutant M9
+  and is killed.
+
+- **A NEW CHANNEL WAS FOUND AND FILED RATHER THAN ABSORBED - CS-857.** `raise X(...) from
+  exc` puts the CAUSE's text in the formatted traceback: the graded message renders
+  redacted while the chained `OSError` renders the raw path beside it. **SEVERITY IS SPLIT
+  AND THE SPLIT WAS MEASURED** - under pytest the CS-428 redactor at `tests/conftest.py:665`
+  scrubs it, so it does NOT leak in the suite or either CI lane; it leaks on every
+  rendering path that is not a pytest report. 7 of 11 CS-852 exemption keys sit on a
+  chained raise, and two of their reasons call the cause "deliberately never rendered",
+  true of `args` and false of the interpreter.
+
+- **A THIRD ECHO MECHANISM NOBODY HAD RECORDED: THE FRAME ARGUMENT.** An exception handed
+  to a callee renders in that callee's frame header under default flags, surviving
+  `raise ... from None`. It is the construct `tests/test_exception_rendering.py:75` names
+  as "the FIX" for CS-205. NOT a live leak - `repr()` of an OSError omits `filename` - but
+  the remedy and the echo path are the same construct.
+
+- **Decisions: none recorded as an ADR.** Two operator rounds: CS-852 gap 1 plus CS-855
+  chosen as the unit, and the `chunks.py`/`usmap.py` vocabulary gate ruled REPAIR IT NOW.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But `clockspeed/save/world.py`'s
+  safety paragraph was FALSE WHEN WRITTEN - it claimed all four parsers pin the
+  closed-vocabulary guarantee with a planted-marker test. The obvious repair would have
+  made it false in a NEW way, because header.py and objects.py have no refusal test either.
+  Corrected to state per module what is actually pinned.
+
+- **Failed paths: none abandoned.** Two merger claims were withdrawn under measurement -
+  that the CS-855 acceptance is unsatisfiable, and that the long-carried 115 was a category
+  error. 115 was correct when filed at `f19d1f2` and drifted to 117.
+
+- **THREE MERGER ERRORS, ALL CAUGHT BY SOMEONE ELSE, ALL WORTH REPEATING.** A brief said
+  "five ChunkError subclasses"; the slice MEASURED four and corrected it. A `grep "planted"`
+  was offered as evidence of an absent control - a WORD search, not a PROPERTY search, and
+  the file already pinned three other clauses. And an item-note anchor assumed the leaf's
+  sections run in ID order; they do not, and the note would have landed in the wrong item.
+
+- **Next action: NONE IS FORCED.** If CS-852 is resumed, the cheapest real gain is residual
+  3 - replace the transcribed `ARGS_ROOTS` with a runtime census; an adversary already ran
+  it and measured 47 == 47. CS-857 is unstarted and is the only tier-1 item here with a
+  measured live rendering path.
+
+- **DOC BUDGET IS TIGHTENING AGAIN.** `docs/item_notes/phase4-followups.md` finished at 90
+  per cent. The ADR 0010 split bought one session of room and this session spent most of it.
+
+---
+
 ## Session 42 - 2026-08-25 - CS-852's repr-channel guard ships and four live leaks close; four adversaries all REFUTE the closure; the finding is that the guard reproduced the very blindness it was built against
 
 - **Shipped: NOTHING CLOSED. CS-852 STAYS OPEN.** The guard merged, three shipped classes
@@ -113,75 +183,3 @@ the line becomes a pointer.
 - **Next action: NONE IS FORCED.** CS-829 remains the head of the product path.
 
 ---
-
-## Session 40 - 2026-08-25 - a LIVE tier-1 leak found on main and closed; four items build, all four are REFUTED, all four are repaired, and NOTHING CLOSES; the finding is that an empty population satisfies every assertion of zero
-
-- **Shipped: NOTHING CLOSED.** CS-829, CS-846, CS-850 and CS-851 all merged as improvements
-  after a build round AND a repair round, and every one STAYS OPEN. Filed CS-852 through
-  CS-855. Detail in `docs/LEDGER.md` and `docs/item_notes.md`, not here.
-
-- **A LIVE TIER-1 PRIVACY LEAK WAS ON `main` AND IS NOW CLOSED.**
-  `tests/save/test_world.py` rendered the RAW world token and map name into a failure report
-  **under default flags** - pre-push hook and both CI lanes - because assertion rewriting
-  renders the ARGUMENT of an inline `len()`. The test whose purpose is proving the world
-  model reprs without leaking, leaked. Found by an adversary sent to grade a different item.
-
-- **THE HEADLINE FINDING: AN EMPTY POPULATION SATISFIES EVERY ASSERTION OF ZERO.**
-  `assert count == 0` passes when the property holds AND when nothing was measured, and the
-  two produce byte-identical output. Five instances in one session, filed as
-  `memory/an-empty-population-satisfies-every-zero.md`. The worst: a second reading of the
-  save grammar omitted a 16-byte guid step, desynchronised at the FIRST struct tag, found
-  ZERO struct sites in 87302 accepted records, and satisfied its `== 0` arm for roughly
-  forty sessions while being sold in prose as independent corroboration.
-  **This is the mirror of session 39's finding** - that one was green because the defect was
-  present; this one is green because the DETECTOR IS SILENT.
-
-- **FIVE ADVERSARIAL PASSES: FOUR REFUTATIONS, ONE CONFIRMATION.** Not one finding would
-  have come from the agent that built the thing. Two refutations landed on the same shape -
-  a guard green because its detector is blind, not because the property holds.
-
-- **A DEFECT REPAIRED AT ITS SITE RELOCATES - CS-829's IS NOW ON ITS FOURTH SITE**, having
-  moved to `objects.parse_body`, the record table BOTH readings share. The independence
-  audit is clean and the module DISCLOSES the shared substrate; disclosure is not a guard.
-
-- **NEW, AND IT IS THE GOOD KIND OF SURPRISE: A REPAIR WAS REFUTED BY ITS OWN VALIDATION.**
-  The slice instructed to make a fitted ceiling SKIP built it, measured that the skip let a
-  real defect survive, REVERTED its own instructed fix, and recorded the attempt and its
-  refutation at the constant. Three of four repair slices pushed back on the merger's brief
-  with measurements, and all three were right.
-
-- **CI CAUGHT WHAT THE WHOLE LOCAL SUITE COULD NOT, AND THE LESSON IS THE SESSION'S THEME
-  AGAIN.** The pre-push hook ran the full suite green - 2892 passed - and tier1 FAILED on the
-  same commit with 33 findings. The new source-echo rule ran the runtime redactor over each
-  whole source line; this machine's account name appears in no source at all,
-  while CI's is `runner`, an ordinary English substring inside identifiers everywhere.
-  **A CHECK THAT READS THE MACHINE IT RUNS ON REPORTS ABOUT THE MACHINE, NOT THE TREE** - and
-  its note claimed it "cannot false-positive, because it fires on an actual value rather than
-  on a shape". An actual value is still a SHAPE when the value is a common word. Reproduced
-  locally with a CI-shaped redactor: 70 hits over 33 files before, 0 after, still firing on a
-  planted home path. **Do not read a green local suite as evidence about the tree** - this is
-  CS-839 generalised from which SHELL to which MACHINE.
-
-- **Decisions: none recorded as an ADR.** One operator round at the start, taking all four
-  units and ruling CS-844 HELD for a third session.
-
-- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But the binding census in the CS-851
-  guard was blind to `ast.Try` ENTIRELY - `except-target` went 0 to 115 named handlers - so
-  every count derived from it before this session was an UNDER-count, including an
-  adversary's own false-negative analysis.
-
-- **Failed paths: none abandoned.** CS-844 remains held, its worktree and three commits
-  intact.
-
-- **Next action: NONE IS FORCED.** CS-829 remains the head of the product path and now needs
-  a denominator independent of the RECORD TABLE, not merely of the tag-list reader.
-
-- **A COUNT IN THE LAST NOTE WAS FALSE.** It recorded 99 open items; `d813e22` carried 97.
-  Do not restate counts here - read them from the tool.
-
-- **DOC BUDGET IS THE BINDING CONSTRAINT NOW.** `docs/item_notes.md` finished at 96 per cent
-  after 6.5 KB was relocated to `docs/history_notes.md`, and it holds ZERO closed-item
-  sections, so relocation is nearly exhausted. Four merged-without-closing items plus four
-  new ones is what 96 per cent looks like. **This needs an operator decision next session** -
-  split the file per phase with an index, raise the budget, or accept that a session can add
-  at most one or two item blocks.

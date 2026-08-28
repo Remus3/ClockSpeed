@@ -942,6 +942,104 @@ relocation are merged and mutation-proven; 8 of 8 targeted mutants killed, inclu
 revert of each repair. The population, the exemption record and the exception record are all
 asserted in BOTH directions. Start at gap 1.
 
+### NOTE - filed 2026-08-28 (session 43) by the merger, AFTER TWO ADVERSARIES, BOTH REFUTED, AND TWO REPAIR ROUNDS
+
+**GAP 1 IS NOW GRADED RATHER THAN RECORDED, AND THE ITEM STAYS OPEN.**
+`tests/exception_message_guard.py` grades the MESSAGE-BUILDING code path - what reaches
+`BaseException.args` - in 68 arms. The 24 classes the prior round could only pin in
+`UNGRADED_EXCEPTION_CHANNEL` are discharged FOR THAT CHANNEL. Measured at merge: 28
+modules swept, 24 classes, 104 channels, 11 exemptions, 0 findings, 0 stale, 0 ambiguous.
+An independent census confirmed 47 runtime `BaseException` subclasses = 24 graded + 23
+above the layer, nothing unaccounted.
+
+**THE RULES ARE DERIVED, NOT LISTED.** E1 resolves the governing initialiser THROUGH THE
+BASES, so the nine classes governed by an inherited one - four `ChunkError` subclasses and
+five `ObjectError` subclasses - are graded by the base rather than scored as ungraded.
+(The merger's brief said five and five; the slice MEASURED four and five and corrected it.
+Carried as a non-emptiness assertion, never as a count.) E2 splits an args-reaching
+expression into channels. E3 offers four proof forms; anything else is a finding unless
+`EXEMPT` records a measured reason.
+
+**THE HEADLINE REFUTATION: NINE PATHS ISSUED POSITIVE FALSE PROOFS.** This is worse in
+kind than reporting silence - a `proven-*` verdict is a CLEARANCE a later session will
+cite. An adversary made a real save-body-derived value reach `args` in a real shipped
+class - `instance_name` from `cursor.string` at `clockspeed/save/objects.py:1747`,
+interpolated into `ObjectFormatError` - while all 51 arms passed and the report was
+BYTE-IDENTICAL to pristine. The nine:
+  - a BoolOp fallback `f"{name or 'unnamed'}"` graded `proven-scalar`. **THIS IS LIVE
+    HOUSE STYLE** at `exhaustive.py:173`, `greedy.py:313`, `ratio.py:774` and `:846`;
+    fed the unedited `ratio.py`, the guard graded `', '.join(...) or '...'` as an
+    annotation whose whole value space is numbers and flags.
+  - `.format(n=name)`, `self.args = (m,)` and an unbound `Exception.__init__` each found
+    NO CHANNEL AT ALL, which the module then reported as clean. None is live today.
+  - `proven-vocabulary` had NO DOMINANCE ANALYSIS - `ast.walk` found a guard clause
+    anywhere in the function, including nested under an unrelated condition.
+  - `proven-vocabulary` resolved a callee BY BARE NAME, so a function merely NAMED
+    `_checked_field` whose body only decoded earned the proof. **THE SAME SHAPE THAT
+    REFUTED CS-855 IN THE SAME SESSION.**
+  - `proven-at-sites` returned its proof over ZERO bindings - the twin of the slice's own
+    M6, in a defect class its own arm already named in writing.
+  - a same-named class in a later module evicted the save class from the population.
+All nine are closed and mutation-proven, 19 of 19 killed.
+
+**WHAT THE ZERO MEANS NOW, AND IT IS STATED AT THE ASSERTION.** Every channel the
+composition ENUMERATES is proven or exempt. It does NOT mean nothing discloses. A route
+that produces no channel is INVISIBLE, not clean, and the module says so rather than
+claiming unmodelled shapes surface as findings - the sentence that claimed that was
+measured false five ways and is gone.
+
+**THE SHIPPED REPAIR, BY OPERATOR RULING.** `chunks.py` and `usmap.py` DOCUMENTED a
+closed-vocabulary guarantee they did not ENFORCE: `chunks.py:280` says the field is
+"never a value read from the file", and `ChunkError(field=MARKER)` constructed and
+rendered the marker while `ObjectError` refused. Both now ship `_checked_field`, derived
+from their own sites - chunks 20 sites, 10 literals, 0 non-literal; usmap 8 sites, 7
+literals plus a `_take` pass-through resolving to 33 names at hop two. Each test module
+re-derives its OWN set and asserts equality both ways. The two sets share only `magic`
+and `compressed_size`, so `FORCED_VOCABULARY` carries a legitimate value per entry:
+`"header_version"` is legitimate to header and REFUSED by both new gates, and a
+module-keyed lookup would have passed the negative half for the wrong reason. Six channels
+upgraded `proven-at-sites` to `proven-vocabulary`; five parametrised arms reddened and
+were repointed. The 2-2 split across the four parsers is closed.
+
+**A DOC REPAIR THAT THE OBVIOUS FIX WOULD HAVE GOT WRONG.** `clockspeed/save/world.py`'s
+safety paragraph - the stated justification for every `raise ... from exc` in the world
+loader - claimed all four parsers "each pin it with a planted-marker test". False when
+written. The slice checked before writing and found **header.py and objects.py have no
+vocabulary-refusal test either**, so adding one to chunks would have left the sentence
+false in a NEW way. It now states per module what is actually pinned and names usmap the
+weakest. Docstring-only, proven by comparing the parsed module with its docstring stripped.
+**The merger's evidence for this was a `grep "planted"` - a WORD search, not a PROPERTY
+search - and `tests/save/test_chunks.py` already pinned three other clauses of the
+guarantee. The conclusion held; the evidence was weaker than it read.**
+
+**RESIDUALS - RECORDED, NOT RESOLVED.**
+1. Class and callee resolution is still BY BARE NAME and cannot be otherwise without
+   resolving imports. Censused: `colliding_class_names` reports `('_Cursor',
+   '_WarningLog')`; `ambiguous_error_names` is empty and asserted. The wide census is
+   deliberately NOT asserted empty - it would redden on a correct tree.
+2. A route reaching `args` that the composition never enumerates is invisible. No proof
+   exists that no such route does.
+3. `ARGS_ROOTS` is an 11-word list TRANSCRIBED byte-for-byte from
+   `tests/repr_rendering_guard.py`'s `EXCEPTION_ROOTS`, so
+   `test_the_population_agrees_with_the_repr_channel_census` is ONE derivation run twice
+   on the dimension that matters. A `class Foo(Warning)` under `save/` is invisible to
+   both censuses AND to the departure half. Zero live instances - 47 of 47 covered. The
+   cheap repair an adversary ran and verified: import each module and assert the runtime
+   `BaseException` subclasses equal graded + ungraded.
+4. Call sites outside `clockspeed/` are unswept. `add_note`/`__notes__`, `args` mutated
+   after construction and a `__str__` override are silent rather than unproven - all zero
+   occurrences today, and `__str__` is fenced by the repr guard.
+5. `header.py` and `objects.py` still lack a direct vocabulary-refusal arm.
+6. **THE CHAINED CAUSE IS NOW CS-857.** `raise X(...) from exc` sets `__cause__`, not
+   `args`, so this guard correctly declines it - and NOTHING ELSE GRADES IT. 7 of the 11
+   exemption keys sit on a chained raise and two of their reasons state a privacy
+   conclusion the site does not deliver. Filed as its own item; do not fold it back here.
+
+**GAPS 2, 3 AND 4 OF THE PRIOR ROUND ARE UNTOUCHED AND UNCLAIMED.** `LocalConfigWarning`
+is confirmed NOT among the 23 above the layer - it is a frozen dataclass, not an
+exception, so it never reaches `args` and remains a gap-2 repr-channel residual. Neither
+new module mentions it, `Transform` or `UnknownClass`.
+
 ## CS-853
 
 ### NOTE - filed 2026-08-25 (session 40) by the merger, from the CS-850 repairing slice

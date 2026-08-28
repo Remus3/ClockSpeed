@@ -25,6 +25,80 @@ Where current truth actually lives:
 
 ---
 
+## Session 40 - 2026-08-25 - a LIVE tier-1 leak found on main and closed; four items build, all four are REFUTED, all four are repaired, and NOTHING CLOSES; the finding is that an empty population satisfies every assertion of zero
+
+- **Shipped: NOTHING CLOSED.** CS-829, CS-846, CS-850 and CS-851 all merged as improvements
+  after a build round AND a repair round, and every one STAYS OPEN. Filed CS-852 through
+  CS-855. Detail in `docs/LEDGER.md` and `docs/item_notes.md`, not here.
+
+- **A LIVE TIER-1 PRIVACY LEAK WAS ON `main` AND IS NOW CLOSED.**
+  `tests/save/test_world.py` rendered the RAW world token and map name into a failure report
+  **under default flags** - pre-push hook and both CI lanes - because assertion rewriting
+  renders the ARGUMENT of an inline `len()`. The test whose purpose is proving the world
+  model reprs without leaking, leaked. Found by an adversary sent to grade a different item.
+
+- **THE HEADLINE FINDING: AN EMPTY POPULATION SATISFIES EVERY ASSERTION OF ZERO.**
+  `assert count == 0` passes when the property holds AND when nothing was measured, and the
+  two produce byte-identical output. Five instances in one session, filed as
+  `memory/an-empty-population-satisfies-every-zero.md`. The worst: a second reading of the
+  save grammar omitted a 16-byte guid step, desynchronised at the FIRST struct tag, found
+  ZERO struct sites in 87302 accepted records, and satisfied its `== 0` arm for roughly
+  forty sessions while being sold in prose as independent corroboration.
+  **This is the mirror of session 39's finding** - that one was green because the defect was
+  present; this one is green because the DETECTOR IS SILENT.
+
+- **FIVE ADVERSARIAL PASSES: FOUR REFUTATIONS, ONE CONFIRMATION.** Not one finding would
+  have come from the agent that built the thing. Two refutations landed on the same shape -
+  a guard green because its detector is blind, not because the property holds.
+
+- **A DEFECT REPAIRED AT ITS SITE RELOCATES - CS-829's IS NOW ON ITS FOURTH SITE**, having
+  moved to `objects.parse_body`, the record table BOTH readings share. The independence
+  audit is clean and the module DISCLOSES the shared substrate; disclosure is not a guard.
+
+- **NEW, AND IT IS THE GOOD KIND OF SURPRISE: A REPAIR WAS REFUTED BY ITS OWN VALIDATION.**
+  The slice instructed to make a fitted ceiling SKIP built it, measured that the skip let a
+  real defect survive, REVERTED its own instructed fix, and recorded the attempt and its
+  refutation at the constant. Three of four repair slices pushed back on the merger's brief
+  with measurements, and all three were right.
+
+- **CI CAUGHT WHAT THE WHOLE LOCAL SUITE COULD NOT, AND THE LESSON IS THE SESSION'S THEME
+  AGAIN.** The pre-push hook ran the full suite green - 2892 passed - and tier1 FAILED on the
+  same commit with 33 findings. The new source-echo rule ran the runtime redactor over each
+  whole source line; this machine's account name appears in no source at all,
+  while CI's is `runner`, an ordinary English substring inside identifiers everywhere.
+  **A CHECK THAT READS THE MACHINE IT RUNS ON REPORTS ABOUT THE MACHINE, NOT THE TREE** - and
+  its note claimed it "cannot false-positive, because it fires on an actual value rather than
+  on a shape". An actual value is still a SHAPE when the value is a common word. Reproduced
+  locally with a CI-shaped redactor: 70 hits over 33 files before, 0 after, still firing on a
+  planted home path. **Do not read a green local suite as evidence about the tree** - this is
+  CS-839 generalised from which SHELL to which MACHINE.
+
+- **Decisions: none recorded as an ADR.** One operator round at the start, taking all four
+  units and ruling CS-844 HELD for a third session.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But the binding census in the CS-851
+  guard was blind to `ast.Try` ENTIRELY - `except-target` went 0 to 115 named handlers - so
+  every count derived from it before this session was an UNDER-count, including an
+  adversary's own false-negative analysis.
+
+- **Failed paths: none abandoned.** CS-844 remains held, its worktree and three commits
+  intact.
+
+- **Next action: NONE IS FORCED.** CS-829 remains the head of the product path and now needs
+  a denominator independent of the RECORD TABLE, not merely of the tag-list reader.
+
+- **A COUNT IN THE LAST NOTE WAS FALSE.** It recorded 99 open items; `d813e22` carried 97.
+  Do not restate counts here - read them from the tool.
+
+- **DOC BUDGET IS THE BINDING CONSTRAINT NOW.** `docs/item_notes.md` finished at 96 per cent
+  after 6.5 KB was relocated to `docs/history_notes.md`, and it holds ZERO closed-item
+  sections, so relocation is nearly exhausted. Four merged-without-closing items plus four
+  new ones is what 96 per cent looks like. **This needs an operator decision next session** -
+  split the file per phase with an index, raise the budget, or accept that a session can add
+  at most one or two item blocks.
+
+---
+
 ## Session 38 wakeup note - relocated 2026-08-25 (session 41)
 
 ## Session 38 - 2026-08-24 - the operator takes ALL FOUR units again; SIX items are graded by adversaries and SIX are REFUTED; four merge as improvements and NOTHING CLOSES

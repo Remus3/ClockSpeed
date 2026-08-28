@@ -77,6 +77,69 @@ machine-checked artifact that produces it.
 
 <!-- Newest first. Append new entries immediately below this line. -->
 
+### 2026-08-28 - CS-852 - NOT A COMPLETION RECORD. CS-852 STAYS OPEN. Gap 1 graded rather than recorded, nine false clearances closed, and the four-parser vocabulary split closed by operator ruling
+
+**What merged.** `tests/exception_message_guard.py` grades the MESSAGE-BUILDING code path -
+what reaches `BaseException.args` - by three derived rules, and `tests/test_exception_messages.py`
+grades it in 68 arms. The 24 classes the previous round could only RECORD in
+`UNGRADED_EXCEPTION_CHANNEL` are now graded FOR THAT CHANNEL. Measured at merge: 28 modules,
+24 classes, 104 channels, 11 exemptions, 0 findings, 0 stale, 0 ambiguous. Two shipped
+parsers were repaired by operator ruling - `clockspeed/save/chunks.py` and
+`clockspeed/save/usmap.py` each gained a `_checked_field` derived from their own construction
+sites, closing a 2-2 split in which two of the four save-layer parsers documented a
+closed-vocabulary guarantee they did not enforce. `clockspeed/save/world.py`'s safety
+paragraph, which claimed all four pinned that guarantee with a planted-marker test, was
+false when written and is corrected; the change is docstring-only, provable by comparing the
+parsed module with its docstring stripped.
+
+**Why it does not close.** Two adversaries refuted the first build. One made a real
+save-body-derived value reach `args` in a real shipped class while all 51 arms passed and
+the report was byte-identical, and found NINE paths issuing positive FALSE PROOFS - among
+them a BoolOp fallback graded `proven-scalar` which is live house style at four sites in
+`clockspeed/solve/`, a vocabulary guard with no dominance analysis, a callee resolved BY
+BARE NAME so a namesake earned the proof, and `proven-at-sites` satisfied over ZERO
+bindings. All nine are closed and mutation-proven. The residuals are recorded in the item
+note: bare-name class and callee resolution, routes producing no channel being invisible
+rather than clean, an `ARGS_ROOTS` word list transcribed from a sibling guard so one
+agreement arm is a single derivation run twice, and `header.py`/`objects.py` still lacking a
+direct vocabulary-refusal arm. Gaps 2, 3 and 4 of the previous round are untouched.
+
+**A separate channel was found and filed rather than absorbed.** `raise X(...) from exc`
+puts the CAUSE's text in the formatted traceback; the graded message renders redacted while
+the chained `OSError` renders the raw path beside it. 7 of the 11 exemption keys sit on a
+chained raise and two of their reasons state a privacy conclusion the site does not deliver.
+Filed as CS-857.
+
+Verification: `python -m pytest tests/test_exception_messages.py -q` reports 68 passed;
+`grep -l "def _checked_field" clockspeed/save/*.py` lists all four parsers; constructing
+`ChunkError(field=<any string not in the vocabulary>, ...)` raises `ValueError` where before
+it constructed and rendered the value. Item note: `docs/item_notes.md` under **CS-852**.
+
+### 2026-08-28 - CS-855 - NOT A COMPLETION RECORD. CS-855 STAYS OPEN. The handler channel graded, and the item's own premise measured false: the binding form is not what leaks
+
+**What merged.** `tests/test_handler_exception_rendering.py` grades the channel in 27 arms.
+Three mechanisms by which a caught exception reaches a report under DEFAULT flags are
+measured and separated: `__context__`/`__cause__` chaining, which is NOT name-keyed; the
+rewritten assert, which is; and a third that no item had recorded, the callee FRAME
+ARGUMENT, which survives `raise ... from None`. The named-handler population is 117, and
+ZERO of them hold an assert in the body, so the shape this item was filed against has an
+empty live population. `tests/locals_rendering_guard.py`'s `EXCEPT_TARGET` reason, which
+attributed the leak to the binding form, is corrected - its FLAGS are unchanged because
+`renders_by_default=True` is correct.
+
+**Why it does not close.** Two adversaries refuted the first build. Its detector keyed on a
+syntactic bare-name match, so a single intra-handler alias defeated it while every arm
+stayed green, and it pinned as a non-finding a shape the same file declared as rendering.
+Five evasions are now detected. The sandbox still runs pytest outside the repository, so
+neither `pyproject.toml` nor `tests/conftest.py` loads and the arms prove AN ARBITRARY
+STRING reaches the report rather than that PERSONAL DATA does - recorded, not fixed. Two
+claims from the first report are withdrawn: that the acceptance is unsatisfiable, and that
+the long-carried figure 115 was a category error. 115 was correct when filed at `f19d1f2`
+and has since drifted by two.
+
+Verification: `python -m pytest tests/test_handler_exception_rendering.py -q` reports 27
+passed. Item note: `docs/item_notes.md` under **CS-855**.
+
 ### 2026-08-25 - CS-852 - NOT A COMPLETION RECORD. CS-852 STAYS OPEN. Four live repr leaks closed, a repr-channel guard shipped, and four adversaries refuted the closure claim
 
 **What merged.** `tests/repr_rendering_guard.py` derives, from shipped FIELD ANNOTATIONS,
