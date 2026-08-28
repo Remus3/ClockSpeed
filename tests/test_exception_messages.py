@@ -367,6 +367,31 @@ def read() -> None:
     raise ReaderError(offset=0, declared=4)
 '''
 
+_ALIASED_AND_CONTAINED = '''
+"""A free-text error handed a value through an alias, a container and a handler."""
+
+
+class ReaderError(Exception):
+    """No __init__ of its own, so every raise site builds the message."""
+
+
+def read(cursor: object) -> None:
+    """Raise with a value that arrives by three routes the rule does not model."""
+    name = cursor.string(64)
+    kept = name
+    holder = {"n": name}
+    raise ReaderError(f"cannot read {kept} at {holder['n']}")
+
+
+def open_it(path: object) -> None:
+    """Raise with the handler binding aliased into a local."""
+    try:
+        path.open()
+    except OSError as exc:
+        held = exc
+        raise ReaderError(f"cannot open: {held}") from None
+'''
+
 _STRUCTURED_NEVER_BUILT = '''
 """A structured error with a text channel and no construction site at all."""
 
@@ -496,6 +521,27 @@ def test_a_scalar_channel_is_proven_by_its_annotation() -> None:
     assert verdicts["ReaderError.declared"] == PROVEN_SCALAR
 
 
+def test_an_alias_a_container_and_a_handler_binding_are_reported_not_skipped() -> None:
+    """THE CS-855 REFUTATION SHAPE, MEASURED HERE RATHER THAN ASSERTED IN PROSE.
+
+    A sibling slice in this project was refuted because its guard generalised
+    a syntactic bare-name match into a claim that a population was EMPTY, and
+    a single aliased binding defeated the detector while the arm stayed green.
+    The routes are the same three this corpus carries: a local aliased from
+    another local, a value fetched back out of a container, and an
+    ``except ... as`` binding held in a local.
+
+    The direction that matters is that NONE of them is silently dropped. The
+    alias chain resolves through to the real source and is named by it; the
+    container lookup and the handler binding are not modelled at all and are
+    therefore graded UNPROVEN. Unmodelled must mean REPORTED, because
+    unmodelled meaning skipped is what makes a zero meaningless.
+    """
+    found = _findings(_ALIASED_AND_CONTAINED)
+    named = sorted(c.channel for c in found)
+    assert named == ["cursor.string(64)", "exc", "holder['n']"], describe(found)
+
+
 def test_a_call_site_proof_over_no_call_site_proves_nothing() -> None:
     """AN EMPTY SITE LIST IS NOT A CLEAN ONE, AND A MUTANT FOUND THIS ARM MISSING.
 
@@ -550,6 +596,7 @@ def test_the_synthetic_corpora_are_not_all_silent() -> None:
         _FREE_TEXT_LEAK,
         _STRUCTURED_LEAKING_SITE,
         _STRUCTURED_NEVER_BUILT,
+        _ALIASED_AND_CONTAINED,
         _INHERITED_INIT,
         _MESSAGE_BUILDER,
     )
@@ -611,8 +658,25 @@ def test_the_sweep_reaches_beyond_the_graded_layer() -> None:
 
 
 def test_no_shipped_error_builds_a_message_from_an_unproven_channel() -> None:
-    """THE CONTRACT. Every channel is proven, or states an exemption."""
-    found = findings_in(scan_channels(live_index()), EXEMPT)
+    """THE CONTRACT, AND ITS ZERO IS NARROWER THAN ITS NAME.
+
+    What is measured: every channel the SYNTACTIC composition in
+    ``tests/exception_message_guard.py`` finds is proven by one of the four
+    forms, or carries a stated exemption. What is NOT measured: a value that
+    reaches ``args`` by a route the composition does not model. Such a value
+    is not a finding here - it is INVISIBLE here, and the two outcomes are the
+    same green.
+
+    The distinction is written down because the sibling slice on CS-855 was
+    refuted for exactly this wording: its guard generalised a syntactic match
+    into a claim that a population was EMPTY, and one aliased binding defeated
+    the detector while the arm stayed green. The routes this composition does
+    not model are listed in the guard's own docstring under WHAT THIS DOES NOT
+    REACH; the count below is a statement about the channels it FOUND.
+    """
+    channels = scan_channels(live_index())
+    assert channels, "the composition found no channel at all - this zero would be vacuous"
+    found = findings_in(channels, EXEMPT)
     count = len(found)
     assert count == 0, f"{count} unproven message channel(s):\n{describe(found)}"
 
@@ -1018,6 +1082,12 @@ def test_no_resolved_callee_name_is_ambiguous() -> None:
     tree: ``_render`` and ``_checked_field`` are each declared twice, once per
     parser layer, with identical parameter names - so the pooling is harmless
     today. This arm is what turns that into a fact the tree has to keep.
+
+    THE ZERO IS OVER THE NAMES THE WALK RECORDED, not over every name in the
+    tree. ``resolved_callees`` is filled while grading, by the syntactic
+    callee word at each site, so a callee the walk never reached is not
+    counted as unambiguous - it is not counted at all. The non-emptiness
+    assertion below is what stops that from reading as a clean sweep.
     """
     index = live_index()
     scan_channels(index)

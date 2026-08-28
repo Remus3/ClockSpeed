@@ -78,10 +78,23 @@ accept a helper that redacted nothing. A redacted channel is therefore reported
 UNPROVEN and carries an exemption stating what was measured at the site, which
 keeps the judgement visible instead of laundering it through a name.
 
+WHAT A ZERO FROM THIS MODULE MEANS, AND IT IS NARROWER THAN THE PROPERTY IT IS
+NAMED FOR. "No unproven channel" means every channel THIS COMPOSITION FOUND is
+proven or exempt. A value that reaches ``args`` by a route the composition does
+not model is not reported as a finding - it is invisible, and invisible and
+clean are the same green. Read that sentence together with the paragraph below,
+which is the list of routes, and never restate the result as "nothing
+discloses". A sibling slice was refuted in this project for generalising a
+syntactic match into a claim that a population was EMPTY, which one aliased
+binding then defeated while its arm stayed green.
+
 WHAT THIS DOES NOT REACH, stated rather than left to be discovered. The rule is
 SYNTACTIC: it follows names, parameters and call sites through the syntax tree
-and does not model reassignment order, aliasing, or a value arriving through a
-container. Call sites are matched by CALLEE NAME across the shipped tree, so
+and does not model reassignment ORDER, a value arriving through a container, a
+subscript, a comprehension, or an attribute on anything but ``self``. Those
+shapes are graded UNPROVEN rather than skipped, so they surface as findings
+rather than as silence - but only when they sit ON a channel the composition
+already found. Call sites are matched by CALLEE NAME across the shipped tree, so
 two methods sharing a name pool their sites - which adds sites to prove and so
 errs toward reporting. :data:`REACH_HOPS` bounds the backward walk, and running
 out of budget is UNPROVEN rather than proven.
