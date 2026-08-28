@@ -325,12 +325,17 @@ RECORDED_FORMS: Final[Mapping[str, Recorded]] = {
     ),
     EXCEPT_TARGET: Recorded(
         reason=(
-            "LEAKS ON A DIFFERENT CHANNEL, NOT COVERED HERE: measured with the assert "
-            "inside the handler, the marker arrives through the exception's own "
-            "rendering, with and without -l. Python deletes the name leaving the "
-            "handler, so an assert after it renders nothing. Not handed off to "
-            "tests/test_exception_rendering.py, which is scoped to CS-205 and names "
-            "none of showlocals, f_locals or show_locals"
+            "LEAKS ON A DIFFERENT CHANNEL, NOT COVERED HERE, AND THE BINDING IS "
+            "NOT WHAT LEAKS. The marker arrives through the exception's own "
+            "rendering, with and without -l. MEASURED session 43: deleting the "
+            "as-NAME leaves an UNNAMED handler that renders the marker just as "
+            "readily, so this row is true of the FIXTURE and false of the FORM - "
+            "what renders is chaining, which fires with a bare except. The "
+            "genuinely name-keyed mechanism is a frame ARGUMENT, when the binding "
+            "is handed to a callee that raises. Both are graded by CS-855 in "
+            "tests/test_handler_exception_rendering.py; the earlier hand-off to "
+            "tests/test_exception_rendering.py was wrong, that file being scoped "
+            "to CS-205 and naming none of showlocals, f_locals or show_locals"
         ),
         renders=True,
         renders_by_default=True,

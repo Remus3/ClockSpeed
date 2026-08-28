@@ -993,6 +993,92 @@ assert INSIDE the handler body, which is exactly where a test that grades an err
 it. A fixture that puts the assert outside the handler will validate a shape that does not
 occur.
 
+### NOTE - filed 2026-08-28 (session 43) by the merger, AFTER TWO ADVERSARIES, BOTH REFUTED, AND A REPAIR ROUND
+
+**THE GUARD SHIPPED AND THE ITEM STAYS OPEN.**
+`tests/test_handler_exception_rendering.py` grades the channel in 27 arms. The first
+build was refuted by two adversaries on distinct lenses and repaired; what follows is
+what is MEASURED, and every count was taken this session.
+
+**THE HEADLINE: THE BINDING FORM IS NOT WHAT LEAKS, AND THIS ITEM'S OWN TITLE WAS
+WRONG.** Deleting the `as NAME` from the shipped CS-851 fixture leaves an UNNAMED
+handler that renders the marker just as readily. What renders is CHAINING, which fires
+with a bare `except ValueError:`. So `tests/locals_rendering_guard.py`'s EXCEPT_TARGET
+row was true of the FIXTURE and false of the FORM; its reason is corrected this session,
+its FLAGS are not, because `renders_by_default=True` is right for the wrong reason.
+
+**THREE MECHANISMS, MEASURED SEPARATELY, ALL UNDER DEFAULT FLAGS AND NONE NEEDING -l.**
+`__context__` / `__cause__` chaining, which is NOT name-keyed. The rewritten assert,
+which is. And a THIRD that no item had recorded: the callee FRAME ARGUMENT - an
+exception handed to a helper renders as `problem = Boom('<marker>')` in that helper's
+frame header, CHAIN-SUPPRESSION-PROOF, surviving `raise ... from None`. The merger
+reproduced the frame-argument render independently before accepting it.
+
+**THE FRAME ARGUMENT IS THE CONSTRUCT `tests/test_exception_rendering.py:75` CALLS "the
+FIX".** That line names `helper(NAME)` as the remedy for CS-205. Live instances:
+`clockspeed/save/workdir.py:688`, `tools/drift_guard.py:463`, `scripts/verify_env.py:370`
+- the last with a comment saying it drops the discovered path, which is true of the
+MESSAGE and false of the FRAME. **BUT THIS IS NOT A LIVE LEAK AND THE REASON MATTERS:**
+`repr()` of an OSError OMITS `filename`; only `str()` carries it. Measured on the exact
+shape - zero path bytes in the frame-argument line. The remaining candidate was the four
+`ImportError` sites, whose repr CAN hold a path; the merger measured `locate.redact`
+scrubbing that shape too.
+
+**THE POPULATION IS 117, NOT 115, AND 115 WAS NOT A CATEGORY ERROR.** An adversary
+parsed git objects at `f19d1f2`, the commit that closed the `ast.Try` census hole: named
+was exactly 115 there, escape-capable-named 113. So 115 was CORRECT WHEN FILED and has
+drifted by two. The slice's first report claimed 115 had always meant the escape-capable
+subset; that claim is REFUTED and withdrawn. Today's coincidence that escape-capable-named
+is also 115 is a coincidence. The disposition is "derive it", which is now what the
+acceptance demands.
+
+**ZERO NAMED HANDLERS HOLD AN ASSERT IN THE BODY** - measured lexically and by full
+`ast.walk`, both zero. So a guard keyed on the shape this item's note originally named
+grades an EMPTY POPULATION. That zero is now stated as a syntactic result over the
+shipped AST, beside a detector proven able to find a planted one.
+
+**WHY IT STAYS OPEN. THREE RESIDUALS, NONE WITHDRAWN.**
+1. **THE SANDBOX DOES NOT RUN THE CONFIGURED PIPELINE.** `_sandbox` passes
+   `--rootdir <tempdir>` and `cwd=<tempdir>`, so neither `pyproject.toml` nor
+   `tests/conftest.py` loads - sandbox headers carry no `configfile:` line. The real
+   pipeline sits behind `tests/conftest.py:665`, the CS-428 report redactor. So every
+   `renders=True` here proves AN ARBITRARY STRING REACHES THE REPORT, **not that
+   personal data does**, and only the second is what this item is about. Not repaired:
+   the fixtures would have to sit inside the repo, where `tracked_python_files`
+   enumerates untracked files, so the sandbox would perturb the census it derives.
+2. **THE EVASION LIST HAS NO COMPLETENESS ARGUMENT.** Five constructs defeated the first
+   detector - an intra-handler alias, a `Starred` argument, a shadowed builtin, an alias
+   handed to a call, and an alias read in an assert. All five are now caught. Nothing
+   proves the list closed, and an unthought-of construct renders while the zero looks
+   identical.
+3. **`_hands_over` counts an Attribute callee regardless of builtin status.** It
+   over-reports, which is the safe direction, and all 42 callees are Python today.
+
+**THE INDEPENDENCE VERDICT IS NARROWER THAN THE FIRST REPORT CLAIMED.** FRAME_ARGUMENT
+renders `repr(exc)`, which for a standard exception shows `args` - the same producer
+content the chained `E` line prints via `str()`. So this channel cannot carry what the
+producer did not put in args. The channels ARE separable, but the separating construct
+is a rewritten assert reading a NON-ARGS attribute, and that has ZERO LIVE INSTANCES.
+The first report's Q1 arm did not prove otherwise: it raised `Boom(MARK)`, so the marker
+WAS args, and its `'"inert"' in source` guard was a substring search satisfied by a
+different string in the fixture.
+
+**"THE ACCEPTANCE IS UNSATISFIABLE" IS WITHDRAWN.** It was report-only and never reached
+a tracked file. Four constructs render ZERO markers with the assert inside the handler,
+one of them using the `pytest_runtest_makereport` lever THIS PROJECT ALREADY SHIPS. The
+correct verdict is "unsatisfied by the remedies considered". The merger had repeated the
+stronger claim and was one step from restating a tier-1 acceptance on it.
+
+**TRAPS THIS ROUND PAID FOR.**
+- **A DECLARED-QUIET ARM RENDERED.** `assert len(exc.secret) == 0` renders via
+  `E + where 15 = len('<marker>')`; binding the reduction first renders nothing. The
+  slice shipped the finding rather than weakening the arm.
+- **TWO REPAIRS SHIPPED WITH NO CONTROL PROVING THEM** - the `Starred` unwrap and the
+  shadowed-builtin subtraction both survived mutation until planted controls were added.
+  A repair is not evidence of itself.
+- **WALKING THE WHOLE ARGUMENT SUBTREE IS WRONG.** It took the hand-off count 42 to 92 by
+  absorbing `helper(str(exc))`, which is a STRING and CS-205's channel, not this one.
+
 ## CS-854
 
 ### NOTE - filed 2026-08-25 (session 40) by the merger, from the CS-829 repairing slice
@@ -1496,3 +1582,61 @@ prospective.
 
 NOTE: found 2026-08-22 (session 29) by the CS-807 permissive-failure refuter, OUTSIDE its brief, and reproduced independently on `main` by the merger: a planted sibling read as harmless, rewritten at the same path to reach the library, still answered `[]` until `cache_clear()`, which then answered `['sweep']`. **IT IS LATENT TODAY, NOT LIVE** - pytest's per-test `tmp_path` gives each control a fresh path, which is exactly why no existing test sees it. It becomes real the moment a control plants two sibling versions at one path, which is a natural thing to write and would fail in the direction that reads as SAFE.
 
+
+## CS-857
+
+### NOTE - filed 2026-08-28 (session 43) by the merger, from a CS-852 adversary, MEASURED ON MAIN
+
+**A CHANNEL NOTHING IN THE TREE GRADES, FOUND WHILE GRADING A DIFFERENT ONE.**
+`raise X(...) from exc` makes the CAUSE's own text part of the formatted traceback. The
+graded message can be perfectly redacted while the chained `OSError` renders the raw path
+beside it, on the same failure.
+
+**MEASURED, ON A REAL SHIPPED PATH, SYNTHETIC MARKER ONLY.** `usmap.load_usmap` against a
+path that is a directory raises `PermissionError`, re-raised `from exc` at
+`clockspeed/save/usmap.py:1113`. Default `traceback.format_exc()`, no flags: the graded
+channel rendered `<localappdata>/...` REDACTED, and the cause rendered the raw path
+including the Windows account name. `locate.redact` did its job and the traceback went
+around it.
+
+**SEVERITY IS SPLIT AND THE SPLIT IS THE POINT - MEASURED BY THE MERGER.** Under pytest
+with the configured pipeline, `tests/conftest.py:665`'s CS-428 report redactor SCRUBS the
+chained cause: the chain block is present, the home path and account name are not. So
+this does NOT leak in the suite, the pre-push hook, or either CI lane. It leaks on every
+rendering path that is not a pytest report - a CLI traceback, a log line, an uncaught
+exception in `surface/` or the Electron shell. Non-negotiable 12 counts a log line and
+exception context as echo paths, so this is real; it is not "live in CI".
+
+**NOBODY OWNS IT AND BOTH CANDIDATES SAY SO IN WRITING.**
+`tests/test_redaction_scope.py:26-29` declares the chained cause out of scope and names
+`clockspeed/save/world.py:971` as the site. The CS-852 message guard declares it out of
+scope because `from exc` sets `__cause__` rather than `args`. Both say "not me"; nothing
+says "me". Every `__cause__` assertion in the suite grades the cause's TYPE - five in
+`tests/save/test_world.py`, all `isinstance` - and one asserts a cause is `None`. None
+grades content.
+
+**IT LANDS ON THE CS-852 EXEMPTION RECORD, NOT MERELY NEAR IT. 7 OF 11 EXEMPT KEYS SIT ON
+A CHAINED RAISE** - measured by walking each key's construction site and testing
+`ast.Raise.cause`: `usmap.py::UsmapError`, and `workdir.py`'s `SourceUnreadableError` and
+`WorkDirError` at four sites. The 11th, `header.py::HeaderReadError`, is `from None` at
+`header.py:931` and is the one site that closes the channel.
+
+**TWO EXEMPTION REASONS STATE A PRIVACY CONCLUSION THE SITE DOES NOT DELIVER.** Both
+`SourceUnreadableError::exc.errno` and `WorkDirError::exc.errno` say the OSError's own
+message "is deliberately never rendered". It is never rendered INTO `args`. It IS rendered
+by the interpreter, on the same failure, under default flags, at `workdir.py:788`, `797`,
+`823` and `554`, each of which ends `) from exc`. Correcting those two reasons is part of
+this item.
+
+**THE LIVE SITES.** `raise ... from exc` under `clockspeed/`: `docs_extract.py:445,590`;
+`usmap.py:1113`; `world.py:748,971,976,983,1091`; four in `workdir.py`. The two in
+`docs_extract.py` chain benign causes - `UnicodeDecodeError` and `json.JSONDecodeError`,
+codec and offset only, no path, verified by reading both message constructions. **The
+OSError-rooted ones in `usmap.py` and `workdir.py`, re-wrapped by `world.py`, are the
+exposure.**
+
+**DO NOT FOLD THIS INTO CS-852 OR CS-855.** CS-852 gap 1 grades what reaches `args`; this
+is what reaches the traceback WITHOUT reaching `args`, which is why that guard correctly
+declines it. CS-855 grades three mechanisms by which a CAUGHT exception reaches a report;
+this is the mechanism by which a RE-RAISED one does, and its severity profile is
+different because it survives outside pytest where CS-428 does not run.
