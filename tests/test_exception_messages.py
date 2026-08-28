@@ -645,6 +645,40 @@ def read(cursor: object) -> None:
     raise ReaderError(field=cursor.string(64))
 '''
 
+#: Two namesake renderers with the SAME parameter names and DIFFERENT
+#: bodies. Only the second one shows the reason.
+_TWO_NAMESAKE_BUILDERS: Final[dict[str, str]] = {
+    f"{GRADED_LAYER}a_render.py": '''
+"""A module whose renderer shows only the offset."""
+
+
+def _render(reason: str, offset: int) -> str:
+    """Compose a message from the offset alone."""
+    return f"at byte {offset}"
+''',
+    f"{GRADED_LAYER}b_render.py": '''
+"""A module whose namesake renderer shows the reason too."""
+
+
+def _render(reason: str, offset: int) -> str:
+    """Compose a message from both."""
+    return f"at byte {offset}: {reason}"
+
+
+class ReaderError(Exception):
+    """Delegates its message to a renderer."""
+
+    def __init__(self, reason: str, *, offset: int) -> None:
+        """Render through the helper."""
+        super().__init__(_render(reason, offset))
+
+
+def read(cursor: object) -> None:
+    """Raise with a decoded reason."""
+    raise ReaderError(cursor.string(64), offset=0)
+''',
+}
+
 _STRUCTURED_NEVER_BUILT = '''
 """A structured error with a text channel and no construction site at all."""
 
@@ -963,6 +997,27 @@ def test_a_helper_that_returns_before_its_guard_is_not_a_narrower() -> None:
     # parameter unchanged - so the channel is named for the caller's own
     # expression rather than for the call that failed to narrow it.
     assert [c.channel for c in found] == ["field"], describe(found)
+
+
+def test_every_namesake_builder_is_descended_not_just_the_first() -> None:
+    """I FOUND THIS ONE BY TURNING THE ROUND'S OWN PRINCIPLE ON THE REPAIR.
+
+    The repair for the namesake shape requires every shipped definition of
+    a name to build a message AND to agree on parameter names before the
+    walk steps inside. Agreeing on parameter names does not make two
+    bodies the same function, and descending only the first graded the
+    call by one namesake's channels while the caller may have meant the
+    other. Here the first renderer shows only the offset and the second
+    shows the reason as well; taking the first alone reports nothing.
+
+    ``_render`` is declared twice in the live tree, once per parser layer,
+    so this is the shape the tree already carries rather than a
+    hypothetical.
+    """
+    found = _findings_across(_TWO_NAMESAKE_BUILDERS)
+    assert [c.channel for c in found] == ["reason"], describe(
+        _channels_across(_TWO_NAMESAKE_BUILDERS)
+    )
 
 
 def test_a_call_site_proof_over_no_call_site_proves_nothing() -> None:

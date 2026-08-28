@@ -1394,15 +1394,24 @@ def _descended_builder(
         return None
     if not _every_definition_builds(frame.index, definitions):
         return None
-    module, target = definitions[0]
-    frame.index.resolved.add(target.name)
-    binds = {
-        name: (bound, frame)
-        for name in _parameters(target)
-        if (bound := _bound_at(node, target, name)) is not None
-    }
-    inner = _Frame(frame.index, module, target, None, binds)
-    return [part for value in _returned(target) for part in _compose(value, inner, hops + 1)]
+    # EVERY DEFINITION, UNIONED. Agreeing on parameter NAMES does not make
+    # two namesakes the same FUNCTION, so descending definitions[0] would
+    # grade the call by one body while the call site may have meant the
+    # other. Taking the union costs a duplicate label, which channels_of
+    # folds by keeping the WEAKEST verdict - the direction that reports.
+    found: list[tuple[ast.expr, _Frame]] = []
+    for module, target in definitions:
+        frame.index.resolved.add(target.name)
+        binds = {
+            name: (bound, frame)
+            for name in _parameters(target)
+            if (bound := _bound_at(node, target, name)) is not None
+        }
+        inner = _Frame(frame.index, module, target, None, binds)
+        found.extend(
+            part for value in _returned(target) for part in _compose(value, inner, hops + 1)
+        )
+    return found
 
 
 def _every_definition_builds(index: Index, definitions: Sequence[tuple[str, _Function]]) -> bool:
