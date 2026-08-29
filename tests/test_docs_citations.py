@@ -216,6 +216,7 @@ GUARDED_DOCS: Final = (
     # cited proof has been deleted is worse than no lesson.
     "memory/moving-an-assert-can-create-the-leak.md",
     "memory/a-guard-can-measure-spelling.md",
+    "memory/a-guard-can-be-green-by-accident.md",
 )
 
 # `.claude/` is OUT OF DOMAIN rather than exempt. It is Claude Code

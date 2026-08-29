@@ -58,6 +58,9 @@ Budgets: this file under 20 KB (CI hard fail), each leaf under 6 KB (CI warn).
   measure a different spelling; gate a clearance on a positive fact. A guard that
   matches on a NAME reports a population zero about the wrong question; and a false
   clearance is a worse defect than a silence.
+- [A guard can be green by accident](a-guard-can-be-green-by-accident.md) - it can
+  pass because a DIFFERENT mechanism silently covers the case under test; delete the
+  mechanism the arm names and see whether anything goes red.
 - [A probe can validate the wrong channel](a-probe-can-validate-the-wrong-channel.md) -
   a check that validates one channel while its consumer reads another proves nothing;
   a harness that cannot reach that channel cannot grade it.
