@@ -25,6 +25,28 @@ Where current truth actually lives:
 
 ---
 
+## Session 41 - 2026-08-25 - `docs/item_notes.md` SPLIT per phase with an index; CS-856 closes; guard (j) ships; two controls were one edit away from grading an empty population
+
+- **Shipped: CS-856 CLOSES.** `docs/item_notes.md` is now an index over `docs/item_notes/`,
+  six leaves, 97 bodies moved byte-for-byte. Detail in `docs/LEDGER.md`, not here.
+- **In flight: NOTHING.** No half-done work, no dirty file, no held branch beyond the four
+  already preserved. **ADR 0010 was ACCEPTED by operator ruling the same day**, so the split
+  is settled and binding. ADR 0009 remains `proposed` with no roadmap item.
+- **Decisions: ADR 0010.** Three operator choices, each with its fence: split at the
+  `CS-4nn`/`CS-8nn` seam rather than one 182 KB phase-4 leaf; ROADMAP item lines point at
+  the INDEX and never at a leaf; record it as an ADR plus both topology tables.
+- **Surprises: none contradicted `BOOTSTRAP.md`.** The measurement that DID change the
+  design was that a literal per-phase split leaves 84 per cent of the content in one file,
+  which was taken before any file was written and is why phase 4 is two leaves.
+- **Failed paths: two, both mine, both caught by a contract rather than by review.** A
+  byte-conservation check summed `for v in written` - the KEYS, not the values - and read as
+  a catastrophic loss; and the `CS-492` disposition key was repointed at `phase4.md` by
+  reasoning from the item id when the pointer actually sits in `phase4-followups.md`. Do not
+  infer a body's leaf from the item id it names.
+- **Next action: NONE IS FORCED.** CS-829 remains the head of the product path.
+
+---
+
 ## Session 40 - 2026-08-25 - a LIVE tier-1 leak found on main and closed; four items build, all four are REFUTED, all four are repaired, and NOTHING CLOSES; the finding is that an empty population satisfies every assertion of zero
 
 - **Shipped: NOTHING CLOSED.** CS-829, CS-846, CS-850 and CS-851 all merged as improvements

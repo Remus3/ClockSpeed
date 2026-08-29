@@ -1685,14 +1685,29 @@ NOTE: found 2026-08-22 (session 29) by the CS-807 permissive-failure refuter, OU
 
 ### NOTE - filed 2026-08-28 (session 43) by the merger, from a CS-852 adversary, MEASURED ON MAIN
 
+**THE SITE LIST WAS DELETED FROM THIS NOTE IN SESSION 44, AND THE DELETION IS THE POINT.**
+It rotted TWICE in that one session. First it was six pointers stale, because session 43's
+own commits - `8175f64` added 83 lines to `clockspeed/save/usmap.py` and 24 to
+`clockspeed/save/world.py` - landed after the filing. Then a re-derivation by grep matched
+the CLOSING `) from exc` line instead of the statement line and broke four pointers that
+had been correct. Then THIS ITEM'S OWN REPAIR inserted a helper above every site and moved
+all five again. Three drifts, one session, one list.
+
+`CLAUDE.md` section 4 already owns the answer - a measured number belongs in exactly one
+machine-checked place, and a hardcoded count in a doc is a lie with a timestamp on it.
+**`tests/chained_cause_guard.py` IS THAT PLACE**, derived on every run by `ast.Raise`, so
+this note cites it rather than restating it. Module-level citations stay: they name a file
+and a symbol, and neither moves when a line does. The reasoning below is unchanged; only
+the transcribed pointers are gone.
+
 **A CHANNEL NOTHING IN THE TREE GRADES, FOUND WHILE GRADING A DIFFERENT ONE.**
 `raise X(...) from exc` makes the CAUSE's own text part of the formatted traceback. The
 graded message can be perfectly redacted while the chained `OSError` renders the raw path
 beside it, on the same failure.
 
 **MEASURED, ON A REAL SHIPPED PATH, SYNTHETIC MARKER ONLY.** `usmap.load_usmap` against a
-path that is a directory raises `PermissionError`, re-raised `from exc` at
-`clockspeed/save/usmap.py:1113`. Default `traceback.format_exc()`, no flags: the graded
+path that is a directory raises `PermissionError`, re-raised at the one chained site in
+`clockspeed/save/usmap.py::load_usmap`. Default `traceback.format_exc()`, no flags: the graded
 channel rendered `<localappdata>/...` REDACTED, and the cause rendered the raw path
 including the Windows account name. `locate.redact` did its job and the traceback went
 around it.
@@ -1706,31 +1721,59 @@ exception in `surface/` or the Electron shell. Non-negotiable 12 counts a log li
 exception context as echo paths, so this is real; it is not "live in CI".
 
 **NOBODY OWNS IT AND BOTH CANDIDATES SAY SO IN WRITING.**
-`tests/test_redaction_scope.py:26-29` declares the chained cause out of scope and names
-`clockspeed/save/world.py:971` as the site. The CS-852 message guard declares it out of
-scope because `from exc` sets `__cause__` rather than `args`. Both say "not me"; nothing
-says "me". Every `__cause__` assertion in the suite grades the cause's TYPE - five in
-`tests/save/test_world.py`, all `isinstance` - and one asserts a cause is `None`. None
-grades content.
+`tests/test_redaction_scope.py:26-41` declares the chained cause out of scope and NAMED
+`clockspeed/save/world.py` line 971 as the site - a pointer that had ITSELF drifted, that
+statement having moved to `clockspeed/save/world.py:989`. It was REPOINTED in session 44
+to `clockspeed/save/world.py:1109` rather than renumbered, because the claim it carries -
+filename included - is FALSE at the STAGE_HEADER site: `parse_header` takes bytes, so the
+`HeaderError` it raises has no filename to carry. STAGE_COPY and STAGE_USMAP are the two
+of the five whose cause reaches an `OSError` that does. The CS-852 message guard declares
+the channel out of scope because `from exc` sets `__cause__` rather than `args`. Both
+guards say "not me"; CS-857 now says "me" and nothing yet grades it. Every `__cause__` assertion in the
+suite grades the cause's TYPE or its nullity - SIX in `tests/save/test_world.py`, all
+`isinstance`, and one asserting `None` at `tests/save/test_header.py:1048`. The first
+filing said five; six was measured in session 44. None grades content.
 
 **IT LANDS ON THE CS-852 EXEMPTION RECORD, NOT MERELY NEAR IT. 7 OF 11 EXEMPT KEYS SIT ON
 A CHAINED RAISE** - measured by walking each key's construction site and testing
-`ast.Raise.cause`: `clockspeed/save/usmap.py::UsmapError`, and `workdir.py`'s `SourceUnreadableError` and
-`WorkDirError` at four sites. The 11th, `clockspeed/save/header.py::HeaderReadError`, is `from None` at
-`header.py:931` and is the one site that closes the channel.
+`ast.Raise.cause`: `clockspeed/save/usmap.py::UsmapError`, and
+`clockspeed/save/workdir.py`'s `SourceUnreadableError` and `WorkDirError` at four sites.
+The 11th, `clockspeed/save/header.py::HeaderReadError`, is `from None` at
+`clockspeed/save/header.py:927` and is the one site that closes the channel. The other
+three that do not chain are the three `DestinationRefusedError` keys.
 
 **TWO EXEMPTION REASONS STATE A PRIVACY CONCLUSION THE SITE DOES NOT DELIVER.** Both
 `SourceUnreadableError::exc.errno` and `WorkDirError::exc.errno` say the OSError's own
 message "is deliberately never rendered". It is never rendered INTO `args`. It IS rendered
-by the interpreter, on the same failure, under default flags, at `workdir.py:788`, `797`,
-`823` and `554`, each of which ends `) from exc`. Correcting those two reasons is part of
-this item.
+by the interpreter, on the same failure, under default flags, at the four
+`clockspeed/save/workdir.py` sites the census reports for `_make_dir`, `copy_for_read`
+(twice) and `_readable_source`. Correcting those two reasons is part of this item.
 
-**THE LIVE SITES.** `raise ... from exc` under `clockspeed/`: `docs_extract.py:445,590`;
-`usmap.py:1113`; `world.py:748,971,976,983,1091`; four in `workdir.py`. The two in
-`docs_extract.py` chain benign causes - `UnicodeDecodeError` and `json.JSONDecodeError`,
-codec and offset only, no path, verified by reading both message constructions. **The
-OSError-rooted ones in `usmap.py` and `workdir.py`, re-wrapped by `world.py`, are the
+**THE LIVE SITES ARE OWNED BY `tests/chained_cause_guard.py`, NOT BY THIS PARAGRAPH.** It
+derives them every run and reports a verdict per site. What is stable enough to write down
+here is WHICH MODULES carry them and which are the exposure: `clockspeed/data/blobs.py`,
+`clockspeed/data/docs_extract.py` (two) and `clockspeed/data/version.py` chain causes that
+carry no path - a `ValueError` from `int()`, a `UnicodeDecodeError`, and a `json` decode
+failure rendered as msg, lineno and colno. `clockspeed/save/world.py` chains project
+exceptions and its own wrapper messages are structurally path-free.
+
+**A CONVENTION HAS TO BE STATED OR IT DRIFTS BY TWO.** Half the raises span several lines,
+so a grep for `) from exc` and an AST walk disagree by two or three on each of them. The
+census uses `ast.Raise.lineno` - the STATEMENT line - and says so in its own docstring.
+Any later reader comparing its output against a hand-written pointer must check which
+convention that pointer used before calling it stale.
+
+**THE FIRST FILING MISSED `clockspeed/data/blobs.py` AND `clockspeed/data/version.py`
+ENTIRELY, AND THAT UNDERCOUNT IS ITSELF THE ARGUMENT FOR THE ACCEPTANCE'S `DERIVED`
+CLAUSE** - a hand-listed population was short by two the day it was written. Both look
+benign on inspection: `blobs.py` chains a `ValueError` from `int()`, and `version.py`
+chains a `json.loads` failure rendered as msg, lineno and colno. Neither is confirmed.
+Both are UNVERIFIED pending the derived sweep.
+
+The two in `clockspeed/data/docs_extract.py` chain benign causes - `UnicodeDecodeError`
+and `json.JSONDecodeError`, codec and offset only, no path, verified by reading both
+message constructions. **The OSError-rooted ones in `clockspeed/save/usmap.py` and
+`clockspeed/save/workdir.py`, re-wrapped by `clockspeed/save/world.py`, are the
 exposure.**
 
 **DO NOT FOLD THIS INTO CS-852 OR CS-855.** CS-852 gap 1 grades what reaches `args`; this
@@ -1738,3 +1781,111 @@ is what reaches the traceback WITHOUT reaching `args`, which is why that guard c
 declines it. CS-855 grades three mechanisms by which a CAUGHT exception reaches a report;
 this is the mechanism by which a RE-RAISED one does, and its severity profile is
 different because it survives outside pytest where CS-428 does not run.
+
+### WHAT SESSION 44 SHIPPED, AND THE FOUR RESIDUALS THAT KEEP IT OPEN
+
+**SHIPPED, AND MEASURED AT THE MERGE.** The five OSError-rooted sites now chain a
+filename-free clone - `_pathless_cause(exc)` returning `OSError(exc.errno, exc.strerror)`
+- so `filename` and `filename2` never reach the interpreter's rendering while errno,
+strerror and `isinstance(__cause__, OSError)` all survive. `tests/test_chained_cause.py`
+went `6 failed, 10 passed` to `16 passed` across that repair. `tests/chained_cause_guard.py`
+derives the population over FOUR forms plus a `__notes__` census. The two false exemption
+reasons in `tests/exception_message_guard.py` are corrected, and the three-module decline
+cycle is broken.
+
+**RESIDUAL 1 - A FALSE CLEARANCE IN THE ONE PLACE THE GUARD ISSUES ONE. THIS IS THE
+BIGGEST.** `classify` tests `FORM_SUPPRESSED` above `MEASURED_LEAK`, so
+`raise exc from None` inside `except OSError as exc` is graded `closed-suppressed` - the
+guard's only positive verdict - while the runtime traceback renders the path. Measured by
+an adversary and reproduced by the merger: static `closed-suppressed`, rendered
+`FileNotFoundError: [Errno 2] No such file or directory: '<marker>'`. The mechanism is that
+`from None` suppresses the CONTEXT while the exception being raised is the binding itself,
+whose own `str()` carries `filename`. LATENT, NOT LIVE - all 14 shipped `from None` sites
+raise a project wrapper and none re-raises its binding. The guard's docstring says `from
+None` "genuinely closes the channel"; that sentence is measured FALSE and must not be
+repeated. A FALSE CLEARANCE IS WORSE THAN A SILENCE - see
+`memory/a-guard-can-measure-spelling.md`.
+
+**RESIDUAL 2 - THE LARGEST SILENCE: A RAISE IN A CALLEE OF A HANDLER.** CPython sets
+`__context__` from the THREAD's exception state, not from lexical scope, so a helper called
+from a handler body chains and renders identically to a graded `from exc` - and is not in
+the population at all. Measured: 53 `except` handlers under `clockspeed/`, 27 whose body
+contains a call, 10 of those OSError-typed. The guard's docstring claims escape requires
+leaving every handler AND dropping the `from`; that is measured FALSE. It also refutes the
+stated rationale for `NESTED_SCOPES`, which holds only when a nested def is RETURNED and
+not when it is CALLED.
+
+**RESIDUAL 3 - THE REPAIR MADE ITS OWN SITES UNPROVABLE TO THE CENSUS.** `from
+_pathless_cause(exc)` is a `Call`, which the static rule cannot resolve, so the five sites
+moved from `measured-leak` to `unproven` rather than to anything positive. An adversary
+planted a no-op `from _identity(exc)` beside the real repair and the guard graded the two
+IDENTICALLY. The repair is genuine and `tests/test_chained_cause.py` proves it at runtime,
+but the STATIC report of a repaired tree now carries the same information as the report of
+an evaded one, and the leaks-reported-every-run warning returns early on the empty list, so
+that signal is silently gone. Static and runtime cover different halves here and neither
+alone is the proof.
+
+**RESIDUAL 4 - AN ALIASED IMPORT UNDER-REPORTS AND IS NOT IN THE STATED LIMITS.** `from
+builtins import OSError as Boom` grades `unproven`. The limits name module-level SHADOWING
+and dotted handler types; they do not name ALIASING. Under-report, so a silence rather than
+a clearance, but unstated.
+
+**COUNTS ARE OWNED BY THE CENSUS, NOT BY THIS NOTE - AND THE REASON IS RECORDED ABOVE.**
+Any figure a later session cites must be re-derived on the tree it is talking about. The
+figures reported mid-session 44 - 34 sites, 5 measured-leak - were measured in a worktree at
+`209ce05` BEFORE the repair merged and describe the pre-merge tree; the merged tree derives
+50 sites and ZERO measured-leak. A census figure is a statement about a tree, and the tree
+must be named.
+
+**THE ADVERSARIAL PASS IS INCOMPLETE AND THAT IS WHY NO CLOSURE WAS EVEN PROPOSED.** Of
+four refuters, ONE returned. Two died on an expired OAuth token mid-run and one was
+stopped. The population lens returned REFUTED; the false-clearance, does-it-reproduce and
+privacy lenses NEVER REPORTED. Their briefs are worth re-dispatching verbatim.
+
+**STILL UNMEASURED, AND IT IS LOAD-BEARING FOR THE SEVERITY FRAMING.** That
+`tests/conftest.py:665` SCRUBS a chained cause under pytest has now been READ by three
+agents and FORCED by none. The refuter assigned to force it died at exactly that step. Until
+someone makes a test fail with a chained cause carrying a synthetic marker UNDER THE
+PROJECT'S OWN pytest configuration and reads the rendered report, "this does not leak in the
+suite or either CI lane" is an inference from reading the hook, not a measurement.
+
+## CS-858
+
+### NOTE - filed 2026-08-28 (session 44) by the merger, from the CS-857 census
+
+The CS-857 derivation sweeps all 110 tracked Python files and finds nine chained-raise
+sites outside `clockspeed/`, in `scripts/install_hooks.py` and `tools/precommit_gate.py`.
+Both are FROZEN by `CLAUDE.md` section 6, so no CS-857 slice could touch them and none did.
+`tests/chained_cause_guard.py` derives them, classifies them and PRINTS them as
+out-of-scope-recorded on every run - that warning is one of exactly two the suite emits.
+
+**RECORDED IS NOT GRADED.** No arm asserts anything about their rendering. They are visible
+and ungraded, which is the honest state but not a closed one. The operator approved filing
+this as its own item on 2026-08-28 rather than widening CS-857.
+
+**THE FROZEN ROUTE IS THE WHOLE COST.** `CLAUDE.md` section 6 requires an adjudicator grant
+recorded in `docs/LEDGER.md` BEFORE an edit, and no agent grants itself the exception. If
+the verdict is that these sites need no repair, the exemption still has to be stated
+somewhere a guard reads.
+
+## CS-859
+
+### NOTE - filed 2026-08-28 (session 44) by the merger, measured before filing
+
+`tests/save/test_absolute_claims.py` governs prose in the modules named by its
+`FENCED_MODULES` tuple. `tests/test_redaction_scope.py` is NOT among them, and nothing else
+reads its prose - `tools/drift_guard.py` does not, and `tests/test_docs_citations.py` scans
+`docs/` only. That is the mechanism by which its `clockspeed/save/world.py` pointer sat dead
+from 2026-08-16 until session 44 found it.
+
+**THE COST WAS MEASURED BEFORE FILING, WITH THE FENCE'S OWN MACHINERY** - `unbacked_absolutes`
+against the module reports 35 findings over 132 sentences. Contract 1 admits three remedies
+per finding - delete it, narrow it until the quantifier is gone, or make it name a test that
+resolves - and states that an exemption list is NOT a third option. Several findings are the
+module quoting CS-454's own acceptance criterion, and the contract says a marker inside a
+quoted fragment still counts.
+
+**DO NOT RE-SCOPE THIS AS A ONE-LINE CHANGE.** Adding the module to `FENCED_MODULES` is one
+line; that line is not the work. The operator chose on 2026-08-28 to do the rewrite rather
+than only file it, and it was NOT reached in session 44 - the round ended with the
+adversarial pass incomplete. It is unstarted, not half-done.

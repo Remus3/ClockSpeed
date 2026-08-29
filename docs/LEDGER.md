@@ -75,6 +75,57 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-08-28 - CS-857 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-857 STAYS OPEN
+Verification: `tests/test_chained_cause.py`, all 16 arms, chiefly
+`tests/test_chained_cause.py::test_an_oserror_rooted_site_renders_a_redactable_path` and
+`tests/test_chained_cause.py::test_a_world_rewrap_leaks_through_a_clean_immediate_cause`;
+`tests/test_chained_cause_census.py` over `tests/chained_cause_guard.py`;
+`tests/test_exception_messages.py::test_every_identifier_an_exemption_cites_exists_in_the_module_it_names`;
+merged files `clockspeed/save/usmap.py`, `clockspeed/save/workdir.py`,
+`tests/chained_cause_guard.py`, `tests/test_chained_cause.py`,
+`tests/test_chained_cause_census.py`, `tests/exception_message_guard.py`,
+`tests/test_redaction_scope.py`, `tests/test_exception_rendering.py`,
+`tests/save/test_usmap.py`, `tests/save/test_workdir.py`.
+
+**THE CHANNEL IS SHUT AT THE FIVE SHIPPED SITES AND THE ITEM STILL DOES NOT CLOSE.**
+`raise X(...) from exc` puts the cause's own text in the formatted traceback, so a redacted
+wrapper rendered clean while the chained `OSError` rendered the raw path beside it. The five
+OSError-rooted sites in `clockspeed/save/usmap.py` and `clockspeed/save/workdir.py` now chain
+`_pathless_cause(exc)`, an `OSError(exc.errno, exc.strerror)` clone carrying neither
+`filename` nor `filename2`. `tests/test_chained_cause.py` moved `6 failed, 10 passed` to
+`16 passed` across exactly that repair, and the repair was mutation-verified: reintroducing
+`exc.filename` returned the module to its original `6 failed, 10 passed` signature.
+
+**IT DOES NOT CLOSE BECAUSE THE DERIVED CENSUS CARRIES A FALSE CLEARANCE.** `classify` in
+`tests/chained_cause_guard.py` tests `FORM_SUPPRESSED` above `MEASURED_LEAK`, so
+`raise exc from None` inside `except OSError as exc` takes `closed-suppressed` - the guard's
+only positive verdict - while the runtime traceback renders the path. `from None` suppresses
+the CONTEXT; the exception being raised is the binding itself. Latent, not live: all 14
+shipped `from None` sites raise a project wrapper and none re-raises its binding. Three
+further residuals are recorded in `docs/item_notes/phase4-followups.md` under CS-857.
+
+**THE ADVERSARIAL PASS WAS INCOMPLETE, AND NO CLOSURE WAS PROPOSED ON THE STRENGTH OF ONE
+LENS.** Four refuters were dispatched under the operator's session-42 ruling. One returned,
+REFUTED. Two died on an expired OAuth token and one was stopped. The false-clearance,
+does-it-reproduce and privacy lenses never reported.
+
+**A COUNT IN THIS ENTRY WOULD HAVE BEEN WRONG THREE TIMES OVER, WHICH IS WHY THERE IS NONE.**
+The site list carried in the item note drifted three times in one session - stale at filing,
+broken by a re-derivation that matched the closing `) from exc` line instead of the
+statement line, then moved again by this item's own repair. It was deleted from the note and
+`tests/chained_cause_guard.py` made its owner, per `CLAUDE.md` section 4.
+
+**DECISIONS.** The operator ruled on 2026-08-28 that the acceptance's "or each recorded
+against a stated exemption" does NOT permit closing with no `clockspeed/` change, and that
+the remedy ships; a stated exemption over a site that demonstrably renders an account name
+is a false clearance. The item was filed tier 1 and the remedy edits save-layer error
+contracts, so it is corrected to tier 2 in `ROADMAP.md`. The operator also approved filing
+CS-858 and CS-859. No license gate was reached this session.
+
+**NO ADJUDICATOR GRANT WAS SOUGHT OR NEEDED** - no slice write-list contained a frozen file.
+The nine chained sites in `scripts/install_hooks.py` and `tools/precommit_gate.py` are
+derived and printed by the census, never edited, and are now CS-858.
+
 <!-- Newest first. Append new entries immediately below this line. -->
 
 ### 2026-08-28 - CS-852 - NOT A COMPLETION RECORD. CS-852 STAYS OPEN. Gap 1 graded rather than recorded, nine false clearances closed, and the four-parser vocabulary split closed by operator ruling

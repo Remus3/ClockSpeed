@@ -58,6 +58,31 @@ Given a choice between a narrower rule that reports more and a broader one that 
 more, take the narrower one. An over-reporting guard costs a reader some time; an
 over-proving guard costs them the belief that they need to look at all.
 
+## A verdict order can issue the clearance
+
+Measured in session 44. The third false clearance in three consecutive sessions, each inside the guard written to
+prevent the last one. This one is not in a detector at all - it is in the ORDER the verdicts
+are tested.
+
+`tests/chained_cause_guard.py` tests `FORM_SUPPRESSED` before `MEASURED_LEAK`, so
+`raise exc from None` inside `except OSError as exc` is graded `closed-suppressed` - the
+guard's only positive verdict - while the traceback still renders the filename. `from None`
+suppresses the CONTEXT; the exception being raised is the binding itself, and its own
+`str()` carries the path. The docstring argued carefully that leak-before-exempt stops an
+exemption laundering a leak, and never noticed the clearance sitting above both.
+
+**THE TEST: for every branch that returns a positive verdict, ask what is TRUE AT RUNTIME
+when that branch is taken.** A verdict order is a rule, and a rule that is never executed
+against a live example is a claim. Read the branches in the order the code tests them, not
+the order the docstring explains them.
+
+**AND A REPAIR CAN MAKE ITS OWN SITES UNPROVABLE.** The same session's fix spelled the cause
+`from _pathless_cause(exc)` - a call expression the static rule cannot resolve - so the
+repaired sites became `unproven`, indistinguishable from a no-op `from _identity(exc)` an
+adversary planted beside them. The runtime arm proves the repair; the static census cannot
+see that it is genuine. When a remedy changes the SHAPE a guard keys on, re-run the guard
+and read what the verdict became.
+
 Related: [[test-quality-failure-classes]], [[verification-failure-classes]],
 [[an-empty-population-satisfies-every-zero]], [[a-probe-can-validate-the-wrong-channel]],
 [[orchestrated-multi-agent-is-the-default]].
