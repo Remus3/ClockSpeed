@@ -128,7 +128,7 @@ OSError-rooted sites in `clockspeed/save/usmap.py` and `clockspeed/save/workdir.
 only positive verdict - while the runtime traceback renders the path. `from None` suppresses
 the CONTEXT; the exception being raised is the binding itself. Latent, not live: all 14
 shipped `from None` sites raise a project wrapper and none re-raises its binding. Three
-further residuals are recorded in `docs/item_notes/phase4-followups.md` under CS-857.
+further residuals are recorded in `docs/item_notes/phase4-followups-850.md` under CS-857.
 
 **THE ADVERSARIAL PASS WAS INCOMPLETE, AND NO CLOSURE WAS PROPOSED ON THE STRENGTH OF ONE
 LENS.** Four refuters were dispatched under the operator's session-42 ruling. One returned,
@@ -238,7 +238,7 @@ the population are outside it, `clockspeed/data/locate.py::LocalConfigWarning` a
 `clockspeed/save/objects.py::Transform`, because the derivation keys on the annotation while
 the leak is in the value. `clockspeed/save/objects.py::UnknownClass` is an ACCEPTED
 disclosure required by BOOTSTRAP.md section 9, not a proven-safe one. Full detail, including
-four traps that cost this session, is in `docs/item_notes/phase4-followups.md` under CS-852.
+four traps that cost this session, is in `docs/item_notes/phase4-followups-850.md` under CS-852.
 
 **Two defects in the merger's own work, both caught by an adversary and not by review.** A
 loop-invariant assert was hoisted out of a per-save loop to clear a CS-851 finding; the

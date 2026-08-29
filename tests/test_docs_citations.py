@@ -148,6 +148,16 @@ ADR_0008: Final = "docs/adr/0008-detection-claims-are-derived-never-written.md"
 #: in it rots unobserved.
 ADR_0010: Final = "docs/adr/0010-item-notes-is-an-index-over-per-phase-leaves.md"
 
+#: The ADR recording the 2026-08-29 split of that follow-up leaf again, at the
+#: CS-850 seam. GUARDED FOR ADR 0010's REASON AND FOR ONE OF ITS OWN. Its whole
+#: subject is that the ID-to-leaf mapping has exactly ONE code owner, and it
+#: names that owner by path - an ADR that declined to name it, to stay below
+#: this module's boundary, would be self-defeating and would have bought its
+#: silence with the precision that makes it useful. Being guarded is the
+#: feature here rather than the cost: the naming it argues for is exactly what
+#: makes it a carrier, so the two decisions stand or fall together.
+ADR_0011: Final = "docs/adr/0011-the-cs-8nn-follow-up-leaf-splits-at-cs-850.md"
+
 #: The LIVE per-item detail file, created 2026-08-23 when the operator ruled the
 #: NOTE bodies out of `ROADMAP.md`. IT IS GUARDED RATHER THAN RECORDED UNGUARDED,
 #: and the reason is the move itself: every body in it came VERBATIM out of
@@ -198,6 +208,7 @@ GUARDED_DOCS: Final = (
     "WAKEUP_NOTES.md",
     ADR_0008,
     ADR_0010,
+    ADR_0011,
     ITEM_NOTES,
     *ITEM_NOTES_LEAVES,
     # A memory leaf that cites a test by name. Guarded rather than recorded,

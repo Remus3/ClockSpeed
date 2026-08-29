@@ -1969,8 +1969,25 @@ def scan_source(module: str, source: str) -> list[Finding]:
 # defect - two hand-maintained lists of one kind of thing, drifting until one
 # of them names none of what the other enumerates.
 
-#: A spelling the project's own RUNTIME redactor recognises: this machine's
-#: home directory, account name or machine name, appearing INSIDE A PATH.
+#: What ``tests/conftest.py``'s RUNTIME redactor rewrites, appearing INSIDE A
+#: PATH: SPELLINGS OF THIS MACHINE - its home directory and its account name -
+#: and, since CS-860, SHAPES - the account directory sitting under the save
+#: root, and a save filename.
+#:
+#: SO IT NO LONGER FIRES ON A REAL SPELLING AND ON NOTHING ELSE, and that is a
+#: narrowing of this note rather than a live finding. A shape fires on a token
+#: that is nobody's real value: the account-directory half is
+#: :data:`ECHO_ACCOUNT`'s subject as well and is therefore double-covered, and
+#: the save-filename half is reached from here alone. Neither reddens anything
+#: in the tree today, and
+#: ``test_no_shipped_function_echoes_personal_data_through_its_own_source`` is
+#: the arm that would say otherwise.
+#:
+#: A MACHINE NAME IS NOT ON THAT LIST, though this note named one until CS-860
+#: read the rule set. ``clockspeed/data/locate.py`` redacts one; the conftest
+#: redactor derives its account spellings from the profile directory's name and
+#: from USERNAME, USER and LOGNAME, so a machine name reaches this rule through
+#: neither.
 #:
 #: THE PATH RESTRICTION IS LOAD-BEARING AND WAS MEASURED, NOT REASONED. This
 #: rule once ran the redactor over the WHOLE line, and its note claimed it
@@ -1989,11 +2006,11 @@ def scan_source(module: str, source: str) -> list[Finding]:
 #: CONTEXT. So the redactor is applied to the path-shaped tokens of a line
 #: rather than to the line.
 #:
-#: COST, DISCLOSED RATHER THAN HIDDEN: an account or machine name written into
+#: COST, DISCLOSED RATHER THAN HIDDEN: an account name written into
 #: source OUTSIDE any path - ``EXPECTED_USER = "somebody"`` - is no longer
 #: caught by THIS rule. It remains caught by the tracked-file secret and PII
 #: scans, and :data:`ECHO_HOME` and :data:`ECHO_ACCOUNT` are unaffected.
-ECHO_MACHINE: Final = "a spelling this machine's redactor recognises inside a path"
+ECHO_MACHINE: Final = "a value or shape this machine's redactor recognises inside a path"
 
 #: An absolute path under a user home directory, in any of the renderings the
 #: scaffold guard knows. Owned by that guard and read from it.

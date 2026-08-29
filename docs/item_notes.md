@@ -35,17 +35,28 @@ mapping has one owner and this file only reports it:
 | `docs/item_notes/phase2.md` | ROADMAP `Phase 2` |
 | `docs/item_notes/phase3.md` | ROADMAP `Phase 3` |
 | `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID outside the `CS-8nn` block |
-| `docs/item_notes/phase4-followups.md` | ROADMAP `Phase 4`, ID inside the `CS-8nn` block |
+| `docs/item_notes/phase4-followups.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block below CS-850 |
+| `docs/item_notes/phase4-followups-850.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block at or above CS-850 |
 | `docs/item_notes/phase5.md` | ROADMAP `Phase 5` |
 | `docs/item_notes/phase7.md` | ROADMAP `Phase 7` |
 
-**Phase 4 is two leaves and the seam is not arbitrary.** `CS-8nn` is the follow-up
+**Phase 4 is three leaves and neither seam is arbitrary.** `CS-8nn` is the follow-up
 block, created because `CS-4nn` filled up at 98 of 100 - operator decision 2026-08-21,
 recorded in `ROADMAP.md`. An ID therefore still says which phase it came from, and
-membership needs no judgement. `CS-501` is the one stated exception: it predates the
-block, keeps its ID, and `ROADMAP.md` files it under phase 4, so it sits in
-`phase4.md`. A phase with no OPEN item carrying detail has no leaf; phase 6's open
-items carry none today.
+membership needs no judgement. The `CS-8nn` block then split again at CS-850, and the
+reasoning - including why the seam sits there rather than at CS-830 or CS-840 - is in
+`docs/adr/0011-the-cs-8nn-follow-up-leaf-splits-at-cs-850.md`. `CS-501` is the one
+stated exception: it predates the block, keeps its ID, and `ROADMAP.md` files it under
+phase 4, so it sits in `phase4.md`. A phase with no OPEN item carrying detail has no
+leaf; phase 6's open items carry none today.
+
+**THE TWO `CS-8nn` LEAF NAMES ARE NOT SYMMETRIC, SO READ THE TABLE AND NEVER THE
+FILENAME.** `phase4-followups.md` does not spell its range and is NOT the whole block -
+it is the CS-800 to CS-849 half, and `phase4-followups-850.md` holds the rest. The
+unsuffixed name was kept because pointers in `WAKEUP_NOTES.md` and `docs/LEDGER.md`
+already spell it; renaming it to gain a symmetric pair would have killed every one of
+those to buy what one sentence buys for nothing. Each leaf also states its own range in
+its header.
 
 **Relocated 2026-08-25.** This file held all 97 sections until then and had reached 96
 per cent of its size budget with no closed sections left to relocate. The split divides
@@ -152,16 +163,17 @@ a pass - every equality here is satisfied for free by an empty population.
 | CS-847 | `docs/item_notes/phase4-followups.md` |
 | CS-848 | `docs/item_notes/phase4-followups.md` |
 | CS-849 | `docs/item_notes/phase4-followups.md` |
-| CS-850 | `docs/item_notes/phase4-followups.md` |
-| CS-851 | `docs/item_notes/phase4-followups.md` |
-| CS-852 | `docs/item_notes/phase4-followups.md` |
-| CS-853 | `docs/item_notes/phase4-followups.md` |
-| CS-854 | `docs/item_notes/phase4-followups.md` |
-| CS-855 | `docs/item_notes/phase4-followups.md` |
-| CS-857 | `docs/item_notes/phase4-followups.md` |
-| CS-858 | `docs/item_notes/phase4-followups.md` |
-| CS-859 | `docs/item_notes/phase4-followups.md` |
-| CS-860 | `docs/item_notes/phase4-followups.md` |
+| CS-850 | `docs/item_notes/phase4-followups-850.md` |
+| CS-851 | `docs/item_notes/phase4-followups-850.md` |
+| CS-852 | `docs/item_notes/phase4-followups-850.md` |
+| CS-853 | `docs/item_notes/phase4-followups-850.md` |
+| CS-854 | `docs/item_notes/phase4-followups-850.md` |
+| CS-855 | `docs/item_notes/phase4-followups-850.md` |
+| CS-857 | `docs/item_notes/phase4-followups-850.md` |
+| CS-858 | `docs/item_notes/phase4-followups-850.md` |
+| CS-859 | `docs/item_notes/phase4-followups-850.md` |
+| CS-860 | `docs/item_notes/phase4-followups-850.md` |
+| CS-861 | `docs/item_notes/phase4-followups-850.md` |
 
 ## Rules every leaf obeys
 

@@ -36,10 +36,11 @@ import os
 import re
 import subprocess
 import tempfile
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import quote
 
 import pytest
 
@@ -331,6 +332,32 @@ REDACTED_HOME = "<redacted-home>"
 #: What a redacted account name renders as.
 REDACTED_USER = "<redacted-user>"
 
+#: What a redacted PLATFORM ACCOUNT DIRECTORY renders as (CS-860). The
+#: account directory is the segment sitting immediately below the save root,
+#: and CLAUDE.md section 2 names it personal data in those words.
+REDACTED_ACCOUNT = "<redacted-account>"
+
+#: What a redacted SAVE FILE renders as (CS-860). The WHOLE component goes,
+#: the suffix included, rather than the stem alone: a save file is named
+#: after the world, the world name is operator-chosen free text, and
+#: clockspeed/data/locate.py already states that convention for the runtime
+#: redactor. Following it rather than inventing a keep-the-suffix variant is
+#: what keeps this project from carrying two spellings of one rule.
+REDACTED_SAVE = "<redacted-save>"
+
+#: THE FOUR PERSONAL-DATA CLASSES, one id each, and every rule below is
+#: TAGGED with the one it serves. These ids are not the definition of what
+#: gets redacted - CLAUDE.md is. tests/test_report_redaction_classes.py
+#: reads the two sentences in that file which name personal data, in
+#: section 2 and in non-negotiable 3, and goes RED on any class either
+#: sentence demands that no id here claims, on any id no sentence claims,
+#: on any id that contributes no compiled rule, and on any id with no
+#: named arm. So the SET is derived and only the mapping is authored.
+CLASS_HOME_PATH = "home-path"
+CLASS_ACCOUNT_NAME = "account-name"
+CLASS_ACCOUNT_ID = "account-id"
+CLASS_WORLD_NAME = "world-name"
+
 #: Refuse to treat a one-component path as a home directory. ``C:\\`` and ``/``
 #: are not personal data and redacting either would gut every report.
 _MIN_HOME_PARTS = 2
@@ -347,6 +374,122 @@ _PERCENT_ESCAPE = "%[0-9A-Fa-f]{2}"
 #: is individually fixed-width, which Python's lookbehind requires.
 _NAME_LEFT_BOUNDARY = f"(?:(?<={_PERCENT_ESCAPE})|(?<![0-9A-Za-z_]))"
 _NAME_RIGHT_BOUNDARY = f"(?:(?={_PERCENT_ESCAPE})|(?![0-9A-Za-z_]))"
+
+#: One backslash. Named so the doubled home spelling below is PRODUCED by
+#: calling ``str.replace`` on an already-derived root rather than written out a
+#: second time by hand.
+_BACKSLASH = "\\"
+
+#: ONE PATH SEPARATOR, in every spelling a rendered report can carry it, and
+#: DEFINED ONCE - the same reasoning clockspeed/data/locate.py gives for its
+#: own ``_PATH_SEGMENT_CLASS``: three hand-copied spellings of a character
+#: class are three chances for one of them to drift.
+#:
+#: ORDER IS LOAD-BEARING. Alternation is ordered and first match wins, so the
+#: DOUBLED backslash must precede the single one. With the single branch first,
+#: a doubled separator matches as one separator and leaves the second backslash
+#: standing at the head of what follows, which a segment then refuses to cross.
+#:
+#: THE HEX DIGITS ARE SPELLED IN BOTH CASES RATHER THAN LEFT TO A FLAG. Both
+#: rules below compile with re.IGNORECASE, so a single-case spelling works
+#: today - and a primitive that is only correct because its consumer happens
+#: to set a flag is a trap for the next consumer. This was MEASURED by the
+#: primitive's own unit arm in tests/test_report_redaction_classes.py, which
+#: compiles it bare: the uppercase-only spelling matched neither %5c nor %2f.
+#: clockspeed/data/locate.py's _PERCENT_ESCAPE is case-insensitive for the
+#: same reason.
+_SEPARATOR = r"(?:%5[Cc]|%2[Ff]|\\\\|\\|/)"
+
+#: ONE PATH SEGMENT, refusing to cross a separator in any of those spellings.
+#: TEMPERED rather than a plain negated character class, because two of the
+#: separator spellings are three characters long and a character class cannot
+#: exclude a multi-character token.
+#:
+#: WHAT IT EXCLUDES, each with its reason. Whitespace, the two quote characters
+#: and the pipe are what ends a segment inside a rendered message. The angle
+#: brackets are what a placeholder is made of, which is what makes a second
+#: pass over an already-redacted string a no-op.
+#:
+#: AND THE TWO GLOB METACHARACTERS, which is where this diverges from
+#: locate.py's class. The divergence is deliberate and independently justified:
+#: Windows forbids ``*`` and ``?`` in a filename, so a run containing either is
+#: a PATTERN and not a name. It is also disclosed rather than presented as
+#: neutral - it was added after MEASURING that without it the save-file rule
+#: rewrites the gitignore glob ``*.sav`` authored into a test body, which
+#: tests/test_assertion_rendering.py's source sweep then reports as this
+#: machine's redactor recognising a path.
+_SEGMENT = r"(?:(?!" + _SEPARATOR + r")[^\s\"'<>|*?])+"
+
+#: The save root's three fixed components (BOOTSTRAP.md section 2). RESTATED
+#: from clockspeed/data/locate.py's ``SAVE_ROOT_PARTS`` rather than imported,
+#: for the reason this module's own header gives: it is dependency-free by
+#: design, and an import of the data layer would turn an unrelated failure
+#: there into a suite that does not start. tools/precommit_gate.py restates the
+#: same tuple for the same reason. The restatement is MACHINE-CHECKED - one arm
+#: of tests/test_report_redaction_classes.py asserts the two agree - so it
+#: cannot drift in silence, which is the only condition CLAUDE.md section 4
+#: accepts a second copy under.
+_SAVE_ROOT_PARTS = ("FactoryGame", "Saved", "SaveGames")
+
+#: The marker an account directory sits below, built from the parts above in
+#: every separator spelling at once.
+_SAVE_ROOT_ANCHOR = _SEPARATOR.join(re.escape(part) for part in _SAVE_ROOT_PARTS)
+
+#: THE ACCOUNT RULE IS POSITIONAL AND IT IS NOT A SHAPE. The account directory
+#: is whatever segment sits immediately below the save root, so it is
+#: identified by WHERE IT SITS and never by what it is made of.
+#:
+#: A FREE-FLOATING DIGIT-RUN RULE IS FORBIDDEN HERE, and clockspeed/data/
+#: locate.py already rejects one in writing: only one platform writes digits in
+#: that position - Epic writes a hex token and the Microsoft Store a braceless
+#: GUID - so a digit rule is correct for one shape and silent for the other
+#: three. It would also rewrite the deliberately fake account tokens this suite
+#: plants, breaking the leak detectors that own them.
+_ACCOUNT_DIR_RE = re.compile(
+    "(" + _SAVE_ROOT_ANCHOR + _SEPARATOR + ")" + _SEGMENT,
+    re.IGNORECASE,
+)
+
+#: A SAVE FILENAME, which is what carries the world name. The optional second
+#: suffix is the one the game writes for a rotated copy, and the trailing guard
+#: stops a longer word that merely begins with the suffix from being cut in
+#: half.
+#:
+#: ANCHORED ON ``.sav`` DELIBERATELY, AND THE BARE PARSED NAME IS OUT OF SCOPE.
+#: A world name with no suffix around it is free text derivable from nothing on
+#: this machine, so no rule can recognise one.
+#: tests/test_assertion_rendering.py pins that boundary and would go RED if
+#: this rule widened to reach it. That red would be CORRECT: the bare
+#: parsed-name class belongs to CS-850 and CS-851, not here.
+_SAVE_FILE_RE = re.compile(
+    _SEGMENT + r"\.sav(?:\.[A-Za-z0-9]{1,8})?(?![A-Za-z0-9])",
+    re.IGNORECASE,
+)
+
+#: HOW A HOME PATH IS SPELLED IN A REPORT, expressed as TRANSFORMS rather than
+#: as patterns. Each is APPLIED to the roots already derived, so no transform
+#: can introduce a spelling the frozen root set does not license, and none of
+#: them reads the environment, touches the filesystem, or caches anything.
+#:
+#: THE DOUBLING IS THE ONE THAT WAS MISSING AND IT IS THE ONE THAT MATTERS.
+#: ``OSError.__str__`` renders its ``filename`` through ``%r``, which doubles
+#: every backslash, so the doubled spelling is what a chained cause actually
+#: prints. MEASURED before CS-860: against the real home, the doubled spelling
+#: and both URL-quoted spellings all missed the home rule and were caught only
+#: by the weaker account-name rule - which holds on this machine solely because
+#: the account name happens to be the only personal component of the home
+#: prefix. That is a naming accident, not a control, and it does not transfer
+#: to a CI runner or to another machine.
+#:
+#: DEPTH IS BOUNDED AT ONE ESCAPING LEVEL, stated rather than implied. A
+#: quadrupled spelling - a repr of a repr - and the compositions, a quoted
+#: doubled path or a doubled quoted path, are NOT covered by these transforms
+#: and are a named residual rather than a claim.
+_HOME_SPELLING_TRANSFORMS: tuple[Callable[[str], str], ...] = (
+    lambda spelling: spelling,
+    lambda spelling: spelling.replace(_BACKSLASH, _BACKSLASH * 2),
+    quote,
+)
 
 #: Printed in place of a report the redaction could not process. Failing CLOSED
 #: is the only safe direction here: a redactor that cannot read a report cannot
@@ -430,12 +573,30 @@ def _account_names(roots: frozenset[Path]) -> frozenset[str]:
     return frozenset(name for name in names if name.strip())
 
 
-def _build_redaction_rules() -> tuple[tuple[re.Pattern[str], str], ...]:
-    """The substitutions, longest source first.
+def _build_redaction_rules() -> tuple[tuple[re.Pattern[str], str, str], ...]:
+    """The substitutions, longest source first, each tagged with its class.
 
-    Order is load-bearing. Whole profile paths go first so a home directory is
-    replaced as one unit; bare account names go second and therefore only ever
-    match what is left, such as the ``pytest-of-<user>`` component.
+    FOUR CLASSES, NOT TWO (CS-860). CLAUDE.md names the same four kinds of
+    personal data twice in different words - section 2 and non-negotiable 3 -
+    and this rule set covered two of them. The two that were missing are the
+    platform account directory and the world name a save filename carries; both
+    rendered VERBATIM through this redactor, measured against synthetic
+    stand-ins. tests/test_report_redaction_classes.py derives the demanded set
+    from those two sentences rather than listing it here.
+
+    Order is load-bearing, and it is now four deep rather than two.
+
+      1. Whole profile paths, so a home directory is replaced as one unit.
+      2. The POSITIONAL account rule, which must run while its save-root marker
+         is still intact. It sits above the bare-name rule for a reason that is
+         not hypothetical: an account named ``Saved`` matches that rule on both
+         boundaries inside the marker, so a bare-name pass running first would
+         eat the anchor and leave the account directory standing.
+      3. The save filename, matched against a string whose directories above it
+         are already placeholders.
+      4. Bare account names LAST, so they only ever match what the three
+         marker-bearing rules left - such as the ``pytest-of-<user>``
+         component.
 
     Account names match on boundaries rather than as bare substrings. That is a
     deliberate limit on the blast radius: without it an account named ``test``
@@ -448,15 +609,31 @@ def _build_redaction_rules() -> tuple[tuple[re.Pattern[str], str], ...]:
     "not a word character" boundary refuses to match the name beside it and
     renders it in full.
 
+    NOTHING HERE READS THE ENVIRONMENT OR THE FILESYSTEM BEYOND THE ONE
+    ``_home_like_roots`` CALL IT ALWAYS MADE, and that property is why CS-860
+    could be built on top of :func:`_seed_redaction_rules` without reopening
+    the defect that refuted CS-428's first build. The home widening is a PURE
+    TRANSFORM of the already-derived root set - see
+    :data:`_HOME_SPELLING_TRANSFORMS` - and the two new rules are static
+    patterns compiled at import from a restated constant. No new environment
+    read, no new filesystem call, no cache, and no rebuild path.
+
     Returns:
-        ``(pattern, replacement)`` pairs, applied in order.
+        ``(pattern, replacement, class_id)`` triples, applied in order.
     """
     roots = _home_like_roots()
-    spellings = {spelling for root in roots for spelling in (str(root), root.as_posix())}
-    rules = [
-        (re.compile(re.escape(spelling), re.IGNORECASE), REDACTED_HOME)
+    spellings = {
+        transform(spelling)
+        for root in roots
+        for spelling in (str(root), root.as_posix())
+        for transform in _HOME_SPELLING_TRANSFORMS
+    }
+    rules: list[tuple[re.Pattern[str], str, str]] = [
+        (re.compile(re.escape(spelling), re.IGNORECASE), REDACTED_HOME, CLASS_HOME_PATH)
         for spelling in sorted((s for s in spellings if s), key=len, reverse=True)
     ]
+    rules.append((_ACCOUNT_DIR_RE, r"\1" + REDACTED_ACCOUNT, CLASS_ACCOUNT_ID))
+    rules.append((_SAVE_FILE_RE, REDACTED_SAVE, CLASS_WORLD_NAME))
     rules.extend(
         (
             re.compile(
@@ -464,13 +641,14 @@ def _build_redaction_rules() -> tuple[tuple[re.Pattern[str], str], ...]:
                 re.IGNORECASE,
             ),
             REDACTED_USER,
+            CLASS_ACCOUNT_NAME,
         )
         for name in sorted(_account_names(roots), key=len, reverse=True)
     )
     return tuple(rules)
 
 
-def _seed_redaction_rules() -> tuple[tuple[re.Pattern[str], str], ...]:
+def _seed_redaction_rules() -> tuple[tuple[re.Pattern[str], str, str], ...]:
     """Freeze the rule set NOW, before any test can move the environment.
 
     WHY THE TIMING IS THE WHOLE MECHANISM, and not an optimisation. The rules
@@ -510,11 +688,16 @@ def _seed_redaction_rules() -> tuple[tuple[re.Pattern[str], str], ...]:
 #: Built at import. THIS NAME MUST BE ASSIGNED EXACTLY ONCE, HERE. A second
 #: assignment, or any path that rebuilds the rules later, reintroduces the
 #: defect the seeding exists to prevent - see :func:`_seed_redaction_rules`.
-_REDACTION_RULES: tuple[tuple[re.Pattern[str], str], ...] = _seed_redaction_rules()
+_REDACTION_RULES: tuple[tuple[re.Pattern[str], str, str], ...] = _seed_redaction_rules()
 
 
 def redact_personal_data(text: str) -> str:
-    """Replace every home path and account name in ``text`` with a placeholder.
+    """Replace every personal value in ``text`` with a placeholder.
+
+    Four classes, each named by CLAUDE.md and each served by at least one rule
+    in :data:`_REDACTION_RULES`: a home path, the account name, the platform
+    account directory below the save root, and the save filename that carries
+    the world name.
 
     Args:
         text: Rendered output.
@@ -530,7 +713,7 @@ def redact_personal_data(text: str) -> str:
     """
     if not _REDACTION_RULES:
         raise RuntimeError("the personal-data redaction rule set is empty")
-    for pattern, replacement in _REDACTION_RULES:
+    for pattern, replacement, _class_id in _REDACTION_RULES:
         text = pattern.sub(replacement, text)
     return text
 

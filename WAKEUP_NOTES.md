@@ -39,7 +39,7 @@ the line becomes a pointer.
 - **Shipped: NOTHING CLOSED. CS-857 STAYS OPEN.** Residuals 1 and 3 are closed, residuals 2
   and 4 are untouched, and the acceptance quantifies over a population that provably misses
   a shape. CS-860 filed. Detail in `docs/LEDGER.md` and
-  `docs/item_notes/phase4-followups.md`, not here.
+  `docs/item_notes/phase4-followups-850.md`, not here.
 
 - **ROUND 1 REPAIRED THE FALSE CLEARANCE AND WAS ONE.** It gated the clearance on
   `raised == handler_name`, a COMPARISON OF SPELLINGS, and adversary L2 measured 15 shapes
@@ -93,7 +93,7 @@ the line becomes a pointer.
 
 - **Shipped: NOTHING CLOSED. CS-857 STAYS OPEN.** The remedy, the derived census and the two
   corrected exemption reasons all merged. CS-858 and CS-859 were filed. Detail in
-  `docs/LEDGER.md` and `docs/item_notes/phase4-followups.md`, not here.
+  `docs/LEDGER.md` and `docs/item_notes/phase4-followups-850.md`, not here.
 
 - **THE CHANNEL IS SHUT WHERE IT WAS MEASURED LEAKING.** The five OSError-rooted sites chain
   `_pathless_cause(exc)` - an `OSError(exc.errno, exc.strerror)` clone with no `filename`.
@@ -152,7 +152,7 @@ the line becomes a pointer.
 
 - **Shipped: NOTHING CLOSED. CS-852 AND CS-855 BOTH STAY OPEN.** Both guards merged as
   improvements after adversarial refutation and repair. CS-857 is newly filed. Detail in
-  `docs/LEDGER.md` and `docs/item_notes/phase4-followups.md`, not here.
+  `docs/LEDGER.md` and `docs/item_notes/phase4-followups-850.md`, not here.
 
 - **THE HEADLINE: TWO GUARDS, BUILT INDEPENDENTLY BY DIFFERENT AGENTS AGAINST DIFFERENT
   CHANNELS, FAILED THE SAME WAY IN THE SAME SESSION.** CS-855's detector keyed on a bare

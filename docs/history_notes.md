@@ -4876,7 +4876,7 @@ alone is the proof.
 gated it on `Site.raises_local_class`, a positive fact. Residual 3's measured half closed by
 resolving a callee that returns one of its own parameters, so the no-op grades
 `measured-leak` while the genuine clone stays `unproven`. Live detail is in the session-45
-note in `docs/item_notes/phase4-followups.md`.
+note in `docs/item_notes/phase4-followups-850.md`.
 
 ## CS-857 - four paragraphs cut from the live leaf, relocated on 2026-08-29 (session 45)
 
@@ -4952,7 +4952,7 @@ Pruned from `WAKEUP_NOTES.md` when session 45 landed and the file held four.
 - **Shipped: NOTHING CLOSED. CS-852 STAYS OPEN.** The guard merged, three shipped classes
   were repaired and a fourth leak was closed, and four adversaries with distinct lenses all
   returned REFUTED. Detail in `docs/LEDGER.md` and
-  `docs/item_notes/phase4-followups.md`, not here.
+  `docs/item_notes/phase4-followups-850.md`, not here.
 
 - **THE DERIVATION FOUND TWICE WHAT THE ITEM NAMED.** CS-852 named `DecompressedBody`.
   Deriving the population from shipped field annotations also found `SaveListing.saves` -

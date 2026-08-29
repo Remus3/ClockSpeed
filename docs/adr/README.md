@@ -79,6 +79,7 @@ Status line to point at the successor and leave every other word of it untouched
 | [0008](0008-detection-claims-are-derived-never-written.md) | A detection claim is derived by the suite, never written in prose | `accepted` |
 | [0009](0009-inventory-potential-top-level-carries-no-slot-count.md) | The serialized potential component's top level carries no slot count | `proposed` |
 | [0010](0010-item-notes-is-an-index-over-per-phase-leaves.md) | `docs/item_notes.md` is an index over per-phase leaves | `accepted` |
+| [0011](0011-the-cs-8nn-follow-up-leaf-splits-at-cs-850.md) | The `CS-8nn` follow-up leaf splits at CS-850 | `proposed` |
 
 Slots 0002, 0003 and 0004 were reserved for the three phase-1 spike decisions and have now
 been written, in the order the spikes ran: S8, then S4, then S6. These three are the spikes

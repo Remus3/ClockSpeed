@@ -46,9 +46,21 @@ _ROADMAP_ITEM = re.compile(r"^(CS-G?\d+) - ")
 
 # The CS-8nn follow-up block's bounds, from ROADMAP.md's own ID-block rule:
 # CS-4nn filled up at 98 of 100, so CS-8nn takes phase-4 residuals (operator
-# decision 2026-08-21). These are the seam docs/item_notes/ splits phase 4 on.
+# decision 2026-08-21). These are the seams docs/item_notes/ splits phase 4 on.
+#
+# THE BLOCK ITSELF THEN SPLIT AT CS-850, so phase 4 is three leaves and there
+# are two seams rather than one. See docs/adr/0011-the-cs-8nn-follow-up-leaf
+# -splits-at-cs-850.md. The follow-up leaf reached 99 per cent of its budget
+# with no closed section left to relocate - the same shape, one level down,
+# that ADR 0010 split docs/item_notes.md for.
+#
+# THE SEAM NUMBER SPELLS THE LEAF NAME BELOW RATHER THAN BEING WRITTEN BESIDE
+# IT. A hand-typed 'phase4-followups-850.md' next to a _SEAM of 850 is two
+# copies of one fact with somewhere to drift to; deriving the name from the
+# constant leaves the pair unable to disagree.
 _FOLLOWUP_BLOCK_FIRST = 800
 _FOLLOWUP_BLOCK_LIMIT = 900
+_FOLLOWUP_LEAF_SEAM = 850
 
 
 def _load_drift_guard() -> ModuleType:
@@ -280,6 +292,11 @@ def test_every_section_sits_in_the_leaf_the_membership_rule_names() -> None:
     The rule has ONE owner - the phase heading ROADMAP.md files an item under -
     and one stated exception, CS-501, which predates the CS-8nn block and is
     filed under phase 4. Anything else here means a body was hand-placed.
+
+    PHASE 4 IS THREE LEAVES AND THE RULE STAYS A DERIVATION FROM THE ID. It is
+    computable from an item number alone and is deliberately not a table of
+    which item lives where: a hand-listed mapping would have to be edited by
+    the same hand that misplaces a body, so it would agree with the mistake.
     """
     sections = _real_sections()
     phases = _real_phases()
@@ -296,7 +313,12 @@ def test_every_section_sits_in_the_leaf_the_membership_rule_names() -> None:
         if digit == "4":
             number = int(item.split("-")[1])
             in_block = _FOLLOWUP_BLOCK_FIRST <= number < _FOLLOWUP_BLOCK_LIMIT
-            want = "phase4-followups.md" if in_block else "phase4.md"
+            if not in_block:
+                want = "phase4.md"
+            elif number < _FOLLOWUP_LEAF_SEAM:
+                want = "phase4-followups.md"
+            else:
+                want = f"phase4-followups-{_FOLLOWUP_LEAF_SEAM}.md"
         else:
             want = f"phase{digit}.md"
         if leaf != want:
