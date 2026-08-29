@@ -61,11 +61,17 @@ if TYPE_CHECKING:
 
 #: Every exception class the two solver modules EXPORT. Derived from ``__all__``
 #: plus a subclass test rather than from a name suffix: the slice brief named
-#: the population as "every ``*Error`` name", and eight of the ten refusals it
-#: went on to list - ``UnsolvableChain``, ``UnderdeterminedChain``,
-#: ``InfeasibleChain``, ``ByproductPolicyRequired``, ``UnboundedSupply`` and the
-#: two module base classes - carry no ``Error`` suffix at all. A suffix rule
-#: would have graded two of twelve and reported itself exhaustive.
+#: the population as "every ``*Error`` name", and five of the twelve exported
+#: exception classes - ``UnsolvableChain``, ``UnderdeterminedChain``,
+#: ``InfeasibleChain``, ``ByproductPolicyRequired`` and ``UnboundedSupply`` -
+#: carry no ``Error`` suffix at all. ``clockspeed/solve/ratio.py`` records a
+#: coded N818 suppression saying that naming is deliberate. A suffix rule would
+#: have graded SEVEN of twelve and reported itself exhaustive; the two module
+#: base classes DO carry the suffix and are not among the five.
+#:
+#: The counts above were measured, and an earlier version of this comment
+#: carried two wrong ones - "eight of the ten" over a list of seven, and "two
+#: of twelve" for what a suffix rule grades. Both came from the slice brief.
 SOLVER_MODULES: Final = (ratio, optimize)
 
 #: What the derivation above finds today. Asserted, not assumed: a derivation
