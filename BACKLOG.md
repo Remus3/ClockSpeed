@@ -69,10 +69,18 @@ below is deliberately deferred. **Trigger for all three: phase 6 completes.**
   if window binding fails for any reason, and never blocking input it did not intend to
   receive.
 
-- Port 8901, this project's allocated dashboard port, has been held since 2026-08-16 by an
-  unrelated process, and `scripts/verify_env.py` reports it as a SOFT failure on every run -
-  decide whether to move the band or accept it and re-record `config/ports.json`; conditional
-  on CS-601 actually trying to bind, and an operator call either way.
+- **RESOLVED 2026-08-29 - the band moved to 8920-8939, and the diagnosis in this row was
+  wrong.** It read: port 8901 "has been held since 2026-08-16 by an unrelated process", with
+  `scripts/verify_env.py` soft-failing every run. The holder was not unrelated and 8901 was
+  never this project's to hold: the whole 8900-8919 range is LegionWallpaper's reserved
+  block, negotiated and confirmed in writing on 2026-08-01, and 8901 is its monitor while
+  8900 is its rundash. This project allocated 8900-8911 by PROBING for a free listener,
+  recorded as "8900-8911 all free and unbound on this machine" - and LW's monitor is an
+  operator-launched GUI that is unbound most of the time, so the probe reported a reserved
+  block as free. Nothing here had bound a port yet, so the move cost nothing. **The durable
+  rule: verify a band against the owning project's registry in SOURCE, never against a live
+  scan.** Machine-wide blocks now: RM 8770-8789, LL 8810-8819, DS 8860-8879, RC 8888-8895
+  plus 2999, LW 8900-8919, CS 8920-8939.
 
 ## Doc topology
 

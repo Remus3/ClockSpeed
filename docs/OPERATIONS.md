@@ -122,8 +122,15 @@ Two operational corollaries that have cost time before:
 
 **`config/ports.json` is the machine-checked source of the port record. Read it there.**
 
-- **Base port: 8901** - the local HTTPS dashboard and JSON API.
-- **Reserved band: 8900-8911** - held for this project.
+- **Base port: 8920** - the local HTTPS dashboard and JSON API.
+- **Reserved band: 8920-8939** - held for this project.
+
+Moved here from 8900-8911 on 2026-08-29. That band was wholly inside
+LegionWallpaper's reserved 8900-8919 and its base 8901 was LW's monitor port.
+It was picked by probing for a free listener, and LW's monitor is an
+operator-launched GUI that is unbound most of the time, so the probe reported
+the whole block free. A band is verified against the owning project's registry
+in SOURCE, never against a live scan.
 
 Free-or-bound status is **probed live by `scripts/verify_env.py`** and is deliberately
 not written down as prose anywhere, here included. A port state recorded in a document is

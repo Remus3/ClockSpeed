@@ -1,25 +1,90 @@
 {
   "schema": 1,
-  "base": 8901,
+  "base": 8920,
   "band": {
-    "start": 8900,
-    "end": 8911
+    "start": 8920,
+    "end": 8939
   },
   "allocations": {
-    "8901": "local HTTPS dashboard and JSON API"
+    "8920": "local HTTPS dashboard and JSON API"
   },
   "reserved": [
-    {"port": 8900, "purpose": "unassigned"},
-    {"port": 8902, "purpose": "unassigned"},
-    {"port": 8903, "purpose": "unassigned"},
-    {"port": 8904, "purpose": "unassigned"},
-    {"port": 8905, "purpose": "unassigned"},
-    {"port": 8906, "purpose": "unassigned"},
-    {"port": 8907, "purpose": "unassigned"},
-    {"port": 8908, "purpose": "unassigned"},
-    {"port": 8909, "purpose": "unassigned"},
-    {"port": 8910, "purpose": "unassigned"},
-    {"port": 8911, "purpose": "unassigned"}
+    {
+      "port": 8921,
+      "purpose": "unassigned"
+    },
+    {
+      "port": 8922,
+      "purpose": "unassigned"
+    },
+    {
+      "port": 8923,
+      "purpose": "unassigned"
+    },
+    {
+      "port": 8924,
+      "purpose": "unassigned"
+    },
+    {
+      "port": 8925,
+      "purpose": "unassigned"
+    },
+    {
+      "port": 8926,
+      "purpose": "unassigned"
+    },
+    {
+      "port": 8927,
+      "purpose": "unassigned"
+    },
+    {
+      "port": 8928,
+      "purpose": "unassigned"
+    },
+    {
+      "port": 8929,
+      "purpose": "unassigned"
+    },
+    {
+      "port": 8930,
+      "purpose": "unassigned"
+    },
+    {
+      "port": 8931,
+      "purpose": "unassigned"
+    },
+    {
+      "port": 8932,
+      "purpose": "unassigned"
+    },
+    {
+      "port": 8933,
+      "purpose": "unassigned"
+    },
+    {
+      "port": 8934,
+      "purpose": "unassigned"
+    },
+    {
+      "port": 8935,
+      "purpose": "unassigned"
+    },
+    {
+      "port": 8936,
+      "purpose": "unassigned"
+    },
+    {
+      "port": 8937,
+      "purpose": "unassigned"
+    },
+    {
+      "port": 8938,
+      "purpose": "unassigned"
+    },
+    {
+      "port": 8939,
+      "purpose": "unassigned"
+    }
   ],
-  "notes": "verified free at allocation time; verify_env.py re-probes. This file is the single owner of the port numbers - no other tracked file restates them. An entry moves from reserved to allocations when something actually binds it; the purpose string says what binds it, not what might."
+  "notes": "This file is the single owner of the port numbers - no other tracked file restates them. An entry moves from reserved to allocations when something actually binds it; the purpose string says what binds it, not what might. MOVED 2026-08-29 from 8900-8911 by operator assignment: that band sat wholly inside LegionWallpaper's reserved 8900-8919, and the old base 8901 was LW's own monitor port (8900 was its rundash). The original allocation was made by PROBING for a free listener, which is why it looked clean - LW's monitor is an operator-launched GUI and is unbound most of the time, so a live scan reports its whole block as free. Verify a band against the owning project's registry in source, never against netstat. The machine-wide blocks are RM 8770-8789, LL 8810-8819, DS 8860-8879, RC 8888-8895 plus 2999, LW 8900-8919, CS 8920-8939."
 }

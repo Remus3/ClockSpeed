@@ -39,8 +39,11 @@ a guard you did not run.
 - [ ] **PII.** No Windows account name, numeric platform account id, world name, machine
       name, absolute home path, or hardcoded interpreter path in any tracked file. The
       interpreter is invoked as `python`, NEVER `py -3` (BOOTSTRAP.md section 2.5).
-- [ ] **Port allocation.** `config/ports.json` matches the reserved band 8900-8911 with base
-      port 8901, and the docs agree with the config rather than restating it.
+- [ ] **Port allocation.** `config/ports.json` matches the reserved band 8920-8939 with base
+      port 8920, and the docs agree with the config rather than restating it. The band must
+      stay disjoint from every neighbour: RM 8770-8789, LL 8810-8819, DS 8860-8879,
+      RC 8888-8895 plus 2999, LW 8900-8919. Check that against their registries in SOURCE,
+      never by probing - an idle GUI makes its own block read as free.
 - [ ] **Cross-references.** Every doc link resolves; no orphaned markdown.
 - [ ] **Recall coverage.** `embedded == active` in the semantic store. A "healthy" status is
       NOT proof recall works - a store can report healthy while most rows have no embedding,
