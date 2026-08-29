@@ -698,10 +698,16 @@ def _hard_rows(root: Path, facts: dict) -> list[dict]:
 
 
 def _optional_tool_rows() -> list[dict]:
-    # node and gh are genuine executables and are judged by PATH. mypy is a
-    # python module and shares pytest and ruff's root cause exactly - the
+    # node, gh and openssl are genuine executables and are judged by PATH. mypy
+    # is a python module and shares pytest and ruff's root cause exactly - the
     # tier-2 gate invokes it as -m mypy - so it follows the same rule.
-    rows = [_row("SOFT", exe, *_tool_version(exe)) for exe in ("node", "gh")]
+    #
+    # openssl is SOFT for the same reason node is: it is needed by phase 6, to
+    # mint the certificate the local dashboard listens with
+    # (scripts/make_cert.py), and the advice path has to stay runnable on a
+    # machine that has neither. A HARD row here would fail the verdict on a
+    # machine where nothing is actually wrong.
+    rows = [_row("SOFT", exe, *_tool_version(exe)) for exe in ("node", "gh", "openssl")]
     rows.append(_module_backed_tool_row("SOFT", "mypy"))
     return rows
 
