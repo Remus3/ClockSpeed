@@ -1379,6 +1379,81 @@ def test_the_problem_builder_answers_a_detail_from_the_table_and_not_from_the_ex
     assert first.detail in workdir._LISTING_DETAILS.values()  # noqa: SLF001
 
 
+# ---------------------------------------------------------------------------
+# CS-857 - THE CHAINED CAUSE. ``raise X(...) from exc`` makes the CAUSE's own
+# text part of the formatted traceback, so redacting the wrapper's message is
+# not on its own enough. These grade the clone that closes that channel.
+# ---------------------------------------------------------------------------
+
+
+def test_the_chained_cause_drops_both_filename_fields_but_keeps_the_diagnosis() -> None:
+    """The cause that gets chained may carry the reason and may not carry the path.
+
+    ``OSError.__str__`` appends ``filename`` and ``filename2`` verbatim, and
+    that rendering is the one the traceback formatter prints for a chained
+    cause. Those two fields are the leak; errno and strerror are the diagnosis
+    and have to survive it. The two-filename shape is what is modelled, because
+    the rename site is the one whose failure carries a source AND a
+    destination.
+    """
+    exc = PermissionError(errno.EACCES, "permission denied", _BAIT_PATH, 5, _BAIT_PATH)
+
+    clone = workdir._pathless_cause(exc)  # noqa: SLF001
+    rendered = str(clone)
+
+    assert clone.filename is None, "filename crossed"
+    assert clone.filename2 is None, "filename2 crossed"
+    assert _BAIT_WORLD not in rendered, "the world name reached the cause"
+    assert PRETEND_ACCOUNT not in rendered, "the account id reached the cause"
+    assert _BAIT_SEGMENT not in rendered, "a directory segment reached the cause"
+    assert ".sav" not in rendered, "a filename reached the cause"
+    assert "\\" not in rendered, "a path separator reached the cause"
+    assert clone.errno == errno.EACCES, "the errno did not survive"
+    assert clone.strerror == "permission denied", "the strerror did not survive"
+
+
+def test_the_original_carried_the_path_so_the_clone_arm_is_not_vacuous() -> None:
+    """THE POSITIVE CONTROL, and the reason these arms grade str and not repr.
+
+    An arm asserting only absence is green against a cause that rendered
+    nothing at all. This asserts the bait IS in the original's ``str()``, so
+    its absence from the clone is attributable to the clone.
+
+    THE SEGMENTS ARE ASSERTED, NEVER THE WHOLE PATH. ``OSError.__str__``
+    renders filename through ``%r``, which DOUBLES every backslash, so
+    ``_BAIT_PATH in str(exc)`` is False even on a leaking original - an arm
+    written that way would be vacuous in exactly the direction that matters.
+
+    ``repr()`` is asserted IDENTICAL across the two deliberately: it omits
+    filename even on the leaking original, so a repr-based arm would clear a
+    cause that still carries the path. That is a false clearance, which
+    ``memory/a-guard-can-measure-spelling.md`` rates worse than a silence.
+    """
+    exc = PermissionError(errno.EACCES, "permission denied", _BAIT_PATH, 5, _BAIT_PATH)
+    rendered = str(exc)
+
+    assert _BAIT_WORLD in rendered, "the original did not carry the world name"
+    assert PRETEND_ACCOUNT in rendered, "the original did not carry the account id"
+    assert _BAIT_SEGMENT in rendered, "the original did not carry the directory segment"
+    assert repr(exc) == repr(workdir._pathless_cause(exc)), (  # noqa: SLF001
+        "repr told the leaking original from the clone; the note above is stale"
+    )
+
+
+def test_the_chained_cause_keeps_the_errno_mapped_subclass_a_caller_may_catch() -> None:
+    """The two-argument form still runs OSError's errno-based subclass mapping.
+
+    A caller catching ``PermissionError`` on the cause keeps working, which is
+    what preserving the exception type costs at this hop: nothing.
+    """
+    clone = workdir._pathless_cause(  # noqa: SLF001
+        PermissionError(errno.EACCES, "permission denied", _BAIT_PATH)
+    )
+
+    assert isinstance(clone, PermissionError), "the subclass was flattened to OSError"
+    assert isinstance(clone, OSError), "the cause stopped being an OSError"
+
+
 def test_the_problem_builder_picks_the_settled_code_only_for_a_settled_errno() -> None:
     """The classification, exercised at the boundary rather than only through a scan.
 

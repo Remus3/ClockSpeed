@@ -24,9 +24,25 @@ WHAT IT DOES NOT ESTABLISH, stated because an overclaim here would be the ADR
     That question belongs to ``tests/test_exception_rendering.py`` and is
     MEASURED OPEN - see CS-441, CS-450 and CS-451 in ``ROADMAP.md``.
   - It does NOT cover a chained exception cause. ``clockspeed/save/world.py``
-    line 971 raises ``WorldLoadError(...) from exc``, and Python's own
-    traceback machinery renders the cause - filename included - without
-    consulting any call site this module can see.
+    line 1109 raises ``WorldLoadError(STAGE_COPY, ...) from exc``, and
+    Python's own traceback machinery renders the cause - filename included -
+    without consulting any call site this module can see.
+
+    THIS POINTER WAS REPOINTED RATHER THAN RENUMBERED - measured in session
+    44. It read line 971 from CS-454 until then; that was the STAGE_HEADER
+    raise when it was written, and the same statement sits at line 989
+    today. Renumbering it would have preserved a sentence that is FALSE at
+    that site: ``parse_header`` takes bytes, so the ``HeaderError`` it
+    raises has no filename to carry, and the same holds for the
+    STAGE_CHUNKS and STAGE_OBJECTS raises beside it. Of the five chained
+    raises in that module, STAGE_COPY and STAGE_USMAP are the two whose
+    cause reaches an ``OSError`` that does carry one - STAGE_COPY through
+    ``copy_for_read(Path(path))``, which is handed the save path itself.
+    The channel is filed as CS-857 and is NO LONGER ungraded: the derived
+    census is ``tests/chained_cause_guard.py``, whose arms are in
+    ``tests/test_chained_cause_census.py``, and the rendering measurement
+    is ``tests/test_chained_cause.py``. The exclusion above is unchanged -
+    only the hand-off moved, from nobody to a named owner.
   - It does NOT cover ``tests/conftest.py``. That file carries a SEPARATE
     redactor, ``redact_personal_data``, which imports nothing from
     ``clockspeed`` and never calls ``locate.redact``. Its rules are its own

@@ -153,6 +153,35 @@ class DestinationRefusedError(WorkDirError):
     """
 
 
+def _pathless_cause(exc: OSError) -> OSError:
+    """Clone an OSError without the two fields that carry the path.
+
+    ``raise X(...) from exc`` makes the CAUSE's own text part of the formatted
+    traceback, so redacting the wrapper's message is not enough on its own:
+    ``OSError.__str__`` appends ``filename`` and ``filename2`` verbatim, and
+    those hold the home directory, the account directory and the save name.
+    Rebuilding from the two NAMED diagnostic fields carries errno and strerror
+    across and leaves both filename fields unset, which closes that channel
+    while keeping the reason the call failed.
+
+    ``str()`` is the rendering measured here, because that is the one the
+    traceback formatter uses. ``repr()`` would have been a false clearance - it
+    omits filename even on the leaking original.
+
+    The two-argument form is deliberate. Supplying ``winerror`` as a fourth
+    argument renders ``[WinError None]`` whenever the original carried none,
+    which is worse than the errno it would replace. The errno-based subclass
+    mapping still runs, so a PermissionError stays a PermissionError.
+
+    Args:
+        exc: The caught failure. ONLY ``errno`` and ``strerror`` are read.
+
+    Returns:
+        A new OSError of the same errno-mapped subclass, carrying no path.
+    """
+    return OSError(exc.errno, exc.strerror)
+
+
 # --- what the listing could not read ----------------------------------------
 
 #: The errnos that SETTLE the question instead of leaving it open: the path
@@ -553,7 +582,7 @@ def _make_dir(path: Path) -> None:
     except OSError as exc:
         raise WorkDirError(
             f"cannot create the work directory {locate.redact(path)}: errno {exc.errno}"
-        ) from exc
+        ) from _pathless_cause(exc)
 
 
 def _stream_copy(source: Path, destination: Path) -> int:
@@ -788,7 +817,7 @@ def copy_for_read(source: Path, *, work_root: Path | None = None) -> Path:
         raise SourceUnreadableError(
             f"copying {locate.redact(resolved_source)} failed: "
             f"{type(exc).__name__}, errno {exc.errno}"
-        ) from exc
+        ) from _pathless_cause(exc)
 
     try:
         _replace_with_retry(partial, destination)
@@ -797,7 +826,7 @@ def copy_for_read(source: Path, *, work_root: Path | None = None) -> Path:
         raise WorkDirError(
             f"the copy could not be renamed into place at {locate.redact(destination)}: "
             f"{type(exc).__name__}, errno {exc.errno}"
-        ) from exc
+        ) from _pathless_cause(exc)
 
     return destination
 
@@ -822,7 +851,7 @@ def _readable_source(source: Path) -> Path:
     except OSError as exc:
         raise SourceUnreadableError(
             f"cannot read {locate.redact(resolved)}: {type(exc).__name__}, errno {exc.errno}"
-        ) from exc
+        ) from _pathless_cause(exc)
     if not is_file:
         raise SourceUnreadableError(f"not a readable file: {locate.redact(resolved)}")
     return resolved

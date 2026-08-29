@@ -138,8 +138,12 @@ path regardless.
 THE CHAINED CAUSE IS A DIFFERENT CHANNEL AND IS NOT GRADED HERE. ``raise X(...)
 from exc`` sets ``__cause__``, not ``args``, and Python's traceback machinery
 renders that cause - filename included - without consulting any expression this
-module can read. ``tests/test_redaction_scope.py`` records the same exclusion
-for the same reason.
+module can read. IT NOW HAS AN OWNER, and naming one is the CS-857 repair:
+the derived census is ``tests/chained_cause_guard.py``, its arms are
+``tests/test_chained_cause_census.py``, and the rendering measurement is
+``tests/test_chained_cause.py``. This exclusion used to hand off to
+``tests/test_redaction_scope.py``, which declines the same channel for the same
+reason - a cycle of modules each saying "not me" with no module saying "me".
 """
 
 from __future__ import annotations
@@ -288,6 +292,15 @@ PROOF_ORDER: Final = (PROVEN_LITERAL, PROVEN_SCALAR, PROVEN_VOCABULARY, PROVEN_A
 #: Reasons cite only identifiers declared in the module the key names, because
 #: that is what ``test_every_identifier_an_exemption_cites_exists_in_the_module
 #: _it_names`` can check. Cross-module evidence goes in this docstring instead.
+#:
+#: SEVERAL OF THESE KEYS SIT ON A CHAINED RAISE, so the interpreter renders the
+#: cause's own message beside the graded one on the same failure, under default
+#: flags. That channel is not readable from any expression this module grades:
+#: it is censused by ``tests/chained_cause_guard.py``, whose arms are in
+#: ``tests/test_chained_cause_census.py``, and measured by
+#: ``tests/test_chained_cause.py``. NO ENTRY BELOW MAY STATE THAT THE CAUSE IS
+#: UNRENDERED - the entries that did said it of sites that chain, and CS-857
+#: corrected them.
 EXEMPT: Final[Mapping[str, str]] = {
     "clockspeed/save/header.py::HeaderReadError::self.redacted_path": (
         "MEASURED at the one construction site, in read_header: the argument "
@@ -339,7 +352,12 @@ EXEMPT: Final[Mapping[str, str]] = {
         "is bound by an except OSError handler and errno is the integer error "
         "number, rendered beside type(exc).__name__ and nothing else. The "
         "OSError's own message - which quotes the filename, and a save "
-        "filename embeds the world name - is deliberately never rendered. An "
+        "filename embeds the world name - never reaches args. IT IS STILL "
+        "RENDERED, and this entry no longer says otherwise: both sites raise "
+        "from exc, so the interpreter prints that cause's own message beside "
+        "this one on the same failure under default flags. That is a SEPARATE "
+        "CHANNEL this guard cannot read rather than a property this entry "
+        "clears - its owner is named in this module's docstring. An "
         "attribute read carries no annotation, so the integer cannot be "
         "proven the way a declared int parameter is; the sibling arm measures "
         "the type at runtime instead."
@@ -359,7 +377,9 @@ EXEMPT: Final[Mapping[str, str]] = {
         "MEASURED at the two sites in _make_dir and copy_for_read: exc is "
         "bound by an except OSError handler and errno is the integer error "
         "number. Same shape and same reasoning as the SourceUnreadableError "
-        "entry above, including that the OSError message is never rendered."
+        "entry above, including that the OSError message never reaches args "
+        "while the interpreter still renders it from the chained cause - both "
+        "sites raise from exc."
     ),
     "clockspeed/save/workdir.py::WorkDirError::locate.redact(destination)": (
         "MEASURED at the site in copy_for_read that reports a failed rename: "

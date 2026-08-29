@@ -72,6 +72,7 @@ exception is an echo path (non-negotiable 12).
 from __future__ import annotations
 
 import ast
+import errno
 import importlib
 import re
 import struct
@@ -3661,3 +3662,54 @@ def test_a_legitimate_field_name_still_constructs() -> None:
     for name in sorted(usmap.FIELD_NAMES):
         error = usmap.UsmapFormatError(field=name, offset=0, reason="truncated")
         assert error.field == name
+
+
+# ---------------------------------------------------------------------------
+# CS-857 - THE CHAINED CAUSE at the one OSError-rooted site in this module.
+# ``load_usmap`` re-raises a read failure as UsmapError FROM that failure, and
+# the cause's own text reaches the formatted traceback along with it.
+# ---------------------------------------------------------------------------
+
+#: A non-home absolute path. A real home path in a tracked file is refused
+#: outright by the authored-files guard, fictional account name or not. What
+#: these arms need is separators and identifier-shaped segments, and a non-home
+#: root supplies both.
+_BAIT_SEGMENT: Final = "BaitMappingDirectory"
+_BAIT_STEM: Final = "BaitMappingName"
+_BAIT_PATH: Final = f"Z:\\{_BAIT_SEGMENT}\\{_BAIT_STEM}.usmap"
+
+
+def test_the_chained_cause_drops_the_filename_but_keeps_the_diagnosis() -> None:
+    """The mapping path may not ride the cause into the traceback.
+
+    ``OSError.__str__`` appends ``filename`` verbatim, and a chained cause is
+    rendered with the wrapper. errno and strerror are the diagnosis and survive
+    it; the filename fields are the leak and do not.
+    """
+    exc = PermissionError(errno.EACCES, "permission denied", _BAIT_PATH)
+
+    clone = usmap._pathless_cause(exc)  # noqa: SLF001
+    rendered = str(clone)
+
+    assert clone.filename is None, "filename crossed"
+    assert clone.filename2 is None, "filename2 crossed"
+    assert _BAIT_SEGMENT not in rendered, "a directory segment reached the cause"
+    assert _BAIT_STEM not in rendered, "the mapping name reached the cause"
+    assert ".usmap" not in rendered, "a filename reached the cause"
+    assert "\\" not in rendered, "a path separator reached the cause"
+    assert clone.errno == errno.EACCES, "the errno did not survive"
+    assert clone.strerror == "permission denied", "the strerror did not survive"
+
+
+def test_the_original_mapping_path_was_in_the_rendering_to_begin_with() -> None:
+    """THE POSITIVE CONTROL. Without it the arm above passes on an empty string.
+
+    The SEGMENTS are asserted rather than the whole path: ``OSError.__str__``
+    renders filename through ``%r``, which doubles every backslash, so a
+    whole-path arm reads False even while the path is plainly there.
+    """
+    exc = PermissionError(errno.EACCES, "permission denied", _BAIT_PATH)
+    rendered = str(exc)
+
+    assert _BAIT_SEGMENT in rendered, "the original did not carry the directory segment"
+    assert _BAIT_STEM in rendered, "the original did not carry the mapping name"

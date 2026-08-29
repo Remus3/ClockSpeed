@@ -1174,6 +1174,35 @@ def parse_usmap(data: bytes) -> PropertyMap:
     )
 
 
+def _pathless_cause(exc: OSError) -> OSError:
+    """Clone an OSError without the two fields that carry the path.
+
+    ``raise X(...) from exc`` makes the CAUSE's own text part of the formatted
+    traceback, so redacting the wrapper's message is not enough on its own:
+    ``OSError.__str__`` appends ``filename`` and ``filename2`` verbatim, and
+    those hold the home directory, the account directory and the save name.
+    Rebuilding from the two NAMED diagnostic fields carries errno and strerror
+    across and leaves both filename fields unset, which closes that channel
+    while keeping the reason the call failed.
+
+    ``str()`` is the rendering measured here, because that is the one the
+    traceback formatter uses. ``repr()`` would have been a false clearance - it
+    omits filename even on the leaking original.
+
+    The two-argument form is deliberate. Supplying ``winerror`` as a fourth
+    argument renders ``[WinError None]`` whenever the original carried none,
+    which is worse than the errno it would replace. The errno-based subclass
+    mapping still runs, so a PermissionError stays a PermissionError.
+
+    Args:
+        exc: The caught failure. ONLY ``errno`` and ``strerror`` are read.
+
+    Returns:
+        A new OSError of the same errno-mapped subclass, carrying no path.
+    """
+    return OSError(exc.errno, exc.strerror)
+
+
 def load_usmap(path: Path) -> PropertyMap:
     """Read and parse the mapping at ``path``.
 
@@ -1189,7 +1218,7 @@ def load_usmap(path: Path) -> PropertyMap:
     try:
         data = path.read_bytes()
     except OSError as exc:
-        raise UsmapError(f"{_REASON_UNREADABLE}: {redact(path)}") from exc
+        raise UsmapError(f"{_REASON_UNREADABLE}: {redact(path)}") from _pathless_cause(exc)
     return parse_usmap(data)
 
 

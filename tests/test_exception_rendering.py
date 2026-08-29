@@ -201,6 +201,18 @@ UNGUARDED_TRACEBACK_RESIDUALS = {
         "token reaches any surface. Suppressing it would delete the only check of "
         "that channel."
     ),
+    "tests/test_chained_cause.py": (
+        "CS-857's rendering measurement, and the one entry here whose SUBJECT is "
+        "this record's own leak class. The module formats the traceback of each "
+        "shipped chained raise precisely to assert that the CAUSE carries no path "
+        "the redactor would rewrite - the channel `raise ... from exc` opens and "
+        "that no other surface exposes. It renders with limit=0, so every message "
+        "and note in the chain is graded and no frame line is emitted; that matters "
+        "because this machine's stdlib sits under the user profile, so frame lines "
+        "are themselves redactable and would redden the arm with no cause present. "
+        "The opt-in os.environ branch this guard offers as the remedy would stop "
+        "every arm running by default, which is the same as deleting them."
+    ),
 }
 
 # Files that render an exception PARAMETER as a whole object and are not fixed
