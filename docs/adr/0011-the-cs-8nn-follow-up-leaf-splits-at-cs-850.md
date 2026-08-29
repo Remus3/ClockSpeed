@@ -2,14 +2,15 @@
 
 ## Status
 
-`proposed` - 2026-08-29
+`accepted` - 2026-08-29
 
-**FILED `proposed` DELIBERATELY, AND NOT AS AN OVERSIGHT.** It was written by the session
-that performed the split, and `CLAUDE.md` section 5 says the agent that produced a thing
-never grades it. It is not binding and nothing may cite it as settled until an adjudicator
-that did not perform the split accepts it. ADR 0010 took the same route and was accepted
-the same day by operator ruling; that is the route this one is waiting on, not a promise
-about the outcome.
+**ACCEPTED BY OPERATOR RULING 2026-08-29**, the same day it was filed. It was written by the
+session that performed the split and filed `proposed`, because per `CLAUDE.md` section 5 the
+producing agent does not grade its own output. The operator is an adjudicator that did not
+perform the split, which is exactly the condition the `proposed` status was waiting on. ADR
+0010 took that same route on the split before this one.
+
+This ADR is now IN FORCE and binding. Cite it freely.
 
 ## Context
 
@@ -121,10 +122,22 @@ unevenness is the receipt.
   have no way to disagree. **Do not add a second expression of this mapping anywhere** - a
   hand-listed table of which item lives where would be edited by the same hand that
   misplaces a body, and would therefore agree with the mistake.
-- **Every section moved byte-for-byte, and it was proven rather than asserted.** The
+- **Every section moved byte-for-byte, and it was proven rather than asserted - BUT THE
+  PROOF ONLY REPRODUCES WITH ITS HASHING CONVENTION STATED, so here it is.** Cut each file
+  at its `## CS-nnn` headings, STRIP EACH SECTION'S TRAILING BLANK LINES, then hash: the
   multiset of per-section SHA-256 digests taken before the split equals the multiset taken
-  across both files after it, 34 sections to 34 sections. No body was reflowed, retitled,
-  renumbered or tidied.
+  across both files after it, for all 34 MOVED sections. **RE-RUN 2026-08-29 (session 46),
+  AND THE NAKED FORM OF THIS CLAIM IS FALSE.** Without the trailing-blank strip two digests
+  differ, and neither difference is a body edit: CS-808 lost two trailing blank lines by
+  becoming the LAST section of the lower leaf, and CS-860 gained one by ceasing to be the
+  last section of the file. **THE POST-SPLIT POPULATION IS 35, NOT 34**, because CS-861 was
+  filed into the upper leaf in the same commit - an addition rather than a moved section,
+  and the only member of the after set with no counterpart. **TAKE THE PROOF BETWEEN THE BASE
+  COMMIT AND THE SPLIT COMMIT, NEVER AGAINST THE WORKING TREE**, because every session after
+  the split edits sections in place and each such edit is one more unmatched digest that says
+  nothing about the move. Run that way it gives 34 sections before, 35 after, 0 unmatched
+  before and 1 unmatched after, and that 1 is CS-861 - re-run 2026-08-29 (session 46). No
+  body was reflowed, retitled, renumbered or tidied.
 - **Nothing else in the family changed, because nothing else needed to.** The index guard
   in `tools/drift_guard.py`, the budget tool in `tools/doc_budget.py` and the
   documentation-citation module `tests/test_docs_citations.py` all DERIVE the leaf
@@ -140,10 +153,23 @@ unevenness is the receipt.
 
 ## Consequences
 
-**Easier.** Measured after the split, both leaves sit near half their budget - the lower at
-57 per cent and the upper at 45 per cent - against 99 per cent for the single file. The
-upper leaf, which is the one that grows, holds the larger share of the remaining headroom.
-A session reading `CS-8nn` detail now loads roughly half of what it did.
+**Easier.** Both leaves sit near half a budget the single file had filled to 99 per cent,
+and a session reading `CS-8nn` detail now loads roughly half of what it did.
+
+**THE PERCENTAGES THAT STOOD HERE WERE WRONG TWICE OVER, AND THE SECOND TIME IS THE MORE
+INSTRUCTIVE.** As filed they read 57 and 45. **THE 45 WAS WRONG WHEN WRITTEN** - CS-861's
+section was appended to the upper leaf in the same commit as the split, and the figure had
+been taken before it landed. Re-measured with `tools/doc_budget.py` at the split commit:
+lower 57, upper 50. **THEN THE SAME SESSION'S OWN RECORDS INVERTED THE PAIR.** Measured again
+at the end of session 46, after the CS-860 addendum landed in the upper leaf: lower 57, upper
+58. So the sentence that used to close this paragraph - that the growing leaf still holds the
+larger share of the remaining headroom - **IS NOW FALSE**, one session after the split, and
+the leaf that grows is already the bigger of the two.
+
+**DO NOT REPAIR THIS BY WRITING A THIRD PAIR OF NUMBERS.** Read them from
+`tools/doc_budget.py`. A percentage in prose is the restated measurement `CLAUDE.md` section
+4 forbids, and this one drifted twice inside a single session - which is a sharper argument
+for the rule than the rule makes for itself.
 
 **Harder.** A reader must know the seam. One leaf's filename does not state its range, so
 finding an item costs reading its number against CS-850, or one hop through the routing

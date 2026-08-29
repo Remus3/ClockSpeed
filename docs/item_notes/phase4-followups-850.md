@@ -23,8 +23,12 @@ inside the block, and why it sits there rather than at CS-830 or CS-840, is reco
 
 **THIS IS THE LEAF THAT GROWS, WHICH IS WHY THE SEAM LEFT THE HEADROOM ON THIS SIDE.** A
 newly filed CS-8nn item takes the next ID after the highest already allocated, so it lands
-here rather than in the sibling. Measured at the split: this leaf carries fewer bytes than
-the sibling and the larger share of the remaining budget. **THAT IS NOT A PERMANENT FIX** -
+here rather than in the sibling. Measured at the split: this leaf carried fewer bytes than
+the sibling and the larger share of the remaining budget. **MEASURED AGAIN AT THE END OF THE
+SAME SESSION, THAT HAD ALREADY REVERSED** - the session-46 records pushed this leaf past the
+sibling, so the headroom the seam left on this side was spent inside one session. Read both
+figures from `tools/doc_budget.py`; do not trust either sentence for a current number.
+**THAT IS NOT A PERMANENT FIX** -
 the split divides a population and does not shrink it, and CLOSURE IS STILL THE ONLY
 DESIGNED SHRINK, exactly as `docs/adr/0010-item-notes-is-an-index-over-per-phase-leaves.md`
 said of the split before this one.
@@ -795,6 +799,18 @@ name happens to be the sole personal component of the home prefix, which is a na
 accident and not the designed control. **"This does not leak in the suite or either CI lane"
 is MEASURED FALSE.** The redactor gap itself is not this item's - it is filed as CS-860.
 
+**CORRECTED IN PLACE - measured 2026-08-29 (session 46). THE PARAGRAPH ABOVE IS NOW FALSE IN
+ITS MECHANISM AND STILL TRUE IN ITS VERDICT.** The report redactor no longer holds only the
+single-separator and `as_posix` home spellings, so "on a chained cause the primary rule
+CANNOT FIRE" and "contained on this machine only because the account name happens to be the
+sole personal component of the home prefix" have both stopped being true: the `%r`-doubled
+spelling and both URL-quoted ones are covered now, each by its own arm. What has NOT changed
+is the verdict - the platform account id and the world name still render, and they are now
+uncovered DELIBERATELY, with a stated reason each rather than by silence. **The detail is
+CS-860's and is not restated here.** Read that section before citing this paragraph for
+anything, because the sentence it corrects is the one most worth quoting and the one most
+likely to be quoted stale.
+
 **WHAT IS MUTATION-PROVEN.** 7 of 7 targeted mutants killed, including a true revert to
 round 1's own gate and a revert of the census reporter's early return - the mutant that
 SURVIVED round 1 and was reported as surviving rather than rounded up.
@@ -897,6 +913,107 @@ name is not a fixed string and an account id is a shape, not a value, so the rem
 pattern plus a derivation, and the arm that proves it must plant a synthetic value rather
 than this machine's own.
 
+### REFUTED BY FIVE REVIEWERS, REPAIRED, AND CS-860 STAYS OPEN - recorded 2026-08-29 (session 46)
+
+**READ THIS BEFORE TAKING THE ITEM. THE FIVE REFUTATIONS AND THE ROOT CAUSE MATTER MORE THAN
+THE CODE THAT SHIPPED**, because the code that shipped is mostly a BACKOUT and the next
+attempt has to avoid the same shape.
+
+**THE FIRST ATTEMPT WIDENED THE REDACTOR FROM TWO CLASSES TO FOUR, AND THE WHOLE SUITE WAS
+GREEN ON IT.** It added a POSITIONAL `account-id` rule and a `.sav`-anchored `world-name`
+rule beside the two existing families, plus the escaped spellings for the home family. Green
+was the state the tree was in while every finding below was already true of it. **NO PASS
+COUNT IS WRITTEN HERE**: this recording pass did not run the suite, and a number carried
+forward from another agent's report is exactly the kind of unverified figure `CLAUDE.md`
+section 4 forbids restating.
+
+**FIVE INDEPENDENT REVIEWERS - FOUR ADVERSARIES AND AN ADJUDICATOR - REFUTED IT.** The two
+new SHAPE rules were measured simultaneously TOO NARROW and TOO GREEDY:
+
+| Input | Rendered | Fault |
+|---|---|---|
+| `'Some Save Name.sav'` | `'Some Save <redacted-save>'` | a world name with a SPACE leaks its leading words |
+| `'He said "Hi".sav'` | unchanged | LEAKS ENTIRELY |
+| `'What?.sav'` | unchanged | LEAKS ENTIRELY |
+| `'workdir.py:120: in copy_for_read(World.sav)'` | `'workdir.py:120: in <redacted-save>)'` | A FUNCTION NAME ERASED FROM A TRACEBACK FRAME LINE |
+
+A real repo test rendered `assert '<redacted-save>' == '<redacted-save>'` - a diff whose two
+sides are byte-identical, and therefore a failure report that cannot be diagnosed at all.
+
+**ROOT CAUSE, AND THIS IS THE DURABLE LESSON.** The segment character class both shape rules
+were built on was borrowed from `clockspeed/data/locate.py:187`, where it is CORRECT, because
+that redactor receives PATHS. `redact_personal_data` receives WHOLE FAILURE REPORTS -
+arbitrary prose. A path-segment class is safe on a path and destructive on arbitrary text.
+**TOO NARROW AND TOO GREEDY ARE THE SAME KNOB HERE**: widening the class until it holds a
+spaced world name is the same edit that widens what it eats out of a frame line. It cannot be
+tuned into correctness, so do not try. It has to be replaced by a mechanism that does not
+assume its input is a path.
+
+**THE HEADLINE FINDING - THE GUARD WAS ITSELF GREEN BY ACCIDENT.** Deleting `quote` from the
+home-spelling transforms left the WHOLE SUITE GREEN, because the URL-quoted home spellings
+were rescued by the ACCOUNT-NAME rule. That is the exact "naming accident, not a control"
+CS-860 was filed to eliminate, REPRODUCED ONE LEVEL UP, INSIDE THE GUARD WRITTEN TO PREVENT
+IT. Two reviewers found it independently, by different methods, which is what makes it a
+property of the design rather than one agent's slip. **THIS IS THE FIFTH CONSECUTIVE SESSION
+TO PRODUCE A FALSE CLEARANCE INSIDE THE GUARD BUILT TO PREVENT THE PREVIOUS ONE - AND THE
+FIRST IN WHICH IT WAS CAUGHT BEFORE THE OPERATOR WAS TOLD ANYTHING HAD CLOSED.**
+
+**A SECOND GRADING DEFECT: REGISTRATION IMPLIED NOTHING BEHAVIOURAL.** A class registered
+with a NEVER-MATCHING pattern and an EMPTY arm satisfied every oracle arm, because the arms
+checked a TUPLE SLOT and a FUNCTION-NAME SUBSTRING and never whether a rule MATCHES anything.
+Swapping two rules' class tags also left everything green - the tags were decorative.
+
+**OPERATOR RULING.** Keep the home-path widening. BACK OUT the two shape rules. Register both
+classes as KNOWN UNCOVERED with a stated reason each. Close the two grading defects.
+
+**WHAT SHIPPED - RULE POPULATION MEASURED THIS SESSION FROM THE SHIPPED BUILDER.** 12 rules:
+10 tagged `home-path`, 2 tagged `account-name`. Five distinct home spellings, and every one
+redacts - `home-native`, `home-posix`, `home-doubled` and BOTH of `home-quoted-native` and
+`home-quoted-posix`. **EACH SPELLING NOW HAS ITS OWN ARM**, rather than being covered by a
+pooled fingerprint the native spelling already satisfied, which is what let the deleted
+transform go unnoticed. Registration now carries a BEHAVIOURAL obligation: a class declared
+covered must demonstrably rewrite its own planted string into its own placeholder using ONLY
+its own tagged rules. The grading mutants that motivated the repair - a hollow registered
+class, a swapped class tag, and a deleted `quote` transform - are reported by the slice that
+built it as having each SURVIVED before and each been KILLED after; this recording pass did
+not re-run them, and that is stated rather than rounded up.
+
+**A LEAK WAS FOUND IN THE NEW ARM ITSELF, AND IT IS CS-850's DEFECT REPRODUCED INSIDE
+CS-860's OWN GUARD.** The arm that kills the pooled-fingerprint mutant asserted on a value
+DERIVED FROM THE REAL HOME, and pytest renders the asserted EXPRESSION independently of the
+message attached to it. Measured with both rule families hollowed: the report carried the
+bare account name VERBATIM. Fixed by binding a plain scalar in three arms before asserting.
+**A GUARD AGAINST A LEAK IS NOT EXEMPT FROM THE LEAK IT GUARDS**, and this is the second item
+in the family to learn that from its own output.
+
+**THE PROSE REPAIRS FROM THE FIRST ATTEMPT WERE REVERTED**, because backing out the shape
+rules makes the original sentences true again. The audit then found TWO sentences still false
+- and PRE-EXISTING, false at `afd85bd` as well, so not this session's damage:
+`tests/assertion_rendering_guard.py` claimed the report redactor recognises a MACHINE NAME.
+Measured false - `_ACCOUNT_VARIABLES` at `tests/conftest.py:426` holds `USERNAME`, `USER` and
+`LOGNAME` and reads `COMPUTERNAME` nowhere. `clockspeed/data/locate.py` redacts a machine
+name; the conftest redactor that rule borrows does not. Two redactors, and only one of them
+is behind that rule. Corrected in place.
+
+**WHAT CS-860 STILL OWES - THIS IS THE ITEM'S LIVE STATE.** Two of the four personal-data
+classes `CLAUDE.md` names are still not redacted from a failure report: the platform account
+id and the world name. They are now uncovered in EVERY form, not merely the bare form the
+item was filed on, because the escaped and spaced forms went out with the backout too.
+**THE GAP IS NO LONGER SILENT, AND THAT IS THE SESSION'S ACTUAL GAIN.** Both classes stay
+REGISTERED, `UNCOVERED_CLASSES` in `tests/conftest.py` carries a reason each, and arms assert
+that NO rule serves either and that their planted probes pass through UNTOUCHED - so the gap
+can neither close by accident nor widen unnoticed. What the item owes is a mechanism that
+does not assume its input is a path.
+
+**TWO COUNTER-EXAMPLES ARE PINNED AS STANDING REGRESSION GUARDS, AND A CORRECT REBUILD MUST
+SURVIVE BOTH.** They are
+`tests/test_report_redaction_classes.py::test_a_redaction_never_erases_the_frame_around_a_save_filename`
+and `::test_a_redaction_never_leaves_half_a_spaced_save_filename`. The rule they encode: a
+redaction MAY rewrite a filename inside a traceback frame line; it may NEVER eat the frame
+around it, and it may NEVER rewrite half a spaced name. Both survived the backout deliberately
+- they are the shape of the next attempt's acceptance, not scaffolding for the one that was
+withdrawn.
+
 ## CS-861
 
 ### NOTE - filed 2026-08-29 (session 46) by the slice-B builder, MEASURED BEFORE FILING
@@ -929,20 +1046,37 @@ rather than a tidy-up.
 **THE POSITION RULE IS SILENT AND THE DIGIT-RUN BACKSTOP RESCUES EXACTLY ONE SHAPE.** The
 positional pass cannot match because its anchor holds single separators while the escaped
 text holds doubled ones, so the account directory falls back on the digit-run backstop alone,
-whose floor `MIN_ACCOUNT_ID_DIGITS` was measured at 8. Three SYNTHETIC ids, one per shipping
-platform shape, under the real save-root layout:
+whose floor `MIN_ACCOUNT_ID_DIGITS` was measured at 8. Four SYNTHETIC ids under the real
+save-root layout, re-measured 2026-08-29 (session 46):
 
 | Synthetic account directory | Shape | native | `as_posix` | ESCAPED |
 |---|---|---|---|---|
-| `76561198000000000` | Steam, 17 digits | redacted | redacted | redacted |
-| `MSFT-abcdef` | Microsoft Store | redacted | redacted | **SURVIVES** |
+| `90000000000000001` | all-digit, 17 long | redacted | redacted | redacted |
+| `MSFT-abcdef` | prefixed token, no digit run | redacted | redacted | **SURVIVES** |
 | `a1b2c3d4e5f60718` | Epic-shaped hex | redacted | redacted | **SURVIVES** |
+| `a1b2c3d4-1234-5678-9abc-def012345678` | braceless GUID | redacted | redacted | **SURVIVES** |
 
-**TWO OF THE THREE TESTED SHAPES SURVIVE, NOT ONE.** The Epic-shaped hex carries digits, but
-its longest run of CONSECUTIVE digits is 5 - below the floor of 8 - so the backstop cannot
-reach it either. The backstop rescues the Steam shape and nothing else. A first draft of this
-note said one shape; an independent re-measurement found two, and the difference is the whole
-severity of the item.
+**THE STEAM SYNTHETIC WAS REPLACED, AND THE REASON IS THIS NOTE'S OWN SUBJECT.** The id this
+row used to carry opened with the public `7656119` SteamID64 constant and continued with
+digits nobody had chosen to differ from a real one, so a synthetic in a TRACKED file sat
+closer to a real value than it had any need to. The replacement is outside the SteamID64
+range entirely and so shares a leading prefix with nothing. The row proves exactly what it
+proved before: the backstop keys on a RUN OF DIGITS, never on the prefix.
+
+**THREE OF THE FOUR TESTED SHAPES SURVIVE.** The Epic-shaped hex carries digits, but its
+longest run of CONSECUTIVE digits is 5, below the floor of 8, so the backstop cannot reach
+it. The braceless GUID fails for a DIFFERENT sub-reason, worth keeping separate because it
+constrains the remedy: its longest run is 9, ABOVE the floor, and the backstop still refuses,
+because that run is not separated from the hex around it and the pattern's boundary assertion
+excludes an alphanumeric neighbour. **A RUN LONG ENOUGH IS NOT THE SAME AS A RUN THE BACKSTOP
+CAN SEE.** The backstop rescues the all-digit shape and nothing else. The braceless GUID is
+also the shape the module's own comment attributes to the Microsoft Store, so the fourth row
+is not a curiosity - it is a shipping platform that had gone untested.
+
+**THIS COUNT HAS NOW MOVED TWICE AND IS THE SEVERITY OF THE ITEM.** A first draft said one
+shape survives; an independent re-measurement found two; a session-46 reviewer found the
+braceless GUID untested altogether and it survives as well. Re-derive it rather than carrying
+it forward.
 
 **THE WHOLE MECHANISM IN ONE RENDERED LINE.** The tail only - the prefix is elided because it
 is a real path, and it was separately measured to carry no personal value once redacted:
@@ -959,7 +1093,7 @@ Epic writes a hex token, the Microsoft Store a braceless GUID, and a `CLOCKSPEED
 override whatever the operator typed - and calls keying on digits precisely how a redactor
 comes to be correct for one shape and silent for the other three. The escaped rendering
 returns the module to exactly that state, and the table above is that sentence coming true:
-correct for Steam, silent for both others tested.
+correct for the all-digit shape, silent for all three others tested.
 
 **EVERY ID IN THIS NOTE IS SYNTHETIC AND INVENTED**, which is precisely why it is safe to
 write them down. The real account directory is never written into a tracked file - `CLAUDE.md`

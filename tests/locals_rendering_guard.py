@@ -37,12 +37,9 @@ forbid the echo regardless of which flag opens it.
 WHAT THIS GUARD DOES NOT RE-GRADE, because something else already does.
 ``tests/conftest.py`` redacts a rendered report at run time, and the docstring
 of its ``_redact_report`` names the locals under ``-l`` as one of the channels
-``longrepr`` carries - but what ``redact_personal_data`` rewrites is SPELLINGS
-OF THIS MACHINE - the home path and the account name - plus the SHAPES CS-860
-added: the account directory sitting under the save root, and a save filename.
-A decoded struct word is neither a spelling this machine can produce nor a
-shape any of those rules recognises, so it passes straight through - nothing on
-this machine can enumerate the words a save contains. So the runtime
+``longrepr`` carries - but ``redact_personal_data`` rewrites HOME PATHS and the
+ACCOUNT NAME only. A decoded struct word passes straight through it, because
+nothing on this machine can enumerate the words a save contains. So the runtime
 redactor covers two of the three classes the acceptance names and this static
 guard covers the third, and neither is the whole of it. A parameter such as
 ``tmp_path`` is a local too and IS rendered;

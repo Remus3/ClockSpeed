@@ -1,17 +1,61 @@
 #!/usr/bin/env python3
-"""CS-860 - four personal-data classes, derived from CLAUDE.md and proven.
+"""CS-860 - four personal-data classes derived from CLAUDE.md, two of them covered.
 
-WHAT WAS WRONG. tests/conftest.py's report redactor emitted two rule families -
-home-path spellings and bare account names - while CLAUDE.md names FOUR kinds of
-personal data, twice, in different words. Measured against synthetic stand-ins
-before this module existed: a platform account directory sitting one segment
-below the save root, and a save filename carrying the world name, both rendered
-VERBATIM. And the home family held the single-separator and ``as_posix``
-spellings only, so the DOUBLED spelling - which is what ``OSError.__str__``
-renders, because it puts ``filename`` through ``%r`` - missed the home rule and
-was caught only by the weaker account-name rule. That containment holds on this
-machine solely because the account name happens to be the only personal
-component of the home prefix. A naming accident is not a control.
+WHAT THIS MODULE GRADES, AND THE SHAPE IS NOT WHAT IT WAS. tests/conftest.py's
+report redactor serves TWO of the four kinds of personal data CLAUDE.md names -
+a home path, in five spellings, and the account name. The other two - the
+platform account id and the world name - are REGISTERED AND UNCOVERED, declared
+in that module's UNCOVERED_CLASSES with a reason each. So the arms below grade
+three separate things: that the demanded SET still comes out of CLAUDE.md at
+four, that every COVERED class is covered BEHAVIOURALLY rather than by
+declaration, and that every UNCOVERED class is genuinely unserved rather than
+quietly claimed.
+
+WHY TWO ARE UNCOVERED, stated here because a reader meets this file before any
+ledger. CS-860 first shipped SHAPE rules for both, built on a path-segment
+character class borrowed from clockspeed/data/locate.py - where that class is
+CORRECT, because locate.redact receives PATHS. redact_personal_data receives
+WHOLE FAILURE REPORTS, which are arbitrary prose, and the same class was
+measured destructive in both directions at once: `Some Save Name.sav` rendered
+as `Some Save <redacted-save>`, leaking the world name it existed to hide, while
+`workdir.py:120: in copy_for_read(World.sav)` rendered as `workdir.py:120: in
+<redacted-save>)`, erasing a function name from a traceback frame line. The two
+ends are one knob, so the rules were backed out rather than tuned. Both
+counter-examples are PINNED by the uncovered arms below, so a rebuilt rule has
+to answer them before it ships.
+
+THE HOME WIDENING STAYED, and it is what the item's title was actually about.
+OSError.__str__ renders filename through %r, which DOUBLES every backslash, so
+the doubled spelling is what a chained cause prints - and before the widening it
+missed the home rule entirely, caught only by the weaker account-name rule. That
+containment holds on this machine solely because the account name happens to be
+the only personal component of the home prefix. A naming accident is not a
+control.
+
+TWO GRADING DEFECTS WERE CLOSED HERE, both found by MUTATION rather than by
+reading, and both are the same fault one level up: an arm that measures a NAME
+where it should measure a BEHAVIOUR.
+
+  - THE ESCAPED SPELLINGS WERE UNGRADED. One arm named the doubled spelling and
+    none named either URL-quoted one, so DELETING `quote` from the transforms
+    left the whole suite GREEN. The reason is exactly the naming accident above,
+    reproduced inside the guard written to prevent it: MEASURED on this machine,
+    the ACCOUNT-NAME rules alone rewrite all five home spellings and yield the
+    account placeholder for every one of them, so a leak scan is satisfied
+    whatever the home rules do. The repair is one arm PER SPELLING that applies
+    ONLY the rules tagged home-path and demands the HOME placeholder
+    specifically.
+
+  - REGISTRATION IMPLIED NOTHING. Occupying a tuple slot satisfied
+    test_every_registered_class_contributes_a_compiled_rule, and a function-name
+    substring satisfied test_every_registered_class_has_a_named_arm. Neither
+    asked whether a rule MATCHES anything, so a class registered with
+    re.compile("(?!)") and a pass-bodied arm passed both. A corroborating probe
+    SWAPPED the class tags between two rules and every arm stayed green, so the
+    tags were decorative. The repair is that COVERAGE IS BEHAVIOURAL: a covered
+    class must have rules TAGGED WITH IT that, applied ALONE, rewrite a planted
+    string of that class into that class's OWN placeholder. A hollow rule
+    produces no placeholder and a swapped tag produces the wrong one.
 
 DERIVED RATHER THAN LISTED, which is the wording of the acceptance and the
 whole point of the oracle below. Nothing here writes down "the four classes".
@@ -19,8 +63,10 @@ The demanded set is read out of CLAUDE.md on every run, from TWO independently
 worded regions - section 2's save-directory paragraph and non-negotiable 3 -
 and the arms go red when either region names something no registered class
 claims, when the classes and either region's phrases are not ONE-TO-ONE, when a
-class contributes no compiled rule, when a class has no named arm here, or when
-a class id is spelled by no phrase that claims it. Two independently worded
+class is declared neither covered nor uncovered, when a COVERED class's own
+tagged rules rewrite nothing, when an UNCOVERED class turns out to be served
+after all, when a class has no named arm here, or when a class id is spelled by
+no phrase that claims it. Two independently worded
 regions have to be defeated together to shrink the demanded set. The house
 precedent for the shape is tools/drift_guard.py's work-item anchor: find the
 sentence at run time, report rather than pass when it is absent, and count what
@@ -81,13 +127,13 @@ single-separator spelling appears. A callee frame argument renders through
 
 THE NEEDLES ARE SYNTHETIC WHERE THEY CAN BE AND REAL WHERE THEY MUST BE. The
 account id and the save filename are invented values planted into the sandbox
-source; the account id is planted in a NON-STEAM shape as well as a
-digit-shaped one, because the rule under test is POSITIONAL and a digit rule
-would be a different thing that happened to pass. The home path and the account
-name cannot be synthetic - the rules for them are literal spellings of THIS
-machine - so they are derived inside the sandbox at run time and are NEVER
-written into a tracked file and NEVER printed. Every failure message below
-reports LABELS and COUNTS.
+source. They are STILL PLANTED although their classes are now uncovered, and
+deliberately so: the control arm measures that they reach a rendered report,
+which is what makes the declared gap a MEASURED fact rather than a claim. The
+home path and the account name cannot be synthetic - the rules for them are
+literal spellings of THIS machine - so they are derived inside the sandbox at
+run time and are NEVER written into a tracked file and NEVER printed. Every
+failure message below reports LABELS and COUNTS.
 
 THE CONTROLS ARE THE HALF THAT MAKES THE REST MEAN ANYTHING. An unguarded twin
 carries the same needles and must show a nonzero hit count PER MECHANISM BLOCK
@@ -105,11 +151,17 @@ STATED LIMITS.
   - Home-path coverage is bounded at ONE escaping level, matching the bound the
     rules themselves declare. A quadrupled spelling - a repr of a repr - and
     the compositions of quoting with doubling are outside both.
-  - A BARE world name with no ``.sav`` around it is out of scope by decision,
-    not by oversight: it is operator-authored free text derivable from nothing
-    on this machine. tests/test_assertion_rendering.py pins that boundary and
-    would go RED if the save rule widened to reach it. That class belongs to
-    CS-850 and CS-851.
+  - THE WORLD NAME AND THE ACCOUNT ID ARE UNCOVERED IN EVERY FORM, not merely
+    in their bare form. The bare form was always out of reach - operator-
+    authored free text derivable from nothing on this machine, and that half
+    belongs to CS-850 and CS-851 - but since the backout the marker-bearing and
+    suffix-bearing forms are uncovered too. The arms below assert that gap
+    rather than papering it, so it cannot close by accident or widen in silence.
+  - A PER-SPELLING HOME ARM IS ONLY A CONTROL WHERE THE SPELLINGS DIFFER. On a
+    platform that writes no backslash and quotes no separator, several of the
+    five spellings are byte-identical, and deleting a transform there is an
+    EQUIVALENT mutant rather than a surviving one. Those arms SKIP loudly and
+    name the platform limit rather than passing quietly.
   - The rule set is NOT enumerated from the live save directory, which would be
     legal and is deliberately not done: it would make the rules
     environment-dependent, so a green run here would say nothing about CI.
@@ -125,7 +177,7 @@ import re
 import shutil
 import subprocess
 import sys
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 from urllib.parse import quote
 
@@ -134,9 +186,7 @@ import pytest
 from clockspeed.data.locate import SAVE_ROOT_PARTS
 from tests import conftest as shipped
 from tests.conftest import (
-    REDACTED_ACCOUNT,
     REDACTED_HOME,
-    REDACTED_SAVE,
     REDACTED_USER,
     redact_personal_data,
 )
@@ -166,17 +216,39 @@ REGISTERED_CLASSES: tuple[str, ...] = tuple(
     )
 )
 
-#: The placeholder each class's rules substitute. Used as that class's
-#: FINGERPRINT: its absence from a guarded report means the rules did not run,
-#: which is the half a leak scan alone cannot see - on a machine whose account
-#: name is the only personal component of its home prefix, deleting the
-#: home rules still leaves nothing recognisable for a leak scan to find.
+#: What tests/conftest.py DECLARES about each class. Read off the shipped
+#: module rather than restated, for the same reason REGISTERED_CLASSES is: a
+#: class moving between the two must be VISIBLE here rather than silent.
+COVERED_CLASSES: frozenset[str] = shipped.COVERED_CLASSES
+UNCOVERED_CLASSES: Mapping[str, str] = shipped.UNCOVERED_CLASSES
+
+#: The placeholder each COVERED class's rules substitute. Used as that class's
+#: FINGERPRINT: its absence means the rules did not run, which is the half a
+#: leak scan alone cannot see - measured on this machine, the account-name
+#: rules alone rewrite all five home spellings, so deleting the home rules
+#: leaves nothing recognisable for a scan to find. AN UNCOVERED CLASS HAS NO
+#: FINGERPRINT, and an arm below asserts this map's domain is exactly the
+#: covered set, so a class cannot arrive in one without the other.
 CLASS_FINGERPRINTS: dict[str, str] = {
     shipped.CLASS_HOME_PATH: REDACTED_HOME,
     shipped.CLASS_ACCOUNT_NAME: REDACTED_USER,
-    shipped.CLASS_ACCOUNT_ID: REDACTED_ACCOUNT,
-    shipped.CLASS_WORLD_NAME: REDACTED_SAVE,
 }
+
+#: The five home spellings graded one arm each. Held as static labels so
+#: parametrisation never calls Path.home() at collection; an arm asserts they
+#: are exactly the labels _home_spellings() produces, so the list cannot drift.
+HOME_SPELLING_LABELS: tuple[str, ...] = (
+    "home-native",
+    "home-posix",
+    "home-doubled",
+    "home-quoted-native",
+    "home-quoted-posix",
+)
+
+#: The shortest exemption this suite will accept as a reason. A registered
+#: exemption carrying an empty string is the silence the registry exists to
+#: prevent, wearing the registry's clothes.
+MIN_REASON_WORDS = 12
 
 #: How a phrase in CLAUDE.md is recognised as naming a class. This is the ONLY
 #: authored half of the derivation: the SET of classes is demanded by the
@@ -583,6 +655,32 @@ def _class_needles() -> dict[str, dict[str, str]]:
     }
 
 
+def _redact_with_only(text: str, class_id: str) -> str:
+    """Apply ONLY the rules TAGGED with ``class_id``, in their shipped order.
+
+    THE SUBSET IS THE WHOLE POINT, AND IT WAS MEASURED. Applying the full rule
+    set cannot attribute a redaction to a class: on this machine the
+    ACCOUNT-NAME rules alone rewrite every one of the five home spellings and
+    yield the account placeholder for each. So a home arm run against the full
+    set - or any arm that merely scans for a leak - is satisfied whatever the
+    home rules do, which is how deleting a transform survived the earlier form
+    of this module. Grading a class through its own tagged subset is what
+    removes that, and it is also what makes a SWAPPED tag visible: the rules
+    still fire, but they produce the wrong class's placeholder.
+
+    Args:
+        text: The string to redact.
+        class_id: The class whose rules alone are applied.
+
+    Returns:
+        The text with only that class's substitutions applied.
+    """
+    for pattern, replacement, tag in shipped._REDACTION_RULES:  # noqa: SLF001
+        if tag == class_id:
+            text = pattern.sub(replacement, text)
+    return text
+
+
 def _surviving_labels(text: str, needles: dict[str, str]) -> list[str]:
     """Which needle LABELS are present in ``text``. Never returns a value."""
     return sorted(label for label, value in needles.items() if value in text)
@@ -681,15 +779,140 @@ def test_every_registered_class_id_is_spelled_by_a_phrase_that_claims_it(claude_
     )
 
 
-def test_every_registered_class_contributes_a_compiled_rule():
-    served = {class_id for _pattern, _replacement, class_id in shipped._REDACTION_RULES}  # noqa: SLF001
-    barren = sorted(class_id for class_id in REGISTERED_CLASSES if class_id not in served)
+def _served_classes() -> set[str]:
+    """Every class id some compiled rule is tagged with."""
+    return {class_id for _pattern, _replacement, class_id in shipped._REDACTION_RULES}  # noqa: SLF001
+
+
+def test_every_registered_class_is_declared_covered_or_uncovered():
+    # THE PARTITION, AND IT IS WHAT STOPS A CLASS BEING QUIETLY DROPPED. Backing
+    # a rule out is legitimate; letting its class evaporate from the registry is
+    # not, because a gap nothing names is a gap nothing checks.
+    declared = set(COVERED_CLASSES) | set(UNCOVERED_CLASSES)
+    registered = set(REGISTERED_CLASSES)
+    undeclared = sorted(registered - declared)
+    assert undeclared == [], (
+        f"a registered class is declared neither covered nor uncovered: {undeclared}. "
+        "Every class must state which it is, because 'uncovered' is a fact this "
+        "suite checks and silence is not"
+    )
+    unregistered = sorted(declared - registered)
+    assert unregistered == [], (
+        f"a coverage declaration names a class that is not registered: {unregistered}"
+    )
+    both = sorted(set(COVERED_CLASSES) & set(UNCOVERED_CLASSES))
+    assert both == [], f"a class is declared covered AND uncovered: {both}"
+
+
+def test_the_fingerprint_map_covers_exactly_the_covered_classes():
+    missing = sorted(class_id for class_id in COVERED_CLASSES if class_id not in CLASS_FINGERPRINTS)
+    assert missing == [], (
+        f"a covered class has no placeholder fingerprint: {missing}. The "
+        "behavioural arm grades a class by the placeholder its own rules "
+        "produce, so a covered class without one cannot be graded at all"
+    )
+    stray = sorted(class_id for class_id in CLASS_FINGERPRINTS if class_id not in COVERED_CLASSES)
+    assert stray == [], (
+        f"an uncovered class carries a placeholder fingerprint: {stray}. A "
+        "fingerprint is what a covered class has, so this is an uncovered class "
+        "dressed as a covered one"
+    )
+
+
+def test_every_covered_class_contributes_a_compiled_rule():
+    served = _served_classes()
+    barren = sorted(class_id for class_id in COVERED_CLASSES if class_id not in served)
     assert barren == [], (
-        f"a class is registered and no compiled rule serves it: {barren}. A "
+        f"a class is declared COVERED and no compiled rule serves it: {barren}. A "
         "declared class with no rule redacts nothing while reading as covered"
     )
     stray = sorted(class_id for class_id in served if class_id not in REGISTERED_CLASSES)
     assert stray == [], f"a rule is tagged with a class that is not registered: {stray}"
+
+
+def test_no_uncovered_class_is_served_by_any_rule():
+    # THE MIRROR OF THE ARM ABOVE, AND BOTH DIRECTIONS ARE NEEDED. This one
+    # stops an UNCOVERED class from acquiring a rule quietly and so masquerading
+    # as covered; the behavioural arm stops a COVERED class from going uncovered
+    # in silence. Neither alone closes the pair.
+    served = _served_classes()
+    contradicted = sorted(class_id for class_id in UNCOVERED_CLASSES if class_id in served)
+    assert contradicted == [], (
+        f"a class is declared UNCOVERED and a rule is tagged with it anyway: "
+        f"{contradicted}. The declaration and the rule set disagree - either the "
+        "rule came back, in which case move the class to COVERED_CLASSES and let "
+        "the behavioural arm grade it, or the tag is wrong"
+    )
+
+
+def test_every_covered_class_has_tagged_rules_that_rewrite_its_own_planted_string():
+    # REGISTRATION IS NOT COVERAGE, AND THIS IS THE ARM THAT MAKES THE
+    # DIFFERENCE. Two mutants were measured against the earlier form and BOTH
+    # SURVIVED: a class registered with a never-matching rule plus a pass-bodied
+    # arm, and a pair of rules with their class TAGS SWAPPED. Neither changes a
+    # tuple slot or a function name, which is all the earlier arms read. Here a
+    # class is graded through the rules TAGGED WITH IT, applied ALONE, and must
+    # turn a planted string of its own class into its OWN placeholder - so a
+    # hollow rule produces no placeholder, and a swapped tag produces another
+    # class's.
+    _assert_home_oracle_is_not_vacuous()
+    needles = _class_needles()
+    faults: list[str] = []
+    for class_id in sorted(COVERED_CLASSES):
+        fingerprint = CLASS_FINGERPRINTS[class_id]
+        for label, probe in sorted(needles[class_id].items()):
+            redacted = _redact_with_only(probe, class_id)
+            if redacted == probe:
+                faults.append(f"{class_id}/{label}: its own tagged rules rewrote nothing")
+            elif fingerprint not in redacted:
+                faults.append(f"{class_id}/{label}: rewritten without producing {fingerprint}")
+    assert faults == [], (
+        "a class is declared COVERED and its own rules do not demonstrably "
+        f"redact it: {sorted(faults)}. Occupying a rule slot is not coverage - a "
+        "rule that matches nothing, or one carrying another class's tag, holds "
+        "the slot and redacts nothing of this class"
+    )
+
+
+def test_the_graded_home_spelling_labels_are_the_ones_the_oracle_produces():
+    produced = sorted(_home_spellings())
+    assert sorted(HOME_SPELLING_LABELS) == produced, (
+        "the per-spelling arms are parametrised over a label list that no "
+        f"longer matches the spellings the oracle derives: {produced}. A "
+        "spelling with no arm is a transform with no control"
+    )
+
+
+@pytest.mark.parametrize("label", HOME_SPELLING_LABELS)
+def test_each_home_path_spelling_reaches_the_home_rules_alone(label):
+    # ONE ARM PER SPELLING, WHICH IS THE DEFECT THIS CLOSES. The earlier module
+    # named the doubled spelling and neither URL-quoted one, so deleting `quote`
+    # from the transforms left every arm green.
+    _assert_home_oracle_is_not_vacuous()
+    spellings = _home_spellings()
+    spelling = spellings[label]
+    twins = sorted(
+        other for other, value in spellings.items() if other != label and value == spelling
+    )
+    if twins:
+        pytest.skip(
+            f"this platform spells {label} byte-identically to {twins}, so this "
+            "arm is not a control on its own transform here: deleting that "
+            "transform would leave the spelling covered by another, which is an "
+            "EQUIVALENT mutant rather than a surviving one. The transform is "
+            "UNMEASURED on this platform, not absent"
+        )
+    # BOUND TO A SCALAR - see the doubled-spelling arm below for the measured
+    # reason. The value this compares is derived from the real home.
+    reached_home_rules = REDACTED_HOME in _redact_with_only(spelling, shipped.CLASS_HOME_PATH)
+    assert reached_home_rules, (
+        f"the {label} home spelling did not reach the HOME rules. Only the rules "
+        "TAGGED home-path were applied, deliberately: measured on this machine "
+        "the account-name rules alone rewrite all five spellings and yield the "
+        "account placeholder for every one, so an arm run against the whole rule "
+        "set, or one that merely scans for a leak, is satisfied whatever the home "
+        "rules do. That is the naming accident this item exists to remove"
+    )
 
 
 def _test_names_defined_here() -> Iterator[str]:
@@ -715,68 +938,6 @@ def test_every_registered_class_has_a_named_arm():
 # ---------------------------------------------------------------------------
 # The rules themselves - the primitives, the restatement, and the freeze
 # ---------------------------------------------------------------------------
-
-
-def test_the_separator_primitive_matches_every_spelling_and_refuses_the_rest():
-    pattern = re.compile(shipped._SEPARATOR + r"\Z")  # noqa: SLF001
-    should_match = ("/", BACKSLASH, BACKSLASH * 2, "%5C", "%2F", "%5c", "%2f")
-    should_not = ("", "a", "%", "%5", "%41", ":", "|", " ")
-    misses = sorted(item for item in should_match if pattern.match(item) is None)
-    assert misses == [], f"the separator primitive does not match {misses}"
-    wrong = sorted(item for item in should_not if pattern.match(item) is not None)
-    assert wrong == [], f"the separator primitive matches what is not one: {wrong}"
-
-
-def test_the_segment_primitive_refuses_to_cross_a_separator():
-    pattern = re.compile(shipped._SEGMENT)  # noqa: SLF001
-    cases = {
-        "forward-slash": ("alpha/beta", "alpha"),
-        "single-backslash": ("alpha" + BACKSLASH + "beta", "alpha"),
-        "doubled-backslash": ("alpha" + BACKSLASH * 2 + "beta", "alpha"),
-        "percent-5c": ("alpha%5Cbeta", "alpha"),
-        "percent-2f": ("alpha%2Fbeta", "alpha"),
-        "placeholder-bracket": ("alpha<beta", "alpha"),
-        "quote": ("alpha'beta", "alpha"),
-        "whitespace": ("alpha beta", "alpha"),
-        "glob-star": ("alpha*beta", "alpha"),
-        "glob-question": ("alpha?beta", "alpha"),
-    }
-    wrong: list[str] = []
-    for label, (probe, expected) in cases.items():
-        found = pattern.match(probe)
-        consumed = None if found is None else found.group(0)
-        if consumed != expected:
-            wrong.append(f"{label}: consumed {consumed!r} rather than {expected!r}")
-    wrong.sort()
-    assert wrong == [], (
-        "the segment primitive did not stop where a segment stops. A character "
-        f"class that excludes the wrong thing truncates silently: {wrong}"
-    )
-
-
-def test_the_segment_primitive_does_not_exclude_an_ordinary_letter():
-    # THE MEASURED BUG THIS ARM EXISTS FOR. A prototype of this primitive wrote
-    # [^s"'<>|] where it meant [^\s"'<>|] - excluding the letter s instead of
-    # whitespace - and silently truncated a match by one character. Every
-    # letter, digit, underscore, dot and hyphen has to survive a whole segment.
-    pattern = re.compile(shipped._SEGMENT)  # noqa: SLF001
-    ordinary = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-~%!$&+=@()[]{}"
-    match = pattern.match(ordinary)
-    consumed = 0 if match is None else len(match.group(0))
-    assert consumed == len(ordinary), (
-        f"the segment primitive consumed {consumed} of {len(ordinary)} ordinary "
-        "path-legal characters, so it is excluding something it should not"
-    )
-
-
-def test_the_restated_save_root_parts_mirror_the_resolver():
-    restated = shipped._SAVE_ROOT_PARTS  # noqa: SLF001
-    assert tuple(restated) == tuple(SAVE_ROOT_PARTS), (
-        "tests/conftest.py restates the save-root components because it is "
-        "dependency-free by design, and the copy has drifted from "
-        "clockspeed/data/locate.py. The positional account rule now keys on a "
-        "marker the resolver does not use"
-    )
 
 
 def _module_level_assignments(tree: ast.Module) -> dict[str, list[ast.stmt]]:
@@ -816,18 +977,20 @@ FORBIDDEN_IN_STATIC_RULES = frozenset(
     }
 )
 
-#: The names CS-860 added at module scope. Each must be a STATIC constant.
+#: The module-scope constants the surviving rules are built from. Each must be
+#: STATIC. The shape-rule names this tuple used to carry went out with the
+#: rules; what is left is the home-spelling transforms and the account-name
+#: boundary primitives, and the property they must hold is unchanged.
 STATIC_RULE_NAMES: tuple[str, ...] = (
-    "_SEPARATOR",
-    "_SEGMENT",
-    "_SAVE_ROOT_PARTS",
-    "_SAVE_ROOT_ANCHOR",
-    "_ACCOUNT_DIR_RE",
-    "_SAVE_FILE_RE",
+    "_PERCENT_ESCAPE",
+    "_NAME_LEFT_BOUNDARY",
+    "_NAME_RIGHT_BOUNDARY",
+    "_BACKSLASH",
+    "_HOME_SPELLING_TRANSFORMS",
 )
 
 
-def test_the_new_rules_read_neither_the_environment_nor_the_filesystem():
+def test_the_rule_constants_read_neither_the_environment_nor_the_filesystem():
     tree = ast.parse((REPO_ROOT / "tests" / "conftest.py").read_text(encoding="utf-8"))
     assignments = _module_level_assignments(tree)
     absent = sorted(name for name in STATIC_RULE_NAMES if name not in assignments)
@@ -843,9 +1006,9 @@ def test_the_new_rules_read_neither_the_environment_nor_the_filesystem():
                 elif isinstance(inner, ast.Name) and inner.id in FORBIDDEN_IN_STATIC_RULES:
                     offending.append(f"{name}: {inner.id}")
     assert offending == [], (
-        "a CS-860 rule constant reads the environment or the filesystem at "
-        "import. That is the CS-428 poisoning defect returning through a new "
-        f"door - the rules must be static: {sorted(offending)}"
+        "a rule constant reads the environment or the filesystem at import. "
+        "That is the CS-428 poisoning defect returning through a new door - the "
+        f"constants the rules are built from must be static: {sorted(offending)}"
     )
 
 
@@ -927,8 +1090,11 @@ def test_the_control_arm_carries_every_class_in_every_mechanism_block(control_ru
                 barren.append(f"{mechanism}/{class_id}")
     assert barren == [], (
         "the UNGUARDED twin does not render this class in this mechanism's "
-        "block, so the matching guarded arm is looking for nothing there and "
-        f"a green result from it would be vacuous: {sorted(barren)}"
+        f"block: {sorted(barren)}. For a COVERED class that makes the matching "
+        "guarded arm look for nothing, so a green result from it would be "
+        "vacuous. For an UNCOVERED class it is what makes the declared gap a "
+        "MEASURED fact - the needle demonstrably reaches a rendered report - "
+        "rather than an assertion about a value nothing prints"
     )
 
 
@@ -963,8 +1129,11 @@ def _assert_class_is_redacted(run: SandboxRun, class_id: str) -> None:
         f"configured pipeline. Spellings still rendered: {leaked}. No value is "
         "printed here - the labels are the finding"
     )
+    # Bound to a scalar: ``region`` is a whole rendered report, and under a
+    # mutant that hollows the rules it is an UNREDACTED one.
     fingerprint = CLASS_FINGERPRINTS[class_id]
-    assert fingerprint in region, (
+    fingerprint_present = fingerprint in region
+    assert fingerprint_present, (
         f"no {class_id} placeholder appears anywhere in the guarded report, so "
         "that class's rules did not run. A leak scan alone cannot see this: on "
         "a machine whose account name is the only personal component of its "
@@ -998,8 +1167,14 @@ def test_the_home_path_doubled_spelling_is_the_channel_a_chained_cause_renders(g
             "doubling gap is UNMEASURED on this platform, not absent"
         )
     doubled = home.replace(BACKSLASH, BACKSLASH * 2)
-    redacted = redact_personal_data(doubled)
-    assert REDACTED_HOME in redacted, (
+    # BOUND TO A SCALAR BEFORE THE ASSERT, AND THAT IS NOT STYLE. pytest renders
+    # the asserted EXPRESSION independently of the message, so asserting over
+    # the redacted string itself prints a value derived from the real home into
+    # the failure report - MEASURED: with both rule families hollowed, this
+    # shape carried the bare account name verbatim. Its leak-safety would then
+    # depend on the very rules under test, which is circular.
+    reached_home_rule = REDACTED_HOME in redact_personal_data(doubled)
+    assert reached_home_rule, (
         "the doubled home spelling did not reach the HOME rule. Before CS-860 "
         "it was caught only by the account-name rule, which holds on this "
         "machine by naming accident and does not transfer to another"
@@ -1013,21 +1188,49 @@ def test_the_account_name_class_is_redacted_on_every_mechanism(guarded_run):
     _assert_class_is_redacted(guarded_run, shipped.CLASS_ACCOUNT_NAME)
 
 
-def test_the_account_id_class_is_redacted_on_every_mechanism(guarded_run):
-    _assert_class_is_redacted(guarded_run, shipped.CLASS_ACCOUNT_ID)
+def _assert_registered_uncovered(class_id: str) -> None:
+    """Grade one UNCOVERED class: declared, reasoned, unserved and unreached."""
+    assert class_id in UNCOVERED_CLASSES, (
+        f"{class_id} is graded here as an uncovered class and is not declared "
+        "one. If it has become covered, this arm is the wrong shape for it"
+    )
+    assert class_id not in COVERED_CLASSES, f"{class_id} is declared both covered and uncovered"
+    reason = UNCOVERED_CLASSES[class_id]
+    words = len(reason.split())
+    assert words >= MIN_REASON_WORDS, (
+        f"the {class_id} exemption states {words} words of reason, below the "
+        f"{MIN_REASON_WORDS} this suite accepts. A registered exemption with no "
+        "usable reason is the silence the registry exists to prevent, wearing "
+        "the registry's clothes"
+    )
+    assert class_id not in _served_classes(), (
+        f"a rule is tagged {class_id} while the class is declared UNCOVERED"
+    )
+    assert class_id not in CLASS_FINGERPRINTS, (
+        f"{class_id} is uncovered and carries a placeholder fingerprint anyway"
+    )
+    for label, probe in sorted(_class_needles()[class_id].items()):
+        assert redact_personal_data(probe) == probe, (
+            f"the {class_id} probe {label} was rewritten by the shipped rule set "
+            "while its class is declared UNCOVERED. The declaration and the "
+            "behaviour disagree - either a rule has come back, in which case the "
+            "class belongs in COVERED_CLASSES where the behavioural arm can "
+            "grade it, or something else is over-reaching onto this shape"
+        )
 
 
-def test_the_account_id_rule_is_positional_rather_than_a_digit_shape():
-    # BOTH HALVES, because a digit rule would satisfy the first alone. The
-    # NON-DIGIT account directory must be redacted by POSITION, and a bare digit
-    # run outside any save path must NOT be - clockspeed/data/locate.py rejects
-    # a free-floating digit rule in writing, and this suite's own leak detectors
-    # plant digit-shaped tokens that such a rule would rewrite.
-    hexed = SAVE_ROOT_MARKER + "/" + PLANTED_ACCOUNT_HEX
-    assert PLANTED_ACCOUNT_HEX not in redact_personal_data(hexed), (
-        "a non-digit account directory below the save root was not redacted, "
-        "so the rule is keyed on what the segment is made of rather than where "
-        "it sits"
+def test_the_account_id_class_is_registered_uncovered_with_a_stated_reason():
+    # REGISTERED, NOT DROPPED. CS-860's positional rule was backed out; the
+    # class stays declared so the gap is machine-checked. This arm is what
+    # converts "we removed it" into a standing fact the next edit has to face.
+    _assert_registered_uncovered(shipped.CLASS_ACCOUNT_ID)
+    positional = SAVE_ROOT_MARKER + "/" + PLANTED_ACCOUNT_ID
+    assert redact_personal_data(positional) == positional, (
+        "an account directory below the save root was redacted while the "
+        "account-id class is declared UNCOVERED. THE GAP IS DECLARED RATHER "
+        "THAN HIDDEN: if a positional rule has been rebuilt on a mechanism that "
+        "does not assume its input is a path, move the class to COVERED_CLASSES "
+        "and this arm becomes the wrong shape for it"
     )
     bare = redact_personal_data(PLANTED_ACCOUNT_ID)
     assert bare == PLANTED_ACCOUNT_ID, (
@@ -1037,26 +1240,68 @@ def test_the_account_id_rule_is_positional_rather_than_a_digit_shape():
     )
 
 
-def test_the_world_name_class_is_redacted_on_every_mechanism(guarded_run):
-    _assert_class_is_redacted(guarded_run, shipped.CLASS_WORLD_NAME)
-
-
-def test_the_world_name_rule_leaves_a_bare_parsed_name_alone():
-    # THE BOUNDARY, ASSERTED SO IT CANNOT MOVE IN SILENCE. A world name with no
-    # .sav around it is free text and no rule can recognise one; widening this
-    # rule to reach it would turn tests/test_assertion_rendering.py red, and
-    # that red would be CORRECT. The class belongs to CS-850 and CS-851.
+def test_the_world_name_class_is_registered_uncovered_with_a_stated_reason():
+    # REGISTERED, NOT DROPPED, for the same reason as the account id above.
+    _assert_registered_uncovered(shipped.CLASS_WORLD_NAME)
     bare = PLANTED_SAVE_STEM
     assert redact_personal_data(bare) == bare, (
-        "the save rule now rewrites a bare save-derived name. If that is "
-        "intended, the boundary record in tests/test_assertion_rendering.py "
-        "must be rewritten rather than left standing"
-    )
-    rotated = SAVE_ROOT_MARKER + "/" + PLANTED_SAVE_FILE + ".bak"
-    assert PLANTED_SAVE_STEM not in redact_personal_data(rotated), (
-        "the rotated copy the game writes beside a save was not redacted"
+        "a bare save-derived name was rewritten. It is free text derivable from "
+        "nothing on this machine, so no rule can legitimately recognise one; "
+        "the boundary record in tests/test_assertion_rendering.py depends on it"
     )
     unrelated = "notes.savings"
     assert redact_personal_data(unrelated) == unrelated, (
         "a longer word merely beginning with the suffix was cut in half"
+    )
+
+
+def test_a_redaction_never_erases_the_frame_around_a_save_filename():
+    # THE TOO-GREEDY COUNTER-EXAMPLE, PINNED. The backed-out rule's segment
+    # class admitted brackets, commas and colons and was unanchored, so on a
+    # real traceback frame line it consumed the function name as well:
+    # `workdir.py:120: in copy_for_read(World.sav)` rendered as
+    # `workdir.py:120: in <redacted-save>)`. THIS ARM SURVIVES A CORRECT
+    # REBUILD - a rule may redact the filename here, it may never eat the frame
+    # around it - so it is a standing guard rather than a record of a removal.
+    frame = "workdir.py:120: in copy_for_read(World.sav)"
+    redacted = redact_personal_data(frame)
+    assert "copy_for_read" in redacted, (
+        "a redaction erased a FUNCTION NAME from a traceback frame line, which "
+        "is undiagnosable rather than merely lossy. A path-segment character "
+        "class is correct on a PATH and destructive on the arbitrary prose a "
+        f"failure report is - see tests/conftest.py's docstring. Rendered: {redacted!r}"
+    )
+    delimited = "(Alpha.sav,Bravo.sav,Charlie.sav)"
+    out = redact_personal_data(delimited)
+    assert out.count(",") == delimited.count(","), (
+        "a redaction swallowed across the commas of a bracketed list, so three "
+        f"items collapsed into one. Rendered: {out!r}"
+    )
+    assert out.endswith(")"), (
+        "a redaction consumed the closing bracket of a list, so the frame no "
+        f"longer parses as one. Rendered: {out!r}"
+    )
+
+
+def test_a_redaction_never_leaves_half_a_spaced_save_filename():
+    # THE TOO-NARROW COUNTER-EXAMPLE, PINNED, AND IT IS THE HALF THAT LEAKED.
+    # The same segment class excluded whitespace, so the rule ate only the run
+    # after the last space: `Some Save Name.sav` rendered as
+    # `Some Save <redacted-save>` and the world name walked out in the part left
+    # behind. THIS ARM ALSO SURVIVES A CORRECT REBUILD: a rule that takes the
+    # whole name removes the first token too, and a rule that takes nothing
+    # leaves the string alone. Only the partial rewrite fails it.
+    spaced = "Some Save Name.sav"
+    out = redact_personal_data(spaced)
+    partial = out != spaced and "Some" in out
+    assert not partial, (
+        "a redaction rewrote PART of a spaced save filename and left the rest "
+        "standing, which leaks the world name it exists to hide while reading "
+        f"as redacted. Rendered: {out!r}"
+    )
+    quoted = "Bob's World.sav"
+    out_quoted = redact_personal_data(quoted)
+    partial_quoted = out_quoted != quoted and "Bob" in out_quoted
+    assert not partial_quoted, (
+        f"the same partial rewrite on an apostrophe rather than a space: {out_quoted!r}"
     )

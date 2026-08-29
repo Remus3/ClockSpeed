@@ -75,6 +75,100 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-08-29 - CS-860 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-860 STAYS OPEN. Two of the four personal-data classes are now REGISTERED UNCOVERED with a stated reason each, after FIVE independent reviewers refuted the first remedy
+Verification: `tests/test_report_redaction_classes.py`, chiefly
+`tests/test_report_redaction_classes.py::test_every_registered_class_is_declared_covered_or_uncovered`,
+`::test_every_covered_class_has_tagged_rules_that_rewrite_its_own_planted_string`,
+`::test_the_graded_home_spelling_labels_are_the_ones_the_oracle_produces`,
+`::test_each_home_path_spelling_reaches_the_home_rules_alone` over every one of its
+per-spelling arms, `::test_no_uncovered_class_is_served_by_any_rule`,
+`::test_the_account_id_class_is_registered_uncovered_with_a_stated_reason`,
+`::test_the_world_name_class_is_registered_uncovered_with_a_stated_reason`,
+`::test_every_registered_class_has_a_named_arm`,
+`::test_a_redaction_never_erases_the_frame_around_a_save_filename` and
+`::test_a_redaction_never_leaves_half_a_spaced_save_filename`; merged files
+`tests/conftest.py`, `tests/test_report_redaction_classes.py` and
+`tests/assertion_rendering_guard.py`.
+ADR: `docs/adr/0011-the-cs-8nn-follow-up-leaf-splits-at-cs-850.md`, ACCEPTED by operator
+ruling 2026-08-29, the same day it was filed. Its index row in `docs/adr/README.md` was
+updated by hand to agree, because nothing in the tree cross-checks that pair.
+
+**WHAT CLOSED: NOTHING.** The acceptance names four personal-data classes and two of them -
+the platform account id and the world name - still reach a failure report. The item is unmet
+for a DIFFERENT reason than when it was filed: the gap is no longer silent. Both classes are
+REGISTERED with a reason each in `UNCOVERED_CLASSES`, arms assert that no rule serves either
+and that their planted probes pass through untouched, and the two counter-examples that
+killed the first remedy are pinned as standing regression guards. What the item still owes is
+a redaction mechanism that does not assume its input is a path.
+
+**WHAT SHIPPED.** The home-path family widened to cover every spelling the transform set
+produces - native, `as_posix`, the `%r`-doubled one and both URL-quoted ones - and EACH
+spelling gained its OWN arm rather than sharing a pooled fingerprint. Registration of a class
+now carries a BEHAVIOURAL obligation: a class declared covered must demonstrably rewrite its
+own planted string into its own placeholder using only its own tagged rules.
+`tests/test_report_redaction_classes.py` is new and is the grading module. Rule population
+measured this session from the shipped builder: 12 rules, 10 tagged `home-path` and 2 tagged
+`account-name`.
+
+**WHAT WAS REFUTED - FIVE INDEPENDENT REVIEWERS, FOUR ADVERSARIES AND AN ADJUDICATOR, ALL
+FIVE AGAINST THE FIRST ATTEMPT.** That attempt added a positional `account-id` rule and a
+`.sav`-anchored `world-name` rule, and the whole suite was green on it. The two shape rules
+were measured simultaneously TOO NARROW and TOO GREEDY: a world name containing a space
+leaked its leading words, a name containing a quote or a question mark leaked entirely, and a
+traceback frame line `workdir.py:120: in copy_for_read(World.sav)` came back with the
+FUNCTION NAME ERASED. A real repo test rendered `assert '<redacted-save>' == '<redacted-save>'`
+- a diff whose two sides are byte-identical and therefore undiagnosable. **ROOT CAUSE:** the
+segment character class was borrowed from `clockspeed/data/locate.py:187`, where it is
+correct because that redactor receives PATHS; `redact_personal_data` receives whole failure
+reports, which are arbitrary prose. Too narrow and too greedy are THE SAME KNOB there, so it
+could not be tuned and was backed out.
+
+**THE HEADLINE FINDING - THE GUARD WAS ITSELF GREEN BY ACCIDENT.** Deleting the `quote`
+transform from the home spellings left the whole suite green, because the URL-quoted home
+spellings were rescued by the ACCOUNT-NAME rule. That is the exact naming accident CS-860 was
+filed to eliminate, reproduced one level up INSIDE THE GUARD WRITTEN TO PREVENT IT, and it
+was found independently by two reviewers using different methods. **THIS IS THE FIFTH
+CONSECUTIVE SESSION TO PRODUCE A FALSE CLEARANCE INSIDE THE GUARD BUILT TO PREVENT THE
+PREVIOUS ONE, AND THE FIRST IN WHICH IT WAS CAUGHT BEFORE THE OPERATOR WAS TOLD ANYTHING HAD
+CLOSED.**
+
+**A SECOND GRADING DEFECT: REGISTRATION IMPLIED NOTHING BEHAVIOURAL.** A class registered
+with a never-matching pattern and an empty arm satisfied every oracle arm, because the arms
+checked a TUPLE SLOT and a FUNCTION-NAME SUBSTRING and never whether a rule matches anything.
+Swapping two rules' class tags also left everything green - the tags were decorative. Both
+defects are closed; the arms above are what closes them.
+
+**A LEAK WAS FOUND IN THE NEW ARM ITSELF, WHICH IS CS-850's DEFECT REPRODUCED INSIDE
+CS-860's OWN GUARD.** The arm that kills the pooled-fingerprint mutant asserted on a value
+derived from the real home, and pytest renders the asserted EXPRESSION independently of the
+message. Measured with both rule families hollowed: the report carried the bare account name
+VERBATIM. Fixed by binding a plain scalar in three arms before asserting.
+
+**TWO SENTENCES WERE MEASURED FALSE AND WERE FALSE AT `afd85bd` TOO, so they are not this
+session's damage.** `tests/assertion_rendering_guard.py` claimed the REPORT redactor
+recognises a machine name; `_ACCOUNT_VARIABLES` in `tests/conftest.py` holds `USERNAME`,
+`USER` and `LOGNAME` and reads `COMPUTERNAME` nowhere. `clockspeed/data/locate.py` redacts a
+machine name and the conftest redactor that rule borrows does not - two redactors, and only
+one behind that rule. Corrected. The prose repairs made by the first attempt were REVERTED,
+because backing the shape rules out makes the original sentences true again.
+
+**DECISIONS.** The operator ruled: keep the home-path widening, BACK OUT the two shape rules,
+register both uncovered classes with a stated reason each, and close the two grading defects.
+The operator also ACCEPTED ADR 0011. Two defects in that ADR were found by reviewers and
+corrected in the same pass - it stated the upper leaf at 45 per cent when the tool reports 50,
+CS-861's section having been appended to that leaf in the same commit; and its byte-identity
+proof did not reproduce as written, so the hashing convention is now stated (sections cut at
+their `## CS-nnn` headings, trailing blank lines stripped) and the moved population is
+distinguished from the post-split one.
+
+**NO ADJUDICATOR GRANT WAS SOUGHT OR NEEDED** - no write-list this session contained a frozen
+file.
+
+**NO SUITE COUNT IS WRITTEN IN THIS ENTRY.** The recording pass that wrote it ran the two
+drift tools and four named test modules, not the whole suite, and a pass count carried
+forward from another agent's report is precisely the unverified figure this file's own header
+forbids.
+
 ### 2026-08-29 - CS-857 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-857 STAYS OPEN
 Residuals 1 and 3 closed in two rounds; the first round was itself a false clearance and was
 refuted by an adversary before merge. Residuals 2 and 4 remain, so the acceptance - which

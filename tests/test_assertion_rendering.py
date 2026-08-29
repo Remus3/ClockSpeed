@@ -90,13 +90,11 @@ is on the LIVE partition and the latent one is reported, with
 partition responds to how a holder was built rather than to where it sits.
 
 WHY A STATIC GUARD IS NEEDED AT ALL, measured rather than argued. ``conftest``
-already redacts home paths out of every failure report, and since CS-860 the
-account directory under the save root as well, so two of the three classes have
-a runtime net under them.
+already redacts home paths and account names out of every failure report, so two
+of the three classes have a runtime net under them.
 ``test_the_runtime_redactor_cannot_reach_a_save_derived_name`` measures that net
-and shows it does NOT catch the third: a BARE world name, save name or struct
-word - one carrying no marker and no suffix around it - is not derivable from
-this machine's environment and holds no shape either, so no redactor can know
+and shows it does NOT catch the third: a world name, a save name or a struct
+word is not derivable from this machine's environment, so no redactor can know
 it. That is the gap this guard exists to close, and it is measured here rather
 than asserted.
 
@@ -1307,17 +1305,11 @@ def test_every_sensitive_class_is_covered_by_the_forced_arms():
 
 def test_the_runtime_redactor_cannot_reach_a_save_derived_name():
     # MEASURED, NOT ARGUED, and it is the reason this guard is static. The
-    # conftest redactor catches two of the three classes wherever they are
-    # rendered, and it catches them by two different mechanisms: the home
-    # directory and the account name are SPELLINGS it derives from THIS
-    # MACHINE, while the account directory is a POSITIONAL SHAPE that CS-860
-    # added and that needs no spelling at all. A BARE save-derived name - a
-    # world name, a save name or a decoded struct word, carrying no marker and
-    # no suffix around it - is neither: derivable from nothing on this machine
-    # and holding no shape a rule can key on. So no redactor can know it, and
-    # only a guard over the ASSERTION can stop it being printed. CS-860 did add
-    # a suffix-anchored rule for a save FILENAME, and the assertion at the foot
-    # of this test is the boundary that rule stops at.
+    # conftest redactor derives its spellings from THIS MACHINE - the home
+    # directory and the account name - so it catches two of the three classes
+    # wherever they are rendered. A world name, a save name or a decoded struct
+    # word is derivable from nothing on this machine, so no redactor can know
+    # it, and only a guard over the ASSERTION can stop it being printed.
     #
     # The machine's own spellings are derived at run time and never echoed: what
     # is reported below is a verdict and a length, never a value.

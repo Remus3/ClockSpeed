@@ -25,6 +25,78 @@ Where current truth actually lives:
 
 ---
 
+## Session 43 wakeup note - relocated 2026-08-29 (session 46)
+
+## Session 43 - 2026-08-28 - the exception channel graded from both ends; BOTH guards refuted on the SAME defect, independently, in one session - a syntactic bare-name match sold as a population zero
+
+- **Shipped: NOTHING CLOSED. CS-852 AND CS-855 BOTH STAY OPEN.** Both guards merged as
+  improvements after adversarial refutation and repair. CS-857 is newly filed. Detail in
+  `docs/LEDGER.md` and `docs/item_notes/phase4-followups-850.md`, not here.
+
+- **THE HEADLINE: TWO GUARDS, BUILT INDEPENDENTLY BY DIFFERENT AGENTS AGAINST DIFFERENT
+  CHANNELS, FAILED THE SAME WAY IN THE SAME SESSION.** CS-855's detector keyed on a bare
+  name, so `kept = exc` defeated it. CS-852's `proven-vocabulary` resolved a callee by bare
+  name, so a function merely NAMED `_checked_field` earned the proof. Neither author saw
+  it; both adversaries found it inside twenty minutes. **A SYNTACTIC MATCH STANDING IN FOR
+  A SEMANTIC PROPERTY, THEN REPORTED AS A POPULATION ZERO** is now the dominant failure
+  shape in this project, and it is the case for the producer-never-grades rule made twice
+  over in one sitting.
+
+- **CS-852's FAILURE WAS WORSE IN KIND AND THE DISTINCTION IS WORTH KEEPING.** CS-855
+  reported SILENCE; CS-852 returned POSITIVE FALSE PROOFS. A `proven-*` verdict is a
+  clearance a later session will cite as evidence. Nine such paths existed, one of them
+  grading `', '.join(free) or 'no recipe'` - LIVE HOUSE STYLE at four sites in
+  `clockspeed/solve/` - as an annotation whose whole value space is numbers and flags.
+
+- **A REAL SAVE-DERIVED VALUE REACHED `args` IN A REAL SHIPPED CLASS WITH THE GUARD GREEN
+  AND THE REPORT BYTE-IDENTICAL.** `instance_name` off the save body at
+  `clockspeed/save/objects.py:1747` into `ObjectFormatError`. That plant is now mutant M9
+  and is killed.
+
+- **A NEW CHANNEL WAS FOUND AND FILED RATHER THAN ABSORBED - CS-857.** `raise X(...) from
+  exc` puts the CAUSE's text in the formatted traceback: the graded message renders
+  redacted while the chained `OSError` renders the raw path beside it. **SEVERITY IS SPLIT
+  AND THE SPLIT WAS MEASURED** - under pytest the CS-428 redactor at `tests/conftest.py:665`
+  scrubs it, so it does NOT leak in the suite or either CI lane; it leaks on every
+  rendering path that is not a pytest report. 7 of 11 CS-852 exemption keys sit on a
+  chained raise, and two of their reasons call the cause "deliberately never rendered",
+  true of `args` and false of the interpreter.
+
+- **A THIRD ECHO MECHANISM NOBODY HAD RECORDED: THE FRAME ARGUMENT.** An exception handed
+  to a callee renders in that callee's frame header under default flags, surviving
+  `raise ... from None`. It is the construct `tests/test_exception_rendering.py:75` names
+  as "the FIX" for CS-205. NOT a live leak - `repr()` of an OSError omits `filename` - but
+  the remedy and the echo path are the same construct.
+
+- **Decisions: none recorded as an ADR.** Two operator rounds: CS-852 gap 1 plus CS-855
+  chosen as the unit, and the `chunks.py`/`usmap.py` vocabulary gate ruled REPAIR IT NOW.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But `clockspeed/save/world.py`'s
+  safety paragraph was FALSE WHEN WRITTEN - it claimed all four parsers pin the
+  closed-vocabulary guarantee with a planted-marker test. The obvious repair would have
+  made it false in a NEW way, because header.py and objects.py have no refusal test either.
+  Corrected to state per module what is actually pinned.
+
+- **Failed paths: none abandoned.** Two merger claims were withdrawn under measurement -
+  that the CS-855 acceptance is unsatisfiable, and that the long-carried 115 was a category
+  error. 115 was correct when filed at `f19d1f2` and drifted to 117.
+
+- **THREE MERGER ERRORS, ALL CAUGHT BY SOMEONE ELSE, ALL WORTH REPEATING.** A brief said
+  "five ChunkError subclasses"; the slice MEASURED four and corrected it. A `grep "planted"`
+  was offered as evidence of an absent control - a WORD search, not a PROPERTY search, and
+  the file already pinned three other clauses. And an item-note anchor assumed the leaf's
+  sections run in ID order; they do not, and the note would have landed in the wrong item.
+
+- **Next action: NONE IS FORCED.** If CS-852 is resumed, the cheapest real gain is residual
+  3 - replace the transcribed `ARGS_ROOTS` with a runtime census; an adversary already ran
+  it and measured 47 == 47. CS-857 is unstarted and is the only tier-1 item here with a
+  measured live rendering path.
+
+- **DOC BUDGET IS TIGHTENING AGAIN.** `docs/item_notes/phase4-followups.md` finished at 90
+  per cent. The ADR 0010 split bought one session of room and this session spent most of it.
+
+---
+
 ## Session 41 - 2026-08-25 - `docs/item_notes.md` SPLIT per phase with an index; CS-856 closes; guard (j) ships; two controls were one edit away from grading an empty population
 
 - **Shipped: CS-856 CLOSES.** `docs/item_notes.md` is now an index over `docs/item_notes/`,

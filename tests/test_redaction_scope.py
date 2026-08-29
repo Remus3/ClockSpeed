@@ -45,12 +45,8 @@ WHAT IT DOES NOT ESTABLISH, stated because an overclaim here would be the ADR
     only the hand-off moved, from nobody to a named owner.
   - It does NOT cover ``tests/conftest.py``. That file carries a SEPARATE
     redactor, ``redact_personal_data``, which imports nothing from
-    ``clockspeed`` and never calls ``locate.redact``. Its rules are its own,
-    and since CS-860 they include an account-directory rule of the same
-    POSITIONAL shape this module's subject uses - keyed on a save-root marker
-    RESTATED in that file rather than imported, which
-    ``tests/test_report_redaction_classes.py`` grades against ``locate``'s own
-    tuple on every run.
+    ``clockspeed`` and never calls ``locate.redact``. Its rules are its own
+    and it has no account-directory rule at all.
   - It is scoped to ``clockspeed/``. ``tools/`` and ``scripts/`` also call the
     redactor and are not graded here.
 
