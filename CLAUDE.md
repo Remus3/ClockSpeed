@@ -198,7 +198,12 @@ justification is recorded.
 - **Multi-agent.** Slices run in parallel on non-overlapping files, worktree-isolated
   wherever they write. Disjointness is a precondition checked before dispatch, not a hope.
 - **Self-adjudicating.** A distinct agent decides between competing outputs against stated
-  criteria. **The agent that produced a thing never grades it.**
+  criteria. **The agent that produced a thing never grades it.** **THE CANDIDATE IS FROZEN
+  BEFORE DISPATCH** - pin it at a SHA or a worktree, as read-only adversaries already are.
+  A tree that edits itself mid-verdict makes the ruling a statement about no state at all,
+  and any finding repaired while the adjudicator writes is one it cannot see it discharged.
+  Measured in session 45: the tree moved under an adjudicator four times, and three
+  whole-suite runs were spent proving that a run straddling an edit says nothing.
 - **Self-adversarial.** Findings and done-claims get an independent pass whose job is to
   REFUTE them, defaulting to refuted when uncertain.
 

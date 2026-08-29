@@ -54,7 +54,8 @@ Budgets: this file under 20 KB (CI hard fail), each leaf under 6 KB (CI warn).
 - [Moving an assert can create the leak](moving-an-assert-can-create-the-leak.md) - a
   static finding names a SCOPE, not a disclosure; the remedy that relocates the assertion
   changes which frame unwinds, and the new frame has its own locals.
-- [A guard can measure spelling](a-guard-can-measure-spelling.md) - a guard that
+- [A guard can measure spelling](a-guard-can-measure-spelling.md) - and its REPAIR can
+  measure a different spelling; gate a clearance on a positive fact. A guard that
   matches on a NAME reports a population zero about the wrong question; and a false
   clearance is a worse defect than a silence.
 - [A probe can validate the wrong channel](a-probe-can-validate-the-wrong-channel.md) -

@@ -171,10 +171,20 @@ def _rendered_chain(failure: BaseException) -> str:
     which EXCEPTIONS get rendered and what their text says, and
     ``format_exception_only`` answers that with no frame at all.
 
-    MEASURED EQUIVALENT ON ALL SIX SHAPES. For explicit, suppressed, implicit,
-    bare, aliased and noted, this string and a full ``format_exception`` agree
-    on whether the marker is present; the full one additionally carried an
-    absolute path and this one did not.
+    MEASURED EQUIVALENT ON THE SIX SHAPES THIS MODULE PLANTS, AND NOT BEYOND
+    THEM. For explicit, suppressed, implicit, bare, aliased and noted, this
+    string and a full ``format_exception`` agree on whether the marker is
+    present; the full one additionally carried an absolute path and this one
+    did not.
+
+    TWO SHAPES OUTSIDE THAT SET DO NOT HOLD, both measured by a CS-857
+    adversary. A ``SyntaxError`` anywhere in the chain renders a ``File`` line
+    that SURVIVES ``limit=0``, because that line belongs to the exception
+    rather than to a frame - and a real one carries an absolute path. And an
+    exception whose ``__str__`` is non-deterministic breaks the subset property
+    outright, since the two renderings then disagree on their own text. Neither
+    is reachable from any shipped site today. The claim is scoped to the
+    planted set rather than widened, because widening it is what made it false.
 
     WHAT IS THEREFORE NOT MEASURED HERE: the formatter's own connector lines -
     "The above exception was the direct cause" and "During handling of the
@@ -209,6 +219,19 @@ def _suppressed_chain() -> None:
         raise OSError(_ERRNO, _STRERROR, MARKER)
     except OSError:
         raise _SyntheticError(_REDACTED) from None
+
+
+def _suppressed_binding_chain() -> None:
+    """Re-raise the handler's OWN binding with the context suppressed.
+
+    THE SHAPE RESIDUAL 1 IS ABOUT. ``from None`` closes ``__context__``; it
+    says nothing about the exception being raised, which here IS the caught
+    ``OSError`` and renders its own ``filename``.
+    """
+    try:
+        raise OSError(_ERRNO, _STRERROR, MARKER)
+    except OSError as exc:
+        raise exc from None
 
 
 def _implicit_chain() -> None:
@@ -300,6 +323,32 @@ def test_from_none_does_not_render_the_suppressed_context() -> None:
         f"not a clearance and the guard must be rewritten: {rendered!r}"
     )
     assert _REDACTED in rendered, "the wrapper itself must still render"
+
+
+def test_from_none_reraising_the_binding_still_renders_the_marker() -> None:
+    """RESIDUAL 1, MEASURED - the clearance is reachable while the path renders.
+
+    ``tests/test_chained_cause_census.py`` already measures ``from None`` on a
+    fixture that raises a WRAPPER, and that arm is correct. It was generalised
+    to the FORM, and this arm is the counterexample: same ``from None``, same
+    suppressed context, and the marker renders anyway - because the object
+    being raised is the handler's own binding rather than a wrapper.
+
+    The chain length is asserted at :data:`_UNCHAINED` on purpose: the context
+    IS suppressed, so this is not a chaining failure. One link renders, and
+    that one link carries the marker.
+    """
+    with pytest.raises(OSError, match=MARKER) as caught:
+        _suppressed_binding_chain()
+    failure = caught.value
+    assert failure.__suppress_context__, "from None did not set __suppress_context__"
+    chain = _chain_of(failure)
+    assert len(chain) == _UNCHAINED, f"the context was walked after all: {len(chain)}"
+    rendered = _rendered_chain(failure)
+    assert MARKER in rendered, (
+        "the binding re-raised under from None did not render its own filename, "
+        f"so residual 1 does not reproduce and this arm is wrong: {rendered!r}"
+    )
 
 
 def test_an_implicit_context_renders_the_cause() -> None:
@@ -486,6 +535,22 @@ def _make(exc):
     return exc
 
 
+def _pathless(exc):
+    return OSError(exc.errno, exc.strerror)
+
+
+def _rebind(exc):
+    exc = OSError(exc.errno, exc.strerror)
+    return exc
+
+
+def _closure(exc):
+    def _inner():
+        return exc
+
+    return OSError(exc.errno, exc.strerror)
+
+
 def redact(value):
     return value
 
@@ -511,6 +576,57 @@ def suppressed_oserror(path):
         raise Wrapped("failed") from None
 
 
+def suppressed_binding(path):
+    try:
+        open(path)
+    except OSError as exc:
+        raise exc from None
+
+
+def suppressed_alias(path):
+    try:
+        open(path)
+    except OSError as exc:
+        kept = exc
+        raise kept from None
+
+
+def suppressed_walrus(path):
+    try:
+        open(path)
+    except OSError as exc:
+        raise (kept := exc) from None
+
+
+def suppressed_subscript(path):
+    try:
+        open(path)
+    except OSError as exc:
+        held = [exc]
+        raise held[0] from None
+
+
+def suppressed_builtin(path):
+    try:
+        open(path)
+    except OSError as exc:
+        raise OSError(exc.errno, exc.strerror) from None
+
+
+def rebind_expression_cause(path):
+    try:
+        open(path)
+    except OSError as exc:
+        raise Wrapped("failed") from _rebind(exc)
+
+
+def closure_expression_cause(path):
+    try:
+        open(path)
+    except OSError as exc:
+        raise Wrapped("failed") from _closure(exc)
+
+
 def bare_oserror(path):
     try:
         open(path)
@@ -531,6 +647,13 @@ def call_expression_cause(path):
         open(path)
     except OSError as exc:
         raise Wrapped("failed") from _make(exc)
+
+
+def clone_expression_cause(path):
+    try:
+        open(path)
+    except OSError as exc:
+        raise Wrapped("failed") from _pathless(exc)
 
 
 def explicit_valueerror(text):
@@ -582,10 +705,18 @@ def _planted() -> dict[str, Site]:
 _PLANTED_EXPECTATIONS: Final = [
     ("explicit_oserror", FORM_EXPLICIT, TYPE_OSERROR, MEASURED_LEAK),
     ("implicit_oserror", FORM_IMPLICIT, TYPE_OSERROR, MEASURED_LEAK),
-    ("suppressed_oserror", FORM_SUPPRESSED, TYPE_OSERROR, CLOSED_SUPPRESSED),
+    ("suppressed_oserror", FORM_SUPPRESSED, TYPE_UNRESOLVED, CLOSED_SUPPRESSED),
+    ("suppressed_binding", FORM_SUPPRESSED, TYPE_OSERROR, MEASURED_LEAK),
+    ("suppressed_alias", FORM_SUPPRESSED, TYPE_UNRESOLVED, UNPROVEN),
+    ("suppressed_walrus", FORM_SUPPRESSED, TYPE_UNRESOLVED, UNPROVEN),
+    ("suppressed_subscript", FORM_SUPPRESSED, TYPE_UNRESOLVED, UNPROVEN),
+    ("suppressed_builtin", FORM_SUPPRESSED, TYPE_UNRESOLVED, UNPROVEN),
+    ("rebind_expression_cause", FORM_EXPLICIT, TYPE_UNRESOLVED, UNPROVEN),
+    ("closure_expression_cause", FORM_EXPLICIT, TYPE_UNRESOLVED, UNPROVEN),
     ("bare_oserror", FORM_BARE, TYPE_OSERROR, MEASURED_LEAK),
     ("aliased_cause", FORM_EXPLICIT, TYPE_UNRESOLVED, UNPROVEN),
-    ("call_expression_cause", FORM_EXPLICIT, TYPE_UNRESOLVED, UNPROVEN),
+    ("call_expression_cause", FORM_EXPLICIT, TYPE_OSERROR, MEASURED_LEAK),
+    ("clone_expression_cause", FORM_EXPLICIT, TYPE_UNRESOLVED, UNPROVEN),
     ("explicit_valueerror", FORM_EXPLICIT, TYPE_RESOLVED_OTHER, UNPROVEN),
     ("tuple_with_oserror", FORM_EXPLICIT, TYPE_OSERROR, MEASURED_LEAK),
     ("dotted_handler", FORM_EXPLICIT, TYPE_UNRESOLVED, UNPROVEN),
@@ -1067,17 +1198,44 @@ def test_the_graded_leaks_are_reported_every_run() -> None:
     the moment a new one appeared, which is the same signal a warning gives
     without blocking the merge that introduces the guard.
 
-    ASSERTS NOTHING ABOUT THE COUNT, so repairing a site cannot redden it.
+    ASSERTS NOTHING ABOUT THE COUNT OF LEAKS, so repairing a site cannot
+    redden it. It DOES assert the graded population is non-empty, which is a
+    different claim: an empty leak list and a broken derivation are otherwise
+    byte-identical from outside, and that is how this signal stopped firing
+    silently once the last leak was repaired.
     """
-    leaks = [site for site in _graded_sites() if classify(site) == MEASURED_LEAK]
+    graded = _graded_sites()
+    assert graded, (
+        "the graded population is EMPTY, so this arm measured nothing. An empty "
+        "result and a broken derivation are byte-identical from outside - "
+        "memory/an-empty-population-satisfies-every-zero.md"
+    )
+    leaks = [site for site in graded if classify(site) == MEASURED_LEAK]
     if not leaks:
+        warnings.warn(
+            f"CS-857 census: {len(graded)} graded chained raise(s) under "
+            f"{GRADED_LAYER}, none classified {MEASURED_LEAK} this run.",
+            stacklevel=1,
+        )
         return
     body = "\n".join(f"  {site.key} line {site.lineno}" for site in leaks)
     warnings.warn(
-        f"CS-857 measured-leak, {len(leaks)} chained raise(s) under {GRADED_LAYER} render a "
-        f"builtin OSError's str() beside a redacted message:\n{body}",
+        f"CS-857 measured-leak, {len(leaks)} of {len(graded)} chained raise(s) under "
+        f"{GRADED_LAYER} render a builtin OSError's str() beside a redacted message:\n{body}",
         stacklevel=1,
     )
+
+
+def test_the_census_reports_even_when_no_leak_is_found() -> None:
+    """M4. THE SIGNAL MUST FIRE ON A CLEAN TREE, OR IT IS NOT A SIGNAL.
+
+    The reporter above returned early on an empty leak list, so the moment the
+    last site was repaired it went silent - indistinguishable from a
+    derivation that had broken. A mutation restoring that early return SURVIVED
+    the whole module, which is what this arm exists to stop.
+    """
+    with pytest.warns(UserWarning, match="CS-857"):
+        test_the_graded_leaks_are_reported_every_run()
 
 
 @pytest.mark.parametrize("site", _graded_sites(), ids=lambda site: site.key)
@@ -1094,11 +1252,19 @@ def test_no_graded_site_is_cleared_by_anything_but_from_none(site: Site) -> None
     ``memory/an-empty-population-satisfies-every-zero.md``, inside the arm
     written to enforce it. Every site now takes one branch or the other.
     """
-    if site.form == FORM_SUPPRESSED:
+    if site.form == FORM_SUPPRESSED and site.raises_local_class:
         assert classify(site) == CLOSED_SUPPRESSED, (
-            f"{site.key} writes from None and was not cleared by it"
+            f"{site.key} writes from None and constructs a class its own module "
+            "declares, and was not cleared by it"
         )
         assert site.cause_expr == NO_CAUSE
+    elif site.form == FORM_SUPPRESSED:
+        assert classify(site) != CLOSED_SUPPRESSED, (
+            f"{site.key} writes from None but does not CONSTRUCT a class its "
+            "module declares, so what it raises may be the handler's own "
+            "exception under another spelling - the 15 shapes adversary L2 "
+            "measured reaching the clearance while rendering a filename"
+        )
     else:
         assert classify(site) != CLOSED_SUPPRESSED, (
             f"{site.key} was cleared without a from None clause, so something "
@@ -1107,21 +1273,31 @@ def test_no_graded_site_is_cleared_by_anything_but_from_none(site: Site) -> None
 
 
 def test_both_branches_of_the_clearance_arm_have_a_live_member() -> None:
-    """The biconditional above is exercised in BOTH directions, or it says so.
+    """The arm above is exercised in EVERY direction, or it says so.
 
     A branch with no member is a branch nobody measured. This SKIPS rather than
     fails when the tree stops carrying one, because an arm that reddens when a
     site is repaired is anti-correlated with success.
+
+    SPLIT ON THE AXIS THE CLEARANCE TURNS ON, WHICH IS NOT THE FORM. Round 1
+    narrowed the clearance and left this arm splitting `suppressed` against
+    `other` - the PRE-narrowing binary. The new branch had zero live members
+    and this arm passed anyway, which is
+    ``memory/an-empty-population-satisfies-every-zero.md`` reproduced inside
+    the arm named after it. The `withheld` branch is reported even when empty
+    so the skip message says which branch was unmeasured.
     """
     graded = _graded_sites()
-    suppressed = [site for site in graded if site.form == FORM_SUPPRESSED]
+    cleared = [s for s in graded if s.form == FORM_SUPPRESSED and s.raises_local_class]
+    withheld = [s for s in graded if s.form == FORM_SUPPRESSED and not s.raises_local_class]
     other = [site for site in graded if site.form != FORM_SUPPRESSED]
-    if not suppressed or not other:
+    if not cleared or not other:
         pytest.skip(
-            f"{len(suppressed)} suppressed and {len(other)} other graded sites, so "
-            "one branch of the clearance arm has no live member this run"
+            f"{len(cleared)} cleared, {len(withheld)} withheld and {len(other)} other "
+            "graded sites, so a branch of the clearance arm has no live member this run"
         )
-    assert {classify(site) for site in suppressed} == {CLOSED_SUPPRESSED}
+    assert {classify(site) for site in cleared} == {CLOSED_SUPPRESSED}
+    assert CLOSED_SUPPRESSED not in {classify(site) for site in withheld}
     assert CLOSED_SUPPRESSED not in {classify(site) for site in other}
 
 

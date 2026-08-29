@@ -28,12 +28,26 @@ and ``from None`` measured NOT to, in
 ``tests/test_chained_cause_census.py``. Those arms are what make the verdicts
 below facts about CPython rather than sentences about it.
 
+AND THAT ``from None`` MEASUREMENT WAS GENERALISED ONE STEP TOO FAR. It was
+taken on a fixture raising a WRAPPER, where it is correct, and read as a fact
+about the FORM. It is not: ``raise exc from None`` suppresses the context and
+still renders the binding. The counterexample is measured alongside the
+original in the same module, and the verdict order was corrected to match.
+CS-857 residual 1.
+
 THE FOUR VERDICTS, AND THE ORDER IS LOAD-BEARING.
 
-  :data:`CLOSED_SUPPRESSED`  ``from None``. The one POSITIVE clearance, and it
-                             rests on a STRUCTURAL fact - the interpreter sets
-                             ``__suppress_context__`` and prints no chain -
-                             rather than on any property of the value.
+  :data:`CLOSED_SUPPRESSED`  ``from None`` raising something OTHER than the
+                             handler's own binding. The one POSITIVE
+                             clearance, and it rests on a STRUCTURAL fact -
+                             the interpreter sets ``__suppress_context__`` and
+                             prints no chain - rather than on any property of
+                             the value. THE FORM ALONE IS NOT THE CLEARANCE:
+                             ``raise exc from None`` prints no chain and
+                             prints the binding, filename included. The
+                             clearance requires the raise to CONSTRUCT a class
+                             this module declares; every other suppressed
+                             shape is :data:`UNPROVEN`.
   :data:`MEASURED_LEAK`      the exception in flight resolves statically to a
                              builtin ``OSError`` subclass, whose ``str()``
                              renders ``filename``. Measured on a shipped path
@@ -77,11 +91,18 @@ WHAT THIS GUARD CANNOT MODEL. Read this before citing any verdict.
    as unproven rather than reported as a leak.
 
 3. A CAUSE SET IN A THIRD MODULE IS NOT STATICALLY REACHABLE. The type leg
-   fires only when the exception in flight IS the handler's own: the implicit,
-   bare and suppressed forms by construction, and the explicit form only when
-   the cause expression is exactly the handler's bound name. An exception
-   stored on an object, returned from a call, or passed in as a parameter is
-   unresolved by construction.
+   fires only when the exception in flight IS the handler's own: the implicit
+   and bare forms by construction; the suppressed form only when the raise
+   re-raises the handler's bound name; and the explicit form when the cause
+   expression IS that name, or is a call to a module-local helper that returns
+   that very parameter (:func:`_forwarding_parameters`). An exception stored on
+   an object, or passed in as a parameter, is unresolved by construction.
+
+   THE FIRST TWO CLAUSES USED TO READ "the implicit, bare and suppressed forms
+   by construction" AND "returned from a call ... is unresolved by
+   construction". CS-857 made both false in one session and neither sentence
+   was updated with the code; an adjudicator found them. THE PROSE A LATER
+   READER CITES IS PART OF THE REPAIR.
 
 4. CALL SITES OUTSIDE THE TRACKED POPULATION ARE UNSWEPT. The sweep is
    ``tests.assertion_rendering_guard.tracked_python_files()``: tracked and
@@ -106,7 +127,31 @@ WHAT THIS GUARD CANNOT MODEL. Read this before citing any verdict.
    ``str()`` does not, MEASURED in the census - and the two :data:`EXEMPT`
    entries below are scoped to ``str()`` for that reason.
 
-8. THE KEY CANNOT SEPARATE TWO IDENTICAL SITES IN ONE FUNCTION. Two raises of
+8. A RAISE IN A CALLEE OF A HANDLER IS NOT IN THE POPULATION AT ALL, AND
+   THIS IS THE LARGEST KNOWN SILENCE. CPython sets ``__context__`` from the
+   THREAD's exception state rather than from lexical scope, so a helper CALLED
+   from a handler body chains and renders exactly as a graded ``from exc``
+   does - while this module, which walks lexically, derives no site for it.
+   Planting one yields an empty population. CS-857 residual 2 owns it, and it
+   is why the item's acceptance - a universal over every shipped chained raise
+   - cannot yet be discharged.
+
+9. AN ALIASED IMPORT UNDER-REPORTS. ``from builtins import OSError as Boom``
+   leaves ``except Boom`` unresolved, because :func:`_resolve_builtin_exception`
+   looks the written name up in ``builtins``. Limit 1 names module-level
+   SHADOWING and limit 2 names dotted types; neither names ALIASING, and an
+   under-report that is unstated is the defect CS-857 residual 4 was filed for.
+
+10. THE FORWARDING RULE RESOLVES ONE SHAPE, NOT A CLASS OF THEM.
+   :func:`_call_forwards_binding` matches a bare ``Name`` callee carrying the
+   binding POSITIONALLY, whose definition returns that parameter unrebound. A
+   keyword call site, a lambda, a dotted or imported callee, a two-step
+   forward, a conditional return and a return through a container all still
+   grade :data:`UNPROVEN` - measured, by two independent adversaries. So a
+   no-op helper is distinguished from a genuine filename-stripping clone for
+   the shapes above and NOT in general.
+
+11. THE KEY CANNOT SEPARATE TWO IDENTICAL SITES IN ONE FUNCTION. Two raises of
    the SAME class, from the SAME handler type, in the SAME function, chaining
    the SAME expression, produce one key between them. The tracked tree has no
    such pair today - every live key is distinct, which
@@ -117,13 +162,24 @@ WHAT THIS GUARD CANNOT MODEL. Read this before citing any verdict.
    against. A collision is therefore reported as something to restructure, not
    absorbed.
 
-WHAT AN ADVERSARY WOULD HAVE TO DO TO ESCAPE. Not a rename: every rename in the
-table at the top lands in :data:`UNPROVEN`, which is not a clearance. To get a
-CLEARANCE they would have to write ``from None`` - which genuinely closes the
-channel - or shadow a builtin exception name at module level, which downgrades
-a measured leak to unproven and is reported, not cleared. To vanish from the
-POPULATION entirely they would have to move the raise outside every handler AND
-drop the ``from`` clause, at which point there is no chain to render.
+WHAT AN ADVERSARY WOULD HAVE TO DO TO ESCAPE, CORRECTED TWICE AND STILL NOT A
+GUARANTEE. Not a rename: every rename in the table at the top lands in
+:data:`UNPROVEN`, which is not a clearance. To get a CLEARANCE they would have
+to write ``from None`` AND CONSTRUCT A CLASS THIS MODULE DECLARES, which is the
+only shape whose rendered object is provably not the caught exception; or
+shadow a builtin exception name at module level, which downgrades a measured
+leak to unproven and is reported, not cleared.
+
+THIS PARAGRAPH SAID ``from None`` "genuinely closes the channel" UNTIL CS-857,
+AND THAT WAS MEASURED FALSE - ``raise exc from None`` suppresses the CONTEXT
+and renders the binding, filename included. The first repair then gated the
+clearance on the raised expression not being SPELLED like the binding, and an
+adversary measured fifteen spellings that escaped it. Both sentences were
+retained one round longer than the code they described.
+
+TO VANISH FROM THE POPULATION they do NOT have to leave every handler and drop
+the ``from``, which is what this paragraph used to claim. They need only put
+the raise in a CALLEE of the handler - limit 8. That escape is open today.
 """
 
 from __future__ import annotations
@@ -172,7 +228,21 @@ TYPE_RESOLVED_OTHER: Final = "resolved-other"
 #: the module docstring. Every unresolved site is graded :data:`UNPROVEN`.
 TYPE_UNRESOLVED: Final = "unresolved"
 
-#: ``from None``. The only positive clearance, and structural.
+#: ``from None`` CONSTRUCTING a class the module itself declares. The only
+#: positive clearance, and structural.
+#:
+#: THE SECOND HALF OF THAT SENTENCE IS LOAD-BEARING AND WAS ABSENT UNTIL
+#: CS-857 RESIDUAL 1. ``from None`` sets ``__suppress_context__``, which closes
+#: the CONTEXT channel. It says nothing about the object being raised. When
+#: that object IS the handler's binding - ``raise exc from None`` inside
+#: ``except OSError as exc`` - the interpreter prints no chain and prints the
+#: binding's own ``str()``, ``filename`` included. Measured: the static verdict
+#: read ``closed-suppressed`` while the rendered traceback read
+#: ``FileNotFoundError: [Errno 2] No such file or directory: '<marker>'``.
+#:
+#: AND THE FIRST REPAIR WAS ITSELF INSUFFICIENT. Gating the clearance on the
+#: raised expression not being spelled like the handler binding left 15
+#: measured escapes. The gate is now :attr:`Site.raises_local_class`.
 CLOSED_SUPPRESSED: Final = "closed-suppressed"
 
 #: The cause is a builtin ``OSError`` subclass, whose ``str()`` renders the
@@ -188,8 +258,14 @@ EXEMPT_RECORDED: Final = "exempt"
 UNPROVEN: Final = "unproven"
 
 #: The verdicts, strongest first. :data:`MEASURED_LEAK` PRECEDES
-#: :data:`EXEMPT_RECORDED` so an exemption cannot silence a measured leak.
-VERDICT_ORDER: Final = (CLOSED_SUPPRESSED, MEASURED_LEAK, EXEMPT_RECORDED, UNPROVEN)
+#: :data:`EXEMPT_RECORDED` so an exemption cannot silence a measured leak, and
+#: it PRECEDES :data:`CLOSED_SUPPRESSED` so a ``from None`` cannot either.
+#:
+#: THE SECOND PRECEDENCE WAS THE OTHER WAY ROUND UNTIL CS-857 RESIDUAL 1, and
+#: that ordering was the defect: it is not enough for a verdict order to be
+#: correct in the docstring, it must be correct in the order the CODE tests the
+#: branches. Read :func:`classify` top to bottom, not this comment.
+VERDICT_ORDER: Final = (MEASURED_LEAK, CLOSED_SUPPRESSED, EXEMPT_RECORDED, UNPROVEN)
 
 #: Scopes a handler body does not execute in line. A statement inside a nested
 #: function runs in ITS frame with its own ``sys.exc_info()``, so it is not this
@@ -272,6 +348,9 @@ class Site:
         handler_type: The ``except`` clause type as written, or
             :data:`NO_HANDLER`.
         handler_name: The ``as`` binding, empty when the handler binds nothing.
+        raises_local_class: Whether the raise CONSTRUCTS a class the module
+            itself declares. THE ONLY FACT THE CLEARANCE RESTS ON, and it is a
+            positive one - see :func:`_local_classes`.
         cause_type: One of :data:`TYPE_OSERROR`, :data:`TYPE_RESOLVED_OTHER`,
             :data:`TYPE_UNRESOLVED`. A TRI-state on purpose: a boolean would be
             False both for "resolved, and not an OSError" and for "could not
@@ -288,6 +367,7 @@ class Site:
     handler_type: str
     handler_name: str
     cause_type: str
+    raises_local_class: bool = False
 
     @property
     def key(self) -> str:
@@ -496,6 +576,160 @@ def _type_of(node: ast.expr | None, shadowed: frozenset[str]) -> str:
     return TYPE_UNRESOLVED
 
 
+def _local_classes(tree: ast.Module) -> frozenset[str]:
+    """Classes this module itself defines.
+
+    THE CLEARANCE RESTS ON THIS AND ON NOTHING ELSE. ``from None`` closes the
+    context channel; what remains open is the object being raised. Proving that
+    object is not the handler's exception by SPELLING is what CS-857 round 1
+    got wrong - ``kept = exc; raise kept from None`` spells differently and is
+    the same object. Proving it POSITIVELY - the raise constructs a class
+    declared in this very module, so it cannot be the caught builtin - holds
+    however the binding is spelled, and is what round 2 tests instead.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        The declared class names.
+    """
+    return frozenset(node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef))
+
+
+def _raises_local_class(node: ast.Raise, local: frozenset[str]) -> bool:
+    """Whether the raise CONSTRUCTS a class this module declares.
+
+    Args:
+        node: The raise.
+        local: The declared class names.
+
+    Returns:
+        True only for ``raise LocalClass(...)``. A bare name, an attribute, a
+        subscript, a walrus, a conditional and a builtin constructor all come
+        back False and are therefore never cleared.
+    """
+    return (
+        isinstance(node.exc, ast.Call)
+        and isinstance(node.exc.func, ast.Name)
+        and node.exc.func.id in local
+    )
+
+
+def _forwarding_parameters(tree: ast.Module) -> Mapping[str, frozenset[int]]:
+    """Functions that RETURN one of their own parameters, by position.
+
+    RESIDUAL 3. ``raise X(...) from _helper(exc)`` is a ``Call`` the type leg
+    cannot resolve, so it graded :data:`UNPROVEN` - and so did
+    ``from _identity(exc)``, a no-op an adversary planted beside the real
+    repair. The census GRADED THE TWO IDENTICALLY, which is the whole defect.
+
+    This resolves ONE direction only: a helper that hands its argument straight
+    back carries the handler's exception, so the site inherits the handler's
+    type and can reach :data:`MEASURED_LEAK`. A helper that does anything else
+    stays :data:`UNPROVEN`. THAT ASYMMETRY IS DELIBERATE - this function can
+    only ever make a verdict STRICTER, so it cannot invent a false clearance,
+    which is the failure mode this module has produced three sessions running.
+    The genuine repair therefore stays unproven to the census and is proven by
+    the runtime arms instead; the two halves are named in the CS-857 note.
+
+    A NAME COLLISION ACROSS SCOPES RESOLVES TO THE UNION OF POSITIONS, which
+    is the strict direction ONLY AT EQUAL ARITY. A method and a function
+    sharing a name do not collide usefully, because ``self`` shifts every
+    index by one; round 1 claimed the union made every same-named callee
+    suspect and adversary L2 measured that false. The union is kept because it
+    can only ever add a position, and an added position can only make a
+    verdict stricter - never a clearance.
+
+    TWO SHAPES ARE DELIBERATELY NOT COUNTED, both measured as FALSE POSITIVES
+    in round 1. A parameter REBOUND anywhere in the body is not forwarded by a
+    later ``return`` of that name - which is how the genuine repair written in
+    place, ``exc = OSError(exc.errno, exc.strerror); return exc``, was graded a
+    leak. And a nested function's ``return`` belongs to the nested function,
+    not to the enclosing one; walking the whole subtree attributed a closure's
+    return to its parent. Both now fall to UNPROVEN, a silence rather than a
+    verdict in either direction.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        Function name to the parameter positions it returns unchanged.
+    """
+    forwarding: dict[str, set[int]] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        positional = [arg.arg for arg in node.args.posonlyargs + node.args.args]
+        body = list(_own_scope(node))
+        returned = {
+            inner.value.id
+            for inner in body
+            if isinstance(inner, ast.Return) and isinstance(inner.value, ast.Name)
+        }
+        rebound: set[str] = set()
+        for inner in body:
+            if isinstance(inner, ast.Assign):
+                rebound |= {t.id for t in inner.targets if isinstance(t, ast.Name)}
+            elif isinstance(inner, (ast.AnnAssign, ast.AugAssign)) and isinstance(
+                inner.target, ast.Name
+            ):
+                rebound.add(inner.target.id)
+        hits = {
+            index
+            for index, name in enumerate(positional)
+            if name in returned and name not in rebound
+        }
+        if hits:
+            forwarding.setdefault(node.name, set()).update(hits)
+    return {name: frozenset(hits) for name, hits in forwarding.items()}
+
+
+def _own_scope(node: ast.AST) -> Iterator[ast.AST]:
+    """Every node in a function's OWN scope, not descending into a nested one.
+
+    Args:
+        node: The function definition.
+
+    Yields:
+        Each node executing in this function's frame.
+    """
+    stack = list(ast.iter_child_nodes(node))
+    while stack:
+        current = stack.pop()
+        yield current
+        if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            continue
+        stack.extend(ast.iter_child_nodes(current))
+
+
+def _call_forwards_binding(
+    cause: ast.expr | None, handler_name: str, forwarding: Mapping[str, frozenset[int]]
+) -> bool:
+    """Whether a call cause hands the handler's own binding straight back.
+
+    Args:
+        cause: The cause expression as written.
+        handler_name: The handler's ``as`` binding, empty when unbound.
+        forwarding: The map from :func:`_forwarding_parameters`.
+
+    Returns:
+        True when the cause is ``helper(..., exc, ...)`` and ``helper`` returns
+        that very parameter, so what chains IS the handler's exception.
+    """
+    if not handler_name or not isinstance(cause, ast.Call):
+        return False
+    if not isinstance(cause.func, ast.Name):
+        return False
+    positions = forwarding.get(cause.func.id)
+    if not positions:
+        return False
+    return any(
+        index in positions
+        for index, argument in enumerate(cause.args)
+        if isinstance(argument, ast.Name) and argument.id == handler_name
+    )
+
+
 def _form_of(node: ast.Raise, handler: ast.ExceptHandler | None) -> str | None:
     """Decide which of :data:`FORMS` a raise is, if any.
 
@@ -554,21 +788,41 @@ def _raised_expression(node: ast.Raise) -> str:
     return ast.unparse(node.exc)
 
 
-def _in_flight_type(form: str, cause_expr: str, handler_name: str, handler_type: str) -> bool:
+def _in_flight_type(
+    form: str,
+    raised: str,
+    cause_expr: str,
+    handler_name: str,
+    handler_type: str,
+    forwards: bool,
+) -> bool:
     """Whether the exception the traceback renders IS the handler's own.
 
-    The implicit, bare and suppressed forms carry the handler's exception by
-    construction. The explicit form does so ONLY when the cause expression is
-    exactly the handler's bound name - which is what sends ``from kept`` and
-    ``from make()`` to :data:`TYPE_UNRESOLVED` instead of inheriting a verdict
-    they have not earned.
+    THE IMPLICIT AND BARE FORMS carry the handler's exception by construction:
+    one chains it through ``__context__``, the other re-raises it outright.
+
+    THE EXPLICIT FORM does so when the cause expression is exactly the
+    handler's bound name, which is what sends ``from kept`` to
+    :data:`TYPE_UNRESOLVED` instead of a verdict it has not earned - or when
+    the cause is a call that hands that binding straight back, which is
+    ``forwards`` and is CS-857 residual 3.
+
+    THE SUPPRESSED FORM DOES NOT, AND SAYING IT DID WAS CS-857 RESIDUAL 1.
+    ``from None`` closes ``__context__`` and says nothing about the object
+    being raised, so the handler's exception reaches the traceback only when
+    the raise re-raises the binding itself. Reading this leg as "suppressed, so
+    the type is in flight" cost nothing while it fed a branch that was tested
+    after the clearance; it is load-bearing now that the clearance is tested
+    second.
 
     Args:
         form: The site's form.
+        raised: The raised callee as written.
         cause_expr: The cause channel as written.
         handler_name: The handler's ``as`` binding, empty when unbound.
         handler_type: The handler clause type, :data:`NO_HANDLER` when there is
             no handler.
+        forwards: Whether a call cause returns the handler's own binding.
 
     Returns:
         True when the handler's clause type describes what will render.
@@ -576,7 +830,9 @@ def _in_flight_type(form: str, cause_expr: str, handler_name: str, handler_type:
     if handler_type == NO_HANDLER:
         return False
     if form == FORM_EXPLICIT:
-        return bool(handler_name) and cause_expr == handler_name
+        return forwards or (bool(handler_name) and cause_expr == handler_name)
+    if form == FORM_SUPPRESSED:
+        return bool(handler_name) and raised == handler_name
     return True
 
 
@@ -670,6 +926,8 @@ def _module_sites(module: str, tree: ast.Module) -> Iterator[Site]:
         One :class:`Site` per raise that opens a chain.
     """
     shadowed = _shadowed(tree)
+    forwarding = _forwarding_parameters(tree)
+    local = _local_classes(tree)
     for node, scope, handler in _walk(tree, (), None):
         if not isinstance(node, ast.Raise):
             continue
@@ -681,7 +939,9 @@ def _module_sites(module: str, tree: ast.Module) -> Iterator[Site]:
             handler_type = ast.unparse(handler.type)
         handler_name = (handler.name or "") if handler is not None else ""
         cause_expr = _cause_expression(node, form)
-        in_flight = _in_flight_type(form, cause_expr, handler_name, handler_type)
+        raised = _raised_expression(node)
+        forwards = _call_forwards_binding(node.cause, handler_name, forwarding)
+        in_flight = _in_flight_type(form, raised, cause_expr, handler_name, handler_type, forwards)
         cause_type = TYPE_UNRESOLVED
         if in_flight and handler is not None:
             cause_type = _type_of(handler.type, shadowed)
@@ -690,11 +950,12 @@ def _module_sites(module: str, tree: ast.Module) -> Iterator[Site]:
             lineno=node.lineno,
             qualname=".".join(scope) or MODULE_SCOPE,
             form=form,
-            raised=_raised_expression(node),
+            raised=raised,
             cause_expr=cause_expr,
             handler_type=handler_type,
             handler_name=handler_name,
             cause_type=cause_type,
+            raises_local_class=_raises_local_class(node, local),
         )
 
 
@@ -834,6 +1095,26 @@ def classify(site: Site, exempt: Mapping[str, str] = EXEMPT) -> str:
     is :data:`CLOSED_SUPPRESSED`, which rests on the interpreter setting
     ``__suppress_context__`` rather than on any property of the value.
 
+    THE BRANCHES ARE TESTED IN :data:`VERDICT_ORDER` AND THAT IS THE WHOLE
+    CONTRACT. CS-857 residual 1 was not a missing detector and not a wrong
+    name: every fact needed to grade the site correctly was already ON the
+    site, and the clearance branch simply ran first and returned before anyone
+    read them. THE TEST for any future branch that returns a positive verdict
+    is to ask what is TRUE AT RUNTIME when that branch is taken - read the
+    branches in the order the CODE tests them, never the order a docstring
+    explains them. Recorded in ``memory/a-guard-can-measure-spelling.md``.
+
+    AND THE FIRST REPAIR OF THAT DEFECT REPRODUCED IT ONE LEVEL DOWN. Round 1
+    gated the clearance on ``raised == handler_name``, a COMPARISON OF
+    SPELLINGS: an adversary measured 15 shapes - ``kept = exc``, a walrus, a
+    subscript, an attribute, an outer handler's binding - that spell
+    differently, name the same object, grade ``closed-suppressed`` and render
+    the filename. Round 2 gates it on :attr:`Site.raises_local_class`, a
+    POSITIVE fact about what is constructed rather than a negative one about
+    what a name is not. A shape this cannot prove is UNPROVEN, which restores
+    the doctrine in :data:`TYPE_UNRESOLVED` that an unresolved site is never
+    cleared. DO NOT REPAIR A FUTURE ESCAPE BY ADDING SPELLINGS HERE.
+
     Args:
         site: The site.
         exempt: The exemption record, injectable so the census can grade the
@@ -842,10 +1123,10 @@ def classify(site: Site, exempt: Mapping[str, str] = EXEMPT) -> str:
     Returns:
         Exactly one of :data:`VERDICT_ORDER`.
     """
-    if site.form == FORM_SUPPRESSED:
-        return CLOSED_SUPPRESSED
     if site.cause_type == TYPE_OSERROR:
         return MEASURED_LEAK
+    if site.form == FORM_SUPPRESSED and site.raises_local_class:
+        return CLOSED_SUPPRESSED
     if site.key in exempt:
         return EXEMPT_RECORDED
     return UNPROVEN

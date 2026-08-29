@@ -86,3 +86,22 @@ and read what the verdict became.
 Related: [[test-quality-failure-classes]], [[verification-failure-classes]],
 [[an-empty-population-satisfies-every-zero]], [[a-probe-can-validate-the-wrong-channel]],
 [[orchestrated-multi-agent-is-the-default]].
+
+## The repair for a spelling defect is a POSITIVE fact, never another spelling
+
+A guard graded `raise exc from None` as its one positive clearance while the traceback
+rendered the path. The repair gated the clearance on `raised == handler_name` - and an
+adversary measured FIFTEEN shapes naming the same object another way that still cleared:
+`kept = exc`, a walrus, a subscript, an attribute, an outer handler's binding, a call.
+**The fix for a guard that measured spelling measured a different spelling.**
+
+**THE TELL: the gate is a NEGATIVE claim - this name is not that name.** A negative claim
+over an open set of spellings can always be renamed around. The second repair gated it on a
+POSITIVE, closed fact: the raise CONSTRUCTS a class the module declares.
+
+**THE TEST: can an adversary satisfy your gate by renaming?** If yes it is a spelling gate,
+whatever it is called. What the positive fact cannot prove falls to unproven - a silence.
+
+**A REPAIR CAN INVERT THE DOCTRINE IT SITS UNDER.** The same one cleared sites its own
+vocabulary said in writing were unresolved and therefore never cleared. Re-read the
+doctrine after a repair, not just the arms.

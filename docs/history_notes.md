@@ -4841,3 +4841,166 @@ channel is quiet in every rehearsal and open in the real case.
 - **DISK: the session-36 unknown is CLOSED.** Nothing is unaccounted for. Clockspeed is 0.1 GB
   of drive C:; the bulk is the user profile, a game install and a sibling project. Measured,
   not deleted.
+
+## CS-857 residuals 1 and 3 - the filed detail, relocated on 2026-08-29 (session 45)
+
+Relocated from `docs/item_notes/phase4-followups.md` when session 45 closed both. Kept
+because each records a measured mechanism, and the session-45 note in the live leaf cites
+this record rather than restating it.
+
+**RESIDUAL 1 - A FALSE CLEARANCE IN THE ONE PLACE THE GUARD ISSUES ONE. THIS IS THE
+BIGGEST.** `classify` tests `FORM_SUPPRESSED` above `MEASURED_LEAK`, so
+`raise exc from None` inside `except OSError as exc` is graded `closed-suppressed` - the
+guard's only positive verdict - while the runtime traceback renders the path. Measured by
+an adversary and reproduced by the merger: static `closed-suppressed`, rendered
+`FileNotFoundError: [Errno 2] No such file or directory: '<marker>'`. The mechanism is that
+`from None` suppresses the CONTEXT while the exception being raised is the binding itself,
+whose own `str()` carries `filename`. LATENT, NOT LIVE - all 14 shipped `from None` sites
+raise a project wrapper and none re-raises its binding. The guard's docstring says `from
+None` "genuinely closes the channel"; that sentence is measured FALSE and must not be
+repeated. A FALSE CLEARANCE IS WORSE THAN A SILENCE - see
+`memory/a-guard-can-measure-spelling.md`.
+
+**RESIDUAL 3 - THE REPAIR MADE ITS OWN SITES UNPROVABLE TO THE CENSUS.** `from
+_pathless_cause(exc)` is a `Call`, which the static rule cannot resolve, so the five sites
+moved from `measured-leak` to `unproven` rather than to anything positive. An adversary
+planted a no-op `from _identity(exc)` beside the real repair and the guard graded the two
+IDENTICALLY. The repair is genuine and `tests/test_chained_cause.py` proves it at runtime,
+but the STATIC report of a repaired tree now carries the same information as the report of
+an evaded one, and the leaks-reported-every-run warning returns early on the empty list, so
+that signal is silently gone. Static and runtime cover different halves here and neither
+alone is the proof.
+
+**HOW EACH WAS CLOSED.** Residual 1 in two rounds: the first gated the clearance on
+`raised == handler_name` and adversary L2 measured 15 spellings that escaped it; the second
+gated it on `Site.raises_local_class`, a positive fact. Residual 3's measured half closed by
+resolving a callee that returns one of its own parameters, so the no-op grades
+`measured-leak` while the genuine clone stays `unproven`. Live detail is in the session-45
+note in `docs/item_notes/phase4-followups.md`.
+
+## CS-857 - four paragraphs cut from the live leaf, relocated on 2026-08-29 (session 45)
+
+Cut verbatim from `docs/item_notes/phase4-followups.md`. THE SECOND ONE IS MEASURED FALSE
+and is kept for exactly that reason: it is the recorded instance of a severity framing that
+three sessions cited, that rested on reading a hook rather than running it, and that did not
+survive being forced. The correction and the mechanism are in the session-45 note in the live
+leaf and in CS-860.
+
+**THE SITE LIST WAS DELETED FROM THIS NOTE IN SESSION 44, AND THE DELETION IS THE POINT.**
+It rotted TWICE in that one session. First it was six pointers stale, because session 43's
+own commits - `8175f64` added 83 lines to `clockspeed/save/usmap.py` and 24 to
+`clockspeed/save/world.py` - landed after the filing. Then a re-derivation by grep matched
+the CLOSING `) from exc` line instead of the statement line and broke four pointers that
+had been correct. Then THIS ITEM'S OWN REPAIR inserted a helper above every site and moved
+all five again. Three drifts, one session, one list.
+
+`CLAUDE.md` section 4 already owns the answer - a measured number belongs in exactly one
+machine-checked place, and a hardcoded count in a doc is a lie with a timestamp on it.
+**`tests/chained_cause_guard.py` IS THAT PLACE**, derived on every run by `ast.Raise`, so
+this note cites it rather than restating it. Module-level citations stay: they name a file
+and a symbol, and neither moves when a line does. The reasoning below is unchanged; only
+the transcribed pointers are gone.
+
+**SEVERITY IS SPLIT AND THE SPLIT IS THE POINT - MEASURED BY THE MERGER.** Under pytest
+with the configured pipeline, `tests/conftest.py:665`'s CS-428 report redactor SCRUBS the
+chained cause: the chain block is present, the home path and account name are not. So
+this does NOT leak in the suite, the pre-push hook, or either CI lane. It leaks on every
+rendering path that is not a pytest report - a CLI traceback, a log line, an uncaught
+exception in `surface/` or the Electron shell. Non-negotiable 12 counts a log line and
+exception context as echo paths, so this is real; it is not "live in CI".
+
+**COUNTS ARE OWNED BY THE CENSUS, NOT BY THIS NOTE - AND THE REASON IS RECORDED ABOVE.**
+Any figure a later session cites must be re-derived on the tree it is talking about. The
+figures reported mid-session 44 - 34 sites, 5 measured-leak - were measured in a worktree at
+`209ce05` BEFORE the repair merged and describe the pre-merge tree; the merged tree derives
+50 sites and ZERO measured-leak. A census figure is a statement about a tree, and the tree
+must be named.
+
+**THE ADVERSARIAL PASS IS INCOMPLETE AND THAT IS WHY NO CLOSURE WAS EVEN PROPOSED.** Of
+four refuters, ONE returned. Two died on an expired OAuth token mid-run and one was
+stopped. The population lens returned REFUTED; the false-clearance, does-it-reproduce and
+privacy lenses NEVER REPORTED. Their briefs are worth re-dispatching verbatim.
+
+## CS-857 - the two false exemption reasons as filed, relocated 2026-08-29 (session 45)
+
+Corrected in session 44 and re-verified in session 45; kept as the record of what was wrong.
+
+**TWO EXEMPTION REASONS STATE A PRIVACY CONCLUSION THE SITE DOES NOT DELIVER.** Both
+`SourceUnreadableError::exc.errno` and `WorkDirError::exc.errno` say the OSError's own
+message "is deliberately never rendered". It is never rendered INTO `args`. It IS rendered
+by the interpreter, on the same failure, under default flags, at the four
+`clockspeed/save/workdir.py` sites the census reports for `_make_dir`, `copy_for_read`
+(twice) and `_readable_source`. Correcting those two reasons is part of this item.
+
+## CS-857 - session 44's merge record, relocated 2026-08-29 (session 45)
+
+**SHIPPED, AND MEASURED AT THE MERGE.** The five OSError-rooted sites now chain a
+filename-free clone - `_pathless_cause(exc)` returning `OSError(exc.errno, exc.strerror)`
+- so `filename` and `filename2` never reach the interpreter's rendering while errno,
+strerror and `isinstance(__cause__, OSError)` all survive. `tests/test_chained_cause.py`
+went `6 failed, 10 passed` to `16 passed` across that repair. `tests/chained_cause_guard.py`
+derives the population over FOUR forms plus a `__notes__` census. The two false exemption
+reasons in `tests/exception_message_guard.py` are corrected, and the three-module decline
+cycle is broken.
+
+## Session 42 wakeup entry, relocated on 2026-08-29 (session 45)
+
+Pruned from `WAKEUP_NOTES.md` when session 45 landed and the file held four.
+
+## Session 42 - 2026-08-25 - CS-852's repr-channel guard ships and four live leaks close; four adversaries all REFUTE the closure; the finding is that the guard reproduced the very blindness it was built against
+
+- **Shipped: NOTHING CLOSED. CS-852 STAYS OPEN.** The guard merged, three shipped classes
+  were repaired and a fourth leak was closed, and four adversaries with distinct lenses all
+  returned REFUTED. Detail in `docs/LEDGER.md` and
+  `docs/item_notes/phase4-followups.md`, not here.
+
+- **THE DERIVATION FOUND TWICE WHAT THE ITEM NAMED.** CS-852 named `DecompressedBody`.
+  Deriving the population from shipped field annotations also found `SaveListing.saves` -
+  a tuple of `.sav` paths, so the account id and the home directory - and
+  `ForbiddenRoot.resolved`, in a class whose own docstring says `label` exists so a refusal
+  need not render a path. Both were named in no note, no doc and no guard.
+
+- **REPAIRING THEM EXPOSED A FOURTH LEAK NO GUARD COULD SEE.** Giving `DecompressedBody` a
+  `__repr__` moved it into CS-850's population - which is derived from classes SHIPPING one
+  - and CS-851 immediately flagged the raw decompressed body held in a local at an assert.
+  A class that declares nothing is invisible to the guards, not merely to readers. That is
+  the item's own thesis turned on the guards themselves.
+
+- **THE HEADLINE FINDING: THE GUARD BUILT AGAINST A BLIND POPULATION WAS ITSELF BLIND, IN
+  FOUR PLACES.** `BaseException.__repr__` is NOT `object.__repr__` - it renders `args` - so
+  the `KIND_INHERITED` grade silenced 24 save-layer error classes, and an adversary added a
+  save-derived field to one, interpolated it into the message, and stayed green. The forced
+  arms had NO POSITIVE CONTROL, so `assert MARKER not in rendered` passed equally when the
+  marker was never planted. The exemption reasons were graded by LENGTH, so forty literal
+  characters passed. And the population was pinned for 14 of 43 members, so the other 29
+  could leave one at a time. All four are now closed or recorded; the exception channel is
+  recorded rather than graded, and that is why the item stays open.
+
+- **A REPAIR OF MINE MADE THE TREE WORSE AND AN ADVERSARY CAUGHT IT.** I hoisted a
+  loop-invariant assert out of a per-save loop to clear a CS-851 finding. The original sat
+  under `except (Exception, SystemExit)`, which CATCHES `AssertionError` - so it could never
+  render anything and the finding was a STATIC FALSE POSITIVE - while my hoisted copy
+  unwound through a frame holding the real library save paths. One marker occurrence
+  hoisted, zero inside the try. **Check what a frame HOLDS before moving an assert into
+  it.** It now lives in its own test whose frame holds two dicts of width names.
+
+- **Decisions: none recorded as an ADR.** One operator round chose CS-852 as the unit, and a
+  second ruled that adversaries be dispatched before any closure - the section 5 shape,
+  since the merger produced the work and may not grade it.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But two names I wrote were fabricated:
+  an exemption cited a private helper that has never existed in this repository, and a
+  corrected reason then cited a function name copied from an adversary's report without
+  checking it. The new identifier check caught the second on its first run.
+
+- **Failed paths: one, abandoned on measurement.** Grading a hand-written `__repr__` for
+  every disclosing `str` field, not just carriers, reported six correctly redacting classes
+  including `ResourceNode`, whose repr shows the game `class_name` on purpose. The seam is
+  that a GENERATED repr made no per-field decision and is CS-852's; a hand-written one did
+  and is CS-850's.
+
+- **Next action: NONE IS FORCED.** If CS-852 is resumed, start at the exception channel -
+  it needs the message-building CODE PATH, not field annotations, which is a different
+  analysis from the one this session built.
+
+---

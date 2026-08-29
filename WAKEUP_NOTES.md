@@ -34,6 +34,61 @@ the line becomes a pointer.
 
 ---
 
+## Session 45 - 2026-08-29 - CS-857 residuals 1 and 3 closed in TWO rounds, the first refuted by its own adversary; the item's severity framing measured FALSE and filed as CS-860
+
+- **Shipped: NOTHING CLOSED. CS-857 STAYS OPEN.** Residuals 1 and 3 are closed, residuals 2
+  and 4 are untouched, and the acceptance quantifies over a population that provably misses
+  a shape. CS-860 filed. Detail in `docs/LEDGER.md` and
+  `docs/item_notes/phase4-followups.md`, not here.
+
+- **ROUND 1 REPAIRED THE FALSE CLEARANCE AND WAS ONE.** It gated the clearance on
+  `raised == handler_name`, a COMPARISON OF SPELLINGS, and adversary L2 measured 15 shapes
+  that name the same exception another way and still cleared while rendering the path. The
+  fix for a guard that measured spelling measured a different spelling. Round 2 gates the
+  clearance on a POSITIVE fact - the raise CONSTRUCTS a class the module declares - and no
+  live graded verdict changes. **A NAIVE REORDER WOULD HAVE FALSELY REDDENED FIVE SITES**,
+  one of them shipped, which is why both halves of the repair were required.
+
+- **THE SEVERITY FRAMING IS MEASURED FALSE AND THAT IS THE SESSION'S BIGGEST RESULT.**
+  Adversary L3 forced the measurement three agents had only read, under the project's own
+  pytest configuration. The redactor emits two rule families - home path and account NAME -
+  and the PLATFORM ACCOUNT ID AND WORLD NAME RENDER IN FULL. `OSError.__str__` renders
+  `filename` through `%r`, doubling backslashes, so the home-path rule CANNOT FIRE on a
+  chained cause at all. Containment on this machine is a naming accident. Filed as CS-860.
+
+- **7 OF 7 MUTANTS KILLED**, including a true revert to round 1's own gate. In round 1 the
+  census-reporter mutant SURVIVED and was reported as surviving rather than rounded up; the
+  arm that kills it now exists.
+
+- **Decisions: none recorded as an ADR.** The operator chose CS-857 residuals 1 and 3 as the
+  unit and authorised `gh auth refresh`, which did not take - GitHub still reports no `user`
+  scope, so the CI cause stays INFERRED.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But a sibling guard's `_verdict` names
+  `ast.BoolOp` in a positive branch; measured and CLEARED - the channel splitter decomposes
+  it upstream, so session 43's closure holds and nothing was filed.
+
+- **Failed paths: the naive `classify` reorder** (5 false reds) and **round 1's spelling
+  gate** (15 escapes). Both measured, both abandoned, both recorded.
+
+- **THE PROCESS DEFECT THIS SESSION SURFACED: THE CANDIDATE WAS NEVER FROZEN FOR THE
+  ADJUDICATOR.** The tree moved under it four times - 2 files, then 3, then 8, then 9, then
+  11 - so four of its adverse findings were repaired WHILE IT WAS WRITING THE RULING THAT
+  NAMED THEM, and no ruling it gave describes the tree that was committed. Section 5 makes
+  the adjudicator's independence the point of the role, and independence is worth little
+  against a target that edits itself mid-verdict. It also cost a whole-suite run: one
+  straddled a guard rewrite, so collection read one guard and the census executed against
+  another, and an exit 0 spanning four tree states says nothing about any of them. **FREEZE
+  THE CANDIDATE FIRST, or dispatch the adjudicator against a worktree at a fixed SHA** - the
+  read-only adversaries WERE pinned that way this session and none of them had the problem.
+  Not filed as an item; it is a section 5 rule and section 5 owns it.
+
+- **Next action: CS-857 residual 2** - a raise in a CALLEE of a handler is invisible to the
+  population, and it is what blocks the acceptance. Derive a population that can see it.
+  `docs/item_notes/phase4-followups.md` is at 99 per cent of budget with the split still due.
+
+---
+
 ## Session 44 - 2026-08-28 - CS-857's channel shut at all five shipped sites; the census built to prove it carries a FALSE CLEARANCE, and three of four adversaries never reported
 
 - **Shipped: NOTHING CLOSED. CS-857 STAYS OPEN.** The remedy, the derived census and the two
@@ -162,62 +217,3 @@ the line becomes a pointer.
   per cent. The ADR 0010 split bought one session of room and this session spent most of it.
 
 ---
-
-## Session 42 - 2026-08-25 - CS-852's repr-channel guard ships and four live leaks close; four adversaries all REFUTE the closure; the finding is that the guard reproduced the very blindness it was built against
-
-- **Shipped: NOTHING CLOSED. CS-852 STAYS OPEN.** The guard merged, three shipped classes
-  were repaired and a fourth leak was closed, and four adversaries with distinct lenses all
-  returned REFUTED. Detail in `docs/LEDGER.md` and
-  `docs/item_notes/phase4-followups.md`, not here.
-
-- **THE DERIVATION FOUND TWICE WHAT THE ITEM NAMED.** CS-852 named `DecompressedBody`.
-  Deriving the population from shipped field annotations also found `SaveListing.saves` -
-  a tuple of `.sav` paths, so the account id and the home directory - and
-  `ForbiddenRoot.resolved`, in a class whose own docstring says `label` exists so a refusal
-  need not render a path. Both were named in no note, no doc and no guard.
-
-- **REPAIRING THEM EXPOSED A FOURTH LEAK NO GUARD COULD SEE.** Giving `DecompressedBody` a
-  `__repr__` moved it into CS-850's population - which is derived from classes SHIPPING one
-  - and CS-851 immediately flagged the raw decompressed body held in a local at an assert.
-  A class that declares nothing is invisible to the guards, not merely to readers. That is
-  the item's own thesis turned on the guards themselves.
-
-- **THE HEADLINE FINDING: THE GUARD BUILT AGAINST A BLIND POPULATION WAS ITSELF BLIND, IN
-  FOUR PLACES.** `BaseException.__repr__` is NOT `object.__repr__` - it renders `args` - so
-  the `KIND_INHERITED` grade silenced 24 save-layer error classes, and an adversary added a
-  save-derived field to one, interpolated it into the message, and stayed green. The forced
-  arms had NO POSITIVE CONTROL, so `assert MARKER not in rendered` passed equally when the
-  marker was never planted. The exemption reasons were graded by LENGTH, so forty literal
-  characters passed. And the population was pinned for 14 of 43 members, so the other 29
-  could leave one at a time. All four are now closed or recorded; the exception channel is
-  recorded rather than graded, and that is why the item stays open.
-
-- **A REPAIR OF MINE MADE THE TREE WORSE AND AN ADVERSARY CAUGHT IT.** I hoisted a
-  loop-invariant assert out of a per-save loop to clear a CS-851 finding. The original sat
-  under `except (Exception, SystemExit)`, which CATCHES `AssertionError` - so it could never
-  render anything and the finding was a STATIC FALSE POSITIVE - while my hoisted copy
-  unwound through a frame holding the real library save paths. One marker occurrence
-  hoisted, zero inside the try. **Check what a frame HOLDS before moving an assert into
-  it.** It now lives in its own test whose frame holds two dicts of width names.
-
-- **Decisions: none recorded as an ADR.** One operator round chose CS-852 as the unit, and a
-  second ruled that adversaries be dispatched before any closure - the section 5 shape,
-  since the merger produced the work and may not grade it.
-
-- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But two names I wrote were fabricated:
-  an exemption cited a private helper that has never existed in this repository, and a
-  corrected reason then cited a function name copied from an adversary's report without
-  checking it. The new identifier check caught the second on its first run.
-
-- **Failed paths: one, abandoned on measurement.** Grading a hand-written `__repr__` for
-  every disclosing `str` field, not just carriers, reported six correctly redacting classes
-  including `ResourceNode`, whose repr shows the game `class_name` on purpose. The seam is
-  that a GENERATED repr made no per-field decision and is CS-852's; a hand-written one did
-  and is CS-850's.
-
-- **Next action: NONE IS FORCED.** If CS-852 is resumed, start at the exception channel -
-  it needs the message-building CODE PATH, not field annotations, which is a different
-  analysis from the one this session built.
-
----
-

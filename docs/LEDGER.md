@@ -75,6 +75,32 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-08-29 - CS-857 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-857 STAYS OPEN
+Residuals 1 and 3 closed in two rounds; the first round was itself a false clearance and was
+refuted by an adversary before merge. Residuals 2 and 4 remain, so the acceptance - which
+quantifies over every shipped chained raise - cannot be met while the population provably
+misses a shape. The severity framing recorded on 2026-08-28 is MEASURED FALSE and the
+redactor gap behind it is filed as CS-860. Residual 3 is PARTIALLY REMEDIED and adjudicated
+as such: the no-op detector resolves one call shape, and two adversaries measured others that
+still grade identically to the genuine clone; the narrowness is now a stated limit rather
+than a silence.
+Session shape: the section 5 build was run in the MAIN SESSION rather than decomposed, and
+the justification is recorded here because section 5 requires it. Disjointness FAILS as a
+precondition - `tests/test_chained_cause_census.py` imports `tests/chained_cause_guard.py`
+and transcribes its verdict constants, so a verdict-order change must land in both files or
+neither, and any per-residual split writes the same two files. Section 5 does not require
+dispatching slices that fail its own precondition. The self-adversarial and self-adjudicating
+halves were kept in full, and they are what caught the first repair being a false clearance.
+Verification: `tests/test_chained_cause_census.py`, chiefly
+`tests/test_chained_cause_census.py::test_no_graded_site_is_cleared_by_anything_but_from_none`,
+`tests/test_chained_cause_census.py::test_both_branches_of_the_clearance_arm_have_a_live_member`,
+`tests/test_chained_cause_census.py::test_the_census_reports_even_when_no_leak_is_found` and
+the `suppressed_alias`, `suppressed_walrus`, `suppressed_subscript`, `suppressed_builtin`,
+`suppressed_binding`, `rebind_expression_cause` and `closure_expression_cause` arms of
+`tests/test_chained_cause_census.py::test_each_planted_shape_is_classified_on_its_own_arm`;
+merged files `tests/chained_cause_guard.py`, `tests/test_chained_cause_census.py`,
+`tests/test_exception_rendering.py`.
+
 ### 2026-08-28 - CS-857 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-857 STAYS OPEN
 Verification: `tests/test_chained_cause.py`, all 16 arms, chiefly
 `tests/test_chained_cause.py::test_an_oserror_rooted_site_renders_a_redactable_path` and

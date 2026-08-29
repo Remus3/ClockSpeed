@@ -1685,21 +1685,6 @@ NOTE: found 2026-08-22 (session 29) by the CS-807 permissive-failure refuter, OU
 
 ### NOTE - filed 2026-08-28 (session 43) by the merger, from a CS-852 adversary, MEASURED ON MAIN
 
-**THE SITE LIST WAS DELETED FROM THIS NOTE IN SESSION 44, AND THE DELETION IS THE POINT.**
-It rotted TWICE in that one session. First it was six pointers stale, because session 43's
-own commits - `8175f64` added 83 lines to `clockspeed/save/usmap.py` and 24 to
-`clockspeed/save/world.py` - landed after the filing. Then a re-derivation by grep matched
-the CLOSING `) from exc` line instead of the statement line and broke four pointers that
-had been correct. Then THIS ITEM'S OWN REPAIR inserted a helper above every site and moved
-all five again. Three drifts, one session, one list.
-
-`CLAUDE.md` section 4 already owns the answer - a measured number belongs in exactly one
-machine-checked place, and a hardcoded count in a doc is a lie with a timestamp on it.
-**`tests/chained_cause_guard.py` IS THAT PLACE**, derived on every run by `ast.Raise`, so
-this note cites it rather than restating it. Module-level citations stay: they name a file
-and a symbol, and neither moves when a line does. The reasoning below is unchanged; only
-the transcribed pointers are gone.
-
 **A CHANNEL NOTHING IN THE TREE GRADES, FOUND WHILE GRADING A DIFFERENT ONE.**
 `raise X(...) from exc` makes the CAUSE's own text part of the formatted traceback. The
 graded message can be perfectly redacted while the chained `OSError` renders the raw path
@@ -1712,13 +1697,8 @@ channel rendered `<localappdata>/...` REDACTED, and the cause rendered the raw p
 including the Windows account name. `locate.redact` did its job and the traceback went
 around it.
 
-**SEVERITY IS SPLIT AND THE SPLIT IS THE POINT - MEASURED BY THE MERGER.** Under pytest
-with the configured pipeline, `tests/conftest.py:665`'s CS-428 report redactor SCRUBS the
-chained cause: the chain block is present, the home path and account name are not. So
-this does NOT leak in the suite, the pre-push hook, or either CI lane. It leaks on every
-rendering path that is not a pytest report - a CLI traceback, a log line, an uncaught
-exception in `surface/` or the Electron shell. Non-negotiable 12 counts a log line and
-exception context as echo paths, so this is real; it is not "live in CI".
+**THE SEVERITY FRAMING THAT STOOD HERE IS MEASURED FALSE.** Session 45 forced it; the
+account id and world name render in full. Archived in `docs/history_notes.md`. See CS-860.
 
 **NOBODY OWNS IT AND BOTH CANDIDATES SAY SO IN WRITING.**
 `tests/test_redaction_scope.py:26-41` declares the chained cause out of scope and NAMED
@@ -1742,12 +1722,8 @@ The 11th, `clockspeed/save/header.py::HeaderReadError`, is `from None` at
 `clockspeed/save/header.py:927` and is the one site that closes the channel. The other
 three that do not chain are the three `DestinationRefusedError` keys.
 
-**TWO EXEMPTION REASONS STATE A PRIVACY CONCLUSION THE SITE DOES NOT DELIVER.** Both
-`SourceUnreadableError::exc.errno` and `WorkDirError::exc.errno` say the OSError's own
-message "is deliberately never rendered". It is never rendered INTO `args`. It IS rendered
-by the interpreter, on the same failure, under default flags, at the four
-`clockspeed/save/workdir.py` sites the census reports for `_make_dir`, `copy_for_read`
-(twice) and `_readable_source`. Correcting those two reasons is part of this item.
+**THE TWO FALSE EXEMPTION REASONS WERE CORRECTED IN SESSION 44**, re-verified in 45, and
+archived in `docs/history_notes.md`. The one acceptance conjunct fully satisfied.
 
 **THE LIVE SITES ARE OWNED BY `tests/chained_cause_guard.py`, NOT BY THIS PARAGRAPH.** It
 derives them every run and reports a verdict per site. What is stable enough to write down
@@ -1784,27 +1760,10 @@ different because it survives outside pytest where CS-428 does not run.
 
 ### WHAT SESSION 44 SHIPPED, AND THE FOUR RESIDUALS THAT KEEP IT OPEN
 
-**SHIPPED, AND MEASURED AT THE MERGE.** The five OSError-rooted sites now chain a
-filename-free clone - `_pathless_cause(exc)` returning `OSError(exc.errno, exc.strerror)`
-- so `filename` and `filename2` never reach the interpreter's rendering while errno,
-strerror and `isinstance(__cause__, OSError)` all survive. `tests/test_chained_cause.py`
-went `6 failed, 10 passed` to `16 passed` across that repair. `tests/chained_cause_guard.py`
-derives the population over FOUR forms plus a `__notes__` census. The two false exemption
-reasons in `tests/exception_message_guard.py` are corrected, and the three-module decline
-cycle is broken.
+**SESSION 44'S MERGE RECORD IS ARCHIVED** in `docs/history_notes.md`.
 
-**RESIDUAL 1 - A FALSE CLEARANCE IN THE ONE PLACE THE GUARD ISSUES ONE. THIS IS THE
-BIGGEST.** `classify` tests `FORM_SUPPRESSED` above `MEASURED_LEAK`, so
-`raise exc from None` inside `except OSError as exc` is graded `closed-suppressed` - the
-guard's only positive verdict - while the runtime traceback renders the path. Measured by
-an adversary and reproduced by the merger: static `closed-suppressed`, rendered
-`FileNotFoundError: [Errno 2] No such file or directory: '<marker>'`. The mechanism is that
-`from None` suppresses the CONTEXT while the exception being raised is the binding itself,
-whose own `str()` carries `filename`. LATENT, NOT LIVE - all 14 shipped `from None` sites
-raise a project wrapper and none re-raises its binding. The guard's docstring says `from
-None` "genuinely closes the channel"; that sentence is measured FALSE and must not be
-repeated. A FALSE CLEARANCE IS WORSE THAN A SILENCE - see
-`memory/a-guard-can-measure-spelling.md`.
+**RESIDUAL 1 - CLOSED IN SESSION 45, IN TWO ROUNDS.** Archived in
+`docs/history_notes.md`. The clearance must never again rest on a SPELLING.
 
 **RESIDUAL 2 - THE LARGEST SILENCE: A RAISE IN A CALLEE OF A HANDLER.** CPython sets
 `__context__` from the THREAD's exception state, not from lexical scope, so a helper called
@@ -1815,39 +1774,79 @@ leaving every handler AND dropping the `from`; that is measured FALSE. It also r
 stated rationale for `NESTED_SCOPES`, which holds only when a nested def is RETURNED and
 not when it is CALLED.
 
-**RESIDUAL 3 - THE REPAIR MADE ITS OWN SITES UNPROVABLE TO THE CENSUS.** `from
-_pathless_cause(exc)` is a `Call`, which the static rule cannot resolve, so the five sites
-moved from `measured-leak` to `unproven` rather than to anything positive. An adversary
-planted a no-op `from _identity(exc)` beside the real repair and the guard graded the two
-IDENTICALLY. The repair is genuine and `tests/test_chained_cause.py` proves it at runtime,
-but the STATIC report of a repaired tree now carries the same information as the report of
-an evaded one, and the leaks-reported-every-run warning returns early on the empty list, so
-that signal is silently gone. Static and runtime cover different halves here and neither
-alone is the proof.
+**RESIDUAL 3 - THE MEASURED HALF IS CLOSED IN SESSION 45.** Archived in
+`docs/history_notes.md`. The genuine repair stays `unproven` ON PURPOSE.
 
 **RESIDUAL 4 - AN ALIASED IMPORT UNDER-REPORTS AND IS NOT IN THE STATED LIMITS.** `from
 builtins import OSError as Boom` grades `unproven`. The limits name module-level SHADOWING
 and dotted handler types; they do not name ALIASING. Under-report, so a silence rather than
 a clearance, but unstated.
 
-**COUNTS ARE OWNED BY THE CENSUS, NOT BY THIS NOTE - AND THE REASON IS RECORDED ABOVE.**
-Any figure a later session cites must be re-derived on the tree it is talking about. The
-figures reported mid-session 44 - 34 sites, 5 measured-leak - were measured in a worktree at
-`209ce05` BEFORE the repair merged and describe the pre-merge tree; the merged tree derives
-50 sites and ZERO measured-leak. A census figure is a statement about a tree, and the tree
-must be named.
+**THAT UNMEASURED CLAIM WAS FORCED IN SESSION 45 AND IT DID NOT HOLD.** See the session-45
+note below and CS-860. The sentence this paragraph used to end with - that the severity
+framing was an inference rather than a measurement - was correct, and the measurement went
+the other way.
 
-**THE ADVERSARIAL PASS IS INCOMPLETE AND THAT IS WHY NO CLOSURE WAS EVEN PROPOSED.** Of
-four refuters, ONE returned. Two died on an expired OAuth token mid-run and one was
-stopped. The population lens returned REFUTED; the false-clearance, does-it-reproduce and
-privacy lenses NEVER REPORTED. Their briefs are worth re-dispatching verbatim.
+### NOTE - session 45, 2026-08-29, AFTER FOUR ADVERSARIES - TWO ROUNDS, THE FIRST REFUTED
 
-**STILL UNMEASURED, AND IT IS LOAD-BEARING FOR THE SEVERITY FRAMING.** That
-`tests/conftest.py:665` SCRUBS a chained cause under pytest has now been READ by three
-agents and FORCED by none. The refuter assigned to force it died at exactly that step. Until
-someone makes a test fail with a chained cause carrying a synthetic marker UNDER THE
-PROJECT'S OWN pytest configuration and reads the rendered report, "this does not leak in the
-suite or either CI lane" is an inference from reading the hook, not a measurement.
+**ROUND 1 REPAIRED RESIDUAL 1 AND WAS ITSELF A FALSE CLEARANCE.** It gated the clearance on
+`raised == handler_name` - A COMPARISON OF SPELLINGS. Adversary L2 measured 15 shapes that
+name the handler's own exception by another spelling, reach `closed-suppressed`, and render
+the filename: `kept = exc`, a walrus, a subscript, an attribute, a module-level name, an
+outer handler's binding, `_identity(exc)`. The merger reproduced the headline before acting
+on it. **THE FIRST REPAIR OF A SPELLING-MEASURING GUARD MEASURED A DIFFERENT SPELLING**, which
+is `memory/a-guard-can-measure-spelling.md` reproduced one level down, in the fourth
+consecutive session to produce a false clearance inside the guard built to prevent the last.
+
+**ROUND 1 ALSO INVERTED THE MODULE'S OWN DOCTRINE.** `TYPE_UNRESOLVED` says in writing that
+every unresolved site is graded `UNPROVEN`. Round 1 collapsed almost every suppressed site
+to `TYPE_UNRESOLVED` and then cleared it, so 15 sites were unresolved AND cleared. And the
+narrowed arm ASSERTED the escape must be cleared, which would have made a correct future
+repair red first.
+
+**ROUND 2 - THE CLEARANCE RESTS ON A POSITIVE, PROVABLE FACT.** `CLOSED_SUPPRESSED` is now
+reachable only when the raise CONSTRUCTS a class the module itself declares
+(`Site.raises_local_class`). Everything else suppressed is `UNPROVEN`. Measured: all of L2's
+escape shapes fall out of the clearance, the genuine wrapper sites stay cleared, and NO LIVE
+GRADED VERDICT CHANGES - all four raise a locally declared class. **DO NOT REPAIR A FUTURE
+ESCAPE BY ADDING SPELLINGS**; that is what produced round 1.
+
+**THE SEVERITY FRAMING OF THIS ITEM IS REFUTED, AND THAT IS THE SESSION'S BIGGEST RESULT.**
+Adversary L3 FORCED the measurement three agents had only read. Under the project's own
+pytest configuration - `configfile: pyproject.toml` in the header, so not the CS-855
+unconfigured-pipeline trap - a chained cause reaches the FAILURES block and the PLATFORM
+ACCOUNT ID AND THE WORLD NAME RENDER IN FULL. `tests/conftest.py` emits two rule families,
+home-path spellings and account-name spellings, and neither covers them. Worse,
+`OSError.__str__` renders `filename` through `%r`, which DOUBLES BACKSLASHES, and the
+home-path rule holds only the single-separator and `as_posix` spellings - so on a chained
+cause the primary rule CANNOT FIRE. It is contained on this machine only because the account
+name happens to be the sole personal component of the home prefix, which is a naming
+accident and not the designed control. **"This does not leak in the suite or either CI lane"
+is MEASURED FALSE.** The redactor gap itself is not this item's - it is filed as CS-860.
+
+**WHAT IS MUTATION-PROVEN.** 7 of 7 targeted mutants killed, including a true revert to
+round 1's own gate and a revert of the census reporter's early return - the mutant that
+SURVIVED round 1 and was reported as surviving rather than rounded up.
+
+**RESIDUALS 2 AND 4 ARE UNTOUCHED AND THE ITEM STAYS OPEN.** Residual 2 - a raise in a CALLEE
+of a handler - is the reason the acceptance cannot be met: it quantifies over "no shipped
+chained raise", and the population provably misses a shape. Two further silences were
+measured this session and belong to residual 2's class: adversary L2 measured that the
+residual-3 forwarding detector holds for ONE spelling of twelve (`_identity(exc=exc)`, a
+lambda, a dotted callee, an imported helper and a two-step forward all still grade
+`unproven`), and that `_call_forwards_binding` is consulted for `node.cause` only, never for
+`node.exc`.
+
+**TWO AUTHORED CLAIMS WERE MEASURED FALSE AND CORRECTED.** The privacy record in
+`tests/test_exception_rendering.py` said the chained-cause module emits no frame line; it
+renders the frame-bearing default at two of its four `format_exception` calls, deliberately,
+because the faithful-subset claim is not measurable without it (adversary L4). And the
+"measured equivalent on all six shapes" claim does not hold for a `SyntaxError` in the chain,
+whose `File` line SURVIVES `limit=0`, nor for a non-deterministic `__str__` (adversary L3).
+
+**WHAT A NEXT ROUND SHOULD NOT REDO.** Round 2 and its arms are merged and mutation-proven.
+Start at residual 2, and derive a population that can see a raise in a callee.
+
 
 ## CS-858
 
@@ -1889,3 +1888,40 @@ quoted fragment still counts.
 line; that line is not the work. The operator chose on 2026-08-28 to do the rewrite rather
 than only file it, and it was NOT reached in session 44 - the round ended with the
 adversarial pass incomplete. It is unstarted, not half-done.
+
+
+## CS-860
+
+### NOTE - filed 2026-08-29 (session 45) by the merger, MEASURED BEFORE FILING, from CS-857 adversary L3
+
+**THE REPORT REDACTOR COVERS TWO PERSONAL-DATA CLASSES AND THE PROJECT NAMES MORE THAN TWO.**
+`tests/conftest.py`'s `_build_redaction_rules` emits exactly two rule families - home-path
+spellings, and account-NAME spellings. Measured against synthetic stand-ins: a 17-digit
+platform account id and a world name both render VERBATIM through `redact_personal_data`.
+`CLAUDE.md` section 2 names the account subdirectory as personal data and non-negotiable 3
+names the world name, so both are in scope and neither is covered.
+
+**AND THE PRIMARY RULE IS STRUCTURALLY BLIND TO THE SHAPE AN OSError PRESENTS.**
+`OSError.__str__` renders `filename` through `%r`, which doubles every backslash. The
+home-path family holds the single-separator and `as_posix` spellings only. Measured: the
+home rule fires on the single-separator spelling and NOT on the doubled one, while the
+weaker account-name rule does fire. So a chained cause is contained on this machine only
+because the account name happens to be the sole personal component of the home prefix. THAT
+IS A NAMING ACCIDENT, NOT A CONTROL, and it does not transfer to a CI runner or another
+machine.
+
+**WHY IT IS NOT CS-857.** CS-857 owns the chained-cause CHANNEL. This is the REDACTOR, and
+it applies to every value that reaches a pytest report by any route - the rewritten assert
+and the frame argument as much as the chain. Folding it into CS-857 would hide a general
+defect inside a specific one.
+
+**THE TRAP THAT MUST NOT BE REPEATED.** A run with `--rootdir` pointed at a tempdir loads
+neither `pyproject.toml` nor `tests/conftest.py`, so it measures an unconfigured pipeline
+and proves nothing. That is a recorded residual on CS-855. L3's forcing run reported
+`configfile: pyproject.toml` in its header, which is what makes its result about the shipped
+pipeline.
+
+**DO NOT WIDEN THE RULES BY GUESSING.** The needle set is derived from the machine. A world
+name is not a fixed string and an account id is a shape, not a value, so the remedy is a
+pattern plus a derivation, and the arm that proves it must plant a synthetic value rather
+than this machine's own.
