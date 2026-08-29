@@ -36,6 +36,19 @@ f. A PROVIDER ANSWERS ``None`` RATHER THAN RAISING. "No game installed" and "no
    save yet" are true answers about a working system, and every arm below runs
    with NO GAME INSTALLED - BOOTSTRAP.md section 8.1 requires that of the whole
    rule suite, which is why the providers take injectable seams.
+g. A TEMPLATE CARRYING A PATH PARAMETER REGISTERS AND MATCHES (CS-601 slice S9).
+   This reverses what (c) originally said. ``routing`` refused such a template
+   outright, so ``/api/advice/<id>/derivation`` and ``/api/advice/<id>/state``
+   had no concrete URL in production and ``serve(config, ROUTES)`` raised before
+   it reached a socket. The refusal's stated reason - "a captured segment would
+   have nowhere to go" - was the part that turned out to be wrong: a capture is
+   a string, and ``Handler`` already takes ``Mapping[str, str]``. The arms below
+   pin where the capture goes, who wins when a query parameter carries the same
+   name, and - the part that needed the most care - that ADMITTING CALLER-CHOSEN
+   TEXT INTO HANDLER INPUT did not open a reflection path. (c) is NARROWED
+   rather than repealed: there is still no path RESOLUTION step, no
+   normalisation and no filesystem join. Matching splits on ``/`` and compares
+   segments, so ``..`` is a card id like any other rather than a directory.
 
 Test-quality discipline (CONVENTIONS.md section 7.2). Every sweep binds its
 population size to a scalar and asserts the expected count BEFORE it iterates.
@@ -65,10 +78,10 @@ from typing import TYPE_CHECKING, Final
 import pytest
 
 from clockspeed.surface import config, providers, server
-from clockspeed.surface.api import contract
+from clockspeed.surface.api import contract, pending, routes
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator, Mapping
+    from collections.abc import Callable, Iterator, Mapping, Sequence
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -90,6 +103,21 @@ SETTLE_TIMEOUT: Final = 5.0
 
 #: The route every arm that needs a live endpoint registers.
 PROBE_TEMPLATE: Final = "/api/probe"
+
+#: The route every (g) arm registers. Its SHAPE is deliberately the shape of the
+#: two templates BOOTSTRAP.md section 7.1 spells with a parameter, so an arm
+#: proving something here is proving it about the endpoints that motivated the
+#: slice rather than about a shape only a test ever asks for.
+CAPTURE_TEMPLATE: Final = "/api/advice/<id>/state"
+
+#: The parameter name that template declares. The key a capture must arrive
+#: under, and - because a query string may carry any key at all - the name a
+#: caller can also try to spell for itself.
+CAPTURE_NAME: Final = "id"
+
+#: A concrete segment with nothing special about it, for the arms that grade
+#: matching rather than leakage.
+PLAIN_ID: Final = "probe"
 
 #: The shipped layer both static sweeps walk.
 SURFACE_ROOT: Final = Path(__file__).resolve().parents[2] / "clockspeed" / "surface"
@@ -372,6 +400,34 @@ def probe_route(seen: list[Mapping[str, str]] | None = None) -> contract.Route:
     return contract.Route(method="GET", template=PROBE_TEMPLATE, handler=handler)
 
 
+def capture_route(
+    seen: list[Mapping[str, str]] | None = None,
+    *,
+    method: str = "GET",
+    template: str = CAPTURE_TEMPLATE,
+) -> contract.Route:
+    """A route on a template carrying a path parameter, recording what reached it.
+
+    Args:
+        seen: A list to append each call's parameters to, or None.
+        method: The verb the route answers, so an arm can ask for one it does
+            not answer and grade the 405.
+        template: The template to register, so an arm can register two.
+
+    Returns:
+        The route. The 200 body names the TEMPLATE, never a captured value -
+        ``contract.ok`` would accept a value here and that is exactly the shape
+        the reflection arms exist to prove nothing ships.
+    """
+
+    def handler(parameters: Mapping[str, str]) -> contract.Response:
+        if seen is not None:
+            seen.append(dict(parameters))
+        return contract.ok(template, {"probe": True})
+
+    return contract.Route(method=method, template=template, handler=handler)
+
+
 # ---------------------------------------------------------------------------
 # Client helpers. Every one verifies the certificate rather than disabling the
 # check - a test that turns verification off cannot tell TLS from plaintext.
@@ -491,7 +547,9 @@ def raw_get(port: int, cert: Path, path: str) -> tuple[int, bytes]:
 
 @contextmanager
 def serving_handler(
-    cfg: config.ServerConfig, handler_class: type[BaseHTTPRequestHandler]
+    cfg: config.ServerConfig,
+    handler_class: type[BaseHTTPRequestHandler],
+    routes_to_serve: Sequence[contract.Route] | None = None,
 ) -> Iterator[int]:
     """Serve with a DELIBERATELY LEAKY handler, for the negative controls.
 
@@ -503,14 +561,18 @@ def serving_handler(
     Args:
         cfg: Supplies the certificate pair.
         handler_class: The handler to serve with.
+        routes_to_serve: The table to register, or None for the probe route
+            alone. A control that grades a CAPTURED segment needs a table
+            holding a template that can capture one.
 
     Yields:
         The bound port.
     """
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(cfg.cert_path, cfg.key_path)
+    registered = [probe_route()] if routes_to_serve is None else list(routes_to_serve)
     listener = server.DashboardServer(
-        (config.LOOPBACK, EPHEMERAL), handler_class, server.routing([probe_route()]), None
+        (config.LOOPBACK, EPHEMERAL), handler_class, server.routing(registered), None
     )
     listener.socket = context.wrap_socket(listener.socket, server_side=True)
     thread = threading.Thread(
@@ -1174,11 +1236,49 @@ def test_a_well_formed_query_reaches_the_handler_intact(
 # ---------------------------------------------------------------------------
 
 
-def test_routing_refuses_a_template_carrying_a_path_parameter() -> None:
-    route = contract.Route(method="GET", template="/api/world/<token>", handler=lambda _p: None)  # type: ignore[arg-type,return-value]
+def test_routing_registers_a_template_carrying_a_path_parameter() -> None:
+    """THE ARM THAT PINNED THE REFUSAL, REVERSED ON EVIDENCE RATHER THAN DELETED.
+
+    What stood here asserted ``routing`` raises ``ROUTE_HAS_A_PATH_PARAMETER``.
+    That refusal was a real decision and its stated reason was checkable: "a
+    handler receives query parameters only, so a captured segment would have
+    nowhere to go". The reason was wrong. ``contract.Handler`` is
+    ``Callable[[Mapping[str, str]], Response]`` and a captured segment is a
+    ``str``, so the mapping the signature already carries is somewhere for it to
+    go. Four of the five surface components had meanwhile been built ASSUMING
+    the capture works - ``contract.ENDPOINT_PATTERN`` admits ``<name>``,
+    ``pending.py`` publishes both templates, ``health.py`` lists them in its
+    liveness map and ``BOOTSTRAP.md`` section 7.1 specifies them - so the
+    refusal, not the specification, was the outlier. Its consequence was that
+    ``serve(config, ROUTES)`` raised before it reached a socket and two of the
+    nine published endpoints had no reachable URL at all.
+
+    The arm is REPLACED rather than removed because a behaviour whose arm simply
+    vanishes is a behaviour nothing grades. This one now pins the reversal.
+    """
+    table = server.routing([capture_route()])
+    registered = sorted(table)
+    assert registered == [CAPTURE_TEMPLATE], "the template did not register under its own name"
+    methods = sorted(table[CAPTURE_TEMPLATE])
+    assert methods == ["GET"], "the template registered without the method it was given"
+
+
+def test_routing_refuses_two_templates_that_would_match_one_request_path() -> None:
+    """Ambiguity is refused at registration, where the alternative is silent.
+
+    ``/api/advice/<id>/state`` and ``/api/advice/<card>/state`` match exactly the
+    same set of paths. Nothing about a request can tell them apart, so which
+    handler ran would fall out of registration order - the same
+    "whichever iteration reached last" fault ``clockspeed/surface/api/routes.py``
+    already refuses one layer up, and it is worse here because both templates
+    would still be present and the table would still look the right size.
+    """
+    pair = [capture_route(), capture_route(template="/api/advice/<card>/state")]
     with pytest.raises(server.RouteError) as caught:
-        server.routing([route])
-    assert server.ROUTE_HAS_A_PATH_PARAMETER in str(caught.value)
+        server.routing(pair)
+    assert server.ROUTE_AMBIGUOUS in str(caught.value)
+    quoted = str(caught.value).count("advice")
+    assert quoted == 0, "the ambiguity refusal quoted a template instead of naming the fault"
 
 
 def test_routing_refuses_a_template_that_is_not_a_template() -> None:
@@ -1207,6 +1307,439 @@ def test_a_route_refusal_never_quotes_the_offending_template() -> None:
         server.routing([route])
     leaked = str(caught.value).count(CANARY)
     assert leaked == 0
+
+
+# ---------------------------------------------------------------------------
+# (g) A template carrying a path parameter matches a concrete request path
+#
+# THE THREE DECISIONS THESE ARMS PIN, stated once here rather than repeated:
+#
+#   1. WHERE THE CAPTURE GOES. Into the same ``Mapping[str, str]`` the handler
+#      already receives, under the parameter's own name. ``Handler`` is frozen
+#      and was designed for QUERY parameters, but a capture is a string and the
+#      signature admits it. A router that matched a template and then discarded
+#      the segment it matched on would be its own kind of dishonesty, and the
+#      advisor phase needs the id.
+#   2. WHO WINS A NAME COLLISION. The PATH capture, always. It is structural -
+#      it is part of which resource was addressed - and the query is not. A
+#      query that could shadow a path capture is a request-smuggling shape:
+#      ``/api/advice/abc/state?id=other`` would let the caller pick which card a
+#      handler thought it was acting on.
+#   3. THE CAPTURE IS CALLER-CHOSEN TEXT. This is the first of it admitted into
+#      handler input anywhere in the surface layer, so the guarantee that it
+#      goes no further is STRUCTURAL rather than a filter: ``_dispatch`` hands
+#      the matched TEMPLATE - never the request path - to ``_log`` and to every
+#      ``contract`` constructor it calls. There is deliberately NO charset
+#      restriction on a capture beyond non-empty. A charset would be this
+#      module inventing a card-id schema phase 5 has not written, and a template
+#      that silently never matches a legitimate id is the fault this module's
+#      own docstring names as worse than a refusal. What keeps a ``..`` capture
+#      harmless is not a filter but the two static sweeps in (e): no module in
+#      this layer outside ``config.py`` and ``providers.py`` reads the
+#      filesystem at all, so there is nothing for a segment to traverse.
+# ---------------------------------------------------------------------------
+
+
+def test_a_concrete_path_reaches_the_handler_registered_under_its_template(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path]
+) -> None:
+    cert, _key = cert_pair
+    seen: list[Mapping[str, str]] = []
+    with server.serve(cfg, [capture_route(seen)]) as running:
+        status, _headers, _body = request(
+            running.server_address[1], f"/api/advice/{PLAIN_ID}/state", cert
+        )
+    assert status == contract.HTTP_OK
+    calls = len(seen)
+    assert calls == 1, "a concrete path did not reach the handler its template registered"
+    assert seen[0] == {CAPTURE_NAME: PLAIN_ID}, "decision 1: the capture did not arrive by name"
+
+
+def test_a_capture_joins_the_query_parameters_rather_than_replacing_them(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path]
+) -> None:
+    cert, _key = cert_pair
+    seen: list[Mapping[str, str]] = []
+    with server.serve(cfg, [capture_route(seen)]) as running:
+        request(running.server_address[1], f"/api/advice/{PLAIN_ID}/state?rate=12&item=iron", cert)
+    calls = len(seen)
+    assert calls == 1
+    assert seen[0] == {CAPTURE_NAME: PLAIN_ID, "rate": "12", "item": "iron"}
+
+
+def test_a_query_parameter_cannot_shadow_a_path_capture_in_either_order(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path]
+) -> None:
+    """DECISION 2, graded from both sides so it cannot be insertion-order luck.
+
+    The canary is the QUERY value here, so "the path won" and "the canary is
+    absent from what the handler saw" are the same statement, which is what lets
+    both halves be asserted on scalars.
+    """
+    cert, _key = cert_pair
+    seen: list[Mapping[str, str]] = []
+    both_orders = 2
+    with server.serve(cfg, [capture_route(seen)]) as running:
+        port = running.server_address[1]
+        request(port, f"/api/advice/{PLAIN_ID}/state?{CAPTURE_NAME}={CANARY}&other=1", cert)
+        request(port, f"/api/advice/{PLAIN_ID}/state?other=1&{CAPTURE_NAME}={CANARY}", cert)
+    calls = len(seen)
+    assert calls == both_orders, "one of the two orders never reached the handler"
+    won = sum(1 for parameters in seen if parameters.get(CAPTURE_NAME) == PLAIN_ID)
+    assert won == both_orders, "a query parameter shadowed the path capture"
+    shadowed = sum(1 for parameters in seen if CANARY in parameters.values())
+    assert shadowed == 0, "the shadowing query value survived somewhere in the handler input"
+    kept = sum(1 for parameters in seen if parameters.get("other") == "1")
+    assert kept == both_orders, "resolving the collision discarded an unrelated query parameter"
+
+
+def test_an_exact_template_wins_over_a_capture_that_would_also_match(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path]
+) -> None:
+    """Literal precedence, decided rather than emergent.
+
+    Both templates below can answer ``/api/advice/pinned/state``. The literal
+    one wins, because it is the more specific statement of intent and because
+    the alternative - falling out of dict iteration order - is a router whose
+    behaviour depends on the order a caller happened to build a list in.
+    """
+    cert, _key = cert_pair
+    literal = f"/api/advice/{PLAIN_ID}/state"
+    exact_seen: list[Mapping[str, str]] = []
+    capture_seen: list[Mapping[str, str]] = []
+    table = [capture_route(capture_seen), capture_route(exact_seen, template=literal)]
+    with server.serve(cfg, table) as running:
+        status, _headers, _body = request(running.server_address[1], literal, cert)
+    assert status == contract.HTTP_OK
+    exact_calls = len(exact_seen)
+    assert exact_calls == 1, "the literal template did not answer its own path"
+    capture_calls = len(capture_seen)
+    assert capture_calls == 0, "the parameterised template shadowed a literal one"
+
+
+def test_an_empty_segment_does_not_satisfy_a_capture(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path]
+) -> None:
+    """``/api/advice//state`` is 404, not a match with an empty id.
+
+    The segment count lines up, so a matcher that only counted would route this.
+    An empty capture is a card id no card has, and handing a handler ``{"id":
+    ""}`` would make "the caller named nothing" indistinguishable from "the
+    caller named a card". ``raw_get`` is used because ``http.client`` rewrites a
+    doubled separator before it reaches the socket.
+    """
+    cert, _key = cert_pair
+    seen: list[Mapping[str, str]] = []
+    with server.serve(cfg, [capture_route(seen)]) as running:
+        status, _raw = raw_get(running.server_address[1], cert, "/api/advice//state")
+    assert status == contract.HTTP_NOT_FOUND
+    reached = len(seen)
+    assert reached == 0, "an empty segment was captured as an id"
+
+
+def test_an_extra_segment_does_not_match_a_capture(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path]
+) -> None:
+    """WHAT EXCLUDES THIS IS THE TRAILING LITERAL, NOT THE SEGMENT COUNT.
+
+    MEASURED: deleting the length check from ``_captures`` left this arm green,
+    because ``/api/advice/a/b/state`` still has to line ``b`` up against the
+    literal ``state`` and fails there first. The arm is kept - the behaviour is
+    required - but the mechanism it looks like it grades is graded by
+    ``test_a_capture_in_the_last_segment_does_not_swallow_extra_segments``
+    instead, on a template with no trailing literal to do the work.
+    """
+    cert, _key = cert_pair
+    seen: list[Mapping[str, str]] = []
+    with server.serve(cfg, [capture_route(seen)]) as running:
+        status, _raw = raw_get(running.server_address[1], cert, "/api/advice/a/b/state")
+    assert status == contract.HTTP_NOT_FOUND
+    reached = len(seen)
+    assert reached == 0, "a capture swallowed more than one segment"
+
+
+def test_a_path_that_stops_short_of_the_template_does_not_match(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path]
+) -> None:
+    """``/api/advice/probe`` is one of the paths the acceptance suite requires 404.
+
+    Same measured caveat as the arm above: the trailing literal is what excludes
+    it, so this pins the requirement rather than the length check.
+    """
+    cert, _key = cert_pair
+    seen: list[Mapping[str, str]] = []
+    with server.serve(cfg, [capture_route(seen)]) as running:
+        status, _raw = raw_get(running.server_address[1], cert, f"/api/advice/{PLAIN_ID}")
+    assert status == contract.HTTP_NOT_FOUND
+    reached = len(seen)
+    assert reached == 0
+
+
+def test_a_capture_in_the_last_segment_does_not_swallow_extra_segments(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path]
+) -> None:
+    """THE ARM THAT ACTUALLY GRADES THE SEGMENT COUNT, added because a mutant lived.
+
+    ``/api/advice/<id>/state`` ends in a literal, so the two arms above are
+    excluded by comparing ``state`` against something else and would pass with
+    the length check deleted - MEASURED, not supposed. A template ending in its
+    capture has no such literal, so this is the shape where the count is the
+    only thing standing between one id and two segments joined into one.
+    """
+    cert, _key = cert_pair
+    trailing = "/api/advice/<id>"
+    seen: list[Mapping[str, str]] = []
+    with server.serve(cfg, [capture_route(seen, template=trailing)]) as running:
+        port = running.server_address[1]
+        matched_status, _m = raw_get(port, cert, "/api/advice/one")
+        extra_status, _e = raw_get(port, cert, "/api/advice/one/two")
+        short_status, _s = raw_get(port, cert, "/api/advice")
+    assert matched_status == contract.HTTP_OK, "a trailing capture did not match one segment"
+    assert extra_status == contract.HTTP_NOT_FOUND, "a trailing capture swallowed two segments"
+    assert short_status == contract.HTTP_NOT_FOUND, "a trailing capture matched a missing segment"
+    calls = len(seen)
+    assert calls == 1, "only the single-segment request should have reached the handler"
+    assert seen[0] == {CAPTURE_NAME: "one"}
+
+
+def test_a_traversal_shaped_capture_routes_without_resolving_anything(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path]
+) -> None:
+    """``..`` is a card id, and this arm says so out loud rather than hiding it.
+
+    ``/api/advice/../state`` MATCHES, and the handler is handed ``{"id": ".."}``.
+    Nothing normalises it, nothing joins it to a directory and nothing reflects
+    it - which is precisely (c) narrowed rather than repealed. Refusing ``..``
+    here would look like a defence and would not be one: ``.`` and a
+    percent-encoded spelling would both still arrive, and the property that
+    actually holds is that this layer builds no filesystem path from a request
+    at all, which (e) sweeps for statically.
+    """
+    cert, _key = cert_pair
+    seen: list[Mapping[str, str]] = []
+    with server.serve(cfg, [capture_route(seen)]) as running:
+        status, _raw = raw_get(running.server_address[1], cert, "/api/advice/../state")
+    assert status == contract.HTTP_OK
+    calls = len(seen)
+    assert calls == 1
+    assert seen[0] == {CAPTURE_NAME: ".."}
+
+
+def test_a_405_on_a_captured_route_names_the_template_and_not_the_path(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path]
+) -> None:
+    cert, _key = cert_pair
+    with server.serve(cfg, [capture_route(method="POST")]) as running:
+        status, _headers, body = request(
+            running.server_address[1], f"/api/advice/{CANARY}/state", cert
+        )
+    assert status == contract.HTTP_METHOD_NOT_ALLOWED
+    assert CAPTURE_TEMPLATE.encode("ascii") in body, "the 405 did not name the matched template"
+    leaked = body.count(CANARY.encode("ascii"))
+    assert leaked == 0, "the 405 body reflected the captured segment"
+
+
+def test_a_malformed_query_on_a_captured_route_names_the_template_and_not_the_path(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path]
+) -> None:
+    cert, _key = cert_pair
+    with server.serve(cfg, [capture_route()]) as running:
+        status, _headers, body = request(
+            running.server_address[1], f"/api/advice/{CANARY}/state?a=1&a=2", cert
+        )
+    assert status == contract.HTTP_BAD_REQUEST
+    assert contract.REASON_MALFORMED_QUERY.encode("ascii") in body
+    assert CAPTURE_TEMPLATE.encode("ascii") in body, "the 400 did not name the matched template"
+    leaked = body.count(CANARY.encode("ascii"))
+    assert leaked == 0, "the 400 body reflected the captured segment"
+
+
+def test_the_log_line_for_a_captured_route_names_the_template_not_the_path(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    cert, _key = cert_pair
+    with server.serve(cfg, [capture_route()]) as running:
+        request(running.server_address[1], f"/api/advice/{CANARY}/state", cert)
+    written = capsys.readouterr().err
+    assert f"GET {CAPTURE_TEMPLATE} {contract.HTTP_OK}" in written
+    leaked = written.count(CANARY)
+    assert leaked == 0, "the captured segment reached the log line"
+
+
+#: Every branch a captured route can leave the dispatcher by, with the canary
+#: planted in the segment the template captures. One shape would grade one
+#: return; each of these names an endpoint of its own on the way out.
+CAPTURE_CANARY_PATHS: Final = (
+    "/api/advice/{c}/state",
+    "/api/advice/{c}/state?rate=12",
+    "/api/advice/{c}/state?id=shadow",
+    "/api/advice/{c}/state?a=1&a=2",
+)
+
+#: Codes the sweep must have actually provoked. A sweep that found nothing
+#: because every request 404ed would otherwise be green while grading nothing.
+CAPTURE_BRANCH_CODES: Final = frozenset(
+    {contract.HTTP_OK, contract.HTTP_BAD_REQUEST, contract.HTTP_METHOD_NOT_ALLOWED}
+)
+
+
+def drive_capture_canary_requests(port: int, cert: Path) -> list[tuple[int, bytes]]:
+    """Ask for every captured-route shape, byte for byte, and keep what came back.
+
+    Args:
+        port: The listening port.
+        cert: The certificate to trust.
+
+    Returns:
+        One (status, whole raw answer) per shape. The RAW answer, so the status
+        line and the headers are swept as well as the body - the stdlib's own
+        leak put caller bytes on the status line, not in the body.
+    """
+    return [raw_get(port, cert, path.format(c=CANARY)) for path in CAPTURE_CANARY_PATHS]
+
+
+def sweep_both_method_tables(cfg: config.ServerConfig, cert: Path) -> list[tuple[int, bytes]]:
+    """Drive the canary shapes against a table that answers GET and one that does not.
+
+    Two servings rather than one, because the method check runs BEFORE the query
+    parse: a GET-answering table can never reach the 405 return, and a
+    POST-only table can never reach the 400 or the 200.
+
+    Args:
+        cfg: The listener configuration.
+        cert: The certificate to trust.
+
+    Returns:
+        Every (status, raw answer) from both servings.
+    """
+    answers: list[tuple[int, bytes]] = []
+    with server.serve(cfg, [capture_route()]) as running:
+        answers += drive_capture_canary_requests(running.server_address[1], cert)
+    with server.serve(cfg, [capture_route(method="POST")]) as running:
+        answers += drive_capture_canary_requests(running.server_address[1], cert)
+    return answers
+
+
+def test_a_captured_segment_never_reaches_a_response_body(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path]
+) -> None:
+    """DECISION 3, on the channel that is not a log.
+
+    A captured segment is the first caller-chosen text this layer puts into
+    handler input. The five advice endpoints read it not at all and return 501,
+    so the correct answer is zero reflection - but "the code does not use it" is
+    an argument, and the module docstring's account of ``send_error`` is the
+    standing proof in this repository that an argument about an unreflected
+    value can be wrong on a channel nobody was reading.
+    """
+    cert, _key = cert_pair
+    answers = sweep_both_method_tables(cfg, cert)
+    delivered = len(answers)
+    expected = len(CAPTURE_CANARY_PATHS) * 2
+    assert delivered == expected, "a canary request was never sent"
+    answered = sum(1 for status, _raw in answers if status != 0)
+    assert answered == delivered, "a request produced no HTTP answer, so its bytes were not swept"
+    provoked = frozenset(status for status, _raw in answers)
+    unreached = len(CAPTURE_BRANCH_CODES - provoked)
+    assert unreached == 0, "the sweep never reached the branches it claims to"
+    leaked = sum(raw.count(CANARY.encode("ascii")) for _status, raw in answers)
+    assert leaked == 0, "a captured path segment was reflected into a response"
+
+
+def test_the_captured_segment_body_sweep_finds_a_planted_reflection(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path]
+) -> None:
+    """The negative control. A handler that really does echo its capture.
+
+    Nothing is faked: the real ``serve``, the real matcher, the real encoder and
+    the real client. The only planted thing is a handler that puts the value it
+    was handed into the body it returns - which is exactly what a phase 5
+    handler will be tempted to do, and exactly what this sweep has to be able to
+    see.
+    """
+    cert, _key = cert_pair
+
+    def reflecting(parameters: Mapping[str, str]) -> contract.Response:
+        return contract.ok(CAPTURE_TEMPLATE, {"echo": parameters[CAPTURE_NAME]})
+
+    route = contract.Route(method="GET", template=CAPTURE_TEMPLATE, handler=reflecting)
+    with server.serve(cfg, [route]) as running:
+        answers = drive_capture_canary_requests(running.server_address[1], cert)
+    found = sum(raw.count(CANARY.encode("ascii")) for _status, raw in answers)
+    assert found > 0, "the body sweep cannot see a reflected capture, so its zeroes prove nothing"
+
+
+def test_a_captured_segment_never_reaches_stderr(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """DECISION 3, on the log channel."""
+    cert, _key = cert_pair
+    answers = sweep_both_method_tables(cfg, cert)
+    captured = capsys.readouterr()
+    delivered = len(answers)
+    expected = len(CAPTURE_CANARY_PATHS) * 2
+    assert delivered == expected, "a canary request was never sent"
+    leaked = captured.err.count(CANARY) + captured.out.count(CANARY)
+    assert leaked == 0, "a captured path segment reached a log stream"
+
+
+def test_the_captured_segment_stderr_sweep_finds_a_planted_leak(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The negative control, planted at the exact site the design depends on.
+
+    ``_dispatch`` hands ``_log`` the matched TEMPLATE. Handing it ``self.path``
+    instead is a one-word change and is the whole failure mode this decision
+    guards, so that is what is planted.
+    """
+    cert, _key = cert_pair
+
+    class LoggingTheRequestPath(server.DashboardHandler):
+        def _log(self, template: str, code: int) -> None:
+            del template
+            sys.stderr.write(f"{self.path} {code}\n")
+
+    with serving_handler(cfg, LoggingTheRequestPath, [capture_route()]) as port:
+        drive_capture_canary_requests(port, cert)
+    found = capsys.readouterr().err.count(CANARY)
+    assert found > 0, "the stderr sweep cannot see a logged path, so its zeroes prove nothing"
+
+
+def test_the_assembled_route_table_registers_every_template_it_publishes() -> None:
+    """``serve(config, ROUTES)`` reaches ``routing`` before it reaches a socket.
+
+    While the refusal stood, this raised and every acceptance arm downstream of
+    the listener fixture reported a listener failure rather than the thing it
+    graded.
+    """
+    table = server.routing(routes.ROUTES)
+    assert sorted(table) == sorted({route.template for route in routes.ROUTES})
+
+
+def test_both_path_parameter_endpoints_answer_over_a_real_request(
+    cfg: config.ServerConfig, cert_pair: tuple[Path, Path]
+) -> None:
+    """The two endpoints that had no reachable URL, driven over TLS.
+
+    The derivation route is 501 and NAMES its blocking item. The state route
+    answers POST, so a GET on it is 405 and not 501 and not 404 - the resource
+    is real, the verb is not, and that distinction is the one
+    ``clockspeed/surface/api/pending.py`` is built around.
+    """
+    cert, _key = cert_pair
+    with server.serve(cfg, routes.ROUTES) as running:
+        port = running.server_address[1]
+        derivation_code, _dh, derivation_body = request(
+            port, f"/api/advice/{CANARY}/derivation", cert
+        )
+        state_code, _sh, state_body = request(port, f"/api/advice/{CANARY}/state", cert)
+    assert derivation_code == contract.HTTP_NOT_IMPLEMENTED
+    assert pending.PENDING_BLOCKER.encode("ascii") in derivation_body
+    assert state_code == contract.HTTP_METHOD_NOT_ALLOWED
+    leaked = derivation_body.count(CANARY.encode("ascii")) + state_body.count(
+        CANARY.encode("ascii")
+    )
+    assert leaked == 0, "a shipped endpoint reflected the captured segment"
 
 
 # ---------------------------------------------------------------------------

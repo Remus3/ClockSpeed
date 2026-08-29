@@ -12,15 +12,54 @@ registry is bound into it by CLOSURE before the route is registered here. No
 endpoint module imports this one, which is what lets an endpoint be tested
 without standing up a listener.
 
-ROUTING IS EXACT MATCHING AGAINST AUTHORED LITERALS. There is no path resolution
-step anywhere below, for the static set or the API set, and that is a stronger
+ROUTING COMPARES SEGMENTS AND RESOLVES NOTHING. There is no path resolution step
+anywhere below, for the static set or the API set, and that is a stronger
 statement than "traversal is normalised away". ``GET /../../work/x.sav`` does not
-fail a check - there is no check for it to fail, because the request path is only
-ever compared for equality against three authored filenames and a table of route
-templates, and it equals none of them. A template carrying a path parameter is
-REFUSED at registration rather than supported: the handler signature admits query
-parameters only, so a captured path segment would have nowhere to go, and a route
-that silently never matches is worse than one that will not register.
+fail a check - there is no check for it to fail. The static set is compared for
+equality against three authored filenames. The API set is matched by splitting
+the request path on ``/`` and comparing it segment by segment against a template,
+which normalises nothing, collapses nothing and joins nothing to a directory.
+``/api/advice/../state`` therefore MATCHES ``/api/advice/<id>/state`` and hands
+the handler ``{"id": ".."}``: a card id that no card has, answered honestly, with
+no filesystem anywhere in the path it took.
+
+A TEMPLATE MAY CARRY A PATH PARAMETER, AND THIS REVERSES AN EARLIER REFUSAL.
+``routing`` used to raise on ``<`` outright, on the stated grounds that "a
+handler receives query parameters only, so a captured segment would have nowhere
+to go". That was wrong about its own type: :data:`contract.Handler` is
+``Callable[[Mapping[str, str]], Response]`` and a captured segment is a ``str``.
+The cost of the refusal was not theoretical - ``/api/advice/<id>/derivation`` and
+``/api/advice/<id>/state`` are two of the nine endpoints ``BOOTSTRAP.md`` section
+7.1 publishes, ``contract.ENDPOINT_PATTERN`` already admitted their spelling, and
+``serve(config, ROUTES)`` raised before it reached a socket. Three rules replace
+it, and each is decided here rather than left to fall out of iteration order:
+
+  - A LITERAL TEMPLATE WINS over a parameterised one that would also match. The
+    literal is the more specific statement of intent.
+  - A CAPTURE IS ONE NON-EMPTY SEGMENT. Not zero segments and not two, so
+    ``/api/advice//state`` and ``/api/advice/a/b/state`` are both 404. An empty
+    capture would make "the caller named nothing" and "the caller named a card"
+    the same request.
+  - TWO TEMPLATES THAT WOULD MATCH ONE PATH ARE REFUSED AT REGISTRATION, because
+    the alternative is a table that is the right size and answers with whichever
+    route was registered last.
+
+A CAPTURED SEGMENT IS CALLER-CHOSEN TEXT, AND IS THE FIRST OF IT THIS LAYER PUTS
+INTO HANDLER INPUT. It reaches the handler in the same mapping as the query
+parameters, under its own name, and it OVERWRITES a query parameter that spells
+that name - ``/api/advice/abc/state?id=other`` addresses card ``abc``, because
+which resource was addressed is structural and a query is not. Letting the query
+win would let a caller pick which card a handler thought it was acting on.
+
+What keeps the capture from going further is STRUCTURAL rather than a filter.
+There is deliberately no charset restriction on a capture: this module does not
+know what a card id may spell, phase 5 has not written it down, and a template
+that silently never matches a legitimate id is the fault the paragraph above
+already names as worse than a refusal. Instead, ``_dispatch`` hands the matched
+TEMPLATE - never the request path - to ``_log`` and to every ``contract``
+constructor it calls, so there is no formatting site for a captured value to
+reach. That property is swept for by canary on both channels in
+``tests/surface/test_server.py``, each sweep with a negative control.
 
 WHY ``allow_reuse_address`` IS FALSE, MEASURED ON THIS MACHINE RATHER THAN
 ASSUMED. Windows permits a second process to bind a port a first process is
@@ -108,6 +147,7 @@ __all__ = [
     "RouteError",
     "bind_refusal",
     "build_server",
+    "match_route",
     "routing",
     "run",
     "serve",
@@ -179,6 +219,25 @@ STATIC_LABEL_PREFIX: Final = "static:"
 
 
 # ---------------------------------------------------------------------------
+# How a template spells a path parameter
+# ---------------------------------------------------------------------------
+
+#: What a request path and a template are both split on. Named rather than
+#: written inline so the two splits cannot drift apart, which would be a
+#: mismatch nothing would notice until a request took the wrong route.
+SEGMENT_SEPARATOR: Final = "/"
+
+#: The brackets ``contract.ENDPOINT_PATTERN`` admits around a parameter name.
+PARAMETER_OPEN: Final = "<"
+PARAMETER_CLOSE: Final = ">"
+
+#: What a parameter is reduced to when two templates are compared for whether
+#: they would match the same paths. A parameter's NAME does not affect what it
+#: matches, so it must not affect whether two templates collide.
+PARAMETER_SHAPE: Final = "<>"
+
+
+# ---------------------------------------------------------------------------
 # Timing and lifetime
 # ---------------------------------------------------------------------------
 
@@ -205,9 +264,9 @@ EXIT_BIND_FAILED: Final = 2
 EXIT_CERTIFICATE: Final = 3
 
 ROUTE_NOT_A_TEMPLATE: Final = "a route template must be one this repository authored"
-ROUTE_HAS_A_PATH_PARAMETER: Final = (
-    "a route template may not carry a path parameter: a handler receives query "
-    "parameters only, so a captured segment would have nowhere to go"
+ROUTE_AMBIGUOUS: Final = (
+    "two route templates would match the same request path, so which handler "
+    "answered would depend on the order they were registered in"
 )
 ROUTE_METHOD_UNKNOWN: Final = "a route method must be an uppercase member of the known set"
 ROUTE_DUPLICATED: Final = "two routes claim the same method on the same template"
@@ -326,25 +385,131 @@ def routing(routes: Sequence[contract.Route]) -> dict[str, dict[str, contract.Ha
 
     Raises:
         RouteError: A template is not one this repository could have authored, or
-            carries a path parameter, or a method is outside the known set, or
-            two routes claim the same method on the same template. Each is a
-            fixed line and none quotes the offending value: a route table is
-            authored here, but a refusal that quotes its input is a formatting
-            site waiting for the day one is not.
+            a method is outside the known set, or two routes claim the same
+            method on the same template, or two templates would match the same
+            request path. Each is a fixed line and none quotes the offending
+            value: a route table is authored here, but a refusal that quotes its
+            input is a formatting site waiting for the day one is not.
     """
     table: dict[str, dict[str, contract.Handler]] = {}
+    shapes: dict[tuple[str, ...], str] = {}
     for route in routes:
         if contract.ENDPOINT_PATTERN.fullmatch(route.template) is None:
             raise RouteError(ROUTE_NOT_A_TEMPLATE)
-        if "<" in route.template:
-            raise RouteError(ROUTE_HAS_A_PATH_PARAMETER)
         if route.method not in KNOWN_METHODS:
             raise RouteError(ROUTE_METHOD_UNKNOWN)
+        shape = _shape(route.template)
+        if shapes.setdefault(shape, route.template) != route.template:
+            raise RouteError(ROUTE_AMBIGUOUS)
         bucket = table.setdefault(route.template, {})
         if route.method in bucket:
             raise RouteError(ROUTE_DUPLICATED)
         bucket[route.method] = route.handler
     return table
+
+
+def _shape(template: str) -> tuple[str, ...]:
+    """The template's segments, with every parameter reduced to one sentinel.
+
+    TWO TEMPLATES WITH ONE SHAPE MATCH EXACTLY THE SAME PATHS, whatever their
+    parameters are called - ``/api/advice/<id>/state`` and
+    ``/api/advice/<card>/state`` are the same route wearing two names. Comparing
+    shapes is what lets :func:`routing` see that at registration instead of
+    letting a request discover it.
+
+    Args:
+        template: A template already checked against ``ENDPOINT_PATTERN``.
+
+    Returns:
+        The segments, each parameter replaced by :data:`PARAMETER_SHAPE`.
+    """
+    return tuple(
+        PARAMETER_SHAPE if _capture_name(segment) is not None else segment
+        for segment in template.split(SEGMENT_SEPARATOR)
+    )
+
+
+def _capture_name(segment: str) -> str | None:
+    """The parameter a template segment declares, or None for a literal.
+
+    Args:
+        segment: One segment of a template.
+
+    Returns:
+        The name between the brackets, or None. ``ENDPOINT_PATTERN`` has already
+        established that a bracketed segment is well formed, so this recovers a
+        name rather than validating one.
+    """
+    if segment.startswith(PARAMETER_OPEN) and segment.endswith(PARAMETER_CLOSE):
+        return segment[1:-1]
+    return None
+
+
+def match_route(
+    table: Mapping[str, Mapping[str, contract.Handler]], raw_path: str
+) -> tuple[str, dict[str, str]] | None:
+    """Find the template a concrete request path addresses, and what it captured.
+
+    A MODULE-LEVEL FUNCTION RATHER THAN A METHOD, so the whole matching decision
+    is answerable without a socket, a certificate or a request object - and so
+    an arm that claims to grade matching can be shown to go red when matching is
+    taken away.
+
+    NOTHING IS RESOLVED HERE. The path is split on ``/`` and compared segment by
+    segment. No normalisation, no collapsing of ``.`` or ``..``, no join to any
+    directory. See the module docstring for why that is a stronger guarantee
+    than sanitising would be.
+
+    Args:
+        table: The route table from :func:`routing`, keyed by template.
+        raw_path: The request path with any query string already removed.
+
+    Returns:
+        (matched template, captured segments by parameter name), or None when
+        nothing matches. A literal template is returned with no captures; a
+        parameterised one is returned only with every parameter filled.
+    """
+    literal = table.get(raw_path)
+    if literal is not None and PARAMETER_OPEN not in raw_path:
+        return raw_path, {}
+
+    asked = raw_path.split(SEGMENT_SEPARATOR)
+    for template in table:
+        if PARAMETER_OPEN not in template:
+            continue
+        captured = _captures(template, asked)
+        if captured is not None:
+            return template, captured
+    return None
+
+
+def _captures(template: str, asked: Sequence[str]) -> dict[str, str] | None:
+    """Match one parameterised template against already-split request segments.
+
+    Args:
+        template: A template carrying at least one parameter.
+        asked: The request path's segments, in order.
+
+    Returns:
+        The captured segments by name, or None when the template does not match.
+        A capture must be exactly one NON-EMPTY segment: an empty one would make
+        ``/api/advice//state`` a request for a card whose id is the empty string,
+        which is not a card any world has.
+    """
+    parts = template.split(SEGMENT_SEPARATOR)
+    if len(parts) != len(asked):
+        return None
+    captured: dict[str, str] = {}
+    for part, segment in zip(parts, asked, strict=True):
+        name = _capture_name(part)
+        if name is None:
+            if part != segment:
+                return None
+        elif not segment:
+            return None
+        else:
+            captured[name] = segment
+    return captured
 
 
 # ---------------------------------------------------------------------------
@@ -540,10 +705,22 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return
 
         table: Mapping[str, Mapping[str, contract.Handler]] = self.server.routing_table  # type: ignore[attr-defined]
-        bucket = table.get(raw_path)
-        if bucket is None:
+        matched = match_route(table, raw_path)
+        if matched is None:
             self._respond(contract.no_such_route(), contract.ENDPOINT_UNROUTED)
             return
+
+        # EVERY LINE BELOW NAMES `template` AND NOT `raw_path`, AND THAT IS THE
+        # WHOLE OF THE NON-REFLECTION GUARANTEE. While matching was exact the two
+        # were the same string, so passing either was correct and passing the
+        # path was the shorter spelling. They are no longer the same string:
+        # `raw_path` now carries a caller-chosen segment, and a lowercase one
+        # satisfies `contract.ENDPOINT_PATTERN`, so `_checked_endpoint` would
+        # PASS it straight into a response body. `template` is a literal this
+        # repository authored, which is the only kind of value that belongs on a
+        # log line or in an envelope.
+        template, captured = matched
+        bucket = table[template]
 
         handler = bucket.get(self.command)
         if handler is None and self.command == "HEAD":
@@ -554,15 +731,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
             # that forgot would 405 a method the specification requires.
             handler = bucket.get("GET")
         if handler is None:
-            self._respond(contract.method_not_allowed(raw_path), raw_path)
+            self._respond(contract.method_not_allowed(template), template)
             return
 
         params = self._query(raw_query)
         if params is None:
-            self._respond(contract.bad_request(raw_path, contract.REASON_MALFORMED_QUERY), raw_path)
+            self._respond(contract.bad_request(template, contract.REASON_MALFORMED_QUERY), template)
             return
 
-        self._respond(handler(params), raw_path)
+        # THE PATH CAPTURE OVERWRITES A QUERY PARAMETER OF THE SAME NAME, in one
+        # place, deliberately. Which resource was addressed is structural; a
+        # query string is what a caller asks ABOUT it. A query that could shadow
+        # a capture would let `?id=other` decide which card a handler acted on.
+        params.update(captured)
+        self._respond(handler(params), template)
 
     def do_GET(self) -> None:
         """Answer a GET."""
