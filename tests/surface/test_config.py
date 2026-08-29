@@ -1,0 +1,493 @@
+"""CS-601 slice S2 - where the dashboard listens, and what it listens with.
+
+What is covered, and the authority for each arm:
+
+a. THE PORT HAS EXACTLY ONE OWNER AND IT IS NOT THIS TREE.
+   ``clockspeed/surface/__init__.py``: "The port is ALLOCATED, recorded once in
+   the project configuration, and read from there. It is not restated in code
+   (CONVENTIONS.md section 2)." So no arm below spells the number, and one arm
+   sweeps this whole test package for an integer literal anywhere in the
+   allocated band - the band itself read from the record, never typed here.
+   That arm is what stops a later test pinning the number a second time and
+   turning the record into a decoration.
+b. PRECEDENCE IS STATED, NOT ASSUMED. ``--port`` beats the environment beats the
+   record. Each step is asserted against the step below it rather than against a
+   literal, so the arms stay true when the allocation moves - and it MOVED this
+   session, which is exactly the event that would have falsified a literal.
+c. A ``ServerConfig`` HOLDS THREE ``Path`` FIELDS AND MUST NOT RENDER THEM.
+   ``tests/repr_rendering_guard.py`` grades that statically under R2; the arm
+   here is the runtime companion, planting a canary inside every path and
+   asserting the rendered repr carries it zero times. The detector is then run
+   against a deliberately leaky repr, so "found nothing" is distinguishable from
+   "looks for nothing" (CONVENTIONS.md section 7.2).
+d. THE CERTIFICATE PAIR IS NAMED IN TWO FILES AND THEY MUST AGREE.
+   ``scripts/make_cert.py`` WRITES the pair and this module READS it. That is a
+   restated fact and therefore a fact that will drift (CLAUDE.md section 4), so
+   one arm parses the script's own literals out of its AST and asserts the two
+   spellings are identical. The duplication is a reported seam collision; this
+   arm is what keeps it honest until the ownership is moved.
+e. A BROKEN RECORD IS A FIXED LINE, NEVER AN ECHO. The record path can sit under
+   a home directory, so a refusal is asserted to carry neither the path nor any
+   fragment of the file it refused (non-negotiable 3).
+
+Test-quality discipline (CONVENTIONS.md section 7.2). Every sweep binds its
+population size to a scalar and asserts the expected count BEFORE it iterates: a
+sweep over an empty collection passes vacuously and proves nothing. Every
+assertion about an absence is bound to a scalar too, because pytest renders the
+asserted EXPRESSION independently of the message - asserting on the collection
+itself is how this repository once shipped a path leak inside its own PII guard.
+"""
+
+from __future__ import annotations
+
+import ast
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Final
+
+import pytest
+
+from clockspeed.surface import config
+
+# ---------------------------------------------------------------------------
+# Populations, each with the count its sweep asserts before iterating
+# ---------------------------------------------------------------------------
+
+#: This test package. Swept for a port literal, so the number stays in one file.
+TEST_PACKAGE: Final = Path(__file__).resolve().parent
+
+#: Modules the port sweep expects to find. Asserted BEFORE the sweep iterates,
+#: so a rename that empties the population turns the arm red instead of green.
+MIN_SWEPT_TEST_MODULES: Final = 2
+
+#: A string no path on any machine carries, planted into a path and then counted
+#: in a rendering. Long and arbitrary, so a substring hit is a real hit.
+CANARY: Final = "zqxjcanary601s2"
+
+#: The minting script whose two filenames this module has to agree with.
+MAKE_CERT: Final = "scripts/make_cert.py"
+
+#: The names arm (d) lifts out of that script, mapped to this module's spelling.
+CERT_LITERAL_PAIRS: Final = (
+    ("CERT_NAME", "CERT_NAME"),
+    ("KEY_NAME", "KEY_NAME"),
+    ("ENV_CERT_DIR", "CERT_DIR_ENV"),
+    ("DEFAULT_CERT_DIRNAME", "DEFAULT_CERT_DIRNAME"),
+)
+
+#: The transport's own range. Not an allocation, so it is not the record's to own.
+LOWEST_PORT: Final = 0
+HIGHEST_PORT: Final = 65535
+
+#: Files that exist at the repository root and nowhere above it. Three rather
+#: than one, because any single landmark could also sit in a parent directory.
+ROOT_LANDMARKS: Final = ("pyproject.toml", "CLAUDE.md", "config/ports.json")
+
+
+# ---------------------------------------------------------------------------
+# Detectors. Each is used to prove an absence, so each is also run against a
+# planted POSITIVE below - a detector that looks for nothing finds nothing.
+# ---------------------------------------------------------------------------
+
+
+def port_literals_in(source: str, low: int, high: int) -> list[int]:
+    """Every integer literal in ``source`` that falls inside the closed band.
+
+    Args:
+        source: Python source text.
+        low: The band's first port.
+        high: The band's last port.
+
+    Returns:
+        The offending literals, in the order the parser met them.
+    """
+    return [
+        node.value
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Constant)
+        and isinstance(node.value, int)
+        and not isinstance(node.value, bool)
+        and low <= node.value <= high
+    ]
+
+
+def canary_hits(rendering: str) -> int:
+    """How many times the planted canary survives into a rendering.
+
+    Args:
+        rendering: Whatever the object rendered as.
+
+    Returns:
+        The occurrence count. Zero is the only passing answer for a real config.
+    """
+    return rendering.count(CANARY)
+
+
+def module_literal(tree: ast.Module, name: str) -> str | None:
+    """The string a module-level ``NAME = "..."`` assignment binds.
+
+    Args:
+        tree: A parsed module.
+        name: The identifier to find.
+
+    Returns:
+        The bound string, or None when the module does not bind that name to
+        a string constant at module level.
+    """
+    for node in tree.body:
+        targets = (
+            node.targets
+            if isinstance(node, ast.Assign)
+            else [node.target]
+            if isinstance(node, ast.AnnAssign)
+            else []
+        )
+        for target in targets:
+            if (
+                isinstance(target, ast.Name)
+                and target.id == name
+                and isinstance(node.value, ast.Constant)
+                and isinstance(node.value.value, str)
+            ):
+                return node.value.value
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def band() -> tuple[int, int]:
+    """The allocated band, read from the record rather than typed here.
+
+    Returns:
+        (first port, last port).
+    """
+    payload = json.loads(config.ports_record_path().read_text(encoding="ascii"))
+    return int(payload["band"]["start"]), int(payload["band"]["end"])
+
+
+@pytest.fixture
+def synthetic_record(tmp_path: Path) -> Path:
+    """A record whose base is deliberately NOT the allocated one.
+
+    A test that used the real base could not tell "read the record" apart from
+    "returned the number it was going to return anyway".
+
+    ``band.start`` IS DELIBERATELY A DIFFERENT NUMBER FROM ``base``, and that is
+    a repair rather than a detail. The real record happens to carry the same
+    value under both keys, so while this fixture mirrored that, a mutation
+    reading ``band.start`` instead of ``base`` passed all thirty arms - MEASURED,
+    not supposed. Two keys that always agree are one key as far as any test can
+    see, and the arm was proving nothing about which one was read. Keep these
+    two numbers different.
+
+    Returns:
+        The written record.
+    """
+    path = tmp_path / "ports.json"
+    payload = {"schema": 1, "base": 1234, "band": {"start": 1300, "end": 1400}}
+    path.write_text(json.dumps(payload), encoding="ascii")
+    return path
+
+
+# ---------------------------------------------------------------------------
+# (a) The port has exactly one owner
+# ---------------------------------------------------------------------------
+
+
+def test_the_allocated_port_is_the_records_base_and_is_not_spelled_in_code() -> None:
+    record = config.ports_record_path()
+    payload = json.loads(record.read_text(encoding="ascii"))
+    assert config.allocated_port() == payload["base"]
+
+
+def test_the_repo_root_is_the_directory_that_holds_the_record() -> None:
+    root = config.repo_root()
+    found = sum(1 for name in ROOT_LANDMARKS if (root / name).exists())
+    assert found == len(ROOT_LANDMARKS)
+
+
+def test_the_module_source_spells_no_port_in_the_allocated_band(band: tuple[int, int]) -> None:
+    low, high = band
+    source = Path(config.__file__).read_text(encoding="ascii")
+    offenders = len(port_literals_in(source, low, high))
+    assert offenders == 0, "clockspeed/surface/config.py restates an allocated port number"
+
+
+def test_no_test_module_in_this_package_spells_a_port_in_the_allocated_band(
+    band: tuple[int, int],
+) -> None:
+    low, high = band
+    modules = sorted(TEST_PACKAGE.glob("test_*.py"))
+    swept = len(modules)
+    assert swept >= MIN_SWEPT_TEST_MODULES, "the port sweep found too few modules to be meaningful"
+    offending_modules = sum(
+        1 for path in modules if port_literals_in(path.read_text(encoding="ascii"), low, high)
+    )
+    assert offending_modules == 0, "a test in tests/surface/ pins an allocated port number"
+
+
+def test_the_port_literal_detector_finds_a_planted_positive(band: tuple[int, int]) -> None:
+    low, high = band
+    planted = f"LISTEN_ON = {low}\n"
+    found = len(port_literals_in(planted, low, high))
+    assert found == 1
+
+
+def test_the_port_literal_detector_ignores_a_number_outside_the_band(band: tuple[int, int]) -> None:
+    low, high = band
+    planted = f"OTHER = {low - 1}\nALSO = {high + 1}\n"
+    found = len(port_literals_in(planted, low, high))
+    assert found == 0
+
+
+# ---------------------------------------------------------------------------
+# (b) Precedence, each step asserted against the step below it
+# ---------------------------------------------------------------------------
+
+
+def test_the_record_is_the_answer_when_nothing_overrides(synthetic_record: Path) -> None:
+    from_record = json.loads(synthetic_record.read_text(encoding="ascii"))["base"]
+    assert config.resolve_port(env={}, record=synthetic_record) == from_record
+
+
+def test_the_environment_beats_the_record(synthetic_record: Path) -> None:
+    from_record = json.loads(synthetic_record.read_text(encoding="ascii"))["base"]
+    declared = from_record + 1
+    chosen = config.resolve_port(env={config.PORT_ENV: str(declared)}, record=synthetic_record)
+    assert chosen == declared
+    assert chosen != from_record
+
+
+def test_a_requested_port_beats_both_the_environment_and_the_record(
+    synthetic_record: Path,
+) -> None:
+    from_record = json.loads(synthetic_record.read_text(encoding="ascii"))["base"]
+    from_env = from_record + 1
+    requested = from_record + 2
+    chosen = config.resolve_port(
+        requested=requested,
+        env={config.PORT_ENV: str(from_env)},
+        record=synthetic_record,
+    )
+    assert chosen == requested
+    assert chosen != from_env
+    assert chosen != from_record
+
+
+def test_port_zero_is_requestable_because_every_test_binds_it(synthetic_record: Path) -> None:
+    assert config.resolve_port(requested=LOWEST_PORT, env={}, record=synthetic_record) == 0
+
+
+def test_a_non_integer_environment_port_is_refused_rather_than_ignored(
+    synthetic_record: Path,
+) -> None:
+    with pytest.raises(config.ConfigError) as caught:
+        config.resolve_port(env={config.PORT_ENV: "not-a-number"}, record=synthetic_record)
+    assert config.PORT_NOT_AN_INTEGER in str(caught.value)
+
+
+def test_an_environment_port_outside_the_transport_range_is_refused(
+    synthetic_record: Path,
+) -> None:
+    with pytest.raises(config.ConfigError) as caught:
+        config.resolve_port(env={config.PORT_ENV: str(HIGHEST_PORT + 1)}, record=synthetic_record)
+    assert config.PORT_OUT_OF_RANGE in str(caught.value)
+
+
+def test_a_requested_port_outside_the_transport_range_is_refused(synthetic_record: Path) -> None:
+    with pytest.raises(config.ConfigError) as caught:
+        config.resolve_port(requested=-1, env={}, record=synthetic_record)
+    assert config.PORT_OUT_OF_RANGE in str(caught.value)
+
+
+# ---------------------------------------------------------------------------
+# (e) A broken record is a fixed line, never an echo
+# ---------------------------------------------------------------------------
+
+
+def test_a_missing_record_refuses_with_a_fixed_line_that_does_not_echo_the_path(
+    tmp_path: Path,
+) -> None:
+    missing = tmp_path / CANARY / "ports.json"
+    with pytest.raises(config.ConfigError) as caught:
+        config.allocated_port(missing)
+    message = str(caught.value)
+    assert config.RECORD_UNREADABLE in message
+    leaked = canary_hits(message)
+    assert leaked == 0, "the refusal echoed the path it refused"
+
+
+def test_a_record_that_is_not_json_refuses_without_echoing_its_content(tmp_path: Path) -> None:
+    path = tmp_path / "ports.json"
+    path.write_text(f"this is not json and it mentions {CANARY}", encoding="ascii")
+    with pytest.raises(config.ConfigError) as caught:
+        config.allocated_port(path)
+    message = str(caught.value)
+    assert config.RECORD_MALFORMED in message
+    leaked = canary_hits(message)
+    assert leaked == 0, "the refusal echoed the file it refused"
+
+
+def test_a_record_whose_base_is_not_an_integer_refuses(tmp_path: Path) -> None:
+    path = tmp_path / "ports.json"
+    path.write_text(json.dumps({"schema": 1, "base": CANARY}), encoding="ascii")
+    with pytest.raises(config.ConfigError) as caught:
+        config.allocated_port(path)
+    message = str(caught.value)
+    assert config.RECORD_MALFORMED in message
+    leaked = canary_hits(message)
+    assert leaked == 0
+
+
+def test_a_record_with_no_base_at_all_refuses(tmp_path: Path) -> None:
+    path = tmp_path / "ports.json"
+    path.write_text(json.dumps({"schema": 1}), encoding="ascii")
+    with pytest.raises(config.ConfigError):
+        config.allocated_port(path)
+
+
+# ---------------------------------------------------------------------------
+# (c) A ServerConfig holds three Path fields and must not render them
+# ---------------------------------------------------------------------------
+
+
+def built_config(tmp_path: Path) -> config.ServerConfig:
+    """A config whose every path carries the canary.
+
+    Args:
+        tmp_path: pytest's per-test directory.
+
+    Returns:
+        The config under test.
+    """
+    return config.ServerConfig(
+        host=config.LOOPBACK,
+        port=LOWEST_PORT,
+        cert_path=tmp_path / CANARY / "dashboard.cert.pem",
+        key_path=tmp_path / CANARY / "dashboard.key.pem",
+        web_dir=tmp_path / CANARY / "web",
+    )
+
+
+def test_the_server_config_repr_withholds_every_path_it_holds(tmp_path: Path) -> None:
+    leaked = canary_hits(repr(built_config(tmp_path)))
+    assert leaked == 0, "ServerConfig.__repr__ rendered a path"
+
+
+def test_the_server_config_str_withholds_every_path_it_holds(tmp_path: Path) -> None:
+    leaked = canary_hits(str(built_config(tmp_path)))
+    assert leaked == 0, "str(ServerConfig) rendered a path"
+
+
+def test_the_server_config_repr_still_names_its_own_type(tmp_path: Path) -> None:
+    assert "ServerConfig" in repr(built_config(tmp_path))
+
+
+def test_the_canary_detector_finds_a_deliberately_leaky_repr(tmp_path: Path) -> None:
+    @dataclass(frozen=True, repr=False)
+    class Leaky:
+        cert_path: Path
+
+        def __repr__(self) -> str:
+            return f"Leaky(cert_path={self.cert_path})"
+
+    found = canary_hits(repr(Leaky(cert_path=tmp_path / CANARY / "x.pem")))
+    assert found == 1, "the canary detector cannot see a leak, so its zeroes prove nothing"
+
+
+def test_the_canary_detector_finds_a_generated_repr(tmp_path: Path) -> None:
+    @dataclass(frozen=True)
+    class Generated:
+        cert_path: Path
+
+    found = canary_hits(repr(Generated(cert_path=tmp_path / CANARY / "x.pem")))
+    assert found == 1, "a generated repr is the exact leak R2 exists to catch"
+
+
+def test_a_server_config_is_frozen(tmp_path: Path) -> None:
+    built = built_config(tmp_path)
+    with pytest.raises(AttributeError):
+        built.port = HIGHEST_PORT  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# (d) The certificate pair is named in two files and they must agree
+# ---------------------------------------------------------------------------
+
+
+def test_the_certificate_pair_is_spelled_the_same_here_and_in_the_minting_script() -> None:
+    script = config.repo_root() / MAKE_CERT
+    assert script.is_file(), "the minting script moved; arm (d) is no longer checking anything"
+    tree = ast.parse(script.read_text(encoding="ascii"))
+    checked = 0
+    disagreements = 0
+    for script_name, config_name in CERT_LITERAL_PAIRS:
+        theirs = module_literal(tree, script_name)
+        ours = getattr(config, config_name, None)
+        if theirs is None or ours is None:
+            disagreements += 1
+            continue
+        checked += 1
+        if theirs != ours:
+            disagreements += 1
+    assert checked == len(CERT_LITERAL_PAIRS), "a certificate literal is no longer readable"
+    assert disagreements == 0, "the certificate pair drifted between config.py and make_cert.py"
+
+
+def test_the_certificate_paths_sit_under_the_resolved_certificate_directory() -> None:
+    built = config.load_config(requested_port=LOWEST_PORT, env={})
+    # EVERY COMPARISON BELOW IS REDUCED TO A BOOL OR A BARE NAME FIRST. Writing
+    # `assert built.cert_path.name == config.CERT_NAME` reads correctly and is
+    # still a leak: pytest reprs the sub-expressions of a failing assert
+    # independently of its message, so `built.cert_path` renders in full - the
+    # certificate directory can sit under a home directory. Measured by
+    # tests/test_assertion_rendering.py, which caught seven of these here.
+    same_directory = built.cert_path.parent == built.key_path.parent
+    cert_named_right = built.cert_path.name == config.CERT_NAME
+    key_named_right = built.key_path.name == config.KEY_NAME
+    assert same_directory is True
+    assert cert_named_right is True, "the certificate is not the file make_cert.py writes"
+    assert key_named_right is True, "the key is not the file make_cert.py writes"
+
+
+def test_the_certificate_directory_honours_its_environment_override(tmp_path: Path) -> None:
+    elsewhere = tmp_path / "elsewhere"
+    built = config.load_config(
+        requested_port=LOWEST_PORT, env={config.CERT_DIR_ENV: str(elsewhere)}
+    )
+    honoured = built.cert_path.parent == elsewhere
+    assert honoured is True
+
+
+# ---------------------------------------------------------------------------
+# The rest of the config surface
+# ---------------------------------------------------------------------------
+
+
+def test_the_config_binds_loopback_and_never_a_wildcard() -> None:
+    built = config.load_config(requested_port=LOWEST_PORT, env={})
+    assert built.host == config.LOOPBACK
+    assert built.host != "0.0.0.0"  # noqa: S104
+    assert built.host != ""
+
+
+def test_the_web_directory_sits_inside_the_surface_package() -> None:
+    built = config.load_config(requested_port=LOWEST_PORT, env={})
+    inside = built.web_dir.parent == Path(config.__file__).resolve().parent
+    assert inside is True
+
+
+def test_the_web_directory_is_not_required_to_exist() -> None:
+    built = config.load_config(requested_port=LOWEST_PORT, env={})
+    is_a_path = isinstance(built.web_dir, Path)
+    assert is_a_path is True
+
+
+def test_load_config_reads_the_real_record_when_nothing_overrides() -> None:
+    built = config.load_config(env={})
+    assert built.port == config.allocated_port()
