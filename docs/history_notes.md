@@ -5076,3 +5076,67 @@ Pruned from `WAKEUP_NOTES.md` when session 45 landed and the file held four.
   analysis from the one this session built.
 
 ---
+
+## Relocated from WAKEUP_NOTES.md 2026-08-29 - session 44 at full fidelity
+
+Moved by the session 47 `/done` ritual, which keeps the last two to three sessions in
+`WAKEUP_NOTES.md` only. Relocated, never deleted.
+
+## Session 44 - 2026-08-28 - CS-857's channel shut at all five shipped sites; the census built to prove it carries a FALSE CLEARANCE, and three of four adversaries never reported
+
+- **Shipped: NOTHING CLOSED. CS-857 STAYS OPEN.** The remedy, the derived census and the two
+  corrected exemption reasons all merged. CS-858 and CS-859 were filed. Detail in
+  `docs/LEDGER.md` and `docs/item_notes/phase4-followups-850.md`, not here.
+
+- **THE CHANNEL IS SHUT WHERE IT WAS MEASURED LEAKING.** The five OSError-rooted sites chain
+  `_pathless_cause(exc)` - an `OSError(exc.errno, exc.strerror)` clone with no `filename`.
+  `tests/test_chained_cause.py` went `6 failed, 10 passed` to `16 passed` across that repair,
+  and reintroducing `exc.filename` returns it to the original failure signature exactly.
+
+- **THE HEADLINE: THE GUARD'S ONE POSITIVE VERDICT IS REACHABLE WHILE THE PATH RENDERS.**
+  `classify` tests `FORM_SUPPRESSED` above `MEASURED_LEAK`, so `raise exc from None` inside
+  `except OSError as exc` is graded `closed-suppressed` and the traceback still prints the
+  filename - because `from None` suppresses the CONTEXT and the exception being raised is the
+  binding itself. Latent, not live. The guard's own docstring says `from None` "genuinely
+  closes the channel"; that is measured FALSE. **This project has now produced a false
+  clearance in three consecutive sessions, each time inside the guard written to prevent the
+  last one.**
+
+- **A REPAIR CAN MAKE ITS OWN SITES UNPROVABLE.** `from _pathless_cause(exc)` is a `Call` the
+  static rule cannot resolve, so the five sites moved from `measured-leak` to `unproven`, not
+  to anything positive - and an adversary's no-op `from _identity(exc)` grades IDENTICALLY.
+  The runtime module proves the repair; the census cannot see that it is genuine. Two halves,
+  neither sufficient alone, and the leaks-reported-every-run warning silently stopped firing.
+
+- **A LINE-NUMBER LIST DRIFTED THREE TIMES IN ONE SESSION** - stale at filing, broken by a
+  re-derivation matching the closing `) from exc` line instead of the statement line, then
+  moved by this item's own repair. Deleted from the note; `tests/chained_cause_guard.py` is
+  now its owner. `CLAUDE.md` section 4 had the answer the whole time.
+
+- **Decisions: none recorded as an ADR.** Four operator rounds: CS-857 as the unit; the
+  section 5 shape; that the acceptance's disjunction does NOT permit closing with no
+  `clockspeed/` change, so the remedy ships; and filing CS-858 plus CS-859.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But `tests/test_redaction_scope.py`'s
+  chained-cause pointer was REPOINTED rather than renumbered: its successor line is the
+  STAGE_HEADER raise, where the sentence it carries is FALSE, because `parse_header` takes
+  bytes and its `HeaderError` has no filename to carry.
+
+- **Failed paths: none abandoned.** Two merger claims were withdrawn under measurement - that
+  four `workdir.py` pointers were stale, when the note had them right and a grep convention
+  broke them; and that the census figures described the merged tree, when they described
+  `209ce05`.
+
+- **THREE OF FOUR ADVERSARIES NEVER REPORTED.** Two died on an expired OAuth token mid-run,
+  one was stopped. The population lens returned REFUTED and found everything above. The
+  false-clearance, does-it-reproduce and privacy lenses are UNRUN and their briefs stand.
+
+- **Next action: RE-DISPATCH THE THREE REFUTERS THAT DIED.** Their briefs are in the session
+  44 transcript and the lenses are named in the CS-857 note. The does-it-reproduce brief
+  carries the one measurement three agents have now read and none has forced - whether
+  `tests/conftest.py:665` actually scrubs a chained cause.
+
+- **DOC BUDGET.** `docs/item_notes/phase4-followups.md` crossed 90 per cent this session and
+  the residual record pushed it further. The next phase-4 round should expect to relocate.
+
+---

@@ -34,6 +34,58 @@ the line becomes a pointer.
 
 ---
 
+## Session 47 - 2026-08-29 - CS-601 CLOSED. Phase 6 opened ahead of phase 5 by operator ruling, and there is a working dashboard; the port band moved after nine sessions of blaming a squatter that was never one
+
+- **Shipped: CS-601.** The local HTTPS dashboard and JSON API answer all nine BOOTSTRAP 7.1
+  endpoints - four with computed data, five with a machine-readable refusal naming CS-500.
+  Detail in `docs/LEDGER.md` and ADR 0012, not here. **CS-600 STAYS OPEN**: it is the phase
+  gate and CS-602, the companion window, is unstarted.
+
+- **PHASE 6 OPENED AHEAD OF PHASE 5, BY OPERATOR RULING, AND IT IS A RECORDED DEPARTURE.**
+  `advisor/`, `audit/` and `progress/` hold a docstring each. `CLAUDE.md` says not to advance
+  past a phase whose acceptance is unmet. The operator was given the choice and took the
+  walking skeleton over the four layers that already exist. Do not re-litigate it; do not
+  treat it as precedent for skipping a gate without a ruling.
+
+- **THE PORT BAND MOVED, AND THE NINE-SESSION DIAGNOSIS WAS WRONG.** `docs/LEDGER.md` recorded
+  8901 as held by "an unrelated third-party process". It was not unrelated and 8901 was never
+  this project's: the whole 8900-8919 block belongs to LegionWallpaper, and Clockspeed's band
+  was chosen by PROBING for a free listener. LW's monitor is an operator-launched GUI that is
+  unbound most of the time, so a live scan reported a fully reserved block as free. Band is
+  now 8920-8939 and `verify_env.py` reports 20/20 free. **Verify a band against the owning
+  registry in source, never against a scan.**
+
+- **THE MERGER'S BRIEFS WERE MEASURABLY WRONG SEVEN TIMES AND EVERY ONE WAS CAUGHT BY A
+  SLICE.** A `*Error` name rule that would have graded 2 of 12 exception classes, then a
+  correction that was also wrong (5 carry no suffix, not 8). The wrong file named as owning
+  the repr records. An `EXEMPT` remedy that would have fixed neither red arm. An example port
+  from inside the allocated band, caught by the repo's own guard. A canary brief that looked
+  at handlers when the reflection lived in the DISPATCHER. A harness option measured to change
+  nothing. A disjointness precondition checked on FILE PATHS while two slices were coupled
+  through a TYPE SIGNATURE.
+
+- **Decisions: ADR 0012 ACCEPTED.** The 501/503 split, `detail` looked up by reason and never
+  built from content, the exact-rational `{"num","den"}` wire form, and the ruling that
+  `/api/world` is BACKED.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But the browser pane REFUSES HTTPS with a
+  self-signed certificate, denied before the TLS handshake, while BOOTSTRAP 7.1 mandates HTTPS.
+  The five-phase visual audit is therefore run against a test-only plain-HTTP harness serving
+  the real assets. Production stays HTTPS-only and the harness never ships.
+
+- **Failed paths: the harness routing all five refusals.** Measured A/B: the page's probe set is
+  fixed in `app.js`, not by the harness, and the rendered output was identical. It routes three.
+
+- **`C:` WAS 100 PER CENT FULL - 40 MB of 953 GB.** A session from 2026-08-22 reproducing the
+  CS-819 heredoc failure dropped `python` into interactive mode in a BACKGROUND command; it
+  looped its banner into a 58 GB scratch file while the harness captured another 58 GB of the
+  same stdout. Nothing in that transcript looked wrong. 117 GB recovered. Never background a
+  command that can reach an interactive prompt.
+
+- **Next action: take CS-602, the Electron companion**, which closes phase 6 with CS-600 - or
+  take CS-829, still the head of the product path and untouched for five sessions. Ask the
+  operator which; the surface is now real enough that either is defensible.
+
 ## Session 46 - 2026-08-29 - CS-860's first remedy REFUTED by five reviewers and BACKED OUT; the guard written to remove a naming accident was itself green by one, and it was caught before anything was claimed closed
 
 - **Shipped: NOTHING CLOSED. CS-860 STAYS OPEN.** The home-path family widened, the two new
@@ -149,64 +201,5 @@ the line becomes a pointer.
 - **Next action: CS-857 residual 2** - a raise in a CALLEE of a handler is invisible to the
   population, and it is what blocks the acceptance. Derive a population that can see it.
   `docs/item_notes/phase4-followups.md` is at 99 per cent of budget with the split still due.
-
----
-
-## Session 44 - 2026-08-28 - CS-857's channel shut at all five shipped sites; the census built to prove it carries a FALSE CLEARANCE, and three of four adversaries never reported
-
-- **Shipped: NOTHING CLOSED. CS-857 STAYS OPEN.** The remedy, the derived census and the two
-  corrected exemption reasons all merged. CS-858 and CS-859 were filed. Detail in
-  `docs/LEDGER.md` and `docs/item_notes/phase4-followups-850.md`, not here.
-
-- **THE CHANNEL IS SHUT WHERE IT WAS MEASURED LEAKING.** The five OSError-rooted sites chain
-  `_pathless_cause(exc)` - an `OSError(exc.errno, exc.strerror)` clone with no `filename`.
-  `tests/test_chained_cause.py` went `6 failed, 10 passed` to `16 passed` across that repair,
-  and reintroducing `exc.filename` returns it to the original failure signature exactly.
-
-- **THE HEADLINE: THE GUARD'S ONE POSITIVE VERDICT IS REACHABLE WHILE THE PATH RENDERS.**
-  `classify` tests `FORM_SUPPRESSED` above `MEASURED_LEAK`, so `raise exc from None` inside
-  `except OSError as exc` is graded `closed-suppressed` and the traceback still prints the
-  filename - because `from None` suppresses the CONTEXT and the exception being raised is the
-  binding itself. Latent, not live. The guard's own docstring says `from None` "genuinely
-  closes the channel"; that is measured FALSE. **This project has now produced a false
-  clearance in three consecutive sessions, each time inside the guard written to prevent the
-  last one.**
-
-- **A REPAIR CAN MAKE ITS OWN SITES UNPROVABLE.** `from _pathless_cause(exc)` is a `Call` the
-  static rule cannot resolve, so the five sites moved from `measured-leak` to `unproven`, not
-  to anything positive - and an adversary's no-op `from _identity(exc)` grades IDENTICALLY.
-  The runtime module proves the repair; the census cannot see that it is genuine. Two halves,
-  neither sufficient alone, and the leaks-reported-every-run warning silently stopped firing.
-
-- **A LINE-NUMBER LIST DRIFTED THREE TIMES IN ONE SESSION** - stale at filing, broken by a
-  re-derivation matching the closing `) from exc` line instead of the statement line, then
-  moved by this item's own repair. Deleted from the note; `tests/chained_cause_guard.py` is
-  now its owner. `CLAUDE.md` section 4 had the answer the whole time.
-
-- **Decisions: none recorded as an ADR.** Four operator rounds: CS-857 as the unit; the
-  section 5 shape; that the acceptance's disjunction does NOT permit closing with no
-  `clockspeed/` change, so the remedy ships; and filing CS-858 plus CS-859.
-
-- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But `tests/test_redaction_scope.py`'s
-  chained-cause pointer was REPOINTED rather than renumbered: its successor line is the
-  STAGE_HEADER raise, where the sentence it carries is FALSE, because `parse_header` takes
-  bytes and its `HeaderError` has no filename to carry.
-
-- **Failed paths: none abandoned.** Two merger claims were withdrawn under measurement - that
-  four `workdir.py` pointers were stale, when the note had them right and a grep convention
-  broke them; and that the census figures described the merged tree, when they described
-  `209ce05`.
-
-- **THREE OF FOUR ADVERSARIES NEVER REPORTED.** Two died on an expired OAuth token mid-run,
-  one was stopped. The population lens returned REFUTED and found everything above. The
-  false-clearance, does-it-reproduce and privacy lenses are UNRUN and their briefs stand.
-
-- **Next action: RE-DISPATCH THE THREE REFUTERS THAT DIED.** Their briefs are in the session
-  44 transcript and the lenses are named in the CS-857 note. The does-it-reproduce brief
-  carries the one measurement three agents have now read and none has forced - whether
-  `tests/conftest.py:665` actually scrubs a chained cause.
-
-- **DOC BUDGET.** `docs/item_notes/phase4-followups.md` crossed 90 per cent this session and
-  the residual record pushed it further. The next phase-4 round should expect to relocate.
 
 ---

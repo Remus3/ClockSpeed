@@ -75,6 +75,85 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-08-29 - CS-601 - CLOSED. The local HTTPS dashboard and JSON API answer all nine BOOTSTRAP 7.1 endpoints - four with computed data, five with a machine-readable refusal naming the item that would build them
+Verification: `tests/surface/test_acceptance.py`, chiefly
+`tests/surface/test_acceptance.py::test_every_endpoint_bootstrap_names_answers_over_verified_tls`
+and `::test_the_partition_covers_the_endpoint_set_exactly_once`, which start a real TLS
+server on an ephemeral port with a real generated certificate and drive all nine routes with a
+client verifying against that certificate as CA, `check_hostname` left ON. Merged files:
+`clockspeed/surface/api/contract.py`, `health.py`, `world.py`, `solve.py`, `pending.py`,
+`routes.py`; `clockspeed/surface/config.py`, `providers.py`, `server.py`, `__main__.py`;
+`clockspeed/surface/web/index.html`, `app.css`, `app.js`; `scripts/make_cert.py`.
+
+**THE ACCEPTANCE TEST WAS WRITTEN BLIND AND MERGED LAST.** Its author read `BOOTSTRAP.md`
+section 7.1 and the published contract and nothing else - not the server, not one endpoint
+module, not a sibling test. It derives the nine templates itself and asserts the set the server
+exposes equals the set the specification names, rather than importing the route table and
+asserting it contains itself. It was held unmerged until every other slice landed, so no slice
+author ever saw the test that grades their work.
+
+**PHASE 6 OPENED AHEAD OF PHASE 5, BY OPERATOR RULING, AND THAT IS A RECORDED DEPARTURE.**
+Phase 5 has no code: `advisor/`, `audit/` and `progress/` hold a docstring each. `CLAUDE.md`
+says not to advance past a phase whose acceptance is unmet. The operator chose a walking
+skeleton over the four layers that already exist rather than waiting for the advisor.
+
+**THE FIVE UNBACKED ENDPOINTS ANSWER HONESTLY RATHER THAN PLAUSIBLY.** A 200 carrying an empty
+list is indistinguishable from "this world genuinely has no advice", which is non-negotiable 7
+violated at the surface. They answer 501 naming CS-500, and the placeholder has a machine-
+enforced expiry: `not_implemented` refuses a `blocked_by` that is not an OPEN item line in
+`ROADMAP.md`, so the refusal cannot outlive its reason.
+
+**501 AND 503 ARE DIFFERENT TRUTHS AND MUST NOT COLLAPSE.** 501 says the layer beneath does not
+exist yet. 503 says the layer exists and its input is absent on this machine. Conflating them
+would report pillar 1 as unwritten when it is written and merely un-fed.
+
+**`/api/world` IS BACKED - ADJUDICATED 2026-08-29, and the contradiction was internal to one
+module.** `contract.py`'s blocker comment had substituted "no completed layer" for its own
+docstring's "the layer beneath does not exist yet", and asserted a routing the shipped code
+never performed: no endpoint anywhere named CS-400. `docs/item_notes/phase4.md` settles the
+substance - phase 4 can enumerate a world but not inspect it - and `/api/world` serves
+enumeration only, touching none of inventory, clock speed or connection state. Recorded as
+ADR 0012.
+
+**THE BLOCKER VOCABULARY WAS GRADED IN ONE DIRECTION AND WAS GREEN OVER AN ORPHAN.** Membership
+implied an open roadmap line; nothing checked that any route cited the member. CS-400 was
+exactly that orphan. Removed rather than exempted - a registered exemption would have preserved
+a false statement with a reason attached - and a converse arm now measures citations by CALLING
+every handler, with a differential negative control.
+
+**THE REFLECTION RISK WAS IN THE DISPATCHER, NOT IN A HANDLER.** `server.py` passed the raw
+request path into `method_not_allowed()` and `bad_request()`, and a lowercase id satisfies the
+endpoint pattern, so a caller-chosen segment would have reached a response body. Found by a
+canary sweep briefed to look at handlers. Fixed structurally: dispatch hands the matched
+TEMPLATE to the log and to every constructor.
+
+**`/api/world` IS A PII EGRESS PATH AND IS BUILT AS AN ALLOW-LIST.** No `asdict`, no `vars`, no
+generic walker - a walker is how the header's options string ships the day someone adds it.
+Withheld with reasons: the raw world token, `map_name` (a game constant, withheld because its
+POSITION is version dependent and a dispatch bug would put an operator string there),
+`datetime_ticks`, `play_duration`, and every record and node instance name. Only
+`masked_token()` crosses the wire. The allow-list arm asserts EQUALITY over the attribute reads,
+so it reddens when a field silently stops being served as well as when one is added.
+
+**THE CS-600 FIVE-PHASE VISUAL AUDIT RAN BEFORE THE PAGE WAS COMMITTED**, by an agent that did
+not write it, against a real screenshot served over plain HTTP by a test-only harness - the
+browser refuses HTTPS with a self-signed certificate, and BOOTSTRAP mandates HTTPS in
+production, so the harness is the only way to render the real assets. It returned BLOCKED with
+two MUST-FIX and seven SHOULD-FIX; all nine were resolved before the commit. **CS-600 STAYS
+OPEN**: it is the phase gate and CS-602, the companion window, is unstarted.
+
+**No license gate was needed.** The server is Python stdlib only, `dependencies = []` is
+unchanged, and the certificate is minted by shelling out to `openssl` rather than by adding
+`cryptography`. `scripts/verify_env.py` gains an openssl row as SOFT, matching `node`: both are
+phase-6 dependencies and the advice path must stay runnable without either.
+
+**Decisions recorded in ADR 0012:** the 501/503 split; `detail` looked up by reason and never
+built from content; and the exact-rational `{"num","den"}` wire form, because a bare JSON number
+invites a JS client to read it as an IEEE double, which is the float non-negotiable 6 bans from
+the answer path.
+
+**Filed this session:** CS-603 through CS-606 in `ROADMAP.md`.
+
 ### 2026-08-29 - CS-860 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-860 STAYS OPEN. Two of the four personal-data classes are now REGISTERED UNCOVERED with a stated reason each, after FIVE independent reviewers refuted the first remedy
 Verification: `tests/test_report_redaction_classes.py`, chiefly
 `tests/test_report_redaction_classes.py::test_every_registered_class_is_declared_covered_or_uncovered`,
