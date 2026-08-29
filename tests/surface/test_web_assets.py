@@ -33,6 +33,7 @@ import getpass
 import http.client
 import json
 import re
+import socket
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
@@ -78,6 +79,9 @@ MAX_ASCII_BYTE: Final = 0x7E
 SOCKET_TIMEOUT: Final = 10.0
 
 HTTP_OK: Final = 200
+
+#: Seconds to wait when probing whether a stopped harness released its port.
+SOCKET_PROBE_SECONDS: Final = 0.5
 HTTP_NOT_FOUND: Final = 404
 
 #: The smallest CSS pixel box an interactive target may declare.
@@ -1340,6 +1344,55 @@ def test_the_harness_binds_an_ephemeral_port_outside_the_reserved_band(
     bound = harness.port
     assert bound > 0, "the harness reports no bound port"
     assert not PORT_BAND_FIRST <= bound <= PORT_BAND_LAST, f"bound in the reserved band: {bound}"
+
+
+def test_the_harness_releases_its_port_and_a_restart_binds_a_fresh_one() -> None:
+    """The harness lifecycle, driven directly rather than through the fixture.
+
+    THE MODULE FIXTURE STARTS IT ONCE, so every other arm here shares a single
+    running instance and none of them can grade ``stop``. A harness that bound
+    a port and never released it would leave a listener behind after the suite,
+    and the next run would collide with it - so "stop releases the port" is a
+    claim this module makes and, until this arm, graded nowhere.
+
+    It is also the only arm that CALLS into ``tests/surface/audit_harness.py``
+    from a population member rather than from a fixture, which is what
+    ``tests/test_liveness.py`` reads when it asks whether anything in the suite
+    grades that module. A detector reached only through a fixture is reached by
+    nothing the call graph can see.
+    """
+    first = audit_harness.AuditHarness()
+    first.start()
+    try:
+        first_port = first.port
+        code, body, _ = get(first_port, "/")
+        assert code == HTTP_OK, f"the harness did not serve its own page: {code}"
+        served = len(body)
+        assert served > 0, "the harness served an empty page"
+    finally:
+        first.stop()
+
+    probe = socket.socket()
+    probe.settimeout(SOCKET_PROBE_SECONDS)
+    try:
+        reachable = probe.connect_ex(("127.0.0.1", first_port))
+    finally:
+        probe.close()
+    assert reachable != 0, f"the harness left port {first_port} listening after stop"
+
+    second = audit_harness.AuditHarness()
+    second.start()
+    try:
+        second_port = second.port
+        assert second_port > 0, "the restarted harness reports no bound port"
+        assert not PORT_BAND_FIRST <= second_port <= PORT_BAND_LAST, (
+            f"the restarted harness bound inside the reserved band: {second_port}"
+        )
+        code, body, _ = get(second_port, "/")
+        assert code == HTTP_OK, f"the restarted harness did not serve its page: {code}"
+        assert len(body) == served, "the restarted harness served a different page"
+    finally:
+        second.stop()
 
 
 def test_the_harness_serves_the_three_real_asset_files(
