@@ -2,12 +2,17 @@
 
 What is covered, and the authority for each arm:
 
-a. THE REFUSAL CANNOT OUTLIVE ITS REASON. ``not_implemented`` validates its
-   ``blocked_by`` twice - the CS-nnn form, and membership in the closed set of
-   blockers this repository authored - and a separate arm pins that set to the
-   OPEN item lines of ``ROADMAP.md``. When the named item closes and leaves the
-   roadmap, that arm goes red and the honest refusal has to be revisited
-   instead of quietly outliving the work it pointed at.
+a. THE REFUSAL CANNOT OUTLIVE ITS REASON, AND THE VOCABULARY IS GRADED IN
+   BOTH DIRECTIONS. ``not_implemented`` validates its ``blocked_by`` twice -
+   the CS-nnn form, and membership in the closed set of blockers this
+   repository authored - and two separate arms grade that set. The forward arm
+   pins every member to an OPEN item line of ``ROADMAP.md``, so a refusal
+   cannot outlive the work it points at. The CONVERSE arm asks the routes: every
+   member must be NAMED by at least one published route's refusal, measured by
+   calling the handlers rather than read off a literal. The forward arm alone
+   was green over an orphan - a member that was an open roadmap line and that no
+   endpoint anywhere cited - so the set could declare a blocking the shipped
+   code did not perform and nothing went red.
 b. THE WIRE BYTES ARE DETERMINISTIC AND 7-BIT. Two encodes of one payload are
    byte-identical (CLAUDE.md section 1, the determinism property applied at the
    surface) and no byte above 0x7E leaves the encoder even when the payload
@@ -50,7 +55,7 @@ from typing import TYPE_CHECKING, Final
 import pytest
 
 from clockspeed.solve import optimize, ratio
-from clockspeed.surface.api import contract
+from clockspeed.surface.api import contract, routes
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -99,6 +104,14 @@ ROADMAP_ITEM_LINE: Final = re.compile(r"^(CS-\d{3}) - ")
 #: of the blocked_by arm: the form check passes and the membership check must
 #: not.
 UNKNOWN_BLOCKER: Final = "CS-999"
+
+#: A well-formed CS id that no published route names. Planted INTO the
+#: vocabulary to prove the citation guard finds an uncited member, so "found
+#: nothing" is tellable apart from "looks for nothing". Deliberately a second
+#: constant rather than a reuse of :data:`UNKNOWN_BLOCKER`: that one is about
+#: the ROADMAP direction, and the two directions fail independently - the orphan
+#: this guard was written for was a perfectly good open roadmap line.
+UNCITED_BLOCKER: Final = "CS-997"
 
 #: Blocker spellings the form check must refuse. ``"CS-400\n"`` is the one that
 #: matters: ``re.match`` with a trailing ``$`` accepts it, because ``$`` also
@@ -256,6 +269,88 @@ def _open_roadmap_ids(text: str) -> frozenset[str]:
     )
 
 
+class _NothingProvider:
+    """Hands back nothing, standing in for both provider protocols.
+
+    A HAND-WRITTEN STUB RATHER THAN THE SHIPPED ``routes.ROUTES``. That table is
+    bound to the real save and install providers, so calling one of its handlers
+    would read this operator's save directory - a personal-data-bearing artifact
+    (non-negotiable 11) - and this suite is required to run on a machine with no
+    game installed at all. ``None`` is the 503 case and is not an error, so a
+    provider that hands back nothing describes a working machine rather than a
+    failure being simulated.
+    """
+
+    def world(self) -> None:
+        """No save on this machine.
+
+        Returns:
+            None. The bare docstring IS the body - ruff RET501 refuses an
+            explicit ``return None`` where it is the only possible value.
+        """
+
+    def registry(self) -> None:
+        """No install on this machine.
+
+        Returns:
+            None. The bare docstring IS the body - ruff RET501 refuses an
+            explicit ``return None`` where it is the only possible value.
+        """
+
+
+def _published_routes() -> tuple[contract.Route, ...]:
+    """Every route the server publishes, bound to providers that read nothing.
+
+    Assembled from ``clockspeed/surface/api/routes.py`` and the pending module
+    it joins, rather than from a literal here. A literal would be a second copy
+    of the routing, and the arm below exists precisely because a second copy of
+    the routing had already drifted from the first.
+
+    Returns:
+        The nine, then the method-boundary route.
+    """
+    provider = _NothingProvider()
+    return (*routes.build_routes(provider, provider), *routes.METHOD_BOUNDARY_ROUTES)
+
+
+def _cited_blockers(published: Iterable[contract.Route]) -> frozenset[str]:
+    """Every blocking item some route actually NAMES in a refusal it returns.
+
+    Args:
+        published: The routes to ask. Each handler is called with no parameters,
+            which is all a refusal needs - a route with no layer beneath it
+            refuses before reading anything, which is what
+            ``clockspeed/surface/api/pending.py`` states about itself. A backed
+            route answers 200, 400 or 503 to the same call and cites nothing,
+            which is the honest reading rather than a gap in the measurement.
+
+    Returns:
+        The blocker ids named by a 501.
+    """
+    found: set[str] = set()
+    for route in published:
+        response = route.handler({})
+        blocked_by = response.payload.get("blocked_by")
+        if response.http_status == contract.HTTP_NOT_IMPLEMENTED and isinstance(blocked_by, str):
+            found.add(blocked_by)
+    return frozenset(found)
+
+
+def _uncited_blockers(
+    vocabulary: frozenset[str], published: Iterable[contract.Route]
+) -> tuple[str, ...]:
+    """Every member of the vocabulary that no published route names.
+
+    Args:
+        vocabulary: The blocker set to grade.
+        published: The routes the citations are measured from.
+
+    Returns:
+        The uncited members, sorted. Empty when every one is cited.
+    """
+    return tuple(sorted(vocabulary - _cited_blockers(published)))
+
+
 def _exported_exception_names(modules: Iterable[object]) -> frozenset[str]:
     """Every exception class name the given modules export through ``__all__``.
 
@@ -338,6 +433,71 @@ def test_the_roadmap_scanner_discriminates(repo_root: Path) -> None:
     open_ids = _open_roadmap_ids((repo_root / "ROADMAP.md").read_text(encoding="ascii"))
 
     assert UNKNOWN_BLOCKER not in open_ids, "the scanner accepts an id the roadmap never names"
+
+
+def test_the_graded_route_population_is_the_one_the_server_serves() -> None:
+    published = _published_routes()
+    count = len(published)
+    shipped = len(routes.SERVING_ROUTES)
+
+    assert count > 0, "an empty route population makes every citation arm vacuous"
+    assert count == shipped, "the graded population is not the table the server serves"
+
+
+def test_every_open_blocker_is_cited_by_a_published_route() -> None:
+    published = _published_routes()
+    route_count = len(published)
+    assert route_count > 0
+
+    cited = _cited_blockers(published)
+    cited_count = len(cited)
+    assert cited_count > 0, "no published route refused at all, so this sweep proves nothing"
+
+    blocker_count = len(contract.OPEN_BLOCKERS)
+    assert blocker_count > 0
+
+    uncited = _uncited_blockers(contract.OPEN_BLOCKERS, published)
+    uncited_count = len(uncited)
+
+    assert uncited_count == 0, (
+        f"named by no published route: {', '.join(uncited)}. A member of the "
+        "blocker vocabulary that no route cites is a blocking this surface "
+        "declares and does not perform"
+    )
+
+
+def test_the_citation_guard_finds_a_blocker_no_route_names() -> None:
+    published = _published_routes()
+    planted = contract.OPEN_BLOCKERS | {UNCITED_BLOCKER}
+    grown = len(planted) - len(contract.OPEN_BLOCKERS)
+    assert grown == 1, "the planted member was already in the vocabulary"
+
+    before = _uncited_blockers(contract.OPEN_BLOCKERS, published)
+    after = _uncited_blockers(planted, published)
+    added = tuple(name for name in after if name not in before)
+
+    assert added == (UNCITED_BLOCKER,), (
+        "planting a vocabulary member that no published route names did not "
+        "change what the guard reports, so the guard is blind to exactly the "
+        "orphan it exists to find. A DIFFERENTIAL rather than an equality "
+        "against the whole result, so this control grades the guard's response "
+        "to the plant and stays honest whatever the real vocabulary holds"
+    )
+
+
+def test_the_citation_guard_reddens_when_every_route_that_cites_is_removed() -> None:
+    published = [
+        route for route in _published_routes() if route.template in routes.BACKED_TEMPLATES
+    ]
+    count = len(published)
+    assert count > 0, "the mutated population is empty, so its emptiness is what passes"
+
+    uncited = _uncited_blockers(contract.OPEN_BLOCKERS, published)
+
+    assert uncited == tuple(sorted(contract.OPEN_BLOCKERS)), (
+        "the citations survived deleting every route that issues one, so they are "
+        "not being measured from the routes at all"
+    )
 
 
 def test_not_implemented_accepts_every_open_blocker() -> None:

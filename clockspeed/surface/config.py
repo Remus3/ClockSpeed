@@ -34,6 +34,17 @@ message built here quotes a path, a filename or any fragment of a file it
 refused - the same idiom ``clockspeed/save/world.py`` and
 ``clockspeed/data/locate.py`` state in prose, and the same one
 ``contract.py`` applies to a request path.
+
+AND THAT IS ENFORCED BY THE CONSTRUCTOR RATHER THAN BY PROSE. :class:`ConfigError`
+takes a :class:`ConfigFault` - a member of a closed set declared here - and never
+a string, so :func:`config_refusal` is the only thing that can decide what the
+operator reads. The sentence above used to be the whole control, and a sentence
+is a control that holds exactly as long as every future raise site has read it:
+``ConfigError(str(path))`` satisfied the old signature, type-checked, and would
+have written a home directory to stderr. It does not type-check now and raises at
+construction if it is forced through anyway. ``clockspeed/surface/server.py``
+states the same reasoning for ``BindError`` and ``bind_refusal``, and this is the
+same shape over a four-member vocabulary instead of over a port number.
 """
 
 from __future__ import annotations
@@ -41,7 +52,9 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
@@ -51,6 +64,7 @@ __all__ = [
     "CERT_DIR_ENV",
     "CERT_NAME",
     "DEFAULT_CERT_DIRNAME",
+    "FAULT_NOT_A_MEMBER",
     "HIGHEST_PORT",
     "KEY_NAME",
     "LOOPBACK",
@@ -64,9 +78,11 @@ __all__ = [
     "RECORD_UNREADABLE",
     "WEB_DIRNAME",
     "ConfigError",
+    "ConfigFault",
     "ServerConfig",
     "allocated_port",
     "cert_dir",
+    "config_refusal",
     "default_web_dir",
     "load_config",
     "ports_record_path",
@@ -147,13 +163,115 @@ RECORD_MALFORMED: Final = (
 PORT_NOT_AN_INTEGER: Final = "a declared dashboard port must be a base-ten integer"
 PORT_OUT_OF_RANGE: Final = "a dashboard port must sit between 0 and 65535 inclusive"
 
+#: What a caller who passed something other than a :class:`ConfigFault` is
+#: refused with. A PROGRAMMING error rather than a configuration one, so it is a
+#: ``TypeError`` and not a :class:`ConfigError` - but it is a fixed line for the
+#: identical reason every line above is one. MEASURED, not assumed: letting the
+#: mapping lookup refuse instead raised ``KeyError('C:/Users/<account>/...')``
+#: for exactly the call this vocabulary exists to stop -
+#: ``ConfigError(str(path))`` - so the guard rail's own failure path was the
+#: leak. It quotes nothing it was handed.
+FAULT_NOT_A_MEMBER: Final = "a configuration refusal must name a ConfigFault member"
+
+
+class ConfigFault(Enum):
+    """WHICH configuration refusal happened, as a value no caller can author.
+
+    A CLOSED VOCABULARY RATHER THAN A STRING PARAMETER, and the difference is
+    the whole control. :class:`ConfigError` used to take the message itself, so
+    what an operator read was decided at each raise site; every site in this
+    module passed a constant above, and the class docstring recorded that as a
+    promise. A promise about five sites is not a property of the type. The
+    member below is an identifier and carries none of the text - the text is
+    :func:`config_refusal`'s alone - so the day a sixth raise site wants to name
+    the file it refused, there is no argument it can pass to do it.
+
+    The values are keys, deliberately not sentences: a member whose value WAS
+    the refusal would put the line in two places, and CLAUDE.md section 4 names
+    a restated fact as one that drifts.
+    """
+
+    RECORD_UNREADABLE = "record_unreadable"
+    RECORD_MALFORMED = "record_malformed"
+    PORT_NOT_AN_INTEGER = "port_not_an_integer"
+    PORT_OUT_OF_RANGE = "port_out_of_range"
+
+
+#: Fault to the one line it is spoken as. The four constants above are still the
+#: only spelling of each sentence; this maps onto them rather than repeating
+#: them.
+_REFUSALS: Final[Mapping[ConfigFault, str]] = MappingProxyType(
+    {
+        ConfigFault.RECORD_UNREADABLE: RECORD_UNREADABLE,
+        ConfigFault.RECORD_MALFORMED: RECORD_MALFORMED,
+        ConfigFault.PORT_NOT_AN_INTEGER: PORT_NOT_AN_INTEGER,
+        ConfigFault.PORT_OUT_OF_RANGE: PORT_OUT_OF_RANGE,
+    }
+)
+
+
+def config_refusal(fault: ConfigFault) -> str:
+    """The one line an operator reads when the configuration would not resolve.
+
+    A MODULE-LEVEL FUNCTION RATHER THAN A METHOD, for the reason
+    ``clockspeed/surface/server.py`` gives about :func:`bind_refusal` there: the
+    text has ONE author, and neither the raise site nor the process's handler
+    has to render an exception OBJECT to reach it. ``str()`` on a caught object
+    is what its RUNTIME type decides, and today's runtime type is not a promise
+    about tomorrow's - widen one ``except`` clause to ``OSError`` and the same
+    spelling appends the path the call failed on, which on this machine carries
+    the account name (non-negotiable 12). ``tests/test_exception_rendering.py``
+    refuses that shape categorically, and this is the spelling that satisfies
+    it: a named field of a closed type, mapped to text this module owns.
+
+    Args:
+        fault: Which refusal to speak. A member of :class:`ConfigFault` and
+            never text - see that class for why the parameter is not a string.
+
+    Returns:
+        The refusal, with no trailing newline. Byte-identical to the matching
+        module constant, which is where each sentence is actually spelled.
+
+    Raises:
+        TypeError: ``fault`` is not a member of :class:`ConfigFault`. CHECKED
+            EXPLICITLY RATHER THAN LEFT TO THE MAPPING, because a ``KeyError``
+            renders the key - so the one call this vocabulary exists to stop,
+            ``ConfigError(str(path))``, would have leaked the path through the
+            guard rail's own failure. :data:`FAULT_NOT_A_MEMBER` quotes nothing.
+        KeyError: A member was added to :class:`ConfigFault` without a line in
+            :data:`_REFUSALS`. Its key is a member repr this module authored, so
+            that residual carries no caller value and is left loud.
+    """
+    if not isinstance(fault, ConfigFault):
+        raise TypeError(FAULT_NOT_A_MEMBER)
+    return _REFUSALS[fault]
+
 
 class ConfigError(Exception):
     """The dashboard's configuration could not be resolved.
 
     Carries one of the fixed lines above and never a path, a filename or a
-    fragment of whatever it refused. See the module docstring for why.
+    fragment of whatever it refused - now BY CONSTRUCTION rather than by the
+    discipline of each raise site. See the module docstring for why.
+
+    Attributes:
+        fault: Which refusal this is. The NAMED FIELD that
+            ``clockspeed/surface/__main__.py`` renders in place of the object,
+            exactly as ``server.run`` renders ``BindError.port``.
+        reason: The fixed line that fault is spoken as, and what ``str()`` on
+            this exception yields. Held as a field so a reader of a traceback
+            does not have to know the mapping to know what was said.
     """
+
+    def __init__(self, fault: ConfigFault) -> None:
+        """Build the refusal from the fault, and from nothing the caller wrote.
+
+        Args:
+            fault: Which refusal happened.
+        """
+        self.fault = fault
+        self.reason = config_refusal(fault)
+        super().__init__(self.reason)
 
 
 # ---------------------------------------------------------------------------
@@ -276,7 +394,7 @@ def _checked_port(value: int) -> int:
             caller-chosen text, and this module quotes none of it.
     """
     if not LOWEST_PORT <= value <= HIGHEST_PORT:
-        raise ConfigError(PORT_OUT_OF_RANGE)
+        raise ConfigError(ConfigFault.PORT_OUT_OF_RANGE)
     return value
 
 
@@ -300,14 +418,14 @@ def allocated_port(record: Path | None = None) -> int:
     try:
         raw = path.read_bytes()
     except OSError as exc:
-        raise ConfigError(RECORD_UNREADABLE) from exc
+        raise ConfigError(ConfigFault.RECORD_UNREADABLE) from exc
     try:
         payload = json.loads(raw.decode("ascii"))
         base = payload[PORTS_RECORD_BASE_KEY]
     except (UnicodeDecodeError, ValueError, TypeError, KeyError, AttributeError) as exc:
-        raise ConfigError(RECORD_MALFORMED) from exc
+        raise ConfigError(ConfigFault.RECORD_MALFORMED) from exc
     if isinstance(base, bool) or not isinstance(base, int):
-        raise ConfigError(RECORD_MALFORMED)
+        raise ConfigError(ConfigFault.RECORD_MALFORMED)
     return _checked_port(base)
 
 
@@ -347,7 +465,7 @@ def resolve_port(
         try:
             parsed = int(declared, 10)
         except ValueError as exc:
-            raise ConfigError(PORT_NOT_AN_INTEGER) from exc
+            raise ConfigError(ConfigFault.PORT_NOT_AN_INTEGER) from exc
         return _checked_port(parsed)
     return allocated_port(record)
 

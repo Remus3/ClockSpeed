@@ -36,12 +36,20 @@
   /api/health already publishes, so the skeleton stays GET-only and the question
   does not arise.
 
-  WHY FOUR ROWS SAY "not probed". The server's router matches a request path
-  against registered templates EXACTLY and refuses to register a template
-  carrying a path parameter, so the two /api/advice/<id>/... routes have no
-  concrete path to ask for. The other two take a body this page will not send.
+  WHY FOUR ROWS SAY "not probed". The two /api/advice/<id>/... routes need a
+  card id, and this page has none to give: /api/advice is 501 until phase 5
+  builds the advisor, so it returns no card list and there is no id to put in
+  the path. Asking with an invented one would be asking about a card that does
+  not exist. The other two take a body this page will not send.
   For those four the page prints what /api/health says and names that as the
   source, rather than inventing a transport code it never observed.
+
+  AN EARLIER VERSION OF THIS PARAGRAPH GAVE A DIFFERENT REASON - that the
+  router matched paths exactly and refused to register a template carrying a
+  path parameter. Both halves were true when written and are now false: the
+  router matches templates and both /api/advice/<id>/... routes answer over the
+  wire. The behaviour above did not change, only the reason for it, which is
+  exactly the kind of stale justification that reads as verified.
 */
 
 /*

@@ -27,6 +27,14 @@ d. THE SWEEP IS NOT VACUOUS. The published route count is bound to a scalar and
    pending route, which is exactly the plausible-looking lie arm (a) exists to
    forbid - with the rejection asserted. "Found no problems" and "looks for no
    problems" are otherwise the same output (CONVENTIONS.md section 7.2).
+e. THE WRONG-BLOCKER CONTROL WIDENS THE VOCABULARY FOR ITS OWN DURATION, and
+   that is the arm rather than a shortcut around one. A valid-BUT-WRONG blocker
+   needs a member of ``contract.OPEN_BLOCKERS`` that is not the one the five
+   name, and nothing guarantees the shipped vocabulary has a spare - it is a
+   closed set that shrinks as phases land. Planting an id from OUTSIDE the
+   vocabulary instead would grade a different thing: the envelope rejects that
+   payload on its own, so the arm would pass with this module's checker
+   contributing nothing at all. See the arm's own docstring.
 
 Test-quality discipline (CONVENTIONS.md section 7.2). Every population size is
 bound to a scalar and asserted before it is iterated, and every detector used to
@@ -116,6 +124,23 @@ EXPECTED_PENDING_ROUTES: Final = 5
 #: GET and POST. The advice-state template is published twice - once to do the
 #: work phase 5 will build, once to say the other verb is wrong.
 EXPECTED_STATE_ROUTE_METHODS: Final = 2
+
+#: A second member for ``contract.OPEN_BLOCKERS``, patched in for one arm and
+#: never shipped. Well formed, so the envelope's form check passes it, and a
+#: member for the duration, so its membership check passes it too - which is
+#: what makes the refusal built from it CONFORMING, and leaves the wrong-blocker
+#: fault as the only one anything can find. Deliberately not an id ``ROADMAP.md``
+#: names: this arm is about the honesty checker, not about the roadmap, and
+#: borrowing a real item would make the control read as a claim about that item.
+SECOND_VALID_BLOCKER: Final = "CS-996"
+
+#: The planted blocker and the one the five actually name are two things.
+#: Asserted as a SET SIZE rather than as ``a != b``: mypy's ``strict_equality``
+#: resolves a ``Final`` string to its literal type and calls the direct
+#: comparison non-overlapping, so the honest arm has to be spelled in a form the
+#: type checker cannot decide for it. ``tests/surface/test_contract.py`` records
+#: the same workaround for the same reason.
+TWO_DISTINCT_BLOCKERS: Final = 2
 
 #: The request parameters each backed route needs to reach its solver. Pending
 #: routes take none - they refuse before reading anything, which is the point.
@@ -399,16 +424,49 @@ def test_the_honesty_checker_rejects_a_plausible_lie_on_a_pending_route() -> Non
     assert PROBLEM_NOT_A_REFUSAL in problems
 
 
-def test_the_honesty_checker_rejects_a_pending_route_naming_the_wrong_blocker() -> None:
+def test_the_honesty_checker_rejects_a_pending_route_naming_the_wrong_blocker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A refusal the ENVELOPE accepts, naming an open item that is the wrong one.
+
+    THE DISCRIMINATION IS VALID-BUT-WRONG, NOT UNKNOWN. Those are two faults and
+    two different checkers own them. ``contract.contract_problems`` owns "this
+    ``blocked_by`` names nothing the surface has open" and is graded on it in
+    ``tests/surface/test_contract.py``. This module owns "this pending route
+    named an open item that is not the one blocking it", and the only way to put
+    that fault in front of it alone is to hand it a refusal the envelope is
+    entirely happy with. Widening the vocabulary for the duration of this arm is
+    what buys that, and it makes the arm independent of what the shipped set
+    holds: ``contract.not_implemented`` RAISES on any spelling the vocabulary
+    does not carry, so an arm that borrowed a real spare member would break the
+    day that member's item closed - which is exactly how this arm broke once
+    already. A hand-built payload avoids the raise and loses the point instead,
+    carrying an envelope fault that passes the assertion below without the
+    honesty checker contributing anything.
+
+    THE ASSERTION IS AN EQUALITY OVER THE WHOLE TUPLE for that reason. A
+    membership test would also pass on a checker that reports every code it
+    knows; the equality says the checker found this fault and no other.
+    """
+    monkeypatch.setattr(contract, "OPEN_BLOCKERS", contract.OPEN_BLOCKERS | {SECOND_VALID_BLOCKER})
+    widened = SECOND_VALID_BLOCKER in contract.OPEN_BLOCKERS
+    distinct = len({SECOND_VALID_BLOCKER, pending.PENDING_BLOCKER})
+    assert widened, "the vocabulary was not widened, so the refusal below cannot be built"
+    assert distinct == TWO_DISTINCT_BLOCKERS, "the planted blocker IS the one the five name"
+
     planted = contract.Route(
         method="GET",
         template="/api/advice",
-        handler=lambda _params: contract.not_implemented("/api/advice", "CS-400"),
+        handler=lambda _params: contract.not_implemented("/api/advice", SECOND_VALID_BLOCKER),
     )
     problems = honesty_problems(PENDING_ROUTES, planted)
     count = len(problems)
+
     assert count > 0
-    assert PROBLEM_WRONG_BLOCKER in problems
+    assert problems == (PROBLEM_WRONG_BLOCKER,), (
+        "a conforming 501 that names the wrong open item was graded as something "
+        "other than the wrong-blocker fault, or as no fault at all"
+    )
 
 
 def test_the_honesty_checker_rejects_a_backed_route_reporting_itself_unwritten() -> None:

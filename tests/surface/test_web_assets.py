@@ -1108,6 +1108,15 @@ def test_the_script_gives_each_route_the_method_its_owner_publishes() -> None:
 #: A JavaScript block comment. Stripped before any arm that means to grade CODE.
 _BLOCK_COMMENT = re.compile(r"/\*[\s\S]*?\*/")
 
+#: One entry of ``app.js``'s ``ROUTES`` table. ``probe`` is either a quoted path
+#: the page will GET or the literal ``null``, and which of the two it is decides
+#: whether that row is fetched or filled from the ``/api/health`` liveness map.
+_ROUTE_ENTRY = re.compile(
+    r'\{\s*template:\s*"(?P<template>[^"]+)"\s*,'
+    r'\s*method:\s*"(?P<method>[^"]+)"\s*,'
+    r'\s*probe:\s*(?P<probe>"[^"]*"|null)\s*\}'
+)
+
 
 def code_only(text: str) -> str:
     """The script with its block comments removed.
@@ -1365,27 +1374,102 @@ def test_the_harness_refuses_a_path_it_does_not_publish(
     assert payload["endpoint"] == contract.ENDPOINT_UNROUTED, payload
 
 
-def test_the_harness_routes_only_what_the_real_router_could_route(
+def test_the_harness_serves_no_stand_in_path_for_either_id_template(
     harness: audit_harness.AuditHarness,
 ) -> None:
-    """The two path-parameter templates answer 404, exactly as in production.
+    """Neither ``<id>`` template gets a concrete path here, so both 404.
 
-    ``clockspeed/surface/server.py`` matches a request path against registered
-    templates EXACTLY and refuses outright to register a template carrying a
-    path parameter. Serving a concrete stand-in for either one here would show
-    the audit a page state that cannot occur, which is worse than showing it the
-    honest one.
+    WHAT THIS DOES AND DOES NOT CLAIM. It verifies ONE thing: the harness's
+    exact-path table carries no invented id, so a request for one is the
+    contract's 404. It does NOT claim production cannot route these - production
+    routes both and answers 501, which is the opposite of what the justification
+    on this arm used to say. The reason the stand-in still serves neither is that
+    the audited page asks for neither, and that premise is pinned separately by
+    :func:`test_the_page_asks_for_no_concrete_path_on_either_id_template` rather
+    than restated here. ``tests/surface/audit_harness.py`` carries the whole
+    reasoning.
     """
-    unroutable = tuple(name for name in health.ENDPOINT_TEMPLATES if "<" in name)
+    parameterised = tuple(name for name in health.ENDPOINT_TEMPLATES if "<" in name)
+    found = len(parameterised)
     expected = 2
-    assert len(unroutable) == expected, unroutable
+    assert found == expected, f"expected {expected} path-parameter templates, found {found}"
 
     answered = tuple(
         name
-        for name in unroutable
+        for name in parameterised
         if get(harness.port, name.replace("<id>", "probe"))[0] != HTTP_NOT_FOUND
     )
-    assert not answered, f"the harness routes what production cannot: {answered}"
+    served = len(answered)
+    assert served == 0, f"the harness serves a stand-in id for: {answered}"
+
+
+def probe_paths(text: str) -> dict[str, str | None]:
+    """Each route the page publishes, mapped to the path it will GET, or None.
+
+    Reads ``app.js``'s own ``ROUTES`` table out of the shipped bytes. A route
+    whose ``probe`` is ``null`` is one the page never requests, so its row is
+    filled from the ``/api/health`` liveness map instead.
+
+    Args:
+        text: The script's text, comments already stripped by :func:`code_only`.
+
+    Returns:
+        Template to probe path, or to None where the entry declares ``null``.
+    """
+    return {
+        match.group("template"): (
+            None if match.group("probe") == "null" else match.group("probe").strip("\"'")
+        )
+        for match in _ROUTE_ENTRY.finditer(text)
+    }
+
+
+def test_the_page_asks_for_no_concrete_path_on_either_id_template() -> None:
+    """The premise the harness's three-not-five decision rests on, pinned.
+
+    THIS IS THE ARM THAT MAKES THAT DECISION FALSIFIABLE. The harness serves no
+    stand-in id because the page requests neither ``<id>`` route - so both rows
+    read from ``/api/health`` and adding canned answers would change no rendered
+    byte. That is a fact about ``app.js``, and a fact stated only in a docstring
+    is one that goes stale silently; the justification on the sibling arm above
+    already did exactly that once. The day either row gains a probe path, this
+    goes red and the harness has to be revisited.
+    """
+    routes = probe_paths(code_only(read_asset(SCRIPT)))
+    published = len(routes)
+    expected = len(health.ENDPOINT_TEMPLATES)
+    assert published == expected, f"parsed {published} route entries, expected {expected}"
+
+    asked = tuple(
+        template for template, probe in routes.items() if "<" in template and probe is not None
+    )
+    count = len(asked)
+    assert count == 0, f"the page now asks for a concrete path on: {asked}"
+
+
+def test_the_probe_path_detector_sees_a_planted_concrete_id() -> None:
+    """The detector is proved able to fire, on the exact edit it exists to catch.
+
+    A parser that silently matched nothing would make the arm above green over a
+    page that probes every route. Planting one concrete id must be seen.
+    """
+    clean = code_only(read_asset(SCRIPT))
+    parsed = probe_paths(clean)
+    assert parsed, "the route table parsed to nothing; the detector grades nothing"
+
+    target = next(template for template in parsed if "<" in template)
+    planted = clean.replace(
+        f'{{ template: "{target}", method: "GET", probe: null }}',
+        f'{{ template: "{target}", method: "GET", probe: "/api/advice/planted/derivation" }}',
+    ).replace(
+        f'{{ template: "{target}", method: "POST", probe: null }}',
+        f'{{ template: "{target}", method: "POST", probe: "/api/advice/planted/state" }}',
+    )
+    assert planted != clean, f"the mutation never applied to {target}"
+
+    after = probe_paths(planted)
+    seen = after.get(target)
+    assert seen is not None, f"the detector read {target} as unprobed after planting a path"
 
 
 def test_the_harness_publishes_five_not_implemented_bodies_naming_the_open_item(

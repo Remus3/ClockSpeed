@@ -35,9 +35,12 @@ A 501 REFUSAL CANNOT OUTLIVE ITS REASON. ``blocked_by`` is validated twice - the
 repository authored - and ``tests/surface/test_contract.py`` pins that set to
 the OPEN item lines of ``ROADMAP.md``. When the named item closes and leaves the
 roadmap, that arm goes red, so an honest refusal has to be revisited rather than
-quietly outliving the work it points at. THE MEMBERSHIP CHECK IS A CLOSED
-VOCABULARY AND NOT A FILE READ, because a runtime read of the roadmap would be
-exactly the filesystem reach the package docstring forbids.
+quietly outliving the work it points at. THE SET IS GRADED IN BOTH DIRECTIONS: a
+second arm asks the published routes which items they actually name, so a member
+no endpoint cites is a finding rather than a silence, and the vocabulary cannot
+declare a blocking this package does not perform. THE MEMBERSHIP CHECK IS A
+CLOSED VOCABULARY AND NOT A FILE READ, because a runtime read of the roadmap
+would be exactly the filesystem reach the package docstring forbids.
 
 ``detail`` IS LOOKED UP, NEVER BUILT. Every refusal line comes out of
 :data:`REASONS` whole, keyed by a closed-vocabulary reason code. That is the
@@ -397,16 +400,38 @@ SOLVER_REFUSALS: Final[Mapping[str, tuple[str, str]]] = MappingProxyType(
 BLOCKER_PATTERN: Final = re.compile(r"CS-\d{3}")
 
 #: The only items a 501 may name. A CLOSED VOCABULARY AUTHORED HERE, not a
-#: roadmap read: this package opens no file, so the durability arm lives in
-#: ``tests/surface/test_contract.py``, which asserts every member is still an
-#: OPEN item line in ``ROADMAP.md``. The refusal and the reason for it therefore
-#: fall together.
+#: roadmap read: this package opens no file, so the durability arms live in
+#: ``tests/surface/test_contract.py``, and there are TWO of them because one
+#: direction is not a grade. The forward arm,
+#: ``tests/surface/test_contract.py::test_every_open_blocker_is_an_open_roadmap_item_line``,
+#: asserts every member is still an OPEN item line in ``ROADMAP.md``, so the
+#: refusal and the reason for it fall together. The converse arm,
+#: ``tests/surface/test_contract.py::test_every_open_blocker_is_cited_by_a_published_route``,
+#: asserts every member is NAMED by some published route's refusal, measured by
+#: calling the handlers. The forward arm ALONE was green over a member that no
+#: endpoint anywhere cited.
 #:
-#:   CS-400  the phase 4 gate. Until it closes, the world-state endpoints have
-#:           no completed layer beneath them to serialize.
 #:   CS-500  the phase 5 gate. The advisor, its cards and derivations, and
-#:           pillars 3 and 4 all land behind it.
-OPEN_BLOCKERS: Final = frozenset({"CS-400", "CS-500"})
+#:           pillars 3 and 4 all land behind it. Named by the five routes in
+#:           ``clockspeed/surface/api/pending.py``, which holds the only
+#:           ``not_implemented`` call site in this package.
+#:
+#: THE STANDARD FOR MEMBERSHIP IS THE ONE THIS MODULE'S DOCSTRING STATES - "the
+#: layer beneath does not exist yet" - and it is NOT "the layer beneath is
+#: unfinished". Those are different tests, and the looser one would take
+#: ``/api/health`` with it, since health reports save-layer state and does not
+#: refuse. A layer that exists and is incomplete ANSWERS, and says what it could
+#: not read in a flagged warning inside the body - which is what
+#: ``clockspeed/surface/api/world.py`` already renders.
+#:
+#: CS-400 IS DELIBERATELY ABSENT. Re-adding it means re-deciding ADR 0012
+#: (``docs/adr/0012-dashboard-refusal-vocabulary-and-wire-form.md``) rather than
+#: editing this literal. The phase 4 save layer ships and parses a real world;
+#: CS-400 stays open on DEPTH - inventory, clock speed and connection state -
+#: and ``/api/world`` serves enumeration only, so it answers 200 or 503 and
+#: never 501. While it sat here it was a member no route named, under a comment
+#: that described a routing this package does not perform.
+OPEN_BLOCKERS: Final = frozenset({"CS-500"})
 
 
 # ---------------------------------------------------------------------------

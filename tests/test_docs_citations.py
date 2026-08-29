@@ -158,6 +158,15 @@ ADR_0010: Final = "docs/adr/0010-item-notes-is-an-index-over-per-phase-leaves.md
 #: makes it a carrier, so the two decisions stand or fall together.
 ADR_0011: Final = "docs/adr/0011-the-cs-8nn-follow-up-leaf-splits-at-cs-850.md"
 
+#: The CS-601 surface decisions: the 501/503 refusal split, `detail` looked up by
+#: reason rather than built from content, the exact-rational wire form, and the
+#: ruling that `/api/world` is BACKED. GUARDED rather than recorded unguarded,
+#: because every pointer it makes is load-bearing for the decision it records -
+#: it cites `docs/item_notes/phase4.md` for what phase 4 can and cannot do, and
+#: the save layer for the size that makes a 501 there a false statement. An ADR
+#: whose evidence has silently stopped resolving argues from nothing.
+ADR_0012: Final = "docs/adr/0012-dashboard-refusal-vocabulary-and-wire-form.md"
+
 #: The LIVE per-item detail file, created 2026-08-23 when the operator ruled the
 #: NOTE bodies out of `ROADMAP.md`. IT IS GUARDED RATHER THAN RECORDED UNGUARDED,
 #: and the reason is the move itself: every body in it came VERBATIM out of
@@ -209,6 +218,7 @@ GUARDED_DOCS: Final = (
     ADR_0008,
     ADR_0010,
     ADR_0011,
+    ADR_0012,
     ITEM_NOTES,
     *ITEM_NOTES_LEAVES,
     # A memory leaf that cites a test by name. Guarded rather than recorded,

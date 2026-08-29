@@ -37,16 +37,37 @@ cannot name a blocking item the contract has closed, and cannot carry a float.
 Hand-writing the JSON would have made this module a second description of the
 wire format, and CLAUDE.md section 4 names a restated fact as one that drifts.
 
-WHAT IT DELIBERATELY DOES NOT SERVE. ``/api/advice/<id>/derivation`` and
-``/api/advice/<id>/state`` carry a path parameter, and ``server.routing``
-REFUSES to register such a template while ``server.DashboardHandler._dispatch``
-matches a request path exactly. Neither has a concrete path in production, so
-neither gets one here. Their 501 bodies are still built and published in
-:data:`PENDING_BODIES` - the walking skeleton knows what blocks them - but the
-page reports their status from the ``/api/health`` liveness map and says so in
-its own "read from" column. Serving a stand-in path for either would show the
-audit a page state that cannot occur, which is worse than showing it the honest
-one.
+WHAT IT DELIBERATELY DOES NOT SERVE, AND NOT FOR THE REASON THIS PARAGRAPH USED
+TO GIVE. ``/api/advice/<id>/derivation`` and ``/api/advice/<id>/state`` get no
+concrete path here. The reason recorded until now was that ``server.routing``
+REFUSED to register a template carrying a path parameter, that dispatch matched a
+request path EXACTLY, and that therefore neither endpoint had a concrete path in
+production. ALL THREE ARE NOW FALSE. ``routing`` registers both, ``match_route``
+matches a concrete path against either and captures the segment, and both answer
+over the wire: MEASURED at 501 for ``GET .../derivation`` and ``POST .../state``,
+and 405 for ``GET .../state``. A stale justification is worse than a red test,
+because an arm resting on it keeps passing and reads as verified.
+
+WHY THREE AND NOT FIVE, ON A REASON THAT IS TRUE TODAY. The audit grades ONE
+page, and that page asks for neither template. ``clockspeed/surface/web/app.js``
+publishes the nine routes each with the concrete path - if there is one - it may
+safely GET, and both ``<id>`` rows carry none; each therefore reports the
+liveness ``/api/health`` already publishes for it and names that as the source in
+its own "read from" column. MEASURED rather than argued: this same harness,
+widened in memory to serve both against a stand-in id, rendered a page identical
+in every byte the audit reads - the note line stayed "5 of 9 routes answered a
+direct GET" and both rows stayed "not probed". Two more canned answers buy
+nothing observable. ``tests/surface/test_web_assets.py`` pins that premise
+against ``app.js`` itself, so the day either row gains a probe path this
+paragraph goes red instead of going quietly stale a second time.
+
+AND AN INVENTED ID WOULD BE A NEW DIVERGENCE RATHER THAN A SMALLER ONE. Nothing
+hands this page a card identifier while ``/api/advice`` is itself unbacked, so
+the only concrete path available is one this file would make up - and
+:data:`CANNED` is keyed by exact path, so it would answer that single invented id
+and 404 every other, where production matches EVERY id against the template.
+Their 501 bodies are still built and published in :data:`PENDING_BODIES`, so the
+walking skeleton knows what blocks them even where nothing here asks.
 
 RUNNING IT STANDALONE, which is how the merger drives the audit::
 
@@ -293,9 +314,10 @@ def _health_data() -> dict[str, object]:
 
 
 #: Every unbacked route's 501, keyed by TEMPLATE and built by the shipped
-#: constructor. All five are published, including the two with a path parameter
-#: that nothing can route - the skeleton knows what blocks them even where it
-#: cannot be asked.
+#: constructor. All five are published, including the two carrying a path
+#: parameter that this harness serves no concrete path for - the skeleton knows
+#: what blocks them even where nothing here asks. Production DOES route those
+#: two; see the module docstring for why the stand-in still does not.
 PENDING_BODIES: Final[Mapping[str, contract.Response]] = MappingProxyType(
     {
         template: contract.not_implemented(template, pending.PENDING_BLOCKER)
@@ -353,13 +375,18 @@ def _canned() -> dict[tuple[str, str], contract.Response]:
         ),
     }
     for method, template in pending.UNBACKED:
+        # A TEMPLATE CARRYING A PARAMETER IS SKIPPED BECAUSE THIS TABLE IS KEYED
+        # BY EXACT PATH AND THE PAGE ASKS FOR NEITHER - not because production
+        # cannot route one. It can, and does. See the module docstring.
         if "<" not in template:
             table[method, template] = PENDING_BODIES[template]
     return table
 
 
-#: The routable answers. A path absent from here is a contract 404, and the two
-#: path-parameter templates are absent on purpose - see the module docstring.
+#: The routable answers, keyed by exact path. A path absent from here is a
+#: contract 404, and the two path-parameter templates are absent on purpose -
+#: see the module docstring for the reason, which is about what the PAGE asks
+#: for and not about what production can route.
 CANNED: Final[Mapping[tuple[str, str], contract.Response]] = MappingProxyType(_canned())
 
 #: Every path this table answers under at least one method.

@@ -136,21 +136,30 @@ def module_literal(tree: ast.Module, name: str) -> str | None:
         a string constant at module level.
     """
     for node in tree.body:
-        targets = (
-            node.targets
-            if isinstance(node, ast.Assign)
-            else [node.target]
-            if isinstance(node, ast.AnnAssign)
-            else []
-        )
+        # THE NARROWING IS A STATEMENT AND NOT A TERNARY, so it reaches the read
+        # below. An `isinstance` inside a conditional expression narrows only
+        # inside that expression, so `node` was back to `ast.stmt` by the time
+        # `node.value` was read - and `ast.stmt` genuinely HAS no `.value`. The
+        # ternary was not merely unannotated; it was reading an attribute the
+        # declared type does not carry, on a statement kind neither arm admits.
+        if isinstance(node, ast.Assign):
+            targets: tuple[ast.expr, ...] = tuple(node.targets)
+        elif isinstance(node, ast.AnnAssign):
+            targets = (node.target,)
+        else:
+            continue
+        # `AnnAssign.value` is `expr | None`, and that None is a REAL module-level
+        # shape rather than a typing artefact: `NAME: str` declares a name and
+        # binds nothing. It leaves through the constant check, which is the one
+        # place a value that is absent and a value that is not a string are
+        # deliberately given the same answer - this helper reports what a module
+        # BINDS, and both of those bind no string.
+        bound = node.value
+        if not isinstance(bound, ast.Constant) or not isinstance(bound.value, str):
+            continue
         for target in targets:
-            if (
-                isinstance(target, ast.Name)
-                and target.id == name
-                and isinstance(node.value, ast.Constant)
-                and isinstance(node.value.value, str)
-            ):
-                return node.value.value
+            if isinstance(target, ast.Name) and target.id == name:
+                return bound.value
     return None
 
 
