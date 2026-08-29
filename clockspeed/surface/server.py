@@ -106,6 +106,7 @@ __all__ = [
     "BindError",
     "CertificateError",
     "RouteError",
+    "bind_refusal",
     "build_server",
     "routing",
     "run",
@@ -229,13 +230,46 @@ class CertificateError(Exception):
     """
 
 
+def bind_refusal(port: int) -> str:
+    """The one line an operator reads when the listener could not be bound.
+
+    A MODULE-LEVEL FUNCTION RATHER THAN A METHOD, so the text has ONE author
+    and neither the raise site nor :func:`run` renders an exception OBJECT to
+    reach it. ``str()`` on a caught object is what its RUNTIME type decides:
+    today both handlers in :func:`run` catch a type declared here carrying
+    fixed text, and the day one ``except`` clause is widened to ``OSError`` the
+    same spelling appends the path the call failed on, which carries the
+    account name (non-negotiable 12). ``tests/test_exception_rendering.py``
+    refuses the shape categorically for that reason, and this is the spelling
+    that satisfies it: a named ``int`` field interpolated into text this module
+    owns.
+
+    Args:
+        port: The port that could not be bound. A port number is not personal
+            data, and naming it is the whole value of the message - an operator
+            cannot act on "the dashboard did not start".
+
+    Returns:
+        The refusal, with no trailing newline. Byte-identical to what
+        :class:`BindError` carries, which ``tests/surface/test_server.py``
+        asserts on four ports so the two spellings cannot drift.
+    """
+    return (
+        f"could not bind the dashboard on {LOOPBACK} port {port}. Nothing was "
+        "started and NO OTHER PORT WAS TRIED, deliberately: a dashboard on an "
+        "unexpected port is one the companion window cannot find. Check the "
+        "allocation in config/ports.json and run scripts/verify_env.py."
+    )
+
+
 class BindError(Exception):
     """The listener could not be bound, and nothing was tried in its place.
 
     Attributes:
         port: The port that refused. A port number is not personal data, and
             naming it is the whole value of this message - an operator cannot
-            act on "the dashboard did not start".
+            act on "the dashboard did not start". It is also the NAMED FIELD
+            :func:`run` renders, in place of the object itself.
     """
 
     def __init__(self, port: int) -> None:
@@ -245,12 +279,7 @@ class BindError(Exception):
             port: The port that could not be bound.
         """
         self.port = port
-        super().__init__(
-            f"could not bind the dashboard on {LOOPBACK} port {port}. Nothing was "
-            "started and NO OTHER PORT WAS TRIED, deliberately: a dashboard on an "
-            "unexpected port is one the companion window cannot find. Check the "
-            "allocation in config/ports.json and run scripts/verify_env.py."
-        )
+        super().__init__(bind_refusal(port))
 
 
 # ---------------------------------------------------------------------------
@@ -791,11 +820,19 @@ def run(
             signal_handler = shutdown_on_signal(server)
             _install_sigint(signal_handler)
             gate.wait()
-    except CertificateError as exc:
-        sys.stderr.write(f"{exc}\n")
+    except CertificateError:
+        # NEITHER HANDLER RENDERS THE OBJECT IT CAUGHT, and that is a rule about
+        # the RUNTIME TYPE rather than about today's message. Both types are
+        # declared in this module and carry fixed text, so `f"{exc}"` leaks
+        # nothing as the code stands - but widening either `except` to `OSError`
+        # turns the same spelling into a home-path leak, because `str()` on an
+        # OSError appends the path it failed on. The constant below is the only
+        # argument any raise site passes to `CertificateError`, asserted by
+        # `test_every_certificate_refusal_is_raised_with_the_one_constant`.
+        sys.stderr.write(f"{CERTIFICATE_UNUSABLE}\n")
         return EXIT_CERTIFICATE
     except BindError as exc:
-        sys.stderr.write(f"{exc}\n")
+        sys.stderr.write(f"{bind_refusal(exc.port)}\n")
         return EXIT_BIND_FAILED
     return EXIT_OK
 

@@ -782,6 +782,246 @@ def test_the_server_refuses_any_address_that_is_not_loopback(
 
 
 # ---------------------------------------------------------------------------
+# (b.1) A refusal reaching an operator renders a FIELD, never the object
+# ---------------------------------------------------------------------------
+
+#: The shipped module the two static arms below read.
+SERVER_SOURCE: Final = SURFACE_ROOT / "server.py"
+
+#: Builtins that turn an object into text. The same vocabulary
+#: ``tests/test_exception_rendering.py`` sweeps the whole tree for, RESTATED
+#: rather than imported: this arm exists so the repair is graded by something
+#: inside CS-601 as well, and importing the guard's internals would make one
+#: reading of the property wear two hats.
+TEXT_BUILTINS: Final = frozenset({"ascii", "format", "repr", "str"})
+
+#: How many sites the detector must find in :data:`LEAKY_RUN`.
+LEAKY_RUN_SITES: Final = 2
+
+#: How many ``raise CertificateError(...)`` sites the module has.
+CERTIFICATE_RAISE_SITES: Final = 1
+
+#: Tokens the bind refusal must carry on the channel an operator reads.
+BIND_POINTERS: Final = 3
+
+#: Ports the two spellings of the bind refusal are compared on. Chosen at both
+#: ends of the transport's range and DELIBERATELY OUTSIDE THE ALLOCATED BAND:
+#: ``config/ports.json`` owns the allocation and no other file restates it, which
+#: ``test_config.py`` sweeps this whole package for. The first draft of this
+#: constant pinned the band's low end and that sweep caught it.
+BIND_PORTS: Final = (0, 1, 1024, 65535)
+
+#: The PRE-REPAIR body of ``run``, authored here rather than read from history,
+#: and the positive control for the detector below. ``str()`` on an ``OSError``
+#: appends the path it failed on, so widening either handler by one word turns
+#: this shape into a home-path leak - which is why the shape is refused
+#: categorically rather than argued about per exception type.
+LEAKY_RUN: Final = '''
+def run(config, routes):
+    """A body that renders the caught object at both of its handlers."""
+    try:
+        serve(config, routes)
+    except CertificateError as exc:
+        sys.stderr.write(f"{exc}\\n")
+        return 3
+    except BindError as exc:
+        sys.stderr.write(f"{exc}\\n")
+        return 4
+    return 0
+'''
+
+
+def _object_renderings(node: ast.expr, bound: str) -> tuple[str, ...]:
+    """Every way one expression renders the whole object ``bound`` names.
+
+    Args:
+        node: The expression to read. An ``ast.expr`` rather than an
+            ``ast.AST``, because every rendering shape is an expression and
+            only an expression is guaranteed to carry a line number.
+        bound: The name an ``except ... as`` clause bound.
+
+    Returns:
+        One shape string per rendering, empty when this node renders nothing.
+        Only a BARE name counts: ``exc.port`` is an attribute read of a named
+        field, which is the repaired spelling and not a finding.
+    """
+
+    def is_bound(expr: ast.expr) -> bool:
+        return isinstance(expr, ast.Name) and expr.id == bound
+
+    if isinstance(node, ast.JoinedStr):
+        return tuple(
+            f"f-string {{{bound}}}"
+            for part in node.values
+            if isinstance(part, ast.FormattedValue) and is_bound(part.value)
+        )
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod):
+        right = node.right
+        operands = right.elts if isinstance(right, ast.Tuple) else [right]
+        return tuple(f"percent-format {bound}" for operand in operands if is_bound(operand))
+    if isinstance(node, ast.Call):
+        function = node.func
+        if isinstance(function, ast.Name) and function.id in TEXT_BUILTINS:
+            return tuple(f"{function.id}({bound})" for arg in node.args if is_bound(arg))
+        if isinstance(function, ast.Attribute) and function.attr == "format":
+            supplied = [*node.args, *(keyword.value for keyword in node.keywords)]
+            return tuple(f".format({bound})" for arg in supplied if is_bound(arg))
+    return ()
+
+
+def _rendered_exception_objects(source: str, function: str) -> tuple[str, ...]:
+    """Every place one module-level function renders a caught exception OBJECT.
+
+    STATED LIMIT: a handler nested inside another handler is walked twice, so a
+    rendering inside one would be counted twice. ``run`` has two flat handlers
+    and the control below has the same two, so no count here depends on it.
+
+    Args:
+        source: The module text.
+        function: The module-level function to read.
+
+    Returns:
+        ``<line>:<shape>`` for each rendering, sorted. Line numbers and shape
+        words only - this text reaches a failure report.
+    """
+    tree = ast.parse(source)
+    target = next(
+        (node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == function),
+        None,
+    )
+    assert target is not None, f"the source read declares no module-level {function}"
+    found: list[str] = []
+    for handler in ast.walk(target):
+        if not isinstance(handler, ast.ExceptHandler) or handler.name is None:
+            continue
+        bound = handler.name
+        for node in ast.walk(handler):
+            if not isinstance(node, ast.expr):
+                continue
+            found.extend(f"{node.lineno}:{shape}" for shape in _object_renderings(node, bound))
+    return tuple(sorted(found))
+
+
+def test_the_object_rendering_detector_finds_the_shape_it_looks_for() -> None:
+    """THE POSITIVE CONTROL, and the arm below proves nothing without it.
+
+    A detector that resolves no name and a ``run`` that renders no object
+    return the same empty tuple - byte-identical outcomes. This is the shape the
+    repo-wide guard reported against this module, asserted to be FOUND.
+    """
+    found = len(_rendered_exception_objects(LEAKY_RUN, "run"))
+    assert found == LEAKY_RUN_SITES, "the detector does not see the shape it exists to find"
+
+
+def test_run_renders_no_caught_exception_object() -> None:
+    """Neither refusal handler may render the object it caught.
+
+    CATEGORICAL, AND DELIBERATELY NOT ARGUED PER TYPE. Both handlers catch a
+    type this module declares, whose message is fixed text today - so there is
+    no live leak at either site. The day one ``except`` clause is widened to
+    ``OSError``, or one message is chained through, ``str()`` appends the path
+    the call failed on and the account name reaches stderr. The rule protects
+    against the change, not against the current state.
+    """
+    found = len(_rendered_exception_objects(SERVER_SOURCE.read_text(encoding="utf-8"), "run"))
+    assert found == 0, (
+        "run() renders a caught exception object; render a named FIELD or the "
+        "module constant instead - see tests/test_exception_rendering.py"
+    )
+
+
+def test_every_certificate_refusal_is_raised_with_the_one_constant() -> None:
+    """What makes it FAITHFUL for ``run`` to write the constant.
+
+    Writing ``CERTIFICATE_UNUSABLE`` is the right line only while that is what
+    every raise site passes. A second refusal built from a path would otherwise
+    be silently replaced by the wrong text, which is a worse fault than the
+    leak the replacement repaired.
+    """
+    tree = ast.parse(SERVER_SOURCE.read_text(encoding="utf-8"))
+    calls: list[ast.Call] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Raise):
+            continue
+        raised = node.exc
+        if (
+            isinstance(raised, ast.Call)
+            and isinstance(raised.func, ast.Name)
+            and raised.func.id == "CertificateError"
+        ):
+            calls.append(raised)
+    assert len(calls) == CERTIFICATE_RAISE_SITES, "the certificate raise sites moved"
+    off_constant = sum(
+        1
+        for call in calls
+        if not (
+            len(call.args) == 1
+            and isinstance(call.args[0], ast.Name)
+            and call.args[0].id == "CERTIFICATE_UNUSABLE"
+        )
+    )
+    assert off_constant == 0, (
+        "a certificate refusal is built from something other than the module "
+        "constant, so run() would write the wrong line for it"
+    )
+
+
+def test_the_bind_refusal_text_is_owned_by_the_module_not_by_the_exception() -> None:
+    """The two spellings of one operator line cannot drift apart."""
+    agree = sum(
+        1 for port in BIND_PORTS if server.bind_refusal(port) == server.BindError(port).args[0]
+    )
+    assert agree == len(BIND_PORTS), (
+        "the text run() writes and the text the raise site builds have diverged"
+    )
+
+
+def test_run_writes_the_certificate_refusal_verbatim_and_names_no_path(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    absent = config.ServerConfig(
+        host=config.LOOPBACK,
+        port=EPHEMERAL,
+        cert_path=tmp_path / CANARY / "nothing.cert.pem",
+        key_path=tmp_path / CANARY / "nothing.key.pem",
+        web_dir=tmp_path / "web",
+    )
+    code = server.run(absent, [])
+    written = capsys.readouterr().err
+    assert code == server.EXIT_CERTIFICATE
+    identical = written == f"{server.CERTIFICATE_UNUSABLE}\n"
+    assert identical, "run() no longer writes the one certificate refusal this module owns"
+    leaked = written.count(CANARY)
+    assert leaked == 0, "the certificate refusal reached stderr carrying a path"
+
+
+def test_run_writes_the_bind_refusal_the_raise_site_builds(
+    cert_pair: tuple[Path, Path],
+    tmp_path: Path,
+    occupied: int,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    cert, key = cert_pair
+    taken = config.ServerConfig(
+        host=config.LOOPBACK, port=occupied, cert_path=cert, key_path=key, web_dir=tmp_path
+    )
+    code = server.run(taken, [probe_route()])
+    written = capsys.readouterr().err
+    assert code == server.EXIT_BIND_FAILED
+    identical = written == f"{server.bind_refusal(occupied)}\n"
+    assert identical, "the bind refusal an operator reads is no longer the one that was raised"
+    pointers = sum(
+        1
+        for token in (str(occupied), "config/ports.json", "scripts/verify_env.py")
+        if token in written
+    )
+    assert pointers == BIND_POINTERS, (
+        "the bind refusal lost the port or one of the two places to look, both "
+        "of which are what makes it actionable"
+    )
+
+
+# ---------------------------------------------------------------------------
 # (c) Traversal cannot resolve, because there is no resolution step
 # ---------------------------------------------------------------------------
 

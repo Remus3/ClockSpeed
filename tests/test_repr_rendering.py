@@ -35,6 +35,7 @@ import ast
 import re
 import warnings
 from dataclasses import fields, is_dataclass
+from functools import partial
 from pathlib import Path
 from typing import Final
 
@@ -46,6 +47,12 @@ from clockspeed.save.header import _Cursor as HeaderCursor
 from clockspeed.save.objects import _Cursor as ObjectCursor
 from clockspeed.save.usmap import _Reader as UsmapReader
 from clockspeed.save.workdir import ForbiddenRoot, SaveListing
+from clockspeed.surface.config import ServerConfig
+from clockspeed.surface.providers import (
+    InstalledRegistryProvider,
+    SaveWorldProvider,
+    StaticAssets,
+)
 from tests.repr_rendering_guard import (
     ALTERNATE_RENDERING_METHODS,
     CARRIER_TYPES,
@@ -177,6 +184,10 @@ RECORDED_POPULATION: tuple[str, ...] = (
     "clockspeed/save/world.py::WorldLoadError",
     "clockspeed/save/world.py::WorldModel",
     "clockspeed/save/world.py::WorldWarning",
+    "clockspeed/surface/config.py::ServerConfig",
+    "clockspeed/surface/providers.py::InstalledRegistryProvider",
+    "clockspeed/surface/providers.py::SaveWorldProvider",
+    "clockspeed/surface/providers.py::StaticAssets",
 )
 
 
@@ -535,6 +546,28 @@ def test_a_repaired_exemption_is_reported_rather_than_reddening() -> None:
 # Forced rendering - what the interpreter actually prints
 # ---------------------------------------------------------------------------
 
+
+def _install_under(root: Path) -> tuple[Path | None, str]:
+    """Stand in for the install resolver, so a bound Path reaches a repr.
+
+    A ``functools.partial`` over this renders its BOUND ARGUMENT in its own
+    repr, which is what lets :data:`FORCED` plant the marker in a class whose
+    every field is a callable. ``InstalledRegistryProvider`` is that class:
+    both its fields are ``Callable``, and ``_find_install`` is graded a
+    carrier because ``Path`` appears in the RETURN half of its annotation.
+    An anonymous lambda there renders nothing, which would make
+    ``test_a_forced_subject_actually_carries_the_marker`` fail rather than
+    pass vacuously - MEASURED both ways before this helper was written.
+
+    Args:
+        root: The install directory to answer with.
+
+    Returns:
+        The pair ``locate.resolve_game_dir`` returns.
+    """
+    return (root, "test")
+
+
 #: Every carrier-holding class in the population, built with a planted marker.
 #: Hand-written because a constructor signature is not in an annotation, and
 #: cross-checked against the derivation by the coverage arm below.
@@ -559,6 +592,22 @@ FORCED: Final[dict[str, object]] = {
     "clockspeed/save/header.py::_Cursor": HeaderCursor(MARKER.encode("ascii")),
     "clockspeed/save/objects.py::_Cursor": ObjectCursor(MARKER.encode("ascii")),
     "clockspeed/save/usmap.py::_Reader": UsmapReader(MARKER.encode("ascii")),
+    "clockspeed/surface/config.py::ServerConfig": ServerConfig(
+        host="127.0.0.1",
+        port=0,
+        cert_path=Path(f"C:/Users/{MARKER}/dashboard.cert.pem"),
+        key_path=Path(f"C:/Users/{MARKER}/dashboard.key.pem"),
+        web_dir=Path(f"C:/Users/{MARKER}/web"),
+    ),
+    "clockspeed/surface/providers.py::SaveWorldProvider": SaveWorldProvider(
+        Path(f"C:/Users/{MARKER}/account")
+    ),
+    "clockspeed/surface/providers.py::InstalledRegistryProvider": InstalledRegistryProvider(
+        find_install=partial(_install_under, Path(f"C:/Users/{MARKER}/game"))
+    ),
+    "clockspeed/surface/providers.py::StaticAssets": StaticAssets(
+        Path(f"C:/Users/{MARKER}/web"), ("app.js",)
+    ),
 }
 
 

@@ -27,9 +27,16 @@ THE POPULATION IS DERIVED BY TWO MECHANICAL RULES, NEITHER OF THEM A LIST:
       field annotated with a :data:`CARRIER_TYPES` word.
 
 R2 exists because a carrier can appear above the save layer the day a world
-value is cached in ``advisor/`` or ``surface/``. MEASURED at the time of
-writing: R2 adds nothing R1 does not already hold, and that is a fact about
-today's tree rather than a reason to drop the rule.
+value is cached in ``advisor/`` or ``surface/``. THAT DAY HAS ARRIVED, and the
+earlier wording here is left visible rather than deleted because of how it went
+false. It read "MEASURED at the time of writing: R2 adds nothing R1 does not
+already hold", which was true of the tree it was measured against. CS-601's
+surface layer then landed the first candidates R1 cannot reach - a resolved
+``ServerConfig`` holding certificate, key and asset ``Path`` fields, and the
+providers holding a save directory, an install resolver and an asset directory
+- and NOTHING WENT RED when the sentence stopped being true, because no arm
+grades a docstring. A restated measurement is a claim with a shelf life, and
+this one is the worked example.
 
 A HAND-WRITTEN ``__repr__`` IS NOT AUTOMATICALLY A PASS. A class carrying
 ``repr=False`` plus a method that renders the carrier anyway is graded
@@ -470,11 +477,16 @@ def alternate_rendering_methods() -> tuple[str, ...]:
 def swept_modules() -> tuple[str, ...]:
     """Every module the sweep actually walks.
 
-    EXPOSED SO THE REACH IS GRADED RATHER THAN ASSUMED. Every candidate in this
-    tree happens to live under :data:`SAVE_LAYER`, so an adversary narrowed
+    EXPOSED SO THE REACH IS GRADED RATHER THAN ASSUMED. When this was written
+    every candidate lived under :data:`SAVE_LAYER`, so an adversary narrowed
     :data:`SHIPPED_ROOT` back to the save layer and nothing went red - the rule
     that exists to catch a save value cached above the save layer could be
-    switched off silently.
+    switched off silently. THAT IS NO LONGER THE TREE: CS-601's surface layer
+    put candidates above the save layer, so the same narrowing now drops them
+    out of the population and the membership pin reddens on the departure. This
+    function stays anyway, because what it grades is the REACH and not today's
+    census - the day the surface candidates are all repaired away, the pin goes
+    quiet again and this is what still measures whether R2 can see anything.
 
     Returns:
         Repo-relative module paths, sorted.
