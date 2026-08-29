@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clockspeed dashboard</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<!--
+  CS-601 - the walking skeleton's operator-facing page.
+
+  THIS DOCUMENT SHIPS NO CONTENT OF ITS OWN BEYOND ITS HEADINGS. Every value a
+  reader sees is written by app.js from a response this server produced, which
+  is why the empty states below say "reading" rather than showing a plausible
+  number. A page that renders a figure before the fetch lands is a page that
+  renders a figure when the fetch never lands.
+
+  NOTHING HERE REFERENCES ANYTHING OFF THIS MACHINE. No font host, no analytics,
+  no remote stylesheet, no remote image. The server's Content-Security-Policy
+  would block one at runtime; the absence of one at rest is the second gate,
+  because a header is one edit away from being relaxed and a leak is not.
+-->
+
+<header class="bar">
+  <div class="ident">
+    <h1>Clockspeed</h1>
+    <p class="pin" id="pin">reading /api/health ...</p>
+  </div>
+  <div class="badges">
+    <span class="badge badge-idle" id="badge-registry">registry: reading ...</span>
+    <span class="badge badge-idle" id="badge-world">world: reading ...</span>
+  </div>
+  <button type="button" id="refresh">Refresh</button>
+</header>
+
+<main>
+
+  <section class="panel" aria-labelledby="h-endpoints">
+    <h2 id="h-endpoints">Endpoints</h2>
+    <p class="lede">
+      Every route this surface publishes, and what it answers today. A route
+      with no layer beneath it says so and names the open item that would
+      build it. That is the skeleton working, not a gap.
+    </p>
+    <p class="note" id="probe-note">reading ...</p>
+    <!--
+      tabindex="0" PUTS THE SCROLLER ITSELF IN THE TAB ORDER. At 375px the
+      right-hand columns of this table are reachable by scrolling this box and
+      by nothing else - it holds no link, no control, no focusable descendant of
+      any kind - so a reader who cannot use a pointer needs the box to take
+      focus before the arrow keys mean anything to it. Whether a user agent
+      makes an overflow container focusable on its own is a Chromium decision
+      that has moved between releases, and the companion shell ships whichever
+      Chromium it ships. Declaring it settles the question here.
+
+      role + aria-label GIVE THE STOP A NAME. Focus landing on an unnamed box is
+      an announcement of nothing; the label says what was reached and that it
+      scrolls. The two scrollers are named apart so the second is not the first.
+    -->
+    <div class="scroll-x" tabindex="0" role="region" aria-label="Endpoint routes, scrolls sideways">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Route</th>
+            <th scope="col">Method</th>
+            <th scope="col">HTTP</th>
+            <th scope="col">Status</th>
+            <th scope="col">Blocked by</th>
+            <th scope="col">Read from</th>
+          </tr>
+        </thead>
+        <tbody id="endpoint-rows">
+          <tr><td class="empty" colspan="6">reading ...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-world">
+    <h2 id="h-world">World</h2>
+    <p class="lede">
+      What the save layer parsed, identified by a one-way digest. The token
+      itself is personal data and never crosses this wire.
+    </p>
+    <p class="note" id="world-note">reading /api/world ...</p>
+    <dl class="facts" id="world-facts"></dl>
+    <div class="scroll-x" tabindex="0" role="region" aria-label="World counts, scrolls sideways">
+      <table id="count-table" hidden>
+        <thead>
+          <tr>
+            <th scope="col">Counted</th>
+            <!-- class="count" right-aligns this header over the digits it names. -->
+            <th scope="col" class="count">Total</th>
+          </tr>
+        </thead>
+        <tbody id="count-rows"></tbody>
+      </table>
+    </div>
+    <h3 id="h-unmodeled">Unmodeled classes</h3>
+    <p class="note" id="unmodeled-note">reading ...</p>
+    <ul class="paths" id="unmodeled-list"></ul>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <p>Local, deterministic, read-only. Nothing on this page leaves this machine.</p>
+</footer>
+
+<script src="app.js" defer></script>
+</body>
+</html>

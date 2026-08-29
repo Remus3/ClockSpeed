@@ -1,0 +1,543 @@
+/*
+  CS-601 - the dashboard's only stylesheet.
+
+  THE PALETTE IS DECLARED ONCE, LIGHT FIRST, AND REDEFINED WHOLE FOR DARK. Every
+  token on :root below has a counterpart in the dark query, and a test asserts
+  the two sets are identical: a token defined in one scheme only is a colour
+  that is right in one and inherited-or-wrong in the other, which a static sheet
+  hides and a reader notices immediately.
+
+  BODY PAINTS ITS OWN GROUND. A transparent body borrows whatever sits behind
+  it, and this page is served into a companion window whose ground is not this
+  project's to assume.
+
+  NO REMOTE RESOURCE. No font host, no imported sheet. The type stack is what
+  the operating system already has. A webfont request would hand a third party
+  the operator's IP and referer, and "Local. Nothing is uploaded." is a property
+  of these bytes, not only of the response header.
+*/
+
+:root {
+  --bg: #f5f7f9;
+  --surface: #ffffff;
+  --surface-alt: #eef1f5;
+  --border: #d5dae1;
+  --text: #14181d;
+  --muted: #5b646e;
+  --accent: #1c4f8b;
+  --ok-fg: #0f5132;
+  --ok-bg: #d8efdf;
+  --pending-fg: #6a4a05;
+  --pending-bg: #fbeecb;
+  --warn-fg: #7a3d10;
+  --warn-bg: #fbe3d0;
+  --bad-fg: #842029;
+  --bad-bg: #f7d7da;
+  --idle-fg: #4a535d;
+  --idle-bg: #e4e8ed;
+  --focus: #1a56c4;
+  --btn-bg: #1c4f8b;
+  --btn-fg: #ffffff;
+  --btn-border: #163f6f;
+  --shadow: rgba(20, 24, 29, 0.09);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f131a;
+    --surface: #171d26;
+    --surface-alt: #1e2631;
+    --border: #2c3745;
+    --text: #e8edf3;
+    --muted: #98a4b3;
+    --accent: #7db3f0;
+    --ok-fg: #82d8a6;
+    --ok-bg: #163220;
+    --pending-fg: #ebc978;
+    --pending-bg: #382d11;
+    --warn-fg: #f0b183;
+    --warn-bg: #3a2416;
+    --bad-fg: #f3a3a9;
+    --bad-bg: #391b1f;
+    --idle-fg: #a9b4c1;
+    --idle-bg: #232c38;
+    --focus: #8cc0ff;
+    --btn-bg: #2f6db3;
+    --btn-fg: #ffffff;
+    --btn-border: #4d8cd2;
+    --shadow: rgba(0, 0, 0, 0.45);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0 0 3rem;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/*
+  THERE IS DELIBERATELY NO `overflow-x: hidden` ON THIS ELEMENT. Hiding it would
+  make a future sideways overflow silent - the scrollbar is the only signal a
+  reader or an auditor gets that something has burst its container, and clipping
+  it swallows the evidence rather than the fault. .scroll-x below owns the real
+  overflow, so nothing needs clipping today: the audit walked 62 elements past
+  the viewport edge at 375px and found all 62 inside a working scroller.
+*/
+
+/* --- the focus ring, declared once and never suppressed anywhere ------- */
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* --- header ------------------------------------------------------------ */
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  padding: 1rem 1.25rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 3px var(--shadow);
+}
+
+.ident {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  letter-spacing: 0.01em;
+}
+
+.pin {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas",
+    "Liberation Mono", monospace;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-live {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.badge-absent {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.badge-idle {
+  background: var(--idle-bg);
+  color: var(--idle-fg);
+}
+
+button {
+  min-width: 108px;
+  min-height: 44px;
+  padding: 0.5rem 1.1rem;
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  border: 1px solid var(--btn-border);
+  border-radius: 6px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  filter: brightness(1.12);
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+/*
+  THE BUSY STATE IS aria-disabled AND NOT disabled, and the reason is measured
+  rather than stylistic - see the refresh() comment in app.js. What this rule
+  owes that decision is the look: an aria-disabled control still takes a hover
+  and still takes a press, so without these two the button would keep offering
+  affordances for an activation app.js is dropping on the floor. The pointer
+  says "not now"; the ring is untouched, because the control is still focused,
+  still in the tab order, and a keyboard reader has to keep seeing where it is.
+*/
+button[aria-disabled="true"] {
+  cursor: progress;
+}
+
+button[aria-disabled="true"]:hover {
+  filter: brightness(1);
+}
+
+button[aria-disabled="true"]:active {
+  transform: none;
+}
+
+/* --- panels ------------------------------------------------------------ */
+
+main {
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+.panel {
+  margin: 1.5rem 0 0;
+  padding: 1.15rem 1.25rem 1.35rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 1px 3px var(--shadow);
+}
+
+h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+h3 {
+  margin: 1.5rem 0 0;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/*
+  THE CHANGING LINE OUTRANKS THE FIXED ONE, and it did not before this rule.
+
+  .lede is prose typed into index.html - identical on every load, and already
+  read once. .note is written by app.js out of a response body: it is the line
+  that says what this surface could and could not reach THIS time. The audit
+  measured the page ranking them the other way round - the live answer at
+  13.6px in --muted against fixed prose at 15px in --text - so the one sentence
+  worth re-reading was the smaller and the dimmer of the two.
+
+  BOTH STILL CLEAR AA. --muted on --surface measures 6.01:1 against a 4.5
+  requirement, so demoting the lede spends contrast it has to spare rather than
+  contrast it needs.
+
+  BOTH ARE CAPPED AT THE SAME MEASURE. .note carried no max-width at all and ran
+  to 137 characters at 1100px, roughly twice the width a reader tracks a line
+  return across. 60ch is the cap .lede already used, and matching them makes it
+  one decision to hold rather than two.
+*/
+.lede {
+  margin: 0.5rem 0 0;
+  max-width: 60ch;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.note {
+  margin: 0.75rem 0 0;
+  max-width: 60ch;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.foot {
+  max-width: 68rem;
+  margin: 1.5rem auto 0;
+  padding: 0 1.25rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.foot p {
+  margin: 0;
+}
+
+/* --- wide content owns its overflow, so the page never scrolls sideways - */
+
+.scroll-x {
+  overflow-x: auto;
+  margin: 0.9rem 0 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+/*
+  THE SCROLLER IS IN THE TAB ORDER, declared in index.html rather than here
+  because a tabindex is markup. At 375px the right-hand columns are reachable
+  ONLY by scrolling this box, and whether a scroll container without a tabindex
+  is focusable at all is a user-agent decision that has changed between Chromium
+  releases. The companion shell ships whatever Chromium it ships; declaring the
+  tabindex removes the question instead of betting on the answer.
+
+  ITS RING KEEPS ITS OWN CORNERS. The shared :focus-visible rule rounds to 3px,
+  which would square off an 8px box the moment a keyboard reached it.
+*/
+.scroll-x:focus-visible {
+  border-radius: 8px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+th,
+td {
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+/*
+  THIS HEADER IS NOT STICKY, AND THE DECLARATION THAT SAID IT WAS IS GONE.
+  `position: sticky; top: 0` sat here and did nothing: sticky resolves against
+  the nearest scroll container, which is .scroll-x and not the viewport, and
+  .scroll-x is never taller than its content so it never scrolls vertically.
+  Measured: on a 200px page scroll the header top moved 276.4 -> 76.4, the full
+  200px, so it was not sticking to anything.
+
+  IT IS REMOVED RATHER THAN REPAIRED. Making it work means giving .scroll-x a
+  max-height, which buys a pinned header for a nine-row table at the price of a
+  second nested scroller and a second keyboard scroll trap on the page. CSS that
+  reads as working and does nothing is the fault CONVENTIONS.md section 13.3
+  names; deleting it is the honest half of the two ways to clear it.
+*/
+thead th {
+  background: var(--surface-alt);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+tr:last-child td {
+  border-bottom: 0;
+}
+
+td.route,
+td.count {
+  font-family: ui-monospace, "Cascadia Mono", "Consolas",
+    "Liberation Mono", monospace;
+}
+
+/*
+  A NUMERIC COLUMN'S HEADER SITS OVER ITS OWN DIGITS. td.count is right-aligned
+  so the ones line up under the ones; its th inherited the left alignment every
+  other cell takes, which left the word "Total" at the far end of the column
+  from the numbers it names. The header carries the same class as the cells, so
+  the pairing is one token in the markup rather than two rules that agree by
+  coincidence until one of them is edited.
+*/
+th.count,
+td.count {
+  text-align: right;
+}
+
+td.empty {
+  color: var(--muted);
+  white-space: normal;
+}
+
+td.dim {
+  color: var(--muted);
+}
+
+/*
+  --- the label column stays put while the rest of the row scrolls away -----
+
+  AT 375px THE FIRST COLUMN IS THE FIRST TO LEAVE, and it is the only one that
+  says which row the reader is looking at. Measured before this rule: scrolled
+  fully right, the route cell sat at left -440 against a container at left 41,
+  so the screen showed a status and a source belonging to nothing nameable.
+  At full width there is no scroll for the pin to survive and it costs nothing.
+
+  A PINNED CELL NEEDS AN OPAQUE GROUND OF ITS OWN, because the cells it holds
+  still travel underneath it. The header keeps the one `thead th` already gives
+  it; the body cell takes the panel's, since .scroll-x declares no background
+  and the panel is what shows through it.
+
+  THE EDGE IS A box-shadow AND NOT A border. Under `border-collapse: collapse`
+  the collapsed border belongs to the table rather than to the cell, so a cell
+  that moves leaves it behind; a shadow is painted by the cell and travels with
+  it. td.empty is excluded: it spans every column and has no column to pin.
+*/
+thead th:first-child,
+tbody td:first-child:not(.empty) {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  box-shadow: 1px 0 0 var(--border);
+}
+
+tbody td:first-child:not(.empty) {
+  background: var(--surface);
+}
+
+/* --- status pills ------------------------------------------------------ */
+
+.pill {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.pill-ok {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.pill-pending {
+  background: var(--pending-bg);
+  color: var(--pending-fg);
+}
+
+.pill-warn {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.pill-bad {
+  background: var(--bad-bg);
+  color: var(--bad-fg);
+}
+
+.pill-idle {
+  background: var(--idle-bg);
+  color: var(--idle-fg);
+}
+
+/* --- world facts ------------------------------------------------------- */
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.75rem 1.25rem;
+  margin: 0.9rem 0 0;
+}
+
+.facts div {
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+/*
+  0.75rem IS THE FLOOR, AND IT IS A FLOOR RATHER THAN A JUDGEMENT PER LABEL.
+  This label and `thead th` were the two strings on the page under 12px - 11.52
+  and 11.84 - and both are UPPERCASE and tracked at 0.06em, which is the pairing
+  that costs most at small sizes: capitals flatten the ascender and descender
+  profile a reader scans word shapes by, and tracking pulls apart what is left.
+  Both cleared AA on contrast, but contrast and legibility are separate
+  measurements and neither one certifies the other. The lift is 0.48px and
+  0.16px, so nothing reflows - what it buys is a rule a test can hold.
+*/
+.facts dt {
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.facts dd {
+  margin: 0.2rem 0 0;
+  font-family: ui-monospace, "Cascadia Mono", "Consolas",
+    "Liberation Mono", monospace;
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+.paths {
+  margin: 0.6rem 0 0;
+  padding: 0 0 0 1.1rem;
+  font-family: ui-monospace, "Cascadia Mono", "Consolas",
+    "Liberation Mono", monospace;
+  font-size: 0.82rem;
+}
+
+.paths li {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 34rem) {
+  .bar {
+    align-items: flex-start;
+  }
+
+  button {
+    width: 100%;
+  }
+
+  /*
+    A PIN THAT EATS THE SCROLLPORT HAS TAKEN AWAY WHAT THE SCROLL WAS FOR.
+    The route column is nowrap monospace sized to its longest string,
+    /api/advice/<id>/derivation, which measured 247px inside a 293px container -
+    so pinning it left 46px to scroll the other five columns through, and a
+    reader scrolled fully right saw "ROM" and "alth" where the last column's
+    content should have been. Caught by looking at the 375px screenshot after
+    the pin went in; the pin measured correct and read useless.
+
+    16ch IS SIXTEEN CHARACTERS OF THE FACE THE COLUMN IS SET IN, not a pixel
+    guess that stops meaning anything if the type changes. The long route paths
+    take two lines here, which is the correct trade at this width - the row is
+    taller and the other five columns are legible again.
+
+    IT TAKES ALL FOUR DECLARATIONS, and max-width alone was measured doing the
+    opposite of the intent. Wrapping is what lets the column shrink at all:
+    while the cell is nowrap its min-content width is the whole string and the
+    auto layout has nothing smaller it may pick. But once overflow-wrap is
+    `anywhere` the min-content width falls to a single character, and a table
+    whose content exceeds its box hands every shrinkable column exactly that -
+    measured 34px wide and 589px tall, the route wrapped down 28 lines. max-width
+    caps a column; it never asks for one. min-width is the floor that makes the
+    cap the answer rather than the ceiling of a collapse.
+  */
+  thead th:first-child,
+  tbody td:first-child:not(.empty) {
+    min-width: 16ch;
+    max-width: 16ch;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
