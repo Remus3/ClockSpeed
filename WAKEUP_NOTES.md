@@ -34,6 +34,71 @@ the line becomes a pointer.
 
 ---
 
+## Session 49 - 2026-08-30 - CS-602 CLOSED and the shell-suite job ran for the first time on both platforms; six graders found two ways to make the certificate clause green while trusting everything, and BOTH were the guard rather than the code
+
+- **Shipped: CS-602.** tier2 run `33300238437` at `4b5de1e`, `shell suite` GREEN on ubuntu
+  AND windows, `# tests 196 / pass 196 / fail 0 / skipped 0 / todo 0`; tier1 run
+  `33300227008` at the same SHA, `success`. Detail in `docs/LEDGER.md`, not here. Ten
+  follow-ups filed, CS-614 to CS-623.
+
+- **THE HEADLINE: A GUARD THAT COUNTS A TOKEN DOES NOT CONSTRAIN WHAT THE TOKEN DOES.** The
+  arm asserted `shell/main.js` holds exactly one `callback(`. It never looked at the
+  argument. So `callback(0)` - accept every certificate ever presented - passed 63 static
+  arms, 174 node tests, drift_guard CLEAN and precommit_gate PASS, and so did four
+  one-token edits to the verdict map, and so did a single call site answering the wrong
+  integer for every non-TRUST verdict. **The root cause was PLACEMENT.** `codeFor` is a pure
+  function from five strings to three integers - no electron, no display - and it had been
+  moved out of a file with fourteen tests into one with zero, which is exactly what made it
+  ungradable. ADR 0014 asserted "mapping words onto integers is a separate module's job" as
+  though it were already true.
+
+- **ONE REGEX LITERAL BLINDED EVERY TEXT-SCANNING ARM AT ONCE.** `/[/*]/` is valid
+  JavaScript and opens a block comment in the stripper, so everything up to the next `*/`
+  vanishes from what the guard reads. Live `ignore-certificate-errors`, the Node TLS kill
+  switch and a `certificate-error` handler were invisible while `node --check` called the
+  file valid. **The stripper's own docstring named two arms as the alarm; both were measured
+  against the attack and both stayed green** - idempotence cannot fire because the second
+  strip re-derives the same deletion, and never-grows cannot fire because deleting is
+  shrinking. The mitigation had been built parallel to the stripper's assumptions. Repaired
+  by scanning RAW text with an allow-list of documented mentions, so the stripper is not
+  consulted for that sweep at all.
+
+- **EVERY ONE OF EIGHT SLICES FOUND A REAL DEFECT IN THE BRIEF THAT DISPATCHED IT.** The
+  worst was a test the merger specified that PASSES ON THE VULNERABLE CODE: plant
+  `{"__proto__":{"width":99999}}` and assert width is the default - which it is either way,
+  because `JSON.parse` makes `__proto__` an own property and leaves the prototype intact.
+  The discriminating assertion is `Object.getPrototypeOf(loaded) === Object.prototype`.
+  Also: a precedence table that returned TRUST when both hostnames were absent; a repair
+  that would have MOVED the defect to a tier-2-only lane; and a mandated `throw` that would
+  have reintroduced a hang, because a verify callback that throws never fires.
+
+- **THE PUSH GATE WAS PROVEN END TO END ON A REAL VIOLATION.** The merger merged a slice on
+  its INTERIM report, verified with a subset that did not include the guard the change
+  broke, and committed a failing test. The push was attempted and BLOCKED - `1 failed, 3057
+  passed`, `Nothing was pushed`, origin unmoved. Acting on an interim report is the error.
+
+- **THE PIPELINE EXIT-CODE TRAP BIT THREE TIMES IN ONE SESSION.** A backgrounded
+  `cmd | tail` reports tail's status. It masked a failing baseline suite, masked four
+  failures in a slice's full run, and reported the BLOCKED push as "exit code 0". Capture
+  `PIPESTATUS` or do not report an exit code.
+
+- **Decisions: ADR 0013 and ADR 0014 ACCEPTED.** The Electron licence gate split into three
+  scopes, and the pin-one-certificate decision with `setCertificateVerifyProc` chosen over
+  the strictly weaker `certificate-error`.
+
+- **Failed paths: a `start` script was added and BACKED OUT.** The static guard merged nine
+  minutes earlier caught it - electron may be named nowhere in the manifest outside
+  `devDependencies`. The guard could have been narrowed; it was not, because `npm start` and
+  `npx electron .` are functionally identical and widening a bright-line check for a
+  convenience is a bad trade.
+
+- **Next action: run the six manual checks in `docs/OPERATIONS.md` section 8.3.** They all
+  read `NOT RUN`, they need a real display and a real Electron, and until they are filled in
+  nobody has seen the companion window work. Then CS-615 - the count floor is one test
+  pooled over five suites.
+
+---
+
 ## Session 48 - 2026-08-30 - CS-605 CLOSED and tier-1 CI is GREEN on ubuntu; the first repair of the home-path arm built a guard that muted itself, and an adversary caught it with a mutant the old assert had killed
 
 - **Shipped: CS-605.** tier1 run `33289681747` at `90d2956`, `ubuntu-latest`, conclusion
@@ -146,66 +211,3 @@ the line becomes a pointer.
 - **Next action: take CS-602, the Electron companion**, which closes phase 6 with CS-600 - or
   take CS-829, still the head of the product path and untouched for five sessions. Ask the
   operator which; the surface is now real enough that either is defensible.
-
-## Session 46 - 2026-08-29 - CS-860's first remedy REFUTED by five reviewers and BACKED OUT; the guard written to remove a naming accident was itself green by one, and it was caught before anything was claimed closed
-
-- **Shipped: NOTHING CLOSED. CS-860 STAYS OPEN.** The home-path family widened, the two new
-  shape rules were BACKED OUT, and the platform account id and the world name are now
-  REGISTERED UNCOVERED with a stated reason each. The `CS-8nn` leaf split landed and CS-861
-  was filed. Detail in `docs/LEDGER.md` and `docs/item_notes/phase4-followups-850.md`, not
-  here.
-
-- **THE HEADLINE: THE GUARD WAS GREEN BY ACCIDENT, INSIDE THE ITEM FILED TO REMOVE AN
-  ACCIDENT.** Deleting the `quote` transform from the home spellings left the WHOLE SUITE
-  GREEN, because the URL-quoted spellings were rescued by the ACCOUNT-NAME rule - the exact
-  "naming accident, not a control" CS-860 exists to eliminate, reproduced one level up. Two
-  reviewers found it independently, by different methods. **FIFTH CONSECUTIVE SESSION TO
-  PRODUCE A FALSE CLEARANCE INSIDE THE GUARD BUILT TO PREVENT THE PREVIOUS ONE - AND THE
-  FIRST CAUGHT BEFORE THE OPERATOR WAS TOLD ANYTHING HAD CLOSED.**
-
-- **FIVE REVIEWERS, FIVE REFUTATIONS, ONE ROOT CAUSE.** The `account-id` and `world-name`
-  shape rules were measured simultaneously TOO NARROW and TOO GREEDY: a world name with a
-  space lost only its tail, one containing a quote or a question mark was untouched
-  entirely, and a traceback frame line came back with the FUNCTION NAME ERASED. A repo test
-  rendered `assert '<redacted-save>' == '<redacted-save>'` - two byte-identical sides. The
-  segment character class was borrowed from `clockspeed/data/locate.py:187`, where it is
-  correct because that redactor receives PATHS; this one receives arbitrary prose. **TOO
-  NARROW AND TOO GREEDY ARE THE SAME KNOB, so it cannot be tuned.**
-
-- **REGISTRATION MEANT NOTHING BEHAVIOURAL.** A class registered with a never-matching
-  pattern and an empty arm satisfied every oracle arm, because the arms checked a TUPLE SLOT
-  and a FUNCTION-NAME SUBSTRING and never whether a rule matches anything. Swapping two
-  rules' class tags also left everything green. Both defects are closed: a covered class must
-  now rewrite its own planted string into its own placeholder using only its own tagged
-  rules, and each home spelling has its own arm.
-
-- **THE NEW ARM LEAKED.** Its killing assertion rendered a value derived from the real home,
-  because pytest renders the asserted EXPRESSION independently of the message - CS-850's
-  defect, inside CS-860's own guard. Measured with both rule families hollowed: the report
-  carried the bare account name VERBATIM. Fixed by binding scalars in three arms.
-
-- **Decisions: ADR 0011 is ACCEPTED by operator ruling.** The operator also ruled CS-860's
-  disposition: keep the home widening, back out the shape rules, register both classes
-  uncovered with stated reasons, close the two grading defects.
-
-- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But TWO sentences were measured false
-  and were false at `afd85bd` as well, so they predate this session:
-  `tests/assertion_rendering_guard.py` claimed the REPORT redactor recognises a MACHINE NAME,
-  and `_ACCOUNT_VARIABLES` in `tests/conftest.py` reads `COMPUTERNAME` nowhere. ADR 0011
-  carried two defects of its own - a leaf percentage that was wrong when written, and a
-  byte-identity proof that does not reproduce without its hashing convention stated. All
-  corrected.
-
-- **Failed paths: the two shape rules, BACKED OUT rather than tuned.** Do not re-propose a
-  character-class rule over a failure report. The two counter-examples that killed it are
-  pinned as standing regression guards in `tests/test_report_redaction_classes.py`, and any
-  rebuild must survive both: a redaction may rewrite a filename inside a frame line, it may
-  never eat the frame around it, and it may never rewrite half a spaced name.
-
-- **Next action: CS-860 NEEDS A MECHANISM THAT DOES NOT ASSUME ITS INPUT IS A PATH**, for the
-  account id and the world name. Start from the two pinned counter-examples, not from the
-  backed-out rules. **CS-861 IS OPEN AND UNSTARTED** - the same mechanism class in PRODUCTION
-  code, in `clockspeed/data/locate.py`, with its reachability recorded UNVERIFIED and three
-  of four tested account-directory shapes surviving the escaped rendering.
-
----

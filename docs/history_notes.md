@@ -25,6 +25,71 @@ Where current truth actually lives:
 
 ---
 
+## Session 46 wakeup note - relocated 2026-08-30 (session 49)
+
+## Session 46 - 2026-08-29 - CS-860's first remedy REFUTED by five reviewers and BACKED OUT; the guard written to remove a naming accident was itself green by one, and it was caught before anything was claimed closed
+
+- **Shipped: NOTHING CLOSED. CS-860 STAYS OPEN.** The home-path family widened, the two new
+  shape rules were BACKED OUT, and the platform account id and the world name are now
+  REGISTERED UNCOVERED with a stated reason each. The `CS-8nn` leaf split landed and CS-861
+  was filed. Detail in `docs/LEDGER.md` and `docs/item_notes/phase4-followups-850.md`, not
+  here.
+
+- **THE HEADLINE: THE GUARD WAS GREEN BY ACCIDENT, INSIDE THE ITEM FILED TO REMOVE AN
+  ACCIDENT.** Deleting the `quote` transform from the home spellings left the WHOLE SUITE
+  GREEN, because the URL-quoted spellings were rescued by the ACCOUNT-NAME rule - the exact
+  "naming accident, not a control" CS-860 exists to eliminate, reproduced one level up. Two
+  reviewers found it independently, by different methods. **FIFTH CONSECUTIVE SESSION TO
+  PRODUCE A FALSE CLEARANCE INSIDE THE GUARD BUILT TO PREVENT THE PREVIOUS ONE - AND THE
+  FIRST CAUGHT BEFORE THE OPERATOR WAS TOLD ANYTHING HAD CLOSED.**
+
+- **FIVE REVIEWERS, FIVE REFUTATIONS, ONE ROOT CAUSE.** The `account-id` and `world-name`
+  shape rules were measured simultaneously TOO NARROW and TOO GREEDY: a world name with a
+  space lost only its tail, one containing a quote or a question mark was untouched
+  entirely, and a traceback frame line came back with the FUNCTION NAME ERASED. A repo test
+  rendered `assert '<redacted-save>' == '<redacted-save>'` - two byte-identical sides. The
+  segment character class was borrowed from `clockspeed/data/locate.py:187`, where it is
+  correct because that redactor receives PATHS; this one receives arbitrary prose. **TOO
+  NARROW AND TOO GREEDY ARE THE SAME KNOB, so it cannot be tuned.**
+
+- **REGISTRATION MEANT NOTHING BEHAVIOURAL.** A class registered with a never-matching
+  pattern and an empty arm satisfied every oracle arm, because the arms checked a TUPLE SLOT
+  and a FUNCTION-NAME SUBSTRING and never whether a rule matches anything. Swapping two
+  rules' class tags also left everything green. Both defects are closed: a covered class must
+  now rewrite its own planted string into its own placeholder using only its own tagged
+  rules, and each home spelling has its own arm.
+
+- **THE NEW ARM LEAKED.** Its killing assertion rendered a value derived from the real home,
+  because pytest renders the asserted EXPRESSION independently of the message - CS-850's
+  defect, inside CS-860's own guard. Measured with both rule families hollowed: the report
+  carried the bare account name VERBATIM. Fixed by binding scalars in three arms.
+
+- **Decisions: ADR 0011 is ACCEPTED by operator ruling.** The operator also ruled CS-860's
+  disposition: keep the home widening, back out the shape rules, register both classes
+  uncovered with stated reasons, close the two grading defects.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But TWO sentences were measured false
+  and were false at `afd85bd` as well, so they predate this session:
+  `tests/assertion_rendering_guard.py` claimed the REPORT redactor recognises a MACHINE NAME,
+  and `_ACCOUNT_VARIABLES` in `tests/conftest.py` reads `COMPUTERNAME` nowhere. ADR 0011
+  carried two defects of its own - a leaf percentage that was wrong when written, and a
+  byte-identity proof that does not reproduce without its hashing convention stated. All
+  corrected.
+
+- **Failed paths: the two shape rules, BACKED OUT rather than tuned.** Do not re-propose a
+  character-class rule over a failure report. The two counter-examples that killed it are
+  pinned as standing regression guards in `tests/test_report_redaction_classes.py`, and any
+  rebuild must survive both: a redaction may rewrite a filename inside a frame line, it may
+  never eat the frame around it, and it may never rewrite half a spaced name.
+
+- **Next action: CS-860 NEEDS A MECHANISM THAT DOES NOT ASSUME ITS INPUT IS A PATH**, for the
+  account id and the world name. Start from the two pinned counter-examples, not from the
+  backed-out rules. **CS-861 IS OPEN AND UNSTARTED** - the same mechanism class in PRODUCTION
+  code, in `clockspeed/data/locate.py`, with its reachability recorded UNVERIFIED and three
+  of four tested account-directory shapes surviving the escaped rendering.
+
+---
+
 ## Session 45 wakeup note - relocated 2026-08-30 (session 48)
 
 ## Session 45 - 2026-08-29 - CS-857 residuals 1 and 3 closed in TWO rounds, the first refuted by its own adversary; the item's severity framing measured FALSE and filed as CS-860

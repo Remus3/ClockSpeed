@@ -75,6 +75,58 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-08-30 - CS-602 - CLOSED on automated evidence. The Electron companion pins ONE certificate by byte identity, and an adversarial pass found that the wiring proving it was graded by nothing
+Verification: tier2 run `33300238437` at `4b5de1e`, `workflow_dispatch`, conclusion
+`success`, with the `shell suite` job GREEN on BOTH `ubuntu-latest` and `windows-latest` -
+the first execution of that job in its life. Trailer read from the run log rather than a
+local shell: `# tests 196 / # pass 196 / # fail 0 / # skipped 0 / # todo 0`, plus
+`syntax-checked 14 tracked JavaScript file(s) under shell/` and `OK: no shell/node_modules
+- the suite runs on Node stdlib alone`. tier1 run `33300227008` at the same SHA,
+conclusion `success`.
+
+Merged files and the tests that prove them: `shell/lib/trust.js` plus
+`shell/test/trust.test.js` (the pin decision, symbolic verdicts, never an integer);
+`shell/lib/verdict.js` plus `shell/test/verdict.test.js` (the verdict-to-code mapping,
+all five entries pinned by value); `shell/lib/state.js` and `shell/lib/geometry.js` plus
+their suites (position, size, and recovery from a vanished monitor);
+`shell/lib/endpoint.js` plus `shell/test/endpoint.test.js` (the dashboard URL and the
+certificate path, with no port literal and no path literal); `shell/lib/window.js` plus
+`shell/test/window.test.js` (frameless, resizable, always-on-top precedence, the OVERLAY
+mode declared and throwing); `tests/shell/test_shell_assets.py` (the every-push static
+guard). Decision recorded as ADR 0014. The CONVENTIONS section 14 licence gate for
+Electron was cleared separately and is ADR 0013.
+
+**THE ITEM CLOSES ON ITS AUTOMATED EVIDENCE, AND THAT IS NOT THE SAME AS A WORKING
+WINDOW.** Six checks in `docs/OPERATIONS.md` section 8.3 - the frame, always-on-top
+raising, a real TLS handshake, geometry surviving a restart, the drag strip dragging, and
+the real `callback(-3)` behaviour - are graded by no machine and every one of them ships
+reading `NOT RUN`. CI has no display and never installs Electron. Nothing in this entry
+claims the companion has been seen to work.
+
+**WHAT THE ADVERSARIAL PASS FOUND, RECORDED BECAUSE IT IS THE POINT.** Six graders - a
+verifier, an adjudicator and four adversaries on distinct lenses - ran against a frozen
+candidate. Two CRITICAL findings defeated the item's own load-bearing acceptance clause,
+and both were reproduced by the merger before being believed. First: the guard counted the
+token `callback(` and never inspected its argument, so `callback(0)` - a blanket accept of
+every certificate ever presented - passed every lane, as did four one-token edits to the
+verdict map. The root cause was PLACEMENT, not impossibility: `codeFor` is a pure total
+function from five strings to three integers, and it had been moved out of a file with
+fourteen tests into one with zero, while ADR 0014 asserted the opposite as though it were
+already true. Second: `/[/*]/` is valid JavaScript and opened a block comment in the
+guard's stripper, so live bypass code - `ignore-certificate-errors`, the Node TLS kill
+switch, and the `certificate-error` handler ADR 0014 forbids BY NAME - was invisible to
+every text-scanning arm while `node --check` called the file valid. The two arms the
+stripper's own docstring named as the alarm were measured against that attack and BOTH
+STAYED GREEN. Repaired in `5019a9f`; both attacks now redden the EVERY-PUSH lane, verified
+by the merger against a repaired clone.
+
+Ten follow-ups filed: CS-614 through CS-623. CS-615 is the one a reader should not skim -
+the tier-2 count floor is `tests > 0` pooled over five suites, so five one-test stubs leave
+every lane green with 169 of 174 arms gone.
+
+**CS-600 STAYS OPEN.** It is the phase-6 gate, and the shell injects CSS into the dashboard
+page whose 5-phase audit ran without it. That composition is unaudited and is CS-617.
+
 ### 2026-08-30 - CS-605 - CLOSED. Tier-1 CI runs the surface suite on ubuntu and PASSES, and the single arm that cannot be graded there records why
 Verification: tier1 run `33289681747` at `90d2956`, `ubuntu-latest`, conclusion `success`,
 15 steps executed, ZERO non-success steps, `3755 passed, 114 skipped` in 441s - against the
