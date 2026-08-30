@@ -58,6 +58,10 @@ Budgets: this file under 20 KB (CI hard fail), each leaf under 6 KB (CI warn).
   measure a different spelling; gate a clearance on a positive fact. A guard that
   matches on a NAME reports a population zero about the wrong question; and a false
   clearance is a worse defect than a silence.
+- [A skip can mute the defect](a-skip-can-mute-the-defect.md) - a skip whose
+  condition is read from the code under test goes quiet in exactly the case that
+  code is broken; gate a skip on a static property of the INPUT, and plant a
+  synthetic subject rather than borrowing the machine's.
 - [A guard can be green by accident](a-guard-can-be-green-by-accident.md) - it can
   pass because a DIFFERENT mechanism silently covers the case under test; delete the
   mechanism the arm names and see whether anything goes red.
