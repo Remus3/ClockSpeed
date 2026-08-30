@@ -82,6 +82,16 @@ the line becomes a pointer.
   same stdout. Nothing in that transcript looked wrong. 117 GB recovered. Never background a
   command that can reach an interactive prompt.
 
+- **A PUSH-BLOCKING FLAKE IS FILED AS CS-607 AND IS NOT DIAGNOSED.**
+  `test_the_oracle_reproduces_the_real_runs_discovered_set` failed in full-suite run 1, passed
+  in isolation three times, passed in run 2, FAILED in the first pre-push run and blocked the
+  push, then passed after `.mypy_cache` was deleted. Ruled OUT by measurement: order
+  randomisation (no `pytest-randomly`, xdist inactive), untracked `.py` files (zero outside
+  dot-directories - all 736 sit under `.claude/worktrees`, which mypy skips), and
+  `tests/test_doc_budget.py`'s worktree (it targets a throwaway scratch checkout, not this
+  repo). The cache was being written while `C:` was at zero bytes free, which is a hypothesis
+  and NOT a diagnosis. **Do not cite the cache as the cause.**
+
 - **Next action: take CS-602, the Electron companion**, which closes phase 6 with CS-600 - or
   take CS-829, still the head of the product path and untouched for five sessions. Ask the
   operator which; the surface is now real enough that either is defensible.
