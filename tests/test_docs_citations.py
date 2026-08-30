@@ -167,6 +167,14 @@ ADR_0011: Final = "docs/adr/0011-the-cs-8nn-follow-up-leaf-splits-at-cs-850.md"
 #: whose evidence has silently stopped resolving argues from nothing.
 ADR_0012: Final = "docs/adr/0012-dashboard-refusal-vocabulary-and-wire-form.md"
 
+#: The CS-602 decision to pin ONE certificate by byte identity and defer every
+#: other host to Chromium. GUARDED rather than recorded unguarded, and the
+#: reason is what the pointers carry: it cites the module that makes the
+#: decision and the guard that grades the wiring, and six graders showed that
+#: the wiring was the half nothing was checking. An ADR that argues a security
+#: property from a test whose name has since moved argues from nothing.
+ADR_0014: Final = "docs/adr/0014-the-shell-trusts-one-pinned-certificate.md"
+
 #: The LIVE per-item detail file, created 2026-08-23 when the operator ruled the
 #: NOTE bodies out of `ROADMAP.md`. IT IS GUARDED RATHER THAN RECORDED UNGUARDED,
 #: and the reason is the move itself: every body in it came VERBATIM out of
@@ -219,6 +227,7 @@ GUARDED_DOCS: Final = (
     ADR_0010,
     ADR_0011,
     ADR_0012,
+    ADR_0014,
     ITEM_NOTES,
     *ITEM_NOTES_LEAVES,
     # A memory leaf that cites a test by name. Guarded rather than recorded,
