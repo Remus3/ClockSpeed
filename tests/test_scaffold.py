@@ -76,9 +76,8 @@ CLOCKSPEED_PACKAGES: tuple[str, ...] = tuple(
 # exist by the end of phase 0 (BOOTSTRAP.md section 10, CONVENTIONS.md
 # section 19 checklist).
 #
-# Three section 6 directories are deliberately absent from this list, each for
+# Two section 6 directories are deliberately absent from this list, each for
 # a stated reason rather than to make the suite green:
-#   shell/                  the Electron companion, phase 6 (section 10).
 #   clockspeed/surface/web  dashboard assets, phase 6. It would also be
 #                           untestable in phase 0: git does not track empty
 #                           directories, so a clean clone could not reproduce
@@ -93,6 +92,7 @@ REQUIRED_DIRECTORIES: tuple[str, ...] = (
     "docs",
     "memory",
     "scripts",
+    "shell",
     "tools",
 )
 

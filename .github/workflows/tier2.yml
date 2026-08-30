@@ -321,6 +321,241 @@ jobs:
           # Short retention: these are regenerated nightly and storage is not free.
           retention-days: 14
 
+  # ===========================================================================
+  # Job 4 - the Node lane: the Electron shell's own suite, behind a count floor.
+  #
+  # Jobs in this file run in parallel, so the number is a label and not an
+  # order. This one is last only to keep its diff small.
+  #
+  # WHY A COUNT FLOOR RATHER THAN AN EXIT CODE. `node --test` EXITS 0 OVER ZERO
+  # TESTS. Measured on v24.15.0 in a directory holding no test file at all:
+  # exit 0, and a complete TAP trailer reading `# tests 0`. A step that reads
+  # only the exit code therefore reports GREEN HAVING RUN NOTHING, and would go
+  # on reporting green if the test directory were renamed, emptied, or missed
+  # by a bad glob. The parse below is the whole reason this lane means anything.
+  #
+  # THE INVOCATION IS BARE `node --test`, RUN FROM INSIDE shell/. That form was
+  # settled by measurement; do not tidy it into either of these:
+  #   node --test "test/*.test.js"  silently misses nested files, still exits 0
+  #   node --test test              broken on v24.15.0 - it tries to load the
+  #                                 directory as a module and reports fail 1
+  #
+  # NO `npm ci` AND NO `npm install`, DELIBERATELY. electron 44.0.0 declares no
+  # postinstall script, so an install does NOT fetch its binary; the first
+  # `require("electron")` triggers a large lazy download at RUN time instead.
+  # Every shell/lib/* module imports Node stdlib only, so the suite runs with no
+  # node_modules at all - asserted below rather than left to a comment. Keeping
+  # the install out is a property of this job, not an omission from it.
+  # ===========================================================================
+  shell-suite:
+    name: shell suite (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      # Same reasoning as job 1: a Windows-only failure and a Linux-only
+      # failure are different bugs, and Windows is this project's primary
+      # target. Never let one abort the other.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        # One script for both platforms, as everywhere else in this file.
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # This workflow owns the CI Node version, exactly as it already owns the
+      # CI Python version in the jobs above. `shell/package.json` engines is a
+      # FLOOR (">=22.12.0"): a different fact, and it keeps its own owner. This
+      # pin tracks the developer machine's major, which is where every measured
+      # claim in this job's comments was measured (v24.15.0).
+      #
+      # No `cache:` key on purpose - caching a dependency install that this job
+      # deliberately does not perform would only imply one exists.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # Pairs with the "no npm ci" note above by ASSERTING the property instead
+      # of trusting the comment to be read. If a real runtime dependency ever
+      # lands, this step is what will stop you: read that note, then retire this
+      # assertion deliberately rather than deleting it in passing.
+      - name: Assert the suite needs no installed dependencies
+        run: |
+          if [ -e shell/node_modules ]; then
+            echo "FAIL: shell/node_modules exists in a job that installs nothing."
+            echo "Either a step started installing dependencies, or the runner"
+            echo "cached a tree this job never asked for. Both make the 'runs on"
+            echo "Node stdlib alone' property untrue while still looking green."
+            exit 1
+          fi
+          echo "OK: no shell/node_modules - the suite runs on Node stdlib alone."
+
+      # NOTHING IN THIS REPOSITORY LINTS JAVASCRIPT. ruff is Python-only, so
+      # without this step shell/main.js and shell/preload.js are graded by
+      # nothing whatsoever: they import electron, so no test can import them,
+      # so the suite below never reaches them.
+      #
+      # WHAT THIS CATCHES: syntax errors. Measured on v24.15.0 - `node --check`
+      # exits 1 and prints the offending line on a parse error, and exits 0 on a
+      # file containing `require("electron")` WITHOUT executing that import, so
+      # it works with no node_modules present.
+      #
+      # WHAT IT DOES NOT CATCH, AND IT IS NOT CLOSE: anything that happens only
+      # at run time. A file that calls a number as a function passed this check
+      # cleanly when measured. This is a parse gate, not a linter, and it must
+      # not be cited as one.
+      - name: Syntax-check every tracked JavaScript file under shell/
+        run: |
+          CHECKED=0
+          BAD=0
+          while IFS= read -r tracked; do
+            case "$tracked" in
+              *.js) ;;
+              *) continue ;;
+            esac
+            CHECKED=$((CHECKED + 1))
+            if node --check "$tracked"; then
+              echo "  ok   $tracked"
+            else
+              echo "  FAIL $tracked"
+              BAD=1
+            fi
+          done < <(git ls-files -- shell)
+
+          # The same zero-count trap the suite floor below exists for: a check
+          # that ran over nothing exits 0 and tells you nothing.
+          if [ "$CHECKED" -eq 0 ]; then
+            echo "FAIL: no tracked .js under shell/, so this step graded nothing."
+            echo "git ls-files found no JavaScript to check. Either the tree"
+            echo "moved or the pathspec is wrong; it is not a clean bill."
+            exit 1
+          fi
+          echo "syntax-checked $CHECKED tracked JavaScript file(s) under shell/"
+          exit "$BAD"
+
+      - name: Shell suite with a real count floor
+        working-directory: shell
+        run: |
+          # The exit code is captured rather than relied upon - see the count
+          # floor below for why. It is still enforced: a non-zero exit is a
+          # failure even when the trailer looks clean.
+          set +e
+          node --test --test-reporter=tap > tap.txt 2>&1
+          NODE_RC=$?
+          set -e
+
+          echo "----- TAP -----"
+          cat tap.txt
+          echo "----- end TAP -----"
+          echo "node --test exit code: $NODE_RC"
+
+          # Read one field of the TAP trailer. Anchored at column 0, exactly
+          # three whitespace-separated fields, numeric value - and LAST MATCH
+          # WINS.
+          #
+          # LAST-MATCH IS LOAD-BEARING, NOT GARNISH. Measured on v24.15.0: the
+          # runner re-emits a test's own stdout as TAP comments by prefixing
+          # "# ". A leading '#' in the payload is escaped to "\#", but a payload
+          # with NO leading hash is not escaped at all - so console.log with the
+          # text `tests 0` emits a byte-identical "# tests 0" at column 0. A
+          # first-match parser reads that forgery instead of the trailer. Forged
+          # lines are emitted while the test runs; the real trailer is emitted
+          # last, which is exactly why last-match defeats them.
+          #
+          # A test NAME cannot forge a trailer: per-test lines are
+          # "# Subtest: <name>", so field 2 is "Subtest:" and never "tests".
+          #
+          # The CR strip is insurance. Measured zero CR bytes in this stream on
+          # Windows, but a trailing CR would make every field parse as absent
+          # and turn the whole floor into a confusing red on one platform only.
+          trailer_field() {
+            awk -v key="$1" '
+              { sub(/\r$/, "") }
+              /^# / && NF == 3 && $2 == key && $3 ~ /^[0-9]+$/ { value = $3 }
+              END { print value }
+            ' tap.txt
+          }
+
+          TESTS="$(trailer_field tests)"
+          PASSED="$(trailer_field pass)"
+          FAILURES="$(trailer_field fail)"
+          CANCELLED="$(trailer_field cancelled)"
+          SKIPPED="$(trailer_field skipped)"
+          TODO="$(trailer_field todo)"
+
+          echo "parsed trailer: tests=$TESTS pass=$PASSED fail=$FAILURES" \
+               "cancelled=$CANCELLED skipped=$SKIPPED todo=$TODO"
+
+          # A MISSING TRAILER IS NOT ZERO. Absent means the run never reached
+          # its summary, or the reporter changed shape. Reading absent as zero
+          # would convert a crashed run into a quiet pass on every clause below.
+          for probe in "tests:$TESTS" "fail:$FAILURES" "cancelled:$CANCELLED" \
+                       "skipped:$SKIPPED" "todo:$TODO"; do
+            if [ -z "${probe#*:}" ]; then
+              echo "FAIL: the TAP trailer carries no '# ${probe%%:*} N' line."
+              echo "Absent is not zero. These counts cannot be trusted and this"
+              echo "lane must not report green on them."
+              exit 1
+            fi
+          done
+
+          # Every clause is evaluated before exiting, so one run reports every
+          # violation rather than only the first.
+          FLOOR=0
+
+          if [ "$NODE_RC" -ne 0 ]; then
+            echo "FAIL: node --test exited $NODE_RC."
+            FLOOR=1
+          fi
+
+          if [ "$TESTS" -le 0 ]; then
+            echo "FAIL: the suite reported $TESTS tests, so it graded nothing."
+            echo "node --test exits 0 over zero tests - this clause is the only"
+            echo "thing standing between that and a green lane."
+            FLOOR=1
+          fi
+
+          if [ "$FAILURES" -ne 0 ]; then
+            echo "FAIL: $FAILURES failing test(s)."
+            FLOOR=1
+          fi
+
+          if [ "$CANCELLED" -ne 0 ]; then
+            echo "FAIL: $CANCELLED cancelled test(s)."
+            echo "A cancelled test did not report a result, so it is unmeasured"
+            echo "rather than passing."
+            FLOOR=1
+          fi
+
+          # SKIPPED AND TODO ARE FAILURES HERE, AND THAT IS NOT DECORATION.
+          # CS-605 closed on exactly this: a skip conditioned on the code under
+          # test becomes a mute button the defect gets to press, and the suite
+          # stays green while measuring less and less. CS-613 is open on the
+          # same class. Measured on v24.15.0: a suite whose only non-passing
+          # tests are one skip and one todo exits 0, so nothing but this clause
+          # would notice.
+          if [ "$SKIPPED" -ne 0 ]; then
+            echo "FAIL: $SKIPPED skipped test(s). A skip is an unmeasured test."
+            echo "If a skip is genuinely warranted, it needs a roadmap item and"
+            echo "an explicit decision - not a silent pass in the nightly lane."
+            FLOOR=1
+          fi
+
+          if [ "$TODO" -ne 0 ]; then
+            echo "FAIL: $TODO todo test(s). A todo is an unmeasured test."
+            FLOOR=1
+          fi
+
+          if [ "$FLOOR" -eq 0 ]; then
+            echo "OK: $TESTS tests, all passing, none skipped, todo or cancelled."
+          fi
+          exit "$FLOOR"
+
 # =============================================================================
 # TIER 3 - THE VISIBILITY-FLIP GATE. NOT BUILT YET, AND NOT AN OVERSIGHT.
 #
