@@ -70,7 +70,7 @@ import subprocess
 import sys
 import threading
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
@@ -149,6 +149,37 @@ SEPARATOR_NAMES: Final = ("../secret.json", "..\\secret.json", "a/../../secret.j
 #: What the escape targets contain, so reaching one is distinguishable from
 #: reading anything else.
 OUTSIDE_BYTES: Final = b"OUTSIDE-THE-WEB-DIRECTORY"
+
+#: One subject filename per token the asset gate declares, as
+#: ``(label, token, subject)``. EACH SUBJECT CARRIES EXACTLY ONE TOKEN, and that
+#: is the entire point. The three names in SEPARATOR_NAMES above each carry
+#: ``..`` AND a separator, so any single surviving token still refuses all
+#: three, and none of them carries a colon at all - which made every token in
+#: the gate an EQUIVALENT MUTANT. MEASURED, with those three as the only
+#: subjects: deleting any ONE of the four tokens left the suite green, and only
+#: emptying the tuple outright was caught.
+#:
+#: THE COLON SUBJECT HAS TWO LETTERS BEFORE THE COLON DELIBERATELY, and the
+#: reason is measured rather than assumed. ``a:secret.json`` is the sharper
+#: attack - pathlib reads a single letter plus a colon as a DRIVE, so joining it
+#: to the web directory yields ``a:secret.json`` and DISCARDS the web directory
+#: entirely - but a drive-relative escape cannot be planted as a positive
+#: control on a machine with no such drive, and an unplantable subject grades
+#: nothing. ``ab:`` is not a drive, so it stays under the web directory while
+#: still carrying the token: an NTFS alternate data stream here, an ordinary
+#: filename on a platform where a colon is one.
+TOKEN_SUBJECTS: Final = (
+    ("forward-slash", "/", "sub/secret.json"),
+    ("backslash", "\\", "sub\\secret.json"),
+    ("dot-dot", "..", "..secret.json"),
+    ("colon", ":", "ab:secret.json"),
+)
+
+#: What a per-token subject contains. DISTINCT FROM OUTSIDE_BYTES because most
+#: of these subjects sit INSIDE the web directory: the per-token arm grades that
+#: the name WOULD BE READ, not that it escapes, and a marker called OUTSIDE
+#: would misname three of the four.
+TOKEN_SUBJECT_BYTES: Final = b"TOKEN-SUBJECT-INSIDE-THE-WEB-DIRECTORY"
 
 
 # ---------------------------------------------------------------------------
@@ -2281,7 +2312,14 @@ def test_the_asset_reader_refuses_a_traversal_even_if_it_were_allow_listed(
     # left to do.
     for name in SEPARATOR_NAMES:
         if not reached(name):
-            (web / name).write_bytes(OUTSIDE_BYTES)
+            # SUPPRESSED, AND THE POSITIVE CONTROL BELOW IS THE REASON. A target
+            # this platform will not carry has to REACH that assertion and be
+            # reported as "the target does not resolve, so the arm grades
+            # nothing". An unhandled OSError raised from inside this loop would
+            # kill the arm with a message about a filesystem call instead, which
+            # says nothing about whether the gate holds.
+            with suppress(OSError, ValueError):
+                (web / name).write_bytes(OUTSIDE_BYTES)
 
     # THE POSITIVE CONTROL, and it is the whole reason this arm means anything.
     # The first version of this test handed the reader separator names and
@@ -2303,6 +2341,134 @@ def test_the_asset_reader_refuses_a_traversal_even_if_it_were_allow_listed(
     reader = providers.StaticAssets(web, SEPARATOR_NAMES)
     refused = sum(1 for name in SEPARATOR_NAMES if reader.asset(name) is None)
     assert refused == len(SEPARATOR_NAMES), "the separator gate let a real traversal through"
+
+
+# ---------------------------------------------------------------------------
+# The same gate, graded ONE TOKEN AT A TIME. The arm above grades the gate as a
+# whole and cannot do better: its three names share their tokens, so it stays
+# green with three of the four deleted. See TOKEN_SUBJECTS for the measurement.
+# ---------------------------------------------------------------------------
+
+
+def _reads_back(target: Path) -> bool:
+    """Whether ``target`` reads the planted marker back on this platform.
+
+    Args:
+        target: The path a subject name joins to under the web directory.
+
+    Returns:
+        True when the bytes read are exactly the marker. Absent, unreadable, and
+        "this filesystem rejects the name outright" all collapse to one False,
+        because the only question asked is whether the read WOULD succeed - and
+        this is the same read ``StaticAssets.asset`` performs.
+    """
+    try:
+        return target.read_bytes() == TOKEN_SUBJECT_BYTES
+    except (OSError, ValueError):
+        return False
+
+
+def _token_subject_is_readable(web: Path, subject: str) -> bool:
+    """Plant one per-token subject under ``web`` and MEASURE whether it reads.
+
+    THE CAPABILITY IS PROVEN RATHER THAN INFERRED FROM A PLATFORM NAME, for the
+    reason ``tests/test_make_cert.py`` states at ``_posix_mode_bits_are_honoured``:
+    branching on ``os.name`` freezes today's answer into the suite, and it is
+    then wrong in both directions the moment either platform moves. What a
+    subject needs genuinely differs between them - the backslash-spelled subject
+    is a path through a subdirectory where a backslash is a separator and one
+    ordinary filename where it is not, and the colon-spelled one is an alternate
+    data stream on NTFS and an ordinary filename where a colon is an ordinary
+    character.
+
+    Args:
+        web: The directory the reader under test is wired to. Its ``sub``
+            subdirectory must already exist, since two subjects resolve through
+            it wherever their token is a real separator.
+        subject: The subject filename, carrying exactly one forbidden token.
+
+    Returns:
+        True when the subject reads back, so refusing it below is not free.
+        False when this platform will not carry it at all, which the caller
+        turns into a loud per-token skip rather than a silent pass.
+    """
+    target = web / subject
+    if _reads_back(target):
+        return True
+    # SUPPRESSED FOR THE REASON THE ARM ABOVE SUPPRESSES ITS OWN PLANT: a name
+    # this filesystem refuses is a subject that does not exist here, which is a
+    # skip carrying a stated reason, not an OSError raised out of a helper.
+    with suppress(OSError, ValueError):
+        target.write_bytes(TOKEN_SUBJECT_BYTES)
+    return _reads_back(target)
+
+
+def test_every_token_the_asset_gate_declares_has_a_subject_that_grades_it() -> None:
+    graded = tuple(sorted(token for _label, token, _subject in TOKEN_SUBJECTS))
+    declared = tuple(sorted(providers.FORBIDDEN_IN_AN_ASSET_NAME))
+    # ASSERTED ON THE COLLECTION RATHER THAN ON A SCALAR COUNT, and this is the
+    # one place in this module where that is right: the rendered value is a
+    # table of punctuation literals with no path and nothing personal in it, and
+    # WHICH token diverged is the whole finding - a count would say only that
+    # one did.
+    #
+    # This arm is also what keeps a token graded on a filesystem that cannot
+    # carry its subject. The behavioural arm below skips there; membership of
+    # the gate's own tuple is pure string work and is checked everywhere.
+    assert graded == declared, (
+        "the gate's declared tokens and the tokens graded below have diverged, "
+        "so a token is enforced but ungraded, or graded but no longer enforced"
+    )
+
+
+@pytest.mark.parametrize(
+    ("token", "subject"),
+    [pytest.param(token, subject, id=label) for label, token, subject in TOKEN_SUBJECTS],
+)
+def test_the_asset_reader_refuses_each_forbidden_token_on_its_own(
+    token: str, subject: str, tmp_path: Path
+) -> None:
+    web = tmp_path / "web"
+    web.mkdir()
+    # Two subjects resolve THROUGH this directory wherever their token is a real
+    # separator, and neither needs it where it is not.
+    (web / "sub").mkdir()
+
+    # THE SUBJECT CARRIES ITS OWN TOKEN AND NO OTHER, checked here rather than
+    # trusted from the table. Grading a name that carries two tokens is exactly
+    # the defect this arm exists to repair, so editing the table must not be
+    # able to reintroduce it quietly.
+    assert token in subject, f"the {token!r} subject does not carry {token!r} at all"
+    intruders = sum(
+        1 for _label, other, _subject in TOKEN_SUBJECTS if other != token and other in subject
+    )
+    assert intruders == 0, (
+        f"the {token!r} subject carries {intruders} other forbidden token(s), so "
+        f"refusing it would not prove {token!r} itself is enforced"
+    )
+
+    # THE POSITIVE CONTROL, PER TOKEN. The arm above records what happens
+    # without one: its first version passed with the gate DELETED, because the
+    # targets did not exist and file ABSENCE was doing the work the gate got
+    # credit for. The claim here is NOT that this subject escapes the web
+    # directory - three of the four do not - but that it WOULD BE READ if the
+    # gate did not refuse it, which is the property the gate is graded on.
+    if not _token_subject_is_readable(web, subject):
+        pytest.skip(
+            f"this platform will not carry {subject!r}, the only subject here "
+            f"that isolates {token!r}, so there is nothing for the gate to be "
+            f"right or wrong about and a green result would be a statement "
+            f"about nothing. The {token!r} token is UNMEASURED on this platform "
+            f"rather than absent, and its membership of the gate is still "
+            f"graded everywhere by the arm above"
+        )
+
+    # ALLOW-LISTED ON PURPOSE, so the refusal below comes from the token gate
+    # and not from the closed-set check that precedes it.
+    reader = providers.StaticAssets(web, [subject])
+    assert reader.asset(subject) is None, (
+        f"the asset gate served {subject!r}, so the {token!r} token is not enforced"
+    )
 
 
 def test_the_asset_reader_returns_the_bytes_of_a_name_it_was_told_about(
