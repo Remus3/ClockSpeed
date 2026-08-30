@@ -24,11 +24,24 @@ positive arm below is therefore paired with the SAME server reached by a client
 carrying only the system trust store, asserting it is REJECTED. If that pairing
 is ever dropped, the positive arm degrades to a test that TLS exists.
 
-NOTHING HERE IS MARKED SLOW AND NOTHING HERE SKIPS. The ``slow`` marker
+NOTHING HERE IS MARKED SLOW, AND EXACTLY ONE ARM SKIPS. The ``slow`` marker
 currently excludes nothing anywhere - ``.githooks/pre-push`` runs pytest with no
 ``-m`` filter - so marking the live arms would hide them from no one while
 suggesting they are optional. A skipped test is not a passing test: if openssl
-is genuinely absent, these fail loudly and say so.
+is genuinely absent, these fail loudly and say so rather than skipping.
+
+THE ONE SKIP IS A MISSING SUBJECT RATHER THAN A MISSING DEPENDENCY, and that
+distinction is the whole of why it is tolerated where a skip for an absent
+openssl is not. ``test_the_generated_key_is_restricted_to_this_account`` grades
+POSIX mode bits, and a platform that does not implement them cannot exhibit the
+property at all - there is nothing there to be right or wrong about, so a green
+result would be a statement about nothing. It is gated on a MEASURED capability
+rather than on a platform name, so it starts grading Windows on the day Windows
+honours the request and stops grading POSIX on the day POSIX stops, and its
+reason records the restriction as UNMEASURED here rather than as absent. The
+failure half of the same promise,
+``test_a_key_the_platform_would_not_restrict_is_still_written``, forces the
+error instead of waiting for it and therefore runs everywhere.
 
 THE HELPER IS PUBLISHED FOR SIBLING MODULES ON PURPOSE. :func:`cert_pair` is
 imported by the modules that test the HTTPS surface. If each of those built its
@@ -46,6 +59,7 @@ The pure arms use synthetic relative paths and touch no filesystem at all.
 from __future__ import annotations
 
 import ast
+import errno
 import hashlib
 import importlib.util
 import os
@@ -782,8 +796,191 @@ def test_no_printed_line_carries_key_material(
 
 
 # ---------------------------------------------------------------------------
+# The key's file mode
+# ---------------------------------------------------------------------------
+
+
+#: The mode ``_restrict`` asks for, and the mask that reads it back. Named
+#: rather than written inline in the comparison because ruff's PLR2004 reads a
+#: bare ``0o600`` there as a magic value, and because a mode is worth naming.
+KEY_MODE = 0o600
+MODE_MASK = 0o777
+
+#: The distinctive half of the line ``_restrict`` prints when the platform
+#: refuses (scripts/make_cert.py:224). Matched as a substring rather than as the
+#: whole line, so a change to the ``note: `` prefix does not redden an arm that
+#: is about the diagnostic being present rather than about its punctuation.
+RESTRICT_NOTE = "could not restrict the key file's permissions"
+
+
+def _posix_mode_bits_are_honoured(probe_dir: Path) -> bool:
+    """Ask this platform, by measurement, whether a chmod sets the mode bits.
+
+    THE CAPABILITY IS PROVEN RATHER THAN INFERRED FROM A PLATFORM NAME.
+    Branching on ``os.name`` would freeze today's answer into the suite as
+    though it were permanent, and it would then be wrong in both directions the
+    moment either platform moved. This writes a throwaway file, asks for
+    :data:`KEY_MODE`, and reads the mode back, so the arm it gates begins
+    grading Windows on the day Windows honours the request and stops grading
+    POSIX on the day POSIX stops.
+
+    Args:
+        probe_dir: A directory to write the throwaway file into. Normally a
+            tmp_path, so the probe never touches the repository.
+
+    Returns:
+        True when the mode read back is exactly the mode asked for.
+    """
+    probe = probe_dir / "mode-probe"
+    probe.write_bytes(b"")
+    try:
+        probe.chmod(KEY_MODE)
+        honoured = (probe.stat().st_mode & MODE_MASK) == KEY_MODE
+    except OSError:
+        honoured = False
+    finally:
+        probe.unlink(missing_ok=True)
+    return honoured
+
+
+def test_the_generated_key_is_restricted_to_this_account(tmp_path: Path) -> None:
+    """The success half of ``_restrict``, graded on the FINAL key.
+
+    THE FINAL KEY AND NOT THE STAGED ONE, DELIBERATELY. ``_restrict`` runs on
+    the STAGED key (scripts/make_cert.py:279), and the pair is moved into place
+    afterwards by an atomic replace. Asserting the staged file would grade the
+    chmod alone; asserting the file at ``KEY_NAME`` once main() has returned
+    grades the chmod AND that the move preserved it, which is the half that
+    would rot in silence if the staging step were ever rewritten.
+
+    THE SKIP IS A MISSING SUBJECT, NOT A MISSING DEPENDENCY - see the module
+    docstring. On a platform that does not implement POSIX mode bits there is
+    nothing here to be right or wrong about, and the gate is a measured
+    capability rather than a platform name.
+
+    ONLY AN INT CROSSES INTO THE ASSERTION. The key sits under a tmp_path,
+    which carries a home path and an account name, so neither the path nor a
+    stat result is asserted on or named in the message; the mode is masked to
+    an int first and that int is the whole of what the report can render.
+    """
+    if not _posix_mode_bits_are_honoured(tmp_path):
+        pytest.skip(
+            "this platform did not honour a chmod on a file it had just "
+            "written, so the mode bits _restrict asks for cannot be read back "
+            "here and a green result would be a statement about nothing. The "
+            "key's restriction is UNMEASURED on this platform, not absent"
+        )
+
+    _cert_path, key_path = cert_pair(tmp_path)
+
+    mode = key_path.stat().st_mode & MODE_MASK
+    assert mode == KEY_MODE, f"the final key's mode is 0o{mode:03o}, expected 0o{KEY_MODE:03o}"
+
+
+def test_a_key_the_platform_would_not_restrict_is_still_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """The failure half of ``_restrict``, and it runs on every platform.
+
+    ``_restrict`` promises two things for the case where the platform refuses:
+    that it says so, and that the run still succeeds. The second is the
+    substantive one - a key that could not be chmod'd is still a usable key,
+    and failing the run over it would cost the operator a working certificate
+    in order to report a limitation. Because the OSError is FORCED rather than
+    waited for, this arm is real coverage on a runner of any platform rather
+    than a POSIX-only one, which is what makes it the half that guards tier1.
+
+    THE PATCH IS ON ``Path.chmod`` AND NOT ON ``os.chmod``, which is what keeps
+    it surgical. ``_restrict`` calls the pathlib method
+    (scripts/make_cert.py:222), so patching that hits exactly the call under
+    test, while every other filesystem operation in the process - the staging
+    cleanup, pytest's own tmp_path handling - still reaches the untouched
+    ``os.chmod`` underneath. Patching the lower call would put the whole
+    interpreter under the fault and grade something far wider than the promise.
+
+    THE FORCED ERROR CARRIES NO PATH. An OSError built with the offending
+    filename would put a tmp_path into an exception that a later report could
+    render, so the errno and the strerror are given and the filename is not.
+    """
+
+    def refuse_chmod(_self: Path, _mode: int, **_kwargs: object) -> None:
+        raise PermissionError(errno.EPERM, "operation not permitted")
+
+    monkeypatch.setattr(Path, "chmod", refuse_chmod)
+
+    code = make_cert.main(["--cert-dir", str(tmp_path)])
+    printed = capsys.readouterr()
+
+    noted = RESTRICT_NOTE in printed.out
+    survivors = sorted(entry.name for entry in tmp_path.iterdir())
+    pair_written = survivors == [make_cert.CERT_NAME, make_cert.KEY_NAME]
+
+    assert code == make_cert.EXIT_OK, "a chmod the platform refused took the whole run down"
+    assert noted, "the platform refused the chmod and the run said nothing about it"
+    assert pair_written, f"{len(survivors)} entries remain; the pair was not written"
+
+
+# ---------------------------------------------------------------------------
 # The verify_env row
 # ---------------------------------------------------------------------------
+
+
+#: Every HARD row name ``scripts/verify_env.py`` can emit, held here as literals
+#: this file owns. Two of them interpolate the SAME module constants
+#: ``_hard_rows`` interpolates (scripts/verify_env.py:611-697), so renaming
+#: either constant moves both sides together.
+#:
+#: PRIVACY, WHICH IS THE ONLY REASON THIS SET EXISTS. The arm below parses row
+#: names out of the VERDICT line, and that line is process output; CLAUDE.md
+#: non-negotiable 12 counts an assertion message as an echo path exactly like a
+#: debug dump. Each HARD row name is built from a literal or from MIN_PYTHON and
+#: EXPECTED_HOOKS_PATH, with the discovered values going into the row VALUE and
+#: redacted there - so a name appearing below is provably free of a machine path
+#: and is safe to render. A parsed name that is NOT in this set is one this file
+#: has never seen and cannot vouch for, so the arm reports it as a COUNT and
+#: never prints it. Deriving the set from ``collect_rows`` instead would have
+#: bought nothing: an in-process rebuild of a path-bearing name is still a
+#: path-bearing name, so it would allowlist exactly what it needs to exclude.
+HARD_ROW_NAMES = frozenset(
+    {
+        "python >= " + ".".join(str(part) for part in verify_env.MIN_PYTHON),
+        "git",
+        "repo root is a git work tree",
+        f"{verify_env.EXPECTED_HOOKS_PATH} directory",
+        f"core.hooksPath -> {verify_env.EXPECTED_HOOKS_PATH}",
+        "pytest",
+        "ruff",
+    }
+)
+
+#: The HARD rows a correctly provisioned checkout is still allowed to lack.
+#:
+#: Hook wiring is per-clone git config rather than a tracked file. ``git clone``
+#: and ``actions/checkout`` both reproduce the tracked ``.githooks`` directory,
+#: and neither runs ``scripts/install_hooks.py``, so a fresh checkout has
+#: ``core.hooksPath`` unset on any platform - measured in a plain ``git clone``
+#: on Windows, and measured on ubuntu-latest where it reddened the tier1 suite.
+#: verify_env says the same thing in the note it attaches to that row: a fresh
+#: clone runs ZERO protection until install_hooks.py sets it.
+#:
+#: Nothing else belongs here. The other six HARD rows are a tracked directory, a
+#: property of the checkout itself, or a toolchain dependency the environment
+#: installs, so a missing one is a real defect and still fails the arm below.
+UNPROVISIONED_HARD_ROWS = frozenset({f"core.hooksPath -> {verify_env.EXPECTED_HOOKS_PATH}"})
+
+#: The verdict line, whose two forms ``verify_env.render`` builds one of per run
+#: (scripts/verify_env.py:925-943). A line matching neither is itself a failure
+#: rather than a case to skip, because an unparsed verdict grades nothing.
+#:
+#: CLEAN and MISSING rather than the obvious PASS and FAIL, and the reason is a
+#: linter rather than taste: ruff's S105 reads a constant whose name ends in
+#: PASS and whose value is a string literal as a hardcoded credential. The S
+#: selector is live over tests/ - pyproject.toml lifts only S101, S603 and S607
+#: there - so the obvious pair does not survive `ruff check`. Renaming them back
+#: reddens the lint gate rather than this arm.
+VERDICT_PREFIX = "VERDICT:"
+VERDICT_CLEAN = "VERDICT: PASS"
+VERDICT_MISSING = "VERDICT: FAIL - missing HARD dependencies: "
 
 
 def test_verify_env_reports_openssl_as_a_soft_row() -> None:
@@ -801,7 +998,7 @@ def test_verify_env_reports_openssl_as_a_soft_row() -> None:
     assert by_name["openssl"]["scope"] == "SOFT"
 
 
-def test_verify_env_still_passes_and_names_openssl() -> None:
+def test_verify_env_verdict_agrees_with_its_exit_code_and_names_openssl() -> None:
     """The script itself, run the way an operator runs it.
 
     Asserted on the real process because the acceptance clause is about what
@@ -809,6 +1006,40 @@ def test_verify_env_still_passes_and_names_openssl() -> None:
     cannot speak to either. Only counts and booleans are asserted on - the
     output carries redacted machine paths and is never rendered into a failure
     message here.
+
+    WHY THIS NO LONGER SIMPLY DEMANDS EXIT 0. It used to, and that assertion
+    was a statement about the OPERATOR'S HOOK-WIRED WORKING TREE rather than
+    about the code under test. Hook wiring is per-clone git config, so a fresh
+    checkout has core.hooksPath unset, whereupon verify_env correctly reports
+    one missing HARD row and correctly exits 1 - measured in a plain
+    ``git clone`` on Windows, and measured on ubuntu-latest, where the arm took
+    the tier1 suite down for a reason that had nothing to do with make_cert or
+    with the openssl row. What it graded was the machine it happened to run on.
+
+    WHAT IT GRADES INSTEAD, AND WHY THAT IS NOT A RELAXATION. Two properties
+    that survive the move between those machines. First, the single VERDICT
+    line and the exit code agree - PASS implies 0, and a non-empty missing set
+    implies 1 - so ``main`` cannot report a clean environment while exiting
+    non-zero, nor the reverse. Second, and this is the clause that keeps the
+    arm from grading nothing, the missing set has to lie inside
+    :data:`UNPROVISIONED_HARD_ROWS`, the rows a checkout lacks because
+    provisioning rather than the repository supplies them. A missing pytest, a
+    missing ruff, an absent ``.githooks`` directory or a checkout that is not a
+    work tree each still redden this arm. Widening the assertion to "the exit
+    code is 0 or 1" would have graded nothing at all.
+
+    NEITHER BRANCH GOES UNEXERCISED, which is what makes an environment-shaped
+    arm worth keeping. The tier1 job and the tier2 ``suite`` job run the suite
+    in a checkout nobody wired and take the missing-set branch; the tier2
+    ``clean-checkout-probe`` job runs ``scripts/install_hooks.py`` before the
+    suite and takes the PASS branch, as does an operator's own working tree.
+
+    EVERY BINDING ASSERTED ON BELOW IS AN INT OR A BOOL, bound before the
+    assert rather than inside it, which is stricter than the arm this replaces.
+    ``assert done.returncode == 0`` rendered ``where 1 = CompletedProcess(...)``
+    - the whole repr, argv and captured stdout included - because pytest reprs
+    the object an attribute was read from. tests/conftest.py redacts the report
+    afterwards, but a redactor is a net under the rule and not the rule.
     """
     done = subprocess.run(
         [sys.executable, str(VERIFY_ENV_SOURCE)],
@@ -821,8 +1052,40 @@ def test_verify_env_still_passes_and_names_openssl() -> None:
     )
     lines = done.stdout.splitlines()
     openssl_rows = sum(1 for line in lines if "openssl" in line)
-    verdict_pass = sum(1 for line in lines if line.startswith("VERDICT: PASS"))
+    verdicts = [line for line in lines if line.startswith(VERDICT_PREFIX)]
+    verdict_count = len(verdicts)
 
-    assert done.returncode == 0, f"verify_env exited {done.returncode}"
     assert openssl_rows >= 1, "no line of the dependency table mentions openssl"
-    assert verdict_pass == 1, f"expected one PASS verdict line, saw {verdict_pass}"
+    assert verdict_count == 1, f"expected one VERDICT line, saw {verdict_count}"
+
+    passed = verdicts[0].startswith(VERDICT_CLEAN)
+    failed = verdicts[0].startswith(VERDICT_MISSING)
+    assert passed != failed, (
+        "the VERDICT line matched neither form this arm parses, so nothing below "
+        "it grades anything; the line is withheld here because it is process output"
+    )
+
+    missing: frozenset[str] = frozenset()
+    if failed:
+        missing = frozenset(verdicts[0][len(VERDICT_MISSING) :].split(", "))
+
+    expected_code = 1 if missing else 0
+    code_agrees = done.returncode == expected_code
+    assert code_agrees, (
+        f"the verdict implies exit {expected_code} and the process exited {done.returncode}"
+    )
+
+    unnamed_count = len(missing - HARD_ROW_NAMES)
+    assert unnamed_count == 0, (
+        f"{unnamed_count} missing HARD row(s) carry a name this arm does not know, so "
+        "they are withheld - only a name this file owns is provably free of a machine "
+        "path. Run scripts/verify_env.py to read them."
+    )
+
+    unexpected = sorted((missing & HARD_ROW_NAMES) - UNPROVISIONED_HARD_ROWS)
+    unexpected_count = len(unexpected)
+    unexpected_names = ", ".join(unexpected)
+    assert unexpected_count == 0, (
+        "an unprovisioned checkout legitimately lacks the hook wiring and nothing else; "
+        f"{unexpected_count} further HARD row(s) are missing: {unexpected_names}"
+    )
