@@ -213,6 +213,9 @@ venv/
 # Node exists solely for the Electron shell (BOOTSTRAP section 11).
 node_modules/
 shell/dist/
+# Written by the tier-2 shell job so the TAP trailer can be parsed after the
+# exit code is captured. Ephemeral in CI; litter when the step is run by hand.
+shell/tap.txt
 shell/out/
 
 
