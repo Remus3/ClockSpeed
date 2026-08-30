@@ -82,6 +82,7 @@ Status line to point at the successor and leave every other word of it untouched
 | [0011](0011-the-cs-8nn-follow-up-leaf-splits-at-cs-850.md) | The `CS-8nn` follow-up leaf splits at CS-850 | `accepted` |
 | [0012](0012-dashboard-refusal-vocabulary-and-wire-form.md) | The dashboard's refusal vocabulary and its exact-rational wire form | `accepted` |
 | [0013](0013-electron-licence-gate.md) | Electron clears the licence gate for local use, with obligations only on distribution | `accepted` |
+| [0014](0014-the-shell-trusts-one-pinned-certificate.md) | The shell trusts one pinned certificate and defers every other host | `accepted` |
 
 Slots 0002, 0003 and 0004 were reserved for the three phase-1 spike decisions and have now
 been written, in the order the spikes ran: S8, then S4, then S6. These three are the spikes

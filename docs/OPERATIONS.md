@@ -269,9 +269,96 @@ held by a process that has stopped answering on it.
 
 ---
 
-## 8. Windows discipline that bites operationally
+## 8. Runbook: the companion window
 
-### 8.1 Commit messages with special characters
+**Trigger:** you want the Electron companion window running on this machine.
+
+**Read section 7 first.** The companion LOADS the dashboard; it does not start one. The
+certificate is minted by 7.1 and the dashboard is started by 7.2, and neither command is
+repeated here - a command restated in two places is a command that will drift.
+
+### 8.1 Order of operations
+
+1. **Mint the certificate**, if this clone has never minted one - section 7.1. **The
+   companion pins the pair that is already there**, so re-minting is not a free action.
+   Read the caching consequence in
+   `docs/adr/0014-the-shell-trusts-one-pinned-certificate.md` before passing `--force`.
+2. **Start the dashboard** - section 7.2. The companion has nothing to load until the
+   listener answers.
+3. **Install the shell's dependencies and launch the companion.** `shell/node_modules` is
+   gitignored and does not arrive with a clone, and installing Electron downloads a
+   prebuilt binary, so the install needs the network and is not available offline. The
+   install is once per clone; the launch is every time.
+   ```
+   cd shell
+   npm install
+   npx electron .
+   ```
+
+   **There is no `npm start` here, and reaching for one fails.** `shell/package.json`
+   declares a `test` script and no `start` script, so `npm start` reports a missing script
+   rather than launching anything. Electron is invoked against the shell package directly
+   instead, which is what that manifest's `main` field points at.
+
+### 8.2 Where the window state lives
+
+The companion remembers its position, its size and its always-on-top choice in a file
+named `window-state.json`, written into Electron's `userData` directory for this
+application.
+
+**That directory is resolved at RUNTIME, and its absolute path is deliberately not written
+down here.** It sits beneath the logged-in account's profile, so any path to it contains a
+Windows account name - personal data under `CLAUDE.md` non-negotiable 3, which is why no
+tracked file in this project spells one out. `shell/lib/state.js` is handed a directory
+and never works one out for itself; ask Electron for `userData` if you need the location
+on a particular machine.
+
+Deleting that file is the supported reset. The next launch falls back to built-in defaults
+rather than failing.
+
+### 8.3 Checks that no machine performs
+
+**CI has no display and never installs Electron. Nothing in this list is graded by any
+test, any guard or any CI job, and no CI job may be shaped to imply that it was.** These
+are the parts of CS-602's acceptance that only a human at a real display can settle.
+
+**How to fill this in.** Every step carries an Observed line whose shipped value is the
+literal token `NOT RUN`. Replace that token with what you actually saw, and the date you
+saw it. A step whose Observed line still reads `NOT RUN` HAS NOT BEEN RUN - it is not
+passed, not waived, and not evidence of anything. Do not delete the token to leave a
+blank: an empty line is ambiguous and this one must not be. `docs/GATED.md` names closing
+an item synthetically as a failure class, and recording an unrun check as a result is that
+same failure wearing a different hat.
+
+1. **Frameless.** The window has no OS title bar and no OS border.
+   - Observed: `NOT RUN`
+2. **Always-on-top raises.** With the option on, the window stays above other
+   applications' windows when they are focused - not merely above its own siblings.
+   - Observed: `NOT RUN`
+3. **The pinned certificate is accepted over a real handshake.** The companion loads the
+   running dashboard over TLS without a certificate warning and without any validation
+   being disabled. A blank window, a hang, or a warning dialog each falsify this
+   differently - record which one you saw.
+   - Observed: `NOT RUN`
+4. **Geometry survives a real restart.** Move and resize the window, fully exit the
+   process, and launch it again. Reloading the window is NOT this check - the state is
+   written on exit, so only a genuine process restart tests it.
+   - Observed: `NOT RUN`
+5. **The drag strip drags.** With no OS frame, the injected drag region is the only way to
+   move the window. Confirm the window follows the pointer.
+   - Observed: `NOT RUN`
+6. **Deferral behaves as documented.** Navigate the companion to a host that is not the
+   dashboard and confirm Chromium's own verification still applies - a bad certificate on
+   that host must still be refused. This is the check that would catch a `callback(-3)`
+   that does not mean what the prose documentation says; ADR 0014 records that the shipped
+   typings do not state it.
+   - Observed: `NOT RUN`
+
+---
+
+## 9. Windows discipline that bites operationally
+
+### 9.1 Commit messages with special characters
 
 **Write the message to a temp file and commit with `git commit -F <file>`.**
 
@@ -293,7 +380,7 @@ unrelated. One incident is enough to make the temp-file path permanent.
 A single-quoted here-string is acceptable where a file is genuinely impractical. The
 temp-file form is the default.
 
-### 8.2 The rest of the Windows list
+### 9.2 The rest of the Windows list
 
 - **7-bit ASCII in all authored content** - code, comments, docstrings, markdown, commit
   messages, shell scripts, output. No em-dashes, en-dashes or smart quotes. Use a spaced
@@ -314,7 +401,7 @@ temp-file form is the default.
 
 ---
 
-## 9. Cross-references
+## 10. Cross-references
 
 - Module map, seams, card contract: `docs/ARCHITECTURE.md`
 - Decisions and their fences: `docs/adr/README.md`
