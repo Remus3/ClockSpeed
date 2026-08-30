@@ -16,8 +16,22 @@ directions bite. ``shell/lib/window.js`` and ``shell/lib/geometry.js`` require
 nothing at all, yet each carries a comment explaining which module they avoid -
 so a raw scan for ``electron`` fails them for DOCUMENTING the constraint they
 satisfy. Running the other way, a required symbol mentioned only in prose would
-satisfy a raw scan while no implementation existed. So every arm whose subject
-is "this token must (not) appear in code" strips comments first.
+satisfy a raw scan while no implementation existed. So an arm whose subject is
+"this token must (not) appear in code" strips comments first.
+
+WITH ONE CLASS OF EXCEPTION, ADDED AFTER THE STRIPPER WAS DEFEATED. ``/[/*]/``
+is a valid JavaScript regular expression literal that the stripper reads as
+opening a block comment, and ``/[*/]/`` is the valid literal that closes it.
+A bypass planted between the two is deleted before any stripped-code arm sees
+it, while the raw file still carries every byte of it - measured with a working
+four-token bypass that left the shell suite, ``node --test``, the drift guard
+and the commit gate all green. The certificate-posture sweep in section (d) and
+the call-site grading in section (e) therefore read RAW text and exempt
+documented mentions through an explicit allow-list of exact (file, line) pairs,
+which no regex literal can blind. The stripper keeps the arms where a comment
+mention is a genuine false positive and where being blinded fails safe rather
+than open: the purity partition, the CommonJS census, the constant extraction
+and the test-liveness count.
 
 The stripper is then itself a detector, and it gets the same treatment as any
 other: a planted positive in both directions. A token planted in a comment must
@@ -81,6 +95,7 @@ REQUIRED_NAMES: Final = (
     "shell/lib/geometry.js",
     "shell/lib/state.js",
     "shell/lib/trust.js",
+    "shell/lib/verdict.js",
     "shell/lib/window.js",
     "shell/main.js",
     "shell/package-lock.json",
@@ -90,6 +105,7 @@ REQUIRED_NAMES: Final = (
     "shell/test/geometry.test.js",
     "shell/test/state.test.js",
     "shell/test/trust.test.js",
+    "shell/test/verdict.test.js",
     "shell/test/window.test.js",
 )
 
@@ -309,12 +325,33 @@ def strip_js_comments(text: str) -> str:
     Newlines inside block comments are preserved so a line number computed from
     the stripped text still refers to the original file.
 
-    NOT A JAVASCRIPT PARSER, and the gap is stated rather than hidden: a regular
-    expression literal containing an unescaped quote - ``/["']/`` - would be read
-    as opening a string. No file under ``shell/`` contains one today, and
-    :func:`test_the_stripper_is_idempotent_and_never_grows_the_real_tree` plus
-    :func:`test_stripping_leaves_every_shell_module_its_own_code` are what would
-    go red if one arrived.
+    NOT A JAVASCRIPT PARSER, AND THE SAFETY NET THIS DOCSTRING USED TO CLAIM
+    DOES NOT EXIST. A regular expression literal containing an unescaped quote -
+    ``/["']/`` - is read as opening a string, and one containing an unescaped
+    slash next to a star - ``/[/*]/``, which is VALID JavaScript - is read as
+    opening a block comment. Everything up to the next ``*/`` then vanishes, and
+    ``/[*/]/`` is the matching valid literal that closes it. A bypass planted
+    between the two is invisible to every arm that grades stripped code.
+
+    This text previously named
+    :func:`test_the_stripper_is_idempotent_and_never_grows_the_real_tree` and
+    :func:`test_stripping_leaves_every_shell_module_its_own_code` as the alarm.
+    BOTH WERE MEASURED AGAINST THAT ATTACK AND BOTH STAYED GREEN. Idempotence
+    cannot fire, because a second strip re-derives the same deletion; never-grows
+    cannot fire, because deleting is shrinking. Neither was ever capable of
+    catching it, so the claim was false when it was written rather than having
+    gone stale.
+
+    THE REPAIR WAS TO STOP DEPENDING ON THIS FUNCTION WHERE IT MATTERS. The
+    certificate-posture sweep in section (d) and the call-site grading in
+    section (e) both read RAW text and exempt documented mentions through an
+    explicit allow-list, so no regex literal can blind them.
+    :func:`test_the_raw_token_sweep_catches_a_bypass_hidden_behind_a_regex_literal`
+    plants exactly this attack and proves the raw path still fires while
+    measuring, in the same arm, that the stripper is blinded by it. What is left
+    on the stripper is the purity partition, the CommonJS census, the constant
+    extraction and the test-liveness count - places where a comment mention is a
+    real false positive and where a blinded read fails safe rather than open.
 
     Args:
         text: The source of one ``.js`` file.
@@ -519,47 +556,228 @@ FORBIDDEN_TLS_TOKENS: Final = (
 )
 
 
-def files_carrying(token: str) -> tuple[str, ...]:
-    """Every shell file whose CODE contains ``token``.
+#: Mentions of a forbidden token that are allowed to remain, as exact
+#: ``(path, stripped full line)`` pairs.
+#:
+#: MEASURED EMPTY at the repair that introduced it, and that measurement is the
+#: point rather than an accident. Not one line under ``shell/`` names any token
+#: in the table above - not in code and not in prose - so the sweep below needs
+#: no exemption at all today, and the stripper it used to run behind was never
+#: buying anything for THIS table. The comment-direction argument in this
+#: module's header is about the token ``electron``, which the purity partition
+#: in section (f) grades and which two modules legitimately name in prose.
+#:
+#: An exemption is an EXACT FULL LINE and never a filename or a token. A
+#: file-level or token-level exemption would blind the sweep to everything else
+#: that file or token could later carry, which is the hole this replaced.
+FORBIDDEN_TOKEN_ALLOWLIST: Final[frozenset[tuple[str, str]]] = frozenset()
+
+
+def raw_token_lines(text: str, token: str) -> tuple[int, ...]:
+    """Every 1-based line number in ``text`` whose RAW line contains ``token``.
+
+    NO STRIPPER. That is the whole design: a regex literal cannot blind a scan
+    that never tries to tell code from comment.
 
     Args:
+        text: The file text, unmodified.
         token: The literal to look for, matched case-sensitively.
 
     Returns:
-        The paths carrying it, in enumeration order.
+        The line numbers, in file order.
     """
-    return tuple(name for name in shell_files() if token in code_of(name))
+    return tuple(number for number, line in enumerate(text.splitlines(), start=1) if token in line)
+
+
+def token_findings(
+    sources: dict[str, str],
+    token: str,
+    allowlist: frozenset[tuple[str, str]] = FORBIDDEN_TOKEN_ALLOWLIST,
+) -> tuple[str, ...]:
+    """Every ``path:line`` naming ``token`` that the allow-list does not exempt.
+
+    Args:
+        sources: Path to raw text, for the population to sweep.
+        token: The literal to look for.
+        allowlist: Exact ``(path, stripped line)`` pairs to exempt. Defaulted so
+            the real arms cannot forget it and parameterised so its own control
+            can drive it with a synthetic one.
+
+    Returns:
+        The findings as ``path:line``, in enumeration order.
+    """
+    findings: list[str] = []
+    for name in sorted(sources):
+        lines = sources[name].splitlines()
+        findings.extend(
+            f"{name}:{number}"
+            for number in raw_token_lines(sources[name], token)
+            if (name, lines[number - 1].strip()) not in allowlist
+        )
+    return tuple(findings)
+
+
+def raw_sources() -> dict[str, str]:
+    """The whole graded population as raw text, keyed by path.
+
+    Returns:
+        Path to unmodified file text.
+    """
+    return {name: read_text(name) for name in shell_files()}
 
 
 @pytest.mark.parametrize("token", FORBIDDEN_TLS_TOKENS)
-def test_no_shell_code_weakens_the_certificate_posture(token: str) -> None:
-    """No shell file names this TLS escape hatch in code.
+def test_no_shell_file_names_this_tls_escape_hatch_in_raw_text(token: str) -> None:
+    """No shell file names this TLS escape hatch ANYWHERE - code or comment.
 
     ADR 0014 pins the companion to one certificate. Every token in the table is
     a way to make that pin advisory, and each is graded on its own subject so a
     surviving deletion cannot hide behind a sibling that still fires.
+
+    SWEPT RAW, WHICH IS THE REPAIR. This arm used to grade stripped code, and a
+    stripped-code sweep is blindable: ``/[/*]/`` is a valid regular expression
+    literal that the stripper reads as opening a block comment, so a bypass
+    planted between it and a later ``/[*/]/`` was invisible while the raw file
+    still carried all of it. That was measured, not supposed - see
+    :func:`test_the_raw_token_sweep_catches_a_bypass_hidden_behind_a_regex_literal`.
+
+    The cost of reading raw is that a module documenting the ban would fail, and
+    :data:`FORBIDDEN_TOKEN_ALLOWLIST` is where such a line is pinned by exact
+    text. It is empty, because no shell file names any of these tokens today.
     """
-    carriers = files_carrying(token)
-    total = len(carriers)
-    assert total == 0, f"{total} shell file(s) name {token!r} in code: {carriers}"
+    findings = token_findings(raw_sources(), token)
+    total = len(findings)
+    assert total == 0, f"{total} shell line(s) name {token!r}: {findings}"
 
 
 @pytest.mark.parametrize("token", FORBIDDEN_TLS_TOKENS)
-def test_the_certificate_posture_detector_fires_on_each_planted_token(token: str) -> None:
-    """Each table entry is proved to be findable when it is really in code.
+def test_the_raw_token_sweep_fires_on_each_planted_token(token: str) -> None:
+    """Each table entry is proved findable, in code AND in a comment.
 
-    Planted onto text that is otherwise clean, and planted a second time into a
-    comment on the same body to prove the arm above grades CODE and would not
-    have failed a module for documenting the ban.
+    Both directions are asserted to FIND it now. Under the old stripped sweep
+    the comment direction asserted the opposite - that a documented mention was
+    ignored - and that leniency is precisely what the regex-literal attack wore
+    as a disguise.
     """
-    clean = 'const a = "plain";\n'
-    assert token not in strip_js_comments(clean)
+    clean = {"a.js": 'const a = "plain";\n'}
+    assert token_findings(clean, token) == ()
 
-    in_code = f'{clean}const b = "{token}";\n'
-    assert token in strip_js_comments(in_code), f"the detector cannot find {token!r} in code"
+    in_code = {"a.js": f'const a = "plain";\nconst b = "{token}";\n'}
+    assert token_findings(in_code, token) == ("a.js:2",), f"not found in code: {token!r}"
 
-    in_comment = f"{clean}// this module never calls {token}\n"
-    assert token not in strip_js_comments(in_comment), f"a comment naming {token!r} was graded"
+    in_comment = {"a.js": f"const a = 1;\n// this module never calls {token}\n"}
+    assert token_findings(in_comment, token) == ("a.js:2",), f"not found in prose: {token!r}"
+
+
+#: The two valid regular expression literals that blind :func:`strip_js_comments`.
+#:
+#: ``/[/*]/`` is legal JavaScript - a character class holding a slash and a star
+#: - and the stripper sees the ``/*`` at offset two and opens a block comment.
+#: ``/[*/]/`` is the matching literal whose ``*/`` closes it. Everything between
+#: them is deleted before any stripped-code arm ever sees it.
+BLINDING_OPENER: Final = "/[/*]/"
+BLINDING_CLOSER: Final = "/[*/]/"
+
+
+def test_the_raw_token_sweep_catches_a_bypass_hidden_behind_a_regex_literal() -> None:
+    """The attack that defeated every stripped-code arm is caught by the raw sweep.
+
+    THIS ARM MEASURES BOTH HALVES IN ONE PLACE, deliberately. Asserting only
+    that the raw sweep fires would leave a reader unable to tell whether the
+    stripper was ever really blind, and a control whose premise is unmeasured is
+    the shape of finding this module exists to refuse. So the blinding is
+    measured first, and the raw sweep is measured second on the same bytes.
+    """
+    hidden = (
+        '"use strict";\n'
+        f"const PATH_SPLITTER = {BLINDING_OPENER};\n"
+        'app.commandLine.appendSwitch("ignore-certificate-errors");\n'
+        'process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";\n'
+        f"const PATH_JOINER = {BLINDING_CLOSER};\n"
+    )
+
+    # Four, not the three switches a reader counts: ``certificate-error`` is a
+    # substring of ``ignore-certificate-errors``, so the table matches it too.
+    # The number is asserted rather than derived so that a fixture edited to
+    # plant less than it claims cannot quietly weaken this control.
+    present = tuple(token for token in FORBIDDEN_TLS_TOKENS if token in hidden)
+    expected_planted = 4
+    assert len(present) == expected_planted, f"the fixture plants {len(present)} token(s)"
+
+    stripped = strip_js_comments(hidden)
+    blinded = tuple(token for token in present if token not in stripped)
+    assert blinded == present, (
+        "the stripper was NOT blinded by the planted regex literals, so this control "
+        f"proves nothing; it still saw {tuple(t for t in present if t in stripped)}"
+    )
+
+    missed = tuple(token for token in present if not token_findings({"evil.js": hidden}, token))
+    assert missed == (), f"the RAW sweep missed a hidden bypass: {missed}"
+
+
+def test_the_allowlist_exempts_one_exact_line_and_nothing_wider() -> None:
+    """The exemption mechanism is graded, even though the real allow-list is empty.
+
+    An empty allow-list makes every arm above pass without ever exercising the
+    filter, so the filter is driven here against a synthetic one instead.
+
+    WHAT AN EXEMPTION ACTUALLY COVERS, stated exactly rather than approximately.
+    The key is ``(path, exact stripped line)``, so an entry exempts EVERY line
+    in that one file whose text matches exactly - a repeated line is covered
+    twice by one entry - and exempts nothing at all in any other file. The
+    breadth is therefore one file's worth of one exact string, which is the
+    narrowest key that a human can write down and a later reader can verify by
+    eye. It is deliberately NOT a per-occurrence key: line numbers move under
+    every unrelated edit, and an exemption that goes stale on reformatting would
+    be re-approved reflexively rather than read.
+    """
+    token = FORBIDDEN_TLS_TOKENS[0]
+    line = f"// documented: never call {token}"
+    sources = {
+        "a.js": f"const a = 1;\n{line}\n{line}\n",
+        "b.js": f"{line}\n",
+    }
+
+    unfiltered = token_findings(sources, token)
+    expected = ("a.js:2", "a.js:3", "b.js:1")
+    assert unfiltered == expected, f"the fixture is not what it claims: {unfiltered}"
+
+    exempted = token_findings(sources, token, frozenset({("a.js", line)}))
+    assert exempted == ("b.js:1",), f"the allow-list exempted too much or too little: {exempted}"
+
+
+def test_every_allowlisted_line_is_still_present_in_the_tree() -> None:
+    """No exemption outlives the line it was written for.
+
+    A stale entry is dead weight at best, and at worst it silently pre-approves
+    a line somebody later writes. Vacuous while the allow-list is empty, which
+    is its state today and is asserted as a measurement rather than assumed.
+    """
+    sources = raw_sources()
+    stale = tuple(
+        (name, line)
+        for name, line in sorted(FORBIDDEN_TOKEN_ALLOWLIST)
+        if name not in sources or line not in {ln.strip() for ln in sources[name].splitlines()}
+    )
+    assert not stale, f"the allow-list exempts {len(stale)} line(s) that no longer exist: {stale}"
+
+
+def test_no_shell_lib_module_names_the_electron_package_in_raw_text() -> None:
+    """A RAW second layer under the purity partition, which is stripper-based.
+
+    :func:`test_no_shell_lib_module_imports_electron` grades stripped code and
+    is therefore blindable by the same regex literal as the old token sweep. The
+    partition is not a TLS bypass, so it is not in the table above, but a
+    ``shell/lib/`` module that quietly acquired an electron import would mute
+    the whole tier-2 lane. One raw line closes it. ``shell/lib/`` carries no
+    prose mention of the import form, so no allow-list is needed here.
+    """
+    impure = tuple(
+        name
+        for name in shell_files()
+        if name.startswith(LIB_PREFIX) and _ELECTRON_REQUIRE.search(read_text(name)) is not None
+    )
+    assert not impure, f"{len(impure)} module(s) under {LIB_PREFIX} import electron raw: {impure}"
 
 
 # ---------------------------------------------------------------------------
@@ -580,13 +798,336 @@ MAIN_SINGLETONS: Final = (
 def test_main_js_holds_exactly_one_of_each_critical_call_site(site: str) -> None:
     """The verify proc, the window and the verdict callback each appear once.
 
-    A SECOND SITE IS THE DEFECT THIS GRADES. Two ``setCertificateVerifyProc``
-    registrations mean the last one wins and the pin may be the loser; two
-    ``new BrowserWindow`` sites mean a window built past the audited options;
-    two ``callback`` sites mean a verdict that can be answered twice.
+    A SECOND SITE IS ONE OF TWO DEFECTS THIS SECTION GRADES, AND IT WAS NOT THE
+    ONE THAT HAPPENED. Two ``setCertificateVerifyProc`` registrations mean the
+    last one wins and the pin may be the loser; two ``new BrowserWindow`` sites
+    mean a window built past the audited options.
+
+    THE ``callback`` ENTRY IS DIFFERENT, and this docstring used to describe it
+    wrongly. It claimed a second site would mean "a verdict answered twice". The
+    measured defect was the opposite shape: ONE site, answering the WRONG
+    integer. Counting the token proves only that a callback happens, never that
+    it carries the verdict, and ``callback(0)`` - a blanket accept for every
+    host - satisfied this arm exactly as well as the correct call did. What
+    grades the argument is
+    :func:`test_main_js_hands_the_verify_callback_the_mapped_verdict_and_nothing_else`
+    below; this arm is the count and only the count.
     """
     found = code_of("shell/main.js").count(site)
     assert found == 1, f"shell/main.js holds {found} {site!r} site(s), expected exactly 1"
+
+
+@pytest.mark.parametrize("site", MAIN_SINGLETONS)
+def test_main_js_holds_exactly_one_of_each_critical_call_site_in_raw_text(site: str) -> None:
+    """The same three counts, taken RAW so no regex literal can hide a second site.
+
+    The arm above reads stripped code, and a bypass planted between ``/[/*]/``
+    and ``/[*/]/`` is deleted before it is counted - so a second, earlier
+    ``callback(0)`` could sit in main.js while the stripped count still read 1.
+    Electron takes the first answer, so the hidden one would be the one that
+    won. Raw text has no such blind spot, and main.js happens to name none of
+    these three in prose, so the raw count is exactly the code count today.
+    """
+    found = read_text("shell/main.js").count(site)
+    assert found == 1, f"shell/main.js holds {found} raw {site!r} site(s), expected exactly 1"
+
+
+#: The ONLY expression ``shell/main.js`` may hand to the verify callback.
+#:
+#: PINNED AS TEXT, because the property being protected is not "a callback
+#: happens" but "the callback receives the mapped verdict". The mapping now
+#: lives in ``shell/lib/verdict.js`` where ``shell/test/verdict.test.js`` pins
+#: all five verdicts by value; this constant is the seam that connects that
+#: graded mapping to the one call site that consumes it. Change the call site
+#: and this goes red, which is the intent - the argument to that callback is the
+#: single most security-load-bearing expression in the shell.
+CALLBACK_ARGUMENT: Final = "verdicts.codeForOrRefuse(verdict)"
+
+
+def callback_arguments(text: str) -> tuple[str, ...]:
+    """Every argument expression handed to a call spelled ``callback(``.
+
+    Parentheses are balanced from the opening one, so a nested call in the
+    argument - which is exactly the shape the shipped code uses - is returned
+    whole rather than truncated at its first ``)``.
+
+    Note that ``(request, callback) =>`` does not match: the needle carries the
+    opening parenthesis, so a parameter named ``callback`` is not a call.
+
+    Args:
+        text: The file text to read, RAW.
+
+    Returns:
+        The argument expressions, stripped of surrounding whitespace, in order.
+    """
+    needle = "callback("
+    found: list[str] = []
+    start = 0
+    while True:
+        at = text.find(needle, start)
+        if at == -1:
+            return tuple(found)
+        index = at + len(needle)
+        depth = 1
+        while index < len(text) and depth > 0:
+            if text[index] == "(":
+                depth += 1
+            elif text[index] == ")":
+                depth -= 1
+            index += 1
+        found.append(text[at + len(needle) : index - 1].strip())
+        start = index
+
+
+def test_main_js_hands_the_verify_callback_the_mapped_verdict_and_nothing_else() -> None:
+    """The verify callback receives the mapped verdict, by exact expression.
+
+    THE ARM THAT WOULD HAVE CAUGHT THE DEFECT. Six graders ran against a tree in
+    which ``callback(codeFor(verdict))`` could be changed to ``callback(0)`` - a
+    blanket accept for every host in the session - with the Python shell suite,
+    ``node --test``, the drift guard and the commit gate all staying green,
+    because every arm counted the TOKEN and none read the ARGUMENT. Four
+    variants of the same bypass survived the same way, including one that kept a
+    single call site and still answered 0 for every verdict.
+
+    Read RAW rather than stripped, for the reason given in
+    :func:`test_main_js_holds_exactly_one_of_each_critical_call_site_in_raw_text`.
+    """
+    arguments = callback_arguments(read_text("shell/main.js"))
+    assert arguments, "no callback call site was found at all; this arm would be vacuous"
+    assert arguments == (CALLBACK_ARGUMENT,), f"unexpected verify-callback argument(s): {arguments}"
+
+
+#: The two bindings the verify callback's expression resolves through, pinned to
+#: the exact require line that must produce them.
+#:
+#: THE BYPASS THIS CLOSES IS THE ONE THAT PINNING AN EXPRESSION INVITES. Once
+#: ``callback(verdicts.codeForOrRefuse(verdict))`` is graded as text, the next
+#: cheapest way to make it answer 0 for every host is to leave that text alone
+#: and change what ``verdicts`` MEANS - ``const verdicts = { codeForOrRefuse:
+#: () => 0 };`` satisfies the exact-expression arm and the no-digit arm at once,
+#: because the digit has moved out of the argument. The same holds for
+#: ``trust``, whose ``decide`` produces the verdict being mapped. Pinning the
+#: binding is what makes grading the expression mean anything.
+VERIFY_PATH_BINDINGS: Final = (
+    'const trust = require("./lib/trust.js");',
+    'const verdicts = require("./lib/verdict.js");',
+)
+
+
+def test_the_verify_callback_resolves_through_the_real_modules_and_no_other() -> None:
+    """``trust`` and ``verdicts`` are each bound once, to the real module.
+
+    Counted on RAW text. ``shell/main.js`` names neither binding in prose, so
+    the raw count is the code count, and reading raw keeps a regex literal from
+    hiding a shadowing rebind the way it hid the token bypass.
+    """
+    source = read_text("shell/main.js")
+    for binding in VERIFY_PATH_BINDINGS:
+        found = source.count(binding)
+        assert found == 1, f"shell/main.js holds {found} of {binding!r}, expected exactly 1"
+
+    for name in ("trust", "verdicts"):
+        bound = source.count(f"const {name} = ")
+        assert bound == 1, f"shell/main.js binds {name!r} {bound} time(s), expected exactly 1"
+
+
+def test_the_binding_check_fires_on_a_shadowed_module() -> None:
+    """The binding arm is proved to tell the real require from a fake object.
+
+    Without this the arm is two counts that happen to read 1, and a counter
+    stuck at 1 is the same green as one that measured.
+    """
+    real = "\n".join(VERIFY_PATH_BINDINGS) + "\n"
+    assert all(real.count(binding) == 1 for binding in VERIFY_PATH_BINDINGS)
+
+    shadowed = real + "const verdicts = { codeForOrRefuse: () => 0 };\n"
+    after_shadowing = 2
+    assert shadowed.count("const verdicts = ") == after_shadowing, (
+        "a second binding was not counted"
+    )
+
+    replaced = (
+        'const verdicts = { codeForOrRefuse: () => 0 };\nconst trust = require("./lib/trust.js");\n'
+    )
+    assert replaced.count(VERIFY_PATH_BINDINGS[1]) == 0, "a swapped binding still matched"
+
+
+def test_no_digit_ever_reaches_the_verify_callback() -> None:
+    """Nothing numeric is handed to the callback, in any spelling.
+
+    A SECOND AND WIDER NET THAN THE EXACT-EXPRESSION ARM. That one pins one
+    string and would go red on a rename that is entirely legitimate; this one
+    states the property that must hold no matter how the call is spelled. Every
+    bypass in this class ends with an integer literal reaching the callback -
+    ``callback(0)`` directly, or a ternary that resolves to it - and the shell
+    has no reason to write a digit there at all: the integers live in
+    ``shell/lib/verdict.js`` and are reached only through a named function.
+    """
+    arguments = callback_arguments(read_text("shell/main.js"))
+    assert arguments, "no callback call site was found at all; this arm would be vacuous"
+
+    numeric = tuple(argument for argument in arguments if any(char.isdigit() for char in argument))
+    assert not numeric, f"a digit reached the verify callback in: {numeric}"
+
+
+def test_the_callback_argument_reader_fires_on_every_measured_bypass() -> None:
+    """The reader is proved on the shipped shape and on all four measured bypasses.
+
+    Each fixture below was applied to a real checkout and measured to leave the
+    whole gate green before this arm existed. They are replayed here as text so
+    the proof does not depend on anyone re-running the mutation.
+    """
+    shipped = f"    callback({CALLBACK_ARGUMENT});\n"
+    assert callback_arguments(shipped) == (CALLBACK_ARGUMENT,), "the shipped shape did not read"
+
+    bypasses = {
+        "blanket accept": "    callback(0);\n",
+        "one site, wrong answer": (
+            "    const answer = (code) => callback(code);\n"
+            f"    answer(verdict === trust.TRUST ? {CALLBACK_ARGUMENT} : 0);\n"
+        ),
+        "second hidden site": f"    callback(0);\n    callback({CALLBACK_ARGUMENT});\n",
+        "numeric via a named alias": "    callback(ACCEPT_EVERYTHING);\n",
+    }
+    survivors = tuple(
+        label
+        for label, text in bypasses.items()
+        if callback_arguments(text) == (CALLBACK_ARGUMENT,)
+    )
+    assert not survivors, f"the reader could not tell these from the shipped call: {survivors}"
+
+    # WHY BOTH ARMS EXIST, demonstrated rather than argued. The digit net sees
+    # the blanket accept; it is BLIND to the one-site bypass, whose only
+    # ``callback(`` call is spelled ``callback(code)`` and carries no digit at
+    # all - the 0 sits in the ternary that feeds the alias. That bypass is
+    # caught by the exact-expression arm and by nothing else here.
+    assert callback_arguments("    callback(0);\n") == ("0",)
+
+    one_site = callback_arguments(bypasses["one site, wrong answer"])
+    assert one_site == ("code",), f"the one-site bypass read as {one_site}"
+    assert not any(char.isdigit() for char in one_site[0]), "the digit net was expected to be blind"
+    assert one_site != (CALLBACK_ARGUMENT,), "the exact-expression arm must still catch it"
+
+    # And the parameter spelling is NOT a call site.
+    assert callback_arguments("proc((request, callback) => {});\n") == ()
+
+
+# ---------------------------------------------------------------------------
+# e2. The verdict map, pinned on the lane that always runs
+# ---------------------------------------------------------------------------
+
+#: The five entries ``shell/lib/verdict.js`` must spell, verbatim and in order.
+#:
+#: WHY THIS IS DUPLICATED ACROSS THE LANGUAGE SEAM. ``shell/test/verdict.test.js``
+#: already pins all five mappings BY VALUE, which is the better test - it loads
+#: the module and calls the function. But it runs under ``node --test``, and
+#: node exists only on the tier-2 lane. This module is the every-push half, and
+#: it runs on a clean checkout with no Node installed at all.
+#:
+#: MEASURED, NOT ASSUMED. Changing ``[trust.DEFER, -3]`` to ``[trust.DEFER, 0]``
+#: was measured to leave THIS suite entirely green while ``node --test`` went to
+#: five failures - so before these arms existed, every mapping bypass reached a
+#: push untouched by the lane that runs on every push. The same held for
+#: REFUSE_NO_PIN and REFUSE_MISMATCH.
+VERDICT_MAP_ENTRIES: Final = (
+    "[trust.TRUST, 0],",
+    "[trust.DEFER, -3],",
+    "[trust.REFUSE_NO_PIN, -2],",
+    "[trust.REFUSE_NO_CERT, -2],",
+    "[trust.REFUSE_MISMATCH, -2],",
+)
+
+#: The one entry that may carry the accepting code, which is also the code that
+#: switches Certificate Transparency verification off for the session.
+ACCEPTING_ENTRY: Final = "[trust.TRUST, 0],"
+
+
+def verdict_map_block(text: str) -> tuple[str, ...]:
+    """The non-empty lines inside ``shell/lib/verdict.js``'s ``new Map([...])``.
+
+    EXTRACTED RATHER THAN SUBSTRING-COUNTED. The module's header documents the
+    bypasses it exists to stop and therefore spells ``[trust.DEFER, -3]`` in
+    prose as well as in the map, so a whole-file count of that text answers two
+    where the map holds one. Narrowing to the constructor is what makes the
+    grading below mean the map and not the commentary.
+
+    Args:
+        text: The raw source of ``shell/lib/verdict.js``.
+
+    Returns:
+        The stripped, non-empty lines between ``new Map([`` and its ``]);``.
+
+    Raises:
+        AssertionError: If the constructor cannot be located at all.
+    """
+    opener = "new Map(["
+    start = text.find(opener)
+    assert start != -1, "shell/lib/verdict.js holds no `new Map([` constructor"
+    end = text.find("]);", start)
+    assert end != -1, "the verdict map constructor is not closed"
+    body = text[start + len(opener) : end]
+    return tuple(line.strip() for line in body.splitlines() if line.strip())
+
+
+def test_the_verdict_map_spells_exactly_the_five_expected_entries() -> None:
+    """The map holds the five verdict-to-code pairs, verbatim and in order.
+
+    The pairs are spelled in THIS file and never read out of the module under
+    test. CS-605 closed on the neighbouring failure - a table imported from the
+    source let a deletion in the source delete the test case and stay green.
+    """
+    entries = verdict_map_block(read_text("shell/lib/verdict.js"))
+    assert entries == VERDICT_MAP_ENTRIES, f"the verdict map reads: {entries}"
+
+
+def test_only_the_trust_entry_carries_the_accepting_code() -> None:
+    """Exactly one map entry maps to 0, and it is the one for TRUST.
+
+    A WIDER NET THAN THE VERBATIM ARM, and the one that states the security
+    property rather than the spelling. The verbatim arm goes red on a
+    reformatting that is entirely legitimate; this one goes red only when a
+    second verdict acquires the accepting code, which is the whole bypass.
+    """
+    entries = verdict_map_block(read_text("shell/lib/verdict.js"))
+    assert entries, "the verdict map is empty; this arm would be vacuous"
+
+    accepting = tuple(entry for entry in entries if entry.endswith(", 0],"))
+    assert accepting == (ACCEPTING_ENTRY,), f"entries mapping to the accepting code: {accepting}"
+
+
+def test_the_verdict_map_reader_fires_on_each_measured_mapping_bypass() -> None:
+    """The extractor and both arms are proved against the measured mutations.
+
+    Each fixture below is a real mutation that was applied to a checkout and
+    measured to leave this suite green before these arms existed.
+    """
+    shipped = (
+        "// the header documents [trust.DEFER, -3] -> [trust.DEFER, 0] in prose\n"
+        "const VERDICT_CODES = new Map([\n"
+        + "".join(f"  {entry}\n" for entry in VERDICT_MAP_ENTRIES)
+        + "]);\n"
+    )
+    assert verdict_map_block(shipped) == VERDICT_MAP_ENTRIES, "the shipped shape did not read"
+
+    accepting = tuple(e for e in verdict_map_block(shipped) if e.endswith(", 0],"))
+    assert accepting == (ACCEPTING_ENTRY,), "the shipped map did not read as one accepting entry"
+
+    bypasses = (
+        "[trust.DEFER, 0],",
+        "[trust.REFUSE_NO_PIN, 0],",
+        "[trust.REFUSE_MISMATCH, 0],",
+    )
+    for mutated in bypasses:
+        original = mutated.replace(", 0],", ", -3]," if "DEFER" in mutated else ", -2],")
+        assert original in VERDICT_MAP_ENTRIES, f"fixture does not mutate a real entry: {original}"
+
+        text = shipped.replace(f"  {original}\n", f"  {mutated}\n")
+        entries = verdict_map_block(text)
+        assert entries != VERDICT_MAP_ENTRIES, f"the verbatim arm missed {mutated}"
+
+        widened = tuple(entry for entry in entries if entry.endswith(", 0],"))
+        assert widened != (ACCEPTING_ENTRY,), f"the accepting-code arm missed {mutated}"
 
 
 def test_trust_js_returns_its_verdict_from_exactly_one_site() -> None:
@@ -1027,7 +1568,7 @@ def test_the_constant_extractor_reports_a_miss_rather_than_a_vacuous_pass() -> N
 #: Files that participate in CommonJS, measured as carrying ``require(`` or
 #: ``module.exports``. ``shell/preload.js`` is deliberately inert and carries
 #: neither, so it is not in this count.
-COMMONJS_FILE_COUNT: Final = 6
+COMMONJS_FILE_COUNT: Final = 7
 
 
 @lru_cache(maxsize=1)
@@ -1072,9 +1613,9 @@ def test_the_shell_manifest_names_electron_only_under_dev_dependencies() -> None
 def test_the_shell_manifest_declares_no_module_type() -> None:
     """No ``type`` field, so Node reads every ``.js`` here as CommonJS.
 
-    Six files depend on that absence. Adding ``"type": "module"`` would break
-    every ``require`` in the tree at once, and would do it at runtime rather
-    than at any gate the tier-1 lane runs.
+    :data:`COMMONJS_FILE_COUNT` files depend on that absence. Adding
+    ``"type": "module"`` would break every ``require`` in the tree at once, and
+    would do it at runtime rather than at any gate the tier-1 lane runs.
     """
     assert "type" not in manifest(), "shell/package.json declares a module type"
 
@@ -1094,10 +1635,11 @@ def test_the_manifest_absence_checks_fire_on_a_planted_manifest() -> None:
 def test_the_commonjs_file_count_matches_what_the_manifest_absence_protects() -> None:
     """Exactly six shell modules use a CommonJS construct.
 
-    MEASURED, not asserted from the docstring above it. If a seventh module
-    starts requiring, this count goes red and the claim in
+    MEASURED, not asserted from the docstring above it. If another module starts
+    requiring, this count goes red and the claim in
     :func:`test_the_shell_manifest_declares_no_module_type` gets updated rather
-    than quietly becoming false.
+    than quietly becoming false. It has fired once already, for real: adding
+    ``shell/lib/verdict.js`` moved the census from six to seven.
     """
     users = tuple(
         name
@@ -1107,7 +1649,8 @@ def test_the_commonjs_file_count_matches_what_the_manifest_absence_protects() ->
         and ("require(" in code_of(name) or "module.exports" in code_of(name))
     )
     found = len(users)
-    assert found == COMMONJS_FILE_COUNT, f"{found} CommonJS module(s), expected 6: {users}"
+    expected = COMMONJS_FILE_COUNT
+    assert found == expected, f"{found} CommonJS module(s), expected {expected}: {users}"
 
 
 # ---------------------------------------------------------------------------

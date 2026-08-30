@@ -15,8 +15,15 @@
 // THE ONE RULE THIS FILE ADDS. The trust module answers in words, never in
 // numbers, so that no edit there can quietly become a blanket accept. That only
 // holds if the words are turned into electron's integers in exactly one place.
-// VERDICT_CODES below is that place, and it is the only integer vocabulary in
-// this file's verification path.
+// lib/verdict.js is that place, and THIS FILE CONTAINS NO INTEGER VOCABULARY AT
+// ALL on the verification path - not even a fallback.
+//
+// THE MAP USED TO LIVE HERE, AND THAT WAS THE DEFECT. Because this file imports
+// electron, nothing could load it, so no test in either language graded the
+// argument handed to callback. Changing it to a literal 0 - a blanket accept
+// for every host - left the whole gate green. The map now lives one file over,
+// where shell/test/verdict.test.js can load it without electron and pin all
+// five mappings by value.
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -28,65 +35,7 @@ const trust = require("./lib/trust.js");
 const state = require("./lib/state.js");
 const geometry = require("./lib/geometry.js");
 const windowLib = require("./lib/window.js");
-
-// ---------------------------------------------------------------------------
-// The only place a verdict becomes a number
-// ---------------------------------------------------------------------------
-
-// electron's verify callback takes an integer, and this map is the only place
-// in this file that writes one down.
-//
-// WHAT IS TYPE-CHECKED HERE AND WHAT IS NOT. electron 44.0.0's shipped typings
-// state only that 0 accepts the certificate and -2 rejects it. They contain no
-// occurrence of -3, and no mention of Certificate Transparency anywhere. Both
-// of those come from the published API page and from nothing else. They are
-// therefore NOT type-checked, and neither has been observed against a running
-// electron by anyone who wrote this file. That distinction is recorded rather
-// than smoothed over: the typings agreeing with the docs page would have been
-// evidence, and the typings being silent is not the same thing.
-//
-// THE ACCEPTING CODE IS DOCUMENTED TO DO MORE THAN ACCEPT. The API page states
-// that it also switches Certificate Transparency verification off for the
-// session. That is the documented reason exactly one verdict may reach it.
-// DEFER pointedly does not share it: deferring hands the decision back to
-// Chromium with its full validation still switched on, which is the right
-// answer for every host that is not ours.
-//
-// IF DEFER'S CODE IS NOT HONOURED AS DOCUMENTED, THIS FAILS CLOSED - and that
-// argument does not rest on the docs page either. The parameter is a Chromium
-// net error code, a space in which 0 is the only success value and every
-// negative is an error; -3 with no special handling is ERR_ABORTED, a failed
-// load. So a value electron did not interpret as documented refuses the
-// connection rather than trusting it. The residual exposure is functional, not
-// a trust one, and it is small: DEFER is reached only for a host that is not
-// ours, and this shell loads exactly one origin - the local dashboard, which
-// requests no remote resource of any kind.
-//
-// All three refusals share a single code. They are separate verdicts because
-// they are separate faults worth telling apart when reading a trace, not
-// because electron has more than one way to say no.
-const VERDICT_CODES = new Map([
-  [trust.TRUST, 0],
-  [trust.DEFER, -3],
-  [trust.REFUSE_NO_PIN, -2],
-  [trust.REFUSE_NO_CERT, -2],
-  [trust.REFUSE_MISMATCH, -2],
-]);
-
-/**
- * Turn a verdict into the integer electron expects.
- *
- * An unrecognised verdict cannot happen - trust.decide returns one of five
- * strings for any input whatsoever - but if it ever did, the answer is a
- * refusal and it is read back out of the map rather than written as a literal.
- * A default written as a number here would be a second, quieter place an
- * integer reaches the callback, which is the one property this file exists to
- * keep.
- */
-function codeFor(verdict) {
-  const code = VERDICT_CODES.get(verdict);
-  return code === undefined ? VERDICT_CODES.get(trust.REFUSE_MISMATCH) : code;
-}
+const verdicts = require("./lib/verdict.js");
 
 // ---------------------------------------------------------------------------
 // Refusals - fixed text, and never a path
@@ -145,7 +94,7 @@ function installVerifyProc(pinnedDer) {
       presentedDer: trust.pemToDer(request.certificate?.data),
       pinnedDer,
     });
-    callback(codeFor(verdict));
+    callback(verdicts.codeForOrRefuse(verdict));
   });
 }
 
