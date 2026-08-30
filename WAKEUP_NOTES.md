@@ -34,6 +34,57 @@ the line becomes a pointer.
 
 ---
 
+## Session 48 - 2026-08-30 - CS-605 CLOSED and tier-1 CI is GREEN on ubuntu; the first repair of the home-path arm built a guard that muted itself, and an adversary caught it with a mutant the old assert had killed
+
+- **Shipped: CS-605.** tier1 run `33289681747` at `90d2956`, `ubuntu-latest`, conclusion
+  `success`, 15 steps, ZERO non-success steps, `3755 passed, 114 skipped`. Exactly one arm
+  skips across `tests/surface/` and `tests/test_make_cert.py` there, with its reason in the
+  log. Detail in `docs/LEDGER.md`, not here. Six follow-ups filed, CS-608 to CS-613.
+
+- **THE HEADLINE: A SKIP CONDITIONED ON THE CODE UNDER TEST IS A MUTE BUTTON THE DEFECT GETS
+  TO PRESS.** The first repair turned a precondition into a skip on `home in body`, which is
+  exactly what a non-escaping encoder produces, so the alarm switched itself off in the one
+  case it existed for. MEASURED by an adversary with `contract.encode` mutated to stop
+  doubling: `tests/surface/` reported `527 passed, 1 skipped, exit 0` WITH THE LEAK LIVE, and
+  the deleted assert had killed that mutant. The skip reason blamed the PLATFORM, so it
+  misdirected rather than merely falling silent. Doctrine in
+  `memory/a-skip-can-mute-the-defect.md`. **THE WRONG INSTRUCTION WAS THE MERGER'S**: the
+  brief said to ask the skip OF THE ENCODER and explicitly not to test for a separator.
+
+- **ONE OF THE THREE "PLATFORM-DIVERGENT" FAILURES WAS NOT PLATFORM-DIVERGENT.** The
+  verify_env arm demanded exit 0, which holds only where `core.hooksPath` is wired.
+  Reproduced in a plain clone ON WINDOWS: `HARD: 6/7`, exit 1. `tier2.yml`'s
+  `clean-checkout-probe` already asserts that unset state, so the repo had recorded the fact
+  the arm contradicted. **Verify a claim of platform-divergence by reproducing it on the
+  other platform.**
+
+- **CS-605's OWN SECOND NAMED ITEM WAS GRADED BY NOTHING, ON ANY PLATFORM.** The certificate
+  key's 0600 chmod had no arm at all, so no CI run could ever have revealed it. It now runs
+  green on ubuntu. Closing the item on its acceptance clause alone would have left its stated
+  gap open.
+
+- **EVERY TOKEN IN THE ASSET ALLOW-LIST WAS AN EQUIVALENT MUTANT.** Emptying the tuple killed
+  the arm, but each single-token deletion survived, so the proof showed only that at least one
+  of four fired. Each token now has its own subject. The parametrization is over the test
+  file's OWN table - over the source tuple it would delete the case on a deletion and stay
+  green.
+
+- **MERGER ERROR: THE CANDIDATE WAS NOT FROZEN.** Three adversaries were dispatched against
+  `016fc15` and the tree moved to `5738da3` while they ran. Two findings of one adversary were
+  repaired mid-verdict. It reported the violation itself. Its remaining findings stood.
+
+- **Decisions: no ADR.** Nothing contradicted `BOOTSTRAP.md`.
+
+- **Failed paths: none abandoned.** Every finding was either fixed or filed with its
+  measurement.
+
+- **Next action: ask the operator whether to take CS-602**, the Electron companion, which
+  closes phase 6 together with CS-600 - **or CS-829**, still the head of the product path and
+  untouched for six sessions. CS-603, CS-604 and CS-606 are tier-1 and cheap if a warm-up is
+  wanted first.
+
+---
+
 ## Session 47 - 2026-08-29 - CS-601 CLOSED. Phase 6 opened ahead of phase 5 by operator ruling, and there is a working dashboard; the port band moved after nine sessions of blaming a squatter that was never one
 
 - **Shipped: CS-601.** The local HTTPS dashboard and JSON API answer all nine BOOTSTRAP 7.1
@@ -156,60 +207,5 @@ the line becomes a pointer.
   backed-out rules. **CS-861 IS OPEN AND UNSTARTED** - the same mechanism class in PRODUCTION
   code, in `clockspeed/data/locate.py`, with its reachability recorded UNVERIFIED and three
   of four tested account-directory shapes surviving the escaped rendering.
-
----
-
-## Session 45 - 2026-08-29 - CS-857 residuals 1 and 3 closed in TWO rounds, the first refuted by its own adversary; the item's severity framing measured FALSE and filed as CS-860
-
-- **Shipped: NOTHING CLOSED. CS-857 STAYS OPEN.** Residuals 1 and 3 are closed, residuals 2
-  and 4 are untouched, and the acceptance quantifies over a population that provably misses
-  a shape. CS-860 filed. Detail in `docs/LEDGER.md` and
-  `docs/item_notes/phase4-followups-850.md`, not here.
-
-- **ROUND 1 REPAIRED THE FALSE CLEARANCE AND WAS ONE.** It gated the clearance on
-  `raised == handler_name`, a COMPARISON OF SPELLINGS, and adversary L2 measured 15 shapes
-  that name the same exception another way and still cleared while rendering the path. The
-  fix for a guard that measured spelling measured a different spelling. Round 2 gates the
-  clearance on a POSITIVE fact - the raise CONSTRUCTS a class the module declares - and no
-  live graded verdict changes. **A NAIVE REORDER WOULD HAVE FALSELY REDDENED FIVE SITES**,
-  one of them shipped, which is why both halves of the repair were required.
-
-- **THE SEVERITY FRAMING IS MEASURED FALSE AND THAT IS THE SESSION'S BIGGEST RESULT.**
-  Adversary L3 forced the measurement three agents had only read, under the project's own
-  pytest configuration. The redactor emits two rule families - home path and account NAME -
-  and the PLATFORM ACCOUNT ID AND WORLD NAME RENDER IN FULL. `OSError.__str__` renders
-  `filename` through `%r`, doubling backslashes, so the home-path rule CANNOT FIRE on a
-  chained cause at all. Containment on this machine is a naming accident. Filed as CS-860.
-
-- **7 OF 7 MUTANTS KILLED**, including a true revert to round 1's own gate. In round 1 the
-  census-reporter mutant SURVIVED and was reported as surviving rather than rounded up; the
-  arm that kills it now exists.
-
-- **Decisions: none recorded as an ADR.** The operator chose CS-857 residuals 1 and 3 as the
-  unit and authorised `gh auth refresh`, which did not take - GitHub still reports no `user`
-  scope, so the CI cause stays INFERRED.
-
-- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But a sibling guard's `_verdict` names
-  `ast.BoolOp` in a positive branch; measured and CLEARED - the channel splitter decomposes
-  it upstream, so session 43's closure holds and nothing was filed.
-
-- **Failed paths: the naive `classify` reorder** (5 false reds) and **round 1's spelling
-  gate** (15 escapes). Both measured, both abandoned, both recorded.
-
-- **THE PROCESS DEFECT THIS SESSION SURFACED: THE CANDIDATE WAS NEVER FROZEN FOR THE
-  ADJUDICATOR.** The tree moved under it four times - 2 files, then 3, then 8, then 9, then
-  11 - so four of its adverse findings were repaired WHILE IT WAS WRITING THE RULING THAT
-  NAMED THEM, and no ruling it gave describes the tree that was committed. Section 5 makes
-  the adjudicator's independence the point of the role, and independence is worth little
-  against a target that edits itself mid-verdict. It also cost a whole-suite run: one
-  straddled a guard rewrite, so collection read one guard and the census executed against
-  another, and an exit 0 spanning four tree states says nothing about any of them. **FREEZE
-  THE CANDIDATE FIRST, or dispatch the adjudicator against a worktree at a fixed SHA** - the
-  read-only adversaries WERE pinned that way this session and none of them had the problem.
-  Not filed as an item; it is a section 5 rule and section 5 owns it.
-
-- **Next action: CS-857 residual 2** - a raise in a CALLEE of a handler is invisible to the
-  population, and it is what blocks the acceptance. Derive a population that can see it.
-  `docs/item_notes/phase4-followups.md` is at 99 per cent of budget with the split still due.
 
 ---

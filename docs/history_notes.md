@@ -25,6 +25,65 @@ Where current truth actually lives:
 
 ---
 
+## Session 45 wakeup note - relocated 2026-08-30 (session 48)
+
+## Session 45 - 2026-08-29 - CS-857 residuals 1 and 3 closed in TWO rounds, the first refuted by its own adversary; the item's severity framing measured FALSE and filed as CS-860
+
+- **Shipped: NOTHING CLOSED. CS-857 STAYS OPEN.** Residuals 1 and 3 are closed, residuals 2
+  and 4 are untouched, and the acceptance quantifies over a population that provably misses
+  a shape. CS-860 filed. Detail in `docs/LEDGER.md` and
+  `docs/item_notes/phase4-followups-850.md`, not here.
+
+- **ROUND 1 REPAIRED THE FALSE CLEARANCE AND WAS ONE.** It gated the clearance on
+  `raised == handler_name`, a COMPARISON OF SPELLINGS, and adversary L2 measured 15 shapes
+  that name the same exception another way and still cleared while rendering the path. The
+  fix for a guard that measured spelling measured a different spelling. Round 2 gates the
+  clearance on a POSITIVE fact - the raise CONSTRUCTS a class the module declares - and no
+  live graded verdict changes. **A NAIVE REORDER WOULD HAVE FALSELY REDDENED FIVE SITES**,
+  one of them shipped, which is why both halves of the repair were required.
+
+- **THE SEVERITY FRAMING IS MEASURED FALSE AND THAT IS THE SESSION'S BIGGEST RESULT.**
+  Adversary L3 forced the measurement three agents had only read, under the project's own
+  pytest configuration. The redactor emits two rule families - home path and account NAME -
+  and the PLATFORM ACCOUNT ID AND WORLD NAME RENDER IN FULL. `OSError.__str__` renders
+  `filename` through `%r`, doubling backslashes, so the home-path rule CANNOT FIRE on a
+  chained cause at all. Containment on this machine is a naming accident. Filed as CS-860.
+
+- **7 OF 7 MUTANTS KILLED**, including a true revert to round 1's own gate. In round 1 the
+  census-reporter mutant SURVIVED and was reported as surviving rather than rounded up; the
+  arm that kills it now exists.
+
+- **Decisions: none recorded as an ADR.** The operator chose CS-857 residuals 1 and 3 as the
+  unit and authorised `gh auth refresh`, which did not take - GitHub still reports no `user`
+  scope, so the CI cause stays INFERRED.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But a sibling guard's `_verdict` names
+  `ast.BoolOp` in a positive branch; measured and CLEARED - the channel splitter decomposes
+  it upstream, so session 43's closure holds and nothing was filed.
+
+- **Failed paths: the naive `classify` reorder** (5 false reds) and **round 1's spelling
+  gate** (15 escapes). Both measured, both abandoned, both recorded.
+
+- **THE PROCESS DEFECT THIS SESSION SURFACED: THE CANDIDATE WAS NEVER FROZEN FOR THE
+  ADJUDICATOR.** The tree moved under it four times - 2 files, then 3, then 8, then 9, then
+  11 - so four of its adverse findings were repaired WHILE IT WAS WRITING THE RULING THAT
+  NAMED THEM, and no ruling it gave describes the tree that was committed. Section 5 makes
+  the adjudicator's independence the point of the role, and independence is worth little
+  against a target that edits itself mid-verdict. It also cost a whole-suite run: one
+  straddled a guard rewrite, so collection read one guard and the census executed against
+  another, and an exit 0 spanning four tree states says nothing about any of them. **FREEZE
+  THE CANDIDATE FIRST, or dispatch the adjudicator against a worktree at a fixed SHA** - the
+  read-only adversaries WERE pinned that way this session and none of them had the problem.
+  Not filed as an item; it is a section 5 rule and section 5 owns it.
+
+- **Next action: CS-857 residual 2** - a raise in a CALLEE of a handler is invisible to the
+  population, and it is what blocks the acceptance. Derive a population that can see it.
+  `docs/item_notes/phase4-followups.md` is at 99 per cent of budget with the split still due.
+
+---
+
+---
+
 ## Session 43 wakeup note - relocated 2026-08-29 (session 46)
 
 ## Session 43 - 2026-08-28 - the exception channel graded from both ends; BOTH guards refuted on the SAME defect, independently, in one session - a syntactic bare-name match sold as a population zero

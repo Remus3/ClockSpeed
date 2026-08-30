@@ -75,6 +75,69 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-08-30 - CS-605 - CLOSED. Tier-1 CI runs the surface suite on ubuntu and PASSES, and the single arm that cannot be graded there records why
+Verification: tier1 run `33289681747` at `90d2956`, `ubuntu-latest`, conclusion `success`,
+15 steps executed, ZERO non-success steps, `3755 passed, 114 skipped` in 441s - against the
+red run `33284719586` at `af1887f`, `3 failed, 3745 passed, 113 skipped`. Exactly ONE arm
+skips across `tests/surface/` and `tests/test_make_cert.py` on that runner,
+`tests/surface/test_acceptance.py::test_the_home_path_detector_survives_the_encoder_that_once_defeated_it`,
+with its reason printed in the log. Merged files: `tests/surface/test_acceptance.py`,
+`tests/surface/test_server.py`, `tests/test_make_cert.py`.
+
+**THE ITEM'S SECOND NAMED CONCERN WAS GRADED BY NOTHING, ON ANY PLATFORM.**
+`scripts/make_cert.py:222` chmods the key 0600 inside `_restrict`, called once at `:279` on
+the STAGED key, and no test in the tree asserted the resulting mode - so no CI run could ever
+have revealed it, because there was nothing to fail. It is now graded by
+`tests/test_make_cert.py::test_the_generated_key_is_restricted_to_this_account`, which reads
+the FINAL key so it also grades that the atomic replace preserves the restriction, and by
+`::test_a_key_the_platform_would_not_restrict_is_still_written`, which forces the OSError and
+runs everywhere. The mode arm gates on a MEASURED capability rather than a platform name and
+ran green on ubuntu in the cited run.
+
+**ONE OF THE THREE FAILURES WAS NEVER PLATFORM-DIVERGENT, AND THE ROADMAP LINE SAID IT WAS.**
+The arm demanded exit 0 from `scripts/verify_env.py`,
+which holds only where `core.hooksPath` is wired. Hook wiring is per-clone git config and
+neither `git clone` nor `actions/checkout` runs `install_hooks.py`. Reproduced in a plain
+clone ON WINDOWS: `HARD: 6/7`, `VERDICT: FAIL - missing HARD dependencies: core.hooksPath ->
+.githooks`, exit 1. `.github/workflows/tier2.yml`'s `clean-checkout-probe` already asserts
+that unset state before bootstrapping, so the repo had recorded the fact this arm contradicted.
+It was renamed, because "still passes" had become a false description, and is now
+`::test_verify_env_verdict_agrees_with_its_exit_code_and_names_openssl`, grading a
+biconditional between the verdict line and the exit code plus a strictness clause bounding the
+missing set to the hook wiring alone.
+
+**THE FIRST REPAIR OF THE HOME-PATH ARM WAS REFUTED AND IS CORRECTED HERE.** `01d3fea`'s
+message says "Coverage is not lost." THAT WAS FALSE. Converting the precondition to a skip on
+`home in body` built a guard that switches itself off in exactly the circumstance it exists to
+detect, because that predicate is what a non-escaping encoder produces. MEASURED by an
+adversary with `contract.encode` mutated to stop doubling: `tests/surface/` reported
+`527 passed, 1 skipped, exit 0` WITH THE LEAK LIVE, and the deleted assert had killed that
+mutant. `12da59f` gives the alarm its own platform-independent arm,
+`::test_the_encoder_doubles_a_planted_backslash_and_never_ships_the_raw_one`, which plants a
+synthetic subject instead of borrowing the machine's home and therefore grades every runner -
+the original could only ever fire where the home carried a separator, and no other test in the
+tree feeds a backslash through that encoder. The doctrine is recorded in
+`memory/a-skip-can-mute-the-defect.md`.
+
+**THE ALLOW-LIST MUTATION PROOF WAS TOO WEAK AND `016fc15`'s MESSAGE OVERSTATED IT.** Emptying
+`FORBIDDEN_IN_AN_ASSET_NAME` kills the arm, but every SINGLE-token deletion survived: all three
+`SEPARATOR_NAMES` carry `..` and a separator, and none carried a colon. Three of four tokens
+were deletable with the suite green. `4955677` gives each token its own subject via
+`::test_the_asset_reader_refuses_each_forbidden_token_on_its_own` and
+`::test_every_token_the_asset_gate_declares_has_a_subject_that_grades_it`, parametrized over
+this file's OWN table rather than over the source tuple - parametrizing over the source would
+delete the case on a deletion and stay green. Measured en route: `pathlib` parses a single
+letter plus colon as a DRIVE, so `web / "a:secret.json"` discards the web directory entirely.
+
+**SIX FOLLOW-UPS WERE FILED RATHER THAN FOLDED IN**, CS-608 to CS-613, each with the
+measurement that produced it. CS-608 and CS-609 are this same defect one level up: arms that
+PASS on the every-push lane while grading a fraction of what they grade on Windows.
+
+**A MERGER PROCESS FAILURE, RECORDED BECAUSE IT NEARLY COST A VERDICT.** Three adversaries were
+dispatched against `016fc15` and the tree then moved to `5738da3` while they ran - the
+unfrozen-candidate error `CLAUDE.md` section 5 names explicitly. Two of one adversary's
+findings were repaired mid-verdict. Its remaining findings stood and are actioned above.
+
 ### 2026-08-29 - CS-601 - CLOSED. The local HTTPS dashboard and JSON API answer all nine BOOTSTRAP 7.1 endpoints - four with computed data, five with a machine-readable refusal naming the item that would build them
 Verification: `tests/surface/test_acceptance.py`, chiefly
 `tests/surface/test_acceptance.py::test_every_endpoint_bootstrap_names_answers_over_verified_tls`
