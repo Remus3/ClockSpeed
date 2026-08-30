@@ -1201,9 +1201,32 @@ def test_the_personal_data_detector_fires_on_a_planted_value_of_every_class() ->
 
 
 def test_the_home_path_detector_survives_the_encoder_that_once_defeated_it() -> None:
-    body = _text_of({"status": "ok", "endpoint": "/api/audit", "data": {"w": str(Path.home())}})
-    spelled_plainly = str(Path.home()) in body
-    assert not spelled_plainly, "the encoder no longer escapes, so this arm has no subject"
+    # THE ARM THAT MUST SKIP LOUDLY RATHER THAN PASS QUIETLY. Its subject is a
+    # home path THE ENCODER RESPELLED - the doubled-separator spelling that once
+    # walked past a plain substring test. Whether such a spelling exists at all
+    # is a property of this encoder meeting this machine's home, so the question
+    # is asked OF THE ENCODER and never of ``os.name``, ``sys.platform`` or a
+    # bare separator test. A platform test would keep claiming a subject the day
+    # the encoder stopped escaping, and would keep skipping the day a home of
+    # the other shape grew a character the encoder does escape.
+    #
+    # This was an assert until it went red on a runner whose home path carries
+    # nothing the JSON encoder touches. A missing subject there is a fact about
+    # that platform, not a defect in this repository, and failing on it buys no
+    # coverage while costing a red suite.
+    home = str(Path.home())
+    body = _text_of({"status": "ok", "endpoint": "/api/audit", "data": {"w": home}})
+    # Scalars are what cross into the deciding frames, never ``home`` or
+    # ``body``: pytest renders the asserted EXPRESSION independently of any
+    # message, and this module's A6 arms exist because a leak shipped that way.
+    spelled_plainly = home in body
+    if spelled_plainly:
+        pytest.skip(
+            "the encoder put this machine's home path on the wire unchanged, "
+            "so the RESPELLED spelling this arm chases cannot exist here and a "
+            "green result would be a statement about nothing. The "
+            "escaped-spelling gap is UNMEASURED on this platform, not absent"
+        )
     classes = _personal_data_classes(body)
     caught = CLASS_HOME_PATH in classes
     assert caught, "a JSON-escaped home path walked past the home-path rule"
