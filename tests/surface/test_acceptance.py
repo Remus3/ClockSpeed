@@ -311,31 +311,56 @@ def _known_safe_runs() -> frozenset[str]:
 KNOWN_SAFE_RUNS: Final = _known_safe_runs()
 
 
-def _home_spellings() -> tuple[str, ...]:
-    """Every way this machine's home directory can appear in a JSON body.
+#: THE CHARACTER EVERY NON-PLAIN SPELLING BELOW IS DERIVED FROM. Named rather
+#: than respelled inline because two arms turn on it, and because WHETHER A PATH
+#: CARRIES IT IS A STATIC PROPERTY OF THAT PATH - which is what makes it a
+#: legitimate skip predicate. No defect in the encoder under test can flip it.
+BACKSLASH: Final = "\\"
+
+
+def _spellings_of(plain: str) -> tuple[str, ...]:
+    """Every way one path string can appear in a JSON body.
 
     MEASURED, NOT REASONED. The plain string was the whole of this check until a
     throwaway server was made to leak ``str(Path.home())`` through a real
-    response. The JSON encoder DOUBLES every separator on this platform, so the
-    path reaches the wire in a spelling the plain substring test does not match,
-    and that test missed it entirely. The suite redactor happened to catch the
-    same body by a different rule, and a check that only works when another
-    check works is not a check. The URL-quoted spelling is here for the same
-    reason and has not been observed, only anticipated.
+    response. The JSON encoder DOUBLES every separator on a backslash platform,
+    so the path reaches the wire in a spelling the plain substring test does not
+    match, and that test missed it entirely. The suite redactor happened to
+    catch the same body by a different rule, and a check that only works when
+    another check works is not a check. The URL-quoted spelling is here for the
+    same reason and has not been observed, only anticipated.
+
+    EVERY NON-PLAIN SPELLING IS DERIVED FROM :data:`BACKSLASH`, so on a path
+    carrying none of them the set COLLAPSES TO THE PLAIN STRING ALONE. That
+    collapse is the whole subject of the skip in
+    :func:`test_the_home_path_detector_survives_the_encoder_that_once_defeated_it`,
+    and taking the parameter rather than reading ``Path.home()`` directly is
+    what lets an arm grade this model on a machine whose own home cannot.
+
+    Args:
+        plain: A path, exactly as the filesystem spells it.
 
     Returns:
-        The spellings, longest first.
+        The spellings, longest first. Empty when ``plain`` is empty.
     """
-    plain = str(Path.home())
     if not plain:
         return ()
     spellings = {
         plain,
-        plain.replace("\\", "\\\\"),
-        plain.replace("\\", "/"),
-        plain.replace("\\", "%5C"),
+        plain.replace(BACKSLASH, BACKSLASH * 2),
+        plain.replace(BACKSLASH, "/"),
+        plain.replace(BACKSLASH, "%5C"),
     }
     return tuple(sorted(spellings, key=len, reverse=True))
+
+
+def _home_spellings() -> tuple[str, ...]:
+    """Every way this machine's home directory can appear in a JSON body.
+
+    Returns:
+        The spellings, longest first.
+    """
+    return _spellings_of(str(Path.home()))
 
 
 HOME_SPELLINGS: Final = _home_spellings()
@@ -1200,33 +1225,89 @@ def test_the_personal_data_detector_fires_on_a_planted_value_of_every_class() ->
     assert missed_count == 0, f"the detector is blind to: {', '.join(missed)}"
 
 
-def test_the_home_path_detector_survives_the_encoder_that_once_defeated_it() -> None:
-    # THE ARM THAT MUST SKIP LOUDLY RATHER THAN PASS QUIETLY. Its subject is a
-    # home path THE ENCODER RESPELLED - the doubled-separator spelling that once
-    # walked past a plain substring test. Whether such a spelling exists at all
-    # is a property of this encoder meeting this machine's home, so the question
-    # is asked OF THE ENCODER and never of ``os.name``, ``sys.platform`` or a
-    # bare separator test. A platform test would keep claiming a subject the day
-    # the encoder stopped escaping, and would keep skipping the day a home of
-    # the other shape grew a character the encoder does escape.
+def test_the_encoder_doubles_a_planted_backslash_and_never_ships_the_raw_one() -> None:
+    # THE ALARM PROPER, AND IT RUNS EVERYWHERE. The fact this arm owns is a
+    # property of ``contract.encode`` ALONE - a backslash handed to it leaves
+    # DOUBLED and never raw - so the subject is PLANTED SYNTHETICALLY instead of
+    # being borrowed from ``Path.home()``. An arm whose subject is the machine's
+    # own home can only fire where that home happens to carry a separator the
+    # encoder escapes, and no other arm in this tree feeds a backslash-bearing
+    # string through this encoder at all: on every non-backslash runner the
+    # encoder's escaping was therefore graded by nothing.
     #
-    # This was an assert until it went red on a runner whose home path carries
-    # nothing the JSON encoder touches. A missing subject there is a fact about
-    # that platform, not a defect in this repository, and failing on it buys no
-    # coverage while costing a red suite.
-    home = str(Path.home())
-    body = _text_of({"status": "ok", "endpoint": "/api/audit", "data": {"w": home}})
-    # Scalars are what cross into the deciding frames, never ``home`` or
-    # ``body``: pytest renders the asserted EXPRESSION independently of any
-    # message, and this module's A6 arms exist because a leak shipped that way.
-    spelled_plainly = home in body
-    if spelled_plainly:
+    # MEASURED, NOT ARGUED. With ``contract.encode`` mutated to collapse the
+    # doubled backslash it writes - validation intact, output bytes only - the
+    # whole of ``tests/surface/`` reported 527 passed, 1 skipped, exit 0. That
+    # mutant emits invalid JSON AND puts a path on the wire spelled plainly,
+    # which is the personal-data channel this A6 family exists for. This arm
+    # kills it on every platform.
+    planted = "C:" + BACKSLASH + "cs605-synthetic" + BACKSLASH + "home"
+    body = _text_of({"status": "ok", "endpoint": "/api/audit", "data": {"w": planted}})
+    # THE ALARM, ASSERTED FIRST so that the message a reader gets names what
+    # actually went wrong. The three checks under it are what stop a green
+    # result here from being vacuous, and none of them can turn this one green.
+    raw_absent = planted not in body
+    assert raw_absent, "a raw single-backslash path survived onto the wire"
+    # An empty or truncated body satisfies the alarm above while proving
+    # nothing, so the respelling has to be positively present.
+    respelled = planted.replace(BACKSLASH, BACKSLASH * 2)
+    respells = respelled in body
+    assert respells, "the encoder stopped doubling a backslash it was handed"
+    # And the body must be THE ENCODER's, not ``_text_of``'s ``repr`` fallback:
+    # ``repr`` doubles a backslash too, so without this the arm would stay green
+    # against an encoder that had stopped working entirely.
+    try:
+        round_tripped = json.loads(body)["data"]["w"] == planted
+    except ValueError:
+        round_tripped = False
+    assert round_tripped, "the encoded body did not parse back to what was planted"
+    # The spelling asserted for is the one :func:`_spellings_of` DERIVES, never
+    # one re-derived here. Two independent copies of the same ``replace`` would
+    # agree with each other while both drifted off the encoder, and agreement
+    # between two derivations is not evidence. On a runner whose own home
+    # carries no backslash this is the ONLY thing that grades the doubled
+    # spelling in the model, because the home arm below skips there.
+    modelled = respelled in _spellings_of(planted)
+    assert modelled, "the doubled spelling left the detector's model of this encoder"
+
+
+def test_the_home_path_detector_survives_the_encoder_that_once_defeated_it() -> None:
+    # THE ARM THAT MUST SKIP LOUDLY RATHER THAN PASS QUIETLY, AND WHOSE SKIP MAY
+    # NOT TURN ON THE THING UNDER TEST. Its subject is THIS MACHINE's home in the
+    # spelling the encoder respells it into - the doubled-separator form that
+    # once walked past a plain substring test - and that subject exists exactly
+    # when this machine's home carries :data:`BACKSLASH`, because every
+    # non-plain spelling :func:`_spellings_of` derives is derived from it. That
+    # is a static property of the home STRING, so it is true or false before
+    # ``contract.encode`` is ever called.
+    #
+    # AN EARLIER REPAIR ASKED THE SKIP OF THE ENCODER INSTEAD, and that built a
+    # guard which switched itself off in exactly the circumstance it exists to
+    # detect. MEASURED: with the encoder mutated to stop doubling, the home
+    # reaches the body plainly, ``home in body`` becomes true, and the arm
+    # skipped ON WINDOWS TOO - 527 passed, 1 skipped, exit 0, with the leak
+    # live. A predicate over the thing under test is not a precondition; it is a
+    # mute button the defect gets to press.
+    #
+    # The fact that repair was reaching for - does the encoder still escape -
+    # now has its own arm above, which is platform-independent and grades the
+    # encoder directly rather than through whatever this machine's home is.
+    if BACKSLASH not in str(Path.home()):
         pytest.skip(
-            "the encoder put this machine's home path on the wire unchanged, "
-            "so the RESPELLED spelling this arm chases cannot exist here and a "
-            "green result would be a statement about nothing. The "
+            "this machine's home spells no path separator as a backslash, and "
+            "every non-plain spelling _spellings_of derives comes from that "
+            "character, so the set collapses to the plain spelling and the "
+            "RESPELLED subject this arm chases cannot exist here. The "
             "escaped-spelling gap is UNMEASURED on this platform, not absent"
         )
+    # ``str(Path.home())`` is INLINED rather than bound, and that is not style:
+    # CS-851 records that the remedy for a home path sitting in a failing frame
+    # is to REMOVE the binding, and tests/locals_rendering_guard.py scopes home
+    # paths out of its static population, so nothing else enforces it here.
+    body = _text_of({"status": "ok", "endpoint": "/api/audit", "data": {"w": str(Path.home())}})
+    # Only scalars cross into the deciding frame: pytest renders the asserted
+    # EXPRESSION independently of any message, and this module's A6 arms exist
+    # because a leak shipped exactly that way.
     classes = _personal_data_classes(body)
     caught = CLASS_HOME_PATH in classes
     assert caught, "a JSON-escaped home path walked past the home-path rule"
