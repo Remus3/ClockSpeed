@@ -158,6 +158,12 @@ and irreversible in practice, so the gate clearing is necessary and not sufficie
 before the flip is contemplated. Hygiene is enforced from the first commit and is not
 deferred on the grounds that the repo is private.
 
+**The third-party licence audit has its first recorded verdict.** Electron's gate result -
+split into local use, a public manifest merely NAMING it, and distribution of a packaged
+binary - is `docs/adr/0013-electron-licence-gate.md`. The audit consumes that record rather
+than re-deriving it, and the ADR states which of the three scopes was cleared only WITH
+obligations.
+
 #### Operator decision 2026-08-13: the flip ships from a FRESH history
 
 **The working tree is clean of PII; the history is not, and cannot be made clean without
