@@ -1,0 +1,17 @@
+{
+  "name": "clockspeed-shell",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron companion window for Clockspeed. Node exists solely for this shell.",
+  "main": "main.js",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "electron": "44.0.0"
+  }
+}
