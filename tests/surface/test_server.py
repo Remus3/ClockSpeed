@@ -139,10 +139,11 @@ STATIC_SURFACE_SIZE: Final = 3
 #: Header names every answer carries, whatever its status.
 FIXED_HEADER_NAMES: Final = ("cache-control", "x-content-type-options", "referrer-policy")
 
-#: Names carrying a separator, each of which REALLY ESCAPES a directory on this
-#: filesystem. Handed to the asset reader's closed set ON PURPOSE, so the arm
-#: grades the SECOND gate rather than the allow-list. They must resolve to a
-#: file that exists - see the arm for what went wrong when they did not.
+#: Names carrying a separator, handed to the asset reader's closed set ON
+#: PURPOSE so the arm grades the SECOND gate rather than the allow-list. Every
+#: one must name something that EXISTS when the arm runs, and the arm plants
+#: whatever the running platform does not already resolve - see the arm for
+#: what went wrong when they did not exist.
 SEPARATOR_NAMES: Final = ("../secret.json", "..\\secret.json", "a/../../secret.json")
 
 #: What the escape targets contain, so reaching one is distinguishable from
@@ -2261,6 +2262,11 @@ def test_the_asset_reader_refuses_a_traversal_even_if_it_were_allow_listed(
     web = tmp_path / "web"
     web.mkdir()
     (tmp_path / "secret.json").write_bytes(OUTSIDE_BYTES)
+    # The directory the third spelling walks through. Creating it for real makes
+    # that spelling resolve component by component on a filesystem that checks
+    # each one before stepping past it, instead of by the lexical ".." collapse
+    # that happens to serve it on Windows.
+    (web / "a").mkdir()
 
     def reached(name: str) -> bool:
         try:
@@ -2268,15 +2274,32 @@ def test_the_asset_reader_refuses_a_traversal_even_if_it_were_allow_listed(
         except OSError:
             return False
 
+    # Plant a real target for any spelling this platform does not already
+    # resolve, measured rather than branched on the platform name. Where a
+    # backslash is an ordinary filename character this creates the literal file
+    # "..\secret.json" inside web/; where it is a separator there is nothing
+    # left to do.
+    for name in SEPARATOR_NAMES:
+        if not reached(name):
+            (web / name).write_bytes(OUTSIDE_BYTES)
+
     # THE POSITIVE CONTROL, and it is the whole reason this arm means anything.
     # The first version of this test handed the reader separator names and
     # asserted None. It passed with the separator gate DELETED - MEASURED by
     # mutation - because the traversal targets did not exist, so the read failed
     # for its own reasons and file ABSENCE was doing the work the gate got credit
-    # for. Proving the escape resolves first is what makes the refusal below a
-    # statement about the gate.
-    escapes = sum(1 for name in SEPARATOR_NAMES if reached(name))
-    assert escapes == len(SEPARATOR_NAMES), "the escape does not resolve, so the arm grades nothing"
+    # for. Proving every name reads first is what makes the refusals below
+    # statements about the gate.
+    #
+    # The control does NOT claim every spelling escapes web/. On a filesystem
+    # where a backslash is NOT a separator, "..\secret.json" is one ordinary
+    # filename that never leaves the directory. It claims the thing the gate is
+    # actually graded on, which holds either way: every one of these names WOULD
+    # BE READ if the gate did not refuse it, so no refusal below is free.
+    reachable = sum(1 for name in SEPARATOR_NAMES if reached(name))
+    assert reachable == len(SEPARATOR_NAMES), (
+        "the target does not resolve, so the arm grades nothing"
+    )
     reader = providers.StaticAssets(web, SEPARATOR_NAMES)
     refused = sum(1 for name in SEPARATOR_NAMES if reader.asset(name) is None)
     assert refused == len(SEPARATOR_NAMES), "the separator gate let a real traversal through"
