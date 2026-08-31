@@ -67,6 +67,13 @@ the line becomes a pointer.
   AFTER the real reader has consumed the right bytes, and stopped letting a kill count as
   field coverage. Found by making the shift plant inert and asking what stayed green.
 
+- **AND THE PROSE AROUND THAT REPAIR WAS NOT FULLY RE-READ.** Adding the third plant left
+  three sentences in the CS-862 ledger entry still saying "two plants". Caught during
+  `/done`, corrected by a NEW append-only record rather than by editing - `docs/LEDGER.md`
+  says nothing in it is ever edited once written. Commit `10c5777`. The arms, the shipped
+  code and the entry's own mutant table were right throughout; only the prose was stale,
+  which is the same fault the correction is about.
+
 - **THE PLANT THAT DID NOTHING, CAUGHT BY ITS OWN OBSERVABILITY ASSERTION.** The first
   plant written wrapped `objects._read_record` - the FLAT reader `parse_object_headers`
   uses. `parse_body` calls `_read_levelled_record` instead, so the shipped table never
