@@ -441,6 +441,93 @@ establishes payload-level independence FIRST, or writes down plainly that it did
 
 ---
 
+### CS-829 - StructProperty's interior, gated behind CS-G05
+
+**One line:** Read the interior of every `StructProperty` the shipped vocabulary names, and
+grade it as an EQUALITY over that population.
+
+**Unblocked by:** CS-G05 clearing. Operator ruling, session 50, taken on an adjudicator's
+verdict against the item's own acceptance clause.
+
+**WHY IT IS GATED AND NOT MERELY HARD.** The acceptance clause names "EVERY record carrying
+a struct type word the shipped vocabulary names". **23529 struct type words sit in the bytes
+of records NO reading opens** - they belong to the version pair whose payload grammar is
+exactly what CS-G05 exists to measure. The clause's literal population therefore contains a
+class this repo cannot grade at all, and no amount of work inside the repo changes that
+while CS-G05 stands. The item was rewritten twice for unsatisfiability in one day at filing;
+this is the same fault surviving in a third form, and dispatching a sixth build against the
+present wording produces a sixth refutation for the first draft's reason.
+
+**THE ITEM IS NOT MOVED HERE TO PARK IT.** It is moved because the gate is real and was
+being paid for in refutations instead of being named. Four rounds were spent relocating a
+shared substrate; the fifth relocated it again and is filed as CS-863. None of that work
+touches the 23529.
+
+**DRAIN - blocked, untouchable until CS-G05 clears:**
+
+- The equality the clause demands over its literal population. The 23529 unreached words are
+  in it and cannot be reached.
+- `compatible_decoded == size_compatible` with no ceiling. `_COMPATIBLE_REFUSAL_CEILING` is
+  64 against an observed residue of 12, so the shipped grade is a floor plus a ceiling with
+  52 of headroom where the clause says "an EQUALITY over that population and not as a floor".
+  The 12 residual refusals are not explained. Whether they can be, without the gated pair's
+  grammar, is itself unmeasured.
+- Any restatement of the clause's population. **A restated clause is a scope change and
+  closes as one**, with its own record - it is not this gate clearing. The rule at the top
+  of this file covers exactly this move.
+
+**PREP - workable now, and mostly already built:**
+
+- `tests/save/independent_table.py` reads the record framing without calling one shipped
+  reader, and its output equals the shipped table element-for-element across the library.
+  Merged session 50.
+- The record-table anti-monotone control. Its limits are CS-862.
+- The four open follow-ups CS-862, CS-863, CS-864 and CS-865 are all PREP. They are the
+  harness that will grade the DRAIN half when the gate clears, and every one of them is
+  worth doing before it does.
+
+**WHAT WOULD BE A SYNTHETIC CLOSE HERE**, named so it is recognised: narrowing the graded
+population to the reachable, size-compatible sites and declaring the clause met. That is
+the proxy substitution this file's opening rule describes. The narrowing may well be the
+right ENGINEERING answer - it is what the shipped arms already do - but it is a scope change
+and it needs the operator's ruling and its own record, not a green suite.
+
+**THE FENCES, CARRIED FORWARD FROM THE ITEM NOTE.** The rounds-1-to-5 record is archived at
+`docs/history_notes.md` under **CS-829**, and that file holds nothing current by its own
+header - so the standing instructions live here, where the item now does:
+
+- **DO NOT re-pitch this as the inventory item.** Its first acceptance asked for
+  `InventoryStack` off a real BUILDING and MEASURED over the real library: no building record
+  carries one. A building holds an `ObjectProperty` REFERENCE to a separate inventory
+  component and the stacks live over there inside a container property, so inventory sits
+  behind the cross-record join (CS-831), the container element framing (CS-830), and only
+  then this item. An operator ruling on CS-400 clause 1 was obtained on that false premise
+  and has been restated by SUBSTANCE rather than by item id as a result.
+- **DO NOT hand-write a struct vocabulary.** Derive the population. A transcribed list of
+  observed type words is the hand-maintained list this project has repeatedly recorded as
+  the thing that rots.
+- **DO NOT define the population by the decoder's own success.** That is an identity: a
+  decoder refusing a word outright does not fail, the word merely leaves the class and is
+  relabelled. It was proven mechanically against two hundred thousand arbitrary wrong
+  decoders, none of which it caught. The population is every site whose DECLARED SIZE could
+  hold a tag list, which never calls the decoder.
+- **DO NOT grade over the pool.** Every quantifier ranging over a set is asserted per member
+  of that set. Pooling three container words is exactly how CS-830 shipped a word with no
+  element-grammar evidence behind one that had plenty.
+- **DO NOT skip `_UNEXPLAINED_WORD_CEILING`.** The skip was built, measured and REVERTED: an
+  in-process mutant refusing the weakest reading word at `objects._decode_struct_interior` is
+  caught by that arm and NO OTHER, so the skip that spares the subset spares a real defect.
+  Its own residual work is CS-865.
+- **DISTINCT FROM CS-456**, which asks whether a WRONG tag-extra width is discriminated for
+  the four types that ship one. That is a question about the FRAMING; this item is about the
+  CONTENTS. Closing either leaves the other open.
+- **DO NOT re-pitch `BODY_LAYOUT_BY_PAIR` as the next shared substrate.** Measured session
+  50: 53 of 56 layout plants make `parse_body` raise and `assert not sweep.failures` catches
+  them, 3 are equivalent mutants, silent loss is zero. The shared SCALARS are the live hole,
+  and they are CS-863.
+
+---
+
 ## Cross-references
 
 - Open work: `ROADMAP.md`

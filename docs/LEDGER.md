@@ -75,6 +75,38 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-08-30 - CS-829 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-829 is GATED behind CS-G05 by operator ruling, with the PREP half merged and the DRAIN half named
+Verification: the item line moved out of `ROADMAP.md` into `docs/GATED.md` under
+`CS-829 - StructProperty's interior, gated behind CS-G05`; round 5's outcome is recorded in
+`docs/item_notes/phase4-followups.md` under **CS-829**. **THE DRAIN HALF REMAINS GATED** -
+the acceptance clause names a population containing 23529 struct type words that sit in
+records of the version pair CS-G05 exists to measure, which no reading opens, so the clause
+cannot be satisfied inside this repo while that gate stands. Ruling taken from an
+adjudicator that produced none of the work, against the clause word by word: two of five
+conjuncts FAIL.
+
+PREP merged, and independently verifiable without a SHA:
+`tests/save/independent_table.py` reads the record framing - kind, payload offset, payload
+extent - without calling one function of `clockspeed/save/objects.py`, graded by
+`tests/save/test_independent_table.py::test_the_second_reading_calls_no_function_of_the_shipped_module`
+and agreeing with the shipped table element-for-element across the library at
+`tests/save/test_independent_table.py::test_the_second_reading_accepts_nothing_the_shipped_walk_refuses`.
+`tests/save/test_struct_interior.py::test_degrading_the_record_table_cannot_improve_this_modules_grade`
+is the record-table anti-monotone control. `tests/save/` runs 1370 arms with zero skips.
+
+**WHAT THIS ENTRY REFUSES TO ROUND UP.** Round 4's stated requirement - a denominator
+independent of the RECORD TABLE - was delivered and measured: under a degraded table the
+shipped reading falls from 30642 struct sites to 0 while the independent one holds at 30642,
+where both previously fell together. It did not close the item and it did not close the
+anti-monotone hole. Four adversaries with distinct lenses returned REFUTED. The signature
+relocated a FIFTH time, to the shipped scalar constants both tag walks consult (CS-863), and
+the round's own headline arm is a tautology over identical arguments (CS-862). Three real
+defects found in the pass were repaired in the same session, each proven against the
+counter-example that found it: an exception-containment gap that rendered save bytes into a
+traceback, a firing count that counted attempts rather than changes, and an anti-drift arm
+grading a third copy of the constant it named. Follow-ups filed as CS-862, CS-863, CS-864
+and CS-865 - all PREP, all workable now.
+
 ### 2026-08-30 - CS-602 - CLOSED on automated evidence. The Electron companion pins ONE certificate by byte identity, and an adversarial pass found that the wiring proving it was graded by nothing
 Verification: tier2 run `33300238437` at `4b5de1e`, `workflow_dispatch`, conclusion
 `success`, with the `shell suite` job GREEN on BOTH `ubuntu-latest` and `windows-latest` -

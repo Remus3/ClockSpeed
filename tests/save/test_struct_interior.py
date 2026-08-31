@@ -2491,11 +2491,17 @@ def test_the_site_total_is_pinned_by_a_reading_no_shipped_walk_can_shorten() -> 
     is met by offsetting errors and this repo has already shipped one guard that
     a population's strongest member satisfied on behalf of its weakest.
 
-    THE LIMIT, STATED. The two readings share the record TABLE and the
-    decompression - ``objects.parse_body`` and ``chunks.decompress_body`` - so a
-    defect in either still moves both sides. What they no longer share is a
-    single line of the tag-list grammar, which is where every refutation of this
-    item has landed.
+    THE LIMIT, STATED, AND IT MOVED IN ROUND 5. The two readings no longer share
+    the record table: the independent side takes its window and kind from
+    :mod:`tests.save.independent_table`, which reads the body's record framing
+    without calling one shipped reader. They still share ``chunks.decompress_body``
+    and they still share SHIPPED SCALAR CONSTANTS that both tag walks consult -
+    ``objects._MAX_TAGS_PER_PAYLOAD``, ``_TAG_EXTRA_STRINGS``, ``GUID_BYTES``,
+    ``_PAYLOAD_TERMINATOR`` among them - so a defect in one of those still moves
+    both sides. MEASURED: making the shared tag ceiling STRICTER takes this
+    module from one failing arm to none while deleting a fifth of the records,
+    which is the anti-monotone signature every refutation of this item has had.
+    That is where the next one will land, and it is filed rather than fixed here.
     """
     sweep = _sweep_or_skip()
 
@@ -2962,11 +2968,15 @@ def _run_degradation_control(probe: _EarlyTerminator) -> _ControlCounts | None:
             table = objects.parse_body(
                 body, save_version=parsed.save_version, header_version=parsed.header_version
             )
+            # INSIDE THE HANDLER BECAUSE `body` IS LIVE IN THIS FRAME. It used
+            # to sit after it, and pytest renders the arguments of the first
+            # and the deepest traceback frame with no opt-in flag, so a raise
+            # out there put real save bytes into a transcript.
+            mine = independent_table.independent_records(
+                body, save_version=parsed.save_version, header_version=parsed.header_version
+            )
         except (Exception, SystemExit):  # noqa: S112 - reporting it IS the leak
             continue
-        mine = independent_table.independent_records(
-            body, save_version=parsed.save_version, header_version=parsed.header_version
-        )
         if mine is None or len(mine) != len(table.records):
             continue
         for index, record in enumerate(table.records):
@@ -3278,11 +3288,17 @@ class _TableControlResult:
         pairs: How many distinct version pairs parsed into a record table.
         library_records: Records over every one of them, graded or not.
         chosen: The graded pair's counts.
+        failures: Saves whose fold raised. A COUNT, never a type name and never
+            a path - this control feeds the shipped readers misaligned offsets
+            on purpose, so a raise there is a containment question first and a
+            coverage question second. The arm asserts it at zero, which is what
+            keeps the handler from becoming a silent drop.
     """
 
     pairs: int
     library_records: int
     chosen: _TableControlCounts
+    failures: int = 0
 
 
 def _fold_table_control(
@@ -3313,7 +3329,14 @@ def _fold_table_control(
     into.census += _census_hits(body, record.body_offset, end)
     into.pristine.add(body, record, own)
     degraded = _degrade_one_record(record)
-    into.altered += degraded is not None
+    # COUNTED BY WHETHER THE RECORD ACTUALLY CHANGED, NOT BY WHETHER A
+    # DEGRADATION WAS ATTEMPTED. `degraded is not None` was the old test and it
+    # is exactly the defect a firing count exists to prevent: an adversary made
+    # `_degrade_one_record` return its argument unchanged and this counter still
+    # reported the full population, so a degradation that altered nothing was
+    # indistinguishable from one that altered everything - which is the sentence
+    # in the arm's own docstring, turned on itself.
+    into.altered += degraded is not None and degraded != record
     # A record too short to shift is measured AGAIN AS ITSELF rather than
     # dropped: both passes have to range over the same population, or the
     # comparison below is between two different worlds.
@@ -3355,6 +3378,7 @@ def _run_table_degradation_control() -> _TableControlResult | None:
     if not saves:
         return None
     by_pair: dict[tuple[int, int], _TableControlCounts] = {}
+    failures = 0
     for path in saves:
         try:
             data = path.read_bytes()
@@ -3365,30 +3389,52 @@ def _run_table_degradation_control() -> _TableControlResult | None:
             table = objects.parse_body(
                 body, save_version=parsed.save_version, header_version=parsed.header_version
             )
+            # PAIRED POSITIONALLY, AND ONLY WHERE PAIRING IS DEFINED - the same
+            # refusal `_sweep_one_save` makes. A save the second reading
+            # declines contributes NOTHING here rather than a half-measured
+            # record, because this control's whole claim is a comparison
+            # between two readings and one of them would be missing.
+            #
+            # IT IS INSIDE THE HANDLER BECAUSE `body` IS LIVE IN THIS FRAME.
+            # It used to sit after it. pytest renders the arguments of the
+            # first and the deepest traceback frame with no opt-in flag, so an
+            # exception raised out there put real save bytes into a transcript
+            # - measured by an adversary at 240 rendered characters carrying a
+            # `/Game/...` asset path on 3 of this machine's 20 saves.
+            mine = independent_table.independent_records(
+                body, save_version=parsed.save_version, header_version=parsed.header_version
+            )
         except (Exception, SystemExit):  # noqa: S112 - reporting it IS the leak
             continue
-        # PAIRED POSITIONALLY, AND ONLY WHERE PAIRING IS DEFINED - the same
-        # refusal `_sweep_one_save` makes. A save the second reading declines
-        # contributes NOTHING here rather than contributing a half-measured
-        # record, because this control's whole claim is a comparison between two
-        # readings and one of them would be missing.
-        mine = independent_table.independent_records(
-            body, save_version=parsed.save_version, header_version=parsed.header_version
-        )
         if mine is None or len(mine) != len(table.records):
             continue
         counts = by_pair.setdefault(
             (parsed.save_version, parsed.header_version), _TableControlCounts()
         )
-        for index, record in enumerate(table.records):
-            _fold_table_control(body, record, mine[index], counts)
+        # THE FOLD IS WRAPPED TOO, AND THAT IS NOT BELT AND BRACES. This control
+        # hands the shipped readers DELIBERATELY MISALIGNED offsets - that is
+        # what `_degrade_one_record` is for - so it drives `objects._payload_text`
+        # and `objects._skip_actor_head` through inputs no other caller gives
+        # them, with `body` live in this frame. An uncaught raise there renders
+        # save bytes into a traceback. A failure is COUNTED and asserted at zero
+        # by the arm rather than swallowed, so the containment cannot quietly
+        # become a silent drop.
+        try:
+            for index, record in enumerate(table.records):
+                _fold_table_control(body, record, mine[index], counts)
+        except (Exception, SystemExit):
+            # Counted, not swallowed - the arm asserts this at zero.
+            failures += 1
     if not by_pair:
-        return _TableControlResult(pairs=0, library_records=0, chosen=_TableControlCounts())
+        return _TableControlResult(
+            pairs=0, library_records=0, chosen=_TableControlCounts(), failures=failures
+        )
     graded = max(by_pair, key=lambda candidate: (by_pair[candidate].records, candidate))
     return _TableControlResult(
         pairs=len(by_pair),
         library_records=sum(counts.records for counts in by_pair.values()),
         chosen=by_pair[graded],
+        failures=failures,
     )
 
 
@@ -3410,6 +3456,21 @@ def test_degrading_the_record_table_cannot_improve_this_modules_grade() -> None:
     takes it from, which is the pair of fields a record table exists to state -
     so a table that states them wrongly is exactly the defect this arm is for.
 
+    WHAT THIS ARM DOES NOT PROVE, MEASURED AND STATED RATHER THAN LEFT TO BE
+    INFERRED. It does NOT prove the second reading is independent, and an
+    earlier version of this docstring said it did. :func:`_fold_table_control`
+    hands the SAME ``body`` and the SAME ``own`` object to both passes, so the
+    equality below is ``sum f(x) == sum f(x)`` over identical arguments - an
+    adversary instrumented it and measured every one of the call pairs
+    receiving arguments identical by IDENTITY, and the equality held under six
+    deliberately garbage readings including one that was the shipped record
+    table verbatim. What it grades is the WIRING: that ``own`` is not derived
+    from the degraded record. That is one bit, it is worth having, and it is
+    not a proof about :mod:`tests.save.independent_table`. The independence of
+    that module rests on its source, on the two static arms in
+    ``tests/save/test_independent_table.py``, and on review - the whole suite
+    stays green against a reading that wraps ``objects.parse_body``.
+
     THE GRADED PAIR IS DERIVED, NEVER TRANSCRIBED, on the same terms as this
     module's struct vocabulary: it is the version pair carrying the most records
     of those that parsed. :func:`_run_table_degradation_control` states how, and
@@ -3429,6 +3490,13 @@ def test_degrading_the_record_table_cannot_improve_this_modules_grade() -> None:
     result = _run_table_degradation_control()
     if result is None:
         pytest.skip("no save library on this machine - there is no record table to degrade")
+    control_failures = result.failures
+    assert control_failures == 0, (
+        f"{control_failures} saves raised inside the fold. This control feeds the shipped "
+        "readers misaligned offsets deliberately, so a raise there is contained rather "
+        "than rendered - but it is asserted here so containment cannot become a silent "
+        "drop, which is the shape that has refuted this item repeatedly"
+    )
     chosen = result.chosen
     if chosen.records == 0:
         pytest.skip(

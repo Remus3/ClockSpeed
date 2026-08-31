@@ -758,13 +758,42 @@ def test_the_object_type_transcription_matches_the_shipped_discriminator_table()
     """The re-transcription's anti-drift control.
 
     The kind decision is deliberately NOT imported - see the constants above -
-    so the two spellings could drift apart in silence. This is what stops that,
-    and it grades DATA against DATA rather than a reading against a reading.
+    so the spellings could drift apart in silence. This is what stops that, and
+    it grades DATA against DATA rather than a reading against a reading.
+
+    THERE ARE THREE COPIES, NOT TWO, AND THIS ARM USED TO GRADE THE WRONG ONE.
+    The shipped table, the READING's own pair in
+    :mod:`tests.save.independent_table`, and this module's fixture pair. Only
+    the reading's pair decides what the second reading does, and this arm named
+    itself their guard while comparing the FIXTURE's pair against the shipped
+    table - so flipping the reading's own constants left it green. Measured
+    twice, independently, by an adjudicator and by an adversary: the drifted
+    reading returned None where the clean one returned records, and this arm
+    passed. The reading's pair is graded FIRST below, and the fixture's pair is
+    then pinned to the reading's, so no copy is left ungraded.
     """
     shipped = objects._KIND_BY_OBJECT_TYPE  # noqa: SLF001
-    assert shipped[OBJECT_TYPE_ACTOR] == objects.KIND_ACTOR
-    assert shipped[OBJECT_TYPE_COMPONENT] == objects.KIND_COMPONENT
-    assert sorted(shipped) == sorted((OBJECT_TYPE_ACTOR, OBJECT_TYPE_COMPONENT))
+    # THE CONSTANTS THE SECOND READING ACTUALLY EVALUATES. Read off the module
+    # rather than imported at the top of this file, so no local binding can
+    # stand in for them.
+    reading_actor = independent_table._OBJECT_TYPE_ACTOR  # noqa: SLF001
+    reading_component = independent_table._OBJECT_TYPE_COMPONENT  # noqa: SLF001
+    # MEMBERSHIP FIRST, SO A DRIFTED VALUE FAILS WITH A MESSAGE. Indexing
+    # straight into the shipped mapping raises `KeyError` on exactly the drift
+    # this arm exists to catch, and a `KeyError` renders no explanation - the
+    # arm reddens while saying nothing about why. The discriminators are
+    # integers, so nothing here can render save content.
+    assert sorted(shipped) == sorted((reading_actor, reading_component)), (
+        "the second reading's object-type discriminators are not the key set of the "
+        "shipped table, so at least one of them names no record kind at all"
+    )
+    assert shipped[reading_actor] == objects.KIND_ACTOR
+    assert shipped[reading_component] == objects.KIND_COMPONENT
+    # AND THE FIXTURE'S COPY IS PINNED TO THE READING'S. Without this the two
+    # could drift apart and every synthetic body in this file would be built
+    # with a discriminator the reading does not recognise, which reads as the
+    # reading being broken rather than as the fixture being wrong.
+    assert (reading_actor, reading_component) == (OBJECT_TYPE_ACTOR, OBJECT_TYPE_COMPONENT)
 
 
 def test_an_independent_record_can_carry_no_string_at_all() -> None:
@@ -819,6 +848,12 @@ class _LibraryAgreement:
             readings returned the same number of records. The denominator
             ``ordered_bodies`` is graded against, so a run where every body
             disagreed on length cannot pass by leaving both at zero.
+        failures: One TYPE NAME per save whose read, decompression or reading
+            raised. A class name is not save content. It exists because the
+            two reading calls used to sit OUTSIDE the handler with the body
+            live in the frame, so an exception rendered save bytes into a
+            traceback; the assertion that this is empty is what stops that
+            regressing quietly to a swallowed count.
     """
 
     saves: int
@@ -829,6 +864,7 @@ class _LibraryAgreement:
     missing: int
     ordered_bodies: int
     compared_bodies: int
+    failures: tuple[str, ...]
 
 
 def _shipped_triples(body: bytes, *, save_version: int, header_version: int) -> tuple[_Triple, ...]:
@@ -890,50 +926,58 @@ def _sweep_the_library() -> _LibraryAgreement | None:
     missing = 0
     ordered = 0
     compared = 0
+    failures: list[str] = []
     for path in saves:
-        opened: tuple[bytes, int, int] | None = None
+        # EVERY STEP THAT TOUCHES SAVE BYTES IS INSIDE THIS HANDLER, INCLUDING
+        # BOTH READINGS. It did not used to be: the two reading calls sat after
+        # the handler with `body` live in this frame, and pytest renders the
+        # arguments of the first and the deepest traceback frame with NO opt-in
+        # flag - no `--showlocals` needed. An adversary planted an exception in
+        # that gap and read the transcript: 240 characters of a real
+        # decompressed body, carrying a `/Game/...` asset path on 3 of this
+        # machine's 20 saves. A type path is personal-data-adjacent world
+        # content under non-negotiable 12, and an ECHO PATH is exactly what an
+        # unwinding frame is. The docstring above claimed this containment
+        # before the code had it.
         try:
             data = path.read_bytes()
             parsed = header.parse_header(data)
-            opened = (
-                chunks.decompress_body(
-                    data, parsed.body_offset, header_version=parsed.header_version
-                ).payload,
-                parsed.save_version,
-                parsed.header_version,
-            )
-        except (Exception, SystemExit):
-            # `SystemExit` is named because it is NOT an `Exception`, and it
-            # unwinds carrying the save path exactly as any other type would.
-            # The sentinel carries the outcome instead of the control flow, so
-            # this handler reports nothing and decides nothing.
-            opened = None
-        if opened is not None:
+            body = chunks.decompress_body(
+                data, parsed.body_offset, header_version=parsed.header_version
+            ).payload
             read += 1
-            body, save_version, header_version = opened
             shipped = _shipped_triples(
-                body, save_version=save_version, header_version=header_version
+                body, save_version=parsed.save_version, header_version=parsed.header_version
             )
             found = independent_table.independent_records(
-                body, save_version=save_version, header_version=header_version
+                body, save_version=parsed.save_version, header_version=parsed.header_version
             )
-            if found is not None:
-                bodies += 1
-                mine = tuple(
-                    (record.is_actor, record.body_offset, record.body_length) for record in found
-                )
-                shipped_total += len(shipped)
-                independent_total += len(mine)
-                strangers += len(frozenset(mine) - frozenset(shipped))
-                missing += len(frozenset(shipped) - frozenset(mine))
-                # ORDER IS COMPARED ONLY WHERE IT IS DEFINED. Two readings of
-                # different lengths have no positional comparison, and zipping
-                # the shorter one would call a truncated agreement an agreement
-                # - the same refusal ``_attribute_payloads`` makes about pairing
-                # a record with another record's payload.
-                if len(shipped) == len(mine):
-                    compared += 1
-                    ordered += shipped == mine
+        except (Exception, SystemExit) as exc:
+            # `SystemExit` is named because it is NOT an `Exception`, and it
+            # unwinds carrying the save path exactly as any other type would.
+            # ONLY THE TYPE NAME IS KEPT - a class name is not save content, and
+            # it is what `test_properties._sweep_payload_tags` keeps. The
+            # exception's own message and every frame it carries are dropped
+            # here rather than reported.
+            failures.append(type(exc).__name__)
+            continue
+        if found is not None:
+            bodies += 1
+            mine = tuple(
+                (record.is_actor, record.body_offset, record.body_length) for record in found
+            )
+            shipped_total += len(shipped)
+            independent_total += len(mine)
+            strangers += len(frozenset(mine) - frozenset(shipped))
+            missing += len(frozenset(shipped) - frozenset(mine))
+            # ORDER IS COMPARED ONLY WHERE IT IS DEFINED. Two readings of
+            # different lengths have no positional comparison, and zipping
+            # the shorter one would call a truncated agreement an agreement
+            # - the same refusal ``_attribute_payloads`` makes about pairing
+            # a record with another record's payload.
+            if len(shipped) == len(mine):
+                compared += 1
+                ordered += shipped == mine
     return _LibraryAgreement(
         saves=read,
         bodies=bodies,
@@ -943,6 +987,7 @@ def _sweep_the_library() -> _LibraryAgreement | None:
         missing=missing,
         ordered_bodies=ordered,
         compared_bodies=compared,
+        failures=tuple(failures),
     )
 
 
@@ -963,6 +1008,28 @@ def test_the_second_reading_accepts_nothing_the_shipped_walk_refuses() -> None:
     strangers = swept.strangers
     accepted = swept.independent_records
     shipped = swept.shipped_records
+    # NOTHING MAY HAVE RAISED. A raise inside the sweep is both a containment
+    # question and a coverage one, and it is reported as a bare count of type
+    # names rather than as anything carrying save content.
+    failures = len(swept.failures)
+    assert failures == 0, (
+        f"{failures} of {swept.saves} saves raised inside the sweep. The type names are "
+        "held but not rendered here; a save that raises is a save neither reading was "
+        "measured over"
+    )
+    # EVERY SAVE READ MUST HAVE PRODUCED A BODY BOTH READINGS SAW. Without this
+    # the equalities below range over the bodies the second reading chose not to
+    # decline, which is not the same claim as ranging over the library. MEASURED
+    # by an adversary: declining one whole version pair removed 8 of 20 bodies
+    # and 18893 records from every count here and the whole suite stayed green,
+    # because a declined body contributes to NEITHER side of `missing`.
+    bodies = swept.bodies
+    assert bodies == swept.saves, (
+        f"{bodies} of {swept.saves} saves produced a body both readings measured. A "
+        "DECLINED BODY LEAVES BOTH SIDES OF EVERY EQUALITY BELOW AT ONCE, so a reading "
+        "that declines its way down the library satisfies all of them over whatever it "
+        "kept. This is the arm that makes the word LIBRARY in those claims true"
+    )
     assert shipped > 0, (
         f"{swept.saves} saves read and {swept.bodies} bodies offered, but the "
         "shipped walk accepted no record at all, so this comparison is vacuous"
@@ -979,8 +1046,10 @@ def test_the_second_reading_accepts_nothing_the_shipped_walk_refuses() -> None:
     # `test_struct_interior.py` rests on THIS reading, so a reading that quietly
     # accepts less shrinks the population every equality there stands on, and
     # those equalities then hold over a smaller world rather than going red.
-    # Four refutations of this item were that shape. MEASURED at the merge: 20
-    # of 20 bodies, 148668 records both sides, missing 0.
+    # Four refutations of this item were that shape. NO COUNT IS QUOTED HERE:
+    # the operator plays this game while a session runs and autosave rotation
+    # alone changes how many saves are present, so a measured number written
+    # into this file would be a lie with a timestamp on it (CLAUDE.md 4).
     missing = swept.missing
     assert missing == 0, (
         f"the shipped walk accepted {missing} records of {shipped} that the second "

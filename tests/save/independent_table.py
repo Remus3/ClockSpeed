@@ -17,17 +17,39 @@ This module reads the same grammar and SHARES NO FUNCTION WITH IT. It calls
 and the per-pair layout table - which are DATA rather than readers. That is the
 same line ``_independent_tag_walk`` already draws in the test module's "A SECOND
 EXPRESSION OF THE TAG-LIST GRAMMAR" block, and
-``tests/save/test_independent_table.py`` forces it statically: no attribute of
-the shipped module may be called, and every attribute this module names must
-resolve to a non-callable object.
+``tests/save/test_independent_table.py`` checks it statically.
+
+WHAT THAT STATIC CHECK IS AND IS NOT, MEASURED RATHER THAN ASSUMED. It is a
+SYNTACTIC scan for ``objects.<name>(...)`` plus a callable check over the names
+this module spells. An adversary graded it with five mutants: a direct call and
+a member import are caught; an aliased call is caught by one arm of three; a
+two-level reach such as ``objects.struct.unpack_from(...)`` and a
+``getattr(objects, "parse_body")(...)`` are caught by NOTHING. This module
+already calls one attribute reached through ``objects.`` - ``.get`` on the
+layout mapping - and the arm named for that prohibition passes anyway. So the
+honest claim is that this module SHARES NO READER AT THIS COMMIT, verified by
+enumeration, and that the static arms raise the cost of breaking it rather than
+forbidding it. THE STRONGER CLAIM THAT USED TO STAND HERE - that no attribute
+may be called and the check forces it - was false in both halves.
+
+AND NO DYNAMIC ARM CAN TELL THIS MODULE FROM ``objects.parse_body``. Measured:
+an adversary replaced this module's reading with a wrapper around the shipped
+record table, reading not one byte for itself, and the whole ``tests/save``
+suite stayed green. Every library-backed claim about this reading is an
+AGREEMENT claim, and agreement is what a wrapper maximises. Independence here
+rests on the source, on the two static arms, and on review - not on a red test.
 
 THE KIND DISCRIMINATOR IS RE-TRANSCRIBED RATHER THAN IMPORTED, and it is the one
 place where "constants yes" was not good enough. ``objects._KIND_BY_OBJECT_TYPE``
 is the exact table the recorded counter-example relabels, so importing it would
-put the kind decision back on the shipped side of the seam. The two spellings are
-cross-checked by
+put the kind decision back on the shipped side of the seam. THERE ARE THREE
+SPELLINGS, NOT TWO - the shipped table, the pair below, and a fixture pair in the
+test module - and
 ``tests/save/test_independent_table.py::test_the_object_type_transcription_matches_the_shipped_discriminator_table``
-so they cannot drift apart in silence.
+used to grade the FIXTURE's pair against the shipped table while naming itself
+the guard of the pair below. Flipping the two constants below therefore left it
+green, measured twice by different routes. It now grades the pair below FIRST
+and pins the fixture's to it, so no copy is ungraded.
 
 WHAT THIS SEPARATION DOES NOT COVER, NAMED RATHER THAN IMPLIED AWAY. Both
 readings consult ONE ``objects.BODY_LAYOUT_BY_PAIR``, so a defect planted in the

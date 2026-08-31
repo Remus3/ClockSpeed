@@ -34,6 +34,72 @@ the line becomes a pointer.
 
 ---
 
+## Session 50 - 2026-08-30 - CS-829 GATED behind CS-G05 by operator ruling. Round 4's demand was delivered and measured, four adversaries refuted it anyway, and the round's own headline arm turned out to be an equality between identical arguments
+
+- **Shipped: NOTHING CLOSED.** CS-829 did NOT close; it moved to `docs/GATED.md`. PREP
+  merged, DRAIN named. Four follow-ups filed, CS-862 to CS-865. Detail in `docs/LEDGER.md`
+  and `docs/item_notes/phase4-followups.md` under CS-829, not here.
+
+- **THE GATE, AND WHY IT IS REAL.** CS-829's acceptance names EVERY record carrying a struct
+  type word. 23529 such words sit in records of the version pair CS-G05 exists to measure,
+  which no reading opens. The clause cannot be satisfied inside this repo while that gate
+  stands, and it had already been rewritten twice for unsatisfiability on the day it was
+  filed. An adjudicator that produced none of the work ruled it word by word: two of five
+  conjuncts FAIL. **Narrowing the population to the reachable sites is a SCOPE CHANGE with
+  its own record, not this gate clearing** - `docs/GATED.md` names that move as the
+  synthetic close it would be.
+
+- **THE HEADLINE: A GUARD BUILT BY MAKING THE THING UNDER TEST UNREACHABLE FROM THE MUTATION
+  IS NOT A GUARD, AND IT LOOKS EXACTLY LIKE ONE THAT WORKS.** The arm this whole round was
+  built around hands the SAME `body` and the SAME independent record to both its passes, so
+  it asserts `sum f(x) == sum f(x)`. Measured: every call pair received arguments identical
+  by IDENTITY, zero differing, and the equality held under six deliberately garbage readings
+  including one that was the shipped record table verbatim. **The entire `tests/save/` suite
+  is green against an `independent_records` that wraps `objects.parse_body` and reads no byte
+  for itself.** The merger PREDICTED this risk before wave 2 and mis-mitigated it, naming the
+  library cross-check as the separator - but every library claim about that reading is an
+  AGREEMENT claim, and agreement is what a wrapper maximises.
+
+- **ROUND 4'S DEMAND WAS DELIVERED AND IT CLOSED NOTHING.** Under a degraded record table the
+  shipped reading falls 30642 struct sites to 0 while the independent one holds at 30642;
+  before the change both fell together. Real, measured three times independently. The
+  signature then relocated a FIFTH time - to the shipped SCALAR CONSTANTS both tag walks
+  consult. Making `objects._MAX_TAGS_PER_PAYLOAD` STRICTER takes the module from one failing
+  arm to NONE while deleting 6204 of 45208 sites. On another pair it reproduces round 4's
+  numbers exactly. **CS-863. Do not re-derive it.**
+
+- **THE MERGER'S OWN STRENGTHENING WAS REFUTED.** The library equality was tightened from a
+  subset claim plus a floor to `missing == 0` plus file-order agreement, proven against two
+  plants - and still ranged only over the bodies the second reading chose not to decline.
+  Declining one whole version pair removed 8 of 20 bodies and 18893 records with the suite
+  green. Repaired: `bodies == saves`.
+
+- **A REAL PRIVACY DEFECT, INTRODUCED THIS SESSION AND REPAIRED THIS SESSION.** Both reading
+  calls sat OUTSIDE their containment handlers with `body` live in the frame. pytest renders
+  a frame's ARGUMENTS with no opt-in flag - no `--showlocals` needed - and an adversary read
+  240 characters of a real decompressed body out of a planted traceback, carrying a `/Game/`
+  asset path on 3 of 20 saves. The docstring claimed the containment before the code had it.
+
+- **Surprises: `BODY_LAYOUT_BY_PAIR` is GUARDED, and the commit message that conceded
+  otherwise was wrong.** 53 of 56 layout plants make `parse_body` raise and
+  `assert not sweep.failures` catches them; 3 are equivalent mutants; silent loss is zero.
+  Nothing contradicted `BOOTSTRAP.md`.
+
+- **Failed paths: none abandoned mid-flight.** Every finding was repaired with a measured
+  counter-example or filed with its measurement.
+
+- **PROCESS NOTES WORTH KEEPING.** A slice verified with a SUBSET went green while breaking
+  the package-wide reach guard - caught only by the full suite, the same failure session 49
+  recorded. The adjudicator proposed five follow-up IDs and ALL FIVE COLLIDED with live
+  items; IDs must be checked against `ROADMAP.md`, `BACKLOG.md`, `docs/GATED.md` and
+  `docs/LEDGER.md` before filing. Next free ID after this session is CS-866.
+
+- **Next action: take CS-862** - make the independence claim gradable, or narrow it to what
+  is graded. It is PREP for CS-829 and it is the item that stops the next round repeating
+  this one. CS-863 is the bigger prize and the harder one.
+
+---
+
 ## Session 49 - 2026-08-30 - CS-602 CLOSED and the shell-suite job ran for the first time on both platforms; six graders found two ways to make the certificate clause green while trusting everything, and BOTH were the guard rather than the code
 
 - **Shipped: CS-602.** tier2 run `33300238437` at `4b5de1e`, `shell suite` GREEN on ubuntu
@@ -149,65 +215,3 @@ the line becomes a pointer.
   wanted first.
 
 ---
-
-## Session 47 - 2026-08-29 - CS-601 CLOSED. Phase 6 opened ahead of phase 5 by operator ruling, and there is a working dashboard; the port band moved after nine sessions of blaming a squatter that was never one
-
-- **Shipped: CS-601.** The local HTTPS dashboard and JSON API answer all nine BOOTSTRAP 7.1
-  endpoints - four with computed data, five with a machine-readable refusal naming CS-500.
-  Detail in `docs/LEDGER.md` and ADR 0012, not here. **CS-600 STAYS OPEN**: it is the phase
-  gate and CS-602, the companion window, is unstarted.
-
-- **PHASE 6 OPENED AHEAD OF PHASE 5, BY OPERATOR RULING, AND IT IS A RECORDED DEPARTURE.**
-  `advisor/`, `audit/` and `progress/` hold a docstring each. `CLAUDE.md` says not to advance
-  past a phase whose acceptance is unmet. The operator was given the choice and took the
-  walking skeleton over the four layers that already exist. Do not re-litigate it; do not
-  treat it as precedent for skipping a gate without a ruling.
-
-- **THE PORT BAND MOVED, AND THE NINE-SESSION DIAGNOSIS WAS WRONG.** `docs/LEDGER.md` recorded
-  8901 as held by "an unrelated third-party process". It was not unrelated and 8901 was never
-  this project's: the whole 8900-8919 block belongs to LegionWallpaper, and Clockspeed's band
-  was chosen by PROBING for a free listener. LW's monitor is an operator-launched GUI that is
-  unbound most of the time, so a live scan reported a fully reserved block as free. Band is
-  now 8920-8939 and `verify_env.py` reports 20/20 free. **Verify a band against the owning
-  registry in source, never against a scan.**
-
-- **THE MERGER'S BRIEFS WERE MEASURABLY WRONG SEVEN TIMES AND EVERY ONE WAS CAUGHT BY A
-  SLICE.** A `*Error` name rule that would have graded 2 of 12 exception classes, then a
-  correction that was also wrong (5 carry no suffix, not 8). The wrong file named as owning
-  the repr records. An `EXEMPT` remedy that would have fixed neither red arm. An example port
-  from inside the allocated band, caught by the repo's own guard. A canary brief that looked
-  at handlers when the reflection lived in the DISPATCHER. A harness option measured to change
-  nothing. A disjointness precondition checked on FILE PATHS while two slices were coupled
-  through a TYPE SIGNATURE.
-
-- **Decisions: ADR 0012 ACCEPTED.** The 501/503 split, `detail` looked up by reason and never
-  built from content, the exact-rational `{"num","den"}` wire form, and the ruling that
-  `/api/world` is BACKED.
-
-- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But the browser pane REFUSES HTTPS with a
-  self-signed certificate, denied before the TLS handshake, while BOOTSTRAP 7.1 mandates HTTPS.
-  The five-phase visual audit is therefore run against a test-only plain-HTTP harness serving
-  the real assets. Production stays HTTPS-only and the harness never ships.
-
-- **Failed paths: the harness routing all five refusals.** Measured A/B: the page's probe set is
-  fixed in `app.js`, not by the harness, and the rendered output was identical. It routes three.
-
-- **`C:` WAS 100 PER CENT FULL - 40 MB of 953 GB.** A session from 2026-08-22 reproducing the
-  CS-819 heredoc failure dropped `python` into interactive mode in a BACKGROUND command; it
-  looped its banner into a 58 GB scratch file while the harness captured another 58 GB of the
-  same stdout. Nothing in that transcript looked wrong. 117 GB recovered. Never background a
-  command that can reach an interactive prompt.
-
-- **A PUSH-BLOCKING FLAKE IS FILED AS CS-607 AND IS NOT DIAGNOSED.**
-  `test_the_oracle_reproduces_the_real_runs_discovered_set` failed in full-suite run 1, passed
-  in isolation three times, passed in run 2, FAILED in the first pre-push run and blocked the
-  push, then passed after `.mypy_cache` was deleted. Ruled OUT by measurement: order
-  randomisation (no `pytest-randomly`, xdist inactive), untracked `.py` files (zero outside
-  dot-directories - all 736 sit under `.claude/worktrees`, which mypy skips), and
-  `tests/test_doc_budget.py`'s worktree (it targets a throwaway scratch checkout, not this
-  repo). The cache was being written while `C:` was at zero bytes free, which is a hypothesis
-  and NOT a diagnosis. **Do not cite the cache as the cause.**
-
-- **Next action: take CS-602, the Electron companion**, which closes phase 6 with CS-600 - or
-  take CS-829, still the head of the product path and untouched for five sessions. Ask the
-  operator which; the surface is now real enough that either is defensible.

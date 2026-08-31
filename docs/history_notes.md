@@ -25,6 +25,255 @@ Where current truth actually lives:
 
 ---
 
+## CS-829 - block relocated from `docs/item_notes/phase4-followups.md` 2026-08-30 (session 50)
+
+**RELOCATED BECAUSE THE ITEM IS NOW GATED, NOT BECAUSE IT CLOSED.** `docs/item_notes/`
+holds live detail for items with an OPEN line in `ROADMAP.md`, and CS-829 no longer has
+one - it moved to `docs/GATED.md`, gated behind CS-G05 by operator ruling. **THE LIVE
+FENCES FROM THIS BLOCK WERE CARRIED FORWARD INTO THAT GATED ENTRY BEFORE THIS RECORD WAS
+FILED**; what is below is the historical record of rounds 1 to 5 and must be re-verified
+against the source before anything in it is acted on, on the same terms as everything
+else in this file.
+
+## CS-829
+
+### NOTE - relocated from `ROADMAP.md` 2026-08-23
+
+NOTE: filed 2026-08-23 as a residual of CS-413's close, REWRITTEN twice the same day. **THE FIRST WORDING WAS UNSATISFIABLE** - it asked for `InventoryStack` off a real BUILDING and no building record carries one. **THE SECOND WAS A LIVENESS FLOOR**, satisfiable by decoding `LinearColor` and never touching inventory - which is the exact defect that held CS-413 open for eight days, so an adjudicator refused it. **DISTINCT FROM CS-456**, which asks about the framing rather than the contents. Detail in this file under **CS-829 - detail**.
+
+### detail - relocated from `docs/history_notes.md` 2026-08-23
+
+Filed 2026-08-23 as a residual of CS-413's close; the item stays OPEN in `ROADMAP.md`. This
+block is a LIVE instruction, not history.
+
+**THIS ITEM WAS FILED ON A FALSE PREMISE AND REWRITTEN THE SAME DAY. READ THIS FIRST.** Its
+first acceptance asked for `InventoryStack` to yield a decoded inventory off a real BUILDING.
+**MEASURED over the real library: no building record carries an `InventoryStack` at all.** A
+building holds an `ObjectProperty` REFERENCE to a separate inventory component, and the stacks
+live over there inside a container property. Inventory is therefore behind THREE layers - the
+cross-record join (CS-831), the container element framing (CS-830), and only then this item.
+An operator ruling on CS-400's clause 1 was obtained on that false premise and has been
+restated by SUBSTANCE rather than by item id as a result. **DO NOT re-pitch this as the
+inventory item.**
+
+**WHAT IT IS: the largest opaque region by count, and read by nothing.**
+`StructProperty` is the largest opaque region by count in `UNMEASURED_PAYLOAD_REGIONS`. The
+tag's declared size DOES bound it, so it is stepped over exactly and costs no synchronisation -
+**the INTERIOR is what is unmeasured**. The struct's own type word is present in the tag, and
+the shipped record names `InventoryStack` as the one pillar 3 needs for inventory.
+
+**WHY IT IS FILED SEPARATELY FROM CS-456.** CS-456 asks whether a WRONG tag-extra width is
+discriminated for the four types that ship one. That is a question about the FRAMING. This item
+is about the CONTENTS of one of them. Closing either leaves the other open.
+
+**WHERE IT SITS AMONG PILLAR 3's THREE NEEDS.** CS-400 names inventory, clock speed and
+connection state. Clock speed is `FloatProperty` and decodes today. Connection state is
+`ObjectProperty` and decodes today AS A VALUE, though FOLLOWING one to the record it names is
+CS-831. Inventory is behind all three layers above. This item is the LAST of the three rather
+than the first, which is the opposite of what its first draft said.
+
+**DO NOT hand-write a struct vocabulary.** The observed type words are led by a handful of
+names, and transcribing them is the hand-maintained list this project has repeatedly recorded
+as the thing that rots. Derive the population.
+
+### MERGED AND STILL OPEN - recorded 2026-08-24 - RELOCATED 2026-08-25 (session 40)
+
+Superseded by the fourth refutation below, which relocates the defect from the tag
+reader to `objects.parse_body`. Full text in `docs/history_notes.md` under CS-829.
+
+### REFUTED A THIRD TIME - recorded 2026-08-25 - RELOCATED 2026-08-25 (session 40)
+
+Its live content is carried forward into the fourth refutation below, which locates
+the defect one layer deeper. Full text in `docs/history_notes.md` under CS-829.
+
+### REFUTED A FOURTH TIME - recorded 2026-08-25 (session 40), after the root cause was found and fixed
+
+**THE ROOT CAUSE WAS FOUND, AND IT WAS NOT WHERE THE THIRD REFUTATION PREDICTED.** This
+module's own `_independent_tag_end` DID NOT STEP THE STRUCT GUID. `objects._skip_tag_extra`
+adds `GUID_BYTES` after a `StructProperty` tag's struct-name string; the second reading
+looped the extra strings and went straight to the guid flag, with that block absent. It
+desynchronised by exactly 16 bytes at the FIRST struct tag in a record and refused
+everything after it.
+
+**MEASURED, AND CONFIRMED BY AN ADVERSARY THAT RE-DERIVED IT BY A DIFFERENT ROUTE:** the
+second reading accepted 87302 of 148668 records and found **ZERO struct sites in any of
+them**, while the shipped walk accepted 129775 carrying 45208. The arm sold in prose as
+independent corroboration of a refusal covered **zero per cent** of the population this
+item is about, and `assert refused_but_independent == 0` passed BECAUSE THE POPULATION WAS
+EMPTY. See `memory/an-empty-population-satisfies-every-zero.md`; this is that finding's
+founding instance. After the one-line repair: the same 129775 records, the same 45208
+sites, 0 per-record disagreements.
+
+**THE DEFECT RELOCATED A FOURTH TIME - now to `objects.parse_body`, the record table BOTH
+READINGS SHARE.** Counter-example measured by the adversary: relabel every `KIND_ACTOR`
+record non-actor for ONE version pair and shift each non-actor payload start by one byte,
+extent end held. Both readings then take the same wrong start and refuse together.
+
+    sites_seen 45208 -> 36846, independent_sites 45208 -> 36846, residue 12 -> 10,
+    all 32 arms GREEN, exit 0
+
+**8362 struct sites deleted - 18.5 per cent - and the residue IMPROVED.** The prior
+sites are the chain: `_container_element_words`, then `_read_tag_header`, then
+`_payload_text`, now `parse_body`. **The independence audit is CLEAN** - zero shipped-reader
+callables; the only coupling is the record table and the decompression, which is exactly
+the substrate the counter-example drives through. The module's docstring DISCLOSES that
+shared substrate. Disclosure is not a guard.
+
+**THE ACCOUNTING CLOSES AND PROVES NOTHING.** `45208 + 4047 + 20050 + 84702 = 154007`
+reproduces exactly and no class is a residual, but `sum(hits over a partition) == hits over
+the whole` is an ARITHMETIC IDENTITY over a contiguous tiling. It survived all nine of the
+adversary's degradations, including one that drove every count to zero. The module concedes
+this in its own prose; do not cite the closure as evidence.
+
+**SUBSETS: 12 of 26 exiting 0 -> 24 of 26.** The cause was structural, not five instances:
+every assertion that fails on a legitimate subset fails on the saves of the ONE version
+pair this project does not parse, where `_sweep_or_skip` already skips 17 arms. Three arms
+reached the library past that guard; routing them through it closed 18 of 20 at once. The
+population was DERIVED - 35 corpus-dependent assertions found, 14 changed - and the
+derivation disagreed with the hand list in BOTH directions.
+
+**`_UNEXPLAINED_WORD_CEILING` IS STILL FITTED AND STAYS RED ON TWO SUBSETS. DO NOT SKIP
+IT.** The skip was built, measured and REVERTED: an in-process mutant refusing the weakest
+reading word at `objects._decode_struct_interior` - the function BOTH readings route
+through - is caught by that arm and NO OTHER. Skipping it made a real defect survive.
+A word carrying overwhelming size-excluded evidence library-wide contributes only
+size-compatible refusing instances inside one version pair, producing a corpus
+structurally identical to one where a reading word was lost; both give
+`unexplained_words == 2`. Any ceiling passing the subset passes the mutant.
+
+**CS-G05 unchanged and CONFIRMED at both offsets:** `census_unreached == 23529` is now an
+equality against the independent reading's own unreached census, 18893 == 18893 records,
+4712 carrying at least one struct literal, 13.25 per cent of the census. 5706 of 18893
+exceed 1024 at the DECLARED PAYLOAD START and 18893 of 18893 at the POST-ACTOR-HEAD offset
+where the refusal is decided; `head_unread` is 0 for all of them, so the second is the
+operative figure. Say UNREACHABLE, never "disjoint".
+
+**WHAT ROUND 4 SAID THE NEXT ROUND NEEDS.** A denominator independent of the RECORD TABLE,
+not merely of the tag-list reader. Nothing short of that closes the anti-monotone hole, and
+the shipped anti-monotone control exercises `_payload_text` alone - it does not test the
+substrate where the signature is still live. **THAT WAS DELIVERED IN ROUND 5. IT WAS NOT
+ENOUGH, AND THE ITEM IS NOW GATED.**
+
+### ROUND 5 - recorded 2026-08-30 (session 50). DELIVERED, REFUTED FOUR WAYS, AND THE ITEM MOVED TO `docs/GATED.md`
+
+**WHAT WAS BUILT AND STANDS.** `tests/save/independent_table.py` reads the record framing -
+kind, payload offset, payload extent - without calling one function of
+`clockspeed.save.objects`; verified by AST enumeration, zero call sites. Its output equals
+the shipped table element-for-element in file order across the whole library, reproduced by
+three agents with independently written sweeps. `_independent_sites_of` now takes that
+record and not an `ObjectRecord`. **MEASURED: under a degraded record table the shipped
+reading falls 30642 struct sites to 0 while the independent one holds at 30642, where before
+the change both fell together.** Round 4's demand is met.
+
+**AND IT CLOSED NOTHING, BECAUSE THE SUBSTRATE RELOCATED A FIFTH TIME.** Now to the shipped
+SCALAR CONSTANTS both tag walks consult. Making `objects._MAX_TAGS_PER_PAYLOAD` STRICTER -
+a reader that refuses everything a milder one refused and more - takes this module from one
+failing arm to NONE while deleting 6204 of 45208 sites and 29466 of 148668 records. On
+another pair it reproduces round 4's numbers exactly: `sites_seen 45208 -> 36846,
+independent_sites 45208 -> 36846`, all arms green. **Filed as CS-863. Do not re-derive it.**
+
+**THE ROUND'S OWN HEADLINE ARM IS A TAUTOLOGY, AND THAT IS THE LESSON.**
+`_fold_table_control` hands the SAME `body` and the SAME independent record to both the
+pristine and the degraded pass, so the equality is `sum f(x) == sum f(x)` - measured at every
+call pair receiving arguments identical by IDENTITY, and holding under six deliberately
+garbage readings including one that was the shipped record table verbatim. **The whole
+`tests/save/` suite is green against an `independent_records` that wraps
+`objects.parse_body` and reads not one byte for itself.** Every library-backed claim about
+the second reading is an AGREEMENT claim, and agreement is what a wrapper maximises. Filed
+as CS-862. **The general form is worth carrying out of this item: a guard built by making
+the thing under test unreachable from the mutation is not a guard, and it looks exactly like
+a guard that works.**
+
+**THE MERGER'S OWN STRENGTHENING WAS REFUTED TOO.** The library equality was tightened from
+a subset claim plus a floor to `missing == 0` plus file-order agreement - a real improvement,
+measured against two plants. It still ranged over the bodies the second reading chose not to
+decline: declining one whole version pair removed 8 of 20 bodies and 18893 records from every
+count and the suite stayed green, because a declined body contributes to NEITHER side of
+`missing`. Repaired in session 50 by asserting `bodies == saves`.
+
+**THREE DEFECTS FOUND AND REPAIRED IN SESSION 50**, each proven against the counter-example
+that found it: the reading calls sat OUTSIDE their containment handlers with `body` live, and
+pytest renders a frame's arguments with no opt-in flag - an adversary read 240 characters of
+a real body carrying an asset path out of a planted traceback; `_TableControlCounts.altered`
+counted degradation ATTEMPTS rather than CHANGES, so an inert mutant reported the full
+population, which is the exact defect a firing count exists to prevent; and the object-type
+anti-drift arm graded a THIRD copy of the discriminator rather than the one the reading
+evaluates, so flipping the reading's own constants left it green.
+
+**WHAT THE LAYOUT TABLE TURNED OUT TO BE.** `objects.BODY_LAYOUT_BY_PAIR` is consulted by
+both readings and was flagged in the commit message as an unguarded shared substrate. It is
+not: 53 of 56 layout plants make `parse_body` RAISE and `assert not sweep.failures` catches
+them; 3 are equivalent mutants. Silent population loss from a layout defect is zero. **Do
+not re-pitch it as the next hole** - the shared SCALARS are, and that is CS-863.
+
+---
+
+## Session 47 wakeup note - relocated 2026-08-30 (session 50)
+
+## Session 47 - 2026-08-29 - CS-601 CLOSED. Phase 6 opened ahead of phase 5 by operator ruling, and there is a working dashboard; the port band moved after nine sessions of blaming a squatter that was never one
+
+- **Shipped: CS-601.** The local HTTPS dashboard and JSON API answer all nine BOOTSTRAP 7.1
+  endpoints - four with computed data, five with a machine-readable refusal naming CS-500.
+  Detail in `docs/LEDGER.md` and ADR 0012, not here. **CS-600 STAYS OPEN**: it is the phase
+  gate and CS-602, the companion window, is unstarted.
+
+- **PHASE 6 OPENED AHEAD OF PHASE 5, BY OPERATOR RULING, AND IT IS A RECORDED DEPARTURE.**
+  `advisor/`, `audit/` and `progress/` hold a docstring each. `CLAUDE.md` says not to advance
+  past a phase whose acceptance is unmet. The operator was given the choice and took the
+  walking skeleton over the four layers that already exist. Do not re-litigate it; do not
+  treat it as precedent for skipping a gate without a ruling.
+
+- **THE PORT BAND MOVED, AND THE NINE-SESSION DIAGNOSIS WAS WRONG.** `docs/LEDGER.md` recorded
+  8901 as held by "an unrelated third-party process". It was not unrelated and 8901 was never
+  this project's: the whole 8900-8919 block belongs to LegionWallpaper, and Clockspeed's band
+  was chosen by PROBING for a free listener. LW's monitor is an operator-launched GUI that is
+  unbound most of the time, so a live scan reported a fully reserved block as free. Band is
+  now 8920-8939 and `verify_env.py` reports 20/20 free. **Verify a band against the owning
+  registry in source, never against a scan.**
+
+- **THE MERGER'S BRIEFS WERE MEASURABLY WRONG SEVEN TIMES AND EVERY ONE WAS CAUGHT BY A
+  SLICE.** A `*Error` name rule that would have graded 2 of 12 exception classes, then a
+  correction that was also wrong (5 carry no suffix, not 8). The wrong file named as owning
+  the repr records. An `EXEMPT` remedy that would have fixed neither red arm. An example port
+  from inside the allocated band, caught by the repo's own guard. A canary brief that looked
+  at handlers when the reflection lived in the DISPATCHER. A harness option measured to change
+  nothing. A disjointness precondition checked on FILE PATHS while two slices were coupled
+  through a TYPE SIGNATURE.
+
+- **Decisions: ADR 0012 ACCEPTED.** The 501/503 split, `detail` looked up by reason and never
+  built from content, the exact-rational `{"num","den"}` wire form, and the ruling that
+  `/api/world` is BACKED.
+
+- **Surprises: nothing contradicted `BOOTSTRAP.md`.** But the browser pane REFUSES HTTPS with a
+  self-signed certificate, denied before the TLS handshake, while BOOTSTRAP 7.1 mandates HTTPS.
+  The five-phase visual audit is therefore run against a test-only plain-HTTP harness serving
+  the real assets. Production stays HTTPS-only and the harness never ships.
+
+- **Failed paths: the harness routing all five refusals.** Measured A/B: the page's probe set is
+  fixed in `app.js`, not by the harness, and the rendered output was identical. It routes three.
+
+- **`C:` WAS 100 PER CENT FULL - 40 MB of 953 GB.** A session from 2026-08-22 reproducing the
+  CS-819 heredoc failure dropped `python` into interactive mode in a BACKGROUND command; it
+  looped its banner into a 58 GB scratch file while the harness captured another 58 GB of the
+  same stdout. Nothing in that transcript looked wrong. 117 GB recovered. Never background a
+  command that can reach an interactive prompt.
+
+- **A PUSH-BLOCKING FLAKE IS FILED AS CS-607 AND IS NOT DIAGNOSED.**
+  `test_the_oracle_reproduces_the_real_runs_discovered_set` failed in full-suite run 1, passed
+  in isolation three times, passed in run 2, FAILED in the first pre-push run and blocked the
+  push, then passed after `.mypy_cache` was deleted. Ruled OUT by measurement: order
+  randomisation (no `pytest-randomly`, xdist inactive), untracked `.py` files (zero outside
+  dot-directories - all 736 sit under `.claude/worktrees`, which mypy skips), and
+  `tests/test_doc_budget.py`'s worktree (it targets a throwaway scratch checkout, not this
+  repo). The cache was being written while `C:` was at zero bytes free, which is a hypothesis
+  and NOT a diagnosis. **Do not cite the cache as the cause.**
+
+- **Next action: take CS-602, the Electron companion**, which closes phase 6 with CS-600 - or
+  take CS-829, still the head of the product path and untouched for five sessions. Ask the
+  operator which; the surface is now real enough that either is defensible.
+
+---
+
 ## Session 46 wakeup note - relocated 2026-08-30 (session 49)
 
 ## Session 46 - 2026-08-29 - CS-860's first remedy REFUTED by five reviewers and BACKED OUT; the guard written to remove a naming accident was itself green by one, and it was caught before anything was claimed closed

@@ -1137,3 +1137,106 @@ specific harness item is how a false clearance ships: the harness item closes, a
 there - collapsing runs of separators, adding the escaped spelling to the needle population,
 or matching a normalised form of both sides - is the implementer's call, and the options
 differ in their over-redaction risk.
+
+## CS-862
+
+### Filed 2026-08-30 (session 50), out of CS-829 round 5's adversarial pass
+
+**THE ARM THAT CANNOT FAIL.**
+`tests/save/test_struct_interior.py::test_degrading_the_record_table_cannot_improve_this_modules_grade`
+was built as round 5's proof that the struct-site denominator is independent of the shipped
+record table. `_fold_table_control` hands the SAME `body` and the SAME `IndependentRecord`
+to both `pristine.add` and `degraded.add`, and both call `_independent_sites_of(body, own)`.
+The equality is therefore `sum f(x) == sum f(x)`. An adversary instrumented the helper and
+measured EVERY call pair receiving arguments identical by identity, zero differing, and the
+equality held under six deliberately garbage readings - all-zero windows, flipped kinds,
+offsets shifted, rotated, truncated, and the shipped record table verbatim.
+
+**WHAT IT DOES STILL GRADE, and it is worth keeping:** that `own` is not derived from the
+degraded record. One bit, about one line of its own helper, authored in the same commit.
+The docstring now says so; the item is to make the claim graded rather than merely narrowed.
+
+**THE WIDER HALF: NO DYNAMIC ARM ANYWHERE SEPARATES THE SECOND READING FROM THE SHIPPED
+ONE.** Measured: `independent_records` reimplemented as a wrapper over `objects.parse_body`,
+reading not one byte of the body for itself, leaves the whole `tests/save/` suite green at
+its pristine count. Every library-backed claim about that reading is an AGREEMENT claim -
+`missing == 0`, `strangers == 0`, `ordered == compared` - and agreement is exactly what a
+wrapper maximises. Independence today rests on the source, on two STATIC AST arms, and on
+review. That is a defensible position and it is not the one the commit message took.
+
+**DO NOT** attempt to fix this by degrading the independent record too. Degrading the
+measuring instrument alongside the thing measured is how the arm stops being able to fail in
+the other direction.
+
+## CS-863
+
+### Filed 2026-08-30 (session 50). THE FIFTH LOCATION OF THIS ITEM'S SIGNATURE
+
+**A STRICTLY WORSE READER IMPROVES THE GRADE. MEASURED.** `objects._MAX_TAGS_PER_PAYLOAD` is
+consulted by all three walks - the shipped `_walk_payload`, the independent
+`_independent_tag_walk` that IS the denominator, and the oracle the sweep walks with. Plant a
+pair-shaped ceiling in process:
+
+    ceiling 12 on one pair's bodies -> 297 sites deleted -> 1 failed
+    ceiling 0  on the SAME bodies   -> 6204 sites deleted -> 0 failed, exit 0
+
+Ceiling 0 refuses everything ceiling 12 refused and more. The module goes from red to green
+while deleting 21 times more sites and 133 times more records. On a different pair it
+reproduces round 4's numbers exactly - `sites_seen 45208 -> 36846, independent_sites 45208 ->
+36846`, all arms green.
+
+**BLAST RADIUS, and why "something reddens" is not a defence.** Under that plant
+`tests/save/` shows 7 of 1370 arms red, and NONE of them is in `test_struct_interior.py` or
+`test_independent_table.py`. Every one is in `test_decode_oracles.py`, `test_properties.py`
+or `test_value_anchoring.py` - three unrelated modules that happen to carry library-wide
+payload arms. The module that owns the claim, and BOTH of its dedicated anti-monotone
+controls, are blind.
+
+**THE DISCLOSURE IS TOO NARROW.** `independent_table.py` discloses ONE shared data symbol,
+`BODY_LAYOUT_BY_PAIR`. The independent TAG reading shares at least ten more with the shipped
+walk: `_MAX_TAGS_PER_PAYLOAD`, `_TAG_EXTRA_STRINGS`, `_TAG_INDEX_FIELD_BYTES`, `GUID_BYTES`,
+`_PAYLOAD_TERMINATOR`, `STRUCT_TYPE_WORD`, `MAX_STRING_BYTES`, `MAX_OBJECTS`, `INT32_SIZE`,
+`UTF16_CHAR_SIZE`. The one that was disclosed is the only one that is guarded, and it is
+guarded by an accident of `parse_body`'s eagerness rather than by the seam.
+
+**NOT MEASURED, so do not assume it:** `_TAG_EXTRA_STRINGS` and `GUID_BYTES` were not
+planted. They are expected to behave like the ceiling and that expectation is not evidence.
+
+## CS-864
+
+### Filed 2026-08-30 (session 50)
+
+**THE SEAM ARMS GRADE SYNTAX, NOT REACH.** The three arms in
+`tests/save/test_independent_table.py` that keep `independent_table.py` free of shipped
+readers match `objects.<name>(...)` syntactically and check that each named attribute is
+non-callable. Graded with five mutants, pristine floor restored after each:
+
+| mutant | arms that fired |
+|---|---|
+| direct `objects.parse_body(...)` | 2 of 3 |
+| `from clockspeed.save.objects import parse_body` | 1 of 3 |
+| alias then call | 1 of 3 |
+| `objects.struct.unpack_from(...)` - two-level reach | 0 of 3 |
+| `getattr(objects, "parse_body")(...)` | 0 of 3 |
+
+**The module ALREADY calls an attribute reached through `objects.`** - `.get` on the layout
+mapping at the pair lookup - and the arm named for that prohibition passes anyway. So the
+prohibition as worded is already false of the shipped tree, which is the part to fix first:
+either grade what is claimed, or narrow the claim to what is graded. The docstring has been
+narrowed already; the arms have not.
+
+## CS-865
+
+### Filed 2026-08-30 (session 50), from the CS-829 adjudication
+
+**A FITTED BOUND WITH ZERO HEADROOM.** `_UNEXPLAINED_WORD_CEILING` is 1 and the library
+sits at exactly 1. Per version pair one subset alone gives 2. It is deliberately NOT
+skipped, and that decision is measured rather than assumed: skipping its excess was built
+and REVERTED in an earlier round because an in-process mutant refusing the weakest reading
+word at `objects._decode_struct_interior` is caught by that arm and NO OTHER, so the skip
+that spared the subset also spared a real defect.
+
+**WHAT THIS ITEM IS NOT.** It is not a request to raise the bound, and it is not a request
+to skip it. Both have been tried and both are recorded as wrong. It is a request to ground
+the per-word residue in evidence that does not depend on which saves the operator's library
+happens to hold at the moment the suite runs.
