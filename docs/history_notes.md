@@ -25,6 +25,101 @@ Where current truth actually lives:
 
 ---
 
+## Session 48 wakeup note - relocated 2026-08-31 (session 51)
+
+## Session 48 - 2026-08-30 - CS-605 CLOSED and tier-1 CI is GREEN on ubuntu; the first repair of the home-path arm built a guard that muted itself, and an adversary caught it with a mutant the old assert had killed
+
+- **Shipped: CS-605.** tier1 run `33289681747` at `90d2956`, `ubuntu-latest`, conclusion
+  `success`, 15 steps, ZERO non-success steps, `3755 passed, 114 skipped`. Exactly one arm
+  skips across `tests/surface/` and `tests/test_make_cert.py` there, with its reason in the
+  log. Detail in `docs/LEDGER.md`, not here. Six follow-ups filed, CS-608 to CS-613.
+
+- **THE HEADLINE: A SKIP CONDITIONED ON THE CODE UNDER TEST IS A MUTE BUTTON THE DEFECT GETS
+  TO PRESS.** The first repair turned a precondition into a skip on `home in body`, which is
+  exactly what a non-escaping encoder produces, so the alarm switched itself off in the one
+  case it existed for. MEASURED by an adversary with `contract.encode` mutated to stop
+  doubling: `tests/surface/` reported `527 passed, 1 skipped, exit 0` WITH THE LEAK LIVE, and
+  the deleted assert had killed that mutant. The skip reason blamed the PLATFORM, so it
+  misdirected rather than merely falling silent. Doctrine in
+  `memory/a-skip-can-mute-the-defect.md`. **THE WRONG INSTRUCTION WAS THE MERGER'S**: the
+  brief said to ask the skip OF THE ENCODER and explicitly not to test for a separator.
+
+- **ONE OF THE THREE "PLATFORM-DIVERGENT" FAILURES WAS NOT PLATFORM-DIVERGENT.** The
+  verify_env arm demanded exit 0, which holds only where `core.hooksPath` is wired.
+  Reproduced in a plain clone ON WINDOWS: `HARD: 6/7`, exit 1. `tier2.yml`'s
+  `clean-checkout-probe` already asserts that unset state, so the repo had recorded the fact
+  the arm contradicted. **Verify a claim of platform-divergence by reproducing it on the
+  other platform.**
+
+- **CS-605's OWN SECOND NAMED ITEM WAS GRADED BY NOTHING, ON ANY PLATFORM.** The certificate
+  key's 0600 chmod had no arm at all, so no CI run could ever have revealed it. It now runs
+  green on ubuntu. Closing the item on its acceptance clause alone would have left its stated
+  gap open.
+
+- **EVERY TOKEN IN THE ASSET ALLOW-LIST WAS AN EQUIVALENT MUTANT.** Emptying the tuple killed
+  the arm, but each single-token deletion survived, so the proof showed only that at least one
+  of four fired. Each token now has its own subject. The parametrization is over the test
+  file's OWN table - over the source tuple it would delete the case on a deletion and stay
+  green.
+
+- **MERGER ERROR: THE CANDIDATE WAS NOT FROZEN.** Three adversaries were dispatched against
+  `016fc15` and the tree moved to `5738da3` while they ran. Two findings of one adversary were
+  repaired mid-verdict. It reported the violation itself. Its remaining findings stood.
+
+- **Decisions: no ADR.** Nothing contradicted `BOOTSTRAP.md`.
+
+- **Failed paths: none abandoned.** Every finding was either fixed or filed with its
+  measurement.
+
+- **Next action: ask the operator whether to take CS-602**, the Electron companion, which
+  closes phase 6 together with CS-600 - **or CS-829**, still the head of the product path and
+  untouched for six sessions. CS-603, CS-604 and CS-606 are tier-1 and cheap if a warm-up is
+  wanted first.
+
+---
+
+## CS-862 - block relocated from `docs/item_notes/phase4-followups-850.md` 2026-08-31 (session 51)
+
+**RELOCATED BECAUSE THE ITEM CLOSED**, on 2026-08-31 into `docs/LEDGER.md`.
+`docs/item_notes/` holds live detail for items carrying an OPEN line in `ROADMAP.md`, and
+CS-862 no longer carries one. **THE ONE LIVE FENCE IN THIS BLOCK WAS ALREADY IN CODE
+BEFORE THIS RECORD WAS FILED** - "do not repair this by degrading the independent record
+too" is `_fold_table_control`'s own docstring in `tests/save/test_struct_interior.py`,
+which is where a reader of that function meets it rather than here. Everything below is
+the historical record and must be re-verified against the source before anything in it is
+acted on, on the same terms as everything else in this file. In particular it names the
+degradation arm by a name the closing change RETIRED.
+
+## CS-862
+
+### Filed 2026-08-30 (session 50), out of CS-829 round 5's adversarial pass
+
+**THE ARM THAT CANNOT FAIL.**
+`tests/save/test_struct_interior.py::test_degrading_the_record_table_cannot_improve_this_modules_grade`
+was built as round 5's proof that the struct-site denominator is independent of the shipped
+record table. `_fold_table_control` hands the SAME `body` and the SAME `IndependentRecord`
+to both `pristine.add` and `degraded.add`, and both call `_independent_sites_of(body, own)`.
+The equality is therefore `sum f(x) == sum f(x)`. An adversary instrumented the helper and
+measured EVERY call pair receiving arguments identical by identity, zero differing, and the
+equality held under six deliberately garbage readings - all-zero windows, flipped kinds,
+offsets shifted, rotated, truncated, and the shipped record table verbatim.
+
+**WHAT IT DOES STILL GRADE, and it is worth keeping:** that `own` is not derived from the
+degraded record. One bit, about one line of its own helper, authored in the same commit.
+The docstring now says so; the item is to make the claim graded rather than merely narrowed.
+
+**THE WIDER HALF: NO DYNAMIC ARM ANYWHERE SEPARATES THE SECOND READING FROM THE SHIPPED
+ONE.** Measured: `independent_records` reimplemented as a wrapper over `objects.parse_body`,
+reading not one byte of the body for itself, leaves the whole `tests/save/` suite green at
+its pristine count. Every library-backed claim about that reading is an AGREEMENT claim -
+`missing == 0`, `strangers == 0`, `ordered == compared` - and agreement is exactly what a
+wrapper maximises. Independence today rests on the source, on two STATIC AST arms, and on
+review. That is a defensible position and it is not the one the commit message took.
+
+**DO NOT** attempt to fix this by degrading the independent record too. Degrading the
+measuring instrument alongside the thing measured is how the arm stops being able to fail in
+the other direction.
+
 ## CS-829 - block relocated from `docs/item_notes/phase4-followups.md` 2026-08-30 (session 50)
 
 **RELOCATED BECAUSE THE ITEM IS NOW GATED, NOT BECAUSE IT CLOSED.** `docs/item_notes/`

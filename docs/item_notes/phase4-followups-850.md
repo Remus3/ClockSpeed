@@ -1138,36 +1138,6 @@ there - collapsing runs of separators, adding the escaped spelling to the needle
 or matching a normalised form of both sides - is the implementer's call, and the options
 differ in their over-redaction risk.
 
-## CS-862
-
-### Filed 2026-08-30 (session 50), out of CS-829 round 5's adversarial pass
-
-**THE ARM THAT CANNOT FAIL.**
-`tests/save/test_struct_interior.py::test_degrading_the_record_table_cannot_improve_this_modules_grade`
-was built as round 5's proof that the struct-site denominator is independent of the shipped
-record table. `_fold_table_control` hands the SAME `body` and the SAME `IndependentRecord`
-to both `pristine.add` and `degraded.add`, and both call `_independent_sites_of(body, own)`.
-The equality is therefore `sum f(x) == sum f(x)`. An adversary instrumented the helper and
-measured EVERY call pair receiving arguments identical by identity, zero differing, and the
-equality held under six deliberately garbage readings - all-zero windows, flipped kinds,
-offsets shifted, rotated, truncated, and the shipped record table verbatim.
-
-**WHAT IT DOES STILL GRADE, and it is worth keeping:** that `own` is not derived from the
-degraded record. One bit, about one line of its own helper, authored in the same commit.
-The docstring now says so; the item is to make the claim graded rather than merely narrowed.
-
-**THE WIDER HALF: NO DYNAMIC ARM ANYWHERE SEPARATES THE SECOND READING FROM THE SHIPPED
-ONE.** Measured: `independent_records` reimplemented as a wrapper over `objects.parse_body`,
-reading not one byte of the body for itself, leaves the whole `tests/save/` suite green at
-its pristine count. Every library-backed claim about that reading is an AGREEMENT claim -
-`missing == 0`, `strangers == 0`, `ordered == compared` - and agreement is exactly what a
-wrapper maximises. Independence today rests on the source, on two STATIC AST arms, and on
-review. That is a defensible position and it is not the one the commit message took.
-
-**DO NOT** attempt to fix this by degrading the independent record too. Degrading the
-measuring instrument alongside the thing measured is how the arm stops being able to fail in
-the other direction.
-
 ## CS-863
 
 ### Filed 2026-08-30 (session 50). THE FIFTH LOCATION OF THIS ITEM'S SIGNATURE
@@ -1224,6 +1194,39 @@ mapping at the pair lookup - and the arm named for that prohibition passes anywa
 prohibition as worded is already false of the shipped tree, which is the part to fix first:
 either grade what is claimed, or narrow the claim to what is graded. The docstring has been
 narrowed already; the arms have not.
+
+### NARROWED BY CS-862 - measured 2026-08-31 (session 51), and what is LEFT
+
+**BOTH UNCAUGHT ROUTES NOW REDDEN SOMEWHERE - just not in a static arm.** CS-862 added
+dynamic seam arms that degrade the shipped record table AT ITS SOURCE and require the
+second reading to still match the fixture and the body's own bytes. Graded, pristine floor
+restored after each, all four static arms including the transcription anti-drift arm
+staying GREEN throughout:
+
+STATIC below is the four arms in that module's seam-guard section - the three seam arms
+plus the discriminator anti-drift arm. DYNAMIC is the 15 cases of
+`tests/save/test_independent_table.py::test_the_second_reading_stays_right_while_the_shipped_record_table_is_degraded`
+plus
+`tests/save/test_independent_table.py::test_a_degraded_shipped_record_table_cannot_move_the_hand_built_offsets`.
+
+| route | static red | dynamic red |
+|---|---|---|
+| `getattr(objects, "parse" + "_body")` wrapper | 0 of 4 | 15 of 15 |
+| kind read as `objects._KIND_BY_OBJECT_TYPE.get(...)` | 0 of 4 | 5 of 5 reachable |
+
+For scale, the DIRECT `objects.parse_body(...)` wrapper - the least subtle route there is -
+reddens 2 of those 4 static arms, not 3 and not 4.
+
+**WHAT THAT DOES AND DOES NOT CHANGE.** It removes the sharpest consequence - neither
+route is invisible to the whole suite any more - and it does NOT satisfy this item. The
+acceptance is about THESE ARMS grading what they CLAIM, and the claim is still worded as a
+prohibition that the shipped tree already violates: `.get` on the layout mapping is an
+attribute reached through `objects.` and the arm forbidding it passes. A dynamic arm
+elsewhere is a different guard, not a repair of this one.
+
+**AND THE DYNAMIC ARMS DO NOT COVER THE GENERAL CASE.** They move a reading only where it
+delegates to something `objects.parse_body` itself consults. A reading rebuilt out of
+shipped `_Cursor` primitives is moved by neither plant. That residue is this item's.
 
 ## CS-865
 

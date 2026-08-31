@@ -31,9 +31,10 @@ from __future__ import annotations
 import ast
 import dataclasses
 import struct
+from itertools import zip_longest
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
 import pytest
 
@@ -41,7 +42,7 @@ from clockspeed.save import chunks, header, objects
 from tests.save import independent_table, reach_guard, synthetic, test_properties
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
 # ---------------------------------------------------------------------------
 # Fixture material
@@ -1084,6 +1085,528 @@ def test_the_second_reading_accepts_nothing_the_shipped_walk_refuses() -> None:
         "point of a second reading is that a defect planted in the shipped record "
         "table separates the two and lands here. Check what changed before "
         "deciding which side to repair"
+    )
+
+
+# ---------------------------------------------------------------------------
+# THE DYNAMIC SEAM ARMS (CS-862) - the separator the static guards cannot be
+#
+# The three arms in "The seam guards" above are a SYNTACTIC scan plus a
+# callable check over the names this module spells. An adversary graded them
+# with five mutants and a two-level reach and a ``getattr`` call are caught by
+# NEITHER (CS-864). Until this section existed no arm anywhere in
+# ``tests/save/`` separated the second reading from the shipped one at RUN
+# TIME: ``independent_records`` reimplemented as a wrapper over
+# ``objects.parse_body``, reading not one byte of the body for itself, left the
+# whole suite green at its pristine count.
+#
+# WHY EVERY OTHER ARM IS BLIND TO IT. Every library-backed claim about this
+# reading is an AGREEMENT claim - ``missing == 0``, ``strangers == 0``,
+# ``ordered == compared`` - and agreement is exactly what a wrapper maximises.
+# Agreement can therefore never be the separator. DISAGREEMENT ON PURPOSE is:
+# degrade the shipped record table in process and require this reading to stay
+# RIGHT while it is degraded. A wrapper follows the degradation and reddens.
+#
+# THE PLANTS ARE THE SESSION-40 COUNTER-EXAMPLE - relabel every record's kind,
+# and slide every payload start one byte with the extent END held. That is the
+# pair of fields a record table exists to state, and it is the same degradation
+# `tests/save/test_struct_interior.py` applies to the table's OUTPUT. Applying
+# it at the SOURCE instead is the whole difference: the output form cannot reach
+# a reading that never consults the output.
+#
+# THERE ARE THREE, AND WHAT EACH ONE DOES TO THE SHIPPED WALK IS MEASURED
+# RATHER THAN INTENDED. The first version of this section had two, and the
+# discriminator-table plant was DOCUMENTED AS A RELABEL AND IS NOT ONE:
+#
+#   `_KIND_BY_OBJECT_TYPE`   the shipped walk REFUSES the body outright. The
+#                            kind decides how many bytes a record occupies -
+#                            an actor closes with a transform, a component with
+#                            a parent path - so swapping the table
+#                            desynchronises `_read_levelled_record` at once and
+#                            it raises. It moves no field; it deletes them all.
+#   `_read_levelled_record`  the TRUE relabel. The real reader consumes the
+#                            correct bytes and only the returned record's kind
+#                            is flipped, so the walk completes and `is_actor`
+#                            alone moves.
+#   `_read_data_entries`     the shift. `body_offset` and `body_length` move
+#                            and nothing else does.
+#
+# THE REFUSING PLANT IS KEPT DELIBERATELY, and not because a refusal is as good
+# as a relabel. It is the only one that plants a shared DATA symbol, so it is
+# the only one a reading that IMPORTS the discriminator follows - which
+# `independent_table` deliberately does not do, and which nothing else in this
+# repository grades. See the mutant table below.
+#
+# THE GROUND TRUTH IS THE FIXTURE AND THE BYTES, NEVER THE PRISTINE READING.
+# Asserting only that the second reading DID NOT MOVE is an equality between
+# two calls of one function - the shape that refuted round 5's control - and it
+# is satisfied outright by any reading that memoises its answer. What is
+# asserted here is that the reading still matches what the fixture declared and
+# what the body's own bytes say, and no plant can reach either.
+#
+# THE PLANT IS SHOWN TO FIRE BEFORE ANYTHING IS CONCLUDED FROM IT. The first
+# plant written for this section wrapped ``objects._read_record``, which is the
+# FLAT reader ``parse_object_headers`` uses; ``parse_body`` calls
+# ``_read_levelled_record`` instead, so the shipped table did not move and the
+# arm would have passed against every possible second reading including a
+# verbatim wrapper. Each arm below establishes that the SHIPPED reading moved
+# before it asserts that this one did not.
+#
+# GRADED WITH FOUR MUTANTS, pristine floor re-run and verified green after
+# each. "Static" below is the four arms in "The seam guards" - the three seam
+# arms plus the discriminator anti-drift arm - and "dynamic" is the 15 cases of
+# the two arms below, 12 plus 3.
+#
+#   mutant                                        static red    dynamic red
+#   wrapper: `objects.parse_body(...)`              2 of 4        15 of 15
+#   wrapper: `getattr(objects, "parse"+"_body")`    0 of 4        15 of 15
+#   kind via `objects._KIND_BY_OBJECT_TYPE.get`     0 of 4         5 of 5 *
+#   the SHIFT plant made inert                      0 of 4         5 of 5 *
+#
+#   * only the cases whose plant the mutant can reach. Row 3 is separated by
+#     the discriminator plant alone and row 4 reddens exactly the shift plant's
+#     own observability assertion - plus
+#     `test_every_field_the_second_reading_reports_is_degraded_by_some_plant`,
+#     which is the arm that notices a field has stopped being graded at all.
+#
+# ROWS 2 AND 3 ARE WHY THIS SECTION EXISTS. Both are routes CS-864 measured
+# that NO static arm sees, and before this section nothing anywhere in
+# `tests/save/` went red for either. Row 1 reddens only 2 of the 4 static arms
+# even for the most obvious wrapper there is.
+# ---------------------------------------------------------------------------
+
+
+#: How far a planted payload start moves. ONE BYTE, and the extent END is held
+#: rather than shifted - the same choice ``test_struct_interior._degrade_one_record``
+#: makes and for the same reason: a start and a length that both move keep the
+#: payload the same width, which a bounds check alone could notice, while
+#: holding the end makes the planted extent a strictly narrower window inside
+#: the real one.
+_PLANT_SHIFT: Final = 1
+
+
+def _relabelled_discriminator_table(real: Any) -> Any:
+    """Swap the two kinds the shipped object-type discriminator maps onto.
+
+    WHAT IT DOES TO THE SHIPPED WALK IS REFUSE THE BODY, NOT RELABEL IT, and
+    that is measured on all four pairs rather than intended. The kind decides
+    how many bytes a record occupies, so a swapped table desynchronises
+    ``_read_levelled_record`` at its first record and ``parse_body`` raises.
+    An earlier version of this docstring called it a relabel; the relabel is
+    :func:`_relabelled_record_reader`, which flips the kind AFTER the real
+    reader has consumed the right bytes.
+
+    IT IS KEPT ANYWAY, and for a reason no other plant here covers: it is the
+    only one that plants a shared DATA symbol. ``independent_table``
+    re-transcribes the discriminator rather than importing it, and until this
+    plant existed nothing graded that decision - the anti-drift arm that guards
+    it is an equality between two spellings, which a shared import satisfies
+    trivially. A reading that reached
+    ``objects._KIND_BY_OBJECT_TYPE.get(...)`` follows this plant and no other.
+
+    It is DERIVED from the shipped table rather than transcribed, so a third
+    discriminator measured tomorrow is swapped the day it is added instead of
+    being silently left pristine by a hand-written literal.
+
+    Args:
+        real: The shipped mapping, object type to kind.
+
+    Returns:
+        The same keys, each carrying the other kind.
+    """
+    return MappingProxyType(
+        {
+            object_type: (
+                objects.KIND_COMPONENT if kind == objects.KIND_ACTOR else objects.KIND_ACTOR
+            )
+            for object_type, kind in real.items()
+        }
+    )
+
+
+def _with_the_other_kind(record: objects.ObjectRecord) -> objects.ObjectRecord:
+    """Return one record carrying the kind it does not carry.
+
+    THE RECORD IS BUILT FIELD BY FIELD RATHER THAN WITH ``dataclasses.replace``,
+    for the reason :meth:`clockspeed.save.objects.ObjectRecord.with_payload`
+    gives: ADR 0007's write gate scans for the NAME ``replace``, and no shipped
+    method changes a record's kind, so there is nothing to call instead.
+    ``tests/save/test_struct_interior.py::test_the_table_control_takes_its_window_from_the_body_not_the_degraded_record``
+    builds its own relabel the same way.
+
+    THE COST OF SPELLING TEN FIELDS is that a field added to
+    :class:`clockspeed.save.objects.ObjectRecord` with a default would be
+    silently reset here rather than carried, which would make this a coarser
+    degradation than it claims to be.
+    ``test_the_relabel_changes_the_kind_and_nothing_else`` is what stops that
+    happening quietly.
+
+    Args:
+        record: The record the real reader returned. Frozen, and not mutated.
+
+    Returns:
+        The same record wearing the other kind.
+    """
+    return objects.ObjectRecord(
+        kind=(objects.KIND_COMPONENT if record.kind == objects.KIND_ACTOR else objects.KIND_ACTOR),
+        type_path=record.type_path,
+        root_object=record.root_object,
+        instance_name=record.instance_name,
+        transform=record.transform,
+        parent=record.parent,
+        object_type=record.object_type,
+        was_placed_in_level=record.was_placed_in_level,
+        body_offset=record.body_offset,
+        body_length=record.body_length,
+    )
+
+
+def _relabelled_record_reader(real: Any) -> Any:
+    """Let the shipped reader consume the right bytes, then flip what it says.
+
+    THIS IS THE RELABEL, and the distinction from
+    :func:`_relabelled_discriminator_table` is the whole reason both exist. The
+    discriminator table is consulted DURING the walk and deciding it wrongly
+    desynchronises the walk; the returned record is consulted AFTER, so flipping
+    it there leaves a complete, well-formed and WRONG record table - which is
+    what a defective record table actually looks like.
+
+    Args:
+        real: The shipped levelled-record reader this replaces.
+
+    Returns:
+        The planted reader.
+    """
+
+    def planted(*args: Any, **kwargs: Any) -> objects.ObjectRecord:
+        return _with_the_other_kind(real(*args, **kwargs))
+
+    return planted
+
+
+def _shifted_data_entries(real: Any) -> Any:
+    """Slide every located payload one byte later, holding its end.
+
+    The wrapper takes ``*args`` rather than restating the shipped signature. A
+    restated signature is a second transcription that can rot, and a plant that
+    fails to apply is indistinguishable from one that applied and was survived.
+
+    Args:
+        real: The shipped locator this replaces.
+
+    Returns:
+        The planted locator.
+    """
+
+    def planted(*args: Any, **kwargs: Any) -> list[tuple[int, int]]:
+        return [
+            (at + _PLANT_SHIFT, length - _PLANT_SHIFT) if length >= _PLANT_SHIFT else (at, length)
+            for at, length in real(*args, **kwargs)
+        ]
+
+    return planted
+
+
+#: One degradation of the shipped record table each, keyed by the module
+#: attribute it replaces. Every entry is HANDED the real attribute and returns
+#: the planted one, so a plant is a transform of what ships rather than a second
+#: copy of it.
+_SHIPPED_PLANTS: Final[Mapping[str, Callable[[Any], Any]]] = MappingProxyType(
+    {
+        "_KIND_BY_OBJECT_TYPE": _relabelled_discriminator_table,
+        "_read_levelled_record": _relabelled_record_reader,
+        "_read_data_entries": _shifted_data_entries,
+    }
+)
+
+#: The fields the second reading reports, taken from the dataclass itself and
+#: never listed here. A fourth field added tomorrow is in scope for
+#: ``test_every_field_the_second_reading_reports_is_degraded_by_some_plant``
+#: the day it is added, rather than the day somebody remembers to widen a
+#: literal. Their ORDER is the order ``_Triple`` puts them in, which is what
+#: makes the two comparable position by position.
+_REPORTED_FIELDS: Final = tuple(
+    field.name for field in dataclasses.fields(independent_table.IndependentRecord)
+)
+
+
+def _plant(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+    """Replace one shipped record-table attribute with its degraded form.
+
+    ``monkeypatch.setattr`` RAISES on a name the shipped module does not carry,
+    which is the loud half of the spelling problem this mapping has by being
+    keyed on strings. The quiet half - a name that still exists but that
+    ``parse_body`` no longer reaches - is what every caller's observability
+    assertion is for, and it has already caught one inert plant.
+
+    Args:
+        monkeypatch: The fixture. It restores the attribute at teardown, which
+            is what keeps a plant from outliving the arm that set it.
+        name: Which shipped attribute to degrade.
+    """
+    monkeypatch.setattr(objects, name, _SHIPPED_PLANTS[name](getattr(objects, name)))
+
+
+def _records_the_plant_moved(before: Sequence[_Triple], after: Sequence[_Triple]) -> int:
+    """Count the shipped reading's records the plant actually CHANGED.
+
+    POSITIONAL, AND NOT A SET DIFFERENCE, which is the whole reason this is a
+    function rather than an expression at each call site. A set intersection is
+    smaller than the population whenever the population repeats an element, so
+    ``len(pristine & degraded) < len(pristine)`` is satisfied by an INERT plant
+    on any body carrying two identical triples - and an inert plant is precisely
+    what every caller here exists to rule out.
+
+    ``zip_longest`` rather than ``zip``, because a plant that costs the shipped
+    walk whole records is a plant that moved it, and a plain ``zip`` would
+    truncate to the shorter side and count that as agreement.
+
+    Args:
+        before: The shipped reading taken pristine.
+        after: The same reading taken under the plant.
+
+    Returns:
+        How many positions differ. ONE SCALAR.
+    """
+    return sum(1 for was, now in zip_longest(before, after, fillvalue=None) if was != now)
+
+
+def _fixture_faults(
+    body: bytes, found: Sequence[independent_table.IndependentRecord]
+) -> tuple[int, int, int]:
+    """Count the records that disagree with the FIXTURE and with the body's bytes.
+
+    Nothing here consults a value the shipped WALK produced. The flags and the
+    lengths come from the fixture's own declaration; the offset is graded by the
+    rule
+    ``tests/save/test_independent_table.py::test_every_extent_starts_one_length_prefix_past_its_own_declared_length``
+    states - a payload's four preceding bytes ARE its declared length in every
+    measured layout - so an offset off by one byte is visible in the body alone.
+
+    Args:
+        body: The synthetic body the reading was taken over.
+        found: The second reading's records, in file order. Its length is the
+            caller's to check; this counts nothing about a length it was not
+            given.
+
+    Returns:
+        Wrong flags, wrong lengths and misplaced offsets. THREE SCALARS,
+        because pytest renders an asserted EXPRESSION independently of the
+        message beside it and an aggregate in that position is an echo path.
+    """
+    wrong_flags = sum(
+        record.is_actor != flag for record, flag in zip(found, _expected_flags(), strict=True)
+    )
+    wrong_lengths = sum(
+        record.body_length != length
+        for record, length in zip(found, _expected_lengths(), strict=True)
+    )
+    misplaced = sum(
+        body[record.body_offset - objects.INT32_SIZE : record.body_offset]
+        != struct.pack("<i", record.body_length)
+        for record in found
+    )
+    return wrong_flags, wrong_lengths, misplaced
+
+
+def test_the_relabel_changes_the_kind_and_nothing_else() -> None:
+    """The relabel is a RELABEL, and not a reconstruction that quietly drops a field.
+
+    :func:`_with_the_other_kind` spells ten fields, because no shipped method
+    changes a record's kind and ``dataclasses.replace`` is a name ADR 0007's
+    write gate scans for. So a field added to
+    :class:`clockspeed.save.objects.ObjectRecord` WITH A DEFAULT would be reset
+    to that default here rather than carried, turning a one-field degradation
+    into a wider one in silence - and a wider degradation is a weaker plant
+    wearing a stronger claim, which is the exact fault the discriminator plant
+    was found to have. The field set is read from the dataclass, so the day such
+    a field is added is the day this goes red.
+    """
+    header_version, save_version = HAND_BUILT_PAIR
+    body, _pinned = _well_formed_hand_built()
+    table = objects.parse_body(body, save_version=save_version, header_version=header_version)
+    assert table.records, "the hand-built body carries no record, so this arm is vacuous"
+    names = tuple(field.name for field in dataclasses.fields(objects.ObjectRecord))
+    changed: set[str] = set()
+    for record in table.records:
+        other = _with_the_other_kind(record)
+        changed.update(name for name in names if getattr(other, name) != getattr(record, name))
+    assert sorted(changed) == ["kind"], (
+        f"the relabel moved {sorted(changed)} across {len(table.records)} records where it "
+        f"is claimed to move only the kind, out of the {len(names)} fields a record carries"
+    )
+
+
+@pytest.mark.parametrize("plant", sorted(_SHIPPED_PLANTS))
+@pytest.mark.parametrize("pair", MEASURED_PAIRS)
+def test_the_second_reading_stays_right_while_the_shipped_record_table_is_degraded(
+    pair: tuple[int, int], plant: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every measured pair and every plant: the shipped reading moves and this one does not.
+
+    THE ORDER OF THE THREE STEPS IS THE ARM. The shipped reading is taken
+    pristine, the plant is applied and the shipped reading is shown to have
+    MOVED, and only then is the second reading required to be right. Skipping
+    the middle step is how a plant that never applied reads as a plant that was
+    survived.
+
+    WHAT GOES RED HERE. A second reading that delegates to any shipped reader
+    ``parse_body`` reaches - the call, an alias, a two-level reach or a
+    ``getattr`` - takes the degraded kinds or the shifted extents and fails the
+    fixture. That is the wrapper the static arms above cannot see.
+    """
+    header_version, save_version = pair
+    body = _fixture_body(header_version, save_version)
+    pristine = _shipped_triples(body, save_version=save_version, header_version=header_version)
+    declared = len(_expected_flags())
+    assert len(pristine) == declared, (
+        f"the shipped walk read {len(pristine)} of the fixture's {declared} records "
+        "before anything was planted, so this pair's baseline is already wrong and "
+        "the degradation below would be measured against it"
+    )
+
+    _plant(monkeypatch, plant)
+    degraded = _shipped_triples(body, save_version=save_version, header_version=header_version)
+    moved = _records_the_plant_moved(pristine, degraded)
+    assert moved > 0, (
+        f"not one of the shipped walk's {declared} records changed under the plant, so "
+        "the shipped reading did not move and this arm would pass against every "
+        "possible second reading. A PLANT THAT NEVER APPLIED AND ONE THAT WAS SURVIVED "
+        "PRODUCE THE SAME OUTPUT"
+    )
+
+    found = independent_table.independent_records(
+        body, save_version=save_version, header_version=header_version
+    )
+    assert found is not None, (
+        "the second reading DECLINED the fixture body while the shipped record table "
+        "was degraded. It reads the body itself and nothing it reads changed, so a "
+        "decline here is the plant reaching it"
+    )
+    read = len(found)
+    assert read == declared, (
+        f"the second reading returned {read} records where the fixture declares "
+        f"{declared}, while the shipped table was degraded. A reading that owes the "
+        "shipped table nothing cannot change its count when that table is degraded"
+    )
+    wrong_flags, wrong_lengths, misplaced = _fixture_faults(body, found)
+    assert wrong_flags == 0, (
+        f"{wrong_flags} of {read} records came back with the wrong kind while the "
+        "shipped record table was degraded. The kind is read from the body and "
+        "re-transcribed rather than imported, so neither plant on the shipped kind - "
+        "the discriminator table nor the record reader - can reach it"
+    )
+    assert wrong_lengths == 0, (
+        f"{wrong_lengths} of {read} records came back with a length the fixture did "
+        "not declare while the shipped payload locator was shifted"
+    )
+    assert misplaced == 0, (
+        f"{misplaced} of {read} records report an offset whose four preceding bytes "
+        "are not the length they also report. THE BODY ALONE SAYS SO - a reading "
+        "taking its extents from the degraded shipped locator lands one byte late "
+        "and every one of them misses"
+    )
+
+
+@pytest.mark.parametrize("plant", sorted(_SHIPPED_PLANTS))
+def test_a_degraded_shipped_record_table_cannot_move_the_hand_built_offsets(
+    plant: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The same claim against ABSOLUTE offsets rather than a length-prefix rule.
+
+    The fixture arm above grades the offset by a relation the body carries at
+    every payload. This one grades it against the one expectation in this module
+    that shares nothing with either reader OR with the encoder's bookkeeping:
+    ``bytes.index`` over distinctive payload literals in the finished body.
+    ``test_the_shipped_walk_reads_the_hand_built_body_the_same_way`` is what
+    keeps that expectation a claim about the FORMAT rather than about this file.
+    """
+    body, expected = _well_formed_hand_built()
+    header_version, save_version = HAND_BUILT_PAIR
+    pristine = _shipped_triples(body, save_version=save_version, header_version=header_version)
+    assert pristine == expected, (
+        "the shipped walk does not read the hand-built body correctly before "
+        "anything is planted, so nothing below grades a degradation"
+    )
+
+    _plant(monkeypatch, plant)
+    degraded = _shipped_triples(body, save_version=save_version, header_version=header_version)
+    moved = _records_the_plant_moved(expected, degraded)
+    assert moved > 0, (
+        f"none of the {len(expected)} hand-built records changed in the SHIPPED "
+        "reading under the plant, so nothing was degraded and this arm grades nothing"
+    )
+
+    found = independent_table.independent_records(
+        body, save_version=save_version, header_version=header_version
+    )
+    assert found is not None, "the second reading declined a body it reads pristine"
+    mine = tuple((record.is_actor, record.body_offset, record.body_length) for record in found)
+    assert len(mine) == len(expected), (
+        f"the second reading returned {len(mine)} records where the body's own bytes "
+        f"carry {len(expected)}"
+    )
+    astray = sum(1 for got, want in zip(mine, expected, strict=True) if got != want)
+    assert astray == 0, (
+        f"{astray} of {len(expected)} records disagree with the offsets `bytes.index` "
+        "found in the body itself, while the shipped record table was degraded. The "
+        "expectation is located in the BYTES and no plant can move it, so a reading "
+        "that misses it is reading the shipped table rather than the body"
+    )
+
+
+def test_every_field_the_second_reading_reports_is_degraded_by_some_plant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The plant set is not blind to a field, and it is not EMPTY.
+
+    An empty parametrize set collects no case and reports no failure, so the two
+    arms above are exactly as strong as this mapping is populated - the shape
+    ``memory/an-empty-population-satisfies-every-zero.md`` records. This is the
+    positive fact that stands in for a hardcoded count: every field
+    :class:`independent_table.IndependentRecord` reports is moved in the SHIPPED
+    reading by at least one plant, so no field is graded by nothing.
+
+    The field names come from the dataclass rather than from a literal here, so
+    a fourth field is in scope the day it is added.
+    """
+    body, expected = _well_formed_hand_built()
+    header_version, save_version = HAND_BUILT_PAIR
+    assert len(_REPORTED_FIELDS) == len(expected[0]), (
+        f"the second reading reports {len(_REPORTED_FIELDS)} fields and a shipped "
+        f"triple carries {len(expected[0])}, so the two no longer line up position "
+        "by position and nothing below is comparing like with like"
+    )
+
+    moved: set[str] = set()
+    for name in sorted(_SHIPPED_PLANTS):
+        _plant(monkeypatch, name)
+        degraded = _shipped_triples(body, save_version=save_version, header_version=header_version)
+        # UNDONE BETWEEN PLANTS SO EACH IS MEASURED ALONE, and taken from the
+        # FIXTURE rather than from a bare `MonkeyPatch()` so a raise between the
+        # plant and this line still restores the shipped module at teardown
+        # instead of leaking a degraded reader into every test after this one.
+        monkeypatch.undo()
+        if len(degraded) != len(expected):
+            # A PLANT THAT COST THE SHIPPED WALK WHOLE RECORDS CONTRIBUTES
+            # NOTHING HERE, and an earlier version of this arm credited it with
+            # every field at once. That is how the discriminator plant - which
+            # makes `parse_body` REFUSE rather than relabel - was reported as
+            # covering `is_actor` while no plant moved that field at all. A kill
+            # is a degradation the arms above can use and it is not evidence
+            # that any particular field is graded.
+            continue
+        for got, want in zip(degraded, expected, strict=True):
+            moved.update(
+                field for field, a, b in zip(_REPORTED_FIELDS, got, want, strict=True) if a != b
+            )
+
+    unmoved = sorted(frozenset(_REPORTED_FIELDS) - moved)
+    assert unmoved == [], (
+        f"{len(unmoved)} of {len(_REPORTED_FIELDS)} fields the second reading reports "
+        f"are moved by no plant: {unmoved}. An arm parametrized over this mapping "
+        "grades only the fields it degrades, and an EMPTY mapping collects no case at "
+        "all while reporting nothing"
     )
 
 

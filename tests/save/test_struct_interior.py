@@ -3438,7 +3438,7 @@ def _run_table_degradation_control() -> _TableControlResult | None:
     )
 
 
-def test_degrading_the_record_table_cannot_improve_this_modules_grade() -> None:
+def test_the_table_control_takes_its_window_from_the_body_not_the_degraded_record() -> None:
     """THE SECOND ANTI-MONOTONE CONTROL - the substrate BOTH readings share.
 
     WHY A SECOND CONTROL IS NOT A DUPLICATE OF THE FIRST.
@@ -3466,10 +3466,17 @@ def test_degrading_the_record_table_cannot_improve_this_modules_grade() -> None:
     deliberately garbage readings including one that was the shipped record
     table verbatim. What it grades is the WIRING: that ``own`` is not derived
     from the degraded record. That is one bit, it is worth having, and it is
-    not a proof about :mod:`tests.save.independent_table`. The independence of
-    that module rests on its source, on the two static arms in
-    ``tests/save/test_independent_table.py``, and on review - the whole suite
-    stays green against a reading that wraps ``objects.parse_body``.
+    not a proof about :mod:`tests.save.independent_table`. That module's
+    independence is graded elsewhere and by something else - the DYNAMIC SEAM
+    ARMS this item's follow-up CS-862 added to
+    ``tests/save/test_independent_table.py``, which degrade the shipped record
+    table at its SOURCE rather than at its output and redden for a wrapper.
+
+    AND THAT IS WHY THIS ARM IS NAMED FOR THE WIRING RATHER THAN FOR THE GRADE.
+    A reader of a GREEN run sees the NAME and nothing else - no docstring, no
+    assertion message - so a name claiming more than the arm grades is a claim
+    made in the one place the narrowing above cannot reach. It used to be
+    ``test_degrading_the_record_table_cannot_improve_this_modules_grade``.
 
     THE GRADED PAIR IS DERIVED, NEVER TRANSCRIBED, on the same terms as this
     module's struct vocabulary: it is the version pair carrying the most records

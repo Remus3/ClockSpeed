@@ -34,6 +34,84 @@ the line becomes a pointer.
 
 ---
 
+## Session 51 - 2026-08-31 - CS-862 CLOSED. A wrapper around the shipped record table finally goes RED, the route it goes red through is one no static arm can see, and the full suite caught a rename the module-level run had called clean
+
+- **Shipped: CS-862.** Detail in `docs/LEDGER.md`, not here. CS-829 stays GATED behind
+  CS-G05 - this was PREP and PREP never closes a gated item. CS-863, CS-864 and CS-865
+  stay OPEN; CS-864's note gained a dated addendum narrowing what is left of it.
+
+- **THE HEADLINE: AGREEMENT CANNOT SEPARATE A READING FROM THE THING IT AGREES WITH, SO
+  THE ARM HAD TO DISAGREE ON PURPOSE.** Every library-backed claim about the second
+  reading is an agreement claim, and a wrapper maximises all of them. The new arms degrade
+  the shipped record table AT ITS SOURCE in process - `objects._KIND_BY_OBJECT_TYPE`
+  relabelled, `objects._read_data_entries` slid one byte with the extent end held - and
+  require the second reading to still match the FIXTURE's declaration and the BODY's own
+  bytes. Ground truth is never the pristine reading: "did not move" is an equality between
+  two calls of one function and a memoising reading satisfies it outright.
+
+- **THE `getattr` ROUTE IS THE RESULT WORTH CARRYING.** Four mutants, the pristine floor
+  re-run and verified green after each. STATIC is the four seam-guard arms; DYNAMIC is the
+  15 cases of the two new arms. A direct `objects.parse_body(...)` wrapper reddens 2 of 4
+  static and 15 of 15 dynamic. The SAME wrapper reached as
+  `getattr(objects, "parse" + "_body")` reddens 0 of 4 static and 15 of 15 dynamic. A kind
+  decision read as `objects._KIND_BY_OBJECT_TYPE.get(...)` - CS-864's two-level reach -
+  reddens 0 of 4 static and every case its plant can reach. That third one also makes the
+  discriminator re-transcription load-bearing for the first time: the anti-drift arm
+  guarding it is an equality between two spellings, which a shared import satisfies.
+
+- **A PLANT I DOCUMENTED AS A RELABEL WAS NOT ONE, and only a fourth mutant found it.**
+  Swapping `objects._KIND_BY_OBJECT_TYPE` makes `parse_body` REFUSE rather than relabel -
+  the kind decides how many bytes a record occupies. The field-coverage arm was crediting
+  that wholesale kill with covering `is_actor` while NO plant moved that field at all. The
+  repair added a third plant that wraps `objects._read_levelled_record` and flips the kind
+  AFTER the real reader has consumed the right bytes, and stopped letting a kill count as
+  field coverage. Found by making the shift plant inert and asking what stayed green.
+
+- **THE PLANT THAT DID NOTHING, CAUGHT BY ITS OWN OBSERVABILITY ASSERTION.** The first
+  plant written wrapped `objects._read_record` - the FLAT reader `parse_object_headers`
+  uses. `parse_body` calls `_read_levelled_record` instead, so the shipped table never
+  moved and the arm would have passed against every possible second reading including a
+  verbatim wrapper. Every arm now proves the SHIPPED reading moved before concluding
+  anything about this one.
+
+- **Surprises: I WAS WRONG ABOUT WHICH GUARDS READ `docs/`, AND THE FULL SUITE IS WHAT
+  SAID SO.** Before renaming the degradation arm I checked `test_oracle_citations` (scans
+  `clockspeed/`) and `test_absolute_claims` (scans `tests/`) and concluded no guard reads
+  `docs/`. `tests/test_docs_citations.py` does, and CS-442 exists because of exactly that
+  gap. The rename went red on `docs/LEDGER.md` and on the item-notes leaf, and only the
+  whole-suite run showed it - the two edited modules were green on their own. THIRD
+  SESSION RUNNING that a module-level or subset run has been green while the package was
+  not. The repair is the sanctioned one: a machine-checked `RENAMED` disposition, because
+  the ledger is append-only and the record was RIGHT when written.
+
+- **Decisions: none recorded as an ADR.** Nothing contradicted `BOOTSTRAP.md`.
+
+- **Failed paths: none abandoned.** One plant target was replaced after measurement
+  (`_read_record` -> `_read_levelled_record`, then `_read_levelled_record` ->
+  `_KIND_BY_OBJECT_TYPE`, which needs no `ObjectRecord` reconstruction and is the shared
+  DATA symbol the session-40 counter-example relabels).
+
+- **DEPARTURE FROM `CLAUDE.md` SECTION 5, RECORDED AS THAT SECTION REQUIRES.** This
+  session ran SINGLE-AGENT. The harness forbade dispatching subagents, so there was no
+  adjudicator and no independent adversary; the refutation passes were three in-process
+  mutants run by the same session that wrote the arms. **A PRODUCER GRADED ITS OWN WORK,
+  which is the thing that section exists to prevent.** The mutants and their numbers are
+  in `docs/LEDGER.md` and are re-runnable, so the claim is checkable - but it has not had
+  an independent pass, and the next session should treat it as ungraded by anyone else.
+
+- **Next action: CS-863** - the shipped SCALAR CONSTANTS both tag walks consult. It is the
+  bigger prize and the harder one, and its measurement is already recorded so it does not
+  need re-deriving. The plant mechanism CS-862 built - degrade a shared shipped symbol in
+  process, assert observability first, grade against the bytes - is the same shape CS-863
+  needs for `objects._MAX_TAGS_PER_PAYLOAD`.
+
+- **STILL OUTSTANDING FROM SESSION 49, UNTOUCHED:** the six manual checks in
+  `docs/OPERATIONS.md` section 8.3 all still read NOT RUN. They need a human at a real
+  display and a real Electron, and `shell/node_modules` still does not exist in this
+  clone.
+
+---
+
 ## Session 50 - 2026-08-30 - CS-829 GATED behind CS-G05 by operator ruling. Round 4's demand was delivered and measured, four adversaries refuted it anyway, and the round's own headline arm turned out to be an equality between identical arguments
 
 - **Shipped: NOTHING CLOSED.** CS-829 did NOT close; it moved to `docs/GATED.md`. PREP
@@ -162,56 +240,3 @@ the line becomes a pointer.
   read `NOT RUN`, they need a real display and a real Electron, and until they are filled in
   nobody has seen the companion window work. Then CS-615 - the count floor is one test
   pooled over five suites.
-
----
-
-## Session 48 - 2026-08-30 - CS-605 CLOSED and tier-1 CI is GREEN on ubuntu; the first repair of the home-path arm built a guard that muted itself, and an adversary caught it with a mutant the old assert had killed
-
-- **Shipped: CS-605.** tier1 run `33289681747` at `90d2956`, `ubuntu-latest`, conclusion
-  `success`, 15 steps, ZERO non-success steps, `3755 passed, 114 skipped`. Exactly one arm
-  skips across `tests/surface/` and `tests/test_make_cert.py` there, with its reason in the
-  log. Detail in `docs/LEDGER.md`, not here. Six follow-ups filed, CS-608 to CS-613.
-
-- **THE HEADLINE: A SKIP CONDITIONED ON THE CODE UNDER TEST IS A MUTE BUTTON THE DEFECT GETS
-  TO PRESS.** The first repair turned a precondition into a skip on `home in body`, which is
-  exactly what a non-escaping encoder produces, so the alarm switched itself off in the one
-  case it existed for. MEASURED by an adversary with `contract.encode` mutated to stop
-  doubling: `tests/surface/` reported `527 passed, 1 skipped, exit 0` WITH THE LEAK LIVE, and
-  the deleted assert had killed that mutant. The skip reason blamed the PLATFORM, so it
-  misdirected rather than merely falling silent. Doctrine in
-  `memory/a-skip-can-mute-the-defect.md`. **THE WRONG INSTRUCTION WAS THE MERGER'S**: the
-  brief said to ask the skip OF THE ENCODER and explicitly not to test for a separator.
-
-- **ONE OF THE THREE "PLATFORM-DIVERGENT" FAILURES WAS NOT PLATFORM-DIVERGENT.** The
-  verify_env arm demanded exit 0, which holds only where `core.hooksPath` is wired.
-  Reproduced in a plain clone ON WINDOWS: `HARD: 6/7`, exit 1. `tier2.yml`'s
-  `clean-checkout-probe` already asserts that unset state, so the repo had recorded the fact
-  the arm contradicted. **Verify a claim of platform-divergence by reproducing it on the
-  other platform.**
-
-- **CS-605's OWN SECOND NAMED ITEM WAS GRADED BY NOTHING, ON ANY PLATFORM.** The certificate
-  key's 0600 chmod had no arm at all, so no CI run could ever have revealed it. It now runs
-  green on ubuntu. Closing the item on its acceptance clause alone would have left its stated
-  gap open.
-
-- **EVERY TOKEN IN THE ASSET ALLOW-LIST WAS AN EQUIVALENT MUTANT.** Emptying the tuple killed
-  the arm, but each single-token deletion survived, so the proof showed only that at least one
-  of four fired. Each token now has its own subject. The parametrization is over the test
-  file's OWN table - over the source tuple it would delete the case on a deletion and stay
-  green.
-
-- **MERGER ERROR: THE CANDIDATE WAS NOT FROZEN.** Three adversaries were dispatched against
-  `016fc15` and the tree moved to `5738da3` while they ran. Two findings of one adversary were
-  repaired mid-verdict. It reported the violation itself. Its remaining findings stood.
-
-- **Decisions: no ADR.** Nothing contradicted `BOOTSTRAP.md`.
-
-- **Failed paths: none abandoned.** Every finding was either fixed or filed with its
-  measurement.
-
-- **Next action: ask the operator whether to take CS-602**, the Electron companion, which
-  closes phase 6 together with CS-600 - **or CS-829**, still the head of the product path and
-  untouched for six sessions. CS-603, CS-604 and CS-606 are tier-1 and cheap if a warm-up is
-  wanted first.
-
----

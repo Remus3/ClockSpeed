@@ -402,6 +402,23 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         "CS-471 citation, relocated by CS-495. Not a record defect.",
         1,
     ),
+    # STILL CLASS 1 - right when written - but the tree RENAMED rather than moved
+    # it. CS-862 retired the name because a green run renders the test NAME and
+    # nothing else, so an arm claiming more than it grades makes that claim in the
+    # one place a docstring narrowing cannot reach. TWO SITES: the CS-829 entry
+    # that cited it live, and the CS-862 entry that records the retirement and
+    # therefore has to spell the retired name.
+    (
+        LEDGER,
+        "tests/save/test_struct_interior.py"
+        "::test_degrading_the_record_table_cannot_improve_this_modules_grade",
+    ): Disposition(
+        RENAMED,
+        "tests/save/test_struct_interior.py"
+        "::test_the_table_control_takes_its_window_from_the_body_not_the_degraded_record",
+        "CS-829 cited it live; CS-862 renamed it to the one bit it grades. Not a record defect.",
+        2,
+    ),
     # --- class 2: WRONG WHEN WRITTEN, one unambiguous live target. Each is
     # corrected by a later ledger record, because this file is append-only.
     (

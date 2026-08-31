@@ -75,6 +75,103 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-08-31 - CS-862 - CLOSED. A second reading that wraps the shipped record table now goes RED - including through the `getattr` route no static arm can see - and the arm that only ever graded one bit of wiring is named for that bit
+Verification, all SYNTHETIC and all running on a machine with no game installed:
+`tests/save/test_independent_table.py::test_the_second_reading_stays_right_while_the_shipped_record_table_is_degraded`
+over the four measured pairs times two plants, and
+`::test_a_degraded_shipped_record_table_cannot_move_the_hand_built_offsets`
+over the same two plants, with
+`::test_every_field_the_second_reading_reports_is_degraded_by_some_plant`
+holding the plant set to covering every field the reading reports - an empty plant
+mapping collects no case at all and would leave both arms silent.
+
+**WHY THE ARM THAT ALREADY EXISTED COULD NOT DO THIS.** The record-table control in
+`tests/save/test_struct_interior.py` degrades the record table's OUTPUT - the
+`ObjectRecord` objects already in hand - and hands the SAME second-reading record to both
+its passes, so the equality it asserts is `sum f(x) == sum f(x)`. A degradation applied to
+the output cannot reach a reading that never consults the output. The new arms degrade the
+SOURCE, in process. THERE ARE THREE PLANTS AND WHAT EACH DOES IS MEASURED RATHER THAN
+INTENDED - the first version of this section had two, and one of them was documented as
+something it is not:
+
+- `objects._KIND_BY_OBJECT_TYPE` swapped. The shipped walk REFUSES the body outright: the
+  kind decides how many bytes a record occupies, so a swapped table desynchronises the
+  record reader at once. **It is not a relabel and an earlier draft of this entry called
+  it one.** It is kept because it is the only plant on a shared DATA symbol, and so the
+  only one a reading that IMPORTS the discriminator follows.
+- `objects._read_levelled_record` wrapped. THE TRUE RELABEL - the real reader consumes the
+  right bytes and only the returned record's kind is flipped, so the walk completes and
+  `is_actor` alone moves.
+- `objects._read_data_entries` wrapped. Every payload start slid one byte with the extent
+  END held; `body_offset` and `body_length` move and nothing else does.
+
+Together they are the session-40 counter-example, relabel and shift. `objects.parse_body`
+consults all three, so anything delegating to it moves; a reading that reads the body does
+not.
+
+**AND THE GROUND TRUTH IS NOT THE PRISTINE READING.** Asserting only that the reading did
+not MOVE is an equality between two calls of one function, and is satisfied outright by a
+reading that memoises. What is asserted is that it still matches the FIXTURE's own
+declaration and the BODY's own bytes - the length-prefix relation at every payload on the
+fixture bodies, and `bytes.index` over distinctive payload literals on the hand-built one.
+
+**GRADED WITH FOUR MUTANTS, the pristine floor re-run and verified green after each.**
+STATIC is the four arms in this module's seam-guard section - the three seam arms plus the
+discriminator anti-drift arm. DYNAMIC is the 15 cases of the two new arms, 12 plus 3.
+
+| mutant | static red | dynamic red |
+|---|---|---|
+| wrapper calling `objects.parse_body(...)` | 2 of 4 | 15 of 15 |
+| wrapper reaching it as `getattr(objects, "parse" + "_body")` | 0 of 4 | 15 of 15 |
+| kind read as `objects._KIND_BY_OBJECT_TYPE.get(...)` - the CS-864 two-level reach | 0 of 4 | 5 of 5 reachable |
+| the SHIFT plant made inert - a plant grading its own observability assertion | 0 of 4 | 5 of 5 reachable |
+
+Rows two and three are the point. Both are routes CS-864 measured that NO static arm sees,
+and before this change nothing anywhere in `tests/save/` went red for either. Row one is
+worth reading too: the most obvious wrapper there is reddens only HALF the static set.
+Row three also makes the discriminator RE-TRANSCRIPTION load-bearing for the first time -
+the anti-drift arm that guards it,
+`::test_the_object_type_transcription_matches_the_shipped_discriminator_table`, is an
+equality between two spellings and a shared import satisfies it trivially. Row four grades
+the observability assertion itself, and it also reddens
+`::test_every_field_the_second_reading_reports_is_degraded_by_some_plant`, which is the arm
+that notices when a field has stopped being degraded by anything.
+
+**THE PLANT IS SHOWN TO FIRE BEFORE ANYTHING IS CONCLUDED FROM IT, AND THAT IS NOT
+DECORATION.** The first plant written for this section wrapped `objects._read_record` -
+the FLAT reader `parse_object_headers` uses. `parse_body` calls `_read_levelled_record`
+instead, so the shipped table did not move, and the arm would have passed against every
+possible second reading including a verbatim wrapper. Each arm establishes that the
+SHIPPED reading moved before it concludes anything about this one.
+
+**WHAT THIS DOES NOT PROVE.** The two plants are the shipped symbols the fixture bodies
+reach THROUGH `parse_body`. A reading rebuilt out of shipped `_Cursor` primitives is moved
+by neither, and the static arms cover only the `objects.<name>(...)` spelling of that -
+CS-864 is still OPEN and still owns the general case. These arms are synthetic and say
+nothing about the real library; the library claim remains
+`::test_the_second_reading_accepts_nothing_the_shipped_walk_refuses`, which is an
+AGREEMENT claim and always will be.
+
+**THE RENAME IS PART OF THE ITEM, NOT TIDYING.**
+`tests/save/test_struct_interior.py::test_degrading_the_record_table_cannot_improve_this_modules_grade`
+is now
+`::test_the_table_control_takes_its_window_from_the_body_not_the_degraded_record`.
+CS-829's narrowing of that arm's docstring was correct and it was written in the one place
+a reader of a GREEN run never looks: a green run renders the NAME and nothing else - no
+docstring, no assertion message. The CS-829 entry below cites the old name and is left
+exactly as written, because this file is append-only; the citation carries a RENAMED
+disposition in `tests/test_docs_citations.py`, which is machine-checked against the live
+target rather than believed.
+
+**TWO DOCSTRINGS BECAME FALSE THE MOMENT THESE ARMS PASSED, and were corrected in the same
+change.** `tests/save/independent_table.py` said no dynamic arm can tell it from
+`objects.parse_body` and that its independence rests "not on a red test"; the renamed arm
+said the whole suite stays green against a wrapper. Both were true when written. Neither
+is now.
+
+**WHAT DID NOT CLOSE.** CS-829 stays GATED behind CS-G05 - this is PREP for it and PREP
+never closes a gated item. CS-863, CS-864 and CS-865 stay OPEN.
+
 ### 2026-08-30 - CS-829 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-829 is GATED behind CS-G05 by operator ruling, with the PREP half merged and the DRAIN half named
 Verification: the item line moved out of `ROADMAP.md` into `docs/GATED.md` under
 `CS-829 - StructProperty's interior, gated behind CS-G05`; round 5's outcome is recorded in
