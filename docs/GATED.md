@@ -481,10 +481,14 @@ touches the 23529.
 - `tests/save/independent_table.py` reads the record framing without calling one shipped
   reader, and its output equals the shipped table element-for-element across the library.
   Merged session 50.
-- The record-table anti-monotone control. Its limits are CS-862.
-- The four open follow-ups CS-862, CS-863, CS-864 and CS-865 are all PREP. They are the
+- The record-table anti-monotone control. Its limits were CS-862, which CLOSED
+  2026-08-31 - see `docs/LEDGER.md`. The control's own claim is now narrowed to the one
+  bit of wiring it grades, and the second reading is separated from the shipped record
+  table by dynamic arms that redden for a wrapper, including through the `getattr` route
+  no static arm sees.
+- The follow-ups CS-863, CS-864 and CS-865 are all PREP and all still OPEN. They are the
   harness that will grade the DRAIN half when the gate clears, and every one of them is
-  worth doing before it does.
+  worth doing before it does. CS-862 was the fourth and is done.
 
 **WHAT WOULD BE A SYNTHETIC CLOSE HERE**, named so it is recognised: narrowing the graded
 population to the reachable, size-compatible sites and declaring the clause met. That is
