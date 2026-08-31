@@ -125,7 +125,7 @@ from typing import Final
 import pytest
 
 from clockspeed.save import chunks, header, objects, usmap
-from tests.save import reach_guard, test_decode_oracles, test_properties
+from tests.save import independent_table, reach_guard, test_decode_oracles, test_properties
 
 # ---------------------------------------------------------------------------
 # Synthetic fixtures - the tag grammar is IMPORTED rather than transcribed
@@ -1642,11 +1642,24 @@ class _SaveRun:
 def _sweep_one_record(
     body: bytes,
     record: objects.ObjectRecord,
+    own: independent_table.IndependentRecord | None,
     property_map: usmap.PropertyMap,
     into: _StructTally,
     run: _SaveRun,
 ) -> None:
     """Fold ONE record into the accumulator, by both readings.
+
+    THE TWO READINGS NOW ARRIVE SEPARATELY, which is CS-829 round 5. ``record``
+    is the shipped table's; ``own`` is the second reading's own record for the
+    SAME POSITION, taken from :mod:`tests.save.independent_table`, which reads
+    the body's record framing without calling one function of
+    ``clockspeed.save.objects``. Before this the independent reading took its
+    start, its extent and its kind off ``record`` too, so the denominator rested
+    on the very table it was meant to be independent of - measured, a degraded
+    table moved both totals from 30642 sites to 0 and no arm went red. ``own``
+    is None where the second reading declined the save or could not be paired,
+    and the independent reading is then counted as UNREACHED rather than being
+    quietly handed the shipped record's window.
 
     EVERY DROP IS COUNTED AND NOTHING LEAVES SILENTLY. Four readers stand
     between a record and a graded site: the actor-head step, the payload walk,
@@ -1657,7 +1670,9 @@ def _sweep_one_record(
 
     Args:
         body: The decompressed body.
-        record: The record to fold.
+        record: The record to fold, from the SHIPPED table.
+        own: The SECOND reading's record for the same position, or None when it
+            declined this save or the two readings could not be paired.
         property_map: The parsed usmap.
         into: The accumulator, mutated in place.
         run: This save's running counters, mutated in place.
@@ -1684,17 +1699,22 @@ def _sweep_one_record(
     # walk ACCEPTS while yielding fewer tags than it holds used to be outside
     # every arm, because the only question ever asked of this reading was about
     # records the shipped walk had already refused.
+    own_end = end if own is None else own.body_offset + own.body_length
     own_start = (
-        _independent_actor_head(body, record.body_offset, end)
-        if record.kind == objects.KIND_ACTOR
-        else record.body_offset
+        None
+        if own is None
+        else (
+            _independent_actor_head(body, own.body_offset, own_end)
+            if own.is_actor
+            else own.body_offset
+        )
     )
     own_sites = into.independent_sites
-    own_reads = own_start is not None and _tile_independently(body, own_start, end, into, 0)
-    if own_reads and own_start is not None:
+    own_reads = own_start is not None and _tile_independently(body, own_start, own_end, into, 0)
+    if own_reads and own_start is not None and own is not None:
         into.independent_walkable += 1
         run.independent_reached += 1
-        into.census_head += _census_hits(body, record.body_offset, own_start)
+        into.census_head += _census_hits(body, own.body_offset, own_start)
     else:
         into.independent_unreached_census += hits
         run.independent_unreached_hits += hits
@@ -1770,8 +1790,24 @@ def _sweep_one_save(
     # the tiling rather than here, and the subset re-aggregation needs them PER
     # SAVE. Subtracting at the end of the loop is exact and costs two integers.
     run = _SaveRun(sites_before=into.sites_seen, independent_before=into.independent_sites)
-    for record in table.records:
-        _sweep_one_record(body, record, property_map, into, run)
+    # THE SECOND READING OF THE RECORD FRAMING, taken ONCE per save and paired
+    # POSITIONALLY - the k-th independent record against the k-th shipped one.
+    # PAIRING IS ONLY DEFINED WHERE THE TWO AGREE ON HOW MANY RECORDS THERE ARE.
+    # Where they do not, none is paired and every independent reading of this
+    # save declines, on exactly the terms `objects._attribute_payloads` states
+    # for a level whose record and payload counts disagree: zipping the shorter
+    # list would pair a record with another record's window and report it as
+    # fact, which is the silently wrong answer non-negotiable 7 forbids.
+    # `tests/save/test_independent_table.py` asserts that agreement, in file
+    # order, as an EQUALITY over this machine's whole library.
+    mine = independent_table.independent_records(
+        body, save_version=parsed.save_version, header_version=parsed.header_version
+    )
+    paired = mine if mine is not None and len(mine) == len(table.records) else None
+    for index, record in enumerate(table.records):
+        _sweep_one_record(
+            body, record, None if paired is None else paired[index], property_map, into, run
+        )
     into.shapes.append(
         _SaveShape(
             pair=(parsed.save_version, parsed.header_version),
@@ -2829,22 +2865,37 @@ def _shipped_sites_of(body: bytes, record: objects.ObjectRecord, end: int) -> tu
     return (True, found)
 
 
-def _independent_sites_of(body: bytes, record: objects.ObjectRecord, end: int) -> tuple[bool, int]:
+def _independent_sites_of(
+    body: bytes, own: independent_table.IndependentRecord
+) -> tuple[bool, int]:
     """THIS MODULE'S OWN struct site count for one record.
+
+    IT TAKES ITS WINDOW AND ITS KIND FROM THE SECOND READING OF THE BODY, NEVER
+    FROM THE SHIPPED RECORD, and that is CS-829 round 5. This helper used to be
+    handed an ``objects.ObjectRecord`` and read ``record.kind`` and
+    ``record.body_offset`` off it - so the shipped record table decided where
+    this reading started and which of the two starts it took, and a defect there
+    moved the numerator and the denominator together. Nothing here now consults
+    a value the shipped walk produced.
+
+    THE ARGUMENT IS THE RECORD ITSELF AND NEVER A KEY INTO A LOOKUP. Resolving
+    the shipped record against the second reading by ``body_offset`` would put
+    the shipped offset back in the path by the back door: the record-table
+    control below slides every start by one byte, and an offset-keyed lookup
+    would simply miss. Callers pair the two readings POSITIONALLY, which
+    :func:`_sweep_one_save` establishes is defined before it pairs anything.
 
     Args:
         body: The decompressed body.
-        record: The record to walk.
-        end: The first byte past the record's payload.
+        own: The second reading's own record for this position.
 
     Returns:
         Whether this module's own reading enumerated the record, and how many
         of its tags carry the struct type word in their bytes.
     """
+    end = own.body_offset + own.body_length
     own_start = (
-        _independent_actor_head(body, record.body_offset, end)
-        if record.kind == objects.KIND_ACTOR
-        else record.body_offset
+        _independent_actor_head(body, own.body_offset, end) if own.is_actor else own.body_offset
     )
     if own_start is None:
         return (False, 0)
@@ -2913,15 +2964,21 @@ def _run_degradation_control(probe: _EarlyTerminator) -> _ControlCounts | None:
             )
         except (Exception, SystemExit):  # noqa: S112 - reporting it IS the leak
             continue
-        for record in table.records:
+        mine = independent_table.independent_records(
+            body, save_version=parsed.save_version, header_version=parsed.header_version
+        )
+        if mine is None or len(mine) != len(table.records):
+            continue
+        for index, record in enumerate(table.records):
             end = record.body_offset + record.body_length
+            own_record = mine[index]
             counts.records += 1
             probe.armed = False
             pristine_ok, pristine = _shipped_sites_of(body, record, end)
-            _own_ok, own_pristine = _independent_sites_of(body, record, end)
+            _own_ok, own_pristine = _independent_sites_of(body, own_record)
             probe.armed = True
             degraded_ok, degraded = _shipped_sites_of(body, record, end)
-            _own_degraded_ok, own_degraded = _independent_sites_of(body, record, end)
+            _own_degraded_ok, own_degraded = _independent_sites_of(body, own_record)
             probe.armed = False
             counts.pristine_sites += pristine
             counts.degraded_sites += degraded
@@ -3051,6 +3108,391 @@ def test_degrading_the_shipped_tag_reader_cannot_improve_this_modules_grade(
         f"at {counts.degraded_sites} against {counts.independent_degraded}. THE CHECK "
         "IS STILL ANTI-MONOTONE: the population shrank with the reader instead of the "
         "grade going red, which is the exact shape that refuted this item three times"
+    )
+
+
+# ---------------------------------------------------------------------------
+# THE SECOND ANTI-MONOTONE CONTROL - the RECORD TABLE, not the tag reader
+#
+# WHAT THE FIRST CONTROL CANNOT SEE. ``_EarlyTerminator`` degrades
+# ``objects._payload_text``, which the shipped walk calls and this module's own
+# reading does not, so the two SEPARATE under it and the equality can go red.
+# THE RECORD TABLE IS THE SUBSTRATE THEY STILL SHARE: ``_sweep_one_record``
+# takes ``record.body_offset``, ``record.body_length`` and ``record.kind`` off
+# the same table for the independent reading as for the shipped one, so a defect
+# THERE moves the numerator and the denominator by the same amount and reddens
+# nothing.
+#
+# THE DEGRADATION IS APPLIED TO THE TABLE'S OUTPUT AND NEVER BY MONKEYPATCH.
+# The degraded records are built in memory from the pristine ones, so nothing
+# shipped is patched, there is no revert to assert and none to miss, and the
+# harness Bash timeout - which KILLS rather than unwinds - has nothing to leave
+# behind. That is the safer half of a trade the first control cannot make,
+# because a tag reader has no output object to rewrite.
+# ---------------------------------------------------------------------------
+
+
+#: How far a degraded payload's first byte moves. ONE BYTE, because the point is
+#: a start BOTH readings take together, not a start so wrong that only a bounds
+#: check is being exercised. It is a constant rather than a literal so no
+#: comparison below reads as a magic number.
+_TABLE_CONTROL_SHIFT: Final = 1
+
+
+def _degrade_one_record(record: objects.ObjectRecord) -> objects.ObjectRecord | None:
+    """Relabel an actor and move the payload start, holding the extent END.
+
+    THIS IS THE DEGRADATION THE SESSION-40 ADVERSARY RECORDED. A record's KIND
+    selects which of two payload starts a reading takes - an actor's head is
+    skipped, a component's is not - and its extent says where the payload lies.
+    Both readings in this module take all three fields off the same record, so
+    moving them moves the two site totals TOGETHER: a large share of the
+    corpus's struct sites left the population, every arm stayed green and the
+    residue IMPROVED. The share is re-measured by the arm below rather than
+    transcribed here, because a number written into prose is a number that rots.
+
+    THE END IS HELD RATHER THAN SHIFTED. A start and a length that both move
+    keep the payload the same width, which a bounds check could notice; holding
+    the end makes the degraded extent a strictly narrower window inside the real
+    one, so no reading here reaches a byte the pristine record did not own.
+
+    ``with_payload`` does the shift rather than ``dataclasses.replace``, for the
+    reason given at
+    :meth:`clockspeed.save.objects.ObjectRecord.with_payload` - ADR 0007's write
+    gate scans for the NAME ``replace``. The relabel builds the record directly,
+    because no shipped method changes a record's kind and this module does not
+    add one.
+
+    Args:
+        record: The pristine record. It is frozen and is not mutated.
+
+    Returns:
+        The degraded record, or None when the payload is too short to shift -
+        which is NOT a degradation and must never be counted as one.
+    """
+    if record.body_length < _TABLE_CONTROL_SHIFT:
+        return None
+    offset = record.body_offset + _TABLE_CONTROL_SHIFT
+    length = record.body_length - _TABLE_CONTROL_SHIFT
+    if record.kind != objects.KIND_ACTOR:
+        return record.with_payload(offset, length)
+    return objects.ObjectRecord(
+        kind=objects.KIND_COMPONENT,
+        type_path=record.type_path,
+        root_object=record.root_object,
+        instance_name=record.instance_name,
+        transform=record.transform,
+        parent=record.parent,
+        object_type=record.object_type,
+        was_placed_in_level=record.was_placed_in_level,
+        body_offset=offset,
+        body_length=length,
+    )
+
+
+@dataclass
+class _TableReading:
+    """What both readings found over ONE presentation of a record population.
+
+    COUNTS ONLY. Every field is an integer, so the generated repr is countable
+    output on the same terms as :class:`_ControlCounts` - no offset, no extent,
+    no version pair and no string reaches it.
+
+    Attributes:
+        shipped_sites: Struct sites the SHIPPED walk reached.
+        independent_sites: Struct sites THIS MODULE'S own reading reached.
+        shipped_reached: Records the shipped walk enumerated.
+        independent_reached: Records this module's own reading enumerated.
+    """
+
+    shipped_sites: int = 0
+    independent_sites: int = 0
+    shipped_reached: int = 0
+    independent_reached: int = 0
+
+    def add(
+        self, body: bytes, record: objects.ObjectRecord, own: independent_table.IndependentRecord
+    ) -> None:
+        """Fold one record in - the shipped reading from ``record``, ours from ``own``.
+
+        THAT SEPARATION IS THE WHOLE MECHANISM, and it is what the arm below
+        grades. ``record`` is the shipped table's and is the thing degraded;
+        ``own`` is the second reading's record for the same position and is
+        taken from the BODY, so the degradation cannot reach it. If the
+        independent total still moves, the two are one reading wearing two
+        names. Before CS-829 round 5 both arguments were the same object and it
+        moved every time.
+
+        Args:
+            body: The decompressed body.
+            record: The shipped record to measure, pristine or degraded.
+            own: The second reading's record for this position. THE SAME OBJECT
+                is passed on the pristine and the degraded pass - degrading it
+                too would be degrading the thing under test.
+        """
+        end = record.body_offset + record.body_length
+        shipped_ok, shipped = _shipped_sites_of(body, record, end)
+        own_ok, own_sites = _independent_sites_of(body, own)
+        self.shipped_sites += shipped
+        self.independent_sites += own_sites
+        self.shipped_reached += shipped_ok
+        self.independent_reached += own_ok
+
+
+@dataclass
+class _TableControlCounts:
+    """One version pair's record table, measured pristine and degraded.
+
+    Attributes:
+        records: Records of this pair measured under both presentations.
+        altered: Records the degradation actually CHANGED - the FIRING COUNT. A
+            mutant that never applied and one that survived produce identical
+            output, so this is asserted rather than assumed.
+        census: Struct type words the BYTES carry inside these records' PRISTINE
+            extents. No reader can move it, which is what separates "this pair
+            carries no struct content" from "the reading destroyed the evidence
+            that it does".
+        pristine: Both readings over the table as ``objects.parse_body`` built
+            it.
+        degraded: Both readings over the degraded table.
+    """
+
+    records: int = 0
+    altered: int = 0
+    census: int = 0
+    pristine: _TableReading = field(default_factory=_TableReading)
+    degraded: _TableReading = field(default_factory=_TableReading)
+
+
+@dataclass(frozen=True)
+class _TableControlResult:
+    """The library reduced to the one version pair the control grades.
+
+    THE PAIR ITSELF NEVER LEAVES :func:`_run_table_degradation_control`.
+    :class:`_SaveShape` states the rule this follows: a version pair is reduced
+    to counts before it reaches anything a repr can render - not because a build
+    number is personal data, but because "only counts leave" stops holding the
+    first time it is argued case by case.
+
+    Attributes:
+        pairs: How many distinct version pairs parsed into a record table.
+        library_records: Records over every one of them, graded or not.
+        chosen: The graded pair's counts.
+    """
+
+    pairs: int
+    library_records: int
+    chosen: _TableControlCounts
+
+
+def _fold_table_control(
+    body: bytes,
+    record: objects.ObjectRecord,
+    own: independent_table.IndependentRecord,
+    into: _TableControlCounts,
+) -> None:
+    """Measure ONE record twice - as the table presents it, and degraded.
+
+    The two measurements are taken from the SAME read of the SAME body, back to
+    back, so nothing between them can differ.
+
+    ``own`` IS NOT DEGRADED AND THAT IS DELIBERATE. It is the second reading's
+    own record, read from the body rather than from the shipped table, and it is
+    the thing whose invariance is under test. Degrading it too would be
+    degrading the measuring instrument along with the thing measured, and the
+    arm would then be unable to fail.
+
+    Args:
+        body: The decompressed body.
+        record: The pristine SHIPPED record.
+        own: The second reading's record for the same position.
+        into: The pair's accumulator, mutated in place.
+    """
+    into.records += 1
+    end = record.body_offset + record.body_length
+    into.census += _census_hits(body, record.body_offset, end)
+    into.pristine.add(body, record, own)
+    degraded = _degrade_one_record(record)
+    into.altered += degraded is not None
+    # A record too short to shift is measured AGAIN AS ITSELF rather than
+    # dropped: both passes have to range over the same population, or the
+    # comparison below is between two different worlds.
+    into.degraded.add(body, record if degraded is None else degraded, own)
+
+
+def _run_table_degradation_control() -> _TableControlResult | None:
+    """Read each save ONCE, measure every record TWICE, and grade one pair.
+
+    EACH SAVE IS READ ONCE AND MEASURED TWICE, for the reason
+    :func:`_run_degradation_control` states: the operator plays this game while
+    a session runs, so re-reading the library between two passes races a real
+    autosave and reports the difference as a defect. The degraded records are
+    built from the pristine ones already in hand.
+
+    THE GRADED PAIR IS DERIVED AND NOT TRANSCRIBED, on the same terms as this
+    module's struct vocabulary. It is the pair carrying the MOST records of
+    those that parsed, ties broken by the pair itself so the choice cannot
+    depend on the order the library happens to be walked in. A pair written into
+    this file would be a hand-maintained list that rots the first time the
+    operator's library gains or loses a save.
+
+    THE COUNTS ARE KEPT PER PAIR RATHER THAN POOLED, and that is what makes this
+    a ONE-pair degradation without a second read of anything: a save carries
+    exactly one pair, so a pair's tally is exactly what degrading that pair
+    alone would have produced.
+
+    KEY ORDER, A TRAP THIS REPO HAS ALREADY PAID FOR.
+    ``objects.BODY_LAYOUT_BY_PAIR`` is keyed ``(header_version, save_version)``
+    while the key here is ``(save_version, header_version)``, matching
+    :class:`_SaveShape`. Neither is ever indexed with the other.
+
+    Returns:
+        The reduction, or None when NO save library is reachable at all - which
+        is a different claim from "the library holds nothing this project
+        parses", and that one comes back as a result whose counts are zero.
+    """
+    saves = test_properties._library_save_paths()  # noqa: SLF001
+    if not saves:
+        return None
+    by_pair: dict[tuple[int, int], _TableControlCounts] = {}
+    for path in saves:
+        try:
+            data = path.read_bytes()
+            parsed = header.parse_header(data)
+            body = chunks.decompress_body(
+                data, parsed.body_offset, header_version=parsed.header_version
+            ).payload
+            table = objects.parse_body(
+                body, save_version=parsed.save_version, header_version=parsed.header_version
+            )
+        except (Exception, SystemExit):  # noqa: S112 - reporting it IS the leak
+            continue
+        # PAIRED POSITIONALLY, AND ONLY WHERE PAIRING IS DEFINED - the same
+        # refusal `_sweep_one_save` makes. A save the second reading declines
+        # contributes NOTHING here rather than contributing a half-measured
+        # record, because this control's whole claim is a comparison between two
+        # readings and one of them would be missing.
+        mine = independent_table.independent_records(
+            body, save_version=parsed.save_version, header_version=parsed.header_version
+        )
+        if mine is None or len(mine) != len(table.records):
+            continue
+        counts = by_pair.setdefault(
+            (parsed.save_version, parsed.header_version), _TableControlCounts()
+        )
+        for index, record in enumerate(table.records):
+            _fold_table_control(body, record, mine[index], counts)
+    if not by_pair:
+        return _TableControlResult(pairs=0, library_records=0, chosen=_TableControlCounts())
+    graded = max(by_pair, key=lambda candidate: (by_pair[candidate].records, candidate))
+    return _TableControlResult(
+        pairs=len(by_pair),
+        library_records=sum(counts.records for counts in by_pair.values()),
+        chosen=by_pair[graded],
+    )
+
+
+def test_degrading_the_record_table_cannot_improve_this_modules_grade() -> None:
+    """THE SECOND ANTI-MONOTONE CONTROL - the substrate BOTH readings share.
+
+    WHY A SECOND CONTROL IS NOT A DUPLICATE OF THE FIRST.
+    :func:`test_degrading_the_shipped_tag_reader_cannot_improve_this_modules_grade`
+    degrades a reader this module's own walk does not call, so the two readings
+    separate under it. They still share the RECORD TABLE: ``_sweep_one_record``
+    takes each record's payload start, its extent and its KIND off that one
+    table for the independent reading as for the shipped one. A defect there
+    moves both, and no arm in this module can currently see it.
+
+    WHAT THE DEGRADATION DOES AND WHY IT IS THE RIGHT ONE. See
+    :func:`_degrade_one_record`: for one version pair it relabels every actor a
+    component and slides every payload start one byte with the extent END held.
+    Relabelling changes which start a reading takes and sliding changes where it
+    takes it from, which is the pair of fields a record table exists to state -
+    so a table that states them wrongly is exactly the defect this arm is for.
+
+    THE GRADED PAIR IS DERIVED, NEVER TRANSCRIBED, on the same terms as this
+    module's struct vocabulary: it is the version pair carrying the most records
+    of those that parsed. :func:`_run_table_degradation_control` states how, and
+    the pair never leaves that function - only counts do.
+
+    THREE GUARDS, EACH ALREADY PAID FOR IN THIS REPO. The FIRING COUNT is
+    asserted, because a mutant that never applied and one that survived produce
+    identical output. The population is asserted NON-EMPTY before anything
+    ranges over it, because an empty population satisfies every equality - a
+    finding born in this very item. And the empty case is split the way
+    :func:`_sweep_or_skip` splits it: a zero the BYTE CENSUS contradicts is
+    evidence destroyed and stays an assertion, while a zero the bytes agree with
+    is a skip naming the ingredient it lacks.
+    """
+    _sweep_or_skip()
+
+    result = _run_table_degradation_control()
+    if result is None:
+        pytest.skip("no save library on this machine - there is no record table to degrade")
+    chosen = result.chosen
+    if chosen.records == 0:
+        pytest.skip(
+            "no save this run read parses into a record table, so the control measured "
+            "no record at all and a degraded table has nothing to cost"
+        )
+
+    records = chosen.records
+    altered = chosen.altered
+    assert altered > 0, (
+        f"the degradation changed none of the {records} records of the graded pair. A "
+        "mutant that did not apply and one that survived produce the same output, so "
+        "this run says nothing about whether a defect in the record table is visible "
+        "here. THIS STAYS AN ASSERTION rather than joining the skips: its population is "
+        "the graded pair's records, which the guard above has already established is "
+        "non-empty, so a zero here is the degradation being inert and not an absent "
+        "corpus"
+    )
+
+    census = chosen.census
+    independent_pristine = chosen.pristine.independent_sites
+    if census == 0 and independent_pristine == 0:
+        pytest.skip(
+            "the graded version pair's records carry no struct type word in their BYTES, "
+            "so this pair holds no site a degraded table could take away and every "
+            "comparison over it would be measuring an absent population"
+        )
+    assert independent_pristine > 0, (
+        f"the byte census found {census} struct type words inside the graded pair's "
+        f"{records} records while this module's own reading found no site in them at "
+        "all. THAT IS EVIDENCE DESTROYED AND NOT AN ABSENT CORPUS - the line "
+        "`_sweep_or_skip` draws - so it stays an assertion, because an empty population "
+        "satisfies every equality below"
+    )
+
+    independent_degraded = chosen.degraded.independent_sites
+    shipped_pristine = chosen.pristine.shipped_sites
+    shipped_degraded = chosen.degraded.shipped_sites
+    assert independent_degraded == independent_pristine, (
+        f"graded {records} of {result.library_records} records over {result.pairs} "
+        f"version pairs, degrading {altered} of them. This module's own reading found "
+        f"{independent_pristine} struct sites over the pristine record table and "
+        f"{independent_degraded} over the degraded one, opening "
+        f"{chosen.pristine.independent_reached} records and then "
+        f"{chosen.degraded.independent_reached}. The shipped walk read "
+        f"{shipped_pristine} sites and then {shipped_degraded}. THE INDEPENDENT TOTAL "
+        "MUST NOT MOVE. It is the denominator every equality in this module stands on, "
+        "and it is meant to owe the shipped module nothing but constants - but it takes "
+        "its start, its extent and its kind off the very record table degraded here, so "
+        "a defect in that table moves the numerator and the denominator together and no "
+        "grade can go red"
+    )
+
+    assert shipped_degraded < shipped_pristine, (
+        f"the shipped walk reached {shipped_degraded} struct sites over the degraded "
+        f"record table where it reached {shipped_pristine} over the pristine one. The "
+        "degradation did not cost the shipped reader anything measurable, so this "
+        "control is not exercising the direction it claims to"
+    )
+    assert shipped_degraded < independent_degraded, (
+        f"the shipped walk lost sites under a degraded record table and the equality "
+        f"still holds at {shipped_degraded} against {independent_degraded}. THE CHECK "
+        "IS STILL ANTI-MONOTONE: the population shrank with the table instead of the "
+        "grade going red, which is the exact shape that refuted this item repeatedly"
     )
 
 
@@ -4015,6 +4457,7 @@ _GRADED_LIBRARY_REACH: Final = MappingProxyType(
         _uniform_width_struct_words.__name__: reach_guard.REACH_READS_THE_LIBRARY,
         _end_freedom_sample.__name__: reach_guard.REACH_READS_THE_LIBRARY,
         _run_degradation_control.__name__: reach_guard.REACH_READS_THE_LIBRARY,
+        _run_table_degradation_control.__name__: reach_guard.REACH_READS_THE_LIBRARY,
     }
 )
 
