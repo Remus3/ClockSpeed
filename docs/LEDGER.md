@@ -75,6 +75,43 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-08-31 - CS-862 - CORRECTION to the completion record filed earlier this day: it says TWO plants at three sites and there are THREE. The item stays CLOSED
+NOT A NEW CLOSURE. CS-862 closed in the record below and nothing here reopens it or
+adds to what it closed.
+
+**WHAT IS WRONG.** The entry below was drafted while the plant set held two members. A
+third was added later the same session, after a fourth mutant showed the discriminator
+plant makes `objects.parse_body` REFUSE the body rather than relabel it - so `is_actor`
+was being reported as graded while no plant moved that field at all. The entry's mutant
+TABLE was updated for the three-plant set and three sentences around it were not. They
+still read "the four measured pairs times two plants", "over the same two plants", and
+"the two plants are the shipped symbols the fixture bodies reach". Every one should say
+THREE.
+
+**THE THREE, each named by the shipped symbol it replaces and by what it was MEASURED to
+do rather than by what it was written to do:**
+
+- `objects._KIND_BY_OBJECT_TYPE` swapped - the shipped walk REFUSES the body. The kind
+  decides how many bytes a record occupies, so a swapped table desynchronises the record
+  reader at once. It moves no field; it deletes every record.
+- `objects._read_levelled_record` wrapped - the TRUE relabel. The real reader consumes
+  the right bytes and only the returned record's kind flips, so `is_actor` alone moves.
+- `objects._read_data_entries` wrapped - the shift. `body_offset` and `body_length` move
+  and nothing else does.
+
+So the case counts are four measured pairs times THREE plants - the 12 of
+`tests/save/test_independent_table.py::test_the_second_reading_stays_right_while_the_shipped_record_table_is_degraded`
+plus the 3 of
+`::test_a_degraded_shipped_record_table_cannot_move_the_hand_built_offsets` - which is
+the 15 the entry's own mutant table already reports. The shipped code, the arms and that
+table were correct; only these three sentences were stale.
+
+**WHY THIS IS A NEW RECORD AND NOT THREE WORD EDITS.** This file is append-only by its
+own header, and a record that turns out to be wrong gets a new, later record saying so.
+Editing the entry below would leave no trace that the count was ever wrong, which is
+precisely what the rule exists to prevent - and the fault being corrected here is itself
+a case of prose not re-read after the thing it describes changed.
+
 ### 2026-08-31 - CS-862 - CLOSED. A second reading that wraps the shipped record table now goes RED - including through the `getattr` route no static arm can see - and the arm that only ever graded one bit of wiring is named for that bit
 Verification, all SYNTHETIC and all running on a machine with no game installed:
 `tests/save/test_independent_table.py::test_the_second_reading_stays_right_while_the_shipped_record_table_is_degraded`
