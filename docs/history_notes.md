@@ -5608,3 +5608,102 @@ Moved by the session 47 `/done` ritual, which keeps the last two to three sessio
   the residual record pushed it further. The next phase-4 round should expect to relocate.
 
 ---
+
+## CS-863
+
+**CLOSED 2026-08-31 (session 52).** Relocated here from `docs/item_notes/phase4-followups-850.md` on closure, as the item-notes family rule requires. The completion record is in `docs/LEDGER.md`.
+
+### Filed 2026-08-30 (session 50). THE FIFTH LOCATION OF THIS ITEM'S SIGNATURE
+
+**A STRICTLY WORSE READER IMPROVES THE GRADE. MEASURED.** `objects._MAX_TAGS_PER_PAYLOAD` is
+consulted by all three walks - the shipped `_walk_payload`, the independent
+`_independent_tag_walk` that IS the denominator, and the oracle the sweep walks with. Plant a
+pair-shaped ceiling in process:
+
+    ceiling 12 on one pair's bodies -> 297 sites deleted -> 1 failed
+    ceiling 0  on the SAME bodies   -> 6204 sites deleted -> 0 failed, exit 0
+
+Ceiling 0 refuses everything ceiling 12 refused and more. The module goes from red to green
+while deleting 21 times more sites and 133 times more records. On a different pair it
+reproduces round 4's numbers exactly - `sites_seen 45208 -> 36846, independent_sites 45208 ->
+36846`, all arms green.
+
+**BLAST RADIUS, and why "something reddens" is not a defence.** Under that plant
+`tests/save/` shows 7 of 1370 arms red, and NONE of them is in `test_struct_interior.py` or
+`test_independent_table.py`. Every one is in `test_decode_oracles.py`, `test_properties.py`
+or `test_value_anchoring.py` - three unrelated modules that happen to carry library-wide
+payload arms. The module that owns the claim, and BOTH of its dedicated anti-monotone
+controls, are blind.
+
+**THE DISCLOSURE IS TOO NARROW.** `independent_table.py` discloses ONE shared data symbol,
+`BODY_LAYOUT_BY_PAIR`. The independent TAG reading shares at least ten more with the shipped
+walk: `_MAX_TAGS_PER_PAYLOAD`, `_TAG_EXTRA_STRINGS`, `_TAG_INDEX_FIELD_BYTES`, `GUID_BYTES`,
+`_PAYLOAD_TERMINATOR`, `STRUCT_TYPE_WORD`, `MAX_STRING_BYTES`, `MAX_OBJECTS`, `INT32_SIZE`,
+`UTF16_CHAR_SIZE`. The one that was disclosed is the only one that is guarded, and it is
+guarded by an accident of `parse_body`'s eagerness rather than by the seam.
+
+**NOT MEASURED, so do not assume it:** `_TAG_EXTRA_STRINGS` and `GUID_BYTES` were not
+planted. They are expected to behave like the ceiling and that expectation is not evidence.
+
+## Session 49 - RELOCATED from `WAKEUP_NOTES.md` 2026-08-31 (session 52) - 2026-08-30 - CS-602 CLOSED and the shell-suite job ran for the first time on both platforms; six graders found two ways to make the certificate clause green while trusting everything, and BOTH were the guard rather than the code
+
+- **Shipped: CS-602.** tier2 run `33300238437` at `4b5de1e`, `shell suite` GREEN on ubuntu
+  AND windows, `# tests 196 / pass 196 / fail 0 / skipped 0 / todo 0`; tier1 run
+  `33300227008` at the same SHA, `success`. Detail in `docs/LEDGER.md`, not here. Ten
+  follow-ups filed, CS-614 to CS-623.
+
+- **THE HEADLINE: A GUARD THAT COUNTS A TOKEN DOES NOT CONSTRAIN WHAT THE TOKEN DOES.** The
+  arm asserted `shell/main.js` holds exactly one `callback(`. It never looked at the
+  argument. So `callback(0)` - accept every certificate ever presented - passed 63 static
+  arms, 174 node tests, drift_guard CLEAN and precommit_gate PASS, and so did four
+  one-token edits to the verdict map, and so did a single call site answering the wrong
+  integer for every non-TRUST verdict. **The root cause was PLACEMENT.** `codeFor` is a pure
+  function from five strings to three integers - no electron, no display - and it had been
+  moved out of a file with fourteen tests into one with zero, which is exactly what made it
+  ungradable. ADR 0014 asserted "mapping words onto integers is a separate module's job" as
+  though it were already true.
+
+- **ONE REGEX LITERAL BLINDED EVERY TEXT-SCANNING ARM AT ONCE.** `/[/*]/` is valid
+  JavaScript and opens a block comment in the stripper, so everything up to the next `*/`
+  vanishes from what the guard reads. Live `ignore-certificate-errors`, the Node TLS kill
+  switch and a `certificate-error` handler were invisible while `node --check` called the
+  file valid. **The stripper's own docstring named two arms as the alarm; both were measured
+  against the attack and both stayed green** - idempotence cannot fire because the second
+  strip re-derives the same deletion, and never-grows cannot fire because deleting is
+  shrinking. The mitigation had been built parallel to the stripper's assumptions. Repaired
+  by scanning RAW text with an allow-list of documented mentions, so the stripper is not
+  consulted for that sweep at all.
+
+- **EVERY ONE OF EIGHT SLICES FOUND A REAL DEFECT IN THE BRIEF THAT DISPATCHED IT.** The
+  worst was a test the merger specified that PASSES ON THE VULNERABLE CODE: plant
+  `{"__proto__":{"width":99999}}` and assert width is the default - which it is either way,
+  because `JSON.parse` makes `__proto__` an own property and leaves the prototype intact.
+  The discriminating assertion is `Object.getPrototypeOf(loaded) === Object.prototype`.
+  Also: a precedence table that returned TRUST when both hostnames were absent; a repair
+  that would have MOVED the defect to a tier-2-only lane; and a mandated `throw` that would
+  have reintroduced a hang, because a verify callback that throws never fires.
+
+- **THE PUSH GATE WAS PROVEN END TO END ON A REAL VIOLATION.** The merger merged a slice on
+  its INTERIM report, verified with a subset that did not include the guard the change
+  broke, and committed a failing test. The push was attempted and BLOCKED - `1 failed, 3057
+  passed`, `Nothing was pushed`, origin unmoved. Acting on an interim report is the error.
+
+- **THE PIPELINE EXIT-CODE TRAP BIT THREE TIMES IN ONE SESSION.** A backgrounded
+  `cmd | tail` reports tail's status. It masked a failing baseline suite, masked four
+  failures in a slice's full run, and reported the BLOCKED push as "exit code 0". Capture
+  `PIPESTATUS` or do not report an exit code.
+
+- **Decisions: ADR 0013 and ADR 0014 ACCEPTED.** The Electron licence gate split into three
+  scopes, and the pin-one-certificate decision with `setCertificateVerifyProc` chosen over
+  the strictly weaker `certificate-error`.
+
+- **Failed paths: a `start` script was added and BACKED OUT.** The static guard merged nine
+  minutes earlier caught it - electron may be named nowhere in the manifest outside
+  `devDependencies`. The guard could have been narrowed; it was not, because `npm start` and
+  `npx electron .` are functionally identical and widening a bright-line check for a
+  convenience is a bad trade.
+
+- **Next action: run the six manual checks in `docs/OPERATIONS.md` section 8.3.** They all
+  read `NOT RUN`, they need a real display and a real Electron, and until they are filled in
+  nobody has seen the companion window work. Then CS-615 - the count floor is one test
+  pooled over five suites.

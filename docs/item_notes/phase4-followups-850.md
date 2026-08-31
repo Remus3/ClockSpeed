@@ -1138,40 +1138,6 @@ there - collapsing runs of separators, adding the escaped spelling to the needle
 or matching a normalised form of both sides - is the implementer's call, and the options
 differ in their over-redaction risk.
 
-## CS-863
-
-### Filed 2026-08-30 (session 50). THE FIFTH LOCATION OF THIS ITEM'S SIGNATURE
-
-**A STRICTLY WORSE READER IMPROVES THE GRADE. MEASURED.** `objects._MAX_TAGS_PER_PAYLOAD` is
-consulted by all three walks - the shipped `_walk_payload`, the independent
-`_independent_tag_walk` that IS the denominator, and the oracle the sweep walks with. Plant a
-pair-shaped ceiling in process:
-
-    ceiling 12 on one pair's bodies -> 297 sites deleted -> 1 failed
-    ceiling 0  on the SAME bodies   -> 6204 sites deleted -> 0 failed, exit 0
-
-Ceiling 0 refuses everything ceiling 12 refused and more. The module goes from red to green
-while deleting 21 times more sites and 133 times more records. On a different pair it
-reproduces round 4's numbers exactly - `sites_seen 45208 -> 36846, independent_sites 45208 ->
-36846`, all arms green.
-
-**BLAST RADIUS, and why "something reddens" is not a defence.** Under that plant
-`tests/save/` shows 7 of 1370 arms red, and NONE of them is in `test_struct_interior.py` or
-`test_independent_table.py`. Every one is in `test_decode_oracles.py`, `test_properties.py`
-or `test_value_anchoring.py` - three unrelated modules that happen to carry library-wide
-payload arms. The module that owns the claim, and BOTH of its dedicated anti-monotone
-controls, are blind.
-
-**THE DISCLOSURE IS TOO NARROW.** `independent_table.py` discloses ONE shared data symbol,
-`BODY_LAYOUT_BY_PAIR`. The independent TAG reading shares at least ten more with the shipped
-walk: `_MAX_TAGS_PER_PAYLOAD`, `_TAG_EXTRA_STRINGS`, `_TAG_INDEX_FIELD_BYTES`, `GUID_BYTES`,
-`_PAYLOAD_TERMINATOR`, `STRUCT_TYPE_WORD`, `MAX_STRING_BYTES`, `MAX_OBJECTS`, `INT32_SIZE`,
-`UTF16_CHAR_SIZE`. The one that was disclosed is the only one that is guarded, and it is
-guarded by an accident of `parse_body`'s eagerness rather than by the seam.
-
-**NOT MEASURED, so do not assume it:** `_TAG_EXTRA_STRINGS` and `GUID_BYTES` were not
-planted. They are expected to behave like the ceiling and that expectation is not evidence.
-
 ## CS-864
 
 ### Filed 2026-08-30 (session 50)
@@ -1243,3 +1209,46 @@ that spared the subset also spared a real defect.
 to skip it. Both have been tried and both are recorded as wrong. It is a request to ground
 the per-word residue in evidence that does not depend on which saves the operator's library
 happens to hold at the moment the suite runs.
+
+## CS-866
+
+### Filed 2026-08-31 (session 52), from two independent adversarial passes over CS-862
+
+**A MEMO IS NOT A READING, AND THE ARMS CANNOT TELL.** Two adversaries that produced no
+part of CS-862, working from different briefs, independently substituted a memoising
+`getattr` wrapper over `objects.parse_body` for `independent_records` and left every one
+of the 15 dynamic cases green. Reproduced by the merger with a third script. The numbers
+are in `docs/LEDGER.md` under the CS-862 correction dated 2026-08-31.
+
+**THE MECHANISM, so it is not re-derived.** Each arm calls `independent_records` exactly
+once, after the plant. `test_the_reading_agrees_with_the_shipped_table_on_a_synthetic_body`
+- parametrised over the measured pairs, so it covers the 12 cases' exact bodies - and
+`test_the_hand_built_body_yields_the_exact_offsets_its_bytes_declare`, which covers the
+other 3, have already called it on those same bodies while the tree was pristine. The memo hands the degraded arm the
+pristine answer, which is exactly what the fixture declares and what the bytes say - so
+grading against the fixture rather than against the pristine reading, which WAS the right
+repair for provenance, buys nothing at all against a cache.
+
+**RUN ALONE THEY REDDEN 15 OF 15. Run in module order they do not.** The recorded figure
+was measured in isolation and the suite never runs them that way. Any repair has to hold
+in module order or it is measuring the same thing again.
+
+**DO NOT REPAIR THIS BY CLEARING A CACHE.** The wrapper is the adversary's, not the
+shipped code's; there is no cache in the tree to clear. The arms have to be unable to
+accept ANY function of `(body, pair)` that is not the second reading, which is what
+`test_a_level_whose_entry_count_disagrees_with_its_record_count_is_not_paired` already
+achieves for one body: the correct answer DIFFERS from `parse_body`'s, so no wrapper of
+any kind can produce it. That arm predates CS-862 and came in with CS-829.
+
+**THE SECOND HALF IS THE PLANT POPULATION.** `objects.parse_body` reaches at least
+`_Cursor`, `_read_bounded_count`, `_read_section_size`, `_attribute_payloads`,
+`_read_level_tail`, `_read_grid_preamble`, `_read_collectables` and `_check_section`, and
+the three plants touch none of them. Measured: a second reading whose string step
+delegates to `getattr(objects, "_Cursor")(...)` leaves all 63 arms of the module green.
+That is the residue CS-864's note named as covered by nothing, now measured rather than
+predicted.
+
+**NOT MEASURED, so do not assume it:** whether anything OUTSIDE
+`tests/save/test_independent_table.py` catches the memoising wrapper at HEAD. One
+adversary's directory-wide runs straddled an uncommitted edit and say nothing. The honest
+statement today is that the wrapper is invisible to every arm CS-862 added.

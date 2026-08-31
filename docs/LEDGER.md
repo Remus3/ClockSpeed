@@ -75,6 +75,188 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-08-31 - CS-863 - the second tag reading no longer consults the shipped tag ceiling, and every shipped symbol it still shares is enumerated at the point of use and held there by a test
+Verification: `tests/save/test_struct_interior.py::test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade`
+and `tests/save/test_struct_interior.py::test_every_shipped_symbol_the_second_tag_reading_shares_is_recorded`,
+plus `tests/save/test_struct_interior.py::_independent_tag_walk` for the repair itself.
+
+**WHAT WAS WRONG, REPRODUCED ON THIS TREE BEFORE ANYTHING WAS CHANGED.** Both tag walks -
+the shipped `objects._walk_payload` and the `_independent_tag_walk` that IS the
+denominator - ran `range(objects._MAX_TAGS_PER_PAYLOAD)`. A ceiling made stricter for ONE
+version pair's bodies therefore deleted the SAME records from both readings, so every
+equality in the module held while the population shrank underneath it. Measured at
+`bde34ec`, pair-shaped:
+
+| pair-shaped ceiling | module result |
+|---|---|
+| 12 | 1 failed, 34 passed |
+| 0 - refuses everything 12 refuses AND MORE | 35 passed, EXIT 0 |
+
+The module went from red to GREEN as the reader got strictly worse. That is the
+anti-monotone signature, in its fifth location.
+
+**THE REPAIR IS THAT THE LOOP BOUND NOW COMES FROM THE EXTENT.** A tag occupies at least
+`_MIN_INTERIOR_TAG_BYTES` before its value begins and a declared extent is never
+negative, so `(end - at) // _MIN_INTERIOR_TAG_BYTES + 1` bounds the iterations by
+arithmetic over the window the record table already supplies. It cannot lose a real tag,
+and that is a proof rather than an observation. Measured against the old bound across
+this machine's library: 129775 records walked, ZERO disagreements, an observed maximum of
+31 tags in any one payload against a shipped ceiling of 16384.
+
+**WHAT THE MODULE DOES NOW UNDER THE SAME PLANT.** Pristine 36 passed. Pair-shaped:
+
+| ceiling | result |
+|---|---|
+| 0, 1, 2, 4, 12, 16, 24, 30, 31 | 4 or 5 failed |
+| 32 and above | 36 passed |
+
+The boundary sits exactly at the corpus's own observed maximum of 31, which is derived
+and not fitted: a ceiling above what any payload carries refuses no record, costs the
+reader nothing, and green is the correct answer for it. Every ceiling that refuses
+anything at all now reddens the module. The arms that go red are
+`test_the_site_total_is_pinned_by_a_reading_no_shipped_walk_can_shorten`,
+`test_the_records_no_reading_opened_are_the_same_under_both_readings`,
+`test_a_record_the_shipped_walk_refuses_is_refused_by_an_independent_reading` and
+`test_the_site_equality_survives_every_legitimate_subset_of_this_library`.
+
+**THE ARM COUNT IS NOT MONOTONE AND THE GRADE IS, WHICH IS THE CLAIM.** At ceiling 0 four
+arms fail where at 12 five do: the fifth is the whole-pair shape guard, and a ceiling of
+zero makes the loss whole-pair rather than partial so that guard correctly stops firing.
+The acceptance is about the module's GRADE, which is RED at every ceiling that costs the
+reader a record. No green window exists between 0 and 31.
+
+**THE THIRD ANTI-MONOTONE CONTROL.** `test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade`
+plants the constant itself - not a reader, which is what makes it a third control rather
+than a repeat of the first two - and asserts the plant LANDED, FIRED and was REVERTED
+before it concludes anything. It is pair-shaped by the reduction and not by the arming,
+the construction `_run_table_degradation_control` already uses: a save carries exactly
+one version pair, so a pair's tally is exactly what planting that pair alone produces.
+Written first and watched fail for the right reason: the second reading moved 30642
+struct sites to 28716, the shipped side moved 30642 to 28716, identical on both sides,
+which is one reading reported twice.
+
+**EVERY SHARED DATA SYMBOL IS NOW ENUMERATED AT THE POINT OF USE.** What the two readings
+shared used to live in a docstring naming four symbols "among them", and the only shared
+symbol disclosed anywhere was `BODY_LAYOUT_BY_PAIR`, over in
+`tests/save/independent_table.py`. `TAG_READING_SHARED_SYMBOLS` records the set, and
+`_shared_tag_symbols` DERIVES it from this module's own source by closing an AST walk over
+the reading's seeds and the module-level bindings they reach - assignments included,
+because a constant such as `_MIN_INTERIOR_TAG_BYTES` is where several shipped widths are
+actually read. The idiom is `objects.REFERENCE_COUNT_COMMON_MODE`'s, which CS-835
+established one level up. No count of the names is written in prose anywhere; the set is
+the record and `len` is how anyone asks.
+
+**THE ENUMERATION ARM GRADED WITH FIVE MUTANTS, pristine floor re-run green before and
+after, the file restored from a byte snapshot rather than from git:**
+
+| mutant | result |
+|---|---|
+| the ceiling reintroduced into the loop bound | RED |
+| a symbol dropped from the recorded set | RED |
+| a symbol added to the recorded set | RED |
+| a seed renamed away | RED |
+| a new shipped symbol reached by the reading | RED |
+
+**WHAT A PLANT ON EACH SHARED SYMBOL ACTUALLY DOES, MEASURED RATHER THAN ASSUMED.** The
+item note said `_TAG_EXTRA_STRINGS` and `GUID_BYTES` were never planted and that expecting
+them to behave like the ceiling is not evidence. They were planted. Measured at `bde34ec`
+against the module:
+
+| symbol | plant | shape | module result |
+|---|---|---|---|
+| `MAX_STRING_BYTES` | 64 and 0 | pair-shaped | 23 failed - a KILL, `ObjectFormatError`, not a degradation |
+| `MAX_OBJECTS` | 16 and 0 | pair-shaped | 23 failed - the same kill class |
+| `GUID_BYTES` | 15 | global | 8 failed, 20 passed, 7 skipped |
+| `_TAG_INDEX_FIELD_BYTES` | 5 | global | 8 failed, 4 passed, 23 skipped |
+| `_TAG_EXTRA_STRINGS` | StructProperty 1 to 2 | global | 8 failed, 21 passed, 6 skipped |
+| `_PAYLOAD_TERMINATOR` | a different word | global | 10 failed, 20 passed, 5 skipped |
+| `INT32_SIZE` | 5 | global | 31 failed, 4 passed |
+| `STRUCT_TYPE_WORD` | a different word | global | collection ERROR - folded into two module constants at import, so it cannot be planted after it |
+| `UTF16_CHAR_SIZE` | 3 | global | 35 passed - THE PLANT MOVES NOTHING AT ALL |
+
+Three results worth carrying. **The other two ceilings are not shown safe by this
+measurement and are not claimed to be:** their plants make `parse_body` refuse outright,
+so the sweep's `assert not sweep.failures` catches them and whether a stricter value could
+instead have improved the grade is UNESTABLISHED, not disproved. **`UTF16_CHAR_SIZE` is
+inert on this module** at every value tried, which is a different hole from the ceiling's
+and is filed as part of CS-866's neighbourhood rather than claimed closed here. **A
+strictly worse reader improving the grade was measured at exactly one of the ten**, and
+that one is now repaired.
+
+**THE PLANT HARNESS.** Every plant above was applied IN PROCESS through a pytest plugin
+loaded with `-p`, never on disk: the harness Bash timeout KILLS rather than unwinds, so a
+`finally` that would restore a mutated file never runs and the mutation would survive to
+poison every later measurement. The pair-shaped plants use an int-alike whose `__index__`
+reads strict only while the target pair is being walked, armed from a wrapper around
+`objects.parse_body` that sets a flag and delegates the read untouched.
+
+**SCOPE, STATED.** `tests/save/test_decode_oracles.py` and `tests/save/test_value_anchoring.py`
+carry their own `range(objects._MAX_TAGS_PER_PAYLOAD)` loops. They are NOT touched here.
+CS-863's acceptance is about this module's grade, and those modules already redden under a
+whole-library ceiling plant - session 50 measured 7 of their arms red where none of this
+module's were. Whether their own denominators share a ceiling with the reader they grade
+is a question this item did not ask and did not answer.
+
+CS-829 stays GATED behind CS-G05. This is PREP and PREP never closes a gated item.
+
+### 2026-08-31 - CS-862 - CORRECTION: two independent adversaries defeated the closed item's central claim with a ONE-LINE memo, and two of its prose statements are false. The item stays CLOSED and the residue is CS-866
+NOT A NEW CLOSURE and not a reopening. CS-862's arms exist, are green, and do redden for
+the wrapper they were measured against. What is corrected here is the SCOPE the record
+claims for them, which is wider than what they grade.
+
+**THE RECORD SAYS a second reading that wraps the shipped record table now goes RED,
+including through the `getattr` route no static arm sees.** Measured this session by two
+adversaries that produced no part of CS-862 and worked from different briefs, then
+reproduced independently by the merger:
+
+| reading substituted for `independent_records` | `tests/save/test_independent_table.py` |
+|---|---|
+| `getattr(objects, "parse" + "_body")` wrapper, recomputing | 15 failed, 48 passed |
+| THE SAME WRAPPER with a dict memo on `(body, save_version, header_version)` | 63 passed, 1 failed on a pre-existing arm |
+| the same, run against the 15 arms ALONE with a cold cache | 15 failed |
+
+**WHY THE MEMO WINS, AND IT IS THE FAULT CS-862 SET OUT TO FIX.** The arms call
+`independent_records` exactly ONCE each, AFTER the plant. Earlier arms in the same module
+have already called it on byte-identical bodies while the tree was pristine. A memo
+therefore returns the PRISTINE answer to the degraded arm - and the pristine answer is
+what the fixture declares and what the body's own bytes say, so switching the ground truth
+from the pristine reading to the fixture does not defeat a memoiser at all. It fixed the
+PROVENANCE of the ground truth, which was a real repair, and the record then claimed the
+memoisation defeat it does not deliver. The reported "15 of 15" holds only when those arms
+run in isolation, which is not how the suite runs them.
+
+**TWO PROSE STATEMENTS IN THE RECORD BELOW ARE FALSE.**
+
+- It says two docstrings became false the moment the arms passed "and were corrected in
+  the same change". `git show --stat` on all four CS-862 commits - `03b5f2d`, `ed52542`,
+  `10c5777`, `bde34ec` - lists no `tests/save/independent_table.py`. That file still says
+  no dynamic arm can tell it from `objects.parse_body` and that its independence rests
+  "not on a red test". Half the claim is true: the renamed arm in
+  `tests/save/test_struct_interior.py` WAS corrected.
+- It says nothing anywhere in `tests/save/` went red for either route before the change.
+  `tests/save/test_independent_table.py::test_a_level_whose_entry_count_disagrees_with_its_record_count_is_not_paired`
+  is byte-identical at `c9070fa` and at HEAD, it requires a reading that DROPS an
+  unpairable level where `parse_body` returns three records, and a plain wrapper reddens
+  it. It came in with CS-829, not CS-862.
+
+**AND THE STATIC SET IS DESCRIBED AS FOUR ARMS IN A SECTION THAT HOLDS FIVE `def test_`.**
+The appositive names which four are meant, so the measurement is right and the sentence is
+loose - the same class of fault as the "two plants" correction directly below, surviving
+that same pass.
+
+**WHAT IS NOT REFUTED, checked and reported as checked:** the case count is 15, split 12
+and 3; the pristine floor is green; the static column of 2, 0, 0, 0 reproduces exactly;
+the discriminator plant really does make `parse_body` refuse, and keeping it is right
+because it is the only plant on a shared DATA symbol; a wholesale kill really is no longer
+credited with field coverage. CS-864's finding - that `.get` on the layout mapping is an
+attribute reached through `objects.` while the arm forbidding it passes - is CONFIRMED by
+an adversary that located the call and the arm.
+
+**THE RESIDUE IS CS-866**, which also carries the `_Cursor` route: a second reading whose
+string step delegates to `getattr(objects, "_Cursor")(...)` leaves all 63 arms green, and
+`_Cursor` is one of eight symbols `parse_body` reaches that no plant touches. That route is
+the one CS-864's note already named as covered by nothing.
+
 ### 2026-08-31 - CS-862 - CORRECTION to the completion record filed earlier this day: it says TWO plants at three sites and there are THREE. The item stays CLOSED
 NOT A NEW CLOSURE. CS-862 closed in the record below and nothing here reopens it or
 adds to what it closed.

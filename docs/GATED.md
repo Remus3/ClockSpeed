@@ -486,9 +486,11 @@ touches the 23529.
   bit of wiring it grades, and the second reading is separated from the shipped record
   table by dynamic arms that redden for a wrapper, including through the `getattr` route
   no static arm sees.
-- The follow-ups CS-863, CS-864 and CS-865 are all PREP and all still OPEN. They are the
-  harness that will grade the DRAIN half when the gate clears, and every one of them is
-  worth doing before it does. CS-862 was the fourth and is done.
+- The follow-ups CS-864 and CS-865 are PREP and still OPEN, and CS-866 joined them on
+  2026-08-31. They are the harness that will grade the DRAIN half when the gate clears,
+  and every one of them is worth doing before it does. CS-862 and CS-863 are done - see
+  `docs/LEDGER.md`, including the CORRECTION to CS-862's record, which narrows what its
+  arms are shown to grade and is what CS-866 exists for.
 
 **WHAT WOULD BE A SYNTHETIC CLOSE HERE**, named so it is recognised: narrowing the graded
 population to the reachable, size-compatible sites and declaring the clause met. That is
@@ -527,8 +529,13 @@ header - so the standing instructions live here, where the item now does:
   CONTENTS. Closing either leaves the other open.
 - **DO NOT re-pitch `BODY_LAYOUT_BY_PAIR` as the next shared substrate.** Measured session
   50: 53 of 56 layout plants make `parse_body` raise and `assert not sweep.failures` catches
-  them, 3 are equivalent mutants, silent loss is zero. The shared SCALARS are the live hole,
-  and they are CS-863.
+  them, 3 are equivalent mutants, silent loss is zero. The shared SCALARS were the live
+  hole after it and they were CS-863, which CLOSED 2026-08-31: the second tag reading no
+  longer consults the shipped tag ceiling, and every shipped symbol it still shares is
+  enumerated at the point of use rather than sampled in prose. The measurement of what a
+  plant on each of those does is in that item's ledger entry - two of the three ceilings
+  KILL rather than degrade, so they are recorded UNESTABLISHED rather than safe, and one
+  shared width moves nothing at all.
 
 ---
 

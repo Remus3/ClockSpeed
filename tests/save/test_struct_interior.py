@@ -115,10 +115,12 @@ with no install and no save library. The library cases skip there.
 
 from __future__ import annotations
 
+import ast
 import struct
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import lru_cache
+from pathlib import Path
 from types import MappingProxyType
 from typing import Final
 
@@ -635,9 +637,20 @@ def _census_hits(body: bytes, at: int, end: int) -> int:
 #
 # The functions below read the same grammar and SHARE NO FUNCTION WITH IT. They
 # call ``struct.unpack_from`` and slice bytes; the only things they take from
-# the shipped module are CONSTANTS - widths and a terminator name - which are
-# data rather than readers. A defect planted in any shipped reader therefore
-# separates the two, which is precisely what no arm could do before.
+# the shipped module are CONSTANTS - widths, a terminator name and a tag-extra
+# table - which are data rather than readers. A defect planted in any shipped
+# reader therefore separates the two, which is precisely what no arm could do
+# before.
+#
+# A CONSTANT IS NOT AUTOMATICALLY SAFE TO SHARE, WHICH COST THIS MODULE ITS
+# GRADE ONCE - CS-863. A shared CEILING is a shared decision about which records
+# leave the population, so making it stricter deleted the same records from both
+# readings and every equality here stayed green while the denominator shrank.
+# The tag ceiling is therefore no longer read here at all. The constants that
+# remain are WIDTHS and NAMES, which a second reading of the same format cannot
+# disagree with and still be reading that format; they are enumerated in
+# :data:`TAG_READING_SHARED_SYMBOLS` and held to the source by a test, and a
+# plant on each has been measured rather than assumed.
 #
 # THEY ARE DELIBERATELY CONSERVATIVE AND THE ASSERTION IS ONE-SIDED. Measured,
 # they accept 87302 of 148668 records where the shipped walk accepts 129775, and
@@ -755,7 +768,23 @@ def _independent_tag_walk(
     """
     tags: list[tuple[int, int, str, int, int]] = []
     cursor = at
-    for _ in range(objects._MAX_TAGS_PER_PAYLOAD):  # noqa: SLF001
+    # THE LOOP BOUND COMES FROM THE EXTENT, NEVER FROM THE SHIPPED CEILING -
+    # CS-863, and it is the whole of that item's repair. This loop used to run
+    # `range(objects._MAX_TAGS_PER_PAYLOAD)`, which the SHIPPED walk also runs,
+    # so a stricter ceiling deleted the same records from both readings and
+    # every equality in this module stayed green while the population shrank.
+    # Measured on this tree: at a pair-shaped ceiling of 12 the module showed
+    # ONE failing arm and at 0 - strictly worse - it showed NONE and exited 0.
+    #
+    # THE BOUND IS ARITHMETIC OVER THE WINDOW AND IT CANNOT LOSE A REAL TAG. A
+    # tag occupies at least `_MIN_INTERIOR_TAG_BYTES` before its value begins
+    # and its value's declared extent is never negative, so the cursor advances
+    # by at least that much every iteration and no more than this many tags can
+    # fit between `at` and `end`. The one extra iteration is the terminator
+    # read, which consumes no tag. Measured against the old bound across this
+    # machine's library: 129775 records walked, ZERO disagreements, an observed
+    # maximum of 31 tags in any one payload against a shipped ceiling of 16384.
+    for _ in range(max(end - at, 0) // _MIN_INTERIOR_TAG_BYTES + 1):
         name = _independent_string(body, cursor, end)
         if name is None:
             return None
@@ -842,6 +871,240 @@ def _independent_guid_flag(body: bytes, at: int, end: int) -> int | None:
 #: here because ``objects._read_tag_header`` spells it inline rather than
 #: exporting it, and the reading above has to branch on the same thing.
 _BOOL_TYPE_WORD: Final = "BoolProperty"
+
+
+#: EVERY SYMBOL OF ``clockspeed.save.objects`` THE SECOND TAG READING EXECUTES -
+#: CS-863, and the enumeration is the item as much as the ceiling repair was.
+#:
+#: WHAT IT IS FOR. The arms in this module that compare the two readings are
+#: evidence about a shipped reader only to the extent the two readings do not
+#: share it. Anything named here is shared, so a defect in it moves BOTH sides
+#: and no agreement between them is evidence about it. That limit used to be a
+#: docstring naming four symbols "among them", and a sample is not an
+#: enumeration: the one shared symbol that had actually been disclosed anywhere
+#: was ``BODY_LAYOUT_BY_PAIR``, over in :mod:`tests.save.independent_table`, and
+#: it was the only one guarded.
+#:
+#: WHY A CEILING IS NOT IN IT ANY MORE. A shared CEILING is a shared decision
+#: about which records leave the population, so a stricter one deleted the same
+#: records from both readings and every equality here stayed green while the
+#: denominator shrank. ``_MAX_TAGS_PER_PAYLOAD`` was that, and its absence from
+#: this set is asserted by name below rather than left to the equality, because
+#: a set that merely happens not to contain it today says nothing about
+#: tomorrow.
+#:
+#: WHAT REMAINS IS WIDTHS AND NAMES, and their sharing is not the same defect.
+#: A second reading of a format cannot disagree with the format's own field
+#: widths and still be reading that format, so these are DATA the two readings
+#: are obliged to hold in common. That is a limit rather than a hole, and it is
+#: written down rather than argued away. What a plant on each one actually does
+#: was MEASURED for CS-863 and recorded in `docs/LEDGER.md` - two of them behave
+#: nothing like the ceiling, and one of them moves nothing at all.
+#:
+#: NO COUNT OF THESE NAMES IS WRITTEN IN PROSE anywhere; the set is the record
+#: and ``len`` is how anyone asks. The idiom is
+#: ``objects.REFERENCE_COUNT_COMMON_MODE``'s, which CS-835 established for the
+#: same reason one level up.
+TAG_READING_SHARED_SYMBOLS: Final = frozenset(
+    {
+        "GUID_BYTES",
+        "INT32_SIZE",
+        "MAX_OBJECTS",
+        "MAX_STRING_BYTES",
+        "STRUCT_TYPE_WORD",
+        "UTF16_CHAR_SIZE",
+        "_PAYLOAD_TERMINATOR",
+        "_TAG_EXTRA_STRINGS",
+        "_TAG_INDEX_FIELD_BYTES",
+    }
+)
+
+
+#: The functions that ARE the second tag reading, named as the derivation's
+#: seeds. :func:`_independent_sites_of` is the entry point every caller in this
+#: module uses; the rest are reached from it and are named anyway so that a seed
+#: going unreferenced is a red test rather than a silent narrowing of the
+#: surface this claims to cover.
+_TAG_READING_SEEDS: Final = (
+    "_independent_sites_of",
+    "_independent_actor_head",
+    "_independent_tag_list",
+    "_independent_tag_walk",
+    "_independent_tag_header",
+    "_independent_guid_flag",
+    "_independent_string",
+)
+
+#: The AST node types a function definition can be.
+_ANY_FUNCTION: Final = (ast.FunctionDef, ast.AsyncFunctionDef)
+
+
+def _module_bindings(tree: ast.Module) -> dict[str, ast.AST]:
+    """Map every module-level name to the node that would be EXECUTED for it.
+
+    ASSIGNMENTS ARE INCLUDED AND THAT IS THE POINT. A constant such as
+    ``_MIN_INTERIOR_TAG_BYTES`` is where several shipped widths are actually
+    read, so a derivation that walked only function bodies would miss them and
+    report a surface narrower than the real one - which is the exact fault this
+    whole set exists to end.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        Name to the node to walk for it.
+    """
+    bindings: dict[str, ast.AST] = {}
+    for node in tree.body:
+        if isinstance(node, (*_ANY_FUNCTION, ast.ClassDef)):
+            bindings[node.name] = node
+            continue
+        value = getattr(node, "value", None)
+        if value is None:
+            continue
+        targets = list(getattr(node, "targets", ()) or ())
+        annotated = getattr(node, "target", None)
+        if annotated is not None:
+            targets.append(annotated)
+        for target in targets:
+            if isinstance(target, ast.Name):
+                bindings[target.id] = value
+    return bindings
+
+
+def _executed_nodes(scope: ast.AST) -> list[ast.AST]:
+    """Every node under ``scope`` that RUNS, with annotations excluded.
+
+    ANNOTATIONS ARE NOT EXECUTION. This module is under ``from __future__ import
+    annotations``, where an annotation is never evaluated at all, so counting
+    one would overstate the shared surface and make the record churn on a
+    cosmetic type change - which is how a record stops being read.
+
+    Args:
+        scope: A function, a class or any expression node.
+
+    Returns:
+        The nodes, ``scope`` itself included when it is not a definition.
+    """
+    stack: list[ast.AST] = list(
+        scope.body if isinstance(scope, (*_ANY_FUNCTION, ast.ClassDef)) else [scope]
+    )
+    seen: list[ast.AST] = []
+    while stack:
+        node = stack.pop()
+        seen.append(node)
+        for field_name, value in ast.iter_fields(node):
+            if field_name in {"annotation", "returns"}:
+                continue
+            if field_name == "args" and isinstance(node, _ANY_FUNCTION):
+                continue
+            stack.extend(
+                item
+                for item in (value if isinstance(value, list) else [value])
+                if isinstance(item, ast.AST)
+            )
+    return seen
+
+
+@lru_cache(maxsize=1)
+def _shared_tag_symbols() -> frozenset[str]:
+    """Derive what the second tag reading reaches inside ``clockspeed.save.objects``.
+
+    IT READS SOURCE, NOT BEHAVIOUR, and that is deliberate: the claim is about
+    which symbols the two readings SHARE, and two readings agreeing at runtime is
+    exactly the evidence that would be worthless here.
+
+    QUALIFIED ACCESS ONLY. A bare attribute name would pick up ``record.kind``
+    and every other attribute that happens to share a spelling with a shipped
+    one, inflating the record with symbols nothing here touches.
+
+    Returns:
+        Every ``objects.<name>`` reachable from the seeds, closed over this
+        module's own module-level bindings.
+    """
+    tree = ast.parse(Path(__file__).read_text(encoding="ascii"))
+    bindings = _module_bindings(tree)
+
+    reached: set[str] = set()
+    seen: set[str] = set()
+    stack = list(_TAG_READING_SEEDS)
+    while stack:
+        name = stack.pop()
+        if name in seen:
+            continue
+        seen.add(name)
+        node = bindings.get(name)
+        if node is None:
+            continue
+        for used in _executed_nodes(node):
+            if (
+                isinstance(used, ast.Attribute)
+                and isinstance(used.value, ast.Name)
+                and used.value.id == "objects"
+            ):
+                reached.add(used.attr)
+            elif isinstance(used, ast.Name) and used.id in bindings and used.id not in seen:
+                stack.append(used.id)
+    return frozenset(reached)
+
+
+def test_every_shipped_symbol_the_second_tag_reading_shares_is_recorded() -> None:
+    """CS-863. The limit is a recorded set, and this holds it to the real surface.
+
+    A SYMBOL JOINING OR LEAVING THE SHARED SET REDDENS HERE, which is the whole
+    of what recording it buys. Before this, what the two tag readings share
+    lived in a docstring that named four symbols and said "among them" - and a
+    docstring cannot notice a refactor that widens the surface it describes, nor
+    that it was never complete in the first place.
+
+    THE CEILING'S ABSENCE IS ASSERTED BY NAME, not merely observed. It is the
+    one shared symbol measured to make this module's grade IMPROVE as the reader
+    got strictly worse, so its return would be a regression rather than a
+    widening, and an equality alone would report it in the same voice as any
+    other drift.
+
+    EVERY SEED IS REQUIRED TO EXIST. A seed silently renamed away would narrow
+    the derived surface to nothing and leave this arm green over an empty claim,
+    which is this project's most-repeated failure shape.
+
+    NEEDS NO SAVE LIBRARY AND NO INSTALL - it is a claim about the repo.
+    """
+    derived = _shared_tag_symbols()
+
+    assert derived == set(TAG_READING_SHARED_SYMBOLS), (
+        "the recorded shared surface no longer matches what the second tag reading "
+        f"actually reaches. joined since it was recorded: "
+        f"{sorted(derived - TAG_READING_SHARED_SYMBOLS)}; left it: "
+        f"{sorted(TAG_READING_SHARED_SYMBOLS - derived)}"
+    )
+
+    bindings = _module_bindings(ast.parse(Path(__file__).read_text(encoding="ascii")))
+    missing = [seed for seed in _TAG_READING_SEEDS if seed not in bindings]
+    assert not missing, (
+        f"{missing} are named as the second tag reading and no longer exist in this "
+        "module, so the derivation above closed over less than it claims to"
+    )
+
+    assert "_MAX_TAGS_PER_PAYLOAD" not in derived, (
+        "the second tag reading consults the shipped tag ceiling again. THAT IS THE "
+        "CS-863 DEFECT RETURNING: a shared ceiling is a shared decision about which "
+        "records leave the population, so a stricter one deletes the same records from "
+        "both readings and every equality in this module holds while the denominator "
+        "shrinks. Measured before the repair, pair-shaped: at 12 this module showed one "
+        "failing arm and at 0 - strictly worse - it showed none and exited 0"
+    )
+    for reader in ("parse_body", "read_properties", "_walk_payload", "_payload_text"):
+        assert reader not in derived, (
+            f"the second tag reading now reaches objects.{reader} - a shipped READER, not "
+            "a constant - so it is no longer a second reading of anything and every "
+            "equality in this module comparing the two is one reader stated twice"
+        )
+
+    for named in ("INT32_SIZE", "_PAYLOAD_TERMINATOR", "STRUCT_TYPE_WORD"):
+        assert named in TAG_READING_SHARED_SYMBOLS, (
+            f"{named} is a width or a name the second reading cannot avoid sharing and "
+            "it is not in the recorded set, so the set understates the limit"
+        )
 
 
 @dataclass
@@ -2491,17 +2754,26 @@ def test_the_site_total_is_pinned_by_a_reading_no_shipped_walk_can_shorten() -> 
     is met by offsetting errors and this repo has already shipped one guard that
     a population's strongest member satisfied on behalf of its weakest.
 
-    THE LIMIT, STATED, AND IT MOVED IN ROUND 5. The two readings no longer share
-    the record table: the independent side takes its window and kind from
+    THE LIMIT, STATED, AND IT MOVED AGAIN IN CS-863. The two readings no longer
+    share the record table - the independent side takes its window and kind from
     :mod:`tests.save.independent_table`, which reads the body's record framing
-    without calling one shipped reader. They still share ``chunks.decompress_body``
-    and they still share SHIPPED SCALAR CONSTANTS that both tag walks consult -
-    ``objects._MAX_TAGS_PER_PAYLOAD``, ``_TAG_EXTRA_STRINGS``, ``GUID_BYTES``,
-    ``_PAYLOAD_TERMINATOR`` among them - so a defect in one of those still moves
-    both sides. MEASURED: making the shared tag ceiling STRICTER takes this
-    module from one failing arm to none while deleting a fifth of the records,
-    which is the anti-monotone signature every refutation of this item has had.
-    That is where the next one will land, and it is filed rather than fixed here.
+    without calling one shipped reader - and they no longer share the TAG
+    CEILING either. That one was the live hole: both walks ran
+    ``range(objects._MAX_TAGS_PER_PAYLOAD)``, so a stricter ceiling deleted the
+    same records from both sides and this equality held while the population
+    shrank. Measured before the repair, pair-shaped: at 12 this module showed
+    ONE failing arm, at 0 it showed NONE and exited 0.
+    :func:`_independent_tag_walk` now takes its bound from the extent.
+
+    WHAT IS STILL SHARED IS ENUMERATED RATHER THAN SAMPLED. Both readings still
+    run ``chunks.decompress_body`` and both still read the shipped grammar
+    constants - widths, a terminator name, a tag-extra table - which are DATA
+    and which no second reading of the same format could disagree with and
+    still be reading it. The full set is :data:`TAG_READING_SHARED_SYMBOLS`,
+    derived from the source by
+    :func:`test_every_shipped_symbol_the_second_tag_reading_shares_is_recorded`
+    so it cannot drift, and what a plant on each one actually does is measured
+    in `docs/LEDGER.md` under CS-863 rather than assumed from the ceiling.
     """
     sweep = _sweep_or_skip()
 
@@ -3571,6 +3843,324 @@ def test_the_table_control_takes_its_window_from_the_body_not_the_degraded_recor
     )
 
 
+# ---------------------------------------------------------------------------
+# THE THIRD ANTI-MONOTONE CONTROL - the shared SCALAR CONSTANTS, not a reader
+#
+# WHAT THE FIRST TWO CANNOT SEE. ``_EarlyTerminator`` degrades a shipped READER
+# this module's own reading does not call, and the table control degrades the
+# record table's OUTPUT. Both separate the two readings, which is why either can
+# go red. THE SHARED SCALARS SEPARATE NOTHING: both tag walks read the same
+# ``objects`` module attribute at call time, so a defect there moves the
+# numerator and the denominator by the same amount and every equality in this
+# module stays green while the population shrinks underneath it.
+#
+# MEASURED ON THIS TREE BEFORE THIS CONTROL EXISTED, with the ceiling made
+# stricter for ONE version pair's bodies: at 12 the module showed 1 failing arm;
+# at 0 - a reader that refuses everything 12 refuses AND MORE - it showed NONE
+# and exited 0. The check got BETTER as the reader got strictly WORSE. That is
+# the fifth location of the signature that has refuted CS-829 five times.
+#
+# THE PLANT IS THE CONSTANT ITSELF AND NOT A FUNCTION, which is the whole point:
+# a control that patched a reader would be the first control again. It is
+# applied IN PROCESS and never on disk, for the reason :class:`_EarlyTerminator`
+# states - the harness Bash timeout KILLS rather than unwinds, so a ``finally``
+# that would restore a mutated file never runs.
+# ---------------------------------------------------------------------------
+
+
+#: How strict the shared tag ceiling is made while the control is armed. A BOUND
+#: ON WHAT THE PLANT REFUSES, not a measurement of anything: any ceiling below
+#: the corpus's own observed maximum exercises the same loss class, and the arm
+#: asserts what the plant actually COST rather than assuming it. It is above one
+#: so a refusal is a payload losing its tail rather than every payload dying at
+#: its first tag, which would be a kill and not a degradation.
+_CEILING_CONTROL_TAGS: Final = 8
+
+
+@dataclass
+class _CeilingCounts:
+    """One version pair's tally under the shared-ceiling plant. COUNTS ONLY.
+
+    Attributes:
+        records: Records measured under both readings.
+        shipped_pristine: Struct sites the shipped walk reached undegraded.
+        shipped_degraded: The same under the stricter shared ceiling.
+        independent_pristine: Struct sites this module's own reading found with
+            the ceiling pristine.
+        independent_degraded: The same with it planted. IT MUST NOT MOVE, and
+            that it DID is the whole of what this control was built to catch.
+        reached_pristine: Records the shipped walk enumerated undegraded.
+        reached_degraded: The same under the plant.
+        own_reached_pristine: Records this module's own reading enumerated
+            undegraded.
+        own_reached_degraded: The same under the plant.
+    """
+
+    records: int = 0
+    shipped_pristine: int = 0
+    shipped_degraded: int = 0
+    independent_pristine: int = 0
+    independent_degraded: int = 0
+    reached_pristine: int = 0
+    reached_degraded: int = 0
+    own_reached_pristine: int = 0
+    own_reached_degraded: int = 0
+
+
+@dataclass(frozen=True, repr=False)
+class _CeilingResult:
+    """The reduction over the library. COUNTS ONLY, and no pair reaches a repr.
+
+    Attributes:
+        pairs: How many version pairs parsed into a tally.
+        library_records: Records measured across every pair.
+        chosen: The graded pair's tally - see :func:`_run_ceiling_control` for
+            why grading ONE pair is what makes this plant pair-shaped.
+        planted_reads: How many measurements ran while the plant was armed. A
+            COUNT, because a plant that never applied and one that was survived
+            produce identical output.
+    """
+
+    pairs: int
+    library_records: int
+    chosen: _CeilingCounts
+    planted_reads: int
+
+
+def _install_ceiling(value: int) -> None:
+    """Install a tag ceiling on the shipped module, in process.
+
+    ``setattr`` RATHER THAN AN ASSIGNMENT, and the reason is not style. The
+    shipped constant is ``Final``, so a direct assignment is a type error - and
+    that check is a real one worth keeping, because temporarily violating the
+    constant is exactly what this control does and it should not be something a
+    module can do by accident. The control asserts the revert landed.
+
+    Args:
+        value: The ceiling to install.
+    """
+    setattr(objects, "_MAX_TAGS_PER_PAYLOAD", value)  # noqa: B010 - see the docstring
+
+
+def _fold_ceiling_control(
+    body: bytes,
+    record: objects.ObjectRecord,
+    own: independent_table.IndependentRecord,
+    counts: _CeilingCounts,
+    *,
+    degraded: bool,
+) -> None:
+    """Measure one record under whichever ceiling is currently installed.
+
+    Args:
+        body: The decompressed body.
+        record: The shipped record, for the shipped walk's window.
+        own: The second reading's own record for this position, paired
+            POSITIONALLY and never resolved by offset, for the reason
+            :func:`_independent_sites_of` states.
+        counts: The pair's tally, updated in place.
+        degraded: Which half of the comparison this call is filling in.
+    """
+    end = record.body_offset + record.body_length
+    shipped_ok, shipped = _shipped_sites_of(body, record, end)
+    own_ok, mine = _independent_sites_of(body, own)
+    if degraded:
+        counts.shipped_degraded += shipped
+        counts.independent_degraded += mine
+        counts.reached_degraded += shipped_ok
+        counts.own_reached_degraded += own_ok
+    else:
+        counts.records += 1
+        counts.shipped_pristine += shipped
+        counts.independent_pristine += mine
+        counts.reached_pristine += shipped_ok
+        counts.own_reached_pristine += own_ok
+
+
+def _run_ceiling_control(original: int) -> _CeilingResult | None:
+    """Read each save ONCE, measure every record TWICE, and grade ONE pair.
+
+    EACH SAVE IS READ ONCE AND MEASURED TWICE, for the reason
+    :func:`_run_degradation_control` states: the operator plays this game while
+    a session runs, so re-reading the library between the two passes races a
+    real autosave and reports the difference as a defect.
+
+    THE PLANT IS PAIR-SHAPED BY THE REDUCTION AND NOT BY THE ARMING, which is
+    the construction :func:`_run_table_degradation_control` uses and for the
+    same reason: a save carries exactly one version pair, so a pair's tally is
+    exactly what planting that pair alone would have produced. A plant armed for
+    the whole library instead is caught by the shape guards - ``partial_saves``,
+    ``contested_pairs`` - and walking past those guards is what makes a
+    pair-shaped plant the one worth grading.
+
+    THE GRADED PAIR IS DERIVED AND NOT TRANSCRIBED: the pair carrying the most
+    records of those that parsed, ties broken by the pair itself so the choice
+    cannot depend on the order the library happens to be walked in.
+
+    Args:
+        original: The shipped ceiling, restored around each planted measurement.
+
+    Returns:
+        The reduction, or None when NO save library is reachable at all - which
+        is a different claim from "the library holds nothing this project
+        parses", and that one comes back as a result whose counts are zero.
+    """
+    saves = test_properties._library_save_paths()  # noqa: SLF001
+    if not saves:
+        return None
+    by_pair: dict[tuple[int, int], _CeilingCounts] = {}
+    planted_reads = 0
+    for path in saves:
+        try:
+            data = path.read_bytes()
+            parsed = header.parse_header(data)
+            body = chunks.decompress_body(
+                data, parsed.body_offset, header_version=parsed.header_version
+            ).payload
+            table = objects.parse_body(
+                body, save_version=parsed.save_version, header_version=parsed.header_version
+            )
+            # INSIDE THE HANDLER BECAUSE `body` IS LIVE IN THIS FRAME. pytest
+            # renders the arguments of the first and the deepest traceback frame
+            # with no opt-in flag, so a raise out there puts real save bytes into
+            # a transcript - measured at 240 rendered characters carrying an
+            # asset path on 3 of this machine's 20 saves.
+            mine = independent_table.independent_records(
+                body, save_version=parsed.save_version, header_version=parsed.header_version
+            )
+        except (Exception, SystemExit):  # noqa: S112 - reporting it IS the leak
+            continue
+        if mine is None or len(mine) != len(table.records):
+            continue
+        counts = by_pair.setdefault((parsed.save_version, parsed.header_version), _CeilingCounts())
+        for index, record in enumerate(table.records):
+            _install_ceiling(original)
+            _fold_ceiling_control(body, record, mine[index], counts, degraded=False)
+            _install_ceiling(_CEILING_CONTROL_TAGS)
+            planted_reads += 1
+            _fold_ceiling_control(body, record, mine[index], counts, degraded=True)
+            _install_ceiling(original)
+    if not by_pair:
+        return _CeilingResult(
+            pairs=0, library_records=0, chosen=_CeilingCounts(), planted_reads=planted_reads
+        )
+    graded = max(by_pair, key=lambda candidate: (by_pair[candidate].records, candidate))
+    return _CeilingResult(
+        pairs=len(by_pair),
+        library_records=sum(tally.records for tally in by_pair.values()),
+        chosen=by_pair[graded],
+        planted_reads=planted_reads,
+    )
+
+
+def test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """THE THIRD ANTI-MONOTONE CONTROL - a shared CONSTANT, not a reader.
+
+    WHAT IT ADDS OVER THE FIRST TWO. Both of those degrade something ONE of the
+    two readings uses, so the two separate and an equality can go red. This one
+    degrades something they SHARE, which is the case where separation has to be
+    BUILT rather than observed - and it was not built, so this module's grade
+    IMPROVED as the reader got strictly worse.
+
+    THE ASSERTION THAT CARRIES IT is that this module's own site total does not
+    move under the plant. That total is the denominator precisely because it
+    takes nothing from the shipped module a defect can travel through, and a
+    shared ceiling was exactly such a thing.
+
+    THE PLANT IS ASSERTED TO HAVE LANDED, TO HAVE FIRED AND TO HAVE BEEN
+    REVERTED, because a plant that never applied and one that was survived
+    produce identical output.
+
+    NO EVIDENCE IS A SKIP, so this opens with the shared sweep guard for the
+    reason
+    :func:`test_degrading_the_shipped_tag_reader_cannot_improve_this_modules_grade`
+    records: an arm reaching the library past that guard goes RED on a corpus
+    where seventeen of its siblings SKIP, and autosave rotation alone reaches
+    that corpus.
+    """
+    _sweep_or_skip()
+
+    original = objects._MAX_TAGS_PER_PAYLOAD  # noqa: SLF001
+    # REGISTERS THE UNDO AND CHANGES NOTHING. The control toggles the attribute
+    # itself around each measurement, so what monkeypatch buys here is the
+    # guaranteed restore on every exit path, including one taken by a raise
+    # inside the fold.
+    monkeypatch.setattr(objects, "_MAX_TAGS_PER_PAYLOAD", original)
+
+    result = _run_ceiling_control(original)
+
+    # THE REVERT IS ASSERTED BEFORE ANY SKIP CAN LEAVE, and the ordering is the
+    # repair rather than a tidy-up: a skip taken while the module is still
+    # planted would leave the revert unchecked on exactly the corpora that skip.
+    monkeypatch.undo()
+    assert original == objects._MAX_TAGS_PER_PAYLOAD, (  # noqa: SLF001
+        "the shared tag ceiling was NOT restored, so every later measurement in this "
+        "process is taken against a degraded module"
+    )
+
+    if result is None:
+        pytest.skip("no save library on this machine - the control has nothing to plant")
+    if result.chosen.records == 0:
+        pytest.skip(
+            "no save this run read parses into a record table this module's own reading "
+            "can pair, so the control measured no record at all and a stricter ceiling "
+            "has nothing to cost"
+        )
+
+    assert result.planted_reads > 0, (
+        "the plant was never armed for a single measurement. A plant that did not apply "
+        "and one that was survived produce the same output, so this run says nothing "
+        "about whether a shared constant can move this module's grade. THIS STAYS AN "
+        "ASSERTION rather than joining the skips below: the guard above has already "
+        "established that records were measured"
+    )
+
+    if result.chosen.shipped_pristine == 0:
+        pytest.skip(
+            "the shipped walk found no struct site in the graded pair's records, so "
+            "there is nothing for a stricter ceiling to take away and a fall below "
+            "would measure an absent population rather than a loss"
+        )
+    if result.chosen.shipped_degraded == result.chosen.shipped_pristine:
+        pytest.skip(
+            f"a ceiling of {_CEILING_CONTROL_TAGS} refused no payload the graded pair "
+            "carries, so this corpus holds no record long enough to exercise the loss "
+            "class this control exists for. That is an absent population and not a "
+            "reader that held up under it"
+        )
+
+    assert result.chosen.independent_degraded == result.chosen.independent_pristine, (
+        f"this module's own reading found {result.chosen.independent_pristine} struct "
+        f"sites under the shipped ceiling and {result.chosen.independent_degraded} under "
+        "a stricter one. IT MUST NOT MOVE. A constant both tag walks read is a defect "
+        "route the equalities in this module cannot show, because it moves the numerator "
+        "and the denominator together - which is how a reader refusing EVERYTHING scores "
+        "better here than one refusing a little"
+    )
+    assert result.chosen.own_reached_degraded == result.chosen.own_reached_pristine, (
+        f"this module's own reading opened {result.chosen.own_reached_pristine} records "
+        f"under the shipped ceiling and {result.chosen.own_reached_degraded} under a "
+        "stricter one. The reached POPULATION moved with a shipped constant, so every "
+        "grade computed over what is left is computed over a population the shipped "
+        "module chose"
+    )
+
+    assert result.chosen.shipped_degraded < result.chosen.shipped_pristine, (
+        f"the planted ceiling left the shipped walk at {result.chosen.shipped_degraded} "
+        f"struct sites where it reached {result.chosen.shipped_pristine} pristine. The "
+        "plant cost the shipped reader nothing measurable, so this control is not "
+        "exercising the direction it claims to"
+    )
+    assert result.chosen.shipped_degraded < result.chosen.independent_degraded, (
+        f"the shipped walk lost sites under a stricter shared ceiling and the equality "
+        f"still holds at {result.chosen.shipped_degraded} against "
+        f"{result.chosen.independent_degraded}. THE CHECK IS STILL ANTI-MONOTONE: the "
+        "population shrank with the constant instead of the grade going red"
+    )
+
+
 def test_a_record_leaves_the_population_only_with_its_whole_version_pair() -> None:
     """RECORDS THE SWEEP NEVER OPENED, COUNTED IN BYTES AND GRADED.
 
@@ -4533,6 +5123,7 @@ _GRADED_LIBRARY_REACH: Final = MappingProxyType(
         _end_freedom_sample.__name__: reach_guard.REACH_READS_THE_LIBRARY,
         _run_degradation_control.__name__: reach_guard.REACH_READS_THE_LIBRARY,
         _run_table_degradation_control.__name__: reach_guard.REACH_READS_THE_LIBRARY,
+        _run_ceiling_control.__name__: reach_guard.REACH_READS_THE_LIBRARY,
     }
 )
 
