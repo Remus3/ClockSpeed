@@ -34,11 +34,13 @@ the line becomes a pointer.
 
 ---
 
-## Session 56 - 2026-09-01 - Both requested rulings made, and BOTH OVERTURNED THE PREMISE THEY WERE ASKED ON. CS-857's dead conjunct is alive in two files nobody swept; the count-versus-derive tension is a false dilemma because neither wording can fail
+## Session 56 - 2026-09-01 - Both rulings OVERTURNED THE PREMISE THEY WERE ASKED ON, then CS-878 and CS-879 closed - a leak putting two absolute paths on the excepthook, and the guard excluding that file on a frozenness claim that was false of it
 
-- **Shipped: NOTHING CLOSED. CS-857 AND CS-858 BOTH STAY OPEN.** Two RULING RECORDS in
-  `docs/LEDGER.md`, the rulings themselves in the item leaf, and CS-878, CS-879 and CS-880
-  filed. No acceptance clause was changed, which is the CS-858 ruling applied to itself.
+- **Shipped: CS-878 and CS-879 CLOSED.** CS-857 and CS-858 got RULINGS and both STAY OPEN;
+  their entries say NOT A COMPLETION RECORD. No acceptance clause was changed anywhere this
+  session, which is the CS-858 ruling applied to itself. Filed CS-880, CS-881, CS-882, CS-883.
+  Suite 4050 -> 4152. Chained-raise grading 25 sites -> 36, and all 60 now reach a named
+  bucket. Detail in `docs/LEDGER.md`, not here.
 
 - **In flight: nothing.** No worktree holds work. The rulings are recorded; the ARMS they
   call for are not built, and that is the next session's work rather than an omission.
@@ -67,10 +69,23 @@ the line becomes a pointer.
   retry a clause rewrite. Also measured: a name in a doc is no more falsifiable than a
   count - the citation resolver stays GREEN when the binding it names becomes `pass`.
 
+- **Second half, and the lesson that generalises: AN ARM THAT IS GREEN PROVES NOTHING UNTIL
+  A MUTATION REDDENS IT.** CS-879's first version was green at 220 tests and was REFUTED by an
+  adversary that wrote none of it: its sensitivity arm planted its only probe OUTSIDE the swept
+  roots, where "unclassified" and "in neither population" are the SAME predicate, so one line in
+  the helper it shared put a real site in neither population with the suite still green. Two
+  further defects fell out of the same pass - the excluded bucket's stated reason was false of
+  five of its seven modules, worse than the two-of-four CS-879 was filed against, and relabelling
+  `clockspeed/save/` as fixtures dropped the header parser from grading with no arm objecting.
+  All repaired; eight mutations, eight caught. CS-878's first version shipped TWO NEW RENDERING
+  CHANNELS inside its own test and was caught by two tree-wide guards at the merge, not by a
+  reviewer - the merger's instruction to skip the full suite on that slice is what let it through.
+
 - **Next action: BUILD THE CS-857 SWEEP, not a phrase search.** It must grade the
   proposition across the tree rather than across one mapping, and
-  `memory/a-guard-can-measure-spelling.md` says what a spelling search produces. Then
-  CS-879, which is the cheapest of the three new items and the one that hides CS-878.
+  `memory/a-guard-can-measure-spelling.md` says what a spelling search produces. The census it
+  would sweep is the one CS-879 just repaired, and CS-881 records a shape that population still
+  misses. After that, CS-883 is the cheapest of the three new items.
 
 
 ## Session 55 - 2026-09-01 - The third CS-600 audit found a MUST-FIX the first two missed, and every refuter that followed returned something real. CS-873, CS-874 and CS-875 closed. CS-872 stays open with the CSS-only space MEASURED closed rather than argued closed
