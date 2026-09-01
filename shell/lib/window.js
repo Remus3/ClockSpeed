@@ -149,6 +149,49 @@ class ModeNotImplementedError extends Error {
  * band deleted, the strip's area holds `html` and nothing else, at scroll 0,
  * mid and maximum, sweeping the full width at 1574 and at 375.
  *
+ * THE ROOT'S CLIP IS LOAD BEARING AND IS NOT MERELY TIDINESS. Delete it and
+ * nothing in the document scrolls at all: with the root's overflow left
+ * visible, the fixed body's `overflow-y` propagates to the viewport, the body's
+ * own used overflow becomes visible, and the viewport has no in-flow content to
+ * scroll because the body is out of flow. Measured in headless Chrome at the
+ * shell's default window size - with the clip the body scrolls to 223 of 447,
+ * and with it deleted every element in the document stays pinned at 0.
+ *
+ * THERE IS DELIBERATELY NO SIDEWAYS CLIP ON THE BODY (CS-873). An earlier cut
+ * of this rule carried one, which silently voided a decision the dashboard's
+ * own stylesheet records in capitals: the sideways scrollbar is the only signal
+ * a reader or an auditor gets that something has burst its container, and
+ * clipping it swallows the evidence rather than the fault. That decision has a
+ * green arm of its own and the arm reads the stylesheet, so a sheet injected
+ * from HERE voided it across a seam no arm crossed. Leaving the axis undeclared
+ * is the repair rather than an omission: a box with a scrolling `overflow-y`
+ * and no `overflow-x` computes the missing axis to `auto`, so sideways overflow
+ * gets a scrollbar. Measured on the composed page - the body's computed
+ * sideways overflow reads `hidden` with the declaration present and `auto`
+ * without it.
+ *
+ * WHAT THIS SHAPE COSTS, MEASURED AND STILL OWED (CS-872). A non-root scroller
+ * is not the default keyboard scroll target. With nothing focused, Chromium
+ * starts its scroll chain at the document element and walks UP, so the body
+ * scroller - a descendant - is never reached and PageDown, Space and ArrowDown
+ * all do nothing until a click, the wheel or one Tab moves focus into the page.
+ * Measured on the composed page at the shell's default window size: the page
+ * with no injected sheet scrolls 419 on a cold PageDown, and with this sheet 0.
+ *
+ * THE CSS-ONLY SPACE WAS MEASURED CLOSED RATHER THAN ARGUED CLOSED. Seven
+ * shapes were driven through the same harness. Every one that scrolled on a
+ * cold PageDown put real page content back under the band at a nonzero offset,
+ * and every one that kept the strip clear was keyboard-dead - with no
+ * exception. Making the ROOT the inset fixed scroller, the obvious candidate,
+ * does not work either and cannot: in standards mode the root element's
+ * scrollTop, scrollHeight and clientHeight ARE the viewport's, so positioning
+ * the root out of flow leaves the viewport with nothing in flow to scroll and
+ * measures 705 of 705 - unscrollable in both directions at once. The cure is
+ * therefore not in this sheet. It is a drag region the OS draws OUTSIDE the web
+ * contents, which is a window option rather than a stylesheet, and which no
+ * test in this repo can grade for the same reason the app-region declarations
+ * cannot be. THAT REMAINS OWED, alongside the drag itself.
+ *
  * THE app-region DECLARATIONS ARE DELIBERATELY UNTOUCHED BY THAT REPAIR. The
  * other candidate fix was `pointer-events: none` on the band, and whether
  * Chromium still honours a drag region on a pointer-transparent element is
@@ -186,7 +229,6 @@ const DRAG_STRIP_CSS = [
   "  left: 0;",
   "  margin: 0;",
   "  overflow-y: auto;",
-  "  overflow-x: hidden;",
   "}",
   "body::before {",
   '  content: "";',
