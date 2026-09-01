@@ -242,3 +242,8 @@ desktop.ini
 *.swp
 *~
 .idea/
+
+# Playwright MCP scratch output. The audit browser writes screenshots and
+# accessibility snapshots into the repo root; they are artifacts of a run, never
+# content, and one reached a commit through `git add -A` before this line existed.
+/.playwright-mcp/

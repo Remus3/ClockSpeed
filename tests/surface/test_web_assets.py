@@ -894,8 +894,11 @@ def test_every_focusable_scroller_carries_its_own_accessible_name() -> None:
     assert 'setAttribute("role", "region")' in script, (
         "nothing gives a focusable scroller a role, so a stop announces an unnamed box"
     )
-    assert 'removeAttribute("role")' in script and 'removeAttribute("aria-label")' in script, (
-        "a box that stops overflowing keeps a role and a name it has not earned"
+    assert 'removeAttribute("role")' in script, (
+        "a box that stops overflowing keeps a role it has not earned"
+    )
+    assert 'removeAttribute("aria-label")' in script, (
+        "a box that stops overflowing keeps a name it has not earned"
     )
     assert "data-scroll-label" in script, (
         "app.js does not read the name stem, so the markup's stems reach nothing"
