@@ -283,8 +283,13 @@ def test_the_page_links_only_its_own_two_local_assets() -> None:
 
     Counting the tags is what makes this a claim about the WHOLE document
     rather than about the two tags that happen to be correct.
+
+    CS-875 SWEEP: comments come out first. This is an equality over every href
+    and src in the file, so an ``href`` inside an HTML comment could stand in
+    for a real link that had been deleted and the tuple would still compare
+    equal.
     """
-    markup = read_asset(INDEX)
+    markup = markup_only(read_asset(INDEX))
     hrefs = tuple(re.findall(r'href="([^"]*)"', markup))
     sources = tuple(re.findall(r'src="([^"]*)"', markup))
     assert hrefs == (STYLESHEET,), hrefs
@@ -410,13 +415,22 @@ def timers(text: str) -> tuple[str, ...]:
 
 
 def test_the_page_repaints_on_a_button_and_never_on_a_timer() -> None:
-    """No asset schedules work, and the page registers a click handler."""
+    """No asset schedules work, and the page registers a click handler.
+
+    THE TWO HALVES READ DIFFERENT TEXT ON PURPOSE. The timer half is a BAN, and
+    a ban over raw text can only ever fail early - a timer named in a comment
+    is a false red, never a false green - so it keeps the whole file. The click
+    handler is a PRESENCE claim, and CS-875 measured what that costs on raw
+    text: a comment naming the handler satisfied it while nothing registered
+    one. That half reads code, and matches a call.
+    """
     findings = {name: timers(read_asset(name)) for name in ASSET_NAMES if timers(read_asset(name))}
     total = len(findings)
     assert total == 0, f"timer primitives in {total} asset(s): {findings}"
 
-    script = read_asset(SCRIPT)
-    assert 'addEventListener("click"' in script, "app.js registers no click handler"
+    code = code_only(read_asset(SCRIPT))
+    handler = re.search(r'\.addEventListener\(\s*"click"', code)
+    assert handler is not None, "app.js registers no click handler"
 
 
 def test_the_timer_detector_fires_on_each_planted_timer() -> None:
@@ -607,9 +621,13 @@ def test_the_wide_table_scrolls_inside_its_own_container() -> None:
     it push the document sideways is the failure; giving its wrapper
     ``overflow-x: auto`` is the fix, and the markup has to actually use the
     wrapper for the rule to matter.
+
+    CS-875 SWEEP: comments come out first. Both counts are presence claims, and
+    one HTML comment holding ``<table`` beside another holding
+    ``class="scroll-x"`` keeps them equal while the real markup has neither.
     """
     css = read_asset(STYLESHEET)
-    markup = read_asset(INDEX)
+    markup = markup_only(read_asset(INDEX))
 
     wrapper = _block(css, ".scroll-x {")
     assert "overflow-x: auto" in wrapper, ".scroll-x does not own its overflow"
@@ -791,16 +809,267 @@ def test_a_failed_repaint_still_gives_the_control_back() -> None:
 
     A repaint that throws once is a bad repaint. A repaint that throws once and
     then latches the guard forever is a dead page, recoverable only by reload.
+
+    CS-875 SIBLING - THE SLICE WAS NOT THE BLOCK. This arm used to search from
+    ``} finally {`` to the END OF THE FILE, so moving both releases out past
+    ``refresh()``'s closing brace - where a throw never reaches them - left it
+    green. Worse, ``code.find`` returning ``-1`` sliced the last character of
+    the file, which is a truthy string, so the "not where this arm expects it"
+    guard could not fire. The ``finally`` is now brace-matched and its span
+    ends where the block does.
     """
     code = code_only(read_asset(SCRIPT))
-    tail = code[code.find("async function refresh()") :]
-    assert tail, "refresh() is not where this arm expects it"
-    finally_at = tail.find("} finally {")
-    assert finally_at > 0, "refresh() releases its busy state outside a finally"
-    release = tail[finally_at:]
-    withdrawn = 'removeAttribute("aria-disabled")' in release
-    assert withdrawn, "aria-disabled is not withdrawn in finally"
-    assert re.search(r"\w+\s*=\s*false", release), "the re-entry flag is not lowered in finally"
+    mask = string_free(code)
+
+    head = _REFRESH_HEAD.search(mask)
+    assert head is not None, "refresh() is not declared where this arm can find it"
+    body_first, body_last = block_span(mask, head.start())
+
+    tail = _FINALLY_HEAD.search(mask, body_first, body_last)
+    assert tail is not None, "refresh() releases its busy state outside a finally"
+
+    first, last = block_span(mask, tail.start())
+    release = code[first:last]
+    assert 'removeAttribute("aria-disabled")' in release, (
+        "aria-disabled is not withdrawn inside refresh()'s own finally block"
+    )
+    assert re.search(r"\w+\s*=\s*false", release), (
+        "the re-entry flag is not lowered inside refresh()'s own finally block"
+    )
+
+
+# ---------------------------------------------------------------------------
+# i2a. Reading the script as STRUCTURE rather than as a bag of characters
+# ---------------------------------------------------------------------------
+#
+# CS-875. Four arms in this section graded a narrower population than they
+# named, through two separate mechanisms. Both were demonstrated against the
+# real app.js with `node --check` passing on the mutant, which is what makes
+# each of them an edit that could really land.
+#
+#   A COMMENT IS NOT CODE. The arms read read_asset(SCRIPT) raw, so wrapping a
+#   real statement in a /* */ block left every character they searched for
+#   still sitting on disk. The measured 14641ms window in which the page has
+#   no keyboard route came back, and the arm stayed green.
+#
+#   A SUBSTRING IS NOT A SEMANTICS, and code_only does not fix this half.
+#   Changing === to !== in the focus guard inverts both branches, so a focused
+#   box that stops overflowing gets removeAttribute called on it - verbatim the
+#   blur regression this section exists to prevent - and the arm stayed green
+#   because its real assertion was that the 22 characters of
+#   "document.activeElement" appeared somewhere in the file.
+#
+#   AND INDENTATION IS NOT SCOPE. The repair BEFORE this one anchored on
+#   column zero for a top-level statement and four spaces for one inside
+#   refresh(). A four-space-indented call placed AFTER refresh()'s closing
+#   brace satisfies that anchor and never runs in the finally.
+#
+# The three readers below answer the question those arms actually needed
+# answered - WHERE does this call sit - by matching braces instead of counting
+# spaces. Each is proved on a sample before anything relies on it, because a
+# reader that silently returned nothing would make every arm below vacuously
+# green, which is the exact shape this module exists to refuse.
+
+#: The delimiters a JavaScript string literal may open with. A brace or a
+#: keyword inside one is text, not structure.
+_QUOTES = "\"'`"
+
+#: The DOM's own name for the focused element, spelled once.
+ACTIVE_ELEMENT: Final = "document.activeElement"
+
+#: A ``tabindex`` grant AS A CALL rather than as the substring of one. The
+#: leading dot is what makes it a method call on an element instead of five
+#: tokens that happen to appear in that order.
+_TABINDEX_GRANT = re.compile(r'\.setAttribute\(\s*"tabindex"\s*,\s*"(?P<value>-?\d+)"\s*\)')
+
+#: The matching withdrawal.
+_TABINDEX_WITHDRAWAL = re.compile(r'\.removeAttribute\(\s*"tabindex"\s*\)')
+
+#: The role a focusable scroller is given, and the two withdrawals beside it.
+_ROLE_GRANT = re.compile(r'\.setAttribute\(\s*"role"\s*,\s*"region"\s*\)')
+_ROLE_WITHDRAWAL = re.compile(r'\.removeAttribute\(\s*"role"\s*\)')
+_LABEL_WITHDRAWAL = re.compile(r'\.removeAttribute\(\s*"aria-label"\s*\)')
+
+#: The read of the name stem out of the markup, capturing WHATEVER local name
+#: it lands in so the arm can follow that name to the label it builds rather
+#: than assuming what app.js happens to call it today.
+_STEM_READ = re.compile(
+    r"\bvar\s+(?P<stem>[A-Za-z_$][\w$]*)\s*=\s*"
+    r'[A-Za-z_$][\w$]*\.getAttribute\(\s*"data-scroll-label"\s*\)'
+)
+
+#: A two-operand ``else if`` condition. Either side may be the focused-element
+#: read, and THE OPERATOR IS CAPTURED RATHER THAN SPELLED IN: an arm that
+#: hardcoded ``===`` would merely fail to match its own negation and then have
+#: to guess what the absence meant, while one that searched for the left
+#: operand alone was green against exactly that negation.
+_BRANCH_GUARD = re.compile(
+    r"\belse\s+if\s*\(\s*"
+    r"(?P<left>document\.activeElement|[A-Za-z_$][\w$]*)\s*"
+    r"(?P<operator>===|!==|==|!=)\s*"
+    r"(?P<right>document\.activeElement|[A-Za-z_$][\w$]*)\s*"
+    r"\)\s*\{"
+)
+
+#: The ``else`` that follows a branch, matched at the offset just past that
+#: branch's own closing brace.
+_ELSE_BLOCK = re.compile(r"\s*else\s*\{")
+
+#: The three declarations and the two bare calls the structural arms locate.
+#: ``syncScrollRegions`` is also passed by REFERENCE to addEventListener, which
+#: is not a call - the trailing ``()`` and ``;`` are what tell the two apart.
+_SYNC_HEAD = re.compile(r"\bfunction\s+syncScrollRegions\s*\(\s*\)\s*\{")
+_SYNC_CALL = re.compile(r"(?<![\w$.])syncScrollRegions\s*\(\s*\)\s*;")
+_REFRESH_HEAD = re.compile(r"\basync\s+function\s+refresh\s*\(\s*\)\s*\{")
+_REFRESH_CALL = re.compile(r"(?<![\w$.])refresh\s*\(\s*\)\s*;")
+_FINALLY_HEAD = re.compile(r"(?<![\w$])finally\s*\{")
+
+
+def string_free(code: str) -> str:
+    """``code`` with every string literal's body and every ``//`` comment blanked.
+
+    THIS IS THE OTHER HALF OF :func:`code_only`. That one answers "is this
+    prose or is it code". This one answers "is this brace structure or is it
+    text", which is the question an arm asking WHERE a call sits has to settle
+    before it can count anything. Length is preserved exactly - each blanked
+    character becomes one space and newlines survive - so an offset into the
+    result indexes the same character of the input, and a span measured on the
+    result may be sliced out of the input.
+
+    Block comments are NOT handled here; run :func:`code_only` first. A regular
+    expression literal is not recognised either. ``app.js`` contains none, and
+    an edit that adds one has to revisit this rather than assume it copes.
+
+    Args:
+        code: The script with its block comments already removed.
+
+    Returns:
+        The same text at the same length, with string bodies and line comments
+        replaced by spaces. The quote characters themselves are kept, so the
+        token structure of a call is still visible.
+    """
+    out = list(code)
+    index = 0
+    while index < len(code):
+        char = code[index]
+        if char in _QUOTES:
+            index += 1
+            while index < len(code) and code[index] != char:
+                out[index] = " "
+                if code[index] == "\\" and index + 1 < len(code):
+                    index += 1
+                    out[index] = " "
+                index += 1
+            index += 1
+        elif code.startswith("//", index):
+            while index < len(code) and code[index] != "\n":
+                out[index] = " "
+                index += 1
+        else:
+            index += 1
+    return "".join(out)
+
+
+def statement_depth(mask: str, at: int) -> int:
+    """How many blocks stand open at offset ``at``.
+
+    Args:
+        mask: A :func:`string_free` result, so a brace inside a string cannot
+            be mistaken for a block delimiter.
+        at: An offset into that text.
+
+    Returns:
+        Zero at the file's top level, one inside a single block, and so on.
+    """
+    return mask.count("{", 0, at) - mask.count("}", 0, at)
+
+
+def block_span(mask: str, start: int) -> tuple[int, int]:
+    """The half-open span INSIDE the first block that opens at or after ``start``.
+
+    A SUBSTRING IS NOT A CALL SITE AND INDENTATION IS NOT SCOPE. An arm meaning
+    "this call is inside that block" has to find the block's own closing brace,
+    because four spaces of indentation are satisfied just as well by a line
+    placed after the block has ended.
+
+    Args:
+        mask: A :func:`string_free` result.
+        start: Where to begin looking for the opening brace.
+
+    Returns:
+        ``(first, last)`` - the offset just past the opening brace, and the
+        offset OF the matching closing brace.
+
+    Raises:
+        ValueError: If no block opens at or after ``start``, or if the one that
+            does is never closed.
+    """
+    opened = mask.find("{", start)
+    if opened < 0:
+        raise ValueError("no block opens at or after this offset")
+    depth = 0
+    for index in range(opened, len(mask)):
+        if mask[index] == "{":
+            depth += 1
+        elif mask[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return opened + 1, index
+    raise ValueError("the block that opens here is never closed")
+
+
+def test_the_string_blanker_hides_text_and_keeps_structure() -> None:
+    """A brace inside a string stops counting; the code around it does not."""
+    sample = 'var a = "} not a brace {"; if (b) { c(); } // } nor is this\n'
+    mask = string_free(sample)
+    assert len(mask) == len(sample), (len(mask), len(sample))
+    assert mask.count("{") == 1, mask
+    assert mask.count("}") == 1, mask
+    assert "if (b)" in mask, mask
+    assert "not a brace" not in mask, mask
+    assert "nor is this" not in mask, mask
+
+
+def test_the_string_blanker_survives_an_escaped_delimiter() -> None:
+    """An escaped quote does not end the literal it sits inside."""
+    sample = 'var a = "he said \\" { "; d();'
+    mask = string_free(sample)
+    assert mask.count("{") == 0, mask
+    assert "d();" in mask, mask
+
+
+def test_the_block_finder_returns_the_matching_brace_not_the_first_one() -> None:
+    """A nested block does not close the one containing it."""
+    sample = "f() { a(); { b(); } c(); } d();"
+    first, last = block_span(sample, 0)
+    body = sample[first:last]
+    assert "c();" in body, body
+    assert "d();" not in body, body
+
+
+def test_the_block_finder_refuses_a_block_that_is_never_closed() -> None:
+    """An unbalanced file raises rather than returning a span that means nothing."""
+    with pytest.raises(ValueError, match="never closed"):
+        block_span("f() { a();", 0)
+
+
+def test_the_depth_reader_counts_the_blocks_standing_open() -> None:
+    """Top level is zero and each unclosed brace is one more."""
+    sample = "a(); { b(); { c(); } } d();"
+    assert statement_depth(sample, sample.index("a();")) == 0, sample
+    assert statement_depth(sample, sample.index("b();")) == 1, sample
+    nested = 2
+    assert statement_depth(sample, sample.index("c();")) == nested, sample
+    assert statement_depth(sample, sample.index("d();")) == 0, sample
+
+
+def test_the_call_patterns_tell_a_call_from_a_reference() -> None:
+    """``addEventListener("resize", syncScrollRegions)`` is not a call to it."""
+    reference = 'window.addEventListener("resize", syncScrollRegions);'
+    assert _SYNC_CALL.search(reference) is None, reference
+    assert _SYNC_CALL.search("syncScrollRegions();") is not None
+    assert _REFRESH_CALL.search('byId("refresh").addEventListener("click", refresh);') is None
+    assert _REFRESH_CALL.search("refresh();") is not None
 
 
 def test_every_tabindex_is_a_scroll_container_at_the_default() -> None:
@@ -835,6 +1104,16 @@ def test_every_tabindex_is_a_scroll_container_at_the_default() -> None:
     required to grant ``0`` and nothing else. The RUNTIME half - that the stop
     appears exactly while the box overflows - is measured in the browser during
     the audit, because no reading of this file can establish it.
+
+    CS-875 - THE SCRIPT HALF READ THE RAW FILE AND MATCHED A FRAGMENT. Both
+    faults were demonstrated. Wrapping the real grant in a ``/* */`` block left
+    the searched-for characters on disk, so ``re.findall`` still found them and
+    the arm stayed green while no box could be reached from the keyboard; and
+    "the only thing that may ever grant one is the sync function" was asserted
+    NOWHERE - the pattern matched wherever in the file it appeared. The grant is
+    now sought in :func:`code_only` output, as a ``.setAttribute(...)`` call,
+    and its offset is required to fall inside ``syncScrollRegions``'s own
+    brace-matched body.
     """
     markup = markup_only(read_asset(INDEX))
     assert not re.findall(r'tabindex="(-?\d+)"', markup), (
@@ -846,17 +1125,29 @@ def test_every_tabindex_is_a_scroll_container_at_the_default() -> None:
     scrollers = re.findall(r"<div class=\"scroll-x\"[^>]*>", markup)
     assert len(scrollers) == markup.count("<table"), "a table has no scroller"
 
-    script = read_asset(SCRIPT)
-    granted = re.findall(r'setAttribute\(\s*"tabindex"\s*,\s*"(-?\d+)"', script)
-    assert granted, "nothing in app.js ever grants a tab stop, so no scroller can be reached"
-    wrong = tuple(value for value in granted if value != "0")
+    code = code_only(read_asset(SCRIPT))
+    mask = string_free(code)
+
+    head = _SYNC_HEAD.search(mask)
+    assert head is not None, "app.js declares no syncScrollRegions function to grade"
+    sync_first, sync_last = block_span(mask, head.start())
+
+    grants = tuple(_TABINDEX_GRANT.finditer(code))
+    assert grants, "nothing in app.js ever grants a tab stop, so no scroller can be reached"
+    wrong = tuple(found.group("value") for found in grants if found.group("value") != "0")
     assert not wrong, (
         f"tabindex values that are not 0: {wrong}; a positive value invents a second "
         "ordering that disagrees with the visual one"
     )
-    assert 'removeAttribute("tabindex")' in script, (
-        "app.js grants a tab stop and never removes one, so a box that stops "
-        "overflowing keeps a stop it has not earned"
+    stray = tuple(found.group(0) for found in grants if not sync_first <= found.start() < sync_last)
+    assert not stray, (
+        f"{len(stray)} tab stop(s) granted outside syncScrollRegions: {stray}; a grant "
+        "the sync function cannot see is a stop that nothing ever withdraws"
+    )
+    withdrawn = _TABINDEX_WITHDRAWAL.search(code, sync_first, sync_last) is not None
+    assert withdrawn, (
+        "syncScrollRegions grants a tab stop and never withdraws one, so a box that "
+        "stops overflowing keeps a stop it has not earned"
     )
 
 
@@ -873,6 +1164,14 @@ def test_every_focusable_scroller_carries_its_own_accessible_name() -> None:
     sideways" on a box measured never to scroll at any tested width; the suffix
     is now appended only where the overflow is real, which is why the stem is
     what this file can grade and the whole name is not.
+
+    CS-875 - THE SCRIPT HALF READ THE RAW FILE, so a ``/* */`` block holding any
+    of these four fragments satisfied the arm while the code did none of it. It
+    now reads :func:`code_only` output and matches CALLS. The last assertion
+    also stopped being a bare mention of ``data-scroll-label``: the stem's read
+    is located, WHATEVER local name it lands in is captured, and that name is
+    then required to be the one an ``aria-label`` is built from - so a label
+    rebuilt from a literal is a failure rather than a silent lie to a reader.
     """
     markup = markup_only(read_asset(INDEX))
     scrollers = re.findall(r"<div class=\"scroll-x\"[^>]*>", markup)
@@ -890,18 +1189,24 @@ def test_every_focusable_scroller_carries_its_own_accessible_name() -> None:
         labels.append(found.group(1))
     assert len(set(labels)) == len(labels), f"two scrollers share a name: {labels}"
 
-    script = read_asset(SCRIPT)
-    assert 'setAttribute("role", "region")' in script, (
-        "nothing gives a focusable scroller a role, so a stop announces an unnamed box"
+    code = code_only(read_asset(SCRIPT))
+    named = _ROLE_GRANT.search(code) is not None
+    assert named, "nothing gives a focusable scroller a role, so a stop announces an unnamed box"
+    unroled = _ROLE_WITHDRAWAL.search(code) is not None
+    assert unroled, "a box that stops overflowing keeps a role it has not earned"
+    unnamed = _LABEL_WITHDRAWAL.search(code) is not None
+    assert unnamed, "a box that stops overflowing keeps a name it has not earned"
+
+    read = _STEM_READ.search(code)
+    assert read is not None, (
+        "app.js never calls getAttribute for data-scroll-label, so the markup's name "
+        "stems reach nothing"
     )
-    assert 'removeAttribute("role")' in script, (
-        "a box that stops overflowing keeps a role it has not earned"
-    )
-    assert 'removeAttribute("aria-label")' in script, (
-        "a box that stops overflowing keeps a name it has not earned"
-    )
-    assert "data-scroll-label" in script, (
-        "app.js does not read the name stem, so the markup's stems reach nothing"
+    stem = read.group("stem")
+    built = re.search(r'\.setAttribute\(\s*"aria-label"\s*,\s*' + re.escape(stem) + r"\b", code)
+    assert built is not None, (
+        f"the stem is read into {stem!r} and no aria-label is built from it, so the "
+        "name a reader hears is not the one the markup declares"
     )
 
 
@@ -922,17 +1227,75 @@ def test_a_scroller_losing_its_overflow_does_not_take_focus_with_it() -> None:
     to "Endpoint routes", and moving focus to the button then withdrew tabindex,
     role and aria-label together.
 
-    WHAT THIS FILE CAN GRADE is that the guard is present at all - the removal
-    branch must be reachable only when the box is not the active element.
+    WHAT THIS FILE CAN GRADE is that the removal branch is reachable only when
+    the box is not the active element - and CS-875 is why it now grades that
+    rather than something adjacent to it. The arm used to assert that the 22
+    characters of ``document.activeElement`` appeared somewhere in the file.
+    Changing ``===`` to ``!==`` in the guard passes ``node --check``, inverts
+    both branches, and calls ``removeAttribute`` on a focused box - which is
+    verbatim the regression recounted above - and the arm stayed green, because
+    those 22 characters were still exactly where they had always been.
+
+    SO THE COMPARISON IS NOW READ AS A COMPARISON. The operator is captured and
+    required to be an identity test; the branch it guards is brace-matched and
+    required to strip nothing; the ``else`` beside it is brace-matched and
+    required to strip all three attributes; and the box those removals name is
+    the one the condition named, not one this file assumed.
     """
-    script = read_asset(SCRIPT)
-    assert "document.activeElement" in script, (
-        "nothing in app.js consults the focused element, so a box losing its "
-        "overflow strips its own tab stop and drops the reader to the document"
+    code = code_only(read_asset(SCRIPT))
+    mask = string_free(code)
+
+    guards = tuple(
+        found
+        for found in _BRANCH_GUARD.finditer(mask)
+        if ACTIVE_ELEMENT in (found.group("left"), found.group("right"))
     )
-    assert 'addEventListener("blur"' in script, (
+    assert guards, (
+        "no branch in app.js is guarded on document.activeElement, so a box losing "
+        "its overflow strips its own tab stop and drops the reader to the document"
+    )
+    assert len(guards) == 1, (
+        f"{len(guards)} focus guards; this arm grades one and would wave a second one "
+        "through ungraded, so extend it rather than relaxing the count"
+    )
+
+    guard = guards[0]
+    operator = guard.group("operator")
+    assert operator == "===", (
+        f"the focus guard compares document.activeElement with {operator!r}; only an "
+        "identity test holds the stop for the box that HAS focus, and the negation "
+        "hands the held branch to every box that does not"
+    )
+
+    left, right = guard.group("left"), guard.group("right")
+    subject = left if right == ACTIVE_ELEMENT else right
+    held_first, held_last = block_span(mask, guard.start())
+    held = code[held_first:held_last]
+    assert "removeAttribute" not in held, (
+        f"the branch taken while {subject} holds focus removes an attribute from it, "
+        "and removing tabindex from the focused element blurs it - which is the "
+        "measured regression this guard exists to stop"
+    )
+    assert f'{subject}.addEventListener("blur"' in held, (
         "the stop is held for a focused box and never withdrawn when focus leaves, "
         "so a box that stopped overflowing keeps a stop it has not earned"
+    )
+
+    otherwise = _ELSE_BLOCK.match(mask, held_last + 1)
+    assert otherwise is not None, (
+        "the focus guard has no else branch, so a box that stops overflowing without "
+        "holding focus keeps the stop, the role and the name it has not earned"
+    )
+    strip_first, strip_last = block_span(mask, otherwise.start())
+    stripping = code[strip_first:strip_last]
+    kept = tuple(
+        name
+        for name in ("tabindex", "role", "aria-label")
+        if f'{subject}.removeAttribute("{name}")' not in stripping
+    )
+    assert not kept, (
+        f"the unfocused branch never withdraws {kept} from {subject}, so an attribute "
+        "outlives the overflow that earned it"
     )
 
 
@@ -950,27 +1313,61 @@ def test_the_tab_stop_is_derived_before_the_first_fetch_resolves() -> None:
     the page permanently without a route to its scrollers while the same
     ``finally`` cheerfully hands the button back.
 
-    BOTH ASSERTIONS ARE ANCHORED ON INDENTATION, AND THE FIRST DRAFT WAS NOT -
-    it searched for the bare call in a slice of the file and passed against both
-    deletions, because the slice before the bootstrap still held the indented
-    call inside the ``finally`` and the slice after the ``finally`` still held
-    the top-level one. A substring is not a call site. Column zero is a
-    top-level statement and four spaces is inside ``refresh()``, so the two
-    calls are told apart by where they start rather than by what they spell.
-    """
-    script = read_asset(SCRIPT)
+    NEITHER ASSERTION IS ANCHORED ON TEXT ANY MORE, AND CS-875 IS WHY. The
+    first draft searched for the bare call in a slice of the file and passed
+    against both deletions. The second anchored on indentation - column zero
+    for a top-level statement, four spaces for one inside ``refresh()`` - and
+    two mutants beat that too, both of them passing ``node --check``. Wrapping
+    the column-zero call in a ``/* */`` block leaves a newline in front of an
+    unindented copy of itself, so the anchor still matched and the 14641ms
+    no-keyboard-route window came back green. And four spaces is not scope: an
+    indented call placed AFTER ``refresh()``'s closing brace satisfies the
+    ``finally`` half while the post-render sync never runs.
 
-    boot = script.rindex("\nrefresh();")
-    assert "\nsyncScrollRegions();" in script[:boot], (
-        "nothing derives a tab stop at top level before the first refresh() call, "
-        "so an overflowing scroller has no keyboard route until every probe resolves"
+    SO BOTH HALVES ARE READ AS STRUCTURE NOW. Comments come out first, string
+    bodies are blanked so a brace inside one cannot be taken for a block, and a
+    call is placed by how many blocks stand open above it. The bootstrap must
+    be a call at depth zero occurring BEFORE the first top-level ``refresh()``,
+    and the post-render sync must be a direct statement of the brace-matched
+    block belonging to ``refresh()``'s own ``finally``.
+    """
+    code = code_only(read_asset(SCRIPT))
+    mask = string_free(code)
+
+    boots = tuple(
+        found.start()
+        for found in _SYNC_CALL.finditer(mask)
+        if statement_depth(mask, found.start()) == 0
+    )
+    paints = tuple(
+        found.start()
+        for found in _REFRESH_CALL.finditer(mask)
+        if statement_depth(mask, found.start()) == 0
+    )
+    assert paints, "nothing calls refresh() at top level, so the page never paints at all"
+    assert any(at < paints[0] for at in boots), (
+        "no top-level syncScrollRegions() call runs before the first top-level "
+        "refresh(), so an overflowing scroller has no keyboard route until every "
+        "probe resolves"
     )
 
-    body = script[script.index("async function refresh()") : boot]
-    finally_at = body.index("} finally {")
-    assert "\n    syncScrollRegions();" in body[finally_at:], (
-        "the post-render sync is not inside refresh()'s finally, so a throw in a "
-        "renderer leaves the page with no keyboard route to its scrollers"
+    head = _REFRESH_HEAD.search(mask)
+    assert head is not None, "refresh() is not declared where this arm can find it"
+    body_first, body_last = block_span(mask, head.start())
+
+    tail = _FINALLY_HEAD.search(mask, body_first, body_last)
+    assert tail is not None, "refresh() has no finally, so a throw latches the page"
+
+    finally_first, finally_last = block_span(mask, tail.start())
+    depth = statement_depth(mask, finally_first)
+    synced = tuple(
+        found.start()
+        for found in _SYNC_CALL.finditer(mask, finally_first, finally_last)
+        if statement_depth(mask, found.start()) == depth
+    )
+    assert synced, (
+        "the post-render sync is not a statement of refresh()'s finally block, so a "
+        "throw in a renderer leaves the page with no keyboard route to its scrollers"
     )
 
 
@@ -1193,10 +1590,14 @@ def test_the_script_names_every_published_route_template() -> None:
     Read from the endpoint module rather than restated here, so a tenth route
     landing in BOOTSTRAP.md section 7.1 turns this red instead of leaving the
     page one row short and silent.
+
+    CS-875 SWEEP: comments come out first. ``app.js`` opens with a comment that
+    names the nine routes in section order, so a template deleted from the row
+    table was still findable in the prose describing it.
     """
-    script = read_asset(SCRIPT)
+    code = code_only(read_asset(SCRIPT))
     expected = len(health.ENDPOINT_TEMPLATES)
-    missing = tuple(name for name in health.ENDPOINT_TEMPLATES if f'"{name}"' not in script)
+    missing = tuple(name for name in health.ENDPOINT_TEMPLATES if f'"{name}"' not in code)
     total = len(missing)
     assert total == 0, f"{total} of {expected} route templates absent from app.js: {missing}"
 
@@ -1208,8 +1609,11 @@ def test_the_script_gives_each_route_the_method_its_owner_publishes() -> None:
     solver routes carry theirs in ``solve.METHOD_POST``. Both are read here.
     A page that printed GET beside ``/api/solve`` would be telling an operator
     to make a request the server refuses.
+
+    CS-875 SWEEP: comments come out first, so the row this reads is a row of
+    the table rather than an example of one written into a comment.
     """
-    script = read_asset(SCRIPT)
+    code = code_only(read_asset(SCRIPT))
     expected = {template: method for method, template in pending.UNBACKED} | {
         solve.SOLVE_ENDPOINT: solve.METHOD_POST,
         solve.OPTIMIZE_ENDPOINT: solve.METHOD_POST,
@@ -1218,7 +1622,7 @@ def test_the_script_gives_each_route_the_method_its_owner_publishes() -> None:
     }
     assert len(expected) == len(health.ENDPOINT_TEMPLATES), sorted(expected)
 
-    entries = dict(re.findall(r'template: "([^"]+)", method: "([A-Z]+)"', script))
+    entries = dict(re.findall(r'template: "([^"]+)", method: "([A-Z]+)"', code))
     wrong = tuple(
         f"{template}: page says {entries.get(template)!r}, owner says {method!r}"
         for template, method in sorted(expected.items())
@@ -1328,24 +1732,30 @@ def test_the_script_never_hardcodes_the_blocking_item_id() -> None:
 
 
 def test_the_page_shows_the_two_version_facts_and_the_two_presence_badges() -> None:
-    """The header line and the badges read the health body's own keys."""
-    script = read_asset(SCRIPT)
-    absent = tuple(key for key in health.DATA_KEYS if f'"{key}"' not in script)
+    """The header line and the badges read the health body's own keys.
+
+    CS-875 SWEEP: comments come out first, because a key quoted in a comment is
+    not a key the page reads.
+    """
+    code = code_only(read_asset(SCRIPT))
+    absent = tuple(key for key in health.DATA_KEYS if f'"{key}"' not in code)
     total = len(absent)
     assert total == 0, f"{total} health key(s) the page never reads: {absent}"
 
 
 def test_the_page_shows_the_masked_token_and_the_world_scalars() -> None:
-    """Every top-level ``/api/world`` key is read, including the counts."""
-    script = read_asset(SCRIPT)
-    absent = tuple(
-        key for key in ("world", "counts", "unknown_classes") if f'"{key}"' not in script
-    )
+    """Every top-level ``/api/world`` key is read, including the counts.
+
+    CS-875 SWEEP: comments come out first, because a key quoted in a comment is
+    not a key the page reads.
+    """
+    code = code_only(read_asset(SCRIPT))
+    absent = tuple(key for key in ("world", "counts", "unknown_classes") if f'"{key}"' not in code)
     total = len(absent)
     assert total == 0, f"{total} world key(s) the page never reads: {absent}"
 
     scalars = ("header_version", "save_version", "build_changelist", "body_offset")
-    unread = tuple(key for key in scalars if f'"{key}"' not in script)
+    unread = tuple(key for key in scalars if f'"{key}"' not in code)
     assert not unread, f"version scalars the page never reads: {unread}"
 
 
