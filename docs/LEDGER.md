@@ -75,6 +75,170 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-01 - CS-600 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-600 STAYS OPEN. The third audit ran, by an agent that authored none of it, and returned BLOCKED on a MUST-FIX no stylesheet can repair
+Verification: the page assets `clockspeed/surface/web/index.html`, `app.css` and `app.js`
+are byte-identical to 896a682 this session; what changed is `shell/lib/window.js` and the
+arms named in the CS-873, CS-874 and CS-875 records below.
+
+**THE GATE IS STILL NOT MET.** CS-600's acceptance is that the CONVENTIONS 13.2 audit
+PASSES before the page is committed. It has now run three times and returned BLOCKED three
+times. The page was already committed each time, which is the process failure the
+acceptance names.
+
+**THE AUDIT WAS RUN AGAINST A PINNED CANDIDATE.** 896a682, clean, hashes recorded before
+dispatch and re-checked after; four read-only agents ran against it and the six candidate
+files were byte-identical throughout. Both views were graded - the page as served, and the
+page composed with the shell's injected sheet extracted from the file rather than retyped.
+
+**ALL SEVEN REPAIRS THE TWO PRIOR AUDITS PRODUCED WERE RE-MEASURED AS CLAIMS TO BREAK, AND
+ALL SEVEN HELD.** The derived tab stop and derived label across eight widths, focus
+retention when a scroller loses its overflow, the stop present at 155ms against a delayed
+proxy, the 503 path leaving a 0x0 non-focusable box, focus survival across a real click
+repaint, and listener lifetime across a refresh. Contrast passes in both schemes, all 22
+custom properties resolve, zero non-ASCII across 8890 rendered characters, and the privacy
+sweep of the rendered page and of the raw `/api/world` payload was clean.
+
+**THE AUDITOR REFUTED THREE OF ITS OWN CANDIDATE FINDINGS AS HARNESS ARTIFACTS** before
+filing any of them - the browser pane fires no resize event on a viewport override,
+suppresses focus dispatch when the document is not focused, and does not drive default
+scrolling with synthetic keys. That is why the one finding it did file survived
+adversarial review.
+
+**THE ONE MUST-FIX IS FILED AS CS-872 AND IS NOT REPAIRED.** Its severity wording was
+partly REFUTED and the corrected version is the one carried forward: content is NOT
+unreachable, because a click anywhere or the wheel restores scrolling and a real scrollbar
+renders. The accurate claim is that the composed page OPENS with no default keyboard
+scrolling and every recovery route is mouse-only or accidental. The filed figures
+- 3344/872/2472 and 787 - were harness-local; at the shell's own default window the
+numbers are 1124/677/447 and 419.
+
+### 2026-09-01 - CS-617 - CORRECTION RECORD. NOT A COMPLETION RECORD, and it does not reopen the item. The repair closed with NEITHER branch of its own acceptance met, and shipped two regressions in the constant it repaired
+Verification: the acceptance line as deleted at 896a682, readable with
+`git show 896a682 -- ROADMAP.md`; `shell/lib/window.js`; and the CS-872, CS-873 and CS-874
+records.
+
+**NEITHER BRANCH OF ITS ACCEPTANCE WAS MET.** The line read: the 5-phase audit runs on the
+dashboard composed with the injected CSS with HIT-TARGETS graded on a SCROLLED page, OR the
+composition is recorded as outstanding under CS-600 with the reason. The first did not
+happen - hit-tests at three offsets are not five phases. The second did not happen either:
+CS-600's line names no composed view, and CS-617's own record lists only the Electron drag
+as owed. **The item line was then deleted, so the obligation was recorded nowhere.** The
+third audit discharges branch 1, one day late, and it returned BLOCKED.
+
+**TWO REGRESSIONS SHIPPED IN THE SAME CONSTANT**, filed as CS-872 and CS-873. One of them
+voids a decision the dashboard's own stylesheet records in capitals, across a seam no arm
+crosses.
+
+**TWO OF ITS CITED POST-REPAIR MEASUREMENTS WERE VACUOUS.** "No horizontal page scroll"
+became unfalsifiable by the very change that cites it - with the root clipped and the body
+clipped sideways, no page-level horizontal scroll is measurable whether or not content
+bursts. "The header sits exactly at y=28" is true by construction of `top: 28px`.
+
+**THE ARM IT CITED AS PROVING THE REPAIR LOAD-BEARING COULD NOT DISTINGUISH THE REPAIR FROM
+THE DEFECT.** Its four cited mutants were the same four tokens that arm greps for, so the
+matrix was derived from the arm's own assertions and could only confirm them. Four
+different mutants survive it green, including one that restores the CS-617 defect outright.
+That is CS-874, repaired below.
+
+**THE REPAIR ITSELF IS NOT WITHDRAWN.** The band genuinely no longer covers content:
+re-measured this session at 4340 hit-test points across the strip at three scroll offsets,
+every one returning the band or the root and never a control or a glyph.
+
+### 2026-09-01 - CS-873 - CLOSED. The injected sheet stops clipping the body's sideways overflow, so the signal app.css preserves on purpose survives the composition
+Verification: `shell/lib/window.js`, the `DRAG_STRIP_CSS` body rule, graded by the
+`shell/test/window.test.js` arm "the injected sheet does not clip the body's sideways
+overflow".
+
+896a682 added `overflow-x: hidden` to the injected body rule. `clockspeed/surface/web/app.css`
+records in capitals that the declaration is deliberately absent, because a sideways
+scrollbar is the only signal a reader or an auditor gets that something has burst its
+container. The arm asserting its absence,
+`tests/surface/test_web_assets.py::test_the_body_does_not_clip_a_sideways_overflow`, reads
+that stylesheet alone, so a sheet injected from the shell voided the decision with nothing
+to catch it. The declaration is removed rather than replaced: a box with a scrolling
+`overflow-y` and no `overflow-x` computes the missing axis to `auto`. Measured on the
+composed page - the body's computed sideways overflow reads `hidden` with the declaration
+present and `auto` without it.
+
+### 2026-09-01 - CS-874 - CLOSED. The drag strip arm grades the composed cascade instead of tokens in a string, and FAILS CLOSED on any construct it cannot compose. Five mutants that survived it now redden it
+Verification: `shell/test/window.test.js`, the arms "the CSS grader sees through every
+dodge the token arm let past", "the injected sheet is unconditional and names only its
+declared selectors", "the drag strip insets the scrollport rather than covering the
+page", "the drag band sits at the viewport top and is exactly the strip's height",
+"the band's top and the scrollport's inset are not interchangeable", and "the root
+stops scrolling, which is what lets the inset scrollport scroll".
+
+The old arm's three positive assertions were free-floating multiline regexes over the whole
+constant, none scoped to a rule, so it never asserted that any element was positioned,
+inset or scrollable. Four syntax-valid mutants survived it green while restoring the CS-617
+defect: deleting `position` from the scrollport, swapping the band's top with the
+scrollport's inset, clipping the scrollport and parking the tokens on a selector the page
+does not have, and hiding the tokens in a comment plus a media query that can never match.
+The sheet is now parsed - comments stripped, split into rules, declarations composed per
+selector in document order - and the grader is itself graded against a synthetic sheet
+carrying all four dodges, so the arms cannot pass on an empty parse.
+
+**INDEPENDENTLY REPRODUCED BY THE MERGER, not taken on the builder's word.** In an extracted
+copy: floor 30 pass 0 fail; three of the four mutants re-run, each asserted to have landed,
+each `node --check` clean, each restored byte-exact, and each reddening the suite. The OLD
+arm was measured separately against the identical `position` deletion and survived green,
+which is the before half of the pair.
+
+**AN ADJUDICATOR THEN FOUND A FIFTH DODGE INSIDE THIS REPAIR, WHICH IS THE FAULT THIS ITEM
+WAS FILED FOR.** A conditional group nested in the `body` rule - an `@media` whose condition
+always matches, carrying `top: 0` - survived the first cut of the rewritten grader
+completely green. At-rule preludes were collected at depth 0 only, and the declaration split
+takes the first colon, so the nested block was swallowed as one bogus property while the
+grader confidently reported the inset intact. Under CSS Nesting the composed cascade gives
+the scrollport a zero inset and the CS-617 defect returns. **The arm's own comment claimed an
+at-rule's presence IS the fault, with no conditionality, while enforcing the top level
+alone** - a narrower enforcement than the stated claim, which is precisely what CS-874 exists
+to remove.
+
+**THE REPAIR FAILS CLOSED RATHER THAN WIDENING THE PARSER.** A rule body carrying any chunk
+that is not a plain declaration is surfaced as unmodeled, and the composer THROWS instead of
+returning a map. Every geometry arm reaches its declarations through that one site, so all of
+them are guarded without each enumerating dodges, and nested plain rules, nested `@supports`,
+stray braces and semicolons inside values are refused without anyone listing them. A parser
+that models only `property: value` should say it cannot answer rather than answer
+confidently. The unconditional claim in the comment is narrowed to what the pair of
+assertions actually enforces: depth zero by prelude, any greater depth by the sweep.
+
+**INDEPENDENTLY RE-RUN BY THE MERGER AFTER THE REPAIR:** floor 30 pass 0 fail, the nested
+group reddening four arms, the mutation asserted landed, valid JavaScript, and restored
+byte-exact.
+
+### 2026-09-01 - CS-875 - CLOSED. Four web-asset arms grade the property they name, and a commented-out call site no longer satisfies any of them
+Verification: `tests/surface/test_web_assets.py`, the four repaired arms
+`test_every_tabindex_is_a_scroll_container_at_the_default`,
+`test_every_focusable_scroller_carries_its_own_accessible_name`,
+`test_a_scroller_losing_its_overflow_does_not_take_focus_with_it` and
+`test_the_tab_stop_is_derived_before_the_first_fetch_resolves`; the readers
+`string_free`, `block_span` and `statement_depth` and their proof arms
+`test_the_string_blanker_hides_text_and_keeps_structure`,
+`test_the_block_finder_returns_the_matching_brace_not_the_first_one` and
+`test_the_depth_reader_counts_the_blocks_standing_open`.
+
+The four arms read the script raw while the same module already defined `code_only()` and
+seven other arms used it, so a call site wrapped in a block comment satisfied them. One arm
+was worse than blind to comments: its real assertion was that the string
+`document.activeElement` occurred somewhere, so inverting that comparison to `!==` - which
+reintroduces the blur regression this file records at length - left it green. The previous
+repair anchored on INDENTATION, and indentation is not scope: a four-space-indented call
+placed after a function's closing brace satisfied the `finally` half while the post-render
+sync never ran.
+
+Twelve mutants were driven through, each with a pristine green floor immediately before and
+after, and all twelve now redden. **INDEPENDENTLY REPRODUCED BY THE MERGER** for the two
+measured blind on the base: `app.js` is byte-identical to 896a682, floor 74 passed, and the
+commented-out bootstrap call and the inverted focus guard each redden one arm and restore
+byte-exact.
+
+**BOUNDED, AND THE BOUND IS RECORDED RATHER THAN IMPLIED.** The sweep covered arms reading
+the script and the markup. The CSS arms reading the stylesheet raw were NOT graded for this
+class of fault and are unverified rather than clean. Bans over raw text were left raw on
+purpose: a ban can produce a false red but never a false green.
+
 ### 2026-09-01 - CS-617 - CLOSED. The injected drag band no longer captures scrolled content, because the scrollport now starts below it rather than the page being padded away from it
 Verification: `shell/lib/window.js`, the `DRAG_STRIP_CSS` block and the comment above it,
 plus `shell/test/window.test.js` arms

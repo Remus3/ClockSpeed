@@ -34,6 +34,93 @@ the line becomes a pointer.
 
 ---
 
+## Session 55 - 2026-09-01 - The third CS-600 audit found a MUST-FIX the first two missed, and every refuter that followed returned something real. CS-873, CS-874 and CS-875 closed. CS-872 stays open with the CSS-only space MEASURED closed rather than argued closed
+
+- **Shipped: CS-873, CS-874, CS-875.** Detail in `docs/LEDGER.md`, not here. **CS-600 STAYS
+  OPEN** and its entry says NOT A COMPLETION RECORD. CS-872 and CS-876 were filed this
+  session and are OPEN. CS-829 stays GATED behind CS-G05, untouched. CS-868 to CS-871,
+  CS-864 and CS-865 untouched.
+
+- **THE HEADLINE: THE THIRD AUDIT WAS WORTH RUNNING, AND SO WAS EVERY REFUTATION AFTER IT.**
+  Session 54 wrote the dashboard repairs, the shell repair AND the arms guarding all three,
+  which is the one thing section 5 forbids. A `ui-auditor` that authored none of it returned
+  BLOCKED on a defect two prior audits missed. Four read-only refuters then ran; **every one
+  returned something real** - a confirmed regression, a second regression nobody had filed,
+  an acceptance clause met by neither branch, and four arms blind to mutants that restore
+  the exact defect they were written for.
+
+- **CS-872 IS A NEGATIVE RESULT, AND ITS FIRST WRITE-UP OVER-STATED IT.** The composed page
+  opens with no default keyboard scrolling, because a non-root scroller is not the default
+  scroll target. Seven shapes were driven through one harness with perfect anti-correlation
+  - every shape that scrolled on a cold PageDown put real content back under the band, and
+  every one that kept the strip clear was keyboard-dead. **That is seven samples, not a
+  closed space, and it was first written as `measured closed`.** What generalizes is
+  STRUCTURAL and is an ARGUMENT rather than a measurement: in standards mode the root's
+  `scrollTop`, `scrollHeight` and `clientHeight` ARE the viewport's, so positioning it out
+  of flow leaves nothing in flow to scroll. **The harness is also not checked in, so nothing
+  tracked here can re-run the seven shapes** - which makes the claim unprobeable by a later
+  session, in a code comment where it reads as settled. An adjudicator caught all of this
+  and the wording is now hedged. The cure remains a drag region the OS draws outside the web
+  contents - a window option, not a stylesheet - and nothing here can grade it.
+
+- **THE ADJUDICATOR FOUND A FIFTH DODGE INSIDE THE REPAIR THAT REMOVED FOUR.** A conditional
+  group nested in the `body` rule - `@media (min-width: 1px) { top: 0; }` - survives the
+  rewritten CS-874 grader green, because the declaration split takes the first colon and
+  swallows the nested block, and at-rule preludes are collected at depth 0 only. Under CSS
+  Nesting that restores the CS-617 defect. **CS-874 was filed for an arm claiming more than
+  it enforced, and its own repair shipped a narrower enforcement than its comment claimed.**
+
+- **A FILED FINDING'S SEVERITY WAS PARTLY REFUTED AND THE CORRECTED VERSION IS WHAT SHIPPED
+  INTO THE RECORD.** The audit said 2472px was unreachable. False: a click anywhere or the
+  wheel restores scrolling and a real scrollbar renders. Its figures were harness-local too.
+  What survives is narrower and still MUST-FIX - the page OPENS keyboard-dead and every
+  recovery route is mouse-only. **A confirmed finding can still carry a false sub-claim.**
+
+- **CS-617 CLOSED WITH NEITHER BRANCH OF ITS OWN ACCEPTANCE MET.** Its line offered two
+  routes - run the composed 5-phase audit, or record the composition as outstanding under
+  CS-600. Neither happened, and deleting the item line took the obligation with it. A
+  correction record is filed. **The item is NOT reopened and the repair is NOT withdrawn** -
+  the band genuinely no longer covers content, re-measured at 4340 hit-test points.
+
+- **THE SAME FAULT FAMILY AGAIN, AND MY OWN DISPATCH CARRIED IT.** I pointed an adversary at
+  `tests/shell/test_shell_assets.py`, a file never modified in the range I asked it about.
+  It re-derived the population from `git diff` and graded `shell/test/window.test.js`
+  instead. **The failure mode showed up inside the dispatch hunting the failure mode**, and
+  only survived because the brief told it not to trust a handed list.
+
+- **FOUR BLIND ARMS, EACH REPRODUCED BY THE MERGER RATHER THAN RELAYED.** Indentation is not
+  scope - a four-space call after the closing brace satisfies a `finally` check. A substring
+  is not a call site. A substring is not a comparison - `===` to `!==` left an arm green. An
+  oracle that consumes bytes without comparing its final offset agrees by not looking, which
+  is the fault its own comment condemns; that is CS-876 and it is still OPEN.
+
+- **Surprises: filing five item lines tipped `ROADMAP.md` over its soft budget.** It sat at
+  98 per cent, so the next filing in any session was going to. Closing three returned it
+  under and the guard is PASS again, but **a relocate pass is due at the next filing** - the
+  header carries a topology block that says of itself it is recorded in `CLAUDE.md` section
+  4, which is a restated fact.
+
+- **A WORKTREE CAME UP THREE COMMITS STALE AGAIN, AND THE BRIEF IS WHAT CAUGHT IT.** The
+  third builder was dispatched against a named base and its worktree opened at the
+  session's starting commit instead, missing both commits its task was built on. It reset
+  and said so, because the brief ordered a verify-and-fast-forward and a report of the SHA
+  actually worked from. **Keep ordering that in every dispatch** - the two earlier builders
+  opened at the right commit, so this fails INTERMITTENTLY rather than always, which is
+  worse than a reliable fault.
+
+- **Decisions: none recorded as an ADR.** Nothing contradicted `BOOTSTRAP.md`.
+
+- **Next action: CS-876, then CS-868 to CS-871, CS-864 and CS-865 - and take them as ONE
+  family rather than six items.** All six are arms grading a narrower population than they
+  name, and the two closed this session make eight. A systemic answer is likely worth more
+  than eight point repairs. **CS-872 needs a real Electron and cannot be closed here.**
+
+- **STILL OUTSTANDING FROM SESSION 49:** the six manual checks in `docs/OPERATIONS.md`
+  section 8.3 all read NOT RUN, and `shell/node_modules` does not exist in this clone. The
+  drag itself has still never been exercised against a real Electron.
+
+---
+
 ## Session 54 - 2026-09-01 - CS-867 CLOSED and the push block cleared; three adversaries refuted it and all three were right; the UI work opened and its first audit returned BLOCKED. The same fault shape appeared FIVE times and I wrote three of them
 
 - **Shipped: CS-867 and CS-617.** Detail in `docs/LEDGER.md`, not here. CS-600 stays OPEN and
@@ -187,77 +274,3 @@ the line becomes a pointer.
   does not exist in this clone.
 
 ---
-
-## Session 52 - 2026-08-31 - CS-863 CLOSED. The second tag reading stopped consulting the shipped ceiling, so a strictly worse reader can no longer buy a green module; and two independent adversaries defeated CS-862's central claim with a one-line memo
-
-- **Shipped: CS-863.** Detail in `docs/LEDGER.md`, not here. CS-866 filed from the
-  adversarial pass. CS-829 stays GATED behind CS-G05 - this was PREP and PREP never
-  closes a gated item. CS-864 and CS-865 stay OPEN.
-
-- **THE HEADLINE: A SHARED CEILING IS A SHARED DECISION ABOUT WHO LEAVES THE
-  POPULATION.** Both tag walks ran `range(objects._MAX_TAGS_PER_PAYLOAD)`, so a stricter
-  ceiling deleted the same records from the numerator and the denominator and every
-  equality held while the population shrank. Reproduced at `bde34ec` before anything was
-  touched, pair-shaped: at 12 the module showed ONE failing arm, at 0 - which refuses
-  everything 12 refuses and more - it showed NONE and exited 0. The repair takes the loop
-  bound from the EXTENT, which cannot lose a real tag by arithmetic rather than by
-  observation. After it, every ceiling from 0 to 31 reddens the module and 32 and above
-  leave it green, the boundary sitting exactly at the corpus's own observed maximum of 31.
-
-- **A CONSTANT IS NOT AUTOMATICALLY SAFE TO SHARE, AND THAT IS THE DOCTRINE TO CARRY.**
-  The seam rule was "constants yes, readers no", and it was wrong in one direction: a
-  shared WIDTH is data two readings of one format must agree on, but a shared CEILING is a
-  shared verdict. Widths and names stayed; the ceiling left.
-
-- **ALL TEN SHARED SYMBOLS WERE PLANTED, because the item note said two of them never had
-  been and that expecting them to behave like the ceiling is not evidence.** Only the
-  ceiling shows the anti-monotone signature. `MAX_STRING_BYTES` and `MAX_OBJECTS` KILL
-  rather than degrade - `parse_body` raises and the sweep's refusal guard catches it - so
-  whether a stricter value could instead have improved the grade is recorded UNESTABLISHED
-  rather than disproved. `UTF16_CHAR_SIZE` at a wrong value moves NOTHING at all, which is
-  a different hole and is named rather than claimed closed.
-
-- **THE SHARED SURFACE IS NOW DERIVED, NOT SAMPLED.** What the two readings shared lived
-  in a docstring naming four symbols "among them", and the only one disclosed anywhere was
-  `BODY_LAYOUT_BY_PAIR`. `TAG_READING_SHARED_SYMBOLS` records nine, an AST closure derives
-  them from source, and five mutants redden the arm that holds the two together.
-
-- **Surprises: CS-862'S CENTRAL CLAIM IS REFUTED, by two adversaries that produced none of
-  it and worked from different briefs, then reproduced a third time by the merger.** A
-  ONE-LINE MEMO over a `getattr` wrapper of `objects.parse_body` passes all 15 dynamic
-  arms in module order - 15 failed recomputing, 63 passed memoised - because each arm calls
-  `independent_records` once, AFTER the plant, on bodies earlier arms already read while
-  pristine. Moving the ground truth from the pristine reading to the fixture fixed
-  PROVENANCE and buys nothing against a cache, because the cache returns the
-  fixture-correct answer too. The recorded 15 of 15 holds only when those arms run ALONE.
-  Filed as CS-866. Nothing contradicted `BOOTSTRAP.md`.
-
-- **A PIPELINE ATE PYTEST'S EXIT CODE AND I REPORTED A RED SUITE AS GREEN.**
-  `pytest ... 2>&1 | tail -20` returns `tail`'s status, and the harness reported exit 0
-  while the very output I was reading said "2 failed". Both failures were mine, in
-  `tests/test_docs_citations.py`. Every suite verdict from now on is read from a LOG FILE
-  with `echo PYTEST_EXIT=$?` written into it, never from a piped command's status.
-
-- **AND ONE OF THOSE FAILURES WAS A SUBAGENT'S PARAPHRASE TRANSCRIBED AS A CITATION.** An
-  adversary abbreviated an arm name to its first four words and a trailing ellipsis; it
-  went into a note verbatim and the citation guard caught it as an identifier bound
-  nowhere. The real arm is
-  `test_the_reading_agrees_with_the_shipped_table_on_a_synthetic_body`. The FINDING the
-  adversary carried was real and independently reproduced - the identifier was not. NOTE
-  THAT WRITING THE DEAD NAME DOWN TO EXPLAIN IT FAILS THE SAME GUARD A SECOND TIME, which
-  is why this bullet describes the shorthand instead of spelling it.
-
-- **Decisions: none recorded as an ADR.**
-
-- **Failed paths: none abandoned.** The pair-shaped plant harness needed an int-alike with
-  `__index__` armed from a `parse_body` wrapper, because a plain global plant is loud - it
-  breaks the synthetic fixtures and never reaches the quiet loss class.
-
-- **Next action: CS-866**, and take it before CS-864. It is the same seam CS-864 is about,
-  it now has a measured counter-example rather than a predicted one, and CS-864's residue -
-  a reading rebuilt from shipped `_Cursor` primitives - was MEASURED green this session and
-  belongs to the same repair.
-
-- **STILL OUTSTANDING FROM SESSION 49, UNTOUCHED:** the six manual checks in
-  `docs/OPERATIONS.md` section 8.3 all still read NOT RUN. They need a human at a real
-  display and a real Electron, and `shell/node_modules` still does not exist in this clone.

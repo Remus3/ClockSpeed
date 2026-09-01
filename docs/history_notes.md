@@ -25,6 +25,84 @@ Where current truth actually lives:
 
 ---
 
+## Session 52 wakeup note - relocated 2026-09-01 (session 55)
+
+## Session 52 - 2026-08-31 - CS-863 CLOSED. The second tag reading stopped consulting the shipped ceiling, so a strictly worse reader can no longer buy a green module; and two independent adversaries defeated CS-862's central claim with a one-line memo
+
+- **Shipped: CS-863.** Detail in `docs/LEDGER.md`, not here. CS-866 filed from the
+  adversarial pass. CS-829 stays GATED behind CS-G05 - this was PREP and PREP never
+  closes a gated item. CS-864 and CS-865 stay OPEN.
+
+- **THE HEADLINE: A SHARED CEILING IS A SHARED DECISION ABOUT WHO LEAVES THE
+  POPULATION.** Both tag walks ran `range(objects._MAX_TAGS_PER_PAYLOAD)`, so a stricter
+  ceiling deleted the same records from the numerator and the denominator and every
+  equality held while the population shrank. Reproduced at `bde34ec` before anything was
+  touched, pair-shaped: at 12 the module showed ONE failing arm, at 0 - which refuses
+  everything 12 refuses and more - it showed NONE and exited 0. The repair takes the loop
+  bound from the EXTENT, which cannot lose a real tag by arithmetic rather than by
+  observation. After it, every ceiling from 0 to 31 reddens the module and 32 and above
+  leave it green, the boundary sitting exactly at the corpus's own observed maximum of 31.
+
+- **A CONSTANT IS NOT AUTOMATICALLY SAFE TO SHARE, AND THAT IS THE DOCTRINE TO CARRY.**
+  The seam rule was "constants yes, readers no", and it was wrong in one direction: a
+  shared WIDTH is data two readings of one format must agree on, but a shared CEILING is a
+  shared verdict. Widths and names stayed; the ceiling left.
+
+- **ALL TEN SHARED SYMBOLS WERE PLANTED, because the item note said two of them never had
+  been and that expecting them to behave like the ceiling is not evidence.** Only the
+  ceiling shows the anti-monotone signature. `MAX_STRING_BYTES` and `MAX_OBJECTS` KILL
+  rather than degrade - `parse_body` raises and the sweep's refusal guard catches it - so
+  whether a stricter value could instead have improved the grade is recorded UNESTABLISHED
+  rather than disproved. `UTF16_CHAR_SIZE` at a wrong value moves NOTHING at all, which is
+  a different hole and is named rather than claimed closed.
+
+- **THE SHARED SURFACE IS NOW DERIVED, NOT SAMPLED.** What the two readings shared lived
+  in a docstring naming four symbols "among them", and the only one disclosed anywhere was
+  `BODY_LAYOUT_BY_PAIR`. `TAG_READING_SHARED_SYMBOLS` records nine, an AST closure derives
+  them from source, and five mutants redden the arm that holds the two together.
+
+- **Surprises: CS-862'S CENTRAL CLAIM IS REFUTED, by two adversaries that produced none of
+  it and worked from different briefs, then reproduced a third time by the merger.** A
+  ONE-LINE MEMO over a `getattr` wrapper of `objects.parse_body` passes all 15 dynamic
+  arms in module order - 15 failed recomputing, 63 passed memoised - because each arm calls
+  `independent_records` once, AFTER the plant, on bodies earlier arms already read while
+  pristine. Moving the ground truth from the pristine reading to the fixture fixed
+  PROVENANCE and buys nothing against a cache, because the cache returns the
+  fixture-correct answer too. The recorded 15 of 15 holds only when those arms run ALONE.
+  Filed as CS-866. Nothing contradicted `BOOTSTRAP.md`.
+
+- **A PIPELINE ATE PYTEST'S EXIT CODE AND I REPORTED A RED SUITE AS GREEN.**
+  `pytest ... 2>&1 | tail -20` returns `tail`'s status, and the harness reported exit 0
+  while the very output I was reading said "2 failed". Both failures were mine, in
+  `tests/test_docs_citations.py`. Every suite verdict from now on is read from a LOG FILE
+  with `echo PYTEST_EXIT=$?` written into it, never from a piped command's status.
+
+- **AND ONE OF THOSE FAILURES WAS A SUBAGENT'S PARAPHRASE TRANSCRIBED AS A CITATION.** An
+  adversary abbreviated an arm name to its first four words and a trailing ellipsis; it
+  went into a note verbatim and the citation guard caught it as an identifier bound
+  nowhere. The real arm is
+  `test_the_reading_agrees_with_the_shipped_table_on_a_synthetic_body`. The FINDING the
+  adversary carried was real and independently reproduced - the identifier was not. NOTE
+  THAT WRITING THE DEAD NAME DOWN TO EXPLAIN IT FAILS THE SAME GUARD A SECOND TIME, which
+  is why this bullet describes the shorthand instead of spelling it.
+
+- **Decisions: none recorded as an ADR.**
+
+- **Failed paths: none abandoned.** The pair-shaped plant harness needed an int-alike with
+  `__index__` armed from a `parse_body` wrapper, because a plain global plant is loud - it
+  breaks the synthetic fixtures and never reaches the quiet loss class.
+
+- **Next action: CS-866**, and take it before CS-864. It is the same seam CS-864 is about,
+  it now has a measured counter-example rather than a predicted one, and CS-864's residue -
+  a reading rebuilt from shipped `_Cursor` primitives - was MEASURED green this session and
+  belongs to the same repair.
+
+- **STILL OUTSTANDING FROM SESSION 49, UNTOUCHED:** the six manual checks in
+  `docs/OPERATIONS.md` section 8.3 all still read NOT RUN. They need a human at a real
+  display and a real Electron, and `shell/node_modules` still does not exist in this clone.
+
+---
+
 ## Session 51 wakeup note - relocated 2026-09-01 (session 54)
 
 ## Session 51 - 2026-08-31 - CS-862 CLOSED. A wrapper around the shipped record table finally goes RED, the route it goes red through is one no static arm can see, and the full suite caught a rename the module-level run had called clean
