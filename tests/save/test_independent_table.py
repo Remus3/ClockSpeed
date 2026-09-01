@@ -100,18 +100,36 @@ _COMPONENT_B: Final = synthetic.SyntheticComponent(
 )
 
 #: Distinct per level, so a returned length names the level it came from and a
-#: reader that pairs the wrong section is visible in the lengths alone.
+#: reader that pairs the wrong section is visible in the lengths alone. Each is
+#: a BASE that a per-case nonce is added to, so the three stay distinct from one
+#: another while a dynamic case's body and its declared lengths both differ from
+#: every other case's - see :func:`_case_nonce` for why that is load bearing.
 _PAYLOAD_SIZE_FIRST: Final = 24
 _PAYLOAD_SIZE_SECOND: Final = 36
 _PAYLOAD_SIZE_PERSISTENT: Final = 48
 
+#: How far each truncation arm cuts the fixture body back. Named rather than
+#: written into the parametrize decorator alone, so
+#: :func:`_bodies_the_other_arms_read` can enumerate the truncations that arm
+#: reads instead of restating them - a second literal is a literal that drifts.
+_TRUNCATIONS: Final = (1, 3, 9, 41, 128)
 
-def _fixture_levels() -> tuple[tuple[synthetic.SyntheticLevel, ...], synthetic.SyntheticLevel]:
+
+def _fixture_levels(
+    nonce: int = 0,
+) -> tuple[tuple[synthetic.SyntheticLevel, ...], synthetic.SyntheticLevel]:
     """Two named levels and the persistent one, mixing both record kinds.
 
     Both kinds appear in one level and the kinds are NOT in a single run across
     the whole body, so a reading that lost the kind discriminator entirely could
     not reproduce the flag sequence by accident.
+
+    Args:
+        nonce: Added to EVERY payload size. It moves the body's bytes and the
+            extents the reading must report at the same time, which is the
+            property :func:`_case_nonce` needs and a nonce buried in stepped-over
+            filler would not have. Zero is the shape every arm outside the
+            dynamic section reads.
 
     Returns:
         The named levels in file order, and the trailing unnamed level.
@@ -121,34 +139,37 @@ def _fixture_levels() -> tuple[tuple[synthetic.SyntheticLevel, ...], synthetic.S
             name="Level_First",
             objects=(_ACTOR_A, _ACTOR_B),
             components=(_COMPONENT_A,),
-            payload_size=_PAYLOAD_SIZE_FIRST,
+            payload_size=_PAYLOAD_SIZE_FIRST + nonce,
         ),
         synthetic.SyntheticLevel(
             name="Level_Second",
             objects=(_ACTOR_C,),
-            payload_size=_PAYLOAD_SIZE_SECOND,
+            payload_size=_PAYLOAD_SIZE_SECOND + nonce,
         ),
     )
     persistent = synthetic.SyntheticLevel(
         name=None,
         objects=(_ACTOR_A,),
         components=(_COMPONENT_B,),
-        payload_size=_PAYLOAD_SIZE_PERSISTENT,
+        payload_size=_PAYLOAD_SIZE_PERSISTENT + nonce,
     )
     return named, persistent
 
 
-def _fixture_body(header_version: int, save_version: int) -> bytes:
+def _fixture_body(header_version: int, save_version: int, nonce: int = 0) -> bytes:
     """One whole synthetic body of a measured pair, length prefix included.
 
     Args:
         header_version: Half of the layout key, and the prefix width.
         save_version: The other half.
+        nonce: Passed to :func:`_fixture_levels`. Distinct nonces give distinct
+            bodies, which is what makes a dynamic case's body one no earlier
+            call in the process has read.
 
     Returns:
         The body exactly as ``chunks.decompress_body`` would hand one over.
     """
-    named, persistent = _fixture_levels()
+    named, persistent = _fixture_levels(nonce)
     body = synthetic.build_levelled_body(
         named, persistent, header_version=header_version, save_version=save_version
     )
@@ -172,13 +193,18 @@ def _expected_flags() -> tuple[bool, ...]:
     return tuple(flags)
 
 
-def _expected_lengths() -> tuple[int, ...]:
+def _expected_lengths(nonce: int = 0) -> tuple[int, ...]:
     """The payload length each fixture record must report, in file order.
+
+    Args:
+        nonce: The case's nonce, as :func:`_fixture_levels` takes it. The
+            lengths MOVE with it, which is what defeats a cache keyed on the
+            version pair alone rather than on the body.
 
     Returns:
         One length per record.
     """
-    named, persistent = _fixture_levels()
+    named, persistent = _fixture_levels(nonce)
     lengths: list[int] = []
     for level in (*named, persistent):
         lengths.extend([level.payload_size] * level.record_count)
@@ -346,6 +372,82 @@ def _locate(body: bytes, payload: bytes) -> int:
 
 
 # ---------------------------------------------------------------------------
+# THE ONE-OFF HAND-BUILT BODIES, each built by a NAMED helper rather than
+# inline in the arm that reads it.
+#
+# They were inline until CS-866. The reason they are not is
+# :func:`_bodies_the_other_arms_read`: the dynamic section's freshness claim is
+# that no dynamic case reads a body any other arm reads, and a body assembled
+# inside an arm's own frame cannot be enumerated by anything. Extracting them
+# is what turns that claim from an arrangement into a measurement. NO ARM'S
+# ASSERTIONS MOVED with them - only where the bytes are assembled did.
+# ---------------------------------------------------------------------------
+
+
+def _empty_hand_built() -> bytes:
+    """A body carrying exactly one level and no record at all.
+
+    Returns:
+        The prefixed body.
+    """
+    return _hand_body((), _hand_level(None, (), (), declared=None))
+
+
+def _count_disagreeing_hand_built() -> tuple[bytes, bytes]:
+    """A body whose first level declares two records and one payload.
+
+    Both section sizes still cover their own content, so the walk closes and
+    only the PAIRING is impossible.
+
+    Returns:
+        The prefixed body, and the payload of the one record that survives.
+    """
+    kept = b"HAND-PAYLOAD-KEPT-01"
+    dropped = b"HAND-PAYLOAD-DROPPED"
+    named = _hand_level(
+        "Level_Disagree",
+        (_hand_actor("D"), _hand_component("D")),
+        (dropped,),
+        declared=None,
+    )
+    persistent = _hand_level(None, (_hand_actor("K"),), (kept,), declared=None)
+    return _hand_body((named,), persistent), kept
+
+
+def _over_declared_hand_built() -> bytes:
+    """A body whose data section declares more entries than it holds.
+
+    The declared count is deliberately larger than the payload list, which
+    desynchronises the data section against its own declared SIZE.
+
+    Returns:
+        The prefixed body.
+    """
+    payload = b"HAND-PAYLOAD-OVERDECLARED"
+    return _hand_body((), _hand_level(None, (_hand_actor("O"),), (payload,), declared=2))
+
+
+def _unmeasured_discriminator_hand_built() -> tuple[bytes, bytes]:
+    """A readable body, and the same body with ONE discriminator rewritten.
+
+    ONE RECORD'S DISCRIMINATOR IS REWRITTEN AND NOT EVERY MATCHING WORD IN THE
+    BODY. A blanket replace would also hit a transform value, a section size or
+    a length prefix, and the walk would then decline for a reason that has
+    nothing to do with the discriminator.
+
+    Returns:
+        The intact body, and the patched one.
+    """
+    record = _hand_actor("X")
+    payload = b"HAND-PAYLOAD-DISCRIMINATOR"
+    body = _hand_body((), _hand_level(None, (record,), (payload,), declared=None))
+    at = _locate(body, record)
+    patched = bytearray(body)
+    patched[at : at + objects.INT32_SIZE] = _i32(_UNMEASURED_OBJECT_TYPE)
+    return body, bytes(patched)
+
+
+# ---------------------------------------------------------------------------
 # The DECLINE contract - None and () are different answers
 # ---------------------------------------------------------------------------
 
@@ -363,7 +465,7 @@ def test_an_unmeasured_version_pair_declines_with_none() -> None:
 
 
 def test_a_measured_pair_with_no_records_reads_to_an_empty_tuple() -> None:
-    body = _hand_body((), _hand_level(None, (), (), declared=None))
+    body = _empty_hand_built()
     found = independent_table.independent_records(
         body, save_version=HAND_BUILT_PAIR[1], header_version=HAND_BUILT_PAIR[0]
     )
@@ -380,7 +482,7 @@ def test_a_decline_and_an_empty_reading_are_not_the_same_answer() -> None:
     """
     declined = independent_table.independent_records(b"", save_version=99, header_version=99)
     empty = independent_table.independent_records(
-        _hand_body((), _hand_level(None, (), (), declared=None)),
+        _empty_hand_built(),
         save_version=HAND_BUILT_PAIR[1],
         header_version=HAND_BUILT_PAIR[0],
     )
@@ -465,19 +567,45 @@ def test_the_reading_agrees_with_the_shipped_table_on_a_synthetic_body(
 # ---------------------------------------------------------------------------
 
 
-def _well_formed_hand_built() -> tuple[bytes, tuple[_Triple, ...]]:
+def _hand_payload(base: bytes, nonce: int) -> bytes:
+    """One distinctive hand-built payload, WIDENED by the case's nonce.
+
+    The three bases below have three different lengths and the same widening is
+    applied to each, so the widened three stay distinct from one another exactly
+    as the bases are. The widened length is strictly increasing in the nonce, so
+    two cases can no more share a length than they can share a body.
+
+    Args:
+        base: The distinctive literal, unique to one payload slot.
+        nonce: How many filler bytes to append. Zero returns the base
+            unchanged, which is what every arm outside the dynamic section
+            reads.
+
+    Returns:
+        The payload bytes.
+    """
+    return base + b"." * nonce
+
+
+def _well_formed_hand_built(nonce: int = 0) -> tuple[bytes, tuple[_Triple, ...]]:
     """One well-formed hand-built body and what its own bytes say is in it.
 
     The expectation is NOT computed from the assembly arithmetic - it is found
     with ``bytes.index`` over the finished body, which shares nothing with
-    either reader or with the encoder's own offset bookkeeping.
+    either reader or with the encoder's own offset bookkeeping. IT FOLLOWS THE
+    NONCE FOR FREE, because a widened payload is located and measured in the
+    finished body rather than predicted from a literal.
+
+    Args:
+        nonce: Widens all three payloads, which moves both the body and the
+            offsets and lengths the reading must report.
 
     Returns:
         The prefixed body, and one triple per record in file order.
     """
-    first = b"HAND-PAYLOAD-FIRST-0"
-    second = b"HAND-PAYLOAD-SECOND"
-    third = b"HAND-PAYLOAD-THIRD-XY"
+    first = _hand_payload(b"HAND-PAYLOAD-FIRST-0", nonce)
+    second = _hand_payload(b"HAND-PAYLOAD-SECOND", nonce)
+    third = _hand_payload(b"HAND-PAYLOAD-THIRD-XY", nonce)
     named = _hand_level(
         "Level_Hand",
         (_hand_actor("H"), _hand_component("H")),
@@ -536,18 +664,9 @@ def test_a_level_whose_entry_count_disagrees_with_its_record_count_is_not_paired
     report it as fact. The level is DROPPED here rather than emitted with a zero
     extent, because a zero extent is an invented one.
     """
-    kept = b"HAND-PAYLOAD-KEPT-01"
-    dropped = b"HAND-PAYLOAD-DROPPED"
     # Two records, ONE entry. Both section sizes still cover their own content,
     # so the walk closes and only the pairing is impossible.
-    named = _hand_level(
-        "Level_Disagree",
-        (_hand_actor("D"), _hand_component("D")),
-        (dropped,),
-        declared=None,
-    )
-    persistent = _hand_level(None, (_hand_actor("K"),), (kept,), declared=None)
-    body = _hand_body((named,), persistent)
+    body, kept = _count_disagreeing_hand_built()
 
     found = independent_table.independent_records(
         body, save_version=HAND_BUILT_PAIR[1], header_version=HAND_BUILT_PAIR[0]
@@ -566,9 +685,7 @@ def test_a_declared_entry_count_above_the_truth_is_refused_rather_than_padded() 
     fits. Here the declared count is deliberately larger than the payload list,
     which desynchronises the data section against its own declared SIZE.
     """
-    payload = b"HAND-PAYLOAD-OVERDECLARED"
-    persistent = _hand_level(None, (_hand_actor("O"),), (payload,), declared=2)
-    body = _hand_body((), persistent)
+    body = _over_declared_hand_built()
     found = independent_table.independent_records(
         body, save_version=HAND_BUILT_PAIR[1], header_version=HAND_BUILT_PAIR[0]
     )
@@ -581,7 +698,7 @@ def test_a_declared_entry_count_above_the_truth_is_refused_rather_than_padded() 
 
 
 @pytest.mark.parametrize("pair", MEASURED_PAIRS)
-@pytest.mark.parametrize("cut", [1, 3, 9, 41, 128])
+@pytest.mark.parametrize("cut", _TRUNCATIONS)
 def test_a_truncated_body_declines_rather_than_inventing_a_record(
     pair: tuple[int, int], cut: int
 ) -> None:
@@ -607,20 +724,15 @@ def test_an_impossible_object_type_declines_rather_than_guessing_a_kind() -> Non
     nothing to do with the discriminator - an arm that passes for the wrong
     reason is an arm about nothing.
     """
-    record = _hand_actor("X")
-    payload = b"HAND-PAYLOAD-DISCRIMINATOR"
-    body = _hand_body((), _hand_level(None, (record,), (payload,), declared=None))
+    body, patched = _unmeasured_discriminator_hand_built()
     intact = independent_table.independent_records(
         body, save_version=HAND_BUILT_PAIR[1], header_version=HAND_BUILT_PAIR[0]
     )
     assert intact is not None, "the unpatched body must read, or the patch proves nothing"
 
-    at = _locate(body, record)
-    patched = bytearray(body)
-    patched[at : at + objects.INT32_SIZE] = _i32(_UNMEASURED_OBJECT_TYPE)
-    assert bytes(patched) != body, "the patch changed nothing, so this arm is vacuous"
+    assert patched != body, "the patch changed nothing, so this arm is vacuous"
     found = independent_table.independent_records(
-        bytes(patched), save_version=HAND_BUILT_PAIR[1], header_version=HAND_BUILT_PAIR[0]
+        patched, save_version=HAND_BUILT_PAIR[1], header_version=HAND_BUILT_PAIR[0]
     )
     assert found is None
 
@@ -1114,7 +1226,7 @@ def test_the_second_reading_accepts_nothing_the_shipped_walk_refuses() -> None:
 # it at the SOURCE instead is the whole difference: the output form cannot reach
 # a reading that never consults the output.
 #
-# THERE ARE THREE, AND WHAT EACH ONE DOES TO THE SHIPPED WALK IS MEASURED
+# THERE ARE FOUR, AND WHAT EACH ONE DOES TO THE SHIPPED WALK IS MEASURED
 # RATHER THAN INTENDED. The first version of this section had two, and the
 # discriminator-table plant was DOCUMENTED AS A RELABEL AND IS NOT ONE:
 #
@@ -1130,12 +1242,21 @@ def test_the_second_reading_accepts_nothing_the_shipped_walk_refuses() -> None:
 #                            alone moves.
 #   `_read_data_entries`     the shift. `body_offset` and `body_length` move
 #                            and nothing else does.
+#   `_Cursor`                a SECOND REFUSAL, and it is written down as one.
+#                            One byte of overrun on every string desynchronises
+#                            the walk at its first level and `parse_body`
+#                            raises on all four measured pairs and on the
+#                            hand-built body. A cursor plant cannot be anything
+#                            else here - see its docstring.
 #
-# THE REFUSING PLANT IS KEPT DELIBERATELY, and not because a refusal is as good
-# as a relabel. It is the only one that plants a shared DATA symbol, so it is
-# the only one a reading that IMPORTS the discriminator follows - which
-# `independent_table` deliberately does not do, and which nothing else in this
-# repository grades. See the mutant table below.
+# THE TWO REFUSING PLANTS ARE KEPT DELIBERATELY, and not because a refusal is as
+# good as a relabel. Each reaches a symbol nothing else here does.
+# `_KIND_BY_OBJECT_TYPE` is the only shared DATA symbol planted, so it is the
+# only one a reading that IMPORTS the discriminator follows - which
+# `independent_table` deliberately does not do. `_Cursor` is the primitive every
+# string, count and size in the shipped walk is read through, and CS-866
+# measured a reading that delegates its string step to it passing all 63 arms
+# this module had. See the mutant table below.
 #
 # THE GROUND TRUTH IS THE FIXTURE AND THE BYTES, NEVER THE PRISTINE READING.
 # Asserting only that the second reading DID NOT MOVE is an equality between
@@ -1152,10 +1273,11 @@ def test_the_second_reading_accepts_nothing_the_shipped_walk_refuses() -> None:
 # verbatim wrapper. Each arm below establishes that the SHIPPED reading moved
 # before it asserts that this one did not.
 #
-# GRADED WITH FOUR MUTANTS, pristine floor re-run and verified green after
-# each. "Static" below is the four arms in "The seam guards" - the three seam
-# arms plus the discriminator anti-drift arm - and "dynamic" is the 15 cases of
-# the two arms below, 12 plus 3.
+# GRADED WITH MUTANTS, pristine floor re-run and verified green after each.
+# "Static" is the four arms in "The seam guards" - the three seam arms plus the
+# discriminator anti-drift arm. "Dynamic" is the cases of the two arms below.
+#
+# MEASURED AT CS-862, when the two arms below collected 15 cases (12 plus 3):
 #
 #   mutant                                        static red    dynamic red
 #   wrapper: `objects.parse_body(...)`              2 of 4        15 of 15
@@ -1173,6 +1295,68 @@ def test_the_second_reading_accepts_nothing_the_shipped_walk_refuses() -> None:
 # that NO static arm sees, and before this section nothing anywhere in
 # `tests/save/` went red for either. Row 1 reddens only 2 of the 4 static arms
 # even for the most obvious wrapper there is.
+#
+# AND THAT TABLE WAS NOT ENOUGH, WHICH IS CS-866. Two adversaries and then the
+# merger substituted a MEMOISING wrapper for the second reading and left all 15
+# green - row 2 with a `dict` in front of it. A third substitution routed the
+# reading's string step through `objects._Cursor` and left all 63 arms green.
+# Both are closed by the freshness section further down and by the `_Cursor`
+# plant, and both were re-measured against the repaired module over the 20 cases
+# the two arms now collect (16 plus 4):
+#
+#   mutant                                        static red    dynamic red
+#   MEMOISING `getattr` wrapper                     0 of 4        20 of 20
+#   recomputing `getattr` wrapper                   0 of 4        20 of 20
+#   `_Reader.string` via `objects._Cursor`          0 of 4         5 of 5 *
+#
+#   * the five cases carrying the `_Cursor` plant, which is the only one that
+#     reaches it. The mutant is a correct reading of the body everywhere else,
+#     so the other 15 cases are right to stay green.
+#
+# THE FIRST ROW IS THE WHOLE OF CS-866's FIRST HALF. The same wrapper scored
+# 0 of 4 static and 0 of 15 dynamic before the freshness repair - green on the
+# entire module - because every case re-read a body an earlier arm had already
+# read pristine. NOTHING ABOUT THE PLANTS CHANGED to close it.
+#
+# WHAT THESE ARMS STILL CANNOT SEPARATE, NAMED RATHER THAN IMPLIED AWAY. Every
+# one of these is a route by which a reading could stop being second while this
+# module stays green, and none of them is closed here:
+#
+#   A CAPTURE TAKEN AT IMPORT TIME. `monkeypatch.setattr` rebinds a name on the
+#   shipped MODULE. A reading that binds `_Cursor` - or any other planted symbol
+#   - to its own module-level name when it is imported and then calls that name
+#   holds the PRISTINE object for the whole session, and no plant here can reach
+#   it. MEASURED, not predicted: the `_Cursor` mutant in the table above,
+#   changed only to capture `getattr(objects, "_Cursor")` at import time instead
+#   of at each call, leaves all 70 arms of this module green. The plants keep
+#   working through an import-time capture of `parse_body` ITSELF, because
+#   `parse_body` resolves the symbols they replace as globals when it RUNS - so
+#   it is the capture of a PLANTED symbol, not of the entry point, that escapes.
+#
+#   EVERY SHIPPED SYMBOL `parse_body` REACHES THAT IS NOT PLANTED. At least
+#   `_read_bounded_count`, `_read_section_size`, `_attribute_payloads`,
+#   `_read_level_tail`, `_read_grid_preamble`, `_read_collectables` and
+#   `_check_section`. A reading rebuilt out of any of those is followed by no
+#   plant in this mapping, exactly as a `_Cursor` reading was followed by none
+#   before CS-866. The mapping is a POPULATION and it is not the whole surface.
+#
+#   BODIES BUILT OUTSIDE THIS MODULE. The freshness guard enumerates the bodies
+#   THIS module builds. A body another module in the same session happens to
+#   build identically is outside what it can see, and a cache is a process-wide
+#   thing.
+#
+#   A THIRD DYNAMIC ARM THAT BUILDS ITS OWN BODY. The freshness guard walks
+#   `_dynamic_case_identities`, which is derived from the plants and the pairs
+#   but names the two arms below explicitly. An arm added tomorrow that calls
+#   `_case_nonce` is covered the day it is written - the lookup REFUSES an
+#   identity the enumeration does not carry. An arm that builds a body without
+#   going through `_dynamic_case_body` is covered by nothing, and would read
+#   whatever it built with no arm noticing that an earlier arm had read it
+#   first. That is the same shape as this whole item, one level up.
+#
+#   ANY SHIPPED MODULE THAT IS NOT `objects`. Every plant here patches
+#   `clockspeed.save.objects`. A reading that reached `chunks` or `header` is
+#   untouched by all four.
 # ---------------------------------------------------------------------------
 
 
@@ -1307,15 +1491,92 @@ def _shifted_data_entries(real: Any) -> Any:
     return planted
 
 
+def _cursor_that_overruns_every_string(real: Any) -> Any:
+    """Hand the shipped walk a cursor that steps ONE BYTE PAST every string.
+
+    IT KILLS RATHER THAN DEGRADES, AND THAT IS MEASURED. ``parse_body`` REFUSES
+    the body outright under it on all four measured pairs and on the hand-built
+    body - ``ObjectBudgetExceededError`` on three pairs and the hand-built body,
+    ``ObjectFormatError`` on the fourth. It is not a relabel and it is not a
+    shift, and session 52's finding is that calling a kill a degradation is how
+    a plant ends up wearing a stronger claim than it earns: A PLANT THAT KILLS
+    HAS NOT TESTED THE DEGRADATION. :func:`_relabelled_discriminator_table` is
+    the precedent - ``_shipped_triples`` returns ``()`` for a refusal, which the
+    callers' observability assertion reads as a plant that moved the walk, and
+    ``test_every_field_the_second_reading_reports_is_degraded_by_some_plant``
+    steps past it rather than crediting it with a field.
+
+    WHY IT CANNOT BE A DEGRADATION HERE. The only fields this module compares
+    are the kind, the payload offset and the payload length. A cursor plant that
+    leaves the number of bytes a string consumes ALONE moves none of them - it
+    can mangle the text, and the text reaches no triple - and one that changes
+    that number desynchronises the walk at the first level. There is no third
+    option, so the choice is between a plant that is inert and a plant that
+    refuses. Inert is worse: an inert plant is indistinguishable from a plant
+    that was survived.
+
+    WHAT IT IS FOR, and no other plant here covers it. CS-866 measured a second
+    reading whose string step delegates to ``getattr(objects, "_Cursor")(...)``
+    and found all 63 arms of this module green - the residue CS-864's note named
+    as covered by nothing. ``objects.parse_body`` reaches at least ``_Cursor``,
+    ``_read_bounded_count``, ``_read_section_size``, ``_attribute_payloads``,
+    ``_read_level_tail``, ``_read_grid_preamble``, ``_read_collectables`` and
+    ``_check_section``, and the other three plants touch NONE of them. This one
+    takes the first, which is the primitive every string, count and size in the
+    shipped walk is read through.
+
+    THE SUBCLASS IS THE POINT. The plant is a transform of the shipped class
+    rather than a re-transcription of it, so every method it does not name stays
+    exactly what ships - the same discipline the other three keep by wrapping
+    ``real`` instead of copying it.
+
+    Args:
+        real: The shipped cursor class this replaces.
+
+    Returns:
+        The planted cursor class.
+    """
+
+    class Planted(real):
+        """The shipped cursor, overrunning by :data:`_PLANT_SHIFT` on each string."""
+
+        def string(self, field: str) -> str:
+            """Read one string exactly as the shipped cursor does, then overrun it.
+
+            Args:
+                field: The field being read. Passed straight through, so the
+                    shipped refusals still name the field they always named.
+
+            Returns:
+                The decoded text, unchanged. THE TEXT IS NOT THE DEGRADATION -
+                the cursor position is, and the text is returned untouched so
+                nothing downstream can be reading a mangled string instead.
+            """
+            text: str = super().string(field)
+            self.offset += _PLANT_SHIFT
+            return text
+
+    return Planted
+
+
 #: One degradation of the shipped record table each, keyed by the module
 #: attribute it replaces. Every entry is HANDED the real attribute and returns
 #: the planted one, so a plant is a transform of what ships rather than a second
 #: copy of it.
+#:
+#: TWO OF THE FOUR KILL AND TWO DEGRADE, and which is which is measured rather
+#: than intended - see each plant's own docstring. A kill is a usable
+#: degradation for the two arms below, which require only that the shipped
+#: reading MOVED, and it is not evidence that any particular field is graded,
+#: which is why
+#: ``test_every_field_the_second_reading_reports_is_degraded_by_some_plant``
+#: steps past a plant that costs the walk whole records.
 _SHIPPED_PLANTS: Final[Mapping[str, Callable[[Any], Any]]] = MappingProxyType(
     {
         "_KIND_BY_OBJECT_TYPE": _relabelled_discriminator_table,
         "_read_levelled_record": _relabelled_record_reader,
         "_read_data_entries": _shifted_data_entries,
+        "_Cursor": _cursor_that_overruns_every_string,
     }
 )
 
@@ -1328,6 +1589,276 @@ _SHIPPED_PLANTS: Final[Mapping[str, Callable[[Any], Any]]] = MappingProxyType(
 _REPORTED_FIELDS: Final = tuple(
     field.name for field in dataclasses.fields(independent_table.IndependentRecord)
 )
+
+
+# ---------------------------------------------------------------------------
+# CASE FRESHNESS (CS-866) - THE HALF THE PLANTS CANNOT SUPPLY
+#
+# A CACHE CAN ONLY RETURN AN ANSWER IT WAS ALREADY GIVEN. Two adversaries who
+# produced no part of CS-862, working from different briefs, independently
+# replaced ``independent_records`` with a MEMOISING ``getattr`` wrapper over
+# ``objects.parse_body`` and left all 15 dynamic cases green; the merger
+# reproduced it with a third script. Every dynamic case called the second
+# reading exactly ONCE, after the plant, on a body an EARLIER arm in this same
+# module had already read while the tree was pristine - the measured pairs'
+# fixture bodies through
+# ``test_the_reading_agrees_with_the_shipped_table_on_a_synthetic_body``, the
+# hand-built body through
+# ``test_the_hand_built_body_yields_the_exact_offsets_its_bytes_declare``. The
+# memo handed back the pristine answer, which is exactly what the fixture
+# declares and what the bytes say, so grading against the fixture rather than
+# against the pristine reading - which WAS the right repair for provenance -
+# bought nothing whatever against a cache.
+#
+# THE REPAIR IS TO ASK A QUESTION NEVER ASKED BEFORE. Every dynamic case reads
+# a body no earlier call anywhere in this process has read, and expects an
+# answer no other case expects. A memo then MISSES, computes through whatever
+# shipped reader it wraps, and takes the degradation like any other wrapper.
+#
+# BYTES ALONE ARE NOT ENOUGH, which is why the nonce moves the payload SIZES
+# rather than some stepped-over filler. A cache keyed on ``(save_version,
+# header_version)`` and not on the body is defeated only by the correct ANSWER
+# differing case to case, and the payload sizes are what the reading reports.
+#
+# THE NONCE IS DERIVED FROM THE POPULATIONS THE ARMS ARE PARAMETRIZED OVER, not
+# from a literal table. A fourth plant or a fifth measured pair gets its own the
+# day it is added rather than the day somebody widens a list.
+#
+# AND IT IS ASSERTED RATHER THAN ARRANGED.
+# ``test_no_dynamic_case_reads_a_body_any_other_case_or_arm_in_this_module_reads``
+# and ``test_no_two_dynamic_cases_expect_the_same_answer_from_the_second_reading``
+# are what stop the property rotting the first time somebody reuses a body.
+# Neither of them calls the second reading - an arm that populated the cache it
+# exists to defeat would be worse than no arm at all.
+# ---------------------------------------------------------------------------
+
+
+#: Which of the two dynamic arms a case belongs to. Part of the case identity
+#: because both arms cover ``HAND_BUILT_PAIR``, so the pair and the plant alone
+#: do not separate a fixture case from a hand-built one.
+_FIXTURE_ARM: Final = "fixture"
+_HAND_BUILT_ARM: Final = "hand_built"
+
+#: One dynamic case's identity: which arm, which version pair, which plant.
+_DynamicCase = tuple[str, tuple[int, int], str]
+
+
+def _dynamic_case_identities() -> tuple[_DynamicCase, ...]:
+    """Every case the two dynamic arms collect, in one canonical order.
+
+    DERIVED FROM THE SAME TWO POPULATIONS THE ARMS ARE PARAMETRIZED OVER -
+    :data:`MEASURED_PAIRS` and :data:`_SHIPPED_PLANTS` - and in the same sorted
+    plant order, so this cannot enumerate a case the arms do not collect or
+    miss one they do.
+
+    Returns:
+        One identity per dynamic case.
+    """
+    plants = tuple(sorted(_SHIPPED_PLANTS))
+    return tuple(
+        (_FIXTURE_ARM, pair, plant) for pair in MEASURED_PAIRS for plant in plants
+    ) + tuple((_HAND_BUILT_ARM, HAND_BUILT_PAIR, plant) for plant in plants)
+
+
+#: One nonce per dynamic case, and ZERO IS RESERVED for every arm outside this
+#: section. The value is an enumeration index rather than a hash: a digest could
+#: collide and a collision is exactly the fault the two guard arms exist to
+#: catch, so the derivation is made injective by construction instead of being
+#: trusted and checked.
+_NONCE_BY_CASE: Final[Mapping[_DynamicCase, int]] = MappingProxyType(
+    {identity: index + 1 for index, identity in enumerate(_dynamic_case_identities())}
+)
+
+
+def _case_nonce(arm: str, pair: tuple[int, int], plant: str) -> int:
+    """The nonce one dynamic case builds its body and its expectations with.
+
+    Args:
+        arm: :data:`_FIXTURE_ARM` or :data:`_HAND_BUILT_ARM`.
+        pair: The version pair, (header, save).
+        plant: Which shipped attribute the case degrades.
+
+    Returns:
+        The case's nonce, never zero.
+    """
+    nonce = _NONCE_BY_CASE.get((arm, pair, plant))
+    assert nonce is not None, (
+        f"the {arm} arm collected a case for plant {plant!r} that "
+        "_dynamic_case_identities does not enumerate, so the freshness guards "
+        "never graded its body and it may be reading one an earlier arm read"
+    )
+    return nonce
+
+
+def _hand_built_dynamic_case(plant: str) -> tuple[bytes, tuple[_Triple, ...]]:
+    """The body and the pinned triples ONE hand-built dynamic case reads.
+
+    THE ONE PLACE THAT BODY IS BUILT, so the guard arms and the arm they guard
+    cannot drift onto different bytes.
+
+    Args:
+        plant: Which shipped attribute the case degrades.
+
+    Returns:
+        The prefixed body, and one triple per record in file order.
+    """
+    return _well_formed_hand_built(_case_nonce(_HAND_BUILT_ARM, HAND_BUILT_PAIR, plant))
+
+
+def _dynamic_case_body(arm: str, pair: tuple[int, int], plant: str) -> bytes:
+    """The body one dynamic case hands the second reading.
+
+    Args:
+        arm: :data:`_FIXTURE_ARM` or :data:`_HAND_BUILT_ARM`.
+        pair: The version pair, (header, save).
+        plant: Which shipped attribute the case degrades.
+
+    Returns:
+        The prefixed body.
+    """
+    if arm == _HAND_BUILT_ARM:
+        body, _pinned = _hand_built_dynamic_case(plant)
+        return body
+    header_version, save_version = pair
+    return _fixture_body(header_version, save_version, _case_nonce(arm, pair, plant))
+
+
+def _dynamic_case_answer(
+    arm: str, pair: tuple[int, int], plant: str
+) -> tuple[tuple[bool, int], ...]:
+    """What the second reading MUST report for one dynamic case, kind and length.
+
+    NOT TAKEN FROM THE READING. The fixture cases' answer is the fixture's own
+    declaration and the hand-built cases' is what ``bytes.index`` found in the
+    finished body, which is what the arms themselves grade against.
+
+    The two families are reduced to the same shape so they can be compared with
+    each other: both arms cover ``HAND_BUILT_PAIR``, so a cache keyed on the
+    version pair sees their cases as one population and they have to be distinct
+    ACROSS the two arms and not only within each.
+
+    Args:
+        arm: :data:`_FIXTURE_ARM` or :data:`_HAND_BUILT_ARM`.
+        pair: The version pair, (header, save).
+        plant: Which shipped attribute the case degrades.
+
+    Returns:
+        One ``(is_actor, body_length)`` per record, in file order.
+    """
+    if arm == _HAND_BUILT_ARM:
+        _body, pinned = _hand_built_dynamic_case(plant)
+        return tuple((is_actor, length) for is_actor, _at, length in pinned)
+    return tuple(
+        zip(_expected_flags(), _expected_lengths(_case_nonce(arm, pair, plant)), strict=True)
+    )
+
+
+def _bodies_no_dynamic_case_may_reuse() -> tuple[bytes, ...]:
+    """Every body an arm OUTSIDE this section hands the second reading.
+
+    ENUMERATED FROM THE HELPERS THAT BUILD THEM rather than from a list beside
+    them, which is why the one-off hand-built bodies were lifted out of their
+    arms' frames. The truncations come from :data:`_TRUNCATIONS`, which is the
+    same tuple that arm is parametrized over.
+
+    ONE BODY OUTSIDE THIS SECTION IS NOT HERE AND CANNOT BE: the real
+    decompressed body :func:`_sweep_the_library` hands the second reading. It is
+    personal-data-bearing and it never leaves that helper's frame, which is
+    non-negotiable 12 and not an oversight. Nothing is claimed about it here
+    beyond the obvious - a real body is a save's whole world and a synthetic
+    fixture is a few hundred bytes of it, so a collision is not the shape this
+    guard is watching for.
+
+    Returns:
+        The bodies, in no particular order and with duplicates possible.
+    """
+    bodies: list[bytes] = [b""]
+    for header_version, save_version in MEASURED_PAIRS:
+        body = _fixture_body(header_version, save_version)
+        bodies.append(body)
+        bodies.extend(body[:-cut] for cut in _TRUNCATIONS)
+    bodies.append(_empty_hand_built())
+    bodies.append(_well_formed_hand_built()[0])
+    bodies.append(_count_disagreeing_hand_built()[0])
+    bodies.append(_over_declared_hand_built())
+    bodies.extend(_unmeasured_discriminator_hand_built())
+    return tuple(bodies)
+
+
+def test_no_dynamic_case_reads_a_body_any_other_case_or_arm_in_this_module_reads() -> None:
+    """FRESHNESS, ASSERTED - the half of CS-866 no plant can supply.
+
+    A memoising wrapper over the shipped record table is a function of
+    ``(body, pair)`` that is not the second reading, and it satisfied all 15
+    dynamic cases at the commit this arm was written against. It could, because
+    every one of those cases re-read a body an earlier arm in this module had
+    already read while the tree was pristine.
+
+    THIS ARM CALLS NOTHING. It builds bytes and compares bytes. Calling the
+    second reading here would populate the very cache the freshness exists to
+    defeat, and the arm would then be the defect rather than its guard.
+    """
+    cases = _dynamic_case_identities()
+    collected = len(cases)
+    assert collected > 0, (
+        "no dynamic case is enumerated at all, so this arm holds vacuously and "
+        "the two arms below it are graded by nothing"
+    )
+    fresh = len({_dynamic_case_body(*identity) for identity in cases})
+    assert fresh == collected, (
+        f"{fresh} distinct bodies across {collected} dynamic cases. Two cases "
+        "sharing a body let a reading that MEMOISES its answer hand the second "
+        "one the answer it computed for the first - which was computed under a "
+        "different plant, or under none"
+    )
+    stale = frozenset(_bodies_no_dynamic_case_may_reuse())
+    reused = sum(1 for identity in cases if _dynamic_case_body(*identity) in stale)
+    assert reused == 0, (
+        f"{reused} of {collected} dynamic cases read a body some other arm in "
+        "this module also reads. Those arms run BEFORE this section and they "
+        "run on a pristine tree, so a cache is holding the right answer to this "
+        "case's question before the plant is ever applied"
+    )
+
+
+def test_no_two_dynamic_cases_expect_the_same_answer_from_the_second_reading() -> None:
+    """The other cache key: the VERSION PAIR rather than the body.
+
+    A wrapper keyed on ``(save_version, header_version)`` alone is untouched by
+    fresh bytes - it would answer every case for a pair with whatever it
+    computed for the first. It is separated only by the CORRECT ANSWERS
+    differing, which is why the nonce moves the payload sizes the reading
+    reports rather than filler the reading steps over.
+
+    Both dynamic arms cover ``HAND_BUILT_PAIR``, so their cases share a key and
+    are compared against each other here rather than each within itself.
+    """
+    cases = _dynamic_case_identities()
+    answers = [_dynamic_case_answer(*identity) for identity in cases]
+    # BOUND TO SCALARS BEFORE ASSERTING, as the library arm above is. pytest
+    # rewrites the asserted EXPRESSION and renders it independently of the
+    # message, so `distinct == len(answers)` puts the whole answer list in the
+    # transcript. These are synthetic fixture numbers rather than save content,
+    # and the discipline is kept anyway - the habit is what makes it hold where
+    # the population is not synthetic.
+    total = len(answers)
+    distinct = len(frozenset(answers))
+    assert distinct == total, (
+        f"{distinct} distinct expected answers across {total} dynamic "
+        "cases. Two cases whose correct answer is the same are not separated by "
+        "a reading that caches one answer per version pair"
+    )
+    baselines = frozenset(
+        (
+            tuple(zip(_expected_flags(), _expected_lengths(), strict=True)),
+            tuple((is_actor, length) for is_actor, _at, length in _well_formed_hand_built()[1]),
+        )
+    )
+    shared = sum(1 for answer in answers if answer in baselines)
+    assert shared == 0, (
+        f"{shared} of {total} dynamic cases expect the same answer an arm "
+        "outside this section already asked for and got on a pristine tree"
+    )
 
 
 def _plant(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
@@ -1372,7 +1903,7 @@ def _records_the_plant_moved(before: Sequence[_Triple], after: Sequence[_Triple]
 
 
 def _fixture_faults(
-    body: bytes, found: Sequence[independent_table.IndependentRecord]
+    body: bytes, found: Sequence[independent_table.IndependentRecord], nonce: int
 ) -> tuple[int, int, int]:
     """Count the records that disagree with the FIXTURE and with the body's bytes.
 
@@ -1388,6 +1919,9 @@ def _fixture_faults(
         found: The second reading's records, in file order. Its length is the
             caller's to check; this counts nothing about a length it was not
             given.
+        nonce: The case's nonce, so the DECLARED lengths are this case's own.
+            Passing zero here while the body was built with a nonce would grade
+            the reading against another case's fixture.
 
     Returns:
         Wrong flags, wrong lengths and misplaced offsets. THREE SCALARS,
@@ -1399,7 +1933,7 @@ def _fixture_faults(
     )
     wrong_lengths = sum(
         record.body_length != length
-        for record, length in zip(found, _expected_lengths(), strict=True)
+        for record, length in zip(found, _expected_lengths(nonce), strict=True)
     )
     misplaced = sum(
         body[record.body_offset - objects.INT32_SIZE : record.body_offset]
@@ -1454,9 +1988,16 @@ def test_the_second_reading_stays_right_while_the_shipped_record_table_is_degrad
     ``parse_body`` reaches - the call, an alias, a two-level reach or a
     ``getattr`` - takes the degraded kinds or the shifted extents and fails the
     fixture. That is the wrapper the static arms above cannot see.
+
+    AND THE BODY IS THIS CASE'S OWN. It is built with a nonce nothing else in
+    this process uses, so a reading that MEMOISES cannot be holding the answer
+    already - see the freshness section above. The body comes from
+    ``_dynamic_case_body`` rather than from ``_fixture_body`` directly so that
+    the arm and the guard over it cannot drift onto different bytes.
     """
     header_version, save_version = pair
-    body = _fixture_body(header_version, save_version)
+    nonce = _case_nonce(_FIXTURE_ARM, pair, plant)
+    body = _dynamic_case_body(_FIXTURE_ARM, pair, plant)
     pristine = _shipped_triples(body, save_version=save_version, header_version=header_version)
     declared = len(_expected_flags())
     assert len(pristine) == declared, (
@@ -1489,7 +2030,7 @@ def test_the_second_reading_stays_right_while_the_shipped_record_table_is_degrad
         f"{declared}, while the shipped table was degraded. A reading that owes the "
         "shipped table nothing cannot change its count when that table is degraded"
     )
-    wrong_flags, wrong_lengths, misplaced = _fixture_faults(body, found)
+    wrong_flags, wrong_lengths, misplaced = _fixture_faults(body, found, nonce)
     assert wrong_flags == 0, (
         f"{wrong_flags} of {read} records came back with the wrong kind while the "
         "shipped record table was degraded. The kind is read from the body and "
@@ -1520,8 +2061,13 @@ def test_a_degraded_shipped_record_table_cannot_move_the_hand_built_offsets(
     ``bytes.index`` over distinctive payload literals in the finished body.
     ``test_the_shipped_walk_reads_the_hand_built_body_the_same_way`` is what
     keeps that expectation a claim about the FORMAT rather than about this file.
+
+    THE PAYLOADS ARE WIDENED BY THIS CASE'S NONCE, so the body and the located
+    offsets are both this case's own and no other call in the process has asked
+    for them. ``bytes.index`` follows the widening for free, which is the whole
+    reason the expectation is located rather than predicted.
     """
-    body, expected = _well_formed_hand_built()
+    body, expected = _hand_built_dynamic_case(plant)
     header_version, save_version = HAND_BUILT_PAIR
     pristine = _shipped_triples(body, save_version=save_version, header_version=header_version)
     assert pristine == expected, (
