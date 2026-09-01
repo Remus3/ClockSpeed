@@ -112,6 +112,30 @@ the line becomes a pointer.
   defects in it, including one phrase DELETED rather than relocated and one acceptance
   clause that had gone vacuous - all four repaired before it landed.
 
+- **ONE ACCEPTANCE CLAUSE WAS REWRITTEN THREE TIMES, EACH REWRITE WEAKENED IT, AND THE FIX
+  WAS TO REVERT.** CS-854's original named three sites. The pass replaced them with `PROVEN
+  NON-EMPTY` - a floor of ONE where the original was three. My repair replaced that with
+  `CONTAINING EVERY SIBLING SITE THE DETAIL RECORDS`, and a third adversary refuted that too:
+  `swept population` is defined nowhere in the repo, `sibling` is overloaded - shipped source
+  at `tests/save/test_struct_interior.py` calls another group's members siblings - and both
+  near-misses my parenthetical excluded are set-membership tests, **as is one of the three
+  siblings**, so the obvious shape predicate drops it along with them. **The exclusion clause
+  supplied the alibi.** The line is now byte-identical to its pre-pass wording, which names
+  the three sites and says DERIVED rather than transcribed FROM THESE THREE LINE NUMBERS - the
+  derive-versus-list reconciliation both rewrites broke. **When three attempts at a shorter
+  wording each lower the bar, the wording was not the problem.** Cost of reverting: 36 bytes,
+  against 3 KB of headroom. A budget is never a reason to weaken a grading criterion.
+
+- **FOUR THINGS THE SWEEP SURFACED THAT NEED A RULING, NOT A REWRITE.** (1) CS-807's floor is
+  now a parametrize table the closing change itself edits, and the old literal it replaced was
+  stale in the wrong direction, so neither a revert nor the status quo is obviously right.
+  (2) CS-857's `deliberately never rendered` conjunct grades ZERO records - it was discharged
+  in session 44 - so it can never fail; delete it as discharged or re-point it. (3) CS-858 sits
+  in direct tension with `CLAUDE.md` section 4: a hardcoded count in a doc is a lie with a
+  timestamp, yet a numeric floor is what makes a graded line falsifiable. Decide once, then
+  apply it to CS-847 and CS-860 as well. (4) CS-852's headline is STALE - it says the dataclass
+  ships no `__repr__` and `clockspeed/save/chunks.py` defines one. That one predates this pass.
+
 - **TWO THINGS THE PASS FLAGGED AND DID NOT RESOLVE.** `ROADMAP.md`'s header still carries
   correction history that belongs in `docs/history_notes.md` - relocating it was off that
   slice's write-list, and deleting it would break relocate-don't-delete. And **CS-840 now
