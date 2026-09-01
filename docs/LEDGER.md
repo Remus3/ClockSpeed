@@ -75,6 +75,49 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-01 - CS-617 - CLOSED. The injected drag band no longer captures scrolled content, because the scrollport now starts below it rather than the page being padded away from it
+Verification: `shell/lib/window.js`, the `DRAG_STRIP_CSS` block and the comment above it,
+plus `shell/test/window.test.js` arms
+`the drag strip insets the scrollport rather than covering the page` and
+`the drag band is not made pointer-transparent`.
+
+**THE DEFECT WAS IN THE FILE'S OWN STATED RATIONALE.** The comment read: a drag region
+swallows the pointer, so the body `padding-top` "pushes the page clear, so the strip covers
+nothing". The padding reserves space in DOCUMENT flow while `body::before` is `position:
+fixed` to the VIEWPORT, and the two coincide only at scroll offset zero. MEASURED on the
+composed page at a scroll of 369: `document.elementFromPoint` returned the band for every y
+from 0 to 27, and deleting ONLY the `body::before` rule at the identical offset returned
+`p.lede` - real content, being swallowed. That is a single-variable control, not an
+inference.
+
+**THE REPAIR MOVES THE SCROLLPORT INSTEAD OF PADDING THE PAGE.** `html` stops scrolling and
+the body becomes a fixed scroller inset by the strip's height, which makes it GEOMETRICALLY
+IMPOSSIBLE for content to pass beneath the band rather than merely unlikely. Re-measured the
+same way: with the band deleted, the strip's area holds `html` and nothing else, at scroll
+0, mid and maximum, sweeping the full width, at 1574 and at 375. Scrollers still overflow
+and scroll with their tab stop intact, the footer is reachable at maximum scroll, the header
+sits exactly at y=28, no horizontal page scroll, and the Refresh button hit-tests to itself.
+
+**THE app-region DECLARATIONS WERE DELIBERATELY LEFT ALONE, AND THAT IS THE DECISION.** The
+rival fix was `pointer-events: none` on the band. Whether Chromium still honours a drag
+region on a pointer-transparent element is a question NOTHING IN THIS REPO CAN ANSWER -
+`shell/node_modules` does not exist in a fresh clone and the module is graded without
+electron on purpose. A fix that CANNOT break dragging was preferred over one that MIGHT, and
+an arm now asserts `pointer-events` never appears in that CSS so the tempting fix cannot
+return quietly.
+
+**THE ARM THAT GRADED THIS HAD ENCODED THE DEFECT.** It required `padding-top:` to be
+present, under the heading "the strip must reserve space on the body". It now requires its
+ABSENCE, plus the three properties that actually keep the page clear. Proven load-bearing:
+reverting to the padding, dropping `html { overflow: hidden }`, removing the scrollport
+inset, and making the band pointer-transparent each redden the suite, with a green floor
+either side and `shell/lib/window.js` restored byte-exact.
+
+**WHAT IS STILL OWED AND IS NOT CLAIMED HERE: the drag itself, against a real Electron.**
+This change alters no drag semantics, so the risk is lower than the alternative - but lower
+is not verified. It remains one of the checks `docs/OPERATIONS.md` section 8.3 records as
+performed by no machine.
+
 ### 2026-09-01 - CS-600 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-600 STAYS OPEN. A re-audit confirmed both repairs and found the repair had introduced TWO NEW DEFECTS, one of them a fault the same file already documents
 Verification: `clockspeed/surface/web/app.js` (`syncScrollRegions` and the bootstrap
 call), `clockspeed/surface/web/app.css` lines 298-311, and in

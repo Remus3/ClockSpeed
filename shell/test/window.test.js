@@ -316,7 +316,7 @@ test("the drag strip CSS carries both app-region spellings and a no-drag escape"
   assert.ok(/\.no-drag\b/.test(DRAG_STRIP_CSS), "missing the .no-drag escape class");
 });
 
-test("the drag strip reserves its own height rather than covering the page", () => {
+test("the drag strip insets the scrollport rather than covering the page", () => {
   assert.ok(Number.isInteger(DRAG_STRIP_HEIGHT));
   assert.ok(DRAG_STRIP_HEIGHT > 0);
   // Thin. A strip deep enough to hide a heading is not a title bar substitute,
@@ -327,8 +327,50 @@ test("the drag strip reserves its own height rather than covering the page", () 
   // room for it. Both are generated from the one constant, so this asserts they
   // cannot drift apart rather than asserting a number.
   const occurrences = DRAG_STRIP_CSS.split(`${DRAG_STRIP_HEIGHT}px`).length - 1;
-  assert.ok(occurrences >= 2, "the strip must both size itself and reserve its space");
-  assert.ok(/padding-top:/.test(DRAG_STRIP_CSS), "the strip must reserve space on the body");
+  assert.ok(occurrences >= 2, "the strip must both size itself and inset the scrollport");
+
+  // THIS ASSERTION USED TO REQUIRE `padding-top:` AND SO ENCODED THE DEFECT.
+  // A body padding reserves space in DOCUMENT flow while the band is fixed to
+  // the VIEWPORT, so the two coincide only at scroll offset zero - CS-617
+  // measured the band swallowing real content at a body scroll of 369. What
+  // keeps the page clear is the scrollport starting below the band, which is
+  // geometric rather than positional.
+  assert.ok(
+    !/padding-top:/.test(DRAG_STRIP_CSS),
+    "a body padding-top reserves DOCUMENT space against a VIEWPORT-fixed band, " +
+      "which holds only at scroll offset 0 - that is the CS-617 defect",
+  );
+  // THE VALUE SEPARATOR IS A CHARACTER CLASS AND NOT THE WHITESPACE SHORTHAND,
+  // ON PURPOSE. Writing the shorthand straight after a hyphenated property name
+  // puts a single letter, a colon and a backslash side by side with a
+  // non-alphanumeric in front of the letter - which is the drive-lettered path
+  // shape tests/shell/test_shell_assets.py sweeps for, and it reddened that arm
+  // on this very file. The neighbouring app-region assertions escape it only
+  // because a letter happens to precede theirs, so this is luck rather than a
+  // rule anyone can rely on. The class is also the more accurate thing to
+  // write: a CSS value is not separated from its property by a newline.
+  assert.ok(/^[ \t]*overflow:[ \t]*hidden;/m.test(DRAG_STRIP_CSS), "html must stop scrolling");
+  assert.ok(
+    new RegExp(`^[ \\t]*top:[ \\t]*${DRAG_STRIP_HEIGHT}px;`, "m").test(DRAG_STRIP_CSS),
+    "the scrollport must be inset by the strip's height",
+  );
+  assert.ok(
+    /^[ \t]*overflow-y:[ \t]*auto;/m.test(DRAG_STRIP_CSS),
+    "the inset body must scroll",
+  );
+});
+
+// The repair deliberately left app-region alone. The rival fix was
+// `pointer-events: none` on the band, and whether Chromium still honours a drag
+// region on a pointer-transparent element is a question nothing here can answer
+// - this module is graded without electron on purpose. A fix that CANNOT break
+// dragging beat one that MIGHT, so the band has to keep hit-testing.
+test("the drag band is not made pointer-transparent", () => {
+  assert.ok(
+    !/pointer-events/.test(DRAG_STRIP_CSS),
+    "pointer-events on the band puts the drag region's survival in question and " +
+      "no test in this suite can settle it - see CS-617",
+  );
 });
 
 // ---------------------------------------------------------------------------

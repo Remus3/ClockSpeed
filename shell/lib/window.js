@@ -128,22 +128,44 @@ class ModeNotImplementedError extends Error {
  * 28px dead strip across the top would be a defect. The strip is a property of
  * being hosted in a frameless window, so it belongs to the host.
  *
- * WHY IT RESERVES ITS SPACE INSTEAD OF FLOATING OVER THE PAGE. A drag region
- * swallows the pointer. A strip that simply sat on top of the first 28px would
- * make whatever is up there unclickable, and the fault would present as "this
- * control does nothing sometimes" rather than as anything pointing here. The
- * body padding pushes the page clear, so the strip covers nothing. Measured
- * against clockspeed/surface/web/app.css: body is `margin: 0; padding: 0 0
- * 3rem` with no height constraint, so a padding-top longhand adds to the top
- * and leaves the 3rem bottom padding standing; and the page's only sticky rule
- * is `left: 0` on a first column, the vertical `top: 0` header having been
- * deliberately removed - so there is nothing that pins itself under the strip.
+ * WHY IT MOVES THE SCROLLPORT INSTEAD OF PADDING THE PAGE. A drag region
+ * swallows the pointer, so a strip sitting on top of the first 28px makes
+ * whatever is up there unclickable - and the fault presents as "this control
+ * does nothing sometimes" rather than as anything pointing here.
  *
- * THE no-drag RULES ARE BELT AND BRACES ON TOP OF THAT. Reserving the space is
- * what stops the strip covering controls. These rules are what stops an
+ * THIS COMMENT USED TO SAY A body padding-top PUSHED THE PAGE CLEAR SO THE
+ * STRIP COVERED NOTHING, AND THAT WAS FALSE FOR ANY SCROLLED PAGE (CS-617).
+ * The padding reserves space in DOCUMENT flow; `body::before` is `position:
+ * fixed` and stays at the VIEWPORT top. The two coincide only at scroll offset
+ * zero. MEASURED on the composed page: at a body scroll of 369,
+ * `document.elementFromPoint` returned the band for every y from 0 to 27, and
+ * deleting only the `body::before` rule at the identical offset returned
+ * `p.lede` - real page content, being swallowed.
+ *
+ * SO THE SCROLLPORT NOW STARTS BELOW THE BAND. `html` stops scrolling and the
+ * body becomes a fixed scroller inset by the strip's height, which makes it
+ * geometrically impossible for content to pass beneath the band at any offset
+ * rather than merely unlikely. Re-measured the same way afterwards: with the
+ * band deleted, the strip's area holds `html` and nothing else, at scroll 0,
+ * mid and maximum, sweeping the full width at 1574 and at 375.
+ *
+ * THE app-region DECLARATIONS ARE DELIBERATELY UNTOUCHED BY THAT REPAIR. The
+ * other candidate fix was `pointer-events: none` on the band, and whether
+ * Chromium still honours a drag region on a pointer-transparent element is
+ * exactly the question no test here can answer - shell/node_modules does not
+ * exist in a fresh clone and this module is graded without electron on purpose.
+ * A fix that cannot break dragging was preferred over a fix that might.
+ * VERIFYING THE DRAG ITSELF AGAINST A REAL ELECTRON IS STILL OWED; it is one of
+ * the checks docs/OPERATIONS.md section 8.3 lists as performed by no machine.
+ *
+ * THE no-drag RULES ARE BELT AND BRACES ON TOP OF THAT. The inset scrollport is
+ * what stops the strip covering content. These rules are what stops an
  * interactive element being swallowed anyway if the page later grows something
  * that reaches into the band, and `.no-drag` is the escape any future markup
- * can name explicitly.
+ * can name explicitly. NOTE WHAT THEY DO NOT DO: they set `app-region` on
+ * elements BENEATH the band, and the band is a fixed pseudo-element painted
+ * above them, so they were never able to release a point the band covers. That
+ * is why adding `.scroll-x` to the list was rejected as the repair.
  *
  * BOTH SPELLINGS ARE PRESENT. `-webkit-app-region` is what Chromium honours
  * today; `app-region` is the standard property it is being renamed to. Shipping
@@ -152,8 +174,19 @@ class ModeNotImplementedError extends Error {
  */
 const DRAG_STRIP_CSS = [
   "/* Clockspeed companion shell - injected drag strip for a frameless window. */",
+  "html {",
+  "  height: 100%;",
+  "  overflow: hidden;",
+  "}",
   "body {",
-  `  padding-top: ${DRAG_STRIP_HEIGHT}px;`,
+  "  position: fixed;",
+  `  top: ${DRAG_STRIP_HEIGHT}px;`,
+  "  right: 0;",
+  "  bottom: 0;",
+  "  left: 0;",
+  "  margin: 0;",
+  "  overflow-y: auto;",
+  "  overflow-x: hidden;",
   "}",
   "body::before {",
   '  content: "";',

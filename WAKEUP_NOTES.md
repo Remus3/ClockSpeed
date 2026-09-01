@@ -36,8 +36,8 @@ the line becomes a pointer.
 
 ## Session 54 - 2026-09-01 - CS-867 CLOSED and the push block cleared; three adversaries refuted it and all three were right; the UI work opened and its first audit returned BLOCKED. The same fault shape appeared FIVE times and I wrote three of them
 
-- **Shipped: CS-867.** Detail in `docs/LEDGER.md`, not here. CS-600 stays OPEN and its
-  entries say NOT A COMPLETION RECORD. CS-868 through CS-871 untouched, CS-864 and CS-865
+- **Shipped: CS-867 and CS-617.** Detail in `docs/LEDGER.md`, not here. CS-600 stays OPEN and
+  its entries say NOT A COMPLETION RECORD. CS-868 through CS-871 untouched, CS-864 and CS-865
   untouched. CS-829 stays GATED behind CS-G05 - untouched this session.
 
 - **THE HEADLINE: AN ASSERTION CAN PASS OVER A POPULATION THAT IS NOT THE ONE IT NAMES, AND
@@ -77,18 +77,39 @@ the line becomes a pointer.
   it; trusting the cert is a security-settings change and is off the table. A plain-HTTP
   proxy in front of it is what made the audit possible - scratchpad only, audit only.
 
+- **CS-617 CLOSED LAST, ON OPERATOR INSTRUCTION, AND IT IS THE SAME FAULT AGAIN - A FILE'S
+  OWN RATIONALE MEASURING FALSE.** The comment said a body `padding-top` "pushes the page
+  clear, so the strip covers nothing"; the padding is DOCUMENT flow and the band is fixed to
+  the VIEWPORT, so it held only at scroll 0. The repair moves the SCROLLPORT below the band -
+  `html` stops scrolling, the body becomes a fixed inset scroller - which makes the overlap
+  geometrically impossible rather than merely unlikely. `app-region` was deliberately not
+  touched: the rival fix was `pointer-events: none`, and whether Chromium still honours a
+  drag region on a pointer-transparent element is unanswerable here. A FIX THAT CANNOT BREAK
+  DRAGGING BEAT ONE THAT MIGHT, and an arm now forbids `pointer-events` in that CSS.
+
+- **THE NODE SUITE RUNS WITHOUT `shell/node_modules`** - it imports only node builtins plus
+  the two local libs, which is the purity partition working as designed. `node --test
+  shell/test/*.test.js` from the REPO ROOT; from inside `shell/` the PreToolUse hook resolves
+  its own path from cwd and every shell call dies until the directory is moved back with a
+  non-shell tool.
+
 - **Decisions: none recorded as an ADR.** Nothing contradicted `BOOTSTRAP.md`.
 
 - **Failed paths: `.claude/launch.json` was written and immediately removed** - it would have
   spelled the dashboard port into a tracked file, which is exactly the violation CS-604 is
   open about. The port guard does not read JSON; the rule still does.
 
-- **Next action: OPERATOR'S CALL between the two open UI threads.** CS-600 needs a THIRD
-  audit before it can close, because the arms now guarding the page were written by the
-  session that wrote the code they grade; and MUST-FIX 1, the shell drag strip capturing
-  28px of scrolled content, is measured and untouched by operator instruction. It needs
-  `cd shell && npm install` and a real Electron, which is also what the six manual checks in
-  `docs/OPERATIONS.md` section 8.3 have been waiting on since session 49.
+- **Next action: A THIRD CS-600 AUDIT, dispatched to an agent that wrote none of it.** Both
+  UI repairs and the shell fix were written by the session that also wrote the arms guarding
+  them, which is the one thing section 5 forbids. Two of the three audits so far returned
+  BLOCKED and the second found defects the first had not, so a third is expected to find
+  something rather than rubber-stamp. AFTER that, the save-reader follow-ups CS-868 to
+  CS-871.
+
+- **STILL OUTSTANDING FROM SESSION 49:** the six manual checks in `docs/OPERATIONS.md`
+  section 8.3 read NOT RUN, and `shell/node_modules` does not exist. CS-617's repair does not
+  need them, but VERIFYING THE DRAG ITSELF against a real Electron does, and that is named in
+  its ledger entry as owed rather than claimed.
 
 ---
 
