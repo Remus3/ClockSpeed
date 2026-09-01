@@ -115,6 +115,16 @@ WHAT THIS GUARD CANNOT MODEL. Read this before citing any verdict.
    say a personal path reached that site on any given run. Conversely
    :data:`UNPROVEN` does not say a site is safe.
 
+   SO THE VERDICT IS A CONSERVATIVE UPPER BOUND AND PRODUCES PROXY-POSITIVES.
+   The leg is SYNTACTIC: it resolves the handler's clause type to a builtin
+   ``OSError`` subclass. Nothing about that resolution can know whether the
+   call the handler wraps ATTACHES a filename, and an ``OSError`` whose
+   ``filename`` the interpreter left None renders no path at all. Two shipped
+   sites were measured to be exactly that and are recorded in :data:`EXEMPT`
+   with their measurements. THE RECORD CHANGES NO VERDICT - see the note on
+   :data:`EXEMPT_RECORDED` - so a proxy-positive stays reported rather than
+   being argued away, which is the fail-closed direction.
+
 6. ``except*`` IS WALKED AS AN ORDINARY HANDLER. Under ``except*`` the
    exception in flight is an ``ExceptionGroup`` wrapping the named type, so the
    type leg would answer about the member rather than the group. The tracked
@@ -127,14 +137,37 @@ WHAT THIS GUARD CANNOT MODEL. Read this before citing any verdict.
    ``str()`` does not, MEASURED in the census - and the two :data:`EXEMPT`
    entries below are scoped to ``str()`` for that reason.
 
-8. A RAISE IN A CALLEE OF A HANDLER IS NOT IN THE POPULATION AT ALL, AND
-   THIS IS THE LARGEST KNOWN SILENCE. CPython sets ``__context__`` from the
-   THREAD's exception state rather than from lexical scope, so a helper CALLED
-   from a handler body chains and renders exactly as a graded ``from exc``
-   does - while this module, which walks lexically, derives no site for it.
-   Planting one yields an empty population. CS-857 residual 2 owns it, and it
-   is why the item's acceptance - a universal over every shipped chained raise
-   - cannot yet be discharged.
+8. A RAISE IN A CALLEE OF A HANDLER IS NOT IN THE ``Site`` POPULATION AT ALL,
+   AND IT REMAINS THE LARGEST KNOWN SILENCE. CPython sets ``__context__`` from
+   the THREAD's exception state rather than from lexical scope, so a helper
+   CALLED from a handler body chains and renders exactly as a graded ``from
+   exc`` does - MEASURED at two links with the marker rendered - while this
+   module, which walks lexically, derives no ``Site`` for it.
+
+   A SECOND, NARROWER POPULATION NOW SEES PART OF IT, AND ONLY PART.
+   :func:`callee_sites` reports an OSError-typed handler whose own scope calls
+   a BARE-NAME function defined in the SAME module whose own scope raises with
+   NO ``from`` clause. Everything else about the shape is still invisible, and
+   each of these was MEASURED to leak and MEASURED not to be derived:
+
+     two levels down            ``h()`` calling ``g()`` which raises. Renders
+                                the caller's value at two links; derived: none.
+     a dotted or method callee  ``holder.blow_up()``. Same rendering; none.
+     an imported callee         not resolved, because this module follows no
+                                import - the same silence as limit 2.
+     a callee through a value   a variable, a container, a lambda, a decorator.
+     ``from inner`` in the      the callee's OWN handler re-chains, and the
+     callee's own handler       walk reaches the caller's exception at THREE
+                                links. MEASURED, and not derived.
+
+   THE LIVE COUNT IN THE GRADED BUCKET IS ZERO, and that zero is reported with
+   its denominator beside it - the handlers whose callee was actually
+   FOLLOWED - because a detector that resolved nothing reports the same zero.
+   This module's own fixtures are the live positive control.
+
+   CS-857 residual 2 still owns the remainder, and the item's acceptance - a
+   universal over every shipped chained raise - is still NOT discharged by
+   this. A partial detector narrows a silence; it does not close one.
 
 9. AN ALIASED IMPORT UNDER-REPORTS. ``from builtins import OSError as Boom``
    leaves ``except Boom`` unresolved, because :func:`_resolve_builtin_exception`
@@ -177,9 +210,17 @@ clearance on the raised expression not being SPELLED like the binding, and an
 adversary measured fifteen spellings that escaped it. Both sentences were
 retained one round longer than the code they described.
 
-TO VANISH FROM THE POPULATION they do NOT have to leave every handler and drop
-the ``from``, which is what this paragraph used to claim. They need only put
-the raise in a CALLEE of the handler - limit 8. That escape is open today.
+TO VANISH FROM THE ``Site`` POPULATION they do NOT have to leave every handler
+and drop the ``from``, which is what this paragraph used to claim. They need
+only put the raise in a CALLEE of the handler - limit 8.
+
+THAT ESCAPE IS NOW NARROWED AND IS NOT CLOSED, AND THE DIFFERENCE MATTERS.
+:func:`callee_sites` catches the one-level, bare-name, same-module spelling of
+it. An adversary reaches the identical rendering by calling a METHOD, by
+calling through an IMPORT, or by putting one more function between the handler
+and the raise - all three MEASURED to leak and MEASURED not to be derived. So
+this is a smaller silence with a stated shape, not a discharged one, and a
+future reader must not cite :func:`callee_sites` as covering limit 8.
 """
 
 from __future__ import annotations
@@ -252,6 +293,16 @@ MEASURED_LEAK: Final = "measured-leak"
 #: :data:`EXEMPT` records a measured reason for this exact site expression. The
 #: constant is spelled apart from the mapping because the mapping owns the bare
 #: name, house style; the VALUE is the word the verdict is reported under.
+#:
+#: AN ENTRY WHOSE SITE RESOLVES TO :data:`TYPE_OSERROR` IS INERT, AND THAT IS
+#: THE DESIGN RATHER THAN AN OVERSIGHT. :func:`classify` tests
+#: :data:`MEASURED_LEAK` first, so such an entry never reaches this branch and
+#: the site keeps reporting as a leak. Two of the four live entries are exactly
+#: that: proxy-positives of the syntactic type leg (limit 5), measured not to
+#: render a path, recorded so the measurement is not lost, and deliberately
+#: NOT given the power to silence anything. Closing such a site needs ``from
+#: None`` at the site itself. ``test_an_exemption_cannot_silence_a_measured_
+#: leak`` is the arm that keeps this true against a future reordering.
 EXEMPT_RECORDED: Final = "exempt"
 
 #: Nothing in the tree proves what this chain can carry.
@@ -532,9 +583,18 @@ NOTE_ATTRIBUTE: Final = "notes-attribute"
 #: :data:`VERDICT_ORDER` puts :data:`MEASURED_LEAK` first, so no exemption can
 #: launder a measured leak; closing one needs ``from None`` at the site.
 #:
-#: Both entries below were measured by running the constructor and reading the
-#: rendered traceback, not by reading the class. The arms that re-measure them
-#: on every run are named in ``tests/test_chained_cause_census.py``.
+#: EVERY entry below was measured by RUNNING the failing call and reading the
+#: rendering, not by reading the class, and every one is re-measured on every
+#: run by an arm in ``tests/test_chained_cause_census.py``.
+#:
+#: THE FOUR ENTRIES ARE NOT FOUR OF A KIND. The two ``docs_extract.py`` entries
+#: sit on sites the type leg does NOT resolve to an ``OSError``, so their
+#: exemption is REACHED and does silence an :data:`UNPROVEN` site. The two
+#: ``server.py`` entries sit on sites that DO resolve, so they are INERT by
+#: construction - see the note on :data:`EXEMPT_RECORDED`. Both kinds are kept
+#: here because the value of an entry is the measurement it records, and a
+#: measurement that changes no verdict is still the thing a later session would
+#: otherwise have to take on trust or repeat.
 EXEMPT: Final[Mapping[str, str]] = {
     "clockspeed/data/docs_extract.py::decode_docs_bytes::DocsDecodeError"
     "::UnicodeDecodeError::exc": (
@@ -556,6 +616,40 @@ EXEMPT: Final[Mapping[str, str]] = {
         "The dotted handler type would come back unresolved in any case - "
         "limit 2 in the module docstring - so this entry records what was "
         "measured rather than relying on that silence."
+    ),
+    "clockspeed/surface/server.py::_tls_context::CertificateError::(OSError, ssl.SSLError)::exc": (
+        "MEASURED by calling ssl.SSLContext.load_cert_chain on marker-named "
+        "paths and reading str() plus the exception-only rendering, on four "
+        "legs: a MISSING file gives FileNotFoundError '[Errno 2] No such file "
+        "or directory', a MALFORMED PEM and an EMPTY file give SSLError '[SSL] "
+        "PEM lib', and an UNREADABLE file gives PermissionError '[Errno 13] "
+        "Permission denied'. filename and filename2 are None on every leg and "
+        "the marker appears in none of them. The instrument is proven by a "
+        "POSITIVE CONTROL on the same denied file: Path.read_bytes raises the "
+        "same errno 13 and DOES set filename and DOES render the path, so a "
+        "filename-bearing OSError here would have been seen. NOT CLEARED, "
+        "RECORDED, for three reasons. This entry changes NO verdict: the site "
+        "stays measured-leak because VERDICT_ORDER tests that branch first, "
+        "and closing it needs from None at a site this record may not edit. "
+        "The measurement is scoped to str() - limit 7 - and to the OSError "
+        "legs reachable through load_cert_chain rather than to every errno it "
+        "could ever raise. And the absent filename is a property of how "
+        "CPython 3.14 raises from this call, not a documented guarantee, so a "
+        "later interpreter attaching one would silently make this stale."
+    ),
+    "clockspeed/surface/server.py::build_server::BindError::OSError::exc": (
+        "MEASURED by binding a loopback socket twice and reading str(): the "
+        "collision raises OSError with filename and filename2 both None and a "
+        "str() of '[WinError 10048] Only one usage of each socket address ...' "
+        "- an interpreter-generated address message carrying no path. The "
+        "constructor this handler wraps takes a (host, port) tuple and reaches "
+        "socket(), bind() and listen(), none of which is a filesystem call, "
+        "which is why no filename is attached to begin with. NOT CLEARED, "
+        "RECORDED: this entry changes NO verdict - the site stays "
+        "measured-leak under VERDICT_ORDER - and the measurement covers the "
+        "bind-collision leg on this platform rather than every OSError the "
+        "listener construction could raise. The port is already rendered "
+        "deliberately by BindError itself, and a port is not personal data."
     ),
 }
 
@@ -1174,6 +1268,355 @@ def note_sites() -> tuple[NoteSite, ...]:
         RuntimeError: git is unavailable or reported failure.
     """
     return notes_in_tree(tracked_sources())
+
+
+# ---------------------------------------------------------------------------
+# RESIDUAL 2 - a raise in a CALLEE of a handler. A SECOND, NARROWER POPULATION.
+#
+# DELIBERATELY NOT FOLDED INTO :class:`Site`. A ``Site`` is a raise this module
+# can grade; the records below are HANDLERS, and the raise that leaks is in
+# another function entirely. Merging them would let a ``CalleeSite`` be counted
+# by an arm that says "every graded site carries a verdict", and this detector
+# issues NO verdict - it reports a shape and a denominator, nothing more.
+# ---------------------------------------------------------------------------
+
+#: What a callee raise must look like to render the CALLER's exception, and
+#: every clause was MEASURED rather than reasoned about
+#: (``tests/test_chained_cause_census.py``, the residual-2 arms).
+#:
+#:   ``raise X(...)`` no ``from``   2 links, the caller's marker RENDERED.
+#:   bare ``raise``                 1 link, the caller's exception ITSELF.
+#:   ``raise X(...) from None``     1 link, marker absent. NOT a finding.
+#:   ``raise X(...) from param``    2 links, marker absent - the explicit cause
+#:                                  displaces the context. NOT a finding, and
+#:                                  the reason the rule reads ``cause is None``
+#:                                  rather than "the callee raises".
+#:
+#: THE THIRD AND FOURTH ROWS ARE WHY THIS IS NOT "does the callee raise". A
+#: detector asking only that would report both of them, and both were measured
+#: NOT to render the caller's value.
+CALLEE_CHAINS_WHEN: Final = "raise-without-from"
+
+#: A callee this detector resolved to a plain function in the same module.
+CALLEE_RESOLVED: Final = "resolved"
+
+#: A callee it could not follow: a dotted or attribute callee, an imported
+#: name, a local variable, or anything not a bare ``Name``. MEASURED to leak
+#: identically - a method callee renders the caller's marker at 2 links - so
+#: this is an UNDER-REPORT and never a clearance.
+CALLEE_OPAQUE: Final = "opaque"
+
+
+@dataclass(frozen=True)
+class CalleeSite:
+    """One handler that calls a same-module function whose body can chain.
+
+    Attributes:
+        module: Repo-relative path.
+        handler_lineno: The ``except`` clause line. The raise that actually
+            leaks is at :attr:`callee_lineno`, in another function.
+        qualname: Dotted enclosing scope of the HANDLER.
+        handler_type: The ``except`` clause type as written.
+        callee: The called function's name as written.
+        callee_lineno: Where that function is defined.
+    """
+
+    module: str
+    handler_lineno: int
+    qualname: str
+    handler_type: str
+    callee: str
+    callee_lineno: int
+
+    @property
+    def key(self) -> str:
+        """The site expression, keyed like :attr:`Site.key` and for one reason.
+
+        Returns:
+            ``module::qualname::handler_type::callee``. NO LINE NUMBER, so the
+            key survives an edit above it - the dead-citation failure CS-857
+            was filed against.
+        """
+        return f"{self.module}::{self.qualname}::{self.handler_type}::{self.callee}"
+
+
+@dataclass(frozen=True)
+class HandlerReach:
+    """One OSError-typed handler this detector examined, and how far it saw.
+
+    THE DENOMINATOR, AND IT EXISTS BECAUSE THE NUMERATOR IS ZERO. The tracked
+    tree contains no live :class:`CalleeSite` today, and an empty population
+    satisfies every zero: a detector that reads nothing reports the same count
+    as one that read the tree and found nothing. Recording what was RESOLVED
+    separates those two, and recording what was OPAQUE states the under-report
+    instead of implying there is none.
+
+    Attributes:
+        module: Repo-relative path.
+        handler_lineno: The ``except`` clause line.
+        qualname: Dotted enclosing scope.
+        handler_type: The clause type as written.
+        resolved: Callees followed to a plain function in this module.
+        opaque: Callees this detector cannot follow - see
+            :data:`CALLEE_OPAQUE`.
+    """
+
+    module: str
+    handler_lineno: int
+    qualname: str
+    handler_type: str
+    resolved: tuple[str, ...]
+    opaque: tuple[str, ...]
+
+
+def _chaining_functions(tree: ast.Module) -> Mapping[str, int]:
+    """MODULE-LEVEL functions whose OWN scope raises WITHOUT a ``from`` clause.
+
+    ``cause is None`` covers both measured chaining forms and neither of the
+    two measured non-chaining ones - see :data:`CALLEE_CHAINS_WHEN`.
+
+    A raise inside a nested ``def`` belongs to that function, not to this one,
+    so :func:`_own_scope` bounds the walk. That is the same rule
+    :func:`_forwarding_parameters` learned the hard way.
+
+    MODULE LEVEL ONLY, AND THAT IS A REPAIR RATHER THAN A SIMPLIFICATION. This
+    walked the WHOLE tree and keyed by BARE NAME, so two functions sharing a
+    name in different scopes were one entry. A planted module with a nested
+    ``_inner`` that raises made an unrelated ``_inner()`` call in another
+    function report a finding - a FALSE POSITIVE, which for a detector is the
+    forbidden direction: it claims more than it sees.
+    :func:`_forwarding_parameters` may union across scopes because a wider
+    answer there can only make a verdict STRICTER; here a wider answer invents
+    a finding, so the two cannot share a policy.
+
+    THE GATE IS ACTUALLY :func:`_defined_functions`, AND SAYING OTHERWISE HERE
+    WOULD BE THE DRIFT THIS FILE KEEPS CATCHING IN ITSELF.
+    :func:`_module_callee_records` tests membership of ``defined`` FIRST and
+    only then consults this mapping, so a name absent from ``defined`` never
+    reaches these entries at all. Restricting THIS walk as well is therefore
+    not the enforcement - it is what keeps the two from disagreeing about what
+    a callee name means. Measured: mutating either walk ALONE to ``ast.walk``
+    changes no output, and only mutating BOTH reproduces the false positive.
+    ``test_a_nested_def_callee_is_recorded_opaque_and_never_resolved`` grades
+    the rule directly for that reason.
+
+    The cost is stated rather than hidden: a nested ``def`` is now unresolvable
+    and its call is recorded :data:`CALLEE_OPAQUE`, an under-report.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        Function name to its definition line. A name bound twice at module
+        level keeps the LAST definition, which is the one actually bound at
+        import time.
+    """
+    chaining: dict[str, int] = {}
+    for node in tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if any(isinstance(inner, ast.Raise) and inner.cause is None for inner in _own_scope(node)):
+            chaining[node.name] = node.lineno
+        else:
+            chaining.pop(node.name, None)
+    return chaining
+
+
+def _module_class_names(tree: ast.Module) -> frozenset[str]:
+    """Every class name the module declares.
+
+    Calling one is a CONSTRUCTOR call, not a jump into a body that could raise
+    into the caller's context - ``__init__`` is a nested scope with its own
+    frame. Excluding them stops the detector reporting the wrapper construction
+    that :class:`Site` already grades.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        The declared class names.
+    """
+    return frozenset(node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef))
+
+
+def _handlers_with_calls(
+    tree: ast.Module, shadowed: frozenset[str]
+) -> Iterator[tuple[ast.ExceptHandler, tuple[str, ...], list[ast.Call]]]:
+    """Every OSError-typed handler, with the calls in its OWN scope.
+
+    Reuses :func:`_walk`, so the scope filter is the one the rest of this
+    module already obeys: a call inside a nested ``def`` runs in ITS frame with
+    its own ``sys.exc_info()`` and is not this handler's chain.
+
+    Args:
+        tree: The parsed module.
+        shadowed: Builtin names the module binds itself.
+
+    Yields:
+        The handler, its scope path, and the calls in its own scope.
+    """
+    scopes: dict[int, tuple[str, ...]] = {}
+    calls: dict[int, list[ast.Call]] = {}
+    handlers: dict[int, ast.ExceptHandler] = {}
+    for node, scope, handler in _walk(tree, (), None):
+        if handler is None:
+            continue
+        handlers.setdefault(id(handler), handler)
+        scopes.setdefault(id(handler), scope)
+        if isinstance(node, ast.Call):
+            calls.setdefault(id(handler), []).append(node)
+    for marker, handler in handlers.items():
+        found = calls.get(marker, [])
+        if found and _type_of(handler.type, shadowed) == TYPE_OSERROR:
+            yield handler, scopes[marker], found
+
+
+def _module_callee_records(
+    module: str, tree: ast.Module
+) -> tuple[list[CalleeSite], list[HandlerReach]]:
+    """Derive both residual-2 populations for one parsed module.
+
+    Args:
+        module: The repo-relative path.
+        tree: The parsed module.
+
+    Returns:
+        The findings and the handlers examined, in that order.
+    """
+    shadowed = _shadowed(tree)
+    chaining = _chaining_functions(tree)
+    classes = _module_class_names(tree)
+    defined = _defined_functions(tree)
+    found: list[CalleeSite] = []
+    reach: list[HandlerReach] = []
+    for handler, scope, calls in _handlers_with_calls(tree, shadowed):
+        qualname = ".".join(scope) or MODULE_SCOPE
+        handler_type = ast.unparse(handler.type) if handler.type is not None else NO_HANDLER
+        resolved: list[str] = []
+        opaque: list[str] = []
+        for call in calls:
+            written = ast.unparse(call.func)
+            if not isinstance(call.func, ast.Name) or call.func.id in classes:
+                opaque.append(written)
+                continue
+            name = call.func.id
+            if name not in defined:
+                opaque.append(written)
+                continue
+            resolved.append(written)
+            if name in chaining:
+                found.append(
+                    CalleeSite(
+                        module=module,
+                        handler_lineno=handler.lineno,
+                        qualname=qualname,
+                        handler_type=handler_type,
+                        callee=name,
+                        callee_lineno=chaining[name],
+                    )
+                )
+        reach.append(
+            HandlerReach(
+                module=module,
+                handler_lineno=handler.lineno,
+                qualname=qualname,
+                handler_type=handler_type,
+                resolved=tuple(sorted(set(resolved))),
+                opaque=tuple(sorted(set(opaque))),
+            )
+        )
+    return found, reach
+
+
+def _defined_functions(tree: ast.Module) -> frozenset[str]:
+    """Every function name the module defines, whether or not it raises.
+
+    Separate from :func:`_chaining_functions` so a callee that IS resolved and
+    does NOT chain still counts toward the denominator. Folding the two would
+    make a resolved-and-safe callee indistinguishable from an unresolved one,
+    and the denominator would then silently shrink to the findings.
+
+    MODULE LEVEL ONLY, for the reason :func:`_chaining_functions` records: a
+    bare name resolved across scopes is a name collision waiting to become a
+    false positive. The two must agree on scope or a callee could be
+    "resolved" here and absent there.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        The defined function names.
+    """
+    return frozenset(
+        node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    )
+
+
+def callee_sites_in_tree(sources: Mapping[str, str]) -> tuple[CalleeSite, ...]:
+    """Derive the residual-2 findings from a mapping of module to source.
+
+    Args:
+        sources: Repo-relative module path to source text.
+
+    Returns:
+        Every handler calling a same-module function that raises without a
+        ``from`` clause, ordered by module then handler line.
+
+    Raises:
+        ChainedCauseDerivationError: A module did not parse.
+    """
+    found: list[CalleeSite] = []
+    for module in sorted(sources):
+        found.extend(_module_callee_records(module, _parse(module, sources[module]))[0])
+    return tuple(sorted(found, key=lambda site: (site.module, site.handler_lineno, site.callee)))
+
+
+def handler_reach_in_tree(sources: Mapping[str, str]) -> tuple[HandlerReach, ...]:
+    """Derive the residual-2 DENOMINATOR from a mapping of module to source.
+
+    Args:
+        sources: Repo-relative module path to source text.
+
+    Returns:
+        Every OSError-typed handler whose own scope contains a call, ordered by
+        module then handler line.
+
+    Raises:
+        ChainedCauseDerivationError: A module did not parse.
+    """
+    reach: list[HandlerReach] = []
+    for module in sorted(sources):
+        reach.extend(_module_callee_records(module, _parse(module, sources[module]))[1])
+    return tuple(sorted(reach, key=lambda seen: (seen.module, seen.handler_lineno)))
+
+
+@cache
+def callee_sites() -> tuple[CalleeSite, ...]:
+    """The live residual-2 findings, derived on every run.
+
+    Returns:
+        Every finding in the tracked tree. EXPECTED TO BE EMPTY today, which is
+        why :func:`handler_reach` exists beside it.
+
+    Raises:
+        ChainedCauseDerivationError: The tree could not be read or parsed.
+        RuntimeError: git is unavailable or reported failure.
+    """
+    return callee_sites_in_tree(tracked_sources())
+
+
+@cache
+def handler_reach() -> tuple[HandlerReach, ...]:
+    """The live residual-2 denominator, derived on every run.
+
+    Returns:
+        Every OSError-typed handler with a call in its own scope.
+
+    Raises:
+        ChainedCauseDerivationError: The tree could not be read or parsed.
+        RuntimeError: git is unavailable or reported failure.
+    """
+    return handler_reach_in_tree(tracked_sources())
 
 
 # ---------------------------------------------------------------------------

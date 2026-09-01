@@ -71,10 +71,32 @@ and must not be flagged:
     NAME.reason, NAME.msg, NAME.lineno, NAME.colno, NAME.strerror
     getattr(NAME, "msg", None)      default is not the object
     type(NAME).__name__
-    raise SomeError(...) from NAME  chaining, not rendering
+    raise SomeError(...) from NAME  the cause slot, not this message's text -
+                                    read the correction below before quoting it
     helper(NAME)                    handing it to a redactor is the FIX - though
                                     since CS-441 that helper's own body is
                                     scanned in its turn, see below
+
+THE CHAINED RAISE IS OUT OF THIS CHANNEL, NOT HARMLESS, and this entry said
+otherwise until CS-857. It read "chaining, not rendering", which is false as a
+statement about the world: `from NAME` sets `__cause__`, and the interpreter
+prints that cause's OWN message beside this one in the formatted traceback
+under default flags. A carefully redacted message can therefore render clean
+while the chained `OSError` renders the raw path next to it. What is true is
+narrower - this detector grades whole-object renderings into TEXT and does not
+model chaining at all, so the shape is TRANSPARENT to it rather than exempted
+by it, and no code here decides anything about a cause. The traceback channel
+has exactly one owner, `tests/chained_cause_guard.py`, which answers it by
+measurement rather than by belief, and `from None` is a legitimate remedy there
+rather than a loss of the traceback.
+
+THAT CORRECTION IS PROSE, AND PROSE IS WHAT LET IT ROT. The claim survived two
+CS-857 commits that edited this very file, because nothing grades a sentence.
+`tests/chained_exemption_guard.py` grades the CODE form of the same belief - a
+module reading an `ast.Raise` cause to decide the question for itself - and it
+names this record in its own residual list as one it cannot see. If anyone ever
+implements the belief here, that guard reddens; if anyone merely writes it down
+again, nothing will.
 
 `clockspeed/data/docs_extract.py` renders `exc.reason`, `exc.msg`, `exc.lineno`
 and `exc.colno` and is ALREADY CORRECT. A naive detector flags it, and whoever

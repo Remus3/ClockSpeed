@@ -29,6 +29,18 @@ d. THE CERTIFICATE PAIR IS NAMED IN TWO FILES AND THEY MUST AGREE.
 e. A BROKEN RECORD IS A FIXED LINE, NEVER AN ECHO. The record path can sit under
    a home directory, so a refusal is asserted to carry neither the path nor any
    fragment of the file it refused (non-negotiable 3).
+f. AND SO IS THE CAUSE THAT REFUSAL IS CHAINED TO. CS-857. Arm (e) reads
+   ``str()`` on the ConfigError and nothing else, and that is the whole of what
+   it can see: ``raise X from exc`` makes the CAUSE's own text part of the
+   formatted traceback, and ``OSError.__str__`` appends ``filename``. A wrapper
+   hardened by construction therefore still handed the record path to the
+   renderer above it. Two arms grade the repair, because neither is sufficient
+   alone - one reads the DEFAULT EXCEPTHOOK's real output from a subprocess,
+   which is the only place the ``__context__`` channel is visible at all, and
+   one reads the cause's named fields, which is the only place "the reason
+   survived" is visible. A third pins that the reason is genuinely still there,
+   so a repair that closed the channel by dropping the cause turns this section
+   red rather than green.
 
 Test-quality discipline (CONVENTIONS.md section 7.2). Every sweep binds its
 population size to a scalar and asserts the expected count BEFORE it iterates: a
@@ -42,12 +54,15 @@ from __future__ import annotations
 
 import ast
 import json
+import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
 import pytest
 
+from clockspeed.data.locate import redact
 from clockspeed.surface import config
 
 # ---------------------------------------------------------------------------
@@ -500,3 +515,257 @@ def test_the_web_directory_is_not_required_to_exist() -> None:
 def test_load_config_reads_the_real_record_when_nothing_overrides() -> None:
     built = config.load_config(env={})
     assert built.port == config.allocated_port()
+
+
+# ---------------------------------------------------------------------------
+# (f) CS-857 - the cause that refusal is chained to renders no path either
+# ---------------------------------------------------------------------------
+
+#: A digit run planted as a path segment and then looked for in a rendering.
+#: Invented here and belonging to no machine, so non-negotiable 3 permits naming
+#: it in an assertion message - which the tmp_path underneath it does not.
+#:
+#: IT IS THE NEEDLE PRECISELY BECAUSE redact() REWRITES IT, and every arm below
+#: proves that rewrite before drawing any conclusion from the needle's absence. A
+#: needle redact() does not touch is missing from a LEAKING rendering exactly as
+#: reliably as from a clean one, so an unproven needle turns this section green
+#: while measuring nothing. The rewrite comes from the digit-run backstop in
+#: clockspeed/data/locate.py, which is machine-independent - unlike the home
+#: prefix inside a tmp_path, which is only redactable on a runner whose temporary
+#: directory happens to sit below one. CANARY cannot serve here for exactly that
+#: reason: redact() leaves it untouched, so its absence would prove nothing.
+RECORD_NEEDLE: Final = "10000000000000002"
+
+#: How long the out-of-process arm may take before it is called hung. Bounded,
+#: for the reason every other probe in this tree is bounded.
+DRIVER_TIMEOUT_SECONDS: Final = 120
+
+#: A one-shot program that drives :func:`allocated_port` and lets the failure
+#: reach the DEFAULT EXCEPTHOOK - the renderer CS-857 is actually about. Passed
+#: with ``-c`` so nothing is written to disk, and handed the repository root
+#: explicitly rather than inheriting a working directory, so the arm does not
+#: depend on where the suite was invoked from.
+#:
+#: THE EXCEPTHOOK RATHER THAN ``traceback.format_exception``, and that is not a
+#: stylistic preference. Formatting a caught exception inside the test process
+#: renders an absolute path per frame and ends in ``str(exc)``, which is the
+#: channel ``tests/test_exception_rendering.py`` exists to keep out of this tree
+#: - an arm proving that nothing leaks must not leak in order to prove it.
+#: Letting a subprocess die is also the stronger evidence, because it measures
+#: the real renderer instead of a stand-in for it.
+RECORD_SITE_DRIVER: Final = (
+    "import sys\n"
+    "from pathlib import Path\n"
+    "sys.path.insert(0, sys.argv[1])\n"
+    "from clockspeed.surface.config import allocated_port\n"
+    "allocated_port(Path(sys.argv[2]))\n"
+)
+
+
+@dataclass(frozen=True)
+class CauseFacts:
+    """What the chained cause carries, reduced to booleans and nothing else.
+
+    Attributes:
+        is_oserror: The refusal is chained to an OSError at all.
+        filename_cleared: ``filename`` is unset on it.
+        filename2_cleared: ``filename2`` is unset on it.
+        errno_kept: ``errno`` survived the repair.
+        reason_kept: ``strerror`` survived the repair and is not empty.
+    """
+
+    is_oserror: bool
+    filename_cleared: bool
+    filename2_cleared: bool
+    errno_kept: bool
+    reason_kept: bool
+
+
+def cause_facts(error: config.ConfigError) -> CauseFacts:
+    """Reduce the cause a refusal is chained to, to the booleans arms may assert.
+
+    THE EXCEPTION ITSELF IS NEVER RETURNED, only scalars derived from it. pytest
+    rewrites an assertion to render the asserted EXPRESSION independently of its
+    message, so a name that still held the cause would print the cause -
+    ``filename`` included - the moment any arm below failed. Every field of the
+    returned record is a bool, so even a rendering of the whole record discloses
+    nothing.
+
+    A cause that is absent or is not an OSError is reported as having no path
+    and no reason, which is the reading that makes
+    ``test_the_unreadable_records_cause_keeps_the_reason_it_failed`` red rather
+    than green if the leak is ever closed by dropping the cause.
+
+    Args:
+        error: The refusal to read ``__cause__`` from.
+
+    Returns:
+        The five booleans.
+    """
+    cause = error.__cause__
+    if not isinstance(cause, OSError):
+        return CauseFacts(
+            is_oserror=False,
+            filename_cleared=True,
+            filename2_cleared=True,
+            errno_kept=False,
+            reason_kept=False,
+        )
+    return CauseFacts(
+        is_oserror=True,
+        filename_cleared=cause.filename is None,
+        filename2_cleared=cause.filename2 is None,
+        errno_kept=cause.errno is not None,
+        reason_kept=bool(cause.strerror),
+    )
+
+
+def needle_control() -> tuple[bool, str]:
+    """Prove redact() rewrites :data:`RECORD_NEEDLE` before its absence is read.
+
+    THE ORACLE IS IMPORTED DIRECTLY, which is stated here rather than left
+    silent. ``clockspeed/surface/config.py`` deliberately binds no ``redact`` -
+    it imports nothing from ``data`` and builds every refusal out of a closed
+    vocabulary instead - so unlike ``tests/test_make_cert.py``, which borrows the
+    script's own bound oracle, there is no module-bound one to borrow.
+
+    Returns:
+        Whether the needle is rewritten, and what it is rewritten to. The
+        rewritten form is a placeholder rather than a path, so an assertion
+        message may render it.
+    """
+    rewritten = redact(RECORD_NEEDLE)
+    return rewritten != RECORD_NEEDLE and RECORD_NEEDLE not in rewritten, rewritten
+
+
+def unreadable_record(tmp_path: Path) -> Path:
+    """A record path that cannot be read, with the needle inside it.
+
+    NOTHING IS PATCHED AND NOTHING IS CREATED. The parent directory is absent,
+    so the operating system supplies the ENOENT and fills in the ``filename``
+    field this section is about - the same shape arm (e) already uses, with a
+    needle redact() can be proven to rewrite.
+
+    Args:
+        tmp_path: The per-test temporary root.
+
+    Returns:
+        The absent record, below an equally absent needle-named directory.
+    """
+    return tmp_path / RECORD_NEEDLE / "ports.json"
+
+
+def test_a_missing_record_renders_no_path_through_the_default_excepthook(
+    tmp_path: Path,
+) -> None:
+    """CS-857. The site's failure reaches the operator carrying no path.
+
+    THE SITE IS DRIVEN DIRECTLY, IN A SUBPROCESS. What the process RENDERS is
+    the subject, not the ``filename`` fields, and that distinction is the whole
+    of this arm. A repair that cleared ``filename`` and ``filename2`` but left
+    ``__suppress_context__`` false would still render the original underneath
+    "During handling of the above exception", both paths intact. The sibling arm
+    below, which reads the named fields, cannot see that channel at all; this
+    one can, because it reads what a real interpreter really printed.
+
+    NOTHING CAPTURED IS RENDERED. The captured streams carry the real tmp_path,
+    so every assertion binds a boolean first and its message names only the
+    synthetic needle and a fixed refusal line this module already owns.
+    """
+    redactable, rewritten = needle_control()
+    missing = unreadable_record(tmp_path)
+
+    done = subprocess.run(
+        [sys.executable, "-c", RECORD_SITE_DRIVER, str(config.repo_root()), str(missing)],
+        shell=False,
+        capture_output=True,
+        text=True,
+        timeout=DRIVER_TIMEOUT_SECONDS,
+        check=False,
+    )
+    survived = done.returncode == 0
+    refused = config.RECORD_UNREADABLE in done.stderr
+    leaked = RECORD_NEEDLE in (done.stdout + done.stderr)
+
+    assert redactable, (
+        f"redact() left {RECORD_NEEDLE} unchanged, so its absence below would be "
+        "evidence of nothing"
+    )
+    assert not survived, (
+        "the driver read a record that is supposed to be absent, so the site "
+        "under test never raised and nothing here was measured"
+    )
+    assert refused, (
+        "the driver died before reaching the refusal, so the absence of the "
+        "needle below says nothing about the site"
+    )
+    assert not leaked, (
+        f"the default excepthook rendered {RECORD_NEEDLE}, which redact() "
+        f"rewrites to {rewritten}; the record read still hands a path to the "
+        "renderer above it"
+    )
+
+
+def test_the_unreadable_records_cause_carries_no_filename(tmp_path: Path) -> None:
+    """The named channel, read as fields rather than as a rendering.
+
+    ``OSError.__str__`` appends ``filename`` and ``filename2`` verbatim, so
+    these two fields are the leak the excepthook arm above measures. Reading
+    them directly is what says the repair was made in the cause rather than
+    papered over by a formatter that happened not to reach it.
+
+    THIS ARM CANNOT SEE THE CONTEXT CHANNEL. Empty filename fields are not proof
+    that the rendering is clean, which is precisely why the excepthook arm sits
+    beside it. Neither arm is sufficient alone.
+    """
+    missing = unreadable_record(tmp_path)
+    with pytest.raises(config.ConfigError) as caught:
+        config.allocated_port(missing)
+    facts = cause_facts(caught.value)
+
+    assert facts.is_oserror, "the refusal is chained to no OSError, so this arm measured nothing"
+    assert facts.filename_cleared, "the chained cause still carries the path it failed on"
+    assert facts.filename2_cleared, "the chained cause still carries a second path"
+
+
+def test_the_unreadable_records_cause_keeps_the_reason_it_failed(tmp_path: Path) -> None:
+    """The other half of the contract - the diagnostic the repair must not drop.
+
+    ERRNO AND STRERROR ARE ASSERTED PRESENT. A repair that closed the channel by
+    dropping the cause, suppressing it, or replacing it with something that is
+    not an OSError would pass every rendering arm above while costing the
+    operator the only diagnostic there is. The wrapper's fixed line deliberately
+    says neither which file nor why, so "absent" and "present but unreadable" -
+    different faults with different remedies - are tellable apart here or
+    nowhere.
+    """
+    missing = unreadable_record(tmp_path)
+    with pytest.raises(config.ConfigError) as caught:
+        config.allocated_port(missing)
+    facts = cause_facts(caught.value)
+
+    assert facts.is_oserror, "the refusal is chained to no OSError, so the reason is gone"
+    assert facts.errno_kept, "the repair dropped errno, and with it why the read failed"
+    assert facts.reason_kept, "the repair dropped strerror, and with it why the read failed"
+
+
+def test_the_cause_reader_reports_a_dropped_cause_rather_than_passing_it(
+    tmp_path: Path,
+) -> None:
+    """The detector, run against a planted negative - it must not pass vacuously.
+
+    :func:`cause_facts` is used above to prove an ABSENCE, so it is also run here
+    against a refusal chained to nothing at all. A reader that reported a missing
+    cause as clean-and-complete would turn the two arms above green for a repair
+    that deleted the diagnostic, which is the failure mode this section exists to
+    make impossible (CONVENTIONS.md section 7.2).
+    """
+    missing = unreadable_record(tmp_path)
+    with pytest.raises(config.ConfigError) as caught:
+        config.allocated_port(missing)
+    dropped = config.ConfigError(caught.value.fault)
+    facts = cause_facts(dropped)
+
+    assert not facts.is_oserror, "a refusal chained to nothing was read as carrying an OSError"
+    assert not facts.errno_kept, "a refusal chained to nothing was read as keeping errno"
+    assert not facts.reason_kept, "a refusal chained to nothing was read as keeping a reason"

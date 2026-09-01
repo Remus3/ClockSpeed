@@ -45,6 +45,15 @@ have written a home directory to stderr. It does not type-check now and raises a
 construction if it is forced through anyway. ``clockspeed/surface/server.py``
 states the same reasoning for ``BindError`` and ``bind_refusal``, and this is the
 same shape over a four-member vocabulary instead of over a port number.
+
+AND THE MESSAGE WAS STILL NOT THE WHOLE CHANNEL (CS-857). A refusal chained with
+``raise X from exc`` puts the CAUSE's own text into the formatted traceback, and
+``OSError.__str__`` appends ``filename``. So a wrapper hardened by construction
+went on handing the record path to the default excepthook through the cause
+beside it, which the paragraph above could not see because it reasons only about
+what the wrapper says. :func:`_pathless_cause` closes that, and
+``tests/surface/test_config.py`` section (f) grades it by reading what a real
+interpreter really printed - the only place the context channel is visible.
 """
 
 from __future__ import annotations
@@ -398,6 +407,63 @@ def _checked_port(value: int) -> int:
     return value
 
 
+def _pathless_cause(exc: OSError) -> OSError:
+    """Clone an OSError without the two fields that carry the path.
+
+    THE SAME TWO-LINE IDIOM AS ``clockspeed/save/workdir.py::_pathless_cause``,
+    replicated rather than imported, for the reason :func:`repo_root` above
+    already records about a different helper: ``surface/`` reaching into a
+    private underscore name of ``save/`` is the seam violation CLAUDE.md section
+    2.1 names and ruff's SLF rules exist to catch, and this module deliberately
+    imports nothing from another package of this tree at all. That docstring,
+    and ``scripts/make_cert.py``'s copy of it, carry the long form of the
+    reasoning. THE FOURTH COPY IS A REPORTED SEAM COLLISION rather than a settled
+    shape - a single shared owner is the correct repair, and creating one was not
+    on this slice's write-list.
+
+    WHY A CLEAN WRAPPER WAS NOT ENOUGH. ``raise X from exc`` makes the CAUSE's
+    own text part of the formatted traceback, and ``OSError.__str__`` appends
+    ``filename`` and ``filename2`` verbatim. :func:`config_refusal` above had
+    already reasoned that widening an ``except`` clause to ``OSError`` makes the
+    same spelling append the path the call failed on; the clause in
+    :func:`allocated_port` IS that clause, and until CS-857 this module handed
+    the record path to the renderer through the cause it chained to rather than
+    through a message of its own. MEASURED rather than anticipated: a
+    ``read_bytes`` failure raises ``FileNotFoundError`` with ``filename`` set,
+    and the default excepthook printed it.
+
+    Rebuilding from the two NAMED diagnostic fields carries errno and strerror
+    across and leaves both filename fields unset, which closes that channel while
+    keeping the reason the read failed. That reason is not a nicety: the fixed
+    line above deliberately says neither which file nor why, so whether the
+    record is ABSENT or present and UNREADABLE - different faults with different
+    remedies - is tellable apart here or nowhere.
+
+    ``str()`` is the rendering measured, because that is the one the traceback
+    formatter uses. ``repr()`` would have been a false clearance - it omits
+    filename even on the leaking original.
+
+    THE CALLER PASSES THIS AS THE ``from`` OPERAND, and that is what suppresses
+    the context. ``raise X from Y`` sets ``__suppress_context__``, so the
+    original is not rendered underneath "During handling of the above
+    exception"; a bare ``raise _pathless_cause(exc)`` would leave that channel
+    open with both paths intact, which ``scripts/make_cert.py`` records having
+    measured.
+
+    The two-argument form is deliberate. Supplying ``winerror`` as a fourth
+    argument renders ``[WinError None]`` whenever the original carried none,
+    which is worse than the errno it would replace. The errno-based subclass
+    mapping still runs, so a PermissionError stays a PermissionError.
+
+    Args:
+        exc: The caught failure. ONLY ``errno`` and ``strerror`` are read.
+
+    Returns:
+        A new OSError of the same errno-mapped subclass, carrying no path.
+    """
+    return OSError(exc.errno, exc.strerror)
+
+
 def allocated_port(record: Path | None = None) -> int:
     """Read the allocated port out of the record that owns it.
 
@@ -412,13 +478,17 @@ def allocated_port(record: Path | None = None) -> int:
             integer base. Two distinct fixed lines, so "the file is not there"
             and "the file is not what it should be" stay tellable apart -
             different faults with different remedies. Neither quotes the path
-            or the content.
+            or the content, AND NEITHER IS CHAINED TO A CAUSE THAT DOES:
+            :func:`_pathless_cause` states why the message alone was not the
+            whole channel. The malformed cause needs no such treatment - a
+            decode or JSON failure carries no filename field to begin with -
+            so it is chained directly and that asymmetry is deliberate.
     """
     path = ports_record_path() if record is None else record
     try:
         raw = path.read_bytes()
     except OSError as exc:
-        raise ConfigError(ConfigFault.RECORD_UNREADABLE) from exc
+        raise ConfigError(ConfigFault.RECORD_UNREADABLE) from _pathless_cause(exc)
     try:
         payload = json.loads(raw.decode("ascii"))
         base = payload[PORTS_RECORD_BASE_KEY]

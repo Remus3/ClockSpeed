@@ -37,6 +37,8 @@ from __future__ import annotations
 
 import json
 import re
+import socket
+import ssl
 import traceback
 import warnings
 from pathlib import Path
@@ -527,6 +529,129 @@ def test_a_json_decode_error_renders_no_document_under_str() -> None:
     rendered = str(caught.value)
     assert MARKER not in rendered, f"str() carried the document: {rendered!r}"
     assert MARKER not in _rendered_chain(caught.value), "the rendered line carried the document"
+
+
+# ---------------------------------------------------------------------------
+# The two surface EXEMPT entries, RE-MEASURED every run.
+#
+# NEITHER RENDERING IS EVER INTERPOLATED INTO A FAILURE MESSAGE. These arms
+# build real paths under a temporary directory, which on this machine sits
+# below a home directory - so a message quoting the rendering would itself be
+# the echo path CLAUDE.md non-negotiable 12 forbids. Each arm reduces to a
+# BOOLEAN and reports the exception CLASS NAME, which carries nothing.
+# ---------------------------------------------------------------------------
+
+#: A malformed PEM body. Well-formed armour, unusable content, so the failure
+#: comes from the parser rather than from the file being absent.
+_BAD_PEM: Final = b"-----BEGIN CERTIFICATE-----\nnot base64\n-----END CERTIFICATE-----\n"
+
+#: The bracketed code every platform's socket error opens with - ``[WinError
+#: 10048]`` here, ``[Errno 98]`` elsewhere. Used as the ``pytest.raises``
+#: match so the arm names the failure it expects instead of accepting any
+#: OSError at all, and it doubles as a claim: the message leads with an
+#: INTERPRETER-GENERATED code rather than with anything the caller supplied.
+_ERROR_CODE: Final = r"\[(?:Win)?Err(?:or|no) \d+\]"
+
+
+def _cert_failure(cert: Path) -> BaseException:
+    """Drive ``load_cert_chain`` at one path and hand back what it raised.
+
+    Args:
+        cert: The path to offer as both the certificate and the key.
+
+    Returns:
+        The caught failure.
+    """
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    with pytest.raises((OSError, ssl.SSLError)) as caught:
+        context.load_cert_chain(cert, cert)
+    return caught.value
+
+
+def test_the_cert_measurement_would_have_seen_a_filename(tmp_path: Path) -> None:
+    """POSITIVE CONTROL, and the three arms below mean nothing without it.
+
+    An absent marker also describes a marker that never reached the call. This
+    reads the SAME errno through a path that DOES attach a filename, so the
+    instrument is proven to detect one before it is used to report none.
+    """
+    missing = tmp_path / f"{MARKER}.pem"
+    with pytest.raises(FileNotFoundError) as caught:
+        missing.read_bytes()
+    carried = MARKER in str(caught.value)
+    assert carried, (
+        "read_bytes did NOT render the filename, so these arms cannot tell a "
+        "safe rendering from a marker that never arrived; the class raised was "
+        f"{type(caught.value).__name__}"
+    )
+
+
+def test_load_cert_chain_renders_no_path_for_a_missing_file(tmp_path: Path) -> None:
+    """The TLS entry's first measured leg."""
+    failure = _cert_failure(tmp_path / f"{MARKER}.pem")
+    carried = MARKER in str(failure) or MARKER in _rendered_chain(failure)
+    assert not carried, f"str() carried the path; the class was {type(failure).__name__}"
+
+
+def test_load_cert_chain_renders_no_path_for_a_malformed_pem(tmp_path: Path) -> None:
+    """The TLS entry's second measured leg - the SSLError branch."""
+    bad = tmp_path / f"{MARKER}.pem"
+    bad.write_bytes(_BAD_PEM)
+    failure = _cert_failure(bad)
+    carried = MARKER in str(failure) or MARKER in _rendered_chain(failure)
+    assert not carried, f"str() carried the path; the class was {type(failure).__name__}"
+
+
+def test_load_cert_chain_renders_no_path_for_an_unopenable_file(tmp_path: Path) -> None:
+    """The TLS entry's third measured leg - the PERMISSION branch.
+
+    A DIRECTORY is used rather than an ACL edit: it is the portable way to make
+    the open fail with an OSError that is neither ENOENT nor a PEM parse error,
+    and it needs no privileged call. On this machine it raises PermissionError;
+    the arm asserts the RENDERING rather than the subclass, so a platform
+    answering IsADirectoryError still measures the thing that matters.
+    """
+    blocked = tmp_path / f"{MARKER}-dir"
+    blocked.mkdir()
+    failure = _cert_failure(blocked)
+    carried = MARKER in str(failure) or MARKER in _rendered_chain(failure)
+    assert not carried, f"str() carried the path; the class was {type(failure).__name__}"
+
+
+def test_a_bind_collision_renders_no_path_under_str() -> None:
+    """The BindError entry's measured claim.
+
+    Binds an ephemeral loopback port, then binds it again. Loopback only, and
+    the listener is closed on every path.
+
+    THE FAILURE IS READ THROUGH ``pytest.raises`` RATHER THAN AN ``except ...
+    as exc`` BLOCK, and that is not a style choice. ``str(exc)`` on a caught
+    binding is the exact shape ``tests/test_exception_rendering.py`` forbids
+    tree-wide - it flagged an earlier draft of this very arm, which is the
+    guard working. The named FIELDS are what the claim actually rests on:
+    ``OSError.__str__`` appends ``: 'filename'`` only when the interpreter set
+    one, so both being None IS the no-path property rather than evidence for
+    it.
+    """
+    holder = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        holder.bind(("127.0.0.1", 0))
+        holder.listen(1)
+        taken = holder.getsockname()[1]
+        second = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            with pytest.raises(OSError, match=_ERROR_CODE) as caught:
+                second.bind(("127.0.0.1", taken))
+            rendered = str(caught.value)
+            has_filename = caught.value.filename is not None
+            has_filename2 = caught.value.filename2 is not None
+        finally:
+            second.close()
+    finally:
+        holder.close()
+    assert not has_filename, "the bind collision attached a filename"
+    assert not has_filename2, "the bind collision attached a second filename"
+    assert "\\" not in rendered, "the bind message carried a backslash path separator"
 
 
 # ---------------------------------------------------------------------------
@@ -2004,3 +2129,482 @@ def test_the_guard_does_not_chain_its_own_derivation_failures() -> None:
         assert classify(site) == CLOSED_SUPPRESSED, (
             f"the guard's own {site.key} is not closed with from None"
         )
+
+
+# ---------------------------------------------------------------------------
+# CS-857 residual 2 - a raise in a CALLEE of a handler.
+#
+# WHAT THIS SECTION CLAIMS, AND THE NUMBER IS DELIBERATELY SMALL. The detector
+# resolves ONE level, a BARE-NAME callee, in the SAME module. Every other route
+# to the same leak is measured below to leak IDENTICALLY and to be invisible to
+# it. The findings are therefore an UNDER-report and never a clearance, and
+# limit 8 in the guard's docstring keeps saying so.
+# ---------------------------------------------------------------------------
+
+#: The fewest POSITIVE rows the planted expectation table may hold. Every
+#: negative row would pass against a detector that reported nothing at all, so
+#: the table needs more than one shape it must actually FIND.
+_MIN_POSITIVE_ROWS: Final = 2
+
+
+class _CalleeHolder:
+    """A method callee, which the detector cannot follow. Blind, and measured."""
+
+    def blow_up(self) -> None:
+        """Raise with no ``from``, from a method rather than a function."""
+        raise _SyntheticError(_REDACTED)
+
+
+def _callee_raises_plainly() -> None:
+    """Raise with no ``from`` clause, in a function of its own."""
+    raise _SyntheticError(_REDACTED)
+
+
+def _callee_suppresses() -> None:
+    """Raise with ``from None``, which closes the context channel."""
+    raise _SyntheticError(_REDACTED) from None
+
+
+def _callee_chains_a_parameter(other: BaseException) -> None:
+    """Raise with an explicit cause, which displaces the caller's context."""
+    raise _SyntheticError(_REDACTED) from other
+
+
+def _callee_inner_level() -> None:
+    """The second level down. The detector resolves one level and stops."""
+    raise _SyntheticError(_REDACTED)
+
+
+def _callee_outer_level() -> None:
+    """Call the second level without raising itself."""
+    _callee_inner_level()
+
+
+def _calls_a_raising_callee() -> None:
+    """THE SHAPE. The raise that leaks is in another function entirely."""
+    try:
+        raise OSError(_ERRNO, _STRERROR, MARKER)
+    except OSError:
+        _callee_raises_plainly()
+
+
+def _calls_a_suppressing_callee() -> None:
+    """The callee closes the channel with ``from None``."""
+    try:
+        raise OSError(_ERRNO, _STRERROR, MARKER)
+    except OSError:
+        _callee_suppresses()
+
+
+def _calls_a_parameter_chaining_callee(other: BaseException) -> None:
+    """The callee chains something else, displacing the caller's context."""
+    try:
+        raise OSError(_ERRNO, _STRERROR, MARKER)
+    except OSError:
+        _callee_chains_a_parameter(other)
+
+
+def _calls_two_levels_down() -> None:
+    """The raise is two calls away. MEASURED to leak, and not derived."""
+    try:
+        raise OSError(_ERRNO, _STRERROR, MARKER)
+    except OSError:
+        _callee_outer_level()
+
+
+def _calls_a_method_callee(holder: _CalleeHolder) -> None:
+    """The callee is dotted. MEASURED to leak, and not derived."""
+    try:
+        raise OSError(_ERRNO, _STRERROR, MARKER)
+    except OSError:
+        holder.blow_up()
+
+
+# ---------------------------------------------------------------------------
+# THE CHANNEL ITSELF, MEASURED. The detector is worth having only if the shape
+# it looks for actually renders the caller's value, and worth bounding only if
+# the shapes it misses render it too. Both are measured here, not argued.
+# ---------------------------------------------------------------------------
+
+
+def test_a_raise_in_a_callee_renders_the_callers_exception() -> None:
+    """THE GROUND UNDER RESIDUAL 2.
+
+    CPython sets ``__context__`` from the THREAD's exception state, not from
+    lexical scope, so a helper CALLED from a handler chains exactly as a
+    lexical ``raise`` in the handler body does.
+    """
+    with pytest.raises(_SyntheticError) as caught:
+        _calls_a_raising_callee()
+    rendered = _rendered_chain(caught.value)
+    links = len(_chain_of(caught.value))
+    assert MARKER in rendered, "a raise in a callee did NOT render the caller's exception"
+    assert links == _CHAINED, f"expected a two-link chain, got {links}"
+
+
+def test_a_callee_raising_from_none_closes_the_channel() -> None:
+    """NEGATIVE CONTROL, and the reason the rule reads ``cause is None``."""
+    with pytest.raises(_SyntheticError) as caught:
+        _calls_a_suppressing_callee()
+    rendered = _rendered_chain(caught.value)
+    links = len(_chain_of(caught.value))
+    assert MARKER not in rendered, "from None in the callee still rendered the caller's value"
+    assert links == _UNCHAINED, f"expected a one-link chain, got {links}"
+
+
+def test_a_callee_chaining_a_parameter_displaces_the_callers_context() -> None:
+    """SECOND NEGATIVE CONTROL. An explicit cause sets ``__suppress_context__``.
+
+    A detector asking only "does the callee raise" would report this shape, and
+    the caller's value is measured ABSENT from it.
+    """
+    with pytest.raises(_SyntheticError) as caught:
+        _calls_a_parameter_chaining_callee(_SyntheticError("a parameter"))
+    rendered = _rendered_chain(caught.value)
+    assert MARKER not in rendered, "an explicit cause still rendered the caller's context"
+
+
+def test_a_raise_two_levels_down_leaks_and_is_not_derived() -> None:
+    """THE ONE-LEVEL BOUND IS A REAL UNDER-REPORT, measured on both halves.
+
+    The value renders; the detector derives nothing. Stating the bound is the
+    deliverable - a detector that implied it covered this would be the false
+    clearance CS-857 has already produced once.
+    """
+    with pytest.raises(_SyntheticError) as caught:
+        _calls_two_levels_down()
+    rendered = _rendered_chain(caught.value)
+    links = len(_chain_of(caught.value))
+    assert MARKER in rendered, "the two-level shape did not leak, so this bound is overstated"
+    assert links == _CHAINED, f"expected a two-link chain, got {links}"
+    derived = chained_cause_guard.callee_sites_in_tree({PLANTED_PATH: _PLANTED_TWO_LEVEL_SOURCE})
+    assert derived == (), f"the detector claimed to see two levels down: {derived}"
+
+
+def test_a_method_callee_leaks_and_is_not_derived() -> None:
+    """THE BARE-NAME BOUND IS A REAL UNDER-REPORT, measured on both halves."""
+    with pytest.raises(_SyntheticError) as caught:
+        _calls_a_method_callee(_CalleeHolder())
+    rendered = _rendered_chain(caught.value)
+    assert MARKER in rendered, "the method shape did not leak, so this bound is overstated"
+    derived = chained_cause_guard.callee_sites_in_tree({PLANTED_PATH: _PLANTED_METHOD_SOURCE})
+    assert derived == (), f"the detector claimed to see a dotted callee: {derived}"
+
+
+# ---------------------------------------------------------------------------
+# The planted module - every shape the detector claims to decide.
+# ---------------------------------------------------------------------------
+
+_PLANTED_TWO_LEVEL_SOURCE: Final = '''"""A raise two calls below the handler."""
+
+
+class Wrapped(Exception):
+    """The wrapper."""
+
+
+def _inner():
+    raise Wrapped("failed")
+
+
+def _outer():
+    _inner()
+
+
+def calls_two_levels_down(path):
+    try:
+        open(path)
+    except OSError:
+        _outer()
+'''
+
+_PLANTED_METHOD_SOURCE: Final = '''"""A raise reached through a dotted callee."""
+
+
+class Holder:
+    """The holder."""
+
+    def blow_up(self):
+        raise RuntimeError("failed")
+
+
+def calls_a_method(path, holder):
+    try:
+        open(path)
+    except OSError:
+        holder.blow_up()
+'''
+
+PLANTED_CALLEE_SOURCE: Final = '''"""Every callee shape the detector decides - CS-857 residual 2."""
+
+
+class Wrapped(Exception):
+    """The wrapper."""
+
+
+def _raises_plainly():
+    raise Wrapped("failed")
+
+
+def _reraises_bare():
+    raise
+
+
+def _suppresses():
+    raise Wrapped("failed") from None
+
+
+def _chains_a_parameter(other):
+    raise Wrapped("failed") from other
+
+
+def _stays_quiet():
+    return None
+
+
+def _only_raises_in_a_nested_def():
+    def _inner():
+        raise Wrapped("failed")
+
+    return _inner
+
+
+def calls_a_raising_helper(path):
+    try:
+        open(path)
+    except OSError:
+        _raises_plainly()
+
+
+def calls_a_bare_reraiser(path):
+    try:
+        open(path)
+    except OSError:
+        _reraises_bare()
+
+
+def calls_a_suppressing_helper(path):
+    try:
+        open(path)
+    except OSError:
+        _suppresses()
+
+
+def calls_a_parameter_chainer(path, other):
+    try:
+        open(path)
+    except OSError:
+        _chains_a_parameter(other)
+
+
+def calls_a_quiet_helper(path):
+    try:
+        open(path)
+    except OSError:
+        _stays_quiet()
+
+
+def calls_a_constructor(path):
+    try:
+        open(path)
+    except OSError:
+        raise Wrapped("failed") from None
+
+
+def calls_a_helper_from_a_value_error(text):
+    try:
+        int(text)
+    except ValueError:
+        _raises_plainly()
+
+
+def calls_a_helper_whose_raise_is_nested(path):
+    try:
+        open(path)
+    except OSError:
+        _only_raises_in_a_nested_def()
+
+
+def calls_a_helper_in_a_nested_def(path):
+    try:
+        open(path)
+    except OSError:
+
+        def _inner():
+            _raises_plainly()
+
+        _inner()
+'''
+
+
+def _planted_callees() -> dict[str, str]:
+    """Derive the planted callee module, indexed by the HANDLER's scope.
+
+    Returns:
+        Qualified name of the enclosing function to the callee it reported.
+    """
+    return {
+        site.qualname: site.callee
+        for site in chained_cause_guard.callee_sites_in_tree({PLANTED_PATH: PLANTED_CALLEE_SOURCE})
+    }
+
+
+#: One row per shape, EACH ITS OWN ARM - the pooled-guard rule again. The
+#: callee is the name the detector must report, or None when it must report
+#: nothing. EVERY None ROW IS A DIFFERENT REASON, and they are not
+#: interchangeable: two are measured NON-leaks, three are measured LEAKS the
+#: detector cannot see, and one is a constructor the Site population owns.
+_CALLEE_EXPECTATIONS: Final = [
+    ("calls_a_raising_helper", "_raises_plainly"),
+    ("calls_a_bare_reraiser", "_reraises_bare"),
+    ("calls_a_suppressing_helper", None),
+    ("calls_a_parameter_chainer", None),
+    ("calls_a_quiet_helper", None),
+    ("calls_a_constructor", None),
+    ("calls_a_helper_from_a_value_error", None),
+    ("calls_a_helper_in_a_nested_def", None),
+    ("calls_a_helper_whose_raise_is_nested", None),
+]
+
+
+@pytest.mark.parametrize(
+    ("qualname", "callee"), _CALLEE_EXPECTATIONS, ids=[row[0] for row in _CALLEE_EXPECTATIONS]
+)
+def test_each_planted_callee_shape_is_decided_on_its_own_arm(
+    qualname: str, callee: str | None
+) -> None:
+    """One planted shape, one arm, one decision."""
+    planted = _planted_callees()
+    assert planted.get(qualname) == callee, (
+        f"{qualname} reported {planted.get(qualname)!r}, expected {callee!r}"
+    )
+
+
+def test_the_planted_callee_module_is_not_decided_by_a_single_shape() -> None:
+    """THE DENOMINATOR OF THE ARMS ABOVE.
+
+    Every row could pass against a detector that reported nothing at all if the
+    positive rows were removed, so the count of POSITIVE rows is asserted here
+    rather than left implicit in the table.
+    """
+    positives = [row for row in _CALLEE_EXPECTATIONS if row[1] is not None]
+    negatives = [row for row in _CALLEE_EXPECTATIONS if row[1] is None]
+    assert len(positives) >= _MIN_POSITIVE_ROWS, f"only {len(positives)} positive row(s)"
+    assert negatives, "no negative row, so the detector is never asked to decline"
+
+
+# ---------------------------------------------------------------------------
+# The live sweep - a ZERO in the graded bucket, with a live positive control
+# and a derived denominator beside it.
+# ---------------------------------------------------------------------------
+
+
+def test_the_live_callee_sweep_finds_this_modules_own_fixtures() -> None:
+    """THE LIVE POSITIVE CONTROL, and the zero below is worthless without it.
+
+    The graded bucket holds no residual-2 finding, and a detector that read
+    nothing reports the same. This module's own fixtures are real handlers
+    calling real raising helpers, so the live git sweep must find them.
+    """
+    if _THIS_MODULE not in tracked_sources():
+        pytest.skip(f"{_THIS_MODULE} is not in the git sweep; run git add -N first")
+    mine = sorted(
+        site.callee for site in chained_cause_guard.callee_sites() if site.module == _THIS_MODULE
+    )
+    assert "_callee_raises_plainly" in mine, (
+        f"the live sweep did not find this module's own callee fixture: {mine}"
+    )
+
+
+def test_the_graded_bucket_holds_no_residual_two_finding() -> None:
+    """THE MEASURED ZERO, and it asserts its own denominator.
+
+    A zero from a detector that resolved nothing is not a measurement. The
+    denominator is the count of OSError-typed handlers whose callee this
+    detector actually FOLLOWED to a function in the same module.
+    """
+    reach = [seen for seen in chained_cause_guard.handler_reach() if seen.resolved]
+    assert reach, (
+        "the detector resolved NO callee anywhere in the tree, so the zero "
+        "below measured nothing - memory/an-empty-population-satisfies-every-zero.md"
+    )
+    graded = [
+        site
+        for site in chained_cause_guard.callee_sites()
+        if bucket_of(site.module) == BUCKET_GRADED
+    ]
+    if graded:
+        body = "\n".join(
+            f"  {site.key} callee defined line {site.callee_lineno}" for site in graded
+        )
+        warnings.warn(
+            f"CS-857 residual 2: {len(graded)} handler(s) call a same-module "
+            f"function that raises without a from clause, which renders the "
+            f"handler's own exception:\n{body}",
+            stacklevel=1,
+        )
+
+
+def test_a_dotted_callee_is_recorded_opaque_and_never_resolved() -> None:
+    """THE SPLIT IS GRADED ON A PLANTED SOURCE, not on the live tree.
+
+    The live tree happens to contain opaque callees for other reasons, so a
+    live-only arm stays green even when the dotted branch is misfiled - a
+    mutation moving a non-Name callee into ``resolved`` SURVIVED the whole
+    module until this arm existed. Here the planted handler has exactly one
+    callee and it is dotted, so the two populations cannot both be satisfied.
+    """
+    reach = chained_cause_guard.handler_reach_in_tree({PLANTED_PATH: _PLANTED_METHOD_SOURCE})
+    assert len(reach) == 1, f"expected one examined handler, got {len(reach)}"
+    seen = reach[0]
+    assert seen.opaque == ("holder.blow_up",), f"the dotted callee was not recorded: {seen.opaque}"
+    assert seen.resolved == (), f"a dotted callee was reported resolved: {seen.resolved}"
+
+
+def test_a_nested_def_callee_is_recorded_opaque_and_never_resolved() -> None:
+    """THE SCOPE RULE, GRADED DIRECTLY RATHER THAN THROUGH ITS CONSEQUENCE.
+
+    :func:`chained_cause_guard._chaining_functions` and
+    :func:`chained_cause_guard._defined_functions` both walk module level only,
+    and a mutation to EITHER ALONE is inert - the other still gates, so the
+    false positive needs both to be wrong before any shape-based arm notices.
+    Measured: both single mutations SURVIVED the whole module. This arm reads
+    the rule itself, so the resolvability of a nested ``def`` is asserted
+    rather than inferred from a finding that happens not to appear.
+    """
+    reach = {
+        seen.qualname: seen
+        for seen in chained_cause_guard.handler_reach_in_tree({PLANTED_PATH: PLANTED_CALLEE_SOURCE})
+    }
+    seen = reach["calls_a_helper_in_a_nested_def"]
+    assert "_inner" in seen.opaque, f"a nested def was not recorded opaque: {seen.opaque}"
+    assert "_inner" not in seen.resolved, f"a nested def was reported resolved: {seen.resolved}"
+
+
+def test_a_constructor_callee_is_recorded_opaque_and_never_resolved() -> None:
+    """A class call is the ``Site`` population's business, not this one's."""
+    reach = {
+        seen.qualname: seen
+        for seen in chained_cause_guard.handler_reach_in_tree({PLANTED_PATH: PLANTED_CALLEE_SOURCE})
+    }
+    seen = reach["calls_a_constructor"]
+    assert "Wrapped" in seen.opaque, f"the constructor was not recorded opaque: {seen.opaque}"
+    assert "Wrapped" not in seen.resolved, f"a constructor was reported resolved: {seen.resolved}"
+
+
+def test_the_residual_two_denominator_records_what_it_could_not_follow() -> None:
+    """THE (b) HALF - the under-report is DERIVED, not transcribed.
+
+    Every callee the detector could not follow is recorded per handler, so the
+    bound is a measurement rather than a sentence. A tree where every callee
+    were opaque would still produce a zero, and this is what distinguishes it.
+    """
+    reach = chained_cause_guard.handler_reach()
+    assert reach, "the detector examined NO handler at all"
+    opaque = sum(len(seen.opaque) for seen in reach)
+    resolved = sum(len(seen.resolved) for seen in reach)
+    assert resolved, "no callee was resolved anywhere, so the denominator is vacuous"
+    assert opaque, (
+        "no callee anywhere was recorded opaque, which would mean this "
+        "detector follows every callee shape - it does not, and the arms above "
+        "measure two it cannot"
+    )

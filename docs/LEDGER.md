@@ -75,6 +75,59 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-01 - CS-857 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-857 STAYS OPEN. Two of three conjuncts are now met and the third is blocked on a remedy the guard's own doctrine names
+Three disjoint slices ran against this item. Conjunct 2 was already met. Conjunct 3 IS NOW
+MET: both live records that asserted the cause goes unrendered are corrected, and the
+IMPLEMENTED form of that belief is now graded by `tests/chained_exemption_guard.py`.
+Conjunct 1 is NOT met: two sites still report `measured-leak`.
+
+WHAT SHIPPED. The one real leak is closed - `clockspeed/surface/config.py` chained the
+OSError out of `read_bytes`, whose `filename` IS set, so the ports-record path reached the
+default excepthook beside a wrapper that quotes nothing. Measured before and after in a
+subprocess against the real excepthook, with four controls including one proving the needle
+is a string `redact` actually rewrites. The other two flagged sites were MEASURED NOT TO
+LEAK across four failure legs of `load_cert_chain` - absent, malformed, empty and PERMISSION
+DENIED, the last forced two ways - with a known-good control proving a filename-bearing
+error would have been detected on the same harness.
+
+CONJUNCT 3's REPAIR IS STRUCTURAL, NOT A PHRASE SEARCH, AND THAT WAS THE WHOLE DESIGN. A
+phrase gate on "deliberately never rendered" has unbounded paraphrases and reproduces
+`memory/a-guard-can-measure-spelling.md`. The new guard keys on `ast.Raise.cause` - CPython's
+own ASDL field name, which an author cannot rename - and requires every module that
+STATICALLY reads a raise's cause to be the census, to defer to it by importing it, or to
+carry a recorded reason. Static reads are adjudication; runtime `__cause__` reads are
+evidence, so the legitimate runtime assertions never enter the population. Its author
+hypothesised a behavioural detector first, watched it appear to work, and refuted it by
+isolation before shipping - the signal was an artifact of unknown-callee handling rather
+than of chaining.
+
+RESIDUAL 2 IS NARROWED AND EXPLICITLY NOT DISCHARGED. A callee-of-handler detector now
+derives one level within a module: 0 live findings across 14 clockspeed handlers, 8 with a
+resolvable callee, and 33 tree-wide wholly opaque. The bound was measured on both halves,
+including that `raise ... from inner` inside a callee's own handler still reaches back three
+links. Limit 8 now records that the escape is narrowed and warns a later reader not to cite
+the new detector as covering it.
+
+WHY CONJUNCT 1 IS STILL OPEN, AND IT IS THE MERGER'S SCOPING ERROR RATHER THAN A SLICE'S
+FAILURE. The two measured-non-leaking sites were scoped as exemptions to be recorded. The
+census orders `MEASURED_LEAK` before `EXEMPT_RECORDED` ON PURPOSE, states so in its own
+docstring, and names the only accepted remedy - such a site "must be closed with `from None`
+rather than argued away". The exemptions are therefore INERT, which the builder refused to
+leave as a footnote: it made the inertness a graded fact and recorded that closing needs an
+edit to `clockspeed/surface/server.py`, which was on nobody's write-list.
+
+Two findings were filed rather than absorbed: CS-884, that `UNPROVEN` holds both a genuine
+repair and the no-op shapes limit 10 names as escaping so the verdict says which it is not -
+planted and measured over five shapes; and CS-885, four copies of `_pathless_cause` with no
+owner and no arm comparing them. A third builder's own suite went RED mid-work when its lint
+fix rendered a caught exception, caught by the tree-wide guard rather than by review - the
+third instance of that class in two rounds, across three different builders.
+
+Arms: `tests/surface/test_config.py`, `tests/test_chained_exemption_guard.py`,
+`tests/test_chained_cause_census.py`. Suite 4152 to 4203, exactly additive across the three
+slices.
+
+
 ### 2026-09-01 - CS-878 - CLOSED. The certificate script's rename failure no longer renders either absolute path, and the arm proving it measures the real excepthook rather than a stand-in
 `scripts/make_cert.py` re-raised the operating system's own `PermissionError` on its last
 retry, with no handler between it and the interpreter, so `OSError.__str__` put both absolute

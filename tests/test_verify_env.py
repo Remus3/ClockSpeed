@@ -392,8 +392,23 @@ def rendered_exception_lines(source: str) -> list[int]:
     SCOPE, stated honestly: this catches the exception OBJECT reaching a
     message. It does not catch someone deliberately rendering exc.filename,
     which is an attribute read and is allowed here. "raise X from exc" is
-    allowed too - chaining attaches the exception, it does not render it, and
-    dropping the cause to satisfy a privacy guard would lose the traceback.
+    allowed too, and for a reason NARROWER than the one that stood here until
+    CS-857: the cause slot is not this message's args, so an exception sitting
+    in it has not reached the text this rule grades.
+
+    IT IS NOT A CLAIM THAT THE CAUSE GOES UNRENDERED. It renders - the
+    interpreter prints the cause's own message beside this one in the formatted
+    traceback, under default flags - so a carefully redacted message can read
+    clean while the chained OSError renders the raw path next to it. That is a
+    SEPARATE CHANNEL with its own owner, tests/chained_cause_guard.py, which
+    measures it by running the constructor and reading the rendered traceback.
+    "from None" is a legitimate remedy there rather than a loss of the
+    traceback, and CS-857 shipped exactly that at clockspeed/save/header.py.
+
+    The exemption therefore stays scoped to the CAUSE SLOT. Put the handler
+    binding in the raised expression as well and this rule still reports it,
+    which is asserted below and re-measured from outside by
+    tests/test_chained_exemption_guard.py.
 
     Args:
         source: The Python source to parse.
@@ -474,14 +489,29 @@ def test_the_sweep_detects_the_shape_it_exists_to_detect() -> None:
 
     detected = [sample for sample in samples if rendered_exception_lines(sample)]
 
-    sanctioned = (
+    # OUT OF THIS CHANNEL, which is not the same as harmless. The second shape
+    # chains, and a chained cause's own text DOES render in the traceback - see
+    # the SCOPE paragraph above. It is out of scope here only because the
+    # object stays out of the message this rule grades.
+    out_of_scope = (
         "try:\n    pass\nexcept OSError as exc:\n    x = _exc_reason(exc) + str(exc.errno)\n",
         "try:\n    pass\nexcept OSError as exc:\n    raise Boom(_exc_reason(exc)) from exc\n",
     )
 
+    # And the exemption is the CAUSE SLOT alone. This shape chains too, but the
+    # object also reaches the raised message, so it must still be reported. An
+    # arm that only ever asserted the silence above would go green on a sweep
+    # that had stopped looking at chained raises altogether.
+    still_reported = "try:\n    pass\nexcept OSError as exc:\n    raise Boom(exc) from exc\n"
+
     assert len(detected) == len(samples), "the sweep missed a rendering syntax"
-    assert not [shape for shape in sanctioned if rendered_exception_lines(shape)], (
-        "the sweep flagged a sanctioned shape, which is how a guard gets switched off"
+    assert not [shape for shape in out_of_scope if rendered_exception_lines(shape)], (
+        "the sweep flagged a shape that keeps the exception object out of the message, "
+        "which is how a guard gets switched off"
+    )
+    assert rendered_exception_lines(still_reported), (
+        "the cause-slot exemption has widened to the whole raise: the exception object "
+        "now reaches the message unreported whenever the raise is chained"
     )
 
 
