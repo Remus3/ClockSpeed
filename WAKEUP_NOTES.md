@@ -153,10 +153,19 @@ the line becomes a pointer.
 
 - **Decisions: none recorded as an ADR.** Nothing contradicted `BOOTSTRAP.md`.
 
-- **Next action: CS-876, then CS-868 to CS-871, CS-864 and CS-865 - and take them as ONE
-  family rather than six items.** All six are arms grading a narrower population than they
-  name, and the two closed this session make eight. A systemic answer is likely worth more
-  than eight point repairs. **CS-872 needs a real Electron and cannot be closed here.**
+- **NEXT ACTION, BY OPERATOR INSTRUCTION AT THE END OF THIS SESSION: TAKE CS-857 AND
+  CS-858.** Both surfaced in the acceptance sweep and both need a RULING before a repair,
+  which is why they were not touched here. CS-857's `deliberately never rendered` conjunct
+  grades ZERO records - discharged in session 44, so it can never fail; decide whether to
+  delete it as discharged or re-point it. CS-858 sits in direct tension with `CLAUDE.md`
+  section 4 - a hardcoded count in a doc is a lie with a timestamp, yet a numeric floor is
+  what makes a graded line falsifiable; decide once and apply the same answer to CS-847,
+  CS-860 and CS-807.
+
+- **AFTER THOSE: CS-876, CS-868 to CS-871, CS-864 and CS-865 - and take them as ONE family
+  rather than six items.** All six are arms grading a narrower population than they name,
+  and the two closed this session make eight. A systemic answer is likely worth more than
+  eight point repairs. **CS-872 needs a real Electron and cannot be closed here.**
 
 - **STILL OUTSTANDING FROM SESSION 49:** the six manual checks in `docs/OPERATIONS.md`
   section 8.3 all read NOT RUN, and `shell/node_modules` does not exist in this clone. The
