@@ -296,12 +296,20 @@ h3 {
 }
 
 /*
-  THE SCROLLER IS IN THE TAB ORDER, declared in index.html rather than here
-  because a tabindex is markup. At 375px the right-hand columns are reachable
-  ONLY by scrolling this box, and whether a scroll container without a tabindex
-  is focusable at all is a user-agent decision that has changed between Chromium
-  releases. The companion shell ships whatever Chromium it ships; declaring the
-  tabindex removes the question instead of betting on the answer.
+  THE SCROLLER IS IN THE TAB ORDER WHILE IT OVERFLOWS, AND NOT OTHERWISE. The
+  stop is granted and withdrawn by app.js from a measured scrollWidth against
+  clientWidth, on every render and on resize - not declared in the markup, which
+  is what this comment said until the CS-600 audit measured that claim false.
+  At 375px the right-hand columns are reachable ONLY by scrolling this box, and
+  whether a scroll container without a tabindex is focusable at all is a
+  user-agent decision that has changed between Chromium releases; the companion
+  shell ships whatever Chromium it ships, so the tabindex is still declared
+  rather than left to the agent - just declared only while it is true.
+
+  THIS PARAGRAPH WAS THE THIRD SITE MAKING THE OLD CLAIM AND THE ONE THE REPAIR
+  MISSED, found by the re-audit rather than by the commit that rewrote the other
+  two. app.js names the fault class itself, one file over: a stale justification
+  reads as verified.
 
   ITS RING KEEPS ITS OWN CORNERS. The shared :focus-visible rule rounds to 3px,
   which would square off an 8px box the moment a keyboard reached it.

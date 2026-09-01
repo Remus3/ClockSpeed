@@ -300,6 +300,20 @@ function fact(label, value) {
   A LABEL IS A CLAIM AND THIS ONE IS NOW DERIVED FROM THE MEASUREMENT IT ASSERTS.
   The name says "scrolls sideways" only where the box does, so a reader who
   reaches the stop finds the capability it was promised.
+
+  A STOP IS NEVER TAKEN FROM UNDER A READER STANDING ON IT. Removing tabindex
+  from the focused element blurs it exactly as button.disabled does, and the
+  re-audit measured this code doing it: focus the scroller at 375px, widen to
+  1574, and activeElement finished at BODY with only blur and focusout fired and
+  nothing announced. THAT IS THE SAME FAULT refresh() DOCUMENTS AT LENGTH a few
+  hundred lines below, reintroduced through a different door - so the rule it
+  states is enforced here too: after any repaint or resize, whatever the reader
+  was on is still what the reader is on. The stop is left in place while the box
+  holds focus and withdrawn when focus leaves.
+
+  THE LABEL IS STILL CORRECTED IMMEDIATELY in that held state, because the box no
+  longer scrolls and a name saying it does would be the exact false claim this
+  function exists to stop making.
 */
 function syncScrollRegions() {
   var boxes = document.querySelectorAll(".scroll-x");
@@ -311,13 +325,19 @@ function syncScrollRegions() {
       legible rather than resting on a coincidence of the box model.
     */
     var scrolls = !box.hidden && box.scrollWidth > box.clientWidth;
+    var stem = box.getAttribute("data-scroll-label") || "Content";
     if (scrolls) {
       box.setAttribute("tabindex", "0");
       box.setAttribute("role", "region");
-      box.setAttribute(
-        "aria-label",
-        (box.getAttribute("data-scroll-label") || "Content") + ", scrolls sideways"
-      );
+      box.setAttribute("aria-label", stem + ", scrolls sideways");
+    } else if (document.activeElement === box) {
+      /*
+        Adding the identical listener twice is a no-op - the DOM compares type,
+        callback and capture and ignores once - so a burst of resize events
+        cannot pile these up.
+      */
+      box.setAttribute("aria-label", stem);
+      box.addEventListener("blur", syncScrollRegions, { once: true });
     } else {
       box.removeAttribute("tabindex");
       box.removeAttribute("role");
@@ -448,7 +468,6 @@ async function refresh() {
     var liveness = renderHeader(probes["/api/health"]);
     renderEndpoints(liveness, probes);
     renderWorld(probes["/api/world"]);
-    syncScrollRegions();
   } finally {
     /*
       A throw anywhere above must still give the button back. Without this the
@@ -460,6 +479,12 @@ async function refresh() {
     button.appendChild(document.createTextNode("Refresh"));
     button.removeAttribute("aria-disabled");
     repainting = false;
+    /*
+      IN THE finally AND NOT THE try, for the reason the button above is: a throw
+      in any renderer must not leave the page permanently without a keyboard
+      route to its scrollers while the button is cheerfully handed back.
+    */
+    syncScrollRegions();
   }
 }
 
@@ -472,4 +497,12 @@ byId("refresh").addEventListener("click", refresh);
   unreachable from the keyboard.
 */
 window.addEventListener("resize", syncScrollRegions);
+/*
+  BEFORE THE FIRST FETCH, NOT AFTER IT. The endpoint table overflows at 375px on
+  its headings alone, so it needs a keyboard route from first paint. Deriving the
+  stop only at the end of refresh() left it unreachable for a MEASURED 14641ms
+  while five probes resolved - the static markup this replaced carried the stop
+  immediately, so a derived affordance that waits is a regression against it.
+*/
+syncScrollRegions();
 refresh();

@@ -75,6 +75,57 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-01 - CS-600 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-600 STAYS OPEN. A re-audit confirmed both repairs and found the repair had introduced TWO NEW DEFECTS, one of them a fault the same file already documents
+Verification: `clockspeed/surface/web/app.js` (`syncScrollRegions` and the bootstrap
+call), `clockspeed/surface/web/app.css` lines 298-311, and in
+`tests/surface/test_web_assets.py` the arms
+`test_a_scroller_losing_its_overflow_does_not_take_focus_with_it` and
+`test_the_tab_stop_is_derived_before_the_first_fetch_resolves`.
+
+**BOTH REPAIR CLAIMS WERE CONFIRMED FIXED and the re-audit could not break either**, at
+eight widths plus a 51-point geometric sweep, including one below the previously tested
+range: at 240px the World table genuinely overflows and correctly gains a stop whose label
+is then true. The failure path was re-measured on all three axes separately - layout
+`display: none` and a 0x0 rect, absent from the focusables, absent from the accessibility
+tree.
+
+**BUT THE MECHANISM THAT FIXED THEM INTRODUCED A FOCUS-DESTRUCTION DEFECT OF A CLASS THIS
+FILE ALREADY DOCUMENTS.** `removeAttribute("tabindex")` on the focused element blurs it
+exactly as `button.disabled` does. Measured: focus the scroller at 375px, widen to 1574,
+and `activeElement` finished at `BODY` with only blur and focusout fired and nothing
+announced. `refresh()` in the same file records that identical fault for the button at
+length, and states the rule it breaks - after a repaint, whatever the reader was on is
+still what the reader is on. THE STOP IS NOW HELD WHILE THE BOX HAS FOCUS AND WITHDRAWN ON
+BLUR, with the label corrected immediately in that held state so no false scroll claim
+survives the transition.
+
+**AND IT WAS A REGRESSION AGAINST THE MARKUP IT REPLACED FOR THE FIRST 14.6 SECONDS.**
+`syncScrollRegions` ran only at the end of `refresh()`, after five sequential probes, so an
+endpoint scroller that overflows at 375px on its headings alone had NO keyboard route for a
+measured 14641ms. The static markup carried the stop from first paint. It is now derived at
+top level before the first `refresh()` call - verified with the probes still in flight - and
+the post-render call moved from the `try` into the `finally`, so a throw in a renderer
+cannot leave the page routeless while the same `finally` hands the button back.
+
+**A THIRD SITE STILL CARRIED THE REFUTED CLAIM.** `app.css` said the scroller is in the tab
+order "declared in index.html rather than here because a tabindex is markup". The previous
+entry's own commit message claims credit for finding a third instance; this was a fourth,
+and the re-audit found it.
+
+**THE FIRST DRAFT OF THE TWO NEW ARMS WAS GREEN BY ACCIDENT AND THE MUTATION MATRIX CAUGHT
+IT.** They searched for a bare `syncScrollRegions();` inside a slice of the file, and both
+deletions survived: the slice before the bootstrap still held the indented call inside the
+`finally`, and the slice after the `finally` still held the top-level one. A SUBSTRING IS
+NOT A CALL SITE. Both are now anchored on indentation - column zero is a top-level
+statement, four spaces is inside `refresh()` - and all three mutants die: removing the
+focused-element guard, removing the bootstrap call, and removing the call from the
+`finally`, each with a green floor either side and `app.js` restored byte-exact.
+
+**STILL BLOCKED, AND THE GATE IS STILL NOT MET.** MUST-FIX 1 - the shell's drag strip
+capturing 28px of scrolled content - is untouched by operator instruction. A third audit is
+owed before CS-600 can close, because the arms above were written by the same session that
+wrote the code they grade.
+
 ### 2026-08-31 - CS-600 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-600 STAYS OPEN. The 5-phase audit RAN for the first time and returned BLOCKED with 3 MUST-FIX; two are repaired here and the third is the shell's and is left open by operator instruction
 Verification: `clockspeed/surface/web/index.html` and `clockspeed/surface/web/app.js`
 (`syncScrollRegions`), graded by

@@ -905,6 +905,75 @@ def test_every_focusable_scroller_carries_its_own_accessible_name() -> None:
     )
 
 
+def test_a_scroller_losing_its_overflow_does_not_take_focus_with_it() -> None:
+    """The stop is never removed from under a reader standing on it.
+
+    THE FIRST DERIVED-AFFORDANCE BUILD DID EXACTLY THAT, and a re-audit measured
+    it: focus the scroller at 375px, widen to 1574, and ``removeAttribute`` on
+    the focused element blurred it - ``activeElement`` finished at ``BODY``, only
+    blur and focusout fired, and nothing was announced. IT IS THE SAME FAULT
+    ``refresh()`` DOCUMENTS FOR ``button.disabled`` in the same file, reached
+    through a different door, which is why the guard is here and not left to the
+    next audit to find again.
+
+    Behaviourally confirmed in the repair slice rather than here, since no
+    reading of this file can establish it: at 1574 with the box focused,
+    ``activeElement`` stayed on the scroller, the label dropped its scroll claim
+    to "Endpoint routes", and moving focus to the button then withdrew tabindex,
+    role and aria-label together.
+
+    WHAT THIS FILE CAN GRADE is that the guard is present at all - the removal
+    branch must be reachable only when the box is not the active element.
+    """
+    script = read_asset(SCRIPT)
+    assert "document.activeElement" in script, (
+        "nothing in app.js consults the focused element, so a box losing its "
+        "overflow strips its own tab stop and drops the reader to the document"
+    )
+    assert 'addEventListener("blur"' in script, (
+        "the stop is held for a focused box and never withdrawn when focus leaves, "
+        "so a box that stopped overflowing keeps a stop it has not earned"
+    )
+
+
+def test_the_tab_stop_is_derived_before_the_first_fetch_resolves() -> None:
+    """A keyboard route at first paint, not after five probes.
+
+    MEASURED REGRESSION, caught by a re-audit rather than by this file: deriving
+    the stop only at the end of ``refresh()`` left the endpoint scroller - which
+    overflows at 375px on its headings alone - with no keyboard route for
+    14641ms while the probes resolved. The static markup it replaced carried the
+    stop from first paint, so the derived version was strictly worse for that
+    window.
+
+    THE SECOND HALF IS THE ``finally``. A throw in any renderer must not leave
+    the page permanently without a route to its scrollers while the same
+    ``finally`` cheerfully hands the button back.
+
+    BOTH ASSERTIONS ARE ANCHORED ON INDENTATION, AND THE FIRST DRAFT WAS NOT -
+    it searched for the bare call in a slice of the file and passed against both
+    deletions, because the slice before the bootstrap still held the indented
+    call inside the ``finally`` and the slice after the ``finally`` still held
+    the top-level one. A substring is not a call site. Column zero is a
+    top-level statement and four spaces is inside ``refresh()``, so the two
+    calls are told apart by where they start rather than by what they spell.
+    """
+    script = read_asset(SCRIPT)
+
+    boot = script.rindex("\nrefresh();")
+    assert "\nsyncScrollRegions();" in script[:boot], (
+        "nothing derives a tab stop at top level before the first refresh() call, "
+        "so an overflowing scroller has no keyboard route until every probe resolves"
+    )
+
+    body = script[script.index("async function refresh()") : boot]
+    finally_at = body.index("} finally {")
+    assert "\n    syncScrollRegions();" in body[finally_at:], (
+        "the post-render sync is not inside refresh()'s finally, so a throw in a "
+        "renderer leaves the page with no keyboard route to its scrollers"
+    )
+
+
 def test_no_rule_declares_a_sticky_offset_that_nothing_can_honour() -> None:
     """No ``position: sticky`` anywhere pairs with a ``top``.
 
