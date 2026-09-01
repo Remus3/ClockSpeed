@@ -34,6 +34,81 @@ the line becomes a pointer.
 
 ---
 
+## Session 53 - 2026-08-31 - CS-866 CLOSED and adjudicated ACCEPT WITH NAMED RESIDUE. An adversarial pass REFUTED CS-863's arms the day after they shipped, and a real save written mid-session turned the suite red on a body tail nothing models
+
+- **Shipped: CS-866.** Detail in `docs/LEDGER.md`, not here. CS-867, CS-868, CS-869, CS-870
+  and CS-871 filed. CS-864 and CS-865 untouched. CS-829 stays GATED behind CS-G05 - this was
+  PREP and PREP never closes a gated item.
+
+- **THE HEADLINE: A CACHE CAN ONLY RETURN AN ANSWER IT WAS GIVEN, SO ASK A QUESTION NEVER
+  ASKED BEFORE.** Every CS-866 dynamic case now builds its body from a nonce derived from its
+  own case identity, and the nonce moves the payload SIZES so it moves the REPORTED EXTENTS
+  rather than only the bytes - which is what also defeats a cache keyed on the version pair
+  alone. Two arms assert the freshness instead of leaving it arranged, and they build bytes
+  without calling the second reading, because calling it would populate the very cache they
+  guard.
+
+- **THE ANTI-MONOTONE CONTROL IS WHAT MAKES THE CLAIM CHECKABLE.** Flatten the nonce to a
+  constant 0 - strictly worse, and it reproduces the old head exactly - and the memo mutant
+  scores 2 failed, 68 passed with ALL 20 dynamic cases GREEN. The two failures are the
+  freshness arms. The nonce is doing the work and nothing else is.
+
+- **THE ADJUDICATOR PUT SIX CACHE SHAPES THROUGH THE ARMS AND NONE SURVIVED** - keyed on the
+  body triple, on the pair alone, on `len(body)`, on both, an `lru_cache`, and one placed on
+  the shipped `objects.parse_body` itself. THE DECISIVE FACT IS NOT THE COUNT: the memo's
+  FAILURE SET is byte-identical to the plain wrapper's, so a memo is now indistinguishable
+  from no memo. It also broke the guard's circularity from OUTSIDE, by instrumenting
+  `independent_records` and censusing every body handed to it - 31 enumerated, 20 dynamic, 0
+  unaccounted synthetic bodies, 0 overlap.
+
+- **Surprises: CS-863'S ARMS ARE REFUTED, ONE DAY AFTER THEY SHIPPED, by the pass its own
+  session recorded as owed.** A memo over `_independent_sites_of` that reaches the shared tag
+  ceiling through `tests/save/test_decode_oracles.py`'s `_walk_with_the_shipped_reader`
+  leaves ALL 37 arms of `tests/save/test_struct_interior.py` green; delete the memo and it
+  goes red. Two mechanisms and both need fixing: `_shared_tag_symbols` parses only its own
+  module's source, so a ceiling read in ANOTHER module is invisible to the guard that
+  asserts its absence BY NAME - which was the record's own reason for calling the surface
+  derived; and `_run_ceiling_control` reads pristine and degraded over ONE body object, so
+  under a memo the degraded call is always a cache hit. THE MEMO ALONE IS INVISIBLE AND THE
+  CROSS-MODULE CALL ALONE IS CAUGHT - only the composition is lethal, which is why it is a
+  hole and not a curiosity. Reproduced by a verifier that built its own mutants and never
+  opened the adversary's directory. Filed as CS-868, CS-869 and CS-870.
+
+- **AND THE SUITE IS RED ON SOMETHING NOBODY WROTE.** The operator played the pinned world
+  forward while the session ran. Three saves of pair (14,60) written in the last quarter hour
+  leave 120 bytes of their body unconsumed, and THE LEFTOVER RUN IS BYTE-IDENTICAL ACROSS ALL
+  THREE while their record counts differ - 3226, 3299 and 3287 records over 455, 457 and 453
+  levels. A run that does not move while the world around it does is a FIXED STRUCTURE, not
+  world content. `objects.parse_body` already raises `WARN_UNPARSED_DATA_SECTION` for it, so
+  non-negotiable 7 holds; what is red is the arm asserting exact consumption. Reproduced at
+  the SESSION-52 head in three independent clean extractions, so it is nobody's regression.
+  Filed as CS-867. **IT IS THE BODY TAIL AND NOT A PROPERTY PAYLOAD, so it is NOT CS-G05 and
+  does not clear it** - `docs/GATED.md` carries a dated status saying so.
+
+- **A DEAD CROSS-REFERENCE SHIPPED INSIDE THE COMMIT THAT REPAIRS THAT FAULT CLASS.** Two
+  `:func:` roles named a function bound nowhere. `tests/test_docs_citations.py` matches
+  `<path>.py::<name>` and NOT a Sphinx role, so no guard saw it - an adjudicator did. FIXED,
+  not filed; the guard gap is CS-871. Two other sentences were narrowed: a process-scope
+  freshness claim down to the module scope its guard actually measures, and the word "closed"
+  down to "separated" where only the per-call route is closed.
+
+- **Decisions: none recorded as an ADR.** Nothing contradicted `BOOTSTRAP.md`.
+
+- **Failed paths: none abandoned.** One measurement was thrown away as wrong: a first library
+  probe used `body_consumed == len(body)` where the arm uses
+  `body_consumed == len(body) - body_prefix_width`, and reported all 20 saves short. The
+  corrected predicate found the real 3.
+
+- **Next action: OPEN THE UI AND UX WORK.** Operator instruction, given this session. The
+  save-reader follow-ups CS-864, CS-865 and CS-867 through CS-871 stay OPEN and are not the
+  next thing.
+
+- **STILL OUTSTANDING FROM SESSION 49, UNTOUCHED:** the six manual checks in
+  `docs/OPERATIONS.md` section 8.3 all still read NOT RUN, and `shell/node_modules` still
+  does not exist in this clone.
+
+---
+
 ## Session 52 - 2026-08-31 - CS-863 CLOSED. The second tag reading stopped consulting the shipped ceiling, so a strictly worse reader can no longer buy a green module; and two independent adversaries defeated CS-862's central claim with a one-line memo
 
 - **Shipped: CS-863.** Detail in `docs/LEDGER.md`, not here. CS-866 filed from the
@@ -194,70 +269,3 @@ the line becomes a pointer.
   clone.
 
 ---
-
-## Session 50 - 2026-08-30 - CS-829 GATED behind CS-G05 by operator ruling. Round 4's demand was delivered and measured, four adversaries refuted it anyway, and the round's own headline arm turned out to be an equality between identical arguments
-
-- **Shipped: NOTHING CLOSED.** CS-829 did NOT close; it moved to `docs/GATED.md`. PREP
-  merged, DRAIN named. Four follow-ups filed, CS-862 to CS-865. Detail in `docs/LEDGER.md`
-  and `docs/item_notes/phase4-followups.md` under CS-829, not here.
-
-- **THE GATE, AND WHY IT IS REAL.** CS-829's acceptance names EVERY record carrying a struct
-  type word. 23529 such words sit in records of the version pair CS-G05 exists to measure,
-  which no reading opens. The clause cannot be satisfied inside this repo while that gate
-  stands, and it had already been rewritten twice for unsatisfiability on the day it was
-  filed. An adjudicator that produced none of the work ruled it word by word: two of five
-  conjuncts FAIL. **Narrowing the population to the reachable sites is a SCOPE CHANGE with
-  its own record, not this gate clearing** - `docs/GATED.md` names that move as the
-  synthetic close it would be.
-
-- **THE HEADLINE: A GUARD BUILT BY MAKING THE THING UNDER TEST UNREACHABLE FROM THE MUTATION
-  IS NOT A GUARD, AND IT LOOKS EXACTLY LIKE ONE THAT WORKS.** The arm this whole round was
-  built around hands the SAME `body` and the SAME independent record to both its passes, so
-  it asserts `sum f(x) == sum f(x)`. Measured: every call pair received arguments identical
-  by IDENTITY, zero differing, and the equality held under six deliberately garbage readings
-  including one that was the shipped record table verbatim. **The entire `tests/save/` suite
-  is green against an `independent_records` that wraps `objects.parse_body` and reads no byte
-  for itself.** The merger PREDICTED this risk before wave 2 and mis-mitigated it, naming the
-  library cross-check as the separator - but every library claim about that reading is an
-  AGREEMENT claim, and agreement is what a wrapper maximises.
-
-- **ROUND 4'S DEMAND WAS DELIVERED AND IT CLOSED NOTHING.** Under a degraded record table the
-  shipped reading falls 30642 struct sites to 0 while the independent one holds at 30642;
-  before the change both fell together. Real, measured three times independently. The
-  signature then relocated a FIFTH time - to the shipped SCALAR CONSTANTS both tag walks
-  consult. Making `objects._MAX_TAGS_PER_PAYLOAD` STRICTER takes the module from one failing
-  arm to NONE while deleting 6204 of 45208 sites. On another pair it reproduces round 4's
-  numbers exactly. **CS-863. Do not re-derive it.**
-
-- **THE MERGER'S OWN STRENGTHENING WAS REFUTED.** The library equality was tightened from a
-  subset claim plus a floor to `missing == 0` plus file-order agreement, proven against two
-  plants - and still ranged only over the bodies the second reading chose not to decline.
-  Declining one whole version pair removed 8 of 20 bodies and 18893 records with the suite
-  green. Repaired: `bodies == saves`.
-
-- **A REAL PRIVACY DEFECT, INTRODUCED THIS SESSION AND REPAIRED THIS SESSION.** Both reading
-  calls sat OUTSIDE their containment handlers with `body` live in the frame. pytest renders
-  a frame's ARGUMENTS with no opt-in flag - no `--showlocals` needed - and an adversary read
-  240 characters of a real decompressed body out of a planted traceback, carrying a `/Game/`
-  asset path on 3 of 20 saves. The docstring claimed the containment before the code had it.
-
-- **Surprises: `BODY_LAYOUT_BY_PAIR` is GUARDED, and the commit message that conceded
-  otherwise was wrong.** 53 of 56 layout plants make `parse_body` raise and
-  `assert not sweep.failures` catches them; 3 are equivalent mutants; silent loss is zero.
-  Nothing contradicted `BOOTSTRAP.md`.
-
-- **Failed paths: none abandoned mid-flight.** Every finding was repaired with a measured
-  counter-example or filed with its measurement.
-
-- **PROCESS NOTES WORTH KEEPING.** A slice verified with a SUBSET went green while breaking
-  the package-wide reach guard - caught only by the full suite, the same failure session 49
-  recorded. The adjudicator proposed five follow-up IDs and ALL FIVE COLLIDED with live
-  items; IDs must be checked against `ROADMAP.md`, `BACKLOG.md`, `docs/GATED.md` and
-  `docs/LEDGER.md` before filing. Next free ID after this session is CS-866.
-
-- **Next action: take CS-862** - make the independence claim gradable, or narrow it to what
-  is graded. It is PREP for CS-829 and it is the item that stops the next round repeating
-  this one. CS-863 is the bigger prize and the harder one.
-
----
-

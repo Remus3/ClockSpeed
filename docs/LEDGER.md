@@ -75,6 +75,158 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-08-31 - CS-866 - CLOSED. The dynamic seam arms now ask a question no cache has answered, and a shipped primitive that no plant reached is planted
+Verification: `tests/save/test_independent_table.py`, arms
+`test_no_dynamic_case_reads_a_body_any_other_case_or_arm_in_this_module_reads` and
+`test_no_two_dynamic_cases_expect_the_same_answer_from_the_second_reading`, plus the
+`_Cursor` cases of
+`test_the_second_reading_stays_right_while_the_shipped_record_table_is_degraded` and
+`test_a_degraded_shipped_record_table_cannot_move_the_hand_built_offsets`.
+
+**THE FAULT.** Each dynamic case called `independent_records` exactly once, AFTER the plant,
+on a body an earlier arm in the same module had already read while the tree was pristine. A
+memo therefore returned the PRISTINE answer, which is exactly what the fixture declares and
+what the bytes say. Moving the ground truth to the fixture fixed PROVENANCE and bought
+nothing against a cache.
+
+**THE REPAIR IS TO ASK A QUESTION NEVER ASKED BEFORE.** Every dynamic case builds its body
+from a nonce derived from its own case identity - the arm, the version pair and the plant
+name - taken from the populations the arms are parametrized over. The nonce moves the
+payload SIZES, so it moves the reported extents rather than only the bytes, and a cache
+keyed on the version pair alone is defeated too. Two arms ASSERT the property instead of
+leaving it arranged, and they build bytes without calling the second reading, because
+calling it would populate the cache they exist to defeat.
+
+**THE SECOND HALF IS A PLANT ON `_Cursor`** - the first on a primitive `parse_body` reaches
+that no other plant touches. It KILLS rather than degrades, measured on all ten bodies, and
+the docstring says so in those words.
+
+| mutant substituted for `independent_records`, whole module, module order | at `c7f49e5` | at `7d2a55d` |
+|---|---|---|
+| memoising `getattr` wrapper of `objects.parse_body` | 63 passed EXIT 0 | 20 failed, 50 passed |
+| the same wrapper recomputing | 15 failed, 48 passed | 20 failed, 50 passed |
+| `_Reader.string` via `getattr(objects, "_Cursor")` | 63 passed EXIT 0 | 5 failed, 65 passed |
+| pristine floor | 63 passed EXIT 0 | 70 passed EXIT 0 |
+
+**ANTI-MONOTONE CONTROL.** With the nonce flattened to a constant 0 - strictly worse, and it
+reproduces `c7f49e5` exactly - the memo mutant scores 2 failed, 68 passed and ALL 20 dynamic
+cases go GREEN, the two failures being the freshness arms themselves. The nonce is what does
+the work.
+
+**ADJUDICATED BY AN AGENT THAT PRODUCED NO PART OF IT: ACCEPT WITH NAMED RESIDUE.** It
+graded the frozen commit rather than the tree, wrote its own harness, and put SIX cache
+shapes through the arms with ZERO survivors - keyed on the body triple, on the pair alone,
+on `len(body)`, on both, an `lru_cache`, and one placed on the shipped `objects.parse_body`
+itself. The decisive fact is not the count: the memo's FAILURE SET is byte-identical to the
+plain wrapper's, so a memo is now indistinguishable from no memo. It verified the freshness
+is DERIVED by adding a fifth version pair and a fifth plant and watching nonces appear with
+no literal edited, and it broke the guard's circularity from outside by instrumenting
+`independent_records` and censusing every body handed to it: 31 enumerated, 20 dynamic, 0
+unaccounted synthetic bodies, 0 overlap.
+
+**IT ALSO FOUND A FACTUAL ERROR, WHICH IS FIXED RATHER THAN FILED.** Two `:func:` roles in
+the commit cited a function bound nowhere. That is the CS-862 fault class landing in the
+commit that repairs it. The references are corrected, a process-scope sentence is narrowed
+to the module scope its guard actually measures, and the word "closed" is narrowed to
+"separated" where only the per-call route is closed. THAT NO GUARD CAUGHT IT is filed as
+CS-871.
+
+**NAMED AND NOT CLOSED:** a reading that captures a shipped callable at IMPORT time escapes
+every `monkeypatch` plant, measured at all 70 arms green. `_shipped_triples` converts any
+refusal to the empty tuple and is the unexamined shared input the kill-versus-degradation
+distinction rests on; it is graded by nothing. `_read_bounded_count`, `_read_section_size`,
+`_attribute_payloads`, `_read_level_tail`, `_read_grid_preamble`, `_read_collectables` and
+`_check_section` are reached by `parse_body` and planted by nothing.
+
+CS-829 stays GATED behind CS-G05. This is PREP and PREP never closes a gated item.
+
+### 2026-08-31 - CS-863 - CORRECTION: the adversarial pass its own session recorded as owed REFUTES both its arms. A memo that reaches the shared ceiling through another module leaves all 37 green. The item stays CLOSED and the residue is CS-868, CS-869 and CS-870
+Verification: extract `7d2a55d`, replace the body of `_independent_sites_of` with a memo
+over `tests/save/test_decode_oracles.py`'s `_walk_with_the_shipped_reader`, and run
+`python -m pytest tests/save/test_struct_interior.py -q`. Delete the memo and re-run.
+
+NOT A NEW CLOSURE and not a reopening. CS-863's repair is real and stands: the second tag
+reading does take its loop bound from the payload extent, and that is checkable in the
+source. What is corrected is the SCOPE its two arms claim.
+
+**THE SESSION THAT SHIPPED IT RECORDED THE DEBT.** Its own note said the arms were built
+and graded by the session that wrote them, with no adjudicator and no independent
+adversary, and that a pass over them was cheap and worth doing. It was done. It refuted
+them.
+
+**REPRODUCED TWICE, INDEPENDENTLY.** An adversary and then a verifier, neither of which
+produced any part of CS-863, working from different briefs. The verifier built its own
+mutants from source with an anchor-asserting script and never opened the adversary's
+directory. Both landed on the same counter-example.
+
+| variant, whole module, module order | observed |
+|---|---|
+| pristine floor | 37 passed, EXIT 0 |
+| a memo over `_independent_sites_of` delegating to `_walk_with_the_shipped_reader` | **37 passed, EXIT 0** |
+| the same mutant with the memo deleted | 1 failed, 1 passed, EXIT 1 |
+| the memo ALONE, over the repaired walk | 37 passed, EXIT 0 |
+
+That helper carries its own `for _ in range(objects._MAX_TAGS_PER_PAYLOAD)`, so the mutant
+puts the defect CS-863 removed straight back into the graded path.
+
+**TWO MECHANISMS, NEITHER OF WHICH THE RECORD ANTICIPATED.** `_shared_tag_symbols` parses
+only its own module's source, so the guard asserting the ceiling's absence BY NAME cannot
+see a ceiling read in another module - and the ceiling's absence being asserted by name was
+the record's own reason for calling the surface derived rather than sampled. And
+`_run_ceiling_control` takes its pristine and its degraded reading over the SAME body
+object, so under any memo the degraded call is a cache hit. **The memo alone is invisible
+and the cross-module call alone is caught; only the composition is lethal**, which is why
+this is a hole and not a curiosity.
+
+**AND THE SWEEP TABLE BELOW IS AGAINST A MODULE THAT IS NOT THE ONE THAT SHIPPED.** It
+reports `Pristine 36 passed` and `32 and above | 36 passed`. The shipped module collects
+THIRTY-SEVEN, confirmed by `--collect-only` and by counting its `def test_` lines. Whether
+the cited run omitted a skip is undetermined; the rows are uncorroborated for the shipped
+artifact rather than disproved, and the 0-to-31 boundary was not re-derived here.
+
+**WHAT IS NOT REFUTED, checked and reported as checked:** the repair itself - the extent
+bound is in the source; the pristine floor is green at 37; `MAX_STRING_BYTES` and
+`MAX_OBJECTS` remain UNESTABLISHED exactly as recorded, and were not attacked.
+
+**THE RESIDUE IS THREE ITEMS.** CS-868 is the arms not grading what they claim. CS-869 is
+the picked control literal whose skip is keyed on site counts while its plant refuses
+records. CS-870 is the revert assertion that grades `monkeypatch` rather than the control.
+
+### 2026-08-31 - CS-862 - CORRECTION to the CORRECTION filed earlier this day: the memo row's arithmetic is impossible, and the pre-existing arm it credits as a survivor is NOT one. The item stays CLOSED
+Verification: `tests/save/test_independent_table.py` collects 63 tests at `c7f49e5`, so
+`python -m pytest tests/save/test_independent_table.py -q --collect-only` and the two
+runs below reproduce every number here in a clean clone of that commit.
+
+NOT A NEW CLOSURE and not a reopening. This corrects two things in the CS-862 correction
+below it, both in the direction of the fault being WORSE than recorded.
+
+**THE ARITHMETIC.** That entry's table reports the memoising wrapper as
+`63 passed, 1 failed on a pre-existing arm` against a module that collects SIXTY-THREE
+tests. Sixty-four outcomes cannot come out of sixty-three cases. Measured in a clean clone
+at `c7f49e5`, the wrapper exactly as that entry describes it scores **62 passed, 1 failed,
+EXIT 1**, and the one failure is
+`tests/save/test_independent_table.py::test_a_level_whose_entry_count_disagrees_with_its_record_count_is_not_paired`
+- which is the arm that same entry already names. The finding was right and the split was
+mistyped.
+
+**AND THE SURVIVOR IS NOT A SURVIVOR.** The row reads as though one pre-existing arm holds
+the line against a memoiser. It does not. That arm goes red only because the recorded
+wrapper hands back the two zero-extent records `objects.parse_body` emits for an unpairable
+level. A wrapper carrying one further clause - drop the records whose offset and length are
+both zero - satisfies it too:
+
+| memoising wrapper of `objects.parse_body` | `tests/save/test_independent_table.py` at `c7f49e5` |
+|---|---|
+| as the entry below describes it | 62 passed, 1 failed, EXIT 1 |
+| the same, also dropping zero-extent records | **63 passed, EXIT 0** |
+
+**WHY THIS MATTERS RATHER THAN BEING PEDANTRY.** A reader of the entry below would take
+from it that the memo defeat is total except for one arm, and would size the repair
+against that. The repair had to close a module that goes ENTIRELY green, and CS-866 was
+built against the harder number. The distinction between a nearly-complete escape and a
+complete one is exactly the distinction between a claim narrowed correctly and a claim
+narrowed to something that is still false.
+
 ### 2026-08-31 - CS-863 - the second tag reading no longer consults the shipped tag ceiling, and every shipped symbol it still shares is enumerated at the point of use and held there by a test
 Verification: `tests/save/test_struct_interior.py::test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade`
 and `tests/save/test_struct_interior.py::test_every_shipped_symbol_the_second_tag_reading_shares_is_recorded`,

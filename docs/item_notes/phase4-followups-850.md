@@ -1210,45 +1210,172 @@ to skip it. Both have been tried and both are recorded as wrong. It is a request
 the per-word residue in evidence that does not depend on which saves the operator's library
 happens to hold at the moment the suite runs.
 
-## CS-866
+## CS-867
 
-### Filed 2026-08-31 (session 52), from two independent adversarial passes over CS-862
+### Filed 2026-08-31 (session 53), from a real-save probe taken while CS-866 was being merged
 
-**A MEMO IS NOT A READING, AND THE ARMS CANNOT TELL.** Two adversaries that produced no
-part of CS-862, working from different briefs, independently substituted a memoising
-`getattr` wrapper over `objects.parse_body` for `independent_records` and left every one
-of the 15 dynamic cases green. Reproduced by the merger with a third script. The numbers
-are in `docs/LEDGER.md` under the CS-862 correction dated 2026-08-31.
+**IT IS RED AT THE SESSION-52 HEAD AND IT IS NOT ANY OF THIS SESSION'S WORK.** Reproduced
+three times independently before anything was concluded: in a clean `git clone` of that
+commit, in a second clean extraction, and by a third agent's own `git archive` extraction.
+The arm is
+`tests/save/test_objects.py::test_every_real_save_of_a_measured_pair_walks_to_the_end_of_its_body`
+and it reports one distinct failure kind, `IncompleteWalk`.
 
-**THE MECHANISM, so it is not re-derived.** Each arm calls `independent_records` exactly
-once, after the plant. `test_the_reading_agrees_with_the_shipped_table_on_a_synthetic_body`
-- parametrised over the measured pairs, so it covers the 12 cases' exact bodies - and
-`test_the_hand_built_body_yields_the_exact_offsets_its_bytes_declare`, which covers the
-other 3, have already called it on those same bodies while the tree was pristine. The memo hands the degraded arm the
-pristine answer, which is exactly what the fixture declares and what the bytes say - so
-grading against the fixture rather than against the pristine reading, which WAS the right
-repair for provenance, buys nothing at all against a cache.
+**WHAT WAS MEASURED, counts and structure only.** Twenty saves are reachable. Three of them
+were written within fifteen minutes of the probe, all of pair (14,60), and only those three
+fail. The other seventeen - including the other five of pair (14,60) - walk to their final
+byte exactly.
 
-**RUN ALONE THEY REDDEN 15 OF 15. Run in module order they do not.** The recorded figure
-was measured in isolation and the suite never runs them that way. Any repair has to hold
-in module order or it is measuring the same thing again.
+| pair | walks exactly | leaves bytes over |
+|---|---|---|
+| (10,36) | 3 | 0 |
+| (13,42) | 1 | 0 |
+| (14,52) | 8 | 0 |
+| (14,60) | 5 | 3 |
 
-**DO NOT REPAIR THIS BY CLEARING A CACHE.** The wrapper is the adversary's, not the
-shipped code's; there is no cache in the tree to clear. The arms have to be unable to
-accept ANY function of `(body, pair)` that is not the second reading, which is what
-`test_a_level_whose_entry_count_disagrees_with_its_record_count_is_not_paired` already
-achieves for one body: the correct answer DIFFERS from `parse_body`'s, so no wrapper of
-any kind can produce it. That arm predates CS-862 and came in with CS-829.
+**THE LEFTOVER RUN IS 120 BYTES AND IT IS BYTE-IDENTICAL ACROSS ALL THREE SAVES**, while
+those saves carry 3226, 3299 and 3287 records across 455, 457 and 453 levels. A run that
+does not move while the world around it does is a FIXED STRUCTURE, not world content, which
+is why this note can say anything about it at all - no byte of it is reproduced here and
+none needs to be. It is not all zero.
 
-**THE SECOND HALF IS THE PLANT POPULATION.** `objects.parse_body` reaches at least
-`_Cursor`, `_read_bounded_count`, `_read_section_size`, `_attribute_payloads`,
-`_read_level_tail`, `_read_grid_preamble`, `_read_collectables` and `_check_section`, and
-the three plants touch none of them. Measured: a second reading whose string step
-delegates to `getattr(objects, "_Cursor")(...)` leaves all 63 arms of the module green.
-That is the residue CS-864's note named as covered by nothing, now measured rather than
-predicted.
+**THE READER ALREADY KNOWS.** `objects.parse_body` completes and raises
+`WARN_UNPARSED_DATA_SECTION` for the region rather than refusing the body, so
+non-negotiable 7 is holding and nothing is silently wrong. What is red is the arm asserting
+the walk consumes the body exactly.
 
-**NOT MEASURED, so do not assume it:** whether anything OUTSIDE
-`tests/save/test_independent_table.py` catches the memoising wrapper at HEAD. One
-adversary's directory-wide runs straddled an uncommitted edit and say nothing. The honest
-statement today is that the wrapper is invisible to every arm CS-862 added.
+**THIS IS NOT CS-G05 AND MUST NOT BE READ AS CLEARING IT.** CS-G05 is about the PROPERTY
+PAYLOAD grammar of save version 60 - the interior of a record's payload. This run sits
+AFTER the level walk, at the tail of the body. They are different regions and the
+distinction is the whole reason this is a separate item. What the three new saves DO give
+CS-G05 is what `docs/GATED.md` says new saves ever give it: material to measure with. The
+payload-level independence that entry asks for is still unmeasured.
+
+**DO NOT REPAIR THIS BY WIDENING THE ARM'S TOLERANCE.** An arm that accepts a body walked
+to within some slack of its end is an arm that would have accepted the session-40
+counter-example too. Either the trailer is modelled, or the claim is narrowed to name the
+region it does not cover - the same fork every item in this block has taken.
+
+**THE LIBRARY MOVES UNDER YOU.** The operator plays the pinned development world while
+sessions run, and autosaves rotate. These three files may not be there tomorrow, and the
+structure may arrive on more pairs. Re-measure before concluding the shape changed;
+`memory/save-library-changes-mid-session.md` records this.
+
+## CS-868
+
+### Filed 2026-08-31 (session 53), from an adversarial pass CS-863's own session recorded as owed
+
+**CS-863 SHIPPED WITHOUT AN INDEPENDENT PASS AND SAID SO.** Its arms were built and graded
+by the session that wrote them. This is that pass, and it REFUTES them. Two agents that
+produced no part of CS-863, working from different briefs and building their mutants
+independently from source, reached the same counter-example; the second never opened the
+first's directory.
+
+**THE COUNTER-EXAMPLE.** Replace the body of `_independent_sites_of` with a memo over a call
+to `tests/save/test_decode_oracles.py`'s `_walk_with_the_shipped_reader`. That helper carries
+its own `for _ in range(objects._MAX_TAGS_PER_PAYLOAD)`, so the mutant puts CS-863's defect
+straight back - the second reading consults the shared ceiling again.
+
+| variant, whole module | observed |
+|---|---|
+| pristine floor | 37 passed, EXIT 0 |
+| the memo mutant | **37 passed, EXIT 0** |
+| the same mutant with the memo deleted | 1 failed, 1 passed, EXIT 1 |
+| the memo ALONE over the repaired walk | 37 passed, EXIT 0 |
+
+**TWO MECHANISMS, AND BOTH HAVE TO BE FIXED.** `_shared_tag_symbols` records a symbol only
+where the AST node is an attribute over the name `objects`, and it parses THIS MODULE'S
+SOURCE ONLY - so the assertion that the ceiling's name is absent cannot see a ceiling read
+in another module. And `_run_ceiling_control` takes its pristine and its degraded reading
+over the SAME body object, so under a memo the degraded call is always a cache hit.
+
+**IT IS A FAIR MUTANT, NOT AN ADVERSARIAL CURIOSITY**, and that is the reason to word this
+as a hole. The memo alone is invisible. The call is one line away - `_shipped_sites_of`
+already calls that same helper and the module is already imported. Every record is walked
+twice, so a memo is the obvious performance edit. And the project has been bitten by this
+exact shape twice already in the sibling module: CS-862's correction and CS-866.
+
+**DO NOT REPAIR THIS BY DELETING THE MEMO.** There is no memo in the tree. The arms have to
+be unable to accept a reading that is a cached function of the shipped one, which is what
+CS-866 did next door by making every graded case ask a question no earlier call answered.
+
+## CS-869
+
+### Filed 2026-08-31 (session 53), from the same pass
+
+**THE CONTROL'S STRENGTH IS PICKED, AND ITS SKIP IS KEYED ON THE WRONG QUANTITY.**
+`_CEILING_CONTROL_TAGS` is a bare literal; nothing derives it from the corpus and nothing
+asserts the corpus exceeds it. Measured on the graded pair, one library read:
+
+| control ceiling | struct sites, pristine to degraded | records reached, pristine to degraded | skip fires |
+|---|---|---|---|
+| 8 (shipped) | 30642 to 28716 | 77263 to 76368 | no |
+| 22, 24, 26 | 30642 to 30642 | 77263 to **77260** | **yes** |
+
+The skip compares SITE counts. The plant refuses whole RECORDS, and the three it refuses
+carry no struct tag, so the site count never moves and the arm skips before either
+assertion is reached. **THE SUPPRESSED TRUE POSITIVE, measured:** with CS-863's defect
+deliberately restored, a control ceiling of 24 gives 1 skipped EXIT 0 where the shipped
+literal 8 gives 1 failed EXIT 1.
+
+**THE CONSTANT'S OWN DOCSTRING IS FALSE.** It says any ceiling below the corpus's observed
+maximum exercises the same loss class. The observed maximum is 31 and 22 through 26 are
+below it and exercise nothing.
+
+**NOT A REQUEST TO PICK A BETTER NUMBER.** A second hand-picked literal is the same item
+again. The counts are library-dependent and the operator plays while sessions run.
+
+## CS-870
+
+### Filed 2026-08-31 (session 53), from the same pass
+
+**THE REVERT ASSERTION GRADES `monkeypatch`, NOT THE CONTROL.** In
+`test_a_stricter_shared_ceiling_cannot_improve_this_modules_grade`, `monkeypatch.undo()`
+restores the value `monkeypatch.setattr` saved, and the next line asserts that value is
+what the module now carries. It cannot fail while `monkeypatch` works, whatever
+`_run_ceiling_control` did.
+
+**AND THE CONTROL REALLY CAN LEAVE THE MODULE DEGRADED.** Proven by direct call rather than
+by the mutant alone: with the trailing `_install_ceiling(original)` deleted from the
+control's record loop, a direct call leaves the ceiling installed at the control's own
+value instead of the shipped one, and the arm still reports 1 passed EXIT 0. The docstring
+claiming the plant is asserted to have landed, fired and been reverted is two thirds true.
+
+**WHY IT MATTERS BEYOND THE ARM.** A control that leaves a shipped constant degraded
+poisons every later measurement in the same process. `monkeypatch` happens to save the
+session here, which is exactly why the arm cannot notice that it is doing all the work.
+
+## CS-871
+
+### Filed 2026-08-31 (session 53), from the CS-866 adjudication
+
+**A DEAD CROSS-REFERENCE SHIPPED INSIDE THE COMMIT THAT REPAIRS THAT FAULT CLASS, AND NO
+GUARD SAW IT.** Two `:func:` roles in `tests/save/test_independent_table.py` named a function
+bound nowhere. An adjudicator found them by reading; nothing mechanical did. They are FIXED -
+this item is the GAP, not the instance.
+
+**WHY NOTHING CAUGHT IT.** `tests/test_docs_citations.py` matches the shape
+`<path>.py::<name>`. A Sphinx role written `:func:` with the symbol in backticks is a
+different shape and no judged pattern covers it. The guard's population is also the tracked
+DOCS; a role inside a test module is not in it at all.
+
+**THIS IS THE SAME FAULT CLASS SESSION 52 WAS BITTEN BY, ONE LAYER OVER.** There, a
+subagent's paraphrase of an arm name reached a note and the citation guard DID catch it,
+because it was written in the shape the guard reads. Here the identifier was wrong in a
+shape the guard does not read. The lesson is that the guard grades a SPELLING, not the
+property, and the property is that every identifier written down resolves.
+
+**THE SECOND RESIDUE THIS ITEM CARRIES.** `_bodies_no_dynamic_case_may_reuse` enumerates
+only the bodies THIS module builds, while `tests/save/test_struct_interior.py` calls
+`independent_table.independent_records` at four sites in the same process. The adjudicator
+measured that all four hand over real decompressed save bodies and that the guard's set and
+the dynamic set have ZERO overlap, so no collision exists today - and NOTHING ASSERTS EITHER
+FACT. The prose has been narrowed to the module scope the guard measures; the assertion has
+not been written. A real body is a save's whole world and a synthetic fixture is a few
+hundred bytes, so the honest form is probably a size floor rather than an enumeration.
+
+**DO NOT REPAIR THIS BY WIDENING THE DOC CITATION REGEX ALONE.** The role shape is one
+spelling of the same property; a guard that learns `:func:` and stops has bought one
+spelling, which is exactly the finding CS-864 records about the seam arms and CS-868 records
+about `_shared_tag_symbols`. Resolve the symbol against the module's own symbol table.
+

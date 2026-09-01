@@ -110,7 +110,7 @@ _PAYLOAD_SIZE_PERSISTENT: Final = 48
 
 #: How far each truncation arm cuts the fixture body back. Named rather than
 #: written into the parametrize decorator alone, so
-#: :func:`_bodies_the_other_arms_read` can enumerate the truncations that arm
+#: :func:`_bodies_no_dynamic_case_may_reuse` can enumerate the truncations that arm
 #: reads instead of restating them - a second literal is a literal that drifts.
 _TRUNCATIONS: Final = (1, 3, 9, 41, 128)
 
@@ -376,7 +376,7 @@ def _locate(body: bytes, payload: bytes) -> int:
 # inline in the arm that reads it.
 #
 # They were inline until CS-866. The reason they are not is
-# :func:`_bodies_the_other_arms_read`: the dynamic section's freshness claim is
+# :func:`_bodies_no_dynamic_case_may_reuse`: the dynamic section's freshness claim is
 # that no dynamic case reads a body any other arm reads, and a body assembled
 # inside an arm's own frame cannot be enumerated by anything. Extracting them
 # is what turns that claim from an arrangement into a measurement. NO ARM'S
@@ -1300,8 +1300,11 @@ def test_the_second_reading_accepts_nothing_the_shipped_walk_refuses() -> None:
 # merger substituted a MEMOISING wrapper for the second reading and left all 15
 # green - row 2 with a `dict` in front of it. A third substitution routed the
 # reading's string step through `objects._Cursor` and left all 63 arms green.
-# Both are closed by the freshness section further down and by the `_Cursor`
-# plant, and both were re-measured against the repaired module over the 20 cases
+# Both are separated by the freshness section further down and by the `_Cursor`
+# plant - separated at the per-call `getattr` route they were measured on, and
+# NOT closed in general: an import-time capture of a planted symbol escapes
+# both, measured at all 70 arms green and recorded in the limits below. Both
+# were re-measured against the repaired module over the 20 cases
 # the two arms now collect (16 plus 4):
 #
 #   mutant                                        static red    dynamic red
@@ -1611,7 +1614,7 @@ _REPORTED_FIELDS: Final = tuple(
 # bought nothing whatever against a cache.
 #
 # THE REPAIR IS TO ASK A QUESTION NEVER ASKED BEFORE. Every dynamic case reads
-# a body no earlier call anywhere in this process has read, and expects an
+# a body no earlier call IN THIS MODULE has read, and expects an
 # answer no other case expects. A memo then MISSES, computes through whatever
 # shipped reader it wraps, and takes the degradation like any other wrapper.
 #

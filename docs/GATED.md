@@ -383,6 +383,18 @@ independence with the object walk over the new files before treating the DRAIN h
 workable; if it turns out the payloads are near-identical because the play session changed
 little, the honest outcome is that this stays gated and needs more varied play.
 
+**STATUS 2026-08-31 (session 53): THREE MORE SAVES OF THE PAIR ARRIVED WHILE THE SESSION
+RAN, TAKING IT TO EIGHT. THE CONDITION IS STILL NOT DECLARED MET.** Measured read-only,
+counts only, from a probe that reports no path and no name. The entry above asks for
+payload-level independence established with the object walk, and that is STILL UNMEASURED -
+three more files is a file count, and reading a file count as an independence count is the
+error this entry exists to warn about. What the three do carry is a 120-byte run at the tail
+of the body that the walk does not model, byte-identical across all three. **That is the
+BODY TAIL, not a property payload, so it is not this gate and does not clear it** - it is
+filed as CS-867 in `ROADMAP.md`, and it is why
+`tests/save/test_objects.py::test_every_real_save_of_a_measured_pair_walks_to_the_end_of_its_body`
+is red on this machine.
+
 **The PREP harness was re-run against the enlarged library this session and still PASSES**,
 which is the correct result and not a disappointment: it pins the REFUSAL as a negative
 result, the refusal still holds, and no quantity of new saves was ever going to resolve the
@@ -486,11 +498,15 @@ touches the 23529.
   bit of wiring it grades, and the second reading is separated from the shipped record
   table by dynamic arms that redden for a wrapper, including through the `getattr` route
   no static arm sees.
-- The follow-ups CS-864 and CS-865 are PREP and still OPEN, and CS-866 joined them on
-  2026-08-31. They are the harness that will grade the DRAIN half when the gate clears,
-  and every one of them is worth doing before it does. CS-862 and CS-863 are done - see
-  `docs/LEDGER.md`, including the CORRECTION to CS-862's record, which narrows what its
-  arms are shown to grade and is what CS-866 exists for.
+- The follow-ups CS-864 and CS-865 are PREP and still OPEN. CS-866 CLOSED 2026-08-31.
+  CS-868, CS-869, CS-870 and CS-871 joined the PREP set the same day - the first three from
+  an adversarial pass that REFUTED CS-863's two arms, the fourth from the adjudication of
+  CS-866. They are the harness that will grade the DRAIN half when the gate clears, and
+  every one of them is worth doing before it does.
+- CS-862, CS-863 and CS-866 are done - see `docs/LEDGER.md`, INCLUDING THE CORRECTIONS.
+  CS-862's record is corrected twice and CS-863's once, and all three corrections narrow
+  what the arms are shown to grade rather than widening it. Read the corrections before
+  trusting any scope claim in the entries beneath them.
 
 **WHAT WOULD BE A SYNTHETIC CLOSE HERE**, named so it is recognised: narrowing the graded
 population to the reachable, size-compatible sites and declaring the clause met. That is

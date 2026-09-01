@@ -78,6 +78,127 @@ Where current truth actually lives:
 
 ---
 
+## Session 50 - block relocated from `WAKEUP_NOTES.md` 2026-08-31 (session 53)
+
+## Session 50 - 2026-08-30 - CS-829 GATED behind CS-G05 by operator ruling. Round 4's demand was delivered and measured, four adversaries refuted it anyway, and the round's own headline arm turned out to be an equality between identical arguments
+
+- **Shipped: NOTHING CLOSED.** CS-829 did NOT close; it moved to `docs/GATED.md`. PREP
+  merged, DRAIN named. Four follow-ups filed, CS-862 to CS-865. Detail in `docs/LEDGER.md`
+  and `docs/item_notes/phase4-followups.md` under CS-829, not here.
+
+- **THE GATE, AND WHY IT IS REAL.** CS-829's acceptance names EVERY record carrying a struct
+  type word. 23529 such words sit in records of the version pair CS-G05 exists to measure,
+  which no reading opens. The clause cannot be satisfied inside this repo while that gate
+  stands, and it had already been rewritten twice for unsatisfiability on the day it was
+  filed. An adjudicator that produced none of the work ruled it word by word: two of five
+  conjuncts FAIL. **Narrowing the population to the reachable sites is a SCOPE CHANGE with
+  its own record, not this gate clearing** - `docs/GATED.md` names that move as the
+  synthetic close it would be.
+
+- **THE HEADLINE: A GUARD BUILT BY MAKING THE THING UNDER TEST UNREACHABLE FROM THE MUTATION
+  IS NOT A GUARD, AND IT LOOKS EXACTLY LIKE ONE THAT WORKS.** The arm this whole round was
+  built around hands the SAME `body` and the SAME independent record to both its passes, so
+  it asserts `sum f(x) == sum f(x)`. Measured: every call pair received arguments identical
+  by IDENTITY, zero differing, and the equality held under six deliberately garbage readings
+  including one that was the shipped record table verbatim. **The entire `tests/save/` suite
+  is green against an `independent_records` that wraps `objects.parse_body` and reads no byte
+  for itself.** The merger PREDICTED this risk before wave 2 and mis-mitigated it, naming the
+  library cross-check as the separator - but every library claim about that reading is an
+  AGREEMENT claim, and agreement is what a wrapper maximises.
+
+- **ROUND 4'S DEMAND WAS DELIVERED AND IT CLOSED NOTHING.** Under a degraded record table the
+  shipped reading falls 30642 struct sites to 0 while the independent one holds at 30642;
+  before the change both fell together. Real, measured three times independently. The
+  signature then relocated a FIFTH time - to the shipped SCALAR CONSTANTS both tag walks
+  consult. Making `objects._MAX_TAGS_PER_PAYLOAD` STRICTER takes the module from one failing
+  arm to NONE while deleting 6204 of 45208 sites. On another pair it reproduces round 4's
+  numbers exactly. **CS-863. Do not re-derive it.**
+
+- **THE MERGER'S OWN STRENGTHENING WAS REFUTED.** The library equality was tightened from a
+  subset claim plus a floor to `missing == 0` plus file-order agreement, proven against two
+  plants - and still ranged only over the bodies the second reading chose not to decline.
+  Declining one whole version pair removed 8 of 20 bodies and 18893 records with the suite
+  green. Repaired: `bodies == saves`.
+
+- **A REAL PRIVACY DEFECT, INTRODUCED THIS SESSION AND REPAIRED THIS SESSION.** Both reading
+  calls sat OUTSIDE their containment handlers with `body` live in the frame. pytest renders
+  a frame's ARGUMENTS with no opt-in flag - no `--showlocals` needed - and an adversary read
+  240 characters of a real decompressed body out of a planted traceback, carrying a `/Game/`
+  asset path on 3 of 20 saves. The docstring claimed the containment before the code had it.
+
+- **Surprises: `BODY_LAYOUT_BY_PAIR` is GUARDED, and the commit message that conceded
+  otherwise was wrong.** 53 of 56 layout plants make `parse_body` raise and
+  `assert not sweep.failures` catches them; 3 are equivalent mutants; silent loss is zero.
+  Nothing contradicted `BOOTSTRAP.md`.
+
+- **Failed paths: none abandoned mid-flight.** Every finding was repaired with a measured
+  counter-example or filed with its measurement.
+
+- **PROCESS NOTES WORTH KEEPING.** A slice verified with a SUBSET went green while breaking
+  the package-wide reach guard - caught only by the full suite, the same failure session 49
+  recorded. The adjudicator proposed five follow-up IDs and ALL FIVE COLLIDED with live
+  items; IDs must be checked against `ROADMAP.md`, `BACKLOG.md`, `docs/GATED.md` and
+  `docs/LEDGER.md` before filing. Next free ID after this session is CS-866.
+
+- **Next action: take CS-862** - make the independence claim gradable, or narrow it to what
+  is graded. It is PREP for CS-829 and it is the item that stops the next round repeating
+  this one. CS-863 is the bigger prize and the harder one.
+
+---
+
+---
+
+## CS-866 - block relocated from `docs/item_notes/phase4-followups-850.md` 2026-08-31 (session 53)
+
+CLOSED. The completion record is in `docs/LEDGER.md`. The block below is the LIVE note as it
+stood while the item was open, kept because it carries the measurement that produced the
+repair. THE ONE FENCE IN IT THAT IS STILL LIVE IS IN CODE, not here: the section comment in
+`tests/save/test_independent_table.py` says why the arms must not be repaired by clearing a
+cache, and the two freshness arms assert the property directly.
+
+## CS-866
+
+### Filed 2026-08-31 (session 52), from two independent adversarial passes over CS-862
+
+**A MEMO IS NOT A READING, AND THE ARMS CANNOT TELL.** Two adversaries that produced no
+part of CS-862, working from different briefs, independently substituted a memoising
+`getattr` wrapper over `objects.parse_body` for `independent_records` and left every one
+of the 15 dynamic cases green. Reproduced by the merger with a third script. The numbers
+are in `docs/LEDGER.md` under the CS-862 correction dated 2026-08-31.
+
+**THE MECHANISM, so it is not re-derived.** Each arm calls `independent_records` exactly
+once, after the plant. `test_the_reading_agrees_with_the_shipped_table_on_a_synthetic_body`
+- parametrised over the measured pairs, so it covers the 12 cases' exact bodies - and
+`test_the_hand_built_body_yields_the_exact_offsets_its_bytes_declare`, which covers the
+other 3, have already called it on those same bodies while the tree was pristine. The memo hands the degraded arm the
+pristine answer, which is exactly what the fixture declares and what the bytes say - so
+grading against the fixture rather than against the pristine reading, which WAS the right
+repair for provenance, buys nothing at all against a cache.
+
+**RUN ALONE THEY REDDEN 15 OF 15. Run in module order they do not.** The recorded figure
+was measured in isolation and the suite never runs them that way. Any repair has to hold
+in module order or it is measuring the same thing again.
+
+**DO NOT REPAIR THIS BY CLEARING A CACHE.** The wrapper is the adversary's, not the
+shipped code's; there is no cache in the tree to clear. The arms have to be unable to
+accept ANY function of `(body, pair)` that is not the second reading, which is what
+`test_a_level_whose_entry_count_disagrees_with_its_record_count_is_not_paired` already
+achieves for one body: the correct answer DIFFERS from `parse_body`'s, so no wrapper of
+any kind can produce it. That arm predates CS-862 and came in with CS-829.
+
+**THE SECOND HALF IS THE PLANT POPULATION.** `objects.parse_body` reaches at least
+`_Cursor`, `_read_bounded_count`, `_read_section_size`, `_attribute_payloads`,
+`_read_level_tail`, `_read_grid_preamble`, `_read_collectables` and `_check_section`, and
+the three plants touch none of them. Measured: a second reading whose string step
+delegates to `getattr(objects, "_Cursor")(...)` leaves all 63 arms of the module green.
+That is the residue CS-864's note named as covered by nothing, now measured rather than
+predicted.
+
+**NOT MEASURED, so do not assume it:** whether anything OUTSIDE
+`tests/save/test_independent_table.py` catches the memoising wrapper at HEAD. One
+adversary's directory-wide runs straddled an uncommitted edit and say nothing. The honest
+statement today is that the wrapper is invisible to every arm CS-862 added.
+
 ## CS-862 - block relocated from `docs/item_notes/phase4-followups-850.md` 2026-08-31 (session 51)
 
 **RELOCATED BECAUSE THE ITEM CLOSED**, on 2026-08-31 into `docs/LEDGER.md`.
