@@ -94,11 +94,30 @@ the line becomes a pointer.
   oracle that consumes bytes without comparing its final offset agrees by not looking, which
   is the fault its own comment condemns; that is CS-876 and it is still OPEN.
 
-- **Surprises: filing five item lines tipped `ROADMAP.md` over its soft budget.** It sat at
-  98 per cent, so the next filing in any session was going to. Closing three returned it
-  under and the guard is PASS again, but **a relocate pass is due at the next filing** - the
-  header carries a topology block that says of itself it is recorded in `CLAUDE.md` section
-  4, which is a restated fact.
+- **Filing five item lines tipped `ROADMAP.md` over its soft budget, and the RELOCATE PASS
+  THEN RAN.** The bytes were not where I first said. They were in phase 4, not phase 6: 29
+  lines over 500 bytes held 31 per cent of all item bytes, and **26 of those 29 already
+  carried a `detail:` pointer.** So the detail had been relocated long ago and the LINE was
+  keeping a copy - CS-861's leaf runs to thousands of bytes and already stated everything
+  its 1201-byte line repeated. **The pass was therefore mostly deleting a duplicate whose
+  owner already held it**, which is the anti-drift rule working rather than a size cut. 30
+  lines rewritten, and phase 6 got the leaf it had never had, with routing rows in both
+  directions because guard (j) fails on either half missing.
+
+- **THE PASS REFUSED TO HIT ITS OWN SIZE TARGET, WHICH WAS THE RIGHT CALL.** It stopped at
+  95 per cent rather than the 91 it was asked for, because the remaining bulk is ACCEPTANCE
+  text and shortening an acceptance clause changes what a test must prove. CS-401 is nine
+  distinct assertions and was left whole. **A budget is not a reason to weaken a grading
+  criterion.** Two adversaries then refuted the pass's own output and found four real
+  defects in it, including one phrase DELETED rather than relocated and one acceptance
+  clause that had gone vacuous - all four repaired before it landed.
+
+- **TWO THINGS THE PASS FLAGGED AND DID NOT RESOLVE.** `ROADMAP.md`'s header still carries
+  correction history that belongs in `docs/history_notes.md` - relocating it was off that
+  slice's write-list, and deleting it would break relocate-don't-delete. And **CS-840 now
+  reads closable**: its line was left byte-identical rather than reworded into something
+  true, because laundering a stale item into a current-looking one is worse than leaving it
+  visibly stale. The measurement sits in its leaf where it is greppable.
 
 - **A WORKTREE CAME UP THREE COMMITS STALE AGAIN, AND THE BRIEF IS WHAT CAUGHT IT.** The
   third builder was dispatched against a named base and its worktree opened at the
