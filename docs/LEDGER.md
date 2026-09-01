@@ -75,6 +75,72 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-01 - CS-857 - RULING RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-857 STAYS OPEN
+The operator asked for a ruling on the acceptance conjunct requiring every exemption reason
+calling the cause "deliberately never rendered" to be corrected, on the stated grounds that
+the conjunct grades zero records and so cannot fail. **THE PREMISE IS REFUTED AND THE
+CONJUNCT STAYS.** It grades zero only inside the one mapping session 44 corrected. Outside
+it, two live records assert the same proposition in different words, both filed 2026-08-14,
+both untouched by two CS-857 commits, one of which edited the very file holding the first.
+`tests/test_exception_rendering.py` lists the chained-raise shape under a heading declaring
+what is NOT a rendering, and its sweep reads every tracked module. `tests/test_verify_env.py`
+states that chaining attaches the exception rather than rendering it, implements that in its
+scan, and an arm ASSERTS the shape is not flagged - so it does not merely repeat the false
+claim, it defends it, and it argues against the remedy CS-857 shipped.
+
+The fence intended to prevent recurrence is a comment in `tests/exception_message_guard.py`
+forbidding any entry from stating the cause is unrendered. Nothing enforces it, and its own
+wording scopes it to the entries below it. That is why a session hunting this exact shape
+found neither record. **DO NOT DELETE THE CONJUNCT AS DISCHARGED** - it has never been
+evaluated against the population its own quantifier names. The repair is a sweep matching
+that quantifier, and it must not be a search for a phrase: `memory/a-guard-can-measure-spelling.md`
+records what that produces. `docs/adr/0008-detection-claims-are-derived-never-written.md`
+already owns this failure class - its tier-3 correction records two sentences that shipped
+false and survived repeated careful reading, which is what both records here did.
+
+Verified independently of the adversary that found them: both texts read at the cited files,
+the enforcing arm read and its assertion confirmed, and the corrected reasons re-read. A
+by-product defect in those corrected reasons is filed as CS-880. The item's FIRST conjunct is
+separately unmet - the census reports shipped `measured-leak` sites every run, in two modules
+added after this item's note was written, and the note's hand-written module list never moved.
+
+### 2026-09-01 - CS-858 - RULING RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-858 STAYS OPEN
+The operator asked for one ruling on the tension between `CLAUDE.md` section 4, which says a
+hardcoded count in a doc is a lie with a timestamp on it, and the fact that a numeric floor is
+what makes a graded line falsifiable - to be applied to CS-847, CS-860 and CS-807 as well.
+
+**THE TENSION IS A FALSE DILEMMA. BOTH HORNS ARE UNFALSIFIABLE IN A DOCUMENT, AND THAT WAS
+MEASURED RATHER THAN ARGUED.** A count on an item line is checked by nothing: `tools/drift_guard.py`
+contains no occurrence of the word acceptance, and the count this item's siblings argue about -
+CS-807's "fifteen" - was measured WRONG ON ARRIVAL. The table it described held nineteen entries
+on the very commit that wrote fifteen, and holds nineteen now, so it was never true and nothing in
+the tree could say so. A NAME on an item line is checked only for existence: the citation guard
+resolves a module-and-binding pointer by module-scope name lookup, which was measured to stay green when
+the binding is replaced by `pass` or rebound to `None`; a `path:line` pointer is judged only for
+being in range. Neither wording can fail. **THE ENFORCEABLE ARTIFACT IS AN ARM, NOT A SENTENCE.**
+
+**THEREFORE: no census count goes on an item line, and no acceptance clause is rewritten to
+carry one out.** The second half is the load-bearing one and it is measured. Six attempts to
+improve an acceptance clause by rewriting it have now each lowered its bar - three on CS-854 last
+session, reverted byte-for-byte, and three this session on CS-847, CS-858 and CS-807, every one
+produced by an agent trying to strengthen it and every one caught by an agent that wrote none of
+it. A proposed rule for anchoring clauses by name was refuted on four independent grounds, the
+decisive one being that its emptiness test checks for an empty population while the live failure
+is an ANCHOR-SIZED one, which passes every clause it proposes. Its discriminator was also shown to
+turn on the tense of an English verb.
+
+**WHAT THE FOUR ITEMS GET IS AN ARM, AND A TWO-SIDED ONE.** The idiom is already in this tree and
+is not an invention: a check that goes RED when a site is added AND stays GREEN on a tree that has
+none grades how a derivation RESPONDS TO CHANGE, which is exactly what a transcription gets wrong
+and what an output-shape test cannot see. `tools/drift_guard.py` already carries the fail-closed
+precedent - its work-item guard is the machine check for a different section 4 rule and treats any
+reduction of its own coverage as RED rather than quiet.
+
+**CS-847, CS-858, CS-860 and CS-807 KEEP THEIR CURRENT WORDING.** Nothing is weakened by this
+ruling because no clause changes. This entry records a decision, not a repair; whether it becomes
+an ADR is the operator's call and has not been taken.
+
+
 ### 2026-09-01 - CS-600 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-600 STAYS OPEN. The third audit ran, by an agent that authored none of it, and returned BLOCKED on a MUST-FIX no stylesheet can repair
 Verification: the page assets `clockspeed/surface/web/index.html`, `app.css` and `app.js`
 are byte-identical to 896a682 this session; what changed is `shell/lib/window.js` and the

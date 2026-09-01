@@ -187,6 +187,9 @@ a pass - every equality here is satisfied for free by an empty population.
 | CS-869 | `docs/item_notes/phase4-followups-850.md` |
 | CS-870 | `docs/item_notes/phase4-followups-850.md` |
 | CS-871 | `docs/item_notes/phase4-followups-850.md` |
+| CS-878 | `docs/item_notes/phase4-followups-850.md` |
+| CS-879 | `docs/item_notes/phase4-followups-850.md` |
+| CS-880 | `docs/item_notes/phase4-followups-850.md` |
 
 ## Rules every leaf obeys
 

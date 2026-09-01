@@ -34,6 +34,45 @@ the line becomes a pointer.
 
 ---
 
+## Session 56 - 2026-09-01 - Both requested rulings made, and BOTH OVERTURNED THE PREMISE THEY WERE ASKED ON. CS-857's dead conjunct is alive in two files nobody swept; the count-versus-derive tension is a false dilemma because neither wording can fail
+
+- **Shipped: NOTHING CLOSED. CS-857 AND CS-858 BOTH STAY OPEN.** Two RULING RECORDS in
+  `docs/LEDGER.md`, the rulings themselves in the item leaf, and CS-878, CS-879 and CS-880
+  filed. No acceptance clause was changed, which is the CS-858 ruling applied to itself.
+
+- **In flight: nothing.** No worktree holds work. The rulings are recorded; the ARMS they
+  call for are not built, and that is the next session's work rather than an omission.
+
+- **Decisions: two rulings, neither recorded as an ADR - that is the operator's call and
+  was NOT taken.** (1) CS-857's `deliberately never rendered` conjunct STAYS. (2) No census
+  count on an item line, AND no acceptance clause rewritten to avoid one; the enforceable
+  artifact is a two-sided arm. The second binds CS-847, CS-860 and CS-807 as the operator
+  asked. Both are in `docs/LEDGER.md` dated this day.
+
+- **Surprises: the handoff's premise was wrong on BOTH items, and in the same direction.**
+  CS-857's conjunct grades zero only inside the ONE mapping session 44 corrected;
+  `tests/test_exception_rendering.py` and `tests/test_verify_env.py` each assert the same
+  proposition in other words, the second with an ARM that asserts the shape is not flagged,
+  so it DEFENDS the false claim and argues against the remedy this item shipped. Both were
+  filed 2026-08-14 and survived two CS-857 commits, one of which edited the first file.
+  Separately, CS-807's "fifteen" was measured WRONG ON ARRIVAL - the table held nineteen on
+  the very commit that wrote the number - so the handoff's "stale in the wrong direction"
+  framing is refuted and a revert would restore something that was never true.
+
+- **Failed paths: rewriting an acceptance clause to make it falsifiable. SIX FOR SIX.** A
+  doctrine was derived, and its own three applications were then REFUTED by an adversary
+  that wrote none of them, each having dropped a condition - matching CS-854's three
+  rewrites last session. A second adversary refuted the doctrine itself on four grounds; the
+  decisive one is that an emptiness test cannot see an ANCHOR-SIZED population. Do NOT
+  retry a clause rewrite. Also measured: a name in a doc is no more falsifiable than a
+  count - the citation resolver stays GREEN when the binding it names becomes `pass`.
+
+- **Next action: BUILD THE CS-857 SWEEP, not a phrase search.** It must grade the
+  proposition across the tree rather than across one mapping, and
+  `memory/a-guard-can-measure-spelling.md` says what a spelling search produces. Then
+  CS-879, which is the cheapest of the three new items and the one that hides CS-878.
+
+
 ## Session 55 - 2026-09-01 - The third CS-600 audit found a MUST-FIX the first two missed, and every refuter that followed returned something real. CS-873, CS-874 and CS-875 closed. CS-872 stays open with the CSS-only space MEASURED closed rather than argued closed
 
 - **Shipped: CS-873, CS-874, CS-875.** Detail in `docs/LEDGER.md`, not here. **CS-600 STAYS
@@ -249,80 +288,3 @@ the line becomes a pointer.
   section 8.3 read NOT RUN, and `shell/node_modules` does not exist. CS-617's repair does not
   need them, but VERIFYING THE DRAG ITSELF against a real Electron does, and that is named in
   its ledger entry as owed rather than claimed.
-
----
-
-## Session 53 - 2026-08-31 - CS-866 CLOSED and adjudicated ACCEPT WITH NAMED RESIDUE. An adversarial pass REFUTED CS-863's arms the day after they shipped, and a real save written mid-session turned the suite red on a body tail nothing models
-
-- **Shipped: CS-866.** Detail in `docs/LEDGER.md`, not here. CS-867, CS-868, CS-869, CS-870
-  and CS-871 filed. CS-864 and CS-865 untouched. CS-829 stays GATED behind CS-G05 - this was
-  PREP and PREP never closes a gated item.
-
-- **THE HEADLINE: A CACHE CAN ONLY RETURN AN ANSWER IT WAS GIVEN, SO ASK A QUESTION NEVER
-  ASKED BEFORE.** Every CS-866 dynamic case now builds its body from a nonce derived from its
-  own case identity, and the nonce moves the payload SIZES so it moves the REPORTED EXTENTS
-  rather than only the bytes - which is what also defeats a cache keyed on the version pair
-  alone. Two arms assert the freshness instead of leaving it arranged, and they build bytes
-  without calling the second reading, because calling it would populate the very cache they
-  guard.
-
-- **THE ANTI-MONOTONE CONTROL IS WHAT MAKES THE CLAIM CHECKABLE.** Flatten the nonce to a
-  constant 0 - strictly worse, and it reproduces the old head exactly - and the memo mutant
-  scores 2 failed, 68 passed with ALL 20 dynamic cases GREEN. The two failures are the
-  freshness arms. The nonce is doing the work and nothing else is.
-
-- **THE ADJUDICATOR PUT SIX CACHE SHAPES THROUGH THE ARMS AND NONE SURVIVED** - keyed on the
-  body triple, on the pair alone, on `len(body)`, on both, an `lru_cache`, and one placed on
-  the shipped `objects.parse_body` itself. THE DECISIVE FACT IS NOT THE COUNT: the memo's
-  FAILURE SET is byte-identical to the plain wrapper's, so a memo is now indistinguishable
-  from no memo. It also broke the guard's circularity from OUTSIDE, by instrumenting
-  `independent_records` and censusing every body handed to it - 31 enumerated, 20 dynamic, 0
-  unaccounted synthetic bodies, 0 overlap.
-
-- **Surprises: CS-863'S ARMS ARE REFUTED, ONE DAY AFTER THEY SHIPPED, by the pass its own
-  session recorded as owed.** A memo over `_independent_sites_of` that reaches the shared tag
-  ceiling through `tests/save/test_decode_oracles.py`'s `_walk_with_the_shipped_reader`
-  leaves ALL 37 arms of `tests/save/test_struct_interior.py` green; delete the memo and it
-  goes red. Two mechanisms and both need fixing: `_shared_tag_symbols` parses only its own
-  module's source, so a ceiling read in ANOTHER module is invisible to the guard that
-  asserts its absence BY NAME - which was the record's own reason for calling the surface
-  derived; and `_run_ceiling_control` reads pristine and degraded over ONE body object, so
-  under a memo the degraded call is always a cache hit. THE MEMO ALONE IS INVISIBLE AND THE
-  CROSS-MODULE CALL ALONE IS CAUGHT - only the composition is lethal, which is why it is a
-  hole and not a curiosity. Reproduced by a verifier that built its own mutants and never
-  opened the adversary's directory. Filed as CS-868, CS-869 and CS-870.
-
-- **AND THE SUITE IS RED ON SOMETHING NOBODY WROTE.** The operator played the pinned world
-  forward while the session ran. Three saves of pair (14,60) written in the last quarter hour
-  leave 120 bytes of their body unconsumed, and THE LEFTOVER RUN IS BYTE-IDENTICAL ACROSS ALL
-  THREE while their record counts differ - 3226, 3299 and 3287 records over 455, 457 and 453
-  levels. A run that does not move while the world around it does is a FIXED STRUCTURE, not
-  world content. `objects.parse_body` already raises `WARN_UNPARSED_DATA_SECTION` for it, so
-  non-negotiable 7 holds; what is red is the arm asserting exact consumption. Reproduced at
-  the SESSION-52 head in three independent clean extractions, so it is nobody's regression.
-  Filed as CS-867. **IT IS THE BODY TAIL AND NOT A PROPERTY PAYLOAD, so it is NOT CS-G05 and
-  does not clear it** - `docs/GATED.md` carries a dated status saying so.
-
-- **A DEAD CROSS-REFERENCE SHIPPED INSIDE THE COMMIT THAT REPAIRS THAT FAULT CLASS.** Two
-  `:func:` roles named a function bound nowhere. `tests/test_docs_citations.py` matches
-  `<path>.py::<name>` and NOT a Sphinx role, so no guard saw it - an adjudicator did. FIXED,
-  not filed; the guard gap is CS-871. Two other sentences were narrowed: a process-scope
-  freshness claim down to the module scope its guard actually measures, and the word "closed"
-  down to "separated" where only the per-call route is closed.
-
-- **Decisions: none recorded as an ADR.** Nothing contradicted `BOOTSTRAP.md`.
-
-- **Failed paths: none abandoned.** One measurement was thrown away as wrong: a first library
-  probe used `body_consumed == len(body)` where the arm uses
-  `body_consumed == len(body) - body_prefix_width`, and reported all 20 saves short. The
-  corrected predicate found the real 3.
-
-- **Next action: OPEN THE UI AND UX WORK.** Operator instruction, given this session. The
-  save-reader follow-ups CS-864, CS-865 and CS-867 through CS-871 stay OPEN and are not the
-  next thing.
-
-- **STILL OUTSTANDING FROM SESSION 49, UNTOUCHED:** the six manual checks in
-  `docs/OPERATIONS.md` section 8.3 all still read NOT RUN, and `shell/node_modules` still
-  does not exist in this clone.
-
----

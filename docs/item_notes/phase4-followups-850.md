@@ -835,15 +835,65 @@ whose `File` line SURVIVES `limit=0`, nor for a non-deterministic `__str__` (adv
 Start at residual 2, and derive a population that can see a raise in a callee.
 
 
+### RULING - filed 2026-09-01 (session 56), operator asked, adversary REFUTED the premise
+
+**THE "DELIBERATELY NEVER RENDERED" CONJUNCT STAYS. IT DOES NOT GRADE ZERO.** The premise the
+ruling was requested on - that the conjunct is a universal over an empty set - holds only
+inside `tests/exception_message_guard.py`'s own mapping, which is where session 44 looked.
+TWO LIVE RECORDS ELSEWHERE ASSERT THE SAME PROPOSITION IN DIFFERENT WORDS, and neither has
+ever been evaluated against this conjunct:
+
+- `tests/test_exception_rendering.py` lists the chained-raise shape in a docstring block
+  declaring what is NOT a rendering, calls that half load-bearing, and sweeps every tracked
+  module.
+- `tests/test_verify_env.py` states that chaining attaches the exception rather than
+  rendering it, implements that as a branch in its scan, and an ARM asserts the shape is not
+  flagged - with the message that flagging a sanctioned shape is how a guard gets switched
+  off. It does not merely restate the false claim, it DEFENDS it, and its stated reason
+  argues against the remedy this item shipped.
+
+Both were filed 2026-08-14 and both survived two CS-857 commits, one of which edited the
+first file. The fence meant to stop recurrence is a comment above the exemption mapping
+forbidding any entry from saying the cause is unrendered; nothing enforces it, and its own
+wording scopes it to the entries below it.
+
+**DO NOT DELETE THIS CONJUNCT AND DO NOT RE-POINT IT.** It already points at something live.
+The repair is a sweep whose population matches the quantifier the clause already uses, and
+it MUST NOT be a search for the phrase - see `memory/a-guard-can-measure-spelling.md`, and
+note that this exact failure class is already owned by
+`docs/adr/0008-detection-claims-are-derived-never-written.md`, whose tier-3 correction
+records two sentences that shipped false and survived repeated careful reading.
+
+**THE FIRST CONJUNCT IS SEPARATELY UNMET AND THAT IS THE LARGER FACT.** The census reports
+shipped `measured-leak` sites under the graded layer on every run, in two `clockspeed/surface/`
+modules added AFTER the paragraph above was written - and that paragraph, which says in
+capitals that the live sites are owned by the guard rather than by itself, then hand-writes a
+module list that has not moved since. The derived half tracked the new layer; the written half
+did not. Treat the module list above as provenance, not as current truth.
+
+**A BY-PRODUCT DEFECT IS FILED AS CS-880** - the two exemption reasons session 44 corrected
+now misstate the raise form they describe.
+
 ## CS-858
 
 ### NOTE - filed 2026-08-28 (session 44) by the merger, from the CS-857 census
 
-The CS-857 derivation sweeps all 110 tracked Python files and finds nine chained-raise
-sites outside `clockspeed/`, in `scripts/install_hooks.py` and `tools/precommit_gate.py`.
-Both are FROZEN by `CLAUDE.md` section 6, so no CS-857 slice could touch them and none did.
-`tests/chained_cause_guard.py` derives them, classifies them and PRINTS them as
-out-of-scope-recorded on every run - that warning is one of exactly two the suite emits.
+The CS-857 derivation sweeps every tracked Python file and finds chained-raise sites in the
+two FROZEN files under `scripts/` and `tools/` that `CLAUDE.md` section 6 names. Both are
+frozen, so no CS-857 slice could touch them and none did. `tests/chained_cause_guard.py`
+derives them, classifies them and PRINTS them as out-of-scope-recorded on every run - that
+warning is one of exactly two the suite emits, and IT IS THE OWNER OF THE COUNT. Read the
+number off that warning; do not write one here.
+
+**CORRECTED 2026-09-01 (session 56). THE THREE FIGURES THAT STOOD HERE WERE RESTATED COUNTS
+AND ALL THREE HAD ROTTED.** The tracked-file total was exact on the day it was filed and was
+wrong four days later. The site total read as a count of everything outside the shipped
+layer, which it never was - it is the count in the two frozen files, and the population
+outside the shipped layer is several times larger. And the claim that those two files are
+where the out-of-shipped-layer sites live was already incomplete when written: a third,
+UNFROZEN file carried one then and carries two now, and a fourth was added the following day.
+That mechanism is CS-879 and the leak it hides is CS-878. This paragraph now names the owner
+instead of copying it, which is `CLAUDE.md` section 4's own remedy.
 
 **RECORDED IS NOT GRADED.** No arm asserts anything about their rendering. They are visible
 and ungraded, which is the honest state but not a closed one. The operator approved filing
@@ -853,6 +903,37 @@ this as its own item on 2026-08-28 rather than widening CS-857.
 recorded in `docs/LEDGER.md` BEFORE an edit, and no agent grants itself the exception. If
 the verdict is that these sites need no repair, the exemption still has to be stated
 somewhere a guard reads.
+
+### RULING - filed 2026-09-01 (session 56), operator asked for ONE answer binding CS-847, CS-860 and CS-807
+
+**THE COUNT-VERSUS-DERIVE TENSION IS A FALSE DILEMMA: NEITHER WORDING CAN FAIL.** Measured,
+not argued. A count on an item line is read by nothing - `tools/drift_guard.py` does not
+contain the word acceptance, and CS-807's "fifteen" was WRONG ON ARRIVAL, describing a table
+that held nineteen entries on the commit that wrote the number and holds nineteen now. A NAME
+on an item line is read only for existence - the citation guard's resolver stays GREEN when
+the binding it names is replaced by `pass` or rebound to `None`, and a `path:line` pointer is
+judged only for falling inside the file.
+
+**SO THE RULING IS: NO CENSUS COUNT ON AN ITEM LINE, AND NO CLAUSE IS REWRITTEN TO AVOID
+ONE.** The second half is the part with evidence behind it. SIX attempts to improve an
+acceptance clause by rewriting it have each lowered its bar - three on CS-854 last session,
+reverted byte-for-byte, and three this session across CS-847, CS-858 and CS-807. Every one
+was produced by an agent trying to strengthen the clause; every one was caught only by an
+agent that wrote none of it. A proposed name-anchoring rule was refuted on four grounds, the
+decisive one being that an emptiness test cannot see an ANCHOR-SIZED population, which
+satisfies every clause such a rule produces.
+
+**WHAT THIS ITEM NEEDS IS A TWO-SIDED ARM**, in the idiom this tree already uses: RED when a
+site is added, and GREEN on a tree that has none. That grades how a derivation RESPONDS TO
+CHANGE, which is the property a transcription fails and an output-shape check cannot see.
+The fail-closed precedent is `tools/drift_guard.py`'s work-item guard, which is the machine
+check for a different `CLAUDE.md` section 4 rule and treats any reduction of its own coverage
+as RED rather than quiet.
+
+**THIS ITEM'S OWN SCOPE IS NARROWER THAN THE SILENCE IT SITS IN.** CS-858 is scoped to the
+FROZEN files, and that scope is correct for what it owns. The sites in the UNFROZEN files
+under the same two directories are a different mechanism and are now CS-879, with the leak
+one of them carries filed as CS-878. Do not widen this item to absorb them.
 
 ## CS-859
 
@@ -1330,3 +1411,90 @@ spelling of the same property; a guard that learns `:func:` and stops has bought
 spelling, which is exactly the finding CS-864 records about the seam arms and CS-868 records
 about `_shared_tag_symbols`. Resolve the symbol against the module's own symbol table.
 
+
+## CS-878
+
+### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BEFORE FILING, from a CS-858 adversary
+
+**A `measured-leak` SITE THAT IS GRADED BY NOTHING AND REPORTED BY NOTHING.**
+`scripts/make_cert.py` re-raises a `PermissionError` on its last rename attempt. The
+census classifies it `measured-leak`, its strongest verdict. It appears in NEITHER
+warning the suite emits - not the graded-layer one, which is scoped to `clockspeed/`,
+and not the frozen record, which filters on the frozen list. See CS-879 for the
+mechanism that drops it.
+
+**THERE IS NO HANDLER BETWEEN THE RAISE AND THE INTERPRETER.** `_generate` wraps the
+call in `try/finally`, which does not swallow; `main` returns `_generate(...)` bare;
+the module entry is `raise SystemExit(main())`. The default excepthook renders both
+paths.
+
+**THE MODULE'S OWN DOCSTRING CLAIMS THIS CANNOT HAPPEN** - that every path the script
+prints, including one arriving inside an openssl diagnostic, goes through `redact()`
+first. `cert_dir` calls `.expanduser()` on both the flag and the environment variable,
+so the destination is operator-configurable to a home path by design.
+
+**IT HAS A GRADED TWIN ONE DIRECTORY OVER.** `clockspeed/save/workdir.py` carries the
+same name, the same Windows sharing-violation retry and the same re-raise shape, and
+that one IS graded, by `force_workdir_rename` in `tests/test_chained_cause.py`. The
+identical mechanism is ungraded here only because of the rationale CS-879 records.
+
+**WHAT IS NOT PROVEN.** The adversary forced the shipped function directly rather than
+driving a real run to a genuine sharing violation, and established the absence of an
+intervening handler by reading. Severity was measured with the project's own `redact`
+oracle, which is the design `tests/test_chained_cause.py` already uses.
+
+## CS-879
+
+### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BEFORE FILING
+
+**A WHOLE-DIRECTORY EXCLUSION CARRYING A RATIONALE TRUE OF HALF THE FILES IT EXCLUDES.**
+`tests/chained_cause_guard.py` states that everything outside the graded layer is
+derived and reported, naming `scripts/` and `tools/` as excluded because they are
+frozen. Two of the four files it excludes are not frozen: `scripts/make_cert.py` and
+`tools/edit_lint_check.py`. `CLAUDE.md` section 6 owns the frozen list and neither is
+on it.
+
+**THE SECOND HALF OF THAT SENTENCE IS FALSE OF THEM TOO.** Grading is a flat prefix
+test on the module path; the reporter filters on the frozen list. A site in an unfrozen
+`scripts/` or `tools/` file is therefore derived into NEITHER population - not graded
+and not reported. It is a silence, not a mislabel.
+
+**THE SUITE ALREADY CONTRADICTS THE COMMENT, TWO FILES AWAY.**
+`tests/test_chained_cause_census.py` asserts in a live arm that
+`tools/edit_lint_check.py` is not frozen, with the message that an unfrozen tool read as
+frozen is the fault. That arm passes. The module parses the real frozen list, proves
+with it that two of the four files are frozen, and then makes the grading decision on a
+prefix that has nothing to do with frozenness.
+
+**MEASURED CONSEQUENCE.** One of the three dropped sites is a `measured-leak` and is
+filed as CS-878. The two in `tools/edit_lint_check.py` are `unproven` and were measured
+harmless - both raise or re-raise `SystemExit`, which the default excepthook renders as
+zero bytes on stderr. The rationale does not license any of the three.
+
+**THE SIBLING MAKES THE SAME SCOPE CHOICE HONESTLY.** `tests/test_redaction_scope.py`
+records that it is scoped to the shipped layer and that the tool and script directories
+also call the redactor and are not graded there. It claims no frozenness. The chained-cause
+guard added a reason its sibling did not need.
+
+## CS-880
+
+### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BEFORE FILING, from a CS-857 adversary
+
+**A CORRECTION THAT SHIPPED A FRESH FALSE CLAIM INTO THE TEXT IT CORRECTED.** Session 44
+repaired two `EXEMPT` reasons in `tests/exception_message_guard.py` that had said the
+chained cause was never rendered. Both corrected reasons now assert, as part of the
+correction, that their sites `raise ... from exc`. Every one of them raises
+`from _pathless_cause(exc)` - the filename-free clone session 44 itself introduced.
+
+**THE ERROR RUNS IN THE CONSERVATIVE DIRECTION AND IS STILL AN ERROR.** Saying `from exc`
+overstates the leak: the clone carries errno and strerror and no filename, which is the
+whole point of the remedy. A reader auditing the exemption against the site finds the
+reason describing a mechanism the site does not use.
+
+**NO ARM CAN SEE IT.** The identifier-existence arm checks only tokens carrying an
+underscore, and `exc` carries none while `_pathless_cause` is not cited at all. The
+reason-length and key-existence arms do not read the claim.
+
+**THIS IS THE FAULT FAMILY, NOT AN INSTANCE OF IT.** A repair for a class of false
+privacy statements introduced a false mechanical statement while removing them. Record
+it against the family, not only against these two keys.
