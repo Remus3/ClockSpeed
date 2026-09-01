@@ -885,6 +885,12 @@ derives them, classifies them and PRINTS them as out-of-scope-recorded on every 
 warning is one of exactly two the suite emits, and IT IS THE OWNER OF THE COUNT. Read the
 number off that warning; do not write one here.
 
+**CORRECTED AGAIN 2026-09-01 (session 56), by CS-879.** The record is no longer frozen-only
+and its lines no longer carry a bare FROZEN label. It now spans two buckets, each named on
+its own line - the frozen files this item owns, and the census's own planted control modules
+- so the warning covers a wider population than this section describes. CS-858's own scope is
+unchanged: it owns the frozen half, and only that half.
+
 **CORRECTED 2026-09-01 (session 56). THE THREE FIGURES THAT STOOD HERE WERE RESTATED COUNTS
 AND ALL THREE HAD ROTTED.** The tracked-file total was exact on the day it was filed and was
 wrong four days later. The site total read as a count of everything outside the shipped
@@ -1412,70 +1418,6 @@ spelling, which is exactly the finding CS-864 records about the seam arms and CS
 about `_shared_tag_symbols`. Resolve the symbol against the module's own symbol table.
 
 
-## CS-878
-
-### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BEFORE FILING, from a CS-858 adversary
-
-**A `measured-leak` SITE THAT IS GRADED BY NOTHING AND REPORTED BY NOTHING.**
-`scripts/make_cert.py` re-raises a `PermissionError` on its last rename attempt. The
-census classifies it `measured-leak`, its strongest verdict. It appears in NEITHER
-warning the suite emits - not the graded-layer one, which is scoped to `clockspeed/`,
-and not the frozen record, which filters on the frozen list. See CS-879 for the
-mechanism that drops it.
-
-**THERE IS NO HANDLER BETWEEN THE RAISE AND THE INTERPRETER.** `_generate` wraps the
-call in `try/finally`, which does not swallow; `main` returns `_generate(...)` bare;
-the module entry is `raise SystemExit(main())`. The default excepthook renders both
-paths.
-
-**THE MODULE'S OWN DOCSTRING CLAIMS THIS CANNOT HAPPEN** - that every path the script
-prints, including one arriving inside an openssl diagnostic, goes through `redact()`
-first. `cert_dir` calls `.expanduser()` on both the flag and the environment variable,
-so the destination is operator-configurable to a home path by design.
-
-**IT HAS A GRADED TWIN ONE DIRECTORY OVER.** `clockspeed/save/workdir.py` carries the
-same name, the same Windows sharing-violation retry and the same re-raise shape, and
-that one IS graded, by `force_workdir_rename` in `tests/test_chained_cause.py`. The
-identical mechanism is ungraded here only because of the rationale CS-879 records.
-
-**WHAT IS NOT PROVEN.** The adversary forced the shipped function directly rather than
-driving a real run to a genuine sharing violation, and established the absence of an
-intervening handler by reading. Severity was measured with the project's own `redact`
-oracle, which is the design `tests/test_chained_cause.py` already uses.
-
-## CS-879
-
-### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BEFORE FILING
-
-**A WHOLE-DIRECTORY EXCLUSION CARRYING A RATIONALE TRUE OF HALF THE FILES IT EXCLUDES.**
-`tests/chained_cause_guard.py` states that everything outside the graded layer is
-derived and reported, naming `scripts/` and `tools/` as excluded because they are
-frozen. Two of the four files it excludes are not frozen: `scripts/make_cert.py` and
-`tools/edit_lint_check.py`. `CLAUDE.md` section 6 owns the frozen list and neither is
-on it.
-
-**THE SECOND HALF OF THAT SENTENCE IS FALSE OF THEM TOO.** Grading is a flat prefix
-test on the module path; the reporter filters on the frozen list. A site in an unfrozen
-`scripts/` or `tools/` file is therefore derived into NEITHER population - not graded
-and not reported. It is a silence, not a mislabel.
-
-**THE SUITE ALREADY CONTRADICTS THE COMMENT, TWO FILES AWAY.**
-`tests/test_chained_cause_census.py` asserts in a live arm that
-`tools/edit_lint_check.py` is not frozen, with the message that an unfrozen tool read as
-frozen is the fault. That arm passes. The module parses the real frozen list, proves
-with it that two of the four files are frozen, and then makes the grading decision on a
-prefix that has nothing to do with frozenness.
-
-**MEASURED CONSEQUENCE.** One of the three dropped sites is a `measured-leak` and is
-filed as CS-878. The two in `tools/edit_lint_check.py` are `unproven` and were measured
-harmless - both raise or re-raise `SystemExit`, which the default excepthook renders as
-zero bytes on stderr. The rationale does not license any of the three.
-
-**THE SIBLING MAKES THE SAME SCOPE CHOICE HONESTLY.** `tests/test_redaction_scope.py`
-records that it is scoped to the shipped layer and that the tool and script directories
-also call the redactor and are not graded there. It claims no frozenness. The chained-cause
-guard added a reason its sibling did not need.
-
 ## CS-880
 
 ### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BEFORE FILING, from a CS-857 adversary
@@ -1498,3 +1440,54 @@ reason-length and key-existence arms do not read the claim.
 **THIS IS THE FAULT FAMILY, NOT AN INSTANCE OF IT.** A repair for a class of false
 privacy statements introduced a false mechanical statement while removing them. Record
 it against the family, not only against these two keys.
+
+
+## CS-881
+
+### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BEFORE FILING
+
+**A SHAPE THE CENSUS CANNOT SEE, PROVEN BY PLANTING IT.** Three re-raise forms were planted
+through the guard's own `sites_in_tree`. A bound name raised inside its handler derives one
+site and classifies `measured-leak`. A bare re-raise inside the handler does the same. An
+exception stored in a local and raised AFTER the handler exits derives NOTHING - an empty
+population, which `memory/an-empty-population-satisfies-every-zero.md` records as
+indistinguishable from clean.
+
+**THE RENDERING IS IDENTICAL, WHICH IS WHY THE SILENCE MATTERS.** The stored object is the
+original, so its `str()` still appends `filename` and `filename2`. Nothing about the escape
+requires leaving the module or dropping a `from`.
+
+**IT IS LIVE IN THE ADVICE LAYER TODAY.** `clockspeed/save/workdir.py` raises a stored
+`OSError` after its retry loop ends. That one is CONTAINED - a caller wraps it in a
+filename-free clone - so this is a SILENCE, not a confirmed leak, and the distinction must
+survive into whatever grades it.
+
+**IT IS NOT CS-857's CHANNEL.** A stored raise sets neither `__cause__` nor `__context__`,
+so it is not a chained raise at all, which is exactly why the guard does not model it. The
+module enumerates eleven limits and names none of them this; its escape paragraph says the
+callee route of limit 8 is what an adversary would need, and that is now measured incomplete.
+
+## CS-882
+
+### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BEFORE FILING, from a CS-878 builder
+
+**TWO OUTCOMES SHARE AN EXIT CODE.** Running the script with an unrecognised flag exits 2.
+The module documents 2 as the openssl-failed code. A runbook branching on 2 cannot tell a
+generation failure from a typo. Measured directly, not read.
+
+**IT PREDATES CS-878 AND WAS DELIBERATELY LEFT.** The CS-878 builder found it while adding a
+fourth exit code and flagged it rather than widening its own slice. Changing it alters the
+script's public behaviour and belongs to whoever takes this item.
+
+## CS-883
+
+### NOTE - filed 2026-09-01 (session 56) by the merger, from the CS-879 builder's own residual
+
+**A ZERO WHOSE POPULATION STOPPED MATCHING ITS SIBLING'S.** The note census asserts its zero
+over the advice layer. CS-879 widened the chained-raise grading to cover the frozen-adjacent
+tool and script modules and the test-support modules, so the two censuses now measure
+different populations while sitting in the same file.
+
+**THE BUILDER DECLINED TO WIDEN IT AND SAID WHY.** Widening it silently was outside CS-879's
+acceptance, and a zero that quietly changes its own population is the fault CS-879 was filed
+against. It is recorded as a real gap rather than a stylistic one.

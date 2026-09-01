@@ -48,8 +48,15 @@ from tests import chained_cause_guard
 from tests.assertion_rendering_guard import REPO_ROOT
 from tests.chained_cause_guard import (
     ACTIVE_CAUSE,
+    ADVICE_LAYER,
     BARE_RAISE,
+    BUCKET_CONTROL,
+    BUCKET_FROZEN,
+    BUCKET_GRADED,
+    BUCKET_UNCLASSIFIED,
+    BUCKETS,
     CLOSED_SUPPRESSED,
+    CONTROL_MODULES,
     EXEMPT,
     EXEMPT_RECORDED,
     FORM_BARE,
@@ -57,12 +64,13 @@ from tests.chained_cause_guard import (
     FORM_IMPLICIT,
     FORM_SUPPRESSED,
     FORMS,
-    GRADED_LAYER,
     IMPLICIT_CAUSE,
     MEASURED_LEAK,
     NO_CAUSE,
     NOTE_ATTRIBUTE,
     NOTE_CALL,
+    RECORDED_BUCKETS,
+    SWEPT_ROOTS,
     TYPE_OSERROR,
     TYPE_RESOLVED_OTHER,
     TYPE_UNRESOLVED,
@@ -70,6 +78,7 @@ from tests.chained_cause_guard import (
     VERDICT_ORDER,
     ChainedCauseDerivationError,
     Site,
+    bucket_of,
     classify,
     frozen_from_text,
     frozen_paths,
@@ -115,8 +124,10 @@ _OWNED_FILES: Final = ("tests/chained_cause_guard.py", _THIS_MODULE)
 #: the letter d, and a letter is not a digit.
 _TRANSCRIBED_SITE: Final = re.compile(r"\.py:\d+")
 
-#: The planted module's path. Deliberately outside :data:`GRADED_LAYER`, so a
-#: planted arm can never be confused with a live finding.
+#: The planted module's path. Deliberately outside :data:`SWEPT_ROOTS`, so a
+#: planted arm can never be confused with a live finding. CS-879 turned that
+#: from a convention into an enforced fact: this path buckets
+#: :data:`BUCKET_UNCLASSIFIED`, which is what the sensitivity arm below reads.
 PLANTED_PATH: Final = "synthetic/planted_chains.py"
 
 
@@ -1138,7 +1149,7 @@ def test_the_live_population_is_derived_and_not_empty() -> None:
     sites = raise_sites()
     assert sites, "the live derivation found no chained raise at all"
     graded = [site for site in sites if site.is_graded]
-    assert graded, f"the sweep found {len(sites)} sites and none in {GRADED_LAYER}"
+    assert graded, f"the sweep found {len(sites)} sites and none graded"
 
 
 def test_every_site_key_is_distinct() -> None:
@@ -1159,7 +1170,7 @@ def _graded_sites() -> list[Site]:
     """The live sites this module grades.
 
     Returns:
-        Every site under :data:`GRADED_LAYER`, ordered.
+        Every site in :data:`BUCKET_GRADED`, ordered.
     """
     return [site for site in raise_sites() if site.is_graded]
 
@@ -1213,15 +1224,16 @@ def test_the_graded_leaks_are_reported_every_run() -> None:
     leaks = [site for site in graded if classify(site) == MEASURED_LEAK]
     if not leaks:
         warnings.warn(
-            f"CS-857 census: {len(graded)} graded chained raise(s) under "
-            f"{GRADED_LAYER}, none classified {MEASURED_LEAK} this run.",
+            f"CS-857 census: {len(graded)} chained raise(s) in the "
+            f"{BUCKET_GRADED} bucket, none classified {MEASURED_LEAK} this run.",
             stacklevel=1,
         )
         return
     body = "\n".join(f"  {site.key} line {site.lineno}" for site in leaks)
     warnings.warn(
-        f"CS-857 measured-leak, {len(leaks)} of {len(graded)} chained raise(s) under "
-        f"{GRADED_LAYER} render a builtin OSError's str() beside a redacted message:\n{body}",
+        f"CS-857 measured-leak, {len(leaks)} of {len(graded)} chained raise(s) in "
+        f"the {BUCKET_GRADED} bucket render a builtin OSError's str() beside a "
+        f"redacted message:\n{body}",
         stacklevel=1,
     )
 
@@ -1364,11 +1376,11 @@ def test_the_live_note_census_finds_this_modules_own_fixture() -> None:
 def test_no_shipped_module_attaches_a_note_to_an_exception() -> None:
     """THE ZERO, with its denominator and its detector both asserted.
 
-    Scoped to :data:`GRADED_LAYER`: this module's own fixture is a note site by
+    Scoped to :data:`ADVICE_LAYER`: this module's own fixture is a note site by
     design, and counting it would make the zero unreachable.
     """
     assert len(tracked_sources()) > 1, "the sweep read nothing, so the zero is vacuous"
-    shipped = [note for note in note_sites() if note.module.startswith(GRADED_LAYER)]
+    shipped = [note for note in note_sites() if note.module.startswith(ADVICE_LAYER)]
     assert shipped == [], (
         "a shipped module attaches a note to an exception, which renders in the "
         f"traceback and is invisible to a cause walk: {shipped}"
@@ -1379,7 +1391,7 @@ def test_the_live_sweep_finds_this_modules_own_chain_fixtures() -> None:
     """THE IMPLICIT FORM HAS A LIVE MEMBER, which the shipped tree does not.
 
     The tracked tree contains zero implicit-context sites under
-    :data:`GRADED_LAYER`, so that zero rests on the detector working. This arm
+    :data:`ADVICE_LAYER`, so that zero rests on the detector working. This arm
     is the live proof, alongside the planted one.
     """
     if _THIS_MODULE not in tracked_sources():
@@ -1467,13 +1479,21 @@ def test_a_frozen_path_is_matched_and_a_neighbour_is_not() -> None:
 
 
 def test_no_frozen_site_is_in_the_graded_layer() -> None:
-    """The two scopes cannot overlap, so nothing frozen is ever asked to change."""
+    """The two scopes cannot overlap, so nothing frozen is ever asked to change.
+
+    HELD BY CONSTRUCTION SINCE CS-879 and kept anyway. :func:`bucket_of` tests
+    frozenness in its first branch, so this can no longer fail against the
+    current implementation - it fails against a FUTURE one that reintroduces a
+    graded predicate deciding scope independently, which is the arrangement
+    that produced the CS-879 defect. Retained as the consistency check on the
+    derivation, not as a live measurement.
+    """
     for site in raise_sites():
         if is_frozen(site.module):
             assert not site.is_graded, f"{site.key} is both frozen and graded"
 
 
-def test_the_frozen_sites_are_recorded_and_reported_every_run() -> None:
+def test_the_out_of_scope_sites_are_recorded_and_reported_every_run() -> None:
     """DERIVED, CLASSIFIED, PRINTED. Never edited.
 
     ``CLAUDE.md`` section 6 routes a frozen-file edit through an adjudicator
@@ -1481,17 +1501,413 @@ def test_the_frozen_sites_are_recorded_and_reported_every_run() -> None:
     the frozen sites are surfaced as a warning on every run rather than being
     fixed or hidden. The record is asserted non-empty so the report cannot
     quietly become a report about nothing.
+
+    CS-879 WIDENED THE RECORD from the frozen sites to every site this module
+    declines to grade, each line naming the bucket that excluded it. Reporting
+    only the frozen half left this module's own fixtures in neither
+    population, which is the same defect CS-879 was opened for one bucket over.
     """
     record = out_of_scope_record(raise_sites())
     assert record, (
-        "the frozen record is empty; either the frozen files stopped chaining "
-        "raises or the derivation stopped reaching them"
+        "the out-of-scope record is empty; either nothing outside the graded "
+        "bucket chains a raise any more or the derivation stopped reaching it"
     )
     body = "\n".join(f"  {line}" for line in record)
     warnings.warn(
-        f"CS-857 out-of-scope-recorded, {len(record)} chained raise(s) in frozen "
-        f"files, NOT edited:\n{body}",
+        f"CS-857 out-of-scope-recorded, {len(record)} chained raise(s) this "
+        f"module does not grade, NOT edited:\n{body}",
         stacklevel=1,
+    )
+
+
+@pytest.mark.parametrize("bucket", RECORDED_BUCKETS, ids=list(RECORDED_BUCKETS))
+def test_each_recorded_bucket_has_a_line_of_its_own(bucket: str) -> None:
+    """ONE ARM PER RECORDED BUCKET, so neither half hides inside the other.
+
+    A single non-empty assertion over the pooled record is met by whichever
+    bucket happens to be populated while the other goes unmeasured, which is
+    ``memory/pooled-guard-hides-its-worst-member.md``. Each bucket asserts its
+    own denominator instead.
+    """
+    record = out_of_scope_record(raise_sites())
+    mine = [line for line in record if f" {bucket.upper()} " in line]
+    assert mine, (
+        f"the record carries {len(record)} line(s) and none for {bucket}, so "
+        f"that bucket's half of the report measured nothing"
+    )
+
+
+# ---------------------------------------------------------------------------
+# CS-879 - the taxonomy is EXHAUSTIVE, and its split is derived from the
+# frozen list rather than from a directory prefix.
+# ---------------------------------------------------------------------------
+
+
+def _homeless(sites: tuple[Site, ...]) -> list[str]:
+    """The sites in NEITHER population, rendered.
+
+    THE ONE CODE PATH BOTH DIRECTIONS OF THE ARM RUN. The live arm asserts
+    this returns nothing; the sensitivity arms assert it returns the synthetic
+    site they were handed. Two separately written checks could drift apart and
+    then agree by accident, which ``CLAUDE.md`` section 5 rules out as
+    evidence.
+
+    SHARING CUTS BOTH WAYS, AND CS-879 ROUND 2 MEASURED THE COST. One bug
+    here disables the enforcement AND the proof of it at the same time, so
+    the predicate below needs a probe for EACH of its two halves, not one
+    probe for the function. The bucket half is proven by
+    ``test_the_exhaustiveness_arms_redden_on_a_site_no_bucket_claims`` and
+    the record half by
+    ``test_a_bucketed_site_the_record_drops_is_reported_homeless``.
+
+    MATCHES THE RECORD LINE'S EXACT TAIL, NOT A SUBSTRING. A key that is a
+    strict prefix of another key would be found inside that other site's line
+    by an ``in`` test, and this arm would report a homeless site as recorded -
+    a false negative in the one check CS-879 ships.
+
+    Args:
+        sites: Any derived population, live or planted.
+
+    Returns:
+        One ``module:line qualname`` string per site that is neither graded
+        nor on the out-of-scope record, sorted.
+    """
+    recorded = out_of_scope_record(sites)
+    return sorted(
+        f"{site.module}:{site.lineno} {site.qualname}"
+        for site in sites
+        if not site.is_graded
+        and not any(line.endswith(f"{site.key} line {site.lineno}") for line in recorded)
+    )
+
+
+def _assert_site_is_bucketed(site: Site) -> None:
+    """Assert one site reaches a named bucket, and that the two seams agree.
+
+    SHARED BY THE LIVE ARM AND THE SENSITIVITY ARM for the same reason
+    :func:`_homeless` is.
+
+    Args:
+        site: The site to check.
+
+    Raises:
+        AssertionError: The module reaches no bucket in
+            :data:`chained_cause_guard.BUCKETS`, or the grading predicate and
+            the classifier disagree about it.
+    """
+    bucket = bucket_of(site.module)
+    assert bucket in BUCKETS, (
+        f"no bucket claims it: {site.module}:{site.lineno} {site.qualname} "
+        f"buckets {bucket!r}, which is not one of {list(BUCKETS)}. The census "
+        f"derived this site and then had nothing to say about it. Extend the "
+        f"taxonomy in tests/chained_cause_guard.py with a STATED reason "
+        f"rather than widening a catch-all."
+    )
+    assert site.is_graded is (bucket == BUCKET_GRADED), (
+        f"{site.key} buckets {bucket!r} but its is_graded property says "
+        f"{site.is_graded}, so the predicate and the classifier disagree"
+    )
+
+
+@pytest.mark.parametrize("site", raise_sites(), ids=lambda site: site.key)
+def test_every_derived_site_reaches_a_named_bucket(site: Site) -> None:
+    """CS-879. ONE ARM PER MEMBER, so no site hides behind a populous bucket.
+
+    ASSERTS MEMBERSHIP, NEVER A VERDICT. Which bucket a particular live file
+    lands in is not pinned: repairing, moving or deleting one must not redden
+    this arm, only leaving one unaccounted for may.
+    """
+    _assert_site_is_bucketed(site)
+
+
+def test_every_derived_site_is_either_graded_or_recorded() -> None:
+    """CS-879. NO SITE IS SWEPT UP AND THEN DROPPED ON THE FLOOR.
+
+    The derivation reads every tracked ``*.py`` in the repo, so a site it finds
+    and then classifies as neither graded nor recorded is a site the census
+    paid to derive and then said nothing about. Before CS-879 that was the
+    live state: the graded predicate was a flat ``clockspeed/`` prefix and the
+    record filtered on frozenness, so every site in a NON-FROZEN ``scripts/``
+    or ``tools/`` file, and every site in this module's own fixtures, was
+    graded by nothing and reported by nothing - while a comment in the guard
+    asserted the opposite of both halves. No count is quoted here on purpose:
+    a number in prose is a fact with no owner and it drifts.
+    """
+    sites = raise_sites()
+    assert sites, (
+        "the live derivation found no chained raise at all, so this arm "
+        "measured nothing - memory/an-empty-population-satisfies-every-zero.md"
+    )
+    homeless = _homeless(sites)
+    count = len(homeless)
+    assert count == 0, (
+        f"{count} derived site(s) are in neither population - not graded, not "
+        f"recorded, so nothing measures them and nothing reports them:\n"
+        + "\n".join(f"  {line}" for line in homeless)
+    )
+
+
+def test_the_exhaustiveness_arms_redden_on_a_site_no_bucket_claims() -> None:
+    """CS-879. THE SECOND DIRECTION. A ONE-SIDED ARM PROVES NOTHING.
+
+    Both arms above assert a ZERO over the live tree, and a zero is what a
+    broken detector returns too. This arm feeds the SAME two code paths a
+    synthetic site at a path outside :data:`SWEPT_ROOTS` and asserts each one
+    fires, so the green above rests on a detector measured to work rather than
+    on one measured to be silent -
+    ``memory/an-empty-population-satisfies-every-zero.md``.
+
+    COVERS ONE OF THE TWO ROUTES INTO HOMELESSNESS, AND ONLY ONE. For a site
+    outside :data:`SWEPT_ROOTS`, "unclassified" and "in neither population"
+    are the same predicate, so this arm cannot see a site that DOES reach a
+    bucket and is dropped from the record anyway. That route is
+    ``test_a_bucketed_site_the_record_drops_is_reported_homeless``, and
+    without it a one-line change to :func:`_homeless` measured green.
+
+    SYNTHETIC, NEVER A LIVE FINDING. The site is derived from an authored
+    source fragment through :func:`chained_cause_guard.sites_in_tree`, so
+    nothing in the tracked tree can repair this arm into passing vacuously.
+    """
+    assert not PLANTED_PATH.startswith(SWEPT_ROOTS), (
+        f"{PLANTED_PATH} is inside {list(SWEPT_ROOTS)}, so it now reaches a "
+        f"real bucket and this arm no longer plants the shape it claims to"
+    )
+    assert BUCKET_UNCLASSIFIED not in BUCKETS, (
+        "the sentinel was added to BUCKETS, so an unclassified module now "
+        "counts as classified and the whole check is vacuous"
+    )
+    derived = sites_in_tree({PLANTED_PATH: A3_WITH_CAUSE})
+    assert len(derived) == 1, f"the planted fragment derived {len(derived)} sites, expected 1"
+    unswept = derived[0]
+    assert bucket_of(unswept.module) == BUCKET_UNCLASSIFIED, (
+        f"{unswept.module} was expected to reach no bucket and reached "
+        f"{bucket_of(unswept.module)!r}"
+    )
+
+    with pytest.raises(AssertionError, match="no bucket claims it"):
+        _assert_site_is_bucketed(unswept)
+
+    assert not unswept.is_graded, "an unclassified site was graded"
+    assert out_of_scope_record((unswept,)) == (), (
+        "the record swallowed an unclassified site, so it is a catch-all and "
+        "the graded-or-recorded arm would pass on the shape it exists to fail"
+    )
+    assert _homeless((unswept,)) == [f"{unswept.module}:{unswept.lineno} {unswept.qualname}"], (
+        "the homeless check did not report a site that is in neither population"
+    )
+
+
+def test_the_two_populations_partition_the_taxonomy() -> None:
+    """CS-879. GRADED PLUS RECORDED IS EXACTLY THE SET OF NAMED BUCKETS.
+
+    Without this, ``graded or recorded`` could be exhaustive over the live
+    tree by luck - a third named bucket nothing currently populates would sit
+    outside both populations and no arm would notice until it filled up.
+    """
+    assert BUCKET_GRADED not in RECORDED_BUCKETS, "the graded bucket is also recorded"
+    assert BUCKET_UNCLASSIFIED not in RECORDED_BUCKETS, (
+        "the sentinel is recorded, so an unclassified site lands in a "
+        "population and the exhaustiveness arms stop biting"
+    )
+    assert {BUCKET_GRADED, *RECORDED_BUCKETS} == set(BUCKETS), (
+        f"the two populations cover {sorted({BUCKET_GRADED, *RECORDED_BUCKETS})} "
+        f"while the named buckets are {sorted(BUCKETS)}"
+    )
+
+
+def test_the_split_is_derived_from_the_frozen_list_and_not_from_a_directory() -> None:
+    """CS-879. TWO FILES IN ONE DIRECTORY, TWO BUCKETS.
+
+    The acceptance is that the graded and recorded populations are split by
+    the frozen list ``CLAUDE.md`` section 6 owns, not by a directory prefix.
+    That is proven here by taking each frozen path FROM THE PARSED LIST and
+    showing a same-directory neighbour takes a different bucket, so the only
+    thing separating them is frozenness.
+
+    NAMES NO LIVE UNFROZEN FILE. The neighbour is a probe path that does not
+    exist, so deleting, renaming or repairing any real file cannot redden this.
+    """
+    probed = 0
+    for pattern in frozen_paths():
+        if pattern.endswith("*") or "/" not in pattern:
+            continue
+        directory = pattern.rsplit("/", 1)[0] + "/"
+        if not directory.startswith(SWEPT_ROOTS):
+            continue
+        assert bucket_of(pattern) == BUCKET_FROZEN, (
+            f"{pattern} is on the parsed frozen list and buckets {bucket_of(pattern)!r}"
+        )
+        neighbour = f"{directory}cs879_unfrozen_probe.py"
+        expected = BUCKET_CONTROL if neighbour in CONTROL_MODULES else BUCKET_GRADED
+        assert bucket_of(neighbour) == expected, (
+            f"{neighbour} sits in the same directory as the frozen "
+            f"{pattern} and buckets {bucket_of(neighbour)!r}, expected "
+            f"{expected!r}; the split is reading the directory, not the "
+            f"frozen list"
+        )
+        probed += 1
+    assert probed, (
+        "no frozen path in the parsed list named a file inside a swept root, "
+        "so this arm compared nothing - "
+        "memory/an-empty-population-satisfies-every-zero.md"
+    )
+
+
+def _recorded_bucket_probe(bucket: str) -> str:
+    """A module path that reaches one named bucket in :data:`RECORDED_BUCKETS`.
+
+    DERIVED, NEVER HARDCODED. The frozen probe comes from the parsed frozen
+    list and the control probe from :data:`CONTROL_MODULES`, so renaming a
+    frozen file or a control module cannot leave this arm planting a shape it
+    no longer describes.
+
+    Args:
+        bucket: The bucket the returned path must reach.
+
+    Returns:
+        A repo-relative module path in that bucket.
+    """
+    if bucket == BUCKET_FROZEN:
+        frozen_py = [path for path in frozen_paths() if path.endswith(".py")]
+        assert frozen_py, "the parsed frozen list names no .py file to probe with"
+        return frozen_py[0]
+    assert bucket == BUCKET_CONTROL, f"no probe is defined for bucket {bucket!r}"
+    assert CONTROL_MODULES, "no control module is declared to probe with"
+    return CONTROL_MODULES[0]
+
+
+@pytest.mark.parametrize("bucket", RECORDED_BUCKETS, ids=list(RECORDED_BUCKETS))
+def test_a_bucketed_site_the_record_drops_is_reported_homeless(
+    bucket: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-879 ROUND 2, DEFECT 1. THE SECOND ROUTE INTO HOMELESSNESS.
+
+    THE FIRST SENSITIVITY ARM PROBED ONLY ONE ROUTE AND THAT WAS THE DEFECT.
+    It planted a site outside :data:`SWEPT_ROOTS`, where "unclassified" and "in
+    neither population" are the SAME predicate, so it never exercised the case
+    the graded-or-recorded clause is actually about: a site that DOES reach a
+    named bucket and that the record nonetheless omits. Measured on the
+    unrepaired module: replacing the record-membership half of
+    :func:`_homeless` with a bucket test, and dropping one module from the
+    record, put a real site in neither population with the suite still green.
+    One bug in the shared helper disabled both the enforcement and its proof.
+
+    THE ANSWER IS NOT TO UNSHARE THE HELPER - sharing is what stops the live
+    arm and its proof drifting apart - but to probe BOTH routes through it.
+
+    THE BEFORE/AFTER IS THE ISOLATION. With the real record the planted site
+    is NOT homeless; the only thing changed between the two assertions is the
+    record, so a green pair can only mean the record half is being read.
+    """
+    probe = _recorded_bucket_probe(bucket)
+    assert bucket_of(probe) == bucket, (
+        f"{probe} was chosen as the {bucket} probe and buckets "
+        f"{bucket_of(probe)!r}, so this arm plants the wrong shape"
+    )
+    derived = sites_in_tree({probe: A3_WITH_CAUSE})
+    assert len(derived) == 1, f"the planted fragment derived {len(derived)} sites, expected 1"
+    site = derived[0]
+    assert not site.is_graded, f"{probe} is in {bucket} and was graded"
+    assert _homeless(derived) == [], (
+        f"the real record already omits this {bucket} site, so stubbing the "
+        f"record below would prove nothing about the record half"
+    )
+
+    monkeypatch.setitem(globals(), "out_of_scope_record", lambda _sites: ())
+
+    assert _homeless(derived) == [f"{site.module}:{site.lineno} {site.qualname}"], (
+        f"a site in the {bucket} bucket that the record does not carry was not "
+        f"reported as being in neither population, so the record half of the "
+        f"homeless check is not being read"
+    )
+
+
+@pytest.mark.parametrize("module", CONTROL_MODULES, ids=list(CONTROL_MODULES))
+def test_each_declared_control_module_earns_its_exclusion(module: str) -> None:
+    """CS-879 ROUND 2, DEFECT 2. THE EXCLUSION MUST EARN ITSELF, PER MEMBER.
+
+    :data:`CONTROL_MODULES` is a hand-declared list, so without this arm it is
+    a free parameter: anything added to it silently stops being graded on a
+    stated reason that may be false of it. That is precisely what the previous
+    ``tests/`` prefix did to five modules.
+
+    THE REASON IS CHECKED, NOT ASSUMED. A planted control lives in a pytest
+    TEST module, because that is where this census's arms plant them, and it
+    must actually plant something - an excluded module that chains no raise is
+    an exclusion covering nothing.
+    """
+    if module not in tracked_sources():
+        pytest.skip(f"{module} is not in the git sweep; run git add -N first")
+    assert module.rsplit("/", 1)[-1].startswith("test_"), (
+        f"{module} is excluded from grading as a planted control but is not a "
+        f"test module; a control is planted BY an arm, so a non-test module "
+        f"here is real code being excused by a sentence written about fixtures"
+    )
+    planted = [site for site in raise_sites() if site.module == module]
+    assert planted, (
+        f"{module} is excluded from grading on the grounds that it plants "
+        f"chained raises as this census's positive controls, and it plants "
+        f"none, so the exclusion covers nothing"
+    )
+    assert bucket_of(module) == BUCKET_CONTROL, (
+        f"{module} is declared a control module and buckets {bucket_of(module)!r}"
+    )
+
+
+def test_every_advice_layer_module_is_graded() -> None:
+    """CS-879 ROUND 2, DEFECT 3. THE ADVICE PATH CANNOT BE RELABELLED AWAY.
+
+    The layer constants are hand-declared, and before this arm nothing stopped
+    one swallowing the shipped tree: extending the excluded list to cover
+    ``clockspeed/save/`` - the module ``CLAUDE.md`` non-negotiable 12 is
+    written about - dropped the save header parser out of grading and the
+    suite stayed green. A taxonomy is only safe to edit if the edit that
+    matters most reddens.
+
+    ASSERTED OVER MODULES, NOT SITES, so a shipped module that chains nothing
+    today is still covered the day it starts.
+    """
+    swept = tracked_sources()
+    assert len(swept) > 1, "the git sweep read nothing, so this arm measured nothing"
+    advice = sorted(module for module in swept if module.startswith(ADVICE_LAYER))
+    assert advice, (
+        f"the sweep found no module under {ADVICE_LAYER}, so this arm graded "
+        "nothing - memory/an-empty-population-satisfies-every-zero.md"
+    )
+    misfiled = sorted(
+        f"{module} -> {bucket_of(module)}"
+        for module in advice
+        if bucket_of(module) != BUCKET_GRADED
+    )
+    count = len(misfiled)
+    assert count == 0, (
+        f"{count} of {len(advice)} module(s) in the shipped advice path are no "
+        f"longer graded, so a taxonomy edit has excused the code this project "
+        f"exists to keep clean:\n" + "\n".join(f"  {line}" for line in misfiled)
+    )
+
+
+@pytest.mark.parametrize("root", SWEPT_ROOTS, ids=list(SWEPT_ROOTS))
+def test_every_declared_swept_root_holds_tracked_python(root: str) -> None:
+    """CS-879 ROUND 2, DEFECT 3. THE ADDITION DIRECTION OF :data:`SWEPT_ROOTS`.
+
+    The sentinel reddens on a root MISSING from the tuple. It says nothing
+    about a root ADDED to it, so adding ``shell/`` - the worked example in the
+    constant's own comment - passed silently while widening the domain to a
+    scope nobody had reviewed.
+
+    A ROOT THAT HOLDS NO TRACKED PYTHON IS A DOMAIN WIDENED FOR FREE. It
+    cannot be answering a real file, because there is no file; it can only be
+    pre-authorising whatever lands there later, which is the decision the
+    sentinel exists to force someone to make deliberately.
+    """
+    swept = tracked_sources()
+    assert len(swept) > 1, "the git sweep read nothing, so this arm measured nothing"
+    inhabitants = [module for module in swept if module.startswith(root)]
+    assert inhabitants, (
+        f"{root} is declared a swept root and holds no tracked Python, so it "
+        f"classifies nothing that exists and pre-authorises everything that "
+        f"arrives; remove it until a file needs it"
     )
 
 

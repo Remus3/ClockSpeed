@@ -25,6 +25,83 @@ Where current truth actually lives:
 
 ---
 
+## CS-878 - item section, closed and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-01
+
+### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BEFORE FILING, from a CS-858 adversary
+
+**A `measured-leak` SITE THAT IS GRADED BY NOTHING AND REPORTED BY NOTHING.**
+`scripts/make_cert.py` re-raises a `PermissionError` on its last rename attempt. The
+census classifies it `measured-leak`, its strongest verdict. It appears in NEITHER
+warning the suite emits - not the graded-layer one, which is scoped to `clockspeed/`,
+and not the frozen record, which filters on the frozen list. See CS-879 for the
+mechanism that drops it.
+
+**THERE IS NO HANDLER BETWEEN THE RAISE AND THE INTERPRETER.** `_generate` wraps the
+call in `try/finally`, which does not swallow; `main` returns `_generate(...)` bare;
+the module entry is `raise SystemExit(main())`. The default excepthook renders both
+paths.
+
+**THE MODULE'S OWN DOCSTRING CLAIMS THIS CANNOT HAPPEN** - that every path the script
+prints, including one arriving inside an openssl diagnostic, goes through `redact()`
+first. `cert_dir` calls `.expanduser()` on both the flag and the environment variable,
+so the destination is operator-configurable to a home path by design.
+
+**IT HAS A GRADED TWIN ONE DIRECTORY OVER.** `clockspeed/save/workdir.py` carries the
+same name, the same Windows sharing-violation retry and the same re-raise shape, and
+that one IS graded, by `force_workdir_rename` in `tests/test_chained_cause.py`. The
+identical mechanism is ungraded here only because of the rationale CS-879 records.
+
+**WHAT IS NOT PROVEN.** The adversary forced the shipped function directly rather than
+driving a real run to a genuine sharing violation, and established the absence of an
+intervening handler by reading. Severity was measured with the project's own `redact`
+oracle, which is the design `tests/test_chained_cause.py` already uses.
+
+## CS-879 - item section, closed and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-01
+
+### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BEFORE FILING
+
+**A WHOLE-DIRECTORY EXCLUSION CARRYING A RATIONALE TRUE OF HALF THE FILES IT EXCLUDES.**
+`tests/chained_cause_guard.py` states that everything outside the graded layer is
+derived and reported, naming `scripts/` and `tools/` as excluded because they are
+frozen. Two of the four files it excludes are not frozen: `scripts/make_cert.py` and
+`tools/edit_lint_check.py`. `CLAUDE.md` section 6 owns the frozen list and neither is
+on it.
+
+**THE SECOND HALF OF THAT SENTENCE IS FALSE OF THEM TOO.** Grading is a flat prefix
+test on the module path; the reporter filters on the frozen list. A site in an unfrozen
+`scripts/` or `tools/` file is therefore derived into NEITHER population - not graded
+and not reported. It is a silence, not a mislabel.
+
+**THE SUITE ALREADY CONTRADICTS THE COMMENT, TWO FILES AWAY.**
+`tests/test_chained_cause_census.py` asserts in a live arm that
+`tools/edit_lint_check.py` is not frozen, with the message that an unfrozen tool read as
+frozen is the fault. That arm passes. The module parses the real frozen list, proves
+with it that two of the four files are frozen, and then makes the grading decision on a
+prefix that has nothing to do with frozenness.
+
+**MEASURED CONSEQUENCE.** One of the three dropped sites is a `measured-leak` and is
+filed as CS-878. The two in `tools/edit_lint_check.py` are `unproven` and were measured
+harmless - both raise or re-raise `SystemExit`, which the default excepthook renders as
+zero bytes on stderr. The rationale does not license any of the three.
+
+**THE SIBLING MAKES THE SAME SCOPE CHOICE HONESTLY.** `tests/test_redaction_scope.py`
+records that it is scoped to the shipped layer and that the tool and script directories
+also call the redactor and are not graded there. It claims no frozenness. The chained-cause
+guard added a reason its sibling did not need.
+
+## ROADMAP header provenance - relocated from `ROADMAP.md` 2026-09-01 (session 56)
+
+Moved for budget under the `CLAUDE.md` section 4 relocate-do-not-delete rule; the live rules
+they trailed stay in `ROADMAP.md`. Both sentences recorded how that file came to its present
+shape and neither states a rule.
+
+- On a line pointing at the index rather than a leaf: relocated 2026-08-25, and an operator
+  ruling of 2026-08-23 that NOTE bodies are something `ROADMAP.md` never contains, recorded in
+  the `CLAUDE.md` section 4 and `CONVENTIONS.md` section 2 topology tables.
+- On why item sections are live instructions: they arrived from the NOTE bodies that used to
+  trail the item lines, and from live instruction blocks that had accumulated in this file,
+  whose own header says it holds nothing current.
+
 ## Session 53 wakeup note - relocated 2026-09-01 (session 56)
 
 

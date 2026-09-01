@@ -46,12 +46,23 @@ path is personal data under non-negotiable 3. Every path this script prints -
 including one arriving inside an openssl diagnostic - goes through redact()
 first. Key material is never printed on any path.
 
+A RAISE IS AN ECHO PATH TOO, WHICH IS WHAT CS-878 WAS. ``OSError.__str__``
+appends ``filename`` and ``filename2`` verbatim, so an OSError this module lets
+escape renders both absolute paths through the default excepthook - where no
+print() runs and therefore no redact() does either. The measured case was the
+rename retry re-raising the operating system's own error onto a destination the
+operator had pointed at a home directory. Two independent barriers close it:
+``_generate`` lets no OSError out, and ``_replace_with_retry`` raises a
+path-free clone regardless of who catches it. The guard grades what today's
+caller does; the clone grades what tomorrow's second caller gets.
+
 Exit codes, distinct so a runbook can branch on them:
 
     0  the pair was written
     1  openssl is not on PATH
     2  openssl was found and failed, timed out, or produced nothing
     3  a pair is already there and --force was not given
+    4  the pair could not be written into the destination
 
 Usage:
     python scripts/make_cert.py
@@ -121,6 +132,15 @@ EXIT_NO_OPENSSL = 1
 EXIT_OPENSSL_FAILED = 2
 EXIT_REFUSED = 3
 
+#: NAMED FOR THE OUTCOME RATHER THAN THE CAUSE, because the guard that returns
+#: it spans every filesystem step ``_generate`` takes - creating the
+#: destination, staging inside it, and moving the finished pair on. What they
+#: share is that the destination did not end up holding a usable pair, and that
+#: is what a runbook branching here needs to know. Before CS-878 this case
+#: escaped as a traceback and exited 1, which this module documents as "openssl
+#: is not on PATH" - so the one branch a runbook could take was the wrong one.
+EXIT_WRITE_FAILED = 4
+
 #: os.replace can lose to a virus scanner or an open handle on Windows. A few
 #: short retries turn a transient sharing violation into a completed rename.
 _RENAME_ATTEMPTS = 5
@@ -187,23 +207,109 @@ def cert_dir(explicit: str | None = None) -> Path:
     return _REPO_ROOT / DEFAULT_CERT_DIRNAME
 
 
+def _pathless_cause(exc: OSError) -> OSError:
+    """Clone an OSError without the two fields that carry the path.
+
+    THE SAME TWO-LINE IDIOM AS ``clockspeed/save/workdir.py::_pathless_cause``,
+    replicated rather than imported: a script reaching into a private helper of
+    the save layer is the seam violation CLAUDE.md section 2.1 names, and this
+    file already imports the one public thing it needs from ``data``. That
+    docstring carries the long form of the reasoning.
+
+    ``OSError.__str__`` appends ``filename`` and ``filename2`` verbatim, and
+    under this script those hold the operator's destination - a home directory
+    whenever ``--cert-dir`` or ``CLOCKSPEED_CERT_DIR`` points at one, which
+    ``cert_dir`` supports on purpose. Rebuilding from the two NAMED diagnostic
+    fields carries errno and strerror across and leaves both filename fields
+    unset, which closes that channel while keeping the reason the call failed.
+
+    ``str()`` is the rendering that matters, because that is the one the
+    traceback formatter uses. ``repr()`` would be a false clearance - it omits
+    filename even on the leaking original.
+
+    THE CALLER MUST RAISE THIS WITH ``from None``. Raising it inside an
+    ``except`` block sets ``__context__`` to the original, and the formatter
+    then renders that original in full underneath "During handling of the above
+    exception" - both paths intact, on an exception whose own filename fields
+    are empty. Measured before this was written, not anticipated.
+
+    The two-argument form is deliberate. Supplying ``winerror`` as a fourth
+    argument renders ``[WinError None]`` whenever the original carried none,
+    which is worse than the errno it would replace. The errno-based subclass
+    mapping still runs, so a PermissionError stays a PermissionError.
+
+    Args:
+        exc: The caught failure. ONLY ``errno`` and ``strerror`` are read.
+
+    Returns:
+        A new OSError of the same errno-mapped subclass, carrying no path.
+    """
+    return OSError(exc.errno, exc.strerror)
+
+
+def _failure_detail(exc: OSError) -> str:
+    """Render one OSError as an indented diagnostic line carrying no path.
+
+    ONE PLACE TO BE RIGHT. Interpolating the exception itself is precisely the
+    leak CS-878 closed, since ``str(exc)`` appends both filename fields, so the
+    rendering lives here rather than being hand-written at each site that
+    reports a failure.
+
+    ``strerror`` is redacted even though no platform puts a path in it today.
+    It is a string this module did not write, the promise in the module
+    docstring is unconditional, and redact() is idempotent and never raises -
+    so the check costs nothing and cannot be the part that rots.
+
+    Args:
+        exc: The failure being reported.
+
+    Returns:
+        The line to print, already indented under its headline.
+    """
+    reason = redact(exc.strerror) if exc.strerror else "no reason given"
+    return f"  {type(exc).__name__}, errno {exc.errno}: {reason}"
+
+
 def _replace_with_retry(source: Path, target: Path) -> None:
     """Move ``source`` onto ``target``, retrying a Windows sharing violation.
+
+    ONLY PermissionError IS RETRIED, and that is unchanged: a scanner or an
+    indexer can still hold a handle on a file closed moments ago, while every
+    other OSError is a real failure with nothing to wait for.
+
+    WHAT LEAVES THIS FUNCTION IS NEVER THE ORIGINAL (CS-878).
+    ``source.replace(target)`` raises an OSError whose ``str()`` appends both
+    absolute paths, and re-raising it put the operator's destination in front
+    of the default excepthook, where nothing redacts. Both exits now raise a
+    path-free clone, with ``from None`` so the original is not rendered as the
+    suppressed context either - see :func:`_pathless_cause`.
+
+    THE SECOND HANDLER IS NOT REDUNDANT. Only PermissionError reaches the retry
+    clause, so every other OSError used to walk straight out of this loop still
+    carrying both paths - and a sharing violation is a Windows spelling of a
+    problem other platforms report differently. UNMEASURED, AND SAID SO: the
+    machine that measured CS-878 runs Windows, where a rename onto an occupied
+    name raises PermissionError; that a POSIX kernel reports it as EISDIR
+    instead is read from the errno tables and has not been run here. The
+    handler is written to need no answer to that question.
 
     Args:
         source: The staged file.
         target: Where it belongs.
 
     Raises:
-        OSError: The rename kept failing.
+        OSError: The rename kept failing. It carries errno and strerror, and
+            no path by either channel.
     """
     for attempt in range(_RENAME_ATTEMPTS):
         try:
             source.replace(target)
-        except PermissionError:
+        except PermissionError as exc:
             if attempt == _RENAME_ATTEMPTS - 1:
-                raise
+                raise _pathless_cause(exc) from None
             time.sleep(_RENAME_PAUSE_SECONDS)
+        except OSError as exc:
+            raise _pathless_cause(exc) from None
         else:
             return
 
@@ -238,18 +344,29 @@ def _generate(openssl: str, cert_path: Path, key_path: Path) -> int:
     key beside a stale certificate. That is why either file existing is enough
     to refuse a later run.
 
+    NO OSError LEAVES THIS FUNCTION (CS-878). Every filesystem call it makes -
+    creating the destination, staging inside it, launching openssl, and the two
+    renames - raises an OSError carrying the path it could not use, and there
+    is no handler between here and the interpreter: ``main`` returns this call
+    bare and the module entry is ``raise SystemExit(main())``. One guard spans
+    the lot rather than three, because what they share is the only thing a
+    caller can act on - the destination does not hold a usable pair - and three
+    hand-written reports would be three chances to interpolate the exception.
+
     Args:
         openssl: The resolved executable.
         cert_path: Where the certificate belongs.
         key_path: Where the key belongs.
 
     Returns:
-        An exit code.
+        An exit code. EXIT_WRITE_FAILED for any filesystem refusal, already
+        reported on stdout with its errno and no path.
     """
     destination = cert_path.parent
-    destination.mkdir(parents=True, exist_ok=True)
-    staging = Path(tempfile.mkdtemp(prefix=".make_cert-", dir=str(destination)))
+    staging: Path | None = None
     try:
+        destination.mkdir(parents=True, exist_ok=True)
+        staging = Path(tempfile.mkdtemp(prefix=".make_cert-", dir=str(destination)))
         staged_cert = staging / cert_path.name
         staged_key = staging / key_path.name
         argv = cert_argv(staged_cert, staged_key, openssl)
@@ -279,8 +396,14 @@ def _generate(openssl: str, cert_path: Path, key_path: Path) -> int:
         _restrict(staged_key)
         _replace_with_retry(staged_key, key_path)
         _replace_with_retry(staged_cert, cert_path)
+    except OSError as exc:
+        print(f"the pair was not written into {redact(destination)}")
+        print(_failure_detail(exc))
+        print("The destination may hold half a pair; --force replaces whatever is there.")
+        return EXIT_WRITE_FAILED
     finally:
-        shutil.rmtree(staging, ignore_errors=True)
+        if staging is not None:
+            shutil.rmtree(staging, ignore_errors=True)
 
     print(f"wrote {redact(cert_path)}")
     print(f"wrote {redact(key_path)}")

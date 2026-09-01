@@ -453,13 +453,19 @@ def test_the_openssl_probe_is_bounded_by_a_timeout() -> None:
     assert make_cert.OPENSSL_TIMEOUT_SECONDS > 0
 
 
-def test_the_exit_codes_are_four_distinct_values() -> None:
-    """A runbook branches on these, so two that collide are one lost branch."""
+def test_the_exit_codes_are_five_distinct_values() -> None:
+    """A runbook branches on these, so two that collide are one lost branch.
+
+    EXIT_WRITE_FAILED joined them with CS-878. Before it, a pair openssl had
+    already produced and the filesystem then refused escaped as a traceback and
+    exited 1 - the code this module documents as "openssl is not on PATH".
+    """
     codes = [
         make_cert.EXIT_OK,
         make_cert.EXIT_NO_OPENSSL,
         make_cert.EXIT_OPENSSL_FAILED,
         make_cert.EXIT_REFUSED,
+        make_cert.EXIT_WRITE_FAILED,
     ]
 
     distinct = len(set(codes))
@@ -793,6 +799,366 @@ def test_no_printed_line_carries_key_material(
     assert code == make_cert.EXIT_OK
     assert len(interior) > 0, "the key had no body lines; this test is asserting about nothing"
     assert leaked == 0, f"{leaked} line(s) of private key material reached the console"
+
+
+# ---------------------------------------------------------------------------
+# The redaction promise under a forced filesystem failure
+# ---------------------------------------------------------------------------
+
+
+#: The needle every arm in this section hunts for, and a SYNTHETIC one. CLAUDE.md
+#: non-negotiable 3 forbids a real platform account id in a tracked file, so this
+#: digit run was invented here, belongs to no machine, and is therefore the one
+#: thing in these arms safe to name in an assertion message - which the real
+#: destination path underneath it is not.
+#:
+#: IT IS THE NEEDLE PRECISELY BECAUSE redact() REWRITES IT, and every arm proves
+#: that rewrite before drawing any conclusion from the needle's absence. A needle
+#: redact() does not touch is missing from a LEAKING rendering exactly as
+#: reliably as from a clean one, so an unproven needle turns this whole section
+#: green while measuring nothing. The rewrite comes from the digit-run backstop
+#: in clockspeed/data/locate.py, which is machine-independent - unlike the home
+#: prefix inside a tmp_path, which is only redactable on a runner whose
+#: temporary directory happens to sit below one.
+FORCED_SEGMENT = "10000000000000001"
+
+#: How long a forced run may take before it is called hung. Generous, because
+#: the two rename arms let openssl finish before the failure they force can
+#: happen at all, and bounded for the reason every other probe here is.
+FORCED_RUN_TIMEOUT_SECONDS = 120
+
+
+def _forced_run(cert_dir: Path) -> subprocess.CompletedProcess[str]:
+    """Run the script out of process against ``cert_dir``, with ``--force``.
+
+    A SUBPROCESS BECAUSE THE CLAIM IS ABOUT WHAT THE PROCESS RENDERS. The leak
+    these arms grade was written by the default excepthook, which sits above
+    main(), and an in-process call that returns an integer cannot observe it -
+    the same reason ``test_an_absent_openssl_exits_one_with_no_traceback`` runs
+    out of process.
+
+    ``--force`` is load-bearing rather than incidental. Each arm below puts
+    something in the destination to make the run fail, and main() refuses an
+    occupied destination before ``_generate`` is reached at all, so without the
+    flag these arms would grade the refusal instead of the failure.
+
+    Args:
+        cert_dir: The ``--cert-dir`` value. Neither it nor its parent has to
+            exist.
+
+    Returns:
+        The finished process, with stdout and stderr captured as text.
+    """
+    return subprocess.run(
+        [sys.executable, str(MAKE_CERT_SOURCE), "--cert-dir", str(cert_dir), "--force"],
+        shell=False,
+        capture_output=True,
+        text=True,
+        timeout=FORCED_RUN_TIMEOUT_SECONDS,
+        check=False,
+    )
+
+
+#: A one-shot program that drives the rename site and lets the failure reach
+#: the DEFAULT EXCEPTHOOK - the renderer CS-878 is actually about. Passed with
+#: ``-c`` so nothing is written to disk, and it loads the script by path exactly
+#: as :func:`_load_script` does.
+#:
+#: THE EXCEPTHOOK RATHER THAN ``traceback.format_exception``, and that is not a
+#: stylistic preference. Formatting a caught exception inside the test process
+#: renders an absolute path per frame and ends in ``str(exc)``, which is the
+#: channel tests/test_exception_rendering.py exists to keep out of this tree -
+#: an arm proving that nothing leaks must not leak in order to prove it. Letting
+#: a subprocess die is also the stronger evidence, because it measures the real
+#: renderer instead of a stand-in for it.
+SITE_DRIVER = (
+    "import importlib.util, sys\n"
+    "from pathlib import Path\n"
+    "spec = importlib.util.spec_from_file_location('cs878_site', sys.argv[1])\n"
+    "module = importlib.util.module_from_spec(spec)\n"
+    "spec.loader.exec_module(module)\n"
+    "module._replace_with_retry(Path(sys.argv[2]), Path(sys.argv[3]))\n"
+)
+
+
+def _forced_rename_pair(tmp_path: Path) -> tuple[Path, Path]:
+    """Stage a file, and a destination the rename cannot possibly succeed onto.
+
+    The destination NAME is pre-created as a directory, which is the shape
+    ``tests/test_chained_cause.py::force_workdir_rename`` uses against the
+    graded twin. Nothing is patched; the operating system supplies the error.
+
+    Args:
+        tmp_path: The per-test temporary root.
+
+    Returns:
+        The staged source, and the occupied destination.
+    """
+    staged = tmp_path / FORCED_SEGMENT / "staged.pem"
+    staged.parent.mkdir()
+    staged.write_bytes(b"")
+    final = tmp_path / FORCED_SEGMENT / make_cert.KEY_NAME
+    final.mkdir()
+    return staged, final
+
+
+def _redaction_control() -> tuple[bool, str]:
+    """Prove redact() rewrites :data:`FORCED_SEGMENT`, using the script's OWN oracle.
+
+    THE SCRIPT'S OWN BOUND ``redact``, not a fresh import of it, so the oracle
+    that grades a rendering cannot drift from the one the subject renders with.
+    scripts/make_cert.py binds it at module scope and every line it prints goes
+    through that object.
+
+    Returns:
+        Whether the needle is rewritten, and what it is rewritten to. The
+        rewritten form is a placeholder rather than a path, so an assertion
+        message may render it.
+    """
+    rewritten = make_cert.redact(FORCED_SEGMENT)
+    return rewritten != FORCED_SEGMENT and FORCED_SEGMENT not in rewritten, rewritten
+
+
+def test_a_rename_that_cannot_succeed_renders_no_unredacted_path(tmp_path: Path) -> None:
+    """CS-878. The rename site's failure reaches the operator carrying no path.
+
+    NOTHING IS PATCHED. The key's FINAL NAME is pre-created as a DIRECTORY, so
+    the staged key cannot be renamed onto it and the operating system supplies
+    the error itself. That is the shape
+    ``tests/test_chained_cause.py::force_workdir_rename`` uses against the
+    graded twin in clockspeed/save/workdir.py, which carries the same function
+    name and the same sharing-violation retry.
+
+    WHY A PATH IS THERE TO LEAK AT ALL. ``cert_dir`` calls ``.expanduser()`` on
+    both the flag and ``CLOCKSPEED_CERT_DIR``, so the destination is
+    operator-configurable to a home directory BY DESIGN, and a home path is
+    personal data under non-negotiable 3.
+
+    TWO CONTROLS EARN THE CONCLUSION. The needle is proven redactable, because
+    one redact() ignores is absent from a leaking rendering too. And the run is
+    proven to have FAILED, because a run that quietly succeeded renders no path
+    for a reason that has nothing to do with redaction.
+
+    NOTHING CAPTURED IS EVER RENDERED. The streams carry the real tmp_path -
+    a home directory and an account name - so each assertion binds a boolean
+    first and its message names only the synthetic needle.
+
+    THIS ARM ALONE PROVES NEITHER BARRIER, AND THAT IS MEASURED RATHER THAN
+    SUSPECTED. The repair installed two - the path-free clone raised at the
+    rename site, and the catch-all that lets no OSError out of ``_generate`` -
+    and reverting either ONE while leaving the other intact leaves this arm
+    green. With only the clone, the escaping traceback carries no destination;
+    with only the catch-all, the printed report carries only redacted fields.
+    Either barrier satisfies the property this arm states, which is correct for
+    an acceptance arm and useless as a grade of a mechanism.
+
+    SO THE BARRIER-SPECIFIC GRADES LIVE IN THE OTHER THREE, and deleting any of
+    them leaves a barrier measured by nothing while this arm keeps passing.
+    ``test_the_rename_site_renders_no_path_through_the_default_excepthook``
+    and ``test_the_rename_site_keeps_the_reason_and_carries_no_filename`` are
+    the arms that redden when the clone is reverted;
+    ``test_a_destination_that_cannot_be_prepared_renders_no_unredacted_path``
+    and ``test_a_rename_that_cannot_succeed_exits_with_the_documented_code``
+    are the two that redden when the catch-all is.
+    """
+    destination = tmp_path / FORCED_SEGMENT
+    destination.mkdir()
+    (destination / make_cert.KEY_NAME).mkdir()
+
+    redactable, rewritten = _redaction_control()
+    done = _forced_run(destination)
+    leaked = FORCED_SEGMENT in (done.stdout + done.stderr)
+    reported_success = done.returncode == make_cert.EXIT_OK
+
+    assert redactable, (
+        f"redact() left {FORCED_SEGMENT} unchanged, so its absence below would "
+        "be evidence of nothing"
+    )
+    assert not reported_success, (
+        "the staged key was renamed onto a directory, so the failure this arm "
+        "forces never happened and nothing here was measured"
+    )
+    assert not leaked, (
+        f"the run rendered {FORCED_SEGMENT}, which redact() rewrites to "
+        f"{rewritten}; an operator whose destination sits under a home "
+        "directory has that path in the output"
+    )
+
+
+def test_a_destination_that_cannot_be_prepared_renders_no_unredacted_path(
+    tmp_path: Path,
+) -> None:
+    """The same promise at the sibling site that prepares the destination.
+
+    ``_generate`` calls ``mkdir`` and then ``mkdtemp`` before openssl is ever
+    launched, and both raise an OSError carrying the path they could not use. A
+    FILE is placed where the destination's parent has to be, so
+    ``mkdir(parents=True)`` fails on the operating system's own answer with
+    nothing patched.
+
+    SAME ROOT CAUSE AS THE RENAME ARM, DIFFERENT CALL - an OSError leaving
+    ``_generate`` with its filename fields intact. It is graded separately
+    rather than assumed covered, because a repair aimed only at the rename
+    would leave this one exactly as it was.
+    """
+    blocker = tmp_path / FORCED_SEGMENT
+    blocker.write_bytes(b"")
+
+    redactable, rewritten = _redaction_control()
+    done = _forced_run(blocker / "certs")
+    leaked = FORCED_SEGMENT in (done.stdout + done.stderr)
+    reported_success = done.returncode == make_cert.EXIT_OK
+
+    assert redactable, (
+        f"redact() left {FORCED_SEGMENT} unchanged, so its absence below would "
+        "be evidence of nothing"
+    )
+    assert not reported_success, (
+        "a destination was created underneath a plain file, so the failure this "
+        "arm forces never happened and nothing here was measured"
+    )
+    assert not leaked, (
+        f"the run rendered {FORCED_SEGMENT}, which redact() rewrites to "
+        f"{rewritten}; the destination the run could not prepare is in the output"
+    )
+
+
+def test_the_rename_site_renders_no_path_through_the_default_excepthook(
+    tmp_path: Path,
+) -> None:
+    """The site CS-878 names, rendered by the excepthook that leaked in the first place.
+
+    WHAT IS RENDERED IS THE SUBJECT, NOT THE filename FIELDS, and that
+    distinction is the whole of this arm. An implementation that clears
+    ``filename`` and ``filename2`` but raises inside the ``except`` block
+    WITHOUT suppressing the context still renders the original underneath
+    "During handling of the above exception", both paths intact - measured
+    before this arm was written rather than anticipated. The sibling arm below,
+    which reads the filename fields, cannot see that channel at all; this one
+    can, because it reads what a real interpreter really printed.
+
+    THE SITE IS DRIVEN DIRECTLY, IN A SUBPROCESS. ``main`` is guarded, so
+    reaching the site through it would grade the guard rather than the site -
+    and the site is what a second caller, added later, would reach.
+
+    NOTHING CAPTURED IS RENDERED. The captured streams carry the real tmp_path,
+    so every assertion binds a boolean first and its message names only the
+    synthetic needle and a function name.
+    """
+    staged, final = _forced_rename_pair(tmp_path)
+    redactable, rewritten = _redaction_control()
+
+    done = subprocess.run(
+        [sys.executable, "-c", SITE_DRIVER, str(MAKE_CERT_SOURCE), str(staged), str(final)],
+        shell=False,
+        capture_output=True,
+        text=True,
+        timeout=FORCED_RUN_TIMEOUT_SECONDS,
+        check=False,
+    )
+    survived = done.returncode == 0
+    site_named = "_replace_with_retry" in done.stderr
+    leaked = FORCED_SEGMENT in (done.stdout + done.stderr)
+
+    assert redactable, (
+        f"redact() left {FORCED_SEGMENT} unchanged, so its absence below would "
+        "be evidence of nothing"
+    )
+    assert not survived, (
+        "the staged file was renamed onto a directory, so the site under test "
+        "never raised and nothing here was measured"
+    )
+    assert site_named, (
+        "the driver died somewhere other than _replace_with_retry, so the "
+        "absence of the needle below says nothing about the site"
+    )
+    assert not leaked, (
+        f"the default excepthook rendered {FORCED_SEGMENT}, which redact() "
+        f"rewrites to {rewritten}; the rename site still hands a path to the "
+        "renderer above it"
+    )
+
+
+def test_the_rename_site_keeps_the_reason_and_carries_no_filename(tmp_path: Path) -> None:
+    """The other half of the site's contract - the diagnostic it must not drop.
+
+    ERRNO AND STRERROR ARE ASSERTED PRESENT. A site that closed the leak by
+    dropping the reason would pass every rendering arm while costing the
+    operator the only diagnostic there is; why the rename failed is what says
+    whether a handle was held open or the destination is not writable at all.
+
+    THE FIELDS ARE REDUCED TO SCALARS INSIDE THE HANDLER, which is a rule here
+    rather than a preference. pytest rewrites an assertion to render the
+    asserted EXPRESSION independently of its message, so asserting on a name
+    that still holds the exception prints the exception - filenames included -
+    and tests/test_handler_exception_rendering.py sweeps the whole tree for
+    exactly that shape. Nothing below the handler holds the exception itself.
+
+    THIS ARM CANNOT SEE THE CONTEXT CHANNEL. Empty filename fields are not proof
+    that the rendering is clean, which is precisely why the excepthook arm above
+    exists beside it. Neither arm is sufficient alone.
+    """
+    staged, final = _forced_rename_pair(tmp_path)
+
+    raised = False
+    errno_kept: int | None = None
+    strerror_kept = ""
+    filename_kept = False
+    try:
+        make_cert._replace_with_retry(staged, final)  # noqa: SLF001 - the site under test
+    except OSError as exc:
+        raised = True
+        errno_kept = exc.errno
+        strerror_kept = exc.strerror or ""
+        filename_kept = exc.filename is not None or exc.filename2 is not None
+
+    has_errno = errno_kept is not None
+    has_strerror = bool(strerror_kept)
+
+    assert raised, (
+        "the staged file was renamed onto a directory, so the site under test "
+        "never raised and nothing here was measured"
+    )
+    assert has_errno, "the failure reached the caller with no errno; the reason was dropped"
+    assert has_strerror, "the failure reached the caller with no strerror; the reason was dropped"
+    assert not filename_kept, (
+        "the failure reached the caller with a filename field set, and "
+        "OSError.__str__ appends that field verbatim to every rendering of it"
+    )
+
+
+def test_a_rename_that_cannot_succeed_exits_with_the_documented_code(tmp_path: Path) -> None:
+    """A filesystem failure is reported the way every other failure here is.
+
+    Before CS-878 this path exited 1 by escaping to the default excepthook, and
+    1 is the code the module docstring gives to "openssl is not on PATH" - so a
+    runbook branching on it read a rename failure as a missing tool. A pair
+    openssl produced and the filesystem would not accept is neither a missing
+    tool nor a failed one, so it gets its own code instead of borrowing one
+    that already means something else.
+
+    THE DIAGNOSTIC HAS TO SURVIVE, which is the other half of the repair. A
+    silent exit code would satisfy the redaction promise and tell the operator
+    nothing, so the errno is asserted present in what the run printed.
+    """
+    destination = tmp_path / FORCED_SEGMENT
+    destination.mkdir()
+    (destination / make_cert.KEY_NAME).mkdir()
+
+    done = _forced_run(destination)
+    combined = done.stdout + done.stderr
+    traceback_printed = "Traceback" in combined
+    errno_reported = "errno" in combined
+
+    assert done.returncode == make_cert.EXIT_WRITE_FAILED, (
+        f"a rename that could not succeed exited {done.returncode}, and the "
+        f"documented code for it is {make_cert.EXIT_WRITE_FAILED}"
+    )
+    assert not traceback_printed, (
+        "a filesystem failure produced a traceback instead of a message, which "
+        "is the channel CS-878 closed"
+    )
+    assert errno_reported, "the failure was reported without the errno that explains it"
 
 
 # ---------------------------------------------------------------------------

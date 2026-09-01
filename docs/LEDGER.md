@@ -75,6 +75,84 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-01 - CS-878 - CLOSED. The certificate script's rename failure no longer renders either absolute path, and the arm proving it measures the real excepthook rather than a stand-in
+`scripts/make_cert.py` re-raised the operating system's own `PermissionError` on its last
+retry, with no handler between it and the interpreter, so `OSError.__str__` put both absolute
+paths in front of the default excepthook - where no print runs and therefore no redaction
+does. The destination is operator-configurable to a home directory by design, which the
+module's own docstring already called personal data.
+
+VERIFIED INDEPENDENTLY OF THE BUILDER, with a positive control in the same harness: at
+3dc8beb the forced failure renders the path; after the repair it does not; and in both trees
+a raw un-wrapped rename still renders it, so the negative is trustworthy. A first probe of
+mine produced a FALSE NEGATIVE by comparing against a temp path spelled differently from the
+one the error carries - the control is what caught it, and that is the second time this
+session a control turned a would-be finding around.
+
+THE REPAIR IS WIDER THAN THE CLAUSE AND THAT IS RECORDED RATHER THAN HIDDEN. The acceptance
+names one site. `_generate` also creates the destination and stages inside it, and those
+raise OSErrors carrying the same path with nothing above them, so the repair installs two
+barriers - a path-free clone at the raise, and a catch-all returning a new documented exit
+code. The clause was not rewritten to match what was built; per the CS-858 ruling filed the
+same day, a clause is not edited to fit its repair.
+
+MEASURED, NOT ANTICIPATED: raising the clone inside the handler sets `__context__`, and the
+formatter then prints the original underneath - both paths intact, on an exception whose own
+filename fields are empty. It needs `from None`. A separate control drops only the `from
+None` and reddens the excepthook arm while the field-reading arm stays green, which is why
+both arms exist.
+
+BARRIER ISOLATION WAS RUN BECAUSE POOLED EVIDENCE HIDES ITS WEAKEST MEMBER. Each barrier has
+at least one arm that reddens when only that barrier is reverted. The headline acceptance arm
+is green under BOTH isolations, so it proves neither mechanism - that is recorded in its own
+docstring, naming the three arms that carry the barrier-specific grades.
+
+THE FIRST VERSION OF THIS REPAIR SHIPPED TWO NEW RENDERING CHANNELS IN ITS OWN TEST - a
+caught exception read inside an assert, where pytest's rewriting prints the expression, and an
+unconditional `traceback.format_exception`. Two tree-wide guards caught it at the merge, not a
+reviewer. The arm was rewritten to read the real excepthook through a subprocess instead, and
+no guard was touched and no exemption added. The merger's instruction to skip the full suite
+on that slice is what let it reach the merge.
+
+Arms: `tests/test_make_cert.py` - four CS-878 arms plus the exit-code distinctness arm, all
+five RED against the pre-repair source with 32 pre-existing arms green. Residue filed as
+CS-882.
+
+### 2026-09-01 - CS-879 - CLOSED. Every derived chained-raise site now reaches a named bucket, the frozen split is read from the list `CLAUDE.md` owns, and the arm proving it was defeated once and repaired
+The census graded by a flat module prefix while stating in writing that it excluded
+`scripts/` and `tools/` because they are frozen - true of two of the four files it excluded -
+and its reporter then filtered on the frozen list, so sites in the unfrozen two were derived
+into neither population. The sweep found the silence was wider than filed: the test-support
+sites were homeless too, 25 in total rather than 3.
+
+ONE CLASSIFIER NOW OWNS THE SPLIT. Both the graded predicate and the record derive from it,
+so the grading seam and the reporting seam can no longer disagree about a site. A catch-all
+final branch was refused deliberately - it is exhaustive by construction and therefore
+unfalsifiable - so a module under an undeclared root reaches a sentinel that belongs to no
+population and reddens.
+
+MEASURED ON THE MERGED TREE: 60 sites, 36 graded, 24 recorded, zero overlap and zero orphans,
+verified by the merger recomputing the partition from the raw site list rather than from the
+arm. Graded coverage rose from 25.
+
+ITS FIRST VERSION WAS REFUTED BY AN ADVERSARY THAT WROTE NONE OF IT, ON THREE COUNTS, ALL
+REPAIRED. The sensitivity arm had a single probe of the wrong shape - a site outside the swept
+roots, where "unclassified" and "in neither population" are the same predicate - so one line
+in the helper it shares put a real site in neither population with the suite green. It now
+carries a second probe, per recorded bucket, that drops a bucketed site from the record and
+asserts it is reported. The excluded bucket's stated reason was false of five of its seven
+modules, a worse ratio than the two-of-four this item was filed against; the bucket is now an
+exact module tuple, not a prefix, with a per-member arm requiring each declared member to be a
+test module that actually plants a site. And the layer prefixes were unguarded free
+parameters - relabelling `clockspeed/save/` as fixtures passed silently, dropping the header
+parser from grading - so an arm now asserts every advice-layer module is graded, over modules
+rather than sites, and another rejects a declared root holding no tracked Python.
+
+Eight mutations, eight caught, no survivors, including all three of the adversary's. Arms:
+`tests/test_chained_cause_census.py`. Residue filed as CS-881 and CS-883; the doc this
+widened is corrected in the CS-858 section of the leaf.
+
+
 ### 2026-09-01 - CS-857 - RULING RECORD. NOT A COMPLETION RECORD. NOTHING CLOSED. CS-857 STAYS OPEN
 The operator asked for a ruling on the acceptance conjunct requiring every exemption reason
 calling the cause "deliberately never rendered" to be corrected, on the stated grounds that

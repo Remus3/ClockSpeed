@@ -288,11 +288,99 @@ ACTIVE_CAUSE: Final = "<active>"
 BARE_RAISE: Final = "<bare>"
 MODULE_SCOPE: Final = "<module>"
 
-#: The layer this module GRADES. Everything else in the sweep is derived and
-#: reported, never graded - ``scripts/`` and ``tools/`` because they are frozen
-#: (``CLAUDE.md`` section 6), ``tests/`` because a guard's own fixtures are not
-#: the shipped advice path.
-GRADED_LAYER: Final = "clockspeed/"
+#: The shipped advice path, named for WHAT IT IS rather than for what this
+#: module grades. IT IS NOT THE GRADED POPULATION and must not be used as one:
+#: the graded population is decided by :func:`bucket_of` and is wider than this
+#: prefix. Kept because the ``__notes__`` zero is legitimately scoped to the
+#: advice path, which is the only claim this constant carries.
+#:
+#: IT WAS THE GRADED POPULATION UNTIL CS-879, AND THAT WAS THE DEFECT. A flat
+#: prefix test made the split a statement about a directory name, so three
+#: sites in non-frozen ``scripts/`` and ``tools/`` files were graded by nothing
+#: and reported by nothing while a comment here asserted they were both.
+ADVICE_LAYER: Final = "clockspeed/"
+
+#: The modules whose chained raises are THIS CENSUS'S OWN PLANTED CONTROLS.
+#: They are excluded from grading because their raises exist to prove the
+#: detector fires on the live git sweep and not only on a string; grading
+#: them would grade the instrument by its own readings.
+#:
+#: AN EXACT LIST, NOT A DIRECTORY PREFIX, AND CS-879 ROUND 2 IS WHY. This
+#: was ``tests/``, which swept in five modules that plant nothing: the
+#: census's own production logic, two synthetic-save builders and two other
+#: guards. The stated reason was false of five of the seven modules it
+#: excluded - a worse ratio than the false comment CS-879 was opened
+#: against - and the seven sites it wrongly covered were real repairable
+#: code excused by a sentence about fixtures. A prefix cannot tell a
+#: planted control from a neighbour that merely shares its directory; an
+#: exact list can, and adding to it is a deliberate act that
+#: ``tests/test_chained_cause_census.py`` grades on both directions.
+CONTROL_MODULES: Final = (
+    "tests/test_chained_cause.py",
+    "tests/test_chained_cause_census.py",
+)
+
+#: The roots this taxonomy has actually reasoned about. NOT a restatement of
+#: the module map ``CLAUDE.md`` section 2.1 owns - it is this module's own
+#: declaration of the domain over which its buckets carry a stated reason.
+#:
+#: THIS IS WHAT MAKES EXHAUSTIVENESS CHECKABLE RATHER THAN VACUOUS. A taxonomy
+#: whose last branch is a catch-all is exhaustive by construction and therefore
+#: proves nothing: a Python file appearing under a fifth root - ``shell/``,
+#: say, which ``CLAUDE.md`` section 2.1 describes as Node - would be swept up
+#: and silently graded although nobody had decided it should be. Naming the
+#: domain turns that into a red arm and a decision.
+#:
+#: THE SENTINEL GUARDS THE OMISSION DIRECTION ONLY, and saying otherwise was
+#: a CS-879 round 2 finding. A root MISSING from this tuple reddens, because
+#: its files reach no bucket. A root ADDED to it does not, because widening
+#: the domain is exactly the deliberate act this constant exists to record.
+#: The addition direction is graded separately, by the arm asserting every
+#: root declared here actually holds tracked Python: a root with nothing in
+#: it is a domain widened for free, which is the shape that lets an
+#: unreviewed scope in without a decision.
+SWEPT_ROOTS: Final = ("clockspeed/", "scripts/", "tests/", "tools/")
+
+#: Bucket 1. Code an agent may repair today whose raises are not this
+#: census's own planted controls, so a verdict on it is ACTIONABLE. NOT
+#: ``shipped``: that word was accurate while the bucket held only
+#: ``clockspeed/``, and CS-879 round 2 widened it to test-support modules
+#: that ship to nobody and are repairable all the same. What the bucket is
+#: actually about is whether a verdict can be acted on. Everything a chained
+#: raise can leak - a home path, an account id, a world name - leaks the
+#: same way out of a tool or a guard as out of the advice path, and
+#: ``CLAUDE.md`` non-negotiables 3, 11 and 12 are repo-wide rather than
+#: scoped to ``clockspeed/``.
+BUCKET_GRADED: Final = "graded"
+
+#: Bucket 2. Shipped code an agent may NOT repair without an adjudicator grant
+#: recorded in ``docs/LEDGER.md`` (``CLAUDE.md`` section 6). Derived and
+#: reported on every run so the sites stay visible; never graded, because a
+#: graded verdict is a request to edit and this module may not make one.
+BUCKET_FROZEN: Final = "frozen-recorded"
+
+#: Bucket 3. This census's own planted controls - see :data:`CONTROL_MODULES`.
+#: Recorded rather than dropped, so the census accounts for every site it
+#: derived.
+BUCKET_CONTROL: Final = "control-excluded"
+
+#: The buckets that carry a stated reason. A module reaching NONE of them is
+#: :data:`BUCKET_UNCLASSIFIED`, which is deliberately absent from this tuple so
+#: that ``bucket_of(module) in BUCKETS`` is a real question with a reachable
+#: negative answer.
+BUCKETS: Final = (BUCKET_GRADED, BUCKET_FROZEN, BUCKET_CONTROL)
+
+#: The buckets :func:`out_of_scope_record` renders. DELIBERATELY NOT "every
+#: bucket that is not graded": rendering on ``not is_graded`` would make the
+#: record a catch-all, an unclassified site would land in it, and the census
+#: arm asserting every site is graded-or-recorded would pass on exactly the
+#: shape it exists to catch. The two populations must leave a hole for the
+#: sentinel to fall through.
+RECORDED_BUCKETS: Final = (BUCKET_FROZEN, BUCKET_CONTROL)
+
+#: The sentinel for a module outside :data:`SWEPT_ROOTS`. NOT A BUCKET - it is
+#: the absence of one, and the census reddens on it rather than guessing.
+BUCKET_UNCLASSIFIED: Final = "unclassified"
 
 #: The heading in ``CLAUDE.md`` that owns the frozen-file list. The list itself
 #: is PARSED from there rather than restated here: ``CLAUDE.md`` is its single
@@ -382,12 +470,17 @@ class Site:
 
     @property
     def is_graded(self) -> bool:
-        """Whether the site is in :data:`GRADED_LAYER`.
+        """Whether this module grades the site.
+
+        DERIVED FROM :func:`bucket_of`, WHICH DERIVES THE SPLIT FROM THE FROZEN
+        LIST. It was a flat ``clockspeed/`` prefix test until CS-879, which
+        made the split a claim about a directory name; frozenness, the fact the
+        split is actually about, played no part in it.
 
         Returns:
-            True for a shipped module, False for a frozen, tool or test one.
+            True when the site is in :data:`BUCKET_GRADED`.
         """
-        return self.module.startswith(GRADED_LAYER)
+        return bucket_of(self.module) == BUCKET_GRADED
 
 
 @dataclass(frozen=True)
@@ -1222,21 +1315,70 @@ def is_frozen(module: str) -> bool:
     return False
 
 
-def out_of_scope_record(sites: Sequence[Site]) -> tuple[str, ...]:
-    """Render the frozen sites as lines, classified but never graded.
+def bucket_of(module: str) -> str:
+    """The one bucket a module belongs to, with the reason each bucket states.
 
-    Derived and reported on every run so that a frozen file's chained raises
-    stay visible without any agent editing one. ``CLAUDE.md`` section 6 routes
-    a frozen-file edit through an adjudicator; this module only reads.
+    THE SINGLE CLASSIFIER. Both the graded predicate and the out-of-scope
+    record derive from this function, so the two cannot disagree about a site
+    the way they did before CS-879, when a flat prefix decided grading and
+    frozenness decided reporting and three sites fell between them.
+
+    THE ORDER OF THE BRANCHES IS THE PRECEDENCE, and frozenness is tested
+    FIRST because it is the strongest fact available about a file: it holds
+    wherever the file lives, and answering anything else for a frozen path
+    would be a request to edit one. Read the branches, not this sentence.
+
+    Args:
+        module: A repo-relative, forward-slashed path.
+
+    Returns:
+        One of :data:`BUCKETS`, or :data:`BUCKET_UNCLASSIFIED` when the module
+        is outside every root in :data:`SWEPT_ROOTS`. The sentinel is NOT an
+        error and NOT a bucket - it is this module declining to guess about a
+        scope nobody has classified, and the census reddens on it.
+    """
+    if is_frozen(module):
+        return BUCKET_FROZEN
+    if not module.startswith(SWEPT_ROOTS):
+        return BUCKET_UNCLASSIFIED
+    if module in CONTROL_MODULES:
+        return BUCKET_CONTROL
+    return BUCKET_GRADED
+
+
+def out_of_scope_record(sites: Sequence[Site]) -> tuple[str, ...]:
+    """Render every site this module does NOT grade, each with its bucket.
+
+    Derived and reported on every run so that nothing the sweep paid to find
+    is dropped in silence. ``CLAUDE.md`` section 6 routes a frozen-file edit
+    through an adjudicator; this module only reads, so a frozen site is
+    surfaced rather than repaired.
+
+    COVERS THE FIXTURE BUCKET TOO, AND NOT ONLY THE FROZEN ONE. Reporting just
+    the frozen sites left this module's own fixtures in neither population -
+    the same defect one bucket over from the one CS-879 was opened for. Every
+    derived site IN A NAMED BUCKET is now either graded or on this list, which
+    is what makes the pair of populations exhaustive rather than merely large.
+    A site in NO named bucket is deliberately on neither, which is the next
+    paragraph.
+
+    FILTERS ON :data:`RECORDED_BUCKETS` RATHER THAN ON ``not is_graded``. The
+    difference is the whole enforcement: a catch-all would sweep an
+    unclassified module onto this list and the exhaustiveness arm would pass
+    on the one shape it exists to fail.
 
     Args:
         sites: The derived population.
 
     Returns:
-        One line per frozen site, sorted.
+        One line per frozen or fixture site, sorted, each naming the bucket
+        that excluded it so the reason is legible from the line alone.
     """
     return tuple(
-        f"out-of-scope-recorded FROZEN {classify(site)} {site.key} line {site.lineno}"
-        for site in sites
-        if is_frozen(site.module)
+        sorted(
+            f"out-of-scope-recorded {bucket_of(site.module).upper()} "
+            f"{classify(site)} {site.key} line {site.lineno}"
+            for site in sites
+            if bucket_of(site.module) in RECORDED_BUCKETS
+        )
     )
