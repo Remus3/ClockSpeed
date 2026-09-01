@@ -122,6 +122,24 @@ contradiction has no cost until someone acts on the wrong half of it. The accept
 for an arm that FAILS, because that is the only version that settles which sentence is
 true.
 
+### Measured 2026-09-01, and NOT acted on
+
+**BOTH HALVES OF THE CONTRADICTION ABOVE READ AS RESOLVED ON THE SHIPPED TREE, AND
+THIS ITEM WAS STILL LEFT OPEN.** `guard_dated` in `tools/drift_guard.py` returns
+FAIL - not a report - when a file carrying dated headings declares no status, when a
+status date sits inside a file declaring itself LIVE, or when a heading fits neither
+idiom. `CLAUDE.md` section 4 now states the position rule and names guard (g) as the
+owner of the closed idiom vocabulary, which is the stated criterion this item's
+acceptance asks for. So the sentence above - that the arm reports rather than fails -
+is stale, and the paragraph is kept unedited because bodies here are verbatim.
+
+**WHY IT IS STILL OPEN.** Closing needs a `docs/LEDGER.md` entry, and the doc-sync
+pass that measured this had no write access to that file. Rewording the ROADMAP line
+to something true would have laundered a stale item into a current-looking one, so
+the line was left exactly as it stood. **WHOEVER CLOSES THIS MUST RE-MEASURE RATHER
+THAN TRUST THIS BLOCK**, and must check the acceptance's second half - a guard arm
+that goes RED when a section is dated under whichever rule survives.
+
 **DO NOT RESOLVE IT BY DATING FEWER HEADINGS.** Stripping a date from a section changes
 what an outside reader believes about that section's status, which is a semantic change
 wearing a formatting hat. Whichever rule survives, it is a ruling about the topology and
@@ -549,7 +567,9 @@ as one.
 AUTHOR, AND BOTH ARE THE REASON THE WORDING IS AWKWARD.** The first draft asked for "a status
 other than `oracle_cannot_separate_readings`" - which `unscored` satisfies, and `unscored` means
 NOTHING LOOKED. That is a regression that reads as an acceptance, and it is why the item now
-demands a word that MEANS SETTLED and says outright that `BYTE_ORDER_STATUSES` ships none today.
+demands a word that MEANS SETTLED. **THE LINE NO LONGER SPELLS THE SECOND HALF** - that
+`BYTE_ORDER_STATUSES` ships no such word today is recorded HERE, as of 2026-09-01, and
+the acceptance requires the word regardless of whether one exists yet.
 The second draft asked for the missing ingredient to be "named in shipped data", which its own
 NOTE then named in prose - transcribing a NOTE into a module constant is not a measurement, and
 it is the trivially-satisfiable shape already recorded against CS-413.
@@ -921,6 +941,16 @@ build it produced. The build is on branch `cs807-attribute-half`, base `77336e5`
   file therefore contradicts itself on one sibling: `_reaching_names_of` says `latest_save`
   reaches, `_harmless_defs_of` says it is measured not to, and the Attribute arm believes the
   second.
+
+### Relocated from `ROADMAP.md` 2026-09-01
+
+**THE OBJECT-ROUTED ESCAPE-ROUTE COUNT LIVED ONLY ON THE ITEM LINE, AND IT WAS
+ALREADY STALE.** The line read "the fifteen object-routed escape routes recorded in
+the detail block STAY CAUGHT". FIFTEEN is not a figure this section ever carried, and
+`_OBJECT_ROUTED_REACHES` in `tests/save/test_reach_guard.py` holds NINETEEN labelled
+routes today. **DERIVE THE POPULATION FROM THAT TABLE; do not carry either number
+forward.** The acceptance now says "the object-routed escape routes recorded in the
+detail block", which is this paragraph plus that table.
 
 **THE ESCAPES, all caught on the parent commit and silent on the build.** The discovery hoisted one
 line up behind a def wrapper; one more local hop; a decorator applying the reach; a held attribute,
