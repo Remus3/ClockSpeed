@@ -344,6 +344,33 @@ test("the drag strip CSS carries both app-region spellings and a no-drag escape"
 // selector's declarations composed in document order the way a cascade composes
 // them. A token then has to be on the right element to count, which is what
 // these assertions were claiming all along.
+//
+// A FIFTH DODGE SURVIVED THAT REPAIR AND IS WHY THIS ARM WAS OPENED AGAIN.
+// Nest a conditional group INSIDE the body rule - `@media (min-width: 1px) {
+// top: 0; }`. Under CSS Nesting a nested conditional group's declarations apply
+// to the parent selector, and `min-width: 1px` always matches, so the composed
+// cascade is `body { top: 0 }` and the band is back over real content. The
+// parser could not see it from either end: the at-rule scan collects preludes
+// at depth 0 only, and splitting a rule body on `;` swallowed the whole group
+// as one bogus property. MEASURED against the repaired arm before this change:
+// `atRulePreludes` came back empty, the body's declarations came back carrying
+// a property spelled `@media (min-width`, `top` still read `28px`, and the
+// suite was green end to end with the CS-617 defect restored. No count is
+// quoted here on purpose - a suite total in a comment is a number that drifts,
+// and what matters is that nothing at all went red.
+//
+// THE REPAIR IS TO FAIL CLOSED RATHER THAN TO MODEL MORE CSS. This grader
+// composes exactly one construct - a plain `property: value;` declaration - and
+// the honest answer to anything else is that it cannot say. So a rule body is
+// swept for chunks that are not that shape, and a rule carrying one makes the
+// grader REFUSE rather than return a confident answer about a parse it did not
+// perform. That is deliberately broader than the dodge that prompted it: a
+// nested plain rule, a nested `@supports`, a stray brace and a semicolon inside
+// a value are all constructs this parser flattens wrongly, and one rule rejects
+// every one of them without anybody having to enumerate them first. The cost is
+// that a future sheet using CSS Nesting deliberately reddens here and has to
+// teach the grader the construct before it can ship - which is the right way
+// round, because the alternative is a green arm grading a cascade it guessed.
 
 //: A declaration value that makes a box a scroller on that axis.
 const SCROLLING_OVERFLOW = Object.freeze(["auto", "scroll"]);
@@ -390,6 +417,37 @@ function normalizeSelector(text) {
 }
 
 /**
+ * Every chunk of a rule body that is not a plain `property: value` declaration.
+ *
+ * THIS IS THE FAIL-CLOSED CHANNEL, and it is the whole of MUTANT 5's repair. A
+ * declaration is the only construct this grader composes, so anything else in a
+ * rule body is something it cannot reason about - and the safe report is that
+ * it cannot, never a composed Map that quietly omitted whatever it could not
+ * read. A brace catches a nested rule or conditional group, a chunk with no
+ * colon catches a stray fragment and a semicolon that fell inside a value, and
+ * a property spelled with a leading `@` catches an at-rule that carried no
+ * brace of its own. No CSS property name begins with `@`, so that last one has
+ * no legitimate spelling to collide with.
+ *
+ * @returns {string[]} The offending chunks, normalized. Empty for a body that
+ *   is nothing but declarations, which is what the shipped sheet is.
+ */
+function unmodeledIn(body) {
+  const found = [];
+  for (const chunk of body.split(";")) {
+    if (chunk.trim().length === 0) {
+      continue;
+    }
+    const at = chunk.indexOf(":");
+    const braced = chunk.includes("{") || chunk.includes("}");
+    if (braced || at < 0 || normalizeSpace(chunk.slice(0, at)).startsWith("@")) {
+      found.push(normalizeSpace(chunk));
+    }
+  }
+  return found;
+}
+
+/**
  * Split a stylesheet into its top-level rules.
  *
  * Comments go first, so a token that is only ever mentioned in prose cannot
@@ -397,6 +455,14 @@ function normalizeSelector(text) {
  * conditional group keeps its own contents instead of leaking them into the
  * enclosing scope - which is exactly how MUTANT 4 smuggled its declarations
  * onto a selector that never received them at run time.
+ *
+ * Depth tracking keeps a nested block OUT of the enclosing rule's selector
+ * list, but it does not keep the block's TEXT out of that rule's body, and
+ * `atRulePreludes` is a depth-0 collection that never sees it at all. So
+ * `unmodeled` reports what the body carries that is not a declaration, which is
+ * the only channel MUTANT 5 shows up on. It is aggregated over plain rules
+ * alone: an at-rule's body is legitimately full of braces, and a top-level
+ * at-rule is already rejected wholesale by its prelude.
  */
 function parseSheet(css) {
   const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
@@ -447,6 +513,9 @@ function parseSheet(css) {
     atRulePreludes: rules
       .filter((rule) => rule.prelude.startsWith("@"))
       .map((rule) => rule.prelude),
+    unmodeled: plain.flatMap((rule) =>
+      unmodeledIn(rule.body).map((chunk) => `${rule.prelude} { ${chunk} }`),
+    ),
   };
 }
 
@@ -470,9 +539,17 @@ function parseDeclarations(body) {
  * What one selector ends up declaring once this sheet has been composed.
  *
  * Rules are merged in document order so a later rule beats an earlier one, and
- * a conditional group contributes nothing at all - a media query that can never
- * match declares nothing, and one that always matches is still a condition this
- * sheet has no business expressing.
+ * a top-level conditional group contributes nothing at all - a media query that
+ * can never match declares nothing, and one that always matches is still a
+ * condition this sheet has no business expressing.
+ *
+ * IT THROWS RATHER THAN ANSWERING when a matching rule carries a construct
+ * `unmodeledIn` does not model. Every geometry arm below reaches its
+ * declarations through here, so the refusal guards all of them at once and no
+ * claim about the cascade can be made from a parse that skipped part of the
+ * rule. A returned flag would not do that job: an arm is free to ignore a flag,
+ * and MUTANT 5's whole shape was a value the grader reported confidently while
+ * the browser composed a different one.
  *
  * @returns {{composed: Map<string,string>, matched: number}} The declarations,
  *   and how many top-level rules named the selector - which is what stops a
@@ -490,6 +567,14 @@ function composedFor(css, selector) {
       continue;
     }
     matched += 1;
+    const unmodeled = unmodeledIn(rule.body);
+    if (unmodeled.length > 0) {
+      throw new Error(
+        `the rule for ${rule.prelude} carries ${JSON.stringify(unmodeled)}, which this ` +
+          "grader does not model - it composes plain declarations only, so it cannot say " +
+          "what this rule declares",
+      );
+    }
     for (const [property, value] of parseDeclarations(rule.body)) {
       composed.set(property, value);
     }
@@ -537,6 +622,40 @@ test("the CSS grader sees through every dodge the token arm let past", () => {
 
   // A selector no rule names is reported as absent rather than as empty.
   assert.equal(composedFor(planted, "html").matched, 0);
+  // The four dodges above are all MODELLED constructs, correctly discarded.
+  assert.deepEqual(sheet.unmodeled, [], "nothing planted here is beyond the parser");
+
+  // MUTANT 5, on a fixture of its own because the grader must now REFUSE it and
+  // a refusal cannot share a sheet with the positive assertions above. `top: 0`
+  // nested under an always-true condition applies to the parent selector under
+  // CSS Nesting, so what the browser composes here is the CS-617 defect.
+  const nested = [
+    "body {",
+    "  position: fixed;",
+    "  top: 28px;",
+    "  @media (min-width: 1px) { top: 0; }",
+    "}",
+  ].join("\n");
+  const nestedSheet = parseSheet(nested);
+  // Stated as the hole it is: BOTH of the channels that caught mutants 1 to 4
+  // report this sheet as clean, which is exactly why it survived the repair.
+  assert.equal(nestedSheet.malformed, false);
+  assert.deepEqual(nestedSheet.atRulePreludes, [], "a depth-0 scan cannot see a nested group");
+  assert.deepEqual(nestedSheet.selectors, ["body"], "nor does it name a second selector");
+  // The fail-closed channel is the one that sees it.
+  assert.equal(nestedSheet.unmodeled.length, 2, "the group and its close brace");
+  assert.throws(
+    () => composedFor(nested, SCROLLPORT_SELECTOR),
+    /grader does not model/,
+    "the grader must refuse rather than answer from a parse it did not perform",
+  );
+  // AND THE REFUSAL IS NOT VACUOUS - drop the nested group and the same fixture
+  // composes cleanly, so what reddens above is the construct and not the shape
+  // of the fixture around it.
+  const unnested = nested.replace("  @media (min-width: 1px) { top: 0; }\n", "");
+  assert.notEqual(unnested, nested, "the control did not actually drop the group");
+  assert.deepEqual(parseSheet(unnested).unmodeled, []);
+  assert.equal(composedFor(unnested, SCROLLPORT_SELECTOR).composed.get("top"), "28px");
 });
 
 test("the injected sheet is unconditional and names only its declared selectors", () => {
@@ -547,11 +666,29 @@ test("the injected sheet is unconditional and names only its declared selectors"
   // MUTANT 4. A media query that can never match is indistinguishable from one
   // that always does when a sheet is graded as text. The shell injects this
   // into exactly one window whose size it chose itself, so there is no
-  // condition here for an at-rule to express and its presence IS the fault.
+  // condition here for an at-rule to express.
+  //
+  // WHAT THIS ONE ASSERTION ENFORCES IS THE TOP LEVEL ONLY. `atRulePreludes` is
+  // a depth-0 collection, and the earlier cut of this comment claimed an
+  // at-rule's "presence IS the fault" while checking nowhere but depth 0 -
+  // which is how MUTANT 5 walked a conditional group into the body rule and
+  // stayed green. The claim is true of the pair of assertions, not of this one:
+  // depth 0 by prelude here, any greater depth by the fail-closed sweep below.
   assert.deepEqual(
     sheet.atRulePreludes,
     [],
-    "the drag strip's geometry must not be conditional on anything",
+    "no top-level rule of the drag strip may be conditional on anything",
+  );
+
+  // MUTANT 5, and every other construct this grader does not compose. A rule
+  // body that is not purely declarations is one the arms below cannot honestly
+  // grade, so it reddens HERE rather than being flattened into a confident
+  // wrong answer. This is the assertion that extends the no-conditionals claim
+  // to any nesting depth.
+  assert.deepEqual(
+    sheet.unmodeled,
+    [],
+    "a rule carries something this grader cannot compose, so it cannot vouch for the sheet",
   );
 
   // MUTANT 3. Tokens parked on a selector the page does not have satisfied

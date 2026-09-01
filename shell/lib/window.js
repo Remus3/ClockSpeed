@@ -178,19 +178,35 @@ class ModeNotImplementedError extends Error {
  * Measured on the composed page at the shell's default window size: the page
  * with no injected sheet scrolls 419 on a cold PageDown, and with this sheet 0.
  *
- * THE CSS-ONLY SPACE WAS MEASURED CLOSED RATHER THAN ARGUED CLOSED. Seven
- * shapes were driven through the same harness. Every one that scrolled on a
- * cold PageDown put real page content back under the band at a nonzero offset,
- * and every one that kept the strip clear was keyboard-dead - with no
- * exception. Making the ROOT the inset fixed scroller, the obvious candidate,
- * does not work either and cannot: in standards mode the root element's
- * scrollTop, scrollHeight and clientHeight ARE the viewport's, so positioning
- * the root out of flow leaves the viewport with nothing in flow to scroll and
- * measures 705 of 705 - unscrollable in both directions at once. The cure is
- * therefore not in this sheet. It is a drag region the OS draws OUTSIDE the web
- * contents, which is a window option rather than a stylesheet, and which no
- * test in this repo can grade for the same reason the app-region declarations
- * cannot be. THAT REMAINS OWED, alongside the drag itself.
+ * THE CSS-ONLY SPACE IS ARGUED SHUT, NOT MEASURED SHUT - THIS PARAGRAPH USED
+ * TO CLAIM THE REVERSE AND SO CREDITED THE WRONG HALF. Seven shapes went
+ * through one headless harness: every one that scrolled on a cold PageDown put
+ * real page content back under the band at a nonzero offset, and every one that
+ * kept the strip clear was keyboard-dead. That is seven failures, not a closed
+ * design space.
+ *
+ * THE PART THAT GENERALIZES IS THE ARGUMENT. Making the ROOT the inset fixed
+ * scroller cannot work, and not because it was tried: in standards mode the
+ * root element's scrollTop, scrollHeight and clientHeight ARE the viewport's,
+ * so positioning the root out of flow leaves the viewport with nothing in flow
+ * to scroll. That is CSSOM View semantics, and it holds with no browser in the
+ * room. The harness agreed at 705 of 705 - unscrollable both ways at once - but
+ * agreement is a check on the argument, not its support.
+ *
+ * THE GAPS, PLAINLY. The harness IS NOT CHECKED IN: nothing tracked here
+ * re-runs those seven shapes, so no later session and no CI can reproduce the
+ * figures and this comment is the whole record. And what it measured is default
+ * scrolling driven by a SYNTHETIC key - the mechanism behind three false
+ * findings against this harness in the same cycle - so the mechanism is
+ * harness-local too, not only the numbers.
+ *
+ * WHAT THE HEDGE DOES NOT REACH IS THE SIGN. The conclusion is NEGATIVE, and
+ * the constraint the harness omitted - the drag region must keep working - can
+ * only shrink the feasible set, so no false negative arrives by that route. The
+ * cure is very probably not in this sheet: a drag region the OS draws OUTSIDE
+ * the web contents, a window option rather than a stylesheet, which no test in
+ * this repo can grade for the same reason the app-region declarations cannot
+ * be. THAT REMAINS OWED, alongside the drag itself.
  *
  * THE app-region DECLARATIONS ARE DELIBERATELY UNTOUCHED BY THAT REPAIR. The
  * other candidate fix was `pointer-events: none` on the band, and whether
