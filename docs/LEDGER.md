@@ -75,6 +75,51 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-08-31 - CS-867 - CLOSED. The body's final int32 is a COUNT of object references, not the opaque constant the grammar called it, and every real save now walks to its last byte
+Verification: `clockspeed/save/objects.py` at the end of `parse_body`, plus
+`tests/save/test_objects.py::test_the_body_trailer_is_a_counted_reference_list_and_walks_to_the_last_byte`,
+`tests/save/test_objects.py::test_a_trailing_body_reference_is_consumed_and_never_retained`
+and
+`tests/save/test_objects.py::test_a_negative_trailing_body_reference_count_is_refused_as_a_format_error`.
+The item's own acceptance arm,
+`tests/save/test_objects.py::test_every_real_save_of_a_measured_pair_walks_to_the_end_of_its_body`,
+is the one that was RED and is green on a machine holding a save library.
+
+**THE FAULT.** The walk ended with `cursor.int32("level_trailer")` under a comment reading
+"MEASURED as present, and observed to be zero. Its MEANING is unmeasured." It is a count of
+object references, each two length-prefixed strings. It is zero on every save the grammar
+was derived from, so an empty list left nothing to read and the walk landed exactly. Three
+real (14,60) saves carry it at 1, and the single reference that follows is the 120 bytes
+`WARN_UNPARSED_DATA_SECTION` was reporting.
+
+**THIS IS CS-482 ONE LEVEL UP, WHICH IS THE REUSABLE PART.** There the (14,60) level tail
+was read as 12 constant bytes because the list is empty on 1522 of 1525 real tails. Both
+times a field observed constant across a corpus was taken for a constant FIELD, and both
+times THE CORPUS WAS THEN BUILT TO WRITE THE CONSTANT - `synthetic.BODY_TRAILING_INT32`
+pinned 0 and `build_levelled_body` emitted it unconditionally - so the corpus could not
+refute the assumption it encoded.
+
+**SESSION 53'S CHARACTERISATION OF THE RUN IS REFUTED, and its note is corrected in place**
+by operator ruling, the note being LIVE detail for open work rather than a record. It
+reasoned that a run byte-identical across three saves whose contents differ is a FIXED
+STRUCTURE and not world content. It is world content: all three name the SAME placed actor.
+STABILITY ACROSS SAMPLES DOES NOT DISTINGUISH A FIXED STRUCTURE FROM CONTENT THAT HAPPENS
+NOT TO CHANGE - three samples of one world minutes apart cannot tell the two apart.
+
+**THE ARM IS PARAMETRIZED AT 1, 2 AND 3 AND THE LIBRARY CAN ONLY SUPPLY 1.** A reader that
+special-cases a count of 1, or reads one reference whenever the count is non-zero, walks the
+entire real corpus to its final byte and is still wrong.
+
+**A SWEEP FOR A THIRD INSTANCE FOUND NONE, as a disproof rather than a shrug.** Every
+remaining fixed-width opaque span was valued across all 20 real saves by instrumenting
+`_Cursor.skip`. None is all-zero, and any of them being a count of following elements would
+leave the walk short - which exact consumption on all 20 saves now rules out.
+
+**WAITING WOULD NOT HAVE CLEARED IT.** Re-measured before anything was touched: the three
+offenders had ROTATED since session 53 - 3405 records over 472 levels against 3226, 3299 and
+3287 over 455, 457 and 453, three distinct body digests - so the fault followed the world
+forward rather than ageing out with the autosaves.
+
 ### 2026-08-31 - CS-866 - CLOSED. The dynamic seam arms now ask a question no cache has answered, and a shipped primitive that no plant reached is planted
 Verification: `tests/save/test_independent_table.py`, arms
 `test_no_dynamic_case_reads_a_body_any_other_case_or_arm_in_this_module_reads` and

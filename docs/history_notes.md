@@ -148,6 +148,115 @@ Where current truth actually lives:
 
 ---
 
+## CS-867 - block relocated from `docs/item_notes/phase4-followups-850.md` 2026-08-31 (session 54)
+
+CLOSED. The completion record is in `docs/LEDGER.md`. The block below is the LIVE note as
+it stood while the item was open, kept because it carries the measurement that produced
+the repair AND the refuted inference that measurement overturned. THE FENCE IN IT THAT IS
+STILL LIVE IS IN CODE, not here: the comment at the end of `parse_body` in
+`clockspeed/save/objects.py` says why the body's final int32 is read as a count, and
+`tests/save/test_objects.py::test_the_body_trailer_is_a_counted_reference_list_and_walks_to_the_last_byte`
+asserts it at three counts the real library cannot supply.
+
+## CS-867
+
+### Filed 2026-08-31 (session 53), from a real-save probe taken while CS-866 was being merged
+
+**IT IS RED AT THE SESSION-52 HEAD AND IT IS NOT ANY OF THIS SESSION'S WORK.** Reproduced
+three times independently before anything was concluded: in a clean `git clone` of that
+commit, in a second clean extraction, and by a third agent's own `git archive` extraction.
+The arm is
+`tests/save/test_objects.py::test_every_real_save_of_a_measured_pair_walks_to_the_end_of_its_body`
+and it reports one distinct failure kind, `IncompleteWalk`.
+
+**WHAT WAS MEASURED, counts and structure only.** Twenty saves are reachable. Three of them
+were written within fifteen minutes of the probe, all of pair (14,60), and only those three
+fail. The other seventeen - including the other five of pair (14,60) - walk to their final
+byte exactly.
+
+| pair | walks exactly | leaves bytes over |
+|---|---|---|
+| (10,36) | 3 | 0 |
+| (13,42) | 1 | 0 |
+| (14,52) | 8 | 0 |
+| (14,60) | 5 | 3 |
+
+**THE LEFTOVER RUN IS 120 BYTES AND IT IS BYTE-IDENTICAL ACROSS ALL THREE SAVES**, while
+those saves carry 3226, 3299 and 3287 records across 455, 457 and 453 levels.
+
+**CORRECTED 2026-08-31 (session 54). THE INFERENCE THIS NOTE DREW FROM THAT IS REFUTED,
+AND IT IS THE INTERESTING PART OF THE ITEM.** The sentence said: a run that does not move
+while the world around it does is a FIXED STRUCTURE, not world content. It is not. The run
+is a counted list holding ONE OBJECT REFERENCE - a level name and an object path, as two
+length-prefixed strings, 4 + 26 and 4 + 86 tiling to exactly 120. It was byte-identical
+across the three saves because all three name THE SAME PLACED ACTOR, not because it is
+fixed. It is world content, it is variable-length, and it could not have been modelled as a
+120-byte constant.
+
+**STABILITY ACROSS SAMPLES DOES NOT DISTINGUISH A FIXED STRUCTURE FROM CONTENT THAT HAPPENS
+NOT TO CHANGE.** Three samples that agree are three samples of one world minutes apart. The
+note reasoned from a population that could not tell the two apart, which is the same shape
+as `memory/an-empty-population-satisfies-every-zero.md`: the observation was real and the
+conclusion did not follow from it.
+
+**AND THE MEASUREMENT THAT SETTLED IT ALSO REFUTES OPTION (b).** Re-measured at session 54
+before anything was touched: the library still holds 20 saves in the same pair distribution,
+still 3 offenders, all still pair (14,60) - but they have ROTATED. They now read 3405
+records over 472 levels where session 53 measured 3226, 3299 and 3287 over 455, 457 and 453,
+and their bodies are three distinct digests. The fault followed the world forward rather
+than ageing out with the autosaves. Waiting was not going to clear it.
+
+**THE READER ALREADY KNOWS.** `objects.parse_body` completes and raises
+`WARN_UNPARSED_DATA_SECTION` for the region rather than refusing the body, so
+non-negotiable 7 is holding and nothing is silently wrong. What is red is the arm asserting
+the walk consumes the body exactly.
+
+**THIS IS NOT CS-G05 AND MUST NOT BE READ AS CLEARING IT.** CS-G05 is about the PROPERTY
+PAYLOAD grammar of save version 60 - the interior of a record's payload. This run sits
+AFTER the level walk, at the tail of the body. They are different regions and the
+distinction is the whole reason this is a separate item. What the three new saves DO give
+CS-G05 is what `docs/GATED.md` says new saves ever give it: material to measure with. The
+payload-level independence that entry asks for is still unmeasured.
+
+**DO NOT REPAIR THIS BY WIDENING THE ARM'S TOLERANCE.** An arm that accepts a body walked
+to within some slack of its end is an arm that would have accepted the session-40
+counter-example too. Either the trailer is modelled, or the claim is narrowed to name the
+region it does not cover - the same fork every item in this block has taken.
+
+**THE LIBRARY MOVES UNDER YOU.** The operator plays the pinned development world while
+sessions run, and autosaves rotate. These three files may not be there tomorrow, and the
+structure may arrive on more pairs. Re-measure before concluding the shape changed;
+`memory/save-library-changes-mid-session.md` records this.
+
+### CLOSED 2026-08-31 (session 54) by taking the FIRST fork - the walk consumes the body
+
+**THE BODY'S FINAL INT32 IS A COUNT, AND IT WAS BEING READ AS AN OPAQUE CONSTANT.** The
+grammar's own comment said so: "MEASURED as present, and observed to be zero. Its MEANING is
+unmeasured." Every save the grammar was derived from carries it at 0 - an empty list, so
+nothing follows it and the walk landed exactly. The three offenders carry it at 1, and the
+one reference that follows is the 120 bytes.
+
+**THIS IS CS-482 ONE LEVEL UP, WHICH IS WHY THE REPAIR IS WRITTEN BESIDE IT.** There the
+(14,60) level tail was read as 12 constant bytes because the list is empty on 1522 of 1525
+real tails. Here the body trailer was a constant because it is zero on every save in the
+derivation corpus. Both times a field observed constant across a corpus was taken for a
+constant field, and both times THE CORPUS WAS THEN BUILT TO WRITE THE CONSTANT, so it could
+not discover otherwise. `synthetic.BODY_TRAILING_INT32` pinned 0 and
+`build_levelled_body` emitted it unconditionally.
+
+**THE ARM IS PARAMETRIZED AT 1, 2 AND 3 AND THE LIBRARY CAN ONLY SUPPLY 1.** A reader that
+special-cases a count of 1, or reads exactly one reference whenever the count is non-zero,
+walks the whole real corpus to its final byte and is still wrong. Only a real loop passes 2
+and 3.
+
+**A SWEEP FOR A THIRD INSTANCE FOUND NONE, and it is a disproof rather than a shrug.** Every
+remaining fixed-width opaque span was valued across all 20 real saves by instrumenting
+`_Cursor.skip`: `component_pre_word` [0, 262152, 262216, 2097152, 2883592],
+`transform_delta` [0, 1], `level_tail` [1, 60], `grid_cell_opaque` 4306 distinct,
+`grid_opaque` 14, `object_data_lead` 5. NONE is all-zero, and any of them being a count of
+elements that follow would leave the walk short - which exact consumption on all 20 saves
+now rules out.
+
 ## CS-866 - block relocated from `docs/item_notes/phase4-followups-850.md` 2026-08-31 (session 53)
 
 CLOSED. The completion record is in `docs/LEDGER.md`. The block below is the LIVE note as it

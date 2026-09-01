@@ -843,9 +843,20 @@ LEVELLED_LAYOUT_OPAQUE_SPANS: Final = {
     ),
 }
 
-#: The body's final int32. MEASURED as present and zero on the real header-10
-#: body; a walk without it stops four bytes short of the end. Only its PRESENCE
-#: and its observed value are measured - nothing here claims to know its meaning.
+#: The body's final int32, which is a COUNT of trailing object references.
+#:
+#: CORRECTED 2026-08-31 (CS-867). This constant read 0 and its note said only its
+#: PRESENCE and its observed value were measured, with no meaning claimed. That
+#: was the same mistake CS-482 corrected one level down, where the (14,60) level
+#: tail turned out to be a counted list rather than 12 constant bytes: a field
+#: observed constant across a corpus is not thereby a constant field, and a
+#: corpus built to agree with the assumption cannot discover otherwise.
+#:
+#: Three real (14,60) saves carry this count at 1 and 120 unread bytes after it -
+#: exactly one reference, as two length-prefixed strings. Every other save in the
+#: library carries it at 0, which is why a corpus pinned here stayed green for
+#: four waves. The default stays 0 so every existing fixture is byte-identical;
+#: ``build_levelled_body`` takes the references and writes the real count.
 BODY_TRAILING_INT32: Final = 0
 
 
@@ -1238,6 +1249,7 @@ def build_levelled_body(
     save_version: int,
     summary: SyntheticPackageSummary | None = None,
     grids: tuple[SyntheticGrid, ...] = (),
+    trailing_references: tuple[tuple[str, str], ...] = (),
 ) -> bytes:
     """Build a body in the MEASURED levelled SKELETON layout for one pair.
 
@@ -1258,9 +1270,14 @@ def build_levelled_body(
         summary: The body's opening package summary, where the layout carries
             one. Defaults to a fresh one.
         grids: The grid preamble's grids, where the layout carries one.
+        trailing_references: The object references the body's trailing counted
+            list declares and writes, each a (level name, object path) pair.
+            Defaults to none, which writes the count as zero and leaves every
+            body built before CS-867 byte-identical.
 
     Returns:
-        The preamble, the level count, every level, and the trailing int32.
+        The preamble, the level count, every level, and the trailing counted
+        list of object references.
 
     Raises:
         ValueError: ``persistent`` carries a name, which no real body does.
@@ -1279,7 +1296,10 @@ def build_levelled_body(
     out.append(_i32(len(named)))
     out.extend(level.encode(layout=layout) for level in named)
     out.append(persistent.encode(layout=layout))
-    out.append(_i32(BODY_TRAILING_INT32))
+    out.append(_i32(BODY_TRAILING_INT32 + len(trailing_references)))
+    for level_name, path_name in trailing_references:
+        out.append(fstring(level_name))
+        out.append(fstring(path_name))
     return b"".join(out)
 
 

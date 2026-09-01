@@ -2534,6 +2534,141 @@ def test_a_negative_level_tail_entry_count_is_refused_as_a_format_error() -> Non
     assert caught.value.actual == -1
 
 
+#: Two strings for one trailing body reference. FIXTURE strings, and the same
+#: non-negotiable 12 probe :data:`_TAIL_ENTRY` is: the reader has to consume
+#: both and must retain neither.
+_BODY_REFERENCE: Final = ("SyntheticBodyPackage_0", "SyntheticBodyReference_0")
+
+
+def _v60_body_with_trailing_references(
+    references: tuple[tuple[str, str], ...],
+) -> bytes:
+    """Build a (14,60) body whose trailing counted list carries references.
+
+    Args:
+        references: The (level name, object path) pairs the list declares and
+            writes.
+
+    Returns:
+        The body with its length prefix, ready for :func:`objects.parse_body`.
+    """
+    header_version, save_version = _TAIL_LIST_PAIR
+    return synthetic.body_with_prefix(
+        synthetic.build_levelled_body(
+            synthetic.LEVELLED_NAMED_BY_PAIR[_TAIL_LIST_PAIR],
+            synthetic.LEVELLED_PERSISTENT,
+            header_version=header_version,
+            save_version=save_version,
+            grids=synthetic.LEVELLED_GRIDS,
+            trailing_references=references,
+        ),
+        header_version,
+    )
+
+
+@pytest.mark.parametrize("count", [1, 2, 3])
+def test_the_body_trailer_is_a_counted_reference_list_and_walks_to_the_last_byte(
+    count: int,
+) -> None:
+    """CS-867: THE BODY'S FINAL INT32 IS A COUNT, NOT A CONSTANT.
+
+    THIS IS CS-482 ONE LEVEL UP, and that is the reason it is written here
+    beside it rather than anywhere else. There the (14,60) level tail was read
+    as 12 constant bytes because the list is empty on 1522 of 1525 real tails.
+    Here the body's final int32 was read as an opaque word "observed to be
+    zero" because it IS zero on every save the grammar was derived from. Both
+    times a field observed constant across a corpus was taken for a constant
+    field; both times the corpus was then built to write the constant, so it
+    could not discover otherwise. A CORPUS THAT ENCODES THE ASSUMPTION CANNOT
+    REFUTE IT.
+
+    THE COUNTER-EXAMPLE IS THREE REAL (14,60) SAVES that declare 1 and carry
+    120 unread bytes after it - one reference, as two length-prefixed strings,
+    4 + 26 and 4 + 86. Before this arm the walk read the count, believed
+    nothing followed, and left those 120 bytes over;
+    ``objects.parse_body`` raised ``WARN_UNPARSED_DATA_SECTION`` for them, so
+    non-negotiable 7 held and nothing was silently wrong - what was wrong was
+    the claim that the body had been walked.
+
+    NEITHER THE REAL STRINGS NOR THEIR BYTES ARE WRITTEN HERE, for the reason
+    :func:`test_a_named_level_tail_carrying_one_entry_still_walks_to_the_last_byte`
+    states at length: they are decoded content out of a real body on the
+    operator's machine, and non-negotiables 11 and 12 forbid putting them in a
+    tracked file. The lengths and the count are structure and are safe. Read
+    the rest off a run.
+
+    THE COUNT IS PARAMETRIZED RATHER THAN PINNED AT THE ONE VALUE THE LIBRARY
+    SHOWS. A reader that special-cases 1 - or that reads exactly one reference
+    whenever the count is non-zero - walks the real corpus to its final byte
+    and is still wrong. Only a genuine loop passes 2 and 3, and the library
+    cannot supply either today.
+    """
+    fixture = synthetic.SAVE_LEVELLED_V60
+    assert (fixture.header_version, fixture.save_version) == _TAIL_LIST_PAIR
+
+    references = tuple(
+        (f"{_BODY_REFERENCE[0]}{index}", f"{_BODY_REFERENCE[1]}{index}") for index in range(count)
+    )
+    body = _v60_body_with_trailing_references(references)
+
+    table = objects.parse_body(
+        body,
+        save_version=fixture.save_version,
+        header_version=fixture.header_version,
+    )
+
+    left_over = [w for w in table.warnings if w.code == objects.WARN_UNPARSED_DATA_SECTION]
+    assert not left_over, (
+        f"{count} trailing references declared and the walk stopped short: {left_over}"
+    )
+    assert table.body_consumed == len(body) - table.body_prefix_width
+
+
+def test_a_trailing_body_reference_is_consumed_and_never_retained() -> None:
+    """Non-negotiable 12, applied to the strings CS-867 taught the walk to read.
+
+    The reader now DECODES two strings it never decoded before. On a real save
+    those are world content, so the arm that makes the walk consume them owes
+    the same proof the level-tail entries owe: consumed, and reaching neither
+    the returned model nor its repr.
+    """
+    fixture = synthetic.SAVE_LEVELLED_V60
+    body = _v60_body_with_trailing_references((_BODY_REFERENCE,))
+
+    table = objects.parse_body(
+        body,
+        save_version=fixture.save_version,
+        header_version=fixture.header_version,
+    )
+
+    rendered = repr(table)
+    for text in _BODY_REFERENCE:
+        assert text not in rendered, f"a trailing reference reached the model repr: {text}"
+
+
+def test_a_negative_trailing_body_reference_count_is_refused_as_a_format_error() -> None:
+    """A negative count is impossible rather than merely too large.
+
+    The same distinction
+    :func:`test_a_negative_level_tail_entry_count_is_refused_as_a_format_error`
+    draws, at the body's own trailing list.
+    """
+    fixture = synthetic.SAVE_LEVELLED_V60
+    body = _v60_body_with_trailing_references(())
+    # The count is the body's final int32, so the last four bytes ARE the field.
+    negative = body[:-4] + struct.pack("<i", -1)
+
+    with pytest.raises(objects.ObjectFormatError) as caught:
+        objects.parse_body(
+            negative,
+            save_version=fixture.save_version,
+            header_version=fixture.header_version,
+        )
+
+    assert caught.value.field == "body_reference_count"
+    assert caught.value.actual == -1
+
+
 #: Declared lengths for the package summary's two strings, as (first, second).
 #: THE POINT IS THE SET, not any member: the real library declares 0 and 40 on
 #: every one of its 1530 summaries, so a reader that treats the run as 70

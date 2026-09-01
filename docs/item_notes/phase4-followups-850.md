@@ -1210,57 +1210,6 @@ to skip it. Both have been tried and both are recorded as wrong. It is a request
 the per-word residue in evidence that does not depend on which saves the operator's library
 happens to hold at the moment the suite runs.
 
-## CS-867
-
-### Filed 2026-08-31 (session 53), from a real-save probe taken while CS-866 was being merged
-
-**IT IS RED AT THE SESSION-52 HEAD AND IT IS NOT ANY OF THIS SESSION'S WORK.** Reproduced
-three times independently before anything was concluded: in a clean `git clone` of that
-commit, in a second clean extraction, and by a third agent's own `git archive` extraction.
-The arm is
-`tests/save/test_objects.py::test_every_real_save_of_a_measured_pair_walks_to_the_end_of_its_body`
-and it reports one distinct failure kind, `IncompleteWalk`.
-
-**WHAT WAS MEASURED, counts and structure only.** Twenty saves are reachable. Three of them
-were written within fifteen minutes of the probe, all of pair (14,60), and only those three
-fail. The other seventeen - including the other five of pair (14,60) - walk to their final
-byte exactly.
-
-| pair | walks exactly | leaves bytes over |
-|---|---|---|
-| (10,36) | 3 | 0 |
-| (13,42) | 1 | 0 |
-| (14,52) | 8 | 0 |
-| (14,60) | 5 | 3 |
-
-**THE LEFTOVER RUN IS 120 BYTES AND IT IS BYTE-IDENTICAL ACROSS ALL THREE SAVES**, while
-those saves carry 3226, 3299 and 3287 records across 455, 457 and 453 levels. A run that
-does not move while the world around it does is a FIXED STRUCTURE, not world content, which
-is why this note can say anything about it at all - no byte of it is reproduced here and
-none needs to be. It is not all zero.
-
-**THE READER ALREADY KNOWS.** `objects.parse_body` completes and raises
-`WARN_UNPARSED_DATA_SECTION` for the region rather than refusing the body, so
-non-negotiable 7 is holding and nothing is silently wrong. What is red is the arm asserting
-the walk consumes the body exactly.
-
-**THIS IS NOT CS-G05 AND MUST NOT BE READ AS CLEARING IT.** CS-G05 is about the PROPERTY
-PAYLOAD grammar of save version 60 - the interior of a record's payload. This run sits
-AFTER the level walk, at the tail of the body. They are different regions and the
-distinction is the whole reason this is a separate item. What the three new saves DO give
-CS-G05 is what `docs/GATED.md` says new saves ever give it: material to measure with. The
-payload-level independence that entry asks for is still unmeasured.
-
-**DO NOT REPAIR THIS BY WIDENING THE ARM'S TOLERANCE.** An arm that accepts a body walked
-to within some slack of its end is an arm that would have accepted the session-40
-counter-example too. Either the trailer is modelled, or the claim is narrowed to name the
-region it does not cover - the same fork every item in this block has taken.
-
-**THE LIBRARY MOVES UNDER YOU.** The operator plays the pinned development world while
-sessions run, and autosaves rotate. These three files may not be there tomorrow, and the
-structure may arrive on more pairs. Re-measure before concluding the shape changed;
-`memory/save-library-changes-mid-session.md` records this.
-
 ## CS-868
 
 ### Filed 2026-08-31 (session 53), from an adversarial pass CS-863's own session recorded as owed

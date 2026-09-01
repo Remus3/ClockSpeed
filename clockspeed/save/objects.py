@@ -235,6 +235,7 @@ __all__ = [
     "LEVEL_TAIL_NONE",
     "LEVEL_TAIL_SUMMARY",
     "LEVEL_TAIL_WORD",
+    "MAX_BODY_REFERENCES",
     "MAX_CUSTOM_VERSIONS",
     "MAX_GRIDS",
     "MAX_LEVELS",
@@ -502,6 +503,14 @@ MAX_CUSTOM_VERSIONS: Final = 1 << 12
 #: allocating against one.
 MAX_LEVEL_TAIL_ENTRIES: Final = 1 << 12
 
+#: Ceiling on the body's trailing reference count. A REFUSAL BOUND AND NOT A
+#: MEASUREMENT, on the same terms as :data:`MAX_LEVEL_TAIL_ENTRIES`: the library
+#: declares 0 on seventeen of its twenty saves and 1 on the other three, so
+#: nothing measured here is evidence for this number. Set at the same order as
+#: its neighbours so a desynchronised walk is refused where it reads a garbage
+#: count rather than allocating against one.
+MAX_BODY_REFERENCES: Final = 1 << 12
+
 
 @dataclass(frozen=True)
 class BodyLayout:
@@ -635,7 +644,11 @@ FIELD_NAMES: Final = frozenset(
         "body_layout",
         "level_count",
         "level_name",
-        "level_trailer",
+        # The body's trailing counted reference list (CS-867). It was
+        # "level_trailer", an opaque int32 nothing claimed to understand, until
+        # three real saves declared it non-zero.
+        "body_reference_count",
+        "body_reference",
         "header_section",
         "object_data_section",
         "object_data",
@@ -2612,10 +2625,22 @@ def parse_body(
         unknown=unknown,
         warnings=warnings,
     )
-    # MEASURED as present, and observed to be zero. Its MEANING is unmeasured,
-    # so it is consumed and not interpreted - a walk without it stops exactly
-    # four bytes short of the end of a real body.
-    cursor.int32("level_trailer")
+    # THE BODY'S FINAL INT32 IS A COUNT OF OBJECT REFERENCES (CS-867), each two
+    # length-prefixed strings. It read as an opaque word "observed to be zero"
+    # until three real (14,60) saves declared 1 and left 120 bytes unread.
+    #
+    # THIS IS CS-482 ONE LEVEL UP. There the level tail was 12 constant bytes
+    # because the list is empty on 1522 of 1525 real tails; here the count was a
+    # constant because it is zero on every save the grammar was derived from.
+    # A field observed constant across a corpus is not a constant field.
+    #
+    # THE STRINGS ARE READ AND DISCARDED, on the same terms as a level name and
+    # a level tail entry: they name a level and an object path, which is world
+    # content, and holding one would put it into the returned model and into
+    # its repr (non-negotiable 12).
+    for _ in range(_read_bounded_count(cursor, "body_reference_count", MAX_BODY_REFERENCES)):
+        cursor.string("body_reference")
+        cursor.string("body_reference")
 
     consumed = cursor.offset - start
     if cursor.remaining:
