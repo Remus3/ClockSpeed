@@ -287,10 +287,50 @@ function fact(label, value) {
   return cell;
 }
 
+/*
+  GIVE EVERY SCROLLER A TAB STOP EXACTLY WHILE IT HAS SOMETHING TO SCROLL.
+
+  The markup used to declare tabindex, role and aria-label unconditionally, and
+  the CONVENTIONS 13.2 audit measured that claim false twice: the World scroller
+  reports scrollWidth === clientWidth at 1574, 375 and 320px - it never scrolls
+  at any tested width - and it kept its stop even when a failed /api/world hid
+  its table, leaving a 1.33px empty box that took focus and announced itself as
+  a scrollable region of world counts.
+
+  A LABEL IS A CLAIM AND THIS ONE IS NOW DERIVED FROM THE MEASUREMENT IT ASSERTS.
+  The name says "scrolls sideways" only where the box does, so a reader who
+  reaches the stop finds the capability it was promised.
+*/
+function syncScrollRegions() {
+  var boxes = document.querySelectorAll(".scroll-x");
+  for (var i = 0; i < boxes.length; i += 1) {
+    var box = boxes[i];
+    /*
+      A hidden box measures 0 for both, so hidden is already not-overflowing and
+      needs no separate branch - but reading it explicitly keeps the intent
+      legible rather than resting on a coincidence of the box model.
+    */
+    var scrolls = !box.hidden && box.scrollWidth > box.clientWidth;
+    if (scrolls) {
+      box.setAttribute("tabindex", "0");
+      box.setAttribute("role", "region");
+      box.setAttribute(
+        "aria-label",
+        (box.getAttribute("data-scroll-label") || "Content") + ", scrolls sideways"
+      );
+    } else {
+      box.removeAttribute("tabindex");
+      box.removeAttribute("role");
+      box.removeAttribute("aria-label");
+    }
+  }
+}
+
 function renderWorld(result) {
   var facts = byId("world-facts");
   var note = byId("world-note");
   var table = byId("count-table");
+  var scroller = byId("count-scroller");
   var rows = byId("count-rows");
   var list = byId("unmodeled-list");
   var listNote = byId("unmodeled-note");
@@ -301,6 +341,7 @@ function renderWorld(result) {
   clear(list);
   clear(listNote);
   table.hidden = true;
+  scroller.hidden = true;
 
   var data = bodyData(result);
   if (!data) {
@@ -320,6 +361,7 @@ function renderWorld(result) {
 
   var counts = data["counts"] || {};
   table.hidden = false;
+  scroller.hidden = false;
   for (var c = 0; c < COUNT_LABELS.length; c += 1) {
     var countRow = document.createElement("tr");
     countRow.appendChild(el("td", null, COUNT_LABELS[c][1]));
@@ -406,6 +448,7 @@ async function refresh() {
     var liveness = renderHeader(probes["/api/health"]);
     renderEndpoints(liveness, probes);
     renderWorld(probes["/api/world"]);
+    syncScrollRegions();
   } finally {
     /*
       A throw anywhere above must still give the button back. Without this the
@@ -421,4 +464,12 @@ async function refresh() {
 }
 
 byId("refresh").addEventListener("click", refresh);
+/*
+  A SCROLLER'S OVERFLOW IS A FUNCTION OF THE VIEWPORT, so the tab stop has to be
+  recomputed when the viewport changes and not only when the data does. Without
+  this, widening the window from 375px leaves a stop on a box that no longer
+  scrolls, and narrowing it leaves the only route to the right-hand columns
+  unreachable from the keyboard.
+*/
+window.addEventListener("resize", syncScrollRegions);
 refresh();

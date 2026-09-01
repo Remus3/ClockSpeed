@@ -2625,19 +2625,46 @@ def parse_body(
         unknown=unknown,
         warnings=warnings,
     )
-    # THE BODY'S FINAL INT32 IS A COUNT OF OBJECT REFERENCES (CS-867), each two
-    # length-prefixed strings. It read as an opaque word "observed to be zero"
-    # until three real (14,60) saves declared 1 and left 120 bytes unread.
+    # THE BODY'S FINAL INT32 IS READ AS A COUNT OF OBJECT REFERENCES (CS-867),
+    # each two length-prefixed strings. It read as an opaque word "observed to
+    # be zero" until three real (14,60) saves declared 1 and left 120 bytes
+    # unread.
     #
     # THIS IS CS-482 ONE LEVEL UP. There the level tail was 12 constant bytes
-    # because the list is empty on 1522 of 1525 real tails; here the count was a
+    # because the list is empty on 1522 of 1525 real tails; here the word was a
     # constant because it is zero on every save the grammar was derived from.
     # A field observed constant across a corpus is not a constant field.
     #
+    # WHAT THIS READING DOES NOT ESTABLISH, on the same terms _read_level_tail
+    # states for its own count, and stated here because an adversary measured
+    # the first version of this comment asserting it flatly:
+    #   - WHETHER THE FIELD IS A COUNT AT ALL. The observed population is
+    #     {0: 17, 1: 3} over 20 saves, and the three non-zero tails are
+    #     byte-identical and come from ONE world - so this is one distinct
+    #     sample, not three. Over {0, 1} a count and a presence flag are the
+    #     same field. This reads a count because every sibling list in this walk
+    #     is one, and because the structurally identical level_tail_count is
+    #     MEASURED at {0: 3131, 1: 39, 2: 8, 4: 3} on the same library and so is
+    #     a count there on evidence.
+    #   - HOW A COUNT ABOVE 1 INTERLEAVES. Nothing in the corpus reaches 2.
+    #
+    # LANDING ON THE FINAL BYTE DOES NOT SETTLE EITHER, and the same trap was
+    # walked deliberately: a fixed 120-byte record, a flag then one pair,
+    # non-zero-means-one, and a count of (string, 90 opaque bytes) ALL land 20
+    # real saves of 20 on the exact final byte. UNLIKE CS-482 THERE IS NO RIGHT
+    # EDGE TO PIN, because this list ends where the body ends - which is exactly
+    # why several readings tile it and why the arm parametrizes the count.
+    #
+    # WHAT DOES SUPPORT THE PAIR READING is provenance rather than tiling, and
+    # it is measured: on all three saves the first string is one of the 471
+    # level names this same walk read earlier in the same body, and the pair is
+    # identical to one of that body's own level_tail_entry pairs, which CS-482
+    # reads as (level name, object path).
+    #
     # THE STRINGS ARE READ AND DISCARDED, on the same terms as a level name and
     # a level tail entry: they name a level and an object path, which is world
-    # content, and holding one would put it into the returned model and into
-    # its repr (non-negotiable 12).
+    # content, and holding one would put it into the returned model and into a
+    # rendered surface (non-negotiable 12).
     for _ in range(_read_bounded_count(cursor, "body_reference_count", MAX_BODY_REFERENCES)):
         cursor.string("body_reference")
         cursor.string("body_reference")

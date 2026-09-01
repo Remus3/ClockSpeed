@@ -1395,6 +1395,13 @@ def test_no_discarded_string_is_retained_in_module_or_cursor_state() -> None:
     Both surfaces are read here: every string reachable from the parser
     module's own namespace after a walk, and every attribute of a cursor the
     tail reader has just run over.
+
+    THE BODY'S TRAILING REFERENCES ARE PLANTED HERE TOO (CS-867), because that
+    read decodes two more strings the walk claims to discard and this guard was
+    not extended when it shipped. An adversary measured the gap: appending both
+    of them to a module-level list on :mod:`clockspeed.save.objects` left every
+    arm in this module green, exactly as the level-tail mutant this test was
+    written for once did.
     """
     fixture = synthetic.SAVE_LEVELLED_V60
     marker = "SyntheticRetentionCanary_0"
@@ -1406,6 +1413,16 @@ def test_no_discarded_string_is_retained_in_module_or_cursor_state() -> None:
 
     assert marker not in _strings_reachable_from(vars(objects)), (
         "a discarded string is held in the parser module's own state"
+    )
+
+    trailing = "SyntheticTrailingRetentionCanary_0"
+    objects.parse_body(
+        _body_with_trailing_references(((trailing, trailing + "_second"),)),
+        save_version=fixture.save_version,
+        header_version=fixture.header_version,
+    )
+    assert trailing not in _strings_reachable_from(vars(objects)), (
+        "a discarded trailing body reference is held in the parser module's own state"
     )
 
     # And on the cursor the reader runs over, which outlives the read.
@@ -1941,8 +1958,10 @@ def _sweep_parent_over_the_real_library() -> _ParentSweep | None:
     Contained exactly as :func:`_sweep_the_real_library` is, and for the same
     measured reason: pytest renders the ARGUMENTS of every frame in a failing
     traceback with no opt-in, so an exception escaping ``parse_body(body, ...)``
-    prints the head of a real save body into the test log. Every step is
-    wrapped and every failure is reduced to a type NAME inside this helper.
+    prints a real save body into the test log - the HEAD AND THE TAIL, because
+    pytest's ``saferepr`` elides the middle and keeps both ends (CS-867). Every
+    step is wrapped and every failure is reduced to a type NAME inside this
+    helper.
 
     Returns:
         The sweep, or None when no save library is reachable. Never returns or
@@ -2458,7 +2477,7 @@ def test_a_level_tail_entry_is_consumed_and_never_retained() -> None:
         header_version=fixture.header_version,
     )
 
-    rendered = repr(table) + "".join(repr(record) for record in table.records)
+    rendered = _every_rendered_surface(table)
     for text in _TAIL_ENTRY:
         assert text not in rendered
 
@@ -2540,35 +2559,44 @@ def test_a_negative_level_tail_entry_count_is_refused_as_a_format_error() -> Non
 _BODY_REFERENCE: Final = ("SyntheticBodyPackage_0", "SyntheticBodyReference_0")
 
 
-def _v60_body_with_trailing_references(
+def _body_with_trailing_references(
     references: tuple[tuple[str, str], ...],
+    fixture: synthetic.SyntheticSave = synthetic.SAVE_LEVELLED_V60,
 ) -> bytes:
-    """Build a (14,60) body whose trailing counted list carries references.
+    """Build a body whose trailing counted list carries references.
+
+    ANY MEASURED PAIR, not just (14,60), because the read this exercises is in
+    ``parse_body`` itself and applies to all four. The real library gives the
+    new code path a non-zero count on ONE pair, so the other three are graded
+    here or nowhere.
 
     Args:
         references: The (level name, object path) pairs the list declares and
             writes.
+        fixture: The levelled fixture whose pair to build for.
 
     Returns:
         The body with its length prefix, ready for :func:`objects.parse_body`.
     """
-    header_version, save_version = _TAIL_LIST_PAIR
+    pair = (fixture.header_version, fixture.save_version)
     return synthetic.body_with_prefix(
         synthetic.build_levelled_body(
-            synthetic.LEVELLED_NAMED_BY_PAIR[_TAIL_LIST_PAIR],
+            synthetic.LEVELLED_NAMED_BY_PAIR[pair],
             synthetic.LEVELLED_PERSISTENT,
-            header_version=header_version,
-            save_version=save_version,
+            header_version=fixture.header_version,
+            save_version=fixture.save_version,
             grids=synthetic.LEVELLED_GRIDS,
             trailing_references=references,
         ),
-        header_version,
+        fixture.header_version,
     )
 
 
+@pytest.mark.parametrize("fixture", synthetic.LEVELLED_SAVES, ids=lambda save: save.name)
 @pytest.mark.parametrize("count", [1, 2, 3])
 def test_the_body_trailer_is_a_counted_reference_list_and_walks_to_the_last_byte(
     count: int,
+    fixture: synthetic.SyntheticSave,
 ) -> None:
     """CS-867: THE BODY'S FINAL INT32 IS A COUNT, NOT A CONSTANT.
 
@@ -2601,15 +2629,20 @@ def test_the_body_trailer_is_a_counted_reference_list_and_walks_to_the_last_byte
     SHOWS. A reader that special-cases 1 - or that reads exactly one reference
     whenever the count is non-zero - walks the real corpus to its final byte
     and is still wrong. Only a genuine loop passes 2 and 3, and the library
-    cannot supply either today.
-    """
-    fixture = synthetic.SAVE_LEVELLED_V60
-    assert (fixture.header_version, fixture.save_version) == _TAIL_LIST_PAIR
+    cannot supply either today. MEASURED by an adversary: an ``if`` in place of
+    the ``for`` leaves the whole real-library sweep GREEN and is killed here and
+    nowhere else.
 
+    ALL FOUR MEASURED PAIRS ARE BUILT, not just (14,60). The read is in
+    ``parse_body`` and applies to every pair, but only (14,60) ever declares a
+    non-zero count in the real library - 12 of the 20 saves and 3 of the 4 pairs
+    give the new code path no real coverage at all, so they are graded here or
+    they are not graded.
+    """
     references = tuple(
         (f"{_BODY_REFERENCE[0]}{index}", f"{_BODY_REFERENCE[1]}{index}") for index in range(count)
     )
-    body = _v60_body_with_trailing_references(references)
+    body = _body_with_trailing_references(references, fixture)
 
     table = objects.parse_body(
         body,
@@ -2624,16 +2657,100 @@ def test_the_body_trailer_is_a_counted_reference_list_and_walks_to_the_last_byte
     assert table.body_consumed == len(body) - table.body_prefix_width
 
 
+def _every_rendered_surface(table: objects.ObjectTable) -> str:
+    """Every string a caller can get out of a parsed table, concatenated.
+
+    NON-NEGOTIABLE 12 IS ABOUT WHAT CAN BE RENDERED, AND ``repr(table)`` ALONE
+    CANNOT CARRY A STRING AT ALL. :meth:`objects.ObjectTable.__repr__` is
+    hand-written to emit eight integers, so an arm greping only that CANNOT
+    FAIL - it is an assertion over an empty population, and this module shipped
+    one. MEASURED by an adversary against CS-867's first arm: a mutant retaining
+    both trailing-reference strings in a warning's ``detail`` PASSED it, and so
+    did a tree with the CS-867 loop deleted outright.
+
+    THE TWO COLLECTIONS STILL ON THE DEFAULT DATACLASS REPR ARE WHERE A RETAINED
+    STRING ACTUALLY SURFACES. :class:`objects.ObjectRecord` and
+    :class:`objects.ObjectTable` both withhold strings by hand;
+    :class:`objects.ObjectWarning` and :class:`objects.UnknownClass` do not, and
+    the second exists precisely to name a class path. Both are reachable from a
+    returned table and neither was rendered by any arm in this family before
+    CS-867's refutation - so the level-tail and package-summary arms carried the
+    same hole and are repaired through this helper rather than one at a time.
+
+    Args:
+        table: The parsed table.
+
+    Returns:
+        The concatenated rendering of the table and every model object reachable
+        from it.
+    """
+    parts = [repr(table)]
+    parts.extend(repr(record) for record in table.records)
+    parts.extend(repr(warning) for warning in table.warnings)
+    parts.extend(repr(unknown) for unknown in table.unknown_classes)
+    return "".join(parts)
+
+
+def test_the_rendering_helper_reaches_the_surfaces_the_table_repr_hides() -> None:
+    """THE CONTROL, because a privacy arm that cannot fail proves nothing.
+
+    This is the arm that makes every other use of
+    :func:`_every_rendered_surface` mean something. It plants a marker in each
+    of the two collections carrying a DEFAULT dataclass repr and requires the
+    helper to find it while ``repr(table)`` alone does not. If the helper is
+    ever narrowed back to the table's own repr, this fails and says so.
+
+    IT IS BUILT BY HAND RATHER THAN PARSED, deliberately: the point is a
+    property of the RENDERING, and routing it through a body would make the arm
+    depend on a walk that can decline to produce either collection.
+    """
+    marker_warning = "SyntheticWarningCanary_0"
+    marker_unknown = "SyntheticUnknownCanary_0"
+    table = objects.ObjectTable(
+        records=(),
+        unknown_classes=(
+            objects.UnknownClass(
+                type_path=marker_unknown,
+                count=1,
+                reason=objects.REASON_CLASS_NOT_MODELLED,
+                first_index=0,
+            ),
+        ),
+        warnings=(objects.ObjectWarning(code="x", detail=marker_warning, offset=0),),
+        declared_body_length=0,
+        body_consumed=0,
+        body_prefix_width=0,
+        transform_delta=0,
+        save_version=60,
+        header_version=14,
+        level_count=0,
+    )
+
+    hidden = repr(table)
+    rendered = _every_rendered_surface(table)
+    for marker in (marker_warning, marker_unknown):
+        assert marker not in hidden, (
+            "the table repr rendered a string, so it can no longer stand as the "
+            f"thing this helper exists to see past: {marker}"
+        )
+        assert marker in rendered, f"the helper did not reach the surface holding {marker}"
+
+
 def test_a_trailing_body_reference_is_consumed_and_never_retained() -> None:
     """Non-negotiable 12, applied to the strings CS-867 taught the walk to read.
 
     The reader now DECODES two strings it never decoded before. On a real save
     those are world content, so the arm that makes the walk consume them owes
-    the same proof the level-tail entries owe: consumed, and reaching neither
-    the returned model nor its repr.
+    the same proof the level-tail entries owe: consumed, and reaching no surface
+    a caller can render.
+
+    THE FIRST VERSION OF THIS ARM GRADED ``repr(table)`` AND NOTHING ELSE, which
+    is an assertion over an empty population - see
+    :func:`_every_rendered_surface`. It passed on a tree with the CS-867 loop
+    deleted and on two trees that retained both strings.
     """
     fixture = synthetic.SAVE_LEVELLED_V60
-    body = _v60_body_with_trailing_references((_BODY_REFERENCE,))
+    body = _body_with_trailing_references((_BODY_REFERENCE,))
 
     table = objects.parse_body(
         body,
@@ -2641,9 +2758,98 @@ def test_a_trailing_body_reference_is_consumed_and_never_retained() -> None:
         header_version=fixture.header_version,
     )
 
-    rendered = repr(table)
+    rendered = _every_rendered_surface(table)
     for text in _BODY_REFERENCE:
-        assert text not in rendered, f"a trailing reference reached the model repr: {text}"
+        assert text not in rendered, f"a trailing reference reached a rendered surface: {text}"
+
+
+def test_the_trailing_body_reference_ceiling_refuses_exactly_above_itself() -> None:
+    """The EDGE, because CS-867 shipped this ceiling pinned by nothing at all.
+
+    An adversary measured it: ``grep -rn MAX_BODY_REFERENCES tests/ tools/
+    docs/`` returned nothing, so every value mutant survived. A refusal bound no
+    arm reads is a number that can be changed silently, which is the same fault
+    class as the constant it was copied from having its own boundary pinned.
+
+    THE VALUE IS BORROWED AND THE BORROWING IS NOT OBVIOUSLY SAFE, which is
+    recorded here rather than resolved: :data:`objects.MAX_LEVEL_TAIL_ENTRIES`
+    bounds a PER-LEVEL list whose observed maximum on this library is 4, and
+    this bounds a WHOLE-WORLD list in a body already carrying thousands of
+    records. Nothing measured says the two belong at the same order.
+
+    THIS ARM IS EDGE-RELATIVE AND SO IT GRADES THE NUMBER NOT AT ALL - it
+    declares ``MAX_BODY_REFERENCES + 1`` and asserts against
+    ``MAX_BODY_REFERENCES``, which passes for any ceiling whatsoever. That is
+    the same defect this module already records beside
+    :data:`objects.MAX_LEVEL_TAIL_ENTRIES`, and an adversary measured this arm
+    having it: a ceiling of ``1 << 30`` leaves the whole module green.
+    :func:`test_the_trailing_body_reference_ceiling_refuses_every_count_a_string_can_make`
+    is what bounds the constant from above; this one only pins that the edge
+    sits where the constant says.
+    """
+    fixture = synthetic.SAVE_LEVELLED_V60
+    body = _body_with_trailing_references(())
+
+    above = body[:-4] + struct.pack("<i", objects.MAX_BODY_REFERENCES + 1)
+    with pytest.raises(objects.ObjectBudgetExceededError) as caught:
+        objects.parse_body(
+            above,
+            save_version=fixture.save_version,
+            header_version=fixture.header_version,
+        )
+    assert caught.value.field == "body_reference_count"
+    assert caught.value.actual == objects.MAX_BODY_REFERENCES + 1
+
+    # AT the ceiling the count is admitted and the walk fails further in, on the
+    # references that are not there. Any refusal will do except the budget one
+    # on this field - that is what "the edge is here and not one lower" means.
+    at = body[:-4] + struct.pack("<i", objects.MAX_BODY_REFERENCES)
+    with pytest.raises(objects.ObjectError) as passed:
+        objects.parse_body(
+            at,
+            save_version=fixture.save_version,
+            header_version=fixture.header_version,
+        )
+    assert not (
+        isinstance(passed.value, objects.ObjectBudgetExceededError)
+        and passed.value.field == "body_reference_count"
+    )
+
+
+def test_the_trailing_body_reference_ceiling_refuses_every_count_a_string_can_make() -> None:
+    """The ceiling's EFFECT, because its VALUE grades itself.
+
+    THE SIBLING ARM 200 LINES UP ALREADY RECORDS THIS FAULT AND CS-867 SHIPPED
+    IT ANYWAY: the constant was copied from
+    :data:`objects.MAX_LEVEL_TAIL_ENTRIES` together with its rationale, and the
+    arm that makes that rationale checkable was not. An adversary measured the
+    consequence - ``MAX_BODY_REFERENCES = 1 << 30`` and ``= (1 << 31) - 1`` both
+    leave every test in this module green, and the second removes the refusal
+    outright since no int32 can exceed it.
+
+    This bounds the constant from above by the failure it exists to refuse. A
+    desynchronised walk reads its count out of the middle of a string, so the
+    counts that matter are the ones four printable bytes can make;
+    ``1 << 30`` sits inside that interval. Bounding from BELOW is
+    :func:`test_the_body_trailer_is_a_counted_reference_list_and_walks_to_the_last_byte`
+    at counts 2 and 3, which a ceiling of 1 fails.
+    """
+    fixture = synthetic.SAVE_LEVELLED_V60
+    body = _body_with_trailing_references(())
+
+    assert objects.MAX_BODY_REFERENCES < _SMALLEST_PRINTABLE_ASCII_INT32, (
+        "the ceiling admits counts that four printable bytes can make, which is the "
+        "read a desynchronised walk produces"
+    )
+
+    garbage = body[:-4] + struct.pack("<i", _SMALLEST_PRINTABLE_ASCII_INT32)
+    with pytest.raises(objects.ObjectBudgetExceededError) as caught:
+        objects.parse_body(
+            garbage,
+            save_version=fixture.save_version,
+            header_version=fixture.header_version,
+        )
+    assert caught.value.field == "body_reference_count"
 
 
 def test_a_negative_trailing_body_reference_count_is_refused_as_a_format_error() -> None:
@@ -2654,7 +2860,7 @@ def test_a_negative_trailing_body_reference_count_is_refused_as_a_format_error()
     draws, at the body's own trailing list.
     """
     fixture = synthetic.SAVE_LEVELLED_V60
-    body = _v60_body_with_trailing_references(())
+    body = _body_with_trailing_references(())
     # The count is the body's final int32, so the last four bytes ARE the field.
     negative = body[:-4] + struct.pack("<i", -1)
 
@@ -2760,7 +2966,7 @@ def test_a_package_summary_name_is_consumed_and_never_retained() -> None:
         header_version=header_version,
     )
 
-    assert marker not in repr(table) + "".join(repr(record) for record in table.records)
+    assert marker not in _every_rendered_surface(table)
 
 
 def test_the_opaque_spans_are_recorded_as_a_structure_a_later_slice_can_resume_from() -> None:
@@ -2886,9 +3092,15 @@ def _sweep_the_real_library() -> _RealSweep | None:
     FLIGHT, and the containment is deliberate rather than habitual. pytest
     renders the ARGUMENTS of every frame in a failing traceback - no
     ``--showlocals``, no opt-in - so an exception escaping
-    ``parse_body(body, ...)`` prints the head of a real save body into the test
-    log. Measured on this machine by planting a marker in a bytes argument of a
+    ``parse_body(body, ...)`` prints a real save body into the test log.
+    Measured on this machine by planting a marker in a bytes argument of a
     raising frame: it appeared twice in pytest's output.
+
+    IT IS THE HEAD AND THE TAIL, not the head alone, and this sentence said
+    "the head" until CS-867. ``saferepr`` truncates by eliding the MIDDLE and
+    keeping both ends, verified by rendering a marked buffer. That matters more
+    after CS-867 than before it: the body's trailing counted reference list is
+    world content the reader now decodes, and it sits at the tail.
 
     So every step is wrapped and every failure is reduced to a type NAME here,
     inside the helper, before it can reach a frame anyone renders. The width of
@@ -3019,8 +3231,9 @@ def test_a_real_save_of_a_measured_pair_walks_to_the_end_of_its_body() -> None:
     # THE PARSE IS GUARDED, and the guard is not defensive habit - it closes a
     # leak MEASURED on this machine. pytest renders the ARGUMENTS of every frame
     # in a failing traceback, without --showlocals and without any opt-in. So an
-    # exception escaping `parse_body(body, ...)` prints the head of a REAL SAVE
-    # BODY into the test log, and a save body holds the world's contents
+    # exception escaping `parse_body(body, ...)` prints a REAL SAVE BODY into
+    # the test log - head AND tail, since saferepr elides the middle (CS-867) -
+    # and a save body holds the world's contents
     # (CLAUDE.md non-negotiables 11 and 12). Verified by planting a marker in a
     # bytes argument of a raising frame: it appeared twice in pytest's output.
     #

@@ -819,20 +819,45 @@ def test_every_tabindex_is_a_scroll_container_at_the_default() -> None:
     trusted Tab moved focus onto the scroller, which reported its accessible
     name, matched ``:focus-visible``, and painted ``solid 3px`` at ``2px``
     offset with its own 8px radius, measured 8.95:1 against the panel in dark.
+
+    THE STOP IS NOW DERIVED AND SO THIS ARM MOVED WITH IT (second CS-600 audit).
+    It used to require ``tabindex="0"`` on every scroller IN THE MARKUP, and the
+    audit measured that unconditional claim false twice: the World scroller
+    reports ``scrollWidth === clientWidth`` at 1574, 375 and 320px - it never
+    scrolls at any tested width - and it kept its stop when a failed
+    ``/api/world`` hid its table, leaving a 1.33px empty box that took focus and
+    announced itself as a scrollable region of world counts. ``app.js`` now sets
+    and removes the three attributes from the measured overflow.
+
+    SO WHAT IS GRADED HERE IS THE PROPERTY THAT SURVIVED: no ``tabindex`` is
+    written into the markup at all, every scroller is declared where a table is,
+    and the only thing that may ever grant one is the sync function - which is
+    required to grant ``0`` and nothing else. The RUNTIME half - that the stop
+    appears exactly while the box overflows - is measured in the browser during
+    the audit, because no reading of this file can establish it.
     """
     markup = markup_only(read_asset(INDEX))
-    values = re.findall(r'tabindex="(-?\d+)"', markup)
-    assert values, "no tabindex on the page at all"
-    wrong = tuple(value for value in values if value != "0")
-    assert not wrong, f"tabindex values that are not 0: {wrong}"
+    assert not re.findall(r'tabindex="(-?\d+)"', markup), (
+        "a tabindex is declared in the markup; the stop is derived from measured "
+        "overflow in app.js, and a static one is the unconditional claim the audit "
+        "measured false"
+    )
 
     scrollers = re.findall(r"<div class=\"scroll-x\"[^>]*>", markup)
     assert len(scrollers) == markup.count("<table"), "a table has no scroller"
-    assert len(values) == len(scrollers), (
-        f"{len(values)} tabindex attribute(s) for {len(scrollers)} scroller(s)"
+
+    script = read_asset(SCRIPT)
+    granted = re.findall(r'setAttribute\(\s*"tabindex"\s*,\s*"(-?\d+)"', script)
+    assert granted, "nothing in app.js ever grants a tab stop, so no scroller can be reached"
+    wrong = tuple(value for value in granted if value != "0")
+    assert not wrong, (
+        f"tabindex values that are not 0: {wrong}; a positive value invents a second "
+        "ordering that disagrees with the visual one"
     )
-    for scroller in scrollers:
-        assert 'tabindex="0"' in scroller, f"scroller is not focusable: {scroller}"
+    assert 'removeAttribute("tabindex")' in script, (
+        "app.js grants a tab stop and never removes one, so a box that stops "
+        "overflowing keeps a stop it has not earned"
+    )
 
 
 def test_every_focusable_scroller_carries_its_own_accessible_name() -> None:
@@ -841,18 +866,40 @@ def test_every_focusable_scroller_carries_its_own_accessible_name() -> None:
     Focus landing on an unnamed box announces nothing, which is a stop a
     keyboard reader cannot account for. Two boxes sharing a name is the same
     fault one step later: the second stop is indistinguishable from the first.
+
+    THE NAME IS NOW BUILT AT RUNTIME FROM ``data-scroll-label`` (second CS-600
+    audit), so the uniqueness that matters is the uniqueness of that attribute.
+    The audit's MUST-FIX was that the static ``aria-label`` asserted "scrolls
+    sideways" on a box measured never to scroll at any tested width; the suffix
+    is now appended only where the overflow is real, which is why the stem is
+    what this file can grade and the whole name is not.
     """
     markup = markup_only(read_asset(INDEX))
     scrollers = re.findall(r"<div class=\"scroll-x\"[^>]*>", markup)
     assert scrollers, "no scroller found"
 
+    assert not re.search(r'aria-label="[^"]*"', markup), (
+        "an aria-label is declared in the markup; the name is built in app.js from "
+        "data-scroll-label so it can state the scroll claim only where it is true"
+    )
+
     labels = []
     for scroller in scrollers:
-        assert 'role="region"' in scroller, f"scroller declares no role: {scroller}"
-        found = re.search(r'aria-label="([^"]+)"', scroller)
-        assert found is not None, f"scroller declares no accessible name: {scroller}"
+        found = re.search(r'data-scroll-label="([^"]+)"', scroller)
+        assert found is not None, f"scroller carries no name stem: {scroller}"
         labels.append(found.group(1))
     assert len(set(labels)) == len(labels), f"two scrollers share a name: {labels}"
+
+    script = read_asset(SCRIPT)
+    assert 'setAttribute("role", "region")' in script, (
+        "nothing gives a focusable scroller a role, so a stop announces an unnamed box"
+    )
+    assert 'removeAttribute("role")' in script and 'removeAttribute("aria-label")' in script, (
+        "a box that stops overflowing keeps a role and a name it has not earned"
+    )
+    assert "data-scroll-label" in script, (
+        "app.js does not read the name stem, so the markup's stems reach nothing"
+    )
 
 
 def test_no_rule_declares_a_sticky_offset_that_nothing_can_honour() -> None:

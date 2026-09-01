@@ -488,10 +488,17 @@ def _walk_body(
         _walk_level(reader, layout, named=True, into=found)
     # Exactly one unnamed persistent level closes every measured body.
     _walk_level(reader, layout, named=False, into=found)
-    # Measured as present and observed to be zero. Its MEANING is unmeasured, so
-    # it is consumed and not interpreted; a walk without it stops four bytes
-    # short of the end of a real body.
-    reader.int32()
+    # The body's final int32 is a COUNT of object references, each two
+    # length-prefixed strings (CS-867). It read as an opaque word "observed to
+    # be zero" here too, and this module kept that reading for a session after
+    # the shipped walk stopped carrying it - which made the SECOND OPINION WRONG
+    # on the three real saves that declare 1, while the differential arms went
+    # on agreeing because this reader returns records and never compares
+    # end-of-body position. An oracle that agrees by not looking is not an
+    # oracle. Found by an adversary grading CS-867, not by an arm.
+    for _ in range(reader.bounded(objects.MAX_BODY_REFERENCES)):
+        reader.string()
+        reader.string()
     return tuple(found)
 
 

@@ -75,6 +75,132 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-08-31 - CS-600 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-600 STAYS OPEN. The 5-phase audit RAN for the first time and returned BLOCKED with 3 MUST-FIX; two are repaired here and the third is the shell's and is left open by operator instruction
+Verification: `clockspeed/surface/web/index.html` and `clockspeed/surface/web/app.js`
+(`syncScrollRegions`), graded by
+`tests/surface/test_web_assets.py::test_every_tabindex_is_a_scroll_container_at_the_default`
+and
+`tests/surface/test_web_assets.py::test_every_focusable_scroller_carries_its_own_accessible_name`.
+
+**THE GATE IS NOT MET AND THIS ENTRY DOES NOT MEET IT.** CS-600's acceptance is that the
+CONVENTIONS 13.2 audit PASSES before the page is committed. It ran, by a `ui-auditor` that
+did not author the page, against the shipped page served through a plain-HTTP proxy in front
+of the HTTPS surface - no automation browser here will load a self-signed pair, and trusting
+one is a security-settings change rather than a test fixture. It returned BLOCKED.
+
+**MUST-FIX 2 AND 3, BOTH REPAIRED, ARE ONE FAULT: A STATIC AFFORDANCE ASSERTING A MEASURED
+PROPERTY.** The markup declared `tabindex="0"`, `role="region"` and an `aria-label` ending
+"scrolls sideways" on both scrollers unconditionally. Measured false twice over: the World
+scroller reports `scrollWidth == clientWidth` at 1574, 375 and 320px, so it never scrolls at
+any tested width; and when a failed `/api/world` hid its table the wrapper stayed in the
+layout as a 1.33px empty box that still took focus and still announced itself as a
+scrollable region of world counts. The affordance is now DERIVED from
+`scrollWidth > clientWidth` on every render and on resize, and the wrapper mirrors its
+table's `hidden`. Verified in the browser: at 375px the endpoint scroller earns a stop and
+genuinely scrolls, the World scroller earns none at any width, and on the 503 path the
+wrapper is 0px, out of the tab order and out of the accessibility tree.
+
+**A THIRD INSTANCE OF THE SAME FAULT WAS FIXED THAT THE AUDIT DID NOT FLAG.** The endpoint
+scroller's static label asserted sideways scrolling too, and it does not overflow at desktop
+width either - the audit called it a genuine scroller on the strength of 375px and 320px
+measurements. Deriving the label fixes both boxes at once.
+
+**THE TWO ARMS GRADING THE OLD STATIC MARKUP WERE REPOINTED, NOT RELAXED.** They now require
+that NO `tabindex` and NO `aria-label` appear in the markup at all, that every scroller
+carries a unique `data-scroll-label` stem, and that `app.js` both grants and removes each of
+the three attributes. Proven load-bearing rather than assumed: dropping
+`removeAttribute("tabindex")` reddens one, and putting a static `tabindex` back in the
+markup reddens the other, with a green floor either side.
+
+**MUST-FIX 1 IS OPEN AND IS THE CS-617 ACCEPTANCE, NOW MEASURED RATHER THAN ASSERTED.** With
+`shell/lib/window.js`'s `DRAG_STRIP_CSS` composed in, at `scrollY 368.7`
+`document.elementFromPoint` returns `body` for every y from 0 to 27 inclusive at the
+scroller's horizontal centre; deleting only the `body::before` rule at the identical offset
+returns real table cells. Reproduced at 375px and on both scrollers. Neither scroller matches
+the no-drag escape list, being `div[role="region"]` rather than a control. LEFT OPEN BY
+OPERATOR INSTRUCTION: the remedy is in the shell, `pointer-events: none` may not release an
+Electron drag region, and `shell/node_modules` does not exist in this clone - so it cannot be
+verified where it has to be verified.
+
+**ADVISORIES NOT ACTED ON**, recorded so the next pass does not rediscover them: two type
+scale pairs 0.32px apart; `h3` rendering smaller and dimmer than the body text beneath it;
+neither table carrying a `<caption>`; and `app.css` lines 92-93 restating a measured count
+against the wrong width - 52 elements past the viewport edge at 375px and 62 at 320px, where
+the prose attaches 62 to 375px. Contrast measured 0 AA failures across 20 text styles in both
+schemes, all 46 `var()` references resolve with the 12 unreachable states forced rather than
+skipped, and focus survives a repaint with `[focus, focusin]` and no blur.
+
+### 2026-08-31 - CS-867 - CORRECTION to the completion record filed earlier this day: THREE ADVERSARIES REFUTED IT, all three were right, and the item stays CLOSED with its claim narrowed and four holes repaired
+Verification: `clockspeed/save/objects.py` at the end of `parse_body`,
+`tests/save/independent_table.py` in `_walk_body`, and in `tests/save/test_objects.py` the
+arms `test_the_rendering_helper_reaches_the_surfaces_the_table_repr_hides`,
+`test_the_trailing_body_reference_ceiling_refuses_every_count_a_string_can_make` and
+`test_no_discarded_string_is_retained_in_module_or_cursor_state`.
+
+**NOTHING IN THE ENTRY BELOW IS WITHDRAWN.** The walk is right, the 20 of 20 exact
+consumption is real and independently reproduced red-then-green, and the CS-482 diagnosis
+holds. What was wrong was the STRENGTH the claim was stated at and the STRENGTH of the arms
+sold as proving it. Three adversaries, each on its own lens, each grading the frozen commit
+it did not produce, each from its own extraction.
+
+**1. THE CLAIM WAS STATED FLATLY AND THE CORPUS DOES NOT SUPPORT IT.** Four rival readings
+also land all 20 real saves on their exact final byte - a fixed 120-byte record, a flag then
+one pair, non-zero-means-exactly-one, and a count of (string, 90 opaque bytes). Two of them
+are not separable from the shipped reading by ANY evidence in the library: the observed
+population is `{0: 17, 1: 3}`, the three non-zero tails are byte-identical, and they come
+from ONE world - one distinct sample, not three. `_read_level_tail`, 490 lines up in the
+same file and named by this very item as its precedent, already carries the hedge that was
+missing here, and names the discriminator that settled CS-482: a closed interval tiled with
+zero slack, right edge pinned. CS-867 HAS NO RIGHT EDGE - its list ends where the body ends,
+which is exactly why several readings tile it. The comment now carries the hedge.
+
+**WHAT DOES SUPPORT THE PAIR READING is provenance, not tiling, and the adversary found it
+where this item had not looked.** Measured on all three saves and re-measured independently
+by the merger: the first string is one of the 471 level names THE SAME WALK READ EARLIER IN
+THE SAME BODY, and the pair is identical to one of that body's own `level_tail_entry` pairs,
+which CS-482 reads as (level name, object path).
+
+**2. THE NON-NEGOTIABLE-12 ARM COULD NOT FAIL.** It asserted `text not in repr(table)`, and
+`ObjectTable.__repr__` is hand-written to emit eight integers - an assertion over an empty
+population, cited in the entry below as Verification. Measured: it PASSED on a tree with the
+CS-867 loop deleted, on a tree retaining both strings in a module-level list, and on a tree
+retaining both in `ObjectWarning.detail`, which RENDERS them. THE WHOLE FAMILY CARRIED THE
+HOLE - the level-tail and package-summary arms rendered records but never `warnings` or
+`unknown_classes`, the two model classes still on the default dataclass repr - so it is
+repaired at the population through one `_every_rendered_surface` helper with a control that
+fails if it is ever narrowed back, not at the one instance. The module-state route is closed
+by extending the guard that already existed for it.
+
+**3. THE CEILING WAS PINNED BY NOTHING, AND THE FILE ALREADY RECORDED THAT FAULT.**
+`MAX_BODY_REFERENCES` was copied from `MAX_LEVEL_TAIL_ENTRIES` together with its rationale,
+and the arm making that rationale checkable was not copied. Measured: `1 << 30` and
+`(1 << 31) - 1` both leave every arm green, the second removing the refusal outright since
+no int32 can exceed it. The first edge arm written in response was ALSO edge-relative and
+also green at `1 << 30` - the same defect the sibling's docstring warns about in terms. The
+absolute bound against `_SMALLEST_PRINTABLE_ASCII_INT32` is what closes it.
+
+**4. THE INDEPENDENT ORACLE STILL CARRIED THE REFUTED READING**, so the second opinion was
+wrong on the three saves that declare 1 while the differential arms went on agreeing -
+because that reader returns records and never compares end-of-body position. AN ORACLE THAT
+AGREES BY NOT LOOKING IS NOT AN ORACLE. It now reads the list; measured agreement with the
+shipped walk is 20 of 20, 0 declines, 0 mismatches.
+
+**ALSO CORRECTED: a description of the leak channel that this item made matter more.** Three
+sites said an exception escaping `parse_body` prints "the head" of a real save body.
+`saferepr` elides the MIDDLE and keeps BOTH ENDS, verified by rendering a marked buffer -
+and after CS-867 the tail is precisely the region the reader interprets.
+
+**COVERAGE: the arm now builds all four measured pairs.** Only (14,60) ever declares a
+non-zero count, so 12 of the 20 saves and 3 of the 4 pairs gave the new code path no real
+coverage at all.
+
+**WHAT REMAINS UNESTABLISHED, recorded rather than closed:** whether the field is a count at
+all rather than a presence flag, and how a count above 1 interleaves. Both are unfalsifiable
+from a corpus of `{0, 1}` drawn from one world. `MAX_BODY_REFERENCES` bounds a WHOLE-WORLD
+list with a constant borrowed from a PER-LEVEL one whose observed maximum is 4; nothing
+measured says the two belong at the same order, and the arm pins only that it refuses the
+garbage class.
+
 ### 2026-08-31 - CS-867 - CLOSED. The body's final int32 is a COUNT of object references, not the opaque constant the grammar called it, and every real save now walks to its last byte
 Verification: `clockspeed/save/objects.py` at the end of `parse_body`, plus
 `tests/save/test_objects.py::test_the_body_trailer_is_a_counted_reference_list_and_walks_to_the_last_byte`,

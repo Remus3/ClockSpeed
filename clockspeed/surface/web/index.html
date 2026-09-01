@@ -46,20 +46,32 @@
     </p>
     <p class="note" id="probe-note">reading ...</p>
     <!--
-      tabindex="0" PUTS THE SCROLLER ITSELF IN THE TAB ORDER. At 375px the
-      right-hand columns of this table are reachable by scrolling this box and
-      by nothing else - it holds no link, no control, no focusable descendant of
-      any kind - so a reader who cannot use a pointer needs the box to take
-      focus before the arrow keys mean anything to it. Whether a user agent
-      makes an overflow container focusable on its own is a Chromium decision
-      that has moved between releases, and the companion shell ships whichever
-      Chromium it ships. Declaring it settles the question here.
+      THE TAB STOP IS DERIVED FROM MEASURED OVERFLOW, NOT DECLARED HERE (CS-600).
+      A scroller in the tab order is worth a stop only while it actually
+      scrolls: at 375px the right-hand columns of this table are reachable by
+      scrolling this box and by nothing else - it holds no link, no control, no
+      focusable descendant of any kind - so a reader who cannot use a pointer
+      needs the box to take focus before the arrow keys mean anything to it. At
+      1574px the same box has nothing to scroll, and a stop there announces a
+      capability that is not present.
 
-      role + aria-label GIVE THE STOP A NAME. Focus landing on an unnamed box is
-      an announcement of nothing; the label says what was reached and that it
-      scrolls. The two scrollers are named apart so the second is not the first.
+      SO tabindex, role AND aria-label ARE SET BY app.js FROM
+      scrollWidth > clientWidth, on every render and on resize, and removed when
+      the box does not overflow. THE STATIC MARKUP MADE THE CLAIM UNCONDITIONALLY
+      AND THE AUDIT MEASURED IT FALSE in two ways: the World scroller never
+      scrolls at any tested width, and it kept the stop even when its table was
+      hidden by a failed /api/world - a 1.33px empty box announced as a
+      scrollable region of world counts.
+
+      data-scroll-label CARRIES THE NAME the stop gets when it earns one. Focus
+      landing on an unnamed box is an announcement of nothing. The two scrollers
+      are named apart so the second is not the first. Whether a user agent makes
+      an overflow container focusable on its own is a Chromium decision that has
+      moved between releases, and the companion shell ships whichever Chromium
+      it ships - so it is still declared rather than left to the agent, just
+      declared only when true.
     -->
-    <div class="scroll-x" tabindex="0" role="region" aria-label="Endpoint routes, scrolls sideways">
+    <div class="scroll-x" data-scroll-label="Endpoint routes">
       <table>
         <thead>
           <tr>
@@ -86,7 +98,13 @@
     </p>
     <p class="note" id="world-note">reading /api/world ...</p>
     <dl class="facts" id="world-facts"></dl>
-    <div class="scroll-x" tabindex="0" role="region" aria-label="World counts, scrolls sideways">
+    <!--
+      HIDDEN MIRRORS THE TABLE'S OWN hidden, set by app.js. The wrapper used to
+      stay in the layout when /api/world failed, collapsing to a 1.33px band
+      that still took focus and still announced itself. A wrapper around a
+      hidden table is not a region; it is nothing.
+    -->
+    <div class="scroll-x" id="count-scroller" data-scroll-label="World counts" hidden>
       <table id="count-table" hidden>
         <thead>
           <tr>
