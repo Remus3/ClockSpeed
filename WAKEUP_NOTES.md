@@ -34,6 +34,64 @@ the line becomes a pointer.
 
 ---
 
+## Session 54 - 2026-09-01 - CS-867 CLOSED and the push block cleared; three adversaries refuted it and all three were right; the UI work opened and its first audit returned BLOCKED. The same fault shape appeared FIVE times and I wrote three of them
+
+- **Shipped: CS-867.** Detail in `docs/LEDGER.md`, not here. CS-600 stays OPEN and its
+  entries say NOT A COMPLETION RECORD. CS-868 through CS-871 untouched, CS-864 and CS-865
+  untouched. CS-829 stays GATED behind CS-G05 - untouched this session.
+
+- **THE HEADLINE: AN ASSERTION CAN PASS OVER A POPULATION THAT IS NOT THE ONE IT NAMES, AND
+  KNOWING THAT DOES NOT STOP YOU WRITING ONE.** Five instances this session, in one causal
+  family. The grammar called a field constant because it is constant in every save the
+  corpus was derived from. Session 53's note called a run a fixed structure because three
+  samples agreed - three samples of ONE world, minutes apart. My non-negotiable-12 arm
+  asserted `text not in repr(table)` against a repr hand-written to emit eight integers. The
+  dashboard markup asserted "scrolls sideways" about a box whose overflow is a function of
+  viewport width. And my own guard arm searched for a bare `syncScrollRegions();` in a slice
+  of a file that contained a DIFFERENT call site - written after I had diagnosed the other
+  four. **VIGILANCE DID NOT CATCH THE FIFTH; A MUTATION MATRIX DID.** Run the mutants.
+
+- **CS-867 WAS A COUNT READ AS A CONSTANT, AND IT IS CS-482 ONE LEVEL UP.** The body's final
+  int32 counts object references, each two length-prefixed strings; it is 0 on every save the
+  grammar came from, so an empty list left nothing to read. Three real (14,60) saves declare
+  1 and the 120 leftover bytes are that one reference. Both times the corpus was then built
+  to WRITE the constant, so it could not refute the assumption it encoded.
+
+- **THREE ADVERSARIES REFUTED THE FIX AND EVERY FINDING WAS REAL.** Four rival readings also
+  land 20 of 20 saves exactly, and two are unfalsifiable from this corpus - `{0: 17, 1: 3}`
+  from one world. The privacy arm could not fail. The ceiling was pinned by nothing, and THE
+  EDGE ARM I WROTE IN RESPONSE HAD THE SAME DEFECT the sibling's docstring warns about in
+  terms. The independent oracle still carried the refuted reading, so the second opinion was
+  wrong while the differential arms went on agreeing - AN ORACLE THAT AGREES BY NOT LOOKING
+  IS NOT AN ORACLE.
+
+- **Surprises: CI CAUGHT A CLASS THE LOCAL GATE STRUCTURALLY CANNOT.** `ruff check` refused a
+  compound assertion (PT018) 27 seconds in. The pre-commit gate lints from a temp copy of the
+  index bytes, so project per-file-ignores do not apply and it reports a large standing
+  population of non-blocking findings - a green gate is NOT evidence about that CI step. **Run
+  `python -m ruff check .` directly before pushing.** Also: `git add -A` swept a Playwright
+  artifact into a commit; amended out, and `/.playwright-mcp/` is now gitignored.
+
+- **The dashboard would not render and that is a standing obstacle, not a one-off.** It is
+  HTTPS-only with a self-signed pair and neither the in-app browser nor Playwright will load
+  it; trusting the cert is a security-settings change and is off the table. A plain-HTTP
+  proxy in front of it is what made the audit possible - scratchpad only, audit only.
+
+- **Decisions: none recorded as an ADR.** Nothing contradicted `BOOTSTRAP.md`.
+
+- **Failed paths: `.claude/launch.json` was written and immediately removed** - it would have
+  spelled the dashboard port into a tracked file, which is exactly the violation CS-604 is
+  open about. The port guard does not read JSON; the rule still does.
+
+- **Next action: OPERATOR'S CALL between the two open UI threads.** CS-600 needs a THIRD
+  audit before it can close, because the arms now guarding the page were written by the
+  session that wrote the code they grade; and MUST-FIX 1, the shell drag strip capturing
+  28px of scrolled content, is measured and untouched by operator instruction. It needs
+  `cd shell && npm install` and a real Electron, which is also what the six manual checks in
+  `docs/OPERATIONS.md` section 8.3 have been waiting on since session 49.
+
+---
+
 ## Session 53 - 2026-08-31 - CS-866 CLOSED and adjudicated ACCEPT WITH NAMED RESIDUE. An adversarial pass REFUTED CS-863's arms the day after they shipped, and a real save written mid-session turned the suite red on a body tail nothing models
 
 - **Shipped: CS-866.** Detail in `docs/LEDGER.md`, not here. CS-867, CS-868, CS-869, CS-870
@@ -182,90 +240,3 @@ the line becomes a pointer.
 - **STILL OUTSTANDING FROM SESSION 49, UNTOUCHED:** the six manual checks in
   `docs/OPERATIONS.md` section 8.3 all still read NOT RUN. They need a human at a real
   display and a real Electron, and `shell/node_modules` still does not exist in this clone.
-
----
-
-## Session 51 - 2026-08-31 - CS-862 CLOSED. A wrapper around the shipped record table finally goes RED, the route it goes red through is one no static arm can see, and the full suite caught a rename the module-level run had called clean
-
-- **Shipped: CS-862.** Detail in `docs/LEDGER.md`, not here. CS-829 stays GATED behind
-  CS-G05 - this was PREP and PREP never closes a gated item. CS-863, CS-864 and CS-865
-  stay OPEN; CS-864's note gained a dated addendum narrowing what is left of it.
-
-- **THE HEADLINE: AGREEMENT CANNOT SEPARATE A READING FROM THE THING IT AGREES WITH, SO
-  THE ARM HAD TO DISAGREE ON PURPOSE.** Every library-backed claim about the second
-  reading is an agreement claim, and a wrapper maximises all of them. The new arms degrade
-  the shipped record table AT ITS SOURCE in process - `objects._KIND_BY_OBJECT_TYPE`
-  relabelled, `objects._read_data_entries` slid one byte with the extent end held - and
-  require the second reading to still match the FIXTURE's declaration and the BODY's own
-  bytes. Ground truth is never the pristine reading: "did not move" is an equality between
-  two calls of one function and a memoising reading satisfies it outright.
-
-- **THE `getattr` ROUTE IS THE RESULT WORTH CARRYING.** Four mutants, the pristine floor
-  re-run and verified green after each. STATIC is the four seam-guard arms; DYNAMIC is the
-  15 cases of the two new arms. A direct `objects.parse_body(...)` wrapper reddens 2 of 4
-  static and 15 of 15 dynamic. The SAME wrapper reached as
-  `getattr(objects, "parse" + "_body")` reddens 0 of 4 static and 15 of 15 dynamic. A kind
-  decision read as `objects._KIND_BY_OBJECT_TYPE.get(...)` - CS-864's two-level reach -
-  reddens 0 of 4 static and every case its plant can reach. That third one also makes the
-  discriminator re-transcription load-bearing for the first time: the anti-drift arm
-  guarding it is an equality between two spellings, which a shared import satisfies.
-
-- **A PLANT I DOCUMENTED AS A RELABEL WAS NOT ONE, and only a fourth mutant found it.**
-  Swapping `objects._KIND_BY_OBJECT_TYPE` makes `parse_body` REFUSE rather than relabel -
-  the kind decides how many bytes a record occupies. The field-coverage arm was crediting
-  that wholesale kill with covering `is_actor` while NO plant moved that field at all. The
-  repair added a third plant that wraps `objects._read_levelled_record` and flips the kind
-  AFTER the real reader has consumed the right bytes, and stopped letting a kill count as
-  field coverage. Found by making the shift plant inert and asking what stayed green.
-
-- **AND THE PROSE AROUND THAT REPAIR WAS NOT FULLY RE-READ.** Adding the third plant left
-  three sentences in the CS-862 ledger entry still saying "two plants". Caught during
-  `/done`, corrected by a NEW append-only record rather than by editing - `docs/LEDGER.md`
-  says nothing in it is ever edited once written. Commit `10c5777`. The arms, the shipped
-  code and the entry's own mutant table were right throughout; only the prose was stale,
-  which is the same fault the correction is about.
-
-- **THE PLANT THAT DID NOTHING, CAUGHT BY ITS OWN OBSERVABILITY ASSERTION.** The first
-  plant written wrapped `objects._read_record` - the FLAT reader `parse_object_headers`
-  uses. `parse_body` calls `_read_levelled_record` instead, so the shipped table never
-  moved and the arm would have passed against every possible second reading including a
-  verbatim wrapper. Every arm now proves the SHIPPED reading moved before concluding
-  anything about this one.
-
-- **Surprises: I WAS WRONG ABOUT WHICH GUARDS READ `docs/`, AND THE FULL SUITE IS WHAT
-  SAID SO.** Before renaming the degradation arm I checked `test_oracle_citations` (scans
-  `clockspeed/`) and `test_absolute_claims` (scans `tests/`) and concluded no guard reads
-  `docs/`. `tests/test_docs_citations.py` does, and CS-442 exists because of exactly that
-  gap. The rename went red on `docs/LEDGER.md` and on the item-notes leaf, and only the
-  whole-suite run showed it - the two edited modules were green on their own. THIRD
-  SESSION RUNNING that a module-level or subset run has been green while the package was
-  not. The repair is the sanctioned one: a machine-checked `RENAMED` disposition, because
-  the ledger is append-only and the record was RIGHT when written.
-
-- **Decisions: none recorded as an ADR.** Nothing contradicted `BOOTSTRAP.md`.
-
-- **Failed paths: none abandoned.** One plant target was replaced after measurement
-  (`_read_record` -> `_read_levelled_record`, then `_read_levelled_record` ->
-  `_KIND_BY_OBJECT_TYPE`, which needs no `ObjectRecord` reconstruction and is the shared
-  DATA symbol the session-40 counter-example relabels).
-
-- **DEPARTURE FROM `CLAUDE.md` SECTION 5, RECORDED AS THAT SECTION REQUIRES.** This
-  session ran SINGLE-AGENT. The harness forbade dispatching subagents, so there was no
-  adjudicator and no independent adversary; the refutation passes were three in-process
-  mutants run by the same session that wrote the arms. **A PRODUCER GRADED ITS OWN WORK,
-  which is the thing that section exists to prevent.** The mutants and their numbers are
-  in `docs/LEDGER.md` and are re-runnable, so the claim is checkable - but it has not had
-  an independent pass, and the next session should treat it as ungraded by anyone else.
-
-- **Next action: CS-863** - the shipped SCALAR CONSTANTS both tag walks consult. It is the
-  bigger prize and the harder one, and its measurement is already recorded so it does not
-  need re-deriving. The plant mechanism CS-862 built - degrade a shared shipped symbol in
-  process, assert observability first, grade against the bytes - is the same shape CS-863
-  needs for `objects._MAX_TAGS_PER_PAYLOAD`.
-
-- **STILL OUTSTANDING FROM SESSION 49, UNTOUCHED:** the six manual checks in
-  `docs/OPERATIONS.md` section 8.3 all still read NOT RUN. They need a human at a real
-  display and a real Electron, and `shell/node_modules` still does not exist in this
-  clone.
-
----
