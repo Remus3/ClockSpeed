@@ -1215,7 +1215,9 @@ happens to hold at the moment the suite runs.
 ### Filed 2026-08-31 (session 53), from an adversarial pass CS-863's own session recorded as owed
 
 **CS-863 SHIPPED WITHOUT AN INDEPENDENT PASS AND SAID SO.** Its arms were built and graded
-by the session that wrote them. This is that pass, and it REFUTES them. Two agents that
+by the session that wrote them. THE ARMS ARE THOSE OF
+`tests/save/test_struct_interior.py`, which is the module every measurement below is
+taken over; that citation moved here from the item line, which does not carry it. This is that pass, and it REFUTES them. Two agents that
 produced no part of CS-863, working from different briefs and building their mutants
 independently from source, reached the same counter-example; the second never opened the
 first's directory.
