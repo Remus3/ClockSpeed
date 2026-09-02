@@ -105,6 +105,33 @@ values that are authored in this repository or bounded by it. ``handle_error``
 emits the exception TYPE NAME and nothing else, the idiom
 ``clockspeed/save/world.py`` states as ``WorldLoadError(stage, cause_type)``.
 
+A FIFTH CHANNEL IS THE CHAINED CAUSE, AND BOTH REFUSALS SUPPRESS IT (CS-857).
+``raise Wrapper(...) from exc`` puts the CAUSE's own ``str()`` in the formatted
+traceback beside a wrapper message that may be perfectly redacted, so the two
+refusals this module raises - :class:`CertificateError` and :class:`BindError` -
+use ``from None`` and fold what the cause carried back in as scalars.
+
+NEITHER CAUSE WAS MEASURED TO LEAK, AND BOTH WERE CLOSED ANYWAY. Every leg of
+``load_cert_chain`` raises with ``filename`` unset, and a bind collision raises
+an interpreter-generated address message; the control that makes those absences
+readable is the same denied file through ``Path.read_bytes``, which DOES render
+its path. They are suppressed because the channel is graded on the HANDLER TYPE,
+which resolves to a builtin ``OSError`` subclass and cannot know that a given
+call attaches nothing, and because ``tests/chained_cause_guard.py`` orders
+``measured-leak`` ahead of ``exempt`` deliberately so that no recorded
+measurement can argue a site away. ``from None`` is the remedy that ordering
+names, and its stated cost is paid here.
+
+WHAT ``from None`` COSTS AND HOW IT IS PAID BACK. Suppression discards the
+cause's text, which was the only thing telling an absent certificate from an
+unreadable one from one that does not parse. :func:`cause_summary` folds back
+the two parts of it that cannot spell a path - the class name and the integer
+error code - and :func:`certificate_refusal` and :func:`bind_refusal` render
+them into text this module owns. The code is in the summary rather than the
+class name alone because at the bind site the class name alone separates
+NOTHING: a taken port and an address this host does not have are both plain
+``OSError``.
+
 WHY A TRANSPORT FAULT RENDERS AS 404. ``send_error`` fires before any route
 exists, and the published reason vocabulary has no spelling for "the request line
 did not parse" - the nearest, ``malformed_query``, is about a query string and
@@ -147,6 +174,8 @@ __all__ = [
     "RouteError",
     "bind_refusal",
     "build_server",
+    "cause_summary",
+    "certificate_refusal",
     "match_route",
     "routing",
     "run",
@@ -280,16 +309,114 @@ class RouteError(ValueError):
     """A route table could not be built. Carries a fixed line and echoes nothing."""
 
 
+def cause_summary(cause: BaseException) -> str:
+    """Two scalars off a failed call, neither of which can spell a path.
+
+    WHY A SUMMARY EXISTS AT ALL. Both refusals below suppress their context with
+    ``from None`` (CS-857), which closes the traceback channel provably and
+    DISCARDS the cause's own text with it. That text was the only thing telling
+    an absent certificate from an unreadable one from one that does not parse -
+    a distinction an operator acts on differently - so it is folded back in
+    here, reduced to the two parts of it that are structurally safe.
+
+    WHAT IS KEPT, AND WHY EACH IS SAFE BY CONSTRUCTION RATHER THAN BY
+    MEASUREMENT. The CLASS NAME is a Python identifier read off the class
+    object, so no value the call touched can reach it. The ERROR CODE is an
+    ``int``. Neither is a string the failing call composed, which is the
+    property that matters: ``OSError.__str__`` renders ``[Errno n] strerror``
+    and appends ``: 'filename'`` only when the interpreter set one, and it is
+    that last part - never these two - that carries a path.
+
+    WHAT IS DELIBERATELY DROPPED. ``strerror``, which is an operating system's
+    message table and is of unbounded shape - on Windows it is whatever
+    ``FormatMessage`` returns for the code. A bounded integer separates the same
+    failures, and this module can reason about an integer categorically and
+    about a platform's message text not at all. That is the same trade
+    ``log_message`` makes above: a sink that cannot render its input is closed
+    whatever a future version passes it.
+
+    AND THE CODE IS NOT REDUNDANT WITH THE CLASS NAME, MEASURED. CPython maps
+    some errnos to their own ``OSError`` subclass and most socket codes to none,
+    so a bind collision and an address this host does not have are BOTH plain
+    ``OSError`` and are told apart by nothing else. This is the idiom
+    ``clockspeed/save/world.py`` states as ``WorldLoadError(stage, cause_type)``
+    and :meth:`DashboardServer.handle_error` already uses, with the code added
+    for that reason.
+
+    Args:
+        cause: The failure being summarised. Read for its class and its code
+            and rendered as a whole object nowhere - see
+            ``tests/test_exception_rendering.py``, which binds a parameter
+            annotated as an exception type exactly as it binds a caught one.
+
+    Returns:
+        ``"<ClassName> <code>"``, or the class name alone when the failure
+        carries no integer code.
+    """
+    name = type(cause).__name__
+    code = getattr(cause, "errno", None)
+    return f"{name} {code}" if isinstance(code, int) else name
+
+
+def certificate_refusal(summary: str = "") -> str:
+    """The one line an operator reads when the TLS material would not load.
+
+    A MODULE-LEVEL FUNCTION RATHER THAN A METHOD, for the reason
+    :func:`bind_refusal` states at length: the text has ONE author, so neither
+    the raise site nor :func:`run` has to render an exception OBJECT to reach
+    it. The two were asymmetric until CS-857 - the bind refusal was already
+    shaped this way and the certificate refusal was a bare constant - and
+    folding a cause into one of them is what made the asymmetry cost something.
+
+    Args:
+        summary: What :func:`cause_summary` made of the failure, or the
+            empty string. EMPTY IS PERMITTED AND NO SHIPPED SITE MAY USE IT: the
+            default exists so a caller holding nothing but a class can still
+            build the line, and ``tests/surface/test_server.py`` asserts every
+            raise site in this module passes a summary.
+
+    Returns:
+        The refusal, with no trailing newline. Always carries
+        :data:`CERTIFICATE_UNUSABLE` verbatim, so the pointer at the minting
+        script survives whatever the cause turns out to be.
+    """
+    if not summary:
+        return CERTIFICATE_UNUSABLE
+    return f"{CERTIFICATE_UNUSABLE}. The load failed with {summary}."
+
+
 class CertificateError(Exception):
     """The TLS material could not be loaded.
 
     The message names the minting script and the override variable, and never
     the paths themselves - the override can point inside a home directory, and a
     home path is personal data under non-negotiable 3.
+
+    Attributes:
+        cause_summary: What :func:`cause_summary` made of the failure
+            underneath - a class name and an error code, and nothing a path
+            can reach. It is the NAMED FIELD :func:`run` renders in place of
+            the object, and it is what still tells the failure modes apart
+            now that the cause is no longer chained (CS-857). NAMED FOR THE
+            SUMMARY RATHER THAN ``cause``, because ``cause`` is the field
+            CPython's grammar gives ``ast.Raise`` and
+            ``tests/chained_exemption_guard.py`` reads any static touch of
+            that name as a module deciding the chaining question for itself.
     """
 
+    def __init__(self, summary: str = "") -> None:
+        """Build the one-line message from the fixed pointer and the summary.
 
-def bind_refusal(port: int) -> str:
+        Args:
+            summary: What :func:`cause_summary` made of the failure, or the
+                empty string. See :func:`certificate_refusal` for why the
+                default is permitted here and forbidden at a shipped raise site.
+        """
+        self.cause_summary = summary
+        super().__init__(certificate_refusal(summary))
+
+
+def bind_refusal(port: int, summary: str = "") -> str:
     """The one line an operator reads when the listener could not be bound.
 
     A MODULE-LEVEL FUNCTION RATHER THAN A METHOD, so the text has ONE author
@@ -307,18 +434,27 @@ def bind_refusal(port: int) -> str:
         port: The port that could not be bound. A port number is not personal
             data, and naming it is the whole value of the message - an operator
             cannot act on "the dashboard did not start".
+        summary: What :func:`cause_summary` made of the failure, or the
+            empty string. EMPTY IS PERMITTED AND NO SHIPPED SITE MAY USE IT - the
+            default is here because ``tests/surface/test_routes.py`` builds a
+            ``BindError`` from a port alone to read the number back out, and
+            ``tests/surface/test_server.py`` asserts every raise site in this
+            module passes a summary so the default cannot be leaned on.
 
     Returns:
         The refusal, with no trailing newline. Byte-identical to what
         :class:`BindError` carries, which ``tests/surface/test_server.py``
         asserts on four ports so the two spellings cannot drift.
     """
-    return (
+    refusal = (
         f"could not bind the dashboard on {LOOPBACK} port {port}. Nothing was "
         "started and NO OTHER PORT WAS TRIED, deliberately: a dashboard on an "
         "unexpected port is one the companion window cannot find. Check the "
         "allocation in config/ports.json and run scripts/verify_env.py."
     )
+    if not summary:
+        return refusal
+    return f"{refusal} The bind failed with {summary}."
 
 
 class BindError(Exception):
@@ -329,16 +465,25 @@ class BindError(Exception):
             naming it is the whole value of this message - an operator cannot
             act on "the dashboard did not start". It is also the NAMED FIELD
             :func:`run` renders, in place of the object itself.
+        cause_summary: What :func:`cause_summary` made of the failure
+            underneath. A SECOND named field for the same reason as the
+            first, and the thing that still separates a taken port from an
+            address this host does not have now that the ``OSError`` is no
+            longer chained (CS-857) - both are plain ``OSError``, so the code
+            in the summary is the only thing that tells them apart.
     """
 
-    def __init__(self, port: int) -> None:
-        """Build the one-line message from the port and two fixed pointers.
+    def __init__(self, port: int, summary: str = "") -> None:
+        """Build the one-line message from the port, two fixed pointers and the cause.
 
         Args:
             port: The port that could not be bound.
+            summary: What :func:`cause_summary` made of the failure, or the
+                empty string. See :func:`bind_refusal` for why the default exists.
         """
         self.port = port
-        super().__init__(bind_refusal(port))
+        self.cause_summary = summary
+        super().__init__(bind_refusal(port, summary))
 
 
 # ---------------------------------------------------------------------------
@@ -853,14 +998,26 @@ def _tls_context(config: ServerConfig) -> ssl.SSLContext:
 
     Raises:
         CertificateError: The pair is absent, unreadable or does not match. The
-            message names the minting script and never the paths.
+            message names the minting script and never the paths, and carries
+            the cause's class and code so those three stay distinguishable.
     """
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     try:
         context.load_cert_chain(config.cert_path, config.key_path)
     except (OSError, ssl.SSLError) as exc:
-        raise CertificateError(CERTIFICATE_UNUSABLE) from exc
+        # `from None` RATHER THAN `from exc`, AND THE CAUSE WAS MEASURED NOT TO
+        # LEAK (CS-857). Every leg of this call - absent file, malformed PEM,
+        # empty file, unreadable file - raises with `filename` unset, and the
+        # same denied file through `Path.read_bytes` DOES render its path, so
+        # the absence was seen rather than assumed. It is suppressed anyway
+        # because the channel is graded on the HANDLER TYPE, which resolves to a
+        # builtin OSError subclass and cannot know that this particular call
+        # attaches nothing; `tests/chained_cause_guard.py` orders `measured-leak`
+        # ahead of `exempt` on purpose so that no record can argue the site away,
+        # and names `from None` as the one remedy. What the cause carried that an
+        # operator needs is folded back in above, as two scalars.
+        raise CertificateError(cause_summary(exc)) from None
     return context
 
 
@@ -897,7 +1054,14 @@ def build_server(
     try:
         server = DashboardServer((config.host, config.port), DashboardHandler, table, providers)
     except OSError as exc:
-        raise BindError(config.port) from exc
+        # `from None`, for the reason `_tls_context` states above. MEASURED
+        # here too: the constructor reaches socket(), bind() and listen(), none
+        # of which is a filesystem call, so a collision raises with `filename`
+        # and `filename2` both None. The summary matters MORE at this site than
+        # at that one - a taken port and an address this host does not have are
+        # both plain OSError, so the class name alone would have merged them and
+        # the code is what keeps them apart.
+        raise BindError(config.port, cause_summary(exc)) from None
     server.socket = context.wrap_socket(server.socket, server_side=True)
     return server
 
@@ -1002,19 +1166,23 @@ def run(
             signal_handler = shutdown_on_signal(server)
             _install_sigint(signal_handler)
             gate.wait()
-    except CertificateError:
+    except CertificateError as exc:
         # NEITHER HANDLER RENDERS THE OBJECT IT CAUGHT, and that is a rule about
         # the RUNTIME TYPE rather than about today's message. Both types are
         # declared in this module and carry fixed text, so `f"{exc}"` leaks
         # nothing as the code stands - but widening either `except` to `OSError`
         # turns the same spelling into a home-path leak, because `str()` on an
-        # OSError appends the path it failed on. The constant below is the only
-        # argument any raise site passes to `CertificateError`, asserted by
-        # `test_every_certificate_refusal_is_raised_with_the_one_constant`.
-        sys.stderr.write(f"{CERTIFICATE_UNUSABLE}\n")
+        # OSError appends the path it failed on. So each renders a NAMED FIELD
+        # through the module-level function that owns the text, which is what
+        # keeps the line an operator reads identical to the one the raise site
+        # built. `exc.cause_summary` is a class name and an error code (CS-857): it is
+        # what an operator now uses to tell an absent pair from an unreadable
+        # one, and it is why suppressing the chained cause did not cost them the
+        # diagnosis.
+        sys.stderr.write(f"{certificate_refusal(exc.cause_summary)}\n")
         return EXIT_CERTIFICATE
     except BindError as exc:
-        sys.stderr.write(f"{bind_refusal(exc.port)}\n")
+        sys.stderr.write(f"{bind_refusal(exc.port, exc.cause_summary)}\n")
         return EXIT_BIND_FAILED
     return EXIT_OK
 

@@ -617,40 +617,6 @@ EXEMPT: Final[Mapping[str, str]] = {
         "limit 2 in the module docstring - so this entry records what was "
         "measured rather than relying on that silence."
     ),
-    "clockspeed/surface/server.py::_tls_context::CertificateError::(OSError, ssl.SSLError)::exc": (
-        "MEASURED by calling ssl.SSLContext.load_cert_chain on marker-named "
-        "paths and reading str() plus the exception-only rendering, on four "
-        "legs: a MISSING file gives FileNotFoundError '[Errno 2] No such file "
-        "or directory', a MALFORMED PEM and an EMPTY file give SSLError '[SSL] "
-        "PEM lib', and an UNREADABLE file gives PermissionError '[Errno 13] "
-        "Permission denied'. filename and filename2 are None on every leg and "
-        "the marker appears in none of them. The instrument is proven by a "
-        "POSITIVE CONTROL on the same denied file: Path.read_bytes raises the "
-        "same errno 13 and DOES set filename and DOES render the path, so a "
-        "filename-bearing OSError here would have been seen. NOT CLEARED, "
-        "RECORDED, for three reasons. This entry changes NO verdict: the site "
-        "stays measured-leak because VERDICT_ORDER tests that branch first, "
-        "and closing it needs from None at a site this record may not edit. "
-        "The measurement is scoped to str() - limit 7 - and to the OSError "
-        "legs reachable through load_cert_chain rather than to every errno it "
-        "could ever raise. And the absent filename is a property of how "
-        "CPython 3.14 raises from this call, not a documented guarantee, so a "
-        "later interpreter attaching one would silently make this stale."
-    ),
-    "clockspeed/surface/server.py::build_server::BindError::OSError::exc": (
-        "MEASURED by binding a loopback socket twice and reading str(): the "
-        "collision raises OSError with filename and filename2 both None and a "
-        "str() of '[WinError 10048] Only one usage of each socket address ...' "
-        "- an interpreter-generated address message carrying no path. The "
-        "constructor this handler wraps takes a (host, port) tuple and reaches "
-        "socket(), bind() and listen(), none of which is a filesystem call, "
-        "which is why no filename is attached to begin with. NOT CLEARED, "
-        "RECORDED: this entry changes NO verdict - the site stays "
-        "measured-leak under VERDICT_ORDER - and the measurement covers the "
-        "bind-collision leg on this platform rather than every OSError the "
-        "listener construction could raise. The port is already rendered "
-        "deliberately by BindError itself, and a port is not personal data."
-    ),
 }
 
 

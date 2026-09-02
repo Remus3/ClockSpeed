@@ -75,6 +75,56 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-01 - CS-857 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-857 STAYS OPEN by adjudication, and the fact conjunct 1 asserts is UNESTABLISHED rather than merely unproven
+The graded layer now reports ZERO `measured-leak` sites, down from three. The last two -
+`_tls_context` and `build_server` in `clockspeed/surface/server.py` - were measured NOT to
+leak across five legs including a forced permission denial, and were closed anyway with
+`from None`, because the census orders `MEASURED_LEAK` ahead of `EXEMPT_RECORDED` on purpose
+so that no recorded measurement can argue a site away. Both reach `closed-suppressed`, the
+guard's one POSITIVE clearance, rather than the `UNPROVEN` silence CS-884 owns. The cost of
+suppression was paid back with two scalars that cannot spell a path - the cause's class name
+and its integer code - so an operator can now tell four certificate failure modes and two
+bind modes apart where the module previously printed one fixed constant for all of them.
+
+ADJUDICATED BY AN AGENT THAT BUILT NONE OF IT, AND IT RULED AGAINST CLOSING ON GROUNDS THE
+MERGER HAD NOT MADE. Conjuncts 2 and 3 are MET. Conjunct 1 is not, and the decisive fact is
+not the one the merger argued: the adjudicator planted a raise two levels down inside a
+callee of a handler, derived a population of ZERO, then EXECUTED it and watched the marker
+render through one chain link. A genuine chained raise renders and derives nothing, so the
+fact the conjunct asserts is UNESTABLISHED rather than unproven. It also executed the
+`UNPROVEN` shapes rather than reading them: a keyword no-op and a two-step forward both
+RENDER while grading `unproven`, and 24 of 38 graded sites carry that verdict backed only by
+hand reading - the method this clause forbids with "DERIVED rather than listed".
+
+THREE MERGER CLAIMS WERE CORRECTED. CS-881 does NOT block this item - a value stored in a
+local and raised after its handler exits measures ZERO chain links, so it is not a chained
+raise and sits outside the clause; do not carry it forward as a blocker. The
+"33 wholly opaque callees" figure was a pre-slice number; the candidate measures 31. And
+"shipped" DOES reach the four frozen `measured-leak` sites: `tests/chained_cause_guard.py`
+names its frozen bucket "Shipped code an agent may NOT repair without an adjudicator grant"
+and says the graded bucket is NOT shipped, so the narrow reading is refuted by the
+instrument itself. CS-858 owning the remedy does not shrink this item's quantifier.
+
+TWO PROCESS FAULTS ARE RECORDED HERE RATHER THAN OMITTED. The candidate was handed over as an
+UNCOMMITTED WORKING TREE, which `CLAUDE.md` section 5 forbids - it requires a SHA or a
+worktree. The adjudicator hashed five files before and after and confirmed the tree held
+still, so the ruling describes a definite state, but that was its diligence covering the
+merger's error. And it named a COMMON-MODE RISK nobody else had: `tests/chained_cause_guard.py`
+is the sole enumerator of this population and was itself uncommitted-modified in the
+candidate, so merger and adjudicator agreeing on 38/24/12/2 shows only that the instrument
+was reported faithfully. It broke out partially by executing planted shapes against CPython;
+nothing in the tree independently enumerates the population.
+
+SMALLEST WORK THAT WOULD MOVE CONJUNCT 1, in the adjudicator's order: give the census a
+verdict that MEANS repaired, in CS-884's already-specified sound form; then a frozen-file
+grant so the four take `from None`. Neither alone closes it while a callee-of-handler raise
+derives nothing. The adjudicator declined to endorse narrowing the clause and routed that to
+the operator, naming `7af2974` - this session's own CS-854 reversion - as the fence.
+
+Arms: `tests/surface/test_server.py`. Suite 4203 to 4214. Two stale `EXEMPT` keys were
+removed at the merge, their measurements already recorded above.
+
+
 ### 2026-09-01 - CS-857 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-857 STAYS OPEN. Two of three conjuncts are now met and the third is blocked on a remedy the guard's own doctrine names
 Three disjoint slices ran against this item. Conjunct 2 was already met. Conjunct 3 IS NOW
 MET: both live records that asserted the cause goes unrendered are corrected, and the

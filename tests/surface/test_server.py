@@ -12,6 +12,17 @@ b. A BIND FAILURE NEVER FALLS BACK. The refusal names the port it wanted, points
    exit code. One arm asserts no OTHER port was bound, because "started
    somewhere" is the process-level shape of the plausible-rather-than-honest
    answer this project refuses everywhere else.
+b.2 NEITHER REFUSAL CHAINS A CAUSE, AND BOTH STILL DIAGNOSE (CS-857). The
+   traceback channel is read through the DEFAULT EXCEPTHOOK in a child process,
+   because the subject is what an operator's terminal shows and only the
+   interpreter's own hook answers that. Two arms assert one exception is
+   rendered and no chaining sentence is printed; a third asserts the three
+   certificate failure modes still render DIFFERENT refusals, because closing
+   the channel by making every failure identical is a regression in a different
+   direction. Both directions have controls: the marker is proved to be a string
+   the redactor rewrites, and a failing read is proved to render its filename
+   through the same reader - without which a closed channel and a blind sweep
+   are the same green.
 c. TRAVERSAL CANNOT RESOLVE BECAUSE THERE IS NO RESOLUTION STEP. The static
    surface is a frozen three-name table and the API surface is exact matching
    against authored templates, so ``/../../work/x.sav`` is not normalised away -
@@ -71,14 +82,17 @@ import sys
 import threading
 import time
 from contextlib import contextmanager, suppress
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 import pytest
 
+from clockspeed.data import locate
 from clockspeed.surface import config, providers, server
 from clockspeed.surface.api import contract, pending, routes
+from tests import chained_cause_guard
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator, Mapping, Sequence
@@ -119,8 +133,12 @@ CAPTURE_NAME: Final = "id"
 #: matching rather than leakage.
 PLAIN_ID: Final = "probe"
 
+#: The repository root, which the (b.2) child subprocess puts on its import
+#: path. Named once so the layer path below and the child's path cannot drift.
+REPO_ROOT: Final = Path(__file__).resolve().parents[2]
+
 #: The shipped layer both static sweeps walk.
-SURFACE_ROOT: Final = Path(__file__).resolve().parents[2] / "clockspeed" / "surface"
+SURFACE_ROOT: Final = REPO_ROOT / "clockspeed" / "surface"
 
 #: Modules outside ``api/`` allowed to name a filesystem read. Asserted as an
 #: EQUALITY, not a subset: a module dropping off the list is as much a finding as
@@ -895,6 +913,16 @@ LEAKY_RUN_SITES: Final = 2
 #: How many ``raise CertificateError(...)`` sites the module has.
 CERTIFICATE_RAISE_SITES: Final = 1
 
+#: The one function allowed to read :data:`server.CERTIFICATE_UNUSABLE`, and
+#: how many reads of it are allowed anywhere else. Since CS-857 the raise site
+#: passes a CAUSE rather than a message, so the refusal text has a single
+#: author; a read outside it means the operator line grew a second one and can
+#: drift. The count inside the owner is deliberately NOT pinned - it may spell
+#: the constant once or twice - but it is asserted non-zero, so a module that
+#: dropped the line entirely cannot satisfy the sweep by reading it nowhere.
+CERTIFICATE_TEXT_OWNER: Final = "certificate_refusal"
+CERTIFICATE_CONSTANT_READERS_OUTSIDE: Final = 0
+
 #: Tokens the bind refusal must carry on the channel an operator reads.
 BIND_POINTERS: Final = 3
 
@@ -904,6 +932,11 @@ BIND_POINTERS: Final = 3
 #: ``test_config.py`` sweeps this whole package for. The first draft of this
 #: constant pinned the band's low end and that sweep caught it.
 BIND_PORTS: Final = (0, 1, 1024, 65535)
+
+#: How many cause spellings the drift sweep runs each port through: absent, and
+#: present. Both, because a constructor that discarded the cause would agree
+#: with the no-cause spelling on every port and be wrong on every real failure.
+BIND_CAUSE_SPELLINGS: Final = 2
 
 #: The PRE-REPAIR body of ``run``, authored here rather than read from history,
 #: and the positive control for the detector below. ``str()`` on an ``OSError``
@@ -1024,48 +1057,75 @@ def test_run_renders_no_caught_exception_object() -> None:
     )
 
 
-def test_every_certificate_refusal_is_raised_with_the_one_constant() -> None:
-    """What makes it FAITHFUL for ``run`` to write the constant.
+def test_every_certificate_refusal_carries_the_one_constant() -> None:
+    """What makes it FAITHFUL for ``run`` to write the module's own line.
 
     Writing ``CERTIFICATE_UNUSABLE`` is the right line only while that is what
-    every raise site passes. A second refusal built from a path would otherwise
-    be silently replaced by the wrong text, which is a worse fault than the
-    leak the replacement repaired.
+    every raise site produces. A second refusal built from a path would
+    otherwise be silently replaced by the wrong text, which is a worse fault
+    than the leak the replacement repaired.
+
+    THE MECHANISM CHANGED WITH CS-857 AND THE PROPERTY DID NOT. This used to
+    read the raise sites and assert each passed the constant positionally.
+    ``CertificateError`` now takes a CAUSE and builds its own message through
+    ``certificate_refusal``, so no raise site can pass text at all - the
+    constant has exactly one reader in the module, which is a stronger
+    guarantee than a per-site check. This asserts the two halves of that: the
+    module names the constant once, and every refusal it can build carries it.
     """
     tree = ast.parse(SERVER_SOURCE.read_text(encoding="utf-8"))
-    calls: list[ast.Call] = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Raise):
-            continue
-        raised = node.exc
-        if (
-            isinstance(raised, ast.Call)
-            and isinstance(raised.func, ast.Name)
-            and raised.func.id == "CertificateError"
-        ):
-            calls.append(raised)
-    assert len(calls) == CERTIFICATE_RAISE_SITES, "the certificate raise sites moved"
-    off_constant = sum(
-        1
-        for call in calls
-        if not (
-            len(call.args) == 1
-            and isinstance(call.args[0], ast.Name)
-            and call.args[0].id == "CERTIFICATE_UNUSABLE"
-        )
+    owner = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == CERTIFICATE_TEXT_OWNER
     )
-    assert off_constant == 0, (
-        "a certificate refusal is built from something other than the module "
-        "constant, so run() would write the wrong line for it"
+    owned = frozenset(id(node) for node in ast.walk(owner))
+    outside = sum(
+        1
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Name)
+        and node.id == "CERTIFICATE_UNUSABLE"
+        and isinstance(node.ctx, ast.Load)
+        and id(node) not in owned
+    )
+    assert outside == CERTIFICATE_CONSTANT_READERS_OUTSIDE, (
+        "the certificate constant is read outside the one function that owns "
+        "the refusal text, so two spellings of it can now drift"
+    )
+    inside = sum(
+        1
+        for node in ast.walk(owner)
+        if isinstance(node, ast.Name)
+        and node.id == "CERTIFICATE_UNUSABLE"
+        and isinstance(node.ctx, ast.Load)
+    )
+    assert inside > 0, (
+        "the owning function no longer reads the constant, so this sweep would "
+        "pass against a module that had dropped the operator line entirely"
+    )
+    built = (server.certificate_refusal(), server.certificate_refusal("SomeError 1"))
+    carried = sum(1 for text in built if server.CERTIFICATE_UNUSABLE in text)
+    assert carried == len(built), (
+        "a certificate refusal is built without the module constant, so run() "
+        "would write the wrong line for it"
     )
 
 
 def test_the_bind_refusal_text_is_owned_by_the_module_not_by_the_exception() -> None:
-    """The two spellings of one operator line cannot drift apart."""
+    """The two spellings of one operator line cannot drift apart.
+
+    SWEPT WITH AND WITHOUT A CAUSE since CS-857. The cause is optional, so
+    there are two texts per port rather than one, and a constructor that
+    dropped the cause on the floor would agree with ``bind_refusal(port)`` on
+    every port while rendering the wrong line for every real failure.
+    """
     agree = sum(
-        1 for port in BIND_PORTS if server.bind_refusal(port) == server.BindError(port).args[0]
+        1
+        for port in BIND_PORTS
+        for cause in ("", "OSError 10048")
+        if server.bind_refusal(port, cause) == server.BindError(port, cause).args[0]
     )
-    assert agree == len(BIND_PORTS), (
+    assert agree == len(BIND_PORTS) * BIND_CAUSE_SPELLINGS, (
         "the text run() writes and the text the raise site builds have diverged"
     )
 
@@ -1083,8 +1143,13 @@ def test_run_writes_the_certificate_refusal_verbatim_and_names_no_path(
     code = server.run(absent, [])
     written = capsys.readouterr().err
     assert code == server.EXIT_CERTIFICATE
-    identical = written == f"{server.CERTIFICATE_UNUSABLE}\n"
+    identical = written == f"{server.certificate_refusal('FileNotFoundError 2')}\n"
     assert identical, "run() no longer writes the one certificate refusal this module owns"
+    carries_constant = server.CERTIFICATE_UNUSABLE in written
+    assert carries_constant, (
+        "the line an operator reads lost the pointer at the minting script and "
+        "the override variable, which is the only actionable half of it"
+    )
     leaked = written.count(CANARY)
     assert leaked == 0, "the certificate refusal reached stderr carrying a path"
 
@@ -1099,11 +1164,23 @@ def test_run_writes_the_bind_refusal_the_raise_site_builds(
     taken = config.ServerConfig(
         host=config.LOOPBACK, port=occupied, cert_path=cert, key_path=key, web_dir=tmp_path
     )
+    with pytest.raises(server.BindError) as caught:
+        server.build_server(taken, [probe_route()])
+    raised_cause = str(caught.value.cause_summary)
     code = server.run(taken, [probe_route()])
     written = capsys.readouterr().err
     assert code == server.EXIT_BIND_FAILED
-    identical = written == f"{server.bind_refusal(occupied)}\n"
+    # THE CAUSE IS READ BACK FROM A REAL COLLISION RATHER THAN SPELLED HERE.
+    # The socket error code is a platform's - 10048 on this one, 98 elsewhere -
+    # so writing it into the arm would make it a Windows test. Comparing the
+    # line an operator reads against the line the raise site built is the
+    # property either way, and it now covers the cause as well as the port.
+    identical = written == f"{server.bind_refusal(occupied, raised_cause)}\n"
     assert identical, "the bind refusal an operator reads is no longer the one that was raised"
+    assert raised_cause, (
+        "the bind refusal carried no cause summary, so an operator cannot tell "
+        "a taken port from an address this host does not have"
+    )
     pointers = sum(
         1
         for token in (str(occupied), "config/ports.json", "scripts/verify_env.py")
@@ -1112,6 +1189,502 @@ def test_run_writes_the_bind_refusal_the_raise_site_builds(
     assert pointers == BIND_POINTERS, (
         "the bind refusal lost the port or one of the two places to look, both "
         "of which are what makes it actionable"
+    )
+
+
+# ---------------------------------------------------------------------------
+# (b.2) CS-857 - NEITHER REFUSAL CHAINS A CAUSE, AND BOTH STILL DIAGNOSE
+#
+# WHY THESE TWO SITES WERE CLOSED THOUGH NEITHER WAS MEASURED TO LEAK. Both
+# were re-measured before this block was written, on five legs plus a control,
+# and no leg rendered a path: ``load_cert_chain`` raises with ``filename`` unset
+# on an absent file, a malformed PEM, an empty file and an unreadable one, and a
+# bind collision raises an interpreter-generated address message. The control is
+# the arm below, and it is what makes those absences readable: the SAME denied
+# file through ``Path.read_bytes`` DOES set ``filename`` and DOES render the
+# whole path, so a filename-bearing OSError here would have been seen.
+#
+# The reason to close them anyway is doctrine, stated in
+# ``tests/chained_cause_guard.py``: ``MEASURED_LEAK`` is ordered BEFORE
+# ``EXEMPT_RECORDED`` on purpose, so an exemption can never launder a measured
+# leak - and the syntactic type leg reports both of these as one, because it
+# resolves the handler clause to a builtin ``OSError`` subclass and cannot know
+# whether the call it wraps attaches a filename. The stated cost of that
+# ordering is that a genuinely-safe OSError site must be closed with
+# ``from None`` rather than argued away. This is that closure.
+#
+# AND ``from None`` ALONE WOULD HAVE BEEN A REGRESSION IN THE OTHER DIRECTION.
+# The wrapper messages are fixed constants that quote nothing by design, so
+# suppressing the context with nothing put back leaves an operator unable to
+# tell an absent pair from an unreadable one from one that does not parse. What
+# is folded back in is TWO SCALARS THAT CANNOT SPELL A PATH - the cause's class
+# name and its integer error code - which is the idiom
+# ``clockspeed/save/world.py`` already states as ``WorldLoadError(stage,
+# cause_type)`` and which ``handle_error`` above already uses. The code is in it
+# because the class name ALONE is not enough at one of the two sites, MEASURED:
+# a bind collision and an unavailable address are both plain ``OSError`` and are
+# separated only by the code. The last arm holds that reason.
+#
+# THE CHANNEL IS READ THROUGH THE DEFAULT EXCEPTHOOK IN A CHILD PROCESS, not
+# through ``traceback.format_exception``. The subject is what an operator's
+# terminal shows when a refusal escapes, and only the interpreter's own hook
+# answers that. The child's stderr NEVER leaves the reader below: it carries
+# absolute frame paths, so it is reduced to counts and booleans before any
+# assertion sees it (CLAUDE.md non-negotiable 12).
+# ---------------------------------------------------------------------------
+
+#: The needle every (b.2) leak sweep counts. It carries the ``.sav`` suffix so
+#: it is a string ``clockspeed.data.locate.redact`` rewrites - which is the
+#: property that makes counting it evidence about PERSONAL DATA rather than
+#: about an arbitrary word. The first arm below proves the redactor rewrites it,
+#: because a needle nothing treats as personal is a sweep about nothing.
+CHAIN_MARKER: Final = "zqxchain857.sav"
+
+#: The line the default excepthook opens each rendered exception with. Counting
+#: these counts EXCEPTIONS RENDERED, which is the whole subject: two means a
+#: cause was printed beside the wrapper, one means it was not.
+TRACEBACK_HEADER: Final = "Traceback (most recent call last):"
+
+#: The two sentences CPython prints BETWEEN a wrapper and something it chained.
+#: Both are swept, not just the cause one: deleting ``from exc`` would silence
+#: the first and open the second, which is the exact escape
+#: ``tests/chained_cause_guard.py`` names as ``FORM_IMPLICIT``.
+CHAIN_CONNECTORS: Final = (
+    "The above exception was the direct cause of the following exception:",
+    "During handling of the above exception, another exception occurred:",
+)
+
+#: How many exceptions a closed refusal renders: the wrapper, and nothing else.
+LONE_EXCEPTION: Final = 1
+
+#: A well-formed PEM envelope around unusable content, so the failure comes from
+#: the parser rather than from the file being absent.
+MALFORMED_PEM: Final = b"-----BEGIN CERTIFICATE-----\nnot base64\n-----END CERTIFICATE-----\n"
+
+#: The three certificate failure modes an operator acts on DIFFERENTLY - mint or
+#: repoint, fix permissions, re-mint a corrupt pair - as ``(label, plant)``. The
+#: plant is what the arm does to the path before offering it.
+CERTIFICATE_MODES: Final = ("absent", "malformed", "unreadable")
+
+#: Two socket error codes that are the SAME CLASS and different failures:
+#: "the port is taken" and "that address is not valid on this host". MEASURED
+#: as the Windows spellings; the arm's claim is the class merging them, not the
+#: numbers, and any two distinct codes carry it.
+BIND_IN_USE: Final = 10048
+BIND_UNAVAILABLE: Final = 10049
+
+#: How long the child gets. A bound, so a wedged child is a failure rather than
+#: a hung suite.
+CHILD_TIMEOUT: Final = 120.0
+
+#: The child that reproduces one refusal and lets the DEFAULT excepthook render
+#: it. Nothing catches, deliberately: a caught refusal renders whatever the
+#: catcher chooses, and the subject here is what the interpreter chooses.
+CHAIN_CHILD_SOURCE: Final = '''"""Reproduce one refusal and let the default excepthook render it."""
+
+import socket
+import sys
+from pathlib import Path
+
+REPO = Path(sys.argv[1])
+sys.path.insert(0, str(REPO))
+
+from clockspeed.surface import config, server
+
+LEG = sys.argv[2]
+FIRST = Path(sys.argv[3])
+SECOND = Path(sys.argv[4])
+
+
+def configured(port):
+    """The configuration for one leg."""
+    return config.ServerConfig(
+        host=config.LOOPBACK,
+        port=port,
+        cert_path=FIRST,
+        key_path=SECOND,
+        web_dir=REPO,
+    )
+
+
+if LEG == "control-read":
+    FIRST.read_bytes()
+elif LEG == "bind":
+    HOLDER = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    HOLDER.bind((config.LOOPBACK, 0))
+    HOLDER.listen(1)
+    server.build_server(configured(HOLDER.getsockname()[1]), ())
+else:
+    server.build_server(configured(0), ())
+'''
+
+
+@dataclass(frozen=True)
+class ChildRendering:
+    """What one child printed, reduced to scalars before anything asserts on it.
+
+    THE RAW STDERR IS NEVER A FIELD. It carries an absolute frame path per
+    stack level, so holding it would put one into every failure report this
+    class reaches - the echo path CLAUDE.md non-negotiable 12 forbids, and the
+    shape ``tests/test_assertion_rendering.py`` sweeps the tree for.
+
+    Attributes:
+        exit_code: The child's exit code. Non-zero is what proves the failure
+            actually fired; a child that quietly succeeded renders no path for
+            reasons having nothing to do with any repair.
+        tracebacks: How many exceptions the excepthook rendered.
+        connectors: How many chaining sentences it printed.
+        marker_hits: How many times :data:`CHAIN_MARKER` appeared.
+        wrapper_named: Whether the refusal class this leg should raise was
+            named, so a child failing somewhere else is not read as a pass.
+    """
+
+    exit_code: int
+    tracebacks: int
+    connectors: int
+    marker_hits: int
+    wrapper_named: bool
+
+
+def render_in_child(
+    tmp_path: Path, leg: str, first: Path, second: Path, wrapper: str
+) -> ChildRendering:
+    """Run one leg in a child and reduce its stderr to counts.
+
+    Args:
+        tmp_path: Where the child script is written.
+        leg: Which reproduction the child runs.
+        first: The certificate path, or the file the control reads.
+        second: The key path.
+        wrapper: The class name the leg should end at.
+
+    Returns:
+        The reduced rendering. The stderr itself is discarded here and never
+        returned, for the reason :class:`ChildRendering` states.
+    """
+    child = tmp_path / "chain_child.py"
+    child.write_text(CHAIN_CHILD_SOURCE, encoding="utf-8")
+    finished = subprocess.run(
+        [sys.executable, str(child), str(REPO_ROOT), leg, str(first), str(second)],
+        capture_output=True,
+        text=True,
+        timeout=CHILD_TIMEOUT,
+        check=False,
+    )
+    written = finished.stderr
+    return ChildRendering(
+        exit_code=finished.returncode,
+        tracebacks=written.count(TRACEBACK_HEADER),
+        connectors=sum(written.count(sentence) for sentence in CHAIN_CONNECTORS),
+        marker_hits=written.count(CHAIN_MARKER),
+        wrapper_named=wrapper in written,
+    )
+
+
+def certificate_refusal_text(cert: Path, key: Path, tmp_path: Path) -> str:
+    """The refusal message ``_tls_context`` builds for one pair.
+
+    READ THROUGH ``pytest.raises`` RATHER THAN AN ``except ... as exc`` BLOCK,
+    and that is not a style choice: ``str(exc)`` on a caught binding is the
+    shape ``tests/test_exception_rendering.py`` forbids tree-wide. The value
+    read back is the wrapper's OWN message, which this module authors.
+
+    Args:
+        cert: The certificate path to offer.
+        key: The key path to offer.
+        tmp_path: Supplies the unused asset directory.
+
+    Returns:
+        The refusal text the wrapper carries.
+    """
+    offered = config.ServerConfig(
+        host=config.LOOPBACK, port=EPHEMERAL, cert_path=cert, key_path=key, web_dir=tmp_path
+    )
+    with pytest.raises(server.CertificateError) as caught:
+        server.build_server(offered, [])
+    return str(caught.value.args[0])
+
+
+def certificate_mode_paths(tmp_path: Path) -> tuple[tuple[Path, Path], ...]:
+    """One (cert, key) pair per mode in :data:`CERTIFICATE_MODES`.
+
+    Args:
+        tmp_path: Where the plants are made.
+
+    Returns:
+        The pairs, in the order the modes are declared.
+    """
+    absent = tmp_path / "absent.cert.pem"
+    malformed = tmp_path / "malformed.cert.pem"
+    malformed.write_bytes(MALFORMED_PEM)
+    unreadable = tmp_path / "unreadable.cert.pem"
+    unreadable.mkdir()
+    return tuple((path, path) for path in (absent, malformed, unreadable))
+
+
+def refusal_raise_sites() -> tuple[ast.Raise, ...]:
+    """Every ``raise CertificateError(...)`` and ``raise BindError(...)``.
+
+    Returns:
+        The raise statements, in source order.
+    """
+    tree = ast.parse(SERVER_SOURCE.read_text(encoding="utf-8"))
+    found: list[ast.Raise] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Raise):
+            continue
+        raised = node.exc
+        if (
+            isinstance(raised, ast.Call)
+            and isinstance(raised.func, ast.Name)
+            and raised.func.id in REFUSAL_CLASSES
+        ):
+            found.append(node)
+    return tuple(found)
+
+
+#: The two refusals this block grades, and how many raise sites the module has
+#: for them. Asserted as an EQUALITY before anything iterates: a sweep over a
+#: population that shrank to zero passes every absence below it.
+REFUSAL_CLASSES: Final = frozenset({"BindError", "CertificateError"})
+REFUSAL_RAISE_SITES: Final = 2
+
+#: How the census spells this module. Its ``Site.module`` is a repo-relative
+#: POSIX path from git, so it is written that way rather than derived from
+#: :data:`SERVER_SOURCE`, whose separators are the platform's.
+SERVER_MODULE: Final = "clockspeed/surface/server.py"
+
+
+def test_the_chain_marker_is_a_needle_the_redactor_rewrites() -> None:
+    """CONTROL. Counting a word nothing treats as personal proves nothing.
+
+    Every leak sweep in this block counts :data:`CHAIN_MARKER` in a child's
+    stderr. That count is evidence about PERSONAL DATA only while the marker is
+    the kind of string this project redacts, so the redactor is asked first.
+    """
+    rewritten = locate.redact(f"/somewhere/deep/{CHAIN_MARKER}")
+    survived = CHAIN_MARKER in rewritten
+    assert not survived, (
+        "the redactor left the marker intact, so counting it in a child's "
+        "stderr says nothing about whether personal data would have been seen"
+    )
+    assert locate.SAVE_FILE_PLACEHOLDER in rewritten, (
+        "the redactor rewrote the marker into something other than the save-file "
+        "placeholder, so the needle is not the class of string it stands in for"
+    )
+
+
+def test_the_child_sweep_sees_a_path_when_one_is_actually_rendered(tmp_path: Path) -> None:
+    """CONTROL, and every absence in this block is worthless without it.
+
+    An absent marker also describes a child that never ran, never failed, or
+    whose stderr was not read. This reads a failure that DOES render its
+    filename - ``Path.read_bytes`` sets ``filename`` where ``load_cert_chain``
+    leaves it None - through the same reader, so the instrument is proven to
+    detect a path before it is used to report none.
+    """
+    subject = tmp_path / CHAIN_MARKER
+    seen = render_in_child(tmp_path, "control-read", subject, subject, "FileNotFoundError")
+    assert seen.exit_code != 0, (
+        "the control child exited zero, so no failure was rendered at all and "
+        "the absences below would be absences of nothing"
+    )
+    assert seen.wrapper_named, "the control child failed somewhere other than the read"
+    assert seen.marker_hits > 0, (
+        "a failing read did NOT render its filename through the default "
+        "excepthook, so this reader cannot tell a closed channel from a blind one"
+    )
+
+
+def test_the_certificate_refusal_renders_no_chained_cause(tmp_path: Path) -> None:
+    """The channel itself, at ``_tls_context``, through the default excepthook."""
+    subject = tmp_path / CHAIN_MARKER
+    seen = render_in_child(tmp_path, "cert-absent", subject, subject, "CertificateError")
+    assert seen.exit_code != 0, "the child exited zero, so no refusal was rendered"
+    assert seen.wrapper_named, "the child failed somewhere other than the certificate refusal"
+    assert seen.connectors == 0, (
+        "the certificate refusal printed a chaining sentence, so the cause it "
+        "wrapped was rendered beside it"
+    )
+    assert seen.tracebacks == LONE_EXCEPTION, (
+        "more than one exception reached the terminal, so a cause this module "
+        "does not author was rendered with it"
+    )
+    assert seen.marker_hits == 0, "the certificate refusal rendered the path it failed on"
+
+
+def test_the_bind_refusal_renders_no_chained_cause(
+    cert_pair: tuple[Path, Path], tmp_path: Path
+) -> None:
+    """The channel itself, at ``build_server``, through the default excepthook.
+
+    The child holds its own port so the collision is real and no port outside
+    this test is touched.
+    """
+    cert, key = cert_pair
+    seen = render_in_child(tmp_path, "bind", cert, key, "BindError")
+    assert seen.exit_code != 0, "the child exited zero, so no refusal was rendered"
+    assert seen.wrapper_named, "the child failed somewhere other than the bind refusal"
+    assert seen.connectors == 0, (
+        "the bind refusal printed a chaining sentence, so the OSError it wrapped "
+        "was rendered beside it"
+    )
+    assert seen.tracebacks == LONE_EXCEPTION, (
+        "more than one exception reached the terminal, so a cause this module "
+        "does not author was rendered with it"
+    )
+    assert seen.marker_hits == 0, "the bind refusal rendered a path"
+
+
+def test_both_refusal_raise_sites_are_cleared_by_the_census_that_owns_the_question() -> None:
+    """``from None`` at both sites, GRADED BY THE OWNER RATHER THAN BY THIS MODULE.
+
+    The runtime arms above grade the two legs a test can reach. This grades the
+    FORM at every site, including one no leg exercises, which is what stops a
+    third refusal from being added chained.
+
+    IT ASKS THE CENSUS RATHER THAN READING ``ast.Raise.cause`` ITSELF, and that
+    is not a convenience. ``tests/chained_exemption_guard.py`` holds that the
+    tree has exactly ONE owner of "can a chained cause render" - the census,
+    which answers by measurement - and that any other module touching the
+    ``cause`` field statically is answering from a belief. An earlier draft of
+    this arm did exactly that and was correctly reported. Importing the owner is
+    how deferral is proven, and it makes the arm STRONGER: it now asserts the
+    verdict the census actually publishes for these two sites, which is the
+    thing CS-857's first conjunct is about, rather than a private re-derivation
+    that could agree with the census while measuring something else.
+
+    :data:`CLOSED_SUPPRESSED` is the census's ONE POSITIVE clearance, and it is
+    structural - the interpreter sets ``__suppress_context__`` and the raise
+    constructs a class the module itself declares. It is deliberately not
+    ``unproven``, which would be an absence of evidence rather than a clearance.
+    """
+    graded = {
+        site.key: chained_cause_guard.classify(site)
+        for site in chained_cause_guard.raise_sites()
+        if site.module == SERVER_MODULE
+    }
+    assert len(graded) == REFUSAL_RAISE_SITES, (
+        "the census derives a different number of chained raises in the server "
+        "module than this arm expects, so the two sites it grades have moved"
+    )
+    cleared = sum(
+        1 for verdict in graded.values() if verdict == chained_cause_guard.CLOSED_SUPPRESSED
+    )
+    assert cleared == REFUSAL_RAISE_SITES, (
+        "a refusal is not cleared by the census that owns the chaining question; "
+        "write `from None` and fold what an operator needs into the wrapper as "
+        f"named scalars instead. Verdicts this run: {sorted(graded.values())}"
+    )
+
+
+def test_every_refusal_raise_site_folds_a_measured_cause_back_in() -> None:
+    """``from None`` without this would be a regression in the other direction.
+
+    The cause argument is optional on both refusals, because
+    ``tests/surface/test_routes.py`` constructs ``BindError`` with a port alone.
+    That default must never be what a SHIPPED site relies on, so every raise
+    site is asserted to pass a summary.
+    """
+    sites = refusal_raise_sites()
+    assert len(sites) == REFUSAL_RAISE_SITES, "the refusal raise sites moved"
+    summarised = 0
+    for site in sites:
+        raised = site.exc
+        assert isinstance(raised, ast.Call)
+        summarised += sum(
+            1
+            for argument in raised.args
+            if isinstance(argument, ast.Call)
+            and isinstance(argument.func, ast.Name)
+            and argument.func.id == "cause_summary"
+        )
+    assert summarised == REFUSAL_RAISE_SITES, (
+        "a refusal suppresses its context without folding the cause back in, so "
+        "an operator cannot tell that failure mode from any other"
+    )
+
+
+def test_the_certificate_refusal_still_tells_its_failure_modes_apart(tmp_path: Path) -> None:
+    """THE ANTI-REGRESSION ARM, and the reason ``from None`` alone was refused.
+
+    Closing the channel by making every certificate failure render the same
+    line is a regression in a different direction. These are the three modes an
+    operator acts on differently: mint or repoint an absent pair, fix the
+    permissions on an unreadable one, re-mint one that does not parse.
+    """
+    pairs = certificate_mode_paths(tmp_path)
+    assert len(pairs) == len(CERTIFICATE_MODES), "a certificate failure mode lost its plant"
+    refusals = tuple(certificate_refusal_text(cert, key, tmp_path) for cert, key in pairs)
+    distinct = len(frozenset(refusals))
+    assert distinct == len(CERTIFICATE_MODES), (
+        "two of the three certificate failure modes render the SAME refusal, so "
+        "suppressing the cause left an operator unable to tell them apart"
+    )
+    carried = sum(1 for text in refusals if server.CERTIFICATE_UNUSABLE in text)
+    assert carried == len(CERTIFICATE_MODES), (
+        "a certificate refusal no longer carries the one line this module owns"
+    )
+
+
+def test_no_certificate_refusal_names_a_path_on_any_failure_mode(tmp_path: Path) -> None:
+    """What the wrapper gained must not be a path on ANY of the three modes."""
+    planted = tmp_path / CANARY
+    planted.mkdir()
+    pairs = certificate_mode_paths(planted)
+    leaked = sum(
+        1 for cert, key in pairs if CANARY in certificate_refusal_text(cert, key, tmp_path)
+    )
+    assert leaked == 0, "a certificate refusal echoed a path that can sit under a home directory"
+
+
+def test_a_cause_summary_separates_what_a_class_name_alone_merges() -> None:
+    """WHY THE FOLD CARRIES THE CODE AND NOT THE CLASS NAME ALONE, measured.
+
+    A bind collision and an unavailable address are BOTH plain ``OSError``, so
+    a summary built from the class name would render them identically and the
+    site would have been closed at the cost of the only distinction it had.
+    """
+    in_use = OSError(BIND_IN_USE, "the port is taken")
+    unavailable = OSError(BIND_UNAVAILABLE, "the address is not valid here")
+    merged_by_class = type(in_use).__name__ == type(unavailable).__name__
+    assert merged_by_class, (
+        "the two socket failures are no longer one class, so this arm no longer "
+        "measures the reason the summary carries a code"
+    )
+    separated = server.cause_summary(in_use) != server.cause_summary(unavailable)
+    assert separated, (
+        "the cause summary renders two different socket failures identically, so "
+        "an operator cannot tell a taken port from an address this host does not have"
+    )
+
+
+def test_a_cause_summary_renders_neither_a_path_nor_an_operating_system_message() -> None:
+    """The summary is TWO SCALARS, and the arm names what is deliberately absent.
+
+    ``strerror`` is left out on purpose: it is an operating-system message table
+    of unbounded shape, and a bounded integer separates the same failures. A
+    class name and an ``int`` are things this module can reason about
+    categorically; a platform's message text is not.
+    """
+    carrying = OSError(
+        BIND_IN_USE, f"an operating system message naming {CHAIN_MARKER}", CHAIN_MARKER
+    )
+    summary = server.cause_summary(carrying)
+    assert CHAIN_MARKER not in summary, "the cause summary rendered a filename"
+    assert "operating system message" not in summary, (
+        "the cause summary rendered the operating system's message text, which "
+        "is unbounded and is not what separates these failures"
+    )
+    assert type(carrying).__name__ in summary, "the cause summary dropped the class name"
+    assert str(BIND_IN_USE) in summary, "the cause summary dropped the error code"
+
+
+def test_a_cause_summary_survives_a_failure_carrying_no_code() -> None:
+    """A cause with no ``errno`` is summarised by its class alone, not crashed on."""
+    summary = server.cause_summary(ValueError("nothing numeric here"))
+    assert summary == "ValueError", (
+        "a cause carrying no error code did not fall back to its class name alone"
     )
 
 
