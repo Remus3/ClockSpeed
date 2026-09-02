@@ -35,10 +35,18 @@ still renders the binding. The counterexample is measured alongside the
 original in the same module, and the verdict order was corrected to match.
 CS-857 residual 1.
 
-THE FOUR VERDICTS, AND THE ORDER IS LOAD-BEARING.
+THE FIVE VERDICTS, AND THE ORDER IS LOAD-BEARING.
 
+  :data:`CLOSED_PATHLESS`    the censused slot - the cause of an explicit
+                             chain, or the raised expression of a ``from
+                             None`` - is a CALL to a same-module function whose
+                             every return builds a builtin ``OSError`` out of
+                             ``errno`` and ``strerror`` alone. The second
+                             positive clearance, added by CS-884, and it rests
+                             on what the callee CONSTRUCTS. The name it is
+                             spelled with is read by nothing.
   :data:`CLOSED_SUPPRESSED`  ``from None`` raising something OTHER than the
-                             handler's own binding. The one POSITIVE
+                             handler's own binding. The FIRST positive
                              clearance, and it rests on a STRUCTURAL fact -
                              the interpreter sets ``__suppress_context__`` and
                              prints no chain - rather than on any property of
@@ -63,6 +71,17 @@ only ever silence an :data:`UNPROVEN` site and can NEVER launder a measured
 leak. That is stricter than the sibling guards and it is deliberate: the cost is
 that a genuinely-safe ``OSError`` site must be closed with ``from None`` rather
 than argued away.
+
+AND IT IS ORDERED BEFORE BOTH CLEARANCES FOR THE SAME REASON, WHICH CS-884
+MADE A LIVE QUESTION RATHER THAN A THEORETICAL ONE. Its predicate and
+:func:`_forwarding_parameters` collide on a shape the tree could grow tomorrow -
+a module-level clone function plus a NESTED function of the same name that
+forwards its argument - so a positive verdict tested first would launder that
+site. The collision is planted, graded and RUN in the census. On that shape the
+verdict is a deliberate OVER-report: execution shows the module-level clone is
+the one actually called and no marker renders, and the guard still reports the
+leak, because between over-reporting and issuing a clearance it cannot prove,
+this module takes the first.
 
 THERE IS NO CLEAN VERDICT, AND THAT IS THE POINT. ``redact(str(cause)) ==
 str(cause)`` proves only that the redactor found nothing on THIS machine, whose
@@ -184,6 +203,16 @@ WHAT THIS GUARD CANNOT MODEL. Read this before citing any verdict.
    no-op helper is distinguished from a genuine filename-stripping clone for
    the shapes above and NOT in general.
 
+   WHAT CS-884 CHANGED HERE, AND WHAT IT DID NOT. It did NOT narrow this
+   silence: all six shapes above still grade :data:`UNPROVEN`, and each is now
+   planted, graded AND RUN one arm apiece, with the marker measured to render
+   in every one. What changed is the other half of the sentence. Until CS-884
+   a genuine clone graded :data:`UNPROVEN` as well, so this limit's six
+   under-reports and every shipped REPAIR sat in one bucket and the bucket
+   said nothing about either. The clone is now cleared by the positive
+   predicate in limit 12 and the six are not, so :data:`UNPROVEN` here means
+   "this module cannot tell" again rather than "this module did not look".
+
 11. THE KEY CANNOT SEPARATE TWO IDENTICAL SITES IN ONE FUNCTION. Two raises of
    the SAME class, from the SAME handler type, in the SAME function, chaining
    the SAME expression, produce one key between them. The tracked tree has no
@@ -195,11 +224,45 @@ WHAT THIS GUARD CANNOT MODEL. Read this before citing any verdict.
    against. A collision is therefore reported as something to restructure, not
    absorbed.
 
+12. THE PATHLESS CLEARANCE RESOLVES ONE SHAPE OF REPAIR, NOT EVERY SAFE ONE,
+   AND EVERY GAP BELOW IS AN UNDER-REPORT RATHER THAN A HOLE.
+   :data:`CLOSED_PATHLESS` needs a CALL, in the cause slot or in the raised
+   slot of a ``from None``, to a MODULE-LEVEL, UNDECORATED, non-async ``def``
+   in the SAME module, every one of whose own-scope returns builds a builtin
+   ``OSError`` from exactly two ``errno``/``strerror`` reads off its own
+   unrebound parameters. Everything else stays :data:`UNPROVEN`, including
+   several repairs that are genuinely safe:
+
+     an INLINE construction     ``raise OSError(exc.errno, exc.strerror) from
+                                None`` is filename-free and is NOT cleared.
+                                The predicate is about a callee, and widening
+                                it to the raise itself was not measured.
+     a clone written in place   ``exc = OSError(exc.errno, exc.strerror);
+                                return exc`` returns a NAME, so limit 10's
+                                rebind rule and this one both decline it.
+     a method, an import, a lambda, a nested ``def``
+                                the callee must be a bare name defined at
+                                module level here, for the reason
+                                :func:`_pathless_clone_functions` records.
+     a two-step clone           ``def a(e): return b(e)`` is a call, not a
+                                construction, and is not followed.
+
+   AND THE VERDICT IS ABOUT ONE SLOT, NOT ABOUT THE SITE. It says the cause
+   channel carries no path. It says NOTHING about the wrapper's own ``args``,
+   which ``tests/exception_message_guard.py`` owns, and nothing about a note
+   attached later. A site can be :data:`CLOSED_PATHLESS` here and still leak
+   through a channel this module does not census - limit 5's sentence about
+   what a verdict is, one clearance over.
+
 WHAT AN ADVERSARY WOULD HAVE TO DO TO ESCAPE, CORRECTED TWICE AND STILL NOT A
 GUARANTEE. Not a rename: every rename in the table at the top lands in
-:data:`UNPROVEN`, which is not a clearance. To get a CLEARANCE they would have
-to write ``from None`` AND CONSTRUCT A CLASS THIS MODULE DECLARES, which is the
-only shape whose rendered object is provably not the caught exception; or
+:data:`UNPROVEN`, which is not a clearance. And renaming the CLONE is not one
+either - CS-884's predicate never reads the callee's name, only its returns.
+To get a CLEARANCE they would have to write ``from None`` AND CONSTRUCT A CLASS
+THIS MODULE DECLARES, which is the only shape whose rendered object is provably
+not the caught exception; or write a callee whose EVERY return builds a
+two-argument builtin ``OSError`` out of ``errno`` and ``strerror`` off its own
+parameters, which is the repair itself and carries no path by construction; or
 shadow a builtin exception name at module level, which downgrades a measured
 leak to unproven and is reported, not cleared.
 
@@ -286,6 +349,27 @@ TYPE_UNRESOLVED: Final = "unresolved"
 #: measured escapes. The gate is now :attr:`Site.raises_local_class`.
 CLOSED_SUPPRESSED: Final = "closed-suppressed"
 
+#: A CALL, in the cause slot or in the raised slot of a ``from None``, to a
+#: same-module function whose every return CONSTRUCTS a filename-free builtin
+#: ``OSError``. The second positive clearance, added by CS-884.
+#:
+#: WHAT IT ASSERTS. The object that reaches the rendered chain through THIS
+#: slot was built by the callee out of :data:`CLONE_FIELDS` alone, so it
+#: carries no ``filename`` and no ``filename2`` for ``OSError.__str__`` to
+#: append. The whole verdict rests on the callee's own ``return`` statements -
+#: :func:`_returns_only_pathless_clones` - and on nothing the callee or the
+#: call site is SPELLED with. Rename ``_pathless_cause`` to anything and the
+#: verdict is unchanged; keep the name and change what it builds and the
+#: verdict is gone. ``memory/a-guard-can-measure-spelling.md`` records the
+#: round of this item that got that backwards.
+#:
+#: WHAT IT DOES NOT ASSERT, and reading it as more is the error this module
+#: keeps having to correct. It says nothing about the WRAPPER's own message -
+#: that is ``args``, which ``tests/exception_message_guard.py`` owns - and
+#: nothing about any OTHER channel the same site opens. It is a verdict on the
+#: cause slot, which is the only channel this module censuses.
+CLOSED_PATHLESS: Final = "closed-pathless"
+
 #: The cause is a builtin ``OSError`` subclass, whose ``str()`` renders the
 #: ``filename`` the interpreter attached.
 MEASURED_LEAK: Final = "measured-leak"
@@ -310,13 +394,45 @@ UNPROVEN: Final = "unproven"
 
 #: The verdicts, strongest first. :data:`MEASURED_LEAK` PRECEDES
 #: :data:`EXEMPT_RECORDED` so an exemption cannot silence a measured leak, and
-#: it PRECEDES :data:`CLOSED_SUPPRESSED` so a ``from None`` cannot either.
+#: it PRECEDES both clearances so a ``from None`` cannot either.
 #:
 #: THE SECOND PRECEDENCE WAS THE OTHER WAY ROUND UNTIL CS-857 RESIDUAL 1, and
 #: that ordering was the defect: it is not enough for a verdict order to be
 #: correct in the docstring, it must be correct in the order the CODE tests the
 #: branches. Read :func:`classify` top to bottom, not this comment.
-VERDICT_ORDER: Final = (MEASURED_LEAK, CLOSED_SUPPRESSED, EXEMPT_RECORDED, UNPROVEN)
+#:
+#: CS-884 ADDED :data:`CLOSED_PATHLESS` AND PUT IT THIRD, WHICH IS THE WHOLE
+#: DECISION IN THAT ITEM. Placing a new positive verdict AHEAD of
+#: :data:`MEASURED_LEAK` would launder every real leak the new predicate also
+#: happened to match, and the two predicates DO collide on a reachable shape: a
+#: module-level clone function plus a NESTED function of the same name that
+#: forwards its argument puts the name in :func:`_forwarding_parameters` and in
+#: :func:`_pathless_clone_functions` at once. The collision is planted, graded
+#: and executed in ``tests/test_chained_cause_census.py``. It is placed AFTER
+#: :data:`CLOSED_SUPPRESSED` so that no site which already earned the older
+#: clearance changes verdict, which makes the CS-884 delta purely additive.
+VERDICT_ORDER: Final = (
+    MEASURED_LEAK,
+    CLOSED_SUPPRESSED,
+    CLOSED_PATHLESS,
+    EXEMPT_RECORDED,
+    UNPROVEN,
+)
+
+#: The ONLY two ``OSError`` attributes a cleared construction may read. Both
+#: are interpreter-generated diagnostics: ``errno`` is an integer code and
+#: ``strerror`` is the platform's own text for it. Neither is a path, and
+#: ``filename`` and ``filename2`` - the two that ARE - are absent by
+#: construction rather than by redaction.
+CLONE_FIELDS: Final = frozenset({"errno", "strerror"})
+
+#: How many positional arguments a cleared construction carries. THE
+#: TWO-ARGUMENT FORM IS LOAD-BEARING AND NOT A STYLE. ``OSError`` grows a
+#: ``filename`` at the third position and a ``winerror`` at the fourth, so a
+#: four-argument clone re-attaches the very field the clone exists to drop and
+#: renders ``[WinError None]`` besides. Every shipped copy of the idiom records
+#: having measured that.
+_CLONE_ARITY: Final = 2
 
 #: Scopes a handler body does not execute in line. A statement inside a nested
 #: function runs in ITS frame with its own ``sys.exc_info()``, so it is not this
@@ -488,8 +604,14 @@ class Site:
             :data:`NO_HANDLER`.
         handler_name: The ``as`` binding, empty when the handler binds nothing.
         raises_local_class: Whether the raise CONSTRUCTS a class the module
-            itself declares. THE ONLY FACT THE CLEARANCE RESTS ON, and it is a
-            positive one - see :func:`_local_classes`.
+            itself declares. THE FACT :data:`CLOSED_SUPPRESSED` RESTS ON, and
+            it is a positive one - see :func:`_local_classes`.
+        constructs_pathless_clone: Whether the slot this module censuses - the
+            cause of an explicit chain, or the raised expression of a ``from
+            None`` - is a CALL to a same-module function whose every return
+            builds a filename-free builtin ``OSError``. THE FACT
+            :data:`CLOSED_PATHLESS` RESTS ON, and it is positive in the same
+            way: it reads what the callee CONSTRUCTS, never what it is called.
         cause_type: One of :data:`TYPE_OSERROR`, :data:`TYPE_RESOLVED_OTHER`,
             :data:`TYPE_UNRESOLVED`. A TRI-state on purpose: a boolean would be
             False both for "resolved, and not an OSError" and for "could not
@@ -507,6 +629,7 @@ class Site:
     handler_name: str
     cause_type: str
     raises_local_class: bool = False
+    constructs_pathless_clone: bool = False
 
     @property
     def key(self) -> str:
@@ -765,6 +888,283 @@ def _raises_local_class(node: ast.Raise, local: frozenset[str]) -> bool:
         isinstance(node.exc, ast.Call)
         and isinstance(node.exc.func, ast.Name)
         and node.exc.func.id in local
+    )
+
+
+#: Statements that bind through a single ``target`` field. Grouped so
+#: :func:`_rebound_names` reads them on one branch: they differ in what they
+#: MEAN and not at all in where the bound name is written.
+_TARGETED_STATEMENTS: Final = (
+    ast.AnnAssign,
+    ast.AugAssign,
+    ast.NamedExpr,
+    ast.For,
+    ast.AsyncFor,
+)
+
+
+def _bound_by(node: ast.expr | None) -> frozenset[str]:
+    """The names one assignment TARGET binds.
+
+    Args:
+        node: The target expression, or None for an absent one.
+
+    Returns:
+        Every bare name the target binds, unpacking tuples, lists and stars. An
+        attribute or a subscript target binds no NAME at all and returns empty.
+    """
+    if isinstance(node, ast.Name):
+        return frozenset({node.id})
+    if isinstance(node, (ast.Tuple, ast.List)):
+        found: set[str] = set()
+        for element in node.elts:
+            found |= _bound_by(element)
+        return frozenset(found)
+    if isinstance(node, ast.Starred):
+        return _bound_by(node.value)
+    return frozenset()
+
+
+def _rebound_names(node: ast.AST) -> frozenset[str]:
+    """Every name REBOUND anywhere beneath a node, nested scopes included.
+
+    WIDER THAN :func:`_own_scope` ON PURPOSE, AND THAT DIRECTION IS THE SAFE
+    ONE. This feeds :func:`_returns_only_pathless_clones`, where the question is
+    whether the object a construction reads its fields off is still the
+    parameter the caller handed in. A nested ``def`` declaring ``nonlocal exc``
+    and assigning to it reaches the enclosing parameter, so a walk bounded to
+    the outer scope would miss it; the assignment itself is visible to
+    ``ast.walk`` wherever it is written, so scanning the whole subtree catches
+    that shape without modelling ``nonlocal`` at all. Every extra name this
+    returns can only WITHDRAW a clearance, never invent one.
+
+    Args:
+        node: The subtree to scan.
+
+    Returns:
+        The rebound names.
+    """
+    bound: set[str] = set()
+    for inner in ast.walk(node):
+        if isinstance(inner, ast.Assign):
+            for target in inner.targets:
+                bound |= _bound_by(target)
+        elif isinstance(inner, _TARGETED_STATEMENTS):
+            bound |= _bound_by(inner.target)
+        elif isinstance(inner, ast.withitem):
+            bound |= _bound_by(inner.optional_vars)
+        elif isinstance(inner, ast.ExceptHandler) and inner.name:
+            bound.add(inner.name)
+        elif isinstance(inner, (ast.Import, ast.ImportFrom)):
+            bound |= {alias.asname or alias.name.split(".")[0] for alias in inner.names}
+        elif isinstance(inner, _NAMED_SCOPES):
+            bound.add(inner.name)
+    return frozenset(bound)
+
+
+def _module_level_rebindings(tree: ast.Module) -> frozenset[str]:
+    """Names bound at module level by anything OTHER than a plain ``def``.
+
+    WITHOUT THIS THE CLEARANCE IS DEFEATED BY ONE LINE. A module may declare
+    ``def _clone(exc): return OSError(exc.errno, exc.strerror)`` and then write
+    ``_clone = something_else`` - or ``class _clone``, or ``from x import
+    _clone`` - below it. What the name means at import time is the LAST
+    binding, so a map built from the ``def`` alone would clear a call to
+    something this module never read. Every such name is subtracted rather
+    than resolved, which is the fail-closed answer to a question this module
+    does not model.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        The names to subtract from the clone map.
+    """
+    bound: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        bound |= _rebound_names(node)
+    return frozenset(bound)
+
+
+def _reads_clone_field(argument: ast.expr, parameters: frozenset[str]) -> bool:
+    """Whether one argument is a :data:`CLONE_FIELDS` read off a parameter.
+
+    Args:
+        argument: The argument as written.
+        parameters: The enclosing function's own unrebound parameter names.
+
+    Returns:
+        True only for ``<parameter>.errno`` and ``<parameter>.strerror``. A read
+        off a module global, an attribute chain, a subscript, a call result and
+        a starred argument all come back False, so a construction that reads its
+        fields off a DIFFERENT object than the one the caller handed in is never
+        cleared.
+    """
+    return (
+        isinstance(argument, ast.Attribute)
+        and argument.attr in CLONE_FIELDS
+        and isinstance(argument.value, ast.Name)
+        and argument.value.id in parameters
+    )
+
+
+def _is_pathless_construction(
+    value: ast.expr | None, parameters: frozenset[str], shadowed: frozenset[str]
+) -> bool:
+    """Whether one returned expression BUILDS a filename-free builtin OSError.
+
+    THE FOUR CLAUSES ARE FOUR MEASURED REFUSALS, not four ways of saying the
+    same thing:
+
+      a builtin OSError callee   ``OSError(...)`` and its subclasses only. A
+                                 project class could carry anything in its
+                                 ``str()``, and this module cannot read it.
+      no keyword arguments       ``OSError`` takes none. The keyword spelling
+                                 does not construct at all, so a site written
+                                 that way fails at the raise rather than
+                                 rendering something safe.
+      exactly :data:`_CLONE_ARITY` positional arguments
+                                 the third is ``filename`` and the fourth is
+                                 ``winerror``, so a longer call re-attaches the
+                                 path.
+      every argument a :data:`CLONE_FIELDS` read off a parameter
+                                 ``OSError(exc.errno, exc.filename)`` is
+                                 refused by the field set, and
+                                 ``OSError(other.errno, other.strerror)`` by
+                                 the parameter set.
+
+    Args:
+        value: The returned expression, or None for a bare ``return``.
+        parameters: The enclosing function's own unrebound parameter names.
+        shadowed: Builtin names the module binds itself, so a module that
+            rebinds ``OSError`` cannot have its rebinding cleared as one.
+
+    Returns:
+        True when the construction can carry no path.
+    """
+    if not isinstance(value, ast.Call) or value.keywords:
+        return False
+    if not isinstance(value.func, ast.Name):
+        return False
+    built = _resolve_builtin_exception(value.func.id, shadowed)
+    if built is None or not issubclass(built, OSError):
+        return False
+    if len(value.args) != _CLONE_ARITY:
+        return False
+    return all(_reads_clone_field(argument, parameters) for argument in value.args)
+
+
+def _returns_only_pathless_clones(node: ast.FunctionDef, shadowed: frozenset[str]) -> bool:
+    """Whether EVERY return in a function's own scope builds a pathless clone.
+
+    ``EVERY``, AND THE EMPTY CASE IS REFUSED RATHER THAN WON. A function with no
+    ``return`` at all satisfies "every return is a clone" vacuously and returns
+    ``None``, which in the cause slot is a different thing entirely. An empty
+    population satisfying a universal is the defect this whole module is built
+    against, so a function with no return and a function with no parameter both
+    come back False.
+
+    A DECORATED FUNCTION IS REFUSED OUTRIGHT. A decorator may return any object
+    at all, so the ``def`` below it stops being evidence about what the name
+    means. An ``async def`` is refused by the caller for the same class of
+    reason: what it returns is a coroutine, not the exception the ``def`` body
+    names.
+
+    Args:
+        node: The module-level function definition.
+        shadowed: Builtin names the module binds itself.
+
+    Returns:
+        True when the function can only ever hand back a path-free clone.
+    """
+    if node.decorator_list:
+        return False
+    declared = node.args.posonlyargs + node.args.args + node.args.kwonlyargs
+    parameters = frozenset(argument.arg for argument in declared) - _rebound_names(node)
+    if not parameters:
+        return False
+    returns = [inner for inner in _own_scope(node) if isinstance(inner, ast.Return)]
+    if not returns:
+        return False
+    return all(_is_pathless_construction(inner.value, parameters, shadowed) for inner in returns)
+
+
+def _pathless_clone_functions(tree: ast.Module, shadowed: frozenset[str]) -> frozenset[str]:
+    """Module-level functions that can only ever return a path-free clone.
+
+    MODULE LEVEL ONLY, AND FOR THE OPPOSITE REASON TO
+    :func:`_forwarding_parameters`. That map may union across scopes because a
+    wider answer there can only make a verdict STRICTER. Here a wider answer
+    issues a CLEARANCE, so a bare name resolved across scopes - a method, a
+    nested ``def``, a same-named helper in another function - would clear a call
+    that never reaches it. The cost is an under-report: a clone written as a
+    method or inside a closure is not cleared, and that is stated in limit 12.
+
+    A NAME DEFINED TWICE TAKES THE CONJUNCTION rather than the last definition.
+    Only the last binding is live at import time, so the conjunction is
+    strictly stricter than the truth, which is the direction a clearance must
+    err in.
+
+    Args:
+        tree: The parsed module.
+        shadowed: Builtin names the module binds itself.
+
+    Returns:
+        The qualifying function names.
+    """
+    verdicts: dict[str, bool] = {}
+    for node in tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        qualifies = isinstance(node, ast.FunctionDef) and _returns_only_pathless_clones(
+            node, shadowed
+        )
+        verdicts[node.name] = verdicts.get(node.name, True) and qualifies
+    rebound = _module_level_rebindings(tree)
+    return frozenset(name for name, holds in verdicts.items() if holds and name not in rebound)
+
+
+def _constructs_pathless_clone(node: ast.Raise, form: str, clones: frozenset[str]) -> bool:
+    """Whether the censused slot is a CALL to a qualifying clone function.
+
+    WHICH SLOT DEPENDS ON THE FORM, and only two forms have one:
+
+      :data:`FORM_EXPLICIT`    ``raise Wrapper(...) from clone(exc)``. The cause
+                               slot holds the clone, and ``raise X from Y`` sets
+                               ``__suppress_context__``, so the caught original
+                               is not rendered underneath either.
+      :data:`FORM_SUPPRESSED`  ``raise clone(exc) from None``. The clone IS the
+                               object raised and the context is suppressed
+                               outright.
+
+    :data:`FORM_IMPLICIT` IS DELIBERATELY ABSENT. ``raise clone(exc)`` with no
+    ``from`` clause leaves ``__context__`` pointing at the caught original,
+    which the formatter then prints in full underneath "During handling of the
+    above exception" - both paths intact, on an exception whose own filename
+    fields are empty. ``scripts/make_cert.py`` records having measured exactly
+    that before its sites were written, and the census re-measures it.
+
+    Args:
+        node: The raise.
+        form: Its form.
+        clones: The qualifying function names in this module.
+
+    Returns:
+        True when the slot is a bare-name call to one of them. A dotted callee,
+        an imported name, a call through a variable and a lambda are all False.
+    """
+    if form == FORM_EXPLICIT:
+        candidate = node.cause
+    elif form == FORM_SUPPRESSED:
+        candidate = node.exc
+    else:
+        return False
+    return (
+        isinstance(candidate, ast.Call)
+        and isinstance(candidate.func, ast.Name)
+        and candidate.func.id in clones
     )
 
 
@@ -1081,6 +1481,7 @@ def _module_sites(module: str, tree: ast.Module) -> Iterator[Site]:
     shadowed = _shadowed(tree)
     forwarding = _forwarding_parameters(tree)
     local = _local_classes(tree)
+    clones = _pathless_clone_functions(tree, shadowed)
     for node, scope, handler in _walk(tree, (), None):
         if not isinstance(node, ast.Raise):
             continue
@@ -1109,6 +1510,7 @@ def _module_sites(module: str, tree: ast.Module) -> Iterator[Site]:
             handler_name=handler_name,
             cause_type=cause_type,
             raises_local_class=_raises_local_class(node, local),
+            constructs_pathless_clone=_constructs_pathless_clone(node, form, clones),
         )
 
 
@@ -1593,9 +1995,13 @@ def handler_reach() -> tuple[HandlerReach, ...]:
 def classify(site: Site, exempt: Mapping[str, str] = EXEMPT) -> str:
     """Grade one site.
 
-    THERE IS NO CLEAN VERDICT AND NO REDACTION LEG. The only positive clearance
-    is :data:`CLOSED_SUPPRESSED`, which rests on the interpreter setting
-    ``__suppress_context__`` rather than on any property of the value.
+    THERE IS NO CLEAN VERDICT AND NO REDACTION LEG. There are TWO positive
+    clearances and each rests on a structural fact rather than on a property of
+    a value this module cannot see: :data:`CLOSED_SUPPRESSED` on the
+    interpreter setting ``__suppress_context__`` for a raise that CONSTRUCTS a
+    locally-declared class, and :data:`CLOSED_PATHLESS` on the callee in the
+    censused slot CONSTRUCTING a builtin ``OSError`` out of
+    :data:`CLONE_FIELDS` alone.
 
     THE BRANCHES ARE TESTED IN :data:`VERDICT_ORDER` AND THAT IS THE WHOLE
     CONTRACT. CS-857 residual 1 was not a missing detector and not a wrong
@@ -1617,6 +2023,18 @@ def classify(site: Site, exempt: Mapping[str, str] = EXEMPT) -> str:
     the doctrine in :data:`TYPE_UNRESOLVED` that an unresolved site is never
     cleared. DO NOT REPAIR A FUTURE ESCAPE BY ADDING SPELLINGS HERE.
 
+    CS-884 ADDED THE THIRD BRANCH AND ITS PLACE IN THE ORDER IS THE DECISION.
+    Until it existed, the remedy this project actually ships - chaining or
+    raising a clone the callee builds from :data:`CLONE_FIELDS` - satisfied no
+    clearance and graded :data:`UNPROVEN` alongside every shape nobody had
+    looked at, so the bucket was a CONFLATION rather than a silence. The branch
+    is written third, AFTER :data:`MEASURED_LEAK`, because the two predicates
+    collide on a reachable shape and a positive verdict tested first would
+    launder the leak; and after :data:`CLOSED_SUPPRESSED` so that no site which
+    already held that verdict changes. It reads :attr:`Site.
+    constructs_pathless_clone`, which is again a POSITIVE fact about what is
+    built - the sentence above about spellings governs this branch too.
+
     Args:
         site: The site.
         exempt: The exemption record, injectable so the census can grade the
@@ -1629,9 +2047,32 @@ def classify(site: Site, exempt: Mapping[str, str] = EXEMPT) -> str:
         return MEASURED_LEAK
     if site.form == FORM_SUPPRESSED and site.raises_local_class:
         return CLOSED_SUPPRESSED
+    if site.constructs_pathless_clone:
+        return CLOSED_PATHLESS
     if site.key in exempt:
         return EXEMPT_RECORDED
     return UNPROVEN
+
+
+def verdict_distribution(sites: Sequence[Site]) -> tuple[str, ...]:
+    """One line per verdict, with how many of these sites carry it.
+
+    DERIVED FROM :data:`VERDICT_ORDER` RATHER THAN WRITTEN OUT, and every
+    verdict is named EVEN AT ZERO. A reporter that enumerated the verdicts by
+    hand would have gone silent about :data:`CLOSED_PATHLESS` the moment
+    CS-884 added it, and one that printed only the non-empty rows reports the
+    same thing for a verdict nobody can reach as for a verdict nobody computes.
+
+    Args:
+        sites: The population to summarise.
+
+    Returns:
+        One line per verdict, in :data:`VERDICT_ORDER`.
+    """
+    return tuple(
+        f"{verdict} {sum(1 for site in sites if classify(site) == verdict)}"
+        for verdict in VERDICT_ORDER
+    )
 
 
 def stale_exemptions(sites: Sequence[Site], exempt: Mapping[str, str]) -> tuple[str, ...]:

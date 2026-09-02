@@ -75,6 +75,59 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-02 - CS-884 - CLOSED. The census has a verdict that means REPAIRED, it rests on what a callee constructs rather than on what it is named, and a static clearance is cross-checked against a real interpreter
+The only positive clearance was `FORM_SUPPRESSED and raises_local_class`, which the remedy
+this project actually ships satisfies neither of - so every site CS-857 ever repaired graded
+`UNPROVEN`, in a bucket an adjudicator had proved was a CONFLATION rather than a silence: it
+planted a keyword no-op and a two-step forward, EXECUTED them, and both rendered the path
+while grading the same word as a genuine repair.
+
+`CLOSED_PATHLESS` now clears a site whose cause was built by a callee out of `errno` and
+`strerror` alone, so `OSError.__str__` has no `filename` to append. Graded layer: `UNPROVEN`
+24 to 16, eight sites cleared, `measured-leak` 0 before and after and 12 tree-wide before and
+after - nothing was laundered. The eight are every site CS-857 repaired, in BOTH shapes: six
+chaining the clone in the cause slot, and two in `scripts/make_cert.py` raising it directly
+under `from None`, which the old clearance missed only because the constructed class is a
+builtin rather than locally declared.
+
+THE ORDER WAS ARGUED FROM A REAL COLLISION, NOT A HYPOTHETICAL ONE. The verdict sits THIRD,
+after `MEASURED_LEAK`. The forwarding walk covers every scope while the clone walk covers
+module level, so a module-level clone plus a nested `def` of the same name that forwards its
+argument puts one name in BOTH maps - planted, graded and executed. A clearance tested first
+would have laundered it. That ordering fault is CS-857 residual 1 by the module's own account,
+which is why an arm asserts both legs apply before asserting which wins.
+
+THE NAME CLAUSE IS DISCHARGED FROM BOTH DIRECTIONS. Renaming the callee mechanically leaves
+the verdict unchanged, and a helper SPELLED `_pathless_cause` over `return e` is reported as a
+`measured-leak`. The merger re-planted ten shapes independently of the builder's arms - the
+genuine clone, six escaping forms, the four-argument form that re-attaches the filename, a
+two-returns-one-bad function, and that impostor - and every one landed where it should.
+
+THE CLEARANCE IS PROVEN BY EXECUTION, WHICH IS THE POINT. An adjudicator had named the
+common mode: `tests/chained_cause_guard.py` is the SOLE enumerator of this population, so a
+bug in a new positive verdict would clear real leaks with nothing else in the tree to notice.
+28 shapes now run in isolated child interpreters under the DEFAULT excepthook, stderr reduced
+to booleans before anything is asserted. The control is the same plant as the cleared shape,
+mechanically diffed to differ on EXACTLY ONE LINE - the cause slot - and an arm derives that
+rather than asserting it.
+
+SEVEN REFUSED SHAPES DO NOT LEAK, AND THEY ARE NAMED RATHER THAN HIDDEN. Nineteen refused
+shapes were measured leaking; seven refused shapes are clean - five under-reports the module
+cannot prove and two over-reports the ordering buys. The two partitions are asserted
+non-empty and exhaustive, because "every refused shape leaks" would have been false of seven
+rows. Two mutants survived the first battery, were NOT rounded up, and drew two new shapes
+where only the mutated check stands between a site and a clearance; the final battery killed
+16 of 16.
+
+WHAT THE VERDICT DOES NOT ASSERT, recorded in the module rather than here: nothing about the
+wrapper's own `args`, nothing about a note attached later, and no claim that every safe repair
+is cleared - an inline construction, a method, an import, a lambda and a two-step clone all
+stay `UNPROVEN`, each stated as an under-report in a new limit 12. Limit 10 was rewritten to
+say what this item changed about it and, explicitly, what it did not.
+
+Arms: `tests/test_chained_cause_census.py`. Suite 4214 to 4394.
+
+
 ### 2026-09-01 - CS-857 - NOT A COMPLETION RECORD. NOTHING CLOSED. CS-857 STAYS OPEN by adjudication, and the fact conjunct 1 asserts is UNESTABLISHED rather than merely unproven
 The graded layer now reports ZERO `measured-leak` sites, down from three. The last two -
 `_tls_context` and `build_server` in `clockspeed/surface/server.py` - were measured NOT to

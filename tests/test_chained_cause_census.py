@@ -3,8 +3,18 @@
 THE MEASUREMENTS COME FIRST AND EVERYTHING ELSE RESTS ON THEM. The guard's
 verdicts are claims about what CPython renders, so this module renders each
 shape with a SYNTHETIC MARKER and reads the result, rather than reasoning about
-the interpreter from memory. ``from None`` is the only shape measured NOT to
-render, and it is the only positive clearance the guard issues.
+the interpreter from memory. ``from None`` around a locally-declared class is
+one of the two shapes measured NOT to render, and it was the guard's only
+positive clearance until CS-884.
+
+CS-884 ADDED THE SECOND, and it is measured the same way and then some. A
+callee whose every return builds a builtin ``OSError`` out of ``errno`` and
+``strerror`` alone carries no path, in the cause slot of an explicit chain and
+as the raised expression of a ``from None`` alike. That clearance and every
+shape that only looks like it are decided TWICE - statically here, and by a
+CHILD INTERPRETER whose default excepthook renders the plant - because this
+module's subject is the tree's SOLE enumerator of the population and a second
+static reader would be wrong the same way it is.
 
 THREE RULES THIS MODULE IS BUILT TO OBEY.
 
@@ -39,8 +49,12 @@ import json
 import re
 import socket
 import ssl
+import subprocess
+import sys
 import traceback
 import warnings
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
@@ -57,6 +71,7 @@ from tests.chained_cause_guard import (
     BUCKET_GRADED,
     BUCKET_UNCLASSIFIED,
     BUCKETS,
+    CLOSED_PATHLESS,
     CLOSED_SUPPRESSED,
     CONTROL_MODULES,
     EXEMPT,
@@ -92,6 +107,7 @@ from tests.chained_cause_guard import (
     sites_in_tree,
     stale_exemptions,
     tracked_sources,
+    verdict_distribution,
 )
 
 # ---------------------------------------------------------------------------
@@ -316,12 +332,15 @@ def test_an_explicit_chain_renders_the_cause() -> None:
 
 
 def test_from_none_does_not_render_the_suppressed_context() -> None:
-    """THE ONE POSITIVE CLEARANCE, measured rather than assumed.
+    """THE FIRST POSITIVE CLEARANCE, measured rather than assumed.
 
-    ``closed-suppressed`` is the only verdict this guard issues that says a
-    site is safe, and it rests entirely on these three lines. The context is
+    ``closed-suppressed`` rests entirely on these three lines. The context is
     asserted to still BE there and to still be suppressed, so the arm cannot
     pass merely because nothing was caught in the first place.
+
+    IT WAS THE ONLY CLEARANCE UNTIL CS-884, which is why this docstring used to
+    say so. The second is ``closed-pathless`` and its measurement lives in the
+    CS-884 block far below, in a child interpreter rather than here.
     """
     with pytest.raises(_SyntheticError) as caught:
         _suppressed_chain()
@@ -846,13 +865,27 @@ _PLANTED_EXPECTATIONS: Final = [
     ("suppressed_alias", FORM_SUPPRESSED, TYPE_UNRESOLVED, UNPROVEN),
     ("suppressed_walrus", FORM_SUPPRESSED, TYPE_UNRESOLVED, UNPROVEN),
     ("suppressed_subscript", FORM_SUPPRESSED, TYPE_UNRESOLVED, UNPROVEN),
+    # CS-884. THE INLINE CONSTRUCTION IS NOT CLEARED. It is filename-free and
+    # safe; the pathless predicate is about a CALLEE, and widening it to the
+    # raise itself was never measured. Limit 12 states the under-report, and
+    # this row is what keeps the boundary where the code puts it.
     ("suppressed_builtin", FORM_SUPPRESSED, TYPE_UNRESOLVED, UNPROVEN),
+    # CS-884. A clone written IN PLACE returns a NAME, so neither the
+    # forwarding rule nor the pathless predicate reads it as a construction and
+    # it stays UNPROVEN - an under-report, stated in limit 12.
     ("rebind_expression_cause", FORM_EXPLICIT, TYPE_UNRESOLVED, UNPROVEN),
-    ("closure_expression_cause", FORM_EXPLICIT, TYPE_UNRESOLVED, UNPROVEN),
+    # CS-884. The nested def's return belongs to the nested def; the ONLY
+    # return in this function's own scope IS the pathless construction, so it
+    # is cleared. The cause type is unchanged, which is what this row was
+    # originally about.
+    ("closure_expression_cause", FORM_EXPLICIT, TYPE_UNRESOLVED, CLOSED_PATHLESS),
     ("bare_oserror", FORM_BARE, TYPE_OSERROR, MEASURED_LEAK),
     ("aliased_cause", FORM_EXPLICIT, TYPE_UNRESOLVED, UNPROVEN),
     ("call_expression_cause", FORM_EXPLICIT, TYPE_OSERROR, MEASURED_LEAK),
-    ("clone_expression_cause", FORM_EXPLICIT, TYPE_UNRESOLVED, UNPROVEN),
+    # CS-884. THE ROW THIS ITEM WAS OPENED FOR. Until it, the shipped repair
+    # and the no-op above it were graded the same word, and the pair sitting
+    # side by side in this table is what made the conflation legible.
+    ("clone_expression_cause", FORM_EXPLICIT, TYPE_UNRESOLVED, CLOSED_PATHLESS),
     ("explicit_valueerror", FORM_EXPLICIT, TYPE_RESOLVED_OTHER, UNPROVEN),
     ("tuple_with_oserror", FORM_EXPLICIT, TYPE_OSERROR, MEASURED_LEAK),
     ("dotted_handler", FORM_EXPLICIT, TYPE_UNRESOLVED, UNPROVEN),
@@ -1339,6 +1372,11 @@ def test_the_graded_leaks_are_reported_every_run() -> None:
     different claim: an empty leak list and a broken derivation are otherwise
     byte-identical from outside, and that is how this signal stopped firing
     silently once the last leak was repaired.
+
+    CS-884 FOLDED THE WHOLE DISTRIBUTION IN, on BOTH exits. The report used to
+    name one verdict, so a repair moving sites between the other four was
+    invisible in the run output - which is how 24 of 38 graded sites sat in a
+    conflated bucket for three sessions with the reporter reading correct.
     """
     graded = _graded_sites()
     assert graded, (
@@ -1346,11 +1384,13 @@ def test_the_graded_leaks_are_reported_every_run() -> None:
         "result and a broken derivation are byte-identical from outside - "
         "memory/an-empty-population-satisfies-every-zero.md"
     )
+    spread = ", ".join(verdict_distribution(graded))
     leaks = [site for site in graded if classify(site) == MEASURED_LEAK]
     if not leaks:
         warnings.warn(
             f"CS-857 census: {len(graded)} chained raise(s) in the "
-            f"{BUCKET_GRADED} bucket, none classified {MEASURED_LEAK} this run.",
+            f"{BUCKET_GRADED} bucket, none classified {MEASURED_LEAK} this "
+            f"run. Verdicts: {spread}.",
             stacklevel=1,
         )
         return
@@ -1358,7 +1398,7 @@ def test_the_graded_leaks_are_reported_every_run() -> None:
     warnings.warn(
         f"CS-857 measured-leak, {len(leaks)} of {len(graded)} chained raise(s) in "
         f"the {BUCKET_GRADED} bucket render a builtin OSError's str() beside a "
-        f"redacted message:\n{body}",
+        f"redacted message. Verdicts: {spread}.\n{body}",
         stacklevel=1,
     )
 
@@ -1377,10 +1417,19 @@ def test_the_census_reports_even_when_no_leak_is_found() -> None:
 
 @pytest.mark.parametrize("site", _graded_sites(), ids=lambda site: site.key)
 def test_no_graded_site_is_cleared_by_anything_but_from_none(site: Site) -> None:
-    """INVARIANT 3. THE ONLY CLEARANCE IS STRUCTURAL.
+    """INVARIANT 3. EVERY CLEARANCE IS STRUCTURAL.
 
     ``closed-suppressed`` may be reached only from the ``from None`` form. No
     redaction result, no type, no exemption may produce it.
+
+    SCOPED TO ``closed-suppressed`` ALONE, AND THAT IS NOW A NARROWING RATHER
+    THAN A TAUTOLOGY. CS-884 added a second clearance, so this arm no longer
+    covers the whole positive half of the taxonomy and must not be cited as if
+    it did; ``test_no_graded_site_is_cleared_pathless_without_constructing_
+    one`` is its counterpart, written as the same biconditional for the same
+    reason. Both clearances remain structural - one rests on the interpreter
+    setting ``__suppress_context__`` over a locally-declared class, the other
+    on what a callee CONSTRUCTS - and neither rests on a value or a spelling.
 
     ASSERTED AS A BICONDITIONAL, and the first draft was not. It read ``if
     cleared: assert suppressed``, so a mutation that stopped ANY site being
@@ -2607,4 +2656,1113 @@ def test_the_residual_two_denominator_records_what_it_could_not_follow() -> None
         "no callee anywhere was recorded opaque, which would mean this "
         "detector follows every callee shape - it does not, and the arms above "
         "measure two it cannot"
+    )
+
+
+# ---------------------------------------------------------------------------
+# CS-884 - THE SHAPE A REPAIR TAKES, AND THE SHAPES THAT ONLY LOOK LIKE ONE.
+#
+# THE COMMON-MODE RISK THIS BLOCK EXISTS TO BREAK, named by an adjudicator and
+# not by this module's author. ``tests/chained_cause_guard.py`` is the SOLE
+# enumerator of the chained-cause population, so a bug in a CLEARANCE it issues
+# would silently forgive real leaks and nothing else in the tree would notice -
+# a second reader of the same AST would agree with it and be wrong the same
+# way. Every shape below is therefore decided TWICE, by two instruments that
+# share nothing: the census grades it statically, and a CHILD INTERPRETER runs
+# the identical plant to completion and the DEFAULT excepthook renders it. A
+# static verdict cross-checked against CPython's own printer is the only thing
+# that breaks the common mode.
+#
+# THE CHILD'S STDERR NEVER BECOMES A FIELD, A MESSAGE OR A LOCAL. It carries an
+# absolute frame path per stack level, so it is reduced to booleans and counts
+# the moment it is read - the same rule ``tests/surface/test_server.py``
+# already obeys with :class:`ChildRendering`, for the reason CLAUDE.md
+# non-negotiable 12 gives.
+# ---------------------------------------------------------------------------
+
+#: The CS-884 payload. Distinct from :data:`MARKER` on purpose: two
+#: instruments sharing one marker cannot tell a leak in one from a leak in the
+#: other. Not a path, not personal data, not derived from any machine.
+CLONE_MARKER: Final = "CS884-SYNTHETIC-MARKER"
+
+#: What CPython's default excepthook opens every rendered exception with.
+_TRACEBACK_HEADER: Final = "Traceback (most recent call last):"
+
+#: The failure a construction that cannot be built reports. ``OSError`` takes
+#: no keyword arguments, so the keyword spelling of the clone raises this
+#: instead of returning anything - measured, not assumed.
+_CONSTRUCTION_FAILURE: Final = "TypeError"
+
+#: A child that fails renders at least this many exceptions. Named so no bare
+#: number sits in an assertion.
+_ONE_TRACEBACK: Final = 1
+
+#: Exactly one, named so no bare number sits in a comparison.
+_ONE_VERDICT: Final = 1
+
+#: Exactly one differing line between the control and its subject.
+_ONE_DIFFERENCE: Final = 1
+
+#: Seconds a child may take. Generous: it is a floor against a hang, not a
+#: performance assertion.
+_CLONE_CHILD_TIMEOUT: Final = 120.0
+
+#: Everything every CS-884 plant shares. THE MARKER'S VALUE APPEARS IN NO LINE
+#: THE TRACEBACK CAN PRINT, and that is load-bearing rather than tidy: a
+#: traceback echoes the SOURCE of every frame on the stack, so a plant with the
+#: marker written as a literal inside ``_fail`` would render it through the
+#: source-echo channel and every marker-present arm below would pass without
+#: measuring the exception at all. Every value is a module-level constant, and
+#: module-level assignment lines are not frames.
+_CLONE_PLANT_HEAD: Final = f'''"""One CS-884 shape, runnable and derivable from the same text."""
+
+_MARKER = "{CLONE_MARKER}"
+_ERRNO = 13
+_STRERROR = "Permission denied"
+_LEAK_PATH = "dir/" + _MARKER + "/file"
+_OTHER = OSError(_ERRNO, _MARKER)
+
+
+class Wrapped(Exception):
+    """The wrapper. Its own message carries nothing."""
+
+
+def _fail():
+    """Raise an OSError whose filename is the field OSError.__str__ appends."""
+    raise OSError(_ERRNO, _STRERROR, _LEAK_PATH)
+
+
+'''
+
+#: The clone the four shipped copies of the idiom actually write.
+_CANONICAL_CALLEE: Final = "def c(e):\n    return OSError(e.errno, e.strerror)\n"
+
+#: A no-op, planted beside the real repair because the two were graded
+#: identically until CS-884 and the whole item is about telling them apart.
+_NOOP_CALLEE: Final = "def c(e):\n    return e\n"
+
+
+@dataclass(frozen=True)
+class _CloneShape:
+    """One CS-884 plant, graded statically and run in a child.
+
+    Attributes:
+        label: The arm id, and the child script's basename.
+        callee: The helper the site calls, as source.
+        slot: The raise statement, as written inside the handler body.
+        verdict: What :func:`classify` must return for it.
+        clone: What :attr:`Site.constructs_pathless_clone` must be.
+        marker: Whether :data:`CLONE_MARKER` must reach the child's stderr.
+    """
+
+    label: str
+    callee: str
+    slot: str
+    verdict: str
+    clone: bool
+    marker: bool
+
+
+@dataclass(frozen=True)
+class _ChildChain:
+    """What one child printed, reduced to scalars before anything asserts.
+
+    THE RAW STDERR IS NEVER A FIELD, for the reason the block comment above
+    gives. Nothing here can put an absolute path into a failure report.
+
+    Attributes:
+        exit_code: The child's exit code. Non-zero is what proves the plant
+            actually failed; a child that quietly succeeded renders no marker
+            for reasons having nothing to do with any clearance.
+        marker_rendered: Whether :data:`CLONE_MARKER` appeared at all.
+        tracebacks: How many exceptions the excepthook rendered.
+        construction_failed: Whether the clone could not be built.
+    """
+
+    exit_code: int
+    marker_rendered: bool
+    tracebacks: int
+    construction_failed: bool
+
+
+def _clone_plant(shape: _CloneShape) -> str:
+    """Assemble one plant, MECHANICALLY rather than by transcription.
+
+    Args:
+        shape: The row to build.
+
+    Returns:
+        A module that both parses into one :class:`Site` and runs to a failure.
+    """
+    return (
+        _CLONE_PLANT_HEAD
+        + shape.callee
+        + "\n\ndef site():\n"
+        + '    """The censused site."""\n'
+        + "    try:\n"
+        + "        _fail()\n"
+        + "    except OSError as exc:\n"
+        + f"        {shape.slot}\n"
+        + "\n\nsite()\n"
+    )
+
+
+def _clone_site(shape: _CloneShape) -> Site:
+    """Derive the one site a plant contains.
+
+    Args:
+        shape: The row to derive.
+
+    Returns:
+        The site for ``site``.
+    """
+    derived = {
+        found.qualname: found for found in sites_in_tree({PLANTED_PATH: _clone_plant(shape)})
+    }
+    assert "site" in derived, (
+        f"{shape.label}: the derivation found no site at all, so this arm "
+        f"graded nothing; it found {sorted(derived)}"
+    )
+    return derived["site"]
+
+
+#: ONE ROW PER SHAPE, and the pooled-guard rule governs this table exactly as
+#: it governs :data:`_PLANTED_EXPECTATIONS`: every row gets its own static arm
+#: AND its own execution arm, because a single arm over the table would be met
+#: by whichever member happened to be strongest.
+#:
+#: THE ``marker`` COLUMN IS NOT DERIVABLE FROM THE ``verdict`` COLUMN, and that
+#: is the point of having both. Several rows carry a verdict the execution
+#: contradicts, always in the conservative direction: ``nested_shadow_
+#: forwarder`` and ``redefined_callee`` report a leak the interpreter does not
+#: produce, which is the over-report :data:`VERDICT_ORDER` buys, and the six
+#: limit-10 rows report ``unproven`` on shapes that DO leak, which is the
+#: under-report limit 10 states. A table computing one column from the other
+#: could show neither, and the two directions are partitioned and asserted
+#: separately by :data:`_LEAKING_REFUSALS` and :data:`_CLEAN_REFUSALS`.
+_CLONE_SHAPES: Final = (
+    _CloneShape(
+        label="explicit_canonical",
+        callee=_CANONICAL_CALLEE,
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=CLOSED_PATHLESS,
+        clone=True,
+        marker=False,
+    ),
+    _CloneShape(
+        label="suppressed_canonical",
+        callee=_CANONICAL_CALLEE,
+        slot="raise c(exc) from None",
+        verdict=CLOSED_PATHLESS,
+        clone=True,
+        marker=False,
+    ),
+    _CloneShape(
+        label="control_raw_binding",
+        callee=_CANONICAL_CALLEE,
+        slot="raise Wrapped('failed') from exc",
+        verdict=MEASURED_LEAK,
+        clone=False,
+        marker=True,
+    ),
+    _CloneShape(
+        label="implicit_canonical",
+        callee=_CANONICAL_CALLEE,
+        slot="raise c(exc)",
+        verdict=MEASURED_LEAK,
+        clone=False,
+        marker=True,
+    ),
+    _CloneShape(
+        label="noop_forward",
+        callee=_NOOP_CALLEE,
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=MEASURED_LEAK,
+        clone=False,
+        marker=True,
+    ),
+    _CloneShape(
+        label="arbitrary_strerror",
+        callee="def c(e):\n    return OSError(_ERRNO, _MARKER)\n",
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=UNPROVEN,
+        clone=False,
+        marker=True,
+    ),
+    _CloneShape(
+        label="four_positional_args",
+        callee="def c(e):\n    return OSError(e.errno, e.strerror, e.filename, e.errno)\n",
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=UNPROVEN,
+        clone=False,
+        marker=True,
+    ),
+    _CloneShape(
+        label="keyword_construction",
+        callee="def c(e):\n    return OSError(errno=e.errno, strerror=e.strerror)\n",
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=UNPROVEN,
+        clone=False,
+        marker=True,
+    ),
+    _CloneShape(
+        label="one_bad_return",
+        callee=(
+            "def c(e):\n"
+            "    if not e.errno:\n"
+            "        return OSError(e.errno, e.strerror)\n"
+            "    return e\n"
+        ),
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=MEASURED_LEAK,
+        clone=False,
+        marker=True,
+    ),
+    _CloneShape(
+        label="filename_field",
+        callee="def c(e):\n    return OSError(e.errno, e.filename)\n",
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=UNPROVEN,
+        clone=False,
+        marker=True,
+    ),
+    _CloneShape(
+        label="different_object",
+        callee="def c(e):\n    return OSError(_OTHER.errno, _OTHER.strerror)\n",
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=UNPROVEN,
+        clone=False,
+        marker=True,
+    ),
+    _CloneShape(
+        label="keyword_call_site",
+        callee=_NOOP_CALLEE,
+        slot="raise Wrapped('failed') from c(e=exc)",
+        verdict=UNPROVEN,
+        clone=False,
+        marker=True,
+    ),
+    _CloneShape(
+        label="lambda_callee",
+        callee="def _unused(e):\n    return OSError(e.errno, e.strerror)\n\n\nc = lambda e: e\n",
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=UNPROVEN,
+        clone=False,
+        marker=True,
+    ),
+    _CloneShape(
+        label="dotted_callee",
+        callee=(
+            "class Holder:\n"
+            '    """A callee reached through a dot."""\n'
+            "\n"
+            "    @staticmethod\n"
+            "    def c(e):\n"
+            "        return e\n"
+        ),
+        slot="raise Wrapped('failed') from Holder.c(exc)",
+        verdict=UNPROVEN,
+        clone=False,
+        marker=True,
+    ),
+    _CloneShape(
+        label="two_step_forward",
+        callee="def _inner(e):\n    return e\n\n\ndef c(e):\n    return _inner(e)\n",
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=UNPROVEN,
+        clone=False,
+        marker=True,
+    ),
+    _CloneShape(
+        label="conditional_return",
+        callee="def c(e):\n    return e if e.errno else _OTHER\n",
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=UNPROVEN,
+        clone=False,
+        marker=True,
+    ),
+    _CloneShape(
+        label="container_return",
+        callee="def c(e):\n    return (e,)[0]\n",
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=UNPROVEN,
+        clone=False,
+        marker=True,
+    ),
+    _CloneShape(
+        label="nested_shadow_forwarder",
+        callee=(
+            "def c(e):\n"
+            "    return OSError(e.errno, e.strerror)\n"
+            "\n"
+            "\n"
+            "def elsewhere():\n"
+            "    def c(e):\n"
+            "        return e\n"
+            "\n"
+            "    return c\n"
+        ),
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=MEASURED_LEAK,
+        clone=True,
+        marker=False,
+    ),
+    _CloneShape(
+        label="no_return_callee",
+        callee="def c(e):\n    pass\n",
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=UNPROVEN,
+        clone=False,
+        marker=False,
+    ),
+    _CloneShape(
+        label="decorated_callee",
+        callee=(
+            "def _deco(f):\n"
+            "    return f\n"
+            "\n"
+            "\n"
+            "@_deco\n"
+            "def c(e):\n"
+            "    return OSError(e.errno, e.strerror)\n"
+        ),
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=UNPROVEN,
+        clone=False,
+        marker=False,
+    ),
+    _CloneShape(
+        label="async_callee",
+        callee="async def c(e):\n    return OSError(e.errno, e.strerror)\n",
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=UNPROVEN,
+        clone=False,
+        marker=True,
+    ),
+    _CloneShape(
+        label="rebound_parameter",
+        callee="def c(e):\n    e = _OTHER\n    return OSError(e.errno, e.strerror)\n",
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=UNPROVEN,
+        clone=False,
+        marker=True,
+    ),
+    _CloneShape(
+        label="redefined_callee",
+        callee=(
+            "def c(e):\n    return e\n\n\ndef c(e):\n    return OSError(e.errno, e.strerror)\n"
+        ),
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=MEASURED_LEAK,
+        clone=False,
+        marker=False,
+    ),
+    _CloneShape(
+        label="not_an_oserror",
+        callee="def c(e):\n    return ValueError(e.errno, e.strerror)\n",
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=UNPROVEN,
+        clone=False,
+        marker=False,
+    ),
+    _CloneShape(
+        label="single_argument",
+        callee="def c(e):\n    return OSError(e.errno)\n",
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=UNPROVEN,
+        clone=False,
+        marker=False,
+    ),
+    # THE ROW THAT ISOLATES THE ARITY CHECK, and it exists because a mutation
+    # battery found nothing else did. ``four_positional_args`` is refused by
+    # the FIELD set - its third argument is a filename read - so widening the
+    # arity test from "exactly two" to "at least two" left every other row
+    # unchanged and the mutant SURVIVED. Here every argument is a clone field
+    # and only the count is wrong, so the arity test is the one thing deciding
+    # it. It renders no marker on this plant, because errno and strerror carry
+    # none; that a third positional argument IS the filename slot, and leaks
+    # when a real path goes into it, is what ``four_positional_args`` measures.
+    _CloneShape(
+        label="three_clone_field_args",
+        callee="def c(e):\n    return OSError(e.errno, e.strerror, e.strerror)\n",
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=UNPROVEN,
+        clone=False,
+        marker=False,
+    ),
+    # THE ROW THAT ISOLATES THE KEYWORD CHECK, found the same way.
+    # ``keyword_construction`` passes NO positional argument, so the arity test
+    # refuses it and dropping the keyword test changed nothing. This one
+    # carries exactly two positional clone-field reads AND a keyword, so only
+    # the keyword test stands between it and a clearance - of a construction
+    # that raises TypeError, with the caught original rendered as its context.
+    _CloneShape(
+        label="mixed_keyword_construction",
+        callee="def c(e):\n    return OSError(e.errno, e.strerror, filename=e.filename)\n",
+        slot="raise Wrapped('failed') from c(exc)",
+        verdict=UNPROVEN,
+        clone=False,
+        marker=True,
+    ),
+    # THE IMPOSTOR. It wears the exact name all four shipped copies of the
+    # idiom are spelled with, over a body that forwards the caught exception
+    # unchanged. A predicate that recognised the NAME would clear it; this one
+    # reports it as a leak. Half of the acceptance's "rather than any name it
+    # is spelled with" is discharged here and the other half by
+    # ``test_renaming_the_callee_changes_no_verdict``.
+    _CloneShape(
+        label="impostor_named_clone",
+        callee="def _pathless_cause(e):\n    return e\n",
+        slot="raise Wrapped('failed') from _pathless_cause(exc)",
+        verdict=MEASURED_LEAK,
+        clone=False,
+        marker=True,
+    ),
+)
+
+#: The six shapes limit 10 enumerates as escaping the forwarding rule. NAMED
+#: rather than counted, so deleting one breaks an arm instead of shrinking a
+#: number nobody reads. The acceptance for CS-884 requires each to be REFUSED
+#: the new clearance, proven per shape.
+_LIMIT_TEN_ESCAPES: Final = (
+    "keyword_call_site",
+    "lambda_callee",
+    "dotted_callee",
+    "two_step_forward",
+    "conditional_return",
+    "container_return",
+)
+
+#: The rows the new clearance must reach. Asserted rather than counted for the
+#: same reason.
+_CLEARED_SHAPES: Final = ("explicit_canonical", "suppressed_canonical")
+
+#: The rows REFUSED because the shape genuinely leaks: the caught exception, or
+#: a value carrying the marker, reaches the rendered chain. Every one is
+#: measured to render.
+_LEAKING_REFUSALS: Final = (
+    "control_raw_binding",
+    "implicit_canonical",
+    "noop_forward",
+    "arbitrary_strerror",
+    "four_positional_args",
+    "keyword_construction",
+    "one_bad_return",
+    "filename_field",
+    "different_object",
+    "async_callee",
+    "rebound_parameter",
+    "mixed_keyword_construction",
+    "impostor_named_clone",
+    *_LIMIT_TEN_ESCAPES,
+)
+
+#: The rows REFUSED although the shape does NOT leak. THIS POPULATION IS NAMED
+#: RATHER THAN HIDDEN, and it is the honest half of the CS-884 report. Two
+#: kinds sit here. An UNDER-report: the shape is safe and this module cannot
+#: prove it - a callee with no return, a decorated one, a builtin that is not
+#: an OSError, a one-argument construction. And an OVER-report: the leak leg
+#: fires on a shape execution shows to be clean, because a nested or an earlier
+#: same-named ``def`` put the name in the forwarding map. Neither is a false
+#: clearance, which is the only direction that would be a defect - and saying
+#: "every refused shape leaks" would have been false of six of them.
+_CLEAN_REFUSALS: Final = (
+    "no_return_callee",
+    "decorated_callee",
+    "redefined_callee",
+    "not_an_oserror",
+    "single_argument",
+    "three_clone_field_args",
+    "nested_shadow_forwarder",
+)
+
+
+def _shape(label: str) -> _CloneShape:
+    """Look one row up by label.
+
+    Args:
+        label: The row's label.
+
+    Returns:
+        The row.
+    """
+    found = {row.label: row for row in _CLONE_SHAPES}
+    assert label in found, f"{label} is not a planted CS-884 shape; there are {sorted(found)}"
+    return found[label]
+
+
+@pytest.fixture(scope="module")
+def clone_renderings(tmp_path_factory: pytest.TempPathFactory) -> dict[str, _ChildChain]:
+    """Run every CS-884 plant in a child and reduce each stderr to scalars.
+
+    MODULE SCOPED so the children run once. Each child DIES from its plant, so
+    what is read is the interpreter's own default excepthook rather than
+    anything this module formatted - which is exactly the independence the
+    cross-check needs.
+
+    Args:
+        tmp_path_factory: Where the child scripts are written.
+
+    Returns:
+        Label to rendering. The stderr itself is discarded here.
+    """
+    room = tmp_path_factory.mktemp("cs884")
+    rendered: dict[str, _ChildChain] = {}
+    for shape in _CLONE_SHAPES:
+        child = room / f"clone_{shape.label}.py"
+        child.write_text(_clone_plant(shape), encoding="utf-8")
+        finished = subprocess.run(
+            [sys.executable, "-I", str(child)],
+            capture_output=True,
+            text=True,
+            timeout=_CLONE_CHILD_TIMEOUT,
+            check=False,
+        )
+        written = finished.stderr
+        rendered[shape.label] = _ChildChain(
+            exit_code=finished.returncode,
+            marker_rendered=CLONE_MARKER in written,
+            tracebacks=written.count(_TRACEBACK_HEADER),
+            construction_failed=_CONSTRUCTION_FAILURE in written,
+        )
+    return rendered
+
+
+@pytest.mark.parametrize("shape", _CLONE_SHAPES, ids=[row.label for row in _CLONE_SHAPES])
+def test_each_clone_shape_is_graded_on_its_own_arm(shape: _CloneShape) -> None:
+    """THE STATIC HALF. One planted shape, one arm, one verdict."""
+    site = _clone_site(shape)
+    assert site.constructs_pathless_clone is shape.clone, (
+        f"{shape.label}: the pathless predicate answered "
+        f"{site.constructs_pathless_clone}, expected {shape.clone}"
+    )
+    assert classify(site) == shape.verdict, (
+        f"{shape.label} graded {classify(site)}, expected {shape.verdict}"
+    )
+
+
+@pytest.mark.parametrize("shape", _CLONE_SHAPES, ids=[row.label for row in _CLONE_SHAPES])
+def test_each_clone_shape_renders_or_does_not_in_a_real_interpreter(
+    shape: _CloneShape, clone_renderings: dict[str, _ChildChain]
+) -> None:
+    """THE EXECUTION HALF, and it is the one that breaks the common mode.
+
+    The census is the tree's only enumerator of this population, so a bug in
+    its clearance would forgive real leaks unnoticed. This arm asks CPython
+    instead: the plant runs to a failure and the DEFAULT excepthook renders it.
+    """
+    seen = clone_renderings[shape.label]
+    assert seen.exit_code != 0, (
+        f"{shape.label}: the child exited zero, so nothing was rendered and "
+        "this arm measured no traceback at all"
+    )
+    assert seen.tracebacks >= _ONE_TRACEBACK, (
+        f"{shape.label}: the child printed {seen.tracebacks} traceback(s), so "
+        "it failed somewhere the excepthook never reached"
+    )
+    assert seen.marker_rendered is shape.marker, (
+        f"{shape.label}: the marker rendered={seen.marker_rendered} in the "
+        f"default traceback, expected {shape.marker}"
+    )
+
+
+def test_the_marker_is_one_that_would_render_if_it_were_there(
+    clone_renderings: dict[str, _ChildChain],
+) -> None:
+    """THE KNOWN-GOOD CONTROL. Every marker-absent verdict rests on this.
+
+    ``explicit_canonical`` proves nothing on its own: a marker that never
+    renders under ANY shape would satisfy it, and so would a plant that failed
+    before it reached the raise. ``control_raw_binding`` is the SAME plant with
+    the SAME wrapper, differing only in what sits in the cause slot, and it
+    renders. The pair is the measurement; either alone is not.
+    """
+    control = clone_renderings["control_raw_binding"]
+    cleared = clone_renderings["explicit_canonical"]
+    assert control.marker_rendered is True, (
+        "the control did not render the marker, so every marker-absent arm in "
+        "this block is measuring a marker that never shows up at all"
+    )
+    assert cleared.marker_rendered is False, (
+        "the cleared shape rendered the marker the control was built to prove "
+        "visible, so the clearance is false"
+    )
+    assert control.exit_code != 0, "the control did not fail"
+    assert cleared.exit_code != 0, "the cleared plant did not fail"
+
+
+def test_the_control_and_the_cleared_plant_differ_only_in_the_cause_slot() -> None:
+    """THE CONTROL IS A CONTROL, and this is what makes that a fact.
+
+    A control that differed from its subject in two places would measure two
+    things at once. The two plants are diffed as text so the claim is derived
+    rather than asserted in prose.
+    """
+    cleared = _shape("explicit_canonical")
+    control = _shape("control_raw_binding")
+    assert cleared.callee == control.callee, "the two plants do not share a callee"
+    cleared_lines = _clone_plant(cleared).splitlines()
+    control_lines = _clone_plant(control).splitlines()
+    assert len(cleared_lines) == len(control_lines), "the two plants are different lengths"
+    differing = [index for index, line in enumerate(cleared_lines) if line != control_lines[index]]
+    assert len(differing) == _ONE_DIFFERENCE, (
+        f"the control differs from the cleared plant on {len(differing)} lines, "
+        "so it is not a control for the cause slot alone"
+    )
+    assert cleared_lines[differing[0]].strip() == cleared.slot
+
+
+@pytest.mark.parametrize("label", _CLEARED_SHAPES)
+def test_each_cleared_slot_is_cleared_and_renders_nothing(
+    label: str, clone_renderings: dict[str, _ChildChain]
+) -> None:
+    """BOTH REPAIR SHAPES, ONE ARM EACH, AND BOTH HALVES ON THE SAME ARM.
+
+    CS-884 rules on two shapes and clears both. The clone in the CAUSE slot -
+    ``raise Local(...) from clone(exc)`` - is the shape six shipped sites
+    write; ``raise X from Y`` sets ``__suppress_context__``, so the caught
+    original is not printed underneath either, which is measured here and not
+    reasoned about. The clone as the RAISED expression under ``from None`` is
+    the shape two shipped sites write, and the context is suppressed outright.
+    Neither rests on the callee's NAME.
+    """
+    site = _clone_site(_shape(label))
+    assert classify(site) == CLOSED_PATHLESS, f"{label} did not reach the clearance"
+    assert clone_renderings[label].marker_rendered is False, (
+        f"{label} is cleared by the census and renders the marker in a real "
+        "interpreter, which is a false clearance"
+    )
+    assert clone_renderings[label].tracebacks == _ONE_TRACEBACK, (
+        f"{label} rendered more than one exception, so a chain this module "
+        "believed suppressed was printed after all"
+    )
+
+
+@pytest.mark.parametrize("label", _LIMIT_TEN_ESCAPES)
+def test_each_limit_ten_escape_is_still_refused_the_clearance(
+    label: str, clone_renderings: dict[str, _ChildChain]
+) -> None:
+    """PROVEN PER SHAPE, which is the acceptance's own wording.
+
+    Limit 10 names six shapes that escape the forwarding rule and grade
+    ``unproven``. CS-884 must not clear any of them: each still forwards the
+    caught exception unchanged, and each is measured here to render the marker.
+    A pooled count over the six would be met by whichever one happened to be
+    refused while another was quietly cleared.
+    """
+    site = _clone_site(_shape(label))
+    assert site.constructs_pathless_clone is False, (
+        f"{label} was read as constructing a pathless clone; it forwards the "
+        "caught exception unchanged"
+    )
+    assert classify(site) == UNPROVEN, f"{label} graded {classify(site)}, expected unproven"
+    assert clone_renderings[label].marker_rendered is True, (
+        f"{label} did not render the marker, so this arm proved nothing about "
+        "an escape it is supposed to measure leaking"
+    )
+
+
+#: The rename applied to the canonical shape. A string nothing in the tree is
+#: spelled with, so the renamed plant cannot accidentally resolve to anything.
+_RENAMED_CALLEE: Final = "zqx884_clone"
+
+
+def test_renaming_the_callee_changes_no_verdict() -> None:
+    """THE ACCEPTANCE'S OWN CLAUSE - "rather than any name it is spelled with".
+
+    APPLIED MECHANICALLY RATHER THAN TRANSCRIBED. A second hand-written plant
+    could differ from the first in ways nobody noticed; renaming the callee in
+    the canonical plant and asserting the verdict is unchanged is a proof about
+    the RENAME. Together with ``impostor_named_clone`` - the shipped name over
+    a forwarding body, reported as a leak - the clearance is shown to move with
+    what the callee builds and not at all with what it is called.
+
+    ``memory/a-guard-can-measure-spelling.md`` records the round of this item
+    that gated a clearance on a spelling and lost fifteen escapes to it.
+    """
+    canonical = _shape("explicit_canonical")
+    renamed = _CloneShape(
+        label=canonical.label,
+        callee=canonical.callee.replace("def c(", f"def {_RENAMED_CALLEE}("),
+        slot=canonical.slot.replace("from c(", f"from {_RENAMED_CALLEE}("),
+        verdict=canonical.verdict,
+        clone=canonical.clone,
+        marker=canonical.marker,
+    )
+    assert renamed.callee != canonical.callee, "the rename did not reach the callee"
+    assert renamed.slot != canonical.slot, "the rename did not reach the call site"
+    plain = _clone_site(canonical)
+    moved = _clone_site(renamed)
+    assert moved.raised == plain.raised, "the rename changed what is raised, so it changed more"
+    assert moved.cause_expr != plain.cause_expr, "the cause expression did not change"
+    assert moved.constructs_pathless_clone is plain.constructs_pathless_clone
+    assert classify(moved) == classify(plain) == CLOSED_PATHLESS, (
+        "renaming the callee changed the verdict, so the clearance is reading a "
+        "spelling rather than what the callee constructs"
+    )
+
+
+def test_the_shipped_name_over_a_forwarding_body_is_not_cleared() -> None:
+    """THE OTHER HALF, AND THE ONE A SPELLING GATE WOULD FAIL.
+
+    ``impostor_named_clone`` is spelled exactly as all four shipped copies of
+    the idiom are, and returns its argument unchanged. A predicate keyed on the
+    name would clear it; this one reports it as a measured leak, and a child
+    interpreter renders the marker to prove the report right.
+    """
+    site = _clone_site(_shape("impostor_named_clone"))
+    assert site.constructs_pathless_clone is False, (
+        "a callee wearing the shipped name was read as constructing a clone "
+        "while returning its argument unchanged"
+    )
+    assert classify(site) != CLOSED_PATHLESS, "the impostor reached the clearance"
+
+
+@pytest.mark.parametrize("label", _LEAKING_REFUSALS)
+def test_each_leaking_refusal_is_refused_and_measured_to_leak(
+    label: str, clone_renderings: dict[str, _ChildChain]
+) -> None:
+    """ONE ARM PER SHAPE THAT IS REFUSED BECAUSE IT ACTUALLY LEAKS.
+
+    This is the population the clearance must never grow to cover: each of
+    these puts the caught exception, or a value carrying the marker, into the
+    rendered chain, and each is measured doing it in a child interpreter.
+    """
+    site = _clone_site(_shape(label))
+    assert site.constructs_pathless_clone is False, (
+        f"{label} was read as constructing a pathless clone and it leaks"
+    )
+    assert classify(site) != CLOSED_PATHLESS, f"{label} reached the clearance and it leaks"
+    assert clone_renderings[label].marker_rendered is True, (
+        f"{label} did not render the marker, so it is not the leaking shape "
+        "this arm claims it is and the table is stale"
+    )
+
+
+@pytest.mark.parametrize("label", _CLEAN_REFUSALS)
+def test_each_clean_refusal_is_refused_although_it_does_not_leak(
+    label: str, clone_renderings: dict[str, _ChildChain]
+) -> None:
+    """ONE ARM PER SHAPE REFUSED WITHOUT LEAKING, WHICH IS THE HONEST HALF.
+
+    Saying "every refused shape leaks" would be a claim about this table that
+    is false of six of its rows. Each of these is safe at runtime and refused
+    anyway - four because this module cannot prove them, two because the leak
+    leg fires on evidence execution contradicts. Both are the fail-closed
+    direction and neither is a clearance, which is what makes them acceptable
+    and what makes stating them mandatory.
+    """
+    site = _clone_site(_shape(label))
+    assert classify(site) != CLOSED_PATHLESS, f"{label} reached the clearance"
+    assert clone_renderings[label].marker_rendered is False, (
+        f"{label} rendered the marker, so it belongs in the leaking population "
+        "and this arm is measuring the wrong thing about it"
+    )
+
+
+def test_neither_refusal_population_is_empty_and_together_they_are_the_table() -> None:
+    """A PARTITION, ASSERTED. Neither half may quietly become a zero.
+
+    An empty leaking half would mean no arm above measures a real escape; an
+    empty clean half would mean the honest disclosure has nothing behind it.
+    And a row in neither half is a row whose execution nobody decided about,
+    which is the hole a catch-all always leaves.
+    """
+    assert _LEAKING_REFUSALS, "no refused shape is measured to leak"
+    assert _CLEAN_REFUSALS, "no refused shape is recorded as a conservative refusal"
+    overlap = set(_LEAKING_REFUSALS) & set(_CLEAN_REFUSALS)
+    assert not overlap, f"a shape is in both refusal populations: {sorted(overlap)}"
+    decided = set(_LEAKING_REFUSALS) | set(_CLEAN_REFUSALS) | set(_CLEARED_SHAPES)
+    planted = {row.label for row in _CLONE_SHAPES}
+    assert decided == planted, (
+        f"the populations and the table disagree; only in the table "
+        f"{sorted(planted - decided)}, only in a population {sorted(decided - planted)}"
+    )
+
+
+def test_the_keyword_construction_cannot_be_built_at_all(
+    clone_renderings: dict[str, _ChildChain],
+) -> None:
+    """THE ONE REFUSED SHAPE WHOSE EXECUTION SAYS SOMETHING ELSE, SAID PLAINLY.
+
+    ``OSError`` takes no keyword arguments. The keyword spelling of the clone
+    therefore does not construct a safe object that this module declines to
+    recognise - it raises ``TypeError`` at the raise statement, and the caught
+    original renders as that failure's own context. So it is refused twice, for
+    two different reasons, and only the static one is about the predicate.
+
+    RECORDED HERE RATHER THAN LEFT IMPLIED, because a plant that KILLS instead
+    of DEGRADING is the shape that quietly turns a coverage claim into nothing:
+    the shape stops exercising the field it was planted for, the arm goes green
+    on a different failure, and only the arm's own prose would ever say so. The
+    marker still renders on this one, so the row belongs in
+    :data:`_LEAKING_REFUSALS` - but for the interpreter's reason and not for
+    the predicate's, and that distinction is what this arm exists to keep.
+    """
+    seen = clone_renderings["keyword_construction"]
+    assert seen.construction_failed is True, (
+        "the keyword construction did not fail, so this arm's stated reason for "
+        "the shape being refused is no longer what the interpreter does"
+    )
+    assert seen.marker_rendered is True
+
+
+def test_the_implicit_form_is_never_cleared_however_good_the_clone(
+    clone_renderings: dict[str, _ChildChain],
+) -> None:
+    """A PERFECT CLONE WITH NO ``from`` CLAUSE STILL LEAKS.
+
+    ``raise clone(exc)`` inside a handler leaves ``__context__`` pointing at
+    the caught original, which the formatter prints in full underneath "During
+    handling of the above exception" - both filename fields intact, on an
+    exception whose own are empty. ``scripts/make_cert.py`` records having
+    measured that before its sites were written; this re-measures it, and it is
+    why :func:`chained_cause_guard._constructs_pathless_clone` reads only two
+    of the four forms.
+    """
+    site = _clone_site(_shape("implicit_canonical"))
+    assert site.form == FORM_IMPLICIT
+    assert site.constructs_pathless_clone is False, (
+        "the implicit form was read as a cleared slot, and it is the one shape "
+        "where a perfect clone changes nothing"
+    )
+    seen = clone_renderings["implicit_canonical"]
+    assert seen.marker_rendered is True, "the implicit form did not leak, so this arm is stale"
+    assert seen.tracebacks > _ONE_TRACEBACK, (
+        "only one exception rendered, so the context this arm is about was not "
+        "printed and the measurement is about something else"
+    )
+
+
+# ---------------------------------------------------------------------------
+# CS-884 - VERDICT_ORDER. A positive verdict placed ahead of a leak LAUNDERS
+# it, and the two predicates collide on a shape the tree could grow tomorrow.
+# ---------------------------------------------------------------------------
+
+
+def _applicable_verdicts(site: Site, exempt: Mapping[str, str]) -> tuple[str, ...]:
+    """Every verdict whose CONDITION holds, computed without consulting order.
+
+    DELIBERATELY A SECOND SPELLING OF :func:`classify`'s branch conditions, and
+    that is what makes it evidence. Reading the verdict back out of
+    ``classify`` and comparing it to ``classify`` proves nothing about
+    precedence; deciding applicability independently and then asking whether
+    the published order picks the same winner does. A drift between this copy
+    and the real conditions is caught by the per-shape arms above, which grade
+    ``classify`` and never this.
+
+    Args:
+        site: The site.
+        exempt: The exemption record to consult.
+
+    Returns:
+        The applicable verdicts, ordered by :data:`VERDICT_ORDER`.
+    """
+    holds = [UNPROVEN]
+    if site.cause_type == TYPE_OSERROR:
+        holds.append(MEASURED_LEAK)
+    if site.form == FORM_SUPPRESSED and site.raises_local_class:
+        holds.append(CLOSED_SUPPRESSED)
+    if site.constructs_pathless_clone:
+        holds.append(CLOSED_PATHLESS)
+    if site.key in exempt:
+        holds.append(EXEMPT_RECORDED)
+    return tuple(sorted(holds, key=VERDICT_ORDER.index))
+
+
+def test_the_new_verdict_is_tested_after_the_measured_leak_on_a_real_collision() -> None:
+    """THE ORDER ARM, AND IT IS NOT VACUOUS.
+
+    ``nested_shadow_forwarder`` defines a module-level clone AND a nested
+    function of the same name that forwards its argument. The forwarding map
+    walks every scope, so the name is in it; the clone map walks module level,
+    so the name is in that too. BOTH conditions hold on one site, which is the
+    only thing that makes an ordering question answerable rather than
+    hypothetical - an order arm over a site where one branch cannot apply is
+    the empty-population defect wearing a different hat.
+    """
+    site = _clone_site(_shape("nested_shadow_forwarder"))
+    assert site.cause_type == TYPE_OSERROR, "the leak leg does not apply, so nothing collides"
+    assert site.constructs_pathless_clone is True, (
+        "the clearance leg does not apply, so this arm is not measuring a collision"
+    )
+    applicable = _applicable_verdicts(site, {})
+    assert len(applicable) > _ONE_VERDICT, (
+        f"only {applicable} applies, so there is no precedence to test here"
+    )
+    assert applicable[0] == MEASURED_LEAK, "VERDICT_ORDER no longer puts the leak first"
+    assert classify(site) == MEASURED_LEAK, (
+        "a site where both the leak leg and the clearance leg apply was CLEARED, "
+        "so the new verdict is laundering a measured leak"
+    )
+
+
+def test_the_collision_shape_is_an_over_report_and_says_so(
+    clone_renderings: dict[str, _ChildChain],
+) -> None:
+    """WHAT THE ORDERING COSTS, MEASURED RATHER THAN ASSUMED.
+
+    On the collision shape the module-level clone is the function actually
+    called, so the child renders no marker. The census reports a leak anyway.
+    That is a proxy-positive of exactly the kind limit 5 already names, and the
+    honest statement is that the ordering buys safety at the price of this
+    over-report - not that the shape leaks.
+    """
+    seen = clone_renderings["nested_shadow_forwarder"]
+    assert seen.marker_rendered is False, (
+        "the collision shape rendered the marker, so it is a real leak rather "
+        "than the over-report this arm documents, and the docstring is stale"
+    )
+    assert seen.exit_code != 0
+
+
+@pytest.mark.parametrize("site", _graded_sites(), ids=lambda site: site.key)
+def test_classify_takes_the_first_applicable_verdict_for_every_graded_site(site: Site) -> None:
+    """ONE ARM PER LIVE MEMBER over the same independent applicability rule.
+
+    The planted collision proves the order holds where the branches fight. This
+    proves the published order and the implemented order agree on every site
+    the tree actually contains, so a future reordering of :func:`classify`'s
+    branches alone reddens here.
+    """
+    assert classify(site) == _applicable_verdicts(site, EXEMPT)[0], (
+        f"{site.key} takes {classify(site)} while the first applicable verdict "
+        f"in VERDICT_ORDER is {_applicable_verdicts(site, EXEMPT)[0]}"
+    )
+
+
+@pytest.mark.parametrize("site", _graded_sites(), ids=lambda site: site.key)
+def test_no_graded_site_is_cleared_pathless_without_constructing_one(site: Site) -> None:
+    """INVARIANT 3, FOR THE SECOND CLEARANCE. ASSERTED AS A BICONDITIONAL.
+
+    Every graded site takes one branch or the other, so a change that stopped
+    ANY site reaching the new verdict cannot leave every member in an empty
+    branch with the arm still green - the defect
+    ``memory/an-empty-population-satisfies-every-zero.md`` records, which this
+    module has already reproduced once inside an arm named after it.
+    """
+    outranked = site.cause_type == TYPE_OSERROR or (
+        site.form == FORM_SUPPRESSED and site.raises_local_class
+    )
+    if site.constructs_pathless_clone and not outranked:
+        assert classify(site) == CLOSED_PATHLESS, (
+            f"{site.key} calls a same-module function whose every return builds "
+            "a filename-free OSError, and was not cleared by it"
+        )
+        assert site.form in (FORM_EXPLICIT, FORM_SUPPRESSED), (
+            f"{site.key} was cleared on a form that has no cause slot to clear"
+        )
+    else:
+        assert classify(site) != CLOSED_PATHLESS, (
+            f"{site.key} was cleared without constructing a pathless clone, so "
+            "something other than what the callee BUILDS issued a clearance"
+        )
+
+
+def test_both_slots_of_the_pathless_clearance_have_a_live_member() -> None:
+    """A BRANCH WITH NO MEMBER IS A BRANCH NOBODY MEASURED.
+
+    CS-884 rules on two slots and the live tree carries both: the clone in the
+    cause slot of an explicit chain, and the clone as the raised expression of
+    a ``from None``. SKIPS rather than fails when the tree stops carrying one,
+    because an arm that reddens the moment a site is repaired is
+    anti-correlated with success.
+    """
+    cleared = [site for site in _graded_sites() if classify(site) == CLOSED_PATHLESS]
+    explicit = [site for site in cleared if site.form == FORM_EXPLICIT]
+    suppressed = [site for site in cleared if site.form == FORM_SUPPRESSED]
+    if not explicit or not suppressed:
+        pytest.skip(
+            f"{len(explicit)} explicit and {len(suppressed)} suppressed pathless "
+            "clearances live this run, so a slot has no live member"
+        )
+    assert {site.form for site in cleared} == {FORM_EXPLICIT, FORM_SUPPRESSED}
+    assert all(site.constructs_pathless_clone for site in cleared)
+
+
+def test_the_two_clearances_are_disjoint_by_construction() -> None:
+    """NEITHER CLEARANCE CAN EVER STAND IN FOR THE OTHER.
+
+    :attr:`Site.raises_local_class` reads names a ``ClassDef`` declares;
+    :func:`chained_cause_guard._pathless_clone_functions` reads module-level
+    ``def`` names and subtracts every name bound at module level by anything
+    else - a ``class`` included. So a name cannot be in both maps, and the
+    precedence between the two positive verdicts can never decide a verdict.
+    Planted rather than argued.
+    """
+    source = (
+        '"""A name declared as a class AND as a function."""\n\n\n'
+        "def c(e):\n    return OSError(e.errno, e.strerror)\n\n\n"
+        "class c:\n"
+        '    """The later binding, which is what the name means."""\n\n\n'
+        "def site(path):\n"
+        "    try:\n"
+        "        open(path)\n"
+        "    except OSError as exc:\n"
+        "        raise c(exc) from None\n"
+    )
+    derived = {found.qualname: found for found in sites_in_tree({PLANTED_PATH: source})}
+    site = derived["site"]
+    assert site.raises_local_class is True, "the class declaration was not seen"
+    assert site.constructs_pathless_clone is False, (
+        "a name bound by a class at module level was still read as a clone "
+        "function, so the last binding is not what the clone map resolves"
+    )
+    assert classify(site) == CLOSED_SUPPRESSED
+
+
+# ---------------------------------------------------------------------------
+# CS-884 - the live layer, and the report that has to name the new verdict.
+# ---------------------------------------------------------------------------
+
+
+def test_the_new_verdict_is_published_in_the_verdict_order() -> None:
+    """A VERDICT ABSENT FROM :data:`VERDICT_ORDER` IS ONE NO ARM ENUMERATES."""
+    assert CLOSED_PATHLESS in VERDICT_ORDER, "the new verdict is not published"
+    assert VERDICT_ORDER.index(MEASURED_LEAK) < VERDICT_ORDER.index(CLOSED_PATHLESS), (
+        "a positive verdict is ordered ahead of the measured leak, which "
+        "launders every leak the new predicate also matches"
+    )
+    assert VERDICT_ORDER.index(CLOSED_PATHLESS) < VERDICT_ORDER.index(UNPROVEN)
+    assert len(set(VERDICT_ORDER)) == len(VERDICT_ORDER), "a verdict is listed twice"
+
+
+def test_the_verdict_distribution_names_every_verdict_every_run() -> None:
+    """THE REPORTER HANDLES THE NEW VERDICT, and would handle the next one.
+
+    The census reports its findings as a warning rather than a failure. A
+    reporter that enumerated verdicts by hand would have gone silent about
+    CS-884's the moment it was added, so the distribution is derived from
+    :data:`VERDICT_ORDER` and every member is named even at zero - a verdict
+    printed only when non-empty cannot be told from one nobody computes.
+    """
+    lines = verdict_distribution(_graded_sites())
+    assert len(lines) == len(VERDICT_ORDER), (
+        f"the distribution carries {len(lines)} line(s) for {len(VERDICT_ORDER)} verdicts"
+    )
+    named = " ".join(lines)
+    for verdict in VERDICT_ORDER:
+        assert verdict in named, f"the distribution does not name {verdict}"
+    assert CLOSED_PATHLESS in named
+
+
+def test_the_pathless_clearance_has_live_members_and_reports_them() -> None:
+    """THE DENOMINATOR FOR THE LIVE HALF, and the report that carries it.
+
+    Every zero below the new verdict would be satisfied by a predicate that
+    matched nothing at all, so the live count is asserted non-zero alongside
+    the graded population it is drawn from. SKIPS rather than fails if the tree
+    ever stops carrying the idiom, for the anti-correlation reason above.
+    """
+    graded = _graded_sites()
+    assert graded, "the graded population is empty, so this arm measured nothing"
+    cleared = [site for site in graded if classify(site) == CLOSED_PATHLESS]
+    if not cleared:
+        pytest.skip("no live site reaches the pathless clearance this run")
+    body = "\n".join(f"  {site.key} line {site.lineno}" for site in cleared)
+    warnings.warn(
+        f"CS-857 {CLOSED_PATHLESS}, {len(cleared)} of {len(graded)} chained "
+        f"raise(s) in the {BUCKET_GRADED} bucket chain a clone the callee "
+        f"CONSTRUCTS from errno and strerror alone:\n{body}",
+        stacklevel=1,
     )

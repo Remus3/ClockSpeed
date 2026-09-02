@@ -1493,44 +1493,6 @@ acceptance, and a zero that quietly changes its own population is the fault CS-8
 against. It is recorded as a real gap rather than a stylistic one.
 
 
-## CS-884
-
-### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BY PLANTING FIVE SHAPES
-
-**THE CENSUS HAS NO VERDICT THAT MEANS REPAIRED.** `classify` returns `MEASURED_LEAK`,
-`CLOSED_SUPPRESSED`, `EXEMPT_RECORDED` or `UNPROVEN`. The only positive clearance requires
-the raise to be suppressed AND to construct a class the module itself declares. The remedy
-this project actually ships - chaining a filename-free clone - satisfies neither, so every
-site CS-857 has ever repaired lands in `UNPROVEN`.
-
-**WHAT UNPROVEN ACTUALLY HOLDS, planted and measured.** Five shapes through
-`sites_in_tree`, one module each:
-
-    positional no-op  _id(exc)      -> measured-leak   CAUGHT
-    keyword no-op     _id(e=exc)    -> unproven        escapes
-    lambda no-op                    -> unproven        escapes
-    two-step forward                -> unproven        escapes
-    genuine clone                   -> unproven        correct, and indistinguishable
-
-So a graded `UNPROVEN` site may be a correct repair or may be a no-op that renders the path,
-and the verdict does not say which. That is limit 10 stated as a consequence rather than as
-a caveat.
-
-**IT IS A LATENT HAZARD, NOT A LIVE LEAK - do not inflate this.** Swept on the same day: no
-shipped module uses any of the three escaping shapes. The shipped `UNPROVEN` population is
-project-exception causes, suppressed raises, genuine clones, and two benign alternate
-spellings - `clockspeed/data/blobs.py` chaining a `ValueError` from `int()`, and
-`clockspeed/save/objects.py` re-raising bare for frame cleanup. Both were read.
-
-**WHY THE OBVIOUS FIX IS FORBIDDEN.** Teaching the guard the name `_pathless_cause` is a
-spelling gate, and `memory/a-guard-can-measure-spelling.md` records that a previous round of
-CS-857 did exactly that and an adversary measured fifteen escapes. The CS-857c builder
-specified the sound form and deliberately did not build it: every return in the callee's own
-scope is a builtin-OSError call with exactly two positional arguments, each an attribute read
-of `errno` or `strerror` off the function's own parameter. It also measured why arity alone
-is not enough - `OSError(13, MARKER)` renders an arbitrary string through `strerror`, and the
-four-argument form re-attaches the filename and renders `[WinError None]`.
-
 ## CS-885
 
 ### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BEFORE FILING
