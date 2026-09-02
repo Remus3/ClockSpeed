@@ -34,13 +34,31 @@ the line becomes a pointer.
 
 ---
 
-## Session 56 - 2026-09-01 - Both rulings OVERTURNED THE PREMISE THEY WERE ASKED ON, then CS-878 and CS-879 closed - a leak putting two absolute paths on the excepthook, and the guard excluding that file on a frozenness claim that was false of it
+## Session 56 - 2026-09-01 - Both rulings OVERTURNED THE PREMISE THEY WERE ASKED ON; CS-878 and CS-879 closed; CS-857's graded layer went to ZERO measured leaks and an adjudicator still ruled it OPEN, because a chained raise two levels down renders and derives nothing
 
-- **Shipped: CS-878 and CS-879 CLOSED.** CS-857 and CS-858 got RULINGS and both STAY OPEN;
-  their entries say NOT A COMPLETION RECORD. No acceptance clause was changed anywhere this
-  session, which is the CS-858 ruling applied to itself. Filed CS-880, CS-881, CS-882, CS-883.
-  Suite 4050 -> 4152. Chained-raise grading 25 sites -> 36, and all 60 now reach a named
-  bucket. Detail in `docs/LEDGER.md`, not here.
+- **Shipped: CS-878 and CS-879 CLOSED. CS-857 and CS-858 got RULINGS and STAY OPEN**, their
+  entries saying NOT A COMPLETION RECORD. **No acceptance clause was changed anywhere this
+  session**, which is the CS-858 ruling applied to itself. Filed CS-880 through CS-885.
+  Suite 4050 -> 4214. Chained-raise grading 25 sites -> 38 with every one reaching a named
+  bucket, and the GRADED LAYER NOW REPORTS ZERO `measured-leak`, down from three.
+
+- **CS-857 - two conjuncts MET, and the third is not merely unproven but UNESTABLISHED.** An
+  adjudicator that built none of it planted a raise two levels down inside a callee of a
+  handler, derived a population of ZERO, then EXECUTED it and watched the marker render
+  through one chain link. It also executed the `UNPROVEN` shapes instead of reading them: a
+  keyword no-op and a two-step forward BOTH RENDER while grading `unproven`, and 24 of 38
+  graded sites carry that verdict backed only by hand reading - the method the clause forbids.
+  **NEXT STEP IS CS-884**, whose sound form is already specified: every return in the callee's
+  own scope a builtin-OSError call with two positional args, each an attribute read of
+  `errno`/`strerror` off its own parameter. Then a frozen-file grant. Neither alone closes it.
+
+- **THREE THINGS I GOT WRONG, corrected by the adjudicator and recorded so they are not
+  carried forward.** CS-881 does NOT block CS-857 - a value stored in a local and raised after
+  its handler exits measures ZERO chain links, so it is not a chained raise. The "33 wholly
+  opaque callees" figure was pre-slice; it is 31. And **"shipped" DOES reach the four frozen
+  `measured-leak` sites**: `tests/chained_cause_guard.py` calls its frozen bucket "Shipped
+  code" and says the graded bucket is NOT shipped, so the narrow reading is refuted by the
+  instrument I was quoting.
 
 - **In flight: nothing.** No worktree holds work. The rulings are recorded; the ARMS they
   call for are not built, and that is the next session's work rather than an omission.
@@ -81,11 +99,28 @@ the line becomes a pointer.
   CHANNELS inside its own test and was caught by two tree-wide guards at the merge, not by a
   reviewer - the merger's instruction to skip the full suite on that slice is what let it through.
 
-- **Next action: BUILD THE CS-857 SWEEP, not a phrase search.** It must grade the
-  proposition across the tree rather than across one mapping, and
-  `memory/a-guard-can-measure-spelling.md` says what a spelling search produces. The census it
-  would sweep is the one CS-879 just repaired, and CS-881 records a shape that population still
-  misses. After that, CS-883 is the cheapest of the three new items.
+- **PROCESS FAULTS WORTH MORE THAN THE ITEMS.** (1) I handed the adjudicator an UNCOMMITTED
+  WORKING TREE; `CLAUDE.md` section 5 requires a SHA or a worktree. It hashed five files before
+  and after to prove the tree held still, so its ruling describes a definite state - that was
+  its diligence covering my error. **PIN THE CANDIDATE.** (2) It named a COMMON-MODE RISK
+  nobody else had: `tests/chained_cause_guard.py` is the SOLE enumerator of this population and
+  was itself uncommitted-modified in the candidate, so two agents agreeing on the counts shows
+  only that the instrument was reported faithfully. Nothing independently enumerates it.
+  (3) **SEVEN OF SEVEN worktrees opened one commit stale** across both rounds. That is not an
+  intermittent fault - order the verify-and-fast-forward every time.
+
+- **THE PATTERN THAT MADE THIS ROUND WORK: every builder found the defect in its own work, and
+  the tree's guards caught what they missed.** One nearly shipped a detector whose positive
+  signal was an artifact and killed it by isolation; one's lint fix rendered a caught exception;
+  one tripped a guard a SIBLING had built hours earlier by naming a field `cause`. Never let a
+  repair be the last word on its own fault - it held four times out of four.
+
+- **Next action: CS-884.** It is the adjudicator's own first step for CS-857 and its sound form
+  is already written down, so it needs building rather than designing. **DO NOT repair it by
+  teaching the guard the name `_pathless_cause`** - that is a spelling gate and
+  `memory/a-guard-can-measure-spelling.md` records that a previous CS-857 round did exactly
+  that and an adversary measured fifteen escapes. After that, CS-885 (four copies of that
+  helper, identical today, with nothing comparing them) is cheap.
 
 
 ## Session 55 - 2026-09-01 - The third CS-600 audit found a MUST-FIX the first two missed, and every refuter that followed returned something real. CS-873, CS-874 and CS-875 closed. CS-872 stays open with the CSS-only space MEASURED closed rather than argued closed
