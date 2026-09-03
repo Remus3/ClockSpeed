@@ -459,12 +459,31 @@ def test_the_openssl_probe_is_bounded_by_a_timeout() -> None:
 # ---------------------------------------------------------------------------
 
 
-#: The prefix every exit-code constant in the script carries. THE POPULATION IS
-#: FILTERED OUT OF THE MODULE rather than typed out here, and that is the whole
-#: of what CS-882 changed. The arm this replaced listed five constants by name,
-#: so the two codes argparse owns - 2 for a usage error, 0 for ``--help`` - were
-#: outside the set it could see, and both collided with a documented outcome
-#: while it stayed green.
+#: The prefix every exit-code constant in the script carries TODAY. THE
+#: POPULATION IS FILTERED OUT OF THE MODULE rather than typed out here, and that
+#: is the whole of what CS-882 changed. The arm this replaced listed five
+#: constants by name, so the two codes argparse owns - 2 for a usage error, 0
+#: for ``--help`` - were outside the set it could see, and both collided with a
+#: documented outcome while it stayed green.
+#:
+#: A PREFIX IS A SPELLING AND THE ACCEPTANCE CLAUSE IS A BEHAVIOUR, so this
+#: filter is HALF the population and is no longer the whole of it. MEASURED
+#: against the arm as CS-882 shipped it, by declaring one further constant worth
+#: 3 - a collision with ``EXIT_REFUSED`` - and running the arm four times: the
+#: spelling carrying this prefix was seen and reddened it, while the same value
+#: under a leading underscore, under a trailing ``_EXIT`` and under an unrelated
+#: ``STATUS_`` name were all invisible and all left it green. That is a guard
+#: measuring a spelling while its clause is about behaviour, which
+#: ``memory/a-guard-can-measure-spelling.md`` records as a shape rather than as
+#: an incident.
+#:
+#: :func:`_returned_exit_codes` is the other half, keyed on what the module DOES
+#: - every module-level integer reaching a position the interpreter reads as an
+#: exit status - and :func:`_graded_exit_codes` is the UNION, so neither keying
+#: can hide what the other sees. THE UNION IS A WIDENING AND NOT A SWAP: the
+#: prefixed declare-only case above still reddens after the repair, measured the
+#: same way, because dropping this half to keep only the behavioural one would
+#: have traded one blind spot for another.
 EXIT_PREFIX = "EXIT_"
 
 #: THE ONE COLLISION THIS SCRIPT IS ALLOWED, recorded as a pair of CONSTANT
@@ -518,6 +537,8 @@ def _declared_exit_codes() -> dict[str, int]:
 
     Returns:
         Constant name to value, for every module-level ``EXIT_*`` integer.
+        HALF THE GRADED POPULATION - see :func:`_graded_exit_codes` for the
+        other half and for what a prefix cannot see.
     """
     return {
         name: value
@@ -543,6 +564,265 @@ def _documented_exit_codes() -> list[int]:
         if match is not None:
             found.append(int(match.group(1)))
     return found
+
+
+#: What this module calls module scope when it reports the function an exit
+#: status is produced in. Not a Python identifier, so it can never be confused
+#: with a real qualified name.
+MODULE_SCOPE = "<module>"
+
+#: The call spellings that hand a first positional argument to the interpreter
+#: as a process status: ``SystemExit(...)``, ``sys.exit(...)``, the
+#: ``super().exit(...)`` that is how argparse ends this process, and
+#: ``os._exit(...)``. KEYED ON THE CALLED NAME AND NOT ON THE RECEIVER, because
+#: the receiver is ``sys``, ``os`` or a ``super()`` object depending on the site
+#: and none of the three is what makes the argument a status.
+EXIT_CALL_NAMES = frozenset({"SystemExit", "exit", "_exit"})
+
+
+def _make_cert_tree() -> ast.Module:
+    """Parse the script under test.
+
+    Returns:
+        Its abstract syntax tree.
+    """
+    return ast.parse(MAKE_CERT_SOURCE.read_text(encoding="utf-8"))
+
+
+def _scoped_nodes(tree: ast.Module) -> Iterator[tuple[str, ast.AST]]:
+    """Walk the tree, pairing every node with the function that encloses it.
+
+    THE QUALIFIED NAME IS BUILT ON THE WAY DOWN rather than recovered afterwards
+    by asking which subtree a node sits in. The obvious alternative keys a map
+    on ``id()``, which is only meaningful while the tree that produced it is
+    alive - a trap this file would be carrying rather than a property it could
+    assert.
+
+    Args:
+        tree: The parsed script.
+
+    Yields:
+        The qualified name of the innermost enclosing function, paired with the
+        node. A function definition is yielded under its OWN name, and
+        :data:`MODULE_SCOPE` stands for module scope.
+    """
+    stack: list[tuple[ast.AST, str, str]] = [(tree, "", MODULE_SCOPE)]
+    while stack:
+        scope, prefix, qualname = stack.pop()
+        for child in ast.iter_child_nodes(scope):
+            if isinstance(child, ast.ClassDef):
+                yield qualname, child
+                stack.append((child, f"{prefix}{child.name}.", qualname))
+            elif isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
+                inner = f"{prefix}{child.name}"
+                yield inner, child
+                stack.append((child, f"{inner}.", inner))
+            else:
+                yield qualname, child
+                stack.append((child, prefix, qualname))
+
+
+def _module_level_ints(tree: ast.Module) -> dict[str, int]:
+    """Every module-level ``NAME = <integer literal>`` binding, however it is spelled.
+
+    NO PREFIX FILTER, DELIBERATELY. This is the table an exit-status expression
+    is resolved against, and filtering it by spelling would put back, in the
+    middle of the derivation, the exact hole the derivation exists to close.
+
+    ``bool`` is excluded because ``isinstance(True, int)`` is True and a flag is
+    not an exit code.
+
+    Args:
+        tree: The parsed script.
+
+    Returns:
+        Constant name to value.
+    """
+    found: dict[str, int] = {}
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Constant):
+            continue
+        value = node.value.value
+        if isinstance(value, bool) or not isinstance(value, int):
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                found[target.id] = value
+    return found
+
+
+def _status_leaves(expr: ast.expr | None) -> Iterator[ast.expr | None]:
+    """Unwrap a conditional exit status into the values it can actually produce.
+
+    The parser override hands argparse's two statuses to ``super().exit`` as ONE
+    conditional expression. Reading that expression whole resolves to neither
+    constant and would report an unnamed status on correct code.
+
+    Args:
+        expr: An expression in an exit-status position, or None for a bare
+            ``return``.
+
+    Yields:
+        Each value the expression can evaluate to.
+    """
+    if isinstance(expr, ast.IfExp):
+        yield from _status_leaves(expr.body)
+        yield from _status_leaves(expr.orelse)
+    else:
+        yield expr
+
+
+def _is_exit_call(node: ast.Call) -> bool:
+    """Whether this call hands its first argument to the interpreter as a status.
+
+    Args:
+        node: Any call node.
+
+    Returns:
+        True for the spellings :data:`EXIT_CALL_NAMES` records.
+    """
+    func = node.func
+    if isinstance(func, ast.Name):
+        return func.id in EXIT_CALL_NAMES
+    return isinstance(func, ast.Attribute) and func.attr in EXIT_CALL_NAMES
+
+
+def _called_function(leaf: ast.expr | None, functions: set[str]) -> str | None:
+    """The module-level function an exit-status expression hands its value on to.
+
+    Args:
+        leaf: An expression in an exit-status position.
+        functions: Every function name the module defines.
+
+    Returns:
+        The callee's name when the expression is a bare call to one of them,
+        and None otherwise.
+    """
+    if not isinstance(leaf, ast.Call) or not isinstance(leaf.func, ast.Name):
+        return None
+    return leaf.func.id if leaf.func.id in functions else None
+
+
+def _render_status(leaf: ast.expr | None) -> str:
+    """Render one unnamed exit status for a failure message.
+
+    ``ast.unparse`` is safe to put in a message here, and that is a property of
+    the SUBJECT rather than of the renderer: the only source this module parses
+    is a tracked script, which non-negotiable 3 already forbids from carrying a
+    home path, an account id or a world name.
+
+    Args:
+        leaf: The expression, or None for a bare ``return``.
+
+    Returns:
+        A short rendering.
+    """
+    return "an empty return" if leaf is None else ast.unparse(leaf)
+
+
+def _exit_status_sites(tree: ast.Module) -> tuple[list[tuple[str, str]], list[str]]:
+    """Read every value the script hands the interpreter as a process exit status.
+
+    KEYED ON WHAT THE MODULE DOES RATHER THAN ON HOW IT SPELLS A NAME. The seed
+    is the first argument of every call :func:`_is_exit_call` recognises, and
+    the walk from there is TRANSITIVE at any depth rather than two levels deep:
+    a seed that is a bare call to a module function makes that function a
+    producer, and so does a producer's own ``return`` of a bare call - which is
+    how ``main`` hands ``_generate``'s value out. Each producer is walked once,
+    so a cycle terminates.
+
+    A CALL THIS CANNOT RESOLVE IS REPORTED RATHER THAN SKIPPED. Anything in an
+    exit-status position that is neither a module-level integer's name nor a
+    bare call to a known function comes back as unnamed, so an exit status
+    arriving through a shape this walk does not model reddens instead of
+    vanishing.
+
+    A SITE IS A PLACE AND NOT A VALUE. Three separate returns of one constant
+    are three sites, so a branch added beside them arrives as a new site instead
+    of being absorbed into a constant the record already names.
+
+    Args:
+        tree: The parsed script.
+
+    Returns:
+        The named sites as ``(function, constant name)`` pairs - one entry per
+        site - and a rendering of every exit status that no module-level integer
+        constant names.
+    """
+    module_ints = _module_level_ints(tree)
+    functions: set[str] = set()
+    returns: dict[str, list[ast.expr | None]] = {}
+    pending: list[tuple[str, ast.expr | None]] = []
+
+    for qualname, node in _scoped_nodes(tree):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            functions.add(qualname)
+        elif isinstance(node, ast.Return):
+            returns.setdefault(qualname, []).append(node.value)
+        elif isinstance(node, ast.Call) and _is_exit_call(node):
+            pending.append((qualname, node.args[0] if node.args else None))
+
+    sites: list[tuple[str, str]] = []
+    unnamed: list[str] = []
+    walked: set[str] = set()
+    while pending:
+        qualname, expr = pending.pop()
+        for leaf in _status_leaves(expr):
+            callee = _called_function(leaf, functions)
+            if isinstance(leaf, ast.Name) and leaf.id in module_ints:
+                sites.append((qualname, leaf.id))
+            elif callee is not None and callee not in walked:
+                walked.add(callee)
+                pending.extend((callee, value) for value in returns.get(callee, []))
+            elif callee is None:
+                unnamed.append(f"{qualname} -> {_render_status(leaf)}")
+    return sites, unnamed
+
+
+def _returned_exit_codes() -> dict[str, int]:
+    """Every module-level integer the script RETURNS as an exit status.
+
+    THE SECOND KEYING, and the one the acceptance clause is actually about. See
+    :data:`EXIT_PREFIX` for the three spellings the first keying cannot see.
+
+    Returns:
+        Constant name to value, for every name reaching an exit-status position.
+    """
+    tree = _make_cert_tree()
+    sites, _unnamed = _exit_status_sites(tree)
+    values = _module_level_ints(tree)
+    return {name: values[name] for _function, name in sites}
+
+
+def _graded_exit_codes() -> dict[str, int]:
+    """The population the distinctness clause is judged over - the UNION of both keyings.
+
+    NEITHER HALF IS DROPPED, and each sees something the other cannot. The
+    prefix keying sees a constant that is declared and never returned; the
+    behaviour keying sees a constant spelled outside the prefix and returned.
+
+    WHAT REMAINS OUTSIDE BOTH, stated rather than left to be discovered and
+    MEASURED rather than reasoned about: a constant that is neither prefixed nor
+    returned. Declaring one worth 3 leaves both arms green, which was run. It is
+    dead code - no branch hands it to the interpreter - so it is not an outcome,
+    and the clause these arms judge is about outcomes. A third keying that
+    graded every module-level integer would not close it either; it would redden
+    at once on ``_RENAME_ATTEMPTS``, which is 5 and shares nothing with
+    ``EXIT_USAGE`` but the number.
+
+    Returns:
+        Constant name to value.
+    """
+    declared = _declared_exit_codes()
+    returned = _returned_exit_codes()
+    disagreeing = sorted(
+        name for name, value in returned.items() if declared.get(name, value) != value
+    )
+    assert disagreeing == [], (
+        f"{len(disagreeing)} constant(s) hold one value in the module's namespace and another "
+        f"in its source, so neither reading can be trusted: {disagreeing}"
+    )
+    return declared | returned
 
 
 def _failing_openssl_stub(directory: Path) -> Path:
@@ -696,6 +976,99 @@ def _measure_every_outcome(root: Path) -> dict[str, tuple[int, ...]]:
     }
 
 
+#: EVERY EXIT-STATUS SITE THE SCRIPT HAS, mapped to how many times it is
+#: written and which probed outcome drives it.
+#:
+#: THE KEYS AND THE COUNTS ARE DERIVED. :func:`_exit_status_sites` reads them out
+#: of the module's own AST and the arm below compares the two for EQUALITY, so a
+#: site arriving without a row is a finding rather than a member a record
+#: happens not to mention.
+#:
+#: WHAT IS LISTED AND WHY, stated because the arm this feeds once claimed a
+#: derivation it did not have. The OUTCOME NAMES and the site-to-outcome
+#: attribution here are authored, and no AST can supply either: an outcome name
+#: is a word a human chose, and which environment drives which branch is a fact
+#: about ``shutil.which``, PATH and the filesystem rather than about syntax.
+#: What the derivation buys is that neither can be quietly INCOMPLETE - a new
+#: site has no row here, and a row naming an outcome nothing probes reddens the
+#: measured arm. A row pointing at the WRONG outcome is a fault neither arm can
+#: see, and that is the residue.
+SITE_CENSUS: dict[tuple[str, str], tuple[int, str]] = {
+    ("main", "EXIT_NO_OPENSSL"): (1, "openssl absent"),
+    ("main", "EXIT_REFUSED"): (1, "pair already there"),
+    ("_generate", "EXIT_OK"): (1, WRITTEN_OUTCOME),
+    ("_generate", "EXIT_OPENSSL_FAILED"): (3, "openssl failed"),
+    ("_generate", "EXIT_WRITE_FAILED"): (1, "pair not writable"),
+    ("_CertParser.exit", "EXIT_HELP"): (1, HELP_OUTCOME),
+    ("_CertParser.exit", "EXIT_USAGE"): (1, "command line refused"),
+}
+
+
+def _rendered_sites(census: dict[tuple[str, str], int]) -> list[tuple[str, int]]:
+    """Render a site census as a stable, sorted, path-free value for a message.
+
+    Sites render as ``function::constant``, the idiom this repository uses for a
+    location that must carry no line number -
+    ``tests/chained_cause_guard.py::CalleeSite`` states the reason on its key,
+    and CS-857 is what taught it.
+
+    Args:
+        census: Site to the number of times the module writes it.
+
+    Returns:
+        One sorted entry per site.
+    """
+    return sorted((f"{function}::{name}", count) for (function, name), count in census.items())
+
+
+def test_every_exit_status_the_script_can_produce_is_a_site_this_file_probes() -> None:
+    """CS-882 residual. A branch nothing probes is an outcome nothing grades.
+
+    THE FAULT THIS CLOSES IS THE FILED ONE, ONE LEVEL UP. CS-882 was filed
+    against a LISTED exit-code table, and its repair shipped a LISTED outcome
+    table - :func:`_measure_every_outcome` is seven hand-written keys - under a
+    docstring claiming the population was derived three ways. MEASURED on this
+    script: ONE extra branch returning the EXISTING ``EXIT_REFUSED`` puts two
+    distinct outcomes on code 3, confirmed by running the script out of process,
+    and every leg of the arm below stayed green - because a dict cannot contain
+    a key nobody wrote.
+
+    WHAT IS DERIVED HERE IS THE POPULATION OF SITES. Every place the script
+    hands a value to the interpreter is read out of its AST, and
+    :data:`SITE_CENSUS` is compared against it for EQUALITY rather than
+    containment, so a site with no row reddens instead of being covered by a
+    record that names the rest.
+
+    EVERY EXIT STATUS MUST ALSO BE NAMED, which is the other half. A bare
+    integer returned as a status is a code no constant declares, so no
+    population keyed on a name can hold it however that keying is done. Refusing
+    the literal is what keeps this arm and the distinctness arm talking about
+    the same set.
+    """
+    tree = _make_cert_tree()
+    sites, unnamed = _exit_status_sites(tree)
+
+    derived: dict[tuple[str, str], int] = {}
+    for site in sites:
+        derived[site] = derived.get(site, 0) + 1
+
+    site_count = len(sites)
+    assert site_count > 0, "no exit-status site was read; this arm is asserting about nothing"
+    assert unnamed == [], (
+        f"{len(unnamed)} exit status(es) are named by no module-level constant, so no "
+        f"population keyed on a name can hold them: {sorted(unnamed)}"
+    )
+
+    recorded = {site: count for site, (count, _outcome) in SITE_CENSUS.items()}
+    derived_rows = _rendered_sites(derived)
+    recorded_rows = _rendered_sites(recorded)
+    assert derived_rows == recorded_rows, (
+        "the script's exit-status sites and the record of them have drifted apart, and a "
+        "site with no row is a branch no outcome below probes. "
+        f"Derived: {derived_rows}. Recorded: {recorded_rows}"
+    )
+
+
 def test_exactly_one_recorded_pair_of_outcomes_shares_an_exit_code(tmp_path: Path) -> None:
     """CS-882. A runbook branches on these, so an UNRECORDED shared code is a lost branch.
 
@@ -715,19 +1088,35 @@ def test_exactly_one_recorded_pair_of_outcomes_shares_an_exit_code(tmp_path: Pat
     memory/a-guard-can-measure-spelling.md records, and it is exactly the shape
     a distinctness check must not acquire while being weakened.
 
-    THE POPULATION IS DERIVED THREE WAYS AND THEN CROSS-CHECKED. What the module
-    DECLARES comes out of its own namespace; what it DOCUMENTS comes out of its
-    own docstring; what it DOES comes out of eight real processes over seven
-    outcomes. A listed population is what let this collide unnoticed - the arm
-    this replaced named five constants, and argparse owned two more codes that
-    no name reached.
+    THREE POPULATIONS ARE READ, AND WHAT IS LISTED IN EACH IS STATED RATHER THAN
+    IMPLIED. What the module DECLARES is derived twice over and unioned - the
+    prefixed constants out of its namespace, and every constant reaching an
+    exit-status position out of its AST - so neither keying can hide what the
+    other sees (:data:`EXIT_PREFIX`). What it DOCUMENTS is derived from its own
+    docstring table. What it DOES is real processes, one per invocation, AND
+    THOSE ARE DRIVEN BY A LISTED RECIPE: :func:`_measure_every_outcome` is seven
+    hand-written keys, because no AST can say that an empty PATH is the thing
+    that reaches ``EXIT_NO_OPENSSL``. The recipe cannot be silently INCOMPLETE -
+    :data:`SITE_CENSUS` derives every exit-status site the script has, and
+    ``test_every_exit_status_the_script_can_produce_is_a_site_this_file_probes``
+    reddens on one no outcome here covers - but its outcome NAMES and its
+    site-to-outcome attribution are authored, and a wrong attribution is a fault
+    neither arm can see.
+
+    AN EARLIER VERSION OF THIS DOCSTRING SAID THE POPULATION WAS DERIVED THREE
+    WAYS while the third leg was a hand-written dict of seven literal keys. That
+    is the CS-882 fault family reproduced one level up - the item was filed
+    against a listed exit-code table and its repair shipped a listed outcome
+    table, under prose asserting the opposite. A listed population is also what
+    let the FILED collision go unnoticed: the arm CS-882 replaced named five
+    constants, and argparse owned two more codes that no name reached.
 
     NON-EMPTINESS IS ASSERTED BEFORE ANY DISTINCTNESS IS, and that order is
     load-bearing rather than tidy. A collision search over an empty population
     finds nothing, and so does one over a broken measurement; both produce the
     same output as a clean script.
     """
-    declared = _declared_exit_codes()
+    declared = _graded_exit_codes()
     documented = _documented_exit_codes()
     measured = _measure_every_outcome(tmp_path)
 
@@ -736,10 +1125,23 @@ def test_exactly_one_recorded_pair_of_outcomes_shares_an_exit_code(tmp_path: Pat
     outcome_count = len(measured)
     probe_count = sum(len(codes) for codes in measured.values())
 
-    assert declared_count > 0, "no EXIT_ constant was read; this arm is asserting about nothing"
+    assert declared_count > 0, "no exit-code constant was read; this arm asserts about nothing"
     assert documented_count > 0, "the module docstring lists no exit code; the table moved"
     assert outcome_count > 0, "no outcome was measured; this arm is asserting about nothing"
     assert probe_count > outcome_count, "no outcome was probed twice; the usage pair went missing"
+
+    # THE CHAIN LINK THAT MAKES THE RECIPE ABOVE MORE THAN A LIST. SITE_CENSUS is
+    # pinned to the script's derived exit-status sites by the arm before this
+    # one; pinning the probed outcomes to the census here is what carries that
+    # derivation through to the seven keys, so a site the script grows forces a
+    # census row and a census row forces a probe.
+    attributed_outcomes = sorted({outcome for _count, outcome in SITE_CENSUS.values()})
+    probed_outcomes = sorted(measured)
+    assert probed_outcomes == attributed_outcomes, (
+        "the outcomes probed here and the outcomes SITE_CENSUS attributes the script's "
+        f"exit-status sites to are not the same set. Probed: {probed_outcomes}. "
+        f"Attributed: {attributed_outcomes}"
+    )
 
     inconsistent = sorted(name for name, codes in measured.items() if len(set(codes)) != 1)
     assert inconsistent == [], (
@@ -755,14 +1157,14 @@ def test_exactly_one_recorded_pair_of_outcomes_shares_an_exit_code(tmp_path: Pat
         if code not in declared_values
     )
     assert undeclared == [], (
-        f"{len(undeclared)} outcome(s) exit a code no EXIT_ constant declares: {undeclared}"
+        f"{len(undeclared)} outcome(s) exit a code no exit-code constant declares: {undeclared}"
     )
 
     # The record has to name things that exist, or the two assertions it guards
     # are comparing against a set nothing could ever equal.
     unknown_exempt = sorted(EXEMPT_CONSTANTS - set(declared))
     assert unknown_exempt == [], (
-        f"the recorded exemption names {unknown_exempt}, which no EXIT_ constant declares"
+        f"the recorded exemption names {unknown_exempt}, which no exit-code constant declares"
     )
     unprobed_exempt = sorted(EXEMPT_OUTCOMES - set(outcome_codes))
     assert unprobed_exempt == [], (
@@ -796,11 +1198,11 @@ def test_exactly_one_recorded_pair_of_outcomes_shares_an_exit_code(tmp_path: Pat
     )
 
     assert declared_count == documented_count, (
-        f"{declared_count} EXIT_ constant(s) against {documented_count} documented outcome "
+        f"{declared_count} exit-code constant(s) against {documented_count} documented outcome "
         "row(s); the module docstring's table and its constants have drifted apart"
     )
     assert sorted(set(documented)) == sorted(declared_values), (
-        "the EXIT_ constants and the module docstring's table do not name the same codes"
+        "the exit-code constants and the module docstring's table do not name the same codes"
     )
 
     # THE RULING'S DIRECTION, pinned separately. Equality of the exempt pair says
@@ -1514,10 +1916,10 @@ def test_a_rename_that_cannot_succeed_exits_with_the_documented_code(tmp_path: P
 KEY_MODE = 0o600
 MODE_MASK = 0o777
 
-#: The distinctive half of the line ``_restrict`` prints when the platform
-#: refuses (scripts/make_cert.py:224). Matched as a substring rather than as the
-#: whole line, so a change to the ``note: `` prefix does not redden an arm that
-#: is about the diagnostic being present rather than about its punctuation.
+#: The distinctive half of the line ``scripts/make_cert.py::_restrict`` prints
+#: when the platform refuses. Matched as a substring rather than as the whole
+#: line, so a change to the ``note: `` prefix does not redden an arm that is
+#: about the diagnostic being present rather than about its punctuation.
 RESTRICT_NOTE = "could not restrict the key file's permissions"
 
 
@@ -1554,10 +1956,11 @@ def _posix_mode_bits_are_honoured(probe_dir: Path) -> bool:
 def test_the_generated_key_is_restricted_to_this_account(tmp_path: Path) -> None:
     """The success half of ``_restrict``, graded on the FINAL key.
 
-    THE FINAL KEY AND NOT THE STAGED ONE, DELIBERATELY. ``_restrict`` runs on
-    the STAGED key (scripts/make_cert.py:279), and the pair is moved into place
-    afterwards by an atomic replace. Asserting the staged file would grade the
-    chmod alone; asserting the file at ``KEY_NAME`` once main() has returned
+    THE FINAL KEY AND NOT THE STAGED ONE, DELIBERATELY.
+    ``scripts/make_cert.py::_generate`` calls ``_restrict`` on the STAGED key,
+    and the pair is moved into place afterwards by an atomic replace. Asserting
+    the staged file would grade the chmod alone; asserting the file at
+    ``KEY_NAME`` once main() has returned
     grades the chmod AND that the move preserved it, which is the half that
     would rot in silence if the staging step were ever rewritten.
 
@@ -1599,9 +2002,9 @@ def test_a_key_the_platform_would_not_restrict_is_still_written(
     than a POSIX-only one, which is what makes it the half that guards tier1.
 
     THE PATCH IS ON ``Path.chmod`` AND NOT ON ``os.chmod``, which is what keeps
-    it surgical. ``_restrict`` calls the pathlib method
-    (scripts/make_cert.py:222), so patching that hits exactly the call under
-    test, while every other filesystem operation in the process - the staging
+    it surgical. ``scripts/make_cert.py::_restrict`` calls the pathlib method
+    and is the whole of what calls it, so patching that hits exactly the call
+    under test, while every other filesystem operation in the process - the staging
     cleanup, pytest's own tmp_path handling - still reaches the untouched
     ``os.chmod`` underneath. Patching the lower call would put the whole
     interpreter under the fault and grade something far wider than the promise.
@@ -1635,8 +2038,8 @@ def test_a_key_the_platform_would_not_restrict_is_still_written(
 
 #: Every HARD row name ``scripts/verify_env.py`` can emit, held here as literals
 #: this file owns. Two of them interpolate the SAME module constants
-#: ``_hard_rows`` interpolates (scripts/verify_env.py:611-697), so renaming
-#: either constant moves both sides together.
+#: ``scripts/verify_env.py::_hard_rows`` interpolates, so renaming either
+#: constant moves both sides together.
 #:
 #: PRIVACY, WHICH IS THE ONLY REASON THIS SET EXISTS. The arm below parses row
 #: names out of the VERDICT line, and that line is process output; CLAUDE.md
@@ -1676,9 +2079,9 @@ HARD_ROW_NAMES = frozenset(
 #: installs, so a missing one is a real defect and still fails the arm below.
 UNPROVISIONED_HARD_ROWS = frozenset({f"core.hooksPath -> {verify_env.EXPECTED_HOOKS_PATH}"})
 
-#: The verdict line, whose two forms ``verify_env.render`` builds one of per run
-#: (scripts/verify_env.py:925-943). A line matching neither is itself a failure
-#: rather than a case to skip, because an unparsed verdict grades nothing.
+#: The verdict line, whose two forms ``scripts/verify_env.py::render`` builds
+#: one of per run. A line matching neither is itself a failure rather than a
+#: case to skip, because an unparsed verdict grades nothing.
 #:
 #: CLEAN and MISSING rather than the obvious PASS and FAIL, and the reason is a
 #: linter rather than taste: ruff's S105 reads a constant whose name ends in
@@ -1796,4 +2199,113 @@ def test_verify_env_verdict_agrees_with_its_exit_code_and_names_openssl() -> Non
     assert unexpected_count == 0, (
         "an unprovisioned checkout legitimately lacks the hook wiring and nothing else; "
         f"{unexpected_count} further HARD row(s) are missing: {unexpected_names}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The citations this slice makes
+# ---------------------------------------------------------------------------
+
+
+#: The two files this arm judges - the pair CS-882's residual repair owns. NOT
+#: the tree, and that is deliberate: a tree-wide citation guard over source
+#: files is filed as its own item, and an arm that quietly grew into one here
+#: would be that item shipped without its acceptance.
+CITED_BY = ("scripts/make_cert.py", "tests/test_make_cert.py")
+
+#: A repository path ending in the module extension, carrying the leading-dot
+#: case the sibling guard measured: a path segment may begin with a dot, and a
+#: pattern anchored on an alphanumeric drops it and then reports a path that
+#: does not exist.
+_CITED_PATH = r"\.?[A-Za-z0-9_][A-Za-z0-9_/.-]*\.py"
+
+#: A citation naming a SYMBOL after a double colon - the form
+#: ``tests/test_docs_citations.py`` grades in markdown, and the form this
+#: repository writes everywhere else.
+SYMBOL_CITATION = re.compile(rf"({_CITED_PATH})::([A-Za-z_][A-Za-z0-9_]*)")
+
+#: The same path followed by a single colon and a number. IT IS MATCHED IN ORDER
+#: TO BE REFUSED rather than resolved, which is why no instance of the form is
+#: written anywhere in this file - a worked example would be a finding against
+#: the arm that judges it.
+LINE_POINTER = re.compile(rf"({_CITED_PATH}):(\d+)")
+
+
+def _module_scope_names(source: str) -> frozenset[str]:
+    """Every name a module binds at module scope.
+
+    THE SAME RULE AS ``tests/test_docs_citations.py::module_scope_names`` -
+    module-level functions, classes and assignment targets - and it is spelled
+    again here rather than imported. Importing would make collection of this
+    module depend on a sibling that builds a live corpus of the whole index, to
+    borrow one pure function. The rule is three branches, and the sibling is
+    cited by symbol so a reader can check the two still agree.
+
+    Args:
+        source: The module's full text.
+
+    Returns:
+        The bound names.
+
+    Raises:
+        SyntaxError: The source does not parse.
+    """
+    names: set[str] = set()
+    for node in ast.parse(source).body:
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            names.add(node.name)
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            names.add(node.target.id)
+        elif isinstance(node, ast.Assign):
+            names.update(target.id for target in node.targets if isinstance(target, ast.Name))
+    return frozenset(names)
+
+
+def test_every_source_citation_in_this_slice_names_a_symbol_that_is_really_there() -> None:
+    """CS-882 residual. A citation is a claim, and three of this module's were false.
+
+    MEASURED on the tree as CS-882 left it: this module carried three pointers
+    into ``scripts/make_cert.py`` written as line numbers, and all three were
+    dead. Two landed inside ``cert_argv``'s argv list and the third on a blank
+    line, while the prose around them described ``scripts/make_cert.py::_restrict``,
+    its chmod and its call site. Nothing in the tree could see it -
+    ``tests/test_docs_citations.py`` grades citations in ``docs`` markdown, and
+    this is a test module.
+
+    A LINE NUMBER IS REFUSED RATHER THAN RESOLVED, which is the CS-857 lesson and
+    the reason ``tests/chained_cause_guard.py::CalleeSite`` keys its population
+    without one: a pointer to a line drifts on any edit above it, so a correct
+    one is correct until the next commit. CS-882's own commit pushed those three
+    a further 44 lines from what they described. Resolving the number instead of
+    banning it would buy a guard that goes green again the moment somebody
+    renumbers the pointer to whatever now sits there; a symbol moves with the
+    thing it names, so it cannot be repaired into a lie.
+
+    THIS ARM IS TWO FILES WIDE AND SAYS SO. :data:`CITED_BY` is the slice that
+    owns it. A tree-wide guard over source citations is a separate item, and an
+    arm that grew into one here would be that item shipped with no acceptance.
+    """
+    pointers: list[str] = []
+    unresolved: list[str] = []
+    citation_count = 0
+    for path in CITED_BY:
+        text = (REPO_ROOT / path).read_text(encoding="ascii")
+        pointers.extend(
+            f"{path} points into {cited} by line" for cited, _line in LINE_POINTER.findall(text)
+        )
+        for cited, symbol in SYMBOL_CITATION.findall(text):
+            citation_count += 1
+            target = REPO_ROOT / cited
+            if not target.is_file():
+                unresolved.append(f"{path} cites {cited}::{symbol}, and that file is not here")
+            elif symbol not in _module_scope_names(target.read_text(encoding="utf-8")):
+                unresolved.append(f"{path} cites {cited}::{symbol}, which it does not bind")
+
+    assert citation_count > 0, "no symbol citation was read; this arm asserts about nothing"
+    assert pointers == [], (
+        f"{len(pointers)} citation(s) point at a LINE rather than at a symbol, which is the "
+        f"dead-citation shape CS-857 was filed against: {sorted(pointers)}"
+    )
+    assert unresolved == [], (
+        f"{len(unresolved)} citation(s) name a symbol that is not there: {sorted(unresolved)}"
     )
