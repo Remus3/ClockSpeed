@@ -34,13 +34,30 @@ the line becomes a pointer.
 
 ---
 
-## Session 56 - 2026-09-01 - Both rulings OVERTURNED THE PREMISE THEY WERE ASKED ON; CS-878 and CS-879 closed; CS-857's graded layer went to ZERO measured leaks and an adjudicator still ruled it OPEN, because a chained raise two levels down renders and derives nothing
+## Session 56 - 2026-09-01 - FIVE ITEMS CLOSED, both requested rulings OVERTURNED THE PREMISE THEY WERE ASKED ON, and the items that moved CS-857 furthest were the ones that attacked the INSTRUMENT rather than the sites
 
-- **Shipped: CS-878 and CS-879 CLOSED. CS-857 and CS-858 got RULINGS and STAY OPEN**, their
-  entries saying NOT A COMPLETION RECORD. **No acceptance clause was changed anywhere this
-  session**, which is the CS-858 ruling applied to itself. Filed CS-880 through CS-885.
-  Suite 4050 -> 4214. Chained-raise grading 25 sites -> 38 with every one reaching a named
-  bucket, and the GRADED LAYER NOW REPORTS ZERO `measured-leak`, down from three.
+- **Shipped: CS-878, CS-879, CS-883, CS-884 and CS-885 CLOSED. CS-857 and CS-858 got RULINGS
+  and STAY OPEN**, their entries saying NOT A COMPLETION RECORD. **No acceptance clause was
+  changed anywhere this session**, which is the CS-858 ruling applied to itself. Filed CS-880,
+  CS-881 and CS-882, all still open. Suite 4050 -> 4571. Chained-raise grading 25 -> 39 sites
+  with every one in a named bucket, `measured-leak` in the graded layer 3 -> ZERO, `unproven`
+  24 -> 16, and the note census 38 -> 139 modules.
+
+- **CS-884 AND CS-885 WERE FILED FROM MEASUREMENTS TAKEN WHILE DOING SOMETHING ELSE, AND THEY
+  MOVED CS-857 FURTHER THAN THE SITE REPAIRS DID.** CS-884 gave the census a verdict that MEANS
+  repaired - `closed-pathless`, resting on what a callee CONSTRUCTS, never on a name, placed
+  THIRD in the order behind `measured-leak` and argued from a REAL collision. Every site
+  CS-857 ever repaired had been sitting in `unproven`, a bucket that also holds three no-op
+  shapes that leak. CS-885 then made the four copies of `_pathless_cause` compare on every run;
+  it chose an arm over a shared owner because routing through an import would drop all eight
+  `closed-pathless` sites at once, which would mean WIDENING the predicate that ISSUES a
+  clearance on the privacy channel. CS-883 aligned the note census with the same taxonomy.
+
+- **THE PROOF TECHNIQUE THAT KEPT WORKING, AND IT IS THE REAL CARRY-FORWARD: NOTHING WAS
+  ESTABLISHED BY READING.** Every finding came from a plant, a control, a mutation or an
+  execution. That includes every correction TO ME - the adjudicator EXECUTED a callee raise to
+  turn "unproven" into "unestablished", and CS-885's builder MEASURED that a shared owner would
+  silently drop eight clearances, the opposite of what my brief assumed.
 
 - **CS-857 - two conjuncts MET, and the third is not merely unproven but UNESTABLISHED.** An
   adjudicator that built none of it planted a raise two levels down inside a callee of a
@@ -115,12 +132,13 @@ the line becomes a pointer.
   one tripped a guard a SIBLING had built hours earlier by naming a field `cause`. Never let a
   repair be the last word on its own fault - it held four times out of four.
 
-- **Next action: CS-884.** It is the adjudicator's own first step for CS-857 and its sound form
-  is already written down, so it needs building rather than designing. **DO NOT repair it by
-  teaching the guard the name `_pathless_cause`** - that is a spelling gate and
-  `memory/a-guard-can-measure-spelling.md` records that a previous CS-857 round did exactly
-  that and an adversary measured fifteen escapes. After that, CS-885 (four copies of that
-  helper, identical today, with nothing comparing them) is cheap.
+- **Next action: TAKE CS-880, CS-881 AND CS-882 - they are ordinary and need no ruling.**
+  CS-880 is two exemption reasons asserting `from exc` where every site uses
+  `from _pathless_cause(exc)`; CS-881 is a value stored in a local and raised AFTER its handler
+  exits, which derives NOTHING (proven by planting the shape) and is NOT a CS-857 blocker
+  because it measures zero chain links; CS-882 is argparse exiting 2 into the documented
+  `EXIT_OPENSSL_FAILED`. **EVERYTHING ELSE LEFT NEEDS THE OPERATOR, NOT AN AGENT** - see the
+  two fences below.
 
 
 ## Session 55 - 2026-09-01 - The third CS-600 audit found a MUST-FIX the first two missed, and every refuter that followed returned something real. CS-873, CS-874 and CS-875 closed. CS-872 stays open with the CSS-only space MEASURED closed rather than argued closed
