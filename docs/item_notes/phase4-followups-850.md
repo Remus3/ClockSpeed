@@ -1449,6 +1449,31 @@ narrower rule that reports more is the correct direction here - `memory/a-guard-
 spelling.md` records that an over-proving guard costs a reader the belief that they need to
 look at all.
 
+### MEASURED 2026-09-03 (session 58) by the merger, EXECUTED, NO FILE WRITES
+
+**THE DEFECT REPRODUCES ON THE CURRENT TREE AND THE HARNESS NEEDS NO WORKTREE.**
+`adjudicators_in_sources` takes a sources MAPPING, so a plant is passed in memory and
+nothing is written to disk. Appending the same four lines - a function whose body returns
+a raise's cause - to each subject gives: pristine population 2, unrecorded EMPTY; planted
+into each of the five modules holding unused immunity, population 2 and unrecorded EMPTY
+every time; planted into `tests/test_doc_budget.py`, which does not import the owner,
+population 3 and unrecorded naming that module. IDENTICAL BYTES, a finding in one place
+and invisible in five. Build the arm on this shape.
+
+**THE GRADED POPULATION IS TWO.** The owner, and `tests/test_verify_env.py` as RECORDED.
+That is the entire census. Six modules import the owner and five of them read no cause
+field at all, so they hold UNUSED immunity that arms the day they add one.
+
+**THE ONE MODULE IMMUNITY ACTUALLY REMOVES FROM GRADING SAYS IT MIRRORS THE OWNER.**
+`tests/pathless_clone_guard.py` reads a cause inside `_slot`, imports SIX PRIVATE names
+from the census, and that helper's own docstring says it MIRRORS a private census
+predicate DELIBERATELY, because CS-885 chose an arm over a shared owner. MIRRORING IS THE
+OPPOSITE OF DEFERRING. Contrast `tests/surface/test_server.py`, which calls the census
+`classify` for each site - that is genuine verdict consumption. So a consumption rule
+SPLITS the six rather than clearing them, and the module it moves into grading is the one
+that most needs a stated reason. That is the argument for the consumption route over the
+pinned-set route; the fence above still holds either way.
+
 
 ## CS-889
 
@@ -1471,6 +1496,45 @@ numbers, for the reason CS-857 recorded. The lesson is in the code and absent fr
 **A NOTE ON SCOPE.** The cheapest sound repair may be to FORBID the line-number citation form
 outright rather than to resolve it, since a resolvable line number still rots on the next
 edit above it. Measure both before choosing.
+
+### THE FILED PREMISE IS REFUTED - MEASURED 2026-09-03 (session 58) by the merger
+
+**"GRADES ONLY THE MODULE-AND-SYMBOL FORM" IS FALSE.** `tests/test_docs_citations.py`
+declares FOUR judged shapes in `JUDGED_SHAPES`, and one of them already resolves the
+line-number form. The gap is not that the form goes unread. Correct the sentence above
+before quoting it.
+
+**THE OBVIOUS REPAIR WOULD SHIP GREEN WITH THIS ITEM'S OWN DEFECT LIVE.**
+`line_pointer_problems` judges the pointer's RANGE ONLY and says so in its own docstring:
+asserting what sits AT the line "would redden on every edit above it, which is a guard
+nobody keeps". It also DECLINES a bare basename carrying no directory, because resolving
+one repo-relative and calling it missing is how a census manufactured six findings that
+were all artifacts. `scripts/make_cert.py` is 546 lines, so the three make_cert pointers
+this item was filed on - at 222, 224 and 279 - ALL RESOLVE IN RANGE. They were dead by
+pointing at the WRONG CONTENT, which is precisely the property the arm deliberately
+refuses to judge. EXTENDING THE EXISTING ARM TO PYTHON MODULES WOULD LEAVE ALL FIVE FILED
+INSTANCES GREEN. That is CS-880's failure shape - an arm green while its own filed defect
+is live - and it is the first thing to check on any candidate for this item.
+
+**THE GUARDED SET IS NOT LEAKING - DO NOT FILE ONE.** All 114 line pointers in tracked
+markdown outside code fences were swept. 32 fail to resolve to meaningful content and 22
+of those sit in GUARDED docs with the suite green, but EVERY ONE is correct behaviour:
+either a declined bare basename, or an in-range pointer that happens to land on a blank
+line. Lengths checked directly against each pointer - the precommit gate at 2517 against
+2311, its test module at 3754 against 1174, `scripts/verify_env.py` at 983 against 358,
+`tests/conftest.py` at 919 against 665, `clockspeed/data/locate.py` at 1002 against 531,
+`clockspeed/save/world.py` at 1114 against 919. ZERO real violations in the guarded set.
+
+**SO THE FORBID ROUTE IS THE ONLY ONE THAT DISCHARGES THE CLAUSE**, and its cost is now
+measured: 21 line pointers live in 7 tracked Python modules and FIFTEEN OF THEM ARE
+DELIBERATE SYNTHETIC FIXTURES planted inside tests that exercise a resolver, plus 85 in
+guarded markdown and 29 in the archive. A blanket ban reddens all of those, so the
+population boundary IS the design problem. If the clause cannot be met as a universal,
+say so plainly - CS-882 is the precedent for an honest partial, and the clause is NOT
+rewritten to read as satisfied.
+
+**SCOPE FENCE.** This item's clause is about the LINE-NUMBER form. The bare-path form is
+a different class and is filed separately as CS-891. Do not widen this item into it.
 
 
 ## CS-890
@@ -1496,3 +1560,75 @@ one.
 
 **TIER 1 RATHER THAN 2** because the repair is a reachability sweep over one directory, not a
 change to any grading population.
+
+### THE FILED INSTANCE IS GONE AND THE GUARD IS BROKEN WIDER - measured 2026-09-03 (session 58), EXECUTED
+
+**DO NOT BUILD AGAINST THE FILED INSTANCE.** `memory/a-proof-can-require-the-defect.md`
+now links `a-guard-can-be-green-by-accident` and resolves. The paragraph above says the
+instance was repaired in the commit that filed the item; it was.
+
+**THE LAST REMAINING DANGLING WIKILINK IS NOT A CROSS-REFERENCE, SO THE CLAUSE IS
+CLOSEABLE.** 63 wikilinks across the store and 62 resolve. The one that does not is in
+`memory/a-guard-can-be-accepted-and-unscoped.md`, and it is a TOML array-of-tables header
+quoted INSIDE A FENCED CODE BLOCK as sample configuration. The acceptance clause can
+therefore be met as a universal provided the extractor reads wikilinks OUTSIDE fenced code
+only. That is a principled exclusion of a shape that is not a link, NOT a clause narrowed
+to read as satisfied - the distinction matters because the no-rewrite rule has held seven
+consecutive sessions.
+
+**THE GUARD IS BROKEN IN A SECOND DIRECTION THE FILING DOES NOT NAME.** Executed against a
+temp copy of the store, calling `guard_memory` directly: pristine PASS; a planted dangling
+wikilink inside a LEAF, PASS; a planted markdown link in the INDEX itself naming a leaf
+that does not exist, PASS; positive control, a real leaf removed from the index, FAIL
+naming that leaf. `_reachable_from_index` opens only the index and its index children,
+never an ordinary leaf, and it asserts ONE direction - that every leaf is named by some
+token. A token naming nothing is an element that simply matches nothing. THE INDEX MAY
+CITE A GHOST LEAF AND THE GUARD IS GREEN, which is arguably worse than the filed fault
+because the index is the routing table. Decide whether one arm covers both directions or
+whether they are two, and carry the positive control so the asserted direction keeps
+biting.
+
+**THIS IS CS-497's SHAPE ONE STORE OVER** - a partition asserted one way round is a subset
+check wearing a partition's name. That entry is in `docs/LEDGER.md`.
+
+**TIER 1 IS NOW DOUBTFUL.** The second direction plus a fenced-code exclusion is more than
+a reachability sweep. Re-tier at dispatch.
+
+
+## CS-891
+
+### NOTE - filed 2026-09-03 (session 58) by the merger, MEASURED BEFORE FILING
+
+**A THIRD CITATION FORM, GRADED BY NOTHING ANYWHERE IN THE TREE.**
+`tests/test_docs_citations.py` judges four shapes and none of them matches a backticked
+repo-relative path carrying NEITHER a line number NOR a symbol. That form is the most
+common pointer this project writes: 597 live ones in tracked Python modules and 1701 in
+tracked markdown, measured by sweeping every tracked file.
+
+**FIVE LIVE DEAD ONES SIT IN TWO TRACKED TEST MODULES.** Four in
+`tests/test_chained_cause_census.py` and one in
+`tests/test_handler_exception_rendering.py` cite a pooled-guard memory note under a
+`memory/` path that HAS NEVER EXISTED IN THIS REPO. It exists only in the harness-side
+store, which is a DIFFERENT store that no tracked file may cite. The repo owns the same
+lesson at `memory/a-guard-can-be-green-by-accident.md`, whose paragraph on a threshold
+summed over a population being met by its strongest member is the sentence all five
+citations actually want. Repointing them is unambiguous and cheap.
+
+**TWO FURTHER MENTIONS OF THAT SAME PATH MUST BE LEFT ALONE.** `WAKEUP_NOTES.md` and the
+CS-890 note in this leaf both discuss the path AS THE SUBJECT of a correction - prose
+about a citation having been wrong, not a citation. QUOTING AND CITING ARE
+INDISTINGUISHABLE BY SHAPE, which is the recorded reason `docs/history_notes.md` is exempt
+from the citation guard entirely. An arm for this form that reddens on those two has
+manufactured a finding on correct prose.
+
+**THE POPULATION IS MESSY AND THAT MESS IS THE ITEM.** Legitimate non-resolving bare paths
+measured across the tree: `config/local.json`, a gitignored optional local config, cited
+seven times; `docs/ARCHITECTURE.md` module-map shorthand plus PLANNED phase-5 modules that
+do not exist yet; and synthetic fixture paths planted inside tests. A naive existence
+check reddens roughly twenty correct sites. The boundary is the whole design problem,
+exactly as it is for CS-889.
+
+**SEQUENCE THIS AFTER CS-889 RATHER THAN MERGING THEM.** CS-889 owns the line-number form
+and this owns the bare-path form. They share a population boundary problem and a file, so
+they must not run concurrently, but merging them would put two different acceptance
+clauses under one arm.
