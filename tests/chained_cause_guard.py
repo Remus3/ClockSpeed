@@ -254,6 +254,50 @@ WHAT THIS GUARD CANNOT MODEL. Read this before citing any verdict.
    through a channel this module does not census - limit 5's sentence about
    what a verdict is, one clearance over.
 
+13. A RAISE OF A VALUE A HANDLER STORED, AFTER THAT HANDLER HAS EXITED, IS
+   NOT IN THE ``Site`` POPULATION EITHER, AND IT IS THE SECOND WAY OUT OF IT.
+   ``last = exc`` inside the handler, then ``raise last`` below the loop:
+   :func:`_form_of` answers None - an expression, no ``from`` clause, no
+   active handler - so nothing is derived and every count over that population
+   reads a zero it did not earn
+   (``memory/an-empty-population-satisfies-every-zero.md``). THE RENDERING IS
+   A GRADED SITE'S: the stored object IS the caught exception, so its ``str()``
+   still appends ``filename`` and ``filename2``, MEASURED in a child
+   interpreter whose own excepthook did the rendering.
+
+   :func:`deferred_raise_sites_in_tree` IS A THIRD POPULATION AND IT SEES PART
+   OF THIS, exactly as :func:`callee_sites` sees part of limit 8. It reports a
+   raise whose expression READS a local that a handler IN THE SAME SCOPE bound
+   to its own exception - keyed on that POSITIVE fact and not on the raise
+   node's kind, because the tracked tree holds one live ``raise <Name>`` and
+   one live ``raise <IfExp>`` of the shape and a kind-keyed leg derives one of
+   the two. The following stay invisible:
+
+     a two-step store           ``kept = exc`` then ``last = kept``. The
+                                store's value must be the handler's OWN
+                                binding. MEASURED to leak, planted and run.
+     a store into a container   ``held.append(exc)`` then ``raise held[0]``.
+                                MEASURED to leak, planted and run.
+     an attribute or subscript  ``holder.last = exc`` binds no local name.
+     target                     Refused by construction, not measured.
+     a store crossing a scope   the store and the raise must share a scope
+                                path exactly, which is :func:`_walk`'s filter.
+                                Refused by construction, not measured.
+
+   ONE SHAPE IS DELIBERATELY LEFT TO :class:`Site`: a deferred raise written
+   inside ANOTHER handler, which is already a :data:`FORM_IMPLICIT` site. That
+   site's type leg answers about the OTHER handler's clause rather than about
+   the stored object, so it is graded and the grade is about the wrong
+   exception. Stated here rather than repaired, because repairing it means
+   widening :func:`_form_of`, which ``tests/pathless_clone_guard.py`` reads
+   directly and derives its own population from.
+
+   AND THE OVER-REPORT IS STATED TOO, because a population that only ever
+   reported truly is not what this is. ``raise OSError(last.errno,
+   last.strerror)`` reads the stored name, carries no path, and is reported
+   anyway - planted, run and MEASURED not to leak. Between over-reporting a
+   site and going silent about one this population takes the first.
+
 WHAT AN ADVERSARY WOULD HAVE TO DO TO ESCAPE, CORRECTED TWICE AND STILL NOT A
 GUARANTEE. Not a rename: every rename in the table at the top lands in
 :data:`UNPROVEN`, which is not a clearance. And renaming the CLONE is not one
@@ -275,7 +319,9 @@ retained one round longer than the code they described.
 
 TO VANISH FROM THE ``Site`` POPULATION they do NOT have to leave every handler
 and drop the ``from``, which is what this paragraph used to claim. They need
-only put the raise in a CALLEE of the handler - limit 8.
+only put the raise in a CALLEE of the handler - limit 8 - or STORE the
+handler's binding in a local and raise it after the handler exits, which needs
+no second function at all - limit 13, and the tracked tree holds two of those.
 
 THAT ESCAPE IS NOW NARROWED AND IS NOT CLOSED, AND THE DIFFERENCE MATTERS.
 :func:`callee_sites` catches the one-level, bare-name, same-module spelling of
@@ -2353,5 +2399,422 @@ def notes_out_of_scope_record(notes: Sequence[NoteSite]) -> tuple[str, ...]:
             f"{note.module}:{note.lineno} {note.qualname} {note.channel}"
             for note in notes
             if bucket_of(note.module) in RECORDED_BUCKETS
+        )
+    )
+
+
+# ---------------------------------------------------------------------------
+# CS-881 - THE DEFERRED RAISE. A THIRD POPULATION, and the SECOND known way
+# out of the :class:`Site` population altogether.
+#
+# DELIBERATELY NOT FOLDED INTO :class:`Site`, for the reason the residual-2
+# block gives one population up. A ``Site`` is a raise this module GRADES, and
+# :func:`classify` reads fields - ``cause_type``, ``raises_local_class``,
+# ``constructs_pathless_clone`` - that are answers about a CHAIN. The records
+# below are not chains at all: nothing is chained, the rendered object IS the
+# caught exception, and the channel is one link deep. Widening ``Site`` would
+# also change what :func:`_form_of` answers for shapes that answer None today,
+# and ``tests/pathless_clone_guard.py`` reads that function directly - so the
+# widening would move a SIBLING's population without anyone deciding to.
+#
+# THE PRECEDENT IS LIMIT 8. When the census could see only part of a shape it
+# grew a second, narrower population and stated what it still could not see,
+# rather than widening the graded record and moving every verdict under it.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class DeferredRaiseSite:
+    """One raise of a value a handler in the SAME SCOPE stored, after it exits.
+
+    THE FACT THIS IS KEYED ON IS POSITIVE, and that is the whole design. It is
+    NOT "the raise is a bare ``ast.Name``": the tracked tree holds one live
+    site whose raised expression is an ``ast.IfExp``, and a leg keyed on the
+    node kind would derive its sibling and go silent about it - the spelling
+    silence ``memory/a-guard-can-measure-spelling.md`` records. What is read is
+    that the raised expression READS a local a handler bound to its own
+    exception, whatever the expression around that name happens to be.
+
+    Attributes:
+        module: Repo-relative path, forward-slashed by git.
+        lineno: The ``ast.Raise`` STATEMENT line.
+        qualname: Dotted enclosing scope, :data:`MODULE_SCOPE` at module level.
+        raised: The raised expression AS WRITTEN, unparsed whole rather than
+            reduced to a callee the way :attr:`Site.raised` is. A ``Site`` is
+            always a construction, so its callee is the informative part; here
+            the SHAPE of the expression is the thing a reader has to see.
+        stored_name: The local the handler bound its own exception to.
+        handler_lineno: The FIRST storing ``except`` clause's line.
+        handler_types: Every storing handler's clause type as written, sorted
+            and deduplicated. A TUPLE rather than one string because a scope
+            may store into one name from more than one handler, and dropping
+            all but the first would be a silent narrowing.
+        stored_type: One of :data:`TYPE_OSERROR`, :data:`TYPE_RESOLVED_OTHER`
+            or :data:`TYPE_UNRESOLVED`, taken over every storing handler by its
+            WORST member for the reason :func:`_tuple_type` records: a verdict
+            met by a population's strongest member measures nothing about its
+            weakest.
+    """
+
+    module: str
+    lineno: int
+    qualname: str
+    raised: str
+    stored_name: str
+    handler_lineno: int
+    handler_types: tuple[str, ...]
+    stored_type: str
+
+    @property
+    def key(self) -> str:
+        """The site expression this population is keyed on.
+
+        NO LINE NUMBER, for the reason :attr:`CalleeSite.key` records: a key
+        carrying one drifts on any edit above it, which is the dead-citation
+        failure CS-857 was filed against. The raised expression is IN the key,
+        so the two live sites - one a name, one a conditional - do not collide.
+
+        Returns:
+            ``module::qualname::stored_name::raised``.
+        """
+        return f"{self.module}::{self.qualname}::{self.stored_name}::{self.raised}"
+
+    @property
+    def is_graded(self) -> bool:
+        """Whether this module grades the site.
+
+        Returns:
+            True when the site is in :data:`BUCKET_GRADED`.
+        """
+        return bucket_of(self.module) == BUCKET_GRADED
+
+
+@dataclass(frozen=True)
+class StoreReach:
+    """One handler that stores its own binding into a local. THE DENOMINATOR.
+
+    IT EXISTS BECAUSE A COUNT WITHOUT ONE IS A COUNT ABOUT NOTHING. A
+    derivation that read no source reports the same finding count as one that
+    read the whole tree and found two, and the same reasoning
+    :class:`HandlerReach` records one population up applies here whether the
+    numerator is zero or not: the day both live sites are repaired, the finding
+    count goes to zero and only this says whether the walk still works.
+
+    Attributes:
+        module: Repo-relative path.
+        handler_lineno: The ``except`` clause line.
+        qualname: Dotted enclosing scope.
+        handler_type: The clause type as written, :data:`NO_HANDLER` for a bare
+            ``except``.
+        stored: The local names this handler bound its own exception to.
+    """
+
+    module: str
+    handler_lineno: int
+    qualname: str
+    handler_type: str
+    stored: tuple[str, ...]
+
+
+def _written_handler_type(handler: ast.ExceptHandler) -> str:
+    """Render an ``except`` clause type as written.
+
+    Args:
+        handler: The handler.
+
+    Returns:
+        The clause type, or :data:`NO_HANDLER` for a bare ``except``.
+    """
+    return ast.unparse(handler.type) if handler.type is not None else NO_HANDLER
+
+
+def _handler_stores(tree: ast.Module) -> Iterator[tuple[tuple[str, ...], ast.ExceptHandler, str]]:
+    """Every place a handler assigns its OWN binding to a plain local name.
+
+    THE FOUR REFUSALS ARE FOUR STATED SILENCES, not four spellings of one rule.
+    Each is planted, RUN and measured in ``tests/test_chained_cause_census.py``,
+    and the two that leak are named there as under-reports rather than left to
+    be discovered:
+
+      value is not the binding    ``last = OSError(...)`` inside the handler
+                                  binds a fresh error, and raising it later
+                                  discloses nothing.
+      value is a second local     ``kept = exc`` then ``last = kept``. A
+                                  two-step forward is NOT followed, so a raise
+                                  of ``last`` is derived by nothing. MEASURED
+                                  to leak.
+      target is not a bare name   ``holder.last = exc``, ``held[0] = exc`` and
+                                  a tuple unpack bind no local this walk can
+                                  follow. A store into a CONTAINER -
+                                  ``held.append(exc)`` - is not an assignment
+                                  at all. MEASURED to leak.
+      the handler binds nothing   ``except OSError:`` has no binding to store,
+                                  so there is no object to defer.
+
+    THE SCOPE FILTER IS :func:`_walk`'S, which is what makes "the same scope" a
+    fact rather than a nesting depth: a statement inside a nested ``def`` runs
+    in ITS frame and comes back with no active handler at all.
+
+    Args:
+        tree: The parsed module.
+
+    Yields:
+        The enclosing scope path, the storing handler, and the local name.
+    """
+    for node, scope, handler in _walk(tree, (), None):
+        if handler is None or not handler.name:
+            continue
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Name):
+            continue
+        if node.value.id != handler.name:
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                yield scope, handler, target.id
+
+
+def _read_names(node: ast.expr) -> frozenset[str]:
+    """Every bare name an expression READS.
+
+    WIDER THAN "the expression IS a name", AND THAT IS THE POINT. Keying on the
+    raised node's KIND is the defect this population was filed against: the
+    tracked tree holds a ``raise <Name>`` and a ``raise <IfExp>`` of the same
+    shape, and a kind-keyed leg derives one of them.
+
+    THE COST IS AN OVER-REPORT AND IT IS STATED RATHER THAN HIDDEN.
+    ``raise OSError(last.errno, last.strerror)`` reads ``last`` as the base of
+    an attribute access, carries no path, and is derived anyway - planted, run
+    and MEASURED not to leak in ``tests/test_chained_cause_census.py``. Between
+    over-reporting a site and going silent about one, this population takes the
+    first, which is the trade :data:`VERDICT_ORDER` records one census over.
+
+    Args:
+        node: The expression.
+
+    Returns:
+        The names read anywhere beneath it.
+    """
+    return frozenset(
+        inner.id
+        for inner in ast.walk(node)
+        if isinstance(inner, ast.Name) and isinstance(inner.ctx, ast.Load)
+    )
+
+
+def _worst_stored_type(handlers: Sequence[ast.ExceptHandler], shadowed: frozenset[str]) -> str:
+    """Classify a set of storing handlers by their WORST member.
+
+    Args:
+        handlers: Every handler that stored into one name in one scope.
+        shadowed: Builtin names this module binds itself.
+
+    Returns:
+        One of the three ``TYPE_`` constants.
+    """
+    kinds = {_type_of(handler.type, shadowed) for handler in handlers}
+    if TYPE_OSERROR in kinds:
+        return TYPE_OSERROR
+    if not kinds or TYPE_UNRESOLVED in kinds:
+        return TYPE_UNRESOLVED
+    return TYPE_RESOLVED_OTHER
+
+
+def _module_deferred_sites(module: str, tree: ast.Module) -> Iterator[DeferredRaiseSite]:
+    """Derive every deferred raise in one parsed module.
+
+    THE RAISE IS SELECTED BY ``_form_of(...) is None``, WHICH IS EXACTLY THE
+    GAP. That answer means the raise carries an expression, carries no ``from``
+    clause, and sits inside NO handler - so :class:`Site` derives nothing for
+    it and the two populations cannot double-count one statement. A deferred
+    raise written inside ANOTHER handler is already a :data:`FORM_IMPLICIT`
+    ``Site``, and is deliberately not derived twice; that ``Site``'s type leg
+    answers about the OTHER handler's clause rather than about the stored
+    object, which is a separate under-report and is stated as limit 13.
+
+    Args:
+        module: The repo-relative path.
+        tree: The parsed module.
+
+    Yields:
+        One record per (raise, stored name) pair.
+    """
+    shadowed = _shadowed(tree)
+    stores: dict[tuple[tuple[str, ...], str], list[ast.ExceptHandler]] = {}
+    for scope, storing, name in _handler_stores(tree):
+        stores.setdefault((scope, name), []).append(storing)
+    for node, scope, handler in _walk(tree, (), None):
+        if not isinstance(node, ast.Raise) or node.exc is None:
+            continue
+        if _form_of(node, handler) is not None:
+            continue
+        raised = ast.unparse(node.exc)
+        for name in sorted(_read_names(node.exc)):
+            found = stores.get((scope, name))
+            if not found:
+                continue
+            yield DeferredRaiseSite(
+                module=module,
+                lineno=node.lineno,
+                qualname=".".join(scope) or MODULE_SCOPE,
+                raised=raised,
+                stored_name=name,
+                handler_lineno=min(one.lineno for one in found),
+                handler_types=tuple(sorted({_written_handler_type(one) for one in found})),
+                stored_type=_worst_stored_type(found, shadowed),
+            )
+
+
+def _module_store_reach(module: str, tree: ast.Module) -> Iterator[StoreReach]:
+    """Derive the deferred DENOMINATOR for one parsed module.
+
+    Args:
+        module: The repo-relative path.
+        tree: The parsed module.
+
+    Yields:
+        One record per handler that stores its own binding into a local.
+    """
+    handlers: dict[int, ast.ExceptHandler] = {}
+    scopes: dict[int, tuple[str, ...]] = {}
+    names: dict[int, set[str]] = {}
+    for scope, handler, name in _handler_stores(tree):
+        marker = id(handler)
+        handlers.setdefault(marker, handler)
+        scopes.setdefault(marker, scope)
+        names.setdefault(marker, set()).add(name)
+    for marker, handler in handlers.items():
+        yield StoreReach(
+            module=module,
+            handler_lineno=handler.lineno,
+            qualname=".".join(scopes[marker]) or MODULE_SCOPE,
+            handler_type=_written_handler_type(handler),
+            stored=tuple(sorted(names[marker])),
+        )
+
+
+def deferred_raise_sites_in_tree(sources: Mapping[str, str]) -> tuple[DeferredRaiseSite, ...]:
+    """Derive the deferred-raise population from a mapping of module to source.
+
+    THE ONE DERIVATION, on the pattern :func:`sites_in_tree` sets.
+    :func:`deferred_raise_sites` is this function over the live tree and every
+    behavioural arm is this function over a planted synthetic module, so no arm
+    is fitted to what the tree happens to hold today.
+
+    Args:
+        sources: Repo-relative module path to source text.
+
+    Returns:
+        Every deferred raise, ordered by module then line then stored name.
+
+    Raises:
+        ChainedCauseDerivationError: A module did not parse.
+    """
+    found: list[DeferredRaiseSite] = []
+    for module in sorted(sources):
+        found.extend(_module_deferred_sites(module, _parse(module, sources[module])))
+    return tuple(sorted(found, key=lambda site: (site.module, site.lineno, site.stored_name)))
+
+
+def store_reach_in_tree(sources: Mapping[str, str]) -> tuple[StoreReach, ...]:
+    """Derive the deferred DENOMINATOR from a mapping of module to source.
+
+    Args:
+        sources: Repo-relative module path to source text.
+
+    Returns:
+        Every storing handler, ordered by module then handler line.
+
+    Raises:
+        ChainedCauseDerivationError: A module did not parse.
+    """
+    reach: list[StoreReach] = []
+    for module in sorted(sources):
+        reach.extend(_module_store_reach(module, _parse(module, sources[module])))
+    return tuple(sorted(reach, key=lambda seen: (seen.module, seen.handler_lineno)))
+
+
+@cache
+def deferred_raise_sites() -> tuple[DeferredRaiseSite, ...]:
+    """The live deferred-raise population, derived on every run.
+
+    Returns:
+        Every deferred raise in the tracked tree.
+
+    Raises:
+        ChainedCauseDerivationError: The tree could not be read or parsed.
+        RuntimeError: git is unavailable or reported failure.
+    """
+    return deferred_raise_sites_in_tree(tracked_sources())
+
+
+@cache
+def store_reach() -> tuple[StoreReach, ...]:
+    """The live deferred DENOMINATOR, derived on every run.
+
+    Returns:
+        Every handler in the tracked tree that stores its own binding.
+
+    Raises:
+        ChainedCauseDerivationError: The tree could not be read or parsed.
+        RuntimeError: git is unavailable or reported failure.
+    """
+    return store_reach_in_tree(tracked_sources())
+
+
+def deferred_findings(sites: Sequence[DeferredRaiseSite]) -> tuple[str, ...]:
+    """Every deferred raise inside the graded population, rendered.
+
+    REPORTED RATHER THAN GRADED. This population issues no verdict: there is no
+    clearance it could earn, because the object that renders is the caught
+    exception itself and nothing about the raise can make it otherwise. What a
+    line says is "go and read this", and the repair is the one the four shipped
+    copies of the idiom already use - build a filename-free clone.
+
+    Args:
+        sites: Any derived deferred population, live or planted.
+
+    Returns:
+        One line per graded site, sorted, each naming the module, the line, the
+        scope, the resolved type of what was stored, the local, the storing
+        handlers and the raised expression as written - so a reported line says
+        what to go and read without anyone opening the tree.
+    """
+    return tuple(
+        sorted(
+            f"deferred-raise-finding {site.module}:{site.lineno} {site.qualname} "
+            f"{site.stored_type} stored={site.stored_name} "
+            f"handler={'|'.join(site.handler_types)} at line {site.handler_lineno} "
+            f"raises {site.raised}"
+            for site in sites
+            if bucket_of(site.module) == BUCKET_GRADED
+        )
+    )
+
+
+def deferred_out_of_scope_record(sites: Sequence[DeferredRaiseSite]) -> tuple[str, ...]:
+    """Render every deferred raise this module does NOT report, with its bucket.
+
+    THE MIRROR OF :func:`out_of_scope_record`, AND FOR THE SAME REASON. The
+    sweep pays to derive every deferred raise in the tree; one that is neither
+    reported nor recorded is a site the census found and then said nothing
+    about. On this tree the record is what accounts for the census's own
+    planted fixtures, so their exclusion is legible on every run.
+
+    FILTERS ON :data:`RECORDED_BUCKETS` RATHER THAN ON "not graded", so a site
+    in a module outside :data:`SWEPT_ROOTS` falls through BOTH populations and
+    the exhaustiveness arm reddens on it instead of absorbing it.
+
+    Args:
+        sites: Any derived deferred population, live or planted.
+
+    Returns:
+        One line per frozen or control site, sorted.
+    """
+    return tuple(
+        sorted(
+            f"deferred-raise-out-of-scope-recorded {bucket_of(site.module).upper()} "
+            f"{site.module}:{site.lineno} {site.qualname} stored={site.stored_name}"
+            for site in sites
+            if bucket_of(site.module) in RECORDED_BUCKETS
         )
     )

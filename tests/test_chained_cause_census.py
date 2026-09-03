@@ -53,7 +53,7 @@ import subprocess
 import sys
 import traceback
 import warnings
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -94,10 +94,15 @@ from tests.chained_cause_guard import (
     UNPROVEN,
     VERDICT_ORDER,
     ChainedCauseDerivationError,
+    DeferredRaiseSite,
     NoteSite,
     Site,
     bucket_of,
     classify,
+    deferred_findings,
+    deferred_out_of_scope_record,
+    deferred_raise_sites,
+    deferred_raise_sites_in_tree,
     frozen_from_text,
     frozen_paths,
     is_frozen,
@@ -110,6 +115,7 @@ from tests.chained_cause_guard import (
     raise_sites,
     sites_in_tree,
     stale_exemptions,
+    store_reach,
     tracked_sources,
     verdict_distribution,
 )
@@ -4118,5 +4124,608 @@ def test_the_pathless_clearance_has_live_members_and_reports_them() -> None:
         f"CS-857 {CLOSED_PATHLESS}, {len(cleared)} of {len(graded)} chained "
         f"raise(s) in the {BUCKET_GRADED} bucket chain a clone the callee "
         f"CONSTRUCTS from errno and strerror alone:\n{body}",
+        stacklevel=1,
+    )
+
+
+# ---------------------------------------------------------------------------
+# CS-881 - THE DEFERRED RAISE. The SECOND known way out of the ``Site``
+# population altogether, and unlike limit 8 it needs no second function.
+#
+# THE SHAPE. A handler stores its OWN binding into a local - ``last = exc`` -
+# and the raise happens AFTER the handler has exited: outside every handler,
+# with no ``from`` clause. ``chained_cause_guard._form_of`` answers None for
+# it, nothing enters :class:`Site`, and every counts-only arm over that
+# population reads a zero it did not earn -
+# ``memory/an-empty-population-satisfies-every-zero.md``. The RENDERING is a
+# graded site's: the stored object IS the caught ``OSError``, so its ``str()``
+# still appends ``filename`` - MEASURED here in this process, and again by a
+# child interpreter's own excepthook.
+#
+# THE SPELLING TRAP IS THE ITEM. The two live sites in the graded bucket do
+# not share a raised-expression KIND: one raises a bare ``ast.Name`` and one
+# raises an ``ast.IfExp``. A leg keyed on ``raise <Name>`` derives the first
+# and is silent about the second - a spelling silence inside the item filed
+# against a spelling silence, which ``memory/a-guard-can-measure-spelling.md``
+# records the first round of. The derivation therefore keys on the POSITIVE
+# fact, that the raised expression READS a name a handler in the same scope
+# stored, and reads nothing at all about the raise node's kind. Both spellings
+# are planted and each gets its own arm, because a pooled arm over the table
+# would be met by whichever member happened to be strongest.
+# ---------------------------------------------------------------------------
+
+#: The CS-881 payload. A THIRD marker, distinct from :data:`MARKER` and from
+#: :data:`CLONE_MARKER` for the reason that one is distinct from the first: two
+#: instruments sharing a marker cannot tell a leak in one from a leak in the
+#: other. Not a path, not personal data, not derived from any machine.
+DEFERRED_MARKER: Final = "CS881-SYNTHETIC-MARKER"
+
+#: A planted module in the GRADED bucket. Never touched on disk - every
+#: derivation entry point reads a mapping, so this is a key and not a file.
+PLANTED_DEFERRED_PATH: Final = "tools/planted_deferred.py"
+
+#: How many times the live fixtures below go round their retry loop. Named so
+#: no bare number sits in the fixture, and small because the loop is the SHAPE
+#: rather than a timing test.
+_DEFERRED_ATTEMPTS: Final = 2
+
+#: Exactly one derived record, named so no bare number sits in a comparison.
+_ONE_DEFERRED: Final = 1
+
+#: The two live fixture functions this module contributes to the sweep, by the
+#: qualname the derivation reports for each. THE LIVE POSITIVE CONTROL: the
+#: shipped sites may be repaired at any time and these cannot, because this
+#: module owns them.
+_LIVE_DEFERRED_FIXTURES: Final = (
+    "_deferred_bare_name_raise",
+    "_deferred_conditional_raise",
+)
+
+
+def _deferred_bare_name_raise() -> None:
+    """Store the handler's binding, then raise it after the handler exits.
+
+    THE SPELLING THE SHIPPED RETRY LOOP IN ``clockspeed/save/workdir.py``
+    USES. A real raise, so the LIVE git sweep derives it and the derivation is
+    proven against the tree rather than only against a string.
+
+    Raises:
+        OSError: Always, carrying :data:`DEFERRED_MARKER` as its filename.
+    """
+    last: OSError | None = None
+    for _attempt in range(_DEFERRED_ATTEMPTS):
+        try:
+            raise OSError(_ERRNO, _STRERROR, DEFERRED_MARKER)
+        except OSError as exc:
+            last = exc
+    if last is None:
+        last = OSError("nothing was recorded")
+    raise last
+
+
+def _deferred_conditional_raise() -> None:
+    """The same shape, raised through an ``ast.IfExp`` rather than a name.
+
+    THE SPELLING ``clockspeed/data/version.py`` USES, and the one a leg keyed
+    on ``raise <Name>`` would be silent about.
+
+    Raises:
+        OSError: Always, carrying :data:`DEFERRED_MARKER` as its filename.
+    """
+    last: OSError | None = None
+    for _attempt in range(_DEFERRED_ATTEMPTS):
+        try:
+            raise OSError(_ERRNO, _STRERROR, DEFERRED_MARKER)
+        except OSError as exc:
+            last = exc
+    raise last if last is not None else OSError("nothing was recorded")
+
+
+@pytest.mark.parametrize(
+    ("label", "fixture"),
+    [
+        ("bare-name", _deferred_bare_name_raise),
+        ("conditional", _deferred_conditional_raise),
+    ],
+)
+def test_a_deferred_raise_renders_the_caught_value_with_no_chain_at_all(
+    label: str, fixture: Callable[[], None]
+) -> None:
+    """CS-881 THE MEASUREMENT, and it is what makes the rest of this facts.
+
+    The stored object IS the caught ``OSError``, so ``OSError.__str__``
+    appends the ``filename`` the interpreter attached. And the chain is ONE
+    link: the handler has exited, so there is no ``__context__`` and no
+    ``__cause__`` for a chain walk to follow. That is the whole reason the
+    chained-cause census cannot see the shape while the rendering is identical
+    to a graded site's.
+    """
+    with pytest.raises(OSError, match=DEFERRED_MARKER) as caught:
+        fixture()
+    chain = _chain_of(caught.value)
+    rendered = _rendered_chain(caught.value)
+    assert len(chain) == _UNCHAINED, (
+        f"{label}: the deferred raise chained {len(chain)} link(s); a chain "
+        "would mean this shape is visible to a cause walk after all"
+    )
+    assert DEFERRED_MARKER in rendered, (
+        f"{label}: the caught value's filename did not reach the rendering, "
+        "so this shape is not the leak the item is about"
+    )
+
+
+# ---------------------------------------------------------------------------
+# THE PLANTED TABLE. Each row is assembled MECHANICALLY from three source
+# fields, so no row is a transcription of another, and each is graded twice:
+# statically by the derivation, and by a CHILD INTERPRETER whose default
+# excepthook renders the plant. The census is the tree's only enumerator of
+# this population, so a second static reader here would be wrong the same way
+# the first one is.
+#
+# THE CHILD'S STDERR NEVER BECOMES A FIELD, A MESSAGE OR A LOCAL. It carries an
+# absolute frame path per stack level, so it is reduced to booleans and counts
+# the moment it is read - CLAUDE.md non-negotiable 12.
+# ---------------------------------------------------------------------------
+
+#: Everything every CS-881 plant shares. THE MARKER APPEARS IN NO LINE A
+#: TRACEBACK CAN PRINT, for the reason :data:`_CLONE_PLANT_HEAD` records: a
+#: traceback echoes the SOURCE of every frame, so a marker written as a literal
+#: inside a function would render through the source-echo channel and every
+#: marker-present arm would pass without measuring an exception at all.
+_DEFERRED_PLANT_HEAD: Final = f'''"""One CS-881 shape, runnable and derivable from the same text."""
+
+_MARKER = "{DEFERRED_MARKER}"
+_ERRNO = 13
+_STRERROR = "Permission denied"
+_LEAK_PATH = "dir/" + _MARKER + "/file"
+_ATTEMPTS = 2
+
+
+class Wrapped(Exception):
+    """The wrapper. Its own message carries nothing."""
+
+
+def _fail():
+    """Raise an OSError whose filename is the field OSError.__str__ appends."""
+    raise OSError(_ERRNO, _STRERROR, _LEAK_PATH)
+
+
+'''
+
+
+@dataclass(frozen=True)
+class _DeferredShape:
+    """One CS-881 plant, derived statically and run in a child.
+
+    Attributes:
+        label: The arm id, and the child script's basename.
+        setup: Lines at the top of the site function, indented for it.
+        store: Lines inside the handler body, indented for it.
+        raised: The raise statement, indented for the site function.
+        derived: Whether the deferred population must derive a record.
+        marker: Whether :data:`DEFERRED_MARKER` must reach the child's stderr.
+    """
+
+    label: str
+    setup: str
+    store: str
+    raised: str
+    derived: bool
+    marker: bool
+
+
+def _deferred_plant(shape: _DeferredShape) -> str:
+    """Assemble one plant from its three source fields.
+
+    Args:
+        shape: The row to build.
+
+    Returns:
+        A module that both derives and runs to a failure.
+    """
+    return (
+        _DEFERRED_PLANT_HEAD
+        + "def site():\n"
+        + '    """The censused site."""\n'
+        + f"{shape.setup}\n"
+        + "    for _attempt in range(_ATTEMPTS):\n"
+        + "        try:\n"
+        + "            _fail()\n"
+        + "        except OSError as exc:\n"
+        + f"{shape.store}\n"
+        + f"{shape.raised}\n"
+        + "\n\nsite()\n"
+    )
+
+
+#: The store the two shipped sites and most of this table share.
+_STORE_THE_BINDING: Final = "            last = exc"
+
+#: ONE ROW PER SHAPE. The ``derived`` and ``marker`` columns are INDEPENDENT
+#: and neither is computed from the other, which is the point of carrying both:
+#: one row is derived and does not leak, and two rows leak and are not derived.
+#: Both directions are partitioned below and asserted separately, because a
+#: table that could show only one of them would be a table about nothing.
+_DEFERRED_SHAPES: Final = (
+    _DeferredShape(
+        label="bare_name",
+        setup="    last = None",
+        store=_STORE_THE_BINDING,
+        raised="    raise last",
+        derived=True,
+        marker=True,
+    ),
+    _DeferredShape(
+        label="conditional",
+        setup="    last = None",
+        store=_STORE_THE_BINDING,
+        raised="    raise last if last is not None else OSError(_ERRNO, _STRERROR)",
+        derived=True,
+        marker=True,
+    ),
+    _DeferredShape(
+        label="or_default",
+        setup="    last = None",
+        store=_STORE_THE_BINDING,
+        raised="    raise last or OSError(_ERRNO, _STRERROR)",
+        derived=True,
+        marker=True,
+    ),
+    _DeferredShape(
+        label="wrapped_argument",
+        setup="    last = None",
+        store=_STORE_THE_BINDING,
+        raised="    raise Wrapped(last)",
+        derived=True,
+        marker=True,
+    ),
+    _DeferredShape(
+        label="field_read_only",
+        setup="    last = None",
+        store=_STORE_THE_BINDING,
+        raised="    raise OSError(last.errno, last.strerror)",
+        derived=True,
+        marker=False,
+    ),
+    _DeferredShape(
+        label="a_fresh_error",
+        setup="    last = None",
+        store="            last = OSError(_ERRNO, _STRERROR)",
+        raised="    raise last",
+        derived=False,
+        marker=False,
+    ),
+    _DeferredShape(
+        label="nothing_stored",
+        setup="    last = None",
+        store="            pass",
+        raised="    raise OSError(_ERRNO, _STRERROR)",
+        derived=False,
+        marker=False,
+    ),
+    _DeferredShape(
+        label="two_step_store",
+        setup="    last = None",
+        store="            kept = exc\n            last = kept",
+        raised="    raise last",
+        derived=False,
+        marker=True,
+    ),
+    _DeferredShape(
+        label="container_store",
+        setup="    held = []",
+        store="            held.append(exc)",
+        raised="    raise held[0]",
+        derived=False,
+        marker=True,
+    ),
+)
+
+#: The row DERIVED although the shape carries no path. AN OVER-REPORT, named
+#: rather than hidden: the raised expression reads a FIELD off the stored
+#: exception rather than the exception itself, and the derivation does not
+#: model the difference. Between over-reporting a site and going silent about
+#: one this population takes the first, which is the trade
+#: :data:`VERDICT_ORDER` records one census over.
+_DEFERRED_OVER_REPORTS: Final = ("field_read_only",)
+
+#: The rows that LEAK and are NOT derived. AN UNDER-REPORT, and the honest half
+#: of the CS-881 report: the store must be the handler's own binding assigned
+#: to a plain name, so a two-step forward and a store into a container are both
+#: silences. Each is planted, run, and MEASURED to render the marker.
+_DEFERRED_UNDER_REPORTS: Final = ("two_step_store", "container_store")
+
+#: Seconds a child may take. Generous: a floor against a hang, not a
+#: performance assertion.
+_DEFERRED_CHILD_TIMEOUT: Final = 120.0
+
+
+def _deferred_shape(label: str) -> _DeferredShape:
+    """Look one row up by label.
+
+    Args:
+        label: The row's label.
+
+    Returns:
+        The row.
+    """
+    found = {row.label: row for row in _DEFERRED_SHAPES}
+    assert label in found, f"{label} is not a planted CS-881 shape; there are {sorted(found)}"
+    return found[label]
+
+
+def _deferred_record(shape: _DeferredShape) -> tuple[DeferredRaiseSite, ...]:
+    """Derive one plant's deferred population.
+
+    Args:
+        shape: The row to derive.
+
+    Returns:
+        Every record the plant yields, which is zero or one row.
+    """
+    return deferred_raise_sites_in_tree({PLANTED_DEFERRED_PATH: _deferred_plant(shape)})
+
+
+@pytest.fixture(scope="module")
+def deferred_renderings(tmp_path_factory: pytest.TempPathFactory) -> dict[str, _ChildChain]:
+    """Run every CS-881 plant in a child and reduce each stderr to scalars.
+
+    MODULE SCOPED so the children run once. Each child DIES from its plant, so
+    what is read is the interpreter's own default excepthook rather than
+    anything this module formatted.
+
+    Args:
+        tmp_path_factory: Where the child scripts are written.
+
+    Returns:
+        Label to rendering. The stderr itself is discarded here.
+    """
+    room = tmp_path_factory.mktemp("cs881")
+    rendered: dict[str, _ChildChain] = {}
+    for shape in _DEFERRED_SHAPES:
+        child = room / f"deferred_{shape.label}.py"
+        child.write_text(_deferred_plant(shape), encoding="utf-8")
+        finished = subprocess.run(
+            [sys.executable, "-I", str(child)],
+            capture_output=True,
+            text=True,
+            timeout=_DEFERRED_CHILD_TIMEOUT,
+            check=False,
+        )
+        written = finished.stderr
+        rendered[shape.label] = _ChildChain(
+            exit_code=finished.returncode,
+            marker_rendered=DEFERRED_MARKER in written,
+            tracebacks=written.count(_TRACEBACK_HEADER),
+            construction_failed=_CONSTRUCTION_FAILURE in written,
+        )
+    return rendered
+
+
+@pytest.mark.parametrize("shape", _DEFERRED_SHAPES, ids=[row.label for row in _DEFERRED_SHAPES])
+def test_each_deferred_shape_is_derived_or_not_on_its_own_arm(shape: _DeferredShape) -> None:
+    """CS-881 THE STATIC HALF. One planted shape, one arm, one answer.
+
+    THE ``conditional`` ROW IS THE ONE TO READ FIRST. Its raised expression is
+    an ``ast.IfExp``, so a leg keyed on ``raise <Name>`` answers False here and
+    True on ``bare_name`` - and the tracked tree holds one live site of each.
+    """
+    records = _deferred_record(shape)
+    assert (len(records) == _ONE_DEFERRED) is shape.derived, (
+        f"{shape.label}: the derivation returned {len(records)} record(s), "
+        f"expected derived={shape.derived}"
+    )
+    if shape.derived:
+        assert records[0].qualname == "site", f"{shape.label}: derived the wrong scope"
+        assert records[0].stored_type == TYPE_OSERROR, (
+            f"{shape.label}: the storing handler's type resolved "
+            f"{records[0].stored_type}, so the record says nothing about what renders"
+        )
+
+
+@pytest.mark.parametrize("shape", _DEFERRED_SHAPES, ids=[row.label for row in _DEFERRED_SHAPES])
+def test_each_deferred_shape_renders_or_does_not_in_a_real_interpreter(
+    shape: _DeferredShape, deferred_renderings: dict[str, _ChildChain]
+) -> None:
+    """CS-881 THE EXECUTION HALF, and it is what breaks the common mode.
+
+    This module and the guard are one instrument. Asking CPython instead is
+    what makes ``derived`` a claim about a real channel rather than a claim
+    about the derivation agreeing with itself.
+    """
+    seen = deferred_renderings[shape.label]
+    assert seen.exit_code != 0, (
+        f"{shape.label}: the child exited zero, so nothing was rendered and "
+        "this arm measured no traceback at all"
+    )
+    assert seen.tracebacks >= _ONE_TRACEBACK, (
+        f"{shape.label}: the child printed {seen.tracebacks} traceback(s), so "
+        "it failed somewhere the excepthook never reached"
+    )
+    assert not seen.construction_failed, (
+        f"{shape.label}: the plant failed to CONSTRUCT rather than to raise, "
+        "so what rendered is not the shape this row is about"
+    )
+    assert seen.marker_rendered is shape.marker, (
+        f"{shape.label}: the marker rendered={seen.marker_rendered} in the "
+        f"default traceback, expected {shape.marker}"
+    )
+
+
+@pytest.mark.parametrize("shape", _DEFERRED_SHAPES, ids=[row.label for row in _DEFERRED_SHAPES])
+def test_the_site_population_derives_nothing_for_any_deferred_plant(
+    shape: _DeferredShape,
+) -> None:
+    """CS-881 THE DEFECT, STATED AS AN ARM RATHER THAN AS A SENTENCE.
+
+    Every row above is invisible to :func:`sites_in_tree`, the four that render
+    the marker included. That disjointness is what the two populations rest on,
+    and it is what an arm counting graded sites was reading a zero about.
+
+    A RED ARM HERE IS NOT A REGRESSION: it means the ``Site`` walk grew to see
+    the shape, and the repair is to decide which population owns it rather than
+    to let both count it.
+    """
+    assert sites_in_tree({PLANTED_DEFERRED_PATH: _deferred_plant(shape)}) == (), (
+        f"{shape.label}: the Site population now derives this plant, so the "
+        "two populations overlap and one raise is counted twice"
+    )
+
+
+def test_the_over_and_under_report_rows_are_both_populated() -> None:
+    """CS-881. A TABLE THAT COULD SHOW ONLY ONE DIRECTION SHOWS NEITHER.
+
+    ``derived`` and ``marker`` are carried as independent columns precisely so
+    the two honest failures can be seen. If either partition empties, the table
+    has stopped being able to express one of them, and the arms above would
+    then agree with a derivation that had collapsed into "derived iff leaks".
+    """
+    by_label = {row.label: row for row in _DEFERRED_SHAPES}
+    assert set(_DEFERRED_OVER_REPORTS) <= set(by_label), "an over-report row was renamed away"
+    assert set(_DEFERRED_UNDER_REPORTS) <= set(by_label), "an under-report row was renamed away"
+    for label in _DEFERRED_OVER_REPORTS:
+        assert by_label[label].derived, f"{label} is listed as an over-report and is not derived"
+        assert not by_label[label].marker, f"{label} is listed as an over-report and it leaks"
+    for label in _DEFERRED_UNDER_REPORTS:
+        assert by_label[label].marker, f"{label} is listed as an under-report and does not leak"
+        assert not by_label[label].derived, f"{label} is listed as an under-report and is derived"
+
+
+def test_a_planted_deferred_raise_is_reported_as_a_graded_finding() -> None:
+    """CS-881 ACCEPTANCE, THE RED HALF. A planted site makes the guard report.
+
+    The plant sits in the GRADED bucket, so the finding reaches
+    :func:`deferred_findings` rather than the out-of-scope record - which is
+    the difference between a guard that reports and a guard that files.
+    """
+    assert bucket_of(PLANTED_DEFERRED_PATH) == BUCKET_GRADED, (
+        f"{PLANTED_DEFERRED_PATH} buckets {bucket_of(PLANTED_DEFERRED_PATH)}, "
+        f"not {BUCKET_GRADED}, so this arm plants outside the reported population"
+    )
+    findings = deferred_findings(_deferred_record(_deferred_shape("bare_name")))
+    assert len(findings) == _ONE_DEFERRED, f"the plant was not reported: {findings}"
+    assert PLANTED_DEFERRED_PATH in findings[0], f"the finding does not name the module: {findings}"
+
+
+def test_a_tree_without_the_shape_is_reported_clean() -> None:
+    """CS-881 ACCEPTANCE, THE GREEN HALF. No plant, no finding.
+
+    The SAME entry point over a module that stores nothing of the handler's
+    own. Without it the red arm above is satisfied by a detector that reports
+    every raise it sees.
+    """
+    findings = deferred_findings(_deferred_record(_deferred_shape("nothing_stored")))
+    assert findings == (), f"a tree with no deferred raise still reported: {findings}"
+
+
+# ---------------------------------------------------------------------------
+# The live layer. NOTHING HERE ASSERTS A PARTICULAR SHIPPED FINDING: the two
+# live sites may be repaired at any time and an arm naming one would then be a
+# proof requiring the defect it certifies against. What is asserted is the
+# DENOMINATOR, this module's OWN fixtures found through the live git sweep, and
+# the totality of the two rendered populations.
+# ---------------------------------------------------------------------------
+
+
+def test_the_live_sweep_finds_this_modules_own_deferred_fixtures() -> None:
+    """CS-881. THE LIVE POSITIVE CONTROL, AND IT CANNOT BE REPAIRED AWAY.
+
+    The planted arms above run the derivation over a string. This one runs it
+    over the git sweep, against fixtures this module owns, so the derivation is
+    proven on the tree it actually reads.
+    """
+    if _THIS_MODULE not in tracked_sources():
+        pytest.skip(f"{_THIS_MODULE} is not in the git sweep; run git add -N first")
+    mine = {site.qualname for site in deferred_raise_sites() if site.module == _THIS_MODULE}
+    missing = set(_LIVE_DEFERRED_FIXTURES) - mine
+    assert not missing, (
+        f"the live sweep did not derive this module's own deferred fixtures: "
+        f"{sorted(missing)}; it found {sorted(mine)}"
+    )
+
+
+def test_the_live_record_accounts_for_this_censuss_own_deferred_fixtures() -> None:
+    """CS-881. THE FIXTURES ARE EXCLUDED BY THE TAXONOMY, NOT BY A LIST.
+
+    :data:`CONTROL_MODULES` keeps this module's own plants out of the reported
+    findings, and the out-of-scope record prints them every run so the
+    exclusion is a visible decision rather than a silence - the shape
+    :func:`out_of_scope_record` and :func:`notes_out_of_scope_record` already
+    hold for their own populations.
+    """
+    if _THIS_MODULE not in tracked_sources():
+        pytest.skip(f"{_THIS_MODULE} is not in the git sweep; run git add -N first")
+    recorded = deferred_out_of_scope_record(deferred_raise_sites())
+    mine = [line for line in recorded if f"{_THIS_MODULE}:" in line]
+    assert mine, f"the live record does not account for this module's own fixtures: {recorded}"
+    assert all(BUCKET_CONTROL.upper() in line for line in mine), (
+        f"a fixture is recorded under a bucket other than {BUCKET_CONTROL}: {mine}"
+    )
+
+
+def test_every_derived_deferred_site_is_reported_or_recorded() -> None:
+    """CS-881 EXHAUSTIVENESS. Nothing the sweep paid to derive is dropped.
+
+    The two rendered populations filter on :data:`BUCKET_GRADED` and on
+    :data:`RECORDED_BUCKETS`, which leaves a HOLE for
+    :data:`BUCKET_UNCLASSIFIED` to fall through - deliberately, so a module
+    outside :data:`SWEPT_ROOTS` reddens this arm rather than being absorbed by
+    a catch-all.
+    """
+    derived = deferred_raise_sites()
+    reported = len(deferred_findings(derived)) + len(deferred_out_of_scope_record(derived))
+    assert reported == len(derived), (
+        f"{len(derived)} deferred site(s) were derived and {reported} rendered, "
+        "so one is in neither population and its bucket is unclassified"
+    )
+
+
+def test_the_deferred_denominator_is_not_empty() -> None:
+    """CS-881. AN EMPTY POPULATION SATISFIES EVERY ZERO, INCLUDING THIS ONE.
+
+    :func:`store_reach` is what the derivation actually LOOKED at - every
+    handler in the tree that stores its own binding into a local. A derivation
+    that read nothing reports the same finding count as one that read the whole
+    tree, and this is what separates the two.
+    """
+    reach = store_reach()
+    assert reach, "the store denominator is empty, so every deferred count means nothing"
+    assert any(seen.module == _THIS_MODULE for seen in reach), (
+        "the denominator does not include this module's own fixtures, so the "
+        "sweep is not reading the tree this census is written against"
+    )
+
+
+def test_every_deferred_key_is_distinct() -> None:
+    """CS-881. TWO SITES SHARING A KEY ARE ONE SITE TO EVERY READER OF IT.
+
+    The key carries no line number, for the dead-citation reason
+    :attr:`Site.key` records. Two deferred raises of the same stored name, in
+    the same scope, written the same way, would therefore collide - and that is
+    reported as something to restructure rather than absorbed.
+    """
+    keys = [site.key for site in deferred_raise_sites()]
+    assert len(set(keys)) == len(keys), f"two deferred sites share a key: {sorted(keys)}"
+
+
+def test_the_live_deferred_findings_are_reported() -> None:
+    """CS-881. THE FINDINGS ARE PRINTED, and the count is asserted against them.
+
+    The census reports rather than fails: repairing a shipped site is not this
+    module's to make. SKIPS rather than fails when the tree carries none, so a
+    repair does not turn a report into a red arm.
+    """
+    findings = deferred_findings(deferred_raise_sites())
+    if not findings:
+        pytest.skip("no live deferred raise reaches the graded bucket this run")
+    graded = [site for site in deferred_raise_sites() if bucket_of(site.module) == BUCKET_GRADED]
+    assert len(findings) == len(graded), (
+        f"{len(graded)} graded deferred site(s) derived and {len(findings)} reported"
+    )
+    body = "\n".join(f"  {line}" for line in findings)
+    warnings.warn(
+        f"CS-881 deferred raise, {len(findings)} site(s) in the {BUCKET_GRADED} "
+        f"bucket raise a value a handler in the same scope stored, so the caught "
+        f"exception's own str() renders with no chain to see it by:\n{body}",
         stacklevel=1,
     )

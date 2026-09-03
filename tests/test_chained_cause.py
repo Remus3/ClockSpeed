@@ -123,6 +123,11 @@ UNCHAINED: Final = 1
 TWO_HOPS: Final = 2
 THREE_HOPS: Final = 3
 
+#: How many times the CS-881 deferred-raise shapes go round their retry loop.
+#: Named so no bare number sits in a fixture, and small because the loop is the
+#: SHAPE the shipped retry sites are written in rather than a timing test.
+DEFERRED_ATTEMPTS: Final = 2
+
 #: What a forcing function hands back: the exception it caught, and the root
 #: whose redactability is that arm's needle control.
 Forced = tuple[BaseException, Path]
@@ -711,6 +716,62 @@ def test_add_note_reaches_the_traceback_without_any_chain(tmp_path: Path) -> Non
     assert not verdict.chained_clean, "the note rendered clean"
 
 
+def _deferred_raise_of_a_stored_binding(path: Path) -> None:
+    """Store the handler's own binding, then raise it after the handler exits.
+
+    WRITTEN THE WAY THE SHIPPED RETRY LOOPS WRITE IT: a bounded loop, the last
+    failure kept in a local, and the raise below the loop where no handler is
+    active and no cause is named.
+
+    Args:
+        path: A real temporary path, which redact recognizes.
+
+    Raises:
+        OSError: Always, and it is the CAUGHT one rather than a wrapper.
+    """
+    last: OSError | None = None
+    for _attempt in range(DEFERRED_ATTEMPTS):
+        try:
+            raise _raw_oserror(path)
+        except OSError as exc:
+            last = exc
+    if last is None:
+        last = OSError("nothing was recorded")
+    raise last
+
+
+def test_a_deferred_raise_of_a_stored_binding_leaks_with_no_chain(tmp_path: Path) -> None:
+    """Escape 5 - the handler's binding outlives the handler, and so does the path.
+
+    CS-881. THE SHAPE HAS NO CHAIN AT ALL, which is what makes it different
+    from the four above rather than a fifth spelling of them. ``__cause__`` is
+    None, ``__context__`` is None because the handler had already exited, and
+    the depth is ONE. Every check written against a chain - and every static
+    walk keyed on ``ast.Raise.cause`` or on a raise sitting lexically inside a
+    handler - is structurally blind here, while the rendering carries the same
+    path a graded site would: the object raised IS the caught ``OSError``, so
+    ``OSError.__str__`` appends the ``filename`` the interpreter attached.
+
+    THE BASELINE IS DIRTY ON PURPOSE, as it is in escape 4. There is no
+    wrapper to be clean: the leak is the raised exception itself.
+    """
+    with pytest.raises(OSError, match="permission denied") as caught:
+        _deferred_raise_of_a_stored_binding(tmp_path)
+
+    verdict = grade(caught.value, tmp_path)
+    assert verdict.needle_present, "UNPROVEN: redact has no needle for this temporary root"
+    assert verdict.faithful_subset, "the graded lines were not a subset of the default rendering"
+    assert verdict.chain_depth == UNCHAINED, (
+        f"the deferred raise chained {verdict.chain_depth} link(s); a chain "
+        "would mean this shape is visible to a cause walk after all"
+    )
+    assert not verdict.baseline_clean, (
+        "the raised exception's own rendering was clean, so this shape is not "
+        "the leak it is planted to demonstrate"
+    )
+    assert not verdict.chained_clean, "a deferred raise of a stored binding rendered clean"
+
+
 # ---------------------------------------------------------------------------
 # The controls. Every one of these is GREEN now and stays green when the
 # channel is closed - none requires the defect.
@@ -766,6 +827,51 @@ def test_a_chain_whose_every_hop_is_clean_renders_clean(tmp_path: Path) -> None:
     )
     assert all(verdict.hop_clean), f"a hop was dirty: {verdict.hop_clean}"
     assert verdict.chained_clean, "a chain of clean hops rendered something redactable"
+
+
+def _deferred_raise_of_a_pathless_clone(path: Path) -> None:
+    """The repair - keep the failure, raise a clone built from errno and strerror.
+
+    THE IDIOM THE TREE ALREADY SHIPS FOUR COPIES OF. ``errno`` is an integer
+    code and ``strerror`` is the platform's own text for it; ``filename`` and
+    ``filename2`` - the two fields ``OSError.__str__`` appends a path from -
+    are absent by construction rather than by redaction.
+
+    Args:
+        path: A real temporary path, which redact recognizes.
+
+    Raises:
+        OSError: Always, and it carries no path.
+    """
+    last: OSError | None = None
+    for _attempt in range(DEFERRED_ATTEMPTS):
+        try:
+            raise _raw_oserror(path)
+        except OSError as exc:
+            last = exc
+    if last is None:
+        last = OSError("nothing was recorded")
+    raise OSError(last.errno, last.strerror)
+
+
+def test_a_deferred_raise_of_a_pathless_clone_renders_clean(tmp_path: Path) -> None:
+    """The control for escape 5 - a clean verdict is REACHABLE from that shape.
+
+    CS-881. Without this, the red arm above is not a finding about the deferred
+    shape: it could be a property of raising anything at all after a handler
+    that touched a path. The same loop, the same caught failure, the same
+    needle armed - and the rendering carries nothing redact rewrites.
+    """
+    with pytest.raises(OSError, match="permission denied") as caught:
+        _deferred_raise_of_a_pathless_clone(tmp_path)
+
+    verdict = grade(caught.value, tmp_path)
+    assert verdict.needle_present, "UNPROVEN: redact has no needle for this temporary root"
+    assert verdict.faithful_subset, "the graded lines were not a subset of the default rendering"
+    assert verdict.chain_depth == UNCHAINED, (
+        f"the clone was chained to something, depth {verdict.chain_depth}"
+    )
+    assert verdict.chained_clean, "a clone built from errno and strerror rendered a path"
 
 
 #: A module with ZERO chained raises, compiled with a synthetic filename so its
