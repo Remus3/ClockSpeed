@@ -45,6 +45,7 @@ constant that is not a path and not personal data.
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 import socket
@@ -151,6 +152,32 @@ _OWNED_FILES: Final = ("tests/chained_cause_guard.py", _THIS_MODULE)
 #: not match its own source: the regex text carries a literal backslash then
 #: the letter d, and a letter is not a digit.
 _TRANSCRIBED_SITE: Final = re.compile(r"\.py:\d+")
+
+#: A transcribed count of the RAISE population in prose - the shape ``N of the
+#: M raises``. ``CLAUDE.md`` section 4 forbids a hardcoded count in a doc, and
+#: this is the one spelling of it the two owned files actually grew: filed
+#: once, never re-derived, and stale in BOTH halves by the time an adjudicator
+#: read it.
+#:
+#: THE ARM CHECKS RATHER THAN MERELY FORBIDS, which is why the two numbers are
+#: CAPTURED. A count that agrees with the live derivation is not a lie; one
+#: that disagrees is. A rule that forbade the digits outright would be
+#: satisfied by deleting the sentence and would say nothing at all about a pair
+#: written tomorrow.
+#:
+#: WHAT IT DOES NOT COVER, stated rather than left to be discovered. It reads
+#: the word ``raises`` and nothing else, so a count of MODULES or of SITES
+#: written the same way is not checked - and two such pairs exist in these
+#: files today. Both are PAST-TENSE records of what one closed item measured,
+#: which is provenance rather than a live claim about the tree; the pair this
+#: catches was written in the present tense about the tracked tree, and that is
+#: the difference the section-4 rule turns on. A regex cannot read tense, so
+#: the narrower word is the honest scope.
+#:
+#: THE PATTERN DOES NOT MATCH ITS OWN SOURCE, for the reason
+#: :data:`_TRANSCRIBED_SITE` records: the regex text carries a literal
+#: backslash then the letter d, and a letter is not a digit.
+_TRANSCRIBED_RAISE_COUNT: Final = re.compile(r"(\d+) of (?:the )?(\d+) raises")
 
 #: The planted module's path. Deliberately outside :data:`SWEPT_ROOTS`, so a
 #: planted arm can never be confused with a live finding. CS-879 turned that
@@ -1518,6 +1545,65 @@ def test_neither_guard_file_transcribes_a_site() -> None:
         text = (REPO_ROOT / relative).read_text(encoding="utf-8")
         found = _TRANSCRIBED_SITE.findall(text)
         assert found == [], f"{relative} transcribes a line-numbered site: {found}"
+
+
+def test_the_uncensused_raise_partition_is_derived_not_written() -> None:
+    """INVARIANT 1'S SIBLING. A COUNT IN PROSE IS A LIE WITH A TIMESTAMP ON IT.
+
+    :func:`chained_cause_guard._form_of` answers None for a raise that opens no
+    chain, and its docstring said in the present tense how many of the tracked
+    tree's raises that was. Nothing derived the pair and nothing guarded it, so
+    it went stale in both halves and the gap WIDENED every round the tree grew.
+    That is exactly the ``CLAUDE.md`` section 4 failure - a measured number
+    restated in prose with no machine-checked owner.
+
+    THE TOTAL IS COUNTED BY ``ast.walk`` AND NOT BY THE GUARD'S OWN WALK, which
+    is the point of the arm rather than an implementation detail. Deriving both
+    halves from :func:`chained_cause_guard._walk` would make this two readings
+    of one traversal, and two readers of the same walk are wrong the same way -
+    ``CONVENTIONS.md`` section 5.2. ``ast.walk`` descends everything
+    unconditionally, so it is an independent census of the denominator.
+
+    IT REPORTS RATHER THAN PINS. No literal appears in any assertion: the arm
+    asserts the SHAPE - both halves populated, the uncensused half the larger,
+    and any pair still written in prose agreeing with what the tree holds - and
+    emits the derived numbers as a warning so a reader gets a live count.
+    """
+    sources = tracked_sources()
+    total = sum(
+        1
+        for module, source in sources.items()
+        for node in ast.walk(ast.parse(source, filename=module))
+        if isinstance(node, ast.Raise)
+    )
+    censused = len(raise_sites())
+    uncensused = total - censused
+    assert censused, "no raise reached the Site population, so the split has collapsed"
+    assert uncensused, (
+        "every raise in the tree reached the Site population, so the None form "
+        "is empty and the sentence this arm guards describes nothing"
+    )
+    assert uncensused > censused, (
+        f"the uncensused half is no longer the majority - {uncensused} answer "
+        f"None against {censused} censused - so the word MAJORITY in "
+        f"_form_of's docstring is now wrong. The repair is that SENTENCE, not "
+        f"this arm and not the tree"
+    )
+    for relative in _OWNED_FILES:
+        text = (REPO_ROOT / relative).read_text(encoding="utf-8")
+        for written_part, written_whole in _TRANSCRIBED_RAISE_COUNT.findall(text):
+            assert (int(written_part), int(written_whole)) == (uncensused, total), (
+                f"{relative} writes a raise count in prose that the tree does "
+                f"not hold: it says {written_part} of {written_whole} and the "
+                f"live derivation is {uncensused} of {total}"
+            )
+    warnings.warn(
+        f"CS-857 raise partition, derived this run: {total} raise statement(s) "
+        f"in the tracked tree, {censused} in the Site population and "
+        f"{uncensused} answering None - the plain raise outside every handler "
+        f"that _form_of deliberately leaves out.",
+        stacklevel=1,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -4172,13 +4258,21 @@ _DEFERRED_ATTEMPTS: Final = 2
 #: Exactly one derived record, named so no bare number sits in a comparison.
 _ONE_DEFERRED: Final = 1
 
-#: The two live fixture functions this module contributes to the sweep, by the
+#: The live fixture functions this module contributes to the sweep, by the
 #: qualname the derivation reports for each. THE LIVE POSITIVE CONTROL: the
 #: shipped sites may be repaired at any time and these cannot, because this
 #: module owns them.
+#:
+#: THE THIRD ONE EXERCISES A DIFFERENT BRANCH OF THE STORE WALK, which is the
+#: only reason it is here rather than being a fourth planted string. The first
+#: two store through ``ast.Assign``; CS-881 residual 2 widened
+#: :func:`chained_cause_guard._stored_binding` to four more statement forms,
+#: and without a live fixture the widened branch would be proven over a mapping
+#: and never over the git sweep the guard actually reads.
 _LIVE_DEFERRED_FIXTURES: Final = (
     "_deferred_bare_name_raise",
     "_deferred_conditional_raise",
+    "_deferred_annotated_store_raise",
 )
 
 
@@ -4221,11 +4315,32 @@ def _deferred_conditional_raise() -> None:
     raise last if last is not None else OSError("nothing was recorded")
 
 
+def _deferred_annotated_store_raise() -> None:
+    """The same shape with the store ANNOTATED rather than plain.
+
+    THE SPELLING THAT ESCAPED THE WALK ENTIRELY UNTIL CS-881 RESIDUAL 2. It is
+    an ``ast.AnnAssign`` whose target IS a bare name, so the refusal that used
+    to cover it - "target is not a bare name" - was false of it, and in a tree
+    this heavily annotated it is ordinary house style rather than an
+    adversarial spelling. A real raise, so the LIVE git sweep must derive it.
+
+    Raises:
+        OSError: Always, carrying :data:`DEFERRED_MARKER` as its filename.
+    """
+    for _attempt in range(_DEFERRED_ATTEMPTS):
+        try:
+            raise OSError(_ERRNO, _STRERROR, DEFERRED_MARKER)
+        except OSError as exc:
+            last: OSError = exc
+    raise last
+
+
 @pytest.mark.parametrize(
     ("label", "fixture"),
     [
         ("bare-name", _deferred_bare_name_raise),
         ("conditional", _deferred_conditional_raise),
+        ("annotated-store", _deferred_annotated_store_raise),
     ],
 )
 def test_a_deferred_raise_renders_the_caught_value_with_no_chain_at_all(
@@ -4283,6 +4398,10 @@ _ATTEMPTS = 2
 
 class Wrapped(Exception):
     """The wrapper. Its own message carries nothing."""
+
+
+class Holder:
+    """A settable ATTRIBUTE target, so a store into one is RUN and not only refused."""
 
 
 def _fail():
@@ -4419,6 +4538,80 @@ _DEFERRED_SHAPES: Final = (
         derived=False,
         marker=True,
     ),
+    # ----------------------------------------------------------------------
+    # CS-881 residual 2. FOUR STORE SPELLINGS THAT ARE NOT ``ast.Assign``.
+    # Every one binds a BARE LOCAL, in the SAME scope, to the handler's own
+    # binding - which is the POSITIVE fact DeferredRaiseSite says it keys on -
+    # and every one derived ZERO while rendering the marker, measured by two
+    # independent agents before this round. The first is ordinary house style
+    # in a tree this heavily annotated, which is what makes it the one to read
+    # first; the walrus pair and the loop target are what an adversary reaches
+    # for once the annotated form is closed.
+    # ----------------------------------------------------------------------
+    _DeferredShape(
+        label="annotated_store",
+        setup="    last = None",
+        store="            last: OSError | None = exc",
+        raised="    raise last",
+        derived=True,
+        marker=True,
+    ),
+    _DeferredShape(
+        label="walrus_condition",
+        setup="    last = None",
+        store="            if (last := exc) is not None:\n                pass",
+        raised="    raise last",
+        derived=True,
+        marker=True,
+    ),
+    _DeferredShape(
+        label="walrus_sink",
+        setup="    last = None",
+        store="            _sink = (last := exc)",
+        raised="    raise last",
+        derived=True,
+        marker=True,
+    ),
+    _DeferredShape(
+        label="loop_target_store",
+        setup="    last = None",
+        store="            for last in (exc,):\n                pass",
+        raised="    raise last",
+        derived=True,
+        marker=True,
+    ),
+    # ----------------------------------------------------------------------
+    # CS-881 residual 3. THE THREE ROWS THE LIMIT CALLED "refused by
+    # construction, NOT MEASURED" WHILE ``_handler_stores``'S OWN TABLE CALLED
+    # THE SAME FAMILY "MEASURED to leak". Two tables contradicting each other
+    # is worse than either being wrong alone, because a reader who finds one
+    # has no reason to look for the other. They are MEASURED here, in a child
+    # interpreter, so both tables can say the same measured thing.
+    # ----------------------------------------------------------------------
+    _DeferredShape(
+        label="attribute_store",
+        setup="    holder = Holder()",
+        store="            holder.last = exc",
+        raised="    raise holder.last",
+        derived=False,
+        marker=True,
+    ),
+    _DeferredShape(
+        label="subscript_store",
+        setup="    held = [None]",
+        store="            held[0] = exc",
+        raised="    raise held[0]",
+        derived=False,
+        marker=True,
+    ),
+    _DeferredShape(
+        label="cross_scope_store",
+        setup="    last = None",
+        store=_STORE_THE_BINDING,
+        raised="    def _later():\n        raise last\n    _later()",
+        derived=False,
+        marker=True,
+    ),
 )
 
 #: The row DERIVED although the shape carries no path. AN OVER-REPORT, named
@@ -4430,10 +4623,20 @@ _DEFERRED_SHAPES: Final = (
 _DEFERRED_OVER_REPORTS: Final = ("field_read_only",)
 
 #: The rows that LEAK and are NOT derived. AN UNDER-REPORT, and the honest half
-#: of the CS-881 report: the store must be the handler's own binding assigned
-#: to a plain name, so a two-step forward and a store into a container are both
-#: silences. Each is planted, run, and MEASURED to render the marker.
-_DEFERRED_UNDER_REPORTS: Final = ("two_step_store", "container_store")
+#: of the CS-881 report: the store must be the handler's own binding written to
+#: a plain local name, so a two-step forward, a store into a container, a store
+#: through an attribute or a subscript, and a store the raise cannot reach
+#: because it crosses a scope are all silences. Each is planted, run, and
+#: MEASURED to render the marker - none is refused on paper alone, which is the
+#: CS-881 residual-3 correction: the guard's two tables disagreed about exactly
+#: this family, one calling it measured and the other calling it unmeasured.
+_DEFERRED_UNDER_REPORTS: Final = (
+    "two_step_store",
+    "container_store",
+    "attribute_store",
+    "subscript_store",
+    "cross_scope_store",
+)
 
 #: Seconds a child may take. Generous: a floor against a hang, not a
 #: performance assertion.
@@ -4687,12 +4890,38 @@ def test_the_deferred_denominator_is_not_empty() -> None:
     handler in the tree that stores its own binding into a local. A derivation
     that read nothing reports the same finding count as one that read the whole
     tree, and this is what separates the two.
+
+    AND THE FIRST TWO ASSERTIONS WERE THIS MODULE'S OWN FILED DEFECT, ONE LEVEL
+    UP. A denominator satisfied by CONTROL fixtures is a denominator that never
+    reaches the bucket the findings come from, which is
+    ``memory/pooled-guard-hides-its-worst-member.md`` in the exact shape CS-881
+    was opened against. MEASURED, by two independent agents, two different
+    triggers: drop the two graded modules from the sweep, or widen
+    ``CLAUDE.md``'s frozen list by two bullets - a DOC edit, no code change -
+    and the live findings go from two to zero while this arm stays GREEN,
+    because the surviving thirteen members all come from
+    :data:`CONTROL_MODULES` and both assertions above still hold. Two sibling
+    guards reddened on the same drop and this one did not.
+
+    SO THE THIRD ASSERTION READS THE BUCKET, NOT THE MODULE. It is deliberately
+    NOT a live finding: pinning one would be a proof requiring the defect it
+    certifies against, which the block comment above this section refuses for
+    stated reasons. The DENOMINATOR survives the repair the findings ask for -
+    the repair is to raise a filename-free clone of ``last``, which leaves the
+    ``last = exc`` store exactly where it is - so a graded member here is a
+    fact about the sweep's REACH rather than about any site's verdict.
     """
     reach = store_reach()
     assert reach, "the store denominator is empty, so every deferred count means nothing"
     assert any(seen.module == _THIS_MODULE for seen in reach), (
         "the denominator does not include this module's own fixtures, so the "
         "sweep is not reading the tree this census is written against"
+    )
+    assert any(bucket_of(seen.module) == BUCKET_GRADED for seen in reach), (
+        f"the denominator reaches no {BUCKET_GRADED} module, so every deferred "
+        f"finding count is drawn from a bucket this sweep never read; "
+        f"{len(reach)} member(s) were derived and their buckets are "
+        f"{sorted({bucket_of(seen.module) for seen in reach})}"
     )
 
 

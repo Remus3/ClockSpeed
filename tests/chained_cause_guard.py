@@ -271,18 +271,57 @@ WHAT THIS GUARD CANNOT MODEL. Read this before citing any verdict.
    to its own exception - keyed on that POSITIVE fact and not on the raise
    node's kind, because the tracked tree holds one live ``raise <Name>`` and
    one live ``raise <IfExp>`` of the shape and a kind-keyed leg derives one of
-   the two. The following stay invisible:
+   the two.
+
+   THE STORE IS READ IN FIVE SPELLINGS, and until CS-881 residual 2 it was read
+   in ONE. ``ast.Assign`` was the whole rule, so ``last: OSError | None = exc``
+   escaped it - an ``ast.AnnAssign`` whose target IS a bare name, and ordinary
+   house style in a tree this heavily annotated - and so did the walrus in both
+   its spellings and a ``for`` target. All four bind a bare local, in the same
+   scope, to the handler's own binding, which is the POSITIVE fact this
+   population says it keys on; all four were planted, RUN, and MEASURED to
+   render the marker while deriving nothing. :func:`_stored_binding` now reads
+   ``ast.Assign``, ``ast.AnnAssign``, ``ast.NamedExpr``, ``ast.For`` and
+   ``ast.AsyncFor``, and the refusal that used to cover them was recorded with
+   a FALSE reason - "target is not a bare name" is not true of an annotated
+   assignment - which is why it is named here rather than quietly deleted.
+
+   The following stay invisible, and NONE of them is refused on paper alone:
 
      a two-step store           ``kept = exc`` then ``last = kept``. The
                                 store's value must be the handler's OWN
                                 binding. MEASURED to leak, planted and run.
      a store into a container   ``held.append(exc)`` then ``raise held[0]``.
                                 MEASURED to leak, planted and run.
-     an attribute or subscript  ``holder.last = exc`` binds no local name.
-     target                     Refused by construction, not measured.
+     an attribute target        ``holder.last = exc`` binds no local name.
+                                MEASURED to leak, planted and run.
+     a subscript target         ``held[0] = exc``. Same, and it is a distinct
+                                AST shape rather than a spelling of the row
+                                above. MEASURED to leak, planted and run.
      a store crossing a scope   the store and the raise must share a scope
-                                path exactly, which is :func:`_walk`'s filter.
+                                path exactly, which is :func:`_walk`'s filter,
+                                so a raise inside a nested ``def`` that closes
+                                over the store derives nothing. MEASURED to
+                                leak, planted and run.
+     an augmented store         ``last += exc`` binds what ``__iadd__``
+                                returned rather than the caught exception, so
+                                it is refused DELIBERATELY - see
+                                :func:`_stored_binding` - and not missed.
                                 Refused by construction, not measured.
+     any other iterable         ``for last in kept:`` and ``for last in (exc,
+                                other):`` bind an element this walk cannot
+                                name; only a one-element sequence literal is
+                                resolved. Refused by construction, not
+                                measured.
+
+   THOSE LAST TWO ROWS ARE THE ONLY UNMEASURED ONES, AND THAT DISTINCTION IS
+   THE CS-881 RESIDUAL-3 REPAIR. This table and the one in
+   :func:`_handler_stores` disagreed about the attribute and subscript family -
+   one calling it "refused by construction, not measured", the other calling it
+   "MEASURED to leak" - and two tables contradicting each other is worse than
+   either being wrong alone, because a reader who finds one has no reason to
+   look for the other. Every row either carries a plant that RAN or says
+   plainly that it does not.
 
    ONE SHAPE IS DELIBERATELY LEFT TO :class:`Site`: a deferred raise written
    inside ANOTHER handler, which is already a :data:`FORM_IMPLICIT` site. That
@@ -479,6 +518,11 @@ CLONE_FIELDS: Final = frozenset({"errno", "strerror"})
 #: renders ``[WinError None]`` besides. Every shipped copy of the idiom records
 #: having measured that.
 _CLONE_ARITY: Final = 2
+
+#: How many elements a sequence literal may hold before :func:`_sole_element`
+#: stops being able to say which one a ``for`` target ends up bound to. Named
+#: so no bare number sits in that predicate.
+_ONE_ELEMENT: Final = 1
 
 #: Scopes a handler body does not execute in line. A statement inside a nested
 #: function runs in ITS frame with its own ``sys.exc_info()``, so it is not this
@@ -1348,8 +1392,17 @@ def _form_of(node: ast.Raise, handler: ast.ExceptHandler | None) -> str | None:
 
     Returns:
         The form, or None when the raise opens no chain at all - a plain
-        ``raise X(...)`` outside every handler, which is 158 of the 192 raises
-        in the tracked tree and is deliberately not in the population.
+        ``raise X(...)`` outside every handler. That answer is the MAJORITY of
+        the tracked tree's raises and is deliberately not in the population.
+
+        NO COUNT IS WRITTEN HERE, AND THE PAIR THAT USED TO BE WAS WRONG IN
+        BOTH HALVES. It was filed by CS-857, was never derived again, and had
+        drifted by more than eighty raises before an adjudicator re-measured it
+        - a hardcoded count in a doc being a lie with a timestamp on it,
+        ``CLAUDE.md`` section 4. The partition is DERIVED and reported on every
+        run by ``test_the_uncensused_raise_partition_is_derived_not_written``,
+        which also fails on any transcribed pair that has gone stale, so a
+        future reader gets a live number rather than a dead one.
     """
     if node.cause is not None:
         if isinstance(node.cause, ast.Constant) and node.cause.value is None:
@@ -2528,13 +2581,79 @@ def _written_handler_type(handler: ast.ExceptHandler) -> str:
     return ast.unparse(handler.type) if handler.type is not None else NO_HANDLER
 
 
+def _sole_element(iterated: ast.expr) -> ast.expr | None:
+    """The one element of a single-item sequence LITERAL, if it is one.
+
+    THE ONLY ITERABLE A ``for`` TARGET CAN BE RESOLVED AGAINST STATICALLY.
+    ``for last in (exc,):`` runs exactly once and binds ``last`` to ``exc``
+    before the body executes, so the binding holds however the body ends -
+    ``break`` and ``continue`` included. Anything else is refused: ``for last
+    in kept:`` binds an element this walk cannot name, and ``for last in (exc,
+    other):`` leaves the loop bound to whichever element it stopped on. Both
+    are silences and are stated as such in limit 13 rather than guessed at.
+
+    Args:
+        iterated: The ``iter`` expression of a ``for`` or ``async for``.
+
+    Returns:
+        The single element, or None when the iterable is anything else.
+    """
+    if isinstance(iterated, (ast.Tuple, ast.List)) and len(iterated.elts) == _ONE_ELEMENT:
+        return iterated.elts[0]
+    return None
+
+
+def _stored_binding(node: ast.AST) -> tuple[tuple[ast.expr, ...], ast.expr | None]:
+    """The TARGETS one binding statement writes, and the value it writes there.
+
+    FIVE STATEMENT FORMS BIND A NAME TO A VALUE THE WRITER NAMED, and reading
+    only ``ast.Assign`` was the CS-881 residual-2 defect: an ``ast.AnnAssign``
+    and an ``ast.NamedExpr`` each bind a BARE LOCAL to the handler's own
+    binding, in the same scope, which is precisely the positive fact
+    :class:`DeferredRaiseSite` says it keys on. Both were MEASURED to leak
+    while deriving nothing, and ``last: OSError | None = exc`` is ordinary
+    house style in a tree this heavily annotated rather than an adversarial
+    spelling.
+
+    ``ast.AugAssign`` IS DELIBERATELY ABSENT although :data:`_TARGETED_STATEMENTS`
+    lists it, and the difference between the two tuples is the whole reason
+    this is a separate function. That tuple answers "what names does this
+    REBIND", where an extra member can only WITHDRAW a clearance and being wide
+    is the safe direction. This one answers "is the stored value the handler's
+    OWN binding", where a wrong member INVENTS a finding. ``last += exc``
+    stores what ``__iadd__`` returned, which is not the caught exception, so
+    reading it as a store would over-report a shape nobody writes.
+
+    Args:
+        node: Any node from the walk.
+
+    Returns:
+        The target expressions and the bound value. ``((), None)`` for a node
+        this walk does not read as a binding at all. A caller must still check
+        the value, because an annotation with no value - ``last: OSError`` -
+        comes back with a target and a None beside it.
+    """
+    if isinstance(node, ast.Assign):
+        return tuple(node.targets), node.value
+    if isinstance(node, (ast.AnnAssign, ast.NamedExpr)):
+        return (node.target,), node.value
+    if isinstance(node, (ast.For, ast.AsyncFor)):
+        return (node.target,), _sole_element(node.iter)
+    return (), None
+
+
 def _handler_stores(tree: ast.Module) -> Iterator[tuple[tuple[str, ...], ast.ExceptHandler, str]]:
-    """Every place a handler assigns its OWN binding to a plain local name.
+    """Every place a handler binds its OWN exception to a plain local name.
+
+    WHAT IS FOLLOWED is :func:`_stored_binding`'s five forms - a plain
+    assignment, an annotated one, a walrus, and a ``for`` or ``async for`` over
+    a single-element sequence literal - written in the handler's own scope,
+    whose value is the handler's binding and whose target is a bare name.
 
     THE FOUR REFUSALS ARE FOUR STATED SILENCES, not four spellings of one rule.
     Each is planted, RUN and measured in ``tests/test_chained_cause_census.py``,
-    and the two that leak are named there as under-reports rather than left to
-    be discovered:
+    and every one that leaks is named there as an under-report rather than left
+    to be discovered:
 
       value is not the binding    ``last = OSError(...)`` inside the handler
                                   binds a fresh error, and raising it later
@@ -2543,17 +2662,24 @@ def _handler_stores(tree: ast.Module) -> Iterator[tuple[tuple[str, ...], ast.Exc
                                   two-step forward is NOT followed, so a raise
                                   of ``last`` is derived by nothing. MEASURED
                                   to leak.
-      target is not a bare name   ``holder.last = exc``, ``held[0] = exc`` and
-                                  a tuple unpack bind no local this walk can
-                                  follow. A store into a CONTAINER -
+      target binds no local name  ``holder.last = exc`` writes through an
+                                  attribute and ``held[0] = exc`` through a
+                                  subscript; a store into a CONTAINER -
                                   ``held.append(exc)`` - is not an assignment
-                                  at all. MEASURED to leak.
+                                  at all. ALL THREE MEASURED to leak. A tuple
+                                  unpack never reaches this leg: its value is
+                                  a tuple rather than the handler's binding,
+                                  so the value check above refuses it first.
       the handler binds nothing   ``except OSError:`` has no binding to store,
                                   so there is no object to defer.
 
     THE SCOPE FILTER IS :func:`_walk`'S, which is what makes "the same scope" a
     fact rather than a nesting depth: a statement inside a nested ``def`` runs
-    in ITS frame and comes back with no active handler at all.
+    in ITS frame and comes back with no active handler at all. A ``lambda``
+    resets it the same way, so a walrus written inside one is not followed -
+    correctly, because that walrus binds in the lambda's frame. A walrus inside
+    a COMPREHENSION is followed, and that is correct too: PEP 572 binds it in
+    the containing scope, which is the scope this walk reports for it.
 
     Args:
         tree: The parsed module.
@@ -2564,11 +2690,10 @@ def _handler_stores(tree: ast.Module) -> Iterator[tuple[tuple[str, ...], ast.Exc
     for node, scope, handler in _walk(tree, (), None):
         if handler is None or not handler.name:
             continue
-        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.Name):
+        targets, value = _stored_binding(node)
+        if not isinstance(value, ast.Name) or value.id != handler.name:
             continue
-        if node.value.id != handler.name:
-            continue
-        for target in node.targets:
+        for target in targets:
             if isinstance(target, ast.Name):
                 yield scope, handler, target.id
 
