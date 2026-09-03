@@ -14,11 +14,20 @@ plants are source STRINGS rather than files, so the sweep is exercised on input
 that cannot drift when the tree does, and no arm here depends on a live finding
 staying live.
 
-THE DEFERRAL PATH IS EXERCISED ONLY SYNTHETICALLY TODAY, and that is measured
-rather than assumed: ``test_no_live_module_defers_so_the_plant_is_the_only_proof``
-asserts it. The census arms read ``__cause__`` on live exceptions and never touch
-a Raise node's cause, so they are out of the population entirely rather than
-deferred. Should that change, the arm reddens and this note is what explains it.
+THE DEFERRAL PATH IS NOW EXERCISED LIVE AS WELL AS SYNTHETICALLY, and this note
+records the change rather than being overtaken by it. It read "synthetically
+only" until CS-885 added ``tests/pathless_clone_guard.py``, which reads a Raise
+node's cause to derive which same-module helper each chained site leans on, and
+hands the question of what that cause MEANS to the census by importing it. The
+arm that reddened on the change is preserved below as
+``test_every_live_deferring_module_actually_defers``: it no longer asserts the
+set is empty - that claim is simply false now - but it still holds the property
+the empty assertion was standing in for, which is that a module in that set both
+reads a cause AND imports the owner, and is therefore absent from the findings.
+
+THE CENSUS ARMS THEMSELVES ARE STILL NOT IN THE POPULATION AT ALL. They read
+``__cause__`` on live exceptions, which is measurement rather than adjudication,
+and the separation between the two names is what keeps them out.
 """
 
 from __future__ import annotations
@@ -225,24 +234,38 @@ def test_the_recorded_module_is_in_the_population_it_is_recorded_for() -> None:
     assert not stale, f"exemption(s) outlived the code they describe: {stale}"
 
 
-def test_no_live_module_defers_so_the_plant_is_the_only_proof() -> None:
-    """The deferral branch is exercised synthetically today, and that is stated.
+def test_every_live_deferring_module_actually_defers() -> None:
+    """The deferral branch, measured on whatever live modules take it.
 
-    If a live module ever both reads a cause and imports the census, this arm
-    reddens and the module docstring's note about the deferral path stops being
-    true. That is the point: the note cannot rot quietly.
+    THIS ARM REPLACED AN ASSERTION THAT THE SET WAS EMPTY, and the replacement
+    is deliberately not "assert it is non-empty" - that would redden the day the
+    last deferring module is removed, which is a repair rather than a defect.
+    What it holds instead is the property the empty assertion was standing in
+    for: a module the guard treats as deferring must genuinely read a cause AND
+    genuinely import the owner, and must therefore NOT be reported as an
+    unrecorded adjudicator. An empty set passes that vacuously, so the count is
+    reported rather than asserted, and the synthetic plants above remain the
+    proof that the branch fires at all.
     """
     sources = guard.tracked_sources()
-    deferring = [
+    trees = {module: ast.parse(source) for module, source in sources.items()}
+    deferring = sorted(
         module
-        for module, source in sources.items()
-        if guard.static_cause_reads(ast.parse(source)) and guard.defers_to_owner(ast.parse(source))
-    ]
-
-    assert not deferring, (
-        "a live module now defers to the census; the deferral branch is no longer "
-        f"synthetic-only and this module's docstring must say so: {deferring}"
+        for module, tree in trees.items()
+        if guard.static_cause_reads(tree) and guard.defers_to_owner(tree)
     )
+    reported = {finding.module for finding in guard.adjudicators()}
+    leaked = sorted(module for module in deferring if module in reported)
+
+    count = len(leaked)
+    assert count == 0, f"{count} deferring module(s) were still reported as adjudicators: {leaked}"
+
+    doubly = sorted(module for module in deferring if module in guard.EXEMPT)
+    assert not doubly, (
+        "a deferring module also carries an exemption entry; the entry records a reason "
+        f"nothing needs and is free to rot: {doubly}"
+    )
+    assert guard.OWNER not in deferring, "the owner was counted as deferring to itself"
 
 
 # ---------------------------------------------------------------------------

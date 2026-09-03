@@ -75,6 +75,63 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-02 - CS-885 - CLOSED. The four copies of the path-free clone are compared on every run, and the route was chosen by measuring what the alternative would cost rather than by preference
+`_pathless_cause` ships in four modules - `clockspeed/save/workdir.py`,
+`clockspeed/save/usmap.py`, `clockspeed/surface/config.py` and `scripts/make_cert.py` -
+with no owner and nothing comparing them. The acceptance offered two routes and the builder
+took the arm, on a measurement rather than a preference.
+
+WHY NOT A SHARED OWNER. The CS-884 clearance is STRUCTURALLY same-module: it clears a slot
+only when it is a bare-name call to a function defined at module level in THAT module.
+Planted and graded: rewriting a site to call a shared owner through an import - bare name or
+dotted - drops it from `closed-pathless` to `unproven`, ALL EIGHT LIVE SITES AT ONCE.
+Preserving them would mean teaching the clearance to resolve imported names across modules,
+over aliases, dotted calls, re-exports and shadowing - a WIDENING of the predicate that
+ISSUES a clearance on the privacy channel, which is the one direction that predicate must
+never err in. The duplication stays and is made safe instead.
+
+THE ITEM'S OWN PREMISE WAS TOO GENEROUS AND THE BUILDER MEASURED IT DOWN. The merger's brief
+said an unsafe drift "would likely become measured-leak and be reported". Measured, one of
+three does: `return exc` reddens, while ADDING `filename` BACK - the exact leak this helper
+exists to prevent - and `OSError(errno, str(exc))` - the CS-878 leak class - both land in
+`unproven` beside 27 shapes nobody has looked at. Both live-tree arms `pytest.skip` rather
+than fail when the clearance loses members. So for the single most likely unsafe edit,
+detection was ABSENT rather than partial.
+
+MEMBERSHIP COMES FROM CALL SITES, NEVER FROM BODIES OR NAMES, and the two cheaper derivations
+were rejected as ANTI-CORRELATED WITH THE DEFECT: by name, an adversary escapes by renaming;
+by CS-884's qualification walk, a copy that drifts unsafely DROPS OUT of the population,
+leaving the survivors in agreement and the arm green. Both evasions are planted and executed.
+Three legs - the population is non-empty, the bodies agree, and every member still qualifies.
+
+VERIFIED INDEPENDENTLY BY THE MERGER: three unsafe drifts planted into a four-copy population
+- filename restored, `str(exc)` rendered, and the original returned - are each caught on BOTH
+legs, and an all-agreeing population stays green. Census before and after: the eight
+`closed-pathless` sites are identical in module and line, `unproven` unchanged at 16, and
+`closed-suppressed` rises 12 to 13 - the new guard's own `raise ... from None`.
+
+TWO MERGER CLAIMS WERE CORRECTED. `clockspeed/surface/config.py` does not "deliberately import
+nothing from another package" - its recorded objection is narrower, to reaching for another
+package's PRIVATE underscore name, and `clockspeed/surface/providers.py` already imports from
+`clockspeed.data`. That module's docstring calls a single shared owner "the correct repair",
+which this item measured to be more expensive than it reads; correcting that docstring is
+left to the operator rather than one slice rewriting another's recorded reasoning.
+
+A SCOPE EXPANSION WAS REPORTED RATHER THAN BURIED. The new guard is the first LIVE module to
+both read an `ast.Raise` cause and defer to the census by importing it, so
+`tests/test_chained_exemption_guard.py`'s "synthetically only" arm went red by design. The
+arm was replaced with one holding the property the empty-set assertion stood in for, without
+asserting non-emptiness - which would redden on a future repair.
+
+Eleven mutants, one survivor on the first pass - a real gap, no arm pinned the slot shape -
+which drew a new arm; the second pass killed 11 of 11. Arms:
+`tests/test_pathless_clone_agreement.py`. Suite 4394 to 4420.
+
+FOUR COPIES STILL EXIST, and that is the trade taken deliberately rather than a cost hidden.
+Agreement is not safety: four identically-drifted copies leave `disagreements` empty, and only
+the qualification leg catches that - a leg whose authority is entirely CS-884's.
+
+
 ### 2026-09-02 - CS-884 - CLOSED. The census has a verdict that means REPAIRED, it rests on what a callee constructs rather than on what it is named, and a static clearance is cross-checked against a real interpreter
 The only positive clearance was `FORM_SUPPRESSED and raises_local_class`, which the remedy
 this project actually ships satisfies neither of - so every site CS-857 ever repaired graded

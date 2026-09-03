@@ -1492,25 +1492,3 @@ different populations while sitting in the same file.
 acceptance, and a zero that quietly changes its own population is the fault CS-879 was filed
 against. It is recorded as a real gap rather than a stylistic one.
 
-
-## CS-885
-
-### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BEFORE FILING
-
-**FOUR COPIES, ONE BEHAVIOUR, NO OWNER.** `_pathless_cause` is defined in
-`clockspeed/save/workdir.py`, `clockspeed/save/usmap.py`, `clockspeed/surface/config.py` and
-`scripts/make_cert.py`. Their executable bodies were compared by AST with docstrings stripped
-and all four hash identically to `return OSError(exc.errno, exc.strerror)`, so nothing has
-drifted YET.
-
-**NOTHING WOULD NOTICE IF ONE DID.** Only two test modules mention the helper at all and each
-names a single copy. No arm compares any two. This is `CLAUDE.md` section 4's own principle -
-a restated fact is a fact that will drift - applied to a helper the privacy rules depend on
-rather than to prose.
-
-**EACH COPY WAS THE RIGHT LOCAL CALL AND THE FOURTH IS STILL A COLLISION.** `surface/`
-reaching into a private underscore name of `save/` is the seam violation `CLAUDE.md` section
-2.1 names, and `clockspeed/surface/config.py` had already made the identical call once for
-`repo_root`. The CS-857a builder reported the fourth copy as a seam collision rather than
-creating a shared owner outside its write-list, which is the correct escalation and is why
-this item exists rather than a silent fifth copy.
