@@ -39,6 +39,8 @@ from tests.chained_cause_guard import (
     tracked_sources,
 )
 from tests.pathless_clone_guard import (
+    CARDINALS,
+    DOCSTRING_PINS,
     ORDINALS,
     PRICING_COPY,
     Copy,
@@ -47,6 +49,7 @@ from tests.pathless_clone_guard import (
     copies_in_sources,
     copy_docstrings,
     disagreements,
+    docstring_digest,
     flatten,
     graded_sources,
     missing_cost_phrases,
@@ -56,6 +59,7 @@ from tests.pathless_clone_guard import (
     reliances_in_sources,
     restated_counts,
     stale_excuses,
+    unpinned_docstrings,
     unqualified,
 )
 
@@ -76,6 +80,23 @@ LIVE_COPIES: Final = 4
 #: The promise CS-886 was filed against, planted verbatim so the sweep is
 #: proven against the sentence that actually shipped rather than a paraphrase.
 PROMISE: Final = "A single shared owner is the correct repair."
+
+#: THE SAME PROMISE, OUTSIDE THE VOCABULARY. :data:`PROMISE` carries two of the
+#: four ``OWNER_PHRASES`` spellings verbatim, so a control planted with it
+#: proves the phrase leg fires on the shape it already models - which is
+#: precisely the shape an evasion avoids
+#: (``memory/a-guard-can-measure-spelling.md``). This says the same thing in
+#: other words and contains not one of the four. It is what the pin is measured
+#: against, and the phrase leg's blindness to it is asserted rather than
+#: described, so the disclosure on ``OWNER_PHRASES`` cannot quietly stop being
+#: true.
+PARAPHRASE: Final = "A single shared implementation is the right fix."
+
+#: The digit that ends ``filename2``, and therefore the count every text on
+#: this channel falsely reddens on. NOT :data:`PLANTED_PAIR`, which happens to
+#: hold the same number for an unrelated reason - reusing it would be the same
+#: accidental equality the derived restated-count control exists to remove.
+FIELD_SUFFIX: Final = 2
 
 # ---------------------------------------------------------------------------
 # Planted material
@@ -441,6 +462,15 @@ def test_a_module_that_does_not_parse_is_loud_rather_than_skipped() -> None:
 # and DECLINED it, so the text recommended to a later reader something this
 # project had already rejected, and said nothing about the price. These arms
 # hold the replacement to the live census instead of to a number typed into it.
+#
+# THE "NO OTHER COPY PROMISES IT" VERDICT RESTS ON TWO LEGS, and only the
+# second one is fail-safe. ``promising_copies`` reads a CLOSED vocabulary of
+# four phrases, so it names what it finds but an open set of paraphrases walks
+# past it - measured, on a live copy, below. ``unpinned_docstrings`` asks the
+# closed question instead: is this the text that was read and signed off. A
+# paraphrase changes the bytes, so the pin catches what the phrases cannot, and
+# the pair is planted with one sentence each down the same path so that the gap
+# between them is asserted rather than assumed.
 
 #: The would-be shared owner, in a module of its own.
 OWNER_MODULE = '''"""The owner the collapse would create."""
@@ -515,16 +545,22 @@ def _pricing_docstring() -> str:
     return text
 
 
-def _with_promise(source: str, copy: Copy) -> str:
-    """Plant the CS-886 promise inside one helper's docstring.
+def _with_line(source: str, copy: Copy, line: str) -> str:
+    """Plant one sentence inside one helper's docstring.
 
     The line goes INSIDE the existing string literal, immediately after its
     opening line, so the ``def`` keeps the line number the population was
     derived at and nothing but the docstring changes.
 
+    TAKES THE SENTENCE RATHER THAN SPELLING IT, so :data:`PROMISE` and
+    :data:`PARAPHRASE` reach the detectors down the identical path. A separate
+    planter per sentence is a place the two controls could differ by accident,
+    and the whole point of the pair is that only the SENTENCE differs.
+
     Args:
         source: The module source.
         copy: The copy whose docstring is the target.
+        line: The sentence to plant.
 
     Returns:
         The mutated source.
@@ -537,7 +573,7 @@ def _with_promise(source: str, copy: Copy) -> str:
     doc = node.body[0]
     assert isinstance(doc, ast.Expr), "the target helper carries no docstring to plant into"
     lines = source.splitlines(keepends=True)
-    return "".join([*lines[: doc.lineno], f"    {PROMISE}\n", *lines[doc.lineno :]])
+    return "".join([*lines[: doc.lineno], f"    {line}\n", *lines[doc.lineno :]])
 
 
 def test_routing_a_site_through_a_shared_owner_loses_its_clearance() -> None:
@@ -642,7 +678,7 @@ def test_the_sweep_reddens_on_a_promise_planted_in_a_live_copy() -> None:
     sources = dict(graded_sources())
     clean = promising_copies(population, sources)
     assert not clean, f"the tree already carries the promise, so the plant proves nothing: {clean}"
-    sources[victim.module] = _with_promise(sources[victim.module], victim)
+    sources[victim.module] = _with_line(sources[victim.module], victim, PROMISE)
     caught = promising_copies(population, sources)
     assert caught == (victim.key,), f"the planted promise went unreported, got {caught}"
 
@@ -663,17 +699,195 @@ def test_the_pricing_exemption_is_scoped_to_one_module() -> None:
     assert found == ("b.py::_pathless_cause",), f"the exemption is not module-scoped: {found}"
 
 
+def test_every_copy_outside_the_pricing_one_carries_the_docstring_it_was_read_with() -> None:
+    """FINDING 1 - THE ACCEPTANCE, AND IT IS POSITIVE AND CLOSED.
+
+    ``test_no_other_copy_promises_that_a_shared_owner_is_correct`` issues a
+    verdict over an OPEN set: it reads four phrases and clears every other form
+    of words, so its green says "none of four spellings" while reading as "no
+    copy promises the collapse". This arm asks the closed question instead -
+    is each of these docstrings the text that was read and signed off - and
+    refuses everything else.
+
+    THE TABLE MUST COVER EXACTLY THE POPULATION, asserted in both directions. A
+    pin for a module no copy lives in is a reading of something that is no
+    longer there, and a copy no pin covers is the fail-open case coming back.
+    """
+    population = copies()
+    findings = unpinned_docstrings(population, graded_sources())
+    assert not findings, (
+        f"{len(findings)} copies do not carry the docstring they were read with: {findings}. "
+        f"Re-read each, confirm it does not name the collapse, then update DOCSTRING_PINS."
+    )
+    graded = {copy.module for copy in population if copy.module != PRICING_COPY}
+    assert graded, "no copy outside the pricing one, so the pin table graded nothing"
+    assert set(DOCSTRING_PINS) == graded, (
+        f"the pin table and the population disagree: "
+        f"unpinned {sorted(graded - set(DOCSTRING_PINS))}, "
+        f"orphaned {sorted(set(DOCSTRING_PINS) - graded)}"
+    )
+    assert PRICING_COPY not in DOCSTRING_PINS, (
+        "the pricing copy is pinned, so its price cannot move"
+    )
+
+
+def test_the_pin_reddens_on_a_paraphrase_the_phrase_sweep_cannot_see() -> None:
+    """FINDING 1 - THE MUTATION, AND THE TWO LEGS MEASURED AGAINST EACH OTHER.
+
+    ONE PLANT, BOTH DETECTORS. :data:`PARAPHRASE` says what :data:`PROMISE`
+    says and contains none of the four ``OWNER_PHRASES`` spellings. The phrase
+    leg is asserted SILENT on it - that is the disclosure on ``OWNER_PHRASES``
+    proven by execution rather than described, so it cannot quietly stop being
+    true - and the pin is asserted to report exactly the copy it was planted
+    in.
+
+    Both plants go through :func:`_with_line` into a fabricated copy of a LIVE
+    module's source, so the whole path is exercised and the only difference
+    between the two controls is the sentence.
+    """
+    population = copies()
+    victim = next(copy for copy in population if copy.module != PRICING_COPY)
+    sources = dict(graded_sources())
+    assert not unpinned_docstrings(population, sources), "the tree is already off its pins"
+    sources[victim.module] = _with_line(sources[victim.module], victim, PARAPHRASE)
+    blind = promising_copies(population, sources)
+    assert blind == (), (
+        f"the phrase leg reported {blind} on a paraphrase outside its vocabulary, so this "
+        f"control no longer measures the gap the pin exists to cover - pick another paraphrase"
+    )
+    caught = unpinned_docstrings(population, sources)
+    assert len(caught) == 1, f"the planted paraphrase moved {len(caught)} pins, wanted one"
+    assert caught[0].startswith(f"{victim.key} "), f"the pin blamed the wrong copy: {caught}"
+
+
+def test_the_pin_refuses_a_copy_it_has_no_reading_for() -> None:
+    """A PIN THAT SILENTLY PASSES WHAT IT CANNOT READ IS THE DEFECT AGAIN.
+
+    Three refusals, each of which would otherwise be a way past the verdict: a
+    module the table has never seen, a copy carrying no docstring at all, and
+    the pricing copy - which must go on being exempt, or the arm above is just
+    a slower way of pinning everything.
+    """
+    unknown = copies_in_sources({"b.py": _module()})
+    assert len(unknown) == 1, "the fabricated module produced no member"
+    findings = unpinned_docstrings(unknown, {"b.py": _module()})
+    assert len(findings) == 1, f"an unpinned module was cleared: {findings}"
+    assert "unpinned" in findings[0], f"the finding does not say it was never read: {findings}"
+    bare = _module().replace('    """Clone it."""\n', "")
+    silent = copies_in_sources({"b.py": bare})
+    assert len(silent) == 1, "the docstring-free helper fell out of the population"
+    missing = unpinned_docstrings(silent, {"b.py": bare})
+    assert len(missing) == 1, f"a copy with no docstring was cleared: {missing}"
+    assert "no docstring" in missing[0], f"the finding does not name the cause: {missing}"
+    exempt = copies_in_sources({PRICING_COPY: _module()})
+    assert unpinned_docstrings(exempt, {PRICING_COPY: _module()}) == ()
+
+
+def test_the_pin_is_taken_over_the_words_and_not_the_line_wrapping() -> None:
+    """THE ONE EDIT THE PIN DELIBERATELY DOES NOT REDDEN ON.
+
+    A pin sensitive to re-wrapping would be re-pinned unread often enough to
+    stop being read at all, which is how a fail-safe control decays back into
+    a fail-open one. Every WORD still moves it.
+    """
+    wrapped = "A single shared\n    owner is the CORRECT\n    repair"
+    assert docstring_digest(wrapped) == docstring_digest(PROMISE.rstrip("."))
+    assert docstring_digest(PROMISE) != docstring_digest(PARAPHRASE)
+
+
 def test_the_restated_count_leg_fires_on_a_digit_and_on_a_word() -> None:
     """THE LEG THAT KEEPS THE MAGNITUDE OUT OF THE PROSE, AND ITS FALSE-RED CONTROL.
 
+    THE COUNT IS THE LIVE ONE, DERIVED. This control used to spell it as a
+    literal in all four cases, which equalled the live count only by accident:
+    it proved the leg works at a number the tree happens to sit on today and
+    would have kept passing unchanged while the tree walked away from it. The
+    two acceptance arms call this predicate with ``len(reliances())``, so that
+    is the count it has to be proven at.
+
     The last case is the one that matters: item ids on this channel carry an
     eight, and a leg that graded ``CS-885`` as a restatement of eight would be
-    unusable on the very docstring it exists for.
+    unusable on the very docstring it exists for. It holds at any single-digit
+    count - both ids spell theirs with a digit on at least one side.
     """
-    assert restated_counts("all 8 sites drop at once", 8) == ("8",)
-    assert restated_counts("all eight sites drop at once", 8) == ("eight",)
-    assert restated_counts("8 sites, eight of them", 8) == ("8", "eight")
-    assert restated_counts("CS-885 priced it and CS-857 measured it", 8) == ()
+    live = len(reliances())
+    assert 0 < live < len(CARDINALS), (
+        f"{live} relying sites is outside what this control can spell, so it graded nothing"
+    )
+    word = CARDINALS[live]
+    assert restated_counts(f"all {live} sites drop at once", live) == (str(live),)
+    assert restated_counts(f"all {word} sites drop at once", live) == (word,)
+    assert restated_counts(f"{live} sites, {word} of them", live) == (str(live), word)
+    assert restated_counts("CS-885 priced it and CS-857 measured it", live) == ()
+
+
+def test_the_restated_count_leg_refuses_a_count_its_vocabulary_cannot_spell() -> None:
+    """FINDING 3 - THE SILENT DEGRADATION, CLOSED.
+
+    The word leg was gated on the same bound the table has, so past the end of
+    :data:`CARDINALS` it simply did not run: the arm dropped from two legs to
+    one and nothing said so, leaving ``assert not restated`` satisfied by a
+    docstring that spelled the number in words. The live relying-site count is
+    what gets passed in, so the tree only had to grow to reach it.
+
+    BOTH SIDES OF THE EDGE ARE ASSERTED. A refusal that also fired one short of
+    the bound would be a different bug wearing the same green.
+    """
+    edge = len(CARDINALS)
+    with pytest.raises(ValueError, match="cannot spell"):
+        restated_counts("all eleven sites drop at once", edge)
+    with pytest.raises(ValueError, match="cannot spell"):
+        restated_counts("a negative population is not a count", -1)
+    inside = restated_counts(f"all {CARDINALS[edge - 1]} sites drop at once", edge - 1)
+    assert inside == (CARDINALS[edge - 1],), (
+        f"the leg stopped working inside its own table: {inside}"
+    )
+
+
+def test_the_restated_count_leg_discloses_the_counts_it_falsely_reddens_on() -> None:
+    """FINDING 2 - THE UNDISCLOSED FALSE-RED BOUNDARY, MEASURED AND REPORTED.
+
+    The disclosure named the count-of-one collision and stopped, which read as
+    though it were the only one. It is not. This arm MEASURES the whole set
+    over both texts the predicate is actually pointed at, warns it so a reader
+    meets the current boundary rather than a sentence about it, and pins the
+    two mechanisms that make the set permanent rather than incidental:
+
+      * ``filename2`` puts a digit beside a LETTER, and the digit leg is
+        bounded only against digits. Both live texts name that attribute -
+        they exist because of it - so a count of two is a false red on this
+        channel for as long as the channel is about what it is about.
+      * The set is not written into any docstring. It is a measurement of the
+        prose, and CLAUDE.md section 4 is why this arm reports it instead.
+
+    A SET THAT CAME BACK EMPTY WOULD MEAN THE MEASUREMENT BROKE, not that the
+    prose got clean, so non-emptiness is asserted rather than assumed
+    (``memory/an-empty-population-satisfies-every-zero.md``).
+    """
+    texts = {
+        "tests/pathless_clone_guard.py module": pathless_clone_guard.__doc__ or "",
+        f"{PRICING_COPY} helper": _pricing_docstring(),
+    }
+    live = len(reliances())
+    report: list[str] = []
+    for label, text in texts.items():
+        assert text, f"{label} carried no text, so this arm measured nothing"
+        falsely = tuple(n for n in range(len(CARDINALS)) if restated_counts(text, n))
+        report.append(f"  {label}: {falsely}")
+        assert falsely, f"{label} reddens on no count at all, so the measurement broke"
+        assert FIELD_SUFFIX in falsely, f"{label} does not name filename2, so it moved"
+        assert live not in falsely, (
+            f"{label} falsely reddens on the live count {live}, which is what the two "
+            f"acceptance arms pass in - they are now measuring a collision, not a restatement"
+        )
+    warnings.warn(
+        "CS-886: restated_counts falsely reddens on these counts, measured this run:\n"
+        + "\n".join(report),
+        stacklevel=1,
+    )
+    disclosure = flatten(restated_counts.__doc__ or "")
+    assert "filename2" in disclosure, "the disclosure does not name the letter-adjacent digit"
+    assert "hyphenated" in disclosure, "the disclosure does not name the hyphenated cardinal"
 
 
 def test_the_guard_module_states_the_shape_without_restating_its_size() -> None:

@@ -75,6 +75,7 @@ WHAT THIS MODULE DOES NOT COVER, stated as a boundary rather than left implied:
 from __future__ import annotations
 
 import ast
+import hashlib
 import re
 from copy import deepcopy
 from dataclasses import dataclass
@@ -474,6 +475,19 @@ PRICING_COPY: Final = "clockspeed/surface/config.py"
 #: raises the subject is already drift, because a reader who meets it there has
 #: no way to tell a live proposal from a settled refusal with no price beside
 #: it. Routing the reader to the one copy that carries the price is the point.
+#:
+#: THIS VOCABULARY IS CLOSED, AND A PARAPHRASE ESCAPES IT. Four spellings are
+#: read; a docstring naming the collapse in any other words is INVISIBLE to
+#: :func:`promising_copies` rather than cleared by it. That is the same limit
+#: ``tests/exception_message_guard.py`` states about its own form vocabulary,
+#: and stating it is not enough here, because unlike that one this population
+#: carries a POSITIVE verdict - "no other copy promises it" - over an open set
+#: of English paraphrases. ``memory/a-guard-can-measure-spelling.md``: a
+#: clearance keyed on a spelling costs a reader the belief that they need to
+#: look. :data:`DOCSTRING_PINS` is what makes the verdict fail-safe, and this
+#: leg survives beside it because it NAMES the phrase it found, which a digest
+#: cannot. MEASURED, not argued: a paraphrase this leg cannot see and the pin
+#: can is planted and executed in ``tests/test_pathless_clone_agreement.py``.
 OWNER_PHRASES: Final = ("shared owner", "single owner", "one owner", "correct repair")
 
 #: What :data:`PRICING_COPY`'s docstring must carry for its claim to be PRICED
@@ -614,6 +628,118 @@ def promising_copies(population: Sequence[Copy], sources: Mapping[str, str]) -> 
     )
 
 
+#: The docstring every copy outside :data:`PRICING_COPY` was READ WITH, as a
+#: digest. THE POINT IS THE POLARITY. :func:`promising_copies` asks "does this
+#: text contain one of four bad phrases" and clears everything else, so its
+#: green is a statement about four spellings and an open set of paraphrases
+#: walks past it. This asks "is this text the one a human read and signed off",
+#: and refuses everything else. An unrecognised docstring is a FINDING, so the
+#: five paraphrases measured silent against the phrase leg are all caught here
+#: by construction: they change the bytes.
+#:
+#: KEYED ON THE MODULE, NOT THE :attr:`Copy.key`, for the reason
+#: :data:`PRICING_COPY` is: the population is deliberately name-blind, and a
+#: pin keyed on the helper's name would redden on a rename, which is the one
+#: edit this whole module argues must not move a verdict.
+#:
+#: THE PRICING COPY IS ABSENT ON PURPOSE. It is the one docstring ALLOWED to
+#: name the collapse, and :func:`missing_cost_phrases`, :func:`stale_excuses`,
+#: :func:`names_its_ordinal` and :func:`restated_counts` already constrain it
+#: positively. Pinning it too would force a re-pin every time its priced
+#: paragraph is tuned, buying nothing.
+#:
+#: TWO ENTRIES SHARE A DIGEST, and that is a real reading rather than a
+#: copy-paste fault: two of the live helpers carry the same docstring verbatim.
+#: A pin over CONTENT says so; a pin over identity would have hidden it.
+#:
+#: THE COST, STATED. Any edit to one of these docstrings reddens until the pin
+#: is updated - including a harmless one. That is the fail-safe direction and
+#: it is the whole trade: the alternative is the fail-open one this table
+#: replaced. The remedy is in :func:`unpinned_docstrings`.
+DOCSTRING_PINS: Final = {
+    "clockspeed/save/usmap.py": "116415be94eb72dd4ef7a2875d05e179",
+    "clockspeed/save/workdir.py": "116415be94eb72dd4ef7a2875d05e179",
+    "scripts/make_cert.py": "e716e0d726c0e4351e9c70f65bcf80be",
+}
+
+#: Hex characters of SHA-256 kept in a pin. TRUNCATION IS SAFE HERE AND THE
+#: REASON IS NOT "a hash is a hash": 128 bits is far past what an author could
+#: collide by accident and past what an adversary could second-preimage while
+#: also writing readable English that promises the collapse. The budget it buys
+#: is the 100-column line, which a full digest does not fit beside the longest
+#: module path.
+PIN_WIDTH: Final = 32
+
+
+def docstring_digest(text: str) -> str:
+    """The pin a docstring reduces to.
+
+    TAKEN OVER :func:`flatten` RATHER THAN THE RAW TEXT, so a paragraph reflowed
+    to a different line width keeps its pin. Every WORD still moves it - which
+    is the property the fail-safe verdict rests on - but a re-wrap that changes
+    no word is not a finding, and a pin that reddened on one would be re-pinned
+    unread often enough to stop being read at all.
+
+    Args:
+        text: The docstring as written.
+
+    Returns:
+        The first :data:`PIN_WIDTH` hex characters of the SHA-256.
+    """
+    return hashlib.sha256(flatten(text).encode("utf-8")).hexdigest()[:PIN_WIDTH]
+
+
+def unpinned_docstrings(population: Sequence[Copy], sources: Mapping[str, str]) -> tuple[str, ...]:
+    """The copies outside :data:`PRICING_COPY` not carrying the pinned docstring.
+
+    THE FAIL-SAFE HALF OF THE CS-886 VERDICT. Three ways to be a finding, and
+    all three are the same refusal - this text is not one that was read:
+
+      1. THE DIGEST DIFFERS. Someone edited the docstring. Re-read it, confirm
+         it does not name the collapse, and update :data:`DOCSTRING_PINS`.
+      2. THE MODULE IS NOT PINNED AT ALL. A copy appeared where none was read.
+         Silence here would be the fail-open answer for every new copy the tree
+         ever grows, which is exactly the shape being repaired.
+      3. THE COPY CARRIES NO DOCSTRING. :func:`copy_docstrings` omits those
+         rather than passing an empty string, so a copy that lost its docstring
+         would otherwise satisfy every phrase test for free
+         (``memory/an-empty-population-satisfies-every-zero.md``). It is
+         reported here instead.
+
+    THE POPULATION IS WALKED, NOT THE PIN TABLE. Iterating the table would
+    grade only the modules already known, and case 2 is the one that matters
+    most.
+
+    Args:
+        population: The copies to check.
+        sources: Repo-relative module path to source text.
+
+    Returns:
+        One finding per offending copy, ordered, each naming the copy and what
+        was read. Empty is the passing answer.
+
+    Raises:
+        PathlessCloneDerivationError: A module did not parse, or a copy names a
+            module the mapping does not carry.
+    """
+    texts = copy_docstrings(population, sources)
+    found: list[str] = []
+    for copy in population:
+        if copy.module == PRICING_COPY:
+            continue
+        text = texts.get(copy.key)
+        if text is None:
+            found.append(f"{copy.key} carries no docstring")
+            continue
+        digest = docstring_digest(text)
+        pinned = DOCSTRING_PINS.get(copy.module)
+        if pinned is None:
+            found.append(f"{copy.key} is unpinned, reads {digest}")
+        elif digest != pinned:
+            found.append(f"{copy.key} reads {digest}, pinned {pinned}")
+    return tuple(sorted(found))
+
+
 def missing_cost_phrases(text: str) -> tuple[str, ...]:
     """The :data:`COST_PHRASES` a docstring does not carry.
 
@@ -675,12 +801,31 @@ def restated_counts(text: str, count: int) -> tuple[str, ...]:
     THE DIGIT TEST IS BOUNDED ON BOTH SIDES so an item id does not trip it:
     ``CS-885`` and ``CS-857`` each contain an eight and neither restates one.
 
-    A SHARP EDGE, STATED RATHER THAN HIDDEN: the cardinal for a small count is
-    an ordinary English word, so a population that fell to one would report the
-    ``one`` inside ``one owner``. That is a false red on a tree whose topology
-    has collapsed to a single relying site - a change that has to be looked at
-    anyway - and it is the safe direction for a leg whose other failure mode is
-    letting a stale number stand.
+    THE FALSE REDS ARE WIDER THAN THAT BOUND, AND WIDER THAN ONE COUNT. An
+    earlier draft of this paragraph disclosed a single case - the ``one`` inside
+    ``one owner`` - which read as though it were the only one. It is not, and
+    both legs collide with ordinary prose:
+
+      * THE DIGIT LEG IS BOUNDED AGAINST ADJACENT DIGITS, NOT ADJACENT LETTERS.
+        ``filename2`` trips a count of two, and that is not an accident waiting
+        to be tidied away: it is one of the two attribute names this entire
+        channel exists to keep out of a traceback, so every text this predicate
+        is pointed at names it. A section reference such as ``section 2.1`` and
+        a numbered-list marker such as ``3.`` trip it the same way.
+      * THE WORD LEG IS WORD-BOUNDARY BOUNDED, and a hyphen is not a word
+        character, so a HYPHENATED compound ending in a cardinal trips it -
+        ``twenty-seven`` carries a word-bounded ``seven``. And any small
+        cardinal is an ordinary English word besides.
+
+    THE MEASURED SET IS NOT WRITTEN DOWN HERE. Which counts a given text
+    falsely reddens on is a measurement of that text, and CLAUDE.md section 4
+    forbids restating one in prose for the same reason this function exists.
+    ``test_the_restated_count_leg_discloses_the_counts_it_falsely_reddens_on``
+    measures it over both live texts every run and reports it.
+
+    ALL OF THIS IS THE SAFE DIRECTION. A false red forces a human look at a
+    tree whose topology has moved; the other failure mode is letting a stale
+    number stand unread.
 
     Args:
         text: The docstring as written.
@@ -688,12 +833,30 @@ def restated_counts(text: str, count: int) -> tuple[str, ...]:
 
     Returns:
         The spellings found, digit before word. Empty is the passing answer.
+
+    Raises:
+        ValueError: :data:`CARDINALS` cannot spell ``count``. REFUSING IS THE
+            REPAIR, and the shape it repairs was silent: the word leg used to
+            be gated on the same bound and simply not run past it, so a tree
+            that grew past the table would drop from two legs to one with
+            nothing to say so, and ``assert not restated`` would then be
+            satisfied by a docstring spelling the number in words. Note that
+            :func:`names_its_ordinal` has the same table edge and does NOT
+            raise - it returns False there, which reddens its acceptance arm.
+            Same edge, opposite polarity, so the fail-closed answer differs;
+            do not make them agree by making this one quiet.
     """
+    if not 0 <= count < len(CARDINALS):
+        raise ValueError(
+            f"restated_counts cannot spell {count}: CARDINALS covers 0 to "
+            f"{len(CARDINALS) - 1}, so the word leg would drop silently and one "
+            "leg would answer for two. Extend CARDINALS."
+        )
     flat = flatten(text)
     found: list[str] = []
     if re.search(rf"(?<!\d){count}(?!\d)", flat):
         found.append(str(count))
-    if 0 <= count < len(CARDINALS) and re.search(rf"\b{CARDINALS[count]}\b", flat):
+    if re.search(rf"\b{CARDINALS[count]}\b", flat):
         found.append(CARDINALS[count])
     return tuple(found)
 
