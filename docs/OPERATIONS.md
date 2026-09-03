@@ -229,8 +229,19 @@ existing pair unless given `--force`, because the companion window may already h
 told to trust the pair that is there. `--cert-dir <dir>` and `CLOCKSPEED_CERT_DIR` both
 move where the pair is written.
 
-Its exit codes: **0** minted, **1** no openssl on PATH, **2** openssl failed, **3**
-refused to overwrite.
+**Its exit codes are not restated here.** `scripts/make_cert.py` owns them: one named
+`EXIT_*` constant per outcome, with the table in its module docstring saying what each
+means. This line used to carry a copy of that table and had already gone stale - the copy
+was still listing the outcomes that existed before CS-878 added another one - which is
+CLAUDE.md section 4 happening in slow motion. A runbook branching on the number reads it
+from the script.
+
+One behaviour worth knowing before you script around it: `--help` exits 0, the same status
+a completed mint exits with, so a zero status ALONE does not tell you a certificate now
+exists - you have to know which invocation produced it. That is the only shared status in
+the script and it is deliberate rather than an oversight (CS-882): POSIX convention for a
+successful `--help` was ruled to outrank giving every outcome a status of its own. Every
+other outcome, a usage error included, has one to itself.
 
 ### 7.2 Start it
 

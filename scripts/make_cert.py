@@ -56,13 +56,38 @@ operator had pointed at a home directory. Two independent barriers close it:
 path-free clone regardless of who catches it. The guard grades what today's
 caller does; the clone grades what tomorrow's second caller gets.
 
-Exit codes, distinct so a runbook can branch on them:
+Exit codes. ONE ROW PER OUTCOME, and EVERY ONE OF THEM IS DECLARED BY A CONSTANT
+BELOW - including the two argparse used to spend anonymously:
 
     0  the pair was written
+    0  --help printed the usage and nothing was minted
     1  openssl is not on PATH
     2  openssl was found and failed, timed out, or produced nothing
     3  a pair is already there and --force was not given
     4  the pair could not be written into the destination
+    5  the command line could not be parsed
+
+CS-882: THE ARGPARSE PAIR EXISTS BECAUSE ARGPARSE HAD CLAIMED TWO CODES THAT
+MEANT SOMETHING ELSE HERE. Untouched, ``ArgumentParser`` exits 2 on any usage
+error - a misspelled flag, a ``--cert-dir`` with no value - which is the code
+this table gives to "openssl failed", so a runbook branching on 2 could not tell
+a generation failure from a typo. That collision is the filed defect and it is
+gone: a usage error now exits 5.
+
+THE TWO ROWS SHARING 0 ARE DELIBERATE, AND THEY ARE THE ONLY SHARED CODE HERE.
+argparse also exits 0 on ``--help``, which is the code for "the pair was
+written". Moving it would have made every outcome distinct; the OPERATOR RULED
+IT STAYS, because POSIX convention - a successful ``--help`` exits 0 - outranks
+distinctness for this one pair. So this table does NOT promise that no two
+outcomes share a code. It promises that exactly ONE pair does, that the pair is
+{the pair was written, --help}, and that the sharing is recorded rather than
+accidental. ``EXIT_HELP`` exists and equals ``EXIT_OK`` for exactly that reason:
+a code no constant names is a code no arm can enumerate, so deleting it would
+have hidden the sharing instead of recording it.
+
+WHAT A CALLER MUST THEREFORE NOT DO: read a zero exit as "a certificate now
+exists" without knowing which invocation produced it. ``--help`` and a completed
+mint are indistinguishable by status alone, by ruling.
 
 Usage:
     python scripts/make_cert.py
@@ -81,6 +106,7 @@ import tempfile
 import time
 from collections.abc import Sequence
 from pathlib import Path
+from typing import NoReturn
 
 # Running a file puts that file's own directory on sys.path, not the repository
 # root, so the package import below needs the insert. Same reasoning as
@@ -140,6 +166,24 @@ EXIT_REFUSED = 3
 #: escaped as a traceback and exited 1, which this module documents as "openssl
 #: is not on PATH" - so the one branch a runbook could take was the wrong one.
 EXIT_WRITE_FAILED = 4
+
+#: THE TWO CODES ARGPARSE USED TO SPEND ON THIS SCRIPT'S BEHALF (CS-882),
+#: declared rather than left implicit for the reason the whole table exists: a
+#: code that no constant names is a code no arm can enumerate, so the collision
+#: it sits in stays invisible. Renumbering EXIT_OPENSSL_FAILED off 2 instead
+#: would have been fewer characters and would have fixed nothing - argparse
+#: would still own 2, and still own it anonymously.
+#:
+#: EXIT_HELP IS DELIBERATELY EQUAL TO EXIT_OK, BY OPERATOR RULING. A successful
+#: --help exits 0 because that is what POSIX convention says a successful --help
+#: does, and the operator ruled that convention outranks giving every outcome
+#: its own code. It is a NAME for a value it shares rather than a value of its
+#: own, and that is the whole of its job: deleting it would leave the --help
+#: outcome exiting a 0 that only EXIT_OK declares, which is exactly the
+#: anonymous-code hole the argparse pair above was filed for. Named, the sharing
+#: is one recorded pair a test can pin; unnamed, it is invisible.
+EXIT_HELP = 0
+EXIT_USAGE = 5
 
 #: os.replace can lose to a virus scanner or an open handle on Windows. A few
 #: short retries turn a transient sharing violation into a completed rename.
@@ -410,6 +454,45 @@ def _generate(openssl: str, cert_path: Path, key_path: Path) -> int:
     return EXIT_OK
 
 
+class _CertParser(argparse.ArgumentParser):
+    """An argument parser that exits through this module's NAMED codes.
+
+    ONE OVERRIDE COVERS BOTH ARGPARSE EXITS, and that is why ``exit`` is the
+    method overridden rather than ``error``. ``ArgumentParser.error`` does not
+    call ``sys.exit`` itself - it routes through ``self.exit(2, message)`` - and
+    the help action routes through ``self.exit()`` with the default status 0. So
+    every way argparse can end this process passes through here, and a third one
+    added by a future argparse would too.
+
+    THE HELP PATH STILL EXITS 0, AND ROUTING IT THROUGH ``EXIT_HELP`` IS THE
+    POINT RATHER THAN A NO-OP. The operator ruled that a successful ``--help``
+    keeps the status POSIX convention gives it. What this override buys on that
+    path is not a different number but a NAMED one: the outcome now reads its
+    value from a module constant, so the code it shares with ``EXIT_OK`` is
+    enumerable by a test instead of being argparse's private default. Only the
+    usage path actually moves, off the 2 that means "openssl failed" here.
+
+    THE MESSAGE IS NOT TOUCHED. ``super().exit`` still writes it to stderr
+    exactly as it did, so the usage text an operator reads is unchanged. Nothing
+    argparse renders carries a path this module supplied - the flag VALUES are
+    never echoed by a usage error - so the redaction promise in the module
+    docstring is not weakened by letting argparse print.
+    """
+
+    def exit(self, status: int = 0, message: str | None = None) -> NoReturn:
+        """Translate argparse's status into one of this module's codes.
+
+        Args:
+            status: What argparse wanted to exit with. 0 is the help path;
+                anything else is a usage error, which argparse spells 2.
+            message: The usage or help text, already rendered, or None.
+
+        Raises:
+            SystemExit: Always. This is the end of the process.
+        """
+        super().exit(EXIT_HELP if status == 0 else EXIT_USAGE, message)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Mint the pair, or say precisely why it did not.
 
@@ -417,9 +500,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         argv: Command line arguments, or None to read sys.argv.
 
     Returns:
-        An exit code. See the module docstring for what each one means.
+        An exit code. See the module docstring for what each one means. The two
+        argparse owns never come back through here - ``parse_args`` ends the
+        process on the help path and on a usage error alike.
     """
-    parser = argparse.ArgumentParser(
+    parser = _CertParser(
         description="Generate the self-signed certificate the local dashboard listens with.",
     )
     parser.add_argument(

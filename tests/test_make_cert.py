@@ -63,12 +63,13 @@ import errno
 import hashlib
 import importlib.util
 import os
+import re
 import socket
 import ssl
 import subprocess
 import sys
 import threading
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from types import ModuleType
@@ -453,24 +454,365 @@ def test_the_openssl_probe_is_bounded_by_a_timeout() -> None:
     assert make_cert.OPENSSL_TIMEOUT_SECONDS > 0
 
 
-def test_the_exit_codes_are_five_distinct_values() -> None:
-    """A runbook branches on these, so two that collide are one lost branch.
+# ---------------------------------------------------------------------------
+# The exit codes - the population derived from the module, the values measured
+# ---------------------------------------------------------------------------
 
-    EXIT_WRITE_FAILED joined them with CS-878. Before it, a pair openssl had
-    already produced and the filesystem then refused escaped as a traceback and
-    exited 1 - the code this module documents as "openssl is not on PATH".
+
+#: The prefix every exit-code constant in the script carries. THE POPULATION IS
+#: FILTERED OUT OF THE MODULE rather than typed out here, and that is the whole
+#: of what CS-882 changed. The arm this replaced listed five constants by name,
+#: so the two codes argparse owns - 2 for a usage error, 0 for ``--help`` - were
+#: outside the set it could see, and both collided with a documented outcome
+#: while it stayed green.
+EXIT_PREFIX = "EXIT_"
+
+#: THE ONE COLLISION THIS SCRIPT IS ALLOWED, recorded as a pair of CONSTANT
+#: NAMES so the assertions below can pin it exactly rather than merely tolerate
+#: "a" collision. OPERATOR RULING, taken over the CS-882 acceptance clause's
+#: universal: a successful ``--help`` exits 0 because that is what POSIX
+#: convention says a successful ``--help`` does, and that outranks giving every
+#: outcome a code of its own. The item therefore ships an honest partial - one
+#: pair shares a code, deliberately and on the record - rather than a met
+#: universal, and this constant is where the record lives.
+EXEMPT_CONSTANTS = frozenset({"EXIT_OK", "EXIT_HELP"})
+
+#: The same ruling stated again at the OUTCOME level, because the two
+#: populations can drift apart: the constants could stop colliding on the day
+#: two outcomes started. Both are pinned, and neither pin is derived from the
+#: other.
+HELP_OUTCOME = "help printed"
+WRITTEN_OUTCOME = "pair written"
+EXEMPT_OUTCOMES = frozenset({HELP_OUTCOME, WRITTEN_OUTCOME})
+
+#: Carried into every failure message that mentions the exemption, so a reader
+#: who reddens this arm is told what the allowance is FOR rather than finding an
+#: unexplained hole in a distinctness check.
+EXEMPT_REASON = (
+    "operator ruling: POSIX convention - a successful --help exits 0 - outranks "
+    "the distinctness universal for this ONE pair, and for no other"
+)
+
+#: One row of the module docstring's exit-code table: four spaces, the number,
+#: two spaces, then the meaning. Parsed rather than trusted, so a constant added
+#: without its docstring row - or a row left behind by a deleted constant -
+#: reddens instead of drifting the way docs/OPERATIONS.md quietly did.
+DOCUMENTED_CODE_ROW = re.compile(r"^ {4}(\d+) {2}\S")
+
+#: A flag the parser cannot have. Spelled with the project name so a real flag
+#: added later cannot collide with it and turn this probe into a valid run.
+UNKNOWN_FLAG = "--clockspeed-not-a-real-flag"
+
+#: What the stub openssl exits, chosen OUTSIDE every code the script declares.
+#: If a probe ever reported this number, the stub's own status had been passed
+#: through rather than translated, and that is visible instead of plausible.
+STUB_OPENSSL_EXIT = 33
+
+#: How long one outcome probe may take. Two of the seven do real key generation;
+#: the rest return immediately. Bounded for the reason every other wait here is.
+OUTCOME_TIMEOUT_SECONDS = 120
+
+
+def _declared_exit_codes() -> dict[str, int]:
+    """Read every exit code the script DECLARES, out of the script itself.
+
+    Returns:
+        Constant name to value, for every module-level ``EXIT_*`` integer.
     """
-    codes = [
-        make_cert.EXIT_OK,
-        make_cert.EXIT_NO_OPENSSL,
-        make_cert.EXIT_OPENSSL_FAILED,
-        make_cert.EXIT_REFUSED,
-        make_cert.EXIT_WRITE_FAILED,
-    ]
+    return {
+        name: value
+        for name, value in vars(make_cert).items()
+        if name.startswith(EXIT_PREFIX) and isinstance(value, int)
+    }
 
-    distinct = len(set(codes))
-    assert distinct == len(codes), f"only {distinct} of {len(codes)} exit codes are distinct"
+
+def _documented_exit_codes() -> list[int]:
+    """Read every exit code the script's own module docstring lists.
+
+    A SECOND READING OF THE SAME FACT, and deliberately not a copy of the first.
+    The constants say what the code can return; the docstring table is what a
+    reader branches on. Both are the module's own declarations, so neither is a
+    hand-written list, and the arm below asserts they name the same set.
+
+    Returns:
+        The codes the table carries, in the order it carries them.
+    """
+    found: list[int] = []
+    for line in (make_cert.__doc__ or "").splitlines():
+        match = DOCUMENTED_CODE_ROW.match(line)
+        if match is not None:
+            found.append(int(match.group(1)))
+    return found
+
+
+def _failing_openssl_stub(directory: Path) -> Path:
+    """Put an openssl on PATH that is real, findable, and always fails.
+
+    A REAL EXECUTABLE RATHER THAN A PATCH, because the outcome being measured is
+    what the PROCESS exits with and an in-process monkeypatch cannot observe
+    that. ``shutil.which`` has to find it the way it finds the real one, which
+    on Windows means a name PATHEXT covers.
+
+    Args:
+        directory: Where to write the stub. Created if it is not there.
+
+    Returns:
+        The stub file. Its parent is what belongs on PATH.
+    """
+    directory.mkdir(parents=True, exist_ok=True)
+    if os.name == "nt":
+        stub = directory / "openssl.bat"
+        body = f"@echo off\r\nexit /b {STUB_OPENSSL_EXIT}\r\n"
+    else:
+        stub = directory / "openssl"
+        body = f"#!/bin/sh\nexit {STUB_OPENSSL_EXIT}\n"
+    # newline="" because a text-mode write translates \n to os.linesep on
+    # Windows, which would turn the CRLF above into CR CR LF.
+    stub.write_text(body, encoding="ascii", newline="")
+    if os.name != "nt":
+        stub.chmod(0o755)
+    return stub
+
+
+def _script_exit(args: Sequence[str], path: str | None = None) -> int:
+    """Run the script as a real process and return the code it really exited with.
+
+    Args:
+        args: The command line, after the script path.
+        path: A replacement PATH, or None to inherit this process's.
+
+    Returns:
+        The process exit status.
+    """
+    environment: dict[str, str] | None = None
+    if path is not None:
+        environment = dict(os.environ)
+        environment["PATH"] = path
+    done = subprocess.run(
+        [sys.executable, str(MAKE_CERT_SOURCE), *args],
+        shell=False,
+        capture_output=True,
+        text=True,
+        timeout=OUTCOME_TIMEOUT_SECONDS,
+        check=False,
+        env=environment,
+    )
+    return done.returncode
+
+
+def _at(directory: Path) -> list[str]:
+    """Render the --cert-dir flag pointing at ``directory``.
+
+    Args:
+        directory: The destination. It does not have to exist.
+
+    Returns:
+        The two argv entries.
+    """
+    return ["--cert-dir", str(directory)]
+
+
+def _collisions(codes: dict[str, int]) -> dict[int, frozenset[str]]:
+    """Group names by the code they carry, keeping only codes more than one reaches.
+
+    THE FULL MEMBER SET IS RETURNED, NEVER A PAIR, and that is what stops a
+    recorded exemption from absorbing an unknown third member. A group of three
+    is reported as a group of three, so an assertion comparing it against a
+    two-name record FAILS rather than finding its record "contained" - which is
+    the verdict-order fault memory/a-guard-can-measure-spelling.md records, an
+    allowance that issues its own clearance.
+
+    Args:
+        codes: Name to exit code, for constants or for measured outcomes.
+
+    Returns:
+        Each shared code, mapped to every name that carries it.
+    """
+    by_code: dict[int, set[str]] = {}
+    for name, code in codes.items():
+        by_code.setdefault(code, set()).add(name)
+    return {code: frozenset(names) for code, names in by_code.items() if len(names) > 1}
+
+
+def _rendered(groups: dict[int, frozenset[str]]) -> list[tuple[int, list[str]]]:
+    """Render collision groups as a stable, path-free value for a failure message.
+
+    Args:
+        groups: The output of :func:`_collisions`.
+
+    Returns:
+        One entry per shared code, sorted, with its members sorted.
+    """
+    return sorted((code, sorted(names)) for code, names in groups.items())
+
+
+def _measure_every_outcome(root: Path) -> dict[str, tuple[int, ...]]:
+    """Drive the script to every outcome it can reach, out of process, once each.
+
+    THE TWO ARGPARSE OUTCOMES ARE MEASURED THE SAME WAY AS THE OTHER FIVE, which
+    is the point of running these out of process at all: ``--help`` and a usage
+    error never return to ``main``, so an in-process call cannot see what they
+    exit with. Both spellings of the usage error are probed under ONE outcome
+    key - an unknown flag and a flag missing its value are the same outcome, and
+    filing them as two would make the injectivity assertion below unsatisfiable
+    for a reason that is not a defect.
+
+    NOTHING HERE IS PATCHED. The absent tool is an empty PATH, the failing tool
+    is a real executable that fails, the occupied destination holds real files,
+    and the unwritable destination is a directory sitting on the key's name -
+    the same shape ``_forced_rename_pair`` uses.
+
+    Args:
+        root: A per-test temporary root. Everything is created beneath it.
+
+    Returns:
+        Outcome name to the codes its invocations produced.
+    """
+    no_tools = root / "no-tools"
+    no_tools.mkdir()
+    stubbed_path = str(_failing_openssl_stub(root / "stub-tools").parent) + os.pathsep
+    stubbed_path += os.environ.get("PATH", "")
+
+    occupied = root / "occupied"
+    occupied.mkdir()
+    (occupied / make_cert.CERT_NAME).write_text("not a certificate\n", encoding="ascii")
+    (occupied / make_cert.KEY_NAME).write_text("not a key\n", encoding="ascii")
+
+    blocked = root / "blocked"
+    blocked.mkdir()
+    (blocked / make_cert.KEY_NAME).mkdir()
+
+    return {
+        HELP_OUTCOME: (_script_exit(["--help"]),),
+        "command line refused": (
+            _script_exit([UNKNOWN_FLAG]),
+            _script_exit(["--cert-dir"]),
+        ),
+        "openssl absent": (_script_exit(_at(root / "absent"), path=str(no_tools)),),
+        "openssl failed": (_script_exit(_at(root / "stubbed"), path=stubbed_path),),
+        "pair already there": (_script_exit(_at(occupied)),),
+        WRITTEN_OUTCOME: (_script_exit(_at(root / "fresh")),),
+        "pair not writable": (_script_exit([*_at(blocked), "--force"]),),
+    }
+
+
+def test_exactly_one_recorded_pair_of_outcomes_shares_an_exit_code(tmp_path: Path) -> None:
+    """CS-882. A runbook branches on these, so an UNRECORDED shared code is a lost branch.
+
+    WHAT THIS ARM PROMISES, STATED HONESTLY. The acceptance clause is a universal
+    over distinct outcomes, and this script does NOT meet it: ``--help`` and a
+    completed mint both exit 0, by operator ruling, because POSIX convention
+    outranks the universal for that pair. So the promise here is the weaker,
+    true one - EXACTLY ONE pair shares a code, it is the recorded pair, and any
+    OTHER sharing is a defect. The filed collision, argparse's usage error
+    sitting on "openssl failed", is gone outright.
+
+    THE EXEMPTION CANNOT ABSORB. It is compared for EQUALITY against the full
+    membership of the single collision group, never for containment, so a third
+    constant landing on 0 makes the group a three and reddens this arm rather
+    than being covered by a record that names two. An exemption that grows to
+    fit what it finds is the verdict-order fault
+    memory/a-guard-can-measure-spelling.md records, and it is exactly the shape
+    a distinctness check must not acquire while being weakened.
+
+    THE POPULATION IS DERIVED THREE WAYS AND THEN CROSS-CHECKED. What the module
+    DECLARES comes out of its own namespace; what it DOCUMENTS comes out of its
+    own docstring; what it DOES comes out of eight real processes over seven
+    outcomes. A listed population is what let this collide unnoticed - the arm
+    this replaced named five constants, and argparse owned two more codes that
+    no name reached.
+
+    NON-EMPTINESS IS ASSERTED BEFORE ANY DISTINCTNESS IS, and that order is
+    load-bearing rather than tidy. A collision search over an empty population
+    finds nothing, and so does one over a broken measurement; both produce the
+    same output as a clean script.
+    """
+    declared = _declared_exit_codes()
+    documented = _documented_exit_codes()
+    measured = _measure_every_outcome(tmp_path)
+
+    declared_count = len(declared)
+    documented_count = len(documented)
+    outcome_count = len(measured)
+    probe_count = sum(len(codes) for codes in measured.values())
+
+    assert declared_count > 0, "no EXIT_ constant was read; this arm is asserting about nothing"
+    assert documented_count > 0, "the module docstring lists no exit code; the table moved"
+    assert outcome_count > 0, "no outcome was measured; this arm is asserting about nothing"
+    assert probe_count > outcome_count, "no outcome was probed twice; the usage pair went missing"
+
+    inconsistent = sorted(name for name, codes in measured.items() if len(set(codes)) != 1)
+    assert inconsistent == [], (
+        f"{len(inconsistent)} outcome(s) exited differently from one invocation to the "
+        f"next, so they are not one outcome: {inconsistent}"
+    )
+
+    outcome_codes = {name: codes[0] for name, codes in measured.items()}
+    declared_values = set(declared.values())
+    undeclared = sorted(
+        f"{name} exits {code}"
+        for name, code in outcome_codes.items()
+        if code not in declared_values
+    )
+    assert undeclared == [], (
+        f"{len(undeclared)} outcome(s) exit a code no EXIT_ constant declares: {undeclared}"
+    )
+
+    # The record has to name things that exist, or the two assertions it guards
+    # are comparing against a set nothing could ever equal.
+    unknown_exempt = sorted(EXEMPT_CONSTANTS - set(declared))
+    assert unknown_exempt == [], (
+        f"the recorded exemption names {unknown_exempt}, which no EXIT_ constant declares"
+    )
+    unprobed_exempt = sorted(EXEMPT_OUTCOMES - set(outcome_codes))
+    assert unprobed_exempt == [], (
+        f"the recorded exemption names outcome(s) {unprobed_exempt} that were never probed"
+    )
+
+    declared_shared = _collisions(declared)
+    declared_shared_count = len(declared_shared)
+    assert declared_shared_count == 1, (
+        f"{declared_shared_count} exit code(s) are declared by more than one constant and "
+        f"exactly ONE recorded collision is allowed - {EXEMPT_REASON}. "
+        f"Measured: {_rendered(declared_shared)}"
+    )
+    declared_shared_names = next(iter(declared_shared.values()))
+    assert declared_shared_names == EXEMPT_CONSTANTS, (
+        f"the constants sharing a code are {sorted(declared_shared_names)} and the only "
+        f"pair on the record is {sorted(EXEMPT_CONSTANTS)} - {EXEMPT_REASON}"
+    )
+
+    outcome_shared = _collisions(outcome_codes)
+    outcome_shared_count = len(outcome_shared)
+    assert outcome_shared_count == 1, (
+        f"{outcome_shared_count} exit code(s) are reached by more than one outcome and "
+        f"exactly ONE recorded collision is allowed - {EXEMPT_REASON}. "
+        f"Measured: {_rendered(outcome_shared)}"
+    )
+    outcome_shared_names = next(iter(outcome_shared.values()))
+    assert outcome_shared_names == EXEMPT_OUTCOMES, (
+        f"the outcomes sharing a code are {sorted(outcome_shared_names)} and the only "
+        f"pair on the record is {sorted(EXEMPT_OUTCOMES)} - {EXEMPT_REASON}"
+    )
+
+    assert declared_count == documented_count, (
+        f"{declared_count} EXIT_ constant(s) against {documented_count} documented outcome "
+        "row(s); the module docstring's table and its constants have drifted apart"
+    )
+    assert sorted(set(documented)) == sorted(declared_values), (
+        "the EXIT_ constants and the module docstring's table do not name the same codes"
+    )
+
+    # THE RULING'S DIRECTION, pinned separately. Equality of the exempt pair says
+    # they share A code; it does not say WHICH, and a pair that agreed on 7 would
+    # satisfy every assertion above while breaking the convention the exemption
+    # was granted to keep.
     assert make_cert.EXIT_OK == 0
+    assert make_cert.EXIT_HELP == 0, (
+        f"EXIT_HELP is not 0, so --help no longer exits what POSIX expects - {EXEMPT_REASON}"
+    )
+    help_code = outcome_codes[HELP_OUTCOME]
+    assert help_code == 0, f"--help exited {help_code}, and the ruling is that it exits 0"
 
 
 # ---------------------------------------------------------------------------
