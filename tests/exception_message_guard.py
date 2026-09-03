@@ -435,21 +435,53 @@ EXEMPT: Final[Mapping[str, str]] = {
 #
 # WHAT IS UNAVOIDABLY A SPELLING IS THE REASON, because a reason is English.
 # The vocabulary below is therefore CLOSED: three ``from``-slot spellings, and
-# a reason naming a form in any other words is INVISIBLE here rather than
+# a reason naming a form in any OTHER WORDS is INVISIBLE here rather than
 # cleared here. That is an under-report and it is the fail-safe direction - the
 # same choice the census makes when it cannot resolve a cause.
+#
+# CASE, MARKUP AND LINE WRAPPING ARE NOT OTHER WORDS. The first draft matched
+# the reason text verbatim, and three of this file's OWN idioms read as NO
+# CLAIM against it: ``raise FROM EXC``, which is how every live reason shouts
+# for emphasis; ``from ``exc````, which is how the surrounding prose spells an
+# identifier; and the doubled space or newline a wrapped line leaves behind. A
+# key that names no claim leaves the graded population in silence, so all
+# three are normalised away by :func:`_flatten_reason` before matching. The
+# sibling ``tests/pathless_clone_guard.flatten`` already does the case and
+# whitespace half for docstrings; this is reimplemented rather than imported
+# because it must also strip markup, and because a guard reaching into a
+# sibling guard for four tokens buys an import edge it does not need.
+#
+# A DISCLAIMED FORM IS NOT A CLAIMED ONE. ``X rather than Y`` is the live house
+# idiom - the shipped ``HeaderReadError`` entry says "dropped with from None
+# rather than chained" - so reading the denied half as a claim makes a correct,
+# contrastive reason disagree with its own site. MEASURED on exactly that
+# shape: "both sites raise from a filename-free clone rather than from exc"
+# named BOTH forms. :func:`_is_disclaimed` drops a spelling that a closed set
+# of connectives denies. THE NEGATIVE IS NEVER GRADED, only dropped - a reason
+# denying a form it does in fact use goes invisible here, which is the same
+# under-report the closed vocabulary already chooses.
 #
 # THE JOIN IS ONE-TO-MANY AND COARSER THAN THE KEY. An :data:`EXEMPT` key names
 # a module, a class and a message CHANNEL; the census knows nothing about
 # channels, so the join is on module and class and answers for every chained
-# raise of that class in that module. A claim therefore has to match only ONE
-# of the joined sites, which under-reports a class whose sites disagree with
-# each other and never over-reports one. NOT EVERY KEY JOINS TO A SITE: the
-# ``DestinationRefusedError`` keys name refusals raised outside any handler,
-# which are not in the census population at all, so the population here is the
-# keys whose reason NAMES A FORM and nothing wider. That is why a key with no
-# joined site is reported on its own channel by :func:`unjoined_form_claims`
-# rather than being counted as an agreement.
+# raise of that class in that module. EVERY JOINED SITE MUST DERIVE A PAIR THE
+# CLAIM ADMITS - a SUBSET test, not a non-empty intersection. The intersection
+# was the first draft and it was MEASURED DEFEATED: reintroducing the exact
+# CS-857 cause slot at ONE of the two live ``WorkDirError`` sites left the arm
+# green, because "does AT LEAST ONE site use this form" is a question the clean
+# sibling answers on behalf of the leaking one - a threshold met by a
+# population's strongest member, which is the shape
+# ``memory/a-guard-can-be-green-by-accident.md`` records. A reason saying "both
+# sites raise from X" while one of them raises from Y is simply false.
+# ``test_one_disagreeing_sibling_site_refutes_a_form_claim`` grades that
+# population on a planted corpus every run.
+#
+# NOT EVERY KEY JOINS TO A SITE: the ``DestinationRefusedError`` keys name
+# refusals raised outside any handler, which are not in the census population
+# at all, so the population here is the keys whose reason NAMES A FORM and
+# nothing wider. That is why a key with no joined site is reported on its own
+# channel by :func:`unjoined_form_claims` rather than being counted as an
+# agreement.
 
 #: A reason's claim that the ``from`` slot carries the handler's own binding.
 CLAIM_FROM_BINDING: Final = "from-binding"
@@ -467,25 +499,60 @@ CLAIM_FROM_CLONE: Final = "from-clone"
 #: THE CLOSED VOCABULARY. A reason NAMES a raise form by spelling that form's
 #: ``from`` slot; these three spellings are the only ones read. A paraphrase is
 #: not a claim here, and adding one is a deliberate act rather than a
-#: side effect of writing a reason.
+#: side effect of writing a reason. SPELLED IN LOWER CASE ON PURPOSE - every
+#: reason goes through :func:`_flatten_reason` first, so a pattern carrying a
+#: capital would match nothing at all.
 RAISE_FORM_CLAIMS: Final[Mapping[str, str]] = {
     CLAIM_FROM_BINDING: r"\bfrom exc\b",
-    CLAIM_FROM_NONE: r"\bfrom None\b",
+    CLAIM_FROM_NONE: r"\bfrom none\b",
     CLAIM_FROM_CLONE: r"\bfrom a filename-free clone\b",
 }
+
+#: Markup a reason may wrap an identifier in without changing the word inside.
+#: The double backtick is this file's own RST idiom for a name and the asterisk
+#: is the markdown one; neither is part of any spelling above.
+_REASON_MARKUP: Final = "`*"
+
+#: THE CLOSED SET OF DISCLAIMERS. A form spelled after one of these is being
+#: DENIED rather than claimed. Closed for the same reason the vocabulary is: a
+#: reason denying a form in some other words keeps the claim, which is the
+#: over-report direction and is why the set is read against a bounded window
+#: rather than the whole reason.
+_DISCLAIMERS: Final[tuple[str, ...]] = ("rather than", "instead of", "not", "never", "no longer")
+
+#: What ends the clause a disclaimer can reach across. The spaced hyphen is in
+#: here because it is this project's own clause break: without it the "never"
+#: in the live ``WorkDirError`` reason sits three clauses ahead of a genuine
+#: claim and would switch that claim off.
+_CLAUSE_BREAKS: Final[tuple[str, ...]] = (".", ";", ":", ",", " - ")
+
+#: How many characters before a spelling a disclaimer may sit and still govern
+#: it. A SECOND, INDEPENDENT LEG on the same question as :data:`_CLAUSE_BREAKS`
+#: - both have to let a word through for it to disclaim - because the cost of
+#: over-reaching is a LIVE CLAIM SILENTLY LEAVING GRADING, and one mechanism
+#: guarding that is one mechanism to get wrong.
+_DISCLAIMER_REACH: Final = 40
 
 #: The structural pairs the census must derive for a claim to hold, keyed on
 #: ``(Site.form, Site.constructs_pathless_clone)``. POSITIVE FACTS, not the
 #: absence of a spelling.
 #:
-#: EACH SET IS NARROWER THAN THE CLAIM AND NEVER WIDER, which is what makes a
-#: green result mean something. ``(explicit, False)`` is necessary for "from
-#: exc" and is not sufficient - ``from other`` derives the same pair - so a
-#: reason naming the binding at a site chaining some third expression passes
-#: here. Closing that would mean grading ``Site.cause_expr``, which is a
-#: spelling, and the round of CS-857 that tried it was defeated by fifteen
-#: renamings. ``from None`` accepts either clone flag because suppression is a
-#: fact about the form alone.
+#: EACH SET IS WIDER THAN THE CLAIM, NOT NARROWER, and a green result has to be
+#: read as exactly that much: no joined site derives a pair the claim excludes.
+#: ``(explicit, False)`` is NECESSARY for "from exc" and is not sufficient - a
+#: ``from other`` inside an ``except OSError as exc`` derives the same pair - so
+#: a reason naming the binding at a site chaining some third expression clears
+#: here. THIS PARAGRAPH OPENED BY CLAIMING THE OPPOSITE until an adjudicator
+#: measured it: "narrower than the claim and never wider", with its own
+#: counter-example spelled out in the very next sentence. Recorded rather than
+#: quietly deleted, because it is the CS-880 fault family itself - a correction
+#: shipping a fresh false claim - and the sentence a later reader lifts as a
+#: clearance is the leading one.
+#:
+#: Closing the gap would mean grading ``Site.cause_expr``, which is a spelling,
+#: and the round of CS-857 that tried it was defeated by fifteen renamings.
+#: ``from None`` accepts either clone flag because suppression is a fact about
+#: the form alone.
 CLAIM_FORMS: Final[Mapping[str, frozenset[tuple[str, bool]]]] = {
     CLAIM_FROM_BINDING: frozenset({(FORM_EXPLICIT, False)}),
     CLAIM_FROM_NONE: frozenset({(FORM_SUPPRESSED, False), (FORM_SUPPRESSED, True)}),
@@ -493,19 +560,68 @@ CLAIM_FORMS: Final[Mapping[str, frozenset[tuple[str, bool]]]] = {
 }
 
 
-def claims_in_reason(reason: str) -> tuple[str, ...]:
-    """The raise forms one exemption reason names.
+def _flatten_reason(reason: str) -> str:
+    """Reduce a reason to one lower-case, markup-free line for matching.
 
     Args:
         reason: The recorded reason, as written.
 
     Returns:
-        The :data:`RAISE_FORM_CLAIMS` names whose spelling appears in the
-        reason, ordered. Empty when the reason names no form, which puts the
-        key outside this population entirely.
+        The text lower-cased, with :data:`_REASON_MARKUP` removed and every
+        run of whitespace collapsed to one space.
     """
+    stripped = reason
+    for mark in _REASON_MARKUP:
+        stripped = stripped.replace(mark, "")
+    return " ".join(stripped.lower().split())
+
+
+def _is_disclaimed(flat: str, start: int) -> bool:
+    """Whether the prose immediately before a spelling denies it.
+
+    The window is the text back to the nearest :data:`_CLAUSE_BREAKS`, then
+    truncated to its last :data:`_DISCLAIMER_REACH` characters. Both limits
+    apply, so a connective escapes the window if EITHER says it is too far.
+
+    Args:
+        flat: A reason already through :func:`_flatten_reason`.
+        start: Index in ``flat`` where the form spelling begins.
+
+    Returns:
+        True when a :data:`_DISCLAIMERS` word stands in that window.
+    """
+    window = flat[:start]
+    cut = 0
+    for brk in _CLAUSE_BREAKS:
+        found = window.rfind(brk)
+        if found >= 0:
+            cut = max(cut, found + len(brk))
+    clause = window[cut:][-_DISCLAIMER_REACH:]
+    return any(re.search(rf"\b{re.escape(word)}\b", clause) for word in _DISCLAIMERS)
+
+
+def claims_in_reason(reason: str) -> tuple[str, ...]:
+    """The raise forms one exemption reason names.
+
+    A form is named when at least one occurrence of its spelling survives
+    :func:`_is_disclaimed`. A reason that only ever DENIES a form names
+    nothing here - the negative is dropped rather than graded.
+
+    Args:
+        reason: The recorded reason, as written.
+
+    Returns:
+        The :data:`RAISE_FORM_CLAIMS` names the reason asserts, ordered. Empty
+        when the reason names no form, which puts the key outside this
+        population entirely.
+    """
+    flat = _flatten_reason(reason)
     return tuple(
-        sorted(name for name, pattern in RAISE_FORM_CLAIMS.items() if re.search(pattern, reason))
+        sorted(
+            name
+            for name, pattern in RAISE_FORM_CLAIMS.items()
+            if any(not _is_disclaimed(flat, hit.start()) for hit in re.finditer(pattern, flat))
+        )
     )
 
 
@@ -564,7 +680,12 @@ def unjoined_form_claims(exempt: Mapping[str, str], sites: Sequence[Site]) -> tu
 
 
 def form_disagreements(exempt: Mapping[str, str], sites: Sequence[Site]) -> tuple[str, ...]:
-    """Reasons naming a raise form that none of their own sites uses.
+    """Reasons naming a raise form that any one of their own sites does not use.
+
+    EVERY derived pair must be ADMITTED by the claim. A non-empty intersection
+    would ask only whether SOME site uses the named form, and a clean sibling
+    then answers for a leaking one - the shape that left this reporter green
+    with the CS-857 defect live at one of two joined sites.
 
     Args:
         exempt: The exemption record.
@@ -574,7 +695,8 @@ def form_disagreements(exempt: Mapping[str, str], sites: Sequence[Site]) -> tupl
         One finding per disagreeing claim, ordered by key then claim. A key
         the join leaves empty is skipped here and reported by
         :func:`unjoined_form_claims` instead, so a missing join can never be
-        read as an agreement.
+        read as an agreement - which also keeps ``derived`` non-empty, since
+        the empty set is a subset of every claim and would clear in silence.
     """
     found: list[str] = []
     for key in form_claiming_keys(exempt):
@@ -584,10 +706,10 @@ def form_disagreements(exempt: Mapping[str, str], sites: Sequence[Site]) -> tupl
         derived = derived_raise_forms(joined)
         at = ", ".join(str(site.lineno) for site in joined)
         for claim in claims_in_reason(exempt[key]):
-            if CLAIM_FORMS[claim] & derived:
+            if derived <= CLAIM_FORMS[claim]:
                 continue
             found.append(
-                f"{key} names {claim}, which needs one of {sorted(CLAIM_FORMS[claim])}; "
+                f"{key} names {claim}, which admits only {sorted(CLAIM_FORMS[claim])}; "
                 f"its site(s) at line(s) {at} derive {sorted(derived)}"
             )
     return tuple(found)

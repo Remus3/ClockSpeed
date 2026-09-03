@@ -59,6 +59,7 @@ from tests.exception_message_guard import (
     ARGS_ROOTS,
     CLAIM_FROM_BINDING,
     CLAIM_FROM_CLONE,
+    CLAIM_FROM_NONE,
     COMPOSING_CALLS,
     EXEMPT,
     GRADED_LAYER,
@@ -75,6 +76,7 @@ from tests.exception_message_guard import (
     ambiguous_callees,
     ambiguous_error_names,
     build_index,
+    claims_in_reason,
     colliding_class_names,
     describe,
     findings_in,
@@ -84,6 +86,7 @@ from tests.exception_message_guard import (
     live_index,
     resolved_callees,
     scan_channels,
+    sites_for_exemption,
     stale_exemptions,
     swept_modules,
     ungraded_layers,
@@ -1291,6 +1294,103 @@ _FABRICATED_CLONE_REASON: Final = (
     "MEASURED on a planted module: the site raises from a filename-free clone."
 )
 
+#: A SECOND planted corpus, holding the one shape the first cannot: ONE class
+#: raised TWICE in ONE module, whose two sites derive DIFFERENT pairs.
+#:
+#: THE JOIN IS COARSER THAN THE KEY - it matches on module and class and knows
+#: nothing about the message channel - so every claim is graded against a SET
+#: of sites rather than one. Reading that set with a non-empty intersection
+#: asks "does AT LEAST ONE site use this form", which is a question a clean
+#: sibling answers on behalf of a leaking one. The corpus below is that exact
+#: population, and the shape it exists to keep out is the one
+#: ``memory/a-guard-can-be-green-by-accident.md`` records: a threshold met by
+#: its strongest member while the weakest goes unmeasured.
+_PLANTED_MIXED_MODULE: Final = f"{GRADED_LAYER}planted_mixed_forms.py"
+
+_PLANTED_MIXED_FORMS: Final = '''
+"""One error class raised twice, from two different cause slots."""
+
+
+def _rebuild(exc: OSError) -> OSError:
+    """Rebuild the caught error without the fields that carry a path."""
+    return OSError(exc.errno, exc.strerror)
+
+
+class Blast(Exception):
+    """Raised at both sites below."""
+
+
+def clean_site(handle: object) -> None:
+    """Chain from a filename-free clone."""
+    try:
+        handle.read()
+    except OSError as exc:
+        raise Blast("failed") from _rebuild(exc)
+
+
+def leaking_site(handle: object) -> None:
+    """Chain from the caught error itself."""
+    try:
+        handle.read()
+    except OSError as exc:
+        raise Blast("failed") from exc
+'''
+
+#: The leaking cause slot of the corpus above and what repairing it spells.
+#: Held apart from the corpus so a replacement that stopped matching cannot
+#: leave the repaired control silently grading the unrepaired text.
+_PLANTED_LEAKING_SLOT: Final = "from exc\n"
+_PLANTED_REPAIRED_SLOT: Final = "from _rebuild(exc)\n"
+
+#: Reasons written in the house CONTRASTIVE idiom - the shipped HeaderReadError
+#: entry uses it verbatim - paired with the forms each one actually asserts. A
+#: form the prose explicitly disclaims is not a form the prose claims, and
+#: reading it as one turns a correct, contrastive reason into a false finding.
+_CONTRASTIVE_REASONS: Final = (
+    ("both sites raise from a filename-free clone rather than from exc", (CLAIM_FROM_CLONE,)),
+    ("it does NOT raise from exc; it raises from a filename-free clone", (CLAIM_FROM_CLONE,)),
+    ("it raises from a filename-free clone instead of from exc", (CLAIM_FROM_CLONE,)),
+    ("the underlying error is dropped with from None rather than chained", (CLAIM_FROM_NONE,)),
+    ("MEASURED at the one site: it raises from exc", (CLAIM_FROM_BINDING,)),
+)
+
+#: Reasons spelling a form in the file's OWN emphasis and markup idioms, paired
+#: with the forms each names. The vocabulary is closed on the WORDS; case, RST
+#: markup and the whitespace a line wrap introduces are not different words.
+_RESPELLED_REASONS: Final = (
+    ("MEASURED at the one site: it raises FROM EXC", (CLAIM_FROM_BINDING,)),
+    ("MEASURED at the one site: it raises from ``exc``", (CLAIM_FROM_BINDING,)),
+    ("MEASURED at the one site: it raises from  exc", (CLAIM_FROM_BINDING,)),
+    ("MEASURED at the one site: it raises from\nexc", (CLAIM_FROM_BINDING,)),
+    ("MEASURED at the one site: the cause is dropped with FROM NONE", (CLAIM_FROM_NONE,)),
+    ("MEASURED at the one site: it raises from a FILENAME-FREE clone", (CLAIM_FROM_CLONE,)),
+    ("MEASURED at the one site: it raises from excavation debris", ()),
+)
+
+
+#: THE EXEMPTION KEYS THIS GRADING COVERS, PINNED PER KEY rather than counted.
+#: ``assert claiming`` was satisfied by ONE survivor, so two of the three could
+#: fall out of the population - a reason rephrased, a spelling drifted - and
+#: the contract arm would still report a clean zero over whatever was left.
+#: ``memory/an-empty-population-satisfies-every-zero.md`` is the note; a
+#: population is only asserted when its MEMBERS are. Adding an exemption whose
+#: reason names a form reddens the contract arm on purpose: extending what is
+#: graded is a deliberate act, and it is recorded here.
+_FORM_CLAIMING_KEYS: Final = (
+    "clockspeed/save/header.py::HeaderReadError::self.redacted_path",
+    f"{WORKDIR_MODULE}::SourceUnreadableError::exc.errno",
+    f"{WORKDIR_MODULE}::WorkDirError::exc.errno",
+)
+
+
+def _planted_mixed_sites() -> tuple[Site, ...]:
+    """Derive the disagreeing-sibling corpus through the census's derivation.
+
+    Returns:
+        The census sites for :data:`_PLANTED_MIXED_FORMS`.
+    """
+    return sites_in_tree({_PLANTED_MIXED_MODULE: _PLANTED_MIXED_FORMS})
+
 
 def _planted_form_sites() -> tuple[Site, ...]:
     """Derive the planted corpus through the census's own pure derivation.
@@ -1404,6 +1504,111 @@ def test_a_form_claim_the_join_leaves_empty_is_reported_rather_than_cleared() ->
     assert form_disagreements(record, planted) == (), form_disagreements(record, planted)
 
 
+def test_the_planted_mixed_corpus_derives_two_disagreeing_sibling_sites() -> None:
+    """THE INSTRUMENT CONTROL for the pooled-join arm below.
+
+    That arm asserts a finding is raised against a population of two sites
+    that disagree with each other. A derivation returning ONE site, or two
+    sites that happen to agree, would make the arm a statement about a
+    different population than the one it names - and a green sibling arm would
+    be reporting on nothing. This pins the shape first.
+    """
+    planted = _planted_mixed_sites()
+    shapes = sorted((site.form, site.constructs_pathless_clone) for site in planted)
+    assert shapes == [(FORM_EXPLICIT, False), (FORM_EXPLICIT, True)], shapes
+    raised = {site.raised for site in planted}
+    assert raised == {"Blast"}, raised
+
+
+def test_one_disagreeing_sibling_site_refutes_a_form_claim() -> None:
+    """A CLEAN SIBLING MAY NOT ANSWER FOR A LEAKING ONE.
+
+    THE DEFECT THIS EXISTS TO CATCH was measured, not imagined: reintroducing
+    the exact CS-857 cause slot at ONE of the two live ``WorkDirError`` sites
+    left this arm green, because the join unions every site of the class and
+    the claim was tested for a NON-EMPTY INTERSECTION with that union. That
+    asks "does at least one site use this form", and one clean site answers it
+    for every leaking sibling - the threshold met by a population's strongest
+    member that ``memory/a-guard-can-be-green-by-accident.md`` records.
+
+    A reason saying "both sites raise from X" while one of them raises from Y
+    is FALSE, so EVERY derived pair has to be admitted by the claim. Both
+    directions are asserted: the clone claim against the binding site and the
+    binding claim against the clone site are each a finding, so an arm that
+    simply reddened on every claim could not pass here.
+    """
+    planted = _planted_mixed_sites()
+    blast = f"{_PLANTED_MIXED_MODULE}::Blast::planted"
+
+    assert len(sites_for_exemption(blast, planted)) == len(planted), sites_for_exemption(
+        blast, planted
+    )
+
+    on_the_clone = form_disagreements({blast: _FABRICATED_CLONE_REASON}, planted)
+    assert len(on_the_clone) == 1, f"a leaking sibling was laundered by a clean one: {on_the_clone}"
+    assert CLAIM_FROM_CLONE in on_the_clone[0], on_the_clone
+
+    on_the_binding = form_disagreements({blast: _FABRICATED_BINDING_REASON}, planted)
+    assert len(on_the_binding) == 1, f"the mirror direction went unreported: {on_the_binding}"
+    assert CLAIM_FROM_BINDING in on_the_binding[0], on_the_binding
+
+
+def test_repairing_the_disagreeing_sibling_makes_the_form_claim_hold() -> None:
+    """THE QUIET DIRECTION, so the arm above is not merely always red.
+
+    Repairing the one leaking cause slot leaves two agreeing sites, and the
+    clone claim then holds. The repair is checked to have LANDED first: a
+    replacement matching nothing would leave this grading the unrepaired
+    corpus and passing for a reason that has nothing to do with the repair.
+    """
+    repaired = _PLANTED_MIXED_FORMS.replace(_PLANTED_LEAKING_SLOT, _PLANTED_REPAIRED_SLOT)
+    assert repaired != _PLANTED_MIXED_FORMS, "the repair did not land - this arm grades nothing"
+    assert _PLANTED_LEAKING_SLOT not in repaired, "a leaking slot survived the repair"
+
+    planted = sites_in_tree({_PLANTED_MIXED_MODULE: repaired})
+    shapes = sorted((site.form, site.constructs_pathless_clone) for site in planted)
+    assert shapes == [(FORM_EXPLICIT, True), (FORM_EXPLICIT, True)], shapes
+
+    blast = f"{_PLANTED_MIXED_MODULE}::Blast::planted"
+    held = form_disagreements({blast: _FABRICATED_CLONE_REASON}, planted)
+    assert held == (), f"two agreeing sites still produced a finding: {held}"
+
+
+def test_a_contrastive_reason_names_only_the_form_it_asserts() -> None:
+    """A CORRECT REASON MAY NOT PRODUCE A FALSE RED.
+
+    ``X rather than Y`` is the live house idiom - the shipped HeaderReadError
+    entry says "dropped with from None rather than chained" - and reading the
+    disclaimed half as a claim makes a truthful, contrastive reason disagree
+    with its own site. MEASURED before the repair: "both sites raise from a
+    filename-free clone rather than from exc" named BOTH forms.
+
+    WHAT IS NOT GRADED, stated rather than left to be discovered: the negative
+    half is dropped, never checked. A reason disclaiming a form it does in
+    fact use is INVISIBLE here rather than cleared here, which is the same
+    under-report the closed vocabulary already chooses.
+    """
+    for reason, expected in _CONTRASTIVE_REASONS:
+        assert claims_in_reason(reason) == expected, (reason, claims_in_reason(reason))
+
+
+def test_a_form_claim_is_read_through_case_markup_and_wrapping() -> None:
+    """THE SAME WORDS ARE THE SAME CLAIM.
+
+    The stated limit is that a form named IN OTHER WORDS is invisible. Case,
+    RST markup and the whitespace a line wrap introduces are not other words,
+    and every one of them is an idiom this very file uses: reasons SHOUT for
+    emphasis and the surrounding prose double-backticks its identifiers.
+    MEASURED before the repair: ``raise FROM EXC`` and ``from ``exc```` each
+    read as NO CLAIM, which silently drops a key out of the graded population.
+
+    The last case is the control that the normalisation invents nothing: a
+    longer word starting with the same letters is still not a claim.
+    """
+    for reason, expected in _RESPELLED_REASONS:
+        assert claims_in_reason(reason) == expected, (reason, claims_in_reason(reason))
+
+
 def test_no_exemption_reason_names_a_raise_form_its_own_sites_do_not_use() -> None:
     """THE CONTRACT, and the form it is graded against is DERIVED.
 
@@ -1420,7 +1625,17 @@ def test_no_exemption_reason_names_a_raise_form_its_own_sites_do_not_use() -> No
     """
     sites = raise_sites()
     claiming = form_claiming_keys(EXEMPT)
-    assert claiming, "no exemption reason names a raise form at all - this zero would be vacuous"
+    assert claiming == _FORM_CLAIMING_KEYS, (
+        "the set of exemption reasons under form grading moved. A key that "
+        "LEFT it is a reason no longer graded at all, which the old non-empty "
+        "check could not see - two of three could depart and one survivor "
+        "still satisfied it. Re-measure, then update the pin deliberately: "
+        f"{claiming}"
+    )
+    for key in claiming:
+        assert claims_in_reason(EXEMPT[key]), f"{key} claims nothing - it is not graded"
+        joined = sites_for_exemption(key, sites)
+        assert joined, f"{key} joins to no site - its claim is graded against nothing"
 
     unjoined = unjoined_form_claims(EXEMPT, sites)
     assert unjoined == (), (
