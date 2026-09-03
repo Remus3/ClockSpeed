@@ -1478,17 +1478,3 @@ generation failure from a typo. Measured directly, not read.
 **IT PREDATES CS-878 AND WAS DELIBERATELY LEFT.** The CS-878 builder found it while adding a
 fourth exit code and flagged it rather than widening its own slice. Changing it alters the
 script's public behaviour and belongs to whoever takes this item.
-
-## CS-883
-
-### NOTE - filed 2026-09-01 (session 56) by the merger, from the CS-879 builder's own residual
-
-**A ZERO WHOSE POPULATION STOPPED MATCHING ITS SIBLING'S.** The note census asserts its zero
-over the advice layer. CS-879 widened the chained-raise grading to cover the frozen-adjacent
-tool and script modules and the test-support modules, so the two censuses now measure
-different populations while sitting in the same file.
-
-**THE BUILDER DECLINED TO WIDEN IT AND SAID WHY.** Widening it silently was outside CS-879's
-acceptance, and a zero that quietly changes its own population is the fault CS-879 was filed
-against. It is recorded as a real gap rather than a stylistic one.
-

@@ -53,7 +53,7 @@ import subprocess
 import sys
 import traceback
 import warnings
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -94,14 +94,18 @@ from tests.chained_cause_guard import (
     UNPROVEN,
     VERDICT_ORDER,
     ChainedCauseDerivationError,
+    NoteSite,
     Site,
     bucket_of,
     classify,
     frozen_from_text,
     frozen_paths,
     is_frozen,
+    note_census_modules,
+    note_findings,
     note_sites,
     notes_in_tree,
+    notes_out_of_scope_record,
     out_of_scope_record,
     raise_sites,
     sites_in_tree,
@@ -1511,8 +1515,71 @@ def test_neither_guard_file_transcribes_a_site() -> None:
 
 
 # ---------------------------------------------------------------------------
-# The __notes__ census - a zero with a live positive control.
+# The __notes__ census - a zero with a live positive control, over the SAME
+# population the chained-raise census grades. CS-883.
+#
+# THE DENOMINATOR IS THE GRADED BUCKET, NOT THE GRADED RAISE SITES. A module
+# holding a note and no chained raise is invisible to the site population, and
+# on this tree that describes most of the bucket. Asserting over modules from
+# the sweep is the shape ``test_every_advice_layer_module_is_graded`` already
+# uses, and for the same stated reason.
 # ---------------------------------------------------------------------------
+
+#: A planted module in the GRADED bucket and OUTSIDE :data:`ADVICE_LAYER` -
+#: which is exactly the region CS-883 widened the census into. Never touched on
+#: disk: :func:`notes_in_tree` reads a mapping, so this is a key and not a file.
+PLANTED_WIDENED_PATH: Final = "tools/planted_notes.py"
+
+#: A planted module in the graded bucket and INSIDE the advice layer, so the
+#: widening arm can show the old scope caught this one and missed its sibling.
+PLANTED_ADVICE_PATH: Final = "clockspeed/planted_notes.py"
+
+#: One ``add_note`` call. The payload is a PARAMETER, never a literal, so no
+#: arm below can be read as planting a path.
+PLANTED_NOTE_SOURCE: Final = "def f(exc, detail):\n    exc.add_note(detail)\n    raise exc\n"
+
+#: Named so no bare number sits in an assertion.
+_ONE_NOTE: Final = 1
+_PLANTED_NOTE_PAIR: Final = 2
+
+
+def _homeless_notes(notes: Sequence[NoteSite]) -> list[str]:
+    """The note sites in NEITHER population, rendered.
+
+    THE ONE CODE PATH BOTH DIRECTIONS OF THE ARM RUN, for the reason
+    :func:`_homeless` records one census over.
+
+    MATCHES THE RECORD LINE ON THE MODULE AND LINE TOGETHER, so a module whose
+    path is a strict prefix of another's cannot be found inside that other
+    module's line and read as recorded.
+
+    Args:
+        notes: Any derived note population, live or planted.
+
+    Returns:
+        One ``module:line qualname`` string per note site that is neither
+        censused nor on the out-of-scope record, sorted.
+    """
+    censused = note_findings(notes)
+    recorded = notes_out_of_scope_record(notes)
+
+    def _placed(note: NoteSite) -> bool:
+        """Whether one note site reached either population.
+
+        Args:
+            note: The site to look for.
+
+        Returns:
+            True when a censused line or a recorded line carries it.
+        """
+        at = f"{note.module}:{note.lineno} "
+        return any(line.startswith(f"note-finding {at}") for line in censused) or any(
+            f" {at}" in line for line in recorded
+        )
+
+    return sorted(
+        f"{note.module}:{note.lineno} {note.qualname}" for note in notes if not _placed(note)
+    )
 
 
 def test_the_note_census_fires_on_a_planted_add_note() -> None:
@@ -1547,17 +1614,304 @@ def test_the_live_note_census_finds_this_modules_own_fixture() -> None:
     assert any(note.channel == NOTE_CALL for note in mine)
 
 
-def test_no_shipped_module_attaches_a_note_to_an_exception() -> None:
-    """THE ZERO, with its denominator and its detector both asserted.
+def _assert_module_holds_no_note(module: str, notes: Sequence[NoteSite]) -> None:
+    """Assert one censused module attaches no note, and that it IS censused.
 
-    Scoped to :data:`ADVICE_LAYER`: this module's own fixture is a note site by
-    design, and counting it would make the zero unreachable.
+    THE ONE CODE PATH BOTH DIRECTIONS RUN, for the reason :func:`_homeless`
+    records: the live arms assert this finds nothing, and the sensitivity arm
+    asserts it finds a planted note. Two separately written checks could drift
+    apart and then agree by accident, which ``CLAUDE.md`` section 5 rules out
+    as evidence.
+
+    Args:
+        module: The censused module path.
+        notes: The derived note population to read.
+
+    Raises:
+        AssertionError: The module is not in the censused population, or it
+            holds a note site.
     """
-    assert len(tracked_sources()) > 1, "the sweep read nothing, so the zero is vacuous"
-    shipped = [note for note in note_sites() if note.module.startswith(ADVICE_LAYER)]
-    assert shipped == [], (
-        "a shipped module attaches a note to an exception, which renders in the "
-        f"traceback and is invisible to a cause walk: {shipped}"
+    bucket = bucket_of(module)
+    assert bucket == BUCKET_GRADED, (
+        f"{module} is on the note census's member list and buckets {bucket!r}, "
+        f"so the denominator and the classifier disagree about it"
+    )
+    found = [line for line in note_findings(notes) if line.startswith(f"note-finding {module}:")]
+    count = len(found)
+    assert count == 0, (
+        f"{module} attaches {count} note(s) to an exception. A note renders in "
+        f"the formatted traceback under the exception it is attached to and is "
+        f"INVISIBLE to a cause walk, so nothing else in this census sees it:\n"
+        + "\n".join(f"  {line}" for line in found)
+    )
+
+
+@pytest.mark.parametrize("module", note_census_modules(tracked_sources()), ids=lambda m: m)
+def test_every_censused_module_attaches_no_note_to_an_exception(module: str) -> None:
+    """CS-883. THE ZERO, ONE ARM PER MEMBER RATHER THAN OVER A POOLED TOTAL.
+
+    A pooled zero reports one line for a whole population and gives a later
+    reader no way to see which members were actually measured -
+    ``memory/pooled-guard-hides-its-worst-member.md``. One arm per member makes
+    the denominator something pytest itself counts and prints, and makes a new
+    note redden an arm that NAMES the module it is in.
+
+    THE MEMBER LIST IS MODULES FROM THE SWEEP, NOT SITES. Most of the graded
+    bucket chains no raise at all, so a note-census keyed on the raise
+    population would cover a fraction of it and report the same clean zero.
+    """
+    _assert_module_holds_no_note(module, note_sites())
+
+
+def test_the_note_census_covers_every_module_the_raise_census_grades() -> None:
+    """CS-883. THE DENOMINATOR, ASSERTED RATHER THAN ASSUMED.
+
+    The arms above are zeroes, and a zero over an absent member proves nothing
+    - ``memory/an-empty-population-satisfies-every-zero.md``. This arm is what
+    says WHICH members were measured: every module the chained-raise census
+    grades, no fewer.
+
+    THE TWO CENSUSES SAT IN ONE FILE MEASURING DIFFERENT POPULATIONS. The note
+    zero was asserted over :data:`ADVICE_LAYER` while CS-879 widened grading to
+    whatever :func:`bucket_of` calls :data:`BUCKET_GRADED`, so a note attached
+    in a ``scripts/``, ``tools/`` or test-support module was graded by nothing.
+    No count is quoted here on purpose: a number in prose is a fact with no
+    owner and it drifts.
+    """
+    swept = tracked_sources()
+    assert len(swept) > 1, "the git sweep read nothing, so this arm measured nothing"
+    graded = {module for module in swept if bucket_of(module) == BUCKET_GRADED}
+    assert graded, (
+        "the sweep found no graded module, so the note census has an empty "
+        "denominator - memory/an-empty-population-satisfies-every-zero.md"
+    )
+    uncovered = sorted(graded - set(note_census_modules(swept)))
+    count = len(uncovered)
+    assert count == 0, (
+        f"{count} of {len(graded)} module(s) the chained-raise census GRADES "
+        f"are outside the note census, so a note attached in one of them is "
+        f"graded by nothing and reported by nothing:\n"
+        + "\n".join(f"  {module}" for module in uncovered)
+    )
+
+
+def test_the_note_census_reaches_past_the_advice_layer() -> None:
+    """CS-883. THE WIDENING IS A LIVE FACT, NOT A SENTENCE ABOUT ONE.
+
+    The arm above would still pass if :data:`ADVICE_LAYER` and the graded
+    bucket happened to name the same modules, and then a later narrowing back
+    to the advice layer would cost nothing. This arm asserts the census is
+    STRICTLY wider, so re-scoping it to the shipped directory reddens.
+    """
+    swept = tracked_sources()
+    censused = set(note_census_modules(swept))
+    advice = {module for module in swept if module.startswith(ADVICE_LAYER)}
+    assert advice, f"the sweep found no module under {ADVICE_LAYER}"
+    assert advice < censused, (
+        f"the note census covers {len(censused)} module(s) and the advice layer "
+        f"holds {len(advice)}, so the census is no wider than the scope CS-883 "
+        f"was filed to widen it past"
+    )
+
+
+def test_a_note_outside_the_advice_layer_is_censused_and_would_not_have_been() -> None:
+    """CS-883. THE PLANTED POSITIVE, AIMED AT THE WIDENED REGION SPECIFICALLY.
+
+    The live zero above is a zero over a population with NO positive member -
+    the tree attaches no note in any graded module - so on its own it is
+    exactly what a detector scoped to nothing returns. This plants a note in
+    the region the widening added and asserts BOTH directions of the change on
+    one input: the census reports it, and the scope it replaced does not.
+
+    THE SECOND ASSERTION IS THE ONE THAT MATTERS. Without it this arm passes
+    against the old, narrow census too, and the widening would rest on a
+    sentence again.
+    """
+    planted = notes_in_tree(
+        {PLANTED_WIDENED_PATH: PLANTED_NOTE_SOURCE, PLANTED_ADVICE_PATH: PLANTED_NOTE_SOURCE}
+    )
+    assert len(planted) == _PLANTED_NOTE_PAIR, (
+        f"the plant did not derive one note per module: {planted}"
+    )
+    assert bucket_of(PLANTED_WIDENED_PATH) == BUCKET_GRADED, (
+        f"{PLANTED_WIDENED_PATH} does not bucket {BUCKET_GRADED}, so this arm "
+        f"is not planting in the region CS-883 widened the census into"
+    )
+    assert not PLANTED_WIDENED_PATH.startswith(ADVICE_LAYER), (
+        f"{PLANTED_WIDENED_PATH} is inside {ADVICE_LAYER}, so the old scope "
+        f"would have caught it and this arm measures nothing"
+    )
+
+    censused = note_findings(planted)
+    widened = [line for line in censused if PLANTED_WIDENED_PATH in line]
+    assert len(widened) == _ONE_NOTE, (
+        f"the note census did not report the plant in {PLANTED_WIDENED_PATH}, "
+        f"which is a graded module: {censused}"
+    )
+    would_have_been = [note for note in planted if note.module.startswith(ADVICE_LAYER)]
+    assert len(would_have_been) == _ONE_NOTE, (
+        "the premise is wrong: the advice-layer scope this census replaced sees "
+        f"a different number of the two plants than the one inside it: {would_have_been}"
+    )
+    assert would_have_been[0].module == PLANTED_ADVICE_PATH, (
+        "the advice-layer scope caught the wrong plant, so this arm is not "
+        "measuring the scope it claims to"
+    )
+
+
+def test_the_per_member_note_arm_reddens_on_a_planted_note() -> None:
+    """CS-883. THE SECOND DIRECTION OF THE PER-MEMBER ARM.
+
+    Every live arm above asserts a zero, and a zero is what a broken detector
+    returns too. This feeds the SAME assert helper the live arms run a planted
+    note in a graded module and asserts it fails, so the green above rests on a
+    helper measured to fire rather than on one that was never exercised.
+    """
+    planted = notes_in_tree({PLANTED_WIDENED_PATH: PLANTED_NOTE_SOURCE})
+    with pytest.raises(AssertionError, match="attaches"):
+        _assert_module_holds_no_note(PLANTED_WIDENED_PATH, planted)
+
+
+def test_every_derived_note_site_is_either_censused_or_recorded() -> None:
+    """CS-883. NO NOTE SITE IS SWEPT UP AND THEN DROPPED ON THE FLOOR.
+
+    The mirror of ``test_every_derived_site_is_either_graded_or_recorded``, and
+    it closes a hole the per-member arms cannot see: they iterate the CENSUSED
+    modules, so a note in a module outside :data:`SWEPT_ROOTS` - which reaches
+    :data:`BUCKET_UNCLASSIFIED` and therefore no member list at all - would be
+    derived and then measured by nothing.
+    """
+    notes = note_sites()
+    assert notes, (
+        "the live derivation found no note site at all, so this arm measured "
+        "nothing - memory/an-empty-population-satisfies-every-zero.md"
+    )
+    homeless = _homeless_notes(notes)
+    count = len(homeless)
+    assert count == 0, (
+        f"{count} derived note site(s) are in neither population - not "
+        f"censused, not recorded, so nothing measures them and nothing "
+        f"reports them:\n" + "\n".join(f"  {line}" for line in homeless)
+    )
+
+
+def test_the_note_exhaustiveness_arm_reddens_on_a_note_no_bucket_claims() -> None:
+    """CS-883. THE SECOND DIRECTION, on the one shape that falls through both.
+
+    :data:`PLANTED_PATH` sits outside :data:`SWEPT_ROOTS`, so it buckets
+    :data:`BUCKET_UNCLASSIFIED` - censused by nothing because it is not graded,
+    recorded by nothing because :data:`RECORDED_BUCKETS` is not a catch-all.
+    That hole is deliberate, and this arm is the proof it is still open in the
+    direction that reddens.
+    """
+    planted = notes_in_tree({PLANTED_PATH: PLANTED_NOTE_SOURCE})
+    assert bucket_of(PLANTED_PATH) == BUCKET_UNCLASSIFIED, (
+        f"{PLANTED_PATH} now buckets {bucket_of(PLANTED_PATH)!r}, so this arm "
+        f"no longer feeds the sentinel it was written for"
+    )
+    assert note_findings(planted) == (), "an unclassified note site was censused"
+    assert notes_out_of_scope_record(planted) == (), (
+        "an unclassified note site was swept onto the record, so the record is "
+        "acting as a catch-all and the exhaustiveness arm cannot fail"
+    )
+    assert _homeless_notes(planted) == [
+        f"{PLANTED_PATH}:{planted[0].lineno} {planted[0].qualname}"
+    ], "a note site no bucket claims was not reported as being in neither population"
+
+
+@pytest.mark.parametrize("bucket", RECORDED_BUCKETS, ids=list(RECORDED_BUCKETS))
+def test_each_recorded_note_bucket_renders_its_own_line(bucket: str) -> None:
+    """CS-883. THE RECORD CARRIES BOTH ITS BUCKETS, PER MEMBER.
+
+    A record filtering on one bucket and claiming two is the defect
+    :func:`out_of_scope_record` was widened for one census over. Proven on a
+    planted note in each bucket rather than on the live tree, so repairing or
+    moving a live fixture cannot redden it.
+    """
+    module = _recorded_bucket_probe(bucket)
+    planted = notes_in_tree({module: PLANTED_NOTE_SOURCE})
+    assert bucket_of(module) == bucket, (
+        f"the probe path {module} buckets {bucket_of(module)!r}, not {bucket!r}"
+    )
+    rendered = notes_out_of_scope_record(planted)
+    assert len(rendered) == _ONE_NOTE, f"the record did not carry the {bucket} note: {rendered}"
+    assert bucket.upper() in rendered[0], (
+        f"the {bucket} line does not name its own bucket: {rendered[0]}"
+    )
+
+
+#: The attachments the walk does NOT derive, because the attribute name is a
+#: STRING rather than an ``ast.Attribute``. Each is a stated under-report of
+#: the CHANNEL, which CS-883 did not widen - it widened the POPULATION.
+_STRING_NAMED_ATTACHMENTS: Final = (
+    ("setattr", 'def f(exc, detail):\n    setattr(exc, "__notes__", [detail])\n    raise exc\n'),
+    (
+        "getattr-call",
+        'def f(exc, detail):\n    getattr(exc, "add_note")(detail)\n    raise exc\n',
+    ),
+    (
+        "methodcaller",
+        "import operator\n\n\ndef f(exc, detail):\n"
+        '    operator.methodcaller("add_note", detail)(exc)\n    raise exc\n',
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("label", "source"),
+    _STRING_NAMED_ATTACHMENTS,
+    ids=[row[0] for row in _STRING_NAMED_ATTACHMENTS],
+)
+def test_a_note_attached_through_a_string_name_is_not_derived(label: str, source: str) -> None:
+    """CS-883. THE CHANNEL LIMIT, MEASURED PER SHAPE RATHER THAN ASSERTED.
+
+    The zero this census ships is over a population that CS-883 widened and a
+    channel it did not. Naming that in prose is what the guard's own docstring
+    calls a sentence rather than an artifact, so each escape is planted and the
+    silence is read back off the derivation.
+
+    A RED ARM HERE IS GOOD NEWS, NOT A REGRESSION. It means the walk grew to
+    see the shape, and the fix is to delete the row - after checking what it
+    now reports about the three shipped modules that read ``__notes__`` at
+    RUNTIME to measure a redaction, which are not attachments at all.
+    """
+    planted = notes_in_tree({PLANTED_WIDENED_PATH: source})
+    assert planted == (), (
+        f"the {label} shape is now derived, so the stated channel limit in "
+        f"note_findings is out of date: {planted}"
+    )
+
+
+def test_the_note_channel_the_walk_does_derive_still_fires() -> None:
+    """CS-883. THE LIMIT ARMS ABOVE NEED A CONTROL THAT IS NOT A ZERO.
+
+    Three zeroes in a row are also what a derivation that stopped working
+    returns. This runs the SAME entry point over the spelling the walk DOES
+    model, in the SAME planted module, so the zeroes above are a statement
+    about the shape rather than about the plumbing.
+    """
+    planted = notes_in_tree({PLANTED_WIDENED_PATH: PLANTED_NOTE_SOURCE})
+    assert len(planted) == _ONE_NOTE, f"the modelled spelling derived nothing: {planted}"
+    assert planted[0].channel == NOTE_CALL
+
+
+def test_the_live_note_record_accounts_for_this_censuss_own_fixtures() -> None:
+    """CS-883. THE FIXTURES ARE EXCLUDED BY THE TAXONOMY, NOT BY A LIST.
+
+    :data:`CONTROL_MODULES` is what keeps this module's own planted notes out
+    of the census, and it is the SAME constant that keeps its planted chained
+    raises out of the graded site population. Nothing here names a file to
+    ignore; the exclusion is read back off :func:`bucket_of`, and the record
+    prints it every run so it is a visible decision rather than a silence.
+    """
+    if _THIS_MODULE not in tracked_sources():
+        pytest.skip(f"{_THIS_MODULE} is not in the git sweep; run git add -N first")
+    recorded = notes_out_of_scope_record(note_sites())
+    assert recorded, "the live record carries no note site, so it accounts for nothing"
+    mine = [line for line in recorded if f"{_THIS_MODULE}:" in line]
+    assert mine, f"the live record does not account for this module's own note fixture: {recorded}"
+    assert all(BUCKET_CONTROL.upper() in line for line in mine), (
+        f"this module's note fixture is recorded under a bucket other than {BUCKET_CONTROL}: {mine}"
     )
 
 

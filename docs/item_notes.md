@@ -190,7 +190,6 @@ a pass - every equality here is satisfied for free by an empty population.
 | CS-880 | `docs/item_notes/phase4-followups-850.md` |
 | CS-881 | `docs/item_notes/phase4-followups-850.md` |
 | CS-882 | `docs/item_notes/phase4-followups-850.md` |
-| CS-883 | `docs/item_notes/phase4-followups-850.md` |
 
 ## Rules every leaf obeys
 

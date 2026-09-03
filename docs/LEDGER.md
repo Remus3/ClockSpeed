@@ -75,6 +75,54 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-02 - CS-883 - CLOSED. The note census reads the same taxonomy the raise census does, over 139 modules instead of 38, one arm per member
+`exc.add_note(...)` renders under an exception and a cause walk cannot see it, so the census
+derives note sites and asserts a zero. CS-879 widened the chained-raise grading past
+`clockspeed/`; the note zero did not follow it.
+
+THE DENOMINATOR WAS THE WHOLE ITEM, AND THE OBVIOUS ONE WAS WRONG. The note census swept 38
+advice-layer modules. The graded bucket holds 139, and only 21 of those contain a chained
+raise - so deriving the denominator from the RAISE population would have missed 118 modules
+in which a note is seen by nothing. 101 graded modules sat outside the note census. The
+shape follows CS-879's own precedent, whose advice-layer arm is asserted over MODULES FROM
+THE SWEEP RATHER THAN SITES so that a module chaining nothing today is covered the day it
+starts.
+
+BOTH CENSUSES NOW READ ONE CLASSIFIER. Membership is `bucket_of(module) == BUCKET_GRADED`,
+so the two live note fixtures fall out through `CONTROL_MODULES` rather than through any
+hand-written list of files to ignore - a list being the fault CS-879 was filed against.
+Verified independently at the merge by planting one note per layer: `tools/`, `scripts/`,
+`clockspeed/` and a `tests/` support module each REPORT a finding where only `clockspeed/`
+would have before; a control module and a frozen module are RECORDED rather than graded,
+matching how the raise census treats each; and an unclassified module falls through to
+`_homeless_notes` and reddens rather than vanishing, which is CS-879's sentinel one channel
+over.
+
+THE COVERING BRANCH WAS TAKEN FOR THE POPULATION, and the "records why it may not" branch on
+a DIFFERENT AXIS, stated rather than buried: this item widened the POPULATION, not the
+CHANNEL. A note attached through a string name - `setattr(exc, "__notes__", ...)`,
+`getattr(exc, "add_note")(...)`, `operator.methodcaller` - is derived by nothing. Widening
+the channel was declined with a measured reason: arms in the save suite read
+`getattr(exc, "__notes__", ())` to MEASURE a redaction at runtime, and a string-aware walk
+would report those as attachments, escapable only with the exclusion list this census exists
+without. Each escape is planted with a non-zero control beside it, so the silence is enforced
+rather than asserted.
+
+THE LIVE POSITIVE CONTROL SURVIVED UNCHANGED, byte for byte, and the reason it is still
+needed is worth recording: the census module is itself a `CONTROL_MODULE`, so it sits outside
+the censused population, and that arm is the only thing proving the detector fires on the git
+sweep at all rather than only on a planted string. The pooled zero was replaced and its
+denominator assertion carried over verbatim; the old name was not kept, because "shipped" is
+the word CS-879 retired from `BUCKET_GRADED` and reusing it over 139 modules would have
+reintroduced the false label.
+
+The planted positive aims at the widened region and asserts BOTH directions on one input -
+the census reports a `tools/` note while the advice-layer scope it replaced sees only the
+`clockspeed/` one - so it could not pass against the old census. Seven mutants, zero
+survivors. Arms: `tests/test_chained_cause_census.py`. Suite 4420 to 4571, reconciling as
+139 per-member arms replacing one pooled arm plus 13 new.
+
+
 ### 2026-09-02 - CS-885 - CLOSED. The four copies of the path-free clone are compared on every run, and the route was chosen by measuring what the alternative would cost rather than by preference
 `_pathless_cause` ships in four modules - `clockspeed/save/workdir.py`,
 `clockspeed/save/usmap.py`, `clockspeed/surface/config.py` and `scripts/make_cert.py` -

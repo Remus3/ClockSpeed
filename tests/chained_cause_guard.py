@@ -456,15 +456,25 @@ BARE_RAISE: Final = "<bare>"
 MODULE_SCOPE: Final = "<module>"
 
 #: The shipped advice path, named for WHAT IT IS rather than for what this
-#: module grades. IT IS NOT THE GRADED POPULATION and must not be used as one:
-#: the graded population is decided by :func:`bucket_of` and is wider than this
-#: prefix. Kept because the ``__notes__`` zero is legitimately scoped to the
-#: advice path, which is the only claim this constant carries.
+#: module grades. IT IS NOT A POPULATION THIS MODULE MEASURES OVER, and it must
+#: never be used as one: every population here is decided by :func:`bucket_of`
+#: and each is wider than this prefix.
 #:
 #: IT WAS THE GRADED POPULATION UNTIL CS-879, AND THAT WAS THE DEFECT. A flat
 #: prefix test made the split a statement about a directory name, so three
 #: sites in non-frozen ``scripts/`` and ``tools/`` files were graded by nothing
 #: and reported by nothing while a comment here asserted they were both.
+#:
+#: AND IT WAS STILL THE ``__notes__`` POPULATION UNTIL CS-883, WHICH IS THE
+#: SAME DEFECT SURVIVING IN THE OTHER CENSUS IN THIS FILE. The comment here
+#: read that the note zero was "legitimately scoped to the advice path, which
+#: is the only claim this constant carries", and CS-879 had already made that
+#: false: 101 of the 139 graded modules were outside the note census, so a note
+#: attached in any of them rendered in a traceback that nothing looked at. The
+#: two censuses now read one classifier. WHAT THE CONSTANT IS FOR NOW is the
+#: opposite direction - ``test_every_advice_layer_module_is_graded`` asserts
+#: the shipped path can never be relabelled OUT of a population - plus naming
+#: the narrower scope the CS-883 arms measure the widening against.
 ADVICE_LAYER: Final = "clockspeed/"
 
 #: The modules whose chained raises are THIS CENSUS'S OWN PLANTED CONTROLS.
@@ -2230,5 +2240,118 @@ def out_of_scope_record(sites: Sequence[Site]) -> tuple[str, ...]:
             f"{classify(site)} {site.key} line {site.lineno}"
             for site in sites
             if bucket_of(site.module) in RECORDED_BUCKETS
+        )
+    )
+
+
+# ---------------------------------------------------------------------------
+# CS-883 - the __notes__ census's own population, derived from the SAME
+# classifier the chained-raise census grades by.
+#
+# THE TWO CENSUSES SIT IN ONE FILE AND USED TO MEASURE DIFFERENT POPULATIONS.
+# The note zero was asserted over :data:`ADVICE_LAYER` while CS-879 widened
+# grading to whatever :func:`bucket_of` calls :data:`BUCKET_GRADED`, so a note
+# attached in a ``scripts/``, ``tools/`` or test-support module was graded by
+# nothing. Both derivations below read :func:`bucket_of` and nothing else, so
+# the two cannot drift apart again without the classifier itself moving.
+# ---------------------------------------------------------------------------
+
+
+def note_census_modules(sources: Mapping[str, str]) -> tuple[str, ...]:
+    """The modules the ``__notes__`` zero is asserted over, one per member.
+
+    THE DENOMINATOR IS MODULES, NOT NOTE SITES, AND THAT IS THE WHOLE POINT.
+    A population of note SITES is empty on a clean tree, so a zero over it is
+    a zero over nothing; and a population of modules that already CHAIN a raise
+    would miss every module that holds a note and chains nothing - which on
+    this tree is most of them. The same reasoning
+    ``test_every_advice_layer_module_is_graded`` records for the site census:
+    asserted over modules from the sweep, so a module that attaches nothing
+    today is still covered the day it starts.
+
+    Args:
+        sources: Repo-relative module path to source text, as
+            :func:`tracked_sources` returns.
+
+    Returns:
+        Every censused module path, sorted. A module in any other bucket is
+        absent by construction rather than by a hand-maintained list, which is
+        what keeps this census's own planted fixtures out of it without anyone
+        naming them: they are :data:`CONTROL_MODULES`, so :func:`bucket_of`
+        answers :data:`BUCKET_CONTROL` and they never enter.
+    """
+    return tuple(sorted(module for module in sources if bucket_of(module) == BUCKET_GRADED))
+
+
+def note_findings(notes: Sequence[NoteSite]) -> tuple[str, ...]:
+    """Every note site inside the censused population, rendered.
+
+    A ``__notes__`` string renders in the formatted traceback UNDER the
+    exception it is attached to, and a ``.cause`` walk cannot see it, so this
+    is a second disclosure channel rather than a variation on the first.
+
+    WHAT THIS ZERO IS ABOUT, AND WHAT IT IS NOT. CS-883 widened the POPULATION
+    to every module :func:`bucket_of` grades; it did not widen the CHANNEL, and
+    the difference is where a note can still hide. :func:`_module_notes` walks
+    for an ``add_note`` ATTRIBUTE CALL and for an ``__notes__`` ATTRIBUTE
+    access, so a note attached through a name held as a STRING -
+    ``setattr(exc, "__notes__", ...)``, ``getattr`` with a computed attribute,
+    or ``add_note`` reached through ``operator.methodcaller`` - is derived by
+    nothing and this zero says nothing about it. MEASURED, one arm apiece, in
+    ``tests/test_chained_cause_census.py``.
+
+    WIDENING THE CHANNEL WAS CONSIDERED AND DECLINED WITH A REASON. Arms in
+    the save suite read ``getattr(exc, "__notes__", ())`` to MEASURE what a
+    redacted exception carried, which is the RUNTIME act that
+    ``tests/chained_exemption_guard.py`` separates from the static one, and a
+    string-aware walk would report every one of them as an attachment. The
+    escape from that is an exclusion list of files to ignore, which is the
+    hand-maintained shape this census exists without. A stated, measured
+    under-report is the fail-closed side of that trade; a clearance bought
+    with a list of names is not.
+
+    Args:
+        notes: Any derived note population, live or planted.
+
+    Returns:
+        One line per censused note site, sorted, each naming the module, the
+        line, the enclosing scope, the channel and the expression as written,
+        so a red arm says what to go and read.
+    """
+    return tuple(
+        sorted(
+            f"note-finding {note.module}:{note.lineno} {note.qualname} {note.channel} {note.source}"
+            for note in notes
+            if bucket_of(note.module) == BUCKET_GRADED
+        )
+    )
+
+
+def notes_out_of_scope_record(notes: Sequence[NoteSite]) -> tuple[str, ...]:
+    """Render every note site this module does NOT census, each with its bucket.
+
+    THE MIRROR OF :func:`out_of_scope_record`, AND FOR THE SAME REASON. The
+    sweep pays to derive every note site in the tree; one that is neither
+    censused nor recorded is a site the census found and then said nothing
+    about. On this tree the record is what accounts for the census's own
+    planted note fixtures, so their exclusion is legible on every run rather
+    than being a property nobody prints.
+
+    FILTERS ON :data:`RECORDED_BUCKETS` RATHER THAN ON "not censused", so a
+    note in a module outside :data:`SWEPT_ROOTS` falls through BOTH populations
+    and the exhaustiveness arm reddens on it instead of absorbing it.
+
+    Args:
+        notes: Any derived note population, live or planted.
+
+    Returns:
+        One line per frozen or control note site, sorted.
+    """
+    return tuple(
+        sorted(
+            f"note-out-of-scope-recorded {bucket_of(note.module).upper()} "
+            f"{note.module}:{note.lineno} {note.qualname} {note.channel}"
+            for note in notes
+            if bucket_of(note.module) in RECORDED_BUCKETS
         )
     )
