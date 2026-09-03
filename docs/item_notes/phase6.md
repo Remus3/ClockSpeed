@@ -138,3 +138,40 @@ to scroll the composed page with the band still covering no content. The band is
 REGION THE OS DRAWS OUTSIDE THE WEB CONTENTS, so no headless or in-page harness can
 observe both halves of that condition at once - the scroll is observable in the web
 contents and the band is not. Grading it means running the shell.
+## CS-887
+
+### NOTE - filed 2026-09-03 (session 57) by the merger, MEASURED BEFORE FILING, from a CS-882 builder
+
+**THE SAME FAULT FAMILY AS CS-882, AND THIS ONE HAS A LIVE WRONG INSTRUCTION IN THE
+RUNBOOK.** CS-882 fixed `scripts/make_cert.py`, whose colliding table was a module
+docstring. This module's table is in `docs/OPERATIONS.md` section 7.3, which is what an
+operator actually reads at a failure.
+
+**MEASURED AT 528d5b6, NOT READ.** `python -m clockspeed.surface
+--clockspeed-not-a-real-flag` exits 2. `docs/OPERATIONS.md` documents 2 as the port
+refusal and instructs: find what holds it, or pass `--port`. A mistyped flag therefore
+sends the reader to look for a process holding a port that was never bound. The same
+sweep measured `--help` exiting 0 against a documented clean stop.
+
+**THE TABLE CLAIMS COMPLETENESS**, which is what turns a gap into a false statement:
+`docs/OPERATIONS.md` says anything outside it is a malfunction rather than a refusal. A
+usage error is a refusal, is outside the table, and is not a malfunction.
+
+**THE CODES ARE DECLARED, BUT ACROSS TWO MODULES.** `clockspeed/surface/__main__.py`
+declares `EXIT_CONFIG`; `clockspeed/surface/server.py` declares `EXIT_OK`,
+`EXIT_BIND_FAILED` and `EXIT_CERTIFICATE`. argparse owns 0 and 2 for its own outcomes and
+neither module declares them for those outcomes, so a derivation over the declarations
+alone cannot see the collision. That split is why the acceptance says the two modules.
+
+**`--help` EXITING 0 IS DELIBERATELY OUT OF SCOPE.** The operator ruled in session 57,
+on the CS-882 repair, that `--help` must exit 0 and that POSIX convention outranks a
+distinctness universal for that one pair. Do not widen this item to move it, and do not
+cite CS-882's arm as precedent for doing so - CS-882 ships that pair as a stated,
+reasoned exemption rather than as a met universal.
+
+**DO NOT FOLD THIS INTO CS-604.** That item is about `docs/OPERATIONS.md` restating the
+port BAND that `config/ports.json` owns. Same file, different owner and different fact.
+
+**A THIRD SITE WAS MEASURED AND IS NOT FILED.** `scripts/verify_env.py` also exits 2 on a
+bad flag, but publishes no exit-code table, so nothing collides there today. Recorded so a
+later reader knows it was looked at rather than missed.
