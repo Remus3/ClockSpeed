@@ -28,6 +28,7 @@ from typing import Final
 
 import pytest
 
+from tests import pathless_clone_guard
 from tests.chained_cause_guard import (
     BUCKET_GRADED,
     CLOSED_PATHLESS,
@@ -38,14 +39,23 @@ from tests.chained_cause_guard import (
     tracked_sources,
 )
 from tests.pathless_clone_guard import (
+    ORDINALS,
+    PRICING_COPY,
     Copy,
     canonical_body,
     copies,
     copies_in_sources,
+    copy_docstrings,
     disagreements,
+    flatten,
     graded_sources,
+    missing_cost_phrases,
+    names_its_ordinal,
+    promising_copies,
     reliances,
     reliances_in_sources,
+    restated_counts,
+    stale_excuses,
     unqualified,
 )
 
@@ -56,6 +66,16 @@ CONTROL: Final = "tests/test_chained_cause.py"
 #: How many modules the disagreement plants carry. Spelled once so the arms
 #: compare against a name rather than a bare literal.
 PLANTED_PAIR: Final = 2
+
+#: The live copy count the CS-886 prose is written about. The pricing docstring
+#: calls itself the FOURTH copy, so a tree that grows a fifth has invalidated
+#: that sentence; section (d) reddens on the move rather than letting the prose
+#: rot quietly beside a population that no longer matches it.
+LIVE_COPIES: Final = 4
+
+#: The promise CS-886 was filed against, planted verbatim so the sweep is
+#: proven against the sentence that actually shipped rather than a paraphrase.
+PROMISE: Final = "A single shared owner is the correct repair."
 
 # ---------------------------------------------------------------------------
 # Planted material
@@ -410,3 +430,293 @@ def test_a_module_that_does_not_parse_is_loud_rather_than_skipped() -> None:
         reliances_in_sources({"a.py": "def broken(:\n"})
     named = "a.py" in str(caught.value)
     assert named, "the failure did not name the module it could not parse"
+
+
+# ---------------------------------------------------------------------------
+# (d) CS-886 - what the pricing copy's docstring is allowed to claim
+# ---------------------------------------------------------------------------
+#
+# The fourth copy's docstring called a single shared owner "the correct repair"
+# and excused itself with a slice write-list. CS-885 then measured that repair
+# and DECLINED it, so the text recommended to a later reader something this
+# project had already rejected, and said nothing about the price. These arms
+# hold the replacement to the live census instead of to a number typed into it.
+
+#: The would-be shared owner, in a module of its own.
+OWNER_MODULE = '''"""The owner the collapse would create."""
+
+
+def _pathless_cause(exc):
+    """Clone it."""
+    return OSError(exc.errno, exc.strerror)
+'''
+
+#: The live shape, rewritten to import that owner by a bare name. Nothing else
+#: about the site moves - same handler, same wrapper, same slot.
+IMPORTED_OWNER = '''"""The same site, routed through the owner by a bare imported name."""
+
+from owner import _pathless_cause
+
+
+class Wrapped(Exception):
+    """The wrapper."""
+
+
+def read(path):
+    """Read it."""
+    try:
+        return path.read_bytes()
+    except OSError as exc:
+        raise Wrapped("failed") from _pathless_cause(exc)
+'''
+
+#: The same again, reached on the owner module by a dotted name.
+DOTTED_OWNER = '''"""The same site, routed through the owner by a dotted name."""
+
+import owner
+
+
+class Wrapped(Exception):
+    """The wrapper."""
+
+
+def read(path):
+    """Read it."""
+    try:
+        return path.read_bytes()
+    except OSError as exc:
+        raise Wrapped("failed") from owner._pathless_cause(exc)
+'''
+
+
+def _verdicts(sources: dict[str, str]) -> tuple[str, ...]:
+    """The census's verdict on every raise the planted ``a.py`` carries.
+
+    Args:
+        sources: The planted tree.
+
+    Returns:
+        One verdict per site, in the order the census reports them.
+    """
+    return tuple(classify(site) for site in sites_in_tree(sources) if site.module == "a.py")
+
+
+def _pricing_docstring() -> str:
+    """The live docstring of the copy that owns the collapse decision.
+
+    Returns:
+        Its text as written.
+    """
+    population = copies()
+    priced = [copy for copy in population if copy.module == PRICING_COPY]
+    assert len(priced) == 1, f"{len(priced)} copies live in {PRICING_COPY}, expected exactly one"
+    text = copy_docstrings(population, graded_sources()).get(priced[0].key)
+    assert text, f"{PRICING_COPY} carries no helper docstring, so nothing below was graded"
+    return text
+
+
+def _with_promise(source: str, copy: Copy) -> str:
+    """Plant the CS-886 promise inside one helper's docstring.
+
+    The line goes INSIDE the existing string literal, immediately after its
+    opening line, so the ``def`` keeps the line number the population was
+    derived at and nothing but the docstring changes.
+
+    Args:
+        source: The module source.
+        copy: The copy whose docstring is the target.
+
+    Returns:
+        The mutated source.
+    """
+    node = next(
+        item
+        for item in ast.parse(source).body
+        if isinstance(item, ast.FunctionDef) and item.name == copy.name
+    )
+    doc = node.body[0]
+    assert isinstance(doc, ast.Expr), "the target helper carries no docstring to plant into"
+    lines = source.splitlines(keepends=True)
+    return "".join([*lines[: doc.lineno], f"    {PROMISE}\n", *lines[doc.lineno :]])
+
+
+def test_routing_a_site_through_a_shared_owner_loses_its_clearance() -> None:
+    """THE COST, DERIVED BY EXECUTION RATHER THAN RESTATED.
+
+    The docstring's claim is a claim about the census, so this measures the
+    census. One site, three spellings of the same helper: defined beside it,
+    imported from an owner module by a bare name, and reached on that module by
+    a dotted one. BOTH DIRECTIONS ARE ASSERTED - a plant that could not be
+    cleared even when written the live way would prove nothing at all about
+    what the collapse costs, only that the plant was malformed.
+    """
+    kept = _verdicts({"a.py": _module()})
+    assert kept == (CLOSED_PATHLESS,), f"the same-module control was not cleared, got {kept}"
+    imported = _verdicts({"a.py": IMPORTED_OWNER, "owner.py": OWNER_MODULE})
+    assert len(imported) == 1, f"the bare-import plant censused {len(imported)} sites, wanted one"
+    assert CLOSED_PATHLESS not in imported, f"a bare imported owner kept the clearance: {imported}"
+    dotted = _verdicts({"a.py": DOTTED_OWNER, "owner.py": OWNER_MODULE})
+    assert len(dotted) == 1, f"the dotted plant censused {len(dotted)} sites, wanted one"
+    assert CLOSED_PATHLESS not in dotted, f"a dotted owner kept the clearance: {dotted}"
+
+
+def test_every_live_site_would_take_that_drop_at_once() -> None:
+    """WHY THE COST IS AGGREGATE, AND THE NON-EMPTINESS THAT MAKES IT ONE.
+
+    ``Reliance`` membership IS "a bare-name call to a module-level function of
+    the same module" - the one shape the arm above proves the collapse
+    destroys. So the population is exactly the set of sites the repair would
+    drop, and "they all drop at once" is a statement about its size. It says
+    nothing whatever if the set is empty
+    (``memory/an-empty-population-satisfies-every-zero.md``), so the size is
+    asserted here and never written into the prose.
+    """
+    sites = len(reliances())
+    assert sites > 0, "no live site leans on a same-module helper, so the collapse prices nothing"
+    carriers = {reliance.module for reliance in reliances()}
+    modules = {copy.module for copy in copies()}
+    assert carriers <= modules, f"a reliance names a module no copy lives in: {carriers - modules}"
+
+
+def test_the_pricing_copy_states_what_the_shared_owner_would_cost() -> None:
+    """THE ACCEPTANCE - THE CLAIM MUST PRICE THE REPAIR IT ONCE RECOMMENDED.
+
+    It has to name the item that measured it, the verdict, what the sites drop
+    to, and the shape of the aggregate. THE MAGNITUDE MAY NOT APPEAR: the only
+    number the prose carries is the ordinal saying WHICH copy it is, and that
+    word is held to ``len(copies())`` computed here rather than compared to a
+    literal beside it.
+    """
+    total = len(copies())
+    assert total == LIVE_COPIES, f"{total} copies now, so the docstring's ordinal is stale"
+    sites = len(reliances())
+    assert sites > 0, "the census reports no relying site, so the claim prices nothing"
+    text = _pricing_docstring()
+    absent = missing_cost_phrases(text)
+    assert not absent, f"the docstring stopped stating the cost, missing {absent}"
+    assert names_its_ordinal(text, total), f"the docstring does not call itself the {total}th copy"
+    restated = restated_counts(text, sites)
+    assert not restated, f"the docstring writes the live measurement down as {restated}"
+
+
+def test_the_pricing_copy_defers_to_no_slice_write_list() -> None:
+    """THE SECOND HALF OF THE DEFECT.
+
+    "Creating one was not on this slice's write-list" is true for one dispatch
+    and unreadable forever after: a later reader cannot see that slice, cannot
+    check it, and cannot tell whether the work was declined or merely deferred.
+    """
+    found = stale_excuses(_pricing_docstring())
+    assert not found, f"the docstring defers to a dispatch a reader cannot see: {found}"
+
+
+def test_no_other_copy_promises_that_a_shared_owner_is_correct() -> None:
+    """ONE DOCSTRING OWNS THE DECISION, AND IT IS THE ONE CARRYING THE PRICE.
+
+    A second copy naming the collapse - to recommend it, or even to argue about
+    it - hands a reader a live-looking question CS-885 already closed, with no
+    reason to believe the price travelled with it.
+    """
+    population = copies()
+    total = len(population)
+    assert total == LIVE_COPIES, f"the copy population moved to {total}, so this sweep is stale"
+    docstrings = copy_docstrings(population, graded_sources())
+    read = len(docstrings)
+    assert read == total, f"{total - read} copies carry no docstring, so the sweep skipped them"
+    exempt = [key for key in docstrings if key.startswith(f"{PRICING_COPY}::")]
+    assert len(exempt) == 1, f"{len(exempt)} copies claim the pricing exemption, wanted one"
+    promising = promising_copies(population, graded_sources())
+    count = len(promising)
+    assert count == 0, f"{count} copies outside {PRICING_COPY} name the collapse: {promising}"
+
+
+def test_the_sweep_reddens_on_a_promise_planted_in_a_live_copy() -> None:
+    """THE MUTATION. A GREEN SWEEP OVER A CLEAN TREE PROVES NOTHING ALONE.
+
+    Planted into a fabricated copy of a LIVE module's source, so the whole path
+    the acceptance arm walks is exercised - population, re-parse, docstring lift
+    and predicate - rather than the predicate on its own.
+    """
+    population = copies()
+    victim = next(copy for copy in population if copy.module != PRICING_COPY)
+    sources = dict(graded_sources())
+    clean = promising_copies(population, sources)
+    assert not clean, f"the tree already carries the promise, so the plant proves nothing: {clean}"
+    sources[victim.module] = _with_promise(sources[victim.module], victim)
+    caught = promising_copies(population, sources)
+    assert caught == (victim.key,), f"the planted promise went unreported, got {caught}"
+
+
+def test_the_pricing_exemption_is_scoped_to_one_module() -> None:
+    """AN EXEMPTION IS A PLACE A FINDING DISAPPEARS, SO BOTH DIRECTIONS ARE PROVEN.
+
+    Two fabricated modules carrying the identical promise, one of them named
+    like the pricing copy. Only the other may be reported, and the pair has to
+    reach the population first or the arm compared nothing.
+    """
+    promised = _module(doc=PROMISE)
+    sources = {PRICING_COPY: promised, "b.py": promised}
+    population = copies_in_sources(sources)
+    reached = len(population)
+    assert reached == PLANTED_PAIR, f"{reached} of the planted pair reached the population"
+    found = promising_copies(population, sources)
+    assert found == ("b.py::_pathless_cause",), f"the exemption is not module-scoped: {found}"
+
+
+def test_the_restated_count_leg_fires_on_a_digit_and_on_a_word() -> None:
+    """THE LEG THAT KEEPS THE MAGNITUDE OUT OF THE PROSE, AND ITS FALSE-RED CONTROL.
+
+    The last case is the one that matters: item ids on this channel carry an
+    eight, and a leg that graded ``CS-885`` as a restatement of eight would be
+    unusable on the very docstring it exists for.
+    """
+    assert restated_counts("all 8 sites drop at once", 8) == ("8",)
+    assert restated_counts("all eight sites drop at once", 8) == ("eight",)
+    assert restated_counts("8 sites, eight of them", 8) == ("8", "eight")
+    assert restated_counts("CS-885 priced it and CS-857 measured it", 8) == ()
+
+
+def test_the_guard_module_states_the_shape_without_restating_its_size() -> None:
+    """THE SAME RULE, APPLIED TO THE MODULE THAT OWNS THE MEASUREMENT.
+
+    ``tests/pathless_clone_guard.py`` argues the declined collapse in its own
+    header, and until CS-886 that header spelled the population size as a word.
+    A measured number written into prose is a lie with a timestamp on it
+    wherever it appears, and the guard against that drift is the last place it
+    should have been true of.
+    """
+    text = pathless_clone_guard.__doc__
+    assert text, "the guard module carries no docstring, so this arm read nothing"
+    sites = len(reliances())
+    assert sites > 0, "the census reports no relying site, so there was no size to restate"
+    restated = restated_counts(text, sites)
+    assert not restated, f"the guard module writes the live measurement down as {restated}"
+    assert "drop at once" in flatten(text), "the guard module stopped stating the shape"
+
+
+def test_the_ordinal_leg_is_not_satisfied_by_the_shared_winerror_sentence() -> None:
+    """MEASURED, NOT ASSUMED.
+
+    All four live copies share a sentence about supplying ``winerror`` as "a
+    fourth argument". A bare-ordinal test passes on every one of them, so it
+    would have kept passing after the sentence it exists to hold was deleted.
+    """
+    assert not names_its_ordinal("supplying winerror as a fourth argument", LIVE_COPIES)
+    assert names_its_ordinal("the fourth copy is a priced duplicate", LIVE_COPIES)
+    assert not names_its_ordinal("the fourth copy", LIVE_COPIES + 1)
+    assert not names_its_ordinal("the fourth copy", len(ORDINALS))
+
+
+def test_a_copy_naming_a_module_the_sources_do_not_carry_is_loud() -> None:
+    """FAIL CLOSED WHEN THE SWEEP CANNOT READ WHAT IT IS GRADING."""
+    absent = Copy(module="nowhere.py", name="_c", lineno=1, body="pass", qualifies=True)
+    with pytest.raises(Exception, match="not among the sources") as caught:
+        copy_docstrings([absent], {})
+    assert "nowhere.py" in str(caught.value), "the failure did not name the module it wanted"
+
+
+def test_flatten_matches_a_phrase_a_line_wrap_split() -> None:
+    """A WRAPPED PHRASE IS THE SAME PHRASE."""
+    wrapped = "a single shared\n    owner is the CORRECT\n    repair"
+    assert "shared owner" in flatten(wrapped)
+    assert "correct repair" in flatten(wrapped)

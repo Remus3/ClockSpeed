@@ -417,9 +417,22 @@ def _pathless_cause(exc: OSError) -> OSError:
     2.1 names and ruff's SLF rules exist to catch, and this module deliberately
     imports nothing from another package of this tree at all. That docstring,
     and ``scripts/make_cert.py``'s copy of it, carry the long form of the
-    reasoning. THE FOURTH COPY IS A REPORTED SEAM COLLISION rather than a settled
-    shape - a single shared owner is the correct repair, and creating one was not
-    on this slice's write-list.
+    reasoning. THE FOURTH COPY IS A PRICED DUPLICATE RATHER THAN AN UNEXAMINED
+    ONE, and this paragraph is that price. It used to call a single shared owner
+    the correct repair and stop there; CS-885 then MEASURED that repair and
+    DECLINED it, so a recommendation outlived the question it answered. The
+    census clears a cause slot only when the slot is a bare-name call to a
+    function defined at module level in THAT module, so routing a site through
+    an owner it has to import - bare name or dotted alike - drops it from
+    ``closed-pathless`` to ``unproven``; every relying site in this tree is
+    written that same way, so they all drop at once. Buying them back would mean
+    teaching the clearance to resolve imported names across modules, over
+    aliases, dotted calls, re-exports and shadowing - a WIDENING of the
+    predicate that ISSUES the clearance, on the privacy channel, in the one
+    direction it must never err. So the duplication stays,
+    ``tests/pathless_clone_guard.py`` is what makes it safe by comparing the
+    copies every run, and ``tests/test_pathless_clone_agreement.py`` holds this
+    paragraph to the live census rather than to any number written into it.
 
     WHY A CLEAN WRAPPER WAS NOT ENOUGH. ``raise X from exc`` makes the CAUSE's
     own text part of the formatted traceback, and ``OSError.__str__`` appends

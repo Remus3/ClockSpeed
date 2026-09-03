@@ -14,12 +14,15 @@ module records rather than a cost it merely absorbs. The owner's clearance is
 STRUCTURALLY same-module: ``_constructs_pathless_clone`` clears a slot only when
 it is a bare-name call to a function defined at module level in THAT module.
 Measured on this tree: rewriting a site to call a shared owner through an import
-- bare name or dotted - drops it from ``closed-pathless`` to ``unproven``, all
-eight live sites at once. Preserving the verdict would mean teaching the
-clearance to resolve imported names across modules, which is a WIDENING of the
-predicate that issues the clearance, over aliases, dotted calls, re-exports,
-shadowing and untracked targets. A false clearance on this channel is worse than
-a duplicate, so the duplication stays and this module is what makes it safe.
+- bare name or dotted - drops it from ``closed-pathless`` to ``unproven``, and
+every live site is written that same way, so they all drop at once. Preserving
+the verdict would mean teaching the clearance to resolve imported names across
+modules, which is a WIDENING of the predicate that issues the clearance, over
+aliases, dotted calls, re-exports, shadowing and untracked targets. A false
+clearance on this channel is worse than a duplicate, so the duplication stays
+and this module is what makes it safe. THE SIZE OF THAT COST IS NOT WRITTEN
+DOWN HERE - CLAUDE.md section 4 - and :func:`restated_counts` is what keeps it
+out of the prose that states the shape.
 
 AND A SINGLE OWNER WOULD NOT HAVE CLOSED THE SILENCE ANYWAY. The failure that is
 actually undetected today is not "the copies disagree" but "a copy stopped being
@@ -72,6 +75,7 @@ WHAT THIS MODULE DOES NOT COVER, stated as a boundary rather than left implied:
 from __future__ import annotations
 
 import ast
+import re
 from copy import deepcopy
 from dataclasses import dataclass
 from functools import cache
@@ -445,6 +449,253 @@ def unqualified(population: Sequence[Copy]) -> tuple[str, ...]:
         The keys of the copies that no longer qualify, ordered.
     """
     return tuple(copy.key for copy in population if not copy.qualifies)
+
+
+# ---------------------------------------------------------------------------
+# CS-886 - what a copy's docstring is allowed to claim about the collapse
+# ---------------------------------------------------------------------------
+#
+# THE DEFECT THIS SECTION EXISTS AGAINST. One copy's docstring called a single
+# shared owner "the correct repair" and stopped there. That was honest when it
+# was written and false the moment CS-885 priced the repair and declined it: it
+# handed a later reader a recommendation this project had already measured and
+# rejected, with no cost beside it. The remedy is not silence - it is that
+# exactly ONE docstring owns the decision, states its price, and every other
+# copy stays out of it.
+
+#: The one copy whose docstring may name the collapse, because it is the one
+#: that PRICES it. Spelled as a module rather than a ``Copy`` key because the
+#: population is deliberately name-blind: rename the helper and the exemption
+#: must follow it, which it does only if it is keyed on where it lives.
+PRICING_COPY: Final = "clockspeed/surface/config.py"
+
+#: Spellings that name the collapse into one owner. Deliberately TOPIC-shaped
+#: rather than promise-shaped: a copy outside :data:`PRICING_COPY` that merely
+#: raises the subject is already drift, because a reader who meets it there has
+#: no way to tell a live proposal from a settled refusal with no price beside
+#: it. Routing the reader to the one copy that carries the price is the point.
+OWNER_PHRASES: Final = ("shared owner", "single owner", "one owner", "correct repair")
+
+#: What :data:`PRICING_COPY`'s docstring must carry for its claim to be PRICED
+#: rather than merely asserted - the item that measured it, the verdict, what
+#: the sites drop to, and the shape of the aggregate. Not one of them is a
+#: measurement: the magnitude lives in the live census and
+#: :func:`restated_counts` forbids writing it down beside them.
+COST_PHRASES: Final = ("cs-885", "declined", "unproven", "drop at once")
+
+#: Excuses that go stale the instant the slice that wrote them ends. A
+#: docstring deferring a decision to a write-list is telling a later reader
+#: about a dispatch they cannot see, cannot check and cannot act on, which is
+#: the second half of the CS-886 defect.
+STALE_EXCUSES: Final = ("write-list", "this slice")
+
+#: Ordinals indexed by the count they name. The pricing docstring identifies
+#: WHICH copy it is with one, and an arm holds that word to ``len(copies())``
+#: computed at run time rather than to a literal.
+ORDINALS: Final = (
+    "zeroth",
+    "first",
+    "second",
+    "third",
+    "fourth",
+    "fifth",
+    "sixth",
+    "seventh",
+    "eighth",
+    "ninth",
+    "tenth",
+)
+
+#: Cardinals indexed by the count they name - the spelling a restatement of a
+#: measured population would most naturally take.
+CARDINALS: Final = (
+    "zero",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+)
+
+
+def flatten(text: str) -> str:
+    """Reduce a docstring to one lower-case line for phrase matching.
+
+    A phrase a line wrap split across two lines is the same phrase, and a
+    predicate that missed it would hand an author an escape they did not even
+    have to intend.
+
+    Args:
+        text: The docstring as written.
+
+    Returns:
+        The text lower-cased, with every run of whitespace collapsed to one
+        space.
+    """
+    return " ".join(text.lower().split())
+
+
+def copy_docstrings(population: Sequence[Copy], sources: Mapping[str, str]) -> dict[str, str]:
+    """The docstring each copy carries, keyed by :attr:`Copy.key`.
+
+    RE-PARSED FROM THE SOURCE RATHER THAN CARRIED ON :class:`Copy`.
+    :func:`canonical_body` drops the docstring on purpose - the four copies are
+    meant to differ there, and an agreement arm red on that from its first run
+    is an arm that gets switched off rather than read - so a field the
+    comparison must ignore has no business on the record it compares.
+
+    A COPY WHOSE FUNCTION HAS NO DOCSTRING IS ABSENT rather than present as an
+    empty string. Every caller asserts the result covers the whole population,
+    so a missing docstring reddens instead of becoming a member that satisfies
+    every phrase test for free by carrying no text
+    (``memory/an-empty-population-satisfies-every-zero.md``).
+
+    Args:
+        population: The copies to read.
+        sources: Repo-relative module path to source text.
+
+    Returns:
+        Copy key to docstring, as written.
+
+    Raises:
+        PathlessCloneDerivationError: A module did not parse, or a copy names a
+            module the mapping does not carry. Only the relative path is named.
+    """
+    found: dict[str, str] = {}
+    for copy in population:
+        if copy.module not in sources:
+            raise PathlessCloneDerivationError(f"{copy.module} is not among the sources given")
+        tree = _parsed(copy.module, sources[copy.module])
+        for node in tree.body:
+            if not isinstance(node, ast.FunctionDef):
+                continue
+            if node.name != copy.name or node.lineno != copy.lineno:
+                continue
+            text = ast.get_docstring(node, clean=False)
+            if text is not None:
+                found[copy.key] = text
+    return found
+
+
+def promising_copies(population: Sequence[Copy], sources: Mapping[str, str]) -> tuple[str, ...]:
+    """The copies outside :data:`PRICING_COPY` whose docstring names the collapse.
+
+    THE SWEEP READS THE HELPER'S OWN DOCSTRING AND NOTHING ELSE, which is a
+    boundary and not a shortcut. ``clockspeed/surface/config.py`` carries a
+    SECOND and unrelated seam collision at module level - the certificate-pair
+    literals it spells a second time, whose own repair CS-885 never priced.
+    Letting this sweep reach module-level comments would attach this item's
+    measurement to a claim it does not measure, which is the exact defect
+    CS-886 is filed against.
+
+    Args:
+        population: The copies to sweep.
+        sources: Repo-relative module path to source text.
+
+    Returns:
+        The keys of the offending copies, ordered.
+
+    Raises:
+        PathlessCloneDerivationError: A module did not parse.
+    """
+    exempt = f"{PRICING_COPY}::"
+    return tuple(
+        sorted(
+            key
+            for key, text in copy_docstrings(population, sources).items()
+            if not key.startswith(exempt)
+            and any(phrase in flatten(text) for phrase in OWNER_PHRASES)
+        )
+    )
+
+
+def missing_cost_phrases(text: str) -> tuple[str, ...]:
+    """The :data:`COST_PHRASES` a docstring does not carry.
+
+    Args:
+        text: The docstring as written.
+
+    Returns:
+        Empty when it states the cost, and the absent phrases in order
+        otherwise.
+    """
+    flat = flatten(text)
+    return tuple(phrase for phrase in COST_PHRASES if phrase not in flat)
+
+
+def stale_excuses(text: str) -> tuple[str, ...]:
+    """The :data:`STALE_EXCUSES` a docstring carries.
+
+    Args:
+        text: The docstring as written.
+
+    Returns:
+        The excuses found, in order. Empty is the passing answer.
+    """
+    flat = flatten(text)
+    return tuple(phrase for phrase in STALE_EXCUSES if phrase in flat)
+
+
+def names_its_ordinal(text: str, count: int) -> bool:
+    """Whether a docstring calls itself the Nth copy, for the N it is handed.
+
+    ANCHORED ON ``the <ordinal> copy`` RATHER THAN THE BARE ORDINAL, and that
+    is a measurement rather than a preference: all four live copies share a
+    sentence about supplying ``winerror`` as "a fourth argument", so a bare
+    ``fourth`` test passes on every one of them and would keep passing after
+    the sentence it exists to hold had been deleted.
+
+    Args:
+        text: The docstring as written.
+        count: The live population size the ordinal has to match.
+
+    Returns:
+        True when it names itself the ``count``-th copy. False for a count no
+        ordinal here spells, which is the fail-closed direction: a tree that
+        grew past this table has moved out from under the prose.
+    """
+    if not 0 <= count < len(ORDINALS):
+        return False
+    return f"the {ORDINALS[count]} copy" in flatten(text)
+
+
+def restated_counts(text: str, count: int) -> tuple[str, ...]:
+    """The spellings of a live measurement that prose is not allowed to carry.
+
+    CLAUDE.md section 4: a measured number written into a document is a lie
+    with a timestamp on it. The magnitude of this item's cost lives in the
+    census, so the docstring states the SHAPE - every relying site drops at
+    once - and this reports any attempt to write the size down beside it.
+
+    THE DIGIT TEST IS BOUNDED ON BOTH SIDES so an item id does not trip it:
+    ``CS-885`` and ``CS-857`` each contain an eight and neither restates one.
+
+    A SHARP EDGE, STATED RATHER THAN HIDDEN: the cardinal for a small count is
+    an ordinary English word, so a population that fell to one would report the
+    ``one`` inside ``one owner``. That is a false red on a tree whose topology
+    has collapsed to a single relying site - a change that has to be looked at
+    anyway - and it is the safe direction for a leg whose other failure mode is
+    letting a stale number stand.
+
+    Args:
+        text: The docstring as written.
+        count: The live measurement it must not spell.
+
+    Returns:
+        The spellings found, digit before word. Empty is the passing answer.
+    """
+    flat = flatten(text)
+    found: list[str] = []
+    if re.search(rf"(?<!\d){count}(?!\d)", flat):
+        found.append(str(count))
+    if 0 <= count < len(CARDINALS) and re.search(rf"\b{CARDINALS[count]}\b", flat):
+        found.append(CARDINALS[count])
+    return tuple(found)
 
 
 def graded_sources() -> Mapping[str, str]:
