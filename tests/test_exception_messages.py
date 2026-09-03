@@ -54,8 +54,11 @@ from clockspeed.save.header import (
 from clockspeed.save.objects import ObjectError
 from clockspeed.save.usmap import UsmapFormatError
 from clockspeed.save.world import WorldLoadError
+from tests.chained_cause_guard import FORM_EXPLICIT, Site, raise_sites, sites_in_tree
 from tests.exception_message_guard import (
     ARGS_ROOTS,
+    CLAIM_FROM_BINDING,
+    CLAIM_FROM_CLONE,
     COMPOSING_CALLS,
     EXEMPT,
     GRADED_LAYER,
@@ -75,6 +78,8 @@ from tests.exception_message_guard import (
     colliding_class_names,
     describe,
     findings_in,
+    form_claiming_keys,
+    form_disagreements,
     graded_classes,
     live_index,
     resolved_callees,
@@ -82,6 +87,7 @@ from tests.exception_message_guard import (
     stale_exemptions,
     swept_modules,
     ungraded_layers,
+    unjoined_form_claims,
 )
 from tests.repr_rendering_guard import exception_rendering_classes
 
@@ -1218,6 +1224,216 @@ def test_a_repaired_exemption_is_reported_rather_than_reddening() -> None:
     if stale:
         lines = "\n".join(f"  stale EXEMPT key, remove it: {key!r}" for key in stale)
         warnings.warn(f"{len(stale)} exemption(s) no longer needed:\n{lines}", stacklevel=1)
+
+
+# ---------------------------------------------------------------------------
+# CS-880 - a reason may not name a raise form its own sites do not use
+# ---------------------------------------------------------------------------
+
+#: A path no file carries, so the corpus below cannot be mistaken for shipped
+#: code. Nothing reads a disk for it: the census derivation takes a mapping of
+#: module path to source text.
+_PLANTED_FORMS_MODULE: Final = f"{GRADED_LAYER}planted_raise_forms.py"
+
+#: TWO CHAINED RAISES DIFFERING ONLY IN THE PAIR THE CENSUS DERIVES, so the
+#: controls below are graded on a record this repository does not contain.
+#: Fitting them to the live tree would make repairing a site turn the proof
+#: red, which is the anti-monotone shape this module's own header refuses.
+#:
+#: ``Boom`` chains from a call whose every return builds a two-argument builtin
+#: ``OSError`` off its parameter, which the census grades ``explicit`` plus a
+#: pathless clone. ``Wham`` chains from the handler binding, which it grades
+#: ``explicit`` and no clone. Neither verdict reads the helper's NAME.
+_PLANTED_RAISE_FORMS: Final = '''
+"""Two chained raises whose forms differ only in the censused slot."""
+
+
+def _rebuild(exc: OSError) -> OSError:
+    """Rebuild the caught error without the fields that carry a path."""
+    return OSError(exc.errno, exc.strerror)
+
+
+class Boom(Exception):
+    """Chained from the rebuilt error."""
+
+
+class Wham(Exception):
+    """Chained from the handler binding itself."""
+
+
+def chains_a_clone(handle: object) -> None:
+    """Chain from a filename-free clone."""
+    try:
+        handle.read()
+    except OSError as exc:
+        raise Boom("failed") from _rebuild(exc)
+
+
+def chains_the_binding(handle: object) -> None:
+    """Chain from the caught error itself."""
+    try:
+        handle.read()
+    except OSError as exc:
+        raise Wham("failed") from exc
+'''
+
+#: The one token the corpus above spells its helper with, and the token the
+#: anti-spelling arm renames it to. Held apart so the rename cannot silently
+#: stop matching and leave that arm asserting about an unchanged corpus.
+_PLANTED_HELPER: Final = "_rebuild"
+_PLANTED_HELPER_RENAMED: Final = "_stripped_down"
+
+#: Fabricated reasons, one per claim spelling. A reporter graded on the LIVE
+#: record is not a control: a reporter that returns nothing unconditionally
+#: produces the same clean result.
+_FABRICATED_BINDING_REASON: Final = "MEASURED on a planted module: the site raises from exc."
+_FABRICATED_CLONE_REASON: Final = (
+    "MEASURED on a planted module: the site raises from a filename-free clone."
+)
+
+
+def _planted_form_sites() -> tuple[Site, ...]:
+    """Derive the planted corpus through the census's own pure derivation.
+
+    Returns:
+        The census sites for :data:`_PLANTED_RAISE_FORMS`.
+    """
+    return sites_in_tree({_PLANTED_FORMS_MODULE: _PLANTED_RAISE_FORMS})
+
+
+def test_the_planted_raise_form_corpus_derives_both_structural_pairs() -> None:
+    """THE INSTRUMENT CONTROL, and without it both arms below are vacuous.
+
+    The two controls assert that a reporter fires on one fabricated record and
+    stays silent on another. A derivation that returned NO site at all would
+    still satisfy the silent half, and the loud half would fail for a reason
+    that has nothing to do with the reporter. This pins what the census
+    actually derives for the planted pair first, so a later change to the
+    census that stops distinguishing the two shapes reddens HERE rather than
+    quietly emptying the controls.
+    """
+    derived = {
+        site.raised: (site.form, site.constructs_pathless_clone) for site in _planted_form_sites()
+    }
+    assert derived == {"Boom": (FORM_EXPLICIT, True), "Wham": (FORM_EXPLICIT, False)}, derived
+
+
+def test_the_raise_form_reporter_reports_a_fabricated_disagreement() -> None:
+    """THE LOUD DIRECTION, both ways round.
+
+    A reason claiming the binding against a site that clones is a finding, and
+    so is a reason claiming the clone against a site that chains the binding.
+    Asserting only the first would leave a reporter that flags every
+    ``from-binding`` claim indistinguishable from one that reads the census.
+    """
+    planted = _planted_form_sites()
+    boom = f"{_PLANTED_FORMS_MODULE}::Boom::planted"
+    wham = f"{_PLANTED_FORMS_MODULE}::Wham::planted"
+
+    on_the_clone = form_disagreements({boom: _FABRICATED_BINDING_REASON}, planted)
+    assert len(on_the_clone) == 1, on_the_clone
+    assert CLAIM_FROM_BINDING in on_the_clone[0], on_the_clone
+
+    on_the_binding = form_disagreements({wham: _FABRICATED_CLONE_REASON}, planted)
+    assert len(on_the_binding) == 1, on_the_binding
+    assert CLAIM_FROM_CLONE in on_the_binding[0], on_the_binding
+
+
+def test_the_raise_form_reporter_stays_silent_on_a_fabricated_agreement() -> None:
+    """THE QUIET DIRECTION, and the silence is asserted to be a real one.
+
+    Two agreeing pairs report nothing. That is also what a reporter whose
+    population never included the key produces, so the membership and the join
+    are asserted alongside: the key IS in the graded population and it DID
+    resolve to a site.
+    """
+    planted = _planted_form_sites()
+    boom = f"{_PLANTED_FORMS_MODULE}::Boom::planted"
+    wham = f"{_PLANTED_FORMS_MODULE}::Wham::planted"
+
+    agreeing = {boom: _FABRICATED_CLONE_REASON, wham: _FABRICATED_BINDING_REASON}
+    assert form_disagreements(agreeing, planted) == (), form_disagreements(agreeing, planted)
+    assert form_claiming_keys(agreeing) == (boom, wham), form_claiming_keys(agreeing)
+    assert unjoined_form_claims(agreeing, planted) == (), unjoined_form_claims(agreeing, planted)
+
+
+def test_renaming_the_clone_helper_moves_no_verdict() -> None:
+    """THE ANTI-SPELLING PROPERTY, MEASURED RATHER THAN CLAIMED IN PROSE.
+
+    ``memory/a-guard-can-measure-spelling.md`` records what this project keeps
+    shipping: a guard that answers a structural question by matching a NAME,
+    and a repair for one that matches a different name. The test it states is
+    "what would an adversary have to RENAME to escape". Here the answer must
+    be NOTHING, and asserting that in a docstring is exactly the fence that
+    has already failed twice - so the corpus is re-derived with the helper
+    renamed and both verdicts are asserted unchanged.
+
+    The rename is checked to have LANDED first. A replacement that matched
+    nothing would leave this arm grading the original corpus and passing for
+    the wrong reason.
+    """
+    renamed = _PLANTED_RAISE_FORMS.replace(_PLANTED_HELPER, _PLANTED_HELPER_RENAMED)
+    assert _PLANTED_HELPER not in renamed, "the rename did not land - this arm grades nothing"
+    assert _PLANTED_HELPER_RENAMED in renamed, "the rename did not land"
+
+    planted = sites_in_tree({_PLANTED_FORMS_MODULE: renamed})
+    derived = {site.raised: (site.form, site.constructs_pathless_clone) for site in planted}
+    assert derived == {"Boom": (FORM_EXPLICIT, True), "Wham": (FORM_EXPLICIT, False)}, derived
+
+    boom = f"{_PLANTED_FORMS_MODULE}::Boom::planted"
+    agreeing = form_disagreements({boom: _FABRICATED_CLONE_REASON}, planted)
+    assert agreeing == (), f"the clone claim stopped holding after the rename: {agreeing}"
+    disagreeing = form_disagreements({boom: _FABRICATED_BINDING_REASON}, planted)
+    assert len(disagreeing) == 1, f"the binding claim stopped being a finding: {disagreeing}"
+
+
+def test_a_form_claim_the_join_leaves_empty_is_reported_rather_than_cleared() -> None:
+    """A CLAIM GRADED AGAINST NOTHING IS NOT A CLAIM THAT HELD.
+
+    ``memory/an-empty-population-satisfies-every-zero.md`` names the shape: a
+    key naming a class the census never saw produces the same empty finding
+    list as a key whose claim is true. The two are separated by reporting the
+    unjoined key on its own channel, which the contract arm asserts is empty
+    BEFORE it asserts the disagreement count is zero.
+    """
+    planted = _planted_form_sites()
+    absent = f"{_PLANTED_FORMS_MODULE}::Nowhere::planted"
+    record = {absent: _FABRICATED_CLONE_REASON}
+
+    assert unjoined_form_claims(record, planted) == (absent,), unjoined_form_claims(record, planted)
+    assert form_disagreements(record, planted) == (), form_disagreements(record, planted)
+
+
+def test_no_exemption_reason_names_a_raise_form_its_own_sites_do_not_use() -> None:
+    """THE CONTRACT, and the form it is graded against is DERIVED.
+
+    CS-857 corrected two entries that asserted the chained cause goes
+    unrendered, and while correcting them wrote that the sites "raise from
+    exc". Every one of those four sites chains a call that builds a
+    filename-free clone instead. Nothing could see it: the identifier arm
+    above reads only tokens carrying an underscore, and ``exc`` carries none.
+
+    WHAT MAKES THIS NOT ANOTHER SPELLING CHECK. The pair each claim is graded
+    against comes from ``tests/chained_cause_guard.py`` - the form off the
+    ``ast`` node kind, the clone flag off what the called helper RETURNS. The
+    shipped helper can be renamed to anything and no verdict here moves.
+    """
+    sites = raise_sites()
+    claiming = form_claiming_keys(EXEMPT)
+    assert claiming, "no exemption reason names a raise form at all - this zero would be vacuous"
+
+    unjoined = unjoined_form_claims(EXEMPT, sites)
+    assert unjoined == (), (
+        "exemption reason(s) naming a raise form whose census join resolves to "
+        f"no site at all, so the claim is graded against nothing: {unjoined}"
+    )
+
+    found = form_disagreements(EXEMPT, sites)
+    count = len(found)
+    assert count == 0, (
+        f"{count} exemption reason(s) naming a raise form their own construction "
+        "sites do not use:\n" + "\n".join(found)
+    )
 
 
 def test_the_live_tree_has_a_class_governed_by_an_inherited_initialiser() -> None:

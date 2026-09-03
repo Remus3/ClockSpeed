@@ -149,6 +149,7 @@ reason - a cycle of modules each saying "not me" with no module saying "me".
 from __future__ import annotations
 
 import ast
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from functools import cache
@@ -161,9 +162,14 @@ from tests.assertion_rendering_guard import (
     SCALAR_TYPES,
     tracked_python_files,
 )
+from tests.chained_cause_guard import FORM_EXPLICIT, FORM_SUPPRESSED, Site
 
 __all__ = [
     "ARGS_ROOTS",
+    "CLAIM_FORMS",
+    "CLAIM_FROM_BINDING",
+    "CLAIM_FROM_CLONE",
+    "CLAIM_FROM_NONE",
     "COMPOSING_CALLS",
     "EXEMPT",
     "GRADED_LAYER",
@@ -171,6 +177,7 @@ __all__ = [
     "PROVEN_LITERAL",
     "PROVEN_SCALAR",
     "PROVEN_VOCABULARY",
+    "RAISE_FORM_CLAIMS",
     "REACH_HOPS",
     "REPO_ROOT",
     "SHAPE_FREE_TEXT",
@@ -183,16 +190,22 @@ __all__ = [
     "ambiguous_error_names",
     "build_index",
     "channels_of",
+    "claims_in_reason",
     "colliding_class_names",
+    "derived_raise_forms",
     "describe",
     "findings_in",
+    "form_claiming_keys",
+    "form_disagreements",
     "graded_classes",
     "live_index",
     "resolved_callees",
     "scan_channels",
+    "sites_for_exemption",
     "stale_exemptions",
     "swept_modules",
     "ungraded_layers",
+    "unjoined_form_claims",
 ]
 
 #: The layer ``docs/ARCHITECTURE.md`` names as the one that reads a save.
@@ -352,10 +365,11 @@ EXEMPT: Final[Mapping[str, str]] = {
         "is bound by an except OSError handler and errno is the integer error "
         "number, rendered beside type(exc).__name__ and nothing else. The "
         "OSError's own message - which quotes the filename, and a save "
-        "filename embeds the world name - never reaches args. IT IS STILL "
-        "RENDERED, and this entry no longer says otherwise: both sites raise "
-        "from exc, so the interpreter prints that cause's own message beside "
-        "this one on the same failure under default flags. That is a SEPARATE "
+        "filename embeds the world name - never reaches args. A CAUSE IS "
+        "STILL RENDERED, and this entry no longer says otherwise: both sites "
+        "raise from a filename-free clone of that OSError, so the interpreter "
+        "prints that cause's own message beside this one on the same failure "
+        "under default flags. That is a SEPARATE "
         "CHANNEL this guard cannot read rather than a property this entry "
         "clears - its owner is named in this module's docstring. An "
         "attribute read carries no annotation, so the integer cannot be "
@@ -378,8 +392,8 @@ EXEMPT: Final[Mapping[str, str]] = {
         "bound by an except OSError handler and errno is the integer error "
         "number. Same shape and same reasoning as the SourceUnreadableError "
         "entry above, including that the OSError message never reaches args "
-        "while the interpreter still renders it from the chained cause - both "
-        "sites raise from exc."
+        "while the interpreter still renders a chained cause - both sites "
+        "raise from a filename-free clone."
     ),
     "clockspeed/save/workdir.py::WorkDirError::locate.redact(destination)": (
         "MEASURED at the site in copy_for_read that reports a failed rename: "
@@ -395,6 +409,188 @@ EXEMPT: Final[Mapping[str, str]] = {
         "reason given on the HeaderReadError entry."
     ),
 }
+
+
+# ---------------------------------------------------------------------------
+# CS-880 - the raise form a reason NAMES against the form the census DERIVES
+# ---------------------------------------------------------------------------
+#
+# THE DEFECT THIS EXISTS TO CATCH, and it was introduced by a repair rather
+# than by neglect. CS-857 corrected two entries that asserted the chained cause
+# was unrendered. The correction told the truth about the CHANNEL and invented
+# a falsehood about the CODE: it wrote that the sites "raise from exc" when
+# every one of them raises from a call that builds a filename-free clone. No
+# arm could see it. The identifier check below reads only tokens carrying an
+# underscore, and ``exc`` carries none, so the claim was checked by nothing at
+# all for the length of an item.
+#
+# THE FORMS ARE DERIVED, NEVER SPELLED. The pair a reason is graded against
+# comes from ``tests/chained_cause_guard.py`` - ``Site.form`` off the ``ast``
+# node kind, and ``Site.constructs_pathless_clone`` off what the called helper
+# RETURNS. That census's own escape paragraph records that the predicate never
+# reads the callee's NAME. So the helper in the shipped tree can be renamed to
+# anything at all and not one verdict here moves, which is the property
+# ``memory/a-guard-can-measure-spelling.md`` says a repair for a spelling
+# defect has to have.
+#
+# WHAT IS UNAVOIDABLY A SPELLING IS THE REASON, because a reason is English.
+# The vocabulary below is therefore CLOSED: three ``from``-slot spellings, and
+# a reason naming a form in any other words is INVISIBLE here rather than
+# cleared here. That is an under-report and it is the fail-safe direction - the
+# same choice the census makes when it cannot resolve a cause.
+#
+# THE JOIN IS ONE-TO-MANY AND COARSER THAN THE KEY. An :data:`EXEMPT` key names
+# a module, a class and a message CHANNEL; the census knows nothing about
+# channels, so the join is on module and class and answers for every chained
+# raise of that class in that module. A claim therefore has to match only ONE
+# of the joined sites, which under-reports a class whose sites disagree with
+# each other and never over-reports one. NOT EVERY KEY JOINS TO A SITE: the
+# ``DestinationRefusedError`` keys name refusals raised outside any handler,
+# which are not in the census population at all, so the population here is the
+# keys whose reason NAMES A FORM and nothing wider. That is why a key with no
+# joined site is reported on its own channel by :func:`unjoined_form_claims`
+# rather than being counted as an agreement.
+
+#: A reason's claim that the ``from`` slot carries the handler's own binding.
+CLAIM_FROM_BINDING: Final = "from-binding"
+
+#: A reason's claim that the raise suppresses the context outright.
+CLAIM_FROM_NONE: Final = "from-none"
+
+#: A reason's claim that the ``from`` slot carries a filename-free clone of the
+#: caught error rather than the caught error itself. DELIBERATELY NOT SPELLED
+#: WITH THE SHIPPED HELPER'S NAME: a vocabulary keyed on one function's name is
+#: a vocabulary an adversary edits away with a rename, and the thing being
+#: claimed is what the callee builds rather than what it is called.
+CLAIM_FROM_CLONE: Final = "from-clone"
+
+#: THE CLOSED VOCABULARY. A reason NAMES a raise form by spelling that form's
+#: ``from`` slot; these three spellings are the only ones read. A paraphrase is
+#: not a claim here, and adding one is a deliberate act rather than a
+#: side effect of writing a reason.
+RAISE_FORM_CLAIMS: Final[Mapping[str, str]] = {
+    CLAIM_FROM_BINDING: r"\bfrom exc\b",
+    CLAIM_FROM_NONE: r"\bfrom None\b",
+    CLAIM_FROM_CLONE: r"\bfrom a filename-free clone\b",
+}
+
+#: The structural pairs the census must derive for a claim to hold, keyed on
+#: ``(Site.form, Site.constructs_pathless_clone)``. POSITIVE FACTS, not the
+#: absence of a spelling.
+#:
+#: EACH SET IS NARROWER THAN THE CLAIM AND NEVER WIDER, which is what makes a
+#: green result mean something. ``(explicit, False)`` is necessary for "from
+#: exc" and is not sufficient - ``from other`` derives the same pair - so a
+#: reason naming the binding at a site chaining some third expression passes
+#: here. Closing that would mean grading ``Site.cause_expr``, which is a
+#: spelling, and the round of CS-857 that tried it was defeated by fifteen
+#: renamings. ``from None`` accepts either clone flag because suppression is a
+#: fact about the form alone.
+CLAIM_FORMS: Final[Mapping[str, frozenset[tuple[str, bool]]]] = {
+    CLAIM_FROM_BINDING: frozenset({(FORM_EXPLICIT, False)}),
+    CLAIM_FROM_NONE: frozenset({(FORM_SUPPRESSED, False), (FORM_SUPPRESSED, True)}),
+    CLAIM_FROM_CLONE: frozenset({(FORM_EXPLICIT, True)}),
+}
+
+
+def claims_in_reason(reason: str) -> tuple[str, ...]:
+    """The raise forms one exemption reason names.
+
+    Args:
+        reason: The recorded reason, as written.
+
+    Returns:
+        The :data:`RAISE_FORM_CLAIMS` names whose spelling appears in the
+        reason, ordered. Empty when the reason names no form, which puts the
+        key outside this population entirely.
+    """
+    return tuple(
+        sorted(name for name, pattern in RAISE_FORM_CLAIMS.items() if re.search(pattern, reason))
+    )
+
+
+def sites_for_exemption(key: str, sites: Sequence[Site]) -> tuple[Site, ...]:
+    """The census sites for the class one exemption key names.
+
+    Args:
+        key: An :data:`EXEMPT` key, ``module::ClassName::channel``.
+        sites: The census population.
+
+    Returns:
+        Every site raising that class in that module, in the order given.
+    """
+    module, class_name = key.split("::")[:2]
+    return tuple(site for site in sites if site.module == module and site.raised == class_name)
+
+
+def derived_raise_forms(sites: Sequence[Site]) -> frozenset[tuple[str, bool]]:
+    """The structural pairs the census derives for a set of sites.
+
+    Args:
+        sites: The sites to read.
+
+    Returns:
+        One ``(form, constructs_pathless_clone)`` pair per distinct shape.
+    """
+    return frozenset((site.form, site.constructs_pathless_clone) for site in sites)
+
+
+def form_claiming_keys(exempt: Mapping[str, str]) -> tuple[str, ...]:
+    """Exemption keys whose reason names at least one raise form.
+
+    Args:
+        exempt: The exemption record.
+
+    Returns:
+        The keys, ordered.
+    """
+    return tuple(sorted(key for key, reason in exempt.items() if claims_in_reason(reason)))
+
+
+def unjoined_form_claims(exempt: Mapping[str, str], sites: Sequence[Site]) -> tuple[str, ...]:
+    """Form-claiming keys the census join leaves with no site at all.
+
+    Reported rather than tolerated: a claim graded against nothing is the
+    empty population that satisfies every assertion of zero.
+
+    Args:
+        exempt: The exemption record.
+        sites: The census population.
+
+    Returns:
+        The keys, ordered.
+    """
+    return tuple(key for key in form_claiming_keys(exempt) if not sites_for_exemption(key, sites))
+
+
+def form_disagreements(exempt: Mapping[str, str], sites: Sequence[Site]) -> tuple[str, ...]:
+    """Reasons naming a raise form that none of their own sites uses.
+
+    Args:
+        exempt: The exemption record.
+        sites: The census population.
+
+    Returns:
+        One finding per disagreeing claim, ordered by key then claim. A key
+        the join leaves empty is skipped here and reported by
+        :func:`unjoined_form_claims` instead, so a missing join can never be
+        read as an agreement.
+    """
+    found: list[str] = []
+    for key in form_claiming_keys(exempt):
+        joined = sites_for_exemption(key, sites)
+        if not joined:
+            continue
+        derived = derived_raise_forms(joined)
+        at = ", ".join(str(site.lineno) for site in joined)
+        for claim in claims_in_reason(exempt[key]):
+            if CLAIM_FORMS[claim] & derived:
+                continue
+            found.append(
+                f"{key} names {claim}, which needs one of {sorted(CLAIM_FORMS[claim])}; "
+                f"its site(s) at line(s) {at} derive {sorted(derived)}"
+            )
+    return tuple(found)
 
 
 @dataclass(frozen=True)
