@@ -1478,3 +1478,37 @@ generation failure from a typo. Measured directly, not read.
 **IT PREDATES CS-878 AND WAS DELIBERATELY LEFT.** The CS-878 builder found it while adding a
 fourth exit code and flagged it rather than widening its own slice. Changing it alters the
 script's public behaviour and belongs to whoever takes this item.
+
+
+## CS-886
+
+### NOTE - filed 2026-09-02 (session 56) by the merger, from the CS-885 builder's own report
+
+**A DOCSTRING THAT RECOMMENDS A REPAIR THIS PROJECT HAS PRICED AND DECLINED.**
+`clockspeed/surface/config.py` records its `_pathless_cause` copy as "A REPORTED SEAM
+COLLISION rather than a settled shape - a single shared owner is the correct repair, and
+creating one was not on this slice's write-list." That was honest when written. CS-885 then
+measured the price.
+
+**THE MEASUREMENT.** The CS-884 clearance is structurally same-module: it clears a cause slot
+only when the slot is a bare-name call to a function defined at module level in THAT module.
+Routing any site through a shared owner - bare name or dotted - drops it from
+`closed-pathless` to `unproven`, and there are eight such sites, so all eight drop at once.
+Preserving them would mean teaching the clearance to resolve imported names across modules,
+over aliases, dotted calls, re-exports and shadowing. That is a WIDENING of the predicate
+that ISSUES a clearance on the privacy channel, which is the one direction it must not err
+in.
+
+**SO THE DOCSTRING IS NOT WRONG ABOUT THE SEAM, IT IS SILENT ABOUT THE COST**, and a later
+reader acting on it would reopen a decision already made against. The obstacle is also not
+the one the CS-885 brief assumed - `clockspeed/surface/providers.py` already imports from
+`clockspeed.data`, so `surface -> data` is established and the seam was never the blocker.
+
+**WHY IT WAS NOT FIXED IN PLACE.** One slice rewriting another slice's recorded reasoning
+without an adjudicator is the route `CLAUDE.md` section 5 exists to prevent. The CS-885
+builder reported it rather than editing it, which is the correct escalation.
+
+**CHECK THE OTHER COPIES BEFORE CLOSING.** `clockspeed/save/workdir.py`,
+`clockspeed/save/usmap.py` and `scripts/make_cert.py` also carry that helper; whether any of
+them makes the same promise is UNMEASURED and is part of the acceptance rather than an
+aside.
