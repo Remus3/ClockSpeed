@@ -1418,97 +1418,81 @@ spelling, which is exactly the finding CS-864 records about the seam arms and CS
 about `_shared_tag_symbols`. Resolve the symbol against the module's own symbol table.
 
 
-## CS-880
 
-### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BEFORE FILING, from a CS-857 adversary
+## CS-888
 
-**A CORRECTION THAT SHIPPED A FRESH FALSE CLAIM INTO THE TEXT IT CORRECTED.** Session 44
-repaired two `EXEMPT` reasons in `tests/exception_message_guard.py` that had said the
-chained cause was never rendered. Both corrected reasons now assert, as part of the
-correction, that their sites `raise ... from exc`. Every one of them raises
-`from _pathless_cause(exc)` - the filename-free clone session 44 itself introduced.
+### NOTE - filed 2026-09-03 (session 57) by the merger, MEASURED BY AN ADVERSARY, EXECUTED
 
-**THE ERROR RUNS IN THE CONSERVATIVE DIRECTION AND IS STILL AN ERROR.** Saying `from exc`
-overstates the leak: the clone carries errno and strerror and no filename, which is the
-whole point of the remedy. A reader auditing the exemption against the site finds the
-reason describing a mechanism the site does not use.
+**DEFERRAL IS PROVEN BY IMPORT ALONE, AND THAT IS A CLEARANCE ANY IMPORT CAN BUY.**
+`tests/chained_exemption_guard.py` requires every module that statically reads a raise's
+`cause` field to be the owner, defer to the owner, be recorded, or be a finding. Deferral is
+decided by `defers_to_owner`, which asks only whether the module imports the census.
 
-**NO ARM CAN SEE IT.** The identifier-existence arm checks only tokens carrying an
-underscore, and `exc` carries none while `_pathless_cause` is not cited at all. The
-reason-length and key-existence arms do not read the claim.
+**MEASURED, NOT READ.** CS-880 added `from tests.chained_cause_guard import FORM_EXPLICIT,
+FORM_SUPPRESSED, Site` - three constants and a dataclass, none of which returns a chaining
+verdict. The immune set went from FOUR modules to SIX. An adversary appended an identical
+static cause read to `tests/exception_message_guard.py` in a copy of each tree and ran the
+live arm: RED at 528d5b6 naming the planted line, GREEN at 55e7b75. Coverage was lost and
+nothing in the tree can see it.
 
-**THIS IS THE FAULT FAMILY, NOT AN INSTANCE OF IT.** A repair for a class of false
-privacy statements introduced a false mechanical statement while removing them. Record
-it against the family, not only against these two keys.
+**FIVE OF THE SIX IMMUNE MODULES READ NO `cause` FIELD AT ALL**, so they hold unused
+immunity. Nothing pins the set, so a seventh is free.
 
+**THE MERGER CAUSED THIS AND SAYS SO.** The session-57 brief MANDATED the import, because the
+alternative - an `EXEMPT` entry in `tests/chained_exemption_guard.py` - was on no slice's
+write-list. That was a decomposition error. The import is still the better of the two
+available routes: removing it makes the module an UNRECORDED adjudicator, which is worse.
+**DO NOT "FIX" THIS BY DELETING CS-880's IMPORT.**
 
-## CS-881
-
-### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BEFORE FILING
-
-**A SHAPE THE CENSUS CANNOT SEE, PROVEN BY PLANTING IT.** Three re-raise forms were planted
-through the guard's own `sites_in_tree`. A bound name raised inside its handler derives one
-site and classifies `measured-leak`. A bare re-raise inside the handler does the same. An
-exception stored in a local and raised AFTER the handler exits derives NOTHING - an empty
-population, which `memory/an-empty-population-satisfies-every-zero.md` records as
-indistinguishable from clean.
-
-**THE RENDERING IS IDENTICAL, WHICH IS WHY THE SILENCE MATTERS.** The stored object is the
-original, so its `str()` still appends `filename` and `filename2`. Nothing about the escape
-requires leaving the module or dropping a `from`.
-
-**IT IS LIVE IN THE ADVICE LAYER TODAY.** `clockspeed/save/workdir.py` raises a stored
-`OSError` after its retry loop ends. That one is CONTAINED - a caller wraps it in a
-filename-free clone - so this is a SILENCE, not a confirmed leak, and the distinction must
-survive into whatever grades it.
-
-**IT IS NOT CS-857's CHANNEL.** A stored raise sets neither `__cause__` nor `__context__`,
-so it is not a chained raise at all, which is exactly why the guard does not model it. The
-module enumerates eleven limits and names none of them this; its escape paragraph says the
-callee route of limit 8 is what an adversary would need, and that is now measured incomplete.
-
-## CS-882
-
-### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BEFORE FILING, from a CS-878 builder
-
-**TWO OUTCOMES SHARE AN EXIT CODE.** Running the script with an unrecognised flag exits 2.
-The module documents 2 as the openssl-failed code. A runbook branching on 2 cannot tell a
-generation failure from a typo. Measured directly, not read.
-
-**IT PREDATES CS-878 AND WAS DELIBERATELY LEFT.** The CS-878 builder found it while adding a
-fourth exit code and flagged it rather than widening its own slice. Changing it alters the
-script's public behaviour and belongs to whoever takes this item.
+**THE FENCE.** The repair is about what EARNS immunity, not about who currently holds it. A
+narrower rule that reports more is the correct direction here - `memory/a-guard-can-measure-
+spelling.md` records that an over-proving guard costs a reader the belief that they need to
+look at all.
 
 
-## CS-886
+## CS-889
 
-### NOTE - filed 2026-09-02 (session 56) by the merger, from the CS-885 builder's own report
+### NOTE - filed 2026-09-03 (session 57) by the merger, MEASURED BEFORE FILING
 
-**A DOCSTRING THAT RECOMMENDS A REPAIR THIS PROJECT HAS PRICED AND DECLINED.**
-`clockspeed/surface/config.py` records its `_pathless_cause` copy as "A REPORTED SEAM
-COLLISION rather than a settled shape - a single shared owner is the correct repair, and
-creating one was not on this slice's write-list." That was honest when written. CS-885 then
-measured the price.
+**THE CITATION GUARD READS ONE FORM IN ONE PLACE.** `tests/test_docs_citations.py` resolves
+the module-and-symbol citation form inside `docs/*.md`. A citation naming a LINE NUMBER instead of a symbol, or one written
+anywhere outside `docs/`, is read by nothing.
 
-**THE MEASUREMENT.** The CS-884 clearance is structurally same-module: it clears a cause slot
-only when the slot is a bare-name call to a function defined at module level in THAT module.
-Routing any site through a shared owner - bare name or dotted - drops it from
-`closed-pathless` to `unproven`, and there are eight such sites, so all eight drop at once.
-Preserving them would mean teaching the clearance to resolve imported names across modules,
-over aliases, dotted calls, re-exports and shadowing. That is a WIDENING of the predicate
-that ISSUES a clearance on the privacy channel, which is the one direction it must not err
-in.
+**FIVE DEAD ONES IN A SINGLE FILE, MEASURED.** `tests/test_make_cert.py` cited
+`scripts/make_cert.py:224`, `:279` and `:222`, plus two line RANGES into
+`scripts/verify_env.py`. Two were pointing at a bare `"-out",` and at a BLANK LINE. All five
+were already dead before session 57 and CS-882 pushed the targets a further 44 lines away
+while `tests/test_docs_citations.py` stayed green at 135 passed. They are now repaired to
+symbol form by the CS-882 residual slice - **the INSTANCES are fixed and the CLASS is not**.
 
-**SO THE DOCSTRING IS NOT WRONG ABOUT THE SEAM, IT IS SILENT ABOUT THE COST**, and a later
-reader acting on it would reopen a decision already made against. The obstacle is also not
-the one the CS-885 brief assumed - `clockspeed/surface/providers.py` already imports from
-`clockspeed.data`, so `surface -> data` is established and the seam was never the blocker.
+**THIS IS THE FAULT `Site.key` AND `Copy.key` ALREADY DESIGN AGAINST** by omitting line
+numbers, for the reason CS-857 recorded. The lesson is in the code and absent from the guard.
 
-**WHY IT WAS NOT FIXED IN PLACE.** One slice rewriting another slice's recorded reasoning
-without an adjudicator is the route `CLAUDE.md` section 5 exists to prevent. The CS-885
-builder reported it rather than editing it, which is the correct escalation.
+**A NOTE ON SCOPE.** The cheapest sound repair may be to FORBID the line-number citation form
+outright rather than to resolve it, since a resolvable line number still rots on the next
+edit above it. Measure both before choosing.
 
-**CHECK THE OTHER COPIES BEFORE CLOSING.** `clockspeed/save/workdir.py`,
-`clockspeed/save/usmap.py` and `scripts/make_cert.py` also carry that helper; whether any of
-them makes the same promise is UNMEASURED and is part of the acceptance rather than an
-aside.
+
+## CS-890
+
+### NOTE - filed 2026-09-03 (session 57) by the merger, MEASURED BEFORE FILING
+
+**A DANGLING WIKILINK IN THE DURABLE STORE, AND THE GUARD OVER THAT STORE IS GREEN.**
+`memory/a-proof-can-require-the-defect.md` links `[[a-pooled-guard-hides-its-worst-member]]`.
+No such file exists in `memory/` and no such row exists in `memory/MEMORY.md`.
+`tools/drift_guard.py` reports CLEAN 10 of 10 with the link in place, so guard (b), memory
+reachability, does not read wikilink targets.
+
+**FOUND BY A BUILDER THAT NEARLY SHIPPED THE SAME FAULT.** The CS-880 repair slice cited
+`memory/pooled-guard-hides-its-worst-member.md` in two files, caught before committing that
+the path does not exist in the repo - it exists only in the harness-side store, which is a
+DIFFERENT store that no tracked file may cite - and repointed to
+`memory/a-guard-can-be-green-by-accident.md`, which owns the same shape at line 40. The
+merger had propagated the wrong path into four briefs and into its own session reporting.
+
+**THE INSTANCE IS REPAIRED IN THE SAME COMMIT THAT FILES THIS.** The link now points at
+`a-guard-can-be-green-by-accident`. What remains open is the CLASS: nothing stops the next
+one.
+
+**TIER 1 RATHER THAN 2** because the repair is a reachability sweep over one directory, not a
+change to any grading population.

@@ -25,6 +25,99 @@ Where current truth actually lives:
 
 ---
 
+## CS-880 - item section, closed and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-03
+
+### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BEFORE FILING, from a CS-857 adversary
+
+**A CORRECTION THAT SHIPPED A FRESH FALSE CLAIM INTO THE TEXT IT CORRECTED.** Session 44
+repaired two `EXEMPT` reasons in `tests/exception_message_guard.py` that had said the
+chained cause was never rendered. Both corrected reasons now assert, as part of the
+correction, that their sites `raise ... from exc`. Every one of them raises
+`from _pathless_cause(exc)` - the filename-free clone session 44 itself introduced.
+
+**THE ERROR RUNS IN THE CONSERVATIVE DIRECTION AND IS STILL AN ERROR.** Saying `from exc`
+overstates the leak: the clone carries errno and strerror and no filename, which is the
+whole point of the remedy. A reader auditing the exemption against the site finds the
+reason describing a mechanism the site does not use.
+
+**NO ARM CAN SEE IT.** The identifier-existence arm checks only tokens carrying an
+underscore, and `exc` carries none while `_pathless_cause` is not cited at all. The
+reason-length and key-existence arms do not read the claim.
+
+**THIS IS THE FAULT FAMILY, NOT AN INSTANCE OF IT.** A repair for a class of false
+privacy statements introduced a false mechanical statement while removing them. Record
+it against the family, not only against these two keys.
+
+## CS-881 - item section, closed and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-03
+
+### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BEFORE FILING
+
+**A SHAPE THE CENSUS CANNOT SEE, PROVEN BY PLANTING IT.** Three re-raise forms were planted
+through the guard's own `sites_in_tree`. A bound name raised inside its handler derives one
+site and classifies `measured-leak`. A bare re-raise inside the handler does the same. An
+exception stored in a local and raised AFTER the handler exits derives NOTHING - an empty
+population, which `memory/an-empty-population-satisfies-every-zero.md` records as
+indistinguishable from clean.
+
+**THE RENDERING IS IDENTICAL, WHICH IS WHY THE SILENCE MATTERS.** The stored object is the
+original, so its `str()` still appends `filename` and `filename2`. Nothing about the escape
+requires leaving the module or dropping a `from`.
+
+**IT IS LIVE IN THE ADVICE LAYER TODAY.** `clockspeed/save/workdir.py` raises a stored
+`OSError` after its retry loop ends. That one is CONTAINED - a caller wraps it in a
+filename-free clone - so this is a SILENCE, not a confirmed leak, and the distinction must
+survive into whatever grades it.
+
+**IT IS NOT CS-857's CHANNEL.** A stored raise sets neither `__cause__` nor `__context__`,
+so it is not a chained raise at all, which is exactly why the guard does not model it. The
+module enumerates eleven limits and names none of them this; its escape paragraph says the
+callee route of limit 8 is what an adversary would need, and that is now measured incomplete.
+
+## CS-882 - item section, closed and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-03
+
+### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BEFORE FILING, from a CS-878 builder
+
+**TWO OUTCOMES SHARE AN EXIT CODE.** Running the script with an unrecognised flag exits 2.
+The module documents 2 as the openssl-failed code. A runbook branching on 2 cannot tell a
+generation failure from a typo. Measured directly, not read.
+
+**IT PREDATES CS-878 AND WAS DELIBERATELY LEFT.** The CS-878 builder found it while adding a
+fourth exit code and flagged it rather than widening its own slice. Changing it alters the
+script's public behaviour and belongs to whoever takes this item.
+
+## CS-886 - item section, closed and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-03
+
+### NOTE - filed 2026-09-02 (session 56) by the merger, from the CS-885 builder's own report
+
+**A DOCSTRING THAT RECOMMENDS A REPAIR THIS PROJECT HAS PRICED AND DECLINED.**
+`clockspeed/surface/config.py` records its `_pathless_cause` copy as "A REPORTED SEAM
+COLLISION rather than a settled shape - a single shared owner is the correct repair, and
+creating one was not on this slice's write-list." That was honest when written. CS-885 then
+measured the price.
+
+**THE MEASUREMENT.** The CS-884 clearance is structurally same-module: it clears a cause slot
+only when the slot is a bare-name call to a function defined at module level in THAT module.
+Routing any site through a shared owner - bare name or dotted - drops it from
+`closed-pathless` to `unproven`, and there are eight such sites, so all eight drop at once.
+Preserving them would mean teaching the clearance to resolve imported names across modules,
+over aliases, dotted calls, re-exports and shadowing. That is a WIDENING of the predicate
+that ISSUES a clearance on the privacy channel, which is the one direction it must not err
+in.
+
+**SO THE DOCSTRING IS NOT WRONG ABOUT THE SEAM, IT IS SILENT ABOUT THE COST**, and a later
+reader acting on it would reopen a decision already made against. The obstacle is also not
+the one the CS-885 brief assumed - `clockspeed/surface/providers.py` already imports from
+`clockspeed.data`, so `surface -> data` is established and the seam was never the blocker.
+
+**WHY IT WAS NOT FIXED IN PLACE.** One slice rewriting another slice's recorded reasoning
+without an adjudicator is the route `CLAUDE.md` section 5 exists to prevent. The CS-885
+builder reported it rather than editing it, which is the correct escalation.
+
+**CHECK THE OTHER COPIES BEFORE CLOSING.** `clockspeed/save/workdir.py`,
+`clockspeed/save/usmap.py` and `scripts/make_cert.py` also carry that helper; whether any of
+them makes the same promise is UNMEASURED and is part of the acceptance rather than an
+aside.
+
 ## CS-883 - item section, closed and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-02
 
 ### NOTE - filed 2026-09-01 (session 56) by the merger, from the CS-879 builder's own residual
@@ -174,6 +267,83 @@ shape and neither states a rule.
 - On why item sections are live instructions: they arrived from the NOTE bodies that used to
   trail the item lines, and from live instruction blocks that had accumulated in this file,
   whose own header says it holds nothing current.
+
+## Session 54 wakeup note - relocated 2026-09-03 (session 57) - 2026-09-01 - CS-867 CLOSED and the push block cleared; three adversaries refuted it and all three were right; the UI work opened and its first audit returned BLOCKED. The same fault shape appeared FIVE times and I wrote three of them
+
+- **Shipped: CS-867 and CS-617.** Detail in `docs/LEDGER.md`, not here. CS-600 stays OPEN and
+  its entries say NOT A COMPLETION RECORD. CS-868 through CS-871 untouched, CS-864 and CS-865
+  untouched. CS-829 stays GATED behind CS-G05 - untouched this session.
+
+- **THE HEADLINE: AN ASSERTION CAN PASS OVER A POPULATION THAT IS NOT THE ONE IT NAMES, AND
+  KNOWING THAT DOES NOT STOP YOU WRITING ONE.** Five instances this session, in one causal
+  family. The grammar called a field constant because it is constant in every save the
+  corpus was derived from. Session 53's note called a run a fixed structure because three
+  samples agreed - three samples of ONE world, minutes apart. My non-negotiable-12 arm
+  asserted `text not in repr(table)` against a repr hand-written to emit eight integers. The
+  dashboard markup asserted "scrolls sideways" about a box whose overflow is a function of
+  viewport width. And my own guard arm searched for a bare `syncScrollRegions();` in a slice
+  of a file that contained a DIFFERENT call site - written after I had diagnosed the other
+  four. **VIGILANCE DID NOT CATCH THE FIFTH; A MUTATION MATRIX DID.** Run the mutants.
+
+- **CS-867 WAS A COUNT READ AS A CONSTANT, AND IT IS CS-482 ONE LEVEL UP.** The body's final
+  int32 counts object references, each two length-prefixed strings; it is 0 on every save the
+  grammar came from, so an empty list left nothing to read. Three real (14,60) saves declare
+  1 and the 120 leftover bytes are that one reference. Both times the corpus was then built
+  to WRITE the constant, so it could not refute the assumption it encoded.
+
+- **THREE ADVERSARIES REFUTED THE FIX AND EVERY FINDING WAS REAL.** Four rival readings also
+  land 20 of 20 saves exactly, and two are unfalsifiable from this corpus - `{0: 17, 1: 3}`
+  from one world. The privacy arm could not fail. The ceiling was pinned by nothing, and THE
+  EDGE ARM I WROTE IN RESPONSE HAD THE SAME DEFECT the sibling's docstring warns about in
+  terms. The independent oracle still carried the refuted reading, so the second opinion was
+  wrong while the differential arms went on agreeing - AN ORACLE THAT AGREES BY NOT LOOKING
+  IS NOT AN ORACLE.
+
+- **Surprises: CI CAUGHT A CLASS THE LOCAL GATE STRUCTURALLY CANNOT.** `ruff check` refused a
+  compound assertion (PT018) 27 seconds in. The pre-commit gate lints from a temp copy of the
+  index bytes, so project per-file-ignores do not apply and it reports a large standing
+  population of non-blocking findings - a green gate is NOT evidence about that CI step. **Run
+  `python -m ruff check .` directly before pushing.** Also: `git add -A` swept a Playwright
+  artifact into a commit; amended out, and `/.playwright-mcp/` is now gitignored.
+
+- **The dashboard would not render and that is a standing obstacle, not a one-off.** It is
+  HTTPS-only with a self-signed pair and neither the in-app browser nor Playwright will load
+  it; trusting the cert is a security-settings change and is off the table. A plain-HTTP
+  proxy in front of it is what made the audit possible - scratchpad only, audit only.
+
+- **CS-617 CLOSED LAST, ON OPERATOR INSTRUCTION, AND IT IS THE SAME FAULT AGAIN - A FILE'S
+  OWN RATIONALE MEASURING FALSE.** The comment said a body `padding-top` "pushes the page
+  clear, so the strip covers nothing"; the padding is DOCUMENT flow and the band is fixed to
+  the VIEWPORT, so it held only at scroll 0. The repair moves the SCROLLPORT below the band -
+  `html` stops scrolling, the body becomes a fixed inset scroller - which makes the overlap
+  geometrically impossible rather than merely unlikely. `app-region` was deliberately not
+  touched: the rival fix was `pointer-events: none`, and whether Chromium still honours a
+  drag region on a pointer-transparent element is unanswerable here. A FIX THAT CANNOT BREAK
+  DRAGGING BEAT ONE THAT MIGHT, and an arm now forbids `pointer-events` in that CSS.
+
+- **THE NODE SUITE RUNS WITHOUT `shell/node_modules`** - it imports only node builtins plus
+  the two local libs, which is the purity partition working as designed. `node --test
+  shell/test/*.test.js` from the REPO ROOT; from inside `shell/` the PreToolUse hook resolves
+  its own path from cwd and every shell call dies until the directory is moved back with a
+  non-shell tool.
+
+- **Decisions: none recorded as an ADR.** Nothing contradicted `BOOTSTRAP.md`.
+
+- **Failed paths: `.claude/launch.json` was written and immediately removed** - it would have
+  spelled the dashboard port into a tracked file, which is exactly the violation CS-604 is
+  open about. The port guard does not read JSON; the rule still does.
+
+- **Next action: A THIRD CS-600 AUDIT, dispatched to an agent that wrote none of it.** Both
+  UI repairs and the shell fix were written by the session that also wrote the arms guarding
+  them, which is the one thing section 5 forbids. Two of the three audits so far returned
+  BLOCKED and the second found defects the first had not, so a third is expected to find
+  something rather than rubber-stamp. AFTER that, the save-reader follow-ups CS-868 to
+  CS-871.
+
+- **STILL OUTSTANDING FROM SESSION 49:** the six manual checks in `docs/OPERATIONS.md`
+  section 8.3 read NOT RUN, and `shell/node_modules` does not exist. CS-617's repair does not
+  need them, but VERIFYING THE DRAG ITSELF against a real Electron does, and that is named in
+  its ledger entry as owed rather than claimed.
 
 ## Session 53 wakeup note - relocated 2026-09-01 (session 56)
 

@@ -75,6 +75,93 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-03 - CS-880 - CLOSED. No exemption reason may name a raise form its own sites do not use, and ONE disagreeing sibling now refutes the claim
+Two `EXEMPT` reasons asserted their sites `raise ... from exc`; all four raise
+`from _pathless_cause(exc)`. The forms are DERIVED from the census - `Site.form` paired with
+`Site.constructs_pathless_clone` - never from the helper's name, verified by renaming it
+across all ten modules that carry it with every verdict unchanged.
+
+THE FIRST VERSION SHIPPED A POOLED JOIN AND WAS REFUTED IN THE SAME SESSION. `derived` was
+tested against the claim by set INTERSECTION, which asks whether AT LEAST ONE site uses the
+form. Reintroducing the exact CS-857 defect at ONE of two `WorkDirError` sites left the arm
+GREEN - measured by an adversary and reproduced independently by the merger. An adjudicator
+had graded the clause MET by perturbing the REASON rather than a SITE; both directions are in
+the clause and only one worked. The repair is subset containment, so a leaking site can no
+longer be laundered by a clean sibling.
+
+TWO FURTHER CORRECTIONS. The comment "EACH SET IS NARROWER THAN THE CLAIM AND NEVER WIDER"
+was measured FALSE by its own next sentence and by a planted `from other`, and is retracted
+in place. The claim extractor read the house idiom `X rather than Y` as TWO claims, so
+truthful contrastive prose produced a FALSE RED.
+Verification: `tests/exception_message_guard.py` plus
+`tests/test_exception_messages.py::test_no_exemption_reason_names_a_raise_form_its_own_sites_do_not_use`
+and `::test_one_disagreeing_sibling_site_refutes_a_form_claim`.
+
+### 2026-09-03 - CS-881 - CLOSED. The deferred raise is DERIVED, in five statement forms, and the denominator must reach the graded bucket
+An exception stored in a handler and raised after it exits sets neither `__cause__` nor
+`__context__`, so the chained-cause census derived nothing while the original's `str()` still
+renders `filename`. A third population now derives it, on the limit-8 precedent, leaving
+`Site`, `_form_of` and `classify` untouched.
+
+BOTH LIVE SITES, AND THE SECOND IS THE ONE A NAIVE LEG MISSES. `clockspeed/save/workdir.py`
+raises a bare `ast.Name`; `clockspeed/data/version.py` raises an `ast.IfExp` inside the PUBLIC
+`write_pin`, whose containment is UNESTABLISHED. Keying on the raise node's kind derives the
+first and silently drops the second - measured, findings 2 to 1.
+
+THE FILED DEFECT REAPPEARED ONE LEVEL UP AND WAS REPAIRED. The denominator asserted only that
+`store_reach()` was non-empty, and it is satisfied forever by the census's own
+control-excluded fixtures: dropping the two modules holding the live findings took them 2 to
+0 with NOTHING red, while two sibling guards reddened seven arms between them. The denominator
+now asserts it reaches `BUCKET_GRADED`.
+`ast.AnnAssign`, `ast.NamedExpr` and `ast.For` were escapes measured to RENDER a real marker
+and are now derived; `ast.AugAssign` is deliberately REFUSED, because `last += exc` stores
+what `__iadd__` returned and deriving it would invent a finding.
+DRIFT RECORDED, NOT REPAIRED: the acceptance clause says "the eleven already enumerated" and
+the module enumerated twelve at dispatch and thirteen now; the item line says workdir carries
+"one such site" and the sweep finds two. Both left alone under the session-56 decision that no
+acceptance clause is rewritten to avoid a stale count.
+Verification: `tests/chained_cause_guard.py` plus
+`tests/test_chained_cause_census.py::test_the_deferred_denominator_is_not_empty`.
+
+### 2026-09-03 - CS-886 - CLOSED. The clone docstring prices the repair it used to recommend, and the verdict is pinned rather than phrase-matched
+`clockspeed/surface/config.py` called a single shared owner "the correct repair"; CS-885 had
+already priced and declined it. The cost is DERIVED from the census rather than restated - no
+digit in the prose - and an adjudicator confirmed the price independently by rewriting every
+call site to a dotted owner and separately by importing the name bare, both driving
+`closed-pathless` from eight to zero.
+
+THE CLEARANCE WAS KEYED ON A SPELLING AND IS NOT ANY MORE. `OWNER_PHRASES` was four literal
+phrases issuing a POSITIVE verdict, and two adversaries independently planted paraphrases that
+passed clean - `sole owner` is one word from `single owner`. Worse, the mutation control
+planted two of the four vocabulary spellings verbatim, which is the shape
+`memory/a-guard-can-measure-spelling.md` names: a control that fires on what the detector
+already models. The verdict is now keyed on a docstring DIGEST, so any paraphrase is a finding
+by construction, and the control plants a phrase outside the vocabulary.
+Verification: `clockspeed/surface/config.py` and `tests/pathless_clone_guard.py` plus
+`tests/test_pathless_clone_agreement.py::test_the_pricing_copy_states_what_the_shared_owner_would_cost`.
+
+### 2026-09-03 - CS-882 - CLOSED AS AN HONEST PARTIAL. The filed collision is fixed; ONE pair shares a code by operator ruling and the clause is NOT met as a universal
+An argparse usage error exited 2, the code the module documents as `EXIT_OPENSSL_FAILED`, so a
+runbook branching on 2 could not tell a generation failure from a typo. Both argparse paths now
+route through declared constants.
+
+THE ACCEPTANCE IS A UNIVERSAL AND IT IS NOT MET. OPERATOR RULING, session 57: `--help` keeps
+exit 0 because POSIX convention outranks distinctness for that pair, so `--help` and a completed
+mint deliberately share 0. That is ONE stated exemption whose membership is asserted by
+EQUALITY rather than containment, so a second collision still reddens - proven by restoring the
+original defect behaviourally with every constant still distinct and watching the outcome leg
+catch it alone. THE CLAUSE WAS NOT REWRITTEN TO MAKE IT READ AS SATISFIED.
+
+THE FIRST VERSION SHIPPED A LISTED POPULATION UNDER A DOCSTRING CLAIMING THREE DERIVED ONES -
+the item's own fault family, one level up. A hidden branch returning an existing constant was
+invisible to every leg. The constants are now derived two ways and unioned, a site census
+forces a probe per site, and what remains listed says so.
+`docs/OPERATIONS.md` restated the codes and had already rotted past CS-878; the restatement is
+removed and the module is the owner. Five dead `file:line` citations were repaired to symbol
+form; the CLASS is filed as CS-889.
+Verification: `scripts/make_cert.py` plus
+`tests/test_make_cert.py::test_exactly_one_recorded_pair_of_outcomes_shares_an_exit_code`.
+
 ### 2026-09-02 - CS-883 - CLOSED. The note census reads the same taxonomy the raise census does, over 139 modules instead of 38, one arm per member
 `exc.add_note(...)` renders under an exception and a cause walk cannot see it, so the census
 derives note sites and asserts a zero. CS-879 widened the chained-raise grading past

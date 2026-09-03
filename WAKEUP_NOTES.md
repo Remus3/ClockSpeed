@@ -34,6 +34,73 @@ the line becomes a pointer.
 
 ---
 
+## Session 57 - 2026-09-03 - FOUR ITEMS CLOSED and every one of them was REFUTED FIRST; the round's own repairs reproduced three of the four filed faults one level up, and EVERY repair builder corrected the merger
+
+- **Shipped: CS-880, CS-881 and CS-886 CLOSED; CS-882 CLOSED AS AN HONEST PARTIAL** against an
+  operator ruling. Filed CS-887, CS-888, CS-889 and CS-890. Suite 4571 -> 4665, all gates green
+  at the close: mypy 143 files, ruff, ruff format, drift guard 10 of 10, doc budget.
+
+- **NOTHING SHIPPED ON ITS FIRST VERSION. All four slices went green, passed a 4629-test
+  authoritative run, and were then REFUTED by three adversary lenses and an adjudicator.** The
+  green suite established that the arms RUN; it established nothing about what they MEASURE,
+  and those are different properties. A repair round followed and all four were repaired.
+
+- **THE FINDING OF THE SESSION: CS-880's ARM WAS GREEN WHILE ITS OWN DEFECT WAS LIVE.**
+  `form_disagreements` tested the claim against derived forms by set INTERSECTION, so a leak at
+  one of two sites was laundered by its clean sibling. Reintroducing the exact CS-857 defect at
+  `clockspeed/save/workdir.py` line 585 left the arm reporting `DISAGREEMENTS: ()`. Repaired to
+  subset containment. **AN ADJUDICATOR HAD GRADED THAT CLAUSE MET** - it perturbed the REASON
+  where the adversary perturbed a SITE. Both directions are in the clause; only one worked. A
+  single grader would have closed this item with the hole in it.
+
+- **THREE OF THE FOUR SLICES REPRODUCED THEIR OWN FILED FAULT ONE LEVEL UP.** CS-880 was filed
+  because a correction shipped a false claim, and its repair shipped a comment ("EACH SET IS
+  NARROWER THAN THE CLAIM AND NEVER WIDER") that its own next sentence refutes. CS-881 was filed
+  because an empty population satisfied a zero, and its denominator was satisfiable by the
+  census's own control fixtures with both live subjects gone. CS-882 was filed against a listed
+  exit-code table and shipped a listed outcome table under a docstring claiming three derived
+  populations. **Expect this. Grade the repair as adversarially as the defect.**
+
+- **EVERY REPAIR BUILDER CORRECTED THE MERGER, AND ALL FOUR WERE RIGHT.** R1 caught the merger
+  citing `memory/pooled-guard-hides-its-worst-member.md`, which does NOT exist in the repo - it
+  is HARNESS-SIDE ONLY and no tracked file may cite it; the repo owns the same shape at
+  `memory/a-guard-can-be-green-by-accident.md` line 40. R2 REFUSED the merger's instruction to
+  reuse `_TARGETED_STATEMENTS` wholesale, because it contains `ast.AugAssign` and `last += exc`
+  stores what `__iadd__` returned - deriving it would INVENT a finding. R3 corrected the
+  attribution of a false-red to `filename2` rather than a section reference, making it PERMANENT
+  rather than incidental, and measured six affected counts where the brief said two. R4 found two
+  dead citations beyond the three it was given.
+
+- **Decisions: one operator ruling, and it is a fence.** `scripts/make_cert.py --help` EXITS 0.
+  POSIX convention outranks the distinctness universal for that one pair. `EXIT_HELP = 0` is kept
+  as a DECLARED constant so the outcome is not an anonymous code, and the exemption's membership
+  is asserted by EQUALITY rather than containment so a second collision still reddens. **CS-882's
+  acceptance clause is therefore NOT MET as a universal and the ledger says so.** The clause was
+  NOT rewritten to read as satisfied - that is the session-56 decision holding for a seventh time.
+
+- **In flight: nothing.** No worktree holds unlanded work. Four repair commits and four slice
+  commits are merged; the round is closed.
+
+- **Surprises: the census did NOT move under a merge that changed 14 files.** CS-882 shifted every
+  line number in `scripts/make_cert.py` by +44 and not one derived value moved, because
+  `Site.key` and `Copy.key` omit line numbers - a CS-857 decision absorbing a collision two
+  sessions later. Nothing this round earned that.
+
+- **Failed paths: none abandoned, but two dead ends worth naming.** The merger MANDATED that
+  CS-880 import the census to avoid becoming an unrecorded adjudicator; that import bought the
+  module BLANKET PERMANENT IMMUNITY from the adjudicator census, growing the immune set from four
+  modules to six. Filed as CS-888. **Do not "fix" it by deleting the import** - unrecorded is
+  worse than immune. Separately, a placeholder written `<module>::<symbol>` in a new item's prose
+  was read by the citation resolver as a real citation and reddened two arms; write about a
+  citation form without writing one.
+
+- **WORKTREES OPENED STALE FOUR OF FOUR in the repair round**, on top of seven of nine in session
+  56. This is not intermittent. Order verify-and-fast-forward on EVERY dispatch, every time.
+
+- **Next action: CS-857 and CS-858 still need the OPERATOR** - see the two fences carried forward.
+  The ordinary agent-completable work is CS-888, CS-889 and CS-890, all filed this session with
+  their measurements attached.
+
 ## Session 56 - 2026-09-01 - FIVE ITEMS CLOSED, both requested rulings OVERTURNED THE PREMISE THEY WERE ASKED ON, and the items that moved CS-857 furthest were the ones that attacked the INSTRUMENT rather than the sites
 
 - **Shipped: CS-878, CS-879, CS-883, CS-884 and CS-885 CLOSED. CS-857 and CS-858 got RULINGS
@@ -279,80 +346,3 @@ the line becomes a pointer.
   drag itself has still never been exercised against a real Electron.
 
 ---
-
-## Session 54 - 2026-09-01 - CS-867 CLOSED and the push block cleared; three adversaries refuted it and all three were right; the UI work opened and its first audit returned BLOCKED. The same fault shape appeared FIVE times and I wrote three of them
-
-- **Shipped: CS-867 and CS-617.** Detail in `docs/LEDGER.md`, not here. CS-600 stays OPEN and
-  its entries say NOT A COMPLETION RECORD. CS-868 through CS-871 untouched, CS-864 and CS-865
-  untouched. CS-829 stays GATED behind CS-G05 - untouched this session.
-
-- **THE HEADLINE: AN ASSERTION CAN PASS OVER A POPULATION THAT IS NOT THE ONE IT NAMES, AND
-  KNOWING THAT DOES NOT STOP YOU WRITING ONE.** Five instances this session, in one causal
-  family. The grammar called a field constant because it is constant in every save the
-  corpus was derived from. Session 53's note called a run a fixed structure because three
-  samples agreed - three samples of ONE world, minutes apart. My non-negotiable-12 arm
-  asserted `text not in repr(table)` against a repr hand-written to emit eight integers. The
-  dashboard markup asserted "scrolls sideways" about a box whose overflow is a function of
-  viewport width. And my own guard arm searched for a bare `syncScrollRegions();` in a slice
-  of a file that contained a DIFFERENT call site - written after I had diagnosed the other
-  four. **VIGILANCE DID NOT CATCH THE FIFTH; A MUTATION MATRIX DID.** Run the mutants.
-
-- **CS-867 WAS A COUNT READ AS A CONSTANT, AND IT IS CS-482 ONE LEVEL UP.** The body's final
-  int32 counts object references, each two length-prefixed strings; it is 0 on every save the
-  grammar came from, so an empty list left nothing to read. Three real (14,60) saves declare
-  1 and the 120 leftover bytes are that one reference. Both times the corpus was then built
-  to WRITE the constant, so it could not refute the assumption it encoded.
-
-- **THREE ADVERSARIES REFUTED THE FIX AND EVERY FINDING WAS REAL.** Four rival readings also
-  land 20 of 20 saves exactly, and two are unfalsifiable from this corpus - `{0: 17, 1: 3}`
-  from one world. The privacy arm could not fail. The ceiling was pinned by nothing, and THE
-  EDGE ARM I WROTE IN RESPONSE HAD THE SAME DEFECT the sibling's docstring warns about in
-  terms. The independent oracle still carried the refuted reading, so the second opinion was
-  wrong while the differential arms went on agreeing - AN ORACLE THAT AGREES BY NOT LOOKING
-  IS NOT AN ORACLE.
-
-- **Surprises: CI CAUGHT A CLASS THE LOCAL GATE STRUCTURALLY CANNOT.** `ruff check` refused a
-  compound assertion (PT018) 27 seconds in. The pre-commit gate lints from a temp copy of the
-  index bytes, so project per-file-ignores do not apply and it reports a large standing
-  population of non-blocking findings - a green gate is NOT evidence about that CI step. **Run
-  `python -m ruff check .` directly before pushing.** Also: `git add -A` swept a Playwright
-  artifact into a commit; amended out, and `/.playwright-mcp/` is now gitignored.
-
-- **The dashboard would not render and that is a standing obstacle, not a one-off.** It is
-  HTTPS-only with a self-signed pair and neither the in-app browser nor Playwright will load
-  it; trusting the cert is a security-settings change and is off the table. A plain-HTTP
-  proxy in front of it is what made the audit possible - scratchpad only, audit only.
-
-- **CS-617 CLOSED LAST, ON OPERATOR INSTRUCTION, AND IT IS THE SAME FAULT AGAIN - A FILE'S
-  OWN RATIONALE MEASURING FALSE.** The comment said a body `padding-top` "pushes the page
-  clear, so the strip covers nothing"; the padding is DOCUMENT flow and the band is fixed to
-  the VIEWPORT, so it held only at scroll 0. The repair moves the SCROLLPORT below the band -
-  `html` stops scrolling, the body becomes a fixed inset scroller - which makes the overlap
-  geometrically impossible rather than merely unlikely. `app-region` was deliberately not
-  touched: the rival fix was `pointer-events: none`, and whether Chromium still honours a
-  drag region on a pointer-transparent element is unanswerable here. A FIX THAT CANNOT BREAK
-  DRAGGING BEAT ONE THAT MIGHT, and an arm now forbids `pointer-events` in that CSS.
-
-- **THE NODE SUITE RUNS WITHOUT `shell/node_modules`** - it imports only node builtins plus
-  the two local libs, which is the purity partition working as designed. `node --test
-  shell/test/*.test.js` from the REPO ROOT; from inside `shell/` the PreToolUse hook resolves
-  its own path from cwd and every shell call dies until the directory is moved back with a
-  non-shell tool.
-
-- **Decisions: none recorded as an ADR.** Nothing contradicted `BOOTSTRAP.md`.
-
-- **Failed paths: `.claude/launch.json` was written and immediately removed** - it would have
-  spelled the dashboard port into a tracked file, which is exactly the violation CS-604 is
-  open about. The port guard does not read JSON; the rule still does.
-
-- **Next action: A THIRD CS-600 AUDIT, dispatched to an agent that wrote none of it.** Both
-  UI repairs and the shell fix were written by the session that also wrote the arms guarding
-  them, which is the one thing section 5 forbids. Two of the three audits so far returned
-  BLOCKED and the second found defects the first had not, so a third is expected to find
-  something rather than rubber-stamp. AFTER that, the save-reader follow-ups CS-868 to
-  CS-871.
-
-- **STILL OUTSTANDING FROM SESSION 49:** the six manual checks in `docs/OPERATIONS.md`
-  section 8.3 read NOT RUN, and `shell/node_modules` does not exist. CS-617's repair does not
-  need them, but VERIFYING THE DRAG ITSELF against a real Electron does, and that is named in
-  its ledger entry as owed rather than claimed.

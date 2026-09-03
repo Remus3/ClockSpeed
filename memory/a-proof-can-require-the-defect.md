@@ -52,4 +52,4 @@ that swept its entire module against a defect-free tree, rather than fixing the 
 is the one that survived.
 
 Related: [[verification-failure-classes]], [[test-quality-failure-classes]],
-[[a-pooled-guard-hides-its-worst-member]], [[orchestrated-multi-agent-is-the-default]].
+[[a-guard-can-be-green-by-accident]], [[orchestrated-multi-agent-is-the-default]].
