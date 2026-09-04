@@ -892,8 +892,8 @@ def _planted() -> dict[str, Site]:
 
 #: One row per shape, EACH ITS OWN ARM. A single arm over the pooled planted
 #: module would be met by its strongest member while a weaker one went
-#: unmeasured, which is the defect recorded in
-#: ``memory/pooled-guard-hides-its-worst-member.md``.
+#: unmeasured, which is the pooled-assertion form recorded in
+#: ``memory/a-guard-can-be-green-by-accident.md``.
 _PLANTED_EXPECTATIONS: Final = [
     ("explicit_oserror", FORM_EXPLICIT, TYPE_OSERROR, MEASURED_LEAK),
     ("implicit_oserror", FORM_IMPLICIT, TYPE_OSERROR, MEASURED_LEAK),
@@ -1744,7 +1744,7 @@ def test_every_censused_module_attaches_no_note_to_an_exception(module: str) -> 
 
     A pooled zero reports one line for a whole population and gives a later
     reader no way to see which members were actually measured -
-    ``memory/pooled-guard-hides-its-worst-member.md``. One arm per member makes
+    ``memory/a-guard-can-be-green-by-accident.md``. One arm per member makes
     the denominator something pytest itself counts and prints, and makes a new
     note redden an arm that NAMES the module it is in.
 
@@ -2146,8 +2146,8 @@ def test_each_recorded_bucket_has_a_line_of_its_own(bucket: str) -> None:
 
     A single non-empty assertion over the pooled record is met by whichever
     bucket happens to be populated while the other goes unmeasured, which is
-    ``memory/pooled-guard-hides-its-worst-member.md``. Each bucket asserts its
-    own denominator instead.
+    the pooled-assertion form of ``memory/a-guard-can-be-green-by-accident.md``.
+    Each bucket asserts its own denominator instead.
     """
     record = out_of_scope_record(raise_sites())
     mine = [line for line in record if f" {bucket.upper()} " in line]
@@ -4893,10 +4893,10 @@ def test_the_deferred_denominator_is_not_empty() -> None:
 
     AND THE FIRST TWO ASSERTIONS WERE THIS MODULE'S OWN FILED DEFECT, ONE LEVEL
     UP. A denominator satisfied by CONTROL fixtures is a denominator that never
-    reaches the bucket the findings come from, which is
-    ``memory/pooled-guard-hides-its-worst-member.md`` in the exact shape CS-881
-    was opened against. MEASURED, by two independent agents, two different
-    triggers: drop the two graded modules from the sweep, or widen
+    reaches the bucket the findings come from, which is the pooled-assertion
+    form of ``memory/a-guard-can-be-green-by-accident.md`` in the exact shape
+    CS-881 was opened against. MEASURED, by two independent agents, two
+    different triggers: drop the two graded modules from the sweep, or widen
     ``CLAUDE.md``'s frozen list by two bullets - a DOC edit, no code change -
     and the live findings go from two to zero while this arm stays GREEN,
     because the surviving thirteen members all come from

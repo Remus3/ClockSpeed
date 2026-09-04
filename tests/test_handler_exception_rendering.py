@@ -1332,7 +1332,7 @@ def test_each_escaping_construct_is_classified_on_its_own():
     """Every member of :data:`ESCAPING_NODES`, planted alone.
 
     A POPULATION FLOOR IS MET BY ITS STRONGEST MEMBER - see
-    ``memory/pooled-guard-hides-its-worst-member.md``. Reducing that tuple to
+    ``memory/a-guard-can-be-green-by-accident.md``. Reducing that tuple to
     ``(ast.Raise,)`` collapsed the escape-capable population by 77 per cent and
     left every arm in this module green, because the only checks over it were
     "greater than zero". One planted source per member reddens on exactly the
