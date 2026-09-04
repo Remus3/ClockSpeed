@@ -1639,3 +1639,37 @@ the trigger is ordinary: the natural way to write a memory leaf ABOUT CS-890 quo
 bracketed identifier, and `tools/drift_guard.py` already carries that token twice in its own
 docstrings.
 
+## CS-896
+
+### NOTE - filed 2026-09-03 (session 59) by the merger, MEASURED FROM THE RUN RECORD
+
+**MAIN HAS NO GREEN CI AS THIS IS FILED.** The tier 1 run on `ac41efe` was CANCELLED, not
+failed - the job hit `timeout-minutes: 10` at 96% of the unit tests with nothing failing and
+`The operation was canceled` in the log. A cancelled run is not evidence of anything, which
+is why this is filed rather than shrugged at.
+
+**THE LANE HAS BEEN NEAR THE CUTOFF FOR SEVERAL SESSIONS AND NOTHING WATCHED IT.** Durations
+read from the run record rather than recalled: `aed3b2d` 9m22s, `dce2d0f` 8m40s, `a5738fe`
+9m01s, `719a8d1` 7m35s, `ac41efe` cancelled past 10m. So the margin has been ONE MINUTE or
+less for a while, and the first time anyone learned that was when it ran out.
+
+**THE STATED TARGET IS THREE MINUTES AND THE COMMENT SAYING SO IS LOAD-BEARING.** The
+workflow reads "The target is under three minutes. Ten is the runaway cutoff, not a budget:
+a hung step must stop burning metered minutes rather than reach the six-hour default." The
+lane has been at THREE TIMES that target for an unknown number of sessions, so the cutoff
+has quietly become the budget - which is exactly what that comment says it is not.
+
+**DO NOT CLOSE THIS BY RAISING `timeout-minutes`.** That converts a runaway detector into a
+budget and removes the only signal that the lane is growing. If the honest answer is that
+three minutes is no longer achievable, then the TARGET is what gets corrected, in the
+comment, with the real number and a reason - and the cutoff stays a cutoff. Either way the
+lane should report its own duration against its budget so the next minute of growth is
+visible before it is fatal.
+
+**WHAT IS NOT YET KNOWN.** Which tests dominate. The obvious suspect - the CS-889 carrier
+widening from roughly 60 markdown files to 231 tracked files - measures only 6.4 seconds
+locally for its own module, so it does not obviously account for a jump from 7m35s to over
+10m. The local full suite runs about 12 minutes on this machine under agent load, so local
+timings are not a clean proxy for the runner. Measure on the runner, or with a profile, before
+attributing it.
+
