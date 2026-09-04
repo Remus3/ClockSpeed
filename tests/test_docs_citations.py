@@ -698,19 +698,14 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " a sentence that is no longer true.",
         1,
     ),
-    # THE TRAP THAT MANUFACTURES A FINDING ON CORRECT PROSE, and the reason
-    # `docs/history_notes.md` is exempt from this module entirely: QUOTING AND
-    # CITING ARE INDISTINGUISHABLE BY SHAPE. This site is the SUBJECT of a
-    # correction - prose about a pointer having been wrong - not a citation
-    # anything should follow. Reporting it would punish the record for doing
-    # the right thing, which is exactly what DELIBERATE exists for.
-    (ITEM_NOTES_850_LEAF, line_key("scripts/make_cert.py", 224)): Disposition(
-        DELIBERATE,
-        "",
-        "QUOTED, NOT CITED: the CS-889 note spells it as the subject of a"
-        " correction recording that the pointer was already dead when filed.",
-        1,
-    ),
+    # THE TRAP THAT MANUFACTURES A FINDING ON CORRECT PROSE lived here as a
+    # DELIBERATE entry for `scripts/make_cert.py` at line 224 - the CS-889 note
+    # spelled that pointer as the SUBJECT of a correction rather than as a
+    # citation, and QUOTING AND CITING ARE INDISTINGUISHABLE BY SHAPE. The entry
+    # is gone because the site is: CS-889 closed and its note relocated to
+    # `docs/history_notes.md`, which is exempt from this module for exactly that
+    # reason. The stale-entry contract reported it on the very next run, which is
+    # the record being checked in both directions rather than believed.
 }
 
 
@@ -885,10 +880,14 @@ UNFORBIDDEN_LINE_POINTERS: Final[frozenset[tuple[str, str, int]]] = frozenset(
 #: dispositions. :func:`forgiveness_budget_problems` checks it in BOTH
 #: directions, so the number can only come down.
 #:
-#: IT DOES NOT REACH ZERO. Its floor is the quoting-not-citing sites, which are
-#: correct prose about a pointer having been wrong and must stay forgiven
-#: forever. Everything above that floor is meant to be repaired away.
-FORGIVEN_LINE_POINTER_CEILING: Final = 55
+#: IT DOES NOT REACH ZERO in general - a quoting-not-citing site is correct prose
+#: about a pointer having been wrong and must stay forgiven for as long as it is
+#: spelled in a GUARDED doc. Everything above that floor is meant to be repaired
+#: away, and the ceiling comes down with each repair: 55 to 54 when CS-889 closed
+#: and its note moved to `docs/history_notes.md`, which is exempt from this module
+#: for exactly the quoting-versus-citing reason, taking the last such site out of
+#: the guarded set with it.
+FORGIVEN_LINE_POINTER_CEILING: Final = 54
 
 # --- resolution -------------------------------------------------------------
 

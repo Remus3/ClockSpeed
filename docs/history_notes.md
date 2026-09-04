@@ -273,6 +273,67 @@ Where current truth actually lives:
 
 ---
 
+## CS-889 - item section, closed and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-03
+
+### NOTE - filed 2026-09-03 (session 57) by the merger, MEASURED BEFORE FILING
+
+**THE CITATION GUARD READS ONE FORM IN ONE PLACE.** `tests/test_docs_citations.py` resolves
+the module-and-symbol citation form inside `docs/*.md`. A citation naming a LINE NUMBER instead of a symbol, or one written
+anywhere outside `docs/`, is read by nothing.
+
+**FIVE DEAD ONES IN A SINGLE FILE, MEASURED.** `tests/test_make_cert.py` cited
+`scripts/make_cert.py:224`, `:279` and `:222`, plus two line RANGES into
+`scripts/verify_env.py`. Two were pointing at a bare `"-out",` and at a BLANK LINE. All five
+were already dead before session 57 and CS-882 pushed the targets a further 44 lines away
+while `tests/test_docs_citations.py` stayed green at 135 passed. They are now repaired to
+symbol form by the CS-882 residual slice - **the INSTANCES are fixed and the CLASS is not**.
+
+**THIS IS THE FAULT `Site.key` AND `Copy.key` ALREADY DESIGN AGAINST** by omitting line
+numbers, for the reason CS-857 recorded. The lesson is in the code and absent from the guard.
+
+**A NOTE ON SCOPE.** The cheapest sound repair may be to FORBID the line-number citation form
+outright rather than to resolve it, since a resolvable line number still rots on the next
+edit above it. Measure both before choosing.
+
+### THE FILED PREMISE IS REFUTED - MEASURED 2026-09-03 (session 58) by the merger
+
+**"GRADES ONLY THE MODULE-AND-SYMBOL FORM" IS FALSE.** `tests/test_docs_citations.py`
+declares FOUR judged shapes in `JUDGED_SHAPES`, and one of them already resolves the
+line-number form. The gap is not that the form goes unread. Correct the sentence above
+before quoting it.
+
+**THE OBVIOUS REPAIR WOULD SHIP GREEN WITH THIS ITEM'S OWN DEFECT LIVE.**
+`line_pointer_problems` judges the pointer's RANGE ONLY and says so in its own docstring:
+asserting what sits AT the line "would redden on every edit above it, which is a guard
+nobody keeps". It also DECLINES a bare basename carrying no directory, because resolving
+one repo-relative and calling it missing is how a census manufactured six findings that
+were all artifacts. `scripts/make_cert.py` is 546 lines, so the three make_cert pointers
+this item was filed on - at 222, 224 and 279 - ALL RESOLVE IN RANGE. They were dead by
+pointing at the WRONG CONTENT, which is precisely the property the arm deliberately
+refuses to judge. EXTENDING THE EXISTING ARM TO PYTHON MODULES WOULD LEAVE ALL FIVE FILED
+INSTANCES GREEN. That is CS-880's failure shape - an arm green while its own filed defect
+is live - and it is the first thing to check on any candidate for this item.
+
+**THE GUARDED SET IS NOT LEAKING - DO NOT FILE ONE.** All 114 line pointers in tracked
+markdown outside code fences were swept. 32 fail to resolve to meaningful content and 22
+of those sit in GUARDED docs with the suite green, but EVERY ONE is correct behaviour:
+either a declined bare basename, or an in-range pointer that happens to land on a blank
+line. Lengths checked directly against each pointer - the precommit gate at 2517 against
+2311, its test module at 3754 against 1174, `scripts/verify_env.py` at 983 against 358,
+`tests/conftest.py` at 919 against 665, `clockspeed/data/locate.py` at 1002 against 531,
+`clockspeed/save/world.py` at 1114 against 919. ZERO real violations in the guarded set.
+
+**SO THE FORBID ROUTE IS THE ONLY ONE THAT DISCHARGES THE CLAUSE**, and its cost is now
+measured: 21 line pointers live in 7 tracked Python modules and FIFTEEN OF THEM ARE
+DELIBERATE SYNTHETIC FIXTURES planted inside tests that exercise a resolver, plus 85 in
+guarded markdown and 29 in the archive. A blanket ban reddens all of those, so the
+population boundary IS the design problem. If the clause cannot be met as a universal,
+say so plainly - CS-882 is the precedent for an honest partial, and the clause is NOT
+rewritten to read as satisfied.
+
+**SCOPE FENCE.** This item's clause is about the LINE-NUMBER form. The bare-path form is
+a different class and is filed separately as CS-891. Do not widen this item into it.
+
 ## CS-890 - item section, closed and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-03
 
 ### NOTE - filed 2026-09-03 (session 57) by the merger, MEASURED BEFORE FILING

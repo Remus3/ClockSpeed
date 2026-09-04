@@ -75,6 +75,65 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-03 - CS-889 - CLOSED AS AN HONEST PARTIAL. The clause is NOT met as a universal. A line pointer must now land on something and name it by symbol, the carrier population is every tracked file, and the escape hatch ratchets
+Verification: `python -m pytest tests/test_docs_citations.py -q`. Then reproduce the
+refutation that forced the ratchet: append three tuples to `UNVERIFIED_LINE_POINTERS` and
+two fabricated dispositions, and confirm the module now REDDENS - before the repair that
+exact move shipped the whole module green with every live defect intact.
+
+WHAT THE ITEM SAID AND WHY IT WAS WRONG. The `ROADMAP.md` line claimed the guard "grades
+only the module-and-symbol form". False - four shapes were declared and one already read
+line numbers. The line was left carrying its refuted premise deliberately, and the
+correction lived in the item note. The real defect was that the arm judged a pointer's
+RANGE and never its CONTENT, so a pointer invalidated by an edit ABOVE it was green INSIDE
+the population the guard already swept. Widening the population discharged nothing.
+
+TWO LEGS. A pointer landing on a blank or punctuation-only line is reported - mechanically
+decidable, no semantic judgement, and it cannot manufacture a finding because nobody cites
+a blank line deliberately. And a `file:line` pointer at a tracked Python module is
+FORBIDDEN, because the symbol form resolves through the symbol table and cannot be
+invalidated by an edit above it - the property `Site.key` and `Copy.key` already design for.
+Each existing member is recorded through this module's own `Disposition` machinery, which
+three pre-existing contracts already grade in both directions.
+
+THE CARRIER POPULATION WAS MARKDOWN-ONLY AND IS NOW EVERY TRACKED FILE less recorded
+exemptions - 231 carriers, deliberately not a suffix list, because a suffix list is the
+boundary the next extension crosses in silence. That widening was not cosmetic: it made
+SEVEN previously-invisible dead citations visible in `pyproject.toml`, `shell/lib/state.js`
+and `shell/test/endpoint.test.js`, five of them pointing at the wrong content. All seven are
+repaired. The same pointer had been inside the population from one carrier and outside it
+from another.
+
+SIXTEEN LIVE DEAD POINTERS WERE FOUND AND FIXED, none of them the five the item was filed
+on - those had already been repaired to symbol form and no longer existed in the tree, so
+the checklist had to be rebuilt as plants. Five pins that the table asserted were merely
+"unexamined" were content-checked and ALL FIVE WERE WRONG.
+
+THE ESCAPE HATCH NOW RATCHETS, which is the repair that matters most. Pins and line-pointer
+dispositions count against ONE ceiling, checked in both directions. Converting a pin into
+an adjudicated disposition is BUDGET-NEUTRAL, so upgrading unexamined to answered is free
+while genuinely new forgiveness costs an argument. Each pin also carries a DIGEST OF ITS
+LANDING LINE, so a grandfathered pointer reddens when the line moves under it. The digest
+was chosen over an enclosing-symbol anchor BY MEASUREMENT, not preference: over twelve
+commits a digest catches 1 of 48 drifted sites and the symbol anchor catches 0, because the
+drifted line moved within its own symbol.
+
+WHY THIS IS A PARTIAL AND NOT A CLOSE. 48 pins remain whose CONTENT-CORRECTNESS is
+unverified - they are now change-detected but not checked - and pointers at non-Python
+targets are unforbidden because no symbol form exists for a `.yml`, `.md` or `.toml`, so
+forbidding would leave no way to cite them at all. Both are recorded as sites rather than
+counts. **The clause was NOT rewritten to read as satisfied** - a ninth consecutive session.
+
+REFUTED TWICE. The first pass was refuted on scope, having repaired one pointer in a file
+while walking past five more wrong-but-resolving ones in that same file, one of them eight
+words later in the same sentence. The second was refuted for having no ratchet at all. The
+sentence "zero real violations in the guarded set", inherited from an earlier sweep, is
+REFUTED and recorded as such: it was true of the ARM's contract and false of the TREE, and
+merging those two is what let this defect survive.
+
+THE ROUND'S OWN MERGE ROTTED A POINTER AND LEG 1 CAUGHT IT. A sibling slice's 735 insertions
+into `tools/drift_guard.py` pushed a cited line onto a blank one, minutes after shipping.
+
 ### 2026-09-03 - CS-890 - CLOSED. The memory partition is asserted in BOTH directions, the index may no longer cite a ghost leaf, and "code" now means code rather than fenced code
 Verification: `python tools/drift_guard.py` - guard (b) reports index and leaf citations
 resolved, both counts checked against an independently derived number. Then, against a TEMP
