@@ -75,6 +75,60 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-03 - CS-890 - CLOSED. The memory partition is asserted in BOTH directions, the index may no longer cite a ghost leaf, and "code" now means code rather than fenced code
+Verification: `python tools/drift_guard.py` - guard (b) reports index and leaf citations
+resolved, both counts checked against an independently derived number. Then, against a TEMP
+COPY of `memory/` and never the real store, call `guard_memory` directly: a dangling
+`[[wikilink]]` planted in a LEAF must FAIL, a ghost markdown link planted in `MEMORY.md`
+itself must FAIL, and the positive control - a real leaf removed from the index - must still
+FAIL naming that leaf. All three passed before this item and the third is the one that
+already worked.
+
+WHAT WAS ACTUALLY BROKEN WAS WIDER THAN THE FILING. The filed instance was already repaired
+before work began. `_reachable_from_index` opened only the index and its index children,
+never an ordinary leaf, and asserted ONE direction - so a dangling wikilink in a leaf was
+invisible AND the index could route to a leaf that does not exist, both while the guard
+reported CLEAN. That second direction is in no filing. It is CS-497's shape one store over:
+a partition asserted one way round is a subset check wearing a partition's name.
+
+THE CLAUSE CLOSES AS A UNIVERSAL. 63 wikilinks in the store, 62 resolve, and the one that
+does not is a TOML array-of-tables header quoted inside a fenced code block - not a
+cross-reference under any reading. Excluding it is a principled exclusion of a non-link
+shape, NOT a clause narrowed to read as satisfied, and the acceptance clause was not
+rewritten.
+
+THIS TOOK THREE ROUNDS AND WAS REFUTED TWICE. Round one replaced nothing: the fence
+exclusion was a bare PARITY TOGGLE, and an adversary shipped `guard_memory` returning PASS
+with an unchanged count and an empty skip list over a store containing two dangling
+wikilinks - two ordinary prose lines beginning with three backticks give even parity and
+swallow everything between them. That is
+`memory/an-empty-population-satisfies-every-zero.md` reproduced inside the guard that
+protects that store. The same defect pointed the other way: a four-backtick fence wrapping a
+three-backtick example, which is how markdown documents a fence, reported correct content as
+dangling. Round two fixed those two cases and left the MECHANISM, so five more inputs still
+turned a correct document red - including one the repair invented, a fence opened at two
+spaces and closed at four. Round three fixed the mechanism: the exclusion is now CommonMark
+fence semantics plus INLINE CODE SPANS, because the property the guard needs is "code" and
+it was spelled "fenced code". A single line of ordinary prose carrying a bracketed
+identifier in backticks used to fail the guard and block every commit and push.
+
+THREE RESIDUALS ARE RECORDED RATHER THAN GUESSED AT, and each carries a PINNED ARM asserting
+the current wrong behaviour, so a future fix fails its own arm and forces the table to be
+updated. A fenced block inside a nested list item, one inside a blockquote, and a top-level
+four-space indented code block all still report correct content as dangling. The model is
+line-oriented with no container model, no reference parser was available to settle
+CommonMark's container rules, and guessing would have traded a loud failure for a silent
+one.
+
+THE TEST-SIDE ORACLE'S INDEPENDENCE CLAIM WAS DELETED RATHER THAN FAKED. Round two's
+"independent" scanner was a line-for-line clone of the guard's own - same algorithm, same
+branch order, same escape hatch - so the count-equality arm agreed with the guard on every
+one of the pathologies and could not have found any of them. It is now a raw-byte scan
+against a hand-enumerated token list that owes nothing to any code model.
+
+FILED FROM THIS ITEM: CS-892, because the repair fixed the partition at ONE of its two call
+sites and `tools/memory_sync.py` still carries a duplicate extractor and a one-way walk.
+
 ### 2026-09-03 - CS-888 - CLOSED. Importing the census buys no immunity; clearance is an EXEMPT entry keyed to a site count, and 8 of 8 identical plants now report
 Verification: `python -m pytest tests/test_chained_exemption_guard.py -q`, then plant an
 identical four-line static cause read into each module that imports the owner - the harness

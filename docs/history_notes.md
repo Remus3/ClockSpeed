@@ -25,6 +25,63 @@ Where current truth actually lives:
 
 ---
 
+## CS-890 - item section, closed and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-03
+
+### NOTE - filed 2026-09-03 (session 57) by the merger, MEASURED BEFORE FILING
+
+**A DANGLING WIKILINK IN THE DURABLE STORE, AND THE GUARD OVER THAT STORE IS GREEN.**
+`memory/a-proof-can-require-the-defect.md` links `[[a-pooled-guard-hides-its-worst-member]]`.
+No such file exists in `memory/` and no such row exists in `memory/MEMORY.md`.
+`tools/drift_guard.py` reports CLEAN 10 of 10 with the link in place, so guard (b), memory
+reachability, does not read wikilink targets.
+
+**FOUND BY A BUILDER THAT NEARLY SHIPPED THE SAME FAULT.** The CS-880 repair slice cited
+`memory/pooled-guard-hides-its-worst-member.md` in two files, caught before committing that
+the path does not exist in the repo - it exists only in the harness-side store, which is a
+DIFFERENT store that no tracked file may cite - and repointed to
+`memory/a-guard-can-be-green-by-accident.md`, which owns the same shape at line 40. The
+merger had propagated the wrong path into four briefs and into its own session reporting.
+
+**THE INSTANCE IS REPAIRED IN THE SAME COMMIT THAT FILES THIS.** The link now points at
+`a-guard-can-be-green-by-accident`. What remains open is the CLASS: nothing stops the next
+one.
+
+**TIER 1 RATHER THAN 2** because the repair is a reachability sweep over one directory, not a
+change to any grading population.
+
+### THE FILED INSTANCE IS GONE AND THE GUARD IS BROKEN WIDER - measured 2026-09-03 (session 58), EXECUTED
+
+**DO NOT BUILD AGAINST THE FILED INSTANCE.** `memory/a-proof-can-require-the-defect.md`
+now links `a-guard-can-be-green-by-accident` and resolves. The paragraph above says the
+instance was repaired in the commit that filed the item; it was.
+
+**THE LAST REMAINING DANGLING WIKILINK IS NOT A CROSS-REFERENCE, SO THE CLAUSE IS
+CLOSEABLE.** 63 wikilinks across the store and 62 resolve. The one that does not is in
+`memory/a-guard-can-be-accepted-and-unscoped.md`, and it is a TOML array-of-tables header
+quoted INSIDE A FENCED CODE BLOCK as sample configuration. The acceptance clause can
+therefore be met as a universal provided the extractor reads wikilinks OUTSIDE fenced code
+only. That is a principled exclusion of a shape that is not a link, NOT a clause narrowed
+to read as satisfied - the distinction matters because the no-rewrite rule has held seven
+consecutive sessions.
+
+**THE GUARD IS BROKEN IN A SECOND DIRECTION THE FILING DOES NOT NAME.** Executed against a
+temp copy of the store, calling `guard_memory` directly: pristine PASS; a planted dangling
+wikilink inside a LEAF, PASS; a planted markdown link in the INDEX itself naming a leaf
+that does not exist, PASS; positive control, a real leaf removed from the index, FAIL
+naming that leaf. `_reachable_from_index` opens only the index and its index children,
+never an ordinary leaf, and it asserts ONE direction - that every leaf is named by some
+token. A token naming nothing is an element that simply matches nothing. THE INDEX MAY
+CITE A GHOST LEAF AND THE GUARD IS GREEN, which is arguably worse than the filed fault
+because the index is the routing table. Decide whether one arm covers both directions or
+whether they are two, and carry the positive control so the asserted direction keeps
+biting.
+
+**THIS IS CS-497's SHAPE ONE STORE OVER** - a partition asserted one way round is a subset
+check wearing a partition's name. That entry is in `docs/LEDGER.md`.
+
+**TIER 1 IS NOW DOUBTFUL.** The second direction plus a fenced-code exclusion is more than
+a reachability sweep. Re-tier at dispatch.
+
 ## CS-888 - item section, closed and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-03
 
 ### NOTE - filed 2026-09-03 (session 57) by the merger, MEASURED BY AN ADVERSARY, EXECUTED
