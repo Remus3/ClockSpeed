@@ -199,9 +199,11 @@ import hashlib
 import re
 import string
 import subprocess
+import tomllib
 from collections.abc import Iterable, Mapping, Sequence
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Final
 
@@ -220,6 +222,15 @@ HIGHEST_ASCII: Final = 0x7E
 # name no real test - so judging them would redden the documentation of the rule.
 LEDGER: Final = "docs/LEDGER.md"
 ENTRIES_HEADING: Final = "## Entries"
+
+#: The Python packaging manifest, read by :func:`source_roots` for the roots
+#: this repository declares it ships. Carries no separator, so the bare-path
+#: shape - which requires one - does not read this literal as a citation.
+MANIFEST: Final = "pyproject.toml"
+
+#: One newline, bound rather than spelled inline, so a message assembled from a
+#: list reads the same in every arm that builds one.
+NEWLINE: Final = "\n"
 
 # ROADMAP.md and docs/GATED.md carry citations too and both measured clean, so
 # they are guarded from the start rather than after they rot.
@@ -502,6 +513,25 @@ ELIDED_RE: Final = re.compile(r"(?<![A-Za-z0-9_])::(test_[a-z0-9_]{8,})\b")
 # 948-site residual forever in order to guard three sites that measured
 # artifactual. The three declines below ARE pinned, because each is a rule
 # rather than a pattern's edge.
+#
+# THE SECOND PRICE, WHICH THE FIRST BUILD DID NOT STATE AT ALL. The extension
+# alternation below is a HAND-MAINTAINED SUFFIX LIST - the very boundary
+# :func:`line_pointer_carriers` records at length as the wrong one, because
+# "the next extension to start carrying a pointer joins the unguarded set in
+# silence". That was fixed on the CARRIER side and the identical list then
+# shipped on the CITED side unmentioned.
+#
+# THE RESIDUAL, MEASURED: 86 backticked sites in exactly this shape fall outside
+# it - 77 JavaScript under `shell/`, a root this repository owns and ships, plus
+# html, css, C headers, a lock file and an archive, spread over `ROADMAP.md`,
+# `docs/LEDGER.md`, `docs/OPERATIONS.md`, an ADR and a phase leaf. A dead
+# citation among them is invisible to this arm.
+#
+# WIDENING WAS MEASURED AND DEFERRED, NOT DISMISSED: it moves the population
+# from 2009 sites to 2095 with the reported rung still EMPTY, at a cost of four
+# new disclosure rows. It is not taken here because it also widens what
+# :func:`carries_a_citation` answers, which moves the guarded-set boundary, and
+# a repair slice that grows the adjudicated population is doing two jobs.
 #
 # A NON-LEADING SEGMENT MAY NOT START WITH A DOT, which refuses "..", and that
 # is a mechanism rather than tidiness. `git check-ignore` FATALS on a path that
@@ -1618,7 +1648,8 @@ def stale_pin_problems(
 # looks exactly like a corpus that stopped needing it.
 #
 #   R0   the cited path is in `git ls-files`                        RESOLVED
-#   R1   exactly ONE tracked path ends with it at a segment boundary RESOLVED
+#   R1   exactly ONE tracked path UNDER A DECLARED SOURCE ROOT ends with it
+#        at a segment boundary                                       RESOLVED
 #   R1!  MORE THAN ONE does                                          REPORTED
 #   R2   `git check-ignore` says the repo DECLARES it untracked      DECLINED
 #   R3   its first segment is not a tracked top-level entry          DECLINED
@@ -1637,11 +1668,26 @@ def stale_pin_problems(
 # qualified path is the same shape: `docs/ARCHITECTURE.md` writes a module map
 # whose paths are relative to a package root stated in the surrounding table,
 # so seventeen of its forty qualified paths are absent repo-relative and
-# present one directory down. R1 is a RESOLUTION rather than a forgiveness, so
-# it needs no ratchet - but it MUST require EXACTLY ONE hit. An ambiguous
-# suffix is REPORTED and never accepted, because accepting it would turn "the
-# reader guessed" into "the citation resolved", which is R1 becoming a
-# laundering route rather than a resolver.
+# present one directory down.
+#
+# WHAT R1 PROVES AND WHAT IT DOES NOT. The first build said it needed no ratchet
+# because it "is a RESOLUTION rather than a forgiveness" - restating trap 2's own
+# property as though stating it had solved it. A UNIQUE SUFFIX HIT PROVES THE
+# PATH NAMES A TRACKED FILE, NEVER THE INTENDED ONE. Those coincide only where
+# the tree has one candidate per suffix, and `tests/` MIRRORS the package tree:
+# a citation naming a helper under its `save` mirror had exactly one hit and it
+# WAS that helper, which has no package counterpart. MEASURED: three such
+# citations planted in the module map's own house style left the suite green -
+# no finding, no disclosure grown, no ceiling spent - and one resolved into
+# `.claude/`, which this module declares out of domain entirely.
+#
+# SO R1's CANDIDATE SET IS ROOTED. :func:`source_roots` derives from tracked
+# packaging manifests which directories this repository SHIPS, and a hit outside
+# them does not resolve. Still not a ratchet and still needing none - the rung
+# can only RESOLVE - but now against the population a package-relative citation
+# could be relative to. AND IT MUST STILL REQUIRE EXACTLY ONE HIT: an ambiguous
+# suffix is REPORTED, because accepting it turns "the reader guessed" into "the
+# citation resolved".
 #
 # R2 IS ANSWERED BY A TRACKED DECLARATION A HUMAN HAD TO WRITE. `.gitignore` is
 # in the index; a path it matches is one this repository has said out loud will
@@ -1668,9 +1714,15 @@ def stale_pin_problems(
 # literal, is INVISIBLE to this arm. So each rung's live membership is pinned
 # below and asserted in BOTH directions: appending to a disclosure makes it
 # DISAGREE with what the ladder derives and reddens, exactly as
-# :data:`UNFORBIDDEN_LINE_POINTERS` does. These are DISCLOSURES, not permission
-# lists - the difference is that nothing can be added to one to buy silence.
-# Only R5 is a budget, and it ratchets.
+# :data:`UNFORBIDDEN_LINE_POINTERS` does.
+#
+# AND EACH DISCLOSURE IS ALSO BUDGETED, because "nothing can be added to one to
+# buy silence" was the first build's claim and it was FALSE. The two-way pin
+# catches a row added ALONE; it cannot catch a row added TOGETHER WITH the dead
+# citation it describes, and that pair is exactly the purchase. Worse, it was the
+# CHEAP purchase: the same dead citation spelled one segment longer costs an R5
+# entry AND a ceiling raise, so the vaguer spelling was the less guarded one.
+# Every rung here now spends a number somebody has to defend.
 
 RESOLVED_EXACT: Final = "R0 exact"
 RESOLVED_SUFFIX: Final = "R1 unique suffix"
@@ -1993,11 +2045,89 @@ def tracked_suffixes(tracked: Iterable[str]) -> dict[str, tuple[str, ...]]:
     return {suffix: tuple(sorted(hits)) for suffix, hits in index.items()}
 
 
+#: The manifest key that names the Python distribution's source packages. Read
+#: rather than restated, for :func:`source_roots`' reason.
+_SETUPTOOLS_FIND: Final = ("tool", "setuptools", "packages", "find", "include")
+
+#: The file whose presence in a top-level directory declares that directory a
+#: Node package. `shell/` carries one; nothing else in this repository does.
+_NODE_MANIFEST: Final = "package.json"
+
+
+def source_roots(tracked: Iterable[str], manifest: str) -> frozenset[str]:
+    """Which top-level directories this repository PACKAGES as source.
+
+    R1'S CANDIDATE SET, AND THE REASON IT HAS ONE. A unique suffix hit proves
+    the path names A tracked file, never THE intended one. `tests/` MIRRORS the
+    package tree, so a citation naming a helper under its `save` mirror has
+    exactly one hit and it IS that helper, which has no package counterpart at
+    all. MEASURED: three dead citations planted in `docs/ARCHITECTURE.md`'s own
+    house style resolved silently at R1 - no finding, no disclosure grown, no
+    ceiling spent - and one resolved into `.claude/`, which this module declares
+    out of domain. Trap 2's own property, unrepaired, one notch along.
+
+    NEITHER PURE RULE WORKS, WHICH IS WHY IT IS A ROOTED SUFFIX. A prefix test
+    breaks the module-map spellings that omit two directories rather than one; a
+    suffix test alone launders. Requiring the sole hit under a DECLARED SOURCE
+    ROOT does both: all ten live module-map spellings still resolve uniquely,
+    and every planted mirror-tree path falls through.
+
+    DERIVED FROM TRACKED DECLARATIONS, NOT HAND-LISTED, because a literal root
+    tuple is a boundary nobody re-derives and the next root would join the
+    unguarded set in silence. Both halves read a manifest a human wrote and git
+    tracks - R2's evidence standard applied to a second question: the Python
+    half from `pyproject.toml`'s ``[tool.setuptools.packages.find]`` ``include``
+    globs, the Node half from a top-level directory carrying a `package.json`.
+    `tests/` answers to NEITHER, which is the point: it carries an
+    ``__init__.py`` and would pass any "is it a package" test, so the question
+    asked is whether this repository SHIPS it.
+
+    THE FAILURE DIRECTION IS LOUD: a manifest that stops declaring yields an
+    empty set and fourteen live sites become findings. A contract asserts the
+    set non-empty besides.
+
+    Args:
+        tracked: Repo-relative POSIX paths.
+        manifest: The text of `pyproject.toml`. Injected rather than read here
+            so a control can pose the question against a manifest it wrote,
+            which is the only way to prove the Python half consults it.
+
+    Note:
+        The glob is matched CASE-SENSITIVELY on every platform. Plain
+        ``fnmatch`` normalises case on Windows and not on Linux, so the same
+        manifest would derive a different root set on the developer machine
+        than in CI - a determinism bug in a project whose first stated property
+        is that a result is reproducible from the same inputs.
+
+    Returns:
+        Top-level directory names, without a trailing separator.
+    """
+    globs: Sequence[str] = ()
+    node: object = tomllib.loads(manifest)
+    for key in _SETUPTOOLS_FIND:
+        if not isinstance(node, Mapping) or key not in node:
+            node = None
+            break
+        node = node[key]
+    if isinstance(node, list) and all(isinstance(entry, str) for entry in node):
+        globs = tuple(node)
+    paths = list(tracked)
+    roots = {path.split("/", 1)[0] for path in paths if "/" in path}
+    packaged = {root for root in roots if any(fnmatchcase(root, glob) for glob in globs)}
+    packaged |= {
+        path.split("/", 1)[0]
+        for path in paths
+        if path.count("/") == 1 and path.endswith("/" + _NODE_MANIFEST)
+    }
+    return frozenset(packaged)
+
+
 def bare_path_ladder(
     sites: Iterable[BarePathSite],
     tracked: Iterable[str],
     declared_untracked: Iterable[str],
     reasons: Mapping[tuple[str, str, str], BarePathReason],
+    roots_of_source: Iterable[str],
 ) -> dict[str, list[BarePathSite]]:
     """Run every site down the ladder and report WHICH rung answered it.
 
@@ -2013,6 +2143,11 @@ def bare_path_ladder(
             tracked, from :func:`declares_untracked`.
         reasons: The recorded answers, keyed by
             :attr:`BarePathSite.identity`.
+        roots_of_source: R1's candidate set, from :func:`source_roots`. A
+            suffix hit OUTSIDE these roots does not resolve, for the reason
+            that function states. REQUIRED rather than defaulted to every
+            root, because a default that restores the laundering route is the
+            same fault one call site along.
 
     Returns:
         Rung name to the sites it answered, every rung in
@@ -2022,7 +2157,10 @@ def bare_path_ladder(
     """
     exact = set(tracked)
     roots = {path.split("/", 1)[0] for path in exact}
-    suffixes = tracked_suffixes(exact)
+    packaged = set(roots_of_source)
+    suffixes = tracked_suffixes(
+        path for path in exact if path.split("/", 1)[0] in packaged and "/" in path
+    )
     ignored = set(declared_untracked)
     answered: dict[str, list[BarePathSite]] = {rung: [] for rung in LADDER_RUNGS}
     for site in sites:
@@ -2152,6 +2290,124 @@ def bare_path_reason_problems(
     return problems
 
 
+def graded_floor_names(source: str) -> frozenset[str]:
+    """Every named constant this module actually USES as a non-vacuity floor.
+
+    DERIVED, because the arm grading them began as a hand-written list of three
+    - this round's own filed fault inside its own repair, since a FOURTH floor
+    would have joined the ungraded set in silence. The derivation is the USE
+    SITE rather than a naming convention: collecting names ending in ``_FLOOR``
+    is the open-ended suffix rule this module has shipped twice, and
+    ``MINIMUM_SITES`` would arrive exempt.
+
+    WHAT IT CANNOT SEE, disclosed: a floor compared inline with ``>=``. That was
+    the shape of all three before this round, and the reply is that an inline
+    comparison cannot be posed a question at all.
+
+    Args:
+        source: This module's own text.
+
+    Returns:
+        The CONSTANT names passed as a floor - a lower-case name is a local and
+        a literal is what a control passes; neither is a recorded floor.
+    """
+    named: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+            continue
+        # Sliced rather than length-checked: the floor is the third argument, and
+        # an empty slice is a call that does not pass one.
+        third = node.args[2:3]
+        if node.func.id != "floor_problems" or not third:
+            continue
+        floor = third[0]
+        if isinstance(floor, ast.Name) and floor.id.isupper():
+            named.add(floor.id)
+    return frozenset(named)
+
+
+def floor_problems(what: str, measured: int, floor: int) -> list[str]:
+    """One non-vacuity floor, checked - and the CHECK is the point.
+
+    A floor exists so ``assert not problems`` cannot read as an answer when
+    nothing was measured. EVERY ONE OF THEM WAS ITSELF GRADED BY NOTHING.
+    VERIFIED: setting :data:`BARE_PATH_POPULATION_FLOOR`,
+    :data:`_ARCHITECTURE_SUFFIX_FLOOR` or :data:`_SELF_SPELLED_FLOOR` to ZERO
+    left the whole module green, which restores exactly the defect each exists
+    to prevent in a one-character diff. A floor compared inline cannot be posed
+    a question; hoisted into a function, a control can ask whether the LIVE
+    number rejects an empty measurement - which a floor of zero cannot pass.
+
+    Args:
+        what: The population, for the message.
+        measured: How many were collected this run.
+        floor: The recorded minimum.
+
+    Returns:
+        One line if the population came in under the floor, else none.
+    """
+    if measured >= floor:
+        return []
+    return [
+        f"only {measured} {what} were collected, below the recorded floor of {floor}."
+        " The shape or the population has stopped reading the tree, and an empty"
+        " finding list would then be silence rather than an answer."
+    ]
+
+
+def decline_budget_problems(
+    rung: str,
+    pinned: Mapping[tuple[str, str, str], int],
+    ceiling: int,
+) -> list[str]:
+    """THE DECLINE DISCLOSURES' RATCHET, and it exists because the asymmetry was real.
+
+    THE FIRST BUILD SAID THESE NEEDED NO BUDGET - "there is nothing to be bought
+    by adding to it". THAT SENTENCE WAS FALSE AS WRITTEN. A row appended ALONE
+    does redden, because it discloses a decline the ladder does not derive; a
+    row appended TOGETHER WITH the dead citation it describes leaves derived and
+    pinned in agreement and the suite green. One dead citation, one row, no
+    argument, no ceiling.
+
+    THE ASYMMETRY IS THE FINDING RATHER THAN THE HOLE. A dead citation spelled
+    in full costs a :data:`BARE_PATH_REASONS` entry PLUS a ceiling raise. THE
+    SAME CITATION ONE SEGMENT SHORTER lands on a decline rung and cost one
+    unbudgeted row - so THE CHEAPER SPELLING WAS THE LESS GUARDED ONE, and the
+    module map already spells six paths the short way. A guard whose price falls
+    as the citation gets vaguer is pointed backwards.
+
+    A CEILING PER RUNG, NEVER A POOLED ONE, for the doctrine
+    :func:`bare_path_budget_problems` cites: a threshold summed over a
+    population is met by its strongest member while the weakest goes unmeasured.
+
+    Args:
+        rung: Which rung the disclosure covers, for the message.
+        pinned: The disclosed identities.
+        ceiling: The recorded budget.
+
+    Returns:
+        One line per direction that has drifted, in
+        :func:`bare_path_budget_problems`' shape and for its reasons.
+    """
+    spent = len(pinned)
+    if spent > ceiling:
+        return [
+            f"{rung}: {spent} sites disclosed against a ceiling of {ceiling}."
+            " A decline was added. That is a finding to argue, not a line to type:"
+            " repoint the citation, or raise the ceiling in this same change and say"
+            " why. A row added together with the dead citation it describes is green"
+            " against the disclosure alone - this is the leg that is not."
+        ]
+    if spent < ceiling:
+        return [
+            f"{rung}: {spent} sites disclosed against a ceiling of {ceiling}."
+            f" A citation was repointed and the ceiling was not lowered to match."
+            f" Lower it to {spent} - a slack ceiling is banked room for an append"
+            " nobody will have to defend."
+        ]
+    return []
+
+
 def bare_path_budget_problems(
     reasons: Mapping[tuple[str, str, str], BarePathReason],
     ceiling: int,
@@ -2200,6 +2456,72 @@ def bare_path_budget_problems(
     return []
 
 
+def derived_bound_problems(source: str, tables: Iterable[str]) -> list[str]:
+    """Every module-scope constant COMPUTED FROM a table it is supposed to bound.
+
+    THE TAUTOLOGY THAT DISARMS EVERY BUDGET IN THIS MODULE, AND IT IS ONE LINE.
+    ``BARE_PATH_REASON_CEILING: Final = len(BARE_PATH_REASONS)`` makes
+    ``spent == ceiling`` true by construction: both directions permanently
+    satisfied, every future append free, and NO NUMBER IN THE DIFF to query.
+    VERIFIED: ``bare_path_budget_problems(table, len(table))`` is empty for
+    every table. Worse than the escape CS-889 was reopened on, which at least
+    left a growing list somebody could see.
+
+    NEITHER EXISTING CONTROL CATCHES IT: both budget arms pass SYNTHETIC
+    arguments, so they prove the arithmetic and say nothing about where the live
+    constant came from - and by import time it is just an int, so provenance has
+    to be read out of the SOURCE.
+
+    THE POPULATION IS EVERY MODULE-SCOPE ASSIGNMENT, not a naming convention: a
+    rule walking names ending in ``_CEILING`` is the open-ended filter this
+    module has shipped twice, and ``BUDGET_MAX`` would arrive exempt. The
+    predicate names the OFFENCE - a constant whose value expression mentions a
+    registered forgiveness table is derived from what it bounds.
+
+    TWO RESIDUALS, STATED. A wrong integer typed by hand still silences what it
+    bounds; what is removed is the bound that CANNOT be wrong. And this reads
+    ONE HOP - ``= _count_them()``, with the helper reading the table, mentions
+    no registered name and passes. Closing that means resolving call graphs. The
+    one-line version is what costs nothing to write and therefore what arrives.
+
+    Args:
+        source: This module's own text.
+        tables: The names of the registered forgiveness tables, from
+            :data:`FORGIVENESS_TABLES`.
+
+    Returns:
+        One line per module-scope assignment that reads one of them.
+    """
+    bounded = set(tables)
+    problems: list[str] = []
+    for node in ast.parse(source).body:
+        if isinstance(node, ast.AnnAssign):
+            targets: list[ast.expr] = [node.target]
+        elif isinstance(node, ast.Assign):
+            targets = list(node.targets)
+        else:
+            continue
+        if node.value is None:
+            continue
+        read = sorted(
+            {
+                name.id
+                for name in ast.walk(node.value)
+                if isinstance(name, ast.Name) and name.id in bounded
+            }
+        )
+        if not read:
+            continue
+        problems.extend(
+            f"{target.id} is computed from {', '.join(read)}, which it is meant to"
+            " bound. A bound derived from its own subject is satisfied by"
+            " construction and spends nothing. Type the number."
+            for target in targets
+            if isinstance(target, ast.Name)
+        )
+    return sorted(problems)
+
+
 #: This module's own repo-relative path. DERIVED rather than spelled, because
 #: a literal would be a citation this module makes about itself and the
 #: self-infliction arm below would then be measuring the spelling rather than
@@ -2212,10 +2534,12 @@ THIS_MODULE: Final = Path(__file__).resolve().relative_to(REPO_ROOT).as_posix()
 #: the citations are legitimate: the file is per-machine and its absence from
 #: the index is the point.
 #:
-#: PINNED IN BOTH DIRECTIONS. Appending an entry makes this table DISAGREE with
-#: what the ladder derives and reddens on the spot, so there is nothing to be
-#: bought by adding to it. That is the difference between a disclosure and a
-#: permission list.
+#: PINNED IN BOTH DIRECTIONS AND BUDGETED. Appending an entry ALONE makes this
+#: table disagree with what the ladder derives and reddens on the spot. Appending
+#: one TOGETHER WITH the dead citation it describes does not - derived and pinned
+#: agree again - which is why a ceiling counts the rows as well. The first build
+#: said "there is nothing to be bought by adding to it" and that was false as
+#: written; see :func:`decline_budget_problems`.
 DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
     ("ROADMAP.md", "config/local.json", "## Phase 4 - save reader"): 1,
     ("clockspeed/solve/optimize.py", "config/local.json", ""): 1,
@@ -2244,7 +2568,7 @@ DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
 #: readable as one residual rather than two. Three are a guard's own
 #: metasyntactic example paths, under roots this repository does not own.
 #:
-#: PINNED IN BOTH DIRECTIONS, for the table above's reason.
+#: PINNED AND BUDGETED, for the table above's reason.
 DECLINED_UNDER_AN_UNTRACKED_ROOT: Final[Mapping[tuple[str, str, str], int]] = {
     (
         "docs/ARCHITECTURE.md",
@@ -2273,7 +2597,7 @@ DECLINED_UNDER_AN_UNTRACKED_ROOT: Final[Mapping[tuple[str, str, str], int]] = {
 #: inside a Python string literal that is not a docstring - data a guard feeds
 #: itself, which is supposed not to exist and would be a defect if it did.
 #:
-#: PINNED IN BOTH DIRECTIONS, for the tables above's reason. This is the rung
+#: PINNED AND BUDGETED, for the tables above's reason. This is the rung
 #: whose price is easiest to underrate: a real dead citation moved inside a
 #: non-docstring literal becomes invisible, so the disclosure has to name every
 #: site the rung answers rather than merely count them.
@@ -2302,6 +2626,14 @@ DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
     ("tests/test_chained_cause_census.py", "scripts/example.py", ""): 1,
     ("tests/test_chained_cause_census.py", "scripts/example.py", "_FROZEN_MARKDOWN"): 1,
 }
+
+#: THE THREE DECLINE DISCLOSURES' RECORDED BUDGETS, one per rung and never
+#: pooled, for the reason :func:`decline_budget_problems` states. Each is an
+#: integer literal a person typed, which
+#: :func:`derived_bound_problems` is what keeps true.
+DECLARED_UNTRACKED_CEILING: Final = 7
+UNTRACKED_ROOT_CEILING: Final = 9
+FIXTURE_LITERAL_CEILING: Final = 7
 
 #: THE ONLY BUDGET IN THIS SECTION. Everything above is a disclosure that
 #: cannot be added to; this is the escape hatch, and it ratchets.
@@ -2387,11 +2719,17 @@ BARE_PATH_REASON_CEILING: Final = 7
 #: An `assert not problems` is byte-identical whether the property holds or
 #: whether the corpus was empty, and this section's population is assembled by
 #: a regex over an injected mapping - two places it could silently become
-#: empty. Measured at 2009 sites over 231 carriers when the arm shipped; the
-#: floor sits well below that so ordinary editing does not spend an
-#: adjudication, and far enough above zero that a shape which stopped matching
-#: is caught.
-BARE_PATH_POPULATION_FLOOR: Final = 1500
+#: empty.
+#:
+#: HOW THE NUMBER WAS CHOSEN, because the first one was chosen by feel and was
+#: slack by a quarter. The population measured 2009 sites over 231 carriers, and
+#: its LARGEST single carrier - the append-only ledger, where a dead citation is
+#: likeliest to arrive - contributes 482 of them. A floor of 1500 therefore
+#: absorbed the total loss of that carrier in silence, which is the one loss the
+#: floor most needed to catch. This one sits above 2009 minus that carrier, so
+#: losing ANY single carrier reddens, and it still leaves about a hundred sites
+#: of ordinary churn before an edit spends an adjudication.
+BARE_PATH_POPULATION_FLOOR: Final = 1900
 
 #: EVERY FORGIVENESS TABLE IN THIS MODULE, and the contract that BOUNDS it.
 #: CLOSING THE CLASS RATHER THAN THE INSTANCE, which is the fault three
@@ -2446,6 +2784,9 @@ NOT_A_FORGIVENESS: Final[Mapping[str, str]] = {
     "_FILED_CERT_LINES": "the CS-889 acceptance reconstruction's line numbers",
     "_FILED_ENV_LINES": "the CS-889 acceptance reconstruction's line numbers",
     "_FILED_BARE_PATH_CARRIERS": "the CS-891 reconstruction's carriers and site counts",
+    "_CONTROL_SOURCE_ROOTS": "two directory names a control hands the ladder as R1's roots",
+    "_SETUPTOOLS_FIND": "the manifest key path source_roots reads; it forgives nothing",
+    "_INTERPRETER_NAMES": "the three names the interpreter installs, excluded by exact match",
 }
 
 
@@ -2781,13 +3122,24 @@ def live_declared_untracked(live_bare_path_sites: Sequence[BarePathSite]) -> fro
 
 
 @pytest.fixture(scope="module")
+def live_source_roots(tracked: list[str]) -> frozenset[str]:
+    """R1's candidate set for the live repository, derived from its own manifests."""
+    return source_roots(tracked, (REPO_ROOT / MANIFEST).read_text(encoding="ascii"))
+
+
+@pytest.fixture(scope="module")
 def live_bare_path_ladder(
     live_bare_path_sites: Sequence[BarePathSite],
     tracked: list[str],
     live_declared_untracked: frozenset[str],
+    live_source_roots: frozenset[str],
 ) -> dict[str, list[BarePathSite]]:
     return bare_path_ladder(
-        live_bare_path_sites, tracked, live_declared_untracked, BARE_PATH_REASONS
+        live_bare_path_sites,
+        tracked,
+        live_declared_untracked,
+        BARE_PATH_REASONS,
+        live_source_roots,
     )
 
 
@@ -4280,6 +4632,11 @@ _SELF_SPELLED_FLOOR: Final = 20
 #: cannot become a finding this module makes against itself.
 _BARE_PLANT_LEAF: Final = "a-path-this-tree-does-not-carry.md"
 
+#: R1's candidate roots for the controls that need the rung to FIRE. Directory
+#: names rather than paths, so nothing here is a citation. The controls that do
+#: not exercise R1 pass an empty set instead, which states that they do not.
+_CONTROL_SOURCE_ROOTS: Final = ("clockspeed", "shell")
+
 
 def _planted_bare(carrier: str, cited: str) -> dict[str, str]:
     """A one-carrier corpus spelling ``cited`` once, in the shape the arm reads."""
@@ -4298,12 +4655,9 @@ def test_every_bare_path_in_the_carrier_population_resolves_or_is_recorded(
     that stops matching, and a carrier mapping that arrives empty. So the floor
     comes first and the emptiness second.
     """
-    assert len(live_bare_path_sites) >= BARE_PATH_POPULATION_FLOOR, (
-        f"only {len(live_bare_path_sites)} bare-path sites were collected, below the"
-        f" recorded floor of {BARE_PATH_POPULATION_FLOOR}. The shape or the carrier"
-        " population has stopped reading the tree, and the emptiness below would then"
-        " be silence rather than an answer."
-    )
+    short = floor_problems("bare-path sites", len(live_bare_path_sites), BARE_PATH_POPULATION_FLOOR)
+
+    assert not short, "\n".join(short)
 
     problems = bare_path_problems(live_bare_path_ladder)
 
@@ -4315,20 +4669,50 @@ def test_every_bare_path_in_the_carrier_population_resolves_or_is_recorded(
 def test_the_bare_path_population_is_the_line_pointer_population(
     live_bare_path_sites: Sequence[BarePathSite],
     line_pointer_carriers: Mapping[str, str],
+    file_lines: Mapping[str, Sequence[str]],
     tracked: list[str],
 ) -> None:
     """The boundary, asserted rather than described - and in both directions.
 
-    A population that merely SAYS it is the line-pointer one is a sentence. The
-    exclusions are measured non-empty here for the reason the other exclusion
-    contracts measure theirs: a rule about an empty set reads as coverage and
-    is not.
+    THE NAME WAS AN EQUALITY THIS ARM DID NOT CHECK. It computed
+    ``carriers - line_pointer_carriers`` and never the reverse, so a DROPPED
+    carrier reddened nothing: VERIFIED by removing `docs/LEDGER.md` - 482 of
+    2009 sites, and the append-only file where a dead citation is likeliest to
+    arrive - with the suite green. With a floor left slack by a quarter, up to
+    509 sites could vanish in silence.
+
+    SO THE REVERSE DIRECTION IS DERIVED FROM THE INDEX, NOT THE FIXTURE. Asking
+    the fixture which carriers it holds re-asserts the fixture: a ledger dropped
+    there is missing from BOTH sides and the comparison is green on nothing. The
+    expectation is rebuilt from `git ls-files`, the RECORDED exclusions and the
+    shape, so a carrier that stops being offered disagrees with the tree rather
+    than with a copy of the same mistake. The exclusions are measured non-empty
+    because a rule about an empty set reads as coverage and is not.
     """
     carriers = {site.carrier for site in live_bare_path_sites}
 
     assert carriers, "no carrier spells a bare path, so the boundary below is vacuous"
     outside = sorted(carriers - set(line_pointer_carriers))
     assert not outside, f"bare paths read from outside the line-pointer population: {outside}"
+
+    offered = {
+        path
+        for path in tracked
+        if path in file_lines
+        and path not in UNGUARDED_DOCS
+        and not path.startswith((DATED_ARCHIVE, OUT_OF_DOMAIN))
+        and BARE_PATH_RE.search(scoped_text(path, NEWLINE.join(file_lines[path])))
+    }
+
+    assert offered, "the index offers no bare-path carrier at all, so the reverse leg is vacuous"
+    dropped = sorted(offered - carriers)
+    assert not dropped, (
+        "tracked files spell a bare path and never reached the population:"
+        + NEWLINE
+        + NEWLINE.join(f"  {path}" for path in dropped)
+        + NEWLINE
+        + "The carrier mapping has stopped offering a file the boundary says it covers."
+    )
 
     excluded = [
         path
@@ -4443,10 +4827,11 @@ def test_the_architecture_module_map_resolves_by_unique_suffix_not_by_reporting(
         if site.carrier == doc
     ]
 
-    assert len(by_suffix) >= _ARCHITECTURE_SUFFIX_FLOOR, (
-        f"only {len(by_suffix)} package-relative paths in the module map resolved by"
-        " suffix, so this arm is not measuring the population it describes"
+    short = floor_problems(
+        "module-map paths resolving by suffix", len(by_suffix), _ARCHITECTURE_SUFFIX_FLOOR
     )
+
+    assert not short, "\n".join(short) + (" This arm is not measuring the population it describes.")
     assert not unanswered, "module-map paths the ladder could not answer:\n" + "\n".join(
         f"  {site.cited} under {site.anchor}" for site in unanswered
     )
@@ -4454,7 +4839,10 @@ def test_the_architecture_module_map_resolves_by_unique_suffix_not_by_reporting(
 
 @pytest.mark.parametrize("doc", GUARDED_DOCS)
 def test_the_bare_path_arm_has_teeth_on_every_guarded_doc(
-    doc: str, tracked: list[str], live_declared_untracked: frozenset[str]
+    doc: str,
+    tracked: list[str],
+    live_declared_untracked: frozenset[str],
+    live_source_roots: frozenset[str],
 ) -> None:
     """Every guarded doc is REACHED, measured per doc rather than assumed.
 
@@ -4469,7 +4857,11 @@ def test_the_bare_path_arm_has_teeth_on_every_guarded_doc(
     planted = scoped_text(doc, doc_text(doc)) + f"\n\nVerification: `{dead}`.\n"
 
     answered = bare_path_ladder(
-        bare_path_sites({doc: planted}), tracked, live_declared_untracked, BARE_PATH_REASONS
+        bare_path_sites({doc: planted}),
+        tracked,
+        live_declared_untracked,
+        BARE_PATH_REASONS,
+        live_source_roots,
     )
 
     assert [site.cited for site in answered[UNRESOLVED]] == [dead], (
@@ -4488,13 +4880,13 @@ def test_a_planted_dead_bare_path_is_reported_and_the_same_path_resolves_once_tr
     dead = bare_path("docs", _BARE_PLANT_LEAF)
     corpus = _planted_bare(_SYNTHETIC_DOC, dead)
 
-    missing = bare_path_ladder(bare_path_sites(corpus), [LEDGER], (), {})
+    missing = bare_path_ladder(bare_path_sites(corpus), [LEDGER], (), {}, ())
     problems = bare_path_problems(missing)
 
     assert len(problems) == 1, f"a planted dead bare path was not the single finding: {problems}"
     assert dead in problems[0]
 
-    present = bare_path_ladder(bare_path_sites(corpus), [LEDGER, dead], (), {})
+    present = bare_path_ladder(bare_path_sites(corpus), [LEDGER, dead], (), {}, ())
 
     assert bare_path_problems(present) == [], "the same path was still reported once tracked"
     assert len(present[RESOLVED_EXACT]) == 1
@@ -4513,12 +4905,12 @@ def test_an_ambiguous_suffix_is_reported_rather_than_resolved() -> None:
     one = bare_path("clockspeed", "data", "registry.py")
     other = bare_path("shell", "data", "registry.py")
 
-    unique = bare_path_ladder(sites, [one], (), {})
+    unique = bare_path_ladder(sites, [one], (), {}, _CONTROL_SOURCE_ROOTS)
 
     assert len(unique[RESOLVED_SUFFIX]) == 1, "a unique suffix hit did not resolve"
     assert bare_path_problems(unique) == []
 
-    ambiguous = bare_path_ladder(sites, [one, other], (), {})
+    ambiguous = bare_path_ladder(sites, [one, other], (), {}, _CONTROL_SOURCE_ROOTS)
     problems = bare_path_problems(ambiguous)
 
     assert len(ambiguous[AMBIGUOUS_SUFFIX]) == 1, "a second suffix hit was still resolved"
@@ -4537,12 +4929,12 @@ def test_a_dead_path_is_declined_only_when_the_repo_declares_it_untracked() -> N
     sites = bare_path_sites(_planted_bare(_SYNTHETIC_DOC, dead))
     owned = [bare_path("config", "ports.json")]
 
-    declared = bare_path_ladder(sites, owned, [dead], {})
+    declared = bare_path_ladder(sites, owned, [dead], {}, ())
 
     assert len(declared[DECLARED_UNTRACKED]) == 1, "a declared-untracked path was not declined"
     assert bare_path_problems(declared) == []
 
-    undeclared = bare_path_ladder(sites, owned, (), {})
+    undeclared = bare_path_ladder(sites, owned, (), {}, ())
 
     assert undeclared[DECLARED_UNTRACKED] == []
     assert len(bare_path_problems(undeclared)) == 1, (
@@ -4562,14 +4954,14 @@ def test_a_dead_path_is_declined_only_when_its_root_is_one_this_repo_does_not_ow
     owned = bare_path("docs", "planted.py")
 
     outside = bare_path_ladder(
-        bare_path_sites(_planted_bare(_SYNTHETIC_DOC, invented)), owned_root, (), {}
+        bare_path_sites(_planted_bare(_SYNTHETIC_DOC, invented)), owned_root, (), {}, ()
     )
 
     assert len(outside[UNTRACKED_ROOT]) == 1, "a path under an invented root was not declined"
     assert bare_path_problems(outside) == []
 
     inside = bare_path_ladder(
-        bare_path_sites(_planted_bare(_SYNTHETIC_DOC, owned)), owned_root, (), {}
+        bare_path_sites(_planted_bare(_SYNTHETIC_DOC, owned)), owned_root, (), {}, ()
     )
 
     assert inside[UNTRACKED_ROOT] == []
@@ -4591,12 +4983,12 @@ def test_a_dead_path_is_declined_in_a_fixture_literal_and_reported_in_a_docstrin
     fixture = f'CORPUS = {{"note": "see `{dead}` here"}}\n'
     prose = f'"""See `{dead}` here."""\n'
 
-    data = bare_path_ladder(bare_path_sites({_SYNTHETIC_MODULE: fixture}), owned_root, (), {})
+    data = bare_path_ladder(bare_path_sites({_SYNTHETIC_MODULE: fixture}), owned_root, (), {}, ())
 
     assert len(data[FIXTURE_LITERAL]) == 1, "a fixture path in a non-docstring literal was judged"
     assert bare_path_problems(data) == []
 
-    authored = bare_path_ladder(bare_path_sites({_SYNTHETIC_MODULE: prose}), owned_root, (), {})
+    authored = bare_path_ladder(bare_path_sites({_SYNTHETIC_MODULE: prose}), owned_root, (), {}, ())
 
     assert authored[FIXTURE_LITERAL] == []
     assert len(bare_path_problems(authored)) == 1, (
@@ -4621,7 +5013,9 @@ _FILED_BARE_PATH_CARRIERS: Final = (
 )
 
 
-def test_each_of_the_five_originally_filed_bare_paths_is_reported(tracked: list[str]) -> None:
+def test_each_of_the_five_originally_filed_bare_paths_is_reported(
+    tracked: list[str], live_source_roots: frozenset[str]
+) -> None:
     """THE ACCEPTANCE CONTROL, and the arm that grades a repair nothing graded.
 
     Five citations named a memory leaf this repository has never carried, and a
@@ -4650,14 +5044,14 @@ def test_each_of_the_five_originally_filed_bare_paths_is_reported(tracked: list[
         "would be measuring the wrong thing"
     )
     how_many = sum(count for _carrier, count in _FILED_BARE_PATH_CARRIERS)
-    filed = bare_path_ladder(bare_path_sites(corpus(dead)), tracked, (), {})
+    filed = bare_path_ladder(bare_path_sites(corpus(dead)), tracked, (), {}, live_source_roots)
 
     assert len(filed[UNRESOLVED]) == how_many, (
         f"the {how_many} filed bare paths were not all reported: {filed[UNRESOLVED]}"
     )
     assert len(bare_path_problems(filed)) == how_many
 
-    fixed = bare_path_ladder(bare_path_sites(corpus(repaired)), tracked, (), {})
+    fixed = bare_path_ladder(bare_path_sites(corpus(repaired)), tracked, (), {}, live_source_roots)
 
     assert len(fixed[RESOLVED_EXACT]) == how_many, (
         "the repaired spelling did not resolve at every filed site"
@@ -4685,13 +5079,13 @@ def test_a_recorded_quoting_site_is_forgiven_and_the_same_text_without_the_recor
         f"the plant did not produce the identity the record is keyed on: {sites}"
     )
     recorded = bare_path_ladder(
-        sites, [LEDGER], (), {identity: BarePathReason("quoted, not cited", 1)}
+        sites, [LEDGER], (), {identity: BarePathReason("quoted, not cited", 1)}, ()
     )
 
     assert len(recorded[RECORDED_REASON]) == 1
     assert bare_path_problems(recorded) == [], "a recorded quoting site was still reported"
 
-    unrecorded = bare_path_ladder(sites, [LEDGER], (), {})
+    unrecorded = bare_path_ladder(sites, [LEDGER], (), {}, ())
 
     assert len(bare_path_problems(unrecorded)) == 1, (
         "the same prose without the record was ALSO green, so the forgiveness above "
@@ -4745,7 +5139,16 @@ def test_a_bare_path_ceiling_left_slack_after_a_repair_is_reported() -> None:
 def test_every_recorded_bare_path_reason_still_answers_the_sites_it_records(
     live_bare_path_ladder: Mapping[str, Sequence[BarePathSite]],
 ) -> None:
-    """The table against the corpus, in the three directions it can drift."""
+    """The table against the corpus, in the three directions it can drift.
+
+    AND AGAINST ITS OWN CLAUSE. The acceptance this table answers is worded
+    "declines against a STATED reason", and nothing read the string. VERIFIED:
+    blanking all seven left the ladder, the reason-vs-corpus check and the
+    budget green. The sibling table grades its own at the same one line; this
+    one copied the shape and left behind the leg that enforces the clause.
+    """
+    for identity, recorded in sorted(BARE_PATH_REASONS.items()):
+        assert recorded.why.strip(), f"{identity} forgives a dead citation and states no evidence."
     problems = bare_path_reason_problems(live_bare_path_ladder, BARE_PATH_REASONS)
 
     assert not problems, "BARE_PATH_REASONS no longer matches the corpus:\n" + "\n".join(
@@ -4774,12 +5177,12 @@ def test_a_compensating_swap_in_the_bare_path_reasons_is_reported_in_both_direct
 
     assert len(swapped) == len(honest), "the swap changed the table's size, so it is not one"
 
-    good = bare_path_ladder(sites, [LEDGER], (), honest)
+    good = bare_path_ladder(sites, [LEDGER], (), honest, ())
 
     assert bare_path_reason_problems(good, honest) == []
     assert bare_path_problems(good) == []
 
-    bad = bare_path_ladder(sites, [LEDGER], (), swapped)
+    bad = bare_path_ladder(sites, [LEDGER], (), swapped, ())
 
     assert len(bare_path_reason_problems(bad, swapped)) == 1, (
         "the swapped-IN entry answers no site and was not reported stale"
@@ -4841,6 +5244,14 @@ def test_appending_to_a_decline_disclosure_is_itself_a_finding() -> None:
     assert "spelling(s)" in drifted[0]
 
 
+#: The names the INTERPRETER installs in a module's globals that are also
+#: containers, excluded from the walk BY EXACT MATCH. Three of them, measured,
+#: and the exactness is the whole point - see :func:`module_containers`.
+_INTERPRETER_NAMES: Final = frozenset(
+    {"__annotations__", "__builtins__", "__conditional_annotations__"}
+)
+
+
 def module_containers(namespace: Mapping[str, object] | None = None) -> dict[str, object]:
     """Every container this module holds at module scope, by name.
 
@@ -4852,59 +5263,112 @@ def module_containers(namespace: Mapping[str, object] | None = None) -> dict[str
     REFUTED IT. A walk whose job is to catch a table nobody registered cannot
     also require that table to be named in a particular case - a forgiveness
     spelled ``forgiven_paths`` would have escaped the contract written to make
-    escaping impossible, which is this module's filed fault arriving one level
-    inside its own repair. So the walk takes EVERY module-scope container and
-    excludes only the names the interpreter itself installs. MEASURED: exactly
-    three - ``__annotations__``, ``__builtins__`` and
-    ``__conditional_annotations__`` - so the exclusion is a rule about a known,
-    closed set rather than a filter with room in it.
+    escaping impossible.
+
+    THE REPAIR FOR THAT REPRODUCED IT ONE SHAPE ALONG, WHICH IS WHY THE
+    EXCLUSION IS AN EXACT MATCH. It closed the lowercase spelling and excluded
+    the interpreter's names with ``name.startswith("__")``, calling that in this
+    docstring "a rule about a known, closed set". It was an OPEN-ENDED PREFIX
+    RULE, and a table spelled with two leading underscores walked straight past
+    the contract written to make walking past impossible - VERIFIED by
+    execution. Naming the three outright is what the docstring already claimed.
+
+    WHAT THIS WALK CLOSES, AND WHAT IT DOES NOT, stated because the contract
+    reading it made a broader-sounding claim than the walk supports. It closes
+    MODULE-SCOPE CONTAINERS. It does NOT close every way this module could
+    forgive something: a ``str`` silencer - a prefix constant compared against a
+    path, exactly what :data:`OUT_OF_DOMAIN` and :data:`DATED_ARCHIVE` are - is
+    invisible here, DELIBERATELY, since every ``str`` is iterable and admitting
+    them floods the registries with dozens of names nobody would read. An
+    ``int`` is invisible for the same reason. The reply is that a ceiling is
+    checked by :func:`derived_bound_problems` and a prefix silencer widens
+    nothing alone. What must not happen is the CLAIM outrunning the walk.
 
     Args:
         namespace: The mapping to walk. Injected so a control can pose the
             question against a namespace it built, which is the only way to
-            prove the walk SEES a lowercase table rather than that this module
-            happens not to hold one. Defaults to this module's own globals.
+            prove the walk SEES a table this module happens not to hold.
+            Defaults to this module's own globals.
 
     Returns:
-        Name to container, for every non-dunder module-scope container.
+        Name to container, for every module-scope container the interpreter
+        did not install.
     """
     space = globals() if namespace is None else namespace
     return {
         name: value
         for name, value in space.items()
-        if not name.startswith("__") and isinstance(value, (Mapping, AbstractSet, tuple, list))
+        if name not in _INTERPRETER_NAMES and isinstance(value, (Mapping, AbstractSet, tuple, list))
     }
 
 
 def test_the_container_walk_sees_a_lowercase_table_and_not_the_interpreters_own() -> None:
     """The walk's OWN boundary, asserted on a namespace built for the purpose.
 
-    THE CONTRACT BELOW CANNOT PROVE THIS. It asks whether anything this module
-    holds is unregistered, and the answer is no - which reads the same whether
-    the walk is complete or whether it simply cannot see the table that would
-    have been reported. The first build filtered on ``name.isupper()`` and
-    passed that contract while a lowercase forgiveness table would have walked
-    straight past it.
+    THE CONTRACT BELOW CANNOT PROVE THIS: it asks whether anything unregistered
+    is held, and "no" reads the same whether the walk is complete or simply
+    cannot see the table that would have been reported.
 
-    BOTH DIRECTIONS. A lowercase container is returned; a dunder the
-    interpreter installs is not; and a non-container of either spelling is not,
-    so the walk is about tables rather than about names.
+    AND THE FIRST VERSION OF THIS ARM ASSERTED THE NEXT HOLE AS A FEATURE. It
+    required ``__builtins__`` NOT to be returned and said nothing about any
+    other dunder, so it was green while a table named with two leading
+    underscores escaped the walk entirely - the fixture encoding the
+    implementation's own assumption. A DUNDER-NAMED TABLE IS NOW REQUIRED TO BE
+    SEEN, which is the assertion that fails if the exclusion widens back into a
+    prefix.
+
+    FOUR DIRECTIONS: a lowercase container is returned, a dunder-named one is
+    returned, the three the interpreter installs are not, and a non-container of
+    any spelling is not.
     """
     space: dict[str, object] = {
         "lowercase_forgiveness": {("a", "b", "c"): 1},
         "UPPER_TABLE": ("x",),
+        "__ADJUDICATED": {("a", "b", "c"): "forgiven"},
         "__builtins__": {},
+        "__annotations__": {},
+        "__conditional_annotations__": {},
         "NOT_A_CONTAINER": 3,
         "not_a_container": "a string is iterable and is not a table",
     }
 
     found = sorted(module_containers(space))
 
-    assert found == ["UPPER_TABLE", "lowercase_forgiveness"], (
+    assert found == ["UPPER_TABLE", "__ADJUDICATED", "lowercase_forgiveness"], (
         f"the container walk returned {found}. A table spelled in lower case must be "
-        "seen - a walk that exists to catch an unregistered table cannot require the "
-        "table to be named in a particular case - and the interpreter's own dunders "
+        "seen, and so must one spelled with two leading underscores - a walk that "
+        "exists to catch an unregistered table cannot require the table to be named "
+        "in a particular way - while the three names the interpreter itself installs "
         "must not be, or the registries fill up with names nobody wrote."
+    )
+
+
+def test_the_interpreter_exclusion_is_a_closed_set_and_not_a_prefix() -> None:
+    """The exclusion's MEMBERSHIP, asserted, because a prefix rule is what shipped.
+
+    The walk's docstring has claimed "a known, closed set" since it was written
+    while the code tested a PREFIX. This arm is the difference between those two
+    sentences, and widening back to a prefix cannot be done without deleting it.
+    """
+    assert sorted(_INTERPRETER_NAMES) == [
+        "__annotations__",
+        "__builtins__",
+        "__conditional_annotations__",
+    ], (
+        f"the interpreter exclusion holds {sorted(_INTERPRETER_NAMES)}. It is a CLOSED "
+        "set, enumerated so growing it is a diff rather than a prefix quietly "
+        "widening under cover of a rule about the runtime."
+    )
+    assert all(name.startswith("__") and name.endswith("__") for name in _INTERPRETER_NAMES), (
+        f"a name in the interpreter exclusion is not a dunder: {sorted(_INTERPRETER_NAMES)}"
+    )
+
+    installed = set(_INTERPRETER_NAMES) & set(globals())
+
+    assert installed == set(_INTERPRETER_NAMES), (
+        "the interpreter exclusion names something this module's globals do not carry:"
+        f" {sorted(set(_INTERPRETER_NAMES) - installed)}. An exclusion for a name that"
+        " is never present is room the walk gives away for nothing."
     )
 
 
@@ -4914,9 +5378,16 @@ def test_every_container_this_module_holds_is_bounded_or_recorded_as_forgiving_n
     Three consecutive repairs to this module reproduced their own filed fault
     one level up: a hole is found, the instance is fixed, and the next table of
     the same shape arrives with nothing counting it. So the question is not
-    "are these tables bounded", it is "does anything this module holds sit
-    outside both registries". A sixth escape hatch is RED until somebody
-    answers for it, one way or the other.
+    "are these tables bounded", it is "does any module-scope CONTAINER this
+    module holds sit outside both registries". A sixth escape hatch of that
+    shape is RED until somebody answers for it, one way or the other.
+
+    THE CLAIM IS THE WALK'S SIZE AND NOT A LARGER ONE, which is a correction
+    rather than a hedge. This arm has been read as closing FORGIVENESS, and it
+    does not: a module-scope ``str`` used as a prefix silencer, or an ``int``
+    used as a bound, is not a container and never reaches here.
+    :func:`module_containers` states why admitting strings is the wrong trade,
+    and :func:`derived_bound_problems` is what answers the ``int``.
     """
     containers = module_containers()
 
@@ -4963,6 +5434,7 @@ def test_the_module_spells_no_unresolving_bare_path_of_its_own(
     live_bare_path_ladder: Mapping[str, Sequence[BarePathSite]],
     tracked: list[str],
     live_declared_untracked: frozenset[str],
+    live_source_roots: frozenset[str],
 ) -> None:
     """THE LIKELIEST OWN GOAL, measured rather than reasoned about.
 
@@ -4979,10 +5451,9 @@ def test_the_module_spells_no_unresolving_bare_path_of_its_own(
     """
     mine = [site for site in live_bare_path_sites if site.carrier == THIS_MODULE]
 
-    assert len(mine) >= _SELF_SPELLED_FLOOR, (
-        f"this module spells only {len(mine)} bare paths, so the arm has stopped "
-        "reading its own source and the emptiness below is silence"
-    )
+    short = floor_problems("bare paths spelled by this module", len(mine), _SELF_SPELLED_FLOOR)
+
+    assert not short, "\n".join(short) + (" The arm has stopped reading this module's own source.")
     unanswered = [
         site
         for rung in (AMBIGUOUS_SUFFIX, UNRESOLVED)
@@ -4994,11 +5465,324 @@ def test_the_module_spells_no_unresolving_bare_path_of_its_own(
         "\n".join(f"  {site.cited} at line {site.line}" for site in unanswered)
     )
 
-    unrecorded = bare_path_ladder(mine, tracked, live_declared_untracked, {})
+    unrecorded = bare_path_ladder(mine, tracked, live_declared_untracked, {}, live_source_roots)
 
     assert unrecorded[UNRESOLVED], (
         "with no reason table at all this module still reports nothing about itself, "
         "so the clean answer above is not bought by the record"
+    )
+
+
+def test_the_source_roots_are_derived_from_the_manifests_this_repo_tracks(
+    tracked: list[str], live_source_roots: frozenset[str]
+) -> None:
+    """R1's candidate set, DERIVED - and both halves of the derivation posed.
+
+    Three questions the live tree cannot answer for itself: does the Python half
+    read the manifest, does the Node half read the index, and does the result
+    exclude the MIRROR TREE that made R1 a laundering route. The mirror is named
+    because it is the measured attack - `tests/` carries an ``__init__.py`` and
+    would pass any "is this a package" test, which is why the question asked is
+    whether this repository SHIPS it.
+    """
+    assert live_source_roots, (
+        "the source-root derivation came back empty, so a manifest stopped declaring"
+        " what this repository ships and every module-map citation is now a finding."
+    )
+    roots = {path.split("/", 1)[0] for path in tracked if "/" in path}
+    assert live_source_roots <= roots, (
+        f"the derivation named directories the index does not carry:"
+        f" {sorted(live_source_roots - roots)}"
+    )
+    assert "tests" not in live_source_roots, (
+        "the test tree was derived as a source root. It MIRRORS the package tree, so"
+        " R1 would resolve a citation into a helper with no package counterpart."
+    )
+
+    manifest = "[tool.setuptools.packages.find]" + NEWLINE + 'include = ["clockspeed*"]' + NEWLINE
+    only_python = source_roots(["clockspeed/x.py"], manifest)
+    assert only_python == {"clockspeed"}, (
+        f"the Python half did not read the manifest: {sorted(only_python)}"
+    )
+    only_node = source_roots(["shell/package.json", "shell/main.js"], "")
+    assert only_node == {"shell"}, f"the Node half did not read the index: {sorted(only_node)}"
+    neither = source_roots(["tests/__init__.py", "tests/save/helper.py"], "")
+    assert neither == frozenset(), (
+        f"a package that is not shipped was derived as a source root: {sorted(neither)}"
+    )
+
+
+def test_a_suffix_hit_outside_a_source_root_is_reported_rather_than_resolved() -> None:
+    """R1'S REFUTATION, REPRODUCED AND THEN KILLED, on a corpus with no tree behind it.
+
+    The first build read "names A tracked file" as "the citation resolved" and
+    wrote that R1 "needs no ratchet" because it is a resolution - restating the
+    property instead of closing it. The first leg poses that defect deliberately;
+    the last is why the rule is a ROOTED SUFFIX rather than a prefix, since a
+    prefix refuses the module-map spellings that omit two directories.
+
+    WHERE THE REFUSED SITE LANDS, STATED, because refusing to resolve is not the
+    same as reporting. A citation whose first segment is a root this repository
+    owns falls to REPORTED. One whose first segment is not - which the
+    mirror-tree spellings are - lands on R3, a DECLINE that is pinned in both
+    directions and now spends a ceiling. Both landings are checked; neither is a
+    silent resolution, which is the property that was missing.
+    """
+    cited = bare_path("save", "planted.py")
+    sites = bare_path_sites(_planted_bare(_SYNTHETIC_DOC, cited))
+    mirror = bare_path("tests", "save", "planted.py")
+    package = bare_path("clockspeed", "save", "planted.py")
+
+    launders = bare_path_ladder(sites, [mirror], (), {}, ("tests", "clockspeed"))
+
+    assert len(launders[RESOLVED_SUFFIX]) == 1, (
+        "the mirror hit did not resolve even with the mirror declared a source root,"
+        " so this control is not posing the defect it exists to reproduce"
+    )
+    assert bare_path_problems(launders) == [], (
+        "the defect posed above was not SILENT, so it is not the defect that shipped"
+    )
+
+    rooted = bare_path_ladder(sites, [mirror], (), {}, _CONTROL_SOURCE_ROOTS)
+
+    assert rooted[RESOLVED_SUFFIX] == [], (
+        "a suffix hit in the mirror tree still resolved, so R1 is still laundering"
+    )
+    assert len(rooted[UNTRACKED_ROOT]) == 1, (
+        "the refused citation reached neither a report nor a disclosed decline, so R1"
+        " stopped resolving it into silence rather than into a price"
+    )
+
+    owned = bare_path("docs", "planted.py")
+    reported = bare_path_ladder(
+        bare_path_sites(_planted_bare(_SYNTHETIC_DOC, owned)),
+        [bare_path("tests", "docs", "planted.py"), LEDGER],
+        (),
+        {},
+        _CONTROL_SOURCE_ROOTS,
+    )
+
+    assert len(bare_path_problems(reported)) == 1, (
+        "a mirror hit under a root this repository DOES own was not reported, and that"
+        " spelling has nowhere left to fall"
+    )
+
+    real = bare_path_ladder(sites, [package], (), {}, _CONTROL_SOURCE_ROOTS)
+
+    assert len(real[RESOLVED_SUFFIX]) == 1, (
+        "a genuine package-relative citation stopped resolving, so the restriction"
+        " went from refusing the wrong file to refusing every file"
+    )
+
+    deep = bare_path("backends", "greedy.py")
+    nested = [bare_path("clockspeed", "solve", "backends", "greedy.py")]
+    two_down = bare_path_ladder(
+        bare_path_sites(_planted_bare(_SYNTHETIC_DOC, deep)), nested, (), {}, _CONTROL_SOURCE_ROOTS
+    )
+
+    assert len(two_down[RESOLVED_SUFFIX]) == 1, (
+        "a spelling omitting TWO directories stopped resolving, which is what a prefix"
+        " rule would do and why this one is a rooted suffix"
+    )
+
+
+def test_no_recorded_bound_is_computed_from_the_table_it_bounds() -> None:
+    """THE PERMANENT DISARM, AND IT IS ONE LINE - so the check reads the source.
+
+    ``BARE_PATH_REASON_CEILING: Final = len(BARE_PATH_REASONS)`` makes every
+    budget here true by construction, in a diff carrying NO NUMBER to query, and
+    both existing budget arms survive it.
+
+    BOTH DIRECTIONS AGAINST THE REAL SOURCE, which is what makes the green half
+    mean something: the same source with one tautology appended must report
+    exactly one - proving the walk parsed this file, reached module scope and
+    fires - and the file as it stands must report none.
+    """
+    source = Path(__file__).read_text(encoding="ascii")
+
+    tautology = source + f"{NEWLINE}BARE_PATH_REASON_CEILING = len(BARE_PATH_REASONS){NEWLINE}"
+    planted = derived_bound_problems(tautology, FORGIVENESS_TABLES)
+
+    assert len(planted) == 1, (
+        f"a ceiling computed from the table it bounds was not the single finding: {planted}"
+    )
+    assert "BARE_PATH_REASON_CEILING" in planted[0]
+
+    problems = derived_bound_problems(source, FORGIVENESS_TABLES)
+
+    assert not problems, (
+        "bounds computed from their own subject:"
+        + NEWLINE
+        + NEWLINE.join(f"  {problem}" for problem in problems)
+    )
+
+
+@pytest.mark.parametrize(
+    ("rung", "pinned", "ceiling"),
+    [
+        (DECLARED_UNTRACKED, DECLINED_AS_DECLARED_UNTRACKED, DECLARED_UNTRACKED_CEILING),
+        (UNTRACKED_ROOT, DECLINED_UNDER_AN_UNTRACKED_ROOT, UNTRACKED_ROOT_CEILING),
+        (FIXTURE_LITERAL, DECLINED_AS_A_FIXTURE_LITERAL, FIXTURE_LITERAL_CEILING),
+    ],
+)
+def test_every_decline_disclosure_is_budgeted_and_spent_exactly(
+    rung: str, pinned: Mapping[tuple[str, str, str], int], ceiling: int
+) -> None:
+    """THE THIRD, FOURTH AND FIFTH BUDGETS, because the pin alone was not one.
+
+    The pin catches a row added ALONE, never one added together with the dead
+    citation it describes - and that pair was the whole purchase: one dead
+    citation, one row, suite green. Every rung now spends a number.
+    """
+    problems = decline_budget_problems(rung, pinned, ceiling)
+
+    assert not problems, NEWLINE.join(problems)
+
+
+def test_appending_to_a_decline_disclosure_spends_its_budget() -> None:
+    """The adversary's move against a synthetic budget, and the slack direction too."""
+    one = {(_SYNTHETIC_DOC, bare_path("nowhere", "x.py"), "## Heading"): 1}
+
+    assert decline_budget_problems(UNTRACKED_ROOT, one, 1) == []
+
+    appended = dict(one)
+    appended[(_SYNTHETIC_DOC, bare_path("nowhere", "y.py"), "## Heading")] = 1
+    grown = decline_budget_problems(UNTRACKED_ROOT, appended, 1)
+
+    assert len(grown) == 1, "an appended disclosure row was absorbed by the budget"
+    assert "2 sites disclosed against a ceiling of 1" in grown[0]
+
+    slack = decline_budget_problems(UNTRACKED_ROOT, {}, 2)
+
+    assert len(slack) == 1, "a slack disclosure ceiling was accepted"
+    assert "Lower it to 0" in slack[0]
+
+
+@pytest.mark.parametrize(
+    ("what", "floor"),
+    [
+        ("bare-path sites", BARE_PATH_POPULATION_FLOOR),
+        ("module-map paths resolving by suffix", _ARCHITECTURE_SUFFIX_FLOOR),
+        ("bare paths spelled by this module", _SELF_SPELLED_FLOOR),
+    ],
+)
+def test_every_non_vacuity_floor_rejects_a_population_that_measured_nothing(
+    what: str, floor: int
+) -> None:
+    """EACH FLOOR, GRADED - because each could be set to zero with the suite green.
+
+    VERIFIED: all three set to 0 reddened nothing, restoring exactly the defect
+    each exists to prevent in a one-character diff. THREE DIRECTIONS: nothing
+    measured is rejected, one short is rejected, the floor itself is accepted -
+    so this is about the boundary rather than about the floor being large.
+    """
+    assert floor_problems(what, 0, floor), (
+        f"the floor under {what} is {floor}, which ACCEPTS a population of nothing -"
+        " the defect it exists to prevent, restored"
+    )
+    assert floor_problems(what, floor - 1, floor), f"the floor under {what} is off by one"
+    assert floor_problems(what, floor, floor) == [], (
+        f"the floor under {what} rejects a population that exactly meets it"
+    )
+
+
+def test_every_floor_this_module_uses_is_one_this_arm_grades() -> None:
+    """CLOSING THE CLASS, so a FOURTH floor cannot arrive ungraded.
+
+    A hand-list of three is exactly what let the third, fourth and fifth
+    forgiveness tables arrive unbounded elsewhere in this file. The
+    parametrization is checked against what the SOURCE passes as a floor.
+    """
+    source = Path(__file__).read_text(encoding="ascii")
+
+    used = graded_floor_names(source)
+
+    assert used, "this module passes no named floor to floor_problems at all"
+    graded = {
+        "BARE_PATH_POPULATION_FLOOR",
+        "_ARCHITECTURE_SUFFIX_FLOOR",
+        "_SELF_SPELLED_FLOOR",
+    }
+    ungraded = sorted(used - graded)
+    assert not ungraded, (
+        f"floors used but not graded: {ungraded}. Add each to the parametrization"
+        " above, so a floor that could be zeroed is one something asks about."
+    )
+    stale = sorted(graded - used)
+    assert not stale, f"graded floors this module no longer uses as floors: {stale}"
+
+
+def test_each_named_leg_of_the_bare_path_shape_is_load_bearing(
+    live_bare_path_sites: Sequence[BarePathSite],
+) -> None:
+    """THE TWO LEGS THE SHAPE'S OWN COMMENT NAMES, and neither was graded.
+
+    VERIFIED: deleting the leading-dot leg from :data:`_FIRST_SEGMENT` killed
+    ZERO arms and silently removed 27 live sites - every workflow and
+    harness-configuration citation. Dropping ``yml`` killed zero arms and
+    removed eight more. A comment explaining why a leg exists is not a check
+    that it does. BOTH LEGS, TWICE: the pattern must READ the shape and the live
+    corpus must CARRY it, the second being what makes a deletion a finding.
+    """
+    dotted = bare_path(".github", "workflows", "tier1.yml")
+    plain = bare_path("github", "workflows", "tier1.yml")
+
+    assert BARE_PATH_RE.search(f"`{dotted}`"), (
+        "the shape no longer reads a FIRST segment starting with a dot, so the workflow"
+        " and harness-configuration citations are invisible again"
+    )
+    assert BARE_PATH_RE.search(f"`{plain}`"), (
+        "the leading-dot leg became REQUIRED, so ordinary paths stopped matching"
+    )
+
+    dot_leading = [site for site in live_bare_path_sites if site.cited.startswith(".")]
+
+    assert dot_leading, (
+        "no live site starts with a dot, so that leg guards nothing and is free to cut"
+    )
+
+    yml = [site for site in live_bare_path_sites if site.cited.endswith(".yml")]
+
+    assert yml, "no live site ends in that extension, so its alternative is free to cut"
+    assert not BARE_PATH_RE.search("`" + bare_path("docs", "notes.rst") + "`"), (
+        "the alternation admits an extension it does not list, so the boundary it draws"
+        " is not the one the comment above discloses"
+    )
+
+
+def test_the_ignore_probe_raises_rather_than_reading_a_bad_exit_as_nothing_ignored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """R2's LOUD-FAILURE LEG, which was argued in prose and checked by nothing.
+
+    :func:`declares_untracked` argues that a bad exit must RAISE, because it
+    otherwise reads as "nothing is ignored" - byte-identical to a clean corpus.
+    VERIFIED: ``RuntimeError`` appeared exactly once in this module, in the
+    implementation, and replacing the exit check with a constant false passed
+    302 of 302.
+
+    The subprocess is replaced rather than persuaded, since the shape refuses
+    the traversal path that provokes a real fatal. Both directions: a fatal
+    raises, and the exit meaning "no path matched" still answers.
+    """
+    fatal = subprocess.CompletedProcess(
+        args=[], returncode=128, stdout=b"", stderr=b"fatal: is outside repository"
+    )
+    monkeypatch.setattr(subprocess, "run", lambda *_args, **_kwargs: fatal)
+
+    with pytest.raises(RuntimeError) as raised:
+        declares_untracked([bare_path("config", "planted.json")])
+
+    assert "128" in str(raised.value), (
+        f"the failure was raised without the exit that caused it: {raised.value}"
+    )
+
+    nothing = subprocess.CompletedProcess(args=[], returncode=1, stdout=b"", stderr=b"")
+    monkeypatch.setattr(subprocess, "run", lambda *_args, **_kwargs: nothing)
+
+    assert declares_untracked([bare_path("config", "planted.json")]) == frozenset(), (
+        "exit 1 means NO path matched, an answer rather than a failure; raising on it"
+        " makes the rung unusable on a clean corpus"
     )
 
 
