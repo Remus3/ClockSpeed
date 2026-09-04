@@ -92,9 +92,27 @@ the line becomes a pointer.
   grew again this session and every sampled file in a dirty worktree is byte-identical to
   main at a stale base. Only a diff against main decides.
 
-- **Next action: CS-897.** It is small, it is the SIXTH instance of the exact class CS-891
-  repaired five of, and it sits behind an exemption whose stated reason is true of some
-  members and false of others. Then CS-899, which is CS-891's unmet conjunct.
+- **The repair was RE-ADJUDICATED from a frozen SHA and STANDS.** A first adjudicator ruled
+  at `c5c3947`, I kept building, and it correctly refused to certify repairs it had not
+  watched land - so a second pass was dispatched scoped to the three commits it could not
+  see. Thirteen of thirteen filed mutants now die, each against a pre-repair control proving
+  it was genuinely silent before. Tier 1 CI on the pushed head: SUCCESS in 8m44s.
+
+- **THE SIGNATURE FAULT REPRODUCED A SEVENTH TIME, INSIDE THE SPLIT.** A ceiling in the
+  module the split created can be rewritten as the length of its own table and survives -
+  the exact tautology the repair closed two commits earlier. It is LATENT, not live, and it
+  is recorded with three other residuals in `docs/LEDGER.md` under the session 60 entry.
+
+- **THE NEXT ITEM ID FORCES A DECISION NOBODY HAS MADE, and that is why those four residuals
+  carry no `CS-` id.** CS-899 was the last id the `CS-8nn` block holds. ADR 0011 says
+  reaching CS-900 is "a `ROADMAP.md` ID-block question rather than a doc-topology one" and
+  explicitly declines to answer it. **SETTLE THE ID BLOCK BEFORE FILING ANYTHING ELSE** -
+  allocating CS-900 in passing answers by accident a question the project deferred on
+  purpose.
+
+- **Next action: settle the `CS-8nn` id-block question**, because it blocks every later
+  filing, then CS-897 - small, and the SIXTH instance of the exact class CS-891 repaired
+  five of. `ROADMAP.md` is 1305 bytes over its soft budget and the relocate pass is owed.
 
 ## Session 59 - 2026-09-03 - THREE ITEMS CLOSED and every one was REFUTED FIRST; every repair reproduced its own filed fault one level up, and CS-889's ratchet caught its own closure within minutes of shipping
 

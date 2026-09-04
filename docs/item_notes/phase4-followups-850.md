@@ -1635,6 +1635,17 @@ author changed their mind the same hour - is the habit the rule exists to preven
 clause was not touched either way: "completes inside a stated budget and reports its own
 duration against it" is exactly what is still owed.
 
+### FIFTH DATA POINT - MEASURED 2026-09-04 (session 60) by the merger, from the run record
+
+Tier 1 on `fe32785` ran **8m44s, SUCCESS**. The series is now: cancelled past 10m, 8m29s,
+9m18s, 9m09s, 8m44s. **That session added 140 tests and the lane landed MID-RANGE**, so no
+slowdown is attributable to it - consistent with the local measurement that the new arms
+cost about a fifth of a second in their own module. **THE FINDING IS UNCHANGED AND THIS
+STRENGTHENS IT:** the spread is about two minutes against headroom of about one, so the
+lane still sits inside the noise band of its own cutoff and a run may still be CANCELLED
+with nothing failing. A green run is not evidence the lane is healthy; it is one sample
+from a distribution that straddles the cutoff.
+
 ### NOTE - filed 2026-09-03 (session 59) by the merger, MEASURED FROM THE RUN RECORD
 
 **MAIN HAD NO GREEN CI WHEN THIS WAS FILED - see the correction above.** The tier 1 run on `ac41efe` was CANCELLED, not

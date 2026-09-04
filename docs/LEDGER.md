@@ -75,6 +75,63 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-04 - SESSION 60 - THE CS-891 REPAIR WAS RE-ADJUDICATED FROM A FROZEN SHA AND STANDS; FOUR RESIDUALS ARE RECORDED HERE BECAUSE THE NEXT ITEM ID FORCES A DECISION NOBODY HAS MADE
+Verification: `python -m pytest tests/test_docs_citations.py tests/test_bare_path_citations.py -q`
+plus `python -m pytest tests -q`. The second adjudication re-ran all thirteen filed mutants
+from a frozen tree with a pre-repair control proving each was genuinely silent beforehand,
+and observed 4887 passed, 4 skipped, exit 0.
+
+WHY THIS IS A SESSION RECORD AND NOT AN ITEM. The four residuals below have no `CS-` ID.
+`docs/adr/0011-the-cs-8nn-follow-up-leaf-splits-at-cs-850.md` states that reaching CS-900 is
+"a `ROADMAP.md` ID-block question rather than a doc-topology one" and explicitly declines to
+answer it. Filing CS-899 this session consumed the last id the block holds, so the NEXT item
+forces that decision. Allocating CS-900 incidentally at the end of a long session would
+answer by accident a question the project deferred on purpose. They are recorded here
+instead, where nothing rotates them out, and the id-block question is the thing to settle
+first.
+
+WHY NOT `WAKEUP_NOTES.md`. That file holds the last two to three sessions and archives the
+rest, so an owed action parked there rots on a schedule. That is CS-847's own defect class,
+which is open in this repo, and the adjudicator named it.
+
+THE FOUR RESIDUALS, each measured by an adjudicator that authored none of the work.
+
+1. A CEILING THAT NOTHING GRADES, AND IT IS THIS ROUND'S OWN DEFECT FOR THE SEVENTH TIME.
+`_SEPARATE_GUARD_CEILING` in `tests/test_bare_path_citations.py` can be rewritten as the
+length of the table it bounds and the module stays green - the exact tautology the repair
+had just closed two commits earlier, recreated in a module the split created. It is LATENT
+rather than live: today's value is a typed integer, so nothing false is cleared right now.
+Whoever takes it should know the registration must be fixed first - `NOT_A_CITATION_GUARD`
+is filed on the forgives-nothing side of the registry while carrying a ceiling, so a
+per-module bound check walks straight past it.
+
+2. THE WALKED-MODULE CLOSURE CANNOT REACH THE PACKAGE ROOT. A forgiveness table placed in
+`tests/__init__.py` is invisible to both class-closing walks, because the closure filter
+requires a name under the package prefix and the package root is not under itself. This one
+is UNDISCLOSED, which is what separates it from the two escapes the source does disclose.
+
+3. TWO STATED REASONS ARE GRADED BY NOTHING, which is the shape this same round repaired
+under its own fifth priority. One asserts that a construct is "spelled nowhere in this
+family" and the other that an import is held "for one resolver rather than for anything it
+forgives". An adjudicator refuted both by construction and neither sentence has an arm.
+
+4. THE ROADMAP RELOCATE PASS IS OWED AND HAS NO ID. `ROADMAP.md` is 1305 bytes over its
+60 KB budget, deliberately and on the file's own recorded policy, but the owed pass exists
+only as a sentence in a rotating carrier.
+
+WHAT THE SECOND ADJUDICATION ALSO ESTABLISHED, recorded because it is the answer to the
+obvious objection. The round's signature failure is that a repair reproduces its own filed
+fault one level up, and residual 1 is that happening again - so the case for refusing the
+close is real. It loses on measurement: every one of the eleven filed defects now dies
+against its original mutant, and what is new is a LATENT ceiling plus two blind spots inside
+a boundary that used to be one file wide. The walks were blind to every file but one before
+the split and are now blind to one recorded module and two import shapes. That is a smaller
+hole, not a new false clearance.
+
+A COMMON-MODE RISK NAMED SO IT IS NOT MISTAKEN FOR INDEPENDENCE. `tests/bare_path_guard.py`
+is the shared input to both walks and to every arm in both test modules, so the two modules
+are not independent instruments and agreement between them is not evidence.
+
 ### 2026-09-04 - CS-891 - CLOSED AS AN HONEST PARTIAL. The clause is NOT met as a universal. A backticked bare path is now judged by an ordered decline ladder over every tracked carrier, and the markdown half of quoting-versus-citing is what is NOT bought
 Verification: `python -m pytest tests/test_docs_citations.py tests/test_bare_path_citations.py -q`.
 Then reproduce the two refutations that forced the repair. First, plant three dead
