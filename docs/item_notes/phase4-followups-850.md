@@ -494,6 +494,52 @@ is confirmed NOT among the 23 above the layer - it is a frozen dataclass, not an
 exception, so it never reaches `args` and remains a gap-2 repr-channel residual. Neither
 new module mentions it, `Transform` or `UnknownClass`.
 
+### THE FILED INSTANCE IS REPAIRED AND THE NOTE'S OWN POINTER IS NOW DEAD - MEASURED 2026-09-03 (session 59) by the merger
+
+**DO NOT BUILD AGAINST THE FIRST BLOCK'S TWO MEASUREMENTS. BOTH ARE NOW FALSE.** That
+block cites `clockspeed/save/chunks.py` at line 474 as the declaration site of
+`clockspeed/save/chunks.py::DecompressedBody`, and asserts on the next line that
+`grep -c "def __repr__"` over that file is 0. Measured on the main checkout:
+
+- `grep -c 'def __repr__' clockspeed/save/chunks.py` is **1**, not 0.
+- The class now declares `@dataclass(frozen=True, repr=False)` and defines its own
+  `__repr__`, so the default payload-rendering repr the item was filed on is GONE.
+- The file is 1019 lines. Line 474 now holds a docstring Args line belonging to
+  `clockspeed/save/chunks.py::ChunkFrame`, roughly eighty lines above the declaration it
+  is supposed to name.
+
+**THE ITEM STAYS OPEN AND ITS CLAUSE IS UNTOUCHED.** What was repaired is the INSTANCE.
+The clause asks for a population DERIVED from the shipped field annotations, with every
+member either withholding save-derived bytes in its own `__repr__` or recorded against a
+stated exemption. Nothing above establishes that. The first block's own warning - **DO NOT
+CLOSE THIS BY ADDING A `__repr__` TO ONE CLASS** - is exactly what has happened to the
+instance, and it is why the instance being fixed moves the item not at all. This is the
+CS-890 shape: filed instance gone, class untouched.
+
+**THE DEAD POINTER IS A SIXTH LIVE INSTANCE OF CS-889's CLASS, AND IT IS THE FIRST ONE
+OUTSIDE `tests/test_make_cert.py`.** 474 is less than 1019, so the pointer RESOLVES IN
+RANGE and an arm that judges range only is green on it. It was CORRECT when filed on
+2026-08-25 and was invalidated by an edit ABOVE it in the same file - which is the precise
+failure mode `tests/test_docs_citations.py::line_pointer_problems` says in its own
+docstring it refuses to judge, because doing so "would redden on every edit above it".
+The arm's stated design reason and CS-889's defect are the SAME PHENOMENON seen from two
+sides. Any CS-889 candidate must be graded against this instance as well as the five
+filed ones - six, in two files, is the bar.
+
+**THE STALE PROSE IS A SEPARATE FAULT FROM THE DEAD POINTER AND MUST NOT BE FOLDED IN.**
+A pointer that no longer names its target is CS-889's class. A measured claim falsified by
+a later repair - the repr count of 0 - is not; no guard in this tree grades a past-tense
+measurement, and CS-889 must not be widened to invent one. The two faults simply happen to
+sit in the same paragraph.
+
+**THE ORIGINAL BLOCK AND THE `ROADMAP.md` ITEM LINE ARE LEFT ALONE DELIBERATELY**, so the
+item line still reads that the dataclass ships no `__repr__`. That is the standing
+no-clause-rewrite decision applied for a ninth consecutive session, and the same handling
+session 58 gave CS-889 and CS-890: the correction goes in a new block, the record of what
+was believed at filing stays legible, and the drift is recorded rather than tidied away.
+This staleness was named in three consecutive handoffs before it was written down here.
+
+
 ## CS-853
 
 ### NOTE - filed 2026-08-25 (session 40) by the merger, from the CS-850 repairing slice
