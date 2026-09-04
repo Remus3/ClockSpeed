@@ -4841,18 +4841,71 @@ def test_appending_to_a_decline_disclosure_is_itself_a_finding() -> None:
     assert "spelling(s)" in drifted[0]
 
 
-def module_containers() -> dict[str, object]:
+def module_containers(namespace: Mapping[str, object] | None = None) -> dict[str, object]:
     """Every container this module holds at module scope, by name.
 
     DERIVED FROM THE MODULE rather than listed, for the reason
     :data:`JUDGED_SHAPES`' membership contract is derived: a hand-written list
     of tables is exactly what lets the SIXTH one arrive unbounded.
+
+    THE FIRST BUILD FILTERED ON ``name.isupper()`` AND ITS OWN QUESTION
+    REFUTED IT. A walk whose job is to catch a table nobody registered cannot
+    also require that table to be named in a particular case - a forgiveness
+    spelled ``forgiven_paths`` would have escaped the contract written to make
+    escaping impossible, which is this module's filed fault arriving one level
+    inside its own repair. So the walk takes EVERY module-scope container and
+    excludes only the names the interpreter itself installs. MEASURED: exactly
+    three - ``__annotations__``, ``__builtins__`` and
+    ``__conditional_annotations__`` - so the exclusion is a rule about a known,
+    closed set rather than a filter with room in it.
+
+    Args:
+        namespace: The mapping to walk. Injected so a control can pose the
+            question against a namespace it built, which is the only way to
+            prove the walk SEES a lowercase table rather than that this module
+            happens not to hold one. Defaults to this module's own globals.
+
+    Returns:
+        Name to container, for every non-dunder module-scope container.
     """
+    space = globals() if namespace is None else namespace
     return {
         name: value
-        for name, value in globals().items()
-        if name.isupper() and isinstance(value, (Mapping, AbstractSet, tuple, list))
+        for name, value in space.items()
+        if not name.startswith("__") and isinstance(value, (Mapping, AbstractSet, tuple, list))
     }
+
+
+def test_the_container_walk_sees_a_lowercase_table_and_not_the_interpreters_own() -> None:
+    """The walk's OWN boundary, asserted on a namespace built for the purpose.
+
+    THE CONTRACT BELOW CANNOT PROVE THIS. It asks whether anything this module
+    holds is unregistered, and the answer is no - which reads the same whether
+    the walk is complete or whether it simply cannot see the table that would
+    have been reported. The first build filtered on ``name.isupper()`` and
+    passed that contract while a lowercase forgiveness table would have walked
+    straight past it.
+
+    BOTH DIRECTIONS. A lowercase container is returned; a dunder the
+    interpreter installs is not; and a non-container of either spelling is not,
+    so the walk is about tables rather than about names.
+    """
+    space: dict[str, object] = {
+        "lowercase_forgiveness": {("a", "b", "c"): 1},
+        "UPPER_TABLE": ("x",),
+        "__builtins__": {},
+        "NOT_A_CONTAINER": 3,
+        "not_a_container": "a string is iterable and is not a table",
+    }
+
+    found = sorted(module_containers(space))
+
+    assert found == ["UPPER_TABLE", "lowercase_forgiveness"], (
+        f"the container walk returned {found}. A table spelled in lower case must be "
+        "seen - a walk that exists to catch an unregistered table cannot require the "
+        "table to be named in a particular case - and the interpreter's own dunders "
+        "must not be, or the registries fill up with names nobody wrote."
+    )
 
 
 def test_every_container_this_module_holds_is_bounded_or_recorded_as_forgiving_nothing() -> None:
