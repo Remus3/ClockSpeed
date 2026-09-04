@@ -25,6 +25,75 @@ Where current truth actually lives:
 
 ---
 
+## Session 57 wakeup note - relocated 2026-09-04 (session 60)
+
+## Session 57 - 2026-09-03 - FOUR ITEMS CLOSED and every one of them was REFUTED FIRST; the round's own repairs reproduced three of the four filed faults one level up, and EVERY repair builder corrected the merger
+
+- **Shipped: CS-880, CS-881 and CS-886 CLOSED; CS-882 CLOSED AS AN HONEST PARTIAL** against an
+  operator ruling. Filed CS-887, CS-888, CS-889 and CS-890. Suite 4571 -> 4665, all gates green
+  at the close: mypy 143 files, ruff, ruff format, drift guard 10 of 10, doc budget.
+
+- **NOTHING SHIPPED ON ITS FIRST VERSION. All four slices went green, passed a 4629-test
+  authoritative run, and were then REFUTED by three adversary lenses and an adjudicator.** The
+  green suite established that the arms RUN; it established nothing about what they MEASURE,
+  and those are different properties. A repair round followed and all four were repaired.
+
+- **THE FINDING OF THE SESSION: CS-880's ARM WAS GREEN WHILE ITS OWN DEFECT WAS LIVE.**
+  `form_disagreements` tested the claim against derived forms by set INTERSECTION, so a leak at
+  one of two sites was laundered by its clean sibling. Reintroducing the exact CS-857 defect at
+  `clockspeed/save/workdir.py` line 585 left the arm reporting `DISAGREEMENTS: ()`. Repaired to
+  subset containment. **AN ADJUDICATOR HAD GRADED THAT CLAUSE MET** - it perturbed the REASON
+  where the adversary perturbed a SITE. Both directions are in the clause; only one worked. A
+  single grader would have closed this item with the hole in it.
+
+- **THREE OF THE FOUR SLICES REPRODUCED THEIR OWN FILED FAULT ONE LEVEL UP.** CS-880 was filed
+  because a correction shipped a false claim, and its repair shipped a comment ("EACH SET IS
+  NARROWER THAN THE CLAIM AND NEVER WIDER") that its own next sentence refutes. CS-881 was filed
+  because an empty population satisfied a zero, and its denominator was satisfiable by the
+  census's own control fixtures with both live subjects gone. CS-882 was filed against a listed
+  exit-code table and shipped a listed outcome table under a docstring claiming three derived
+  populations. **Expect this. Grade the repair as adversarially as the defect.**
+
+- **EVERY REPAIR BUILDER CORRECTED THE MERGER, AND ALL FOUR WERE RIGHT.** R1 caught the merger
+  citing `memory/pooled-guard-hides-its-worst-member.md`, which does NOT exist in the repo - it
+  is HARNESS-SIDE ONLY and no tracked file may cite it; the repo owns the same shape at
+  `memory/a-guard-can-be-green-by-accident.md` line 40. R2 REFUSED the merger's instruction to
+  reuse `_TARGETED_STATEMENTS` wholesale, because it contains `ast.AugAssign` and `last += exc`
+  stores what `__iadd__` returned - deriving it would INVENT a finding. R3 corrected the
+  attribution of a false-red to `filename2` rather than a section reference, making it PERMANENT
+  rather than incidental, and measured six affected counts where the brief said two. R4 found two
+  dead citations beyond the three it was given.
+
+- **Decisions: one operator ruling, and it is a fence.** `scripts/make_cert.py --help` EXITS 0.
+  POSIX convention outranks the distinctness universal for that one pair. `EXIT_HELP = 0` is kept
+  as a DECLARED constant so the outcome is not an anonymous code, and the exemption's membership
+  is asserted by EQUALITY rather than containment so a second collision still reddens. **CS-882's
+  acceptance clause is therefore NOT MET as a universal and the ledger says so.** The clause was
+  NOT rewritten to read as satisfied - that is the session-56 decision holding for a seventh time.
+
+- **In flight: nothing.** No worktree holds unlanded work. Four repair commits and four slice
+  commits are merged; the round is closed.
+
+- **Surprises: the census did NOT move under a merge that changed 14 files.** CS-882 shifted every
+  line number in `scripts/make_cert.py` by +44 and not one derived value moved, because
+  `Site.key` and `Copy.key` omit line numbers - a CS-857 decision absorbing a collision two
+  sessions later. Nothing this round earned that.
+
+- **Failed paths: none abandoned, but two dead ends worth naming.** The merger MANDATED that
+  CS-880 import the census to avoid becoming an unrecorded adjudicator; that import bought the
+  module BLANKET PERMANENT IMMUNITY from the adjudicator census, growing the immune set from four
+  modules to six. Filed as CS-888. **Do not "fix" it by deleting the import** - unrecorded is
+  worse than immune. Separately, a placeholder written `<module>::<symbol>` in a new item's prose
+  was read by the citation resolver as a real citation and reddened two arms; write about a
+  citation form without writing one.
+
+- **WORKTREES OPENED STALE FOUR OF FOUR in the repair round**, on top of seven of nine in session
+  56. This is not intermittent. Order verify-and-fast-forward on EVERY dispatch, every time.
+
+- **Next action: CS-857 and CS-858 still need the OPERATOR** - see the two fences carried forward.
+  The ordinary agent-completable work is CS-888, CS-889 and CS-890, all filed this session with
+  their measurements attached.
+
 ## Wakeup entries for sessions 55 and 56 - relocated from `WAKEUP_NOTES.md` 2026-09-03
 
 ## Session 56 - 2026-09-01 - FIVE ITEMS CLOSED, both requested rulings OVERTURNED THE PREMISE THEY WERE ASKED ON, and the items that moved CS-857 furthest were the ones that attacked the INSTRUMENT rather than the sites
