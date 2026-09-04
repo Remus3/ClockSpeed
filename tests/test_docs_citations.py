@@ -753,7 +753,6 @@ UNVERIFIED_LINE_POINTERS: Final[frozenset[tuple[str, str, int]]] = frozenset(
         ("docs/item_notes/phase4-followups-850.md", "tests/save/test_value_anchoring.py", 1082),
         ("docs/item_notes/phase4-followups-850.md", "tests/test_exception_rendering.py", 75),
         ("docs/item_notes/phase4-followups-850.md", "tests/test_redaction_scope.py", 26),
-        ("docs/item_notes/phase4-followups-850.md", "tools/drift_guard.py", 463),
         ("docs/item_notes/phase4-followups.md", "scripts/install_hooks.py", 44),
         ("docs/item_notes/phase4-followups.md", "tests/save/reach_guard.py", 1504),
         ("docs/item_notes/phase4-followups.md", "tests/save/test_absolute_claims.py", 192),
