@@ -1635,6 +1635,22 @@ author changed their mind the same hour - is the habit the rule exists to preven
 clause was not touched either way: "completes inside a stated budget and reports its own
 duration against it" is exactly what is still owed.
 
+### SIXTH DATA POINT, AND IT ISOLATES THE VARIANCE - MEASURED 2026-09-04 (session 60)
+
+The next run was **9m23s, SUCCESS - thirty-seven seconds under the cutoff**, and its
+commit was **DOC-ONLY**: three files, 89 insertions, not one line of test or product
+code. It ran **thirty-nine seconds SLOWER than the code-heavy run before it**.
+
+**THAT IS THE MEASUREMENT THIS ITEM HAS BEEN MISSING.** Two consecutive runs whose trees
+differ only by prose span 8m44s to 9m23s, so the spread is RUNNER-SIDE and not workload-
+side. Every earlier reading was confounded - each run carried real code changes, so a
+slower run could always be explained away as work added. This pair cannot be.
+
+**THE PRACTICAL CONSEQUENCE:** adding NOTHING can cost forty seconds, and the margin at
+its tightest is thirty-seven. So the lane can be cancelled by a commit that changes no
+code at all, and a green run says nothing about whether the next one survives. Series:
+cancelled past 10m, 8m29s, 9m18s, 9m09s, 8m44s, 9m23s.
+
 ### FIFTH DATA POINT - MEASURED 2026-09-04 (session 60) by the merger, from the run record
 
 Tier 1 on `fe32785` ran **8m44s, SUCCESS**. The series is now: cancelled past 10m, 8m29s,
