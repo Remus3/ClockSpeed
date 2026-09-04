@@ -1680,3 +1680,36 @@ exactly as it is for CS-889.
 and this owns the bare-path form. They share a population boundary problem and a file, so
 they must not run concurrently, but merging them would put two different acceptance
 clauses under one arm.
+## CS-892
+
+### NOTE - filed 2026-09-03 (session 59) by the merger, from the CS-890 adversary, VERIFIED BEFORE FILING
+
+**CS-890 REPAIRED THE PARTITION AT ONE OF ITS TWO CALL SITES.** `tools/memory_sync.py`
+declares its own `_WIKILINK`, `_MDLINK` and `_BACKTICK` patterns and its own
+`tools/memory_sync.py::_link_targets`, which harvests all three - so a backticked span is
+still a link token there. Its `tools/memory_sync.py::reachability` runs the same
+transitive-through-index walk and returns only the unreachable-leaf direction, which is
+the one-way assertion CS-890 was filed to correct in `tools/drift_guard.py`.
+
+**MEASURED BY THE MERGER, NOT TAKEN FROM THE ADVERSARY.** Both patterns and both
+functions were read directly in the tracked file after the CS-890 slice merged. The
+duplication is verbatim in behaviour, and the CS-890 repair did not touch this file
+because it was on no slice's write-list.
+
+**THE RISK IS DRIFT, NOT A LIVE LEAK.** The two copies agree today. What has changed is
+that they now MEAN different things - one has been taught what a link is and the other has
+not - while remaining textually similar enough to read as maintained together. The next
+edit to either pattern set lands in one copy, the two silently disagree, and nothing in
+the tree notices. That is the same shape as the four `_pathless_cause` copies CS-885 chose
+to make compare on every run rather than share an owner.
+
+**WHY IT IS NOT FOLDED INTO CS-890.** CS-890's clause is about whether every wikilink in
+`memory/` resolves, and it is a clause about the GUARD. `tools/memory_sync.py` guards
+nothing - it mirrors markdown into the recall store - so widening CS-890 to reach it would
+put two different acceptance clauses under one arm. That is the reasoning that kept CS-891
+separate from CS-889 and it applies unchanged.
+
+**THE SHARPER HALF, WHICH THE ROADMAP LINE STATES BUT IS WORTH REPEATING:** the file a
+session actually reads to sync its memory is the one that was NOT fixed. A reader who
+knows CS-890 landed will reasonably assume the store's link handling is now correct
+everywhere.
