@@ -81,8 +81,9 @@ EXPECTED_SOLVER_EXCEPTIONS: Final = 12
 #: Five of the twelve carry no ``Error`` suffix at all -
 #: ``UnsolvableChain``, ``UnderdeterminedChain``, ``InfeasibleChain``,
 #: ``ByproductPolicyRequired`` and ``UnboundedSupply`` - and
-#: ``clockspeed/solve/ratio.py:188`` records a coded N818 suppression saying
-#: that is deliberate. A ``endswith("Error")`` rule would grade seven of twelve
+#: ``clockspeed/solve/ratio.py::UnsolvableChain`` heads that block, each of the
+#: five carrying a coded N818 suppression the comment above them records as
+#: deliberate. A ``endswith("Error")`` rule would grade seven of twelve
 #: and report itself exhaustive. Both halves are asserted, and their sum is
 #: asserted against the whole, so neither can drift alone.
 EXPECTED_SUFFIXED_EXCEPTIONS: Final = 7

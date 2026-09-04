@@ -172,7 +172,7 @@ def _redact_or_withhold(value: str | None, locate: Any | None) -> str | None:
     # lazily imported data layer and is typed Any, so this call yields Any and
     # `warn_return_any` rejects handing it straight back as `str | None`. The
     # annotation records the real contract where the Any enters the function -
-    # clockspeed/data/locate.py:303 declares `def redact(text: object) -> str`,
+    # clockspeed/data/locate.py::redact declares `def redact(text: object) -> str`,
     # which is also why the None case cannot arrive here.
     redacted: str = locate.redact(value)
     return redacted
