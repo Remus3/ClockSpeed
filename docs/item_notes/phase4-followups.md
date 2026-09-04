@@ -245,6 +245,61 @@ count and the region that a misdeclaration would break.
 
 ## CS-844
 
+### SALVAGE NOTE - MEASURED 2026-09-04 (session 60) by the merger, and the work already exists
+
+**1524 LINES OF WORK ON THIS ITEM ARE SITTING ON AN UNLANDED BRANCH AND WOULD BE REBUILT
+FROM NOTHING.** Found while measuring worktrees, not while working this item. Preserved as
+the tag `salvage/cs-844-session-46` so it survives branch deletion; the branch is
+`worktree-agent-abccd667b38e14135`, three commits, dated 2026-08-24, adding ONE new test
+module under `tests/` that has never existed in main. Its name is deliberately not
+spelled here: the citation guard shipped this session reported it as a dead identifier
+on this very paragraph, which is the item's own subject demonstrating itself. Read the
+tag.
+
+**WHY IT NEVER LANDED, IN ITS OWN WORDS: "THIS COMMIT IS DELIBERATELY RED."** It was not
+abandoned because it broke. It was abandoned because it FOUND things its own write-list
+could not repair. That is a reason to read it, not to discard it.
+
+**IT STILL RUNS.** Copied onto today's tree in a throwaway worktree: **26 passed, 2 failed,
+exit 1**. Eleven days of drift did not break it.
+
+**WHAT IT GETS RIGHT, AND BOTH FINDINGS ARE STILL LIVE.**
+
+- **The dual-item ledger heading.** `docs/LEDGER.md` line 4502 opens an entry
+  `### 2026-08-20 - CS-493, CS-494 - ...`, declaring TWO ids in one heading, so a reader
+  parsing an entry head gets the id "CS-493, CS-494" and CS-494 is declared by nothing.
+  Its four citations sit at lines 4506, 4543, 4765 and 4854 - **exactly the "four citations
+  stranded" the 2026-08-24 commit body predicted**, still stranded today.
+- **Owner records naming CLOSED items.** `tests/chained_exemption_guard.py` records CS-888
+  as its owner and CS-888 closed LAST SESSION; `tests/data/test_item_notes_index.py` records
+  CS-402, CS-403 and CS-404, all closed. That is the second half of this item's acceptance -
+  "a closed owner is distinguished from an open one" - already demonstrated on live sites.
+
+**WHAT IT GETS WRONG, AND IT MUST NOT LAND UNTIL THIS IS FIXED.**
+
+- **Synthetic fixture ids are reported as findings.** CS-999, CS-997, CS-996, CS-4000,
+  CS-901, CS-902 and CS-99999 are all deliberate test fixtures. The guard flags CS-99999 at
+  the very site whose sentence explains that it is an id naming nothing - so it manufactures
+  a finding on the prose documenting the concept it grades.
+- **A real closed item is reported as naming nothing.** CS-617 has a well-formed
+  `### 2026-09-01 - CS-617 - CLOSED.` entry at `docs/LEDGER.md` line 1015 AND a correction
+  record at line 888. The resolver handles neither the second entry nor the correction form,
+  and reports seven shell sites against it. **A false clearance is worse than a silence and
+  a false FINDING is worse than both when it blocks a push.**
+- **Prose about a future id is read as a record.** ADR 0011 discusses CS-900 as a question
+  to answer; the guard records it as an id naming nothing.
+
+**THE PART THAT MAKES THIS CHEAP NOW, AND IT WAS NOT CHEAP IN AUGUST.** Every one of those
+faults is the boundary problem CS-891 spent session 60 solving, and CS-891 SHIPPED THE
+MACHINERY: an AST partition that declines a path inside a non-docstring string literal
+(which is where nearly all the fixture noise lives), a metasyntactic-placeholder decline, a
+decline ladder whose every rung states its price, and a reason table keyed on identity
+rather than a count with a two-way ratchet over it. Read `tests/bare_path_guard.py` before
+rebuilding any of that here.
+
+**DO NOT START THIS ITEM BY WRITING A NEW MODULE.** Start by reading the tag.
+
+
 ### NOTE - filed 2026-08-23 by the CS-830 narrowing builder
 
 **MEASURED, from the same adversarial pass.** `objects.CONTAINER_ADJACENT_OWNERS` records
