@@ -1616,11 +1616,24 @@ GHOST_LEAF = "zz-synthetic-ghost-leaf-cs890"
 _TEST_WIKILINK = re.compile(r"\[\[([^\]|#]+)\]\]")
 _TEST_MDLINK = re.compile(r"\]\(([^)\s]+)\)")
 
-#: CommonMark fence constants, named so the scanner below reads as the rules it
-#: implements: a fence line may be indented at most three spaces, and its run
-#: must be at least three characters long.
-_MAX_FENCE_INDENT = 3
-_MIN_FENCE_RUN = 3
+#: LINK-SHAPED TOKENS THAT SIT INSIDE CODE IN THE TRACKED STORE, and are
+#: therefore not citations. Enumerated BY HAND from reading the files, as
+#: ``(file, kind, target)``, so the expected counts below owe NOTHING to any
+#: code model.
+#:
+#: THE PREVIOUS VERSION OF THIS ORACLE WAS A LINE-FOR-LINE CLONE of the
+#: guard's own scanner - same algorithm, same branch order, same escape hatch
+#: for a backtick in an info string. On every pathology it agreed with the
+#: guard by construction, so the equality assertion stayed green while the
+#: guard manufactured findings. A second typing of one algorithm is not a
+#: second opinion.
+#:
+#: A new in-code token added to the store makes this list stale and the count
+#: arm RED. That is intended: it forces a human to look at the new token and
+#: decide whether it is code or a real dangling citation.
+KNOWN_IN_CODE_TOKENS = {
+    ("a-guard-can-be-accepted-and-unscoped.md", "w", "tool.mypy.overrides"),
+}
 
 
 def memory_copy(tmp_path: Path) -> Path:
@@ -1655,120 +1668,55 @@ def memory_verdict(root: Path) -> tuple[str, str]:
     return guard["status"], "\n".join(guard["detail"])
 
 
-def fence_marker(line: str) -> tuple[str, int, str] | None:
-    """Split a line into ``(fence character, run length, info string)``.
+def raw_citations(path: Path) -> set[tuple[str, str]]:
+    """Every link-shaped token in a file, with NO code model whatsoever.
 
-    SCANNED CHARACTER BY CHARACTER ON PURPOSE, WITH NO REGEX. The previous
-    version of this module defined a fence pattern that was a VERBATIM COPY of
-    the guard's own, and then claimed the derivation was independent. It was
-    not: it shared the implementation's exact defect, which is why several
-    hundred lines of tests here found neither of the two the adversary did -
-    a prose line beginning with three backticks silently swallowing the rest
-    of a file, and a four-backtick fence wrapping a three-backtick example
-    being reported as a dangling citation.
-
-    Independence has a limit worth stating rather than glossing: this scanner
-    and the guard both implement the same CommonMark rules, so a shared
-    MISREADING of those rules would still agree. What it does rule out is a
-    shared implementation defect, which is the class that actually bit.
+    Deliberately naive: it does not know what a fence is, what an inline span
+    is, or what a blockquote is. That naivety is the point - it is what makes
+    it a genuinely different oracle from the guard rather than a second typing
+    of the guard's own algorithm. The code-shaped tokens it over-collects are
+    subtracted from a HAND-WRITTEN list instead.
 
     Args:
-        line: One line of markdown.
+        path: The markdown file to scan.
 
     Returns:
-        ``None`` when the line is not a fence line at all; otherwise the fence
-        character, the length of its run, and the remainder of the line.
+        Distinct ``(kind, target)`` pairs, kind being "w" or "m".
     """
-    indent = 0
-    while indent < len(line) and line[indent] == " ":
-        indent += 1
-    if indent > _MAX_FENCE_INDENT:
-        return None
-    rest = line[indent:]
-    if not rest or rest[0] not in ("`", "~"):
-        return None
-    char = rest[0]
-    run = 0
-    while run < len(rest) and rest[run] == char:
-        run += 1
-    if run < _MIN_FENCE_RUN:
-        return None
-    return char, run, rest[run:]
+    text = path.read_text(encoding="utf-8")
+    found = {("w", token.strip()) for token in _TEST_WIKILINK.findall(text)}
+    return found | {("m", token.strip()) for token in _TEST_MDLINK.findall(text)}
 
 
-def outside_fences(text: str) -> str:
-    """Blank fenced code by CommonMark rules, derived independently.
-
-    An opener may carry an info string - except that a backtick fence's info
-    string may not contain a backtick. A closer must use the same character,
-    be at least as long as the opener, and carry no info string.
-
-    Args:
-        text: Markdown source.
-
-    Returns:
-        The same text with fenced regions blanked.
-    """
-    body, _unterminated = scan_fences(text)
-    return body
-
-
-def scan_fences(text: str) -> tuple[str, bool]:
-    """Blank fenced code and report whether a fence was left open.
-
-    Args:
-        text: Markdown source.
-
-    Returns:
-        ``(body, unterminated)``.
-    """
-    kept: list[str] = []
-    open_char = ""
-    open_run = 0
-    for line in text.splitlines():
-        parsed = fence_marker(line)
-        if parsed is None:
-            kept.append("" if open_char else line)
-            continue
-        char, run, info = parsed
-        if not open_char:
-            if char == "`" and "`" in info:
-                kept.append(line)
-                continue
-            open_char, open_run = char, run
-            kept.append("")
-            continue
-        if char == open_char and run >= open_run and not info.strip():
-            open_char, open_run = "", 0
-        kept.append("")
-    return "\n".join(kept), bool(open_char)
-
-
-def independent_citation_counts(memory_dir: Path) -> tuple[int, int]:
-    """Count distinct per-file citations the way the guard should see them.
-
-    Derived with this module's own scanner and patterns so the numbers the
-    guard prints can be checked against something it did not produce.
+def expected_citation_counts(memory_dir: Path) -> tuple[int, int]:
+    """Citation counts derived without any notion of code.
 
     Args:
         memory_dir: The ``memory`` directory to scan.
 
     Returns:
-        ``(index citations, leaf citations)`` - MEMORY.md and its INDEX_*.md
-        children on one side, ordinary leaves on the other, matching how the
-        guard partitions them.
+        ``(index citations, leaf citations)``, partitioned the way the guard
+        partitions them - MEMORY.md and its INDEX_*.md children on one side.
+
+    Raises:
+        AssertionError: The hand-written in-code list names a token that is
+            no longer in the store, which would silently inflate the expected
+            count.
     """
     index_total = 0
     leaf_total = 0
     for path in sorted(memory_dir.glob("*.md")):
-        body = outside_fences(path.read_text(encoding="utf-8"))
-        distinct = {("w", t.strip()) for t in _TEST_WIKILINK.findall(body)}
-        distinct |= {("m", t.strip()) for t in _TEST_MDLINK.findall(body)}
-        routing = path.name == "MEMORY.md" or path.name.lower().startswith("index_")
-        if routing:
-            index_total += len(distinct)
+        found = raw_citations(path)
+        excluded = {
+            (kind, target) for name, kind, target in KNOWN_IN_CODE_TOKENS if name == path.name
+        }
+        stale = excluded - found
+        assert not stale, f"KNOWN_IN_CODE_TOKENS names {stale} which is not in {path.name}"
+        count = len(found - excluded)
+        if path.name == "MEMORY.md" or path.name.lower().startswith("index_"):
+            index_total += count
         else:
-            leaf_total += len(distinct)
+            leaf_total += count
     return index_total, leaf_total
 
 
@@ -1803,9 +1751,9 @@ def test_the_real_memory_store_passes_the_memory_guard_on_a_non_empty_population
     wikilinks = 0
     mdlinks = 0
     for path in store:
-        body = outside_fences(path.read_text(encoding="utf-8"))
-        wikilinks += len(_TEST_WIKILINK.findall(body))
-        mdlinks += len(_TEST_MDLINK.findall(body))
+        found = raw_citations(path)
+        wikilinks += sum(1 for kind, _target in found if kind == "w")
+        mdlinks += sum(1 for kind, _target in found if kind == "m")
 
     assert len(store) > 1, "a store with no leaves proves nothing about reachability"
     assert wikilinks > 0, "no wikilink outside a fence - the leaf-citation arm graded nothing"
@@ -1902,7 +1850,7 @@ def test_an_unindexed_leaf_still_fails_the_memory_guard_naming_it(tmp_path: Path
     root = memory_copy(tmp_path)
     index = root / "memory" / "MEMORY.md"
     before = index.read_text(encoding="utf-8")
-    targets = _TEST_MDLINK.findall(outside_fences(before))
+    targets = _TEST_MDLINK.findall(before)
     assert targets, "the index links nothing, so unindexing one entry proves nothing"
     victim = targets[0]
     assert (root / "memory" / victim).is_file(), "the chosen entry does not name a real leaf"
@@ -1978,7 +1926,7 @@ def test_a_backticked_code_span_in_the_index_is_not_resolved_as_a_citation(
     """
     root = memory_copy(tmp_path)
     index = root / "memory" / "MEMORY.md"
-    existing = _TEST_MDLINK.findall(outside_fences(index.read_text(encoding="utf-8")))
+    existing = _TEST_MDLINK.findall(index.read_text(encoding="utf-8"))
     assert existing, "the index links nothing, so this arm would pass on an empty index"
 
     before = index.read_text(encoding="utf-8")
@@ -2028,9 +1976,11 @@ def test_an_unterminated_fence_is_reported_rather_than_swallowed(tmp_path: Path)
     """
     root = memory_copy(tmp_path)
     memory = root / "memory"
-    for path in sorted(memory.glob("*.md")):
-        _body, open_fence = scan_fences(path.read_text(encoding="utf-8"))
-        assert not open_fence, f"{path.name} already has an unterminated fence"
+    pristine_status, pristine = memory_verdict(root)
+    assert pristine_status == "PASS", (
+        "the store is not clean before the plant, so this arm cannot attribute the "
+        f"failure below to its own fence:\n{pristine}"
+    )
 
     leaf = next(path for path in sorted(memory.glob("*.md")) if path.name != "MEMORY.md")
     before = leaf.read_text(encoding="utf-8")
@@ -2245,8 +2195,14 @@ def test_the_reported_population_matches_an_independently_derived_count(
     wikilink and at least one markdown link. One of each satisfies that, so a
     guard whose extractor had collapsed to almost nothing would still have
     passed while printing "60 of 60" - the number was never compared to
-    anything. Here both populations are re-derived with this module's own
-    character scanner and asserted EQUAL to what the guard reports.
+    anything.
+
+    THE ORACLE OWES NOTHING TO A CODE MODEL, which is the second thing that
+    was wrong here. The counts are a naive scan of the raw bytes minus a
+    HAND-ENUMERATED list of tokens that sit inside code. The version this
+    replaces derived them with a line-for-line clone of the guard's own
+    scanner, so it agreed with the guard on every pathology by construction
+    and could not have caught one.
 
     Equality is asserted rather than a literal 20 and 60, because a hardcoded
     count is a lie with a timestamp on it the moment a note is added. The
@@ -2256,7 +2212,7 @@ def test_the_reported_population_matches_an_independently_derived_count(
     root = memory_copy(tmp_path)
     memory = root / "memory"
     leaves = [path for path in memory.glob("*.md") if path.name != "MEMORY.md"]
-    index_expected, leaf_expected = independent_citation_counts(memory)
+    index_expected, leaf_expected = expected_citation_counts(memory)
 
     assert index_expected >= len(leaves), (
         f"the index cites {index_expected} targets for {len(leaves)} leaves, so it cannot "
@@ -2279,3 +2235,181 @@ def test_the_reported_population_matches_an_independently_derived_count(
         f"guard (b) says it checked {leaf_reported} leaf citations; an independent scan "
         f"finds {leaf_expected}. The printed population is not the real one."
     )
+
+
+# ---------------------------------------------------------------------------
+# CODE SHAPES - WHAT IS EXCLUDED, AND WHAT IS A RECORDED RESIDUAL
+# ---------------------------------------------------------------------------
+# The exclusion was spelled "fenced code" when the property it needs is CODE,
+# and the name is what let the gap hide: inline spans were not excluded at
+# all, so one line of ordinary prose quoting a TOML header turned guard (b)
+# FAIL. Before this section existed, ``grep -c inline`` over this module
+# returned ZERO - there was no arm for an inline span, an indented code block,
+# a blockquote or a list item anywhere in it.
+#
+# THE THREE RESIDUAL ARMS BELOW ASSERT THE WRONG-BUT-CURRENT BEHAVIOUR ON
+# PURPOSE. The model is line-oriented and has no container model, so a fence
+# inside a list item or a blockquote, and a four-space indented code block,
+# are all still read as prose. Guessing at a container model would trade this
+# LOUD failure for a SILENT one - a wikilink wrongly treated as code is a
+# dangling citation nobody is told about, which is the G1 class this whole
+# item exists to close. So they are pinned rather than fixed: when someone
+# does fix one, its arm fails and forces this table to be updated with it.
+
+
+def plant(root: Path, addition: str) -> Path:
+    """Append ``addition`` to the first ordinary leaf of a copied store.
+
+    Args:
+        root: The fake repository root from ``memory_copy``.
+        addition: Markdown to append.
+
+    Returns:
+        The leaf that was written.
+    """
+    leaf = next(path for path in sorted((root / "memory").glob("*.md")) if path.name != "MEMORY.md")
+    before = leaf.read_text(encoding="utf-8")
+    after = before + addition
+    assert after != before, "the plant did not apply"
+    leaf.write_text(after, encoding="utf-8", newline="\n")
+    return leaf
+
+
+def test_an_inline_code_span_is_not_a_citation(tmp_path: Path) -> None:
+    """P5 - one line of ORDINARY PROSE used to turn guard (b) FAIL.
+
+    Not a hypothetical shape. ``MEMORY.md`` already writes `assert count == 0`
+    and `git commit -F` in inline spans; ``tools/drift_guard.py`` carries this
+    very token twice in its own docstrings; and CS-890's lesson is a likely
+    new memory leaf whose natural phrasing quotes it inline. The next note
+    that did would have reddened guard (b) and blocked every commit and push
+    in the repository.
+    """
+    root = memory_copy(tmp_path)
+    plant(root, "\nThe TOML header `[[tool.mypy.overrides]]` is spelled like a wikilink.\n")
+
+    status, rendered = memory_verdict(root)
+    assert status == "PASS", f"an inline code span was resolved as a citation:\n{rendered}"
+
+
+def test_a_multi_backtick_inline_span_is_not_a_citation(tmp_path: Path) -> None:
+    """A span opens on N backticks and closes on exactly N, per CommonMark.
+
+    The double-backtick form is how a span containing a backtick is written,
+    so an implementation that only understood a single delimiter would pass
+    the arm above and still be wrong.
+    """
+    root = memory_copy(tmp_path)
+    plant(root, "\nA span written ``[[tool.mypy.overrides]]`` holds the token.\n")
+
+    status, rendered = memory_verdict(root)
+    assert status == "PASS", (
+        f"a double-backtick inline span was resolved as a citation:\n{rendered}"
+    )
+
+
+def test_a_dangling_wikilink_beside_an_inline_span_still_reddens(tmp_path: Path) -> None:
+    """The span exclusion is scoped to the span, not to the line holding it.
+
+    Without this control, blanking the whole line on sight would pass both
+    arms above while quietly dropping every citation that shares a line with
+    any code.
+    """
+    root = memory_copy(tmp_path)
+    plant(root, f"\nSee [[{GHOST_LEAF}]] - the header is `[[tool.mypy.overrides]]`.\n")
+
+    status, rendered = memory_verdict(root)
+    assert status == "FAIL", (
+        "a dangling wikilink sharing a line with an inline span was excluded with it "
+        f"and the guard said {status}:\n{rendered}"
+    )
+    assert GHOST_LEAF in rendered, "the guard failed without naming the dangling target"
+
+
+def test_a_fence_closed_at_a_deeper_indent_than_it_opened(tmp_path: Path) -> None:
+    """P3 - a regression the previous repair introduced, and worse than a skip.
+
+    A fence opened at two spaces and closed at four is what a fence inside a
+    list item looks like when the closer carries the item's indent. Applying
+    CommonMark's three-space cap to the CLOSER made it read as unterminated,
+    which under the new failure rule BLOCKED THE COMMIT - F1's mistake with
+    the opposite sign. The cap is now applied to openers only, which errs
+    toward closing a fence and so cannot swallow a file.
+    """
+    root = memory_copy(tmp_path)
+    plant(root, "\n  ```\n  [[tool.mypy.overrides]]\n    ```\n")
+
+    status, rendered = memory_verdict(root)
+    assert status == "PASS", (
+        f"a fence whose closer was indented further than its opener was read as "
+        f"unterminated and failed the commit:\n{rendered}"
+    )
+
+
+def test_residual_a_fence_inside_a_nested_list_item_is_not_recognised(
+    tmp_path: Path,
+) -> None:
+    """RESIDUAL P1 - pinned, not fixed. Needs a container model.
+
+    The fence is indented four spaces because it sits in a nested list item,
+    and four spaces is past the opener cap, so it never opens. The token
+    inside is then read as prose and reported as a dangling citation.
+
+    Fixing this needs to know the list item's content column, which this
+    line-oriented model does not track. This arm asserts the CURRENT wrong
+    behaviour so the residual cannot be forgotten, and so that whoever fixes
+    it is forced to come here and say so.
+    """
+    root = memory_copy(tmp_path)
+    plant(root, "\n- outer\n  - inner\n\n    ```\n    [[tool.mypy.overrides]]\n    ```\n")
+
+    status, rendered = memory_verdict(root)
+    assert status == "FAIL", (
+        "P1 now passes - the residual is fixed. Update the residual table in "
+        f"``_outside_code`` and in this section, then invert this arm:\n{rendered}"
+    )
+    assert "tool.mypy.overrides" in rendered, "P1 failed for some other reason than the residual"
+
+
+def test_residual_a_fence_inside_a_blockquote_is_not_recognised(tmp_path: Path) -> None:
+    """RESIDUAL P2 - pinned, not fixed. Needs a container model.
+
+    Every line carries a "> " prefix, so the fence never starts its line and
+    is never seen. Stripping blockquote markers is not obviously cheap to get
+    right - nesting and lazy continuation both bear on it - and guessing would
+    trade this loud failure for a silent one.
+    """
+    root = memory_copy(tmp_path)
+    plant(root, "\n> quoting a note:\n>\n> ```\n> [[tool.mypy.overrides]]\n> ```\n")
+
+    status, rendered = memory_verdict(root)
+    assert status == "FAIL", (
+        "P2 now passes - the residual is fixed. Update the residual table in "
+        f"``_outside_code`` and in this section, then invert this arm:\n{rendered}"
+    )
+    assert "tool.mypy.overrides" in rendered, "P2 failed for some other reason than the residual"
+
+
+def test_residual_a_four_space_indented_code_block_is_not_recognised(
+    tmp_path: Path,
+) -> None:
+    """RESIDUAL P4 - pinned, not fixed, and the most tempting one to guess at.
+
+    An indented code block uses no fence at all. Recognising one means knowing
+    it may not interrupt a paragraph, and that four spaces inside a list item
+    is list CONTENT rather than code. Getting that second half wrong would
+    silently exclude real citations in list items - a dangling link nobody is
+    told about. That is strictly worse than the loud failure pinned here.
+    """
+    root = memory_copy(tmp_path)
+    plant(
+        root,
+        "\nAn indented code block:\n\n    [[tool.mypy.overrides]]\n    key = 1\n\nBack to prose.\n",
+    )
+
+    status, rendered = memory_verdict(root)
+    assert status == "FAIL", (
+        "P4 now passes - the residual is fixed. Update the residual table in "
+        f"``_outside_code`` and in this section, then invert this arm:\n{rendered}"
+    )
+    assert "tool.mypy.overrides" in rendered, "P4 failed for some other reason than the residual"

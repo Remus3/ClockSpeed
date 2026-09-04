@@ -527,8 +527,12 @@ _BACKTICK = re.compile(r"`([^`\n]+)`")
 # remainder are captured separately because BOTH matter - an opener may carry
 # an info string, a closer may not, and a closer must be at least as long as
 # the opener it closes. Matching the shape alone is what CS-890's repair got
-# wrong; see ``_fence_scan``.
-_FENCE_LINE = re.compile(r"^ {0,3}(?P<run>`{3,}|~{3,})(?P<info>.*)$")
+# wrong; see ``_outside_code``.
+_FENCE_LINE = re.compile(r"^(?P<indent> *)(?P<run>`{3,}|~{3,})(?P<info>.*)$")
+
+#: CommonMark caps a fence OPENER at three spaces of indent. The cap is applied
+#: to openers only, never to closers - see ``_outside_code`` on P3.
+_MAX_FENCE_INDENT = 3
 
 # A target carrying a URL scheme cites something outside this store and is
 # never resolved against a path in it. A single-letter scheme is matched on
@@ -566,84 +570,151 @@ def _link_targets(text: str) -> set[str]:
     return tokens
 
 
-def _fence_scan(text: str) -> tuple[str, bool]:
-    """Blank every fenced code block, by COMMONMARK rules, not by parity.
+def _strip_inline_code(line: str) -> str:
+    """Blank every inline code span in one line, delimiters included.
 
-    A ``[[token]]`` inside a fence is sample material, not a cross-reference.
-    The store quotes a TOML array-of-tables header, ``[[tool.mypy.overrides]]``,
-    spelled exactly like a wikilink and citing nothing. Excluding a shape that
-    is not a link is not the same as narrowing a clause until it reads as
-    satisfied, and the exclusion is scoped: a dangling wikilink one line ABOVE
-    a fence still reddens the guard.
+    P5, AND THE REASON THE NAME OF THIS SEAM MATTERED. The exclusion was
+    spelled "fenced code" when the property it needs is CODE. Inline spans
+    were not excluded at all, so a single line of ordinary prose -
 
-    WHY THIS IS NOT A PARITY TOGGLE, WHICH IS WHAT IT WAS AND WHAT WAS WRONG.
-    The first version flipped a boolean on any line whose first run was three
-    or more backticks. Two defects followed, both measured against a temp copy
-    of the store rather than argued:
+        The TOML header `[[tool.mypy.overrides]]` is spelled like a wikilink.
 
-      G1, SILENT GREEN. Two ordinary PROSE lines that merely begin with three
-      backticks give EVEN parity. Everything between them was blanked and left
-      the population invisibly, with the count line byte-identical to pristine
-      and no skip of any kind - while the store held two dangling wikilinks.
-      Parity was the only net, and parity cannot see an even count. That is
-      ``memory/an-empty-population-satisfies-every-zero.md`` reproduced inside
-      the guard that protects that store.
+    - turned guard (b) FAIL. That is not a hypothetical shape: ``MEMORY.md``
+    already writes `assert count == 0` and `git commit -F` in inline
+    spans, this module's own docstrings carry that token twice, and CS-890's
+    lesson is a likely new memory leaf whose natural phrasing quotes it inline.
+    The module knew about backtick spans on the reachability side all along -
+    ``_link_targets`` harvests them deliberately - and was blind to them here.
 
-      F1, A MANUFACTURED FINDING. The canonical way to document a fence is a
-      FOUR-backtick outer fence wrapping a THREE-backtick example. The toggle
-      un-toggled on the inner opener, so the example body was read as prose and
-      the guard went FAIL on ``[[tool.mypy.overrides]]``. That block is ALREADY
-      in this store, so a note quoting it would have reddened guard (b) and
-      blocked every commit and push in the repository - the exact harm
-      ``_citation_targets`` says it exists to avoid.
+    A span opens on a run of N backticks and closes on the next run of EXACTLY
+    N, per CommonMark. An unmatched run is literal text and is left alone.
 
-    THE RULES, from CommonMark. An opener is a run of three or more backticks
-    or tildes and MAY carry an info string - except that a backtick fence's
-    info string may not itself contain a backtick, which is what keeps a line
-    of inline code from opening a block. A closer must use the SAME character,
-    be AT LEAST AS LONG as the opener, and carry NO info string. Tracking the
-    open run's character and length is what makes a three-backtick example
-    inside a four-backtick fence stay code, and what stops a prose line from
-    closing a fence it never opened.
+    Args:
+        line: One line, already outside any fenced block.
+
+    Returns:
+        The line with each span replaced by spaces, so column positions - and
+        therefore anything a caller may later report - are preserved.
+    """
+    out: list[str] = []
+    index = 0
+    length = len(line)
+    while index < length:
+        if line[index] != "`":
+            out.append(line[index])
+            index += 1
+            continue
+        run = 0
+        while index + run < length and line[index + run] == "`":
+            run += 1
+        probe = index + run
+        close = -1
+        while probe < length:
+            if line[probe] != "`":
+                probe += 1
+                continue
+            width = 0
+            while probe + width < length and line[probe + width] == "`":
+                width += 1
+            if width == run:
+                close = probe
+                break
+            probe += width
+        if close < 0:
+            out.append("`" * run)
+            index += run
+            continue
+        out.append(" " * (close + run - index))
+        index = close + run
+    return "".join(out)
+
+
+def _outside_code(text: str) -> tuple[str, bool]:
+    """Blank every CODE region - fenced blocks and inline spans alike.
+
+    A ``[[token]]`` in code is sample material, not a cross-reference. The
+    store quotes a TOML array-of-tables header spelled exactly like a
+    wikilink, and citing nothing. Excluding a shape that is not a link is not
+    the same as narrowing a clause until it reads as satisfied, and the
+    exclusion is scoped: a dangling wikilink one line ABOVE a fence, or
+    outside a span on the same line, still reddens the guard.
+
+    WHY THIS IS NOT A PARITY TOGGLE, WHICH IS WHAT IT WAS. The first version
+    flipped a boolean on any line whose first run was three or more backticks.
+    Two defects followed, both measured rather than argued: two ordinary PROSE
+    lines beginning with three backticks gave EVEN parity and silently
+    swallowed everything between them, count line byte-identical to pristine
+    and no skip at all (G1); and a four-backtick fence wrapping a
+    three-backtick example was read as prose, so the guard went FAIL on
+    correct content (F1). Fences now track the open run's CHARACTER and
+    LENGTH.
+
+    P3 - A CLOSER MAY BE INDENTED FURTHER THAN ITS OPENER. CommonMark caps a
+    closer at three spaces, and applying that cap made a fence opened at two
+    spaces and closed at four - what a fence in a list item looks like when
+    the closer carries the item's indent - report as UNTERMINATED and fail the
+    commit. That was F1's mistake with the opposite sign. The cap is therefore
+    applied to openers only. This errs toward CLOSING a fence, which loses a
+    little strictness and cannot swallow a file.
+
+    STATED RESIDUALS - THIS MODEL IS LINE-ORIENTED AND HAS NO CONTAINER MODEL.
+    Markdown containers are not tracked, so a fence is not recognised as
+    belonging to a list item or a blockquote, and an indented code block is
+    not recognised at all. Three shapes are therefore still reported as
+    dangling citations when they are code. They are recorded here with their
+    exact inputs, and pinned by name in the test module, rather than guessed
+    at - a wrong container model would trade this loud failure for a SILENT
+    one, which is the worse of the two:
+
+      P1  a fenced block inside a NESTED list item, where the fence is
+          indented four spaces and so is never seen as an opener:
+          "- outer" / "  - inner" / "" / "    ```" / "    [[x]]" / "    ```"
+      P2  a fenced block inside a BLOCKQUOTE, where every line is prefixed
+          "> " and the fence never starts the line:
+          "> ```" / "> [[x]]" / "> ```"
+      P4  a top-level FOUR-SPACE INDENTED code block, which uses no fence at
+          all: "" / "    [[x]]" / "    key = 1"
+
+    A multi-line inline span - a run of backticks opened on one line and
+    closed on the next - is a fourth residual, for the same reason: spans are
+    matched within a line.
 
     Args:
         text: The markdown source.
 
     Returns:
-        ``(body, unterminated)`` - the text with fenced regions replaced by
-        empty lines so line counts are preserved, and whether a fence was still
-        open at end of file. UNTERMINATED IS RETURNED RATHER THAN SWALLOWED:
-        an open fence blanks an arbitrary suffix, so a caller that reported a
-        clean population over it would be reporting a green about a region it
-        never read.
+        ``(body, unterminated)`` - the text with code regions replaced by
+        blanks, and whether a fence was still open at end of file.
+        UNTERMINATED IS RETURNED RATHER THAN SWALLOWED: an open fence blanks
+        an arbitrary suffix, so a caller reporting a clean population over it
+        would be reporting a green about a region it never read.
     """
     kept: list[str] = []
     run = ""
     for line in text.splitlines():
         match = _FENCE_LINE.match(line)
         if match is None:
-            kept.append("" if run else line)
+            kept.append("" if run else _strip_inline_code(line))
             continue
         found = match.group("run")
         info = match.group("info")
         if not run:
-            if found[0] == "`" and "`" in info:
-                # A backtick fence's info string may not contain a backtick, so
-                # this line is inline code rather than an opener.
-                kept.append(line)
+            if len(match.group("indent")) > _MAX_FENCE_INDENT or (found[0] == "`" and "`" in info):
+                # Too deeply indented to open a fence, or a backtick run whose
+                # info string holds a backtick - which makes it inline code.
+                kept.append(_strip_inline_code(line))
                 continue
             run = found
             kept.append("")
             continue
-        closes = found[0] == run[0] and len(found) >= len(run) and not info.strip()
-        if closes:
+        if found[0] == run[0] and len(found) >= len(run) and not info.strip():
             run = ""
         kept.append("")
     return "\n".join(kept), bool(run)
 
 
 def _citation_targets(body: str) -> list[tuple[str, str]]:
-    """Wikilink and markdown-link targets in an ALREADY fence-blanked body.
+    """Wikilink and markdown-link targets in an ALREADY code-blanked body.
 
     DELIBERATELY NARROWER THAN ``_link_targets``, AND THAT IS THE WHOLE POINT.
     ``_link_targets`` also harvests every backticked span, which is right for
@@ -655,12 +726,12 @@ def _citation_targets(body: str) -> list[tuple[str, str]]:
     stay separate on purpose. Neither is a refactor of the other, and merging
     them turns a green repository red.
 
-    The caller passes the output of ``_fence_scan`` rather than raw source, so
+    The caller passes the output of ``_outside_code`` rather than raw source, so
     that there is exactly one place in this module that decides what counts as
     fenced code and exactly one place that can get it wrong.
 
     Args:
-        body: Markdown with fenced regions already blanked by ``_fence_scan``.
+        body: Markdown with code regions already blanked by ``_outside_code``.
 
     Returns:
         ``(kind, raw)`` pairs - kind being "wikilink" or "link" - in file
@@ -747,7 +818,7 @@ def _citation_findings(
         except OSError as exc:
             skips.append({"path": path.name, "reason": f"unreadable memory file: {_exc_text(exc)}"})
             continue
-        body, unterminated = _fence_scan(text)
+        body, unterminated = _outside_code(text)
         if unterminated:
             unterminated_files.append(_rel(root, path))
         for kind, raw in _citation_targets(body):
@@ -848,11 +919,11 @@ def guard_memory(root: Path) -> tuple[Guard, list[Skip]]:
     )
     refs_checked, dangling_refs, refs_open = _citation_findings(root, memory_dir, ordinary, skips)
     detail.append(
-        f"index citations resolved (outside fenced code): "
+        f"index citations resolved (outside code): "
         f"{routes_checked - len(dangling_routes)} of {routes_checked}"
     )
     detail.append(
-        f"leaf citations resolved (outside fenced code): "
+        f"leaf citations resolved (outside code): "
         f"{refs_checked - len(dangling_refs)} of {refs_checked}"
     )
 
