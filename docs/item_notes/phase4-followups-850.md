@@ -1641,9 +1641,34 @@ docstrings.
 
 ## CS-896
 
+### CORRECTION - MEASURED 2026-09-03 (session 59) by the merger, SAME DAY, BEFORE ANYTHING WAS BUILT ON THE FILING
+
+**THE FILING BELOW IMPLIES THIS ROUND CAUSED A REGRESSION. IT DID NOT, AND MAIN IS GREEN.**
+The cancelled run was RE-RUN ON THE IDENTICAL TREE and took **8m29s, SUCCESS**. So `ac41efe`
+sits alongside its predecessors - 9m22s, 8m40s, 9m01s - and the 7m35s reading at `719a8d1`
+was the outlier, not the baseline. There is no measurable slowdown attributable to session
+59's commits, and the sentence "main has no green CI" below was true when written and is
+now false.
+
+**THE REAL FINDING IS SHARPER FOR IT, AND THE ACCEPTANCE CLAUSE IS UNCHANGED.** The same
+tree took over 10m and 8m29s on two runs. That is roughly 1.5 minutes of RUNNER VARIANCE
+against a margin of about 1.5 minutes. The lane is not drifting toward its cutoff - it is
+already inside the noise band of it, so any run may be cancelled with nothing failing, and
+a cancelled run is evidence of nothing. That is a worse property than a slow lane, because
+it is intermittent and will be read as flakiness.
+
+**WHY THE LINE IN `ROADMAP.md` WAS LEFT CARRYING THE STALE CLAIM.** Session 56's decision,
+holding for a ninth consecutive session, is that an item LINE keeps the premise it was filed
+with and the correction lives in the note. That precedent was set for premises refuted by
+someone else in a later session; applying it to an author correcting themselves twenty
+minutes later is the conservative reading, and the alternative - editing a line because its
+author changed their mind the same hour - is the habit the rule exists to prevent. The
+clause was not touched either way: "completes inside a stated budget and reports its own
+duration against it" is exactly what is still owed.
+
 ### NOTE - filed 2026-09-03 (session 59) by the merger, MEASURED FROM THE RUN RECORD
 
-**MAIN HAS NO GREEN CI AS THIS IS FILED.** The tier 1 run on `ac41efe` was CANCELLED, not
+**MAIN HAD NO GREEN CI WHEN THIS WAS FILED - see the correction above.** The tier 1 run on `ac41efe` was CANCELLED, not
 failed - the job hit `timeout-minutes: 10` at 96% of the unit tests with nothing failing and
 `The operation was canceled` in the log. A cancelled run is not evidence of anything, which
 is why this is filed rather than shrugged at.
