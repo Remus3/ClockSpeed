@@ -31,14 +31,44 @@ the census endorses. This guard separates them on the attribute name, so
 ``__cause__`` at runtime, are never in the population at all.
 
 THE RULE. Every tracked module that statically reads a raise's ``cause`` field
-must be one of three things, and the fourth outcome is a finding:
+must be one of two things, and the third outcome is a finding:
 
   * THE OWNER itself, :data:`OWNER`;
-  * DEFERRING to the owner, proven by importing it - which is a structural fact
-    about the importing module and needs no cooperation from the census, so a
-    sibling editing the census cannot turn this guard red;
   * RECORDED in :data:`EXEMPT` against a stated reason;
   * otherwise UNRECORDED, which is the finding.
+
+IMPORTING THE OWNER WAS A THIRD ROUTE OUT AND CS-888 ABOLISHED IT. That branch
+is recorded here rather than merely deleted, because a deleted clearance is the
+kind a later reader reinvents. Deferral was decided by :func:`defers_to_owner`,
+which asks only whether the importing module names the census ANYWHERE, and
+that answer was treated as blanket, permanent, module-wide immunity. WHAT WAS
+MEASURED WHEN CS-888 WAS FILED, and these are the numbers of THAT measurement
+rather than a live count - the live subject set is derived by the sibling arm
+every run and written down nowhere, CLAUDE.md section 4: an identical four-line
+static cause read appended to any of the SIX modules then importing the census
+changed the population by nothing and was reported by no arm, while the same
+four lines in a module that happened not to import it were reported at once.
+FIVE OF THOSE SIX READ NO CAUSE AT ALL, so they held unused immunity that would
+arm the day they added one. AN IMPORT IS NOT A FACT ABOUT HOW THE IMPORTING
+MODULE READS A CAUSE. It is a fact about a name, and this guard is about a read.
+
+TWO NARROWER REPLACEMENTS WERE MEASURED AND BOTH ARE REFUTED, which is why the
+clearance was abolished outright rather than tightened:
+
+  * IMMUNITY FOR CONSUMING A VERDICT rather than importing a name. Three of
+    those importers - ``tests/surface/test_server.py``,
+    ``tests/test_chained_cause_census.py`` and
+    ``tests/test_pathless_clone_agreement.py`` - already CALL
+    ``chained_cause_guard.classify``, so they keep blanket immunity under it
+    and a plant in any of them still goes unreported. The rule would ship green
+    on much of the defect it was written for, which is the shape that filed
+    CS-880.
+  * A PINNED IMMUNE SET. A plant inside an already-pinned module does not
+    change the set, so the pin reddens on a seventh importer and stays silent
+    on the read that matters.
+
+Clearance is :data:`EXEMPT` alone, with a stated reason the sibling arm
+re-measures, and that is the whole list.
 
 Reading a cause is enough to be in the population. This guard deliberately does
 NOT try to model whether the read feeds a suppression: that needs dataflow, and
@@ -100,21 +130,20 @@ RUNTIME_CHAIN_ATTR: Final = "__cause__"
 #: the only one that decides by measurement.
 OWNER: Final = "tests/chained_cause_guard.py"
 
-#: The owner's importable name. Deferral is proven by importing this, which is a
-#: fact about the DEFERRING module's own syntax - so nothing here depends on the
-#: owner's contents, and a concurrent edit to the census cannot redden this.
+#: The owner's importable name. NOT A CLEARANCE since CS-888 - see
+#: :func:`defers_to_owner`, which is kept only to derive the sibling arm's plant
+#: subjects.
 OWNER_MODULE: Final = "chained_cause_guard"
 
 VERDICT_OWNER: Final = "owner"
-VERDICT_DEFERRED: Final = "deferred"
 VERDICT_RECORDED: Final = "recorded"
 
 #: The finding: a module deciding the chaining question with no reason on file.
 VERDICT_UNRECORDED: Final = "unrecorded"
 
 #: Reasons for a static cause read outside the owner. AN ENTRY HERE IS NOT A
-#: CLEARANCE. It records why one module reads a raise's cause without deferring,
-#: and the sibling arm re-measures the property the reason asserts on every run.
+#: CLEARANCE. It records why one module reads a raise's cause, and the sibling
+#: arm re-measures the property the reason asserts on every run.
 #:
 #: NO ENTRY MAY ASSERT THAT A CHAINED CAUSE IS UNRENDERED. That is the claim
 #: CS-857 exists to correct, and it is false: the cause's own text is part of
@@ -122,6 +151,25 @@ VERDICT_UNRECORDED: Final = "unrecorded"
 #: the live tree every run. This sentence is a fence like the one that already
 #: failed, so it is not relied upon - the arm measures instead.
 EXEMPT: Final[Mapping[str, str]] = {
+    "tests/pathless_clone_guard.py": (
+        "MIRRORING IS NOT DEFERRING, AND THE MIRROR IS RE-MEASURED. That "
+        "module's cause read sits in ``_slot``, whose own docstring says it "
+        "MIRRORS ``chained_cause_guard._constructs_pathless_clone`` "
+        "DELIBERATELY: CS-885 requires the two to select the SAME slot for the "
+        "same form, because a site the clone guard does not watch is a copy "
+        "free to drift. It also imports SIX PRIVATE NAMES from the census - "
+        "``_form_of``, ``_module_level_rebindings``, ``_parse``, "
+        "``_pathless_clone_functions``, ``_shadowed`` and ``_walk`` - and "
+        "CS-888 measured that those imports are worth nothing here: a module "
+        "that copies the owner's slot rule into its own source is answering "
+        "the question in its own body, whatever it imports. It is NOT a claim "
+        "that the cause goes unrendered - the clone guard exists precisely "
+        "because it does. The reason is not taken on trust. "
+        "``test_the_mirrored_slot_rule_is_re_measured_rather_than_believed`` "
+        "runs both selectors over planted sources and asserts they pick the "
+        "same slot for every form. Widen the mirror and the probe reddens "
+        "while this sentence still reads correct."
+    ),
     "tests/test_verify_env.py": (
         "SCOPED TO THE CAUSE SLOT, AND RE-MEASURED. That module grades a "
         "DIFFERENT channel - whether the exception OBJECT reaches the message "
@@ -211,12 +259,22 @@ def static_cause_reads(tree: ast.Module) -> tuple[int, ...]:
 
 
 def defers_to_owner(tree: ast.Module) -> bool:
-    """Whether this module imports the census, which is how deferral is proven.
+    """Whether this module imports the census. NOT A CLEARANCE - CS-888.
+
+    THIS DECIDES NOTHING ABOUT THE POPULATION, and the name is kept only
+    because the abolished clearance is easier to reason about under the name it
+    had. :func:`adjudicators_in_sources` no longer consults it. What it is kept
+    FOR is deriving the sibling arm's PLANT SUBJECTS: the arm appends an
+    identical static cause read to every module this returns True for and
+    asserts each one is reported, so the abolished clearance cannot creep back
+    under another name. The subject set is derived live rather than pinned,
+    because a pinned set does not grow when a seventh importer arrives - which
+    is the same reason a pinned immune set was refuted as the repair.
 
     Covers ``import tests.chained_cause_guard``, ``from tests import
     chained_cause_guard`` and ``from tests.chained_cause_guard import X``. All
     three are facts about THIS module's syntax, so the owner's contents are
-    never consulted.
+    never consulted and a sibling editing the census cannot move this answer.
 
     Args:
         tree: The parsed module.
@@ -264,8 +322,13 @@ def _parse(module: str, source: str) -> ast.Module:
 def adjudicators_in_sources(sources: Mapping[str, str]) -> tuple[Adjudicator, ...]:
     """Every module in the given sources that adjudicates chaining statically.
 
-    A module that defers to the owner is not an adjudicator: it has handed the
-    question over.
+    READING A CAUSE IS THE WHOLE MEMBERSHIP TEST, and there is no import-shaped
+    way out of it. CS-888 measured the one that existed: it excused six modules
+    over an import, five of which read no cause at all, and an identical
+    planted read was a finding in one module and invisible in six. Clearance is
+    :data:`EXEMPT`, applied by :func:`classify` AFTER membership rather than
+    instead of it, so an excused module is still counted, still listed and
+    still reddens :func:`stale_exemptions` when its read goes away.
 
     Args:
         sources: Repo-relative module path to source text.
@@ -278,9 +341,8 @@ def adjudicators_in_sources(sources: Mapping[str, str]) -> tuple[Adjudicator, ..
     """
     found: list[Adjudicator] = []
     for module in sorted(sources):
-        tree = _parse(module, sources[module])
-        lines = static_cause_reads(tree)
-        if not lines or defers_to_owner(tree):
+        lines = static_cause_reads(_parse(module, sources[module]))
+        if not lines:
             continue
         found.append(Adjudicator(module=module, lines=lines))
     return tuple(found)
@@ -405,3 +467,41 @@ def probe_sources() -> Iterator[tuple[str, str]]:
     handler = "try:\n    pass\nexcept OSError as exc:\n"
     yield "cause-slot-only", handler + "    raise Boom(reason) from exc\n"
     yield "object-in-args", handler + "    raise Boom(exc) from exc\n"
+
+
+#: The two bare names the mirror probe's plants call. One of them occupies the
+#: slot the census selects and the other is a decoy in the slot it does not, so
+#: which name comes back True identifies the slot.
+PROBE_CLONE_NAMES: Final = ("_clone", "_wrap")
+
+
+def mirror_probe_sources() -> Iterator[tuple[str, str]]:
+    """The planted sources the MIRRORED slot rule is re-measured on.
+
+    ``tests/pathless_clone_guard._slot`` is recorded in :data:`EXEMPT` against
+    a reason claiming it selects the SAME slot as the census's
+    ``_constructs_pathless_clone`` for the same form. These plants are what
+    turns that sentence into a measurement.
+
+    EACH PLANT PUTS A DIFFERENT BARE-NAME CALL IN EACH CANDIDATE SLOT WHERE THE
+    FORM PERMITS ONE, and that is what makes the probe discriminating. The
+    census's predicate answers a BOOLEAN rather than naming a slot, so the
+    slot it chose is recovered by asking it one clone name at a time: a plant
+    calling the same name in both slots would answer True either way and could
+    not tell a mirror that agrees from one that has swapped them. ``suppressed``
+    carries a literal ``None`` in the cause slot because the form requires it,
+    so its decoy is probed for a False rather than for the other name.
+
+    Yielded rather than held as a constant so a caller cannot mutate the set
+    another arm depends on.
+
+    Yields:
+        A label and one planted source. The forms the labels stand for are
+        derived by the census's own ``_form_of`` in the arm, never spelled
+        here - the census owns those constants.
+    """
+    handler = "try:\n    pass\nexcept OSError as exc:\n"
+    yield "explicit-two-calls", handler + "    raise _wrap(exc) from _clone(exc)\n"
+    yield "suppressed-clone", handler + "    raise _clone(exc) from None\n"
+    yield "implicit-clone", handler + "    raise _clone(exc)\n"
+    yield "bare-reraise", handler + "    raise\n"

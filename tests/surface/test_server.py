@@ -1548,11 +1548,17 @@ def test_both_refusal_raise_sites_are_cleared_by_the_census_that_owns_the_questi
     tree has exactly ONE owner of "can a chained cause render" - the census,
     which answers by measurement - and that any other module touching the
     ``cause`` field statically is answering from a belief. An earlier draft of
-    this arm did exactly that and was correctly reported. Importing the owner is
-    how deferral is proven, and it makes the arm STRONGER: it now asserts the
-    verdict the census actually publishes for these two sites, which is the
-    thing CS-857's first conjunct is about, rather than a private re-derivation
-    that could agree with the census while measuring something else.
+    this arm did exactly that and was correctly reported. IMPORTING THE OWNER IS
+    NOT WHAT CLEARS THIS ARM, and CS-888 is why: an import used to prove
+    deferral outright, and it bought every importing module blanket module-wide
+    immunity - most of them holding it unused, over a cause field they never
+    read - so that clearance is abolished and the only routes out are being the
+    owner or carrying a recorded reason. What
+    keeps this arm out of the population is that it makes no static cause read
+    AT ALL. Asking the census makes it STRONGER besides: it asserts the verdict
+    the census actually publishes for these two sites, which is the thing
+    CS-857's first conjunct is about, rather than a private re-derivation that
+    could agree with the census while measuring something else.
 
     :data:`CLOSED_SUPPRESSED` is the census's ONE POSITIVE clearance, and it is
     structural - the interpreter sets ``__suppress_context__`` and the raise
