@@ -1666,10 +1666,24 @@ comment, with the real number and a reason - and the cutoff stays a cutoff. Eith
 lane should report its own duration against its budget so the next minute of growth is
 visible before it is fatal.
 
-**WHAT IS NOT YET KNOWN.** Which tests dominate. The obvious suspect - the CS-889 carrier
-widening from roughly 60 markdown files to 231 tracked files - measures only 6.4 seconds
-locally for its own module, so it does not obviously account for a jump from 7m35s to over
-10m. The local full suite runs about 12 minutes on this machine under agent load, so local
-timings are not a clean proxy for the runner. Measure on the runner, or with a profile, before
-attributing it.
+**WHAT IS NOT YET KNOWN.** Which tests dominate ON THE RUNNER. The obvious suspect - the
+CS-889 carrier widening from roughly 60 markdown files to 231 tracked files - measures only
+6.4 seconds locally for its own module, so it does not obviously account for a jump from
+7m35s to over 10m.
+
+**A LOCAL PROFILE WAS TAKEN AND IT IS THE WRONG INSTRUMENT, WHICH IS ITSELF THE FINDING.**
+Full suite locally: 4721 passed, 4 skipped, 737s. The three slowest tests are
+`tests/save/test_properties.py::test_a_cursor_width_is_discriminated_and_never_on_a_majority_of_payloads`
+at 152.8s, `tests/save/test_phase4_gate.py::test_the_save_suite_passes_with_no_install_and_no_save`
+at 51.5s, and
+`tests/test_liveness.py::test_the_resolved_routes_recover_only_functions_that_really_reach_grading`
+at 25.8s - 31 per cent of the run in three tests. **Every one of the top three is
+LIBRARY-BACKED and there is no save library and no game install on the runner**, so their
+cost is close to zero there and the local ranking says nothing about the CI budget. That is
+why local is 12 minutes while CI was 7m35s one commit earlier.
+
+**SO THE MEASUREMENT THIS ITEM NEEDS IS A PROFILE ON THE RUNNER, not another local one.**
+Do not attribute the regression from local timings, and do not attribute it to the widening
+without measuring it - that is a guess with a plausible story attached, which is the shape
+this project keeps filing items about.
 
