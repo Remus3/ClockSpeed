@@ -85,6 +85,33 @@ sentence nobody re-derives.
   exemptions. Not a suffix list: a hand-maintained one is a boundary that the
   next extension to start carrying a pointer crosses in silence. See
   :func:`line_pointer_carriers` for what that narrower boundary cost.
+- THE BARE-PATH POPULATION IS THE LINE-POINTER ONE, consumed rather than
+  rebuilt. CS-891 needed every tracked file for the same reason CS-889 did, and
+  a third population would be a third thing to rot - these two have already
+  disagreed once, over the dated archive.
+
+CS-891 - THE FIFTH SHAPE, AND WHAT IT COST TO ADD ONE. Every shape above needs
+a SEPARATOR after the path, so a doc spelling a repo-relative path plainly was
+matched by NONE of them: a pointer at a path that does not exist was green in
+every file in this repository. That is CS-442's founding finding one more level
+up. The arm is a DECLINE LADDER - see :func:`bare_path_ladder` - because the
+question a bare path asks cannot be answered yes or no. Resolving a partially
+qualified path repo-relative and calling it missing is trap 2 exactly, so R1
+resolves a UNIQUE suffix hit and REPORTS an ambiguous one; and three separate
+rungs decline a path for a stated mechanical reason rather than reporting it.
+Each decline is invisibility bought for a reason, so each rung's live
+membership is PINNED and checked in both directions - appending to one makes it
+disagree with what the ladder derives.
+
+AND ADDING THE FIFTH SHAPE FALSIFIED ONE OF THIS MODULE'S OWN MEASURED
+SENTENCES AND STALED THREE RESTATED COUNTS, recorded rather than quietly
+repaired. The harness-domain exclusion said it suppressed NOTHING - true of a
+module judging four shapes that all needed a separator, and false the moment
+one did not, because harness prose names module and tool paths constantly. That
+arm now MEASURES its residual every run instead of asserting it in prose, and
+the three sentences that said "four" now name :data:`JUDGED_SHAPES` instead of
+counting it. A fact restated where nothing checks it is the fault this module
+exists to find, and it had four of its own.
 
 TWO THINGS THAT WENT WRONG ON THE FIRST BUILD OF THAT BOUNDARY, kept here
 because both are the same mistake wearing different clothes - a rule that
@@ -173,6 +200,7 @@ import re
 import string
 import subprocess
 from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -447,6 +475,81 @@ BARE_RE: Final = re.compile(r"(?<![:.\w])(test_[a-z0-9_]{8,})\b")
 # below it, and judging those would redden the documentation of the rule.
 ELIDED_RE: Final = re.compile(r"(?<![A-Za-z0-9_])::(test_[a-z0-9_]{8,})\b")
 
+# CS-891 - THE FIFTH SHAPE: A REPO-RELATIVE PATH WITH NOTHING AFTER IT.
+#
+# Every shape above needs a SEPARATOR after the path - a name after "::", or a
+# number after a colon - so a doc that spells a module path plainly was matched
+# by NONE of them. A pointer at a path that does not exist was green in every
+# file in this repository, which is CS-442's founding finding one more level
+# up: not "nothing read docs/", but "nothing read the commonest thing a doc
+# says about the tree".
+#
+# THE BACKTICKS ARE THE SHAPE, not decoration, and that was MEASURED rather
+# than preferred. On the tree this shape was derived against, the same pattern
+# without them read 2944 sites where this one read 1996 - a past measurement
+# with its corpus named, not a live count - and the 948 it adds are not prose:
+# `.gitignore` PATTERNS, a
+# workflow's YAML values, and a doc-budget fixture path. THREE of those reach
+# the reported rung and all three are artifacts of reading configuration as if
+# it were a sentence. A backtick is this repository's own marker for "this
+# token is a path" - CLAUDE.md, the ADRs, the ledger and every docstring here
+# use it - so requiring one is the cheapest available test of AUTHORIAL INTENT
+# TO CITE, which is the property trap 2 says a path alone does not carry.
+#
+# THE PRICE, STATED RATHER THAN IMPLIED AWAY: a dead path spelled in prose
+# WITHOUT backticks is invisible to this arm. That hole is real and it is NOT
+# pinned, because pinning it would mean maintaining the wider pattern's
+# 948-site residual forever in order to guard three sites that measured
+# artifactual. The three declines below ARE pinned, because each is a rule
+# rather than a pattern's edge.
+#
+# A NON-LEADING SEGMENT MAY NOT START WITH A DOT, which refuses "..", and that
+# is a mechanism rather than tidiness. `git check-ignore` FATALS on a path that
+# escapes the repository - measured, on the traversal fixture in
+# `tests/surface/test_server.py` - and one fatal kills the whole batch, so R2
+# would silently stop declining for every path at once. The shape refuses the
+# escape AND :func:`declares_untracked` fails loudly on a bad exit, so neither
+# has to be trusted alone.
+#
+# THE FIRST SEGMENT MAY, because `.github/workflows/tier1.yml` is a real
+# citation and a pattern anchored on an alphanumeric drops the dot and then
+# reports a path that does not exist - the same measurement that shaped
+# :data:`LINE_POINTER_RE`.
+#
+# NO NESTED QUANTIFIER OVER OVERLAPPING CLASSES. Each repetition must begin
+# with "/" and each segment with a character no other alternative accepts, so
+# the pattern cannot backtrack exponentially on a near-miss. A guard that hangs
+# on one unlucky line is a guard that gets switched off.
+_FIRST_SEGMENT: Final = r"\.?[A-Za-z0-9_][A-Za-z0-9_.-]*"
+_LATER_SEGMENT: Final = r"[A-Za-z0-9_][A-Za-z0-9_.-]*"
+BARE_PATH_RE: Final = re.compile(
+    rf"`({_FIRST_SEGMENT}(?:/{_LATER_SEGMENT})*/{_LATER_SEGMENT}"
+    r"\.(?:py|md|json|toml|yml|yaml|cfg|txt|ini))`"
+)
+
+
+def bare_path(*segments: str) -> str:
+    """Join path segments AT CALL TIME, for :func:`line_key`'s reason.
+
+    This module is a tracked file that the bare-path arm reads like any other
+    carrier, so a dead path written out as a literal here would be a finding
+    this module manufactured against itself. Two halves joined at call time
+    never sit adjacent in the source and cannot match.
+
+    THE SHAPE ALREADY DECLINES MOST OF THAT and this is the belt to its braces:
+    a literal in Python source carries no backticks, and a non-docstring
+    literal is declined at R4 besides. Neither is a reason to spell a dead path
+    where the next widening of the pattern would find it.
+
+    Args:
+        segments: Path segments, in order, repo-relative.
+
+    Returns:
+        The path, POSIX-separated, in the spelling :data:`BARE_PATH_RE` reads.
+    """
+    return "/".join(segments)
+
+
 # EVERY SHAPE THIS MODULE JUDGES, IN ONE PLACE, because the boundary contract
 # needs the same answer the arms use and once did not have it. It decided
 # carrier-hood with the PATH pattern alone, so a doc carrying only an elided
@@ -459,7 +562,7 @@ ELIDED_RE: Final = re.compile(r"(?<![A-Za-z0-9_])::(test_[a-z0-9_]{8,})\b")
 # walks this module's own compiled patterns and fails on any that is not here.
 # That is what keeps a FUTURE arm from falling out of the boundary the way the
 # elided arm did - the arm and the boundary cannot drift apart quietly.
-JUDGED_SHAPES: Final = (CITATION_RE, LINE_POINTER_RE, BARE_RE, ELIDED_RE)
+JUDGED_SHAPES: Final = (CITATION_RE, LINE_POINTER_RE, BARE_RE, ELIDED_RE, BARE_PATH_RE)
 
 
 def line_key(path: str, line: int) -> str:
@@ -1506,6 +1609,846 @@ def stale_pin_problems(
     ]
 
 
+# --- CS-891: the bare-path arm and its DECLINE LADDER -----------------------
+#
+# FIVE RUNGS, ORDERED, EACH MECHANICALLY DECIDABLE, and every site reports
+# WHICH rung answered it. The distribution is the point: a single pass/fail
+# number is silent about which half of the ladder did the work, so a rung that
+# quietly stops firing - the check-ignore batch that stopped declining, below -
+# looks exactly like a corpus that stopped needing it.
+#
+#   R0   the cited path is in `git ls-files`                        RESOLVED
+#   R1   exactly ONE tracked path ends with it at a segment boundary RESOLVED
+#   R1!  MORE THAN ONE does                                          REPORTED
+#   R2   `git check-ignore` says the repo DECLARES it untracked      DECLINED
+#   R3   its first segment is not a tracked top-level entry          DECLINED
+#   R4   the site sits in a Python string literal that is NOT a docstring
+#                                                                    DECLINED
+#   R5   the site is recorded in :data:`BARE_PATH_REASONS`           FORGIVEN
+#        otherwise                                                   REPORTED
+#
+# WHY EACH DECLINE IS PRINCIPLED RATHER THAN CONVENIENT. A decline that is
+# merely convenient is a permission list wearing a rule's clothes, so each one
+# below states the mechanism that decides it and the price it charges.
+#
+# R1 IS TRAP 2 ONE NOTCH ALONG. This module's own docstring records that
+# resolving an UNQUALIFIED name repo-relative and calling it missing
+# manufactured six dead targets and ALL SIX WERE ARTIFACTS. A PARTIALLY
+# qualified path is the same shape: `docs/ARCHITECTURE.md` writes a module map
+# whose paths are relative to a package root stated in the surrounding table,
+# so seventeen of its forty qualified paths are absent repo-relative and
+# present one directory down. R1 is a RESOLUTION rather than a forgiveness, so
+# it needs no ratchet - but it MUST require EXACTLY ONE hit. An ambiguous
+# suffix is REPORTED and never accepted, because accepting it would turn "the
+# reader guessed" into "the citation resolved", which is R1 becoming a
+# laundering route rather than a resolver.
+#
+# R2 IS ANSWERED BY A TRACKED DECLARATION A HUMAN HAD TO WRITE. `.gitignore` is
+# in the index; a path it matches is one this repository has said out loud will
+# never be tracked. Two of its lines carry the whole rung: the local config
+# override, and the game install's own directory - which is untracked for
+# EXACTLY the reason the citation is legitimate, since non-negotiable 2 forbids
+# committing anything extracted from the install. Calling such a citation dead
+# would be reporting the repository for obeying its own rule.
+#
+# R3: A PATH WHOSE ROOT THIS REPO DOES NOT OWN IS NOT A REPO-RELATIVE CITATION.
+# It is a metasyntactic example, or a fragment relative to something else. The
+# roots MEASURED in the live corpus are the package-relative "advisor", and the
+# example roots "also", "not" and "notes" that a guard's own fixtures spell.
+#
+# R4 IS AST-DECIDABLE, NOT A PROSE HEURISTIC, which is what makes it a rule
+# rather than a hunch. A Python string literal that is not a docstring is
+# DATA the module operates on; a docstring and a comment are the author
+# TALKING. The split was measured over every tracked Python file and it is
+# PERFECT: author prose holds every real citation, non-docstring literals hold
+# every synthetic fixture path, and nothing sits in between.
+#
+# THE PRICE OF R2, R3 AND R4, STATED AND PINNED. A dead citation hidden under a
+# broad gitignore pattern, or under an invented root, or inside a non-docstring
+# literal, is INVISIBLE to this arm. So each rung's live membership is pinned
+# below and asserted in BOTH directions: appending to a disclosure makes it
+# DISAGREE with what the ladder derives and reddens, exactly as
+# :data:`UNFORBIDDEN_LINE_POINTERS` does. These are DISCLOSURES, not permission
+# lists - the difference is that nothing can be added to one to buy silence.
+# Only R5 is a budget, and it ratchets.
+
+RESOLVED_EXACT: Final = "R0 exact"
+RESOLVED_SUFFIX: Final = "R1 unique suffix"
+AMBIGUOUS_SUFFIX: Final = "R1! ambiguous suffix"
+DECLARED_UNTRACKED: Final = "R2 declared untracked"
+UNTRACKED_ROOT: Final = "R3 untracked root"
+FIXTURE_LITERAL: Final = "R4 fixture literal"
+RECORDED_REASON: Final = "R5 recorded reason"
+UNRESOLVED: Final = "REPORTED"
+
+#: Every rung, in the order they are tried. DERIVED FROM HERE by the ladder and
+#: by every arm that reads a distribution, so a rung cannot be added to one and
+#: missed by the other.
+LADDER_RUNGS: Final = (
+    RESOLVED_EXACT,
+    RESOLVED_SUFFIX,
+    AMBIGUOUS_SUFFIX,
+    DECLARED_UNTRACKED,
+    UNTRACKED_ROOT,
+    FIXTURE_LITERAL,
+    RECORDED_REASON,
+    UNRESOLVED,
+)
+
+
+@dataclass(frozen=True)
+class BarePathSite:
+    """One spelling of one bare repo-relative path in one carrier.
+
+    Attributes:
+        carrier: The file that spells it, repo-relative and POSIX-separated.
+        cited: The path as spelled.
+        line: 1-based line of the spelling, for the report only. DELIBERATELY
+            NOT PART OF :attr:`identity` - see that property.
+        column: 0-based column, used only to decide R4.
+        anchor: The enclosing qualified symbol for a Python carrier, the
+            nearest preceding heading for a markdown one, empty otherwise.
+        in_fixture_literal: Whether the site sits inside a Python string
+            literal that is not a docstring. Computed once at collection so the
+            ladder stays a pure function of its arguments and a control can
+            construct a site without a file behind it.
+    """
+
+    carrier: str
+    cited: str
+    line: int
+    column: int
+    anchor: str
+    in_fixture_literal: bool
+
+    @property
+    def identity(self) -> tuple[str, str, str]:
+        """The key every table in this section is written against.
+
+        AN IDENTITY, NOT A COUNT, and CS-893 is filed against this module for
+        getting that wrong one table over. :attr:`Disposition.sites` is a bare
+        count, so a COMPENSATING SWAP - delete one recorded site and add an
+        unrelated one in the same edit - leaves the cardinality unchanged and
+        passes in silence. A set of identities reports both halves of that swap.
+
+        AN ANCHOR RATHER THAN A LINE, AND THAT WAS MEASURED. Prepending one
+        session entry to a markdown file shifts every line below it and rewrites
+        nothing under any heading, so a line-keyed table churns on an edit that
+        changed none of what it records while an anchored one does not. It is
+        the same reason trap 3 declines to judge a `file:line` pointer into an
+        append-only file, applied to the table instead of to the pointer.
+
+        WHAT AN ANCHOR CANNOT SEE, disclosed: two spellings of the same path
+        under the same symbol are one identity. That is why each table below
+        also records HOW MANY sites the identity covers - the identity closes
+        the swap, the count closes the second spelling, and neither alone does
+        both. `tests/chained_cause_guard.py` and `tests/pathless_clone_guard.py`
+        already key on qualified names for the first half of this reason.
+        """
+        return (self.carrier, self.cited, self.anchor)
+
+
+@dataclass(frozen=True)
+class BarePathReason:
+    """One recorded answer for one bare-path site that does not resolve.
+
+    Attributes:
+        why: The evidence, in one line, so the table is auditable without
+            re-deriving it.
+        sites: How many spellings this identity covers, for the reason
+            :attr:`BarePathSite.identity` gives.
+    """
+
+    why: str
+    sites: int
+
+
+def markdown_anchor(text: str, line: int) -> str:
+    """The nearest heading at or above ``line``, or empty above the first one."""
+    heading = ""
+    for number, raw in enumerate(text.split("\n"), start=1):
+        if number > line:
+            break
+        if raw.startswith("#"):
+            heading = raw.strip()
+    return heading
+
+
+def python_anchor(tree: ast.AST, line: int) -> str:
+    """The innermost qualified symbol enclosing ``line``.
+
+    Falls back to the module-level assignment target when no ``def`` or
+    ``class`` encloses the line, so a path inside a module-level table is
+    identified by the table it is in rather than by nothing at all. That
+    fallback is not cosmetic: without it, five fixture paths in one module
+    collapsed to a single identity and a sixth could have arrived unseen.
+
+    Args:
+        tree: The parsed carrier.
+        line: 1-based line number.
+
+    Returns:
+        A dotted qualified name, the assignment target's name, or empty.
+    """
+    best = ""
+    stack: list[tuple[str, ast.AST]] = [("", tree)]
+    while stack:
+        prefix, node = stack.pop()
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+                qualified = f"{prefix}.{child.name}" if prefix else child.name
+                end = getattr(child, "end_lineno", None) or child.lineno
+                if child.lineno <= line <= end and len(qualified) > len(best):
+                    best = qualified
+                stack.append((qualified, child))
+            else:
+                stack.append((prefix, child))
+    if best:
+        return best
+    for statement in getattr(tree, "body", []):
+        end = getattr(statement, "end_lineno", None) or statement.lineno
+        if not statement.lineno <= line <= end:
+            continue
+        targets: list[ast.expr] = []
+        if isinstance(statement, ast.Assign):
+            targets = list(statement.targets)
+        elif isinstance(statement, ast.AnnAssign):
+            targets = [statement.target]
+        for target in targets:
+            if isinstance(target, ast.Name):
+                return target.id
+    return ""
+
+
+def fixture_literal_spans(tree: ast.AST) -> tuple[tuple[int, int, int, int], ...]:
+    """Every string-literal span that is NOT a docstring.
+
+    R4's whole mechanism. A docstring is the author talking about the code; any
+    other string literal is DATA the code operates on, and in this repository
+    that data is overwhelmingly a synthetic fixture path that is supposed not
+    to exist. The distinction is decided by the parse tree rather than by
+    reading the sentence, which is what makes it a rule.
+
+    F-strings are included whole, because a path may be spelled across a
+    ``JoinedStr``'s parts and a span per part would leave the seam unjudged.
+
+    Args:
+        tree: The parsed carrier.
+
+    Returns:
+        ``(start_line, start_col, end_line, end_col)`` per literal, 1-based
+        lines and 0-based columns, in no particular order.
+    """
+    docstrings: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        body = node.body
+        if body and isinstance(body[0], ast.Expr):
+            value = body[0].value
+            if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                docstrings.add(id(value))
+    spans: list[tuple[int, int, int, int]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.Constant, ast.JoinedStr)):
+            continue
+        if isinstance(node, ast.Constant) and not isinstance(node.value, str):
+            continue
+        if id(node) in docstrings:
+            continue
+        end_line, end_column = node.end_lineno, node.end_col_offset
+        if end_line is None or end_column is None:
+            continue
+        spans.append((node.lineno, node.col_offset, end_line, end_column))
+    return tuple(spans)
+
+
+def bare_path_sites(carriers: Mapping[str, str]) -> list[BarePathSite]:
+    """Every bare-path spelling in every carrier, with its identity attached.
+
+    THE POPULATION IS THE CALLER'S, injected rather than derived here, so the
+    live arm can hand it :func:`line_pointer_carriers` - the boundary a
+    contract already asserts - instead of this section growing a second
+    population that is a second thing to rot.
+
+    Args:
+        carriers: Carrier path to the text its citations are read from.
+
+    Returns:
+        One :class:`BarePathSite` per spelling, carriers in sorted order.
+    """
+    sites: list[BarePathSite] = []
+    for carrier in sorted(carriers):
+        text = carriers[carrier]
+        tree: ast.AST | None = None
+        spans: tuple[tuple[int, int, int, int], ...] = ()
+        if carrier.endswith(".py"):
+            try:
+                tree = ast.parse(text)
+            except SyntaxError:
+                tree = None
+            else:
+                spans = fixture_literal_spans(tree)
+        starts = [0]
+        for raw in text.split("\n"):
+            starts.append(starts[-1] + len(raw) + 1)
+        for match in BARE_PATH_RE.finditer(text):
+            offset = match.start(1)
+            line = 1
+            while line < len(starts) and starts[line] <= offset:
+                line += 1
+            column = offset - starts[line - 1]
+            if tree is not None:
+                anchor = python_anchor(tree, line)
+            elif carrier.endswith(".md"):
+                anchor = markdown_anchor(text, line)
+            else:
+                anchor = ""
+            sites.append(
+                BarePathSite(
+                    carrier=carrier,
+                    cited=match.group(1),
+                    line=line,
+                    column=column,
+                    anchor=anchor,
+                    in_fixture_literal=any(
+                        (sl, sc) <= (line, column) <= (el, ec) for sl, sc, el, ec in spans
+                    ),
+                )
+            )
+    return sites
+
+
+def declares_untracked(paths: Sequence[str]) -> frozenset[str]:
+    """Which of ``paths`` this repository's own `.gitignore` declares untracked.
+
+    R2's evidence. Asked of git rather than reimplemented, because gitignore
+    precedence - negations, directory patterns, per-directory files - is a
+    specification this module has no business owning a second copy of.
+
+    THE STDIN IS BINARY AND THE SEPARATOR IS NUL, AND BOTH ARE LOAD-BEARING.
+    Under ``text=True`` on Windows the newline separator is translated to CRLF
+    ON WRITE, git receives a path with a trailing carriage return, answers NOT
+    IGNORED for every one of them, and this rung silently stops declining.
+    MEASURED: the first run of this ladder under text mode reported R2 as zero
+    and would have recorded seven mechanically declinable sites as
+    forgivenesses instead. It fails toward MORE findings, which is the loud
+    direction, and a table twice the size still looks plausible - which is
+    exactly why the failure needs a mechanism rather than a reader.
+
+    IT FAILS LOUDLY RATHER THAN DEGRADING. An unavailable subcommand, a fatal
+    on a path outside the repository, or a git that is not there at all would
+    otherwise all read as "nothing is ignored", which is the same output as a
+    clean corpus. Exit 0 means at least one match and exit 1 means none;
+    anything else is raised.
+
+    Args:
+        paths: Repo-relative POSIX paths. ASCII by non-negotiable 4, and
+            encoded as ASCII here so a byte outside it is an error rather than
+            a silent re-encoding.
+
+    Returns:
+        The subset git says is ignored.
+    """
+    if not paths:
+        return frozenset()
+    probe = subprocess.run(
+        ["git", "check-ignore", "--no-index", "-z", "--stdin"],
+        input=("\0".join(paths) + "\0").encode("ascii"),
+        capture_output=True,
+        cwd=REPO_ROOT,
+        # Exit 1 means NO path matched, which is an answer rather than a
+        # failure. The exits that ARE failures are raised below, so the
+        # subprocess must not raise on the one that is not.
+        check=False,
+    )
+    if probe.returncode not in (0, 1):
+        raise RuntimeError(
+            f"git check-ignore is unusable (exit {probe.returncode}):"
+            f" {probe.stderr.decode('utf-8', 'replace').strip()}."
+            " R2 cannot be decided, and treating that as 'nothing is ignored'"
+            " would silently promote every declinable site to a finding."
+        )
+    return frozenset(found.decode("ascii") for found in probe.stdout.split(b"\0") if found)
+
+
+def tracked_suffixes(tracked: Iterable[str]) -> dict[str, tuple[str, ...]]:
+    """Every proper path suffix of every tracked file, at segment boundaries.
+
+    R1's index. ``clockspeed/data/locate.py`` contributes ``data/locate.py``
+    and ``locate.py``; the whole path is R0's business and is not indexed here.
+
+    Args:
+        tracked: Repo-relative POSIX paths.
+
+    Returns:
+        Suffix to the tracked paths carrying it, so the caller can require
+        exactly one.
+    """
+    index: dict[str, list[str]] = {}
+    for path in tracked:
+        segments = path.split("/")
+        for cut in range(1, len(segments)):
+            index.setdefault("/".join(segments[cut:]), []).append(path)
+    return {suffix: tuple(sorted(hits)) for suffix, hits in index.items()}
+
+
+def bare_path_ladder(
+    sites: Iterable[BarePathSite],
+    tracked: Iterable[str],
+    declared_untracked: Iterable[str],
+    reasons: Mapping[tuple[str, str, str], BarePathReason],
+) -> dict[str, list[BarePathSite]]:
+    """Run every site down the ladder and report WHICH rung answered it.
+
+    A PURE FUNCTION OF ITS ARGUMENTS. Every input a rung consults is injected,
+    so a control can pose any rung's question against a corpus with no
+    filesystem and no subprocess behind it - which is the only way to prove a
+    rung fires rather than merely that the live corpus is clean.
+
+    Args:
+        sites: The spellings to judge.
+        tracked: Every path in the index.
+        declared_untracked: The subset `.gitignore` declares will never be
+            tracked, from :func:`declares_untracked`.
+        reasons: The recorded answers, keyed by
+            :attr:`BarePathSite.identity`.
+
+    Returns:
+        Rung name to the sites it answered, every rung in
+        :data:`LADDER_RUNGS` present even when empty - an absent key and an
+        empty one read the same to a caller counting a distribution, and only
+        one of them is a rung that stopped firing.
+    """
+    exact = set(tracked)
+    roots = {path.split("/", 1)[0] for path in exact}
+    suffixes = tracked_suffixes(exact)
+    ignored = set(declared_untracked)
+    answered: dict[str, list[BarePathSite]] = {rung: [] for rung in LADDER_RUNGS}
+    for site in sites:
+        if site.cited in exact:
+            answered[RESOLVED_EXACT].append(site)
+            continue
+        hits = suffixes.get(site.cited, ())
+        if len(hits) == 1:
+            answered[RESOLVED_SUFFIX].append(site)
+            continue
+        if len(hits) > 1:
+            answered[AMBIGUOUS_SUFFIX].append(site)
+            continue
+        if site.cited in ignored:
+            answered[DECLARED_UNTRACKED].append(site)
+            continue
+        if site.cited.split("/", 1)[0] not in roots:
+            answered[UNTRACKED_ROOT].append(site)
+            continue
+        if site.in_fixture_literal:
+            answered[FIXTURE_LITERAL].append(site)
+            continue
+        if site.identity in reasons:
+            answered[RECORDED_REASON].append(site)
+            continue
+        answered[UNRESOLVED].append(site)
+    return answered
+
+
+def multiplicity(sites: Iterable[BarePathSite]) -> dict[tuple[str, str, str], int]:
+    """How many spellings each identity covers."""
+    counts: dict[tuple[str, str, str], int] = {}
+    for site in sites:
+        counts[site.identity] = counts.get(site.identity, 0) + 1
+    return counts
+
+
+def bare_path_problems(answered: Mapping[str, Sequence[BarePathSite]]) -> list[str]:
+    """Every bare path this ladder could not answer.
+
+    AMBIGUITY IS A FINDING, not a resolution. A suffix matching two tracked
+    files tells the reader which file the author meant only by guessing, and a
+    guard that guesses has stopped being evidence.
+    """
+    problems = [
+        f"{site.carrier}:{site.line} -> {site.cited} - more than one tracked path ends"
+        " with it, so the citation names no one file. Qualify it."
+        for site in answered.get(AMBIGUOUS_SUFFIX, ())
+    ]
+    problems += [
+        f"{site.carrier}:{site.line} -> {site.cited} - no tracked path is it or ends"
+        " with it, the repo does not declare it untracked, its root is one this repo"
+        " owns, and it is not a fixture literal. Repoint it, or record it in"
+        " BARE_PATH_REASONS with the reason and raise the ceiling in the same change."
+        for site in answered.get(UNRESOLVED, ())
+    ]
+    return problems
+
+
+def pinned_rung_problems(
+    answered: Mapping[str, Sequence[BarePathSite]],
+    rung: str,
+    pinned: Mapping[tuple[str, str, str], int],
+) -> list[str]:
+    """One decline rung's live membership against its pinned disclosure.
+
+    BOTH DIRECTIONS, for :data:`UNVERIFIED_LINE_POINTERS`' reason. A site the
+    rung now declines that nothing discloses is a new invisibility; a disclosed
+    site the rung no longer declines is a record that has outlived what it
+    described. Appending an entry nobody argued for fails the second direction
+    immediately, which is what makes this a disclosure rather than a permission
+    list - there is nothing to gain by adding to it.
+
+    Args:
+        answered: The ladder's output.
+        rung: Which rung to check.
+        pinned: The recorded identities and how many spellings each covers.
+
+    Returns:
+        One line per disagreement.
+    """
+    derived = multiplicity(answered.get(rung, ()))
+    problems = [
+        f"{rung}: {identity} is declined {count} time(s) and is not disclosed"
+        for identity, count in sorted(derived.items())
+        if identity not in pinned
+    ]
+    problems += [
+        f"{rung}: {identity} is disclosed and the rung no longer declines it"
+        for identity in sorted(pinned)
+        if identity not in derived
+    ]
+    problems += [
+        f"{rung}: {identity} discloses {pinned[identity]} spelling(s), the corpus has"
+        f" {derived[identity]}"
+        for identity in sorted(set(pinned) & set(derived))
+        if pinned[identity] != derived[identity]
+    ]
+    return problems
+
+
+def bare_path_reason_problems(
+    answered: Mapping[str, Sequence[BarePathSite]],
+    reasons: Mapping[tuple[str, str, str], BarePathReason],
+) -> list[str]:
+    """Every recorded reason that no longer matches the corpus.
+
+    THREE DIRECTIONS, and the third is the one CS-893 says a table normally
+    lacks. An entry whose identity has vanished is stale. An entry covering
+    more spellings than it records is a NEW dead citation arriving under an old
+    forgiveness. An entry covering fewer is a record that outgrew its subject.
+    A COMPENSATING SWAP - one identity deleted, another added, the cardinality
+    unchanged - fails the first two at once, which a count alone would not see.
+    """
+    forgiven = multiplicity(answered.get(RECORDED_REASON, ()))
+    problems = [
+        f"{identity} - recorded, and the corpus no longer spells it"
+        for identity in sorted(reasons)
+        if identity not in forgiven
+    ]
+    problems += [
+        f"{identity} - forgives {reasons[identity].sites} spelling(s), the corpus has"
+        f" {forgiven[identity]}"
+        for identity in sorted(set(reasons) & set(forgiven))
+        if reasons[identity].sites != forgiven[identity]
+    ]
+    return problems
+
+
+def bare_path_budget_problems(
+    reasons: Mapping[tuple[str, str, str], BarePathReason],
+    ceiling: int,
+) -> list[str]:
+    """THE BARE-PATH RATCHET, and it is SEPARATE from the line-pointer one.
+
+    A SEPARATE CEILING RATHER THAN A POOLED ONE, and the reason is measured
+    doctrine rather than tidiness: a threshold summed over a population is met
+    by its strongest member while the weakest goes unmeasured. Pooling the two
+    would let a line-pointer repair bank room for a bare-path append, and each
+    table's own repair progress would stop being visible.
+
+    AND IT COULD NOT HAVE BEEN POOLED ANYWAY, which is worth recording because
+    it was the first thing tried. :func:`forgiveness_budget_problems` counts a
+    disposition only when its key matches :data:`LINE_POINTER_RE`, so a
+    bare-path key spends NOTHING - it would have been silenceable the day it
+    shipped, which is precisely the CS-889 round-one defect reproduced inside
+    the module repaired for it. :func:`citation_sites` fails the same way one
+    step over: it dispatches on key SPELLING and falls through to an arm
+    demanding a `test_` prefix, so a bare-path key in :data:`DISPOSITIONS`
+    would count zero sites and report itself stale on arrival.
+
+    Args:
+        reasons: The recorded answers.
+        ceiling: The recorded budget.
+
+    Returns:
+        One line per direction that has drifted, in
+        :func:`forgiveness_budget_problems`' shape and for its reasons.
+    """
+    spent = len(reasons)
+    if spent > ceiling:
+        return [
+            f"{spent} bare-path reasons recorded against a ceiling of {ceiling}."
+            " Something was added to BARE_PATH_REASONS. That is a finding to argue,"
+            " not a line to type: repoint the citation, or raise the ceiling in this"
+            " same change and say why in the record."
+        ]
+    if spent < ceiling:
+        return [
+            f"{spent} bare-path reasons recorded against a ceiling of {ceiling}."
+            f" A citation was repointed and the ceiling was not lowered to match."
+            f" Lower it to {spent} - a slack ceiling is banked room for an append"
+            " nobody will have to defend."
+        ]
+    return []
+
+
+#: This module's own repo-relative path. DERIVED rather than spelled, because
+#: a literal would be a citation this module makes about itself and the
+#: self-infliction arm below would then be measuring the spelling rather than
+#: the tree.
+THIS_MODULE: Final = Path(__file__).resolve().relative_to(REPO_ROOT).as_posix()
+
+#: R2's live membership, DISCLOSED. Every entry is a citation at a path this
+#: repository declares it will never track, so the arm cannot check it and says
+#: so. `.gitignore` carries the local config override for exactly the reason
+#: the citations are legitimate: the file is per-machine and its absence from
+#: the index is the point.
+#:
+#: PINNED IN BOTH DIRECTIONS. Appending an entry makes this table DISAGREE with
+#: what the ladder derives and reddens on the spot, so there is nothing to be
+#: bought by adding to it. That is the difference between a disclosure and a
+#: permission list.
+DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
+    ("ROADMAP.md", "config/local.json", "## Phase 4 - save reader"): 1,
+    ("clockspeed/solve/optimize.py", "config/local.json", ""): 1,
+    (
+        "clockspeed/surface/providers.py",
+        "config/local.json",
+        "SaveWorldProvider.__init__",
+    ): 1,
+    (
+        "docs/item_notes/phase4-followups-850.md",
+        "config/local.json",
+        "### NOTE - filed 2026-09-03 (session 58) by the merger, MEASURED BEFORE FILING",
+    ): 1,
+    (
+        "docs/item_notes/phase4.md",
+        "config/local.json",
+        "### detail - relocated from `docs/history_notes.md` 2026-08-23",
+    ): 1,
+    ("tests/save/test_workdir.py", "config/local.json", "isolate_from_the_real_machine"): 1,
+    ("tools/precommit_gate.py", "config/local.json", ""): 1,
+}
+
+#: R3's live membership, DISCLOSED. Six are the module map's package-relative
+#: spellings of the three planned advisor modules - the same three the reason
+#: table answers in their repo-relative spelling, which is what makes the pair
+#: readable as one residual rather than two. Three are a guard's own
+#: metasyntactic example paths, under roots this repository does not own.
+#:
+#: PINNED IN BOTH DIRECTIONS, for the table above's reason.
+DECLINED_UNDER_AN_UNTRACKED_ROOT: Final[Mapping[tuple[str, str, str], int]] = {
+    (
+        "docs/ARCHITECTURE.md",
+        "advisor/cards.py",
+        "### 5.1 The critical constraint: one trace, three projections",
+    ): 1,
+    ("docs/ARCHITECTURE.md", "advisor/cards.py", "### Pillar 5 - The advisor"): 1,
+    (
+        "docs/ARCHITECTURE.md",
+        "advisor/ledger.py",
+        "### 6.2 Two persistence layers, both durable across sessions, reloads and patches",
+    ): 1,
+    ("docs/ARCHITECTURE.md", "advisor/ledger.py", "### Pillar 5 - The advisor"): 1,
+    (
+        "docs/ARCHITECTURE.md",
+        "advisor/trace.py",
+        "### 5.1 The critical constraint: one trace, three projections",
+    ): 1,
+    ("docs/ARCHITECTURE.md", "advisor/trace.py", "### Pillar 5 - The advisor"): 1,
+    ("tests/data/test_drift_guard_data.py", "notes/DONE.md", "_WORK_ITEM_CLAUDE_MD"): 1,
+    ("tests/test_chained_cause_census.py", "also/not/frozen.py", "_FROZEN_MARKDOWN"): 1,
+    ("tests/test_chained_cause_census.py", "not/frozen.py", "_FROZEN_MARKDOWN"): 1,
+}
+
+#: R4's live membership, DISCLOSED. Every entry is a synthetic fixture path
+#: inside a Python string literal that is not a docstring - data a guard feeds
+#: itself, which is supposed not to exist and would be a defect if it did.
+#:
+#: PINNED IN BOTH DIRECTIONS, for the tables above's reason. This is the rung
+#: whose price is easiest to underrate: a real dead citation moved inside a
+#: non-docstring literal becomes invisible, so the disclosure has to name every
+#: site the rung answers rather than merely count them.
+DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
+    (
+        "tests/save/test_absolute_claims.py",
+        "tests/synthetic/test_beta.py",
+        "_CONTROL_BARE_SHAPE",
+    ): 1,
+    (
+        "tests/save/test_absolute_claims.py",
+        "tests/synthetic/test_beta.py",
+        "_CONTROL_DENIED_EXCLUSION",
+    ): 1,
+    (
+        "tests/save/test_absolute_claims.py",
+        "tests/synthetic/test_beta.py",
+        "_CONTROL_NEGATED_SHAPE",
+    ): 1,
+    ("tests/save/test_absolute_claims.py", "tests/synthetic/test_beta.py", "_CONTROL_SPAN"): 1,
+    (
+        "tests/save/test_absolute_claims.py",
+        "tests/synthetic/test_beta.py",
+        "_CONTROL_STATED_EXCLUSION",
+    ): 1,
+    ("tests/test_chained_cause_census.py", "scripts/example.py", ""): 1,
+    ("tests/test_chained_cause_census.py", "scripts/example.py", "_FROZEN_MARKDOWN"): 1,
+}
+
+#: THE ONLY BUDGET IN THIS SECTION. Everything above is a disclosure that
+#: cannot be added to; this is the escape hatch, and it ratchets.
+#:
+#: SEVEN ENTRIES, FOUR OF ONE KIND AND THREE OF ANOTHER, and each is checked
+#: against the corpus in three directions by
+#: :func:`bare_path_reason_problems`.
+#:
+#: - THREE PLANNED MODULES, cited repo-relative in the module map and twice
+#:   more in the phase leaves that plan them. `docs/ARCHITECTURE.md` documents
+#:   what phase 5 will build, so its advisor rows name modules that do not
+#:   exist yet. Deleting the rows would make the architecture doc silent about
+#:   the phase it exists to describe; creating empty modules to satisfy a guard
+#:   would be the guard writing the code. The citation is right and the tree
+#:   has not caught up.
+#: - ONE PATH DELIBERATELY NOT CREATED, QUOTED RATHER THAN CITED. ADR 0010
+#:   records the decision that the item-notes family gets no index file of that
+#:   name, and it names the path in order to say so. This is trap 4 in the
+#:   bare-path arm: a record whose evidence is that the target is absent would
+#:   be punished for being right.
+#: - ONE OF THIS MODULE'S OWN, which is the self-infliction the section warns
+#:   about arriving anyway. A docstring here explains a synthetic corpus by
+#:   naming its third member, and that member is metasyntactic by construction.
+#:   Recorded rather than reworded, because the sentence is precise and the
+#:   alternative - describing the member without naming it - trades a checked
+#:   record for vaguer prose.
+BARE_PATH_REASONS: Final[Mapping[tuple[str, str, str], BarePathReason]] = {
+    (
+        "docs/ARCHITECTURE.md",
+        bare_path("clockspeed", "advisor", "cards.py"),
+        "### 1.1 What each module owns",
+    ): BarePathReason(
+        "a phase 5 module the architecture doc plans and the tree has not built."
+        " Deleting the row would silence the doc about the phase it describes.",
+        1,
+    ),
+    (
+        "docs/ARCHITECTURE.md",
+        bare_path("clockspeed", "advisor", "ledger.py"),
+        "### 1.1 What each module owns",
+    ): BarePathReason("a phase 5 module the architecture doc plans; see the row above.", 1),
+    (
+        "docs/ARCHITECTURE.md",
+        bare_path("clockspeed", "advisor", "trace.py"),
+        "### 1.1 What each module owns",
+    ): BarePathReason("a phase 5 module the architecture doc plans; see the row above.", 1),
+    (
+        "docs/adr/0010-item-notes-is-an-index-over-per-phase-leaves.md",
+        bare_path("docs", "item_notes", "README.md"),
+        "## Decision",
+    ): BarePathReason(
+        "QUOTED, NOT CITED. The ADR's decision is that this path is deliberately not"
+        " created, and it names the path in order to record that. Trap 4, in this arm.",
+        1,
+    ),
+    (
+        "docs/item_notes/phase4.md",
+        bare_path("clockspeed", "advisor", "ledger.py"),
+        "### detail - relocated from `docs/history_notes.md` 2026-08-23",
+    ): BarePathReason("the same planned phase 5 module, named by the leaf that plans it.", 1),
+    (
+        "docs/item_notes/phase5.md",
+        bare_path("clockspeed", "advisor", "ledger.py"),
+        "### detail - relocated from `docs/history_notes.md` 2026-08-23",
+    ): BarePathReason("the same planned phase 5 module, named by the leaf that plans it.", 1),
+    (
+        THIS_MODULE,
+        bare_path("docs", "prose.md"),
+        "test_a_doc_carrying_no_citation_is_asked_for_neither_a_guard_nor_a_record",
+    ): BarePathReason(
+        "this module's own metasyntactic corpus member, named by the docstring that"
+        " explains what the corpus is for. It is supposed not to exist.",
+        1,
+    ),
+}
+
+#: THE BARE-PATH RATCHET'S RECORDED BUDGET, SEPARATE from the line-pointer one
+#: for the reason :func:`bare_path_budget_problems` states. Checked in BOTH
+#: directions, so it can only come down.
+BARE_PATH_REASON_CEILING: Final = 7
+
+#: The floor under the live population, so the live arm cannot pass on nothing.
+#: An `assert not problems` is byte-identical whether the property holds or
+#: whether the corpus was empty, and this section's population is assembled by
+#: a regex over an injected mapping - two places it could silently become
+#: empty. Measured at 2009 sites over 231 carriers when the arm shipped; the
+#: floor sits well below that so ordinary editing does not spend an
+#: adjudication, and far enough above zero that a shape which stopped matching
+#: is caught.
+BARE_PATH_POPULATION_FLOOR: Final = 1500
+
+#: EVERY FORGIVENESS TABLE IN THIS MODULE, and the contract that BOUNDS it.
+#: CLOSING THE CLASS RATHER THAN THE INSTANCE, which is the fault three
+#: consecutive repairs here have reproduced one level up: a hole is filed, the
+#: instance is fixed, and the NEXT table of the same shape arrives unbounded.
+#: A contract below walks this module's own globals and fails on any container
+#: that is in neither this mapping nor :data:`NOT_A_FORGIVENESS`, so a SIXTH
+#: escape hatch is red until somebody answers for it.
+#:
+#: THE CEILING OF THE MECHANISM, STATED: adding a name to
+#: :data:`NOT_A_FORGIVENESS` with a false reason still silences it. What cannot
+#: be done is adding one SILENTLY - the entry sits in the diff as a sentence
+#: somebody has to defend, which is the same bound
+#: :func:`forgiveness_budget_problems` claims for itself and no more.
+FORGIVENESS_TABLES: Final[Mapping[str, str]] = {
+    "DISPOSITIONS": "test_the_forgiveness_budget_is_spent_exactly_and_cannot_grow",
+    "UNVERIFIED_LINE_POINTERS": "test_the_forgiveness_budget_is_spent_exactly_and_cannot_grow",
+    "UNFORBIDDEN_LINE_POINTERS": (
+        "test_the_unforbidden_line_pointer_residual_is_pinned_in_both_directions"
+    ),
+    "UNGUARDED_DOCS": "test_the_deep_archive_is_the_only_doc_left_unguarded",
+    "BARE_PATH_REASONS": "test_the_bare_path_reason_budget_is_spent_exactly_and_cannot_grow",
+    "DECLINED_AS_DECLARED_UNTRACKED": (
+        "test_every_bare_path_decline_rung_is_disclosed_in_both_directions"
+    ),
+    "DECLINED_UNDER_AN_UNTRACKED_ROOT": (
+        "test_every_bare_path_decline_rung_is_disclosed_in_both_directions"
+    ),
+    "DECLINED_AS_A_FIXTURE_LITERAL": (
+        "test_every_bare_path_decline_rung_is_disclosed_in_both_directions"
+    ),
+}
+
+#: The other half of the same walk: every module-scope container that forgives
+#: NOTHING, with the reason it does not. Recorded rather than filtered out,
+#: because a filter is a boundary nobody re-derives and a new table that
+#: happens to match it joins the unbounded set in silence - which is this
+#: module's founding finding, arriving for the fourth time.
+NOT_A_FORGIVENESS: Final[Mapping[str, str]] = {
+    "GUARDED_DOCS": "widens what is adjudicated; adding to it can only add findings",
+    "ITEM_NOTES_LEAVES": "derived from the filesystem, and widens GUARDED_DOCS",
+    "JUDGED_SHAPES": "widens what counts as a citation; adding to it can only add findings",
+    "LADDER_RUNGS": "the ladder's rung names, in order",
+    "FORGIVENESS_TABLES": "the registry itself, walked by the contract that reads it",
+    "NOT_A_FORGIVENESS": "the registry itself, walked by the contract that reads it",
+    "_CORPUS": "a synthetic corpus a control judges against",
+    "_MD_CORPUS": "a synthetic corpus a control judges against",
+    "_ONE_SHAPE_EACH": "a synthetic corpus a control judges against",
+    "_LANDING_CORPUS": "a synthetic corpus a control judges against",
+    "_LANDING_SOURCE": "a synthetic corpus a control judges against",
+    "_REDIRECT_KEY": "one synthetic key a control judges against",
+    "_FILED_CERT_LINES": "the CS-889 acceptance reconstruction's line numbers",
+    "_FILED_ENV_LINES": "the CS-889 acceptance reconstruction's line numbers",
+    "_FILED_BARE_PATH_CARRIERS": "the CS-891 reconstruction's carriers and site counts",
+}
+
+
 # --- the bare-identifier arm ------------------------------------------------
 
 
@@ -1617,8 +2560,8 @@ def guarded_set_problems(
     CS-442 in the first place.
 
     A doc counts as CARRYING a citation when :func:`carries_a_citation` says
-    so - that is, when it holds ANY shape this module judges, in any of the
-    four spellings, judged on the whole text rather than the scoped part: a
+    so - that is, when it holds ANY member of :data:`JUDGED_SHAPES`, in any of
+    its spellings, judged on the whole text rather than the scoped part: a
     pointer in a preamble is still a pointer, and the scoping exists to decide
     what to ADJUDICATE, not what to notice.
 
@@ -1817,6 +2760,37 @@ def doc_text(doc: str) -> str:
     return (REPO_ROOT / doc).read_text(encoding="ascii", errors="replace")
 
 
+@pytest.fixture(scope="module")
+def live_bare_path_sites(line_pointer_carriers: Mapping[str, str]) -> list[BarePathSite]:
+    """Every bare-path spelling in the LINE-POINTER population.
+
+    THE EXISTING POPULATION, CONSUMED RATHER THAN REBUILT. Its boundary - every
+    tracked file less the recorded exemptions - is already asserted in both
+    directions by a contract, so a second population here would be a second
+    thing to rot and a second place for the two to disagree. That disagreement
+    is not hypothetical: `in_domain` and this very fixture's boundary already
+    diverged once over the dated archive.
+    """
+    return bare_path_sites(line_pointer_carriers)
+
+
+@pytest.fixture(scope="module")
+def live_declared_untracked(live_bare_path_sites: Sequence[BarePathSite]) -> frozenset[str]:
+    """R2's answer for the live corpus, in ONE batched call rather than one per path."""
+    return declares_untracked(sorted({site.cited for site in live_bare_path_sites}))
+
+
+@pytest.fixture(scope="module")
+def live_bare_path_ladder(
+    live_bare_path_sites: Sequence[BarePathSite],
+    tracked: list[str],
+    live_declared_untracked: frozenset[str],
+) -> dict[str, list[BarePathSite]]:
+    return bare_path_ladder(
+        live_bare_path_sites, tracked, live_declared_untracked, BARE_PATH_REASONS
+    )
+
+
 # --- contract 1: every citation resolves or carries a checked disposition ----
 
 
@@ -1950,77 +2924,69 @@ def test_the_deep_archive_is_the_only_doc_left_unguarded() -> None:
     )
 
 
-def test_the_guarded_set_already_covers_what_a_bare_path_shape_would_read(
-    markdown_texts: Mapping[str, str], monkeypatch: pytest.MonkeyPatch
+def test_the_guarded_set_covers_every_doc_the_bare_path_shape_makes_a_carrier(
+    markdown_texts: Mapping[str, str],
 ) -> None:
-    """CS-891 - the population is widened BEFORE the arm that needs it, not with it.
+    """CS-891 - the population was widened BEFORE the arm, and this is what it bought.
 
-    EVERY SHAPE THIS MODULE JUDGES TODAY NEEDS A SEPARATOR - a name after
-    ``::``, or a number after a colon - so a doc that spells a repo-relative
-    path and nothing else is not a carrier and has never had to be guarded. A
-    shape that reads the bare path makes a whole population of docs carriers in
-    one step. Adding that shape and widening the set in the SAME change would
-    make the arm's first run also the population's first run, and neither could
-    then be blamed for the other's findings.
+    EVERY SHAPE THAT PREDATES THIS ITEM NEEDS A SEPARATOR - a name after "::",
+    or a number after a colon - so a doc that spells a repo-relative path and
+    nothing else was not a carrier and had never had to be guarded. A shape
+    that reads the bare path makes a whole population of docs carriers in ONE
+    step, so the widening shipped in a change that added no shape: the arm's
+    first run could then be blamed on the arm rather than on the population, and
+    the population's on the population.
 
-    THE PROBE IS LOCAL AND JOINS NOTHING. It is a control fixture rather than a
-    shape this module judges by, so it stays inside this function: a
-    module-level pattern no arm reads is exactly what the membership contract
-    above exists to report, and hiding one from that contract by naming it
-    something else is the evasion the contract was written against.
+    IT NOW MEASURES THE SHIPPED PATTERN rather than a local probe of it. While
+    the shape did not exist, a probe was the only way to ask; asking the probe
+    AFTER the shape shipped would be asserting that two patterns agree, which
+    is a weaker claim than the one this contract is for and would go quietly
+    stale the moment the shipped one moved.
 
     THE SEPARATOR IS REQUIRED, and that is trap 2 rather than a preference. An
     unqualified basename resolved repo-relative and then called missing
     MANUFACTURES findings - a census that did it reported six dead targets and
-    all six were artifacts - so a bare-path shape that judged one would
-    contradict the trap this module is built around. MEASURED RESIDUAL,
-    disclosed rather than implied away: four in-domain docs spell an
-    unqualified basename and nothing qualified, so a shape that dropped the
-    separator would report four docs this contract does not cover.
+    all six were artifacts.
     """
-    qualified_path = re.compile(
-        r"\.?[A-Za-z0-9_][A-Za-z0-9_.-]*(?:/[A-Za-z0-9_.-]+)+"
-        r"\.(?:py|md|json|toml|yml|yaml|cfg|txt|ini)(?![:\w])"
+    older = tuple(shape for shape in JUDGED_SHAPES if shape is not BARE_PATH_RE)
+
+    assert len(older) == len(JUDGED_SHAPES) - 1, (
+        "BARE_PATH_RE is not among the shapes the boundary reads, so the split below "
+        "is between two identical sets and reports nothing"
     )
-    today = JUDGED_SHAPES
     newly = sorted(
         doc
         for doc, text in markdown_texts.items()
-        if qualified_path.search(text) and not any(shape.search(text) for shape in today)
+        if BARE_PATH_RE.search(text) and not any(shape.search(text) for shape in older)
     )
 
     assert newly, (
-        "no in-domain doc becomes a carrier when a bare-path shape is read, so this "
+        "no in-domain doc is made a carrier by the bare-path shape alone, so this "
         "contract measures an empty population and would pass whatever went unguarded"
     )
     unguarded = [doc for doc in newly if doc not in GUARDED_DOCS]
     assert not unguarded, (
-        "docs a bare-path shape would make carriers that nothing guards:\n"
+        "docs the bare-path shape makes carriers that nothing guards:\n"
         + "\n".join(f"  {doc}" for doc in unguarded)
-        + "\nGuard them here, so the arm that reads the shape needs no second widening."
+        + "\nGuard them, so the arm that reads the shape needs no second widening."
     )
 
-    monkeypatch.setitem(globals(), "JUDGED_SHAPES", (*today, qualified_path))
-
-    # THE INJECTION IS PROVED TO HAVE LANDED, not assumed. A widening that
-    # silently did not apply reads EXACTLY like a population with nothing left
-    # to report - the two are the same output - so the clean answer below is
-    # worth nothing until the predicate is shown to have moved. Withholding
-    # precisely the new members must report precisely them: none was a carrier
-    # a moment ago, so any other answer means the probe never reached the
-    # boundary.
+    # THE SPLIT IS PROVED TO BE REAL, not assumed. Withholding precisely the new
+    # members must report precisely them back: none was a carrier under the
+    # older shapes, so any other answer means the boundary is not reading the
+    # fifth one and the clean result below would be about nothing.
     withheld, _stale = guarded_set_problems(
         markdown_texts, [doc for doc in GUARDED_DOCS if doc not in newly], UNGUARDED_DOCS
     )
     assert withheld == newly, (
-        "withholding the new members did not report them back, so the widened "
-        "predicate never reached the boundary and the check below measures nothing"
+        "withholding the new members did not report them back, so the boundary never "
+        "reached the fifth shape and the check below measures nothing"
     )
 
     unrecorded, stale = guarded_set_problems(markdown_texts, GUARDED_DOCS, UNGUARDED_DOCS)
 
     assert (unrecorded, stale) == ([], []), (
-        "the boundary is not clean against a widened predicate:\n"
+        "the boundary is not clean now that the bare-path shape is read:\n"
         + "\n".join(f"  unrecorded {doc}" for doc in unrecorded)
         + "\n".join(f"  stale {problem}" for problem in stale)
     )
@@ -2566,16 +3532,30 @@ def test_a_record_for_a_doc_that_stopped_carrying_citations_is_reported() -> Non
 #
 # ONE DOC, ONE SHAPE EACH. The boundary once decided carrier-hood with
 # :func:`citations_in`, which requires a `path.py` prefix, so three of the four
-# shapes this module judges did not make a doc a carrier at all - including the
+# shapes judged AT THE TIME did not make a doc a carrier at all - including the
 # elided one, added to this module in the same change that left the boundary
 # blind to it. Each corpus below carries exactly ONE shape and nothing else, so
 # a predicate that reads only some of them fails on the ones it cannot see.
+#
+# THE COUNT IS DELIBERATELY NOT RESTATED HERE. There is one entry per member of
+# :data:`JUDGED_SHAPES` and the contract below derives the membership, so a
+# sentence naming a number would be the fact restated in the one place nothing
+# checks it - which is the fault the arm two functions down had to be repaired
+# for when the fifth shape arrived.
 
 _ONE_SHAPE_EACH: Final = {
     "docs/elided_only.md": "Verification: `::test_a_name_that_is_not_bound_anywhere`.\n",
     "docs/bare_only.md": 'Verification: `grep -c "test_a_name_that_is_not_bound_anywhere" x`\n',
     "docs/line_only.md": "see `tools/thing.py:900`\n",
     "docs/path_only.md": "see `tests/synthetic/test_planted.py::test_a_name_that_is_not_there`\n",
+    # THE ONLY MEMBER NAMING A PATH THAT RESOLVES, and the reason is a
+    # measurement rather than a preference. Carrier-hood does not depend on
+    # resolution, so a synthetic path would serve this corpus equally - but
+    # this module is itself a bare-path carrier, and a synthetic one here is a
+    # site the R4 rung then declines and the R4 disclosure must then record.
+    # It did, on the first run. A disclosure of the tree's real residual should
+    # not be carrying a line about one of this module's own fixtures.
+    "docs/bare_path_only.md": "see `tools/drift_guard.py` for the rule\n",
 }
 
 
@@ -2594,12 +3574,20 @@ def test_a_doc_carrying_only_one_judged_shape_is_still_a_carrier(doc: str) -> No
 def test_every_pattern_this_module_judges_by_also_decides_what_carries_a_citation() -> None:
     """The boundary's membership is DERIVED from this module, not hand-listed.
 
-    Fixing the four shapes by hand would leave the FIFTH arm to fall out of the
+    Fixing the shapes by hand would leave the NEXT arm to fall out of the
     boundary exactly the way the elided arm did - a new pattern is added, an arm
     is taught to read it, and nothing says the boundary must learn it too. So
-    the check is not "are these four there", it is "does anything this module
+    the check is not "are these N there", it is "does anything this module
     compiles sit outside :data:`JUDGED_SHAPES`". A new ``*_RE`` is red until it
     is answered one way or the other.
+
+    IT HAS SINCE BEEN COLLECTED ON, which is worth recording because a contract
+    written against a hypothetical usually is not. CS-891 added the fifth
+    pattern, and this arm was red on it until the boundary was told - the
+    prediction above naming the FIFTH arm specifically, and the widening
+    arriving exactly there. The same derivation is what
+    ``test_every_container_this_module_holds_is_bounded_or_recorded_as_forgiving_nothing``
+    does one level up for the tables rather than the patterns.
     """
     compiled = {
         name: value
@@ -2649,12 +3637,22 @@ def test_the_domain_excludes_a_harness_file_that_would_otherwise_be_a_carrier(
     a path that carries a citation, in BOTH directions - the harness file is
     excluded and its twin one directory over is not.
 
-    MEASURED RESIDUAL, disclosed rather than implied away: no tracked
-    ``.claude/*.md`` carries any judged shape today, in any of the four
-    spellings, so the exclusion currently suppresses NOTHING. It is a rule
-    about a real set of files and an empty set of pointers. That is why the
-    planted carrier below is synthetic - it is the only carrier the exclusion
-    has ever had to answer for.
+    THE MEASURED RESIDUAL WENT FROM ZERO TO REAL, AND THIS SENTENCE IS THE
+    REPAIR RATHER THAN THE RECORD. It used to read "no tracked ``.claude/*.md``
+    carries any judged shape today, so the exclusion currently suppresses
+    NOTHING", and it was true of a module that judged four shapes, all of which
+    needed a separator after the path. CS-891's bare-path shape falsified it in
+    one step: harness prose names module and tool paths constantly. So the
+    residual is now MEASURED here every run instead of being asserted in prose,
+    because a disclosure nobody re-derives is exactly what this module keeps
+    being repaired for - and the number this exclusion suppresses is one that
+    only grows.
+
+    WHAT THAT COSTS, STATED: a dead path spelled in tracked harness
+    configuration is invisible to every arm here. That is the accepted price of
+    the rule, not a gap in it. ``.claude/`` is Claude Code configuration, it
+    appears nowhere in the CLAUDE.md doc-topology table, and its prose
+    instructs an agent rather than recording a verification.
     """
     carrier = "see `tests/synthetic/test_planted.py::test_a_name_that_is_not_there`\n"
     harness = f"{OUT_OF_DOMAIN}commands/planted.md"
@@ -2670,9 +3668,23 @@ def test_the_domain_excludes_a_harness_file_that_would_otherwise_be_a_carrier(
     assert guarded_set_problems({"docs/planted.md": carrier}, [], {})[0] == ["docs/planted.md"], (
         "the planted text is not a carrier at all, so excluding it proves nothing"
     )
-    assert [p for p in tracked if p.startswith(OUT_OF_DOMAIN) and p.endswith(".md")], (
+    harness_markdown = [p for p in tracked if p.startswith(OUT_OF_DOMAIN) and p.endswith(".md")]
+
+    assert harness_markdown, (
         "nothing under .claude/ is tracked markdown, so OUT_OF_DOMAIN excludes nothing and "
         "should be deleted rather than left standing as a rule about an empty set"
+    )
+    suppressed = [
+        path
+        for path in harness_markdown
+        if carries_a_citation((REPO_ROOT / path).read_text(encoding="utf-8", errors="replace"))
+    ]
+
+    assert suppressed, (
+        "no tracked harness markdown carries any judged shape, so the exclusion "
+        "suppresses nothing and this arm is a rule about an empty set of pointers. "
+        "That WAS true while every shape needed a separator after the path; if it is "
+        "true again, a shape has stopped matching."
     )
 
 
@@ -3248,6 +4260,693 @@ def test_the_recorded_exemptions_are_the_only_files_the_line_arm_declines(
     )
 
     assert not intruders, f"carriers read from outside the stated boundary: {intruders}"
+
+
+# --- contract 9: CS-891 - the bare path is judged, and each decline is a rule -
+
+#: How many package-relative paths the module map must resolve by suffix before
+#: that arm is measuring the population it describes. A FLOOR rather than a pin:
+#: ten resolve today, and a doc that grows a row should not spend an
+#: adjudication.
+_ARCHITECTURE_SUFFIX_FLOOR: Final = 8
+
+#: How many bare paths this module must spell of its own before the
+#: self-infliction arm's clean answer is worth anything. Measured well above
+#: this when the arm shipped.
+_SELF_SPELLED_FLOOR: Final = 20
+
+#: A leaf name this tree does not carry, for the plants below. ASSEMBLED into a
+#: path at call time by :func:`bare_path`, never spelled whole, so the plant
+#: cannot become a finding this module makes against itself.
+_BARE_PLANT_LEAF: Final = "a-path-this-tree-does-not-carry.md"
+
+
+def _planted_bare(carrier: str, cited: str) -> dict[str, str]:
+    """A one-carrier corpus spelling ``cited`` once, in the shape the arm reads."""
+    return {carrier: f"## Heading\n\nsee `{cited}` for the rule\n"}
+
+
+def test_every_bare_path_in_the_carrier_population_resolves_or_is_recorded(
+    live_bare_path_sites: Sequence[BarePathSite],
+    live_bare_path_ladder: Mapping[str, Sequence[BarePathSite]],
+) -> None:
+    """CS-891's acceptance, on the live tree.
+
+    THE POPULATION IS ASSERTED BEFORE THE ZERO. An `assert not problems` reads
+    identically whether the property holds or whether nothing was measured, and
+    this section has two places the population could silently empty: a pattern
+    that stops matching, and a carrier mapping that arrives empty. So the floor
+    comes first and the emptiness second.
+    """
+    assert len(live_bare_path_sites) >= BARE_PATH_POPULATION_FLOOR, (
+        f"only {len(live_bare_path_sites)} bare-path sites were collected, below the"
+        f" recorded floor of {BARE_PATH_POPULATION_FLOOR}. The shape or the carrier"
+        " population has stopped reading the tree, and the emptiness below would then"
+        " be silence rather than an answer."
+    )
+
+    problems = bare_path_problems(live_bare_path_ladder)
+
+    assert not problems, "bare paths that neither resolve nor carry a reason:\n" + "\n".join(
+        f"  {problem}" for problem in problems
+    )
+
+
+def test_the_bare_path_population_is_the_line_pointer_population(
+    live_bare_path_sites: Sequence[BarePathSite],
+    line_pointer_carriers: Mapping[str, str],
+    tracked: list[str],
+) -> None:
+    """The boundary, asserted rather than described - and in both directions.
+
+    A population that merely SAYS it is the line-pointer one is a sentence. The
+    exclusions are measured non-empty here for the reason the other exclusion
+    contracts measure theirs: a rule about an empty set reads as coverage and
+    is not.
+    """
+    carriers = {site.carrier for site in live_bare_path_sites}
+
+    assert carriers, "no carrier spells a bare path, so the boundary below is vacuous"
+    outside = sorted(carriers - set(line_pointer_carriers))
+    assert not outside, f"bare paths read from outside the line-pointer population: {outside}"
+
+    excluded = [
+        path
+        for path in tracked
+        if path in UNGUARDED_DOCS or path.startswith((DATED_ARCHIVE, OUT_OF_DOMAIN))
+    ]
+    assert excluded, "the recorded exclusions match no tracked file, so excluding them is vacuous"
+    spelled = [
+        path
+        for path in excluded
+        if BARE_PATH_RE.search((REPO_ROOT / path).read_text(encoding="utf-8", errors="replace"))
+    ]
+    assert spelled, (
+        "no excluded file spells a bare path at all, so this arm's exclusion suppresses"
+        " nothing and proves nothing about the boundary"
+    )
+    assert not (carriers & set(excluded)), (
+        f"an excluded file reached the bare-path population: {sorted(carriers & set(excluded))}"
+    )
+
+
+def test_the_bare_path_ladder_answers_every_site_exactly_once(
+    live_bare_path_sites: Sequence[BarePathSite],
+    live_bare_path_ladder: Mapping[str, Sequence[BarePathSite]],
+) -> None:
+    """The distribution is auditable, which is the reason the rungs are named.
+
+    A site that fell out of every bucket, or into two, would leave the totals
+    disagreeing - and a ladder whose buckets do not sum to its input is one
+    where a rung's `continue` has been lost and some population is being judged
+    twice or not at all.
+    """
+    assert sorted(live_bare_path_ladder) == sorted(LADDER_RUNGS), (
+        "the ladder's buckets are not exactly LADDER_RUNGS, so a distribution read "
+        "from it would be silent about a rung that has stopped firing"
+    )
+    answered = sum(len(sites) for sites in live_bare_path_ladder.values())
+
+    assert answered == len(live_bare_path_sites), (
+        f"the ladder answered {answered} sites out of {len(live_bare_path_sites)}"
+    )
+    assert live_bare_path_ladder[RESOLVED_EXACT], (
+        "not one bare path resolved exactly, which no live corpus can be true of"
+    )
+
+
+def test_the_ignore_probe_answers_a_declared_path_and_a_tracked_one() -> None:
+    """R2's subprocess, probed in BOTH directions on the real repository.
+
+    THIS ARM EXISTS BECAUSE THE RUNG FAILS SILENTLY. Under `text=True` on
+    Windows the NUL separator's neighbours are newline-translated on write, git
+    receives a path with a trailing carriage return and answers NOT IGNORED for
+    every one, so R2 reports zero and every declinable site is promoted to a
+    finding needing a reason. Measured: the first run of this ladder under text
+    mode produced a reason table twice the size, which looks entirely
+    plausible. A rung that can stop firing needs a probe that fails when it
+    does, not a reader who notices.
+
+    Both directions, because "everything is ignored" is as broken as "nothing
+    is" and an arm asserting only the first would pass on it.
+
+    A DECLARED PATH AT BOTH ENDS OF THE BATCH, AND THAT WAS MEASURED RATHER
+    THAN REASONED ABOUT. The first build of this arm probed one declared path
+    and one tracked one, and a mutant that appended a carriage return to the
+    LAST element of the batch SURVIVED it - the mangled element was the tracked
+    path, whose answer the arm did not depend on. A separator fault can land on
+    the first element, the last, or all of them, so the batch carries a
+    declared path at both ends and asserts BOTH come back.
+    """
+    first = bare_path("data", "planted.json")
+    last = bare_path("data", "planted-too.json")
+
+    answered = declares_untracked([first, "CLAUDE.md", last])
+
+    missed = sorted({first, last} - answered)
+
+    assert not missed, (
+        f"git did not report {missed} as ignored, though they sit under the"
+        " generated-artifacts directory. Either the separator reached git mangled - the"
+        " CRLF fault this arm exists for - or the repository has stopped declaring that"
+        " directory untracked."
+    )
+    assert "CLAUDE.md" not in answered, (
+        "git reported a tracked, unignored file as ignored, so this rung would decline"
+        " every citation put to it"
+    )
+
+
+def test_the_architecture_module_map_resolves_by_unique_suffix_not_by_reporting(
+    live_bare_path_ladder: Mapping[str, Sequence[BarePathSite]],
+) -> None:
+    """TRAP 2, IN THIS ARM, AND R1 IS THE ANSWER TO IT.
+
+    `docs/ARCHITECTURE.md` writes a module map whose paths are relative to a
+    package root stated in the surrounding table. Resolving them repo-relative
+    and calling them missing would report a heap of absences that are artifacts
+    of the reader - the same fault that made a census report six dead targets
+    of which all six were artifacts. A unique suffix hit at a segment boundary
+    answers them without guessing, and the ambiguous case is refused rather
+    than resolved.
+
+    ASSERTED ON THE LIVE DOC rather than on a plant, because the claim is about
+    this corpus: that the arm's findings here are the three planned modules and
+    nothing else.
+    """
+    doc = "docs/ARCHITECTURE.md"
+    by_suffix = [site for site in live_bare_path_ladder[RESOLVED_SUFFIX] if site.carrier == doc]
+    unanswered = [
+        site
+        for rung in (AMBIGUOUS_SUFFIX, UNRESOLVED)
+        for site in live_bare_path_ladder[rung]
+        if site.carrier == doc
+    ]
+
+    assert len(by_suffix) >= _ARCHITECTURE_SUFFIX_FLOOR, (
+        f"only {len(by_suffix)} package-relative paths in the module map resolved by"
+        " suffix, so this arm is not measuring the population it describes"
+    )
+    assert not unanswered, "module-map paths the ladder could not answer:\n" + "\n".join(
+        f"  {site.cited} under {site.anchor}" for site in unanswered
+    )
+
+
+@pytest.mark.parametrize("doc", GUARDED_DOCS)
+def test_the_bare_path_arm_has_teeth_on_every_guarded_doc(
+    doc: str, tracked: list[str], live_declared_untracked: frozenset[str]
+) -> None:
+    """Every guarded doc is REACHED, measured per doc rather than assumed.
+
+    Modelled on the bare-identifier arm's teeth for its reason: a passing arm
+    reads the same on a doc that is clean and on a doc nobody looked at, and
+    this module has already shipped one arm hardcoded to a single file while
+    its siblings were parametrized.
+
+    The plant is in memory. Nothing is written to a tracked doc.
+    """
+    dead = bare_path("docs", _BARE_PLANT_LEAF)
+    planted = scoped_text(doc, doc_text(doc)) + f"\n\nVerification: `{dead}`.\n"
+
+    answered = bare_path_ladder(
+        bare_path_sites({doc: planted}), tracked, live_declared_untracked, BARE_PATH_REASONS
+    )
+
+    assert [site.cited for site in answered[UNRESOLVED]] == [dead], (
+        f"a dead bare path planted in {doc} was not the single finding, so the arm "
+        "does not reach this doc or the doc already carries another"
+    )
+    assert answered[AMBIGUOUS_SUFFIX] == [], f"{doc} carries an ambiguous suffix as well"
+
+
+def test_a_planted_dead_bare_path_is_reported_and_the_same_path_resolves_once_tracked() -> None:
+    """The control, on a corpus with no filesystem behind it.
+
+    Both directions in one arm, because an arm that only reddens proves the
+    subject can speak and not that it is answering the question asked.
+    """
+    dead = bare_path("docs", _BARE_PLANT_LEAF)
+    corpus = _planted_bare(_SYNTHETIC_DOC, dead)
+
+    missing = bare_path_ladder(bare_path_sites(corpus), [LEDGER], (), {})
+    problems = bare_path_problems(missing)
+
+    assert len(problems) == 1, f"a planted dead bare path was not the single finding: {problems}"
+    assert dead in problems[0]
+
+    present = bare_path_ladder(bare_path_sites(corpus), [LEDGER, dead], (), {})
+
+    assert bare_path_problems(present) == [], "the same path was still reported once tracked"
+    assert len(present[RESOLVED_EXACT]) == 1
+
+
+def test_an_ambiguous_suffix_is_reported_rather_than_resolved() -> None:
+    """R1's teeth: EXACTLY ONE hit resolves, more than one is a finding.
+
+    Without this leg R1 is a laundering route - "the reader guessed" would be
+    recorded as "the citation resolved", and a citation matching two tracked
+    files names neither.
+    """
+    tail = bare_path("data", "registry.py")
+    corpus = _planted_bare(_SYNTHETIC_DOC, tail)
+    sites = bare_path_sites(corpus)
+    one = bare_path("clockspeed", "data", "registry.py")
+    other = bare_path("shell", "data", "registry.py")
+
+    unique = bare_path_ladder(sites, [one], (), {})
+
+    assert len(unique[RESOLVED_SUFFIX]) == 1, "a unique suffix hit did not resolve"
+    assert bare_path_problems(unique) == []
+
+    ambiguous = bare_path_ladder(sites, [one, other], (), {})
+    problems = bare_path_problems(ambiguous)
+
+    assert len(ambiguous[AMBIGUOUS_SUFFIX]) == 1, "a second suffix hit was still resolved"
+    assert len(problems) == 1, f"an ambiguous suffix was not the single finding: {problems}"
+    assert "more than one tracked path" in problems[0]
+
+
+def test_a_dead_path_is_declined_only_when_the_repo_declares_it_untracked() -> None:
+    """R2's teeth, in both directions, with the declaration injected.
+
+    The rung must not swallow a genuinely dead path. Injecting the answer
+    rather than shelling out is what lets the negative half exist at all: there
+    is no path that git can be relied on to call ignored and unignored at once.
+    """
+    dead = bare_path("config", "planted.json")
+    sites = bare_path_sites(_planted_bare(_SYNTHETIC_DOC, dead))
+    owned = [bare_path("config", "ports.json")]
+
+    declared = bare_path_ladder(sites, owned, [dead], {})
+
+    assert len(declared[DECLARED_UNTRACKED]) == 1, "a declared-untracked path was not declined"
+    assert bare_path_problems(declared) == []
+
+    undeclared = bare_path_ladder(sites, owned, (), {})
+
+    assert undeclared[DECLARED_UNTRACKED] == []
+    assert len(bare_path_problems(undeclared)) == 1, (
+        "a dead path the repo does NOT declare untracked was swallowed by the ignore rung"
+    )
+
+
+def test_a_dead_path_is_declined_only_when_its_root_is_one_this_repo_does_not_own() -> None:
+    """R3's teeth, in both directions.
+
+    The rung answers a path whose ROOT this repository does not own - a
+    metasyntactic example, or a fragment relative to something else. A dead
+    path under a root the repo DOES own must fall through to the report.
+    """
+    owned_root = [bare_path("docs", "LEDGER.md")]
+    invented = bare_path("nowhere", "planted.py")
+    owned = bare_path("docs", "planted.py")
+
+    outside = bare_path_ladder(
+        bare_path_sites(_planted_bare(_SYNTHETIC_DOC, invented)), owned_root, (), {}
+    )
+
+    assert len(outside[UNTRACKED_ROOT]) == 1, "a path under an invented root was not declined"
+    assert bare_path_problems(outside) == []
+
+    inside = bare_path_ladder(
+        bare_path_sites(_planted_bare(_SYNTHETIC_DOC, owned)), owned_root, (), {}
+    )
+
+    assert inside[UNTRACKED_ROOT] == []
+    assert len(bare_path_problems(inside)) == 1, (
+        "a dead path under a root this repo owns was swallowed by the root rung"
+    )
+
+
+def test_a_dead_path_is_declined_in_a_fixture_literal_and_reported_in_a_docstring() -> None:
+    """R4's teeth, in both directions, and it is what makes the rung a RULE.
+
+    The same dead path, the same carrier, the same line - one inside a
+    non-docstring string literal, one inside a docstring. AST-decidable, so the
+    rung is not reading the sentence and guessing at intent; it is asking
+    whether the site is data the module operates on or the author talking.
+    """
+    dead = bare_path("docs", _BARE_PLANT_LEAF)
+    owned_root = [bare_path("docs", "LEDGER.md")]
+    fixture = f'CORPUS = {{"note": "see `{dead}` here"}}\n'
+    prose = f'"""See `{dead}` here."""\n'
+
+    data = bare_path_ladder(bare_path_sites({_SYNTHETIC_MODULE: fixture}), owned_root, (), {})
+
+    assert len(data[FIXTURE_LITERAL]) == 1, "a fixture path in a non-docstring literal was judged"
+    assert bare_path_problems(data) == []
+
+    authored = bare_path_ladder(bare_path_sites({_SYNTHETIC_MODULE: prose}), owned_root, (), {})
+
+    assert authored[FIXTURE_LITERAL] == []
+    assert len(bare_path_problems(authored)) == 1, (
+        "the identical path in a DOCSTRING was declined, so the rung answers author "
+        "prose and not only the data a module feeds itself"
+    )
+
+
+#: The leaf name the five originally filed citations spelled. It has never
+#: existed in this repository - the lesson it named lives under another leaf -
+#: so the five were wrong when written rather than rotted since.
+_FILED_BARE_PATH_LEAF: Final = "pooled-guard-hides-its-worst-member.md"
+
+#: The five sites, as carriers and how many each spelled. Reconstructed rather
+#: than cited, for the reason the CS-889 acceptance control gives about its own
+#: five: an earlier slice REPAIRED them, so "the arm is green on the five filed
+#: instances" is unrunnable as written and "the arm reports them" has to build
+#: them again.
+_FILED_BARE_PATH_CARRIERS: Final = (
+    ("tests/test_chained_cause_census.py", 4),
+    ("tests/test_handler_exception_rendering.py", 1),
+)
+
+
+def test_each_of_the_five_originally_filed_bare_paths_is_reported(tracked: list[str]) -> None:
+    """THE ACCEPTANCE CONTROL, and the arm that grades a repair nothing graded.
+
+    Five citations named a memory leaf this repository has never carried, and a
+    slice repointed all five at the leaf that owns the lesson. NOTHING IN THE
+    SUITE GRADED THAT REPAIR: the tree was green before it and green after it,
+    because no shape read a bare path. This is that arm, on a reconstruction.
+
+    BOTH SPELLINGS, WHICH IS WHAT MAKES IT A GRADE RATHER THAN A PLANT. The
+    same five sites carry the old name and then the new one: five findings, then
+    none. An arm that only reddened on the old name would prove the shape works
+    and say nothing about whether the repair was the right one.
+    """
+    dead = bare_path("memory", _FILED_BARE_PATH_LEAF)
+    repaired = bare_path("memory", "a-guard-can-be-green-by-accident.md")
+
+    def corpus(cited: str) -> dict[str, str]:
+        return {
+            carrier: '"""The filed sites, reconstructed.\n\n'
+            + "".join(f"Site {number}: `{cited}`.\n" for number in range(count))
+            + '"""\n'
+            for carrier, count in _FILED_BARE_PATH_CARRIERS
+        }
+
+    assert repaired in tracked, (
+        "the leaf the five were repointed at is not tracked, so the green half below "
+        "would be measuring the wrong thing"
+    )
+    how_many = sum(count for _carrier, count in _FILED_BARE_PATH_CARRIERS)
+    filed = bare_path_ladder(bare_path_sites(corpus(dead)), tracked, (), {})
+
+    assert len(filed[UNRESOLVED]) == how_many, (
+        f"the {how_many} filed bare paths were not all reported: {filed[UNRESOLVED]}"
+    )
+    assert len(bare_path_problems(filed)) == how_many
+
+    fixed = bare_path_ladder(bare_path_sites(corpus(repaired)), tracked, (), {})
+
+    assert len(fixed[RESOLVED_EXACT]) == how_many, (
+        "the repaired spelling did not resolve at every filed site"
+    )
+    assert bare_path_problems(fixed) == []
+
+
+def test_a_recorded_quoting_site_is_forgiven_and_the_same_text_without_the_record_is_reported() -> (
+    None
+):
+    """CONJUNCT B2: green on prose that DISCUSSES a dead path rather than citing one.
+
+    Trap 4 in this arm. A record whose evidence is that a path was deliberately
+    NOT created cites the absent name on purpose, and reporting it would punish
+    the record for being right. Both directions in ONE arm, because the green
+    half on its own is indistinguishable from an arm that has stopped speaking:
+    the identical text without the record must report.
+    """
+    absent = bare_path("docs", "item_notes", "README.md")
+    corpus = {_SYNTHETIC_DOC: f"## Decision\n\nThe family gets no `{absent}` at all.\n"}
+    sites = bare_path_sites(corpus)
+    identity = (_SYNTHETIC_DOC, absent, "## Decision")
+
+    assert [site.identity for site in sites] == [identity], (
+        f"the plant did not produce the identity the record is keyed on: {sites}"
+    )
+    recorded = bare_path_ladder(
+        sites, [LEDGER], (), {identity: BarePathReason("quoted, not cited", 1)}
+    )
+
+    assert len(recorded[RECORDED_REASON]) == 1
+    assert bare_path_problems(recorded) == [], "a recorded quoting site was still reported"
+
+    unrecorded = bare_path_ladder(sites, [LEDGER], (), {})
+
+    assert len(bare_path_problems(unrecorded)) == 1, (
+        "the same prose without the record was ALSO green, so the forgiveness above "
+        "is silence rather than a record doing work"
+    )
+
+
+# --- contract 10: CS-891 - the bare-path escape hatch must ratchet too -------
+
+
+def test_the_bare_path_reason_budget_is_spent_exactly_and_cannot_grow() -> None:
+    """THE RATCHET, on the live table, and it is SEPARATE from the line-pointer one.
+
+    CS-889's round-one defect was an arm whose every finding could be silenced
+    by appending to a table. That was repaired for line pointers and the repair
+    did NOT generalise: a bare-path key spends nothing in
+    :func:`forgiveness_budget_problems`, because that function counts only keys
+    matching :data:`LINE_POINTER_RE`. A bare-path forgiveness would have been
+    silenceable the day it shipped.
+    """
+    problems = bare_path_budget_problems(BARE_PATH_REASONS, BARE_PATH_REASON_CEILING)
+
+    assert not problems, "\n".join(problems)
+
+
+def test_appending_a_bare_path_reason_is_itself_a_finding() -> None:
+    """The adversary's move, against a synthetic budget."""
+    identity = (_SYNTHETIC_DOC, bare_path("docs", _BARE_PLANT_LEAF), "## Heading")
+    table = {identity: BarePathReason("adjudicated", 1)}
+
+    assert bare_path_budget_problems(table, 1) == []
+
+    appended = dict(table)
+    appended[(_SYNTHETIC_DOC, bare_path("docs", "another-absent.md"), "## Heading")] = (
+        BarePathReason("looks plausible and answers nothing", 1)
+    )
+    problems = bare_path_budget_problems(appended, 1)
+
+    assert len(problems) == 1, "appending a bare-path reason was absorbed by the budget"
+    assert "2 bare-path reasons recorded against a ceiling of 1" in problems[0]
+
+
+def test_a_bare_path_ceiling_left_slack_after_a_repair_is_reported() -> None:
+    """Slack is banked room for an append nobody has to defend."""
+    problems = bare_path_budget_problems({}, 2)
+
+    assert len(problems) == 1, "a slack bare-path ceiling was accepted"
+    assert "Lower it to 0" in problems[0]
+
+
+def test_every_recorded_bare_path_reason_still_answers_the_sites_it_records(
+    live_bare_path_ladder: Mapping[str, Sequence[BarePathSite]],
+) -> None:
+    """The table against the corpus, in the three directions it can drift."""
+    problems = bare_path_reason_problems(live_bare_path_ladder, BARE_PATH_REASONS)
+
+    assert not problems, "BARE_PATH_REASONS no longer matches the corpus:\n" + "\n".join(
+        f"  {problem}" for problem in problems
+    )
+
+
+def test_a_compensating_swap_in_the_bare_path_reasons_is_reported_in_both_directions() -> None:
+    """CS-893, ANSWERED RATHER THAN COPIED.
+
+    That item is filed against this module because :attr:`Disposition.sites` is
+    a bare count: delete one recorded site and add an unrelated one in the same
+    edit, and the cardinality is unchanged and the swap is silent. The table
+    below is keyed on an IDENTITY, so the same edit fails twice - the added
+    entry answers nothing and the removed one is reported.
+
+    THE CARDINALITY IS ASSERTED EQUAL, so the arm is a statement about the KEY
+    rather than about the size of the edit.
+    """
+    carrier = _SYNTHETIC_DOC
+    cited = bare_path("docs", _BARE_PLANT_LEAF)
+    elsewhere = bare_path("docs", "another-absent.md")
+    sites = bare_path_sites({carrier: f"## Heading\n\nsee `{cited}` here\n"})
+    honest = {(carrier, cited, "## Heading"): BarePathReason("adjudicated", 1)}
+    swapped = {(carrier, elsewhere, "## Heading"): BarePathReason("adjudicated", 1)}
+
+    assert len(swapped) == len(honest), "the swap changed the table's size, so it is not one"
+
+    good = bare_path_ladder(sites, [LEDGER], (), honest)
+
+    assert bare_path_reason_problems(good, honest) == []
+    assert bare_path_problems(good) == []
+
+    bad = bare_path_ladder(sites, [LEDGER], (), swapped)
+
+    assert len(bare_path_reason_problems(bad, swapped)) == 1, (
+        "the swapped-IN entry answers no site and was not reported stale"
+    )
+    assert len(bare_path_problems(bad)) == 1, (
+        "the swapped-OUT site is no longer forgiven and was not reported"
+    )
+
+
+@pytest.mark.parametrize(
+    ("rung", "pinned"),
+    [
+        (DECLARED_UNTRACKED, DECLINED_AS_DECLARED_UNTRACKED),
+        (UNTRACKED_ROOT, DECLINED_UNDER_AN_UNTRACKED_ROOT),
+        (FIXTURE_LITERAL, DECLINED_AS_A_FIXTURE_LITERAL),
+    ],
+)
+def test_every_bare_path_decline_rung_is_disclosed_in_both_directions(
+    rung: str,
+    pinned: Mapping[tuple[str, str, str], int],
+    live_bare_path_ladder: Mapping[str, Sequence[BarePathSite]],
+) -> None:
+    """Each rung's price, PINNED rather than described.
+
+    A decline is invisibility bought for a reason. Naming the reason in prose
+    costs nothing and proves nothing; pinning the sites means an append
+    DISAGREES with what the ladder derives and reddens, so the table cannot be
+    used to buy silence. That is :data:`UNFORBIDDEN_LINE_POINTERS`' shape, and
+    it is what separates a disclosure from a permission list.
+    """
+    assert pinned, f"{rung} discloses nothing, so this arm measures an empty set"
+
+    problems = pinned_rung_problems(live_bare_path_ladder, rung, pinned)
+
+    assert not problems, f"the {rung} disclosure disagrees with the corpus:\n" + "\n".join(
+        f"  {problem}" for problem in problems
+    )
+
+
+def test_appending_to_a_decline_disclosure_is_itself_a_finding() -> None:
+    """All three ways a disclosure can drift, on a corpus of one site."""
+    site = BarePathSite(_SYNTHETIC_DOC, bare_path("nowhere", "x.py"), 3, 5, "## Heading", False)
+    answered: dict[str, list[BarePathSite]] = {rung: [] for rung in LADDER_RUNGS}
+    answered[UNTRACKED_ROOT] = [site]
+    other = (_SYNTHETIC_DOC, bare_path("nowhere", "y.py"), "## Heading")
+
+    assert pinned_rung_problems(answered, UNTRACKED_ROOT, {site.identity: 1}) == []
+
+    appended = pinned_rung_problems(answered, UNTRACKED_ROOT, {site.identity: 1, other: 1})
+    assert len(appended) == 1, f"an appended disclosure entry was absorbed: {appended}"
+    assert "no longer declines it" in appended[0]
+
+    undisclosed = pinned_rung_problems(answered, UNTRACKED_ROOT, {})
+    assert len(undisclosed) == 1, f"an undisclosed decline was absorbed: {undisclosed}"
+    assert "is not disclosed" in undisclosed[0]
+
+    drifted = pinned_rung_problems(answered, UNTRACKED_ROOT, {site.identity: 2})
+    assert len(drifted) == 1, f"a drifted spelling count was absorbed: {drifted}"
+    assert "spelling(s)" in drifted[0]
+
+
+def module_containers() -> dict[str, object]:
+    """Every container this module holds at module scope, by name.
+
+    DERIVED FROM THE MODULE rather than listed, for the reason
+    :data:`JUDGED_SHAPES`' membership contract is derived: a hand-written list
+    of tables is exactly what lets the SIXTH one arrive unbounded.
+    """
+    return {
+        name: value
+        for name, value in globals().items()
+        if name.isupper() and isinstance(value, (Mapping, AbstractSet, tuple, list))
+    }
+
+
+def test_every_container_this_module_holds_is_bounded_or_recorded_as_forgiving_nothing() -> None:
+    """CLOSING THE CLASS, NOT THE INSTANCE.
+
+    Three consecutive repairs to this module reproduced their own filed fault
+    one level up: a hole is found, the instance is fixed, and the next table of
+    the same shape arrives with nothing counting it. So the question is not
+    "are these tables bounded", it is "does anything this module holds sit
+    outside both registries". A sixth escape hatch is RED until somebody
+    answers for it, one way or the other.
+    """
+    containers = module_containers()
+
+    assert containers, (
+        "this module holds no module-scope container, so the derivation below reads "
+        "an empty set and would pass whatever went uncounted"
+    )
+    unanswered = sorted(
+        name
+        for name in containers
+        if name not in FORGIVENESS_TABLES and name not in NOT_A_FORGIVENESS
+    )
+    assert not unanswered, (
+        "module-scope containers that neither ratchet nor record why they forgive nothing:\n"
+        + "\n".join(f"  {name}" for name in unanswered)
+        + "\nBound it in FORGIVENESS_TABLES, or say in NOT_A_FORGIVENESS why it forgives nothing."
+    )
+    both = sorted(set(FORGIVENESS_TABLES) & set(NOT_A_FORGIVENESS))
+    assert not both, f"registered as both a forgiveness and not one: {both}"
+
+    registered = set(FORGIVENESS_TABLES) | set(NOT_A_FORGIVENESS)
+    stale = sorted(name for name in registered if name not in containers)
+    assert not stale, f"registered names this module no longer holds: {stale}"
+
+
+def test_every_bounded_table_names_a_contract_that_exists_and_every_exemption_a_reason() -> None:
+    """The registries' own shape, so an entry cannot be a name with no case behind it.
+
+    THE CEILING OF THIS MECHANISM, STATED: a false sentence in
+    :data:`NOT_A_FORGIVENESS` still silences the walk. What it removes is doing
+    it SILENTLY - the entry sits in the diff as a claim somebody has to defend,
+    which is exactly what the line-pointer budget claims for itself and no more.
+    """
+    for table, contract in sorted(FORGIVENESS_TABLES.items()):
+        bound = globals().get(contract)
+        assert callable(bound), f"{table} names {contract}, which this module does not define"
+        assert contract.startswith("test_"), f"{table} is bounded by {contract}, not a contract"
+    for table, why in sorted(NOT_A_FORGIVENESS.items()):
+        assert why.strip(), f"{table} is recorded as forgiving nothing and states no reason"
+
+
+def test_the_module_spells_no_unresolving_bare_path_of_its_own(
+    live_bare_path_sites: Sequence[BarePathSite],
+    live_bare_path_ladder: Mapping[str, Sequence[BarePathSite]],
+    tracked: list[str],
+    live_declared_untracked: frozenset[str],
+) -> None:
+    """THE LIKELIEST OWN GOAL, measured rather than reasoned about.
+
+    Any path spelled in this module is read by this module's own arm.
+    :func:`line_key` exists for the same hazard one shape over, and this file
+    ALREADY spelled a metasyntactic corpus member in its own prose before the
+    arm could see it - which is why that site is in the reason table rather
+    than in this arm's silence.
+
+    THE THIRD LEG IS WHAT MAKES THE SECOND MEAN ANYTHING. Re-running this
+    module's own sites with an EMPTY reason table must report, so the clean
+    answer above is bought by a record somebody wrote and not by an arm that
+    has stopped reading this file.
+    """
+    mine = [site for site in live_bare_path_sites if site.carrier == THIS_MODULE]
+
+    assert len(mine) >= _SELF_SPELLED_FLOOR, (
+        f"this module spells only {len(mine)} bare paths, so the arm has stopped "
+        "reading its own source and the emptiness below is silence"
+    )
+    unanswered = [
+        site
+        for rung in (AMBIGUOUS_SUFFIX, UNRESOLVED)
+        for site in live_bare_path_ladder[rung]
+        if site.carrier == THIS_MODULE
+    ]
+
+    assert not unanswered, "this module spells bare paths of its own that do not resolve:\n" + (
+        "\n".join(f"  {site.cited} at line {site.line}" for site in unanswered)
+    )
+
+    unrecorded = bare_path_ladder(mine, tracked, live_declared_untracked, {})
+
+    assert unrecorded[UNRESOLVED], (
+        "with no reason table at all this module still reports nothing about itself, "
+        "so the clean answer above is not bought by the record"
+    )
 
 
 def test_this_test_module_is_seven_bit_ascii() -> None:
