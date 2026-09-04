@@ -35,8 +35,8 @@ const endpoint = require("../lib/endpoint.js");
 
 // Planted in every temporary directory name so a refusal that quotes the path
 // it refused can be caught by searching for a string nothing else would emit.
-// `tests/surface/test_server.py:96` plants `zqxjcanary601s2` for the identical
-// reason; this is that idiom, namespaced to this slice.
+// `tests/surface/test_server.py::CANARY` plants `zqxjcanary601s2` for the
+// identical reason; this is that idiom, namespaced to this slice.
 const CANARY = "zqxjcanary602s1";
 
 // Ports used by the fixtures. DELIBERATELY OUTSIDE THE ALLOCATED BAND that
@@ -110,9 +110,10 @@ test("the module source spells no absolute path and reaches for no home", () => 
 //
 // `config/ports.json` is the single owner of the numbers (CLAUDE.md section 4)
 // and CS-604 is open on the fault of a second copy appearing in a tracked
-// file. `tests/surface/test_config.py:223` sweeps the Python module for the
-// same fault; this is that sweep over the JavaScript seam. The band is READ
-// FROM THE RECORD - typing it here would be the very fault being swept for.
+// file. `tests/surface/test_config.py::test_the_module_source_spells_no_port_in_the_allocated_band`
+// sweeps the Python module for the same fault; this is that sweep over the
+// JavaScript seam. The band is READ FROM THE RECORD - typing it here would be
+// the very fault being swept for.
 
 function allocatedBand() {
   const payload = JSON.parse(

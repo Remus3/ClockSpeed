@@ -298,8 +298,8 @@ files = ["clockspeed", "scripts", "tests", "tools"]
 # the moment tools/ joined the list above, because two tools import it as a
 # top-level module - a resolution path CS-411 created by making scripts/ a
 # source base dir:
-#     tools/drift_guard.py:312    import verify_env
-#     tools/facts_probe.py:121    import verify_env
+#     tools/drift_guard.py::_load_verify_env    import verify_env
+#     tools/facts_probe.py::_build_string       import verify_env
 # Measured on this tree before the deletion: appending "tools" to `files` gave
 # 9 errors in 5 files WITH the key and 9 in 5 WITHOUT it - identical, because
 # all 5 of verify_env.py's own came back through that import either way.
@@ -391,11 +391,12 @@ show_error_codes = true
 # import failure makes a whole run vacuous. So the two stub-less modules the
 # TOOLCHAIN imports are named here one by one rather than that global loosened.
 #
-#   ruff  tools/precommit_gate.py:1189 imports it to lint staged lines. It is
-#         installed, and ships no py.typed marker  ->  import-untyped.
-#   yaml  tools/edit_lint_check.py:72 imports it. No bundled stubs; mypy's
-#         suggested remedy is a types-PyYAML dependency, and this project does
-#         not take a dependency to type-check a hook helper.
+#   ruff  tools/precommit_gate.py::ruff_command imports it to locate the ruff
+#         that lints staged lines. It is installed, and ships no py.typed
+#         marker  ->  import-untyped.
+#   yaml  tools/edit_lint_check.py::check_yaml imports it. No bundled stubs;
+#         mypy's suggested remedy is a types-PyYAML dependency, and this
+#         project does not take a dependency to type-check a hook helper.
 #
 # THIS BLOCK IS WHAT BROUGHT A FROZEN FILE INSIDE THE GATE WITH NO EDIT TO IT.
 # tools/precommit_gate.py is frozen under CLAUDE.md section 6, and its only

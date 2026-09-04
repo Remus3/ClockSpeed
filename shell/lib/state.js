@@ -22,9 +22,10 @@
 // .partial sibling, flushed, and renamed into place. A reader therefore sees
 // either the previous file or the new one, never a half written one. The
 // bounded rename retry matches the idiom already used at
-// clockspeed/save/workdir.py:629-639 - on Windows a scanner or an indexer can
-// hold a handle on a file closed microseconds ago, and the rename then fails
-// with a sharing violation that a short retry turns into a completed write.
+// clockspeed/save/workdir.py::_replace_with_retry - on Windows a scanner or an
+// indexer can hold a handle on a file closed microseconds ago, and the rename
+// then fails with a sharing violation that a short retry turns into a
+// completed write.
 
 const fs = require("node:fs");
 const path = require("node:path");
