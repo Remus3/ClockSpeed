@@ -451,6 +451,65 @@ measurement had been taken. That is this item's own file-count-as-independence-c
 displaced from the data onto the record of the data. The next session that opens this item
 establishes payload-level independence FIRST, or writes down plainly that it did not.
 
+**STATUS 2026-09-03 (session 59): THE UNBLOCKING CONDITION IS MEASURED AND MET. PAYLOAD
+INDEPENDENCE IS ESTABLISHED AT n = 9. THE DRAIN HALF IS WORKABLE. THE ITEM IS NOT CLOSED
+AND NOTHING BELOW CLOSES IT.** The three status blocks above each ask for one thing - that
+payload-level independence be established with the object walk before the DRAIN half is
+treated as workable - and each records that it was not done. It is now done. Measured
+read-only, counts only, from a probe reporting no path, no name and no save byte, using
+this repo's own chunk walk and object parse rather than a new parser.
+
+**WHAT WAS MEASURED, AND WHY IT IS NOT THE FILE COUNT THIS ENTRY KEEPS WARNING ABOUT.**
+The pair now holds NINE files. All nine carry a DISTINCT property-region digest, which is
+a statement about the region the grammar question lives in and not about the file. The
+tightest available control is the last four: they share an identical record count and an
+identical class count, so record growth cannot explain their divergence, and every pair of
+them still diverges on between 112 and 138 records. The earliest divergence inside the
+property tag region sits 44 bytes in, spread across 17 to 35 distinct classes and 34 to 58
+distinct offsets, on both actor and component kinds. Header metadata occupies offsets 12
+to 30 and is not in the region measured. 505 record identities carry more than one
+distinct payload across 51 classes. **This is the independence count the entry asked for,
+not a file count wearing its name.**
+
+**FIVE FACTS IN THE BLOCKS ABOVE ARE NOW STALE, AND THE LOUDEST ONE WAS BEING CARRIED
+FORWARD BETWEEN SESSIONS AS A LIVE OBSTACLE.** The session-53 block says a 120-byte run at
+the tail of the body is unmodeled by the walk and is why
+`tests/save/test_objects.py::test_every_real_save_of_a_measured_pair_walks_to_the_end_of_its_body`
+is red on this machine. **THAT TEST PASSES.** CS-867 closed on 2026-08-31 and modeled the
+run - the record is in `docs/LEDGER.md` - and the walk now consumes the body exactly, with
+zero unreached records and zero unwalked tail bytes on all nine files. The run is still
+real and still sits outside every record extent, so it never enters the payload
+measurement, but it is neither unmodeled nor an obstacle. The count of eight is now nine.
+The denominator of 1832 payloads is now 23244. The claim that the two files of the pair are
+one observation and that n = 1 is a CEILING was true of the two-file state and is refuted
+as a description of the present library: n went 1 to 9 by exactly the mechanism the entry
+predicted would not help, which is the operator playing the world forward.
+
+**THE REFUSAL IS UNCHANGED AND THAT IS THE POINT OF THE PREP HARNESS.** Zero of 23244
+payloads reach a property terminator, against zero of 1832 before.
+`tests/save/test_properties.py::test_save_60_refuses_the_grammar_the_other_pairs_accept`
+still passes, pinning the refusal as a negative result. Twelve times the material and the
+same answer is a stronger negative than the one this entry was written on, not a weaker
+one - the grammar was never going to fall out of more saves, and the entry said so.
+
+**THE CAVEAT, STATED BEFORE ANYONE BUILDS ON THE NUMBER.** All nine files are ONE world
+played forward. This is a longitudinal series, not nine independent worlds, so n = 9 is a
+BYTE-LEVEL independence count and not a count of independent world generations. The
+grammar-shape material is better described by the class population, which rises from 62
+distinct classes in the earliest file to 111 in the latest. A drain that needs independent
+WORLD generation still needs more play; a drain that needs varied property payloads does
+not, and that is the drain this gate blocks.
+
+**WHAT THIS DOES NOT DO.** It does not close CS-G05, it does not clear CS-829, and it does
+not write an acceptance clause for the drain. The gate's external condition is met; the
+work behind it is unstarted, which is a different state and belongs in a different file
+under the topology in CLAUDE.md section 4. Routing it - deciding whether CS-G05 stays here
+with its DRAIN half open or is replaced by an open item carrying a derived acceptance
+clause, and what that does to CS-829 - is a decomposition question that was deliberately
+NOT improvised inside this status block. Filing a clause here to make the entry look
+finished is the synthetic closure this file's own rule forbids, one level up.
+
+
 ---
 
 ### CS-829 - StructProperty's interior, gated behind CS-G05
