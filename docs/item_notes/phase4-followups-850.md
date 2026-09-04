@@ -1650,6 +1650,12 @@ was the outlier, not the baseline. There is no measurable slowdown attributable 
 59's commits, and the sentence "main has no green CI" below was true when written and is
 now false.
 
+**THIRD DATA POINT, TAKEN AFTER THE CORRECTION ABOVE WAS WRITTEN.** The final SHA of session
+59, `5897573`, ran **9m18s SUCCESS - forty-two seconds under the cutoff**. So three runs over
+two near-identical trees give: cancelled past 10m, 8m29s, and 9m18s. A spread of roughly two
+minutes against a margin that begins at about a minute and a half. The range is now measured
+rather than inferred, and it is WIDER than the headroom.
+
 **THE REAL FINDING IS SHARPER FOR IT, AND THE ACCEPTANCE CLAUSE IS UNCHANGED.** The same
 tree took over 10m and 8m29s on two runs. That is roughly 1.5 minutes of RUNNER VARIANCE
 against a margin of about 1.5 minutes. The lane is not drifting toward its cutoff - it is
