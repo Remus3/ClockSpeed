@@ -25,6 +25,61 @@ Where current truth actually lives:
 
 ---
 
+## CS-888 - item section, closed and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-03
+
+### NOTE - filed 2026-09-03 (session 57) by the merger, MEASURED BY AN ADVERSARY, EXECUTED
+
+**DEFERRAL IS PROVEN BY IMPORT ALONE, AND THAT IS A CLEARANCE ANY IMPORT CAN BUY.**
+`tests/chained_exemption_guard.py` requires every module that statically reads a raise's
+`cause` field to be the owner, defer to the owner, be recorded, or be a finding. Deferral is
+decided by `defers_to_owner`, which asks only whether the module imports the census.
+
+**MEASURED, NOT READ.** CS-880 added `from tests.chained_cause_guard import FORM_EXPLICIT,
+FORM_SUPPRESSED, Site` - three constants and a dataclass, none of which returns a chaining
+verdict. The immune set went from FOUR modules to SIX. An adversary appended an identical
+static cause read to `tests/exception_message_guard.py` in a copy of each tree and ran the
+live arm: RED at 528d5b6 naming the planted line, GREEN at 55e7b75. Coverage was lost and
+nothing in the tree can see it.
+
+**FIVE OF THE SIX IMMUNE MODULES READ NO `cause` FIELD AT ALL**, so they hold unused
+immunity. Nothing pins the set, so a seventh is free.
+
+**THE MERGER CAUSED THIS AND SAYS SO.** The session-57 brief MANDATED the import, because the
+alternative - an `EXEMPT` entry in `tests/chained_exemption_guard.py` - was on no slice's
+write-list. That was a decomposition error. The import is still the better of the two
+available routes: removing it makes the module an UNRECORDED adjudicator, which is worse.
+**DO NOT "FIX" THIS BY DELETING CS-880's IMPORT.**
+
+**THE FENCE.** The repair is about what EARNS immunity, not about who currently holds it. A
+narrower rule that reports more is the correct direction here - `memory/a-guard-can-measure-
+spelling.md` records that an over-proving guard costs a reader the belief that they need to
+look at all.
+
+### MEASURED 2026-09-03 (session 58) by the merger, EXECUTED, NO FILE WRITES
+
+**THE DEFECT REPRODUCES ON THE CURRENT TREE AND THE HARNESS NEEDS NO WORKTREE.**
+`adjudicators_in_sources` takes a sources MAPPING, so a plant is passed in memory and
+nothing is written to disk. Appending the same four lines - a function whose body returns
+a raise's cause - to each subject gives: pristine population 2, unrecorded EMPTY; planted
+into each of the five modules holding unused immunity, population 2 and unrecorded EMPTY
+every time; planted into `tests/test_doc_budget.py`, which does not import the owner,
+population 3 and unrecorded naming that module. IDENTICAL BYTES, a finding in one place
+and invisible in five. Build the arm on this shape.
+
+**THE GRADED POPULATION IS TWO.** The owner, and `tests/test_verify_env.py` as RECORDED.
+That is the entire census. Six modules import the owner and five of them read no cause
+field at all, so they hold UNUSED immunity that arms the day they add one.
+
+**THE ONE MODULE IMMUNITY ACTUALLY REMOVES FROM GRADING SAYS IT MIRRORS THE OWNER.**
+`tests/pathless_clone_guard.py` reads a cause inside `_slot`, imports SIX PRIVATE names
+from the census, and that helper's own docstring says it MIRRORS a private census
+predicate DELIBERATELY, because CS-885 chose an arm over a shared owner. MIRRORING IS THE
+OPPOSITE OF DEFERRING. Contrast `tests/surface/test_server.py`, which calls the census
+`classify` for each site - that is genuine verdict consumption. So a consumption rule
+SPLITS the six rather than clearing them, and the module it moves into grading is the one
+that most needs a stated reason. That is the argument for the consumption route over the
+pinned-set route; the fence above still holds either way.
+
 ## CS-880 - item section, closed and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-03
 
 ### NOTE - filed 2026-09-01 (session 56) by the merger, MEASURED BEFORE FILING, from a CS-857 adversary

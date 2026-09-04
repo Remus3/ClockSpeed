@@ -75,6 +75,49 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-03 - CS-888 - CLOSED. Importing the census buys no immunity; clearance is an EXEMPT entry keyed to a site count, and 8 of 8 identical plants now report
+Verification: `python -m pytest tests/test_chained_exemption_guard.py -q`, then plant an
+identical four-line static cause read into each module that imports the owner - the harness
+takes a sources MAPPING, so every plant is in memory and nothing is written to disk. Before,
+0 of 6 were reported; now every importer is. `tests/test_chained_exemption_guard.py::test_a_second_cause_read_in_an_already_exempt_module_is_reported`
+plants into two LIVE immune modules and both go RED.
+
+WHICH DISJUNCT CLOSED THIS, STATED BECAUSE THE CLAUSE OFFERS TWO. The clause reads
+"immunity is earned by CONSUMING a verdict rather than by importing a name, OR the immune
+set is pinned so a silent addition reddens". **The FIRST disjunct was refuted by
+measurement and was NOT shipped**: three of the six immune modules already call the census
+`classify`, so a consumption rule would have kept them cleared and left 3 of 5 plants green
+- CS-880's failure shape. The SECOND disjunct is what shipped and is met in both senses: a
+new module joining the population reddens the `LIVE_ADJUDICATORS` pin, and a new read
+inside an already-recorded module reddens the site count. **The acceptance clause was NOT
+rewritten** - that decision now holds for a ninth consecutive session.
+
+THE FIRST COMMIT SHIPPED WITH THE ITEM'S OWN FAULT ONE LEVEL DOWN. `37b6df3` abolished
+immunity-by-import and then granted module-wide immunity to anything holding an `EXEMPT`
+reason written about a different read. The merger measured 5 of 6 rather than 6 of 6 and
+sent it back; `8435ecd` keyed each entry to a site count. An adversary confirmed the
+residual repair is load-bearing by re-running the probe against `37b6df3`, where both
+recorded modules absorb a second read SILENTLY.
+
+ADVERSARIALLY GRADED AND NOT REFUTED. Seven lenses, every number re-derived by a route the
+author did not use - a whole-tree sweep planting into all 143 tracked modules one at a time
+(7 of 7 importers reported, one silent module and it is the OWNER by construction), an
+importer set derived twice independently, re-execution at the base commit to reproduce
+0 of 6, and an in-process mutation battery over all 19 arms. Whole suite 4671 passed,
+4 skipped, exit 0.
+
+THREE RESIDUALS ARE RECORDED RATHER THAN CLAIMED CLOSED, and two of them are filed as their
+own items. `tests/chained_exemption_guard.py::stale_exemptions` survives functionally but is
+graded by NOTHING - replacing it with a bare empty return leaves all 19 arms green, measured
+twice independently - and `defers_to_owner` can be forced False with no arm noticing, so the
+clause's "live immune module" term can go unmeasured. Filed as CS-894. Separately an
+`Exemption`'s site count answers HOW MANY reads and never WHICH, so a module can swap a
+recorded read for an unrelated adjudicating one in a single compensating edit and stay
+silent across all four legs; filed as CS-893. The detector's stated boundary also
+understates itself - a `match` statement spells `cause` verbatim but lands in
+`ast.MatchClass.kwd_attrs` as a bare string and is invisible - which is pre-existing CS-857
+scope with no live instance, swept across all 143 modules.
+
 ### 2026-09-03 - CS-880 - CLOSED. No exemption reason may name a raise form its own sites do not use, and ONE disagreeing sibling now refutes the claim
 Two `EXEMPT` reasons asserted their sites `raise ... from exc`; all four raise
 `from _pathless_cause(exc)`. The forms are DERIVED from the census - `Site.form` paired with
