@@ -75,6 +75,74 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-04 - CS-891 - CLOSED AS AN HONEST PARTIAL. The clause is NOT met as a universal. A backticked bare path is now judged by an ordered decline ladder over every tracked carrier, and the markdown half of quoting-versus-citing is what is NOT bought
+Verification: `python -m pytest tests/test_docs_citations.py tests/test_bare_path_citations.py -q`.
+Then reproduce the two refutations that forced the repair. First, plant three dead
+package-relative citations in `docs/ARCHITECTURE.md` in its own module-map style - before
+the repair the whole module shipped green with no table grown and no ceiling spent, because
+a unique suffix hit resolved them into `tests/` and into `.claude/`. Second, set the reason
+ceiling to the length of its own table: before the repair that made the budget a tautology
+with no number left in the diff, and it disarmed
+`tests/test_docs_citations.py::test_a_bare_path_ceiling_left_slack_after_a_repair_is_reported`
+along with every future append.
+
+THE UNMET CONJUNCT, NAMED. "Staying green on prose that discusses a dead path rather than
+citing one" is NOT met. An adjudicator planted discussing-prose into four guarded docs and
+got four reds, and the module ASSERTS that red as a requirement - the arm stays green only
+on prose that has had a forgiveness spent on its exact identity. Reading the clause's own
+"or is recorded" disjunct as discharging the proof conjunct collapses the two into one and
+leaves the conjunct carrying no information, because any site whatever can be made green by
+recording it. CS-882 and CS-889 are the precedent for closing this way rather than softening
+the sentence. The clause was not edited; an eleventh consecutive session closed without
+rewriting one.
+
+WHAT MAKES IT A PARTIAL RATHER THAN A FAILURE: a structural discriminator DID ship for
+Python carriers. The R4 rung is an AST partition between author prose and a non-docstring
+string literal, and it is exact on this tree - every synthetic fixture path falls one side,
+every real citation the other. Markdown has no AST and no equivalent, so the markdown half
+is the half that is not solved. That is filed as CS-899 rather than left as a sentence here.
+
+WHAT WAS BOUGHT. The fifth shape is judged over 2009 sites and 231 carriers that nothing
+anywhere in the tree had graded. Five dead citations naming a memory leaf this repository
+has never carried are repaired, and the arm that grades that repair reconstructs both
+spellings - five findings under the old name, none under the new - so it grades the repair
+rather than merely proving the shape works. The guarded set went from 21 docs to 39, which
+was forced rather than chosen: the pattern-membership contract requires a new pattern to
+join the judged shapes, which widens what counts as a carrier. Measured cost of that
+widening: zero new findings, and the seven flagship docs it adds carry no citation at all
+under the four pre-existing shapes.
+
+FIVE REFUTATIONS BEFORE IT CLOSED, AND THE ROUND'S OWN REPAIR REPRODUCED ITS FILED FAULT
+ONE LEVEL UP FOUR TIMES. A unique suffix hit proved a path named A file and was documented
+as proving it named THE file; the reason ceiling could be derived rather than stated; a
+forgiveness table named with a leading double underscore escaped the walk written to make
+escaping impossible; three non-vacuity floors could each be set to zero with nothing going
+red; and two legs the shape's own prose names could be deleted without an arm noticing. All
+five are repaired and each original mutant now dies. The container walk's `globals()`
+default was itself a fault of the same class - correct while the family was one file, a
+silent wrong answer the moment it was two.
+
+THE MODULE WAS SPLIT BECAUSE THE REPAIR DID NOT FIT. `tests/test_docs_citations.py` reached
+273753 bytes against the 262144 ceiling asserted by
+`tests/data/test_phase2_gate.py::test_no_file_under_tests_is_large_enough_to_be_a_slice_of_real_game_data`.
+That ceiling is a data-hygiene control and was NOT raised; the derivation moved to
+`tests/bare_path_guard.py` with the arms in `tests/test_bare_path_citations.py`, and the
+collected test-id list is identical across the split. The class-closing walks now run over a
+DERIVED module closure rather than one module's globals, and a table relocated to the guard
+module without registration reddens
+`tests/test_bare_path_citations.py::test_every_container_in_every_walked_module_is_answered_by_its_own_registries`
+while the single-module walk stays blind - the evasion the split could have opened, closed
+and proven by plant.
+
+RESIDUALS NAMED SO NOBODY CLAIMS THEM LATER. The shape carries a closed extension list, so
+86 backticked sites in the same shape are unjudged, 77 of them JavaScript under a root this
+repo owns; that price is disclosed in the source with its measurement, and widening it is a
+separate job because it also moves the carrier boundary. Whether a forgiveness recorded
+against a carrier that is rewritten every session is a working ratchet or a landmine is
+raised, made moot by this round's archive commit, and answered nowhere. And the deep
+archive's blanket exemption forgives four dead citations its stated reason does not
+describe - filed as CS-897.
+
 ### 2026-09-03 - CS-889 - CLOSED AS AN HONEST PARTIAL. The clause is NOT met as a universal. A line pointer must now land on something and name it by symbol, the carrier population is every tracked file, and the escape hatch ratchets
 Verification: `python -m pytest tests/test_docs_citations.py -q`. Then reproduce the
 refutation that forced the ratchet: append three tuples to `UNVERIFIED_LINE_POINTERS` and

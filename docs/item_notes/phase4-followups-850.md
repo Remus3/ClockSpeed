@@ -1467,43 +1467,6 @@ about `_shared_tag_symbols`. Resolve the symbol against the module's own symbol 
 
 
 
-## CS-891
-
-### NOTE - filed 2026-09-03 (session 58) by the merger, MEASURED BEFORE FILING
-
-**A THIRD CITATION FORM, GRADED BY NOTHING ANYWHERE IN THE TREE.**
-`tests/test_docs_citations.py` judges four shapes and none of them matches a backticked
-repo-relative path carrying NEITHER a line number NOR a symbol. That form is the most
-common pointer this project writes: 597 live ones in tracked Python modules and 1701 in
-tracked markdown, measured by sweeping every tracked file.
-
-**FIVE LIVE DEAD ONES SIT IN TWO TRACKED TEST MODULES.** Four in
-`tests/test_chained_cause_census.py` and one in
-`tests/test_handler_exception_rendering.py` cite a pooled-guard memory note under a
-`memory/` path that HAS NEVER EXISTED IN THIS REPO. It exists only in the harness-side
-store, which is a DIFFERENT store that no tracked file may cite. The repo owns the same
-lesson at `memory/a-guard-can-be-green-by-accident.md`, whose paragraph on a threshold
-summed over a population being met by its strongest member is the sentence all five
-citations actually want. Repointing them is unambiguous and cheap.
-
-**TWO FURTHER MENTIONS OF THAT SAME PATH MUST BE LEFT ALONE.** `WAKEUP_NOTES.md` and the
-CS-890 note in this leaf both discuss the path AS THE SUBJECT of a correction - prose
-about a citation having been wrong, not a citation. QUOTING AND CITING ARE
-INDISTINGUISHABLE BY SHAPE, which is the recorded reason `docs/history_notes.md` is exempt
-from the citation guard entirely. An arm for this form that reddens on those two has
-manufactured a finding on correct prose.
-
-**THE POPULATION IS MESSY AND THAT MESS IS THE ITEM.** Legitimate non-resolving bare paths
-measured across the tree: `config/local.json`, a gitignored optional local config, cited
-seven times; `docs/ARCHITECTURE.md` module-map shorthand plus PLANNED phase-5 modules that
-do not exist yet; and synthetic fixture paths planted inside tests. A naive existence
-check reddens roughly twenty correct sites. The boundary is the whole design problem,
-exactly as it is for CS-889.
-
-**SEQUENCE THIS AFTER CS-889 RATHER THAN MERGING THEM.** CS-889 owns the line-number form
-and this owns the bare-path form. They share a population boundary problem and a file, so
-they must not run concurrently, but merging them would put two different acceptance
-clauses under one arm.
 ## CS-892
 
 ### NOTE - filed 2026-09-03 (session 59) by the merger, from the CS-890 adversary, VERIFIED BEFORE FILING
@@ -1718,3 +1681,98 @@ Do not attribute the regression from local timings, and do not attribute it to t
 without measuring it - that is a guess with a plausible story attached, which is the shape
 this project keeps filing items about.
 
+## CS-897
+
+### NOTE - filed 2026-09-04 (session 60) by the merger, from the CS-891 adjudicator, VERIFIED BEFORE FILING
+
+**AN EXEMPTION WHOSE STATED REASON IS TRUE OF SOME MEMBERS AND FALSE OF OTHERS.** The deep
+archive is excluded from the citation guard on the recorded reason that its dead citations
+"sit inside the detail blocks OF the citation-guard items themselves - blocks whose SUBJECT
+is a pointer being dead - so quoting and citing are indistinguishable by shape". That reason
+is TRUE of two sites and FALSE of a third.
+
+**MEASURED, NOT ARGUED.** `docs/history_notes.md` line 1280 is an ordinary sentence of the
+plain form "that leaf records this", naming a memory leaf that is not tracked and has never existed
+in this repository. It is a plain citation, not prose whose subject is a pointer being dead.
+An adversary measured the whole excluded population independently: 20 files, 462 bare-path
+sites, FOUR of them dead.
+
+**THIS IS CS-891's OWN DEFECT CLASS, HIDING BEHIND AN EXEMPTION.** The item CS-891 was filed
+on was five citations naming a harness-side memory leaf no tracked file may cite. This is a
+sixth, and it is invisible because the file it sits in is exempt wholesale.
+
+**THE MERGER SAW IT AND DISMISSED IT, WHICH IS THE PART WORTH RECORDING.** It was noticed
+during CS-891's pre-dispatch measurement and classified as out of population by
+construction, without asking whether the exemption's stated reason actually covered it. An
+exemption resting on a reason nothing verifies is `tests/test_docs_citations.py`'s own
+founding failure mode, recorded in its docstring, and it was walked past by someone holding
+that docstring.
+
+**DO NOT CLOSE THIS BY GUARDING THE WHOLE ARCHIVE.** The recorded reason is true of most of
+the file and a blanket guard would be red on correct history, which is the fault the
+exemption exists to prevent. The question is whether the exemption can be made to describe
+the members it actually covers.
+
+## CS-898
+
+### NOTE - filed 2026-09-04 (session 60) by the merger, MEASURED ON THE TREE
+
+**A GUARD'S STATED CLAIM ABOUT ITSELF IS NOW FALSE.** `tests/data/test_phase2_gate.py`
+carries the sentence that its ceiling was chosen "without ever tripping on ordinary test
+code". Ordinary test code tripped it this session: a repair took one module to 273753 bytes
+against the 262144 ceiling, and the module had to be split to land.
+
+**THE TREE IS ALREADY CLOSE BEHIND, MEASURED THIS SESSION.**
+
+| per cent of ceiling | bytes | file |
+|---|---|---|
+| 96 | 252153 | `tests/save/test_struct_interior.py` |
+| 86 | 227135 | `tests/test_docs_citations.py` after the split |
+| 78 | 206953 | `tests/test_chained_cause_census.py` |
+
+So the next substantial addition to the first of those trips the same gate, and the
+splitting remedy is a per-module fix for a tree-wide trend.
+
+**DO NOT CLOSE THIS BY RAISING THE CEILING.** The gate is a BOOTSTRAP.md section 12 control
+and its own docstring says the crudeness is the point: it is "the one check that catches a
+trimmed real docs file dropped in 'just for tests', which no content assertion would catch
+because a real slice parses perfectly". Raising it to fit code launders a data-hygiene
+guard for a code-size reason, and that was refused once already this session.
+
+**THE TWO HONEST ROUTES.** Either the gate learns to distinguish a slice of real game data
+from a large hand-authored module - it already has a sibling that judges by suffix, so
+authored-ness is not unmeasurable - or the claim is corrected to what the gate actually
+promises and the tree is kept under it by a stated splitting policy rather than by luck.
+
+## CS-899
+
+### NOTE - filed 2026-09-04 (session 60) by the merger, from the CS-891 adjudication, and it is CS-891's UNMET CONJUNCT
+
+**THIS IS THE HALF OF CS-891 THAT DID NOT CLOSE.** CS-891 closed as an honest partial and
+this is what it did not buy: no mechanism distinguishes prose that DISCUSSES a dead path
+from prose that CITES one, in a markdown carrier.
+
+**MEASURED BY THE ADJUDICATOR, NOT ASSERTED.** It planted unambiguous discussing-prose into
+four guarded docs and got FOUR REDS. The module asserts that red as a REQUIREMENT - an arm
+exists whose whole job is to fail when the same prose carries no record, so that the green
+half is a record doing work rather than silence. The arm is therefore red-by-default on
+correct prose and green only where a forgiveness was spent on that exact identity.
+
+**THE PYTHON HALF IS SOLVED AND THAT IS WHY THIS IS TRACTABLE.** The R4 rung partitions a
+Python carrier by AST into author prose and a non-docstring string literal, and on this tree
+the partition is exact. Markdown has no AST and no equivalent was built. So "quoting and
+citing are indistinguishable by shape", which the CS-891 note states in capitals, is FALSE
+in general and TRUE only for markdown.
+
+**A SECOND QUESTION RIDES ON THIS ONE AND IS ALSO UNANSWERED.** Is a forgiveness recorded
+against a carrier that is REWRITTEN EVERY SESSION a correctly-working ratchet reporting that
+the prose left, or a landmine that reddens a future session's push for no defect? CS-891's
+merger demanded that be answered before dispatch. The round's own archive commit removed the
+only churning subject, so the question became moot without being answered, and the shipped
+arm is proven against a record in an immutable ADR and unproven against a record in a
+churning file.
+
+**DO NOT CLOSE THIS WITH A KEYWORD TEST OVER NATURAL LANGUAGE** - a negation detector, a
+"which does not exist" matcher. That is a prose heuristic, it fails SILENTLY in the
+permissive direction, and it forgives a real dead citation forever with nothing red. A loud
+false positive beats a silent forgiveness, which is this module's own recorded doctrine.

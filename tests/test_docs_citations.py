@@ -1620,11 +1620,6 @@ DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
         "SaveWorldProvider.__init__",
     ): 1,
     (
-        "docs/item_notes/phase4-followups-850.md",
-        "config/local.json",
-        "### NOTE - filed 2026-09-03 (session 58) by the merger, MEASURED BEFORE FILING",
-    ): 1,
-    (
         "docs/item_notes/phase4.md",
         "config/local.json",
         "### detail - relocated from `docs/history_notes.md` 2026-08-23",
@@ -1702,7 +1697,7 @@ DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
 #: pooled, for the reason :func:`decline_budget_problems` states. Each is an
 #: integer literal a person typed, which
 #: :func:`derived_bound_problems` is what keeps true.
-DECLARED_UNTRACKED_CEILING: Final = 7
+DECLARED_UNTRACKED_CEILING: Final = 6
 UNTRACKED_ROOT_CEILING: Final = 9
 FIXTURE_LITERAL_CEILING: Final = 7
 

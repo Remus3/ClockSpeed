@@ -34,6 +34,68 @@ the line becomes a pointer.
 
 ---
 
+## Session 60 - 2026-09-04 - CS-891 CLOSED AS AN HONEST PARTIAL after FIVE refutations; the round's repair reproduced its own filed fault a FIFTH consecutive session and its own adversaries caught every instance, and the repair then would not fit under a data-hygiene ceiling
+
+- **Shipped: CS-891 CLOSED AS AN HONEST PARTIAL**, the unmet conjunct named in the ledger in
+  those words. Filed CS-897, CS-898 and CS-899, each measured before filing. Suite 4721 -> 4887;
+  the citation guard alone went 162 -> 326 arms across two modules. **No acceptance clause was rewritten - an ELEVENTH consecutive session.**
+
+- **THE PATTERN HELD A FIFTH TIME AND THE ROUND CAUGHT IT ITSELF.** The bare-path arm
+  shipped green at 302 passed and was then refuted five ways: a unique suffix hit resolved a
+  dead citation into `tests/` and into `.claude/` while DOCUMENTING that it needed no
+  ratchet; the reason ceiling could be written as the length of its own table, making the
+  budget a tautology with no number left in the diff; a forgiveness table named with a
+  leading double underscore escaped the walk written to make escaping impossible; three
+  non-vacuity floors could each be set to zero with nothing going red; and two legs the
+  shape's own prose NAMES could be deleted without an arm noticing. All five repaired, each
+  original mutant now dies.
+
+- **THE SHARPEST ONE IS THAT THE SOURCE DENIED THE HOLE RATHER THAN OMITTING IT.** The
+  suffix rung was documented as "a RESOLUTION rather than a forgiveness, so it needs no
+  ratchet". Exactly one hit proves a path names A file and never THE intended file, which is
+  the property the module's own trap 2 says a bare path does not carry. A false clearance is
+  worse than a silence, and this one left no trace in a diff.
+
+- **THE REPAIR DID NOT FIT.** It took `tests/test_docs_citations.py` to 273753 bytes against
+  a 262144 ceiling that exists to catch a trimmed real game-data file. The builder REFUSED
+  to raise it, correctly. The module was split into a derivation and its arms with the
+  collected test-id list identical across the split, and the class-closing walks now run
+  over a DERIVED module closure - a table relocated into the new module without registration
+  reddens, while the old single-module walk stays blind. That is filed as CS-898 because the
+  gate's own claim that it never trips on ordinary test code is now false and a second
+  module sits at 96 per cent of the same ceiling.
+
+- **Decisions: the guarded doc set went 21 -> 39 and it was a merger call, ruled legitimate
+  by an adjudicator that verified the mechanism rather than the argument.** It is FORCED,
+  not chosen: a new judged pattern must join the membership contract, which widens what
+  counts as a carrier. Measured cost zero, and the seven flagship docs it adds - `CLAUDE.md`
+  and `BOOTSTRAP.md` among them - carry no citation at all under the four pre-existing
+  shapes. The standing consequence is real: a dead backticked path in `CLAUDE.md` now
+  reddens the suite.
+
+- **Surprises: THE ROADMAP BUDGET IS A WARN, NOT A HARD FAIL.** The previous handoff said
+  the next item line breaks it. `tools/doc_budget.py` returns non-zero only on a HARD
+  failure and says why in its own header - a warn that blocks a commit gets disabled and
+  then enforces nothing. So three items were filed and the relocate pass is handed forward
+  as measurably owed rather than suppressed to protect a soft number.
+
+- **Failed paths, and four of them are mine.** My "independent" ladder control IMPORTED the
+  module it graded and consumed its population boundary, so it was independent only in the
+  rungs - which is exactly why it and the shipped arm agreed on seven AND both missed the
+  same dead citation. I dismissed that citation early as out of population without asking
+  whether the exemption's stated reason covered it; it does not, and it is now CS-897. I
+  briefed a builder that a path root was untracked when the package carries it nested, and
+  the builder measured me wrong and said so. And my own sweep regex made backticks OPTIONAL
+  while I was arguing in the same session that the backtick was load-bearing.
+
+- **In flight: nothing uncommitted.** Do NOT prune worktrees on a dirty reading - the count
+  grew again this session and every sampled file in a dirty worktree is byte-identical to
+  main at a stale base. Only a diff against main decides.
+
+- **Next action: CS-897.** It is small, it is the SIXTH instance of the exact class CS-891
+  repaired five of, and it sits behind an exemption whose stated reason is true of some
+  members and false of others. Then CS-899, which is CS-891's unmet conjunct.
+
 ## Session 59 - 2026-09-03 - THREE ITEMS CLOSED and every one was REFUTED FIRST; every repair reproduced its own filed fault one level up, and CS-889's ratchet caught its own closure within minutes of shipping
 
 - **Shipped: CS-888, CS-889 and CS-890 CLOSED** - CS-889 as an HONEST PARTIAL, stated in

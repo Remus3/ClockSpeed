@@ -25,6 +25,46 @@ Where current truth actually lives:
 
 ---
 
+## CS-891 - item section, closed and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-04
+
+## CS-891
+
+### NOTE - filed 2026-09-03 (session 58) by the merger, MEASURED BEFORE FILING
+
+**A THIRD CITATION FORM, GRADED BY NOTHING ANYWHERE IN THE TREE.**
+`tests/test_docs_citations.py` judges four shapes and none of them matches a backticked
+repo-relative path carrying NEITHER a line number NOR a symbol. That form is the most
+common pointer this project writes: 597 live ones in tracked Python modules and 1701 in
+tracked markdown, measured by sweeping every tracked file.
+
+**FIVE LIVE DEAD ONES SIT IN TWO TRACKED TEST MODULES.** Four in
+`tests/test_chained_cause_census.py` and one in
+`tests/test_handler_exception_rendering.py` cite a pooled-guard memory note under a
+`memory/` path that HAS NEVER EXISTED IN THIS REPO. It exists only in the harness-side
+store, which is a DIFFERENT store that no tracked file may cite. The repo owns the same
+lesson at `memory/a-guard-can-be-green-by-accident.md`, whose paragraph on a threshold
+summed over a population being met by its strongest member is the sentence all five
+citations actually want. Repointing them is unambiguous and cheap.
+
+**TWO FURTHER MENTIONS OF THAT SAME PATH MUST BE LEFT ALONE.** `WAKEUP_NOTES.md` and the
+CS-890 note in this leaf both discuss the path AS THE SUBJECT of a correction - prose
+about a citation having been wrong, not a citation. QUOTING AND CITING ARE
+INDISTINGUISHABLE BY SHAPE, which is the recorded reason `docs/history_notes.md` is exempt
+from the citation guard entirely. An arm for this form that reddens on those two has
+manufactured a finding on correct prose.
+
+**THE POPULATION IS MESSY AND THAT MESS IS THE ITEM.** Legitimate non-resolving bare paths
+measured across the tree: `config/local.json`, a gitignored optional local config, cited
+seven times; `docs/ARCHITECTURE.md` module-map shorthand plus PLANNED phase-5 modules that
+do not exist yet; and synthetic fixture paths planted inside tests. A naive existence
+check reddens roughly twenty correct sites. The boundary is the whole design problem,
+exactly as it is for CS-889.
+
+**SEQUENCE THIS AFTER CS-889 RATHER THAN MERGING THEM.** CS-889 owns the line-number form
+and this owns the bare-path form. They share a population boundary problem and a file, so
+they must not run concurrently, but merging them would put two different acceptance
+clauses under one arm.
+
 ## Session 57 wakeup note - relocated 2026-09-04 (session 60)
 
 ## Session 57 - 2026-09-03 - FOUR ITEMS CLOSED and every one of them was REFUTED FIRST; the round's own repairs reproduced three of the four filed faults one level up, and EVERY repair builder corrected the merger
