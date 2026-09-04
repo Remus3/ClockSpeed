@@ -17,7 +17,7 @@ docstring because it is the difference between the two questions - a pytest
 node id can only address a module-level function, while a docs citation may
 legitimately name a class or a module-level constant.
 
-FIVE TRAPS SHAPE THIS MODULE. Each was measured on the real corpus, and a
+SIX TRAPS SHAPE THIS MODULE. Each was measured on the real corpus, and a
 checker that misses any one of them is red on correct history, which is the
 failure that gets a guard switched off.
 
@@ -53,6 +53,14 @@ failure that gets a guard switched off.
    the shape and asks the question that needs no path - does the tree bind this
    name - which is the same question the bare arm asks.
 
+6. A LINE POINTER CAN BE THE SUBJECT OF A CORRECTION RATHER THAN A CITATION.
+   QUOTING AND CITING ARE INDISTINGUISHABLE BY SHAPE - it is the same fault as
+   trap 4 in the line-pointer arm, and it is the recorded reason
+   ``docs/history_notes.md`` is exempt from this module entirely. A CS-889 note
+   spells three pointers that were already dead when it was filed, precisely in
+   order to say so. Reporting one would punish the record for doing the right
+   thing, so the site carries a DELIBERATE disposition and stays silent.
+
 WHAT THIS MODULE DOES NOT COVER, recorded rather than left to be discovered.
 :data:`UNGUARDED_DOCS` is the whole of it, and it is a RECORD rather than a
 silence: every in-domain markdown file carrying a citation is either guarded or
@@ -87,6 +95,39 @@ B. AN EXEMPTION SHIPPED THAT THIS MODULE'S OWN TABLE CONTRADICTED.
    now, and so is ADR 0008, which the widened boundary surfaced the moment it
    could see a doc that names test modules and nothing else.
 
+CS-889 CLOSES AS AN HONEST PARTIAL AND THE CLAUSE IS NOT MET AS A UNIVERSAL.
+CS-882 is the precedent. What was actually bought, measured on the tree this
+was written against rather than asserted about it:
+
+- TEN live instances discharged. Six are RECORDED as dispositions, because
+  their carriers state they may not be edited - five in ``docs/LEDGER.md``,
+  which declares itself append-only in its own header, and one in a phase 4
+  leaf where the obvious symbol conversion WOULD have resolved and would have
+  resolved to a claim CS-440 has since made false. Four are REPAIRED to the
+  symbol form by slices that own those files.
+- THE CLASS IS CLOSED AGAINST NEW ADDITIONS in the scoped population. A line
+  pointer at a tracked Python module written after this pin is reported on
+  arrival, because it is in neither table.
+- WHAT REMAINS UNVERIFIED, and it is the larger number: every member of
+  :data:`UNVERIFIED_LINE_POINTERS` resolves in RANGE and has NOT been checked
+  against the sentence that spells it, and every member of
+  :data:`UNFORBIDDEN_LINE_POINTERS` is a pointer the forbid rule cannot reach
+  at all because its target has no symbol form. Both are open residuals of
+  CS-889. Neither table claims anything else, and calling either one an
+  adjudication would be the laundering this module exists to prevent.
+
+THE FORBID RULE IS THIS PROJECT'S OWN PRACTICE, NOT AN IMPORT. ``docs/LEDGER.md``
+already says of two stale by-line citations that they are deliberately not
+edited and that the correcting paragraph is the repair - and it ends that
+correction with the rule in its own words: cite that module BY NAME, not by
+line. The lesson was in the prose and absent from the guard.
+
+AND ONE SENTENCE THAT WAS TRUE OF THE ARM AND FALSE OF THE TREE, recorded so
+it is not repeated: "zero real violations in the guarded set". The sweep that
+produced it examined only the NON-RESOLVING pointers. Every instance CS-889
+discharged lives in the RESOLVING subset, which nothing had content-checked.
+A guard's contract and the corpus it runs on are two different claims.
+
 A DISPOSITION IS GRANTED PER SITE, NOT PER NAME. The table is keyed
 ``(doc, name)``, which forgives every spelling of that name in that doc
 forever - including citations written long after the one that was adjudicated.
@@ -101,8 +142,9 @@ from __future__ import annotations
 
 import ast
 import re
+import string
 import subprocess
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -218,6 +260,12 @@ ITEM_NOTES_LEAVES: Final = _item_notes_leaves()
 #: pass moves the key with the body.
 ITEM_NOTES_DEAD_POINTER_LEAF: Final = "docs/item_notes/phase4-followups.md"
 
+#: The phase 4 leaf, and the CS-850 follow-up leaf split out of it. Named
+#: because CS-889 records adjudicated line pointers against both, and a key
+#: spelled inline in two places is a key that drifts when a leaf is renamed.
+ITEM_NOTES_PHASE4: Final = "docs/item_notes/phase4.md"
+ITEM_NOTES_850_LEAF: Final = "docs/item_notes/phase4-followups-850.md"
+
 GUARDED_DOCS: Final = (
     LEDGER,
     "ROADMAP.md",
@@ -244,6 +292,11 @@ GUARDED_DOCS: Final = (
 # that reddened on a harness-config edit would be reddening on something that
 # is not documentation at all.
 OUT_OF_DOMAIN: Final = ".claude/"
+
+# Dated material, excluded from every search for current truth by CLAUDE.md
+# section 4. Named so the CS-889 boundary control can assert on it rather than
+# spell it inline.
+DATED_ARCHIVE: Final = "docs/_archive/"
 
 # THE BOUNDARY OF THE GUARDED SET, which until now nothing re-derived.
 # GUARDED_DOCS is a hand-maintained tuple, so a doc that STARTS carrying
@@ -322,6 +375,29 @@ ELIDED_RE: Final = re.compile(r"(?<![A-Za-z0-9_])::(test_[a-z0-9_]{8,})\b")
 # That is what keeps a FUTURE arm from falling out of the boundary the way the
 # elided arm did - the arm and the boundary cannot drift apart quietly.
 JUDGED_SHAPES: Final = (CITATION_RE, LINE_POINTER_RE, BARE_RE, ELIDED_RE)
+
+
+def line_key(path: str, line: int) -> str:
+    """The :data:`DISPOSITIONS` key for one ``file:line`` pointer.
+
+    ASSEMBLED RATHER THAN SPELLED, and that is the whole reason it exists. This
+    module is itself a tracked Python file, so the CS-889 arms below read it
+    the way they read every other carrier. A key written out as a literal
+    would be a real, resolvable pointer sitting in the guard that judges
+    pointers - the module-and-symbol placeholder made exactly that mistake
+    once, and ``test_the_dot_py_spelling_of_the_placeholder_is_a_citation_no_floor_protects``
+    is the record of it. A path and an integer joined at call time cannot
+    match, because the two halves never sit adjacent in the source.
+
+    Args:
+        path: The cited file, repo-relative and POSIX-separated.
+        line: The cited line number.
+
+    Returns:
+        The key, in the same spelling :data:`LINE_POINTER_RE` matches.
+    """
+    return f"{path}:{line}"
+
 
 # --- dispositions -----------------------------------------------------------
 
@@ -521,7 +597,199 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " ELIDED_RE the guard had never seen it.",
         2,
     ),
+    # --- class 4: CS-889. A LINE POINTER whose target the tree has moved out
+    # from under it. Keyed by line_key() rather than spelled, because this
+    # module is itself a carrier the CS-889 arms read.
+    #
+    # THE LEDGER ONES ARE RECORDED, NEVER REPAIRED, and that is this file's own
+    # settled practice rather than a concession made here. `docs/LEDGER.md`
+    # declares itself append-only in its own header, and has already answered
+    # this exact question twice in its own text - once leaving a stale citation
+    # "exactly as written, because this file is append-only", and once saying of
+    # two stale by-LINE citations that they are deliberately NOT edited and that
+    # the correcting paragraph is the repair. That second correction states the
+    # forbid leg's rule as the project's own practice, in the project's own
+    # words: cite that module BY NAME, not by line.
+    (LEDGER, line_key("tools/precommit_gate.py", 2311)): Disposition(
+        NO_TARGET,
+        "",
+        "the entry reads that line as emitting the PASS banner only on an empty"
+        " report.diagnostics. The line is blank today and its neighbourhood now"
+        " holds the label-redaction rule, so no live symbol may be assigned"
+        " without inventing one.",
+        1,
+    ),
+    (LEDGER, line_key("tests/test_precommit_gate.py", 1174)): Disposition(
+        NO_TARGET,
+        "",
+        "the entry reads that line as a SECOND label-shape assertion over"
+        " LEAK_MARKER. The line is blank today and the block below it opens an"
+        " unrelated CS-202-B section.",
+        1,
+    ),
+    (LEDGER, line_key("scripts/verify_env.py", 358)): Disposition(
+        NO_TARGET,
+        "",
+        "the entry reads that line as a bare str(exc) outside CS-202's stated"
+        " shape. The line is blank today and the neighbourhood is the ports"
+        " loader.",
+        1,
+    ),
+    (LEDGER, line_key("tools/precommit_gate.py", 517)): Disposition(
+        NO_TARGET,
+        "",
+        "the entry contrasts that line, as the gate widening what it refuses to"
+        " commit, against the resolver's digit filter. The line is a lone"
+        " closing bracket today, so it names no declaration to contrast with.",
+        1,
+    ),
+    (LEDGER, line_key("scripts/make_cert.py", 222)): Disposition(
+        MOVED,
+        "scripts/make_cert.py::_restrict",
+        "RIGHT WHEN WRITTEN and moved since: the entry says that line chmods the"
+        " key 0600 inside _restrict, and the line now sits inside the openssl"
+        " argv builder. _restrict is live and is the target the sentence means.",
+        1,
+    ),
+    # THE ONE THE REPAIR SLICE REFUSED, and the refusal is the strongest
+    # evidence in CS-889 for why a wrong-but-resolving pointer is worse than a
+    # dead one. The obvious symbol conversion WOULD have resolved: at an earlier
+    # commit that line was a four-argument WorldWarning construction inside
+    # _carried. But CS-440 threaded `subject` into the usmap branch, so the
+    # note's claim that the site DROPS THE SUBJECT is no longer true of
+    # _carried - and the only surviving four-argument form there is the chunks
+    # branch, whose absent subject that function's own docstring justifies as
+    # CORRECT. A reader following the converted pointer would land on the branch
+    # the note was never about, backed by a docstring saying it is right.
+    (ITEM_NOTES_PHASE4, line_key("clockspeed/save/world.py", 919)): Disposition(
+        NO_TARGET,
+        "",
+        "the note reads that line as a four-argument WorldWarning that drops the"
+        " subject. The line is blank today, _carried has moved, and CS-440 made"
+        " the note's claim false of it - so a symbol conversion would resolve to"
+        " a sentence that is no longer true.",
+        1,
+    ),
+    # THE TRAP THAT MANUFACTURES A FINDING ON CORRECT PROSE, and the reason
+    # `docs/history_notes.md` is exempt from this module entirely: QUOTING AND
+    # CITING ARE INDISTINGUISHABLE BY SHAPE. This site is the SUBJECT of a
+    # correction - prose about a pointer having been wrong - not a citation
+    # anything should follow. Reporting it would punish the record for doing
+    # the right thing, which is exactly what DELIBERATE exists for.
+    (ITEM_NOTES_850_LEAF, line_key("scripts/make_cert.py", 224)): Disposition(
+        DELIBERATE,
+        "",
+        "QUOTED, NOT CITED: the CS-889 note spells it as the subject of a"
+        " correction recording that the pointer was already dead when filed.",
+        1,
+    ),
 }
+
+
+# --- CS-889: the two pinned line-pointer populations ------------------------
+
+#: The forbidden class, GRANDFATHERED. Every entry is a live ``file:line``
+#: pointer at a tracked Python module whose RANGE resolves and whose CONTENT
+#: has NOT been checked against the sentence that spells it.
+#:
+#: THIS TABLE CLAIMS NOTHING ABOUT WHETHER THESE POINTERS ARE RIGHT, and it is
+#: deliberately not a :class:`Disposition` for exactly that reason. A
+#: disposition is an ADJUDICATION - somebody read the citation, read the target
+#: and recorded a verdict. Nobody has done that here. Filing these as
+#: dispositions would dress up "unexamined" as "answered", which is the
+#: laundering shape this repository keeps paying for. What the table DOES buy
+#: is closure against NEW additions: a pointer of this shape written after this
+#: pin is reported on arrival, because it is not in here.
+#:
+#: PINNING THE SITES RATHER THAN THEIR COUNT is what makes it checkable in both
+#: directions. A count is satisfied by any set of the same size, so one pointer
+#: could be swapped for another and the pin would hold. An entry here that no
+#: longer appears is reported as stale, which is the direction a baseline
+#: normally is not checked in.
+#:
+#: CONTENT-CORRECTNESS IS THE OPEN RESIDUAL OF CS-889 and it is stated here
+#: rather than left to be rediscovered. Making it sound needs a human to state
+#: the intended symbol for every member, which was priced and declined for this
+#: round; deriving the pin from today's tree instead would bake in whatever the
+#: pointer happens to hit and ship GREEN on the very defects it was built for.
+UNVERIFIED_LINE_POINTERS: Final[frozenset[tuple[str, str, int]]] = frozenset(
+    (
+        ("ROADMAP.md", "tests/save/test_container_elements.py", 839),
+        ("ROADMAP.md", "tests/save/test_inventory_potential.py", 316),
+        ("ROADMAP.md", "tests/save/test_reference_resolution.py", 968),
+        ("docs/LEDGER.md", "clockspeed/data/docs_extract.py", 443),
+        ("docs/LEDGER.md", "clockspeed/data/locate.py", 187),
+        ("docs/LEDGER.md", "clockspeed/data/locate.py", 657),
+        ("docs/LEDGER.md", "clockspeed/data/version.py", 352),
+        ("docs/LEDGER.md", "clockspeed/data/version.py", 815),
+        ("docs/LEDGER.md", "clockspeed/save/objects.py", 2945),
+        ("docs/LEDGER.md", "clockspeed/save/usmap.py", 46),
+        ("docs/LEDGER.md", "scripts/install_hooks.py", 310),
+        ("docs/LEDGER.md", "tests/data/test_phase2_gate.py", 775),
+        ("docs/LEDGER.md", "tests/test_hook_interpreter_ladder.py", 1678),
+        ("docs/LEDGER.md", "tools/drift_guard.py", 312),
+        ("docs/LEDGER.md", "tools/edit_lint_check.py", 82),
+        ("docs/LEDGER.md", "tools/edit_lint_check.py", 113),
+        ("docs/LEDGER.md", "tools/facts_probe.py", 121),
+        ("docs/LEDGER.md", "tools/precommit_gate.py", 570),
+        ("docs/LEDGER.md", "tools/precommit_gate.py", 704),
+        ("docs/LEDGER.md", "tools/precommit_gate.py", 1802),
+        ("docs/item_notes/phase2.md", "clockspeed/data/registry.py", 84),
+        ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 39),
+        ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 141),
+        ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 187),
+        ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/header.py", 927),
+        ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/objects.py", 1747),
+        ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/workdir.py", 688),
+        ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/world.py", 989),
+        ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/world.py", 1109),
+        ("docs/item_notes/phase4-followups-850.md", "scripts/verify_env.py", 370),
+        ("docs/item_notes/phase4-followups-850.md", "tests/conftest.py", 426),
+        ("docs/item_notes/phase4-followups-850.md", "tests/save/test_container_elements.py", 839),
+        ("docs/item_notes/phase4-followups-850.md", "tests/save/test_container_elements.py", 1168),
+        ("docs/item_notes/phase4-followups-850.md", "tests/save/test_header.py", 1048),
+        ("docs/item_notes/phase4-followups-850.md", "tests/save/test_inventory_potential.py", 316),
+        ("docs/item_notes/phase4-followups-850.md", "tests/save/test_reference_resolution.py", 968),
+        ("docs/item_notes/phase4-followups-850.md", "tests/save/test_value_anchoring.py", 1082),
+        ("docs/item_notes/phase4-followups-850.md", "tests/test_exception_rendering.py", 75),
+        ("docs/item_notes/phase4-followups-850.md", "tests/test_redaction_scope.py", 26),
+        ("docs/item_notes/phase4-followups-850.md", "tools/drift_guard.py", 463),
+        ("docs/item_notes/phase4-followups.md", "scripts/install_hooks.py", 44),
+        ("docs/item_notes/phase4-followups.md", "tests/save/reach_guard.py", 1504),
+        ("docs/item_notes/phase4-followups.md", "tests/save/test_absolute_claims.py", 192),
+        ("docs/item_notes/phase4-followups.md", "tests/test_hook_interpreter_ladder.py", 122),
+        ("docs/item_notes/phase4.md", "clockspeed/data/locate.py", 796),
+        ("docs/item_notes/phase4.md", "clockspeed/save/objects.py", 588),
+        ("docs/item_notes/phase4.md", "clockspeed/save/objects.py", 890),
+        ("docs/item_notes/phase4.md", "clockspeed/save/objects.py", 2608),
+        ("docs/item_notes/phase4.md", "clockspeed/save/workdir.py", 796),
+        ("docs/item_notes/phase4.md", "tests/data/test_locate.py", 858),
+        ("docs/item_notes/phase4.md", "tests/save/synthetic.py", 1079),
+        ("docs/item_notes/phase4.md", "tests/save/test_byte_order_status.py", 878),
+        ("docs/item_notes/phase4.md", "tests/save/test_objects.py", 776),
+        ("docs/item_notes/phase4.md", "tests/save/test_phase4_gate.py", 2089),
+    )
+)
+
+#: The pointers the forbid rule DOES NOT reach, pinned so the hole stays
+#: countable. A ``.yml``, ``.md`` or ``.toml`` target has no symbol form, so
+#: forbidding the line form there would leave no way to cite it at all - the
+#: rule would be asking for something that does not exist. That is a STATED
+#: PRICE rather than a convenient boundary: these pointers rot on an edit above
+#: them exactly as the Python ones do, and nothing in this module checks their
+#: content either.
+#:
+#: Pinned as sites for :data:`UNVERIFIED_LINE_POINTERS`' reason - a count alone
+#: is satisfied by any set of the same size.
+UNFORBIDDEN_LINE_POINTERS: Final[frozenset[tuple[str, str, int]]] = frozenset(
+    (
+        ("docs/LEDGER.md", ".github/workflows/tier1.yml", 130),
+        ("docs/LEDGER.md", ".github/workflows/tier1.yml", 250),
+        ("docs/LEDGER.md", "docs/ARCHITECTURE.md", 136),
+        ("tests/test_docs_citations.py", ".github/workflows/tier1.yml", 250),
+        ("tests/test_precommit_gate.py", "docs/ARCHITECTURE.md", 144),
+    )
+)
 
 
 # --- resolution -------------------------------------------------------------
@@ -590,9 +858,18 @@ def citation_sites(text: str, cited: str) -> int:
     Counting is what turns "this name is answered" into "these N spellings of
     it are answered".
 
+    THE LINE-POINTER BRANCH WAS ADDED BY CS-889 AND IS NOT A CONVENIENCE. That
+    item records dead ``file:line`` pointers inside the append-only ledger, so
+    they have to be keyed here like any other forgiven citation. Without the
+    branch a key built by :func:`line_key` falls through to the bare arm, whose
+    pattern demands a ``test_`` prefix, so every such key counts ZERO sites and
+    the whole table reports itself stale on the first run. That was measured
+    before the branch was written, not reasoned about.
+
     Args:
         text: The scoped doc text - the same text the arm reads.
-        cited: A full ``path.py::name`` key, or a bare identifier key.
+        cited: A full ``path.py::name`` key, a :func:`line_key` pointer key, or
+            a bare identifier key.
 
     Returns:
         The number of occurrences, counted with the same pattern the owning arm
@@ -601,6 +878,10 @@ def citation_sites(text: str, cited: str) -> int:
     if "::" in cited:
         path, _, name = cited.partition("::")
         return sum(1 for found in CITATION_RE.findall(text) if found == (path, name))
+    pointer = LINE_POINTER_RE.fullmatch(cited)
+    if pointer:
+        want = (pointer.group(1), pointer.group(2))
+        return sum(1 for found in LINE_POINTER_RE.findall(text) if found == want)
     return judged_bare_names(text).count(cited)
 
 
@@ -756,6 +1037,218 @@ def line_pointer_problems(
         elif int(lineno) > line_counts[path]:
             problems.append(f"{path}:{lineno} - beyond the end of a {line_counts[path]}-line file")
     return problems, declined
+
+
+# --- CS-889: the file:line arm reads what the line SAYS, not just where it is -
+#
+# THE DEFECT THE RANGE ARM CANNOT SEE. `line_pointer_problems` above judges a
+# pointer's RANGE and stops, by explicit design, for two sound reasons that
+# CS-889 does not overturn: asserting what sits AT a line "would redden on
+# every edit above it, which is a guard nobody keeps", and resolving a bare
+# basename repo-relative once manufactured six phantom findings. Both refusals
+# stand. The CONSEQUENCE of the first is what this section repairs - a pointer
+# invalidated by an edit ABOVE it stays in range, so it stays green, and it
+# names something that is no longer there.
+#
+# TWO LEGS, AND EACH IS USELESS WITHOUT THE OTHER. Measured, not reasoned
+# about, and the measurement is why both ship.
+#
+# LEG 1, EMPTINESS. A pointer whose target line is blank, or is punctuation and
+# nothing else, does not resolve to a declaration. Mechanically decidable, no
+# semantic judgement, no per-edit churn, and it cannot manufacture a finding
+# because nobody deliberately cites a blank line. It reddened on seven live
+# sites at CS-889's baseline.
+#
+# LEG 2, FORBID-WITH-RECORD. A line pointer at a tracked Python module is
+# forbidden outright, because `path.py::name` is a drop-in replacement that
+# resolves through the symbol table and CANNOT be invalidated by an edit above
+# it. This is not a new rule invented here - `docs/LEDGER.md` already states it
+# as its own practice, of two stale by-line citations it declines to edit:
+# "Cite that module BY NAME, not by line."
+#
+# LEG 1 ALONE IS REFUTED AND THE REFUTATION IS PINNED. It is GREEN on a pointer
+# that lands on a real line of the wrong declaration - CS-889's primary target
+# landed on a docstring roughly eighty lines above the class it claimed to
+# name, and the line was neither blank nor punctuation.
+#
+# LEG 2 ALONE IS ALSO REFUTED, in the other direction: on its own it lets a
+# KNOWN-WRONG pointer be recorded away with the same shrug as an unexamined
+# one, which is laundering. So a site with an adjudicated defect carries a
+# :class:`Disposition` stating that defect, and only the unexamined remainder
+# is grandfathered into :data:`UNVERIFIED_LINE_POINTERS`.
+#
+# WHAT WAS PRICED AND REJECTED, recorded so it is not re-pitched cheaply. A
+# content-anchored resolver pinning (carrier, path, line, enclosing symbol)
+# would catch the wrong-declaration case exactly. Its pin would be DERIVED from
+# today's tree, so it would bake in whatever symbol each pointer currently
+# lands in and ship green on the very defects it was built for - a guard green
+# by accident. Making it sound needs a human to state the intended symbol for
+# every member of the forbidden class.
+
+
+def lands_on_nothing(landing: str) -> bool:
+    """Whether a target line carries no declaration at all.
+
+    THE CHEAPEST HONEST QUESTION ABOUT CONTENT, and the reason leg 1 does not
+    inherit the range arm's refusal to look. "What declaration is at this
+    line" needs a human. "Is there anything here" does not, moves only when
+    the target file changes, and has no false-positive story: a pointer is
+    never deliberately aimed at a blank line or a lone bracket.
+
+    Args:
+        landing: The target line, as read from the file, indentation included.
+
+    Returns:
+        True when the line is empty, whitespace, or ASCII punctuation only.
+    """
+    body = landing.strip()
+    return not body or all(character in string.punctuation for character in body)
+
+
+def line_pointer_sites(
+    carriers: Mapping[str, str],
+    file_lines: Mapping[str, Sequence[str]],
+) -> tuple[list[tuple[str, str, int, str]], list[tuple[str, str, int, str]]]:
+    """Split every judgeable ``file:line`` pointer into the two classes.
+
+    THE DECLINES ARE THE RANGE ARM'S, REUSED RATHER THAN RESTATED. A pointer
+    into the ledger itself, an unqualified basename, a path that is not
+    tracked, or a line past the end of its file is dropped here for exactly the
+    reasons :func:`line_pointer_problems` documents - and dropping them is also
+    what excludes the synthetic Python fixtures that this module and its
+    siblings plant, without a carve-out written for them. That was the stated
+    requirement: reuse a test that already exists rather than invent an
+    exemption that a later fixture can fall outside of.
+
+    Args:
+        carriers: Carrier path to the text its pointers are read from. WIDER
+            than :data:`GUARDED_DOCS` on purpose - two of the pointers CS-889
+            discharged sat in tracked Python modules rather than in a doc, so a
+            population stopping at the docs would have declared them absent.
+        file_lines: Repo-relative POSIX path to that file's lines. A path
+            absent from this mapping is not a tracked file.
+
+    Returns:
+        ``(py_sites, other_sites)``, both ``(carrier, path, line, landing)``
+        with the landing text included so the caller need not re-read the file.
+        PY_SITES is every pointer at a tracked Python module - the class the
+        forbid leg governs, because a symbol form exists there. OTHER_SITES is
+        every pointer at a tracked non-Python file, which has no symbol form to
+        be redirected to and so cannot be forbidden.
+
+        THE SPLIT GOVERNS THE FORBID LEG ONLY. The emptiness leg reads both,
+        because a pointer at a blank line names nothing whatever the target's
+        extension is - and a split that also narrowed leg 1 would have bought a
+        tidier boundary by making a whole class of dead pointer invisible,
+        which is the trade this module exists to refuse.
+    """
+    py_sites: list[tuple[str, str, int, str]] = []
+    other_sites: list[tuple[str, str, int, str]] = []
+    for carrier in sorted(carriers):
+        seen: set[tuple[str, int]] = set()
+        for path, raw in LINE_POINTER_RE.findall(carriers[carrier]):
+            line = int(raw)
+            if (path, line) in seen or path == LEDGER or "/" not in path:
+                continue
+            seen.add((path, line))
+            lines = file_lines.get(path)
+            if lines is None or line > len(lines):
+                continue
+            found = py_sites if path.endswith(".py") else other_sites
+            found.append((carrier, path, line, lines[line - 1]))
+    return py_sites, other_sites
+
+
+def line_pointer_content_problems(
+    py_sites: Iterable[tuple[str, str, int, str]],
+    other_sites: Iterable[tuple[str, str, int, str]],
+    sources: Mapping[str, str],
+    dispositions: Mapping[tuple[str, str], Disposition] | None = None,
+    baseline: Iterable[tuple[str, str, int]] | None = None,
+) -> tuple[list[str], list[str]]:
+    """Judge every judgeable pointer along both legs.
+
+    Args:
+        py_sites: The Python-target half of :func:`line_pointer_sites`, which
+            both legs read.
+        other_sites: Its non-Python half, which only the emptiness leg reads.
+        sources: Repo-relative path to module text, for verifying a recorded
+            redirect. Injected for the reason :func:`unresolved_citations`
+            gives: the verification branch only fires when a recorded target
+            STOPS resolving, so a control has to be able to reach it.
+        dispositions: The adjudicated answers, keyed by :func:`line_key`.
+        baseline: The grandfathered sites, unexamined and recorded as such.
+
+    Returns:
+        ``(empty, forbidden)``. EMPTY is leg 1 - the pointer resolves to
+        nothing at all. FORBIDDEN is leg 2 - the pointer resolves to SOMETHING
+        and this module cannot say it is the right thing, so the line form is
+        refused in favour of the symbol form. A recorded redirect whose target
+        has itself stopped resolving is reported in the second list, because a
+        record that points at nothing forgives nothing.
+
+    THE TWO FORGIVENESSES ARE NOT INTERCHANGEABLE, and the ordering below is
+    the whole difference. An ADJUDICATED disposition answers the pointer, so it
+    silences both legs - somebody read it and recorded a verdict. The
+    GRANDFATHERED baseline answers only leg 2, because it claims nothing about
+    content and blankness is not a content claim. Forgiving leg 1 with it would
+    let a pinned pointer go blank under a later edit and stay silent, which is
+    the one failure this section is built to prevent - a pin that quietly
+    absorbs the defect it was supposed to make countable.
+    """
+    table = DISPOSITIONS if dispositions is None else dispositions
+    grandfathered = set(UNVERIFIED_LINE_POINTERS if baseline is None else baseline)
+    empty: list[str] = []
+    forbidden: list[str] = []
+    for forbiddable, group in ((True, py_sites), (False, other_sites)):
+        for carrier, path, line, landing in group:
+            recorded = table.get((carrier, line_key(path, line)))
+            if recorded is not None:
+                if recorded.kind in (MOVED, RENAMED):
+                    target_path, _, target_name = recorded.target.partition("::")
+                    if not resolves(target_path, target_name, sources):
+                        forbidden.append(
+                            f"{carrier} -> {path} line {line} - its {recorded.kind} target"
+                            f" {recorded.target} does not resolve"
+                        )
+                continue
+            if lands_on_nothing(landing):
+                empty.append(
+                    f"{carrier} -> {path} line {line} - the target line is blank or"
+                    " punctuation only, so the pointer names no declaration"
+                )
+            elif forbiddable and (carrier, path, line) not in grandfathered:
+                forbidden.append(
+                    f"{carrier} -> {path} line {line} - a line pointer at a tracked Python"
+                    f" module, and it lands on {landing.strip()!r}. Cite the symbol form,"
+                    " which an edit above it cannot invalidate."
+                )
+    return empty, forbidden
+
+
+def stale_pin_problems(
+    live: Iterable[tuple[str, str, int]],
+    pinned: Iterable[tuple[str, str, int]],
+) -> list[str]:
+    """Every pinned site that the corpus no longer spells.
+
+    THE DIRECTION A BASELINE IS NORMALLY NOT CHECKED IN, and this module has
+    already paid once for skipping it: an exemption shipped on a reason its own
+    table contradicted. A pin that outlives what it answered forgives nothing
+    and hides the fact that the population moved.
+
+    Args:
+        live: The sites the corpus spells right now.
+        pinned: The recorded sites.
+
+    Returns:
+        One line per pinned site that is no longer present.
+    """
+    present = set(live)
+    return [
+        f"{carrier} -> {path} line {line} - pinned, but the corpus no longer spells it"
+        for carrier, path, line in sorted(set(pinned) - present)
+    ]
 
 
 # --- the bare-identifier arm ------------------------------------------------
@@ -940,15 +1433,56 @@ def sources(tracked: list[str]) -> dict[str, str]:
 
 
 @pytest.fixture(scope="module")
-def line_counts(tracked: list[str]) -> dict[str, int]:
-    counts = {}
+def file_lines(tracked: list[str]) -> dict[str, list[str]]:
+    """Every tracked file's lines, so a pointer's LANDING can be read.
+
+    The range arm needs only a count; the CS-889 arms need the line itself.
+    Reading once and deriving the count keeps the two from disagreeing about
+    what a line even is - both split on the same newline character, and a
+    second reader that split differently would report a pointer in range for
+    one arm and out of it for the other.
+    """
+    lines: dict[str, list[str]] = {}
     for path in tracked:
         try:
             body = (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        counts[path] = len(body.split("\n"))
-    return counts
+        lines[path] = body.split("\n")
+    return lines
+
+
+@pytest.fixture(scope="module")
+def line_counts(file_lines: Mapping[str, Sequence[str]]) -> dict[str, int]:
+    return {path: len(lines) for path, lines in file_lines.items()}
+
+
+@pytest.fixture(scope="module")
+def line_pointer_carriers(tracked: list[str]) -> dict[str, str]:
+    """Every text a ``file:line`` pointer is read out of, keyed by carrier.
+
+    THE GUARDED DOCS PLUS TRACKED PYTHON MODULES, and the second half is not a
+    widening for its own sake. CS-889's measured population held two pointers
+    that sat in Python source rather than in a doc - one in a probe's comment
+    and one in a test's - and a population that stopped at ``docs/`` would have
+    reported them absent rather than judged them.
+
+    The docs are SCOPED and the modules are not: scoping exists to keep the
+    ledger's illustrative preamble out of adjudication, and a module has no
+    such preamble.
+    """
+    carriers = {doc: scoped_text(doc, doc_text(doc)) for doc in GUARDED_DOCS}
+    for path in tracked:
+        if path.endswith(".py"):
+            carriers[path] = (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+    return carriers
+
+
+@pytest.fixture(scope="module")
+def live_line_pointers(
+    line_pointer_carriers: Mapping[str, str], file_lines: Mapping[str, Sequence[str]]
+) -> tuple[list[tuple[str, str, int, str]], list[tuple[str, str, int, str]]]:
+    return line_pointer_sites(line_pointer_carriers, file_lines)
 
 
 @pytest.fixture(scope="module")
@@ -1824,6 +2358,316 @@ def test_a_no_target_disposition_forgives_without_naming_anything() -> None:
     table = {_REDIRECT_KEY: Disposition(NO_TARGET, "", "no test bears this meaning", 1)}
 
     assert unresolved_citations("ROADMAP.md", _REDIRECT_TEXT, _CORPUS, table) == []
+
+
+# --- contract 5: CS-889 - a line pointer must land on something, and the -----
+# --- line form is refused where a symbol form exists -------------------------
+
+
+def test_no_line_pointer_in_the_scoped_population_lands_on_nothing(
+    live_line_pointers: tuple[list[tuple[str, str, int, str]], list[tuple[str, str, int, str]]],
+    sources: Mapping[str, str],
+) -> None:
+    """LEG 1. A pointer at a blank or bracket-only line resolves to nothing.
+
+    Read over BOTH halves of the population. Blankness is not a claim about
+    what a symbol form could replace, so the exemption that spares non-Python
+    targets from the forbid leg buys them nothing here.
+    """
+    py_sites, other_sites = live_line_pointers
+
+    empty, _forbidden = line_pointer_content_problems(py_sites, other_sites, sources)
+
+    assert not empty, "line pointers landing on nothing:\n" + "\n".join(
+        f"  {problem}" for problem in empty
+    )
+
+
+def test_no_line_pointer_names_a_tracked_python_module_without_a_record(
+    live_line_pointers: tuple[list[tuple[str, str, int, str]], list[tuple[str, str, int, str]]],
+    sources: Mapping[str, str],
+) -> None:
+    """LEG 2. The symbol form is a drop-in that an edit above cannot invalidate."""
+    py_sites, other_sites = live_line_pointers
+
+    _empty, forbidden = line_pointer_content_problems(py_sites, other_sites, sources)
+
+    assert not forbidden, "line pointers at tracked Python modules:\n" + "\n".join(
+        f"  {problem}" for problem in forbidden
+    )
+
+
+def test_every_grandfathered_line_pointer_is_still_spelled(
+    live_line_pointers: tuple[list[tuple[str, str, int, str]], list[tuple[str, str, int, str]]],
+) -> None:
+    """The pin, checked in the direction that keeps it from outliving its corpus."""
+    py_sites, _other = live_line_pointers
+    live = [(carrier, path, line) for carrier, path, line, _landing in py_sites]
+
+    problems = stale_pin_problems(live, UNVERIFIED_LINE_POINTERS)
+
+    assert not problems, (
+        "UNVERIFIED_LINE_POINTERS has outlived its corpus:\n"
+        + "\n".join(f"  {problem}" for problem in problems)
+        + "\nA pointer that was repaired or deleted must leave the pin."
+    )
+
+
+def test_the_unforbidden_line_pointer_residual_is_pinned_in_both_directions(
+    live_line_pointers: tuple[list[tuple[str, str, int, str]], list[tuple[str, str, int, str]]],
+) -> None:
+    """THE STATED PRICE OF THE FORBID RULE, kept countable rather than silent.
+
+    A pointer at a ``.yml``, ``.md`` or ``.toml`` file is NOT forbidden,
+    because those files have no symbol form - forbidding the line form there
+    would leave no way to cite them at all. That exemption is a real hole:
+    those pointers rot on an edit above them exactly as the Python ones do, and
+    nothing in this module checks their content either. Pinning the sites is
+    what stops the hole from growing without anyone noticing.
+    """
+    _py_sites, other = live_line_pointers
+    unforbidden = {(carrier, path, line) for carrier, path, line, _landing in other}
+
+    assert set(unforbidden) == set(UNFORBIDDEN_LINE_POINTERS), (
+        f"the unforbidden residual is {len(set(unforbidden))} site(s), pinned at"
+        f" {len(UNFORBIDDEN_LINE_POINTERS)}."
+        f"\n  arrived: {sorted(set(unforbidden) - set(UNFORBIDDEN_LINE_POINTERS))}"
+        f"\n  gone: {sorted(set(UNFORBIDDEN_LINE_POINTERS) - set(unforbidden))}"
+    )
+
+
+def test_no_line_pointer_is_both_adjudicated_and_grandfathered() -> None:
+    """One site, one forgiveness, so neither table hides the other going stale."""
+    adjudicated = {(doc, cited) for doc, cited in DISPOSITIONS if LINE_POINTER_RE.fullmatch(cited)}
+    grandfathered = {
+        (carrier, line_key(path, line)) for carrier, path, line in UNVERIFIED_LINE_POINTERS
+    }
+
+    assert not adjudicated & grandfathered, (
+        f"forgiven twice, so retiring either record changes nothing: {adjudicated & grandfathered}"
+    )
+
+
+def test_no_carrier_comes_from_a_doc_this_module_declines_to_read(
+    line_pointer_carriers: Mapping[str, str],
+) -> None:
+    """The negative controls, asserted on the LIVE population rather than assumed.
+
+    ``docs/history_notes.md`` is the recorded-unguarded deep archive, where
+    quoting and citing cannot be told apart by shape; ``docs/_archive/`` is
+    dated material excluded from every search for current truth; ``.claude/``
+    is harness configuration and out of domain entirely. A carrier from any of
+    the three would mean this section had quietly widened past the boundary the
+    rest of the module keeps.
+    """
+    intruders = sorted(
+        carrier
+        for carrier in line_pointer_carriers
+        if carrier in UNGUARDED_DOCS or carrier.startswith((DATED_ARCHIVE, OUT_OF_DOMAIN))
+    )
+
+    assert not intruders, f"carriers read from outside the stated boundary: {intruders}"
+
+
+# --- the CS-889 controls, on a corpus with no filesystem involved ------------
+
+_LANDING_CORPUS: Final = {
+    "clockspeed/synthetic/mod.py": [
+        "class Thing:",
+        "    pass",
+        "",
+        "        )",
+        "    an ordinary sentence inside a docstring",
+    ],
+    "docs/synthetic/note.md": ["# a heading", "prose", ""],
+}
+_LANDING_SOURCE: Final = {"clockspeed/synthetic/mod.py": "def _live_target() -> None:\n    pass\n"}
+_SYNTHETIC_MODULE: Final = "clockspeed/synthetic/mod.py"
+_SYNTHETIC_DOC: Final = "docs/synthetic/note.md"
+
+
+def _planted(path: str, line: int) -> dict[str, str]:
+    """A one-carrier corpus spelling exactly one pointer.
+
+    ASSEMBLED, NEVER SPELLED, for :func:`line_key`'s reason: this module is
+    itself a carrier the arms above read, so a literal pointer written here
+    would be a real one.
+    """
+    return {"ROADMAP.md": f"see `{line_key(path, line)}` for the shape\n"}
+
+
+def test_a_pointer_landing_on_a_blank_line_is_reported() -> None:
+    py_sites, other = line_pointer_sites(_planted(_SYNTHETIC_MODULE, 3), _LANDING_CORPUS)
+
+    empty, forbidden = line_pointer_content_problems(py_sites, other, {}, {}, ())
+
+    assert len(empty) == 1, f"a pointer at a blank line was not reported: {empty}"
+    assert forbidden == [], "a blank landing was reported as a forbid-leg finding instead"
+
+
+def test_a_pointer_landing_on_a_lone_bracket_is_reported() -> None:
+    """Punctuation is not a declaration, and a closing bracket is the common case."""
+    py_sites, other = line_pointer_sites(_planted(_SYNTHETIC_MODULE, 4), _LANDING_CORPUS)
+
+    empty, _forbidden = line_pointer_content_problems(py_sites, other, {}, {}, ())
+
+    assert len(empty) == 1, f"a pointer at a bracket-only line was not reported: {empty}"
+
+
+def test_the_emptiness_leg_is_green_on_a_pointer_that_lands_on_prose() -> None:
+    """WHY LEG 1 ALONE IS REFUTED, pinned so it cannot be quietly dropped.
+
+    CS-889's primary target landed on a docstring line roughly eighty lines
+    above the declaration its sentence claimed. The line was neither blank nor
+    punctuation, so an emptiness check is GREEN on it - which is exactly the
+    measurement that made the forbid leg necessary rather than optional.
+    """
+    py_sites, other = line_pointer_sites(_planted(_SYNTHETIC_MODULE, 5), _LANDING_CORPUS)
+
+    empty, forbidden = line_pointer_content_problems(py_sites, other, {}, {}, ())
+
+    assert empty == [], "the emptiness leg claimed a finding it cannot honestly make"
+    assert len(forbidden) == 1, f"the forbid leg missed what the emptiness leg passes: {forbidden}"
+
+
+def test_a_grandfathered_pointer_is_forgiven_by_the_forbid_leg_and_not_by_the_other() -> None:
+    """The baseline claims nothing about content, so it cannot answer blankness."""
+    prose = line_pointer_sites(_planted(_SYNTHETIC_MODULE, 5), _LANDING_CORPUS)[0]
+    blank = line_pointer_sites(_planted(_SYNTHETIC_MODULE, 3), _LANDING_CORPUS)[0]
+    pinned = (
+        ("ROADMAP.md", _SYNTHETIC_MODULE, 5),
+        ("ROADMAP.md", _SYNTHETIC_MODULE, 3),
+    )
+
+    assert line_pointer_content_problems(prose, [], {}, {}, pinned) == ([], [])
+    empty, forbidden = line_pointer_content_problems(blank, [], {}, {}, pinned)
+    assert len(empty) == 1, "a pinned pointer that went blank was forgiven, and it must not be"
+    assert forbidden == []
+
+
+def test_a_recorded_redirect_whose_target_resolves_forgives_the_pointer() -> None:
+    key = ("ROADMAP.md", line_key(_SYNTHETIC_MODULE, 5))
+    table = {key: Disposition(MOVED, f"{_SYNTHETIC_MODULE}::_live_target", "the target is live", 1)}
+    py_sites, other = line_pointer_sites(_planted(_SYNTHETIC_MODULE, 5), _LANDING_CORPUS)
+
+    assert line_pointer_content_problems(py_sites, other, _LANDING_SOURCE, table, ()) == ([], [])
+
+
+def test_a_recorded_redirect_whose_target_stopped_resolving_is_reported() -> None:
+    """A record that points at nothing forgives nothing, on the new arm too."""
+    key = ("ROADMAP.md", line_key(_SYNTHETIC_MODULE, 5))
+    table = {key: Disposition(MOVED, f"{_SYNTHETIC_MODULE}::_gone_now", "the target rotted", 1)}
+    py_sites, other = line_pointer_sites(_planted(_SYNTHETIC_MODULE, 5), _LANDING_CORPUS)
+
+    _empty, forbidden = line_pointer_content_problems(py_sites, other, _LANDING_SOURCE, table, ())
+
+    assert len(forbidden) == 1, "a redirect at a dead target was accepted"
+    assert "does not resolve" in forbidden[0]
+
+
+def test_a_record_forgives_a_blank_landing_that_the_baseline_may_not() -> None:
+    """An ADJUDICATED answer silences both legs; that is what adjudication buys."""
+    key = ("ROADMAP.md", line_key(_SYNTHETIC_MODULE, 3))
+    table = {key: Disposition(NO_TARGET, "", "the carrier is append-only", 1)}
+    py_sites, other = line_pointer_sites(_planted(_SYNTHETIC_MODULE, 3), _LANDING_CORPUS)
+
+    assert line_pointer_content_problems(py_sites, other, {}, table, ()) == ([], [])
+
+
+def test_a_pointer_at_a_tracked_non_python_file_is_not_forbidden() -> None:
+    """No symbol form exists there, so forbidding would leave no way to cite it."""
+    py_sites, other = line_pointer_sites(_planted(_SYNTHETIC_DOC, 2), _LANDING_CORPUS)
+    _empty, forbidden = line_pointer_content_problems(py_sites, other, {}, {}, ())
+
+    assert py_sites == [], "a non-Python target entered the forbidden class"
+    assert other == [("ROADMAP.md", _SYNTHETIC_DOC, 2, "prose")]
+    assert forbidden == [], "a non-Python target was refused a form it cannot have"
+
+
+def test_a_non_python_pointer_that_lands_on_nothing_is_still_reported() -> None:
+    """THE EXEMPTION IS FROM THE FORBID LEG ONLY, and this is where that bites.
+
+    A ``.yml`` or ``.md`` target has no symbol form, so the line form is all
+    there is and forbidding it would leave no way to cite the file at all. It
+    does NOT follow that such a pointer may name nothing: blankness is not a
+    claim about what could replace the pointer. An arm that let the forbid
+    exemption widen into an emptiness exemption would have bought a tidier
+    boundary by making a whole class of dead pointer invisible.
+    """
+    py_sites, other = line_pointer_sites(_planted(_SYNTHETIC_DOC, 3), _LANDING_CORPUS)
+
+    empty, forbidden = line_pointer_content_problems(py_sites, other, {}, {}, ())
+
+    assert len(empty) == 1, f"a non-Python pointer at a blank line was not reported: {empty}"
+    assert forbidden == [], "a non-Python target was reported by the forbid leg"
+
+
+def test_the_declines_the_range_arm_already_makes_keep_the_synthetic_fixtures_out() -> None:
+    """REUSED, NOT RE-INVENTED, which was the stated requirement.
+
+    The synthetic Python fixtures this module and its siblings plant are
+    excluded by tests that already existed - an unqualified basename carries no
+    directory to resolve against, and a path outside the index is not a tracked
+    file. A carve-out written for the fixtures by name would be one a later
+    fixture could fall outside of.
+    """
+    bare = {"ROADMAP.md": "see `" + line_key("planted.py", 5) + "`\n"}
+    untracked = _planted("tests/synthetic/test_planted.py", 1)
+    ledger_self = {LEDGER: "see `" + line_key(LEDGER, 128) + "`\n"}
+    past_end = _planted(_SYNTHETIC_MODULE, 900)
+
+    for carriers in (bare, untracked, ledger_self, past_end):
+        assert line_pointer_sites(carriers, _LANDING_CORPUS) == ([], []), (
+            f"a declined shape entered the CS-889 population: {carriers}"
+        )
+
+
+def test_a_stale_pin_is_reported() -> None:
+    problems = stale_pin_problems([], (("ROADMAP.md", _SYNTHETIC_MODULE, 5),))
+
+    assert len(problems) == 1, "a pin for a pointer nothing spells was accepted"
+    assert "no longer spells it" in problems[0]
+
+
+# The five pointers CS-889 was filed on, REBUILT AS A PLANT because the
+# originals no longer exist: `tests/test_make_cert.py` carries ZERO line
+# pointers today - an earlier slice repaired all five to symbol form, which is
+# the repair this section's forbid leg asks for. So a check phrased "the arm is
+# green on the five filed instances" is unrunnable as written, and a check
+# phrased "the arm reports them" has to reconstruct them. Two of the five were
+# written as line RANGES; the pattern reads the first number of a range, so the
+# plant spells them the same way the doc did.
+_FILED_CERT_LINES: Final = (222, 224, 279)
+_FILED_ENV_LINES: Final = (358, 372)
+_FILED_CERT: Final = "scripts/synthetic_cert.py"
+_FILED_ENV: Final = "scripts/synthetic_env.py"
+
+
+def test_each_of_the_five_originally_filed_pointers_is_reported() -> None:
+    """The acceptance control, on a reconstruction rather than on a memory."""
+    corpus = {
+        _FILED_CERT: ["x = 1"] * 300,
+        _FILED_ENV: [""] * 400,
+    }
+    carriers = {
+        "ROADMAP.md": "\n".join(
+            [f"see `{line_key(_FILED_CERT, line)}`" for line in _FILED_CERT_LINES]
+            + [f"and `{line_key(_FILED_ENV, line)}-380`" for line in _FILED_ENV_LINES]
+        )
+    }
+
+    py_sites, other = line_pointer_sites(carriers, corpus)
+    empty, forbidden = line_pointer_content_problems(py_sites, other, {}, {}, ())
+
+    assert len(py_sites) == len(_FILED_CERT_LINES) + len(_FILED_ENV_LINES), (
+        f"the plant did not reconstruct all five filed pointers: {py_sites}"
+    )
+    assert len(empty) == len(_FILED_ENV_LINES), (
+        f"the two pointers at blank lines were not both reported: {empty}"
+    )
+    assert len(forbidden) == len(_FILED_CERT_LINES), (
+        f"the three pointers at live lines were not all reported: {forbidden}"
+    )
 
 
 def test_this_test_module_is_seven_bit_ascii() -> None:
