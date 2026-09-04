@@ -275,7 +275,7 @@ live-flagged scopes over 9 modules have no assert in scope, one of them
 
 ### NOTE - filed 2026-08-25 (session 40) by the merger, from a CS-851 adversary, MEASURED ON MAIN
 
-**A SHIPPED CLASS, NOT A TEST.** `clockspeed/save/chunks.py:474` declares
+**A SHIPPED CLASS, NOT A TEST.** `clockspeed/save/chunks.py::DecompressedBody` declares
 `DecompressedBody` as `@dataclass(frozen=True)`. Merger measured directly:
 `grep -c "def __repr__" clockspeed/save/chunks.py` is **0**. Its default dataclass repr
 renders `payload=b'...'` - the concatenated decompressed body of a real save, which carries
@@ -532,8 +532,10 @@ a later repair - the repr count of 0 - is not; no guard in this tree grades a pa
 measurement, and CS-889 must not be widened to invent one. The two faults simply happen to
 sit in the same paragraph.
 
-**THE ORIGINAL BLOCK AND THE `ROADMAP.md` ITEM LINE ARE LEFT ALONE DELIBERATELY**, so the
-item line still reads that the dataclass ships no `__repr__`. That is the standing
+**THE ORIGINAL BLOCK'S CLAIMS AND THE `ROADMAP.md` ITEM LINE ARE LEFT ALONE
+DELIBERATELY**, so the item line still reads that the dataclass ships no `__repr__`. Its
+dead POINTER was repaired in place to the symbol form under CS-889 - a link fix, changing
+no claim - which is why the block above still asserts a repr count this block corrects. That is the standing
 no-clause-rewrite decision applied for a ninth consecutive session, and the same handling
 session 58 gave CS-889 and CS-890: the correction goes in a new block, the record of what
 was believed at filing stays legible, and the drift is recorded rather than tidied away.
@@ -639,7 +641,7 @@ shipped AST, beside a detector proven able to find a planted one.
 1. **THE SANDBOX DOES NOT RUN THE CONFIGURED PIPELINE.** `_sandbox` passes
    `--rootdir <tempdir>` and `cwd=<tempdir>`, so neither `pyproject.toml` nor
    `tests/conftest.py` loads - sandbox headers carry no `configfile:` line. The real
-   pipeline sits behind `tests/conftest.py:665`, the CS-428 report redactor. So every
+   pipeline sits behind `tests/conftest.py::redact_personal_data`, the CS-428 report redactor. So every
    `renders=True` here proves AN ARBITRARY STRING REACHES THE REPORT, **not that
    personal data does**, and only the second is what this item is about. Not repaired:
    the fixtures would have to sit inside the repo, where `tracked_python_files`
