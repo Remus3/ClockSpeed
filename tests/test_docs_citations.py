@@ -312,6 +312,63 @@ GUARDED_DOCS: Final = (
     "memory/moving-an-assert-can-create-the-leak.md",
     "memory/a-guard-can-measure-spelling.md",
     "memory/a-guard-can-be-green-by-accident.md",
+    # CS-891 - THE DOCS THAT SPELL A PATH AND NOTHING THIS MODULE YET READS.
+    # Every shape in JUDGED_SHAPES needs a separator after the path - a name
+    # after "::", or a number after a colon - so a doc naming a module or a
+    # tool plainly is not a carrier and has never had to be guarded. The
+    # eighteen below are the in-domain markdown files that become carriers the
+    # moment a shape reads the bare path, MEASURED by running this module's own
+    # predicate against the corpus rather than reasoned about. Guarded in a
+    # change that adds no shape, so the arm that reads one does not arrive in
+    # the same commit as the population it would judge - and so its first run
+    # is a statement about the arm rather than about the widening.
+    #
+    # ZERO NEW FINDINGS, MEASURED ACROSS ALL THREE EXISTING ARMS on every one
+    # of them. That is expected rather than reassuring: none of the three reads
+    # a bare path, so the number this widening could have moved was zero by
+    # construction. What it buys is that the fifth arm's findings will be the
+    # fifth arm's.
+    #
+    # The six roots of the doc topology. Each spells repo-relative module,
+    # tool and config paths - twenty distinct ones in CLAUDE.md, twelve in
+    # CONVENTIONS.md - and every one of those resolves to a tracked file today.
+    "BACKLOG.md",
+    "BOOTSTRAP.md",
+    "CLAUDE.md",
+    "CONVENTIONS.md",
+    "README.md",
+    "THIRD_PARTY.md",
+    # The three docs whose SUBJECT is where code and commands live, so they
+    # spell more paths than anything else here.
+    #
+    # MEASURED RESIDUAL IN docs/ARCHITECTURE.md, disclosed because a later arm
+    # will meet it: of its forty distinct qualified paths, twenty resolve to
+    # tracked files and twenty do not. Three name advisor modules that are
+    # planned and not yet built; the other seventeen are written relative to a
+    # package root stated in the surrounding table rather than to the repo, so
+    # resolving them repo-relative would report absences that are artifacts of
+    # the reader - trap 2, in the arm that has not been written yet. Guarding
+    # the file costs nothing today because no arm reads a bare path.
+    "docs/ARCHITECTURE.md",
+    "docs/OPERATIONS.md",
+    "docs/upstream_watch.md",
+    # The ADR family. The five ADRs already guarded above got there by naming a
+    # test or a line; these eight name only files - the index, a sibling ADR,
+    # docs/GATED.md, a pinned module - and all of them resolve today. Guarding
+    # the family whole means a new ADR that cites a test is caught by the
+    # boundary contract rather than by whoever notices.
+    "docs/adr/README.md",
+    "docs/adr/0001-adr-process.md",
+    "docs/adr/0003-s4-node-actors-in-save.md",
+    "docs/adr/0005-overclock-ceiling-source.md",
+    "docs/adr/0006-unsharded-clock-base-and-the-ceiling-fence.md",
+    "docs/adr/0007-header-and-chunk-framing-are-version-dependent.md",
+    "docs/adr/0009-inventory-potential-top-level-carries-no-slot-count.md",
+    "docs/adr/0013-electron-licence-gate.md",
+    # The one memory leaf left outside the three above. It names the test
+    # module its lesson was learned in, and that module is tracked today - the
+    # same reason those three are guarded rather than recorded.
+    "memory/a-guard-can-be-accepted-and-unscoped.md",
 )
 
 # `.claude/` is OUT OF DOMAIN rather than exempt. It is Claude Code
@@ -1733,13 +1790,22 @@ def in_domain(path: str) -> bool:
     output contains what it filtered out re-asserts the comprehension and
     cannot fail. This can be asked about a path that does not exist.
 
+    THE DATED ARCHIVE IS EXCLUDED FOR THE REASON IT IS EXCLUDED EVERYWHERE
+    ELSE. :func:`line_pointer_carriers` has skipped it since it was built, and
+    this predicate did not, so one tracked file was outside one arm's
+    population and inside the other's. It cost nothing while every judged shape
+    needed a separator after the path, and it would cost the moment a shape
+    reads the bare path: CLAUDE.md section 4 keeps dated artifacts out of every
+    search for current truth, and a widened guarded set would have taken one in.
+
     Args:
         path: A repo-relative POSIX path.
 
     Returns:
-        True for tracked markdown outside :data:`OUT_OF_DOMAIN`.
+        True for tracked markdown outside :data:`OUT_OF_DOMAIN` and
+        :data:`DATED_ARCHIVE`.
     """
-    return path.endswith(".md") and not path.startswith(OUT_OF_DOMAIN)
+    return path.endswith(".md") and not path.startswith((OUT_OF_DOMAIN, DATED_ARCHIVE))
 
 
 @pytest.fixture(scope="module")
@@ -1881,6 +1947,82 @@ def test_the_deep_archive_is_the_only_doc_left_unguarded() -> None:
         "the recorded-unguarded set is no longer the deep archive alone:\n"
         + "\n".join(f"  {doc}" for doc in sorted(UNGUARDED_DOCS))
         + "\nGuard the newcomer, or change this contract deliberately and say why."
+    )
+
+
+def test_the_guarded_set_already_covers_what_a_bare_path_shape_would_read(
+    markdown_texts: Mapping[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-891 - the population is widened BEFORE the arm that needs it, not with it.
+
+    EVERY SHAPE THIS MODULE JUDGES TODAY NEEDS A SEPARATOR - a name after
+    ``::``, or a number after a colon - so a doc that spells a repo-relative
+    path and nothing else is not a carrier and has never had to be guarded. A
+    shape that reads the bare path makes a whole population of docs carriers in
+    one step. Adding that shape and widening the set in the SAME change would
+    make the arm's first run also the population's first run, and neither could
+    then be blamed for the other's findings.
+
+    THE PROBE IS LOCAL AND JOINS NOTHING. It is a control fixture rather than a
+    shape this module judges by, so it stays inside this function: a
+    module-level pattern no arm reads is exactly what the membership contract
+    above exists to report, and hiding one from that contract by naming it
+    something else is the evasion the contract was written against.
+
+    THE SEPARATOR IS REQUIRED, and that is trap 2 rather than a preference. An
+    unqualified basename resolved repo-relative and then called missing
+    MANUFACTURES findings - a census that did it reported six dead targets and
+    all six were artifacts - so a bare-path shape that judged one would
+    contradict the trap this module is built around. MEASURED RESIDUAL,
+    disclosed rather than implied away: four in-domain docs spell an
+    unqualified basename and nothing qualified, so a shape that dropped the
+    separator would report four docs this contract does not cover.
+    """
+    qualified_path = re.compile(
+        r"\.?[A-Za-z0-9_][A-Za-z0-9_.-]*(?:/[A-Za-z0-9_.-]+)+"
+        r"\.(?:py|md|json|toml|yml|yaml|cfg|txt|ini)(?![:\w])"
+    )
+    today = JUDGED_SHAPES
+    newly = sorted(
+        doc
+        for doc, text in markdown_texts.items()
+        if qualified_path.search(text) and not any(shape.search(text) for shape in today)
+    )
+
+    assert newly, (
+        "no in-domain doc becomes a carrier when a bare-path shape is read, so this "
+        "contract measures an empty population and would pass whatever went unguarded"
+    )
+    unguarded = [doc for doc in newly if doc not in GUARDED_DOCS]
+    assert not unguarded, (
+        "docs a bare-path shape would make carriers that nothing guards:\n"
+        + "\n".join(f"  {doc}" for doc in unguarded)
+        + "\nGuard them here, so the arm that reads the shape needs no second widening."
+    )
+
+    monkeypatch.setitem(globals(), "JUDGED_SHAPES", (*today, qualified_path))
+
+    # THE INJECTION IS PROVED TO HAVE LANDED, not assumed. A widening that
+    # silently did not apply reads EXACTLY like a population with nothing left
+    # to report - the two are the same output - so the clean answer below is
+    # worth nothing until the predicate is shown to have moved. Withholding
+    # precisely the new members must report precisely them: none was a carrier
+    # a moment ago, so any other answer means the probe never reached the
+    # boundary.
+    withheld, _stale = guarded_set_problems(
+        markdown_texts, [doc for doc in GUARDED_DOCS if doc not in newly], UNGUARDED_DOCS
+    )
+    assert withheld == newly, (
+        "withholding the new members did not report them back, so the widened "
+        "predicate never reached the boundary and the check below measures nothing"
+    )
+
+    unrecorded, stale = guarded_set_problems(markdown_texts, GUARDED_DOCS, UNGUARDED_DOCS)
+
+    assert (unrecorded, stale) == ([], []), (
+        "the boundary is not clean against a widened predicate:\n"
+        + "\n".join(f"  unrecorded {doc}" for doc in unrecorded)
+        + "\n".join(f"  stale {problem}" for problem in stale)
     )
 
 
@@ -2531,6 +2673,43 @@ def test_the_domain_excludes_a_harness_file_that_would_otherwise_be_a_carrier(
     assert [p for p in tracked if p.startswith(OUT_OF_DOMAIN) and p.endswith(".md")], (
         "nothing under .claude/ is tracked markdown, so OUT_OF_DOMAIN excludes nothing and "
         "should be deleted rather than left standing as a rule about an empty set"
+    )
+
+
+def test_the_domain_excludes_the_dated_archive(tracked: list[str]) -> None:
+    """Dated material is out of every search for current truth, this one included.
+
+    THE TWO POPULATIONS DISAGREED. :func:`line_pointer_carriers` has skipped
+    :data:`DATED_ARCHIVE` since it was built and :func:`in_domain` did not, so
+    the same archived file sat outside one arm's population and inside the
+    other's. It cost nothing while every judged shape needed a separator after
+    the path - the one archived file spells no such pointer - and it would cost
+    the moment a shape reads the bare path, by pulling a dated artifact into
+    the guarded set that CLAUDE.md section 4 excludes from search.
+
+    BOTH DIRECTIONS, AND THE ARCHIVE IS ASSERTED NON-EMPTY. A rule about an
+    empty set reads as coverage and is not: an exclusion with nothing to
+    exclude passes however it is broken. The tracked archive is measured here
+    so the exclusion cannot be satisfied vacuously.
+    """
+    assert not in_domain(f"{DATED_ARCHIVE}planted.md"), (
+        "a dated artifact reached the documentation domain, so guarding every "
+        "carrier would guard the archive CLAUDE.md section 4 excludes"
+    )
+    assert in_domain("docs/planted.md"), (
+        "the same name one directory up was excluded too, so the predicate "
+        "rejects live documentation rather than dated material"
+    )
+
+    archived = [p for p in tracked if p.startswith(DATED_ARCHIVE) and p.endswith(".md")]
+
+    assert archived, (
+        "no dated markdown is tracked, so DATED_ARCHIVE excludes nothing and should be "
+        "deleted rather than left standing as a rule about an empty set"
+    )
+    admitted = [p for p in archived if in_domain(p)]
+    assert not admitted, "tracked dated markdown reached the documentation domain:\n" + "\n".join(
+        f"  {p}" for p in admitted
     )
 
 
