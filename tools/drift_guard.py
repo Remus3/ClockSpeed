@@ -522,9 +522,13 @@ _WIKILINK = re.compile(r"\[\[([^\]|#]+)")
 _MDLINK = re.compile(r"\]\(([^)\s]+)")
 _BACKTICK = re.compile(r"`([^`\n]+)`")
 
-# A fenced code block opens and closes on a line whose first non-space run is
-# three or more backticks or tildes, indented at most three spaces.
-_FENCE = re.compile(r"^ {0,3}(?:`{3,}|~{3,})")
+# A fence line under CommonMark: at most three spaces of indent, then a run of
+# three or more backticks or tildes, then the rest of the line. The run and the
+# remainder are captured separately because BOTH matter - an opener may carry
+# an info string, a closer may not, and a closer must be at least as long as
+# the opener it closes. Matching the shape alone is what CS-890's repair got
+# wrong; see ``_fence_scan``.
+_FENCE_LINE = re.compile(r"^ {0,3}(?P<run>`{3,}|~{3,})(?P<info>.*)$")
 
 # A target carrying a URL scheme cites something outside this store and is
 # never resolved against a path in it. A single-letter scheme is matched on
@@ -562,46 +566,84 @@ def _link_targets(text: str) -> set[str]:
     return tokens
 
 
-def _outside_fenced_code(text: str) -> str:
-    """Return ``text`` with every fenced code block blanked out.
+def _fence_scan(text: str) -> tuple[str, bool]:
+    """Blank every fenced code block, by COMMONMARK rules, not by parity.
 
     A ``[[token]]`` inside a fence is sample material, not a cross-reference.
     The store quotes a TOML array-of-tables header, ``[[tool.mypy.overrides]]``,
-    which is spelled exactly like a wikilink and cites nothing at all.
+    spelled exactly like a wikilink and citing nothing. Excluding a shape that
+    is not a link is not the same as narrowing a clause until it reads as
+    satisfied, and the exclusion is scoped: a dangling wikilink one line ABOVE
+    a fence still reddens the guard.
 
-    THIS IS AN EXCLUSION OF A SHAPE THAT IS NOT A LINK, not a clause narrowed
-    until it reads as satisfied. Three things make that checkable rather than
-    asserted: the exclusion is stated here, it is scoped to fenced regions
-    alone, and it carries its own control - a dangling wikilink one line ABOVE
-    a fence still reddens the guard
-    (``test_a_dangling_wikilink_directly_above_a_fence_still_reddens``).
+    WHY THIS IS NOT A PARITY TOGGLE, WHICH IS WHAT IT WAS AND WHAT WAS WRONG.
+    The first version flipped a boolean on any line whose first run was three
+    or more backticks. Two defects followed, both measured against a temp copy
+    of the store rather than argued:
 
-    Closing is deliberately lenient: any fence line ends an open block rather
-    than only one matching the opener's character and run length. A file that
-    opens a fence and never closes it would otherwise have its whole remainder
-    swallowed, and swallowing content is the failure mode this guard exists to
-    prevent.
+      G1, SILENT GREEN. Two ordinary PROSE lines that merely begin with three
+      backticks give EVEN parity. Everything between them was blanked and left
+      the population invisibly, with the count line byte-identical to pristine
+      and no skip of any kind - while the store held two dangling wikilinks.
+      Parity was the only net, and parity cannot see an even count. That is
+      ``memory/an-empty-population-satisfies-every-zero.md`` reproduced inside
+      the guard that protects that store.
+
+      F1, A MANUFACTURED FINDING. The canonical way to document a fence is a
+      FOUR-backtick outer fence wrapping a THREE-backtick example. The toggle
+      un-toggled on the inner opener, so the example body was read as prose and
+      the guard went FAIL on ``[[tool.mypy.overrides]]``. That block is ALREADY
+      in this store, so a note quoting it would have reddened guard (b) and
+      blocked every commit and push in the repository - the exact harm
+      ``_citation_targets`` says it exists to avoid.
+
+    THE RULES, from CommonMark. An opener is a run of three or more backticks
+    or tildes and MAY carry an info string - except that a backtick fence's
+    info string may not itself contain a backtick, which is what keeps a line
+    of inline code from opening a block. A closer must use the SAME character,
+    be AT LEAST AS LONG as the opener, and carry NO info string. Tracking the
+    open run's character and length is what makes a three-backtick example
+    inside a four-backtick fence stay code, and what stops a prose line from
+    closing a fence it never opened.
 
     Args:
         text: The markdown source.
 
     Returns:
-        The same text with fenced regions replaced by empty lines, so line
-        counts are preserved for any caller that reports one.
+        ``(body, unterminated)`` - the text with fenced regions replaced by
+        empty lines so line counts are preserved, and whether a fence was still
+        open at end of file. UNTERMINATED IS RETURNED RATHER THAN SWALLOWED:
+        an open fence blanks an arbitrary suffix, so a caller that reported a
+        clean population over it would be reporting a green about a region it
+        never read.
     """
     kept: list[str] = []
-    inside = False
+    run = ""
     for line in text.splitlines():
-        if _FENCE.match(line):
-            inside = not inside
+        match = _FENCE_LINE.match(line)
+        if match is None:
+            kept.append("" if run else line)
+            continue
+        found = match.group("run")
+        info = match.group("info")
+        if not run:
+            if found[0] == "`" and "`" in info:
+                # A backtick fence's info string may not contain a backtick, so
+                # this line is inline code rather than an opener.
+                kept.append(line)
+                continue
+            run = found
             kept.append("")
             continue
-        kept.append("" if inside else line)
-    return "\n".join(kept)
+        closes = found[0] == run[0] and len(found) >= len(run) and not info.strip()
+        if closes:
+            run = ""
+        kept.append("")
+    return "\n".join(kept), bool(run)
 
 
-def _citation_targets(text: str) -> list[tuple[str, str]]:
-    """Wikilink and markdown-link targets, read OUTSIDE fenced code only.
+def _citation_targets(body: str) -> list[tuple[str, str]]:
+    """Wikilink and markdown-link targets in an ALREADY fence-blanked body.
 
     DELIBERATELY NARROWER THAN ``_link_targets``, AND THAT IS THE WHOLE POINT.
     ``_link_targets`` also harvests every backticked span, which is right for
@@ -613,15 +655,18 @@ def _citation_targets(text: str) -> list[tuple[str, str]]:
     stay separate on purpose. Neither is a refactor of the other, and merging
     them turns a green repository red.
 
+    The caller passes the output of ``_fence_scan`` rather than raw source, so
+    that there is exactly one place in this module that decides what counts as
+    fenced code and exactly one place that can get it wrong.
+
     Args:
-        text: The markdown source.
+        body: Markdown with fenced regions already blanked by ``_fence_scan``.
 
     Returns:
         ``(kind, raw)`` pairs - kind being "wikilink" or "link" - in file
         order, duplicates collapsed, original spelling preserved so a finding
         can quote what the author actually wrote.
     """
-    body = _outside_fenced_code(text)
     found: list[tuple[str, str]] = []
     seen: set[tuple[str, str]] = set()
     for kind, pattern in (("wikilink", _WIKILINK), ("link", _MDLINK)):
@@ -669,52 +714,48 @@ def _citation_resolves(memory_dir: Path, kind: str, raw: str) -> bool:
 
 def _citation_findings(
     root: Path, memory_dir: Path, paths: list[Path], skips: list[Skip]
-) -> tuple[int, list[str]]:
+) -> tuple[int, list[str], list[str]]:
     """Resolve every citation in ``paths``.
 
-    AN UNCLOSED FENCE IS RECORDED AS A SKIP, NOT SWALLOWED. A file that opens
-    a fence and never closes it has its whole remainder read as code, so every
-    citation after that point leaves the population silently - which is the
-    failure class ``memory/a-skip-can-mute-the-defect.md`` owns. It is not
-    made a FAILURE, because unbalanced fences are a formatting fault rather
-    than a broken citation and this guard runs on the pre-commit path; it goes
-    to the skip list the tool prints on EVERY run, so the green states what it
-    could not see.
+    AN UNTERMINATED FENCE IS A FINDING, NOT A SKIP. It was a skip, and that
+    was too weak: an open fence blanks an arbitrary SUFFIX of a file, so the
+    guard would report a clean population over a region it never read. The
+    first version could not even detect the case that actually swallowed - it
+    tested fence-line PARITY, and the two-prose-line case that swallows has
+    EVEN parity. Failing is safe here because an unterminated fence is
+    malformed markdown that no correct note has: measured across the tracked
+    store, zero files carry one.
 
     Args:
         root: The repository root, for rendering relative paths.
         memory_dir: The directory citations resolve against.
         paths: The files to read.
-        skips: Skip records, appended to for anything unreadable and for any
-            file whose fences do not balance.
+        skips: Skip records, appended to for anything unreadable.
 
     Returns:
-        ``(citations checked, findings)``. The count is returned so a green
-        verdict can state the population it covers - an empty population
-        satisfies every zero, and a guard that checked nothing must not read
-        the same as one that checked sixty.
+        ``(citations checked, findings, files with an unterminated fence)``.
+        The count is returned so a green verdict can state the population it
+        covers - an empty population satisfies every zero, and a guard that
+        checked nothing must not read the same as one that checked sixty.
     """
     checked = 0
     findings: list[str] = []
+    unterminated_files: list[str] = []
     for path in paths:
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
             skips.append({"path": path.name, "reason": f"unreadable memory file: {_exc_text(exc)}"})
             continue
-        if sum(1 for line in text.splitlines() if _FENCE.match(line)) % 2:
-            skips.append(
-                {
-                    "path": path.name,
-                    "reason": "unclosed code fence - citations after it were not checked",
-                }
-            )
-        for kind, raw in _citation_targets(text):
+        body, unterminated = _fence_scan(text)
+        if unterminated:
+            unterminated_files.append(_rel(root, path))
+        for kind, raw in _citation_targets(body):
             checked += 1
             if not _citation_resolves(memory_dir, kind, raw):
                 quoted = f"[[{raw}]]" if kind == "wikilink" else f"]({raw})"
                 findings.append(f"{_rel(root, path)} cites {quoted}, which does not exist")
-    return checked, findings
+    return checked, findings, unterminated_files
 
 
 def _reachable_from_index(memory_dir: Path, index: Path, skips: list[Skip]) -> set[str]:
@@ -802,8 +843,10 @@ def guard_memory(root: Path) -> tuple[Guard, list[Skip]]:
 
     routing = [index, *(leaf for leaf in leaves if leaf.name.lower().startswith("index_"))]
     ordinary = [leaf for leaf in leaves if not leaf.name.lower().startswith("index_")]
-    routes_checked, dangling_routes = _citation_findings(root, memory_dir, routing, skips)
-    refs_checked, dangling_refs = _citation_findings(root, memory_dir, ordinary, skips)
+    routes_checked, dangling_routes, routes_open = _citation_findings(
+        root, memory_dir, routing, skips
+    )
+    refs_checked, dangling_refs, refs_open = _citation_findings(root, memory_dir, ordinary, skips)
     detail.append(
         f"index citations resolved (outside fenced code): "
         f"{routes_checked - len(dangling_routes)} of {routes_checked}"
@@ -833,6 +876,14 @@ def guard_memory(root: Path) -> tuple[Guard, list[Skip]]:
             "Point it at the note that owns the lesson, or drop the reference. A "
             "dangling citation in the durable store sends the next session to a file "
             "that is not there.",
+        ),
+        (
+            sorted(set(routes_open + refs_open)),
+            "AN UNTERMINATED CODE FENCE HID THE REST OF THE FILE:",
+            "Everything after the opening fence was read as code, so the citations "
+            "in it were NOT checked and the counts above do not cover them. Close "
+            "the fence. A line of prose that merely BEGINS with three backticks "
+            "opens one under CommonMark - give it an indent or reword it.",
         ),
     )
     failed = False

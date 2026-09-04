@@ -1615,7 +1615,12 @@ GHOST_LEAF = "zz-synthetic-ghost-leaf-cs890"
 #: guard cannot reach.
 _TEST_WIKILINK = re.compile(r"\[\[([^\]|#]+)\]\]")
 _TEST_MDLINK = re.compile(r"\]\(([^)\s]+)\)")
-_TEST_FENCE = re.compile(r"^ {0,3}(?:`{3,}|~{3,})")
+
+#: CommonMark fence constants, named so the scanner below reads as the rules it
+#: implements: a fence line may be indented at most three spaces, and its run
+#: must be at least three characters long.
+_MAX_FENCE_INDENT = 3
+_MIN_FENCE_RUN = 3
 
 
 def memory_copy(tmp_path: Path) -> Path:
@@ -1650,8 +1655,53 @@ def memory_verdict(root: Path) -> tuple[str, str]:
     return guard["status"], "\n".join(guard["detail"])
 
 
+def fence_marker(line: str) -> tuple[str, int, str] | None:
+    """Split a line into ``(fence character, run length, info string)``.
+
+    SCANNED CHARACTER BY CHARACTER ON PURPOSE, WITH NO REGEX. The previous
+    version of this module defined a fence pattern that was a VERBATIM COPY of
+    the guard's own, and then claimed the derivation was independent. It was
+    not: it shared the implementation's exact defect, which is why several
+    hundred lines of tests here found neither of the two the adversary did -
+    a prose line beginning with three backticks silently swallowing the rest
+    of a file, and a four-backtick fence wrapping a three-backtick example
+    being reported as a dangling citation.
+
+    Independence has a limit worth stating rather than glossing: this scanner
+    and the guard both implement the same CommonMark rules, so a shared
+    MISREADING of those rules would still agree. What it does rule out is a
+    shared implementation defect, which is the class that actually bit.
+
+    Args:
+        line: One line of markdown.
+
+    Returns:
+        ``None`` when the line is not a fence line at all; otherwise the fence
+        character, the length of its run, and the remainder of the line.
+    """
+    indent = 0
+    while indent < len(line) and line[indent] == " ":
+        indent += 1
+    if indent > _MAX_FENCE_INDENT:
+        return None
+    rest = line[indent:]
+    if not rest or rest[0] not in ("`", "~"):
+        return None
+    char = rest[0]
+    run = 0
+    while run < len(rest) and rest[run] == char:
+        run += 1
+    if run < _MIN_FENCE_RUN:
+        return None
+    return char, run, rest[run:]
+
+
 def outside_fences(text: str) -> str:
-    """Blank every fenced code block, derived independently of the guard.
+    """Blank fenced code by CommonMark rules, derived independently.
+
+    An opener may carry an info string - except that a backtick fence's info
+    string may not contain a backtick. A closer must use the same character,
+    be at least as long as the opener, and carry no info string.
 
     Args:
         text: Markdown source.
@@ -1659,15 +1709,83 @@ def outside_fences(text: str) -> str:
     Returns:
         The same text with fenced regions blanked.
     """
+    body, _unterminated = scan_fences(text)
+    return body
+
+
+def scan_fences(text: str) -> tuple[str, bool]:
+    """Blank fenced code and report whether a fence was left open.
+
+    Args:
+        text: Markdown source.
+
+    Returns:
+        ``(body, unterminated)``.
+    """
     kept: list[str] = []
-    inside = False
+    open_char = ""
+    open_run = 0
     for line in text.splitlines():
-        if _TEST_FENCE.match(line):
-            inside = not inside
+        parsed = fence_marker(line)
+        if parsed is None:
+            kept.append("" if open_char else line)
+            continue
+        char, run, info = parsed
+        if not open_char:
+            if char == "`" and "`" in info:
+                kept.append(line)
+                continue
+            open_char, open_run = char, run
             kept.append("")
             continue
-        kept.append("" if inside else line)
-    return "\n".join(kept)
+        if char == open_char and run >= open_run and not info.strip():
+            open_char, open_run = "", 0
+        kept.append("")
+    return "\n".join(kept), bool(open_char)
+
+
+def independent_citation_counts(memory_dir: Path) -> tuple[int, int]:
+    """Count distinct per-file citations the way the guard should see them.
+
+    Derived with this module's own scanner and patterns so the numbers the
+    guard prints can be checked against something it did not produce.
+
+    Args:
+        memory_dir: The ``memory`` directory to scan.
+
+    Returns:
+        ``(index citations, leaf citations)`` - MEMORY.md and its INDEX_*.md
+        children on one side, ordinary leaves on the other, matching how the
+        guard partitions them.
+    """
+    index_total = 0
+    leaf_total = 0
+    for path in sorted(memory_dir.glob("*.md")):
+        body = outside_fences(path.read_text(encoding="utf-8"))
+        distinct = {("w", t.strip()) for t in _TEST_WIKILINK.findall(body)}
+        distinct |= {("m", t.strip()) for t in _TEST_MDLINK.findall(body)}
+        routing = path.name == "MEMORY.md" or path.name.lower().startswith("index_")
+        if routing:
+            index_total += len(distinct)
+        else:
+            leaf_total += len(distinct)
+    return index_total, leaf_total
+
+
+def reported_citation_counts(rendered: str) -> tuple[int, int]:
+    """Pull the two population sizes out of guard (b)'s own detail lines.
+
+    Args:
+        rendered: The guard's joined detail.
+
+    Returns:
+        ``(index citations checked, leaf citations checked)``.
+    """
+    index_line = re.search(r"index citations resolved[^:]*: (\d+) of (\d+)", rendered)
+    leaf_line = re.search(r"leaf citations resolved[^:]*: (\d+) of (\d+)", rendered)
+    assert index_line is not None, f"no index count line in:\n{rendered}"
+    assert leaf_line is not None, f"no leaf count line in:\n{rendered}"
+    return int(index_line.group(2)), int(leaf_line.group(2))
 
 
 def test_the_real_memory_store_passes_the_memory_guard_on_a_non_empty_population(
@@ -1893,46 +2011,40 @@ def test_an_external_url_in_a_leaf_is_not_resolved_against_the_store(tmp_path: P
     assert status == "PASS", f"an external URL was resolved as a path inside memory/:\n{rendered}"
 
 
-def test_an_unclosed_fence_is_recorded_as_a_skip_rather_than_swallowed(tmp_path: Path) -> None:
-    """A fence that never closes mutes the rest of the file, and must SAY so.
+def test_an_unterminated_fence_is_reported_rather_than_swallowed(tmp_path: Path) -> None:
+    """An open fence blanks an arbitrary SUFFIX, so it may not read as clean.
 
-    This is the one hole the fenced exclusion opens: everything after an
-    unbalanced fence is read as code and leaves the population silently. That
-    is the shape ``memory/a-skip-can-mute-the-defect.md`` owns, and the guard's
-    own doctrine is that a green means nothing without the list of what was
-    never looked at. The muted citation below is dangling on purpose, so this
-    arm also pins WHICH behaviour is being accepted - the guard stays green and
-    declares the gap, rather than quietly reporting a clean population that
-    excluded the only broken link in it.
+    This arm used to assert PASS plus a skip record, on the reasoning that an
+    unbalanced fence is a formatting fault rather than a broken citation. That
+    was too weak. An open fence removes everything after it from the
+    population, so a guard that reported a clean count over it would be
+    reporting a green about a region it never read - which is
+    ``memory/an-empty-population-satisfies-every-zero.md`` happening inside
+    the guard that protects that store.
 
-    No memory file has an odd fence count today; measured, so this arm grades a
-    reachable behaviour and not a hypothetical.
+    Failing is safe here: an unterminated fence is malformed markdown, and no
+    file in the tracked store carries one - asserted below rather than
+    assumed, so this arm grades a reachable state and not a hypothesis.
     """
     root = memory_copy(tmp_path)
-    leaf = next(path for path in sorted((root / "memory").glob("*.md")) if path.name != "MEMORY.md")
-    fences = sum(
-        1 for line in leaf.read_text(encoding="utf-8").splitlines() if _TEST_FENCE.match(line)
-    )
-    assert fences % 2 == 0, (
-        "the chosen leaf already has an unbalanced fence, so the plant is a no-op"
-    )
+    memory = root / "memory"
+    for path in sorted(memory.glob("*.md")):
+        _body, open_fence = scan_fences(path.read_text(encoding="utf-8"))
+        assert not open_fence, f"{path.name} already has an unterminated fence"
 
+    leaf = next(path for path in sorted(memory.glob("*.md")) if path.name != "MEMORY.md")
     before = leaf.read_text(encoding="utf-8")
     after = f"{before}\n```\nnever closed\n\nSee [[{GHOST_LEAF}]].\n"
     assert after != before, "the plant did not apply"
     leaf.write_text(after, encoding="utf-8", newline="\n")
 
-    guard, skips = drift_guard.guard_memory(root)
-    reasons = " ".join(skip["reason"] for skip in skips)
-    assert "unclosed code fence" in reasons, (
-        f"a file whose remainder was read as code left no skip record; skips were: {skips}"
+    status, rendered = memory_verdict(root)
+    assert status == "FAIL", (
+        f"an unterminated fence hid the rest of a file and the guard said {status}:\n{rendered}"
     )
-    assert leaf.name in " ".join(skip["path"] for skip in skips), (
-        "the skip record does not say WHICH file went unchecked"
-    )
-    assert guard["status"] == "PASS", (
-        "an unbalanced fence is a formatting fault, not a broken citation, and this guard "
-        f"runs on the pre-commit path; it reported {guard['status']}"
+    assert leaf.name in rendered, "the guard failed without naming the file it could not read"
+    assert "UNTERMINATED CODE FENCE" in rendered, (
+        f"the finding does not say WHY the file went unread:\n{rendered}"
     )
 
 
@@ -2042,4 +2154,128 @@ def test_a_fragment_and_an_extensionless_link_are_not_reported_as_missing(
     status, rendered = memory_verdict(root)
     assert status == "PASS", (
         f"a bare fragment or an extensionless link was reported as missing:\n{rendered}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# THE TWO DEFECTS A PARITY TOGGLE COULD NOT SEE
+# ---------------------------------------------------------------------------
+# The first repair of this guard detected fences by flipping a boolean on any
+# line whose first run was three or more backticks. Both arms below were RED
+# (G1) or manufactured (F1) under that scheme, and neither was caught by the
+# several hundred test lines above it - because the fence pattern in this
+# module was a VERBATIM COPY of the guard's own, so the oracle carried the
+# same defect as the thing it was grading. The scanner those arms now use is
+# written character by character instead.
+
+
+def test_two_prose_lines_starting_with_a_fence_do_not_swallow_the_file(
+    tmp_path: Path,
+) -> None:
+    """G1 - THE SILENT GREEN, and the reason parity was never a safety net.
+
+    Two ORDINARY PROSE lines that merely begin with three backticks give EVEN
+    parity. Under the toggle, everything between them was blanked, the guard
+    returned PASS, the population line was byte-identical to pristine, and no
+    skip of any kind fired - while the store held two dangling wikilinks. The
+    odd-parity net could not cover the case that actually swallows, because
+    swallowing does not require an unclosed fence.
+
+    Under CommonMark the first of those lines opens a fence with an info
+    string and the second cannot close it, since a closer carries none. So the
+    file ends with a fence open, and THAT is what must be reported.
+    """
+    root = memory_copy(tmp_path)
+    leaf = next(path for path in sorted((root / "memory").glob("*.md")) if path.name != "MEMORY.md")
+    assert not (root / "memory" / f"{GHOST_LEAF}.md").exists(), "the plant names a real file"
+
+    before = leaf.read_text(encoding="utf-8")
+    after = (
+        f"{before}\n``` is how you open a fence in markdown.\n"
+        f"\nSee [[{GHOST_LEAF}]] and [[{GHOST_LEAF}-two]] for the rest.\n"
+        f"\n``` is also how you close one.\n"
+    )
+    assert after != before, "the plant did not apply"
+    leaf.write_text(after, encoding="utf-8", newline="\n")
+
+    status, rendered = memory_verdict(root)
+    assert status == "FAIL", (
+        "two prose lines beginning with a fence swallowed the text between them and the "
+        f"guard reported {status} over a region it never read:\n{rendered}"
+    )
+    assert leaf.name in rendered, "the guard failed without naming the file that went unread"
+
+
+def test_a_four_backtick_fence_wrapping_an_example_is_not_a_finding(tmp_path: Path) -> None:
+    """F1 - THE MANUFACTURED FINDING, on content this store already carries.
+
+    Documenting a fence means wrapping it in a longer one. The toggle
+    un-toggled on the inner three-backtick opener, so the example body was
+    read as prose and the guard went FAIL on ``[[tool.mypy.overrides]]``.
+
+    That block is not hypothetical: ``a-guard-can-be-accepted-and-unscoped.md``
+    already carries it inside a plain three-backtick fence, in a store whose
+    whole subject is how guards fail. A note quoting it would have reddened
+    guard (b) and blocked every commit and push in the repository - which is
+    the precise harm the narrower extractor was introduced to avoid.
+    """
+    root = memory_copy(tmp_path)
+    leaf = next(path for path in sorted((root / "memory").glob("*.md")) if path.name != "MEMORY.md")
+    before = leaf.read_text(encoding="utf-8")
+    after = (
+        f"{before}\nTo document a fence, wrap it in a longer one:\n\n"
+        f"````\n```\n[[tool.mypy.overrides]]\nignore_missing_imports = true\n```\n````\n"
+    )
+    assert after != before, "the plant did not apply"
+    leaf.write_text(after, encoding="utf-8", newline="\n")
+
+    status, rendered = memory_verdict(root)
+    assert status == "PASS", (
+        "a three-backtick example inside a four-backtick fence was read as prose, so the "
+        f"guard manufactured a finding on correct content:\n{rendered}"
+    )
+
+
+def test_the_reported_population_matches_an_independently_derived_count(
+    tmp_path: Path,
+) -> None:
+    """The counts guard (b) prints are CHECKED, not decorated.
+
+    The floor this replaces asked only that the store hold at least one
+    wikilink and at least one markdown link. One of each satisfies that, so a
+    guard whose extractor had collapsed to almost nothing would still have
+    passed while printing "60 of 60" - the number was never compared to
+    anything. Here both populations are re-derived with this module's own
+    character scanner and asserted EQUAL to what the guard reports.
+
+    Equality is asserted rather than a literal 20 and 60, because a hardcoded
+    count is a lie with a timestamp on it the moment a note is added. The
+    floor below is structural for the same reason: the index links every leaf,
+    so its population cannot be smaller than the number of leaves.
+    """
+    root = memory_copy(tmp_path)
+    memory = root / "memory"
+    leaves = [path for path in memory.glob("*.md") if path.name != "MEMORY.md"]
+    index_expected, leaf_expected = independent_citation_counts(memory)
+
+    assert index_expected >= len(leaves), (
+        f"the index cites {index_expected} targets for {len(leaves)} leaves, so it cannot "
+        "be linking them all and this control is grading a broken store"
+    )
+    assert leaf_expected >= len(leaves), (
+        f"only {leaf_expected} leaf citations across {len(leaves)} leaves - too thin a "
+        "population for a green about cross-referencing to mean anything"
+    )
+
+    status, rendered = memory_verdict(root)
+    assert status == "PASS", f"the tracked store is not clean:\n{rendered}"
+
+    index_reported, leaf_reported = reported_citation_counts(rendered)
+    assert index_reported == index_expected, (
+        f"guard (b) says it checked {index_reported} index citations; an independent scan "
+        f"finds {index_expected}. The printed population is not the real one."
+    )
+    assert leaf_reported == leaf_expected, (
+        f"guard (b) says it checked {leaf_reported} leaf citations; an independent scan "
+        f"finds {leaf_expected}. The printed population is not the real one."
     )
