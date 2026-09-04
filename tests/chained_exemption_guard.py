@@ -141,48 +141,88 @@ VERDICT_RECORDED: Final = "recorded"
 #: The finding: a module deciding the chaining question with no reason on file.
 VERDICT_UNRECORDED: Final = "unrecorded"
 
+
+@dataclass(frozen=True)
+class Exemption:
+    """One recorded reason for the static cause reads of one module.
+
+    Attributes:
+        why: The reason. The sibling arm re-measures what it asserts rather
+            than trusting the sentence.
+        sites: HOW MANY static cause reads this reason answers. WITHOUT IT THE
+            KEY IS A MODULE PATH AND NOTHING ELSE, so a reason written for one
+            adjudicated read silently forgives every further read that module
+            ever gains. That measured true here: an identical planted cause
+            read appended to EITHER recorded module went unreported, while the
+            same four lines in any other module were named at once. It is
+            CS-888's own shape one level down - immunity earned by holding a
+            reason about something else instead of by importing a name - and it
+            is closed the way ``tests/test_docs_citations.py`` closed the
+            identical fault in its ``Disposition`` table. A COUNT IS THE
+            CHEAPEST KEY THAT CLOSES IT and the only one that does not churn: a
+            line number moves whenever anything above it is edited, and
+            :func:`stale_exemptions` cannot see a second read arrive because
+            the module never leaves the population.
+    """
+
+    why: str
+    sites: int
+
+
 #: Reasons for a static cause read outside the owner. AN ENTRY HERE IS NOT A
 #: CLEARANCE. It records why one module reads a raise's cause, and the sibling
 #: arm re-measures the property the reason asserts on every run.
+#:
+#: EACH ENTRY IS CHECKED IN THREE DIRECTIONS, and the third is the one an
+#: exemption table is normally missing. An entry whose module has left the
+#: population fails :func:`stale_exemptions`; an entry whose SITE COUNT no
+#: longer matches the live tree fails :func:`miscounted`, in BOTH directions;
+#: and the property each reason asserts is re-measured by its own probe arm.
 #:
 #: NO ENTRY MAY ASSERT THAT A CHAINED CAUSE IS UNRENDERED. That is the claim
 #: CS-857 exists to correct, and it is false: the cause's own text is part of
 #: the formatted traceback under default flags, which the census demonstrates on
 #: the live tree every run. This sentence is a fence like the one that already
 #: failed, so it is not relied upon - the arm measures instead.
-EXEMPT: Final[Mapping[str, str]] = {
-    "tests/pathless_clone_guard.py": (
-        "MIRRORING IS NOT DEFERRING, AND THE MIRROR IS RE-MEASURED. That "
-        "module's cause read sits in ``_slot``, whose own docstring says it "
-        "MIRRORS ``chained_cause_guard._constructs_pathless_clone`` "
-        "DELIBERATELY: CS-885 requires the two to select the SAME slot for the "
-        "same form, because a site the clone guard does not watch is a copy "
-        "free to drift. It also imports SIX PRIVATE NAMES from the census - "
-        "``_form_of``, ``_module_level_rebindings``, ``_parse``, "
-        "``_pathless_clone_functions``, ``_shadowed`` and ``_walk`` - and "
-        "CS-888 measured that those imports are worth nothing here: a module "
-        "that copies the owner's slot rule into its own source is answering "
-        "the question in its own body, whatever it imports. It is NOT a claim "
-        "that the cause goes unrendered - the clone guard exists precisely "
-        "because it does. The reason is not taken on trust. "
-        "``test_the_mirrored_slot_rule_is_re_measured_rather_than_believed`` "
-        "runs both selectors over planted sources and asserts they pick the "
-        "same slot for every form. Widen the mirror and the probe reddens "
-        "while this sentence still reads correct."
+EXEMPT: Final[Mapping[str, Exemption]] = {
+    "tests/pathless_clone_guard.py": Exemption(
+        sites=1,
+        why=(
+            "MIRRORING IS NOT DEFERRING, AND THE MIRROR IS RE-MEASURED. That "
+            "module's cause read sits in ``_slot``, whose own docstring says it "
+            "MIRRORS ``chained_cause_guard._constructs_pathless_clone`` "
+            "DELIBERATELY: CS-885 requires the two to select the SAME slot for the "
+            "same form, because a site the clone guard does not watch is a copy "
+            "free to drift. It also imports SIX PRIVATE NAMES from the census - "
+            "``_form_of``, ``_module_level_rebindings``, ``_parse``, "
+            "``_pathless_clone_functions``, ``_shadowed`` and ``_walk`` - and "
+            "CS-888 measured that those imports are worth nothing here: a module "
+            "that copies the owner's slot rule into its own source is answering "
+            "the question in its own body, whatever it imports. It is NOT a claim "
+            "that the cause goes unrendered - the clone guard exists precisely "
+            "because it does. The reason is not taken on trust. "
+            "``test_the_mirrored_slot_rule_is_re_measured_rather_than_believed`` "
+            "runs both selectors over planted sources and asserts they pick the "
+            "same slot for every form. Widen the mirror and the probe reddens "
+            "while this sentence still reads correct."
+        ),
     ),
-    "tests/test_verify_env.py": (
-        "SCOPED TO THE CAUSE SLOT, AND RE-MEASURED. That module grades a "
-        "DIFFERENT channel - whether the exception OBJECT reaches the message "
-        "being built - and its cause read exempts the ``from`` slot alone, "
-        "because an object in the cause slot is not in the new message's args. "
-        "It is NOT a claim that the cause goes unrendered: the cause renders in "
-        "the formatted traceback, on the channel this module's OWNER censuses. "
-        "The reason is not taken on trust. "
-        "``test_the_recorded_scope_is_re_measured_rather_than_believed`` probes "
-        "that module's own detector with planted sources and asserts the "
-        "exemption still covers the cause slot ONLY - the object reaching args "
-        "on a chained raise must still be flagged. Widen the exemption and the "
-        "probe reddens while this sentence still reads correct."
+    "tests/test_verify_env.py": Exemption(
+        sites=3,
+        why=(
+            "SCOPED TO THE CAUSE SLOT, AND RE-MEASURED. That module grades a "
+            "DIFFERENT channel - whether the exception OBJECT reaches the message "
+            "being built - and its cause read exempts the ``from`` slot alone, "
+            "because an object in the cause slot is not in the new message's args. "
+            "It is NOT a claim that the cause goes unrendered: the cause renders in "
+            "the formatted traceback, on the channel this module's OWNER censuses. "
+            "The reason is not taken on trust. "
+            "``test_the_recorded_scope_is_re_measured_rather_than_believed`` probes "
+            "that module's own detector with planted sources and asserts the "
+            "exemption still covers the cause slot ONLY - the object reaching args "
+            "on a chained raise must still be flagged. Widen the exemption and "
+            "the probe reddens while this sentence still reads correct."
+        ),
     ),
 }
 
@@ -384,8 +424,16 @@ def adjudicators() -> tuple[Adjudicator, ...]:
     return adjudicators_in_sources(tracked_sources())
 
 
-def classify(site: Adjudicator, exempt: Mapping[str, str] = EXEMPT) -> str:
+def classify(site: Adjudicator, exempt: Mapping[str, Exemption] = EXEMPT) -> str:
     """The verdict for one adjudicator.
+
+    A RECORDED VERDICT REQUIRES THE COUNT TO MATCH, and that is the whole of
+    the CS-888 residual repair. Clearing on module membership alone hands a
+    reason written for one read to every read the module later gains, so a
+    module with more cause reads than its entry answers is UNRECORDED - the
+    fail-closed direction. :func:`miscounted` is what says which way the count
+    moved, because "unrecorded" alone would send a reader hunting for a missing
+    entry that is in fact present.
 
     Args:
         site: The adjudicator to grade.
@@ -397,12 +445,15 @@ def classify(site: Adjudicator, exempt: Mapping[str, str] = EXEMPT) -> str:
     """
     if site.module == OWNER:
         return VERDICT_OWNER
-    if site.module in exempt:
+    recorded = exempt.get(site.module)
+    if recorded is not None and recorded.sites == len(site.lines):
         return VERDICT_RECORDED
     return VERDICT_UNRECORDED
 
 
-def unrecorded(sites: Sequence[Adjudicator], exempt: Mapping[str, str] = EXEMPT) -> tuple[str, ...]:
+def unrecorded(
+    sites: Sequence[Adjudicator], exempt: Mapping[str, Exemption] = EXEMPT
+) -> tuple[str, ...]:
     """Modules deciding the chaining question with no reason on file.
 
     Args:
@@ -419,8 +470,35 @@ def unrecorded(sites: Sequence[Adjudicator], exempt: Mapping[str, str] = EXEMPT)
     )
 
 
+def miscounted(
+    sites: Sequence[Adjudicator], exempt: Mapping[str, Exemption] = EXEMPT
+) -> tuple[str, ...]:
+    """Recorded modules whose live read count is not the one on record.
+
+    BOTH DIRECTIONS ARE A FINDING. More reads than the entry answers means a
+    read nobody adjudicated is riding on a reason written for another one, and
+    that is the fault this function exists for. FEWER means the entry now
+    answers reads that are gone, which is the same silent widening
+    :func:`stale_exemptions` catches when a module leaves the population
+    outright - caught here one step earlier, while the module is still in it.
+
+    Args:
+        sites: The adjudicators to grade.
+        exempt: The exemption record. Defaults to :data:`EXEMPT`.
+
+    Returns:
+        One ``module: recorded N, live M`` entry per mismatch, ordered.
+    """
+    live = {site.module: len(site.lines) for site in sites}
+    return tuple(
+        f"{module}: recorded {entry.sites}, live {live[module]}"
+        for module, entry in sorted(exempt.items())
+        if module in live and entry.sites != live[module]
+    )
+
+
 def stale_exemptions(
-    sites: Sequence[Adjudicator], exempt: Mapping[str, str] = EXEMPT
+    sites: Sequence[Adjudicator], exempt: Mapping[str, Exemption] = EXEMPT
 ) -> tuple[str, ...]:
     """Recorded modules that no longer adjudicate anything.
 

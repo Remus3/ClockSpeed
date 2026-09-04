@@ -39,6 +39,19 @@ it lands in its own derived subject set and is planted into like every other
 importer. Under the abolished rule this would have been a module grading
 immunity from inside the immune set.
 
+AND THE CLEARANCE ITSELF CARRIED CS-888'S SHAPE ONE LEVEL DOWN, which an
+adjudicator measured against the first repair rather than reading. Abolishing
+import-immunity moved ``tests/pathless_clone_guard.py`` into :data:`EXEMPT`,
+and the record was keyed by MODULE PATH ALONE - so a reason written about the
+``_slot`` mirror silently forgave any further cause read that module ever
+gained. Measured: the identical four-line plant went unreported in BOTH
+recorded modules while being named at once in every other. Immunity earned by
+holding a reason about something else is the same fault as immunity earned by
+importing a name. Each entry now records HOW MANY sites it answers, the shape
+``tests/test_docs_citations.py`` already uses for its ``Disposition`` table,
+and ``test_a_second_cause_read_in_an_already_exempt_module_is_reported`` is the
+arm that keeps it honest.
+
 THE CENSUS ARMS THEMSELVES ARE STILL NOT IN THE POPULATION AT ALL. They read
 ``__cause__`` on live exceptions, which is measurement rather than adjudication,
 and the separation between the two names is what keeps them out.
@@ -521,3 +534,92 @@ def test_the_guard_module_is_seven_bit_ascii() -> None:
     offending = sum(1 for byte in raw if byte > MAX_ASCII_BYTE)
 
     assert offending == 0, f"{offending} byte(s) above 0x{MAX_ASCII_BYTE:02X}"
+
+
+def test_a_second_cause_read_in_an_already_exempt_module_is_reported() -> None:
+    """CS-888 residual - a reason answers SITES, not a module forever.
+
+    THIS IS THE ARM THE SITE COUNT EXISTS FOR; without it the count is
+    decoration. Every recorded module gets the SAME four-line plant the subject
+    arm above uses, and each must be reported - against the LIVE exemption
+    record rather than an empty one, because an empty record would report them
+    whatever the clearance rule was and prove nothing about it.
+
+    THE SUBJECT SET IS DERIVED FROM :data:`guard.EXEMPT` ITSELF, so an entry
+    added later is planted into without anyone remembering to extend a list.
+
+    Measured before the repair: both recorded modules absorbed the plant in
+    silence, while the same four lines in any module with no entry were named
+    at once. The clearance had become immunity earned by holding a reason about
+    a different read - CS-888's own shape, one level down from the import.
+    """
+    sources = dict(guard.tracked_sources())
+    absorbed: list[str] = []
+    for module in sorted(guard.EXEMPT):
+        planted = dict(sources)
+        planted[module] = sources[module] + APPENDED_CAUSE_READ
+        reported = {
+            entry.split(":", 1)[0]
+            for entry in guard.unrecorded(guard.adjudicators_in_sources(planted))
+        }
+        if module not in reported:
+            absorbed.append(module)
+
+    count = len(absorbed)
+    assert count == 0, (
+        f"{count} recorded module(s) absorbed a SECOND, unrelated static cause read "
+        f"under a reason written for a different one: {absorbed}"
+    )
+
+
+def test_the_recorded_site_counts_match_the_live_tree() -> None:
+    """Every entry answers exactly the reads its module actually has."""
+    off = guard.miscounted(guard.adjudicators())
+
+    assert not off, (
+        "exemption entr(ies) record a site count the live tree does not have; "
+        f"re-derive the count and check the reason still covers every read: {off}"
+    )
+
+
+def test_a_recorded_count_that_no_longer_matches_is_reported_both_ways() -> None:
+    """The count is checked in BOTH directions, proven on fabricated records.
+
+    A count that only ever reddens upward would let an entry keep answering
+    reads that are gone, which is the silent widening
+    :func:`guard.stale_exemptions` catches one step later, once the module has
+    left the population entirely.
+
+    Fabricated rather than planted, because what is being graded here is the
+    comparison itself rather than the sweep that feeds it.
+    """
+    population = guard.adjudicators()
+    verdicts = []
+    for delta in (1, -1):
+        fabricated = {
+            module: guard.Exemption(why=entry.why, sites=entry.sites + delta)
+            for module, entry in guard.EXEMPT.items()
+        }
+        verdicts.append((delta, guard.miscounted(population, fabricated)))
+
+    silent = [delta for delta, found in verdicts if not found]
+    assert not silent, (
+        "a recorded site count that does not match the live tree went unreported "
+        f"for delta(s) {silent}, so the count is checked in one direction only"
+    )
+
+    still_cleared = [
+        delta
+        for delta, _ in verdicts
+        if not guard.unrecorded(
+            population,
+            {
+                module: guard.Exemption(why=entry.why, sites=entry.sites + delta)
+                for module, entry in guard.EXEMPT.items()
+            },
+        )
+    ]
+    assert not still_cleared, (
+        "a module whose recorded count no longer matches was still CLEARED for "
+        f"delta(s) {still_cleared}; miscounted() reported it but classify() did not act"
+    )
