@@ -1574,3 +1574,472 @@ def test_the_floor_counts_owner_files_that_actually_own_an_id(work_items: Path) 
         f"exist in, and the guard reported {status}:\n{rendered}"
     )
     assert "proved nothing on this run" in rendered
+
+
+# ---------------------------------------------------------------------------
+# GUARD (b), THE MEMORY PARTITION - BOTH DIRECTIONS, EACH WITH ITS OWN CONTROL
+# ---------------------------------------------------------------------------
+# CS-890. The guard asserted ONE direction of a partition - every leaf is named
+# by a token the index can reach - and called that reachability. A token naming
+# nothing is an element that simply matches nothing, so the other direction was
+# never asserted at all: a dangling wikilink inside a leaf was invisible, and
+# the INDEX ITSELF could route to a file that does not exist, both while the
+# guard reported CLEAN. That is CS-497's shape one store over - a partition
+# asserted one way round is a subset check wearing a partition's name.
+#
+# THREE ARMS, THREE CONTROLS, ONE STATUS. The three findings have three
+# distinct remedies, so each gets its own arm; they are two directions of one
+# partition, so they stay inside guard (b) and one verdict. Each red arm is
+# paired with a green control, because an arm that reddens on everything is
+# not evidence that it reddens on the right thing.
+#
+# WHY THESE RUN ON A COPY OF THE REAL STORE rather than a synthetic one. The
+# trap this guard walks into is specific to the real index's content: it
+# carries `assert count == 0` and `git commit -F` in BACKTICKS, and the
+# reachability extractor harvests backticked spans on purpose. A resolution
+# check built on that extractor would demand both name files and would
+# manufacture two findings the moment it shipped. No hand-authored fixture
+# would have carried those two strings, so no hand-authored fixture could have
+# caught it. The synthetic-fixture rule this project holds is about GAME data
+# (CLAUDE.md section 7); memory/ is the repository's own tracked prose, and the
+# file the operator actually reads is the only one worth a green about.
+
+#: A leaf stem this repository has never had. Every plant below asserts its
+#: absence before planting - a plant that accidentally named a real file would
+#: prove nothing, and would look exactly like a plant that worked.
+GHOST_LEAF = "zz-synthetic-ghost-leaf-cs890"
+
+#: Wikilink and markdown-link shapes, re-derived here rather than imported from
+#: the guard. Two derivations from one regex agree by construction, so the
+#: population these controls assert is non-empty has to come from somewhere the
+#: guard cannot reach.
+_TEST_WIKILINK = re.compile(r"\[\[([^\]|#]+)\]\]")
+_TEST_MDLINK = re.compile(r"\]\(([^)\s]+)\)")
+_TEST_FENCE = re.compile(r"^ {0,3}(?:`{3,}|~{3,})")
+
+
+def memory_copy(tmp_path: Path) -> Path:
+    """Copy the tracked memory store into a fake repository root.
+
+    Nothing here writes ``memory/`` in the repository. Every plant lands on
+    this copy, so a test that crashes mid-plant cannot leave the operator's
+    durable store corrupted.
+
+    Args:
+        tmp_path: pytest temporary directory.
+
+    Returns:
+        The fake repository root, with ``memory/`` populated.
+    """
+    root = tmp_path / "memory-store"
+    root.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(REPO_ROOT / "memory", root / "memory")
+    return root
+
+
+def memory_verdict(root: Path) -> tuple[str, str]:
+    """Run guard (b) against ``root`` and return its status and rendered detail.
+
+    Args:
+        root: The repository root to grade.
+
+    Returns:
+        ``(status, rendered detail)``.
+    """
+    guard, _skips = drift_guard.guard_memory(root)
+    return guard["status"], "\n".join(guard["detail"])
+
+
+def outside_fences(text: str) -> str:
+    """Blank every fenced code block, derived independently of the guard.
+
+    Args:
+        text: Markdown source.
+
+    Returns:
+        The same text with fenced regions blanked.
+    """
+    kept: list[str] = []
+    inside = False
+    for line in text.splitlines():
+        if _TEST_FENCE.match(line):
+            inside = not inside
+            kept.append("")
+            continue
+        kept.append("" if inside else line)
+    return "\n".join(kept)
+
+
+def test_the_real_memory_store_passes_the_memory_guard_on_a_non_empty_population(
+    tmp_path: Path,
+) -> None:
+    """The pristine store is CLEAN, and the population that green covers is real.
+
+    An empty population satisfies every zero, so the count assertions come
+    first. They are derived with this module's own patterns rather than the
+    guard's, because a green about a population the guard alone defined is a
+    green about the guard's opinion of itself.
+    """
+    root = memory_copy(tmp_path)
+    store = sorted((root / "memory").glob("*.md"))
+    wikilinks = 0
+    mdlinks = 0
+    for path in store:
+        body = outside_fences(path.read_text(encoding="utf-8"))
+        wikilinks += len(_TEST_WIKILINK.findall(body))
+        mdlinks += len(_TEST_MDLINK.findall(body))
+
+    assert len(store) > 1, "a store with no leaves proves nothing about reachability"
+    assert wikilinks > 0, "no wikilink outside a fence - the leaf-citation arm graded nothing"
+    assert mdlinks > 0, "no markdown link outside a fence - the routing arm graded nothing"
+
+    status, rendered = memory_verdict(root)
+    assert status == "PASS", (
+        f"the tracked memory store is not clean under its own guard:\n{rendered}"
+    )
+
+
+def test_a_dangling_wikilink_inside_a_leaf_reddens_the_memory_guard(tmp_path: Path) -> None:
+    """The filed CS-890 fault: a leaf cites a note that does not exist.
+
+    ``_reachable_from_index`` never opens an ordinary leaf, so before this
+    change the plant below was invisible and the guard reported PASS.
+    """
+    root = memory_copy(tmp_path)
+    leaf = next(path for path in sorted((root / "memory").glob("*.md")) if path.name != "MEMORY.md")
+    assert not (root / "memory" / f"{GHOST_LEAF}.md").exists(), "the plant names a real file"
+
+    before = leaf.read_text(encoding="utf-8")
+    after = f"{before}\nThe lesson is owned by [[{GHOST_LEAF}]].\n"
+    assert after != before, "the plant did not apply"
+    leaf.write_text(after, encoding="utf-8", newline="\n")
+
+    status, rendered = memory_verdict(root)
+    assert status == "FAIL", (
+        f"a leaf cites a note that does not exist and the guard said {status}:\n{rendered}"
+    )
+    assert GHOST_LEAF in rendered, "the guard failed without naming the dangling target"
+    assert leaf.name in rendered, "the guard failed without naming the file the citation is in"
+
+
+def test_a_markdown_link_in_the_index_naming_a_ghost_leaf_reddens_the_memory_guard(
+    tmp_path: Path,
+) -> None:
+    """The wider fault: the routing table itself points at a file that is absent.
+
+    Worse than an unindexed leaf, because the index is what the next session
+    reads to find anything at all.
+    """
+    root = memory_copy(tmp_path)
+    index = root / "memory" / "MEMORY.md"
+    assert not (root / "memory" / f"{GHOST_LEAF}.md").exists(), "the plant names a real file"
+
+    before = index.read_text(encoding="utf-8")
+    after = f"{before}\n- [A ghost]({GHOST_LEAF}.md) - routes nowhere.\n"
+    assert after != before, "the plant did not apply"
+    index.write_text(after, encoding="utf-8", newline="\n")
+
+    status, rendered = memory_verdict(root)
+    assert status == "FAIL", (
+        f"the index routes to a file that does not exist and the guard said {status}:\n{rendered}"
+    )
+    assert GHOST_LEAF in rendered, "the guard failed without naming the ghost the index routes to"
+
+
+def test_a_wikilink_in_the_index_naming_a_ghost_leaf_reddens_the_memory_guard(
+    tmp_path: Path,
+) -> None:
+    """The same direction in the other citation shape.
+
+    The index carries markdown links today and no wikilinks, so a routing
+    check written against markdown links alone would be green on the day
+    someone writes the first index wikilink.
+    """
+    root = memory_copy(tmp_path)
+    index = root / "memory" / "MEMORY.md"
+    assert not (root / "memory" / f"{GHOST_LEAF}.md").exists(), "the plant names a real file"
+
+    before = index.read_text(encoding="utf-8")
+    after = f"{before}\n- [[{GHOST_LEAF}]] - routes nowhere.\n"
+    assert after != before, "the plant did not apply"
+    index.write_text(after, encoding="utf-8", newline="\n")
+
+    status, rendered = memory_verdict(root)
+    assert status == "FAIL", (
+        f"an index wikilink names a file that does not exist and the guard said "
+        f"{status}:\n{rendered}"
+    )
+    assert GHOST_LEAF in rendered, "the guard failed without naming the ghost the index routes to"
+
+
+def test_an_unindexed_leaf_still_fails_the_memory_guard_naming_it(tmp_path: Path) -> None:
+    """POSITIVE CONTROL for the direction that already bit.
+
+    This one FAILED before the second direction was added and has to keep
+    failing after. A repair that adds a direction while silently breaking the
+    one that worked is a net loss, and is exactly the CS-497 shape repeating.
+    The leaf is chosen by derivation rather than by name so a rename cannot
+    turn this control green.
+    """
+    root = memory_copy(tmp_path)
+    index = root / "memory" / "MEMORY.md"
+    before = index.read_text(encoding="utf-8")
+    targets = _TEST_MDLINK.findall(outside_fences(before))
+    assert targets, "the index links nothing, so unindexing one entry proves nothing"
+    victim = targets[0]
+    assert (root / "memory" / victim).is_file(), "the chosen entry does not name a real leaf"
+
+    kept = [line for line in before.splitlines(keepends=True) if victim not in line]
+    after = "".join(kept)
+    assert after != before, "the plant did not apply"
+    index.write_text(after, encoding="utf-8", newline="\n")
+
+    status, rendered = memory_verdict(root)
+    assert status == "FAIL", (
+        f"a real leaf was removed from the index and the guard said {status}:\n{rendered}"
+    )
+    assert victim in rendered, "the guard failed without naming the leaf it can no longer reach"
+
+
+def test_a_wikilink_shaped_token_inside_a_fenced_block_is_not_a_citation(
+    tmp_path: Path,
+) -> None:
+    """A fenced TOML array-of-tables header is sample material, not a link.
+
+    The store quotes ``[[tool.mypy.overrides]]`` inside a fence. It is spelled
+    exactly like a wikilink and cites nothing, so resolving it would make the
+    guard red on correct content - the one failure mode that would block every
+    commit in the repository.
+    """
+    root = memory_copy(tmp_path)
+    leaf = next(path for path in sorted((root / "memory").glob("*.md")) if path.name != "MEMORY.md")
+    before = leaf.read_text(encoding="utf-8")
+    after = f"{before}\n```\n[[{GHOST_LEAF}.section]]\nkey = 1\n```\n"
+    assert after != before, "the plant did not apply"
+    leaf.write_text(after, encoding="utf-8", newline="\n")
+
+    status, rendered = memory_verdict(root)
+    assert status == "PASS", (
+        f"a wikilink-shaped token inside a fence was resolved as a citation:\n{rendered}"
+    )
+
+
+def test_a_dangling_wikilink_directly_above_a_fence_still_reddens(tmp_path: Path) -> None:
+    """The fenced exclusion is scoped to fences, not to anything awkward nearby.
+
+    Without this control, an extractor that gave up on the whole file the
+    moment it met a fence would pass every other arm in this section.
+    """
+    root = memory_copy(tmp_path)
+    leaf = next(path for path in sorted((root / "memory").glob("*.md")) if path.name != "MEMORY.md")
+    assert not (root / "memory" / f"{GHOST_LEAF}.md").exists(), "the plant names a real file"
+
+    before = leaf.read_text(encoding="utf-8")
+    after = f"{before}\nSee [[{GHOST_LEAF}]].\n\n```\n[[tool.mypy.overrides]]\n```\n"
+    assert after != before, "the plant did not apply"
+    leaf.write_text(after, encoding="utf-8", newline="\n")
+
+    status, rendered = memory_verdict(root)
+    assert status == "FAIL", (
+        f"a dangling wikilink one line above a fence was excluded with it:\n{rendered}"
+    )
+    assert GHOST_LEAF in rendered, "the guard failed without naming the dangling target"
+
+
+def test_a_backticked_code_span_in_the_index_is_not_resolved_as_a_citation(
+    tmp_path: Path,
+) -> None:
+    """THE TRAP, graded directly rather than left to the pristine control.
+
+    ``_link_targets`` harvests backticked spans, which is correct for
+    reachability and wrong for resolution. The index carries at least two
+    backticked spans that are code, not filenames; a routing check built on
+    that extractor manufactures a finding per span. This arm plants a third,
+    so the trap is graded on a token this test owns rather than on two strings
+    a future edit to the index might remove.
+    """
+    root = memory_copy(tmp_path)
+    index = root / "memory" / "MEMORY.md"
+    existing = _TEST_MDLINK.findall(outside_fences(index.read_text(encoding="utf-8")))
+    assert existing, "the index links nothing, so this arm would pass on an empty index"
+
+    before = index.read_text(encoding="utf-8")
+    after = f"{before}\nRun `pytest -q tests/` and assert `count == 0` before believing it.\n"
+    assert after != before, "the plant did not apply"
+    index.write_text(after, encoding="utf-8", newline="\n")
+
+    status, rendered = memory_verdict(root)
+    assert status == "PASS", (
+        f"a backticked code span in the index was resolved as a file citation:\n{rendered}"
+    )
+
+
+def test_an_external_url_in_a_leaf_is_not_resolved_against_the_store(tmp_path: Path) -> None:
+    """A URL is not a claim about this store and is never failed as one.
+
+    The store carries no external link today, so nothing else in this section
+    would notice a resolver that treated one as a missing leaf. That green
+    would last exactly until the first note cited a specification.
+    """
+    root = memory_copy(tmp_path)
+    leaf = next(path for path in sorted((root / "memory").glob("*.md")) if path.name != "MEMORY.md")
+    before = leaf.read_text(encoding="utf-8")
+    link = "[the spec](https://example.invalid/spec.md#section)"
+    after = f"{before}\nSee {link} for the wire form.\n"
+    assert after != before, "the plant did not apply"
+    leaf.write_text(after, encoding="utf-8", newline="\n")
+
+    status, rendered = memory_verdict(root)
+    assert status == "PASS", f"an external URL was resolved as a path inside memory/:\n{rendered}"
+
+
+def test_an_unclosed_fence_is_recorded_as_a_skip_rather_than_swallowed(tmp_path: Path) -> None:
+    """A fence that never closes mutes the rest of the file, and must SAY so.
+
+    This is the one hole the fenced exclusion opens: everything after an
+    unbalanced fence is read as code and leaves the population silently. That
+    is the shape ``memory/a-skip-can-mute-the-defect.md`` owns, and the guard's
+    own doctrine is that a green means nothing without the list of what was
+    never looked at. The muted citation below is dangling on purpose, so this
+    arm also pins WHICH behaviour is being accepted - the guard stays green and
+    declares the gap, rather than quietly reporting a clean population that
+    excluded the only broken link in it.
+
+    No memory file has an odd fence count today; measured, so this arm grades a
+    reachable behaviour and not a hypothetical.
+    """
+    root = memory_copy(tmp_path)
+    leaf = next(path for path in sorted((root / "memory").glob("*.md")) if path.name != "MEMORY.md")
+    fences = sum(
+        1 for line in leaf.read_text(encoding="utf-8").splitlines() if _TEST_FENCE.match(line)
+    )
+    assert fences % 2 == 0, (
+        "the chosen leaf already has an unbalanced fence, so the plant is a no-op"
+    )
+
+    before = leaf.read_text(encoding="utf-8")
+    after = f"{before}\n```\nnever closed\n\nSee [[{GHOST_LEAF}]].\n"
+    assert after != before, "the plant did not apply"
+    leaf.write_text(after, encoding="utf-8", newline="\n")
+
+    guard, skips = drift_guard.guard_memory(root)
+    reasons = " ".join(skip["reason"] for skip in skips)
+    assert "unclosed code fence" in reasons, (
+        f"a file whose remainder was read as code left no skip record; skips were: {skips}"
+    )
+    assert leaf.name in " ".join(skip["path"] for skip in skips), (
+        "the skip record does not say WHICH file went unchecked"
+    )
+    assert guard["status"] == "PASS", (
+        "an unbalanced fence is a formatting fault, not a broken citation, and this guard "
+        f"runs on the pre-commit path; it reported {guard['status']}"
+    )
+
+
+def test_a_child_index_routing_to_a_ghost_fails_under_the_routing_heading(
+    tmp_path: Path,
+) -> None:
+    """LEG 2 follows INDEX_*.md children, and the store cannot exercise that.
+
+    ``memory/`` is flat today - MEMORY.md plus leaves, no domain index - so
+    every other arm in this section grades the routing leg on ONE file. The
+    transitive walk is live code all the same, and an untested branch in a
+    guard the pre-commit and pre-push paths both run is the branch that breaks
+    quietly.
+
+    The heading is asserted, not just the status. A ghost in a child index is a
+    ROUTING fault whose remedy is "fix the entry"; classifying it with the leaf
+    cross-references would hand the reader the wrong instruction, and one
+    status for three findings is only safe while each finding says which of
+    the three it is.
+    """
+    root = memory_copy(tmp_path)
+    memory = root / "memory"
+    child = memory / "INDEX_probe.md"
+    assert not child.exists(), "the store already has a child index, so this plant is not additive"
+    child.write_text(
+        "# Probe index\n\n- [A ghost](zz-probe-ghost-leaf.md) - routes nowhere.\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    assert not (memory / "zz-probe-ghost-leaf.md").exists(), "the plant names a real file"
+
+    index = memory / "MEMORY.md"
+    before = index.read_text(encoding="utf-8")
+    after = f"{before}\n- [Probe](INDEX_probe.md) - a child index.\n"
+    assert after != before, "the plant did not apply"
+    index.write_text(after, encoding="utf-8", newline="\n")
+
+    status, rendered = memory_verdict(root)
+    assert status == "FAIL", (
+        f"a child index routing to a ghost was not caught; the guard said {status}:\n{rendered}"
+    )
+    assert "zz-probe-ghost-leaf" in rendered, "the guard failed without naming the ghost"
+    assert child.name in rendered, "the guard failed without naming the child index"
+    routing_heading = "THE INDEX ROUTES TO A FILE THAT DOES NOT EXIST:"
+    assert routing_heading in rendered, (
+        f"a child index is a routing file, so its ghost belongs under {routing_heading!r}; "
+        f"the guard reported:\n{rendered}"
+    )
+    assert "A LEAF CITES A NOTE THAT DOES NOT EXIST:" not in rendered, (
+        "a child index was graded as an ordinary leaf, so the reader is handed the wrong "
+        f"remedy:\n{rendered}"
+    )
+
+
+def test_a_child_index_whose_links_all_resolve_keeps_the_guard_green(tmp_path: Path) -> None:
+    """The control for the arm above: the walk is not red on everything.
+
+    Without this, an implementation that failed EVERY child index would pass
+    the arm above and still be broken.
+    """
+    root = memory_copy(tmp_path)
+    memory = root / "memory"
+    real = next(path for path in sorted(memory.glob("*.md")) if path.name != "MEMORY.md")
+    (memory / "INDEX_probe.md").write_text(
+        f"# Probe index\n\n- [A real leaf]({real.name}) - resolves.\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    index = memory / "MEMORY.md"
+    index.write_text(
+        index.read_text(encoding="utf-8") + "\n- [Probe](INDEX_probe.md) - a child index.\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    status, rendered = memory_verdict(root)
+    assert status == "PASS", (
+        f"a child index whose every link resolves was reported as drift:\n{rendered}"
+    )
+
+
+def test_a_fragment_and_an_extensionless_link_are_not_reported_as_missing(
+    tmp_path: Path,
+) -> None:
+    """Two shapes that cite a real target without spelling it as a path.
+
+    A bare ``#anchor`` points inside the citing file, and a link written
+    without the ``.md`` is how a wikilink-shaped target reads in markdown
+    syntax. Neither is a broken citation and neither may be reported as one -
+    the store uses neither today, so nothing else here would notice.
+    """
+    root = memory_copy(tmp_path)
+    memory = root / "memory"
+    leaf = next(path for path in sorted(memory.glob("*.md")) if path.name != "MEMORY.md")
+    other = next(
+        path for path in sorted(memory.glob("*.md")) if path.name not in {"MEMORY.md", leaf.name}
+    )
+
+    before = leaf.read_text(encoding="utf-8")
+    after = (
+        f"{before}\nSee [the section above](#how-to-work) and "
+        f"[the other note]({other.stem}) for the rest.\n"
+    )
+    assert after != before, "the plant did not apply"
+    leaf.write_text(after, encoding="utf-8", newline="\n")
+
+    status, rendered = memory_verdict(root)
+    assert status == "PASS", (
+        f"a bare fragment or an extensionless link was reported as missing:\n{rendered}"
+    )

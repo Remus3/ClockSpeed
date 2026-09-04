@@ -5,10 +5,18 @@ Guards, in the order they are reported:
 
   a  doc budgets         CONVENTIONS 2.1, delegated to tools/doc_budget.py by
                          import, never by shelling out, so there is one table.
-  b  memory reachability every memory/*.md leaf except MEMORY.md is reachable
-                         from MEMORY.md, directly or through an INDEX_<domain>.md.
-                         CONVENTIONS 11 forbids unindexing a file to save bytes,
-                         so an unreachable leaf is DRIFT, not a style point.
+  b  memory reachability the memory index and its leaves account for each other
+                         BOTH ways. Every memory/*.md leaf except MEMORY.md is
+                         reachable from MEMORY.md, directly or through an
+                         INDEX_<domain>.md - CONVENTIONS 11 forbids unindexing a
+                         file to save bytes, so an unreachable leaf is DRIFT, not
+                         a style point. AND every citation resolves: a link
+                         naming nothing used to be an element that matched
+                         nothing, so a dangling wikilink inside a leaf, and an
+                         index entry routing to a file that does not exist, both
+                         passed CLEAN (CS-890). Citations are read outside fenced
+                         code, where a TOML array-of-tables header is spelled
+                         like a wikilink and cites nothing.
   c  character set       every tracked authored text file is pure 7-bit ASCII.
   d  doc topology        every file named in the CONVENTIONS section 2 ownership
                          table exists. The table is PARSED at runtime rather than
@@ -508,14 +516,39 @@ def guard_charset(root: Path, files: list[Path], source: str) -> tuple[Guard, li
     return _guard("c", name, "PASS", detail), skips
 
 
-# --- guard b: memory reachability -------------------------------------------
+# --- guard b: the memory partition, both directions -------------------------
 
 _WIKILINK = re.compile(r"\[\[([^\]|#]+)")
 _MDLINK = re.compile(r"\]\(([^)\s]+)")
 _BACKTICK = re.compile(r"`([^`\n]+)`")
 
+# A fenced code block opens and closes on a line whose first non-space run is
+# three or more backticks or tildes, indented at most three spaces.
+_FENCE = re.compile(r"^ {0,3}(?:`{3,}|~{3,})")
+
+# A target carrying a URL scheme cites something outside this store and is
+# never resolved against a path in it. A single-letter scheme is matched on
+# purpose so a Windows drive letter is excluded by the same clause.
+_URL_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
+
 
 def _link_targets(text: str) -> set[str]:
+    """Every token that can COUNT AS AN INDEX ENTRY, backticked spans included.
+
+    This is the REACHABILITY extractor and it is deliberately generous: an
+    index that names a leaf in backticks has still routed to it, so refusing
+    to count that would report a correctly indexed leaf as unreachable. It is
+    the wrong extractor for resolution, and ``_citation_targets`` below is the
+    narrower one that exists for that. See its docstring for why the two must
+    not be merged.
+
+    Args:
+        text: The markdown source.
+
+    Returns:
+        Lowercased stems, with any directory prefix, ``.md`` suffix and
+        fragment stripped.
+    """
     tokens: set[str] = set()
     for pattern in (_WIKILINK, _MDLINK, _BACKTICK):
         for match in pattern.finditer(text):
@@ -527,6 +560,161 @@ def _link_targets(text: str) -> set[str]:
                 stem = stem[:-3]
             tokens.add(stem.lower())
     return tokens
+
+
+def _outside_fenced_code(text: str) -> str:
+    """Return ``text`` with every fenced code block blanked out.
+
+    A ``[[token]]`` inside a fence is sample material, not a cross-reference.
+    The store quotes a TOML array-of-tables header, ``[[tool.mypy.overrides]]``,
+    which is spelled exactly like a wikilink and cites nothing at all.
+
+    THIS IS AN EXCLUSION OF A SHAPE THAT IS NOT A LINK, not a clause narrowed
+    until it reads as satisfied. Three things make that checkable rather than
+    asserted: the exclusion is stated here, it is scoped to fenced regions
+    alone, and it carries its own control - a dangling wikilink one line ABOVE
+    a fence still reddens the guard
+    (``test_a_dangling_wikilink_directly_above_a_fence_still_reddens``).
+
+    Closing is deliberately lenient: any fence line ends an open block rather
+    than only one matching the opener's character and run length. A file that
+    opens a fence and never closes it would otherwise have its whole remainder
+    swallowed, and swallowing content is the failure mode this guard exists to
+    prevent.
+
+    Args:
+        text: The markdown source.
+
+    Returns:
+        The same text with fenced regions replaced by empty lines, so line
+        counts are preserved for any caller that reports one.
+    """
+    kept: list[str] = []
+    inside = False
+    for line in text.splitlines():
+        if _FENCE.match(line):
+            inside = not inside
+            kept.append("")
+            continue
+        kept.append("" if inside else line)
+    return "\n".join(kept)
+
+
+def _citation_targets(text: str) -> list[tuple[str, str]]:
+    """Wikilink and markdown-link targets, read OUTSIDE fenced code only.
+
+    DELIBERATELY NARROWER THAN ``_link_targets``, AND THAT IS THE WHOLE POINT.
+    ``_link_targets`` also harvests every backticked span, which is right for
+    reachability - see its docstring - and catastrophic for resolution. The
+    index today carries ``assert count == 0`` and ``git commit -F`` in
+    backticks; a resolution check built on that extractor would demand both
+    name files and would MANUFACTURE TWO FINDINGS THE MOMENT IT SHIPPED, in a
+    guard the pre-commit and pre-push paths both run. So the two extractors
+    stay separate on purpose. Neither is a refactor of the other, and merging
+    them turns a green repository red.
+
+    Args:
+        text: The markdown source.
+
+    Returns:
+        ``(kind, raw)`` pairs - kind being "wikilink" or "link" - in file
+        order, duplicates collapsed, original spelling preserved so a finding
+        can quote what the author actually wrote.
+    """
+    body = _outside_fenced_code(text)
+    found: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for kind, pattern in (("wikilink", _WIKILINK), ("link", _MDLINK)):
+        for match in pattern.finditer(body):
+            entry = (kind, match.group(1).strip())
+            if entry[1] and entry not in seen:
+                seen.add(entry)
+                found.append(entry)
+    return found
+
+
+def _citation_resolves(memory_dir: Path, kind: str, raw: str) -> bool:
+    """Whether one citation names a file that exists.
+
+    THE URL EXCLUSION IS FOR MARKDOWN LINKS ONLY, and that asymmetry is
+    deliberate. A markdown link is the correct way to cite a specification, so
+    failing one would turn the guard red on the first note that did - the
+    store carries none today, which is exactly why nothing else would notice.
+    A WIKILINK carrying a scheme is not that: ``[[...]]`` names a note in this
+    store by construction, so a colon in one is a broken link and is reported.
+    Excluding it would silently forgive a citation that can never resolve,
+    since a Windows filename cannot contain a colon at all.
+
+    Args:
+        memory_dir: The directory every citation is resolved relative to.
+        kind: "wikilink" or "link".
+        raw: The target exactly as written.
+
+    Returns:
+        True when the target names an existing file, and also when the target
+        is a form that cites no file in this store - a bare ``#fragment`` in
+        either shape, or an absolute URL or mail address in a markdown link.
+    """
+    target = raw.split("#", 1)[0].strip().replace("\\", "/")
+    if not target:
+        return True
+    if kind == "wikilink":
+        return (memory_dir / f"{target}.md").is_file()
+    if _URL_SCHEME.match(target):
+        return True
+    if (memory_dir / target).is_file():
+        return True
+    return not target.lower().endswith(".md") and (memory_dir / f"{target}.md").is_file()
+
+
+def _citation_findings(
+    root: Path, memory_dir: Path, paths: list[Path], skips: list[Skip]
+) -> tuple[int, list[str]]:
+    """Resolve every citation in ``paths``.
+
+    AN UNCLOSED FENCE IS RECORDED AS A SKIP, NOT SWALLOWED. A file that opens
+    a fence and never closes it has its whole remainder read as code, so every
+    citation after that point leaves the population silently - which is the
+    failure class ``memory/a-skip-can-mute-the-defect.md`` owns. It is not
+    made a FAILURE, because unbalanced fences are a formatting fault rather
+    than a broken citation and this guard runs on the pre-commit path; it goes
+    to the skip list the tool prints on EVERY run, so the green states what it
+    could not see.
+
+    Args:
+        root: The repository root, for rendering relative paths.
+        memory_dir: The directory citations resolve against.
+        paths: The files to read.
+        skips: Skip records, appended to for anything unreadable and for any
+            file whose fences do not balance.
+
+    Returns:
+        ``(citations checked, findings)``. The count is returned so a green
+        verdict can state the population it covers - an empty population
+        satisfies every zero, and a guard that checked nothing must not read
+        the same as one that checked sixty.
+    """
+    checked = 0
+    findings: list[str] = []
+    for path in paths:
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            skips.append({"path": path.name, "reason": f"unreadable memory file: {_exc_text(exc)}"})
+            continue
+        if sum(1 for line in text.splitlines() if _FENCE.match(line)) % 2:
+            skips.append(
+                {
+                    "path": path.name,
+                    "reason": "unclosed code fence - citations after it were not checked",
+                }
+            )
+        for kind, raw in _citation_targets(text):
+            checked += 1
+            if not _citation_resolves(memory_dir, kind, raw):
+                quoted = f"[[{raw}]]" if kind == "wikilink" else f"]({raw})"
+                findings.append(f"{_rel(root, path)} cites {quoted}, which does not exist")
+    return checked, findings
 
 
 def _reachable_from_index(memory_dir: Path, index: Path, skips: list[Skip]) -> set[str]:
@@ -555,7 +743,36 @@ def _reachable_from_index(memory_dir: Path, index: Path, skips: list[Skip]) -> s
 
 
 def guard_memory(root: Path) -> tuple[Guard, list[Skip]]:
-    """Assert every memory leaf is reachable from the memory index."""
+    """Assert the memory index and its leaves account for each other BOTH ways.
+
+    ONE PARTITION, THREE ARMS, ONE VERDICT. Reachability is a partition claim
+    and this guard used to assert only one side of it: every leaf is named by
+    a token the index can reach. A token naming NOTHING is an element that
+    simply matches nothing, so the other side was never asserted at all. Two
+    faults lived in that gap and both reported CLEAN (CS-890):
+
+      LEG 0  every leaf is reachable from MEMORY.md. Unchanged, and carried
+             with its own positive control, because a repair that adds a
+             direction while silently breaking the one that already worked is
+             a net loss.
+      LEG 1  every citation in an ordinary leaf resolves. A note pointing at a
+             lesson that is not there sends the next session nowhere.
+      LEG 2  every citation in MEMORY.md and its INDEX_*.md children resolves.
+             Worse than an unindexed leaf: the index IS the routing table.
+
+    LEG 1 and LEG 2 partition the store between them - a file is a routing
+    file or it is an ordinary leaf, never both - so a dangling link is
+    reported once, under the heading whose remedy actually applies.
+
+    THIS IS CS-497's SHAPE ONE STORE OVER: a partition asserted one way round
+    is a subset check wearing a partition's name.
+
+    Args:
+        root: The repository root.
+
+    Returns:
+        The guard record and its skip records.
+    """
     skips: list[Skip] = []
     name = "memory reachability"
     memory_dir = root / "memory"
@@ -582,13 +799,50 @@ def guard_memory(root: Path) -> tuple[Guard, list[Skip]]:
         "reachable from MEMORY.md (transitively through INDEX_*.md): "
         f"{len(leaves) - len(unreachable)}"
     )
-    if unreachable:
-        detail.append("UNREACHABLE - this is DRIFT, not a style point:")
-        detail.extend(f"  {_rel(root, leaf)}" for leaf in unreachable)
-        detail.append(
+
+    routing = [index, *(leaf for leaf in leaves if leaf.name.lower().startswith("index_"))]
+    ordinary = [leaf for leaf in leaves if not leaf.name.lower().startswith("index_")]
+    routes_checked, dangling_routes = _citation_findings(root, memory_dir, routing, skips)
+    refs_checked, dangling_refs = _citation_findings(root, memory_dir, ordinary, skips)
+    detail.append(
+        f"index citations resolved (outside fenced code): "
+        f"{routes_checked - len(dangling_routes)} of {routes_checked}"
+    )
+    detail.append(
+        f"leaf citations resolved (outside fenced code): "
+        f"{refs_checked - len(dangling_refs)} of {refs_checked}"
+    )
+
+    sections = (
+        (
+            [_rel(root, leaf) for leaf in unreachable],
+            "UNREACHABLE - this is DRIFT, not a style point:",
             "Fix by adding a one-line hook to the index. Do NOT delete the leaf and "
-            "do NOT unindex a file to save bytes (CONVENTIONS 11)."
-        )
+            "do NOT unindex a file to save bytes (CONVENTIONS 11).",
+        ),
+        (
+            dangling_routes,
+            "THE INDEX ROUTES TO A FILE THAT DOES NOT EXIST:",
+            "The index is the routing table, so a ghost entry misroutes every later "
+            "session. Fix the target or drop the entry - do NOT create an empty file "
+            "to satisfy the link.",
+        ),
+        (
+            dangling_refs,
+            "A LEAF CITES A NOTE THAT DOES NOT EXIST:",
+            "Point it at the note that owns the lesson, or drop the reference. A "
+            "dangling citation in the durable store sends the next session to a file "
+            "that is not there.",
+        ),
+    )
+    failed = False
+    for entries, heading, remedy in sections:
+        if entries:
+            failed = True
+            detail.append(heading)
+            detail.extend(f"  {entry}" for entry in entries)
+            detail.append(remedy)
+    if failed:
         return _guard("b", name, "FAIL", detail), skips
     return _guard("b", name, "PASS", detail), skips
 
