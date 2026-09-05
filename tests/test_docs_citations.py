@@ -75,23 +75,21 @@ CS-897 - AN EXEMPTION'S REASON MUST BE TRUE OF EVERY MEMBER, AND THAT ONE WAS
 NOT. It read that the archive's dead pointers sit inside citation-guard detail
 blocks whose SUBJECT is a pointer being dead, so quoting and citing cannot be
 told apart by shape there. MEASURED against the file, that describes TWO of the
-sites: a harness-file note about a path written and removed, a plain "that leaf
-records this" reference, five dead path-and-symbol citations, three pointers
-landing on nothing and three identifiers bound nowhere are none of them
-quotation. The reason was written about the sites that provoked it and quietly
-acquired a population it does not cover - the same shape as the WAKEUP_NOTES.md
-eviction below, one level along.
+sites and none of the rest. The repair is not a wider sentence, because a
+sentence is what failed: the reason now rests on what the file DECLARES ABOUT
+ITSELF, and the population it hides is COUNTED, per arm, against typed integers.
 
-THE REPAIR IS NOT A WIDER SENTENCE, because a sentence is what failed. The
-reason now rests on what the file DECLARES ABOUT ITSELF - a historical record
-whose pointers rot by construction, checked against its own header in both
-directions - and the population it hides is COUNTED, per arm, against typed
-integers in :data:`ARCHIVE_ROT`. Over the pin is rot nobody has read; under it
-is a pin gone slack. That is WIDER than the clause asks: it reddens on any new
-dead pointer, covered by the reason or not, and the discrimination the clause
-implies is performed BY A HUMAN at the moment the pin is bumped. The arm forces
-that moment to exist. It does not supply the judgement, and CS-899 - which
-would - is open.
+THAT MACHINERY IS NO LONGER IN THIS FILE, and the move is the size gate rather
+than taste. The derivation is ``tests/archive_rot_guard.py`` and the pin with
+its four arms is ``tests/test_archive_rot.py``, taken out whole when this module
+came within 1483 bytes of the ceiling ``tests/data/test_phase2_gate.py`` holds
+every file under ``tests/`` to - a control whose subject is a trimmed slice of
+real game data, and which is not raised to make room for prose. WHAT STAYS
+HERE IS THE EXEMPTION ITSELF: :data:`UNGUARDED_DOCS`, the path it names and the
+pin on its cardinality. The boundary is drawn on SUBJECT - what the exemption
+IS, against what it HIDES - and the import at the FOOT of this file is what
+keeps the relocated half inside the walked closure rather than outside every
+contract that reads it.
 
 THERE ARE TWO POPULATIONS AND THEY HAVE DIFFERENT BOUNDARIES. Saying so is a
 correction: this paragraph once read "every in-domain markdown file", and
@@ -221,7 +219,7 @@ import hashlib
 import re
 import string
 import subprocess
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -512,108 +510,6 @@ UNGUARDED_DOCS: Final[Mapping[str, str]] = {
         " of the rest. The population is MEASURED instead, and pinned per arm, so rot"
         " arriving after this record was written reddens even though the file is unguarded."
     ),
-}
-
-# CS-897 - AN EXEMPTION'S REASON MUST BE TRUE OF EVERY MEMBER, AND THAT ONE IS
-# NOT. The reason above describes a pointer spelled INSIDE a citation-guard
-# detail block whose subject is that pointer being dead - quoting rather than
-# citing. Measured against the archive as it stands, that describes TWO of the
-# sites and none of the rest: a failed-paths note about a harness file written
-# and removed, a plain "that leaf records this" reference, five dead
-# path-and-symbol citations, three line pointers landing on nothing, three
-# identifiers this tree binds nowhere. The reason was true when the exemption
-# was written about the sites it was written about, and it silently acquired a
-# population it does not describe.
-#
-# DISCRIMINATING QUOTING FROM CITING IN MARKDOWN IS CS-899, WHICH IS OPEN. A
-# keyword or negation detector was priced and REFUSED: it fails in the
-# PERMISSIVE direction, so a real dead citation is forgiven forever with
-# nothing red - the laundering this module exists to prevent, bought for a
-# regex. What ships instead sidesteps that question rather than answering it.
-#
-# THE REASON IS RESTATED SO IT IS TRUE OF EVERY MEMBER, AND THE POPULATION IS
-# PINNED. The archive's pointers rot BY CONSTRUCTION - it preserves text
-# written against trees that no longer exist - and that is true of all of them
-# without asking what any one sentence MEANS. The reason is anchored to
-# sentences the file's own header carries, checked in both directions by
-# test_the_deep_archive_exemption_rests_on_the_claim_its_own_header_makes.
-
-#: The sentences the deep archive's own header spells that the exemption's
-#: reason RESTS ON, and which the reason must therefore quote. Checked in both
-#: directions: the header must still say it, and the record must still say it.
-#: An exemption argued from a file's declared status is only as good as the
-#: declaration, so the declaration is not taken on trust - WAKEUP_NOTES.md is
-#: the precedent, recorded unguarded on a reason nothing verified and evicted
-#: by the first run that did.
-#:
-#: SPELT SHORT OF A LINE BREAK. The header wraps mid-sentence, so a claim
-#: carried to the end of its sentence would never match the file it is read
-#: out of - measured, on the third one.
-ARCHIVE_HEADER_CLAIMS: Final = (
-    "Section status: HISTORICAL",
-    "holds NOTHING current",
-    "may be cited as the present state",
-)
-
-#: How much of the archive counts as its HEADER. The claims above are its
-#: standing declaration about itself, so a match 4000 lines down inside a
-#: quoted note would not be the declaration at all.
-_ARCHIVE_HEADER_LINES: Final = 30
-
-#: The floor under the archive's judged-site population, so the pin below
-#: cannot read as an answer when the sweep stopped reading the file. A FLOOR ON
-#: SITES RATHER THAN ON FINDINGS, and the difference is what keeps it from
-#: fighting a repair: a repaired pointer is still a site, so this number does
-#: not fall when the archive is cleaned up, and it does fall to zero the moment
-#: the sweep stops arriving.
-#:
-#: HOW IT WAS CHOSEN. 639 sites measured across the five shapes, the largest
-#: single shape contributing 410 of them. This sits above 639 minus that shape,
-#: so losing ANY ONE shape entirely reddens rather than passing quietly.
-_ARCHIVE_SITE_FLOOR: Final = 550
-
-#: The six answers this module's arms would give about the deep archive, one
-#: per arm. NAMED rather than positional, so a count moving between arms cannot
-#: be absorbed by a total that stays the same.
-_ROT_CITATION: Final = "dead path-and-symbol citations"
-_ROT_RANGE: Final = "line pointers out of range or at an untracked path"
-_ROT_EMPTY: Final = "line pointers landing on nothing"
-_ROT_NAME: Final = "bare and elided identifiers bound nowhere"
-_ROT_PATH: Final = "bare paths resolving nowhere"
-_ROT_FORM: Final = "line pointers at a tracked module in the refused form"
-
-#: THE TWO-WAY COUNT PIN, WHICH IS WHAT MAKES THE EXEMPTION MEASURED RATHER
-#: THAN ASSERTED. Every arm's finding count against the archive, recorded as a
-#: typed integer. OVER a number is rot nobody has looked at; UNDER it is a pin
-#: left slack after the archive shrank, which is banked room for an append. The
-#: idiom is :func:`forgiveness_budget_problems`' and :func:`decline_budget_problems`',
-#: and so is the reason it is spent EXACTLY.
-#:
-#: PER ARM, NEVER POOLED, for the doctrine :func:`decline_budget_problems`
-#: states: a threshold summed over a population is met by its strongest member
-#: while the weakest goes unmeasured. Pooled, a pointer whose target line went
-#: blank would move from :data:`_ROT_FORM` to :data:`_ROT_EMPTY` and the total
-#: would not move at all.
-#:
-#: WHAT THE ARM DOES AND DOES NOT CLAIM, stated because the acceptance clause
-#: it answers is easy to over-read. It does NOT judge whether a site is quoted
-#: or cited - that is CS-899 and it is open. It reddens on ANY change to the
-#: archive's rot, which is WIDER than the clause asks, and the discrimination
-#: is done BY A HUMAN at the moment the pin is bumped. The arm is what forces
-#: that moment to exist; it is not what supplies the judgement.
-#:
-#: THE SIXTH ENTRY IS NOT A DEAD POINTER and is pinned anyway. Those pointers
-#: resolve; the forbid leg refuses the FORM because a symbol form cannot be
-#: invalidated by an edit above it. It is part of what the exemption hides, so
-#: leaving it out would be a boundary nobody re-derives - this module's founding
-#: finding, one more time.
-ARCHIVE_ROT: Final[Mapping[str, int]] = {
-    _ROT_CITATION: 5,
-    _ROT_RANGE: 0,
-    _ROT_EMPTY: 3,
-    _ROT_NAME: 3,
-    _ROT_PATH: 4,
-    _ROT_FORM: 13,
 }
 
 # A path segment may begin with a dot - `.github/workflows/tier1.yml:250` is a
@@ -1956,7 +1852,6 @@ FORGIVENESS_TABLES: Final[Mapping[str, str]] = {
     ),
     "UNGUARDED_DOCS": "test_the_deep_archive_is_the_only_doc_left_unguarded",
     "BARE_PATH_REASONS": "test_the_bare_path_reason_budget_is_spent_exactly_and_cannot_grow",
-    "ARCHIVE_ROT": "test_the_deep_archives_rot_is_measured_and_pinned_per_arm",
     "DECLINED_AS_DECLARED_UNTRACKED": (
         "test_every_bare_path_decline_rung_is_disclosed_in_both_directions"
     ),
@@ -1978,10 +1873,6 @@ NOT_A_FORGIVENESS: Final[Mapping[str, str]] = {
     "ITEM_NOTES_LEAVES": "derived from the filesystem, and widens GUARDED_DOCS",
     "JUDGED_SHAPES": "widens what counts as a citation; adding to it can only add findings",
     "LADDER_RUNGS": "the ladder's rung names, in order",
-    "ARCHIVE_HEADER_CLAIMS": (
-        "the deep archive's own header sentences its exemption must rest on; widening it"
-        " can only demand more of the record"
-    ),
     "FORGIVENESS_TABLES": "the registry itself, walked by the contract that reads it",
     "NOT_A_FORGIVENESS": "the registry itself, walked by the contract that reads it",
     "_CORPUS": "a synthetic corpus a control judges against",
@@ -2150,96 +2041,7 @@ def guarded_set_problems(
     return unrecorded, stale
 
 
-# --- CS-897: what the deep archive's exemption actually hides ---------------
-
-
-def archive_sites(text: str) -> int:
-    """How many sites of ANY judged shape the deep archive spells.
-
-    THE NON-VACUITY MEASUREMENT, and it reads :data:`JUDGED_SHAPES` rather
-    than a list of its own for the reason the boundary contract does: a SIXTH
-    shape added to this module would otherwise leave this number describing a
-    narrower file than the one the pin is taken over.
-
-    Args:
-        text: The archive's scoped text.
-
-    Returns:
-        The total across every shape. Overlapping matches are counted once per
-        shape and a site may be seen by two shapes - which is right for a floor
-        asking whether the sweep ARRIVED, and would be wrong for a pin.
-    """
-    return sum(len(shape.findall(text)) for shape in JUDGED_SHAPES)
-
-
-def archive_rot(
-    text: str,
-    sources: Mapping[str, str],
-    file_lines: Mapping[str, Sequence[str]],
-    known_names: Iterable[str],
-    module_basenames: Iterable[str],
-    tracked: Iterable[str],
-    declared_untracked: Iterable[str],
-    roots_of_source: Iterable[str],
-) -> dict[str, int]:
-    """Run every arm this module has against the deep archive, and COUNT.
-
-    THE EXEMPTION'S POPULATION, DERIVED. :data:`UNGUARDED_DOCS` takes the
-    archive out of every live arm, so until this function existed the size of
-    what that bought was unmeasured - and an exemption whose population nobody
-    measures is how a reason that was true of two sites ends up covering
-    twenty-eight.
-
-    EVERY FORGIVENESS TABLE IS PASSED EMPTY, DELIBERATELY. No live table
-    CARRIES an archive site - the archive has never been in a population that
-    could key one - so injecting them would change nothing today and would hand
-    a future agent a one-line silencer for a finding this measure exists to
-    surface. The pin is the only place an archive finding may be answered, and
-    a pin bump is a number in the diff.
-
-    THAT CLAIM IS CHECKED RATHER THAN STATED HERE, by a leg of
-    ``test_the_deep_archives_rot_is_measured_and_pinned_per_arm``, because a
-    sentence about a table's contents is exactly the fault this module exists
-    to find. It needed to be: three keys DO spell the archive, all three inside
-    an ANCHOR - the heading a note was relocated out from under - which is a
-    carrier's heading text and never a key this measure would consult. Read as
-    prose, "the archive is in none of them" is false; read as the question that
-    matters, whose carrier is the archive, it is true.
-
-    A PURE FUNCTION OF ITS ARGUMENTS, for :func:`bare_path_ladder`'s reason:
-    every input is injected, so a control can plant a dead citation of each
-    shape and prove the corresponding arm fires rather than merely that the
-    live corpus sits where the pin says.
-
-    Args:
-        text: The archive's scoped text.
-        sources: Repo-relative path to module text, for the resolver.
-        file_lines: Every tracked file's lines, for the line-pointer arms.
-        known_names: Every name bound at module scope anywhere in the tree.
-        module_basenames: Tracked module basenames, so a module is not read as
-            a test.
-        tracked: Every path in the index, for the bare-path ladder's R0.
-        declared_untracked: What the repo declares it will never track, R2.
-        roots_of_source: R1's candidate set.
-
-    Returns:
-        One count per arm, keyed by the :data:`ARCHIVE_ROT` names.
-    """
-    line_counts = {path: len(lines) for path, lines in file_lines.items()}
-    ranged, _declined = line_pointer_problems(text, line_counts)
-    py_sites, other_sites = line_pointer_sites({DEEP_ARCHIVE: text}, file_lines)
-    empty, forbidden = line_pointer_content_problems(py_sites, other_sites, sources, {}, {})
-    answered = bare_path_ladder(
-        bare_path_sites({DEEP_ARCHIVE: text}), tracked, declared_untracked, {}, roots_of_source
-    )
-    return {
-        _ROT_CITATION: len(unresolved_citations(DEEP_ARCHIVE, text, sources, {})),
-        _ROT_RANGE: len(ranged),
-        _ROT_EMPTY: len(empty),
-        _ROT_NAME: len(bare_name_problems(DEEP_ARCHIVE, text, known_names, module_basenames, {})),
-        _ROT_PATH: len(bare_path_problems(answered)),
-        _ROT_FORM: len(forbidden),
-    }
+# --- the shape a pin over a FILE has to be checked for -----------------------
 
 
 def literal_pin_problems(source: str, name: str) -> list[str]:
@@ -2397,10 +2199,10 @@ def line_pointer_carriers(file_lines: Mapping[str, Sequence[str]]) -> dict[str, 
 
     THE EXEMPTIONS ARE THE ONES THIS MODULE ALREADY RECORDS, reused rather than
     duplicated: :data:`UNGUARDED_DOCS` for the deep archive, whose pointers rot
-    by construction and whose population is counted in :data:`ARCHIVE_ROT`
-    instead, plus the dated archive and the harness configuration that are out
-    of domain entirely. A second exemption table would be a second place for
-    the same fact to rot.
+    by construction and whose population is counted by
+    ``tests/test_archive_rot.py`` instead, plus the dated archive and the
+    harness configuration that are out of domain entirely. A second exemption
+    table would be a second place for the same fact to rot.
 
     The ledger is SCOPED and everything else is not: scoping exists to keep the
     ledger's illustrative preamble out of adjudication, and no other file has
@@ -2518,81 +2320,6 @@ def live_bare_path_ladder(
         BARE_PATH_REASONS,
         live_source_roots,
     )
-
-
-@pytest.fixture(scope="module")
-def archive_text(file_lines: Mapping[str, Sequence[str]]) -> str:
-    """The deep archive's own bytes, read from the map every other arm reads.
-
-    NOT A SECOND READ OF THE FILE. ``file_lines`` has already read every
-    tracked file, and a second reader that split lines differently would put
-    the archive's pointers in range for one arm and out of it for another -
-    which is the disagreement that fixture's own docstring exists to prevent.
-
-    THE ABSENCE IS LOUD. A KeyError here would say the archive stopped being
-    tracked, which is a finding rather than a reason to measure zero.
-    """
-    lines = file_lines.get(DEEP_ARCHIVE)
-
-    assert lines is not None, (
-        f"{DEEP_ARCHIVE} is not a tracked file, so the exemption recorded for it in"
-        " UNGUARDED_DOCS forgives nothing and the measurement below is about no file."
-    )
-    return scoped_text(DEEP_ARCHIVE, NEWLINE.join(lines))
-
-
-@pytest.fixture(scope="module")
-def archive_declared_untracked(archive_text: str) -> frozenset[str]:
-    """R2's answer for the ARCHIVE's cited paths, in one batched call.
-
-    Its own call rather than ``live_declared_untracked``, because that fixture
-    asks about the line-pointer population and the archive is exactly the file
-    that population excludes.
-    """
-    cited = {site.cited for site in bare_path_sites({DEEP_ARCHIVE: archive_text})}
-    return declares_untracked(sorted(cited))
-
-
-@pytest.fixture(scope="module")
-def archive_rot_of(
-    sources: Mapping[str, str],
-    file_lines: Mapping[str, Sequence[str]],
-    known_names: frozenset[str],
-    module_basenames: frozenset[str],
-    tracked: list[str],
-    archive_declared_untracked: frozenset[str],
-    live_source_roots: frozenset[str],
-) -> Callable[[str, Mapping[str, Sequence[str]] | None], dict[str, int]]:
-    """:func:`archive_rot` with the live corpus bound, so a plant varies ONE thing.
-
-    A CLOSURE RATHER THAN EIGHT ARGUMENTS AT EVERY CALL SITE, and it is a
-    control's requirement rather than tidiness: the teeth arm below re-measures
-    seven times and every input except the planted one must be the SAME object
-    each time, or a delta of one could be the plant or could be a corpus that
-    moved underneath it.
-    """
-
-    def measure(text: str, lines: Mapping[str, Sequence[str]] | None = None) -> dict[str, int]:
-        return archive_rot(
-            text,
-            sources,
-            file_lines if lines is None else lines,
-            known_names,
-            module_basenames,
-            tracked,
-            archive_declared_untracked,
-            live_source_roots,
-        )
-
-    return measure
-
-
-@pytest.fixture(scope="module")
-def archive_rot_counts(
-    archive_rot_of: Callable[[str, Mapping[str, Sequence[str]] | None], dict[str, int]],
-    archive_text: str,
-) -> dict[str, int]:
-    return archive_rot_of(archive_text, None)
 
 
 # --- contract 1: every citation resolves or carries a checked disposition ----
@@ -2732,288 +2459,6 @@ def test_the_deep_archive_is_the_only_doc_left_unguarded() -> None:
         "the recorded-unguarded set is no longer the deep archive alone:\n"
         + "\n".join(f"  {doc}" for doc in sorted(UNGUARDED_DOCS))
         + "\nGuard the newcomer, or change this contract deliberately and say why."
-    )
-
-
-# --- contract 1b: CS-897 - the exemption's population is measured -----------
-
-
-def test_the_deep_archive_exemption_rests_on_the_claim_its_own_header_makes(
-    archive_text: str,
-) -> None:
-    """CS-897's first conjunct: a reason that is TRUE OF EVERY MEMBER.
-
-    THE REASON IT REPLACED WAS TRUE OF TWO SITES AND FALSE OF THE REST. It said
-    the archive's dead pointers sit inside citation-guard detail blocks whose
-    SUBJECT is a pointer being dead - quoting rather than citing - and that
-    describes exactly two of them. A failed-paths note about a harness file
-    that was written and removed is not one. Neither is a plain "that leaf
-    records this" reference, nor five dead path-and-symbol citations, nor three
-    line pointers landing on nothing, nor three identifiers this tree binds
-    nowhere. The reason was written about the sites that provoked it and
-    quietly acquired a population it does not cover.
-
-    THE REPLACEMENT IS ANCHORED RATHER THAN ASSERTED. "Its pointers rot by
-    construction" is a claim about the file's STATUS, and this file declares
-    its own status in its header - so the reason quotes that declaration and
-    this arm checks BOTH ENDS: the header must still carry each sentence, and
-    the record must still rest on it. An exemption argued from a declaration
-    nobody re-reads is precisely how WAKEUP_NOTES.md shipped here on a reason
-    its own table contradicted.
-
-    WHAT THIS DOES NOT DO, stated for the reason every other ceiling in this
-    module states its own: a false sentence bolted onto a true anchor still
-    reads as a reason. What is removed is an exemption whose GROUND has
-    silently gone away.
-    """
-    recorded = UNGUARDED_DOCS[DEEP_ARCHIVE]
-    header = NEWLINE.join(archive_text.split(NEWLINE)[:_ARCHIVE_HEADER_LINES])
-
-    assert ARCHIVE_HEADER_CLAIMS, "the anchor set is empty, so both legs below check nothing"
-    absent = [claim for claim in ARCHIVE_HEADER_CLAIMS if claim not in header]
-
-    assert not absent, (
-        "the deep archive's header no longer declares what the exemption rests on:\n"
-        + NEWLINE.join(f"  {claim}" for claim in absent)
-        + NEWLINE
-        + "Re-argue the exemption against what the file now says about itself."
-    )
-    unquoted = [claim for claim in ARCHIVE_HEADER_CLAIMS if claim not in recorded]
-
-    assert not unquoted, (
-        "the recorded reason does not rest on the header claims that make it true of"
-        " every member:\n"
-        + NEWLINE.join(f"  {claim}" for claim in unquoted)
-        + NEWLINE
-        + "A reason describing SOME of what an exemption hides is the CS-897 defect."
-    )
-
-
-def test_the_deep_archives_rot_is_measured_and_pinned_per_arm(
-    archive_rot_counts: Mapping[str, int],
-    archive_text: str,
-    markdown_texts: Mapping[str, str],
-    line_pointer_carriers: Mapping[str, str],
-) -> None:
-    """CS-897's second conjunct: the population is MEASURED, and pinned both ways.
-
-    WHAT THIS BUYS THAT THE REASON CANNOT. A reason is a sentence; this is a
-    number. Every arm this module owns is run against the archive and its
-    finding count is spent against a typed integer. OVER is rot that arrived
-    after the last person looked. UNDER is a pin left slack once the archive
-    shrank, which is banked room for an append nobody would have to defend -
-    the direction :func:`forgiveness_budget_problems` learnt to check the hard
-    way.
-
-    IT IS WIDER THAN THE CLAUSE, WHICH IS THE POINT. The clause asks that the
-    members the reason does not cover be recorded individually. Telling those
-    members apart is CS-899, open and unsolved, and a keyword detector for it
-    fails permissively - forgiving a real dead citation forever with nothing
-    red. So this reddens on ANY new dead pointer in the archive, covered or
-    not, and the discrimination is performed BY A HUMAN at the moment the pin
-    is bumped. The arm is what forces that moment; it does not supply the
-    judgement, and it must not be read as if it did.
-
-    FOUR VACUITY LEGS, because a clean count is silence unless the sweep
-    arrived. The archive must be TRACKED, must be inside the markdown
-    population, must be OUTSIDE the line-pointer population - that exclusion is
-    the whole thing being compensated for - and must still spell sites above a
-    floor.
-    """
-    assert DEEP_ARCHIVE in UNGUARDED_DOCS, (
-        f"{DEEP_ARCHIVE} is no longer recorded unguarded, so it is adjudicated like any"
-        " other doc and this pin is a second, unneeded population."
-    )
-    assert DEEP_ARCHIVE in markdown_texts, (
-        f"{DEEP_ARCHIVE} left the in-domain markdown population, so the boundary"
-        " contracts stopped noticing the exemption at all."
-    )
-    assert DEEP_ARCHIVE not in line_pointer_carriers, (
-        f"{DEEP_ARCHIVE} is now inside the line-pointer population, so the live arms"
-        " judge it and this pin has become a second answer to the same question."
-    )
-    short = floor_problems(
-        "citation sites in the deep archive", archive_sites(archive_text), _ARCHIVE_SITE_FLOOR
-    )
-
-    assert not short, NEWLINE.join(short) + " The sweep has stopped reading the archive."
-    tupled = [
-        name
-        for name in FORGIVENESS_TABLES
-        if any(isinstance(key, tuple) for key in globals()[name])
-    ]
-
-    assert tupled, (
-        "no registered forgiveness table is keyed by a carrier, so the check below walks"
-        " nothing and its clean answer would be about no table at all"
-    )
-    keyed = sorted(
-        f"  {name} answers a site carried by the archive: {key}"
-        for name in FORGIVENESS_TABLES
-        for key in globals()[name]
-        if isinstance(key, tuple) and key and key[0] == DEEP_ARCHIVE
-    )
-
-    assert not keyed, (
-        "a live forgiveness table has started answering a site in the deep archive:"
-        + NEWLINE
-        + NEWLINE.join(keyed)
-        + NEWLINE
-        + ":func:`archive_rot` passes every table EMPTY, so that entry silences nothing"
-        " and the pin still reports the site - but the exemption is now being answered in"
-        " two places, and only one of them costs a number. Answer it in the pin."
-    )
-    assert len(ARCHIVE_ROT) >= len(JUDGED_SHAPES), (
-        f"{len(ARCHIVE_ROT)} arms are counted against the archive and this module judges"
-        f" {len(JUDGED_SHAPES)} shapes, so a shape has no arm here. A sixth shape added to"
-        " JUDGED_SHAPES must bring an arm with it, or the exemption quietly starts hiding"
-        " a population nothing counts - which is CS-897 itself, one shape along."
-    )
-    assert set(archive_rot_counts) == set(ARCHIVE_ROT), (
-        "the measured arms and the pinned arms are not the same set:"
-        f" measured {sorted(archive_rot_counts)}, pinned {sorted(ARCHIVE_ROT)}"
-    )
-    drifted = [
-        f"  {arm}: {archive_rot_counts[arm]} found against a pin of {ARCHIVE_ROT[arm]}"
-        for arm in sorted(ARCHIVE_ROT)
-        if archive_rot_counts[arm] != ARCHIVE_ROT[arm]
-    ]
-
-    assert not drifted, (
-        "the deep archive's rot has moved under its exemption:"
-        + NEWLINE
-        + NEWLINE.join(drifted)
-        + NEWLINE
-        + "OVER the pin is rot nobody has read: look at the new site, decide whether the"
-        " recorded reason covers it, and bump the pin in the same change. UNDER it is a"
-        " pin gone slack after a repair: lower it, or the room is banked for an append."
-    )
-
-
-def test_the_archive_rot_measure_reddens_on_a_new_dead_pointer_of_every_shape(
-    archive_text: str,
-    archive_rot_counts: Mapping[str, int],
-    archive_rot_of: Callable[[str, Mapping[str, Sequence[str]] | None], dict[str, int]],
-    file_lines: Mapping[str, Sequence[str]],
-) -> None:
-    """CS-897's third conjunct: the ARM, proved to redden per shape.
-
-    THE PIN ALONE PROVES NOTHING ABOUT REACH. A measurement that agrees with a
-    number reads identically whether every arm ran or whether all six returned
-    zero and the pin was written to match - and that is not hypothetical here,
-    because a future repair of the archive would make every pin legitimately
-    zero and the agreement vacuous. So each shape is planted with a pointer
-    THIS TREE CANNOT RESOLVE and the arm that owns it must move by exactly one
-    while the other five stand still.
-
-    A PLANTED POINTER IS EXACTLY THE MEMBER THE OLD REASON DID NOT DESCRIBE.
-    It sits in no citation-guard detail block, its subject is not a pointer
-    being dead, and it is dead all the same - which is the clause's "a dead
-    citation the stated reason does not describe", posed six times.
-
-    THE PLANTS ARE IN MEMORY AND ASSEMBLED AT CALL TIME. Nothing is written to
-    a tracked doc, and no dead path or pointer is ever spelled adjacently in
-    this module's own source - :func:`bare_path` and :func:`line_key` exist for
-    that hazard and the self-infliction arm would report it if they did not.
-    """
-    synthetic = bare_path("clockspeed", "synthetic", "planted_mod.py")
-    absent = bare_path("nowhere-this-repo-owns", "planted_mod.py")
-    dead_module = bare_path("tests", "synthetic", "test_planted.py")
-    planted_lines = dict(file_lines)
-    planted_lines[synthetic] = ["", "def _a_live_declaration() -> None:", "    pass"]
-    plants = (
-        (_ROT_CITATION, f"Verification: {dead_module}::{_PLANTED_DEAD_NAME}."),
-        (_ROT_RANGE, f"Filed at {line_key(absent, 1)}."),
-        (_ROT_EMPTY, f"Filed at {line_key(synthetic, 1)}."),
-        (_ROT_NAME, f"Verification: ::{_PLANTED_DEAD_NAME}."),
-        (_ROT_PATH, f"Filed against `{bare_path('docs', _BARE_PLANT_LEAF)}`."),
-        (_ROT_FORM, f"Filed at {line_key(synthetic, 2)}."),
-    )
-
-    assert {arm for arm, _text in plants} == set(ARCHIVE_ROT), (
-        "a pinned arm has no plant, so the pin covers a shape nothing proves is read:"
-        f" {sorted(set(ARCHIVE_ROT) - {arm for arm, _text in plants})}"
-    )
-    for arm, sentence in plants:
-        counts = archive_rot_of(
-            archive_text + NEWLINE + NEWLINE + sentence + NEWLINE, planted_lines
-        )
-        moved = {
-            other: (counts[other], archive_rot_counts[other])
-            for other in ARCHIVE_ROT
-            if counts[other] != archive_rot_counts[other]
-        }
-
-        assert moved == {arm: (archive_rot_counts[arm] + 1, archive_rot_counts[arm])}, (
-            f"planting one dead pointer of the shape {arm!r} did not move that arm by"
-            f" exactly one and nothing else. Moved: {moved}. Either the arm does not"
-            " reach the archive, or the plant is answered by a shape it was not written"
-            " for and the pin is measuring something other than what it names."
-        )
-
-
-#: A typed pin and a derived one, as SOURCE, so the check below can be posed in
-#: both directions without mutating this file. Strings rather than tables, so
-#: neither reaches the container walk and neither is a fixture the arm has to
-#: keep in step with the real pin.
-_TYPED_PIN_SOURCE: Final = 'PIN: Final[Mapping[str, int]] = {"a": 3, "b": 0}' + NEWLINE
-_DERIVED_PIN_SOURCE: Final = (
-    'PIN: Final[Mapping[str, int]] = {"a": len(SOMETHING), "b": 0}' + NEWLINE
-)
-#: The same disarm in TWO statements - a typed decoy the walk once stopped at,
-#: then a rebind to a call. Both statements are needed; either alone is clean.
-_REBOUND_PIN_SOURCE: Final = (
-    'PIN: Final[Mapping[str, int]] = {"a": 3}' + NEWLINE + "PIN = _derived()" + NEWLINE
-)
-
-
-def test_the_archive_rot_pin_is_typed_rather_than_computed_from_what_it_measures() -> None:
-    """THE PERMANENT DISARM, AND FOR THIS PIN IT IS ONE LINE.
-
-    :func:`derived_bound_problems` closes the same attack against a ceiling
-    over a TABLE - it reports a bound whose expression mentions the table it
-    bounds. :data:`ARCHIVE_ROT` bounds a FILE, so there is no registered name
-    for that walk to see: a value written as a call would make the pin agree
-    with the derivation by construction, in a diff carrying no number to query,
-    and every leg of the arm above would still pass.
-
-    FOUR DIRECTIONS BEFORE THE LIVE ONE. A typed synthetic source reports
-    nothing; the same source with ONE value computed reports exactly one, which
-    proves the walk parses, reaches module scope and fires; a name this module
-    does not bind reports that it measured nothing rather than passing; and a
-    typed decoy followed by a later rebind to a call reports both the second
-    binding and the call, which is the TWO-statement form of the same disarm
-    and read as clean until it was measured. Only then is the real source's
-    clean answer worth reading.
-    """
-    assert literal_pin_problems(_TYPED_PIN_SOURCE, "PIN") == [], (
-        "a pin whose values are typed integers was reported, so the check refuses the"
-        " shape it exists to require"
-    )
-    derived = literal_pin_problems(_DERIVED_PIN_SOURCE, "PIN")
-
-    assert len(derived) == 1, f"a computed pin value was not the single finding: {derived}"
-    assert "len(SOMETHING)" in derived[0]
-    missing = literal_pin_problems(_TYPED_PIN_SOURCE, "A_NAME_THIS_MODULE_DOES_NOT_BIND")
-
-    assert len(missing) == 1, "a pin that is not there was reported as clean"
-    assert "measured nothing" in missing[0]
-    rebound = literal_pin_problems(_REBOUND_PIN_SOURCE, "PIN")
-    # The second binding, and the call it rebinds to. Named, and named LOCALLY:
-    # ruff's PLR2004 reads a bare 2 in the comparison as a magic value, and a
-    # module-scope name would owe the container walk a registration.
-    both_faults = 2
-
-    assert len(rebound) == both_faults, f"a typed decoy plus a later rebind passed: {rebound}"
-    assert "bound 2 times" in rebound[0]
-    assert "_derived()" in rebound[1]
-
-    problems = literal_pin_problems(Path(__file__).read_text(encoding="ascii"), "ARCHIVE_ROT")
-
-    assert not problems, (
-        "the deep archive's rot pin is not typed:"
-        + NEWLINE
-        + NEWLINE.join(f"  {problem}" for problem in problems)
     )
 
 
@@ -5343,7 +4788,6 @@ def test_appending_to_a_decline_disclosure_spends_its_budget() -> None:
         ("bare-path sites", BARE_PATH_POPULATION_FLOOR),
         ("module-map paths resolving by suffix", _ARCHITECTURE_SUFFIX_FLOOR),
         ("bare paths spelled by this module", _SELF_SPELLED_FLOOR),
-        ("citation sites in the deep archive", _ARCHIVE_SITE_FLOOR),
     ],
 )
 def test_every_non_vacuity_floor_rejects_a_population_that_measured_nothing(
@@ -5382,7 +4826,6 @@ def test_every_floor_this_module_uses_is_one_this_arm_grades() -> None:
         "BARE_PATH_POPULATION_FLOOR",
         "_ARCHITECTURE_SUFFIX_FLOOR",
         "_SELF_SPELLED_FLOOR",
-        "_ARCHIVE_SITE_FLOOR",
     }
     ungraded = sorted(used - graded)
     assert not ungraded, (
@@ -5474,3 +4917,22 @@ def test_this_test_module_is_seven_bit_ascii() -> None:
     assert not [byte for byte in raw if byte > HIGHEST_ASCII], (
         "this module carries a byte above the 7-bit range"
     )
+
+
+# THE CLOSURE'S BACK-EDGE, AND IT IS THE ONE STATEMENT THIS SPLIT TURNS ON.
+# namespace_closure derives the walked family by REACHABILITY from
+# `tests/test_bare_path_citations.py`, so a module nothing in the family
+# imports is walked by nothing - and this split moved a LIVE forgiveness, the
+# deep archive's rot pin, into a module the file above otherwise has no reason
+# to name. Without this statement that pin and the derivation behind it sit
+# outside both class-closing walks, which is the relocation evasion CS-891
+# closed, reopened by the very change that split the module.
+#
+# AT THE FOOT OF THE FILE, DELIBERATELY, and E402 is answered rather than
+# waved through. `tests/test_archive_rot.py` binds this module's fixtures BY
+# NAME, so the edge can only be taken once every name above it exists; at the
+# top it is a partially-initialised import in every collection order that
+# reaches this file first, which is an ImportError rather than a style
+# question. F401 is answered the same way: the statement is imported for its
+# EDGE and not for a name, which is exactly what reachability means here.
+from tests import test_archive_rot  # noqa: E402, F401
