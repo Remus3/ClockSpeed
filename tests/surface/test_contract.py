@@ -307,7 +307,7 @@ def _published_routes() -> tuple[contract.Route, ...]:
     the routing had already drifted from the first.
 
     Returns:
-        The nine, then the method-boundary route.
+        Every published route, then the method-boundary route.
     """
     provider = _NothingProvider()
     return (*routes.build_routes(provider, provider), *routes.METHOD_BOUNDARY_ROUTES)

@@ -19,22 +19,24 @@ account name, so a health body that answered WHERE either one was found would
 publish both (non-negotiable 3, and the privacy constraint
 ``clockspeed/surface/api/__init__.py`` says this layer carries alone).
 
-NOTHING THE SERVER HANDS THIS HANDLER REACHES THE WIRE. The nine route
-templates published below are literals authored in this repository, and the
-body is built by looking each one up - so a liveness map keyed by raw request
-paths, which on this machine can be a save path, cannot publish a key. The
-value is narrowed to a closed two-word vocabulary on the way out for the same
-reason. The map is also TOTAL: a template the server never registered reads as
-not implemented rather than vanishing, so a client always sees nine keys and
-never has to tell an absent key from an unknown route.
+NOTHING THE SERVER HANDS THIS HANDLER REACHES THE WIRE. The route templates
+published below are literals authored in this repository, and the body is built
+by looking each one up - so a liveness map keyed by raw request paths, which on
+this machine can be a save path, cannot publish a key. The value is narrowed to
+a closed two-word vocabulary on the way out for the same reason. The map is also
+TOTAL: a template the server never registered reads as not implemented rather
+than vanishing, so a client always sees one key per published template and never
+has to tell an absent key from an unknown route.
 
 THE TEMPLATE LIST IS BOOTSTRAP.md SECTION 7.1'S, AND THE ANTI-DRIFT ARM LIVES
 IN THE TESTS. This package opens no file, so the list cannot be read from the
 specification at runtime; ``tests/surface/test_health.py`` reads that section
 and asserts the two agree, exactly as ``tests/surface/test_contract.py`` pins
 ``contract.OPEN_BLOCKERS`` to the OPEN item lines of ``ROADMAP.md``. When
-section 7.1 grows a tenth route, the arm goes red rather than the body going
-quietly stale.
+section 7.1 grows a route, the arm goes red rather than the body going quietly
+stale - and it did: the tenth arrived with CS-912, and every count in the suite
+had to be moved by hand because that is what the arm is FOR. THE COUNT IS NOT
+WRITTEN DOWN HERE, deliberately; the tuple below is the one place it exists.
 """
 
 # SEAM DISCIPLINE (BOOTSTRAP.md section 6).
@@ -107,9 +109,18 @@ LIVENESS_WORDS: Final = (LIVE, NOT_LIVE)
 #: ``/api/plan`` appears there as ``/api/plan?target=<milestone>``; the query
 #: string is the QUESTION a caller asks, not part of the route, and
 #: ``contract.ENDPOINT_PATTERN`` refuses one outright.
+#:
+#: THE SECTION SAYS "MINIMUM", AND ``/api/registry`` IS WHAT THAT WORD BOUGHT
+#: (CS-912). It sits beside ``/api/world`` because the two answer the same kind
+#: of question - what is on this machine - and because it must precede the two
+#: solver doors that consume its vocabulary: with a registry present and no such
+#: route, MEASURED ZERO of the templates then published named a single item or
+#: recipe identifier in any body, so both solver doors were live and unreachable
+#: at once.
 ENDPOINT_TEMPLATES: Final = (
     "/api/health",
     "/api/world",
+    "/api/registry",
     "/api/advice",
     "/api/advice/<id>/derivation",
     "/api/advice/<id>/state",
@@ -124,7 +135,7 @@ DATA_KEYS: Final = ("app_version", "game_build_pin", "registry", "world", "endpo
 
 
 def _liveness(endpoint_status: Mapping[str, str]) -> dict[str, str]:
-    """Render the route table as nine keys with a two-word value each.
+    """Render the route table as one key per published template, two-word values.
 
     TOTAL BY CONSTRUCTION, IN BOTH DIRECTIONS. The keys come from
     :data:`ENDPOINT_TEMPLATES` and never from the mapping, so a key the caller
