@@ -70,8 +70,26 @@ the line becomes a pointer.
   line-pointer question as a two-way choice and an adjudicator refuted both options and produced
   a third.
 
-- **Next action: read the tier 1 run on the pushed head and confirm it PRINTS the budget
-  comparison. That printed comparison is CS-896's acceptance evidence, and nothing else is.**
+- **THE MECHANISM SHIPPED AND PROVED ITSELF ON ITS FIRST REAL RUN, by reporting the lane OVER
+  BUDGET.** Run 33981934085 printed `tier 1 took 565s - over budget (budget 540s, ceiling 570s)`.
+  CS-896's clause has two halves: the lane REPORTS its duration against a stated budget, and it
+  does NOT complete inside it. **CS-896 STAYS OPEN on the first half.**
+
+- **THE FINDING THAT MATTERS, and it is worse than a missed budget.** The runner's spread on a
+  BYTE-IDENTICAL tree is 49s, so a ceiling that does not fire on noise must sit about 49s above
+  the observed 565 - roughly 614, which is ABOVE the 600s cutoff. **AT THIS LANE'S COST THERE IS
+  NO VALID CEILING.** The one in the tree sits 5 seconds above the lane and WILL fire on noise,
+  so the next push may turn tier 1 RED at a number. That is loud rather than silent, which is
+  the property the item wanted, but it is not a healthy lane.
+
+- **WHY THE BUDGET WAS ALREADY STALE WHEN IT SHIPPED.** It came from four parallel samples whose
+  worst job was about 519s, on a tree the runner counted at 4784 passed. The merged tree counts
+  4953 - this session added 169 - and the unit step went 483s to 530s. **A speedup measured
+  before the session's own work is not a speedup the session delivers.**
+
+- **Next action: decide the ceiling. Either make the lane faster (CS-900 is the unblocker and
+  names the concentration) or move both levels through guard (k)'s two-way ratchet with a
+  stated reason. DO NOT re-derive them from one sample - that is the error this session made.**
 
 ## Session 60 - 2026-09-04 - CS-891 CLOSED AS AN HONEST PARTIAL after FIVE refutations; the round's repair reproduced its own filed fault a FIFTH consecutive session and its own adversaries caught every instance, and the repair then would not fit under a data-hygiene ceiling
 

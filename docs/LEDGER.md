@@ -75,6 +75,42 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-05 - CS-896 - MEASUREMENT RECORD. The mechanism shipped and PROVED ITSELF ON ITS FIRST REAL RUN by reporting the lane OVER BUDGET, and the same reading shows no valid ceiling exists at this lane's cost
+Verification: tier 1 run 33981934085 on `38f9599`, step `Duration against the budget`, which
+printed `tier 1 took 565s - over budget (budget 540s, ceiling 570s)`. That printed line is the
+comparison CS-896's acceptance asks for.
+
+CS-896 STAYS OPEN and this entry does not close it. It is a measurement record, not a
+completion record. The clause has TWO halves and only one is met: the lane REPORTS its own
+duration against a stated budget, proven by a run that reports the comparison; it does NOT
+complete inside that budget. 565 against 540 is over by 25 seconds.
+
+THE BUDGET WAS DERIVED FROM A TREE THAT NO LONGER EXISTED BY THE TIME IT SHIPPED, and that is
+the lesson rather than an excuse. It was set from four parallel samples whose worst job was
+about 519s, taken on a tree the runner counted at 4784 passed. The merged tree counts 4953 - this
+session added 169 tests to the runner's own count - and the unit step went from a worst of 483s
+to 530s. A budget derived from a measurement taken before the session's own work landed is a
+budget measured against the wrong tree.
+
+THE CEILING CANNOT BE PLACED VALIDLY, AND THIS IS THE FINDING THAT MATTERS. The runner's spread
+on a BYTE-IDENTICAL tree was measured at 49 seconds. A ceiling that does not fire on ordinary
+noise must therefore sit about 49 seconds above the observed 565, which is roughly 614 - ABOVE
+the 600 second runaway cutoff. So at this lane's current cost THERE IS NO CEILING THAT BOTH
+FAILS A GENUINELY SLOW RUN AND SURVIVES AN ORDINARY ONE. The ceiling currently sits 5 seconds
+above the observed lane, so it WILL fire on noise, and the next push may turn tier 1 red at a
+number rather than being cancelled at the cutoff.
+
+THE NUMBERS WERE DELIBERATELY NOT CHANGED. Re-deriving them from ONE sample of the real lane
+would repeat the exact error recorded two paragraphs up, and raising a level to fit the lane is
+the fault CS-896 was filed about. The two-way ratchet in guard (k) now makes any such change a
+deliberate diff with a stated reason, which is what it is for. The next session has the choice
+and the data, and CS-900 - the concentration item - is the unblocker rather than a bigger number.
+
+WHAT THE PARALLEL FLIP ACTUALLY BOUGHT, STATED HONESTLY. Serial mean was 606.5s against a 600s
+cutoff. The lane now measures 565s. That is real - the mean is no longer above its own cutoff -
+but it is far less than the diagnostic promised, because this session's own additions spent most
+of the gain. A speedup measured before the session's work is not a speedup the session delivers.
+
 ### 2026-09-05 - SESSION 61 - A CORRECTION TO THIS SESSION'S OWN RECORD BELOW, WRITTEN THE SAME HOUR
 Verification: `git log --oneline` on main shows the merge; `python tools/drift_guard.py` reports
 11 guards with guard (k) - tier 1 budget - PASS, naming one owner and the two levels.
