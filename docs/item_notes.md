@@ -37,11 +37,12 @@ mapping has one owner and this file only reports it:
 | `docs/item_notes/phase4.md` | ROADMAP `Phase 4`, ID outside the `CS-8nn` block |
 | `docs/item_notes/phase4-followups.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block below CS-850 |
 | `docs/item_notes/phase4-followups-850.md` | ROADMAP `Phase 4`, ID in the `CS-8nn` block at or above CS-850 |
+| `docs/item_notes/phase4-followups-900.md` | ROADMAP `Phase 4`, ID in the `CS-9nn` block |
 | `docs/item_notes/phase5.md` | ROADMAP `Phase 5` |
 | `docs/item_notes/phase6.md` | ROADMAP `Phase 6` |
 | `docs/item_notes/phase7.md` | ROADMAP `Phase 7` |
 
-**Phase 4 is three leaves and neither seam is arbitrary.** `CS-8nn` is the follow-up
+**Phase 4 is four leaves and no seam is arbitrary.** `CS-8nn` is the follow-up
 block, created because `CS-4nn` filled up at 98 of 100 - operator decision 2026-08-21,
 recorded in `ROADMAP.md`. An ID therefore still says which phase it came from, and
 membership needs no judgement. The `CS-8nn` block then split again at CS-850, and the
@@ -50,6 +51,14 @@ reasoning - including why the seam sits there rather than at CS-830 or CS-840 - 
 stated exception: it predates the block, keeps its ID, and `ROADMAP.md` files it under
 phase 4, so it sits in `phase4.md`. A phase with no OPEN item carrying detail has no
 leaf, which is why phase 6 had none until its first sections were written.
+
+**`CS-9nn` IS THE THIRD SEAM AND IT IS A BLOCK BOUNDARY, NOT A SIZE SPLIT.** `CS-8nn`
+filled up at 100 of 100, measured 2026-09-05, so the next block was opened by operator
+decision on 2026-09-05 rather than by a session allocating an ID in passing -
+`docs/adr/0011-the-cs-8nn-follow-up-leaf-splits-at-cs-850.md` anticipated reaching CS-900
+and declined to answer it. **CS-901 THROUGH CS-905 ARE NOT ALLOCATABLE**: they are
+synthetic fixture IDs in the drift-guard test corpus. The block runs CS-900, then CS-906
+onward, and the leaf states the measurement rather than restating the range here.
 
 **THE TWO `CS-8nn` LEAF NAMES ARE NOT SYMMETRIC, SO READ THE TABLE AND NEVER THE
 FILENAME.** `phase4-followups.md` does not spell its range and is NOT the whole block -
@@ -195,6 +204,9 @@ a pass - every equality here is satisfied for free by an empty population.
 | CS-896 | `docs/item_notes/phase4-followups-850.md` |
 | CS-898 | `docs/item_notes/phase4-followups-850.md` |
 | CS-899 | `docs/item_notes/phase4-followups-850.md` |
+| CS-900 | `docs/item_notes/phase4-followups-900.md` |
+| CS-906 | `docs/item_notes/phase4-followups-900.md` |
+| CS-907 | `docs/item_notes/phase4-followups-900.md` |
 
 ## Rules every leaf obeys
 

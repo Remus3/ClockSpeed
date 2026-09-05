@@ -75,6 +75,87 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-05 - CS-906 - FROZEN-FILE GRANT ISSUED WITH THIRTEEN CONDITIONS by an adjudicator for `.githooks/pre-push`, scoped to the pytest invocation alone
+Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit. It is
+not a completion record and it does not close CS-906. NO EDIT HAS BEEN MADE UNDER IT. Confirm that
+ordering independently rather than trusting this sentence: any commit modifying `.githooks/pre-push`
+must be strictly LATER than the commit adding this entry. The adjudicator produced none of the work
+it judged, will implement none of it, and froze the candidate at c33afca with `.githooks/pre-push`
+at sha256 eece5920f6e1509bd830d798d1e1abb7cbee00fea484b09944c77ac1bf3266b6.
+
+AUTHORISATION. An explicit operator approval given in session chat on 2026-09-05, in answer to the
+merger raising the hook as the bottleneck on landing work. THE ADJUDICATOR CANNOT VERIFY A CHAT
+MESSAGE AND DID NOT CERTIFY IT; it ruled on the change's soundness, which is the rest of the
+section 6 route.
+
+SCOPE, AND IT IS ONE INVOCATION. The `cs_python -m pytest` line, plus whatever selects serial or
+parallel before it runs, plus their comment block. NOTHING ELSE IN THE FILE MAY BE TOUCHED. The
+`cs_probe` block and its CS-703 rationale, the interpreter ladder, the pytest importability check,
+the exit-5 empty-suite guard and the exit path are OUT OF SCOPE and must survive byte-identical.
+THE GRANT IS BOUND BY REGION AND PROPERTY, NOT BY LINE COUNT.
+
+NO OTHER FROZEN PATH IS COVERED and each would need its own grant: `.githooks/pre-commit`,
+`.githooks/commit-msg`, `scripts/install_hooks.py`, `tools/precommit_gate.py`,
+`.claude/settings.json`, `LICENSE`. IT ALSO DOES NOT COVER THE OTHER STANDING PROPOSAL AGAINST THIS
+SAME FILE: `docs/item_notes/phase7.md` wants a trailer range scan on pre-push and says it needs a
+grant. It still needs its own.
+
+THE BENEFIT, MEASURED, AND THE RANGE IS RECORDED SO NOBODY RE-DERIVES THE FLATTERING END. Six
+samples of the pytest step on a 2-vCPU runner over one byte-identical tree: serial 541.68s and
+590.82s, `-n auto` 424.18s, 475.98s, 483.14s and 470.67s. Mean to mean that is 1.222x. The
+pessimistic pair, best serial against worst parallel, is 1.121x; the flattering pair is 1.393x and
+MUST NOT BE QUOTED. Coverage equivalence was checked rather than assumed: every one of those runs
+reported 4784 passed and 117 skipped, so parallelism costs speed and not coverage.
+
+THE CS-448 FLAKE DOES NOT FIRE AT THIS CHECKOUT, AND THE REASON IS THE PATH RATHER THAN THE CODE.
+Measured on the developer machine: the temp root sits under the user profile, the checkout is the
+project root, and their common ancestor is the drive root. The nested child the gate spawns resolves
+its rootdir to the repo root via `pyproject.toml` and collects in about a third of a second, which
+is the ordinary-location figure rather than the pathological walk. The named test and the module
+that creates and deletes the gate's temp directories ran together under `-n auto` six times, six of
+six green. THE MECHANISM IS STILL LIVE AND IS NOT DISCHARGED: `tests/test_hook_interpreter_ladder.py`
+documents the same rootdir climb from its own independent measurement and mitigates it by planting a
+pytest config in its sandbox, and THE TEMP ROOT CURRENTLY HOLDS 31688 TOP-LEVEL ENTRIES. A clone
+made under the temp root, which is where the session scratchpad lives, re-arms it immediately.
+
+THIRTEEN CONDITIONS BIND THIS GRANT and this is their only tracked home. ONE, the hook DEGRADES TO
+SERIAL when xdist is absent and does not hard-fail, because a missing plugin costs SPEED and not
+COVERAGE and refusing the push buys no safety. TWO, the choice is made by an importability probe
+BEFORE the run, in the shape of the existing pytest import check, never by parsing pytest output.
+THREE, THE SUITE IS NEVER RE-RUN; a try-parallel-then-retry-serial shape would re-run a red suite
+and could turn a flaky red green, and that is the real CS-703 no-op shape. FOUR, the degrade is
+LOUD, one stderr line naming xdist and the remediation command. FIVE, `pytest-xdist` joins the `dev`
+extra in `pyproject.toml`, which is not frozen. SIX, `scripts/verify_env.py` reports xdist beside
+pytest and ruff, SOFT rather than HARD, so the hook's own advice line is not a false lead. SEVEN,
+the CS-448 mechanism is neutralised in `tests/` BEFORE the hook flips, by pinning the nested
+children's rootdir the way the hook-ladder module already pins its sandbox; `tests/` is not frozen
+and this costs no grant. EIGHT, the exit-5 empty-suite guard gains a test asserting 5 is still
+returned under the parallel path, because a measurement is not a guard. NINE, the added cost to the
+hook-ladder module is measured and recorded; ten arms install the REAL tracked hook bytes and run
+it, and its tiny sandbox suite measured about 0.40s serial against about 3.24s parallel, so the
+change makes one module SLOWER. TEN, A LOCAL MEASUREMENT IS TAKEN AT THIS MACHINE'S WORKER COUNT
+BEFORE THE FLAG SHIPS; the cited evidence is a 2-vCPU runner and this machine reports 16 logical
+processors, so the behaviour of a suite whose most expensive tests spawn nested pytest runs is
+UNMEASURED. ELEVEN, `python scripts/install_hooks.py` runs clean after the edit and every added byte
+is 7-bit ASCII. TWELVE, an end-to-end arm drives a REAL push to a throwaway bare remote with a
+deliberately failing test and asserts a non-zero exit AND that the ref did NOT land, on BOTH paths,
+demonstrated RED first; agreement between the two paths is not evidence and each gets its own arm.
+THIRTEEN, this grant is recorded before the edit is made.
+
+A LEGITIMATE OUTCOME IS THAT THE FILE IS LEFT BYTE-IDENTICAL. If conditions NINE and TEN show the
+local saving is eaten by worker startup, the grant is spent unused and that is the finding. An
+unused grant is a fine result and a slower gate is not a defect worth a worse change.
+
+WHY THE RUNNER-UP LOST, recorded because it is a better argument than it looks. THE DOCTRINALLY
+CORRECT REMEDY IS SUBSETTING, NOT PARALLELISM. `CONVENTIONS.md` assigns tier 0 pre-push the "fast
+unit subset" and reserves the full suite with parallelism for TIER 2; this hook's own header claims
+it runs the fast subset while it actually runs the whole tests directory; and `pyproject.toml`
+registers a `slow` marker described as one the pre-push hook may exclude, a capability
+`tests/test_scaffold.py` ships a test for and which nothing uses. So this grant treats the SYMPTOM
+of a tier-0 hook that outgrew its contract. It lost only because the marker carries 12 tests today,
+all in `tests/test_mypy_gate.py`, so subsetting alone does not move the number now. THE CONTRACT
+VIOLATION IS FILED SEPARATELY AS CS-907 AND IS NOT CLOSED BY THIS GRANT.
+
 ### 2026-09-05 - SESSION 60 - THE RELOCATE PASS. The citation guard was at 99.4 per cent of a data-hygiene ceiling that must not be raised; the archive-rot machinery moved to its own pair and the split exposed a live import cycle the suite could not see
 Verification: `python -m pytest tests/test_docs_citations.py tests/test_bare_path_citations.py tests/test_archive_rot.py -q`
 plus `python -m pytest tests/data/test_phase2_gate.py -q`, which is the ceiling this was done
