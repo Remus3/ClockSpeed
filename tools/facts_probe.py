@@ -65,7 +65,22 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+# CS-910. Run as a bare hook and also loaded BY PATH by the suite, so this
+# directory cannot be assumed on sys.path - the same insert this module already
+# makes for scripts/ further down. The BARE module name is required: `tools`
+# carries no __init__.py, so spelling it `tools.toolpath` hands mypy the same
+# file under two module names and it refuses the run.
+_TOOLS_DIR = Path(__file__).resolve().parent
+if str(_TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TOOLS_DIR))
+
+from toolpath import resolve_tool  # noqa: E402
+
 GIT_TIMEOUT = 20
+
+#: The tool this probe reads repository facts from. A NAME, resolved at runtime
+#: and never spelled as a path - non-negotiable 3.
+GIT_NAME = "git"
 
 # What an operator-controlled value renders as when the redactor itself could
 # not be imported. DISTINCT FROM None, which means "not configured": a reader
@@ -126,9 +141,20 @@ def _build_string(game_dir: Path | None) -> tuple[str | None, str]:
 
 
 def _git(root: Path, args: list[str]) -> str | None:
+    # CS-910 - THE TOOL IS RESOLVED, NEVER NAMED. A bare "git" in an argv is
+    # resolved by CreateProcess, which searches the CURRENT DIRECTORY before
+    # PATH whenever the gate variable is absent from the environment. This is a
+    # SessionStart hook: it runs unattended, before anything else in a session,
+    # from whatever directory the session was opened in, and it discards what it
+    # cannot read - so a planted git here would run silently and be reported as
+    # a missing fact. An unresolvable git yields None, which is what a git that
+    # FAILS already yields here.
+    git = resolve_tool(GIT_NAME)
+    if git is None:
+        return None
     try:
         proc = subprocess.run(
-            ["git", "-C", str(root), *args],
+            [git, "-C", str(root), *args],
             capture_output=True,
             text=True,
             timeout=GIT_TIMEOUT,

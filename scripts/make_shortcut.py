@@ -178,6 +178,15 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+# CS-910. tools/ joins the path for the same reason the root above did, and the
+# module is imported under its BARE name - see scripts/make_cert.py for the
+# measurement that makes `tools.toolpath` the wrong spelling here.
+_TOOLS_DIR = _REPO_ROOT / "tools"
+if str(_TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TOOLS_DIR))
+
+from toolpath import resolve_tool  # noqa: E402
+
 from clockspeed.data.locate import redact  # noqa: E402
 
 #: The Electron shell's directory, relative to the repository root. Named as a
@@ -552,11 +561,20 @@ def _replace_with_retry(source: Path, target: Path) -> None:
 def _resolve_powershell() -> str | None:
     """Find an interpreter that can reach the WScript.Shell COM object.
 
+    CS-910 - RESOLVED THROUGH ``tools/toolpath.py`` AND NOT THROUGH
+    ``shutil.which``. This script writes a shortcut whose whole purpose is to be
+    double-clicked from Explorer, and an Explorer-launched process is precisely
+    the one whose current-directory search is LIVE. A powershell planted beside
+    whatever the operator happened to be standing in would have been resolved to
+    a relative path and spawned - MEASURED for the sibling openssl site on
+    2026-09-05. The names are still resolved from PATH by name, which is what
+    non-negotiable 3 requires; they are now resolved from PATH ALONE.
+
     Returns:
-        The resolved executable, or None when neither name is on PATH.
+        The resolved absolute executable, or None when neither name is on PATH.
     """
     for name in POWERSHELL_NAMES:
-        found = shutil.which(name)
+        found = resolve_tool(name)
         if found is not None:
             return found
     return None

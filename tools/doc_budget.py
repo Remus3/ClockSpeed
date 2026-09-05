@@ -62,6 +62,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 
+# CS-910. This module is run as a bare script by a hook and is also loaded BY
+# PATH by the suite, so this directory cannot be assumed to be on sys.path. The
+# insert is the one tools/drift_guard.py already makes before importing THIS
+# module, and the bare module name is the same shape for the same reason: `tools`
+# carries no __init__.py, so spelling it `tools.toolpath` gives mypy the one file
+# under two module names and it refuses the run.
+_TOOLS_DIR = Path(__file__).resolve().parent
+if str(_TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TOOLS_DIR))
+
+from toolpath import resolve_tool  # noqa: E402
+
 KB = 1024
 
 CLAUDE_BUDGET = 40 * KB
@@ -306,6 +318,13 @@ INDEX_UNAVAILABLE_REASON = (
 
 GIT_TIMEOUT_SECONDS = 30
 
+#: The tool this module asks about tracked membership. A NAME, resolved at
+#: runtime by tools/toolpath.py and never spelled as a path - non-negotiable 3.
+#: Named as a constant rather than written at the call so the census in
+#: tests/toolpath_guard.py grades one site rather than a literal it has to
+#: recognise by eye.
+GIT_NAME = "git"
+
 # Directories pruned for a different and weaker reason than the boundary above:
 # they carry no authored documentation, only generated, vendored or cached
 # bytes. The reason travels with each entry so nobody adds one without stating
@@ -429,10 +448,23 @@ class GitFacts:
 
 
 def _git(root: Path, *args: str) -> str | None:
-    """Run one git command in ``root``. None when git cannot answer."""
+    """Run one git command in ``root``. None when git cannot answer.
+
+    CS-910 - THE TOOL IS RESOLVED, NEVER NAMED. A bare ``"git"`` in an argv is
+    resolved by ``CreateProcess``, which searches the CURRENT DIRECTORY before
+    PATH whenever the gate variable is absent from the environment - its state at
+    both machine and user scope on the development machine. This module walks
+    trees it did not create and is run by a hook from wherever the operator
+    happens to be, so "the current directory" is not a directory it controls.
+    An unresolvable git answers None, which is the same answer this function
+    already gives for a git that fails.
+    """
+    git = resolve_tool(GIT_NAME)
+    if git is None:
+        return None
     try:
         done = subprocess.run(
-            ["git", "-C", str(root), *args],
+            [git, "-C", str(root), *args],
             capture_output=True,
             text=True,
             timeout=GIT_TIMEOUT_SECONDS,

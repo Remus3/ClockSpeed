@@ -43,7 +43,6 @@ import argparse
 import json
 import os
 import re
-import shutil
 import socket
 import subprocess
 import sys
@@ -59,6 +58,18 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
+
+# CS-910. THE IMPORT DIRECTION IS scripts/ -> tools/, which is new and is the
+# correct way round: tools/ already imports THIS module (tools/facts_probe.py
+# reads the build reader off it), and tools/toolpath.py imports nothing outside
+# the standard library, so the two cannot close a cycle. The BARE module name is
+# required rather than preferred - see scripts/make_cert.py for the measurement.
+# E402 for the same reason as the import below: it must follow the insert.
+_TOOLS_DIR = _REPO_ROOT / "tools"
+if str(_TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TOOLS_DIR))
+
+from toolpath import resolve_tool  # noqa: E402
 
 # E402: this import must follow the sys.path insert above. The four names are
 # re-exported by being bound here - tools/facts_probe.py reads three of them
@@ -170,8 +181,15 @@ def _first_line(text: str | None) -> str:
 
 
 def _tool_version(exe_name: str) -> tuple[bool, str]:
-    """Locate an executable on PATH and read its version line."""
-    found = shutil.which(exe_name)
+    """Locate an executable on PATH and read its version line.
+
+    CS-910 - RESOLVED THROUGH ``tools/toolpath.py``. This function does not only
+    report; it SPAWNS what it found, to read a version line. Resolving through
+    ``shutil.which`` meant the reported row - and the process launched to fill it
+    - could both be supplied by whatever directory the operator ran the script
+    from. See :func:`_module_backed_tool_row` for the sibling that only reports.
+    """
+    found = resolve_tool(exe_name)
     if not found:
         return False, "not on PATH"
     version = _first_line(_run([found, "--version"]))
@@ -594,7 +612,13 @@ def _module_backed_tool_row(scope: str, name: str) -> dict:
     if ok:
         return _row(scope, name, True, value)
 
-    on_path = shutil.which(name)
+    # CS-910 - resolved through tools/toolpath.py like every other site here.
+    # This one never spawns what it finds, so it is not itself a code-execution
+    # path; it is routed anyway because a row reporting "an executable sits at
+    # <a relative path in whatever directory you were standing in>" is a wrong
+    # answer to the only question the row exists to settle, and because a census
+    # that tolerates one unrouted resolver has no rule left to enforce.
+    on_path = resolve_tool(name)
     if on_path:
         return _row(
             scope,

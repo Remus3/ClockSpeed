@@ -28,6 +28,17 @@ THE TOOL IS RESOLVED FROM PATH BY NAME. CLAUDE.md non-negotiable 3 forbids a
 machine-specific absolute path in a tracked file, and where openssl lives
 differs between the git toolchain, a system install and a package manager.
 
+CS-910 - AND FROM PATH ALONE, WHICH THIS FILE ONCE ONLY BELIEVED. The half of
+that reasoning above is right and always was. The half it did not check was
+whether the function it called honoured it: ``shutil.which`` prepends the CURRENT
+DIRECTORY on Windows whenever the gate variable is absent from the environment,
+which is its state at both machine and user scope on the development machine.
+MEASURED 2026-09-05 - a planted openssl in the working directory was resolved to
+a RELATIVE path and spawned by this script. Resolution now goes through
+``tools/toolpath.py``, which searches PATH, discards every entry that is not
+rooted, and never consults the working directory. The rule did not change; the
+mechanism that was supposed to be carrying it out did.
+
 REFUSAL IS THE DEFAULT. The companion window is told to trust one specific
 certificate, so quietly minting a replacement would invalidate that trust with
 no diagnostic anywhere. An existing certificate or key - EITHER of them, since
@@ -114,6 +125,19 @@ from typing import NoReturn
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
+
+# CS-910. tools/ joins the path for the same reason the root above did, and the
+# module is imported under its BARE name rather than as `tools.toolpath`. That
+# is not a style choice: `tools` carries no __init__.py, so mypy - which is
+# pointed at both `scripts` and `tools` - resolves the same file under two
+# module names and refuses the run outright. MEASURED on this tree. The bare
+# name is also the shape tools/drift_guard.py and tools/facts_probe.py already
+# use for their own cross-directory imports.
+_TOOLS_DIR = _REPO_ROOT / "tools"
+if str(_TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TOOLS_DIR))
+
+from toolpath import resolve_tool  # noqa: E402
 
 from clockspeed.data.locate import redact  # noqa: E402
 
@@ -526,7 +550,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     # RESOLVED BEFORE ANYTHING IS CREATED, so a machine with no openssl is left
     # exactly as it was found rather than with an empty certificate directory
     # implying something happened.
-    openssl = shutil.which("openssl")
+    #
+    # CS-910: RESOLVED THROUGH tools/toolpath.py AND NOT THROUGH shutil.which.
+    # MEASURED 2026-09-05: with the current-directory gate absent from the
+    # environment - which is its state on this machine, and therefore the state
+    # of anything Explorer launches - shutil.which returned a RELATIVE path to
+    # an openssl planted in the WORKING DIRECTORY, and this line spawned it. The
+    # doctrine below the module docstring is unchanged and was always right:
+    # resolve the tool from PATH by name, never by a spelled absolute path. Only
+    # the function that carries it out changed, because the old one searched a
+    # directory that is not PATH.
+    openssl = resolve_tool("openssl")
     if openssl is None:
         print("openssl is not on PATH, so no certificate can be generated.")
         print("Install openssl, or add the one shipped with git to PATH, and run this again.")

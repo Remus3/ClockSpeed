@@ -1429,3 +1429,76 @@ def test_the_success_line_names_the_shortcut_and_never_its_directory(tmp_path: P
     assert done.returncode == make_shortcut.EXIT_OK, rendered
     assert CANARY_ACCOUNT not in rendered
     assert make_shortcut.shortcut_file_name(None) in rendered
+
+
+# ---------------------------------------------------------------------------
+# CS-910 - the interpreter this script spawns is resolved, never named
+# ---------------------------------------------------------------------------
+
+#: The environment variable Windows consults before searching the CURRENT
+#: DIRECTORY for an executable. Set at NEITHER machine nor user scope on the
+#: development machine, so anything Explorer launches has the search live - and
+#: an Explorer-launched process is exactly what the shortcut this script writes
+#: produces.
+CURDIR_GATE = "NoDefaultCurrentDirectoryInExePath"
+
+
+@pytest.mark.skipif(
+    os.name != "nt",
+    reason=(
+        "the current-directory executable search is a Windows behaviour, and powershell"
+        " is a Windows tool. There is nothing here for this arm to disarm elsewhere."
+    ),
+)
+def test_a_powershell_planted_in_the_working_directory_is_never_resolved(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-910 - the tool this script runs may not come from where it is standing.
+
+    THE CONTROLS COME FIRST AND ARE PART OF THE ARM. A negative measurement is
+    worth nothing without evidence the plant could have been seen: the shell this
+    class was first probed under sets the gate variable for itself, and under it
+    the shipped resolver looked correct while being wrong.
+
+    PATH IS EMPTIED so the plant is the only candidate anywhere reachable, which
+    makes "neither name is on PATH" the single correct answer.
+
+    NOTHING BELOW ASSERTS ON A PATH. Every assertion binds a boolean, because
+    pytest renders the asserted expression independently of the message and a
+    temporary path on Windows carries the account name.
+    """
+    import _winapi  # noqa: PLC0415
+
+    first = make_shortcut.POWERSHELL_NAMES[0]
+    planted = tmp_path / f"{first}.exe"
+    planted.write_bytes(b"MZ not a real executable, and it does not need to be\n")
+
+    landed = planted.is_file() and planted.stat().st_size > 0
+    assert landed, "the plant did not land, so this arm grades nothing"
+
+    monkeypatch.chdir(tmp_path)
+    for key in [name for name in os.environ if name.upper() == CURDIR_GATE.upper()]:
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("PATH", str(tmp_path / "no-tools"))
+
+    gate_open = _winapi.NeedCurrentDirectoryForExePath(first)
+    assert gate_open is True, (
+        "the current-directory search is not live, so this arm cannot reproduce the"
+        " defect it exists to grade"
+    )
+
+    import shutil  # noqa: PLC0415
+
+    control = shutil.which(first)
+    control_offered_the_plant = control is not None and not Path(control).is_absolute()
+    assert control_offered_the_plant, (
+        "a current-directory-consulting resolver did not offer the plant, so the control"
+        " failed and the negative below would prove nothing"
+    )
+
+    resolved = make_shortcut._resolve_powershell()  # noqa: SLF001 - the site under test
+
+    assert resolved is None, (
+        "the powershell planted in the WORKING DIRECTORY was resolved - the interpreter"
+        " this script spawns is chosen by where the process happens to be standing"
+    )
