@@ -1540,6 +1540,37 @@ argument against module-keying applies to it unchallenged and nobody has answere
 
 ## CS-894
 
+### SWEEP RESULT - MEASURED 2026-09-04 (session 60), and a drafted arm already exists
+
+**THE LIVE SUBJECT SET IS SEVEN, SO THIS CLAUSE IS SATISFIABLE.** The acceptance asks that
+"the live subject set is asserted non-empty" and nobody had measured it. Derived by running
+the shipped `defers_to_owner` over every tracked module: SEVEN return True -
+`tests/exception_message_guard.py`, `tests/pathless_clone_guard.py`,
+`tests/surface/test_server.py`, `tests/test_chained_cause_census.py`,
+`tests/test_chained_exemption_guard.py`, `tests/test_exception_messages.py` and
+`tests/test_pathless_clone_agreement.py`. The clause needs no rewrite.
+
+**READ THE DOCSTRING BEFORE BUILDING, BECAUSE THE NAME MISLEADS.** `defers_to_owner` means
+"imports the census" and CS-888 abolished it as a clearance. It decides NOTHING about the
+population any more; it is kept to DERIVE PLANT SUBJECTS, so the sibling arm can append an
+identical static cause read to each of the seven and assert every one is reported. That is
+what "the flagship arm's live subject derivation" means here.
+
+**TWO AGENTS ALREADY DRAFTED THIS ARM AND NEITHER LANDED.** Found by sweeping worktrees for
+uncommitted work, not by working this item. Both are preserved as tags, because their
+content sat UNCOMMITTED and no branch ref protected it:
+
+- `salvage/cs894-defers-arm` carries an arm asserting that every live deferring module
+  actually defers - the shape this clause wants.
+- `salvage/cs894-defers-alt` carries a contradictory arm asserting that NO live module
+  defers, so a plant is the only proof. **That one is refuted by the measurement above**, or
+  was true at its 2026-09-01 base and the set has grown since. Do not take it on trust; it
+  is preserved so the disagreement is visible rather than lost.
+
+Two agents splitting on the same question, with the tree able to settle it and neither
+having asked, is the reason the number above is recorded here rather than re-derived a
+third time.
+
 ### NOTE - filed 2026-09-03 (session 59) by the merger, from the CS-888 adversary, MEASURED TWICE INDEPENDENTLY
 
 **TWO LEGS SURVIVE FUNCTIONALLY AND ARE GRADED BY NOTHING.** An in-process mutation battery
