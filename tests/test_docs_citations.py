@@ -2260,14 +2260,24 @@ def literal_pin_problems(source: str, name: str) -> list[str]:
     from under this check, which is the vacuity fault this module has paid for
     twice.
 
+    SO IS A SECOND BINDING, and that took two statements to disarm rather than
+    one: a typed decoy the walk stops at, then a later module-scope rebind to a
+    call. The source still reads as typed, the runtime value is computed, and
+    no number moves anywhere. So EVERY module-scope binding of the name is
+    collected rather than the first one answering for all of them, more than
+    one is itself a finding, and a binding that is not a mapping literal is a
+    finding rather than something to step past.
+
     Args:
         source: The module text to parse.
         name: The module-scope name the pin is bound to.
 
     Returns:
-        One line per value that is not a typed integer, or one line saying the
-        name is not assigned a mapping at module scope at all.
+        One line per value that is not a typed integer, one per binding that is
+        no mapping literal, one more if the name is bound more than once, or
+        one saying the name is not bound at module scope at all.
     """
+    bound: list[ast.expr] = []
     for node in ast.parse(source).body:
         if isinstance(node, ast.AnnAssign):
             targets: list[ast.expr] = [node.target]
@@ -2275,21 +2285,37 @@ def literal_pin_problems(source: str, name: str) -> list[str]:
             targets = list(node.targets)
         else:
             continue
-        named = [t for t in targets if isinstance(t, ast.Name) and t.id == name]
-        if not named or not isinstance(node.value, ast.Dict):
-            continue
+        if node.value is not None and any(
+            isinstance(t, ast.Name) and t.id == name for t in targets
+        ):
+            bound.append(node.value)
+    if not bound:
         return [
-            f"{name} carries a value that is not a typed integer: {ast.unparse(value)}."
+            f"no module-scope mapping named {name} was found, so this check measured"
+            " nothing and its clean answer is about no pin at all."
+        ]
+    problems: list[str] = []
+    if len(bound) > 1:
+        problems.append(
+            f"{name} is bound {len(bound)} times at module scope, so the literal a"
+            " reader checks is not the value the module ends up with."
+        )
+    for value in bound:
+        if not isinstance(value, ast.Dict):
+            problems.append(
+                f"{name} is bound at module scope to {ast.unparse(value)}, which is no"
+                " mapping literal, so that binding types no value of this pin at all."
+            )
+            continue
+        problems += [
+            f"{name} carries a value that is not a typed integer: {ast.unparse(item)}."
             " A pin computed from what it measures agrees by construction, spends"
             " nothing, and leaves no number in the diff for anybody to defend."
-            for value in node.value.values
+            for item in value.values
             # A bool IS an int to isinstance, and `True` is not a count.
-            if not (isinstance(value, ast.Constant) and type(value.value) is int)
+            if not (isinstance(item, ast.Constant) and type(item.value) is int)
         ]
-    return [
-        f"no module-scope mapping named {name} was found, so this check measured"
-        " nothing and its clean answer is about no pin at all."
-    ]
+    return problems
 
 
 # --- the live corpus --------------------------------------------------------
@@ -2934,6 +2960,11 @@ _TYPED_PIN_SOURCE: Final = 'PIN: Final[Mapping[str, int]] = {"a": 3, "b": 0}' + 
 _DERIVED_PIN_SOURCE: Final = (
     'PIN: Final[Mapping[str, int]] = {"a": len(SOMETHING), "b": 0}' + NEWLINE
 )
+#: The same disarm in TWO statements - a typed decoy the walk once stopped at,
+#: then a rebind to a call. Both statements are needed; either alone is clean.
+_REBOUND_PIN_SOURCE: Final = (
+    'PIN: Final[Mapping[str, int]] = {"a": 3}' + NEWLINE + "PIN = _derived()" + NEWLINE
+)
 
 
 def test_the_archive_rot_pin_is_typed_rather_than_computed_from_what_it_measures() -> None:
@@ -2946,11 +2977,14 @@ def test_the_archive_rot_pin_is_typed_rather_than_computed_from_what_it_measures
     with the derivation by construction, in a diff carrying no number to query,
     and every leg of the arm above would still pass.
 
-    THREE DIRECTIONS BEFORE THE LIVE ONE. A typed synthetic source reports
+    FOUR DIRECTIONS BEFORE THE LIVE ONE. A typed synthetic source reports
     nothing; the same source with ONE value computed reports exactly one, which
     proves the walk parses, reaches module scope and fires; a name this module
-    does not bind reports that it measured nothing rather than passing. Only
-    then is the real source's clean answer worth reading.
+    does not bind reports that it measured nothing rather than passing; and a
+    typed decoy followed by a later rebind to a call reports both the second
+    binding and the call, which is the TWO-statement form of the same disarm
+    and read as clean until it was measured. Only then is the real source's
+    clean answer worth reading.
     """
     assert literal_pin_problems(_TYPED_PIN_SOURCE, "PIN") == [], (
         "a pin whose values are typed integers was reported, so the check refuses the"
@@ -2964,6 +2998,15 @@ def test_the_archive_rot_pin_is_typed_rather_than_computed_from_what_it_measures
 
     assert len(missing) == 1, "a pin that is not there was reported as clean"
     assert "measured nothing" in missing[0]
+    rebound = literal_pin_problems(_REBOUND_PIN_SOURCE, "PIN")
+    # The second binding, and the call it rebinds to. Named, and named LOCALLY:
+    # ruff's PLR2004 reads a bare 2 in the comparison as a magic value, and a
+    # module-scope name would owe the container walk a registration.
+    both_faults = 2
+
+    assert len(rebound) == both_faults, f"a typed decoy plus a later rebind passed: {rebound}"
+    assert "bound 2 times" in rebound[0]
+    assert "_derived()" in rebound[1]
 
     problems = literal_pin_problems(Path(__file__).read_text(encoding="ascii"), "ARCHIVE_ROT")
 
