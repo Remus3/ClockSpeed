@@ -25,10 +25,21 @@
 // where shell/test/verdict.test.js can load it without electron and pin all
 // five mappings by value.
 
+const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { app, BrowserWindow, screen, session } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  Menu,
+  Tray,
+  dialog,
+  nativeImage,
+  net,
+  screen,
+  session,
+} = require("electron");
 
 const endpoint = require("./lib/endpoint.js");
 const trust = require("./lib/trust.js");
@@ -36,6 +47,8 @@ const state = require("./lib/state.js");
 const geometry = require("./lib/geometry.js");
 const windowLib = require("./lib/window.js");
 const verdicts = require("./lib/verdict.js");
+const supervisor = require("./lib/supervisor.js");
+const trayLib = require("./lib/tray.js");
 
 // ---------------------------------------------------------------------------
 // Refusals - fixed text, and never a path
@@ -56,11 +69,238 @@ const STATE_NOT_SAVED = "clockspeed: the window position could not be saved.";
 const PAGE_NOT_LOADED =
   "clockspeed: the dashboard did not load. Is the local surface running?";
 
+const SURFACE_NOT_SPAWNED =
+  "clockspeed: the dashboard could not be started. " +
+  "Start it yourself with: python -m clockspeed.surface";
+
+const SURFACE_NEVER_ANSWERED =
+  "clockspeed: the dashboard was started but never answered. " +
+  "Start it yourself with: python -m clockspeed.surface and read what it prints.";
+
+// WHY AN EXIT CODE AND NOT THE CHILD'S OUTPUT. The surface prints a good
+// diagnosis when it refuses to start - but its messages can name a path, and a
+// path carries the Windows account name, which non-negotiable 3 keeps out of
+// every line this shell emits. So its OUTPUT is discarded and its EXIT CODE is
+// kept: the code is the surface's documented contract (docs/OPERATIONS.md
+// section 7.3), it is an integer rather than personal data, and the rendering
+// below is this file's own fixed text.
+//
+// MEASURED, not imagined: the first real shortcut launch of this shell hit
+// exactly this. The port was in TIME_WAIT from a forced kill moments earlier,
+// the surface exited rather than binding, and the operator was told to go read
+// something that had already been thrown away. A refusal that names an action
+// the operator cannot perform is worse than one that says less.
+const SURFACE_EXIT_REASONS = new Map([
+  [1, "its configuration would not resolve"],
+  [2, "the port it needs is already held by something else"],
+  [3, "the certificate pair would not load"],
+]);
+
+/** The never-answered refusal, told why when the child's exit code says why. */
+function surfaceNeverAnswered(exitCode) {
+  const reason = SURFACE_EXIT_REASONS.get(exitCode);
+  if (reason === undefined) {
+    return SURFACE_NEVER_ANSWERED;
+  }
+  return `clockspeed: the dashboard stopped before answering, because ${reason}.`;
+}
+
+// WHY EVERY REFUSAL ABOVE NOW ALSO OPENS A DIALOG. Until CS-909 the only way to
+// launch this shell was from a terminal, where a line on stderr is exactly the
+// right output. A desktop shortcut has no terminal attached, so console.error
+// writes into a stream nobody will ever read, and app.exit(1) then looks
+// identical to nothing happening at all - the operator double-clicks an icon
+// and gets silence. The console line is KEPT because the terminal launch is
+// still supported and still the better diagnostic; the dialog is added on top.
+//
+// showErrorBox is used rather than the async dialog because these paths run
+// BEFORE any window exists, and several run before app.whenReady has resolved.
+// It quotes only the fixed text above, so no path reaches it.
+function refuse(message) {
+  console.error(message);
+  try {
+    dialog.showErrorBox("Clockspeed", message);
+  } catch {
+    // A dialog is a courtesy on top of the console line, never the mechanism.
+    // If the toolkit cannot show one - too early, no display - the refusal has
+    // already been reported and must not be turned into a second failure.
+  }
+}
+
 // How long a burst of move or resize events is allowed to settle before the
 // state file is rewritten. Dragging a window emits these continuously, and
 // state.save fsyncs and renames on every call - persisting each event would
 // mean hundreds of synchronous disk flushes across one drag.
 const PERSIST_DEBOUNCE_MS = 400;
+
+// ---------------------------------------------------------------------------
+// The dashboard process - CS-909, and see ADR 0015
+// ---------------------------------------------------------------------------
+
+// Set once, and read on the way out. `quitting` separates "the operator pressed
+// the close button" from "the operator chose Quit": the first HIDES to the tray
+// and the second is the only one that ends the process. `startedSurface` is the
+// entire memory behind the only-stop-what-you-started rule - a dashboard that
+// was already answering when this shell launched is NOT ours to kill.
+let quitting = false;
+let startedSurface = null;
+
+// Held at module scope so the tray is never collected - see createTray.
+let trayRef = null;
+
+// The exit code of a surface WE started, if it has already exited. null means
+// either that it has not exited or that we never started one.
+let surfaceExitCode = null;
+
+/**
+ * Ask the dashboard whether it is there, once.
+ *
+ * THIS GOES THROUGH ELECTRON'S NET MODULE, NOT NODE'S HTTPS, AND THAT IS A
+ * MEASURED DECISION RATHER THAN A STYLISTIC ONE. It was written first with
+ * `https.get` and a `ca` option holding the pinned certificate. That works
+ * under stock Node - verified directly, status 200 - and FAILS under electron,
+ * which builds its Node against BoringSSL and does not honour that option the
+ * same way. Every probe came back `UNABLE_TO_VERIFY_LEAF_SIGNATURE` while the
+ * surface was demonstrably listening on the right address and port, so the
+ * companion spawned a dashboard, refused to see it, and gave up. No test caught
+ * that, and no test could have: the pure suites cannot load this file, and the
+ * behaviour only differs INSIDE the runtime this file is the only user of.
+ *
+ * Using net also removes a duplicate trust decision rather than merely moving
+ * it. net requests run through the default session, which means they reach
+ * `setCertificateVerifyProc` and are judged by trust.js - the SAME pinning the
+ * window is subject to. The probe and the page can no longer disagree about
+ * what is trusted, because there is now one answer and one place that gives it.
+ *
+ * ORDERING THIS DEPENDS ON: installVerifyProc must have run before the first
+ * call, or this is judged by electron's default verification instead of by the
+ * pin. start() does that, and the ordering is load-bearing.
+ *
+ * Resolves false rather than rejecting, for every failure. A refused connection
+ * before the surface binds is the EXPECTED case on the spawn path, not an
+ * error, and an exception there would abort the wait on its first turn.
+ */
+function probeOnce(healthUrl) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const settle = (answered) => {
+      if (!settled) {
+        settled = true;
+        resolve(answered);
+      }
+    };
+
+    const request = net.request({ url: healthUrl, session: session.defaultSession });
+
+    // net has no timeout option of its own, so the deadline is held here. It is
+    // cleared on every exit path: a timer left running past a resolved probe
+    // would abort the NEXT attempt's socket rather than this one's.
+    const deadline = setTimeout(() => {
+      request.abort();
+      settle(false);
+    }, supervisor.PROBE_TIMEOUT_MS);
+
+    request.on("response", (response) => {
+      // The body is drained rather than read. Nothing here parses it: the
+      // question is whether a listener the pin vouches for answered, and
+      // reading its content would invite deciding on that content.
+      response.on("data", () => {});
+      response.on("end", () => {});
+      clearTimeout(deadline);
+      settle(response.statusCode === 200);
+    });
+    request.on("error", () => {
+      clearTimeout(deadline);
+      settle(false);
+    });
+    request.end();
+  });
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Wait for the dashboard to answer, letting supervisor.js decide when to stop.
+ *
+ * THE LOOP BOUND IS A GUARD RAIL, NOT THE DECISION. decideProbeOutcome is what
+ * ends this wait; the bound only ensures a supervisor that somehow never said
+ * GIVE_UP cannot spin forever. Any word that is neither READY nor RETRY ends
+ * the wait, so a refusal word added to that module later fails CLOSED here
+ * rather than being silently treated as "keep trying".
+ */
+async function waitForSurface(healthUrl) {
+  for (let attempt = 1; attempt <= supervisor.PROBE_ATTEMPT_CEILING; attempt += 1) {
+    const answered = await probeOnce(healthUrl);
+    const outcome = supervisor.decideProbeOutcome({ attempt, answered });
+    if (outcome === supervisor.READY) {
+      return true;
+    }
+    if (outcome !== supervisor.RETRY) {
+      return false;
+    }
+    await delay(supervisor.PROBE_INTERVAL_MS);
+  }
+  return false;
+}
+
+/**
+ * Start the dashboard as a child of this process.
+ *
+ * THE INTERPRETER IS RESOLVED FROM PATH BY NAME, exactly as scripts/make_cert.py
+ * resolves openssl. An absolute interpreter path would carry the account name of
+ * whoever authored it, which is non-negotiable 3. The MODULE to run is not
+ * spelled here either - supervisor.serverArgv() owns it, where a test can read
+ * it without electron in the way.
+ *
+ * The repository root is DERIVED from this file's location rather than spelled,
+ * mirroring endpoint.js.
+ *
+ * Returns the child, or null if it could not be started.
+ */
+function spawnSurface() {
+  let child = null;
+  try {
+    child = spawn("python", supervisor.serverArgv(), {
+      cwd: path.join(__dirname, ".."),
+      // Inherited pipes would fill and block the child once nobody drains them,
+      // and under a shortcut launch nobody ever does.
+      stdio: "ignore",
+      windowsHide: true,
+    });
+  } catch {
+    return null;
+  }
+  // ENOENT arrives as an event rather than a throw, so the synchronous catch
+  // above does not cover a missing interpreter. Swallowed deliberately: the
+  // wait below is what decides the outcome, and it reports one refusal rather
+  // than racing this handler to report a second.
+  child.on("error", () => {});
+
+  // The code is REMEMBERED rather than acted on. A surface that exits early is
+  // reported by the wait, which is the one place that decides this outcome;
+  // this handler only makes sure the reason it needs is still available by the
+  // time it asks.
+  child.on("exit", (code) => {
+    surfaceExitCode = code;
+  });
+  return child;
+}
+
+/** Stop the dashboard, but ONLY if this launch is the one that started it. */
+function stopSurfaceIfOurs() {
+  const verdict = supervisor.decideStop({ started: startedSurface !== null });
+  if (verdict !== supervisor.STOP) {
+    return;
+  }
+  try {
+    startedSurface.kill();
+  } catch {
+    // Already gone. Nothing to report and nothing to do.
+  }
+  startedSurface = null;
+}
 
 // ---------------------------------------------------------------------------
 // Startup
@@ -135,6 +375,14 @@ function wirePersistence(win, directory, persistedAlwaysOnTop) {
   let timer = null;
   let closing = false;
 
+  // WHY `closing` IS NOT SET WHEN THE WINDOW MERELY HIDES. It exists to stop a
+  // debounced write firing against a destroyed window. Hiding destroys nothing,
+  // and setting it there would be permanent: schedule() returns early forever
+  // after, so every move and resize following the first hide would be dropped
+  // and the window would restore to wherever it happened to be that one time.
+  // The close handler below therefore returns BEFORE touching it on the hide
+  // path. Nothing else in this file writes it.
+
   const persist = () => {
     try {
       // getNormalBounds rather than getBounds: while a window is maximized or
@@ -178,17 +426,114 @@ function wirePersistence(win, directory, persistedAlwaysOnTop) {
   // readable. The pending timer is cleared first: were it left to fire after
   // the window was destroyed, it would read bounds off a destroyed object and
   // throw from a timer callback, where nothing is left to catch it.
-  win.on("close", () => {
-    closing = true;
+  win.on("close", (event) => {
+    // The pending timer is cleared on BOTH paths: on the quit path because it
+    // would otherwise read bounds off a destroyed window from inside a timer
+    // callback, where nothing is left to catch it, and on the hide path because
+    // it has just been superseded by the write below.
     if (timer !== null) {
       clearTimeout(timer);
       timer = null;
     }
+
+    // CLOSE MEANS HIDE (CS-909) - BUT ONLY WHILE THERE IS A TRAY TO COME BACK
+    // FROM. The tray is the sole route back to a hidden frameless window: it
+    // has no taskbar button to click and no title bar to restore. If createTray
+    // returned null, hiding here would strand the operator with a running
+    // process they cannot see, cannot reach and cannot quit. So the absence of
+    // a tray falls back to close MEANING close, which is a worse companion and
+    // a far better outcome than an unreachable one.
+    if (!quitting && trayRef !== null) {
+      // The position is still written on this path: an operator may leave it
+      // hidden for days and never quit at all, and a hidden window that forgot
+      // where it was is the same defect as a closed one that did.
+      persist();
+      event.preventDefault();
+      win.hide();
+      return;
+    }
+
+    closing = true;
     persist();
   });
 }
 
-function start() {
+/**
+ * Build the tray presence, and keep it alive.
+ *
+ * THE REFERENCE IS HELD AT MODULE SCOPE ON PURPOSE. A Tray that becomes
+ * unreachable is collected, and the icon then vanishes from the notification
+ * area while the process keeps running - leaving a hidden window with nothing
+ * left that can bring it back.
+ *
+ * The menu is REBUILT rather than mutated on every state change, because the
+ * template is a pure function of the two flags and rebuilding is the only way
+ * the labels cannot drift from what the window is actually doing.
+ */
+function createTray(win) {
+  let tray;
+  try {
+    tray = new Tray(nativeImage.createFromDataURL(trayLib.ICON_DATA_URL));
+  } catch {
+    // A tray is the ONLY way a hidden window comes back. If the toolkit will
+    // not give us one, returning null leaves close meaning close, which is
+    // worse than a tray and far better than a window the operator has hidden
+    // and can never see again.
+    return null;
+  }
+
+  tray.setToolTip(trayLib.tooltip());
+
+  const onClick = (id) => {
+    if (id === trayLib.MENU_IDS.SHOW_HIDE) {
+      if (win.isVisible()) {
+        win.hide();
+      } else {
+        win.show();
+        win.focus();
+      }
+      return;
+    }
+    if (id === trayLib.MENU_IDS.ALWAYS_ON_TOP) {
+      // Deliberately NOT written back to the state file. The persisted
+      // preference is the operator's standing choice; a toggle used once to
+      // get the window out of the way has not asked to change it, matching
+      // what wirePersistence already does with the launch flag.
+      win.setAlwaysOnTop(!win.isAlwaysOnTop());
+      refresh();
+      return;
+    }
+    if (id === trayLib.MENU_IDS.QUIT) {
+      quitting = true;
+      app.quit();
+    }
+  };
+
+  function refresh() {
+    const entries = trayLib.menuTemplate({
+      visible: win.isVisible(),
+      alwaysOnTop: win.isAlwaysOnTop(),
+    });
+    const template = entries.map((entry) =>
+      entry.type === "separator" ? entry : { ...entry, click: () => onClick(entry.id) },
+    );
+    tray.setContextMenu(Menu.buildFromTemplate(template));
+  }
+
+  // The labels are a function of window state, so they are rebuilt whenever
+  // that state moves - including when something other than the menu moved it.
+  win.on("show", refresh);
+  win.on("hide", refresh);
+  tray.on("click", () => {
+    win.show();
+    win.focus();
+  });
+
+  refresh();
+  return tray;
+}
+
+async function start() {
   let url;
   try {
     url = endpoint.dashboardUrl();
@@ -196,7 +541,7 @@ function start() {
     // EndpointError carries a fixed reason built from a fault code and quotes
     // nothing the caller wrote. Anything else gets this file's fixed line,
     // because an arbitrary error's message is not something known to be clean.
-    console.error(err instanceof endpoint.EndpointError ? `clockspeed: ${err.reason}` : ENDPOINT_UNRESOLVED);
+    refuse(err instanceof endpoint.EndpointError ? `clockspeed: ${err.reason}` : ENDPOINT_UNRESOLVED);
     app.exit(1);
     return;
   }
@@ -215,12 +560,49 @@ function start() {
     // load would put the operator in front of a blank frameless window with no
     // title bar and no error, which is a worse way to learn the certificate is
     // missing than a line on stderr naming the script that makes it.
-    console.error(CERT_UNREADABLE);
+    refuse(CERT_UNREADABLE);
     app.exit(1);
     return;
   }
 
   installVerifyProc(pinnedDer);
+
+  // CS-909. Whether a dashboard is already answering decides everything that
+  // follows, including whether Quit is allowed to stop one. See ADR 0015.
+  // AFTER installVerifyProc, never before - see probeOnce. Probing first would
+  // ask electron's default verification about a self-signed certificate, which
+  // refuses it, and the companion would then spawn a second dashboard on a port
+  // the first one already holds.
+  const healthUrl = new URL("/api/health", url).toString();
+  const startVerdict = supervisor.decideStart({ healthy: await probeOnce(healthUrl) });
+
+  if (startVerdict === supervisor.START) {
+    const child = spawnSurface();
+    if (child === null) {
+      refuse(SURFACE_NOT_SPAWNED);
+      app.exit(1);
+      return;
+    }
+    // Recorded BEFORE the wait, so a dashboard that starts and then dies is
+    // still stopped by us rather than left behind as an orphan.
+    startedSurface = child;
+    if (!(await waitForSurface(healthUrl))) {
+      // Read AFTER the wait, never before: a surface that refuses to bind does
+      // so within the first probe or two, so by the time the wait gives up the
+      // exit code is already there to be reported.
+      const why = surfaceNeverAnswered(surfaceExitCode);
+      stopSurfaceIfOurs();
+      refuse(why);
+      app.exit(1);
+      return;
+    }
+  } else if (startVerdict !== supervisor.ADOPT) {
+    // Neither word. FAIL CLOSED rather than guess: a refusal word added to
+    // supervisor.js later must not be read here as permission to spawn.
+    refuse(supervisor.supervisorRefusal(startVerdict));
+    app.exit(1);
+    return;
+  }
 
   const directory = app.getPath("userData");
   const saved = state.load(directory);
@@ -235,9 +617,36 @@ function start() {
     win.webContents.insertCSS(windowLib.DRAG_STRIP_CSS).catch(() => {});
   });
 
+  trayRef = createTray(win);
+
+  // Quit is the ONLY path that ends the process, and it is the only path that
+  // may stop a dashboard. before-quit also covers the routes that never touch
+  // the tray menu - a taskbar Close All, a session logout, Ctrl-C in a terminal
+  // launch - so those hide nothing and shut down properly.
+  app.on("before-quit", () => {
+    quitting = true;
+  });
+  app.on("will-quit", stopSurfaceIfOurs);
+
+  // Windows ends an app when its last window closes. With a tray presence that
+  // is wrong: the window is normally hidden rather than closed, and if one ever
+  // does close for real, quitting is what decides whether that ends the run.
+  app.on("window-all-closed", () => {
+    if (quitting) {
+      app.quit();
+    }
+  });
+
   win.loadURL(url).catch(() => {
-    console.error(PAGE_NOT_LOADED);
+    refuse(PAGE_NOT_LOADED);
   });
 }
 
-app.whenReady().then(start);
+// start() is async now, so a throw inside it lands here rather than crashing
+// the process. Without this it would surface as an unhandled promise rejection:
+// no window, no message, and under a shortcut launch no console to carry it -
+// which is indistinguishable from the icon doing nothing at all.
+app.whenReady().then(start).catch(() => {
+  refuse(PAGE_NOT_LOADED);
+  app.exit(1);
+});

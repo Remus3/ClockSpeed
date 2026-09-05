@@ -103,6 +103,8 @@ REQUIRED_NAMES: Final = (
     "shell/lib/endpoint.js",
     "shell/lib/geometry.js",
     "shell/lib/state.js",
+    "shell/lib/supervisor.js",
+    "shell/lib/tray.js",
     "shell/lib/trust.js",
     "shell/lib/verdict.js",
     "shell/lib/window.js",
@@ -113,6 +115,8 @@ REQUIRED_NAMES: Final = (
     "shell/test/endpoint.test.js",
     "shell/test/geometry.test.js",
     "shell/test/state.test.js",
+    "shell/test/supervisor.test.js",
+    "shell/test/tray.test.js",
     "shell/test/trust.test.js",
     "shell/test/verdict.test.js",
     "shell/test/window.test.js",
@@ -1579,7 +1583,7 @@ def test_the_constant_extractor_reports_a_miss_rather_than_a_vacuous_pass() -> N
 #: Files that participate in CommonJS, measured as carrying ``require(`` or
 #: ``module.exports``. ``shell/preload.js`` is deliberately inert and carries
 #: neither, so it is not in this count.
-COMMONJS_FILE_COUNT: Final = 7
+COMMONJS_FILE_COUNT: Final = 9
 
 
 @lru_cache(maxsize=1)
@@ -1690,3 +1694,115 @@ def test_the_test_liveness_detector_fires_on_an_emptied_suite() -> None:
     assert 'test("x", () => {});\n'.count("test(") == 1
     assert '"use strict";\n'.count("test(") == 0
     assert strip_js_comments("// test(\n").count("test(") == 0
+
+
+# ---------------------------------------------------------------------------
+# l. The wiring - shipped is not the same as used
+# ---------------------------------------------------------------------------
+
+#: Every seam `shell/main.js` is required to actually CONSUME, as the exact
+#: source text that consuming it produces.
+#:
+#: WHY THIS SECTION EXISTS. `shell/main.js` imports electron, so no test in
+#: either language loads it (CS-619 is open against exactly that), and every
+#: decision it delegates is graded only in the module that decides. That leaves
+#: one hole the module suites cannot see: main.js can require a module and then
+#: ignore its answer, or never require it at all. The pure suites stay green
+#: either way, and the operator gets a companion with no tray and a dashboard
+#: nobody stops. CS-896 shipped that exact fault one session earlier - a marker
+#: registered, arms green, and NOTHING using it.
+#:
+#: THE COMMENTS ARE STRIPPED FIRST, and that is the other half of the same
+#: lesson. The CS-896 parallel-lane arm searched a whole file for a token that
+#: also appeared TWICE IN ITS OWN COMMENTS, so deleting the real invocation left
+#: the arm green. A prose mention of `supervisor.decideStart` must not satisfy
+#: this list; only a call can.
+REQUIRED_MAIN_WIRING: Final = (
+    'require("./lib/supervisor.js")',
+    'require("./lib/tray.js")',
+    "supervisor.decideStart(",
+    "supervisor.decideStop(",
+    "supervisor.decideProbeOutcome(",
+    "supervisor.serverArgv(",
+    "trayLib.menuTemplate(",
+    "trayLib.ICON_DATA_URL",
+    "trayLib.tooltip(",
+    "new Tray(",
+    "dialog.showErrorBox(",
+)
+
+
+def main_code() -> str:
+    """``shell/main.js`` with every comment removed."""
+    return strip_js_comments(read_text("shell/main.js"))
+
+
+def test_main_consumes_every_seam_it_was_given() -> None:
+    """main.js CALLS the modules it delegates to, rather than merely importing them.
+
+    STATED LIMITATION, measured the first time this arm ran. It matches TEXT,
+    not syntax, so it is sensitive to formatting: a call split as ``trayLib``
+    newline ``.menuTemplate(`` is a real call this arm cannot see, and it
+    reported exactly that on its first run. The fix taken was to write the call
+    on one line rather than to loosen the token, because a looser token is
+    satisfied by more things that are not calls. Anyone reformatting
+    ``shell/main.js`` must expect this arm to speak up, and must not answer it
+    by weakening the list. A parser would not have this weakness; nothing in
+    this repository parses JavaScript, and adding a parser to grade one file is
+    a trade this project has not made.
+    """
+    code = main_code()
+    missing = tuple(token for token in REQUIRED_MAIN_WIRING if token not in code)
+    total = len(missing)
+    assert total == 0, f"{total} seam(s) shipped but not consumed by main.js: {missing}"
+
+
+def test_the_wiring_detector_is_blind_to_a_commented_out_call() -> None:
+    """A seam named only in a comment does not satisfy the arm above.
+
+    This is the arm that has teeth. Without it the list is satisfied by prose,
+    which is how the same class of check passed last time while the behaviour
+    it claimed to grade had been deleted.
+    """
+    for token in REQUIRED_MAIN_WIRING:
+        commented = f"// {token}\n"
+        assert token not in strip_js_comments(commented), token
+
+
+def test_close_does_not_permanently_disable_persistence() -> None:
+    """The hide path returns before `closing` is set.
+
+    `closing` exists to stop a debounced write firing against a DESTROYED
+    window. Hiding destroys nothing, so setting it on the hide path would be
+    permanent - every move after the first hide silently dropped, and the window
+    restoring to wherever it happened to be that once. The guard is that exactly
+    one assignment survives comment-stripping.
+    """
+    code = main_code()
+    assignments = code.count("closing = true")
+    assert assignments == 1, f"{assignments} assignments to closing, expected 1"
+
+    prevented = code.find("event.preventDefault()")
+    assert prevented != -1, "the close handler never prevents the close"
+
+    # THE HIDE IS LOOKED FOR NEXT TO THE PREVENTION, not anywhere in the file.
+    # Measured: a bare ``"win.hide()" in code`` arm SURVIVED deleting the hide
+    # from this handler, because the tray menu's show/hide toggle also calls
+    # win.hide() and satisfied the token from thirty lines away. A window whose
+    # close is prevented but which never hides is one the operator cannot get
+    # rid of at all, so the two have to be checked together or not at all.
+    window = code[prevented : prevented + 120]
+    assert "win.hide()" in window, "the close handler prevents the close without hiding the window"
+
+    # THE HIDE IS GUARDED BY THE TRAY EXISTING. A hidden frameless window has no
+    # taskbar button and no title bar, so the tray is the only route back to it.
+    # Hiding when createTray returned null would strand the operator with a
+    # process they can neither see nor quit. Measured: this guard was MISSING on
+    # the first wiring, while a comment two functions away already claimed it
+    # was there.
+    guard = code.rfind("if (", 0, prevented)
+    assert guard != -1, "no condition guards the hide path"
+    condition = code[guard:prevented]
+    assert "trayRef" in condition, (
+        f"the hide path is not guarded by the tray existing: {condition.strip()!r}"
+    )

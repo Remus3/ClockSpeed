@@ -284,9 +284,14 @@ held by a process that has stopped answering on it.
 
 **Trigger:** you want the Electron companion window running on this machine.
 
-**Read section 7 first.** The companion LOADS the dashboard; it does not start one. The
-certificate is minted by 7.1 and the dashboard is started by 7.2, and neither command is
-repeated here - a command restated in two places is a command that will drift.
+**Read section 7 first.** The certificate is minted by 7.1 and the dashboard is started by
+7.2, and neither command is repeated here - a command restated in two places is a command
+that will drift.
+
+**The companion LOADS the dashboard and does not start one - EXCEPT from the desktop
+shortcut in 8.4**, which starts one when none is answering and ADOPTS one that is. That
+exception is the whole of `docs/adr/0015-the-shell-may-start-the-surface.md`, and it stops
+only what it started. The manual order of operations in 8.1 starts nothing and never has.
 
 ### 8.1 Order of operations
 
@@ -297,14 +302,24 @@ repeated here - a command restated in two places is a command that will drift.
 2. **Start the dashboard** - section 7.2. The companion has nothing to load until the
    listener answers.
 3. **Install the shell's dependencies and launch the companion.** `shell/node_modules` is
-   gitignored and does not arrive with a clone, and installing Electron downloads a
-   prebuilt binary, so the install needs the network and is not available offline. The
-   install is once per clone; the launch is every time.
+   gitignored and does not arrive with a clone. The install is once per clone; the launch
+   is every time.
    ```
    cd shell
    npm install
    npx electron .
    ```
+
+   **`npm install` DOES NOT LEAVE YOU WITH A RUNNABLE ELECTRON, and this step said it did
+   until 2026-09-05.** Measured on that date against the version `shell/package.json`
+   pins: that `electron` package ships no `scripts` block at all, so there is no
+   postinstall - the install resolves the dependency tree, fetches NO runtime binary, and
+   exits 0 in about half a second. The binary is fetched LAZILY, by the package's own
+   entry point on the first `require("electron")`, which means **the first `npx electron .`
+   is the step that needs the network.** On a cold clone expect it to sit silently for
+   minutes, and to THROW rather than open a window if the machine is offline. Re-measure
+   if that pin moves. This matters more once a shortcut is the launch path - see 8.4,
+   which has no terminal to be silent in.
 
    **There is no `npm start` here, and reaching for one fails.** `shell/package.json`
    declares a `test` script and no `start` script, so `npm start` reports a missing script
@@ -342,7 +357,10 @@ an item synthetically as a failure class, and recording an unrun check as a resu
 same failure wearing a different hat.
 
 1. **Frameless.** The window has no OS title bar and no OS border.
-   - Observed: `NOT RUN`
+   - Observed: 2026-09-05, at a real display - FRAMELESS as specified. No OS title bar and
+     no OS border. This was the FIRST execution of the companion in this project's
+     history: `shell/node_modules` did not exist until that day, so every claim about this
+     window before it was a claim about source.
 2. **Always-on-top raises.** With the option on, the window stays above other
    applications' windows when they are focused - not merely above its own siblings.
    - Observed: `NOT RUN`
@@ -350,7 +368,10 @@ same failure wearing a different hat.
    running dashboard over TLS without a certificate warning and without any validation
    being disabled. A blank window, a hang, or a warning dialog each falsify this
    differently - record which one you saw.
-   - Observed: `NOT RUN`
+   - Observed: 2026-09-05, at a real display, same run as check 1 - ACCEPTED. The companion
+     loaded the running dashboard over TLS against the pinned certificate with no warning
+     dialog, no blank frame and no hang, and with nothing disabled. None of the three
+     falsifying outcomes occurred.
 4. **Geometry survives a real restart.** Move and resize the window, fully exit the
    process, and launch it again. Reloading the window is NOT this check - the state is
    written on exit, so only a genuine process restart tests it.
@@ -364,6 +385,38 @@ same failure wearing a different hat.
    that does not mean what the prose documentation says; ADR 0014 records that the shipped
    typings do not state it.
    - Observed: `NOT RUN`
+
+### 8.4 Launch it from the desktop
+
+**Trigger:** you want the companion on one double-click rather than on the command
+sequence in 8.1.
+
+```
+python scripts/make_shortcut.py
+```
+
+It writes a Windows shortcut onto the desktop pointing at this clone. `--desktop-dir <dir>`
+writes it somewhere other than the desktop, `--name <name>` gives it a different name,
+`--force` overwrites a shortcut that is already there, and `--help` prints the flags.
+
+**Its exit codes are not restated here.** `scripts/make_shortcut.py` owns them, for the
+same reason 7.1 gives about `scripts/make_cert.py`: a copy of a table is a table that goes
+stale, and a runbook branching on a number reads it from the script.
+
+**What one double-click does.** It opens the companion. If no dashboard is answering, the
+launch starts one and OWNS it. If one IS answering - because you started it yourself in
+7.2, or because an earlier double-click did - that dashboard is ADOPTED and left alone.
+The decision and its fence are `docs/adr/0015-the-shell-may-start-the-surface.md`.
+
+**Closing the window does not quit.** The companion keeps a system-tray presence and
+closing the window HIDES it there. **Quit from the tray menu** is the exit: it closes the
+window and stops the dashboard ONLY if this launch started it. A dashboard you started
+yourself is still running afterwards, and 7.4 is still how you stop that one.
+
+**A first double-click on a fresh clone may do nothing visible for minutes, or fail with
+no window and no message.** Read step 3 of 8.1 before concluding the shortcut is broken:
+the Electron runtime is downloaded on first use rather than at install time, and unlike
+8.1 a shortcut has no terminal for that silence - or for a refusal - to appear in.
 
 ---
 

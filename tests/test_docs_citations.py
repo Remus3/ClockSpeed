@@ -329,6 +329,13 @@ ADR_0012: Final = "docs/adr/0012-dashboard-refusal-vocabulary-and-wire-form.md"
 #: property from a test whose name has since moved argues from nothing.
 ADR_0014: Final = "docs/adr/0014-the-shell-trusts-one-pinned-certificate.md"
 
+#: The CS-909 decision that the shell MAY start the surface, and stops only what
+#: it started. GUARDED for the same reason 0014 is: it argues from named code -
+#: the module holding the spawn and adopt verdicts, and the wiring that consumes
+#: them - and the wiring is again the half nothing would otherwise check, since
+#: `shell/main.js` imports electron and is loaded by no test in either language.
+ADR_0015: Final = "docs/adr/0015-the-shell-may-start-the-surface.md"
+
 #: The LIVE per-item detail file, created 2026-08-23 when the operator ruled the
 #: NOTE bodies out of `ROADMAP.md`. IT IS GUARDED RATHER THAN RECORDED UNGUARDED,
 #: and the reason is the move itself: every body in it came VERBATIM out of
@@ -388,6 +395,7 @@ GUARDED_DOCS: Final = (
     ADR_0011,
     ADR_0012,
     ADR_0014,
+    ADR_0015,
     ITEM_NOTES,
     *ITEM_NOTES_LEAVES,
     # A memory leaf that cites a test by name. Guarded rather than recorded,

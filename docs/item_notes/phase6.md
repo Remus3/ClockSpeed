@@ -175,3 +175,62 @@ port BAND that `config/ports.json` owns. Same file, different owner and differen
 **A THIRD SITE WAS MEASURED AND IS NOT FILED.** `scripts/verify_env.py` also exits 2 on a
 bad flag, but publishes no exit-code table, so nothing collides there today. Recorded so a
 later reader knows it was looked at rather than missed.
+
+## CS-909
+
+### NOTE - filed 2026-09-05 by the merger, MEASURED BEFORE FILING
+
+**THE COMPANION HAD NEVER BEEN EXECUTED UNTIL 2026-09-05.** `shell/node_modules` did not
+exist, so every prior claim about the WINDOW was a claim about source. It was run at a real
+display on that date, and checks 1 and 3 of `docs/OPERATIONS.md` section 8.3 are filled in
+from that run. **Checks 2, 4, 5 and 6 still read `NOT RUN` and are still unrun** - do not
+read the two filled-in lines as evidence about the other four.
+
+**THE DECISION AND ITS FENCE ARE `docs/adr/0015-the-shell-may-start-the-surface.md`.** Read
+it before arguing about where the spawn belongs; the Python-launcher alternative and the
+IPC-to-quit alternative are both refused there with reasons, and re-deriving either is
+wasted work.
+
+**THE DESIGN SPLIT, AND WHY IT IS NOT TASTE.** Every decision this item makes goes in a
+pure module under `shell/lib/` that imports no Electron - `shell/lib/supervisor.js` for
+spawn, adopt and stop, `shell/lib/tray.js` for the tray's own choices - and `shell/main.js`
+stays WIRING. The reason is CS-619, which is open in this same phase: `shell/main.js` and
+`shell/preload.js` are executed by NO test in either language, because they import Electron
+and no test can cross that import. A decision written in `shell/main.js` is therefore a
+decision graded by `node --check` and a static scan, and by nothing that runs it. A module
+that loads on a bare Node is graded by `node --test`. **This is the same trap ADR 0014
+records paying for after the fact** - its verdict-to-integer map sat in `shell/main.js`,
+survived three separate blanket-bypass mutations with every lane green, and had to be
+lifted out into `shell/lib/verdict.js` afterwards. Do not re-earn that.
+
+**ONLY STOP WHAT YOU STARTED.** If a dashboard is already answering when the shortcut
+fires, it is ADOPTED - nothing is spawned and quitting leaves it running. If none is, the
+launch spawns one, owns it, and stops it on quit. **The ambiguous case resolves to ADOPT**,
+because a dashboard the operator started may be in use from a browser and killing it would
+be the shell ending something it never began. The arm that matters is the negative one:
+quit with an adopted dashboard, and assert it is STILL LISTENING afterwards. An arm that
+only proves the owned one dies passes on a shell that kills both.
+
+**THE TRAY ICON CANNOT BE A FILE, AND THAT IS A MEASURED CONSTRAINT RATHER THAN A STYLE
+RULE.** Measured 2026-09-05: no tracked file in this repository carries a NUL byte, and
+`tests/shell/test_shell_assets.py` holds every byte under `shell/` at or below 0x7E. A
+`.png` or `.ico` committed for the tray would be the first tracked binary in the project
+AND would redden that arm. The icon ships as an ASCII base64 data URL built at runtime.
+Note the boundary CS-623 is open about while you are here - the Node arm accepts 0x7F and
+the Python one caps at 0x7E - and do not pick the looser one for this asset.
+
+**`npm install` DOES NOT GIVE YOU A RUNNABLE ELECTRON, AND THE RUNBOOK SAID IT DID.**
+Measured 2026-09-05 against the version `shell/package.json` pins: that `electron` package
+ships no `scripts` block at all, so there is no postinstall - the install resolves the tree,
+fetches no runtime binary, and exits 0 in about half a second. The binary is fetched LAZILY,
+by the package's own entry point on the first `require("electron")`. Under a shell that is a
+long silence; **under a shortcut it is an icon that does nothing for minutes, and an
+exception rather than a window when the machine is offline.** `docs/OPERATIONS.md` section
+8.1 step 3 is corrected, and the shortcut runbook in 8.4 points at the correction.
+
+**THE ACCEPTANCE IS DELIBERATELY NOT SATISFIABLE BY A STATIC ARM.** The tray, the
+hide-on-close and the shortcut itself are display-bound in the same way CS-872 is: no
+headless or in-page harness can observe a tray icon or an OS shortcut at all. What a static
+arm CAN grade is the supervisor's decisions, and that is exactly why they are lifted out of
+`shell/main.js`. Grading the pure half and calling the item done is the failure mode here;
+the run at a real display is not optional.
