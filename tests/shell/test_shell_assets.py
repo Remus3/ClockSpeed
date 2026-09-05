@@ -85,6 +85,15 @@ from clockspeed.surface import config
 #: rebuilt from ``__file__``.
 REPO_ROOT: Final = config.repo_root()
 
+#: Wall-clock bound for the git plumbing below (CS-896). An unbounded child
+#: cannot fail the test that owns it - it burns the CI job's whole budget until
+#: the lane is cancelled, which is evidence of nothing. 120s matches the git
+#: timeout in tests/test_doc_budget.py and tests/test_commit_msg_gate.py. It is
+#: deliberately generous: the job is to bound a hang, not to police speed, and a
+#: tight value under two-worker contention on a 2-vCPU runner is a new flake.
+GIT_TIMEOUT: Final = 120
+
+
 #: The subtree this module grades.
 SHELL_DIR: Final = "shell"
 
@@ -152,6 +161,7 @@ def shell_files() -> tuple[str, ...]:
         capture_output=True,
         text=True,
         check=True,
+        timeout=GIT_TIMEOUT,
     )
     return tuple(sorted({line.strip() for line in completed.stdout.splitlines() if line.strip()}))
 
@@ -234,6 +244,7 @@ def test_the_population_enumerator_can_return_empty() -> None:
         capture_output=True,
         text=True,
         check=True,
+        timeout=GIT_TIMEOUT,
     )
     assert completed.stdout.strip() == "", "the enumerator answered for a subtree that is absent"
 

@@ -469,6 +469,15 @@ def bare_path_sites(carriers: Mapping[str, str]) -> list[BarePathSite]:
     return sites
 
 
+#: Wall-clock bound for the git plumbing below (CS-896). An unbounded child
+#: cannot fail the test that owns it - it burns the CI job's whole budget until
+#: the lane is cancelled, which is evidence of nothing. 120s matches the git
+#: timeout in tests/test_doc_budget.py and tests/test_commit_msg_gate.py. It is
+#: deliberately generous: the job is to bound a hang, not to police speed, and a
+#: tight value under two-worker contention on a 2-vCPU runner is a new flake.
+GIT_TIMEOUT: Final = 120
+
+
 def declares_untracked(paths: Sequence[str]) -> frozenset[str]:
     """Which of ``paths`` this repository's own `.gitignore` declares untracked.
 
@@ -507,6 +516,7 @@ def declares_untracked(paths: Sequence[str]) -> frozenset[str]:
         input=("\0".join(paths) + "\0").encode("ascii"),
         capture_output=True,
         cwd=REPO_ROOT,
+        timeout=GIT_TIMEOUT,
         # Exit 1 means NO path matched, which is an answer rather than a
         # failure. The exits that ARE failures are raised below, so the
         # subprocess must not raise on the one that is not.

@@ -606,6 +606,7 @@ def tracked_python_files() -> list[str]:
         capture_output=True,
         text=True,
         check=True,
+        timeout=SUBPROCESS_TIMEOUT,
     )
     seen = {line.strip() for line in completed.stdout.splitlines() if line.strip()}
     return sorted(seen)

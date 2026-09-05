@@ -2123,6 +2123,15 @@ def literal_pin_problems(source: str, name: str) -> list[str]:
 # --- the live corpus --------------------------------------------------------
 
 
+#: Wall-clock bound for the git plumbing below (CS-896). An unbounded child
+#: cannot fail the test that owns it - it burns the CI job's whole budget until
+#: the lane is cancelled, which is evidence of nothing. 120s matches the git
+#: timeout in tests/test_doc_budget.py and tests/test_commit_msg_gate.py. It is
+#: deliberately generous: the job is to bound a hang, not to police speed, and a
+#: tight value under two-worker contention on a 2-vCPU runner is a new flake.
+GIT_TIMEOUT: Final = 120
+
+
 def tracked_files() -> list[str]:
     """Every path in this checkout's index, POSIX-separated."""
     out = subprocess.run(
@@ -2131,6 +2140,7 @@ def tracked_files() -> list[str]:
         text=True,
         check=True,
         cwd=REPO_ROOT,
+        timeout=GIT_TIMEOUT,
     ).stdout
     return [line.strip().replace("\\", "/") for line in out.splitlines() if line.strip()]
 

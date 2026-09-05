@@ -1075,6 +1075,16 @@ def test_shipped_mode_and_legacy_mode_produce_different_bytes() -> None:
 # ---------------------------------------------------------------------------
 
 
+#: Wall-clock bound for the nested pytest run below (CS-896). This is the
+#: heaviest child in this tree - a whole interpreter start plus pytest
+#: collection plus a usmap build - so it gets the 300s this repo already uses
+#: for a spawned Python child (tests/test_locals_rendering.py,
+#: tests/test_tmp_path_privacy.py) rather than the 120s used for git plumbing.
+#: Generous on purpose: under two workers on a 2-vCPU runner a tight bound
+#: would turn contention into a flake, which is worse than the defect.
+SUBPROCESS_TIMEOUT: Final = 300
+
+
 def test_a_failing_builder_call_renders_its_arguments(tmp_path: Path) -> None:
     """Frame ARGUMENTS are rendered by pytest with no --showlocals. Measured."""
     sentinel = "NameThatMustNotEscapeButWill"
@@ -1097,6 +1107,7 @@ def test_a_failing_builder_call_renders_its_arguments(tmp_path: Path) -> None:
         capture_output=True,
         text=True,
         check=False,
+        timeout=SUBPROCESS_TIMEOUT,
         cwd=Path(synthetic.__file__).parent.parent.parent,
     )
 

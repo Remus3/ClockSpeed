@@ -585,6 +585,14 @@ def test_every_floor_this_module_uses_is_one_this_arm_grades() -> None:
     assert not stale, f"graded floors this module no longer uses as floors: {stale}"
 
 
+#: Wall-clock bound for the import probes below (CS-896). Each iteration is a
+#: fresh interpreter plus a package import, and the loop runs once per module
+#: in the cycle family, so this is a spawned-Python-child bound rather than a
+#: git one - 300s, matching tests/test_locals_rendering.py. The bound is PER
+#: CALL, so a family that grows does not erode the headroom of any one probe.
+IMPORT_PROBE_TIMEOUT: Final = 300
+
+
 def test_every_module_in_this_split_imports_first_without_a_cycle() -> None:
     """THE IMPORT CYCLE, ENTERED FROM EVERY SIDE, IN A FRESH INTERPRETER EACH TIME.
 
@@ -628,6 +636,7 @@ def test_every_module_in_this_split_imports_first_without_a_cycle() -> None:
             capture_output=True,
             text=True,
             check=False,
+            timeout=IMPORT_PROBE_TIMEOUT,
         )
         if done.returncode:
             last = done.stderr.strip().splitlines()[-1] if done.stderr.strip() else "no stderr"
