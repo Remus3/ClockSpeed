@@ -9,8 +9,8 @@ path, that the table is built once rather than per call, and that the entry
 point starts and refuses in the ways a runbook can branch on.
 
 THE ENDPOINT SET IS PARSED OUT OF ``BOOTSTRAP.md`` AND NEVER IMPORTED FROM THE
-CODE. Importing the nine from ``routes.ROUTES`` and then asserting ``ROUTES``
-holds nine would be a tautology. The parse here anchors on the literal
+CODE. Importing the set from ``routes.ROUTES`` and then asserting ``ROUTES``
+holds that many would be a tautology. The parse here anchors on the literal
 "Endpoints, minimum:" sentence rather than on the section heading, which is a
 DIFFERENT anchor from the one ``tests/surface/test_acceptance.py`` uses on the
 same sentence - two parsers that fail on different document edits are worth more
@@ -65,7 +65,12 @@ from tests.test_make_cert import cert_pair
 #: How many endpoints the specification names. The parse is asserted against this
 #: before anything iterates, so a parser that found nothing cannot let a sweep
 #: pass vacuously.
-NINE: Final = 9
+#:
+#: NOT NAMED FOR ITS VALUE, AND THAT IS THE LESSON CS-912 LEFT HERE. It was
+#: spelled as the count itself until ``/api/registry`` made the specification
+#: name ten, at which point a constant whose NAME was its value either had to be
+#: renamed or had to start lying. A count changes; what it MEANS does not.
+PUBLISHED_ENDPOINTS: Final = 10
 
 #: The sentence the endpoint set lives in. Anchoring on the sentence rather than
 #: on the section heading means a section renumbering does not silently empty
@@ -110,7 +115,7 @@ def bootstrap_templates(document: str) -> tuple[str, ...]:
 
 
 @pytest.fixture(scope="module")
-def specified_nine(repo_root: Path) -> tuple[str, ...]:
+def specified_endpoints(repo_root: Path) -> tuple[str, ...]:
     """The endpoint set, parsed out of the specification once per module.
 
     Args:
@@ -121,7 +126,9 @@ def specified_nine(repo_root: Path) -> tuple[str, ...]:
     """
     parsed = bootstrap_templates((repo_root / "BOOTSTRAP.md").read_text(encoding="utf-8"))
     parsed_count = len(parsed)
-    assert parsed_count == NINE, "BOOTSTRAP section 7.1 no longer names that many endpoints"
+    assert parsed_count == PUBLISHED_ENDPOINTS, (
+        "BOOTSTRAP section 7.1 no longer names that many endpoints"
+    )
     return parsed
 
 
@@ -233,16 +240,18 @@ print(json.dumps({"found": found, "codes": codes, "size": len(table)}))
 
 def test_the_route_table_is_exactly_the_size_the_specification_names() -> None:
     table_size = len(ROUTES)
-    assert table_size == NINE, "the route table is not the size BOOTSTRAP section 7.1 names"
+    assert table_size == PUBLISHED_ENDPOINTS, (
+        "the route table is not the size BOOTSTRAP section 7.1 names"
+    )
 
 
 def test_the_route_templates_are_the_ones_the_specification_names(
-    specified_nine: tuple[str, ...],
+    specified_endpoints: tuple[str, ...],
 ) -> None:
     published = tuple(route.template for route in ROUTES)
     published_count = len(published)
-    assert published_count == NINE, "the route table changed size under this arm"
-    assert published == specified_nine, (
+    assert published_count == PUBLISHED_ENDPOINTS, "the route table changed size under this arm"
+    assert published == specified_endpoints, (
         "the route table is not the endpoint set BOOTSTRAP section 7.1 names, in its order"
     )
 
@@ -268,38 +277,38 @@ def test_every_route_method_is_one_the_server_admits() -> None:
 
 
 # ---------------------------------------------------------------------------
-# The 405 boundary is published apart from the nine
+# The 405 boundary is published apart from the endpoint set
 # ---------------------------------------------------------------------------
 
 
-def test_the_method_boundary_route_is_not_one_of_the_nine() -> None:
+def test_the_method_boundary_route_is_not_one_of_the_published_set() -> None:
     boundary_count = len(METHOD_BOUNDARY_ROUTES)
     assert boundary_count > 0, "no method-boundary route was published at all"
 
-    nine_pairs = {(route.method, route.template) for route in ROUTES}
+    published_pairs = {(route.method, route.template) for route in ROUTES}
     folded = sorted(
         f"{route.method} {route.template}"
         for route in METHOD_BOUNDARY_ROUTES
-        if (route.method, route.template) in nine_pairs
+        if (route.method, route.template) in published_pairs
     )
     folded_count = len(folded)
-    assert folded_count == 0, f"a boundary route was folded into the nine: {folded}"
+    assert folded_count == 0, f"a boundary route was folded into the set: {folded}"
 
     templates = {route.template for route in ROUTES}
     orphans = sorted(
         route.template for route in METHOD_BOUNDARY_ROUTES if route.template not in templates
     )
     orphan_count = len(orphans)
-    assert orphan_count == 0, f"a boundary route names a template the nine do not: {orphans}"
+    assert orphan_count == 0, f"a boundary route names an unpublished template: {orphans}"
 
 
-def test_the_serving_table_is_the_nine_plus_the_boundary_and_nothing_else() -> None:
+def test_the_serving_table_is_the_set_plus_the_boundary_and_nothing_else() -> None:
     serving_size = len(SERVING_ROUTES)
-    assert serving_size == NINE + len(METHOD_BOUNDARY_ROUTES), (
-        "the serving table is not the nine plus the published boundary routes"
+    assert serving_size == PUBLISHED_ENDPOINTS + len(METHOD_BOUNDARY_ROUTES), (
+        "the serving table is not the endpoint set plus the boundary routes"
     )
-    assert tuple(SERVING_ROUTES[:NINE]) == tuple(ROUTES), (
-        "the serving table does not open with the nine, in their order"
+    assert tuple(SERVING_ROUTES[:PUBLISHED_ENDPOINTS]) == tuple(ROUTES), (
+        "the serving table does not open with the endpoint set, in its order"
     )
 
 
@@ -336,28 +345,30 @@ def test_the_table_is_built_at_import_and_its_members_are_stable_singletons() ->
     assert first.ROUTES is second.ROUTES, "the route table is not one object"
     identities = {id(route) for route in first.ROUTES} & {id(route) for route in ROUTES}
     shared = len(identities)
-    assert shared == NINE, "the route table's members are not stable across two reads"
+    assert shared == PUBLISHED_ENDPOINTS, (
+        "the route table's members are not stable across two reads"
+    )
 
 
 def test_building_a_table_twice_yields_distinct_objects_from_the_module_constant() -> None:
     built = build_routes(_NoWorld(), _NoRegistry())
     built_count = len(built)
-    assert built_count == NINE, "build_routes did not produce the endpoint set"
+    assert built_count == PUBLISHED_ENDPOINTS, "build_routes did not produce the endpoint set"
     assert built is not ROUTES, "build_routes handed back the module constant instead of a table"
 
 
 # ---------------------------------------------------------------------------
-# The liveness map health publishes is total over the nine
+# The liveness map health publishes is total over the endpoint set
 # ---------------------------------------------------------------------------
 
 
 def test_the_liveness_map_names_every_template_and_no_other(
-    specified_nine: tuple[str, ...],
+    specified_endpoints: tuple[str, ...],
 ) -> None:
     keys = frozenset(ENDPOINT_STATUS)
     key_count = len(keys)
-    assert key_count == NINE, "the liveness map is not the size of the endpoint set"
-    assert keys == frozenset(specified_nine), (
+    assert key_count == PUBLISHED_ENDPOINTS, "the liveness map is not the size of the endpoint set"
+    assert keys == frozenset(specified_endpoints), (
         "the liveness map and the specified endpoint set are not the same set"
     )
     words = frozenset(ENDPOINT_STATUS.values())
@@ -379,7 +390,7 @@ def test_every_unbuilt_endpoint_reads_not_live_and_every_backed_one_reads_live()
 
     backed = frozenset(ENDPOINT_STATUS) - unbuilt
     backed_count = len(backed)
-    assert backed_count == NINE - unbuilt_count, "the two halves do not add up"
+    assert backed_count == PUBLISHED_ENDPOINTS - unbuilt_count, "the two halves do not add up"
     silent = sorted(template for template in backed if ENDPOINT_STATUS.get(template) != health.LIVE)
     silent_count = len(silent)
     assert silent_count == 0, f"a backed endpoint is reported not implemented: {silent}"
@@ -393,7 +404,7 @@ def test_every_unbuilt_endpoint_reads_not_live_and_every_backed_one_reads_live()
 def test_every_handler_answers_without_a_game_or_a_save() -> None:
     table = build_routes(_NoWorld(), _NoRegistry())
     handled = len(table)
-    assert handled == NINE, "the table under test is not the endpoint set"
+    assert handled == PUBLISHED_ENDPOINTS, "the table under test is not the endpoint set"
 
     faults: list[str] = []
     for route in table:
@@ -487,7 +498,7 @@ def test_the_real_providers_degrade_to_503_rather_than_crashing_on_a_bare_machin
 
     reported = json.loads(completed.stdout.decode("ascii", "replace"))
     size = reported["size"]
-    assert size == NINE, "the table built on a bare machine is not the endpoint set"
+    assert size == PUBLISHED_ENDPOINTS, "the table built on a bare machine is not the endpoint set"
 
     codes = reported["codes"]
     assert codes["/api/world"] == contract.HTTP_UNAVAILABLE, (
@@ -583,7 +594,9 @@ def test_the_table_this_slice_assembles_is_one_the_server_will_route() -> None:
     """
     table = server.routing(SERVING_ROUTES)
     routed = len(table)
-    assert routed == NINE, "the server did not route the endpoint set this slice assembled"
+    assert routed == PUBLISHED_ENDPOINTS, (
+        "the server did not route the endpoint set this slice assembled"
+    )
 
 
 def test_a_bind_failure_exits_non_zero_and_names_the_port(tmp_path: Path) -> None:

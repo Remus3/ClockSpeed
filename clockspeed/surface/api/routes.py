@@ -19,12 +19,14 @@ handler holds are created once, which is what makes "is this the route the
 server registered" an identity question rather than a value question.
 
 THE ORDER IS THE SPECIFICATION'S ORDER, JOINED RATHER THAN RESTATED.
-``clockspeed/surface/api/health.py`` already publishes the nine templates in
+``clockspeed/surface/api/health.py`` already publishes every template in
 ``BOOTSTRAP.md`` section 7.1's order, because its liveness body is keyed by them;
 this module orders its table by that same tuple rather than writing a second copy
 of the sequence. Two copies of an ordering is exactly the drift the doc topology
 rule exists to stop, and here it would be silent: a table in a different order
-still holds nine routes.
+still holds the same number of routes. THE COUNT IS NEVER WRITTEN DOWN IN THIS
+MODULE, deliberately - ``health.ENDPOINT_TEMPLATES`` is its one owner, and
+CS-912's tenth route moved it without editing a literal here.
 
 THE ASSEMBLY IS TOTAL IN BOTH DIRECTIONS, CHECKED AT IMPORT. A published
 template with no route, or a route whose template is not a published one, raises
@@ -33,14 +35,15 @@ import rather than at request time means the failure lands where a developer is
 looking - a failed import - instead of as a 404 on one endpoint that nobody
 drives until later.
 
-THE 405 BOUNDARY ROUTES ARE PUBLISHED APART FROM THE NINE, and that separation is
+THE 405 BOUNDARY ROUTES ARE PUBLISHED APART FROM THE REST, and that separation is
 load-bearing rather than tidy. ``/api/advice/<id>/state`` answers POST; a GET on
 it is a wrong verb on a real resource, which is 405 and not 501. That boundary
-needs a second route on a template the nine already carry, so folding the two
-sets together would produce a ten-entry table in which one template appears
-twice. Anything reading the table as ``{route.template: route.method}`` - which
-is how the acceptance module reads it - would silently keep whichever of the two
-iteration reached last, and the count would still look right.
+needs a second route on a template the published set already carries, so folding
+the two sets together would produce a table with one more entry than there are
+templates, in which one template appears twice. Anything reading the table as
+``{route.template: route.method}`` - which is how the acceptance module reads it
+- would silently keep whichever of the two iteration reached last, and the count
+would still look right.
 """
 
 from __future__ import annotations
@@ -49,6 +52,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 from clockspeed.surface.api import contract, health, pending, solve, world
+from clockspeed.surface.api import registry as registry_endpoint
 from clockspeed.surface.providers import InstalledRegistryProvider, SaveWorldProvider
 
 if TYPE_CHECKING:
@@ -69,7 +73,10 @@ __all__ = [
 #: The verb ``/api/health`` and ``/api/world`` answer. Spelled here because those
 #: two modules publish an endpoint constant and no method constant - a handler
 #: does not know what verb reached it - so this is the single place either
-#: route's verb exists. The other seven arrive already carrying their own.
+#: route's verb exists. EVERY OTHER TEMPLATE ARRIVES CARRYING ITS OWN, and
+#: ``clockspeed/surface/api/registry.py`` was written that way on purpose so this
+#: constant's claim about which two routes need it stayed true when the tenth
+#: route landed (CS-912).
 METHOD_GET: Final = "GET"
 
 #: Every template with a layer beneath it today. Read from the endpoint modules'
@@ -80,6 +87,7 @@ METHOD_GET: Final = "GET"
 BACKED_TEMPLATES: Final = (
     health.ENDPOINT,
     world.ENDPOINT,
+    registry_endpoint.ENDPOINT,
     solve.SOLVE_ENDPOINT,
     solve.OPTIMIZE_ENDPOINT,
 )
@@ -112,7 +120,7 @@ class RouteAssemblyError(RuntimeError):
 
 
 def _checked(routes: tuple[contract.Route, ...]) -> tuple[contract.Route, ...]:
-    """Return the routes, or refuse a table that is not a bijection onto the nine.
+    """Return the routes, or refuse a table that is not a bijection onto the set.
 
     Args:
         routes: The assembled table, one route per published template.
@@ -179,7 +187,7 @@ def build_routes(
         registries: Whatever hands up the registry, or says there is no install.
 
     Returns:
-        The nine routes, in ``BOOTSTRAP.md`` section 7.1's order.
+        One route per published template, in ``BOOTSTRAP.md`` section 7.1's order.
 
     Raises:
         RouteAssemblyError: The table is not a bijection onto the published set.
@@ -195,6 +203,7 @@ def build_routes(
             template=world.ENDPOINT,
             handler=world.make_handler(worlds),
         ),
+        *registry_endpoint.routes(registries),
         *solve.routes(registries),
         *pending.routes(),
     )
@@ -203,7 +212,7 @@ def build_routes(
     return _checked(ordered)
 
 
-#: The nine, bound to the providers this machine actually runs. Built once, at
+#: The published set, bound to the providers this machine runs. Built once, at
 #: import, so every reader sees the same objects - see the module docstring.
 ROUTES: Final = build_routes(SaveWorldProvider(), InstalledRegistryProvider())
 
@@ -211,8 +220,8 @@ ROUTES: Final = build_routes(SaveWorldProvider(), InstalledRegistryProvider())
 #: are shared by every table rather than rebuilt per provider set.
 METHOD_BOUNDARY_ROUTES: Final = pending.method_boundary_routes()
 
-#: What a server is handed: the nine first, in specification order, then the
-#: boundary. A server that synthesises 405 from a template match needs only the
-#: nine and answers identically either way, because both paths go through
+#: What a server is handed: the published set first, in specification order, then
+#: the boundary. A server that synthesises 405 from a template match needs only
+#: the published set and answers identically either way, because both go through
 #: ``contract.method_not_allowed``.
 SERVING_ROUTES: Final = ROUTES + METHOD_BOUNDARY_ROUTES

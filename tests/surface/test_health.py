@@ -21,7 +21,8 @@ d. NOTHING THE CALLER HANDS THE HANDLER REACHES THE WIRE. The route templates
    could not publish one. That is asserted by planting exactly such a map.
 e. THE LIVENESS MAP IS TOTAL. A template the server never registered reads as
    ``not_implemented`` rather than vanishing from the body, so a client always
-   sees nine keys and never has to tell absent from unknown.
+   sees one key per published template and never has to tell absent from
+   unknown.
 
 Test-quality discipline (CONVENTIONS.md section 7.2, and this package's own
 ``__init__``): every sweep binds a scalar and asserts an expected count before
@@ -47,9 +48,11 @@ if TYPE_CHECKING:
 # Populations, each with the count its sweep asserts before iterating
 # ---------------------------------------------------------------------------
 
-#: BOOTSTRAP.md section 7.1 lists nine. The count is asserted so a scanner that
-#: silently matches nothing cannot pass the arm that consumes it.
-EXPECTED_ENDPOINTS: Final = 9
+#: How many endpoints BOOTSTRAP.md section 7.1 lists. The count is asserted so a
+#: scanner that silently matches nothing cannot pass the arm that consumes it.
+#: MOVED FROM 9 TO 10 BY CS-912, which added ``/api/registry`` - the vocabulary
+#: route ``/api/solve`` and ``/api/optimize`` were unreachable without.
+EXPECTED_ENDPOINTS: Final = 10
 
 #: The backticked route in the section 7.1 sentence. ``/api/plan?target=...``
 #: carries a query string, which ``contract.ENDPOINT_PATTERN`` refuses outright,
@@ -252,7 +255,12 @@ def test_an_absent_registry_and_world_render_as_absent() -> None:
 
 
 def test_the_published_templates_are_the_ones_bootstrap_lists(repo_root: Path) -> None:
-    """The anti-drift arm. When section 7.1 grows a tenth route, this goes red."""
+    """The anti-drift arm. When section 7.1 grows a route, this goes red.
+
+    It did, for CS-912's tenth. The count above was moved BY HAND afterwards,
+    which is the whole point of the arm: a route cannot join the specification
+    and the liveness body without somebody noticing in between.
+    """
     listed = bootstrap_endpoints((repo_root / "BOOTSTRAP.md").read_text(encoding="ascii"))
     assert len(listed) == EXPECTED_ENDPOINTS
     assert sorted(listed) == sorted(endpoint.ENDPOINT_TEMPLATES)
@@ -315,7 +323,7 @@ def test_a_liveness_value_outside_the_vocabulary_is_not_published() -> None:
 
 
 def test_an_unregistered_template_reads_as_not_implemented_rather_than_vanishing() -> None:
-    """Nine keys always, so a client never has to tell absent from unknown."""
+    """One key per published template, so absent is never confused with unknown."""
     data = answer(endpoint_status={"/api/health": endpoint.LIVE}).payload["data"]
     assert isinstance(data, dict)
     endpoints = data["endpoints"]

@@ -50,7 +50,7 @@ because an arm resting on it keeps passing and reads as verified.
 
 WHY THREE AND NOT FIVE, ON A REASON THAT IS TRUE TODAY. The audit grades ONE
 page, and that page asks for neither template. ``clockspeed/surface/web/app.js``
-publishes the nine routes each with the concrete path - if there is one - it may
+publishes every route each with the concrete path - if there is one - it may
 safely GET, and both ``<id>`` rows carry none; each therefore reports the
 liveness ``/api/health`` already publishes for it and names that as the source in
 its own "read from" column. MEASURED rather than argued: this same harness,
@@ -281,7 +281,7 @@ _UNBACKED_TEMPLATES: Final = frozenset(template for _method, template in pending
 
 
 def _liveness() -> dict[str, str]:
-    """The nine-entry endpoint map ``/api/health`` publishes.
+    """The endpoint map ``/api/health`` publishes, one entry per template.
 
     Built by asking ``pending.UNBACKED`` which routes are unbacked rather than
     by listing them again, so a route that gains a layer flips here for free.
