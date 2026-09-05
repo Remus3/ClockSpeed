@@ -75,6 +75,63 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-04 - CS-494 - DECLARATION RECORD. NOT A COMPLETION RECORD. It closed on 2026-08-20 and this does not reopen it; it gives the id the single well-formed entry head the shape above requires
+Verification: `grep -cE "^### [0-9-]+ - CS-494 - " docs/LEDGER.md` returns 1, where before this
+record it returned 0. The work itself is unchanged and is verified by the 2026-08-20 entry
+filed under the pair `CS-493, CS-494`, which keeps its own verification pointer.
+
+WHY THIS RECORD EXISTS. That 2026-08-20 entry opens `### 2026-08-20 - CS-493, CS-494 - ...`,
+declaring TWO ids in one head. The shape this file declares is one id per entry, so a reader
+parsing an entry head gets the id "CS-493, CS-494" and NEITHER string is an item. CS-493 was
+unaffected because it also has an entry of its own; CS-494 had none, so it was closed work
+that no entry head declared, and FOUR citations of it elsewhere in this file pointed at an id
+the file did not define.
+
+THE ORIGINAL IS NOT EDITED, and that is not squeamishness. This file declares itself
+append-only in its own header, and it has settled that question twice in its own text - once
+recording that a stale citation "is left exactly as written", and once recording of two stale
+by-line citations that they "are deliberately NOT edited; this paragraph is the correction."
+A correcting record is the mechanism this file prescribes for exactly this case.
+
+FOUND BY UNLANDED WORK, WHICH IS THE PART WORTH RECORDING. An owner-id guard written on
+2026-08-24 for CS-844 diagnosed this precisely - "an unreadable entry head that leaves CS-494
+declared by no file and four citations of it stranded" - and then never landed, because the
+same commit was deliberately red on defects its write-list could not repair. It sat unlanded
+for eleven days while the defect it named stayed live. The branch is preserved as the tag
+`salvage/cs-844-session-46`.
+
+### 2026-09-04 - CS-430 - DECLARATION RECORD. NOT A COMPLETION RECORD. It closed on 2026-08-16 under a two-id head and this gives it one of its own
+Verification: `grep -cE "^### [0-9-]+ - CS-430 - " docs/LEDGER.md` returns 1, where before this
+record it returned 0. The work is verified by the 2026-08-16 entry filed under the pair
+`CS-430, CS-431`, which keeps its own verification pointer.
+
+### 2026-09-04 - CS-431 - DECLARATION RECORD. NOT A COMPLETION RECORD. It closed on 2026-08-16 under a two-id head and this gives it one of its own
+Verification: `grep -cE "^### [0-9-]+ - CS-431 - " docs/LEDGER.md` returns 1, where before this
+record it returned 0. The work is verified by the 2026-08-16 entry filed under the pair
+`CS-430, CS-431`, which keeps its own verification pointer.
+
+### 2026-09-04 - CS-429 - DECLARATION RECORD. NOT A COMPLETION RECORD. It closed on 2026-08-16 under a two-id head and this gives it one of its own
+Verification: `grep -cE "^### [0-9-]+ - CS-429 - " docs/LEDGER.md` returns 1, where before this
+record it returned 0. The work is verified by the 2026-08-16 entry filed under the pair
+`CS-429, CS-423`, which keeps its own verification pointer.
+
+### 2026-09-04 - CS-423 - DECLARATION RECORD. NOT A COMPLETION RECORD. It closed on 2026-08-16 under a two-id head and this gives it one of its own
+Verification: `grep -cE "^### [0-9-]+ - CS-423 - " docs/LEDGER.md` returns 1, where before this
+record it returned 0. The work is verified by the 2026-08-16 entry filed under the pair
+`CS-429, CS-423`, which keeps its own verification pointer.
+
+### 2026-09-04 - CS-209 - DECLARATION RECORD. NOT A COMPLETION RECORD. It closed on 2026-08-16 under a two-id head and this gives it one of its own
+Verification: `grep -cE "^### [0-9-]+ - CS-209 - " docs/LEDGER.md` returns 1, where before this
+record it returned 0. The work is verified by the 2026-08-16 entry filed under the pair
+`CS-403, CS-209`, which keeps its own verification pointer. CS-403 was unaffected because it
+also has an entry of its own.
+
+THE CLASS, MEASURED RATHER THAN ASSUMED. Twelve entry heads in this file name more than one
+id. Eight of them say NOT A COMPLETION RECORD or record a frozen-file grant, so they declare
+nothing and strand nothing. FOUR are completion records, and between them they left SIX ids
+closed with no entry head of their own - the six recorded above. No other id in this file is
+in that position: 125 ids carry a well-formed single-id head.
+
 ### 2026-09-04 - SESSION 60 - THE CS-891 REPAIR WAS RE-ADJUDICATED FROM A FROZEN SHA AND STANDS; FOUR RESIDUALS ARE RECORDED HERE BECAUSE THE NEXT ITEM ID FORCES A DECISION NOBODY HAS MADE
 Verification: `python -m pytest tests/test_docs_citations.py tests/test_bare_path_citations.py -q`
 plus `python -m pytest tests -q`. The second adjudication re-ran all thirteen filed mutants
