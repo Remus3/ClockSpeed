@@ -137,7 +137,17 @@ the line becomes a pointer.
   than workload. Expect a cancellation with nothing failing, and do not read it as
   flakiness. Detail in the CS-896 note.
 
-- **Next action: the relocate pass on `tests/test_docs_citations.py`**, because it gates
+- **THE RELOCATE PASS IS DONE.** The citation guard went 260661 -> 234638 bytes, 99.4 per
+  cent -> 89, headroom 1483 -> 27506. The archive-rot machinery has its own guard and arms
+  pair. Behaviour unchanged arm for arm; no test id vanished. **The split exposed a LIVE
+  import cycle the suite was green over** - four entry orders imported cleanly and the
+  fifth raised ImportError, and pytest never enters through a non-test module. Fixed, with
+  an arm that re-enters from every side in a fresh interpreter.
+
+- **Next action: the seven recorded findings against CS-897**, which now fit. Two are that
+  item's own defect class in text it authored: a floor whose stated property holds for two
+  of five shapes, and a coverage proxy that admits the exact case its message says it
+  prevents. Detail in the CS-897 ledger entry. Then CS-899, which also needed this room., because it gates
   CS-898, CS-899 and the seven recorded findings alike. Then the operator's id-block call.
   `ROADMAP.md` is also over its soft budget and owes its own relocate pass.
 

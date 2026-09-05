@@ -75,6 +75,51 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-05 - SESSION 60 - THE RELOCATE PASS. The citation guard was at 99.4 per cent of a data-hygiene ceiling that must not be raised; the archive-rot machinery moved to its own pair and the split exposed a live import cycle the suite could not see
+Verification: `python -m pytest tests/test_docs_citations.py tests/test_bare_path_citations.py tests/test_archive_rot.py -q`
+plus `python -m pytest tests/data/test_phase2_gate.py -q`, which is the ceiling this was done
+for. Then re-enter the family from every side: importing `tests.archive_rot_guard` FIRST in a
+fresh interpreter raised ImportError before the fix and imports cleanly after it.
+
+NO ITEM ID, AND THAT IS DELIBERATE. The `CS-8nn` block is full at 100 of 100 and creating the
+next one is the operator's call, recorded in the entry above. This is maintenance the previous
+handoff called owed rather than a closed item, so it takes a session record.
+
+WHY IT COULD NOT WAIT. `tests/test_docs_citations.py` was 260661 bytes against 262144 - 1483
+bytes. CS-899 extends that module and seven recorded findings against CS-897 all live in it,
+so the ceiling had become the binding constraint on the project rather than a budget. It is
+now 234638 bytes, 89 per cent, with 27506 bytes of headroom.
+
+THE SEAM WAS CHOSEN BY MEASUREMENT AND THEN MOVED BY A CITATION. Four candidates were sized
+and tested for one-wayness: the line-pointer machinery is bigger but has ELEVEN inward
+references, while the archive-rot machinery has THREE. Of the six archive arms, five are cited
+nowhere - but `docs/LEDGER.md` cites the only-doc-left-unguarded arm as a path-and-symbol
+pointer, and that arm is about the exemption TABLE rather than about rot. So the boundary was
+drawn on subject, and it happened to strand nothing and cost no disposition.
+
+THE SPLIT EXPOSED A LIVE DEFECT THE WHOLE SUITE WAS GREEN OVER. The family is a cycle by
+construction - the judging module reaches both halves so the class-closing walks can see them,
+and both reach back. Python tolerates that only while every name a partially-initialised module
+is asked for is already bound, which is a property of statement order across three files.
+MEASURED rather than reasoned about: FOUR entry orders imported cleanly and the FIFTH raised
+ImportError. pytest never enters through a non-test module, so nothing in the suite took the
+broken path. Fixed, and an arm now re-enters the family from every side in a fresh interpreter
+over a population derived from the import statements rather than listed.
+
+TWO MOVES THAT WOULD HAVE SHIPPED SILENTLY WRONG, caught by the builder. A `globals()` lookup
+inside the rot arm silently re-points at the new module when the arm moves, so it would have
+walked a near-empty registry and reported a confident zero about the parent's tables. And the
+floor-grading pair derives what a module grades from THAT MODULE's own use sites, so moving the
+call without the pair would have left the site floor graded by nothing while its abandoned
+parametrization reported itself stale.
+
+BEHAVIOUR IS UNCHANGED AND WAS CHECKED RATHER THAN ASSERTED. The rot distribution is identical
+arm for arm at 5, 0, 3, 3, 4 and 13, and the judged-site count is unchanged at 643. No test id
+vanished: five moved path, three are new, and each new one is the cost of a mechanism that
+could not travel with the thing it grades. The closure was proved by planting an unregistered
+pattern AND an unregistered forgiveness table in BOTH new modules and watching all four be
+reported by name.
+
 ### 2026-09-05 - CS-897 - CLOSED AS AN HONEST PARTIAL. The deep archive's exemption now rests on a reason true of every member and its rot is pinned per arm, and SEVEN findings against that repair are recorded here rather than fixed, because the module has 1483 bytes left
 Verification: `python -m pytest tests/test_docs_citations.py tests/test_bare_path_citations.py -q`.
 Then reproduce the refutation that forced the repair-of-the-repair: append a typed decoy
