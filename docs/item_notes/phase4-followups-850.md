@@ -1666,6 +1666,26 @@ author changed their mind the same hour - is the habit the rule exists to preven
 clause was not touched either way: "completes inside a stated budget and reports its own
 duration against it" is exactly what is still owed.
 
+### EIGHTH DATA POINT - FIVE SECONDS OF MARGIN - MEASURED 2026-09-05 (session 60)
+
+Tier 1 on `d0b41e2` ran **9m55s, SUCCESS - FIVE SECONDS under the ten-minute cutoff**.
+That is the tightest margin ever recorded on this lane, and the run carried real code:
+the CS-897 work took the suite 4887 -> 4892.
+
+**THIS IS NO LONGER A LANE INSIDE THE NOISE BAND OF ITS CUTOFF. IT IS A LANE AT ITS
+CUTOFF.** The sixth data point isolated the variance as RUNNER-SIDE by showing a doc-only
+commit running thirty-nine seconds slower than a code-heavy one. Combine the two facts and
+the conclusion is sharp: a spread of about forty seconds that owes nothing to workload,
+against a margin of five. **The next run may be CANCELLED WITH NOTHING FAILING, and the
+session that sees it will read a cancellation as flakiness unless it reads this first.**
+
+Series: cancelled past 10m, 8m29s, 9m18s, 9m09s, 8m44s, 9m23s, 9m25s, 9m55s.
+
+**AND REGISTRATION LATENCY IS NOT DURATION.** This run took about TEN MINUTES to appear
+after the push of five commits. `gh run list --commit` returned an empty list with a FULL
+sha for that whole window. An empty list is not evidence that CI did not run - check the
+elapsed time before concluding anything, which this session nearly got wrong.
+
 ### SIXTH DATA POINT, AND IT ISOLATES THE VARIANCE - MEASURED 2026-09-04 (session 60)
 
 The next run was **9m23s, SUCCESS - thirty-seven seconds under the cutoff**, and its

@@ -131,6 +131,12 @@ the line becomes a pointer.
   and the operator created `CS-8nn` on 2026-08-21. ADR 0011 anticipated CS-900 and declined it
   in terms. **Only FILING is blocked; work on existing items continues.**
 
+- **CI ON THE FINAL COMMIT RAN 9m55s - FIVE SECONDS UNDER THE CUTOFF**, the tightest
+  margin ever recorded. CS-896 is no longer a lane inside the noise band; it is a lane AT
+  its cutoff, and the sixth data point already proved the variance is runner-side rather
+  than workload. Expect a cancellation with nothing failing, and do not read it as
+  flakiness. Detail in the CS-896 note.
+
 - **Next action: the relocate pass on `tests/test_docs_citations.py`**, because it gates
   CS-898, CS-899 and the seven recorded findings alike. Then the operator's id-block call.
   `ROADMAP.md` is also over its soft budget and owes its own relocate pass.
