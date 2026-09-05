@@ -34,6 +34,93 @@ the line becomes a pointer.
 
 ---
 
+## Session 62 - 2026-09-05 - THE COMPANION RAN FOR THE FIRST TIME EVER and a real shortcut now launches it; the round that shipped it was REFUTED FIVE TIMES including a LOCAL CODE-EXECUTION VECTOR, and the repair brief's own premise was refuted too
+
+NOTHING CLOSED. CS-909 is OPEN and both its commits say so. Suite 5066 -> see the
+final report; the shell lanes moved 203 -> 307 node tests and 77 -> 134 asset arms.
+
+**WHAT EXISTS NOW THAT DID NOT.** A desktop shortcut launches the Electron
+companion with no terminal. It starts the dashboard if nothing answers, ADOPTS one
+that already does, keeps a tray icon, hides rather than exits on close, and on Quit
+stops only the dashboard that launch started. All of that was exercised at a real
+display, some of it by the operator.
+
+**IT HAD NEVER BEEN EXECUTED BEFORE THIS SESSION.** `shell/node_modules` did not
+exist. Every check in `docs/OPERATIONS.md` section 8.3 read `NOT RUN`; five of six
+are now filled and check 6 is not.
+
+**THE TWELVE-OF-TWELVE PATTERN HELD, AND THEN SOME.** The first round shipped with
+five defects its own suites were green against. All five were found by agents that
+wrote none of it, on FOUR DISTINCT LENSES - and the lenses did not overlap:
+adjudication found the overclaimed commit message and the common-mode risk;
+does-it-reproduce found thirteen of fifteen mutations surviving; security found the
+spawn vector; resource-lifetime found the zombie and the state-file corruption.
+Repeated skeptics would have found one of those, not four.
+
+**THE COMMON-MODE RISK, NAMED BY THE ADJUDICATOR AND STILL LIVE.** `healthy` is a
+boolean `shell/lib/supervisor.js` is graded on exhaustively and DOES NOT COMPUTE.
+Its derivation lives in `probeOnce`, inside the one file no test in either language
+can load. Every slice inherited that framing from the brief and encoded it as an
+input. It has already fired once - the BoringSSL probe bug was wrong for an entire
+session with both lanes green.
+
+**FIVE THINGS MEASURED THAT CONTRADICTED A DOCUMENT OR A CLAIM. THE SPIKE WINS.**
+
+1. The pinned Electron ships NO `scripts` block, so `npm install` fetches no binary
+   and exits 0 in about half a second; the runtime downloads lazily on first
+   `require`. `docs/OPERATIONS.md` section 8.1 said otherwise and now does not.
+2. `shutil.which` does NOT exclude the current directory on this interpreter - it
+   returned a RELATIVE path to a planted file. The repair brief asserted the
+   opposite and used it to justify the design. `scripts/make_cert.py` has the same
+   exposure. FILED AS CS-910.
+3. The recorded 2.217s-2.227s cold start does not reproduce. Through the shipped
+   path it is 0.46s-0.53s, every sample answering on attempt 1. The ten-millisecond
+   spread was a fixed constant, not a process start.
+4. `new Tray()` handed an empty image does NOT throw; it returns a non-null Tray
+   with an invisible icon. `trayRef !== null` was therefore the wrong question.
+5. Registering a `window-all-closed` listener SUPPRESSES electron's default quit,
+   which is what turned the no-tray fallback into a zombie holding a live child.
+
+**A CORRECTION THIS SESSION OWES TO ITS OWN FIRST COMMIT.** `8210a3c`'s message
+claims section 8.3 checks 1 to 5 were observed. The file at that commit records
+only 1 and 3. The observations were real; they were never written down. The tracked
+note was correct throughout - the COMMIT MESSAGE was the wrong artifact. Repaired.
+
+**DECISIONS - DO NOT RE-LITIGATE.**
+
+1. THE PROBE USES ELECTRON `net`, NOT NODE `https`. Node's `ca` option is not
+   honoured under electron's BoringSSL build. `net` also deletes a second trust
+   decision rather than moving it. The install-before-probe ORDERING is load-bearing
+   and is graded by NOTHING - probing first poisons the verdict cache permanently.
+2. THE INTERPRETER IS RESOLVED TO AN ABSOLUTE PATH BEFORE SPAWNING. Do not
+   re-pitch spawning a bare name with a fallback; the fallback IS the vector.
+3. THE TRAY DECIDES WHETHER CLOSE MEANS HIDE. No tray means quit, which runs
+   `will-quit` and stops what the launch started.
+4. ADR 0015 EXTENDS THE SEAM: the shell MAY start the surface, and stops only what
+   it started. It does not re-litigate the never-write rule.
+5. THE ICON IS AN ASCII DATA URL, NOT A TRACKED BINARY. This repository has zero
+   tracked binaries and the shell byte sweep would redden on one. 16x16 is
+   IMPOSSIBLE to encode alphanumerically - the fixed IHDR constant at that size
+   contains a solidus - which is why it is 32x32.
+
+**NAMED AND NOT CLOSED.**
+
+- CS-909's manual half now has a home (`docs/OPERATIONS.md` section 8.5) and one
+  check in 8.3 is still `NOT RUN`.
+- CS-910 and CS-911 were filed this session and are untouched.
+- ROADMAP.md is at 107 per cent of its soft budget. A RELOCATE PASS IS OWED and
+  this session made it worse by three lines.
+- `main.js` is still loaded by no test (CS-619). Everything in it is graded by
+  text arms over its source, which cannot prove a call GOVERNS - only that it
+  exists and is reachable by name.
+- The `.lnk` carries a TrackerDataBlock with COMPUTERNAME and a MAC-derived UUID.
+  Recorded in the script's PRIVACY section, not stripped - it is untracked and
+  operator-requested.
+
+**WORKTREE AGENTS STARTED STALE IN THREE OF THREE REPAIR DISPATCHES**, all at
+`7ba2df8` rather than the stated `8210a3c`. Every one fast-forwarded because the
+brief ordered the check. The running tally is now overwhelming: ORDER IT EVERY TIME.
+
 ## Session 61 - 2026-09-05 - CS-896 MEASURED AND NOT CLOSED: the lane's SERIAL MEAN is ABOVE its own cutoff, so the cancellation was the distribution; BOTH repairs were REFUTED, both were then repaired and MERGED
 
 - **Shipped: CS-908 only.** Filed CS-900, CS-906 and CS-907 and opened the `CS-9nn` block on an
@@ -216,81 +303,3 @@ the line becomes a pointer.
   prevents. Detail in the CS-897 ledger entry. Then CS-899, which also needed this room., because it gates
   CS-898, CS-899 and the seven recorded findings alike. Then the operator's id-block call.
   `ROADMAP.md` is also over its soft budget and owes its own relocate pass.
-
-## Session 59 - 2026-09-03 - THREE ITEMS CLOSED and every one was REFUTED FIRST; every repair reproduced its own filed fault one level up, and CS-889's ratchet caught its own closure within minutes of shipping
-
-- **Shipped: CS-888, CS-889 and CS-890 CLOSED** - CS-889 as an HONEST PARTIAL, stated in
-  those words. Filed CS-892, CS-893, CS-894, CS-895, each from an adversary finding and each
-  verified by the merger before filing. Also: CS-G05's payload independence MEASURED at n = 9
-  after five sessions of that measurement going untaken, and CS-852's stale note corrected
-  after three handoffs named it. Suite 4665 -> 4712. All gates green at the close: drift guard
-  10 of 10, doc budget PASS with nothing over, ruff, ruff format, mypy 143 files.
-
-- **NO ACCEPTANCE CLAUSE WAS REWRITTEN - a NINTH consecutive session.** CS-888 closed on the
-  SECOND disjunct of its clause and the ledger says which, because the first disjunct - the
-  consumption route - was REFUTED BY MEASUREMENT: three of the six immune modules already
-  call the census `classify` and would have kept blanket cover, leaving 3 of 5 plants green.
-
-- **EVERY REPAIR REPRODUCED ITS OWN FILED FAULT ONE LEVEL UP. Expect this; it is now three
-  sessions running.** CS-888 abolished immunity-by-import and then granted module-wide
-  immunity to anything holding a reason written about a different read. CS-889 built an arm
-  against ungraded pointers and shipped a grandfather list with NO RATCHET - an adversary
-  silenced every one of its findings with five table appends and got 153 passed, exit 0.
-  CS-890 replaced a parity toggle with CommonMark fences and invented a new false positive
-  while leaving inline code spans entirely unhandled.
-
-- **THE SHARPEST FINDING: CS-889's PIN FOLLOWED THE ROT.** It froze `(carrier, path, line)`
-  and nothing about what the line SAID, so a pinned pointer stays in range, stays non-blank,
-  and is grandfathered forever while naming a different declaration. Those 48 sites were not
-  "unverified pending review", they were immunised against detection - and a sibling then
-  measured the base rate by content-checking five of them: ALL FIVE WERE WRONG. Repaired with
-  a landing-line digest, chosen over an enclosing-symbol anchor BY MEASUREMENT: over twelve
-  commits a digest catches 1 of 48 drifted sites and the anchor catches 0. The builder
-  measured its own preference losing and said so.
-
-- **CS-889's RATCHET CAUGHT ITS OWN CLOSURE.** Closing the item relocated its note to
-  `docs/history_notes.md`, which took the last quoting-not-citing site out of the guarded set.
-  The stale-entry contract reported the orphaned disposition on the next run; removing that
-  reddened the budget arm, because the budget must be spent EXACTLY rather than merely be
-  under it. Ceiling 55 -> 54.
-
-- **THE ROUND'S OWN MERGE ROTTED A POINTER AND THE NEW ARM CAUGHT IT.** The CS-890 slice's 735
-  insertions into `tools/drift_guard.py` pushed a cited line onto a blank one, minutes after
-  shipping, in a file nobody thought was related. That is CS-889's thesis demonstrated on a
-  case the round created rather than one it inherited.
-
-- **THE CITATION GUARD READ MARKDOWN ONLY AND NOW READS EVERY TRACKED FILE** - 231 carriers,
-  deliberately not a suffix list. That widening surfaced seven structurally invisible dead
-  citations in `pyproject.toml` and two shell JavaScript files, five pointing at wrong
-  content. The same pointer had been inside the population from one carrier and outside it
-  from another.
-
-- **Decisions: one ruling, and the LEDGER had already made it twice.** An adversary and the
-  planner both recommended repairing dead line pointers inside CLOSED `docs/LEDGER.md`
-  entries. I ruled NO: that file declares itself append-only and has settled this exact
-  question twice in its own text, and its stated forward rule - "cite that module BY NAME,
-  not by line" - is CS-889's forbid leg written down as practice a session before the item
-  was filed. Those five take recorded dispositions instead. It makes the partial weaker and
-  honest rather than stronger and invented.
-
-- **Surprises: the handoff carried a STALE FACT as live.** It said
-  `test_every_real_save_of_a_measured_pair_walks_to_the_end_of_its_body` is red on this
-  machine because of an unmodelled 120-byte body tail. It PASSES; CS-867 closed on 2026-08-31
-  and modelled that run. `docs/GATED.md` said the same in three places and is corrected.
-
-- **Failed paths: three errors of mine, all caught by the agents I dispatched.** I told S2 to
-  expect nine live instances when the ten stood - it derived ten and said so. I accused S2 of
-  opening stale when `origin/main` genuinely was `dce2d0f` at its fetch, because my push was
-  still in flight and I had written the brief as though local and origin were the same thing.
-  And I told S6 main was RED on its seven when the widening had not landed, so its acceptance
-  test would have passed whether or not it did the work - it built its own harness and got a
-  real baseline instead.
-
-- **In flight: nothing uncommitted.** No worktree holds unlanded work. **Do NOT prune
-  worktrees on a dirty reading:** 23 of 34 show uncommitted changes and every sampled file is
-  BYTE-IDENTICAL to main - they sit at stale bases. Only a diff against main decides.
-
-- **Next action: CS-891, the bare-path citation form.** It was deliberately sequenced after
-  CS-889 and they share a file, so it is now unblocked. Its five filed instances still cite a
-  harness-side memory path that has never existed in this repo, and two further mentions of
-  that path must be LEFT ALONE because they discuss it as the subject of a correction.

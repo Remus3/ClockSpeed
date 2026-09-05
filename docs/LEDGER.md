@@ -24,6 +24,91 @@ to `docs/history_notes.md`; they are never dropped.
 Newest entry goes directly under the `## Entries` heading. Each entry is:
 
 ```
+### 2026-09-05 - CS-909 - MEASUREMENT RECORD. The companion ran for the first time in the project's history, and the round that shipped it was REFUTED on five counts including a local code-execution vector
+
+**CS-909 STAYS OPEN and this entry does not close it.** Section 8.5 of
+`docs/OPERATIONS.md` now exists to hold its manual half, and one of its six checks
+is still unrun.
+
+**What shipped.** A desktop shortcut that starts the dashboard if nothing answers,
+opens the frameless companion against it, and keeps a system-tray presence where
+closing hides and Quit stops only what that launch started. Merged files:
+`shell/lib/supervisor.js`, `shell/lib/tray.js`, `shell/main.js`,
+`scripts/make_shortcut.py`, `docs/adr/0015-the-shell-may-start-the-surface.md`.
+Verified by `tests/shell/test_shell_assets.py::test_main_consumes_every_seam_it_was_given`,
+`::test_close_does_not_permanently_disable_persistence`,
+`shell/test/supervisor.test.js` and `shell/test/tray.test.js`.
+
+**IT HAD NEVER BEEN EXECUTED.** `shell/node_modules` did not exist at session
+start and every check in `docs/OPERATIONS.md` section 8.3 read `NOT RUN`. Five of
+six are now filled; check 6, deferral on a non-dashboard host, is not.
+
+**A RUNBOOK DEFECT MEASURED, NOT REASONED.** The pinned Electron ships NO `scripts`
+block, so `npm install` completes in about half a second having fetched no binary
+and exits 0. The runtime downloads lazily on the first `require`. Section 8.1 said
+otherwise and now does not.
+
+**FIVE REFUTATIONS OF THE FIRST ROUND, by one adjudicator and three adversaries
+that wrote none of it.** Each is repaired in `8777a89`.
+
+1. **A local code-execution vector.** `main.js` spawned the bare name `python`
+   with the repository root as the child's working directory. libuv searches that
+   directory BEFORE PATH; the root grants Modify to Authenticated Users on this
+   machine; the spawn hides its window and discards its output. The suppressing
+   environment variable is set at neither machine nor user scope, so an Explorer
+   launch has the search live - a first test came back clean only because a shell
+   had set it for itself.
+2. **A zombie.** With no tray, close correctly meant close, `window-all-closed`
+   fired with quitting false, and merely HAVING registered that listener
+   suppressed the default quit - leaving a process with no window, no tray and a
+   live dashboard it had started.
+3. **The tray guard tested the wrong proposition.** `new Tray()` handed an image
+   that decodes to nothing does NOT throw; it returns an ordinary non-null Tray
+   with an invisible icon.
+4. **No single-instance lock.** Two launches produced two windows and two tray
+   icons, and two writers on one `window-state.json` whose fixed-name partial file
+   is opened truncating - an interleave publishes a zero-byte state file over a
+   good one, falsifying `shell/lib/state.js`'s own atomicity header.
+5. **The wiring arms did not grade.** Fifteen mutations, THIRTEEN SURVIVED. A seam
+   was satisfiable from a string literal, from dead code, and both lib modules
+   could be replaced by local fakes and never loaded while every arm stayed green.
+   The only kill was a behaviour-preserving reformat.
+
+**THE REPAIR BRIEF WAS ITSELF REFUTED, and the spike wins.** It asserted that
+`shutil.which` excludes the current directory, making `scripts/make_cert.py` the
+safe precedent. Measured on the pinned interpreter with the guard absent, it
+returned a RELATIVE path to a planted file in the current directory. `make_cert.py`
+carries the same exposure. Filed as **CS-910** rather than fixed inside a slice
+that did not own it.
+
+**A MEASUREMENT IN THE SOURCE THAT DID NOT REPRODUCE.** `PROBE_ATTEMPT_CEILING`
+carried a recorded 2.217s-2.227s cold start and reasoned a margin from it. Measured
+through the actually shipped path - electron, `net`, `waitForSurface` verbatim - it
+is 0.46s to 0.53s, every sample answering on the first attempt. The ten-millisecond
+spread over five samples was the signature of a fixed constant, not a process
+start. The margin at the old ceiling was about twenty times, not the four and a
+half claimed. The comment now separates measured from judged.
+
+**A DECISION, RECORDED SO IT IS NOT RE-ARGUED.** The health probe uses electron's
+`net` rather than node's `https`. With a `ca` option holding the pinned certificate
+`https` works under stock node and FAILS under electron, which builds its node
+against BoringSSL: every probe returned `UNABLE_TO_VERIFY_LEAF_SIGNATURE` while the
+surface was demonstrably listening. Going through `net` also deletes a second trust
+decision rather than moving it - net requests reach `setCertificateVerifyProc`, so
+the probe and the page are pinned by one answer from `shell/lib/trust.js`. An
+adversary confirmed the pin against an impostor certificate on the same host, and
+separately confirmed that probing BEFORE the proc is installed poisons the network
+service's verdict cache so the proc never fires. That ordering is load-bearing and
+is graded by nothing.
+
+**A CORRECTION THIS ENTRY OWES TO `8210a3c`'s OWN MESSAGE.** That message states
+that section 8.3 checks 1 to 5 were observed. The file at that commit records only
+checks 1 and 3; checks 2, 4 and 5 were genuinely observed but never written down.
+`docs/GATED.md` names recording an unrun check as a result a failure class, and a
+commit message claiming a file says something it does not is that failure wearing a
+different hat. The tracked note at `docs/item_notes/phase6.md` was correct
+throughout. Repaired in `8777a89`.
+
 ### YYYY-MM-DD - <ITEM-ID> - <one line: what closed>
 Verification: <pointer>
 ```

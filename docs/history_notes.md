@@ -99,6 +99,86 @@ and this owns the bare-path form. They share a population boundary problem and a
 they must not run concurrently, but merging them would put two different acceptance
 clauses under one arm.
 
+## Session 59 wakeup note - relocated 2026-09-05 (session 62)
+
+## Session 59 - 2026-09-03 - THREE ITEMS CLOSED and every one was REFUTED FIRST; every repair reproduced its own filed fault one level up, and CS-889's ratchet caught its own closure within minutes of shipping
+
+- **Shipped: CS-888, CS-889 and CS-890 CLOSED** - CS-889 as an HONEST PARTIAL, stated in
+  those words. Filed CS-892, CS-893, CS-894, CS-895, each from an adversary finding and each
+  verified by the merger before filing. Also: CS-G05's payload independence MEASURED at n = 9
+  after five sessions of that measurement going untaken, and CS-852's stale note corrected
+  after three handoffs named it. Suite 4665 -> 4712. All gates green at the close: drift guard
+  10 of 10, doc budget PASS with nothing over, ruff, ruff format, mypy 143 files.
+
+- **NO ACCEPTANCE CLAUSE WAS REWRITTEN - a NINTH consecutive session.** CS-888 closed on the
+  SECOND disjunct of its clause and the ledger says which, because the first disjunct - the
+  consumption route - was REFUTED BY MEASUREMENT: three of the six immune modules already
+  call the census `classify` and would have kept blanket cover, leaving 3 of 5 plants green.
+
+- **EVERY REPAIR REPRODUCED ITS OWN FILED FAULT ONE LEVEL UP. Expect this; it is now three
+  sessions running.** CS-888 abolished immunity-by-import and then granted module-wide
+  immunity to anything holding a reason written about a different read. CS-889 built an arm
+  against ungraded pointers and shipped a grandfather list with NO RATCHET - an adversary
+  silenced every one of its findings with five table appends and got 153 passed, exit 0.
+  CS-890 replaced a parity toggle with CommonMark fences and invented a new false positive
+  while leaving inline code spans entirely unhandled.
+
+- **THE SHARPEST FINDING: CS-889's PIN FOLLOWED THE ROT.** It froze `(carrier, path, line)`
+  and nothing about what the line SAID, so a pinned pointer stays in range, stays non-blank,
+  and is grandfathered forever while naming a different declaration. Those 48 sites were not
+  "unverified pending review", they were immunised against detection - and a sibling then
+  measured the base rate by content-checking five of them: ALL FIVE WERE WRONG. Repaired with
+  a landing-line digest, chosen over an enclosing-symbol anchor BY MEASUREMENT: over twelve
+  commits a digest catches 1 of 48 drifted sites and the anchor catches 0. The builder
+  measured its own preference losing and said so.
+
+- **CS-889's RATCHET CAUGHT ITS OWN CLOSURE.** Closing the item relocated its note to
+  `docs/history_notes.md`, which took the last quoting-not-citing site out of the guarded set.
+  The stale-entry contract reported the orphaned disposition on the next run; removing that
+  reddened the budget arm, because the budget must be spent EXACTLY rather than merely be
+  under it. Ceiling 55 -> 54.
+
+- **THE ROUND'S OWN MERGE ROTTED A POINTER AND THE NEW ARM CAUGHT IT.** The CS-890 slice's 735
+  insertions into `tools/drift_guard.py` pushed a cited line onto a blank one, minutes after
+  shipping, in a file nobody thought was related. That is CS-889's thesis demonstrated on a
+  case the round created rather than one it inherited.
+
+- **THE CITATION GUARD READ MARKDOWN ONLY AND NOW READS EVERY TRACKED FILE** - 231 carriers,
+  deliberately not a suffix list. That widening surfaced seven structurally invisible dead
+  citations in `pyproject.toml` and two shell JavaScript files, five pointing at wrong
+  content. The same pointer had been inside the population from one carrier and outside it
+  from another.
+
+- **Decisions: one ruling, and the LEDGER had already made it twice.** An adversary and the
+  planner both recommended repairing dead line pointers inside CLOSED `docs/LEDGER.md`
+  entries. I ruled NO: that file declares itself append-only and has settled this exact
+  question twice in its own text, and its stated forward rule - "cite that module BY NAME,
+  not by line" - is CS-889's forbid leg written down as practice a session before the item
+  was filed. Those five take recorded dispositions instead. It makes the partial weaker and
+  honest rather than stronger and invented.
+
+- **Surprises: the handoff carried a STALE FACT as live.** It said
+  `test_every_real_save_of_a_measured_pair_walks_to_the_end_of_its_body` is red on this
+  machine because of an unmodelled 120-byte body tail. It PASSES; CS-867 closed on 2026-08-31
+  and modelled that run. `docs/GATED.md` said the same in three places and is corrected.
+
+- **Failed paths: three errors of mine, all caught by the agents I dispatched.** I told S2 to
+  expect nine live instances when the ten stood - it derived ten and said so. I accused S2 of
+  opening stale when `origin/main` genuinely was `dce2d0f` at its fetch, because my push was
+  still in flight and I had written the brief as though local and origin were the same thing.
+  And I told S6 main was RED on its seven when the widening had not landed, so its acceptance
+  test would have passed whether or not it did the work - it built its own harness and got a
+  real baseline instead.
+
+- **In flight: nothing uncommitted.** No worktree holds unlanded work. **Do NOT prune
+  worktrees on a dirty reading:** 23 of 34 show uncommitted changes and every sampled file is
+  BYTE-IDENTICAL to main - they sit at stale bases. Only a diff against main decides.
+
+- **Next action: CS-891, the bare-path citation form.** It was deliberately sequenced after
+  CS-889 and they share a file, so it is now unblocked. Its five filed instances still cite a
+  harness-side memory path that has never existed in this repo, and two further mentions of
+  that path must be LEFT ALONE because they discuss it as the subject of a correction.
+
 ## Session 58 wakeup note - relocated 2026-09-05 (session 61)
 
 ## Session 58 - 2026-09-03 - NO ITEM CLOSED AND NO CODE WRITTEN; a pre-dispatch measurement pass REFUTED the filed premise of two of the three items it was setting up, including one whose obvious repair would have shipped green with its own defect live

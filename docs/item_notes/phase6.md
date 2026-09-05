@@ -234,3 +234,72 @@ headless or in-page harness can observe a tray icon or an OS shortcut at all. Wh
 arm CAN grade is the supervisor's decisions, and that is exactly why they are lifted out of
 `shell/main.js`. Grading the pure half and calling the item done is the failure mode here;
 the run at a real display is not optional.
+
+
+## CS-910
+
+**The tool a script runs is chosen by where the process is standing.**
+
+`scripts/make_cert.py` resolves openssl through `shutil.which`, and its docstring
+reasons that this is the safe shape because the alternative - a spelled absolute
+path - would carry an account name. The first half of that reasoning is right and
+the second half was never checked.
+
+MEASURED 2026-09-05 on the pinned interpreter, in a directory containing a planted
+executable and with `NoDefaultCurrentDirectoryInExePath` absent from the
+environment: `shutil.which` returned a RELATIVE path to the planted file. CPython
+gates that behaviour on `_win_path_needs_curdir`, which consults
+`NeedCurrentDirectoryForExePath`. That variable is set at NEITHER machine nor user
+scope on this machine, so a process launched from Explorer - or from anything that
+does not set it for itself - has the current-directory search live. Some shells set
+it, which is why a first probe of this class came back clean and meant nothing.
+
+**WHY THIS IS NOT ONLY make_cert.py's PROBLEM.** The finding arrived while
+repairing the same class in `shell/main.js`, where spawning a bare interpreter name
+with the repository root as the child's working directory was a local
+code-execution vector - the root grants Modify to Authenticated Users on this
+machine. `shell/lib/supervisor.js::resolveInterpreter` now walks PATH itself,
+refuses any entry that is not rooted, and never consults the working directory. The
+question this item asks is whether every OTHER external tool this repository spawns
+has had the same answer applied, not merely openssl.
+
+**DO NOT FIX IT BY SPELLING A PATH.** Non-negotiable 3 still forbids an absolute
+tool path in a tracked file. The resolution has to happen at runtime, from the
+environment, with the current directory excluded - which is what the shell side
+now does and is the shape to mirror.
+
+**WHAT WOULD SETTLE IT:** an arm that plants a candidate in the working directory
+and reddens if the resolver offers it, applied to every spawn site the repository
+has, not only to the two known ones.
+
+
+## CS-911
+
+**Two writers publish a zero-byte state file over a good one.**
+
+`shell/lib/state.js` writes atomically by staging into a partial file and renaming.
+Its header states the property plainly: a reader sees either the previous file or
+the new one, never a half-written one. That holds for ONE writer.
+
+MEASURED 2026-09-05 by an adversary, against the real module: the partial file has
+a FIXED name and is opened truncating, so two processes sharing one userData
+directory interleave as `A.writePartial` then `B.open(partial, "w")` then
+`A.commitPartial`, and what gets published is EMPTY. Observed directly - a good
+state file of 78 bytes replaced by 0 bytes, after which `inspect` reports
+`restored=false` with the fault "the state file was not valid JSON" and `load`
+falls back to defaults. That falsifies the module's own header and non-negotiable 5.
+
+The same run measured 120 failures out of 800 concurrent saves, all `ENOENT`, which
+is not in that module's `TRANSIENT_CODES` and so is not retried. In `main.js` those
+are swallowed into a single stderr line, under the shortcut launch that has no
+terminal to read it.
+
+**CS-909's SINGLE-INSTANCE LOCK REMOVES TODAY'S ONLY KNOWN SECOND WRITER, AND DOES
+NOT MAKE THE WRITE SAFE.** Do not read that lock as closing this item. It removes
+the one path that was reachable by double-clicking a shortcut; the module remains
+unsafe for any second writer that arrives another way, and its header still claims
+a property it does not have.
+
+**WHAT WOULD SETTLE IT:** an arm that interleaves two writers on one directory and
+reddens on the shipped implementation, plus a decision about whether the header's
+claim is narrowed to one writer or the implementation is widened to honour it.
