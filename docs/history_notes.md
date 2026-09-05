@@ -99,6 +99,79 @@ and this owns the bare-path form. They share a population boundary problem and a
 they must not run concurrently, but merging them would put two different acceptance
 clauses under one arm.
 
+## Session 58 wakeup note - relocated 2026-09-05 (session 61)
+
+## Session 58 - 2026-09-03 - NO ITEM CLOSED AND NO CODE WRITTEN; a pre-dispatch measurement pass REFUTED the filed premise of two of the three items it was setting up, including one whose obvious repair would have shipped green with its own defect live
+
+- **Shipped: NOTHING. Zero items closed, zero lines of product code, working tree was clean at
+  the start and the only commit is documentation.** This was a Phase 0-to-2 session that never
+  reached dispatch. Filed CS-891. Corrected the notes on CS-888, CS-889 and CS-890 in place.
+
+- **WHY IT STOPPED: THE PLANNER WAS STOPPED, NOT COMPLETED.** One `planner` was dispatched in
+  the background with the full measured brief and never returned a spec. Its transcript is
+  saved and resumable by agent id. NO DECOMPOSITION EXISTS, so no builder was dispatched -
+  starting slices without the disjointness proof is the decomposition error that produced
+  CS-888 in the first place, and repeating it to look productive would have been the worse
+  call.
+
+- **THE SESSION'S ACTUAL PRODUCT IS THAT TWO OF THREE FILED PREMISES ARE NOW REFUTED, BEFORE
+  ANY CODE WAS WRITTEN AGAINST THEM.** All three items were filed last session WITH their
+  measurements attached, and two of those measurements did not survive re-derivation. That is
+  the case for measuring a brief before building on it even when the brief is one session old
+  and was itself written from measurement.
+
+- **CS-889 IS THE IMPORTANT ONE: ITS OBVIOUS REPAIR WOULD HAVE SHIPPED GREEN WITH ITS OWN
+  FILED DEFECT LIVE.** The item says the guard "grades only the module-and-symbol form". FALSE
+  - `JUDGED_SHAPES` declares four and one already resolves line numbers. The arm judges the
+  pointer's RANGE only, by explicit documented design, and declines bare basenames because
+  doing otherwise once manufactured six phantom findings. `scripts/make_cert.py` is 546 lines,
+  so all three make_cert pointers the item was filed on RESOLVE IN RANGE - they were dead by
+  pointing at the wrong CONTENT. EXTENDING THE GUARD TO PYTHON MODULES, WHICH IS THE OBVIOUS
+  READING OF THE ITEM, WOULD LEAVE ALL FIVE FILED INSTANCES GREEN. That is CS-880's exact
+  failure shape caught one phase earlier than last session caught it.
+
+- **AND THE GUARDED SET IS NOT LEAKING - I NEARLY FILED A FINDING THAT WAS NOT ONE.** Sweeping
+  all 114 line pointers in tracked markdown outside code fences showed 22 non-resolving inside
+  GUARDED docs with the suite green. Every one is correct behaviour: a declined bare basename,
+  or an in-range pointer landing on a blank line. I checked six file lengths directly against
+  their pointers rather than trusting the sweep. ZERO real violations.
+
+- **CS-890's filed instance is ALREADY REPAIRED and its last dangling wikilink is not a link
+  at all** - it is a TOML array-of-tables header inside a FENCED CODE BLOCK. So the clause is
+  closeable as a universal, not the honest partial I first assumed and said so in writing to
+  the planner before checking the fence. But the guard is broken WIDER than filed, proven by
+  execution against a temp copy: a dangling wikilink in a leaf PASSES, and a ghost link in
+  `MEMORY.md` ITSELF also PASSES, while the positive control - a real leaf unindexed - FAILS.
+  The index may cite a leaf that does not exist and guard (b) is green.
+
+- **CS-888 CONFIRMED AND SHARPENED, PROVEN BY EXECUTION WITH NO FILE WRITES.**
+  `adjudicators_in_sources` takes a sources mapping, so plants pass in memory. Identical bytes:
+  unrecorded names the module in a non-importer, and unrecorded is EMPTY in all five immune
+  ones. The graded population is TWO. The sharpest fact is not in the filing: the one module
+  immunity actually removes from grading, `tests/pathless_clone_guard.py`, imports six PRIVATE
+  names and its own docstring says it MIRRORS the census predicate deliberately. Mirroring is
+  the opposite of deferring, so a consumption rule SPLITS the six rather than clearing them.
+
+- **Decisions: two, both applications of standing rules rather than new ones.** (1) CS-889's
+  item LINE still carries the refuted premise and CS-890's still says tier 1. NEITHER WAS
+  REWRITTEN - session 56's no-clause-rewrite decision holding for an eighth time; the
+  corrections are in the item notes and the drift is recorded here. (2) The bare-path citation
+  class was filed as CS-891 rather than folded into CS-889, because CS-889's clause is about
+  the line-number form and widening an item past its own clause is how a clause stops being
+  falsifiable.
+
+- **In flight: nothing uncommitted.** No worktree holds work. The three items are open and
+  unstarted; the planner's transcript is the only unlanded artifact and it is resumable.
+
+- **Failed paths: one, and it was mine.** I wrote to the planner that CS-890 could only close
+  as an honest partial, then found the code fence and corrected myself to it in a second
+  message. Read the fence before pricing the item.
+
+- **Next action: re-dispatch the planner for the decomposition, then run the round.** CS-888
+  needs no worktree - its harness is a sources mapping. CS-889 must be graded against its own
+  five filed instances before anything else. CS-890 needs two directions and a fenced-code
+  exclusion, and should be re-tiered at dispatch.
+
 ## Session 57 wakeup note - relocated 2026-09-04 (session 60)
 
 ## Session 57 - 2026-09-03 - FOUR ITEMS CLOSED and every one of them was REFUTED FIRST; the round's own repairs reproduced three of the four filed faults one level up, and EVERY repair builder corrected the merger

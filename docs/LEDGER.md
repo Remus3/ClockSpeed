@@ -75,6 +75,87 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-05 - SESSION 61 - CS-896 IS MEASURED AND NOT CLOSED. The lane's SERIAL MEAN sits ABOVE its own runaway cutoff, so the cancellation was the distribution and not flakiness; the repair was refuted with 18 of 26 mutants surviving and is UNMERGED
+Verification: six CI runs on ONE byte-identical tree, read from the run record rather than
+recalled. `tests/test_subprocess_timeouts.py::test_every_subprocess_call_in_this_repository_is_bounded_by_a_timeout`
+is the arm that landed. NOTHING closes CS-896 in this entry.
+
+THE MEASUREMENT CS-896 HAS BEEN MISSING FOR THREE SESSIONS WAS TAKEN, ON THE RUNNER. Its note
+said in terms that a local profile is the wrong instrument and that the item needed a runner
+profile. Taken on GitHub `ubuntu-latest`, nproc 2, 7938 MB, Python 3.14.7, over tree c33afca:
+4784 passed and 117 skipped in 590.82s. ONE test is 18.9 per cent of that step, the ten
+slowest are 45.8 per cent, the twenty slowest are 59.9 per cent, and ALL of the roughly 4600
+tests costing under 0.2s each are 12.7 per cent. Filed as CS-900.
+
+THE SERIAL LANE'S MEAN JOB TIME IS 606.5s AGAINST A 600s CUTOFF. Two serial runs of the
+byte-identical tree: 582s and 631s. That is the whole item in one line - roughly half of all
+runs would be cancelled, so the cancellation was never flakiness and re-running only re-samples
+a distribution whose mean has crossed. It also means CS-896 CANNOT BE CLOSED WITHOUT A REAL
+SPEEDUP: a budget above the lane's own cutoff is incoherent and one below it is unmet.
+
+`-n auto` IS WORTH 1.222x AND THE RANGE IS RECORDED SO NOBODY RE-DERIVES THE FLATTERING END.
+Four parallel runs: 424.18s, 475.98s, 483.14s, 470.67s against serial 541.68s and 590.82s.
+Mean to mean 1.222x; pessimistic pair 1.121x; flattering pair 1.393x, WHICH MUST NOT BE QUOTED.
+Every one of the six reported 4784 passed and 117 skipped, so the verdict does not change and
+only WHICH skip fires in the tmp-path privacy module does.
+
+THE CS-448 PRECONDITION WAS MEASURED ON THE RUNNER AND IT DOES NOT HOLD THERE. CS-448 is OPEN,
+tier 1, and names the exact test that is also the most expensive on the runner, so flipping
+tier 1 to `-n auto` would import an open flake into the lane that must never be red. Its note
+asked for a rootdir measurement inside a real job and said `-q` had always suppressed it.
+Measured: the checkout and the temp root share only the filesystem root, the temp root holds 14
+entries, and four full-suite parallel runs were green. THIS DOES NOT CLOSE CS-448 - the flake
+is a developer-machine phenomenon and the temp root HERE holds 31688 entries.
+
+THE SIGNATURE FAULT REPRODUCED TWICE MORE, MAKING IT TWELVE OF TWELVE. Both repairs this
+session reproduced their own filed fault one level up. The subprocess guard read the keyword
+NAME and never its VALUE, so `timeout=None` - bit-for-bit the unbounded default - satisfied it
+and every bound in the tree was revertible by ONE TOKEN. And the CS-896 budget mechanism, built
+because a lane drifted past its stated target with nothing failing, PERMITS THE IDENTICAL
+DRIFT: raising `timeout-minutes` from 10 to 60 alone passes its guard and all 26 of its arms.
+Its parallel-lane arm greps the whole file for `-n auto`, a string that appears twice in its own
+COMMENTS, so deleting the real invocation leaves the arm green while the lane reverts to serial.
+
+WHAT LANDED. CS-908, below. Three items filed: CS-900, CS-906, CS-907. The `CS-9nn` block was
+opened by operator decision. A frozen-file grant for `.githooks/pre-push` was issued with
+thirteen conditions and NO EDIT WAS MADE UNDER IT.
+
+WHAT IS OWED AND WAS NOT DONE. The CS-896 repair is UNMERGED and its builder was still running
+when the session closed. `.github/workflows/tier1.yml` on main is UNTOUCHED, so the two by-line
+citations into it from the CS-838 and CS-411 records are STILL TRUE and no correction is owed
+YET. AN APPENDED CORRECTION BECOMES OWED THE MOMENT THE RESTRUCTURE LANDS, because it moves both
+lines; an adjudicator ruled the repair is an APPENDED record citing the steps BY NAME, never an
+edit to this file and never a line-neutral workaround.
+
+### 2026-09-05 - CS-908 - CLOSED. Every subprocess call in the repository is bounded by a timeout, behind a guard that derives its population with an AST walk rather than a regex
+Verification: `tests/test_subprocess_timeouts.py::test_every_subprocess_call_in_this_repository_is_bounded_by_a_timeout`,
+with `tests/test_subprocess_timeouts.py::test_every_floor_this_module_uses_is_one_this_arm_grades`
+closing the floor class and `tests/test_subprocess_timeouts.py::test_the_scan_reaches_past_the_tests_tree`
+pinning the widened scope. Observed on the merged tree: 49 arms, and the whole targeted set
+378 passed at exit 0.
+
+WHY THIS IS CS-896's FAILURE MODE AND NOT TIDINESS. A subprocess with no bound cannot fail the
+test that owns it. It burns the job's budget until the runaway cutoff cancels the run, and a
+cancelled run is evidence of nothing. Nine sites under `tests/` had no bound.
+
+THE COUNT WAS CORRECTED DOWNWARD BY THE BUILDER AND THE MERGER WAS WRONG. A brace-matching scan
+reported ELEVEN sites. Nine are real: one was comment PROSE that mentions the call, and one was
+a `Popen` already bounded by a `wait` with a timeout on the following line. An AST walk cannot
+match a comment, which is the reason the guard uses one.
+
+IT SHIPPED REFUTED AND THIS IS THE REPAIRED FORM. An adversary broke it five ways. The sharpest
+was a ONE-TOKEN disarm. Also closed: `getoutput` and `getstatusoutput`, which cannot take a
+timeout at all and are now REFUSED rather than merely unbounded; module aliasing, function
+aliasing, `getattr` and star-import binding escapes; a `Popen` rule that accepted a bounded wait
+on ANY object; both floors settable to zero; and a two-line disarm through the exemption table.
+Every one of those mutants now dies against a pre-repair control proving it was silent before.
+
+THE SCOPE WAS WIDENED RATHER THAN DEFENDED, AND IT COST NOTHING. The `tests/` restriction was
+asserted and never argued, and an unbounded call in `tools/` invoked by a test cancels the same
+lane. Measured before deciding: `tools/` and `scripts/` were ALREADY fully bounded. Final
+population 148 files, 78 sites, 0 unbounded, 0 exemptions against a budget of 0. STANDING
+CONSEQUENCE: a new unbounded subprocess anywhere in the repository now reddens this guard.
+
 ### 2026-09-05 - CS-906 - FROZEN-FILE GRANT ISSUED WITH THIRTEEN CONDITIONS by an adjudicator for `.githooks/pre-push`, scoped to the pytest invocation alone
 Verification: this entry is the grant record CLAUDE.md section 6 requires BEFORE the edit. It is
 not a completion record and it does not close CS-906. NO EDIT HAS BEEN MADE UNDER IT. Confirm that

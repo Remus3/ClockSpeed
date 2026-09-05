@@ -34,6 +34,44 @@ the line becomes a pointer.
 
 ---
 
+## Session 61 - 2026-09-05 - CS-896 MEASURED AND NOT CLOSED: the lane's SERIAL MEAN is ABOVE its own cutoff, so the cancellation was the distribution; BOTH repairs this session were REFUTED and the CS-896 one is UNMERGED
+
+- **Shipped: CS-908 only.** Filed CS-900, CS-906 and CS-907 and opened the `CS-9nn` block on an
+  operator decision. **CS-896 IS NOT CLOSED** - its acceptance needs a run that reports the
+  comparison and no such run exists. No acceptance clause was rewritten, a THIRTEENTH
+  consecutive session.
+
+- **THE MEASUREMENT THE ITEM ASKED FOR THREE SESSIONS AGO WAS TAKEN ON THE RUNNER.** The serial
+  job MEAN is 606.5s against a 600s cutoff, from two runs of a byte-identical tree at 582s and
+  631s. So roughly half of all runs would be cancelled and the cancellation was never flakiness.
+  `-n auto` is worth 1.222x mean to mean (range 1.121x to 1.393x, do NOT quote the flattering
+  end), and all six runs reported 4784 passed and 117 skipped, so the verdict does not change.
+
+- **In flight, and this is the FIRST thing to check.** A repair builder was STILL RUNNING when
+  the session closed, at worktree `.claude/worktrees/agent-afa363106daebb610`. **ITS WORK MAY BE
+  UNCOMMITTED** - a tag preserves nothing that is not committed. Check `git -C <that worktree>
+  status` BEFORE anything else. It was repairing ELEVEN holes in the CS-896 mechanism.
+
+- **Decisions: the `CS-9nn` block is open and CS-901 through CS-905 are NOT allocatable** - they
+  are synthetic fixture ids in the drift-guard corpus. The handoff said CS-903 and CS-904 were
+  clean; both measured FALSE. A frozen-file grant for `.githooks/pre-push` was issued with
+  THIRTEEN conditions and NO EDIT WAS MADE UNDER IT, because two conditions cannot be honestly
+  met on a machine another project held at 84 to 99 per cent.
+
+- **Surprises: the CS-896 note's own premise was half wrong.** It said the three slowest local
+  tests are library-backed and cost nothing on the runner. True of ONE. The other two got MORE
+  expensive - 51.5s local to 111.4s on the runner, and 25.8s to 50.5s. The runner is about 2x
+  SLOWER for subprocess-heavy work. Recorded under CS-900.
+
+- **Failed paths.** My brace-matching scan reported ELEVEN unbounded subprocess sites; NINE are
+  real, and a builder corrected me - one was comment prose, one a `Popen` already bounded. My
+  first two speedup figures, 1.774x inherited from an adversary and 1.335x from single samples,
+  were both wrong; the controlled six-sample figure is 1.222x. I also framed the ledger
+  line-pointer question as a two-way choice and an adjudicator refuted both options and produced
+  a third.
+
+- **Next action: check the running builder's worktree for uncommitted work, then finish CS-896.**
+
 ## Session 60 - 2026-09-04 - CS-891 CLOSED AS AN HONEST PARTIAL after FIVE refutations; the round's repair reproduced its own filed fault a FIFTH consecutive session and its own adversaries caught every instance, and the repair then would not fit under a data-hygiene ceiling
 
 - **Shipped: CS-891 CLOSED AS AN HONEST PARTIAL**, the unmet conjunct named in the ledger in
@@ -237,75 +275,3 @@ the line becomes a pointer.
   CS-889 and they share a file, so it is now unblocked. Its five filed instances still cite a
   harness-side memory path that has never existed in this repo, and two further mentions of
   that path must be LEFT ALONE because they discuss it as the subject of a correction.
-
-
-## Session 58 - 2026-09-03 - NO ITEM CLOSED AND NO CODE WRITTEN; a pre-dispatch measurement pass REFUTED the filed premise of two of the three items it was setting up, including one whose obvious repair would have shipped green with its own defect live
-
-- **Shipped: NOTHING. Zero items closed, zero lines of product code, working tree was clean at
-  the start and the only commit is documentation.** This was a Phase 0-to-2 session that never
-  reached dispatch. Filed CS-891. Corrected the notes on CS-888, CS-889 and CS-890 in place.
-
-- **WHY IT STOPPED: THE PLANNER WAS STOPPED, NOT COMPLETED.** One `planner` was dispatched in
-  the background with the full measured brief and never returned a spec. Its transcript is
-  saved and resumable by agent id. NO DECOMPOSITION EXISTS, so no builder was dispatched -
-  starting slices without the disjointness proof is the decomposition error that produced
-  CS-888 in the first place, and repeating it to look productive would have been the worse
-  call.
-
-- **THE SESSION'S ACTUAL PRODUCT IS THAT TWO OF THREE FILED PREMISES ARE NOW REFUTED, BEFORE
-  ANY CODE WAS WRITTEN AGAINST THEM.** All three items were filed last session WITH their
-  measurements attached, and two of those measurements did not survive re-derivation. That is
-  the case for measuring a brief before building on it even when the brief is one session old
-  and was itself written from measurement.
-
-- **CS-889 IS THE IMPORTANT ONE: ITS OBVIOUS REPAIR WOULD HAVE SHIPPED GREEN WITH ITS OWN
-  FILED DEFECT LIVE.** The item says the guard "grades only the module-and-symbol form". FALSE
-  - `JUDGED_SHAPES` declares four and one already resolves line numbers. The arm judges the
-  pointer's RANGE only, by explicit documented design, and declines bare basenames because
-  doing otherwise once manufactured six phantom findings. `scripts/make_cert.py` is 546 lines,
-  so all three make_cert pointers the item was filed on RESOLVE IN RANGE - they were dead by
-  pointing at the wrong CONTENT. EXTENDING THE GUARD TO PYTHON MODULES, WHICH IS THE OBVIOUS
-  READING OF THE ITEM, WOULD LEAVE ALL FIVE FILED INSTANCES GREEN. That is CS-880's exact
-  failure shape caught one phase earlier than last session caught it.
-
-- **AND THE GUARDED SET IS NOT LEAKING - I NEARLY FILED A FINDING THAT WAS NOT ONE.** Sweeping
-  all 114 line pointers in tracked markdown outside code fences showed 22 non-resolving inside
-  GUARDED docs with the suite green. Every one is correct behaviour: a declined bare basename,
-  or an in-range pointer landing on a blank line. I checked six file lengths directly against
-  their pointers rather than trusting the sweep. ZERO real violations.
-
-- **CS-890's filed instance is ALREADY REPAIRED and its last dangling wikilink is not a link
-  at all** - it is a TOML array-of-tables header inside a FENCED CODE BLOCK. So the clause is
-  closeable as a universal, not the honest partial I first assumed and said so in writing to
-  the planner before checking the fence. But the guard is broken WIDER than filed, proven by
-  execution against a temp copy: a dangling wikilink in a leaf PASSES, and a ghost link in
-  `MEMORY.md` ITSELF also PASSES, while the positive control - a real leaf unindexed - FAILS.
-  The index may cite a leaf that does not exist and guard (b) is green.
-
-- **CS-888 CONFIRMED AND SHARPENED, PROVEN BY EXECUTION WITH NO FILE WRITES.**
-  `adjudicators_in_sources` takes a sources mapping, so plants pass in memory. Identical bytes:
-  unrecorded names the module in a non-importer, and unrecorded is EMPTY in all five immune
-  ones. The graded population is TWO. The sharpest fact is not in the filing: the one module
-  immunity actually removes from grading, `tests/pathless_clone_guard.py`, imports six PRIVATE
-  names and its own docstring says it MIRRORS the census predicate deliberately. Mirroring is
-  the opposite of deferring, so a consumption rule SPLITS the six rather than clearing them.
-
-- **Decisions: two, both applications of standing rules rather than new ones.** (1) CS-889's
-  item LINE still carries the refuted premise and CS-890's still says tier 1. NEITHER WAS
-  REWRITTEN - session 56's no-clause-rewrite decision holding for an eighth time; the
-  corrections are in the item notes and the drift is recorded here. (2) The bare-path citation
-  class was filed as CS-891 rather than folded into CS-889, because CS-889's clause is about
-  the line-number form and widening an item past its own clause is how a clause stops being
-  falsifiable.
-
-- **In flight: nothing uncommitted.** No worktree holds work. The three items are open and
-  unstarted; the planner's transcript is the only unlanded artifact and it is resumable.
-
-- **Failed paths: one, and it was mine.** I wrote to the planner that CS-890 could only close
-  as an honest partial, then found the code fence and corrected myself to it in a second
-  message. Read the fence before pricing the item.
-
-- **Next action: re-dispatch the planner for the decomposition, then run the round.** CS-888
-  needs no worktree - its harness is a sources mapping. CS-889 must be graded against its own
-  five filed instances before anything else. CS-890 needs two directions and a fenced-code
-  exclusion, and should be re-tiered at dispatch.
