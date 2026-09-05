@@ -144,7 +144,16 @@ the line becomes a pointer.
   fifth raised ImportError, and pytest never enters through a non-test module. Fixed, with
   an arm that re-enters from every side in a fresh interpreter.
 
-- **Next action: the seven recorded findings against CS-897**, which now fit. Two are that
+- **CI ON THE FINAL COMMIT WAS CANCELLED AT 10m19s, NINETEEN SECONDS OVER THE CUTOFF, AND
+  NOTHING FAILED.** The same tree ran 4897 passed / 4 skipped / exit 0 in the pre-push hook
+  minutes earlier, and the only cancelled step is the unit-test step. CS-896 predicted this
+  one run earlier and it landed. **DO NOT read it as flakiness and do not re-run hoping for
+  green** - the variance is runner-side and the lane is now over its cutoff, so a re-run
+  only re-samples a distribution whose mean has crossed the line. CS-896 IS NOW THE TOP
+  ITEM.
+
+- **Next action: CS-896, because tier 1 no longer completes.** Then the seven recorded
+  findings against CS-897, which now fit. Two are that
   item's own defect class in text it authored: a floor whose stated property holds for two
   of five shapes, and a coverage proxy that admits the exact case its message says it
   prevents. Detail in the CS-897 ledger entry. Then CS-899, which also needed this room., because it gates

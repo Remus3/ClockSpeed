@@ -1666,6 +1666,27 @@ author changed their mind the same hour - is the habit the rule exists to preven
 clause was not touched either way: "completes inside a stated budget and reports its own
 duration against it" is exactly what is still owed.
 
+### THE PREDICTION LANDED ON THE VERY NEXT RUN - MEASURED 2026-09-05 (session 60)
+
+The run after the five-second margin was **CANCELLED at 10m19s, NINETEEN SECONDS OVER**
+the cutoff. The eighth data point said in terms that the next run might be cancelled with
+nothing failing. It was, one run later.
+
+**NOTHING FAILED, AND THAT IS THE POINT.** The only cancelled step is the unit-test step;
+every step before it succeeded. The SAME TREE ran green in the pre-push hook minutes
+earlier: 4897 passed, 4 skipped, exit 0. So the lane did not find a defect and did not
+fail - it ran out of time, and a cancelled run is evidence of nothing.
+
+**DO NOT READ THIS AS FLAKINESS AND DO NOT RE-RUN IT HOPING FOR GREEN.** The sixth data
+point established the variance is RUNNER-SIDE - a doc-only commit ran thirty-nine seconds
+slower than a code-heavy one. The eighth showed the margin down to five seconds. This is
+the third leg of the same measurement and it closes it: the lane is over its cutoff, the
+spread that puts it there owes nothing to workload, and re-running only re-samples a
+distribution whose mean has crossed the line.
+
+Series: cancelled past 10m, 8m29s, 9m18s, 9m09s, 8m44s, 9m23s, 9m25s, 9m55s, CANCELLED
+at 10m19s. THE ITEM IS NOW LOAD-BEARING RATHER THAN PREDICTIVE.
+
 ### EIGHTH DATA POINT - FIVE SECONDS OF MARGIN - MEASURED 2026-09-05 (session 60)
 
 Tier 1 on `d0b41e2` ran **9m55s, SUCCESS - FIVE SECONDS under the ten-minute cutoff**.
