@@ -417,7 +417,7 @@ def _pathless_cause(exc: OSError) -> OSError:
     2.1 names and ruff's SLF rules exist to catch, and this module deliberately
     imports nothing from another package of this tree at all. That docstring,
     and ``scripts/make_cert.py``'s copy of it, carry the long form of the
-    reasoning. THE FOURTH COPY IS A PRICED DUPLICATE RATHER THAN AN UNEXAMINED
+    reasoning. THE FIFTH COPY IS A PRICED DUPLICATE RATHER THAN AN UNEXAMINED
     ONE, and this paragraph is that price. It used to call a single shared owner
     the correct repair and stop there; CS-885 then MEASURED that repair and
     DECLINED it, so a recommendation outlived the question it answered. The

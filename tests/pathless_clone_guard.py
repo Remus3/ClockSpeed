@@ -660,6 +660,13 @@ DOCSTRING_PINS: Final = {
     "clockspeed/save/usmap.py": "116415be94eb72dd4ef7a2875d05e179",
     "clockspeed/save/workdir.py": "116415be94eb72dd4ef7a2875d05e179",
     "scripts/make_cert.py": "e716e0d726c0e4351e9c70f65bcf80be",
+    # Added 2026-09-05 with the CS-909 copy. Read before pinning, as this
+    # table's own instruction requires: it names `make_cert.py` as the copy
+    # carrying the long form, explains the Desktop path as the channel it
+    # closes, and requires `from None` at the call site. It does NOT name the
+    # collapse - it makes no claim that a single shared owner is the correct
+    # repair, which is the promise CS-885 measured and declined.
+    "scripts/make_shortcut.py": "498eb544182c6e929501e6ff575ef0fa",
 }
 
 #: Hex characters of SHA-256 kept in a pin. TRUNCATION IS SAFE HERE AND THE

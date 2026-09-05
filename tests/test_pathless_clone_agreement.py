@@ -72,10 +72,18 @@ CONTROL: Final = "tests/test_chained_cause.py"
 PLANTED_PAIR: Final = 2
 
 #: The live copy count the CS-886 prose is written about. The pricing docstring
-#: calls itself the FOURTH copy, so a tree that grows a fifth has invalidated
+#: calls itself the FIFTH copy, so a tree that grows a sixth has invalidated
 #: that sentence; section (d) reddens on the move rather than letting the prose
 #: rot quietly beside a population that no longer matches it.
-LIVE_COPIES: Final = 4
+#:
+#: MOVED 4 -> 5 on 2026-09-05. CS-909 added `scripts/make_shortcut.py`, which
+#: needs the same pathless clone for the same reason every other copy does, and
+#: this arm is what made the growth visible - the copy shipped one commit
+#: earlier and nothing said so until the first full-suite run after it. The
+#: duplication itself is NOT re-litigated here: CS-885 measured the shared-owner
+#: repair and DECLINED it, because routing a site through an imported owner
+#: drops it from `closed-pathless` to `unproven` on the privacy channel.
+LIVE_COPIES: Final = 5
 
 #: The promise CS-886 was filed against, planted verbatim so the sweep is
 #: proven against the sentence that actually shipped rather than a paraphrase.
@@ -911,14 +919,16 @@ def test_the_guard_module_states_the_shape_without_restating_its_size() -> None:
 def test_the_ordinal_leg_is_not_satisfied_by_the_shared_winerror_sentence() -> None:
     """MEASURED, NOT ASSUMED.
 
-    All four live copies share a sentence about supplying ``winerror`` as "a
-    fourth argument". A bare-ordinal test passes on every one of them, so it
-    would have kept passing after the sentence it exists to hold was deleted.
+    Every live copy shares a sentence about supplying ``winerror`` as "a fourth
+    argument". A bare-ordinal test passes on every one of them, so it would have
+    kept passing after the sentence it exists to hold was deleted. That
+    "fourth" is a fixed fact about the OSError constructor and does NOT track
+    the copy count, which is exactly why it makes the sharpest control here.
     """
     assert not names_its_ordinal("supplying winerror as a fourth argument", LIVE_COPIES)
-    assert names_its_ordinal("the fourth copy is a priced duplicate", LIVE_COPIES)
-    assert not names_its_ordinal("the fourth copy", LIVE_COPIES + 1)
-    assert not names_its_ordinal("the fourth copy", len(ORDINALS))
+    assert names_its_ordinal("the fifth copy is a priced duplicate", LIVE_COPIES)
+    assert not names_its_ordinal("the fifth copy", LIVE_COPIES + 1)
+    assert not names_its_ordinal("the fifth copy", len(ORDINALS))
 
 
 def test_a_copy_naming_a_module_the_sources_do_not_carry_is_loud() -> None:
