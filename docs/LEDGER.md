@@ -75,6 +75,35 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-04 - SESSION 60 - THE CS-8nn ID BLOCK IS FULL AT 100 OF 100, AND CREATING THE NEXT ONE IS AN OPERATOR DECISION WITH A RECORDED PRECEDENT
+Verification: count the distinct `CS-8nn` ids appearing in `ROADMAP.md`, `BACKLOG.md`,
+`docs/GATED.md`, `docs/LEDGER.md`, `docs/history_notes.md` and the `## CS-nnn` section heads
+under `docs/item_notes/`. It returns 100, and the free list is empty. Sixty-four of the
+hundred are still OPEN in `ROADMAP.md`.
+
+WHY THIS IS NOT AN AGENT DECISION, and the answer is in the index rather than in judgement.
+`docs/item_notes.md` records that the `CS-8nn` block exists "because `CS-4nn` filled up at 98
+of 100 - operator decision 2026-08-21, recorded in `ROADMAP.md`". Creating a block is
+therefore a decision the operator has made before, on a documented trigger, and the trigger
+has now been passed: `CS-4nn` prompted it at 98 and `CS-8nn` sits at 100.
+
+`docs/adr/0011-the-cs-8nn-follow-up-leaf-splits-at-cs-850.md` anticipated this exact moment
+and declined it in terms - reaching CS-900 is "a `ROADMAP.md` ID-block question rather than a
+doc-topology one, it is what created `CS-8nn` in the first place, and it should not be
+answered by this ADR". Two documents therefore point at the same answer: the next block is
+the operator's to name.
+
+WHAT IS BLOCKED AND WHAT IS NOT. Only the FILING of a new item is blocked. Every open item
+already has its id, its line and its leaf section, so work continues normally. The four
+residuals this session recorded without ids are recorded in the entry above for this reason
+and not because anyone forgot them.
+
+WHAT THE DECISION HAS TO SETTLE, stated so it can be answered in one line: which block the
+next id comes from, and whether a phase-4 follow-up past CS-899 gets a third leaf beside the
+two the routing table already names. The leaf question follows the block question and not the
+other way round, because `docs/item_notes.md` derives a leaf from the ROADMAP phase heading
+plus the id block, never from the id alone.
+
 ### 2026-09-04 - CS-494 - DECLARATION RECORD. NOT A COMPLETION RECORD. It closed on 2026-08-20 and this does not reopen it; it gives the id the single well-formed entry head the shape above requires
 Verification: `grep -cE "^### [0-9-]+ - CS-494 - " docs/LEDGER.md` returns 1, where before this
 record it returned 0. The work itself is unchanged and is verified by the 2026-08-20 entry
