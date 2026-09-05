@@ -1019,3 +1019,63 @@ def test_schema_2_reports_a_redacted_path_on_the_default_path(machine: FakeMachi
     assert isinstance(payload["game"]["dir"], str)
     assert_not_the_raw_path(payload["save"]["root_path"], machine.save_root, "save.root_path")
     assert_not_the_raw_path(payload["game"]["dir"], machine.game_dir, "game.dir")
+
+
+# ---------------------------------------------------------------------------
+# CS-910 - what this probe actually hands to the spawn
+# ---------------------------------------------------------------------------
+
+
+def test_the_git_this_probe_spawns_is_resolved_and_never_named(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """CS-910 - a RUNTIME reading, alongside the static census in test_toolpath.
+
+    THIS IS THE WORST-PLACED OF THE THREE git SITES AND IT IS WORTH SAYING WHY.
+    A bare ``"git"`` in an argv is resolved by ``CreateProcess``, current
+    directory first, whenever the gate variable is absent from the environment -
+    its state at both machine and user scope on the development machine. This
+    module is a SessionStart hook: it runs unattended, before anything else in a
+    session, from whatever directory that session was opened in, and it discards
+    what it cannot read. A planted git here would run silently and be reported as
+    a missing fact rather than as an incident.
+
+    NOTHING BELOW ASSERTS ON A PATH - see this module's redaction discipline.
+    """
+    recorded: list[list[str]] = []
+
+    def record(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        recorded.append(list(argv))
+        return subprocess.CompletedProcess(list(argv), 0, "", "")
+
+    monkeypatch.setattr(facts_probe.subprocess, "run", record)
+    facts_probe._git(tmp_path, ["rev-parse"])  # noqa: SLF001 - the site under test
+
+    assert len(recorded) == 1, "the probe did not spawn exactly once, so this grades nothing"
+    program = recorded[0][0]
+    rooted = Path(program).is_absolute()
+    assert rooted, "the program handed to the spawn is not an absolute path"
+    named = program == facts_probe.GIT_NAME
+    assert not named, "the program handed to the spawn is the bare tool name"
+
+
+def test_an_unresolvable_git_answers_none_rather_than_spawning(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """CS-910 - the refusal path.
+
+    A resolver that finds nothing must stop the spawn rather than fall back to
+    the name, since falling back is the behaviour being removed.
+    """
+    spawned: list[object] = []
+
+    def record(argv: object, **_kwargs: object) -> None:
+        spawned.append(argv)
+
+    monkeypatch.setattr(facts_probe, "resolve_tool", lambda _name: None)
+    monkeypatch.setattr(facts_probe.subprocess, "run", record)
+
+    answer = facts_probe._git(tmp_path, ["rev-parse"])  # noqa: SLF001 - the site under test
+
+    assert answer is None
+    assert spawned == [], "the probe spawned something after the resolver refused"

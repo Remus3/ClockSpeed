@@ -75,6 +75,22 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, NamedTuple
 
+# CS-910. Run as a bare script and also loaded BY PATH by the suite, so this
+# directory cannot be assumed on sys.path. The insert is the one _load_doc_budget
+# below already makes, hoisted to module scope because the resolver is reached on
+# the enumeration path rather than from one guard. The BARE module name is
+# required: `tools` carries no __init__.py, so spelling it `tools.toolpath`
+# hands mypy the same file under two module names and it refuses the run.
+_TOOLS_DIR = Path(__file__).resolve().parent
+if str(_TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TOOLS_DIR))
+
+from toolpath import resolve_tool  # noqa: E402
+
+#: The tool this guard asks which files are tracked. A NAME, resolved at runtime
+#: and never spelled as a path - non-negotiable 3.
+GIT_NAME = "git"
+
 # --- enumeration policy -----------------------------------------------------
 
 WALK_SKIP_DIRS = frozenset(
@@ -373,9 +389,20 @@ def _guard(guard_id: str, name: str, status: str, detail: list[str]) -> Guard:
 
 
 def _git_ls_files(root: Path) -> list[str]:
+    # CS-910 - THE TOOL IS RESOLVED, NEVER NAMED. A bare "git" in an argv is
+    # resolved by CreateProcess, which searches the CURRENT DIRECTORY before
+    # PATH whenever the gate variable is absent from the environment - its state
+    # at both machine and user scope on the development machine. This guard is
+    # pointed at trees it did not create and is run from wherever the operator
+    # is standing, so the current directory is not one it controls. An
+    # unresolvable git yields the empty list, which is what a git that FAILS
+    # already yields here.
+    git = resolve_tool(GIT_NAME)
+    if git is None:
+        return []
     try:
         proc = subprocess.run(
-            ["git", "-C", str(root), "ls-files", "-z"],
+            [git, "-C", str(root), "ls-files", "-z"],
             capture_output=True,
             text=True,
             timeout=30,

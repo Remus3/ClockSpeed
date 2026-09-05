@@ -1023,14 +1023,19 @@ def toolchain_run(importable: set[str]) -> Callable[..., str | None]:
 
 
 def toolchain_which(present: set[str], root: Path) -> Callable[..., str | None]:
-    """Stand in for shutil.which, planting each present tool under tmp_path.
+    """Stand in for the tool resolver, planting each present tool under tmp_path.
+
+    CS-910 - IT ANSWERS WITH AN ABSOLUTE PATH, which it always did and which is
+    now the resolver's contract rather than an incidental property of the stub.
+    ``tmp_path`` is rooted, so a stub that started answering relatively would be
+    the stub drifting away from the thing it stands in for.
 
     Args:
         present: The tools that have an executable on PATH.
         root: The directory the planted executables are reported in.
 
     Returns:
-        A stand-in for shutil.which.
+        A stand-in for :func:`toolpath.resolve_tool`.
     """
 
     def which(name: str, *_args: object, **_kwargs: object) -> str | None:
@@ -1067,7 +1072,12 @@ def toolchain_rows(
     root = checkout_with_hooks(tmp_path, checkout_name)
 
     monkeypatch.setattr(verify_env, "_run", toolchain_run(importable))
-    monkeypatch.setattr(verify_env.shutil, "which", toolchain_which(present, root))
+    # CS-910: the name bound IN verify_env, never a global patch of some other
+    # module's attribute. Patching `verify_env.shutil.which` reached into the
+    # standard library and changed it for every importer in the process for the
+    # duration of the test; patching the name the module actually calls is both
+    # narrower and the only spelling that survives the module changing resolver.
+    monkeypatch.setattr(verify_env, "resolve_tool", toolchain_which(present, root))
     monkeypatch.setattr(verify_env, "resolve_game_dir", lambda: (None, "stubbed"))
     monkeypatch.setattr(verify_env, "resolve_save_root", lambda: None)
     monkeypatch.setattr(verify_env, "numeric_account_dirs", lambda _root: [])
@@ -1181,3 +1191,49 @@ def test_a_genuine_path_executable_is_still_judged_by_the_path(
         assert rows[name]["ok"] is True, (
             f"{name} is a PATH executable and was judged by the module channel"
         )
+
+
+# ---------------------------------------------------------------------------
+# CS-910 - what this script actually hands to the spawn
+# ---------------------------------------------------------------------------
+
+#: The two ways this script starts a process: a PATH executable answering
+#: ``--version``, and the interpreter answering ``-m``. Named rather than written
+#: as a 2 at the assertion, so a channel added or lost says which one it was.
+SPAWN_CHANNELS = 2
+
+
+def test_every_program_this_script_spawns_is_rooted(monkeypatch: pytest.MonkeyPatch) -> None:
+    """CS-910 - a RUNTIME reading of the argv, which no source walk can give.
+
+    ``_run`` takes a whole command from its caller, so ``tests/toolpath_guard.py``
+    records it INDIRECT and grades it not at all - reading one function cannot
+    say where an argument came from, and a walk that guessed would manufacture
+    confidence. This arm intercepts the spawn instead and looks at what was
+    really built, across BOTH channels the script uses: a PATH executable
+    answering ``--version``, and the interpreter answering ``-m``.
+
+    IT USES THE REAL RESOLVER, deliberately. Stubbing it would grade the stub.
+
+    NOTHING BELOW ASSERTS ON A PATH - every assertion binds a count or a boolean,
+    because pytest renders the asserted expression independently of the message.
+    """
+    recorded: list[list[str]] = []
+
+    def record(argv: list[str], **_kwargs: object) -> object:
+        recorded.append(list(argv))
+        raise OSError(errno.ENOENT, "recorded, never launched")
+
+    monkeypatch.setattr(verify_env.subprocess, "run", record)
+
+    verify_env._tool_version("git")  # noqa: SLF001 - the PATH-executable channel
+    verify_env._module_version("ruff")  # noqa: SLF001 - the interpreter channel
+
+    assert len(recorded) == SPAWN_CHANNELS, (
+        "the script did not spawn once per channel, so this grades nothing - a resolver"
+        " that refused would skip its spawn entirely and leave the loop below empty"
+    )
+    unrooted = [argv[0] for argv in recorded if not Path(argv[0]).is_absolute()]
+    assert unrooted == [], f"{len(unrooted)} spawned program(s) are not absolute paths"
+    bare = [argv[0] for argv in recorded if argv[0] in {"git", "ruff"}]
+    assert bare == [], f"{len(bare)} spawned program(s) are a bare tool name"

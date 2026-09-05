@@ -854,3 +854,67 @@ def test_the_liveness_census_is_clean_when_read_from_another_module() -> None:
         f"{count} finding(s) in the liveness checker's own source, read from outside it: "
         f"{findings[:20]}"
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-910 - what this module actually hands to the spawn
+# ---------------------------------------------------------------------------
+
+
+def test_the_git_this_module_spawns_is_resolved_and_never_named(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """CS-910 - a RUNTIME reading, which the static census cannot give.
+
+    ``tests/toolpath_guard.py`` grades this site by reading the source, and a
+    source reading is only ever as good as its fold. This one intercepts the
+    spawn itself and looks at the argv that was really built, so the two
+    instruments have to agree before the claim stands.
+
+    WHY IT MATTERS HERE SPECIFICALLY: a bare ``"git"`` in an argv is resolved by
+    ``CreateProcess``, which searches the CURRENT DIRECTORY before PATH whenever
+    the gate variable is absent from the environment - its state at both machine
+    and user scope on the development machine. This tool walks trees it did not
+    create and runs from wherever the operator is standing.
+
+    NOTHING BELOW ASSERTS ON A PATH. Every assertion binds a boolean, because
+    pytest renders the asserted expression independently of the message.
+    """
+    recorded: list[list[str]] = []
+
+    def record(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        recorded.append(list(argv))
+        return subprocess.CompletedProcess(list(argv), 0, "", "")
+
+    monkeypatch.setattr(doc_budget.subprocess, "run", record)
+    doc_budget._git(tmp_path, "rev-parse", "--show-toplevel")  # noqa: SLF001 - the site under test
+
+    assert len(recorded) == 1, "the module did not spawn exactly once, so this grades nothing"
+    program = recorded[0][0]
+    rooted = Path(program).is_absolute()
+    assert rooted, "the program handed to the spawn is not an absolute path"
+    named = program == doc_budget.GIT_NAME
+    assert not named, "the program handed to the spawn is the bare tool name"
+
+
+def test_an_unresolvable_git_answers_none_rather_than_spawning(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """CS-910 - the refusal path, which the arm above cannot reach.
+
+    A resolver that finds nothing must stop the spawn rather than fall back to
+    the name, because falling back is exactly the behaviour being removed. This
+    is the half that would go unmeasured if only the success path were graded.
+    """
+    spawned: list[object] = []
+
+    def record(argv: object, **_kwargs: object) -> None:
+        spawned.append(argv)
+
+    monkeypatch.setattr(doc_budget, "resolve_tool", lambda _name: None)
+    monkeypatch.setattr(doc_budget.subprocess, "run", record)
+
+    answer = doc_budget._git(tmp_path, "rev-parse")  # noqa: SLF001 - the site under test
+
+    assert answer is None
+    assert spawned == [], "the module spawned something after the resolver refused"

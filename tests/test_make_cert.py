@@ -2309,3 +2309,193 @@ def test_every_source_citation_in_this_slice_names_a_symbol_that_is_really_there
     assert unresolved == [], (
         f"{len(unresolved)} citation(s) name a symbol that is not there: {sorted(unresolved)}"
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-910 - the tool a script runs must not be chosen by where it is standing
+# ---------------------------------------------------------------------------
+
+#: The environment variable Windows consults before adding the CURRENT
+#: DIRECTORY to an executable search, named once so the arms that remove it and
+#: the prose explaining them cannot drift apart.
+#:
+#: MEASURED 2026-09-05: it is set at NEITHER machine nor user scope on the
+#: development machine, so a process launched from Explorer - which is what a
+#: shortcut produces - has the current-directory search LIVE. Some shells set it
+#: for themselves, and the harness shell this class was first probed under is one
+#: of them, which is why a naive probe comes back clean and means nothing. The
+#: arms below therefore remove it from the CHILD environment rather than trusting
+#: whatever the parent happened to inherit.
+CURDIR_GATE = "NoDefaultCurrentDirectoryInExePath"
+
+#: What the planted openssl exits with. Never read back through make_cert's own
+#: exit code - that collapses every openssl failure onto EXIT_OPENSSL_FAILED -
+#: but kept distinct from STUB_OPENSSL_EXIT so a stray stub can never be mistaken
+#: for this one in a transcript.
+PLANTED_OPENSSL_EXIT = 34
+
+#: The file the planted openssl writes before exiting. Its EXISTENCE is the
+#: measurement: an exit code says only that something failed, whereas a marker on
+#: disk says the planted binary is the thing that ran.
+PLANTED_MARKER_NAME = "planted-openssl-ran.txt"
+
+#: What the child probe prints when the current-directory search is live.
+GATE_OPEN = "True"
+
+
+def _plant_openssl(directory: Path) -> Path:
+    """Write an openssl into ``directory`` that records having been run.
+
+    A REAL EXECUTABLE RATHER THAN A PATCH, for the reason
+    :func:`_failing_openssl_stub` states: an in-process patch cannot observe what
+    a real spawn resolved. This one differs from that stub in the single way that
+    is the whole point - it is planted in the WORKING DIRECTORY and never on
+    PATH, so nothing is entitled to find it.
+
+    Args:
+        directory: Where to plant. Created if it is not there.
+
+    Returns:
+        The planted file.
+    """
+    directory.mkdir(parents=True, exist_ok=True)
+    marker = PLANTED_MARKER_NAME
+    if os.name == "nt":
+        planted = directory / "openssl.bat"
+        body = f"@echo off\r\necho ran > {marker}\r\nexit /b {PLANTED_OPENSSL_EXIT}\r\n"
+    else:
+        planted = directory / "openssl"
+        body = f"#!/bin/sh\necho ran > {marker}\nexit {PLANTED_OPENSSL_EXIT}\n"
+    # newline="" for the reason _failing_openssl_stub states: a text-mode write
+    # would translate the CRLF above into CR CR LF.
+    planted.write_text(body, encoding="ascii", newline="")
+    if os.name != "nt":
+        planted.chmod(0o755)
+    return planted
+
+
+def _curdir_search_env(path_value: str) -> dict[str, str]:
+    """A child environment with the current-directory gate REMOVED.
+
+    Removed by a case-insensitive scan rather than by one ``pop``: Windows
+    environment names are case-insensitive, a mapping copied out of
+    ``os.environ`` can hold the variable under any spelling, and a single-key
+    delete that misses leaves the arm grading nothing while still going green.
+
+    Args:
+        path_value: What the child's PATH is set to.
+
+    Returns:
+        The complete child environment.
+    """
+    environment = dict(os.environ)
+    for key in [name for name in environment if name.upper() == CURDIR_GATE.upper()]:
+        del environment[key]
+    environment["PATH"] = path_value
+    return environment
+
+
+def _child_probe(source: str, working_dir: Path, environment: dict[str, str]) -> str:
+    """Run one throwaway probe as a real child, standing in ``working_dir``.
+
+    NOTHING THIS RETURNS IS EVER A PATH. The two callers below ask it yes/no
+    questions and it hands back the answer, because a probe that returned what it
+    resolved would put a temporary directory - and therefore the account name -
+    into an assertion message.
+
+    Args:
+        source: The program to run with ``-c``.
+        working_dir: The child's current directory.
+        environment: The child's complete environment.
+
+    Returns:
+        Stripped stdout.
+    """
+    done = subprocess.run(
+        [sys.executable, "-c", source],
+        shell=False,
+        capture_output=True,
+        text=True,
+        cwd=str(working_dir),
+        env=environment,
+        timeout=OUTCOME_TIMEOUT_SECONDS,
+        check=False,
+    )
+    probe_status = done.returncode
+    assert probe_status == 0, f"the probe itself failed with status {probe_status}"
+    return done.stdout.strip()
+
+
+def test_a_planted_openssl_in_the_working_directory_is_never_run(tmp_path: Path) -> None:
+    """CS-910 - the current directory may not supply the tool a script runs.
+
+    THE CONTROL RUNS FIRST AND IS PART OF THE ARM. A negative measurement is
+    worth nothing without evidence that the thing being looked for could have
+    been seen, so this asserts three things before it asserts the property: the
+    plant landed, the current-directory search is genuinely LIVE in the child,
+    and a current-directory-consulting resolver DOES offer the plant. Without all
+    three a green result is indistinguishable from an arm that reproduced
+    nothing at all.
+
+    PATH IS EMPTIED OF OPENSSL DELIBERATELY, so the only openssl the child can
+    reach anywhere is the planted one. That makes "openssl is not on PATH" the
+    single correct outcome and any spawn whatsoever the defect.
+
+    EVERY ASSERTION BINDS A SCALAR. pytest renders the asserted EXPRESSION
+    independently of the message and a temporary path on Windows carries the
+    account name, which is non-negotiable 3.
+    """
+    standing = tmp_path / "standing"
+    planted = _plant_openssl(standing)
+    marker = standing / PLANTED_MARKER_NAME
+    empty_path = tmp_path / "no-tools"
+    empty_path.mkdir()
+    environment = _curdir_search_env(str(empty_path))
+
+    landed = planted.is_file() and planted.stat().st_size > 0
+    assert landed, "the plant did not land, so this arm grades nothing"
+    ran_before = marker.exists()
+    assert not ran_before, "the marker existed before anything ran"
+
+    gate = _child_probe(
+        "import os,sys;sys.stdout.write(str(os.name != 'nt' or"
+        " __import__('_winapi').NeedCurrentDirectoryForExePath('openssl')))",
+        standing,
+        environment,
+    )
+    assert gate == GATE_OPEN, (
+        "the current-directory search is not live in the child, so this arm cannot"
+        " reproduce the defect it exists to grade"
+    )
+
+    offered = _child_probe(
+        "import shutil,sys;sys.stdout.write(str(shutil.which('openssl') is not None))",
+        standing,
+        environment,
+    )
+    assert offered == GATE_OPEN, (
+        "a current-directory-consulting resolver did not offer the plant, so the"
+        " control failed and the negative below would prove nothing"
+    )
+
+    done = subprocess.run(
+        [sys.executable, str(MAKE_CERT_SOURCE), *_at(tmp_path / "fresh")],
+        shell=False,
+        capture_output=True,
+        text=True,
+        cwd=str(standing),
+        env=environment,
+        timeout=OUTCOME_TIMEOUT_SECONDS,
+        check=False,
+    )
+
+    planted_ran = marker.exists()
+    assert not planted_ran, (
+        "the openssl planted in the WORKING DIRECTORY was executed - the tool this"
+        " script runs is chosen by where the process happens to be standing"
+    )
+    status = done.returncode
+    assert status == make_cert.EXIT_NO_OPENSSL, (
+        f"expected EXIT_NO_OPENSSL ({make_cert.EXIT_NO_OPENSSL}), because no openssl is"
+        f" reachable on PATH, and got {status}"
+    )

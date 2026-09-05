@@ -2413,3 +2413,62 @@ def test_residual_a_four_space_indented_code_block_is_not_recognised(
         f"``_outside_code`` and in this section, then invert this arm:\n{rendered}"
     )
     assert "tool.mypy.overrides" in rendered, "P4 failed for some other reason than the residual"
+
+
+# ---------------------------------------------------------------------------
+# CS-910 - what this guard actually hands to the spawn
+# ---------------------------------------------------------------------------
+
+
+def test_the_git_this_guard_spawns_is_resolved_and_never_named(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """CS-910 - a RUNTIME reading, alongside the static census in test_toolpath.
+
+    A bare ``"git"`` in an argv is resolved by ``CreateProcess``, which searches
+    the CURRENT DIRECTORY before PATH whenever the gate variable is absent from
+    the environment - its state at both machine and user scope on the development
+    machine. This guard is deliberately POINTED AT TREES IT DID NOT CREATE, which
+    makes the directory it stands in someone else's, and it is what decides which
+    files every other guard here is run over.
+
+    NOTHING BELOW ASSERTS ON A PATH. Every assertion binds a boolean.
+    """
+    recorded: list[list[str]] = []
+
+    def record(argv: list[str], **_kwargs: object) -> Any:
+        recorded.append(list(argv))
+        return drift_guard.subprocess.CompletedProcess(list(argv), 0, "", "")
+
+    monkeypatch.setattr(drift_guard.subprocess, "run", record)
+    drift_guard._git_ls_files(tmp_path)  # noqa: SLF001 - the site under test
+
+    assert len(recorded) == 1, "the guard did not spawn exactly once, so this grades nothing"
+    program = recorded[0][0]
+    rooted = Path(program).is_absolute()
+    assert rooted, "the program handed to the spawn is not an absolute path"
+    named = program == drift_guard.GIT_NAME
+    assert not named, "the program handed to the spawn is the bare tool name"
+
+
+def test_an_unresolvable_git_yields_no_files_rather_than_spawning(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """CS-910 - the refusal path.
+
+    A resolver that finds nothing must stop the spawn rather than fall back to
+    the name, since falling back is the behaviour being removed. The empty list
+    it answers with is what a git that FAILS already answers here.
+    """
+    spawned: list[object] = []
+
+    def record(argv: object, **_kwargs: object) -> None:
+        spawned.append(argv)
+
+    monkeypatch.setattr(drift_guard, "resolve_tool", lambda _name: None)
+    monkeypatch.setattr(drift_guard.subprocess, "run", record)
+
+    answer = drift_guard._git_ls_files(tmp_path)  # noqa: SLF001 - the site under test
+
+    assert answer == []
+    assert spawned == [], "the guard spawned something after the resolver refused"
