@@ -18,15 +18,39 @@
 // payload key by key from a fixed list, so an extra field a caller passes in is
 // dropped rather than persisted.
 //
-// WRITES ARE ATOMIC (CLAUDE.md non-negotiable 5). The payload is written to a
-// .partial sibling, flushed, and renamed into place. A reader therefore sees
-// either the previous file or the new one, never a half written one. The
-// bounded rename retry matches the idiom already used at
+// WRITES ARE ATOMIC, AND THE CLAIM HOLDS FOR MANY WRITERS (CLAUDE.md
+// non-negotiable 5). The payload is written to a staging sibling, flushed, and
+// renamed into place. A reader therefore sees either the previous file or the
+// new one, never a half written one.
+//
+// CS-911 - THE DECISION WAS TO WIDEN THE IMPLEMENTATION, NOT TO NARROW THE
+// CLAIM. Until this item the staging file had a FIXED name and was opened
+// truncating, so the paragraph above was true of one writer and false of two.
+// MEASURED against this module: writer A stages, writer B opens the same fixed
+// path truncating, writer A renames, and what lands over a good state file is
+// ZERO BYTES. In the same arms 91 of 240 concurrent saves failed outright with
+// ENOENT, each writer's rename finding that another had already taken its
+// partial. Narrowing the header to "one writer only" was the cheaper option
+// and was rejected: a single-writer atomicity guarantee is not what
+// non-negotiable 5 asks for, and the single-instance lock that removes today's
+// only known second writer lives in another file and can be removed there,
+// which would silently un-fix this one. A guarantee that holds only while a
+// caller elsewhere keeps behaving is not a guarantee this module can state.
+//
+// SO EVERY STAGE GETS ITS OWN FILENAME. Two writers stage into two different
+// files and race only at the rename, where the loser is superseded by a whole,
+// self-consistent payload from the winner. What is deliberately NOT offered is
+// any ordering between concurrent writers: save() takes a complete state rather
+// than mutating one it read, so last-rename-wins loses no update that was not
+// already stale.
+//
+// The bounded rename retry matches the idiom already used at
 // clockspeed/save/workdir.py::_replace_with_retry - on Windows a scanner or an
 // indexer can hold a handle on a file closed microseconds ago, and the rename
 // then fails with a sharing violation that a short retry turns into a
 // completed write.
 
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -34,7 +58,23 @@ const path = require("node:path");
 const SCHEMA_VERSION = 1;
 
 const STATE_FILENAME = "window-state.json";
-const PARTIAL_FILENAME = "window-state.json.partial";
+
+// A staging file is named "<state file>.<unique>.partial". THE UNIQUE SEGMENT
+// IS THE WHOLE OF CS-911 - a fixed name is a shared mutable resource, and two
+// writers holding one is how a zero-byte file came to be published over a good
+// one. STATE_FILENAME itself does not carry the separating dot, so the real
+// file can never be taken for a staging file by the sweep below.
+const PARTIAL_PREFIX = `${STATE_FILENAME}.`;
+const PARTIAL_SUFFIX = ".partial";
+
+// A stage abandoned by a killed process is never renamed and never read, and
+// under a unique name one would accumulate per crash, forever, in the
+// operator's userData directory. A successful commit therefore clears siblings
+// old enough that no live writer could still own one. The threshold is more
+// than a hundred times the longest a stage can legitimately take - one fsync
+// plus at most 500ms of rename backoff - so sweeping a stage still in flight
+// is not a window this reaches.
+const PARTIAL_STALE_MS = 60 * 1000;
 
 /** Every key the file may contain, in the order it is written. */
 const STATE_KEYS = Object.freeze(["schema", "x", "y", "width", "height", "alwaysOnTop"]);
@@ -74,6 +114,18 @@ const RENAME_BACKOFF_MS = 50;
 // Error codes that mean "somebody else is holding this file right now" and are
 // worth waiting out. Anything else is a real fault and is raised immediately
 // rather than being retried into a slower failure.
+//
+// ENOENT IS DELIBERATELY NOT ON THIS LIST, and CS-911 is why it had to be
+// decided rather than left unstated. Under the old fixed-name staging it was
+// the DOMINANT failure - 91 of 240 concurrent saves - because a second writer
+// renamed the first writer's stage away before the first could commit. Adding
+// it here would have been the wrong repair twice over: a rename whose source
+// does not exist does not become possible by waiting, so every retry is dead
+// time before the same failure; and it would have converted a corruption bug
+// into a latency bug while still publishing zero bytes. The unique staging
+// name removes the cause instead. What ENOENT now means is that something
+// outside this module deleted a stage mid-write, which the caller must see
+// rather than sit through.
 const TRANSIENT_CODES = new Set(["EPERM", "EBUSY", "EACCES"]);
 
 /**
@@ -108,6 +160,65 @@ function renameWithRetry(from, to) {
 /** A usable directory argument, or null. */
 function directoryOf(dir) {
   return typeof dir === "string" && dir.length > 0 ? dir : null;
+}
+
+/** A monotonic tiebreak, so two stages from ONE process cannot collide either. */
+let partialSequence = 0;
+
+/** True for a staging filename this module could have made, and only for those. */
+function isPartialFilename(name) {
+  return (
+    typeof name === "string" &&
+    name.length > PARTIAL_PREFIX.length + PARTIAL_SUFFIX.length &&
+    name.startsWith(PARTIAL_PREFIX) &&
+    name.endsWith(PARTIAL_SUFFIX)
+  );
+}
+
+/**
+ * A staging path no other writer can be holding.
+ *
+ * Random bytes carry the guarantee ACROSS processes, where a counter cannot -
+ * two processes both start theirs at zero. The counter carries it WITHIN one
+ * process, where it is exact rather than merely overwhelmingly likely. Neither
+ * alone covers both cases, which is why both are here.
+ */
+function partialPathFor(directory) {
+  partialSequence += 1;
+  const unique = `${partialSequence.toString(36)}-${crypto.randomBytes(8).toString("hex")}`;
+  return path.join(directory, `${PARTIAL_PREFIX}${unique}${PARTIAL_SUFFIX}`);
+}
+
+/**
+ * Remove staging files old enough that no live writer could still own one.
+ *
+ * Housekeeping, and nothing more. It runs only AFTER a payload is published,
+ * and every fault it meets is swallowed - a directory that cannot be listed, a
+ * file another writer swept first, a file still held open. None of those is a
+ * reason to report a write that already succeeded as failed.
+ */
+function sweepStalePartials(directory) {
+  let names;
+  try {
+    names = fs.readdirSync(directory);
+  } catch {
+    return;
+  }
+  const cutoff = Date.now() - PARTIAL_STALE_MS;
+  for (const name of names) {
+    if (!isPartialFilename(name)) {
+      continue;
+    }
+    try {
+      const candidate = path.join(directory, name);
+      if (fs.statSync(candidate).mtimeMs <= cutoff) {
+        fs.unlinkSync(candidate);
+      }
+    } catch {
+      // Gone already, or held by a writer that is still using it. Either way it
+      // is not this write's business.
+    }
+  }
 }
 
 /** A fresh copy of the defaults. Never the frozen original, which callers mutate. */
@@ -282,11 +393,14 @@ function load(dir, options) {
 }
 
 /**
- * Write the payload to the .partial sibling and flush it to disk.
+ * Write the payload to a staging sibling and flush it to disk.
  *
  * Half of an atomic write, exposed on its own so that the intermediate state is
- * observable - a test can assert the partial exists and the real file does not,
+ * observable - a test can assert the stage exists and the real file does not,
  * and can simulate a killed process by simply never committing.
+ *
+ * @returns {string} The staging path, which the caller must hand to
+ *   commitPartial. It is DIFFERENT on every call, and that is the point.
  */
 function writePartial(dir, state) {
   const directory = directoryOf(dir);
@@ -296,8 +410,12 @@ function writePartial(dir, state) {
   fs.mkdirSync(directory, { recursive: true });
 
   const payload = `${JSON.stringify(serialize(state), null, 2)}\n`;
-  const target = path.join(directory, PARTIAL_FILENAME);
-  const handle = fs.openSync(target, "w");
+  const target = partialPathFor(directory);
+  // "wx" rather than "w": exclusive create. A name collision should be
+  // impossible, and if the unique segment ever stopped being unique this fails
+  // loudly here instead of silently truncating another writer's staged payload,
+  // which is precisely the fault CS-911 was filed on.
+  const handle = fs.openSync(target, "wx");
   try {
     fs.writeFileSync(handle, payload, "utf8");
     // Flushed before the rename, so the rename publishes bytes that are
@@ -309,21 +427,44 @@ function writePartial(dir, state) {
   return target;
 }
 
-/** Rename the .partial sibling over the real file. The other half. */
-function commitPartial(dir) {
+/**
+ * Rename a staged file over the real one. The other half.
+ *
+ * @param {string} dir The directory writePartial was given.
+ * @param {string} partialPath Exactly what that writePartial call returned.
+ */
+function commitPartial(dir, partialPath) {
   const directory = directoryOf(dir);
   if (directory === null) {
     throw new Error("no state directory was supplied");
   }
+  // REQUIRED, and never defaulted to a well-known name. A default would put the
+  // fixed shared name back one layer up, where it would be harder to see.
+  if (typeof partialPath !== "string" || partialPath.length === 0) {
+    throw new Error("no staged file was supplied - pass back what writePartial returned");
+  }
+  // And it must be a staging file of this module's own shape, sitting in the
+  // directory this call names. Accepting an arbitrary path would let a caller
+  // rename anything at all over the state file - a hole the fixed name did not
+  // have, and one this item must not open while closing another.
+  if (
+    !isPartialFilename(path.basename(partialPath)) ||
+    path.dirname(path.resolve(partialPath)) !== path.resolve(directory)
+  ) {
+    throw new Error("the staged file does not belong to this state directory");
+  }
+
   const target = path.join(directory, STATE_FILENAME);
-  renameWithRetry(path.join(directory, PARTIAL_FILENAME), target);
+  renameWithRetry(partialPath, target);
+  // Only once the payload is published. A sweep that ran first could delete a
+  // stage this call is about to need.
+  sweepStalePartials(directory);
   return target;
 }
 
 /** Persist the window state atomically. */
 function save(dir, state) {
-  writePartial(dir, state);
-  return commitPartial(dir);
+  return commitPartial(dir, writePartial(dir, state));
 }
 
 module.exports = {
@@ -333,10 +474,16 @@ module.exports = {
   writePartial,
   commitPartial,
   serialize,
+  isPartialFilename,
   STATE_KEYS,
   GEOMETRY_KEYS,
   STATE_FILENAME,
-  PARTIAL_FILENAME,
+  // No PARTIAL_FILENAME. There is no longer one staging filename to name, and
+  // exporting a representative one would invite a caller to build the fixed
+  // shared path this item exists to remove.
+  PARTIAL_PREFIX,
+  PARTIAL_SUFFIX,
+  PARTIAL_STALE_MS,
   SCHEMA_VERSION,
   DEFAULTS,
   MIN_WIDTH,
