@@ -110,9 +110,30 @@ the line becomes a pointer.
   allocating CS-900 in passing answers by accident a question the project deferred on
   purpose.
 
-- **Next action: settle the `CS-8nn` id-block question**, because it blocks every later
-  filing, then CS-897 - small, and the SIXTH instance of the exact class CS-891 repaired
-  five of. `ROADMAP.md` is 1305 bytes over its soft budget and the relocate pass is owed.
+- **The session ran on past that point, HEADLESS, and closed CS-897 too - also an HONEST
+  PARTIAL.** The archive exemption's reason now rests on three claims the archive makes about
+  itself, checked both ways, and its rot is pinned per arm. An adjudicator confirmed the
+  population at 28 by reimplementing all six arms rather than calling the module's code -
+  which mattered, because two earlier derivations of that number were wrong, mine included.
+
+- **SEVEN findings against that repair are RECORDED, NOT FIXED, and the reason is a hard
+  limit.** `tests/test_docs_citations.py` is 260661 bytes against a 262144 data-hygiene
+  ceiling: **1483 bytes left**. Seven fixes and their arms do not fit, and that ceiling must
+  not be raised. Two of the seven are CS-897's own defect class in text CS-897 authored.
+
+- **THE MODULE IS NOW THE BINDING CONSTRAINT ON THE PROJECT.** CS-899 extends this same file
+  and has under 1.5 KB to do it in, and CS-898 exists because the gate's own claim that it
+  never trips ordinary test code is false. **The relocate pass is the precondition for
+  everything downstream, not a tidy-up.**
+
+- **The `CS-8nn` id block is FULL at 100 of 100** - measured, with 64 still open. Creating the
+  next block is an OPERATOR decision with a recorded precedent: `CS-4nn` filled at 98 of 100
+  and the operator created `CS-8nn` on 2026-08-21. ADR 0011 anticipated CS-900 and declined it
+  in terms. **Only FILING is blocked; work on existing items continues.**
+
+- **Next action: the relocate pass on `tests/test_docs_citations.py`**, because it gates
+  CS-898, CS-899 and the seven recorded findings alike. Then the operator's id-block call.
+  `ROADMAP.md` is also over its soft budget and owes its own relocate pass.
 
 ## Session 59 - 2026-09-03 - THREE ITEMS CLOSED and every one was REFUTED FIRST; every repair reproduced its own filed fault one level up, and CS-889's ratchet caught its own closure within minutes of shipping
 

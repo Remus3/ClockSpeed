@@ -25,6 +25,40 @@ Where current truth actually lives:
 
 ---
 
+## CS-897 - item section, closed and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-05
+
+## CS-897
+
+### NOTE - filed 2026-09-04 (session 60) by the merger, from the CS-891 adjudicator, VERIFIED BEFORE FILING
+
+**AN EXEMPTION WHOSE STATED REASON IS TRUE OF SOME MEMBERS AND FALSE OF OTHERS.** The deep
+archive is excluded from the citation guard on the recorded reason that its dead citations
+"sit inside the detail blocks OF the citation-guard items themselves - blocks whose SUBJECT
+is a pointer being dead - so quoting and citing are indistinguishable by shape". That reason
+is TRUE of two sites and FALSE of a third.
+
+**MEASURED, NOT ARGUED.** `docs/history_notes.md` line 1280 is an ordinary sentence of the
+plain form "that leaf records this", naming a memory leaf that is not tracked and has never existed
+in this repository. It is a plain citation, not prose whose subject is a pointer being dead.
+An adversary measured the whole excluded population independently: 20 files, 462 bare-path
+sites, FOUR of them dead.
+
+**THIS IS CS-891's OWN DEFECT CLASS, HIDING BEHIND AN EXEMPTION.** The item CS-891 was filed
+on was five citations naming a harness-side memory leaf no tracked file may cite. This is a
+sixth, and it is invisible because the file it sits in is exempt wholesale.
+
+**THE MERGER SAW IT AND DISMISSED IT, WHICH IS THE PART WORTH RECORDING.** It was noticed
+during CS-891's pre-dispatch measurement and classified as out of population by
+construction, without asking whether the exemption's stated reason actually covered it. An
+exemption resting on a reason nothing verifies is `tests/test_docs_citations.py`'s own
+founding failure mode, recorded in its docstring, and it was walked past by someone holding
+that docstring.
+
+**DO NOT CLOSE THIS BY GUARDING THE WHOLE ARCHIVE.** The recorded reason is true of most of
+the file and a blanket guard would be red on correct history, which is the fault the
+exemption exists to prevent. The question is whether the exemption can be made to describe
+the members it actually covers.
+
 ## CS-891 - item section, closed and relocated from `docs/item_notes/phase4-followups-850.md` 2026-09-04
 
 ## CS-891

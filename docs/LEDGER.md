@@ -75,6 +75,69 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-05 - CS-897 - CLOSED AS AN HONEST PARTIAL. The deep archive's exemption now rests on a reason true of every member and its rot is pinned per arm, and SEVEN findings against that repair are recorded here rather than fixed, because the module has 1483 bytes left
+Verification: `python -m pytest tests/test_docs_citations.py tests/test_bare_path_citations.py -q`.
+Then reproduce the refutation that forced the repair-of-the-repair: append a typed decoy
+mapping for the pin, then a later module-scope rebinding of the same name to a call. Before
+the fix the literal check answered clean while the runtime pin followed the archive; after it,
+that shape is two findings.
+
+WHAT WAS BOUGHT. The exemption's stated reason was true of SOME members and false of others -
+it said the archive's dead citations sit inside blocks whose subject is a pointer being dead,
+which is false of a failed-paths note about a removed file and of a plain reference. The
+reason now rests on three claims the archive makes about ITSELF, each checked against its
+header in both directions, and an adjudicator graded it proposition by proposition against
+every member. The population is measured at TWENTY-EIGHT findings across six arms, and that
+number was confirmed by an adjudicator that reimplemented all six from the documented
+semantics rather than calling the module's own code - which mattered, because two earlier
+derivations of it were wrong, including the merger's.
+
+WHAT THE ARM IS, AND THE RULING THAT MATTERS. The clause asks for an arm that reddens on a
+dead citation the stated reason does not describe. No mechanism distinguishes prose ABOUT a
+dead path from a citation OF one in markdown - that is CS-899, open. So the arm is
+deliberately WIDER: it reddens on any movement in the per-arm rot pin, and a human decides at
+pin-bump time. The adjudicator ruled a wider arm satisfies a narrower clause by CONTAINMENT
+rather than by charity, and noted the width runs in the LOUD direction - the arm can
+over-report and can never forgive.
+
+WHY THIS IS A PARTIAL AND NOT A CLOSE. Seven findings against the repair are live, and two of
+them are this item's own defect class in text this item authored - a claim true of some of
+what it covers and false of the rest:
+
+1. THE SITE FLOOR'S STATED PROPERTY IS FALSE FOR THREE OF FIVE SHAPES. Its comment says
+   losing ANY ONE shape reddens. Measured: 639 sites, floor 550, so losing the two largest
+   reddens and losing the other three passes quietly. The correct construction is total minus
+   SMALLEST, which is 636.
+2. THE ARM-COVERAGE PROXY CARRIES ONE UNIT OF SLACK. A sixth judged shape arriving with no arm
+   satisfies it, which is exactly the scenario its own message says it prevents. A shape-to-arm
+   map closes it; a cardinality compare cannot, because three arms share one pattern.
+3. DELETING A WHOLE ARM - pin, derivation and plant together - passes, orphaning the largest
+   shape at 410 of 639 sites.
+4. THE HEADER-CLAIM SET IS GRADED BY NOTHING beyond being non-empty. Deleting a claim, or
+   reducing the set to one meaningless string, passes. So the first conjunct is disarmable in
+   a two-line edit.
+5. THE HEADER WINDOW IS AN UNGRADED CONSTANT. Widening it lets a quoted copy of the header
+   deeper in the archive satisfy the claims - the exact fault the constant's own comment names.
+6. THE PIN IS NOT THE ONLY ANSWERABLE PLACE, though the source says it is. A scoping branch
+   that truncates the archive's tail silences findings and moves no number; roughly 1300 lines
+   can be scoped away with the floor still green.
+7. A THIRD EXEMPTION PREFIX PASSES. The exactly-one contract governs the table only, while two
+   other prefix mechanisms exempt files uncounted and unregistered.
+
+WHY THEY ARE RECORDED AND NOT REPAIRED, AND IT IS NOT A JUDGEMENT CALL. This module is 260661
+bytes against a 262144-byte data-hygiene ceiling - 1483 bytes left. That ceiling is a
+BOOTSTRAP.md section 12 control and was deliberately not raised, for the reason an earlier
+round this session also refused to raise it. Seven fixes and their arms do not fit. The
+relocate pass is the precondition, not a raised ceiling, and CS-899 extends this same module.
+
+THE REPAIR OF THE REPAIR, WHICH IS THE NINTH TIME THIS SESSION A FIX REPRODUCED ITS OWN FILED
+FAULT ONE LEVEL UP. The mechanism built to stop a pin being computed from what it measures
+closed the one-statement form and left the two-statement form open: a typed decoy the walk
+stopped at, then a later rebinding it never examined. An adversary drove it end to end - a real
+dead citation live in the archive, the pinned literal unchanged, and pytest, mypy, ruff, ruff
+format and the drift guard all green with no number moved anywhere. That is now fixed and the
+one-statement form is still caught, proven with a control in the same run.
+
 ### 2026-09-04 - SESSION 60 - THE CS-8nn ID BLOCK IS FULL AT 100 OF 100, AND CREATING THE NEXT ONE IS AN OPERATOR DECISION WITH A RECORDED PRECEDENT
 Verification: count the distinct `CS-8nn` ids appearing in `ROADMAP.md`, `BACKLOG.md`,
 `docs/GATED.md`, `docs/LEDGER.md`, `docs/history_notes.md` and the `## CS-nnn` section heads
