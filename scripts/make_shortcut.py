@@ -731,8 +731,16 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         link_name = shortcut_file_name(args.name)
-    except ValueError as exc:
-        parser.error(str(exc))
+    except ValueError:
+        # THE CONSTANT IS NAMED, NOT THE EXCEPTION. `str(exc)` renders whatever
+        # the raiser happened to put in the message, and both raise sites happen
+        # to use this same fixed constant TODAY - which makes the object form
+        # look safe while making the safety a coincidence one edit away from
+        # ending. `tests/test_exception_rendering.py` forbids the shape rather
+        # than the current contents for exactly that reason, and it caught this
+        # line in the round that was fixing a redaction leak two hundred lines
+        # further down.
+        parser.error(NAME_REFUSAL)
 
     target = electron_path(shell_dir())
     if not target.is_file():
