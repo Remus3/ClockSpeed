@@ -62,6 +62,13 @@ _FOLLOWUP_BLOCK_FIRST = 800
 _FOLLOWUP_BLOCK_LIMIT = 900
 _FOLLOWUP_LEAF_SEAM = 850
 
+# THE SECOND FOLLOW-UP BLOCK. CS-8nn filled up at 100 of 100, measured
+# 2026-09-05, so CS-9nn takes phase-4 residuals from there (operator decision
+# 2026-09-05). Its leaf name is DERIVED from this constant for the same reason
+# the seam above is: a hand-typed name beside a number is two copies of one
+# fact with somewhere to drift to.
+_SECOND_BLOCK_FIRST = 900
+
 
 def _load_drift_guard() -> ModuleType:
     """Load tools/drift_guard.py by path.
@@ -293,7 +300,7 @@ def test_every_section_sits_in_the_leaf_the_membership_rule_names() -> None:
     and one stated exception, CS-501, which predates the CS-8nn block and is
     filed under phase 4. Anything else here means a body was hand-placed.
 
-    PHASE 4 IS THREE LEAVES AND THE RULE STAYS A DERIVATION FROM THE ID. It is
+    PHASE 4 IS FOUR LEAVES AND THE RULE STAYS A DERIVATION FROM THE ID. It is
     computable from an item number alone and is deliberately not a table of
     which item lives where: a hand-listed mapping would have to be edited by
     the same hand that misplaces a body, so it would agree with the mistake.
@@ -313,7 +320,9 @@ def test_every_section_sits_in_the_leaf_the_membership_rule_names() -> None:
         if digit == "4":
             number = int(item.split("-")[1])
             in_block = _FOLLOWUP_BLOCK_FIRST <= number < _FOLLOWUP_BLOCK_LIMIT
-            if not in_block:
+            if number >= _SECOND_BLOCK_FIRST:
+                want = f"phase4-followups-{_SECOND_BLOCK_FIRST}.md"
+            elif not in_block:
                 want = "phase4.md"
             elif number < _FOLLOWUP_LEAF_SEAM:
                 want = "phase4-followups.md"

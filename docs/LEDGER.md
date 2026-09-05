@@ -75,6 +75,53 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-05 - SESSION 61 - A CORRECTION TO THIS SESSION'S OWN RECORD BELOW, WRITTEN THE SAME HOUR
+Verification: `git log --oneline` on main shows the merge; `python tools/drift_guard.py` reports
+11 guards with guard (k) - tier 1 budget - PASS, naming one owner and the two levels.
+
+THE SESSION 61 RECORD BELOW SAYS THE CS-896 REPAIR IS "UNMERGED". THAT WAS TRUE WHEN WRITTEN AND
+IS NOW FALSE. The repair landed while the session was closing out: 53 mutants run against it, 53
+killed, 0 survivors, and its builder disclosed two further holes it had created and then closed.
+It IS merged. Nothing else in that record changes - the measurements, the refutation counts and
+the twelve-of-twelve pattern all stand.
+
+THE RECORD BELOW IS DELIBERATELY NOT EDITED. This file is append-only, and session 60 refused to
+edit a line its own author had written twenty minutes earlier on exactly this reasoning: editing
+a record because its author learned more the same hour is the habit the rule exists to prevent.
+
+CS-896 STAYS OPEN AND THIS ENTRY DOES NOT CLOSE IT. Merging the mechanism is not the acceptance.
+The clause asks for a run that reports the comparison, and whether that run is green is recorded
+separately from this correction.
+
+### 2026-09-05 - CS-896 - A CORRECTION THIS ENTRY OWES TO TWO EARLIER RECORDS, because the tier 1 restructure moved the lines they cite
+Verification: `tests/test_tier1_budget.py::test_the_stale_ledger_pointers_are_corrected_by_an_appended_record`,
+which was written RED on purpose and is closed by this paragraph rather than by an edit, and
+`tests/test_tier1_budget.py::test_the_steps_the_stale_pointers_meant_are_addressable_by_name`,
+which holds the step names below so they cannot drift out from under this correction.
+
+CS-896 STAYS OPEN and this entry does not close it. This is a CORRECTION RECORD, not a
+completion record: it repairs three stale by-line pointers that an earlier merge invalidated,
+and says nothing about whether CS-896's acceptance is met.
+
+THE CS-896 WORK RESTRUCTURED `.github/workflows/tier1.yml` AND MOVED LINES THAT TWO EARLIER
+RECORDS CITE BY NUMBER. The CS-838 grant record cites that workflow at line 130 for the
+format check and names line 118 for the character-set gate in `--files` mode. The CS-411
+record cites it at line 250 for the bare mypy invocation. All three were TRUE when written
+and are STALE as of this merge. THIS FILE IS APPEND-ONLY AND THEY ARE DELIBERATELY NOT
+EDITED; THIS PARAGRAPH IS THE CORRECTION. An adjudicator ruled on exactly this choice: an
+appended correction beats both editing the record and contorting the workflow to preserve a
+line number, because binding work to a line count is the fragile coupling this project has
+already recorded a decision against.
+
+READ THEM BY NAME INSTEAD, and the names are the durable form. Line 118 meant the
+`--files`-mode `tools/precommit_gate.py` invocation inside the `Character-set gate over all
+tracked files` step. Line 130 meant the `Format check (ruff format --check)` step. Line 250
+meant the `Type check` step. All three still exist and still do what those records describe.
+
+CITE THAT WORKFLOW BY NAME, NOT BY LINE. That is the same instruction an earlier entry in
+this file already gave about a different module after a merge moved its lines, and this is
+the second time the lesson has been paid for.
+
 ### 2026-09-05 - SESSION 61 - CS-896 IS MEASURED AND NOT CLOSED. The lane's SERIAL MEAN sits ABOVE its own runaway cutoff, so the cancellation was the distribution and not flakiness; the repair was refuted with 18 of 26 mutants surviving and is UNMERGED
 Verification: six CI runs on ONE byte-identical tree, read from the run record rather than
 recalled. `tests/test_subprocess_timeouts.py::test_every_subprocess_call_in_this_repository_is_bounded_by_a_timeout`

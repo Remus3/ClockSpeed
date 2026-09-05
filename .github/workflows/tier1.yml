@@ -2,7 +2,9 @@
 # Clockspeed - CI tier 1: the fast lane.
 #
 # CONVENTIONS.md section 8: tier 1 runs on every push and is "the lane that must
-# never be red". Target wall clock is under three minutes.
+# never be red". This file is the ONE owner of how long that is allowed to take
+# - the env block below states it, and nothing else in the repository restates
+# it (CS-896). tools/drift_guard.py guard (k) holds that.
 #
 # LEANNESS IS A REQUIREMENT, NOT A STYLE CHOICE. This repo is private and CI
 # minutes are metered (CONVENTIONS.md section 8, budget note), so this lane uses
@@ -48,13 +50,76 @@ env:
   PYTHONIOENCODING: 'utf-8'
   PIP_DISABLE_PIP_VERSION_CHECK: '1'
 
+  # -- THE ONE OWNER OF THIS LANE'S DURATION LEVELS (CS-896). --
+  #
+  # THREE LEVELS, THREE DIFFERENT JOBS. Do not collapse them into one:
+  #
+  #   budget   REPORTED every run. Over it WARNS loudly. Does NOT fail. This
+  #            lane "must never be red", and the runner's own spread is wide
+  #            on a BYTE-IDENTICAL tree, so a budget that hard-failed on noise
+  #            would be red for no defect.
+  #            tools/doc_budget.py is the precedent and its header states the
+  #            reason: "a warn that blocks a commit gets disabled and then
+  #            enforces nothing".
+  #   ceiling  FAILS the lane, naming the number, strictly BELOW the cutoff.
+  #            This is the level that converts a breach into an actionable red
+  #            instead of a cancellation that says nothing.
+  #   cutoff   The job's runaway timeout. It CANCELS. It is POLICY and not a
+  #            tunable - see the note beside it, and guard (k).
+  #
+  # THE DERIVATION IS WRITTEN OUT so the next person re-derives rather than
+  # guesses, which is what nobody did last time. THE FULL SAMPLE IS SIX
+  # READINGS of the pytest step, every one taken on a GitHub 2-vCPU runner
+  # (nproc 2) against ONE byte-identical tree:
+  #
+  #   serial    541.68, 590.82                     (whole job 582, 631)
+  #   -n auto   424.18, 475.98, 483.14, 470.67
+  #
+  # MEAN TO MEAN THAT IS 1.222x, AND THE RANGE IS THE PART THAT MATTERS. The
+  # pessimistic pair gives 1.121x; the flattering pair gives 1.393x. QUOTE THE
+  # MEAN OR THE PESSIMISTIC PAIR AND NEVER THE FLATTERING ONE - a speedup taken
+  # from the best pair is one the lane delivers only on its best day, and every
+  # ordinary run afterwards then reads as a regression that is not one.
+  #
+  # THE BUDGET IS SET FROM THE WORST OBSERVED JOB, NOT FROM A RATIO, because a
+  # ratio applied to a mean discards exactly the tail this lane trips over. The
+  # pytest step is about 94 per cent of the job and every other step totals
+  # roughly 36 seconds, so the slowest parallel reading above is a job of about
+  # 519. The budget sits 21 above that worst observation, and exactly 60 below
+  # the cutoff - the next minute of growth, which is the item note's own
+  # language for the headroom this lane may spend before somebody has to look.
+  #
+  # THE CEILING LEAVES 30 UNDER THE CUTOFF, which is what makes the ceiling -
+  # and not the canceller - the thing a slow run meets first.
+  #
+  # BOTH NUMBERS ARE RATCHETED IN BOTH DIRECTIONS by tools/drift_guard.py guard
+  # (k) against maxima recorded there, so raising OR lowering either one here
+  # alone turns the guard red. That is deliberate. CS-896 exists because this
+  # lane drifted past its stated target with nothing failing, and a level
+  # nobody has to defend inside a diff is a level that drifts again.
+  TIER1_BUDGET_SECONDS: '540'
+  TIER1_CEILING_SECONDS: '570'
+
 jobs:
   fast:
     name: gates, lint, types, tests
     runs-on: ubuntu-latest
-    # The target is under three minutes. Ten is the runaway cutoff, not a budget:
-    # a hung step must stop burning metered minutes rather than reach the
-    # six-hour default.
+    # THE RUNAWAY CUTOFF, AND IT IS NOT A BUDGET. A hung step must stop burning
+    # metered minutes rather than reach the six-hour default. It CANCELS, and a
+    # cancelled run is evidence of NOTHING: nothing failed, nothing was
+    # measured, and the session that sees it reads flakiness.
+    #
+    # DO NOT RAISE THIS TO ACCOMMODATE A SLOWER LANE. That converts a runaway
+    # detector into a budget and removes the only signal that the lane is
+    # growing. The ceiling in the env block is what fails a slow lane, and it
+    # sits BELOW this number precisely so a breach meets it first.
+    #
+    # AND SOMETHING NOW ENFORCES THAT SENTENCE. It used to be capitals and
+    # nothing else: raising this alone left every guard and every arm green,
+    # which is the same shape of silence CS-896 was filed about one level up.
+    # tools/drift_guard.py guard (k) PINS this as policy rather than reading it
+    # as a tunable, so any change to it - up or down - is red until the pin
+    # moves with it in the same diff and somebody says why.
     timeout-minutes: 10
     defaults:
       run:
@@ -65,6 +130,12 @@ jobs:
         shell: bash
 
     steps:
+      # FIRST, AND AHEAD OF CHECKOUT ON PURPOSE. A `run:` step needs no repo,
+      # and starting the clock here is what makes the reading a JOB duration
+      # rather than a duration of whichever part someone remembered to wrap.
+      - name: Record the start
+        run: echo "TIER1_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+
       - name: Checkout
         uses: actions/checkout@v4
         # Shallow on purpose. Tier 1 gates the working tree. Full history is
@@ -255,5 +326,130 @@ jobs:
       # sweep runtime state directories and destroy live locks or data. The rule
       # is written for the developer machine, and the invocation is kept
       # identical here so CI and local never diverge.
+      #
+      # `-n auto` WITH NO `--dist` FLAG, because tier2.yml already runs exactly
+      # that and it is therefore this repo's proven invocation. `--dist
+      # loadfile` has never run here, and adopting an unmeasured scheduler to
+      # fix a timing problem trades one unknown for another.
+      #
+      # MEASURED, not assumed. The six-reading sample and its range live in the
+      # env block above; this step is what the sample was taken from.
+      #
+      # CS-448 IS OPEN, IT IS TIER 1, AND IT IS ABOUT THIS EXACT FLAG. So "tier
+      # 2 already runs it" is NOT the argument that clears it, and CS-448's own
+      # note refuses that argument in as many words: a green tier-2 run is not
+      # the measurement the item asks for, because the flake may simply not
+      # have fired. The item root-caused the mechanism instead, and it is the
+      # CHECKOUT LOCATION rather than contention - a checkout sharing a large
+      # ancestor with the temp root makes pytest's rootdir climb, so collection
+      # walks the whole temp tree.
+      #
+      # SO THE PRECONDITION WAS MEASURED ON THE RUNNER, AND IT DOES NOT HOLD
+      # THERE. The checkout is work/Clockspeed/Clockspeed under the runner
+      # account's own home directory (the absolute form is deliberately not
+      # spelled here - tools/precommit_gate.py blocks an absolute home path,
+      # and rightly). tempfile.gettempdir() is /tmp, holding 14 entries. The
+      # common ancestor of the two is the filesystem root, so the checkout is
+      # NOT under the temp root and the rootdir climb CANNOT happen on this
+      # runner. Four full-suite -n auto runs there were green at 4784 passed
+      # and 117 skipped every time, identical to serial - corroboration of a
+      # measured mechanism, not the green-run evidence CS-448 refused.
+      #
+      # THAT DISCHARGES THE PRECONDITION HERE AND DOES NOT CLOSE CS-448, which
+      # is about the developer machine, where the checkout and the temp root DO
+      # share an ancestor. Read docs/item_notes.md under CS-448 before changing
+      # this line.
+      #
+      # ONE SKIP SWAPS AND IT IS NOT A REGRESSION. tests/test_tmp_path_privacy.py
+      # skips a different arm under each scheduler: serial skips the arm that
+      # needs pytest-xdist, parallel skips the arm that is inconclusive when the
+      # tree is not clean. Totals unchanged. Do not read the swap as a defect.
+      #
+      # pytest-xdist is a HARD dependency, pinned in the `dev` extra beside
+      # every other tool and installed by the step above. tier2.yml installs it
+      # opportunistically and tolerates its absence; this lane must NOT, because
+      # silently falling back to serial puts it back over the cutoff while
+      # saying nothing about why.
       - name: Unit tests
-        run: python -m pytest tests -q
+        run: python -m pytest tests -q -n auto
+
+      # -- The comparison CS-896's acceptance clause asks for. --
+      # `if: always()` is the load-bearing half. A comparison that ran only when
+      # every earlier step succeeded would report nothing on exactly the runs
+      # worth measuring.
+      #
+      # THE JOB START TIME IS NOT QUERIED FROM THE API, and that was considered
+      # and REFUSED: it needs `actions: read`, and the permissions block above
+      # states `contents: read` under "Least privilege. Tier 1 only reads the
+      # tree." A duration reading does not justify widening what this lane sees.
+      #
+      # THREE REFUSALS, NOT ONE, AND THE OTHER TWO WERE MEASURED HOLES. This
+      # step reports a number it computed, so every way that number can be
+      # meaningless has to end in a refusal rather than in a cheerful verdict:
+      #
+      #   no start        the original refusal. Nothing to subtract from.
+      #   not an integer  MEASURED: TIER1_STARTED="1 2" made bash print a
+      #                   syntax error to stderr, leave ELAPSED EMPTY, and
+      #                   still exit 0 - reporting a duration of nothing as
+      #                   though it were within budget.
+      #   negative        MEASURED: a start in the future produced
+      #                   "tier 1 took -9999s - within budget" and exit 0. A
+      #                   clock that ran backwards is not a fast lane.
+      #
+      # All three print the same sentence, because they are the same fault:
+      # this job did not measure the thing it is about to report.
+      - name: Duration against the budget
+        if: always()
+        run: |
+          if [ -z "${TIER1_STARTED:-}" ]; then
+            echo "FAIL: no start was recorded, so there is nothing to compare against."
+            echo "Refusing to report a duration this job did not measure."
+            exit 1
+          fi
+          case "$TIER1_STARTED" in
+            *[!0-9]*)
+              echo "FAIL: the recorded start is not a whole number of seconds."
+              echo "Refusing to report a duration this job did not measure."
+              exit 1
+              ;;
+          esac
+          ELAPSED=$(( $(date +%s) - TIER1_STARTED ))
+          if [ "$ELAPSED" -lt 0 ]; then
+            echo "FAIL: the clock ran backwards - elapsed came out as ${ELAPSED}s."
+            echo "Refusing to report a duration this job did not measure."
+            exit 1
+          fi
+          BUDGET="$TIER1_BUDGET_SECONDS"
+          CEILING="$TIER1_CEILING_SECONDS"
+          if [ "$ELAPSED" -gt "$CEILING" ]; then
+            VERDICT="OVER THE CEILING"
+          elif [ "$ELAPSED" -gt "$BUDGET" ]; then
+            VERDICT="over budget"
+          else
+            VERDICT="within budget"
+          fi
+          LINE="tier 1 took ${ELAPSED}s - ${VERDICT}"
+          DETAIL="budget ${BUDGET}s, ceiling ${CEILING}s"
+          echo "${LINE} (${DETAIL})"
+          {
+            echo "### tier 1 duration"
+            echo ""
+            echo "| level | seconds |"
+            echo "| --- | --- |"
+            echo "| elapsed | ${ELAPSED} |"
+            echo "| budget | ${BUDGET} |"
+            echo "| ceiling | ${CEILING} |"
+            echo ""
+            echo "${LINE} (${DETAIL})"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$ELAPSED" -gt "$CEILING" ]; then
+            echo "::error::${LINE} (${DETAIL})"
+            echo "The ceiling sits BELOW the runaway cutoff on purpose, so this is a"
+            echo "failure naming a number rather than a cancellation naming none."
+            exit 1
+          fi
+          if [ "$ELAPSED" -gt "$BUDGET" ]; then
+            echo "::warning::${LINE} (${DETAIL})"
+            echo "Over budget is a REPORT, not a failure - the lane must never be red"
+            echo "for runner noise. The ceiling is what fails it."
+          fi

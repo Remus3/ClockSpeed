@@ -351,10 +351,16 @@ in depth: **the git hooks are authoritative; the Claude hooks are a convenience 
 - `PreToolUse` on commit and shell: the same character and secret gate, so a violation is
   caught before the git hook even runs.
 
-### Tier 1 - fast lane (every push, target under 3 minutes)
+### Tier 1 - fast lane (every push)
 
 Lint, type check, unit tests, doc size budgets, drift guards, link check. This is the
 lane that must never be red.
+
+The lane states its own duration budget, reports every run against it, and fails on a
+separate ceiling that sits below the runaway cutoff - so a breach arrives as a red naming
+a number rather than as a cancellation, which is evidence of nothing. **The numbers live
+in the workflow and nowhere else**, because a duration measured on one project's runner
+is not portable doctrine and a restated number is one that will drift.
 
 ### Tier 2 - full lane (nightly and on tag)
 

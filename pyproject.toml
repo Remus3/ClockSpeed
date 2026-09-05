@@ -70,6 +70,44 @@ classifiers = [
 dev = [
   "mypy>=1.11",
   "pytest>=8.0",
+  # THE WORKFLOW GUARD PARSES YAML RATHER THAN GREPPING IT (CS-896), and that
+  # is the whole reason this line exists. `.github/workflows/tier1.yml`
+  # documents itself heavily, so its COMMENTS spell every flag and key its live
+  # steps use. MEASURED: deleting `-n auto` from the real command left an arm
+  # asserting `"-n auto" in text` green, because two comments still said it -
+  # and the lane silently reverted to serial, straight back into the
+  # cancellation CS-896 was filed about. The same held for `if: always()` and
+  # for the entire start step. A substring search over a self-documenting file
+  # is a search of its documentation.
+  #
+  # NO SOURCE IS VENDORED, so THIRD_PARTY.md's register - which is for lifted
+  # code - gains no row, exactly as ruff, pytest, mypy and pytest-xdist gained
+  # none. PyYAML is MIT. tools/edit_lint_check.py already imports it as an
+  # OPTIONAL probe and must keep working without it; a dev extra is opt-in and
+  # does not change that. The mypy overrides block below already names `yaml`
+  # as stub-less, so no new type-checking exception is needed either.
+  #
+  # NO UPPER BOUND, DELIBERATELY, and the contrast with the two pins below is
+  # the point: those bound tools whose OUTPUT SHAPE this repo asserts on. This
+  # one is used only for `safe_load` on a mapping, an interface that has been
+  # stable across the whole 6.x line, so a bound here would cost review
+  # attention and buy nothing.
+  "pyyaml>=6.0",
+  # A HARD DEPENDENCY OF TIER 1, NOT AN OPTIONAL SPEEDUP (CS-896). The fast
+  # lane runs `-n auto`, and its budget is derived from a MEASURED 1.335x on a
+  # 2-vCPU runner. tier2.yml installs this opportunistically and tolerates its
+  # absence; tier 1 must not, because silently falling back to serial puts the
+  # lane back over its runaway cutoff while reporting nothing about why. Living
+  # here rather than in the workflow is what gives the pin one owner.
+  #
+  # THE BOUND IS DELIBERATE, and it is the ruff lesson above applied to a
+  # different failure: an unbounded floor let CI resolve a line this machine
+  # never ran. The specific risk here is narrower than a formatter's output
+  # shape - a major bump may change the DEFAULT DISTRIBUTION MODE, and a budget
+  # measured under one scheduler and then enforced under another is a number
+  # nobody has measured. The floor is where `-n auto` core detection settled.
+  # Bump the upper bound only alongside a fresh timing sample on the runner.
+  "pytest-xdist>=3.5,<4",
   # UPPER BOUND ADDED 2026-08-23 AND IT IS LOAD-BEARING, NOT TIDINESS. `ruff
   # format --check` changes its OUTPUT SHAPE between minor versions, and 0.16
   # reworded the line CS-838's pre-commit format check reads to NAME the

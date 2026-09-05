@@ -2642,7 +2642,33 @@ def guard_answers(module: Any, root: Path, files: list[Path], source: str) -> li
     answers: list[GuardAnswer] = []
     for name in guard_function_names(inspect.getsource(module)):
         function = getattr(module, name)
-        arguments = [available[parameter] for parameter in inspect.signature(function).parameters]
+        # A KEYWORD-ONLY PARAMETER CARRYING A DEFAULT IS A TEST SEAM, NOT PART OF
+        # THE CALLING CONTRACT. The driver calls every guard with root, files and
+        # source and nothing else, so a defaulted keyword-only knob is never
+        # supplied in production and this harness must grade the same call the
+        # driver makes. Binding it here would make a legitimate guard design
+        # unrepresentable - guard (k) carries three recorded levels this way so
+        # its ORDER arms can isolate the order relation from the ratchet.
+        #
+        # ANYTHING ELSE IS STILL A HARD REFUSAL. A parameter that is neither
+        # available nor a defaulted keyword-only one would let a guard dodge
+        # grading by widening its signature, so it raises rather than being
+        # skipped. An ungraded guard is the unrun-gate class (CONVENTIONS 7.2).
+        arguments = []
+        for parameter in inspect.signature(function).parameters.values():
+            if parameter.name in available:
+                arguments.append(available[parameter.name])
+                continue
+            keyword_only = parameter.kind is inspect.Parameter.KEYWORD_ONLY
+            if keyword_only and parameter.default is not inspect.Parameter.empty:
+                continue
+            message = (
+                f"{name} takes a parameter this harness cannot supply: "
+                f"{parameter.name!r} ({parameter.kind}). A guard is called with "
+                "root, files and source. Widen those, or make the parameter "
+                "keyword-only with a default so it is plainly a test seam."
+            )
+            raise AssertionError(message)
         guard, skips = function(*arguments)
         answers.append(
             GuardAnswer(

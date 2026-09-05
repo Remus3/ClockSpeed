@@ -34,7 +34,7 @@ the line becomes a pointer.
 
 ---
 
-## Session 61 - 2026-09-05 - CS-896 MEASURED AND NOT CLOSED: the lane's SERIAL MEAN is ABOVE its own cutoff, so the cancellation was the distribution; BOTH repairs this session were REFUTED and the CS-896 one is UNMERGED
+## Session 61 - 2026-09-05 - CS-896 MEASURED AND NOT CLOSED: the lane's SERIAL MEAN is ABOVE its own cutoff, so the cancellation was the distribution; BOTH repairs were REFUTED, both were then repaired and MERGED
 
 - **Shipped: CS-908 only.** Filed CS-900, CS-906 and CS-907 and opened the `CS-9nn` block on an
   operator decision. **CS-896 IS NOT CLOSED** - its acceptance needs a run that reports the
@@ -47,10 +47,10 @@ the line becomes a pointer.
   `-n auto` is worth 1.222x mean to mean (range 1.121x to 1.393x, do NOT quote the flattering
   end), and all six runs reported 4784 passed and 117 skipped, so the verdict does not change.
 
-- **In flight, and this is the FIRST thing to check.** A repair builder was STILL RUNNING when
-  the session closed, at worktree `.claude/worktrees/agent-afa363106daebb610`. **ITS WORK MAY BE
-  UNCOMMITTED** - a tag preserves nothing that is not committed. Check `git -C <that worktree>
-  status` BEFORE anything else. It was repairing ELEVEN holes in the CS-896 mechanism.
+- **In flight: NOTHING is uncommitted, and CI is the open question.** Both repairs landed. The
+  CS-896 one was refuted with 18 of 26 mutants surviving, repaired, and re-proved at 53 mutants
+  run and 53 killed. **CS-896's acceptance needs a run that REPORTS THE COMPARISON**, so read the
+  tier 1 run on the pushed head before deciding anything about that item.
 
 - **Decisions: the `CS-9nn` block is open and CS-901 through CS-905 are NOT allocatable** - they
   are synthetic fixture ids in the drift-guard corpus. The handoff said CS-903 and CS-904 were
@@ -70,7 +70,8 @@ the line becomes a pointer.
   line-pointer question as a two-way choice and an adjudicator refuted both options and produced
   a third.
 
-- **Next action: check the running builder's worktree for uncommitted work, then finish CS-896.**
+- **Next action: read the tier 1 run on the pushed head and confirm it PRINTS the budget
+  comparison. That printed comparison is CS-896's acceptance evidence, and nothing else is.**
 
 ## Session 60 - 2026-09-04 - CS-891 CLOSED AS AN HONEST PARTIAL after FIVE refutations; the round's repair reproduced its own filed fault a FIFTH consecutive session and its own adversaries caught every instance, and the repair then would not fit under a data-hygiene ceiling
 

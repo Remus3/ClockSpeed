@@ -2766,6 +2766,447 @@ def guard_index(root: Path) -> tuple[Guard, list[Skip]]:
     return _guard("j", name, "PASS", detail), skips
 
 
+# --- guard k: the tier 1 budget ---------------------------------------------
+
+# THE FACT THIS GUARD OWNS: how long tier 1 is allowed to take. CS-896 found it
+# stated in THREE live places, none of which the lane had met in months. That is
+# exactly the shape CLAUDE.md section 4 exists to prevent - a restated fact is a
+# fact that will drift - and here the three copies drifted together into a
+# target nobody had measured against.
+#
+# THREE LEVELS, THREE DIFFERENT JOBS, and conflating any two of them is the
+# defect this guard exists to keep out:
+#
+#   budget   reported every run, warns loudly over, and NEVER fails. The lane
+#            "must never be red" (CONVENTIONS.md section 8) and the runner's own
+#            variance was measured at about 9 per cent on a byte-identical tree,
+#            so a budget that hard-failed on noise would be red for no defect.
+#   ceiling  FAILS the lane and names the number, strictly BELOW the cutoff.
+#            This is the level that converts a breach into an actionable red.
+#   cutoff   `timeout-minutes`, which CANCELS. A cancelled run is evidence of
+#            nothing: nothing failed and nothing was measured. Raising it turns
+#            a runaway detector into a budget and removes the only signal that
+#            the lane is growing.
+#
+# THE ORDER IS WHAT MAKES THEM THREE RATHER THAN ONE, so the order is what this
+# guard asserts and the values are what it merely reports. A number re-derived
+# from a later measurement then costs no test edit, while an order violated is
+# drift on every tree.
+
+TIER1_WORKFLOW_RELATIVE = ".github/workflows/tier1.yml"
+TIER1_BUDGET_KEY = "TIER1_BUDGET_SECONDS"
+TIER1_CEILING_KEY = "TIER1_CEILING_SECONDS"
+TIER1_TIMEOUT_KEY = "timeout-minutes"
+SECONDS_PER_MINUTE = 60
+
+# -- THE RECORDED LEVELS: A TWO-WAY RATCHET, NOT A COPY OF THE WORKFLOW. ------
+#
+# WHY THESE EXIST AT ALL. The order relation alone - budget < ceiling < cutoff -
+# is satisfied by ANY three ascending numbers, so it grades the SHAPE and says
+# nothing about the SIZE. MEASURED on the candidate this replaces: raising the
+# cutoff alone from ten minutes to sixty passed every guard and every arm;
+# raising all three together to 3000, 3500 and sixty passed; dropping the budget
+# to one second passed. CS-896 was filed because this lane drifted past its
+# stated target with nothing failing, and a repair that permits exactly that
+# drift one level up is not a repair.
+#
+# THE SHAPE IS CS-891's, AND IT IS DELIBERATELY TWO-WAY. A pin that only caught
+# inflation would be satisfied by lowering the number to something the lane can
+# never breach, which buys the same silence from the other side. So the workflow
+# must state EXACTLY these, and any move - up or down - is red until this line
+# moves with it inside the same diff. That is the whole mechanism: a number
+# somebody has to defend in a review, rather than a capitalised sentence that
+# nothing enforces.
+#
+# THEY ARE INTEGER LITERALS ON PURPOSE. Deriving a bound from the thing it
+# bounds - the `= len(the_table_it_limits)` tautology - is filed twice in this
+# repository and makes both directions true by construction. tests/
+# test_tier1_budget.py reads THIS MODULE'S SOURCE and refuses anything but a
+# literal here.
+#
+# THE CUTOFF IS POLICY AND NOT A TUNABLE. The workflow says in capitals not to
+# raise it to accommodate a slower lane; this is what makes that sentence cost
+# something. It is pinned to its exact value rather than bounded, because there
+# is no direction it is allowed to move on its own.
+TIER1_RECORDED_BUDGET = 540
+TIER1_RECORDED_CEILING = 570
+TIER1_POLICY_CUTOFF_MINUTES = 10
+
+# -- THE RESTATEMENT SCAN, AND WHY IT IS THIS NARROW. ------------------------
+#
+# A second owner of the number is a line that names the lane AND hangs a
+# duration on a bound noun. All three conjuncts are required, because each one
+# alone manufactures findings: prose about how long a run TOOK is a measurement
+# and not a target, and a budget sentence about something else entirely is not
+# about this lane at all. Both of those bounds are graded in
+# tests/test_tier1_budget.py rather than asserted here, because a scan nobody
+# can force to be wrong is not a scan.
+#
+# THE SPELLINGS WERE THE HOLE, AND THE WORST ONE WAS THE GUARD'S OWN OUTPUT.
+# The first build required a unit WORD - "510 seconds", "9 minutes" - so it
+# could not see `510s`, which is the spelling the workflow's own duration report
+# emits AND the spelling this guard's own detail lines emit. A guard blind to
+# the exact string its subject prints is a guard that will be walked past. Five
+# more were MEASURED silent and are now covered: `8m30s`, `0:08:30`,
+# `0.15 hours`, `510000 ms`, and a bound noun sitting on a different line from
+# the duration it binds.
+#
+# EACH ALTERNATIVE IS SPELLED AS DATA rather than inlined into one pattern, so
+# tests/test_tier1_budget.py can pin the membership in both directions and
+# exercise every member. The first build inlined them, and deleting eighteen of
+# the nineteen number words - or four of the five bound nouns - left the suite
+# green, because the arms only ever exercised one alternative each.
+TIER1_NUMBER_WORDS = (
+    r"one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
+    r"fifteen|twenty|thirty|forty|forty-five|sixty|ninety"
+)
+TIER1_UNIT_WORDS = r"milliseconds?|msecs?|minutes?|mins?|seconds?|secs?|hours?|hrs?|ms"
+
+#: A duration spelled with its unit as a word: "510 seconds", "0.15 hours".
+TIER1_SPELLED_DURATION = (
+    r"\b(?:\d+(?:\.\d+)?|" + TIER1_NUMBER_WORDS + r")[\s-]*(?:" + TIER1_UNIT_WORDS + r")\b"
+)
+#: A duration spelled with a bare unit SUFFIX: "510s", "9m", "2h". This is the
+#: form GitHub's own summary and this guard's own detail lines use.
+TIER1_SUFFIXED_DURATION = r"\b\d+(?:\.\d+)?[ ]?[smh]\b"
+#: A compound duration: "8m30s", "1h20m".
+TIER1_COMPOUND_DURATION = r"\b\d+[ ]?[hm][ ]?\d+[ ]?[ms]\b"
+#: A duration spelled as a clock reading: "0:08:30", "10:30". The minute and
+#: second fields are bounded to 0-59 so a `file:line` citation cannot match.
+TIER1_CLOCK_DURATION = r"\b\d{1,2}:[0-5]\d(?::[0-5]\d)?\b"
+
+TIER1_DURATION = re.compile(
+    "|".join(
+        (
+            TIER1_COMPOUND_DURATION,
+            TIER1_CLOCK_DURATION,
+            TIER1_SPELLED_DURATION,
+            TIER1_SUFFIXED_DURATION,
+        )
+    ),
+    re.IGNORECASE,
+)
+
+TIER1_BOUND_NOUNS = ("target", "budget", "ceiling", "cutoff", "limit")
+TIER1_BOUND_NOUN = re.compile(r"\b(?:" + "|".join(TIER1_BOUND_NOUNS) + r")\b", re.IGNORECASE)
+
+#: A BARE INTEGER HUNG DIRECTLY OFF A BOUND NOUN, carrying no unit at all:
+#: "budget: 540", "ceiling 570", "cutoff 600". MEASURED silent against every
+#: scan above, because every one of them needs a unit somewhere and this shape
+#: leaves the unit to the noun. One README line spelling all three levels this
+#: way restated the whole set and nothing saw it.
+#:
+#: THE ADJACENCY IS THE ENTIRE BOUND. Only an optional colon or equals and
+#: horizontal whitespace may sit between the noun and the number, so "the docs
+#: size budget is 40 KB" does not match, a markdown table cell does not match,
+#: and neither does a constant whose name merely ENDS in one of these words -
+#: an underscore is a word character, so there is no boundary before it.
+#: Widening this to "a bound noun and a number somewhere on one line" would
+#: flag every table in the repository.
+TIER1_BOUND_NUMBER = re.compile(
+    r"\b(?:" + "|".join(TIER1_BOUND_NOUNS) + r")\b[ \t]*[:=]?[ \t]*\d+\b", re.IGNORECASE
+)
+
+#: THE LANE SPELLINGS, AND THERE ARE TWO RATHER THAN THREE. The first build
+#: carried `tier1` as a third alternative beside `tier[\s-]?1`, which already
+#: matches it - an EQUIVALENT mutant that no arm could ever kill. It is dropped
+#: rather than graded, because a rung that cannot fail is not a rung.
+TIER1_LANE_SPELLINGS = (r"tier[\s-]?1", r"fast lane")
+TIER1_LANE = re.compile(r"\b(?:" + "|".join(TIER1_LANE_SPELLINGS) + r")\b", re.IGNORECASE)
+
+#: How far from a duration line the lane token and the bound noun may sit. BOTH
+#: are windowed. The first build windowed only the lane and required the bound
+#: noun on the duration's own line, so a target split over two lines - the way
+#: prose wraps - was invisible.
+TIER1_LANE_WINDOW = 6
+
+#: A SECOND FILE DECLARING THE LANE'S OWN ENV KEYS, WITH A VALUE. This is the
+#: most literal second owner there is and the prose scan could not see it: a
+#: full env block copied into another workflow states the numbers in machine-
+#: readable form and spells no sentence at all. MEASURED silent on the candidate
+#: this replaces.
+#:
+#: THE VALUE IS WHAT MAKES IT A STATEMENT. This module and the test module both
+#: NAME these keys - they have to, to grade them - and naming a key is not
+#: owning its number. So a digit is required after the separator, which is
+#: exactly the difference between a grader and an owner.
+TIER1_ENV_KEY_STATED = re.compile(
+    r"\b(?:" + TIER1_BUDGET_KEY + r"|" + TIER1_CEILING_KEY + r")\b[\"']?[ \t]*[:=][ \t]*[\"']?\d"
+)
+
+# WHAT THIS GUARD DECLINES TO READ, STATED AS DATA WITH ITS REASONS. These files
+# RECORD what was true or measured at a time; they do not configure the lane. A
+# ledger entry is append-only by docs/LEDGER.md's own line 16, and an item LINE
+# keeps the premise it was filed with while the correction lives in the note -
+# both are settled practice, and neither is a second owner.
+#
+# THE PRICE IS STATED RATHER THAN HIDDEN. An exclusion nobody measures is a hole
+# nobody counts, so the guard reports WHICH declined file actually carried a
+# restatement rather than only how many it declined. A count alone answers how
+# many reads a reason forgives and never which, which is CS-893's finding.
+TIER1_NARRATIVE_RECORD = (
+    ("docs/LEDGER.md", "append-only completion record - nothing in it is ever edited"),
+    ("ROADMAP.md", "an item LINE keeps the premise it was filed with"),
+    ("BACKLOG.md", "aspirational lines, never a statement of the lane's target"),
+    ("WAKEUP_NOTES.md", "a session record, rewritten every session"),
+    ("docs/GATED.md", "records what is blocked, not what the lane targets"),
+    ("docs/history_notes.md", "deep archive of pruned notes and retired entries"),
+    ("docs/item_notes.md", "the index over per-item detail, which records measurements"),
+)
+TIER1_NARRATIVE_PREFIXES = (
+    ("docs/item_notes/", "per-item detail records what was measured and when"),
+    ("docs/_archive/", "dated artifacts, excluded from a search for current truth"),
+    ("memory/", "durable cross-session facts, not the lane's configuration"),
+)
+
+
+def _tier1_declaration(text: str, key: str) -> tuple[int | None, str | None]:
+    """Read one whole-number declaration that must appear exactly once.
+
+    The key is matched only at the start of a line, so prose naming it in a
+    comment is not a second declaration - which matters, because the workflow's
+    own comments have to be able to explain what the key is for.
+
+    Args:
+        text: The workflow source.
+        key: The key to read.
+
+    Returns:
+        (the value, None) when exactly one well-formed declaration exists, and
+        (None, the problem) otherwise.
+    """
+    stated = re.compile(rf"^[ \t]*{re.escape(key)}:", re.MULTILINE).findall(text)
+    if not stated:
+        return None, f"{key} is not stated, so nothing owns that level"
+    if len(stated) > 1:
+        return None, f"{key} is stated {len(stated)} times - it must have exactly one owner"
+    valued = re.compile(
+        rf"^[ \t]*{re.escape(key)}:[ \t]*[\"']?(\d+)[\"']?[ \t]*(?:#.*)?$", re.MULTILINE
+    ).findall(text)
+    if len(valued) != 1:
+        return None, f"{key} is stated but its value is not a whole number"
+    return int(valued[0]), None
+
+
+def _tier1_narrative_reason(relative: str) -> str | None:
+    """Why this path records a target rather than stating one, if it does.
+
+    Args:
+        relative: A repo-relative posix path.
+
+    Returns:
+        The reason, or None when the file is graded like any other.
+    """
+    for path, reason in TIER1_NARRATIVE_RECORD:
+        if relative == path:
+            return reason
+    for prefix, reason in TIER1_NARRATIVE_PREFIXES:
+        if relative.startswith(prefix):
+            return reason
+    return None
+
+
+def _tier1_restatements(text: str) -> list[tuple[int, str]]:
+    """Every line stating a tier 1 duration target, or declaring its env keys.
+
+    THE ENV-KEY ARM DOES NOT NEED THE OTHER TWO CONJUNCTS. A line that declares
+    this lane's own key with a value IS the number, in the form a runner reads;
+    it needs no bound noun and no lane token nearby, because the key name is
+    both of those.
+
+    Args:
+        text: The file's content.
+
+    Returns:
+        (line number, the stripped line) for each hit.
+    """
+    lines = text.splitlines()
+    hits: list[tuple[int, str]] = []
+    for index, line in enumerate(lines):
+        if TIER1_ENV_KEY_STATED.search(line):
+            hits.append((index + 1, line.strip()))
+            continue
+        bound_number = TIER1_BOUND_NUMBER.search(line)
+        if not bound_number and not TIER1_DURATION.search(line):
+            continue
+        low = max(0, index - TIER1_LANE_WINDOW)
+        high = min(len(lines), index + TIER1_LANE_WINDOW + 1)
+        near = lines[low:high]
+        # A bare number hung off a bound noun carries the bound WITH it, so the
+        # window is only asked for one that is not already on this line.
+        if not bound_number and not any(TIER1_BOUND_NOUN.search(one) for one in near):
+            continue
+        if any(TIER1_LANE.search(one) for one in near):
+            hits.append((index + 1, line.strip()))
+    return hits
+
+
+def _tier1_second_owners(
+    root: Path, files: list[Path], skips: list[Skip]
+) -> tuple[list[str], int, int]:
+    """Scan the tracked tree for a second statement of the lane's target.
+
+    Args:
+        root: The repository root under audit.
+        files: The enumerated candidate files.
+        skips: Skip records, appended to in place.
+
+    Returns:
+        (one record per restatement, files graded, files declined).
+    """
+    found: list[str] = []
+    graded = 0
+    declined = 0
+    for path in files:
+        relative = _rel(root, path)
+        if relative == TIER1_WORKFLOW_RELATIVE:
+            continue
+        readable, _why = _classify(path)
+        if not readable:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            skips.append({"path": relative, "reason": f"unreadable: {_exc_text(exc)}"})
+            continue
+        hits = _tier1_restatements(text)
+        narrative = _tier1_narrative_reason(relative)
+        if narrative is not None:
+            declined += 1
+            if hits:
+                skips.append(
+                    {
+                        "path": relative,
+                        "reason": f"states a tier 1 target and is not graded: {narrative}",
+                    }
+                )
+            continue
+        graded += 1
+        found.extend(f"{relative}:{number}  {line}" for number, line in hits)
+    return found, graded, declined
+
+
+def _tier1_ratchet_problem(level: str, stated: int, recorded: int) -> str | None:
+    """The two-way ratchet on one level, in CS-891's shape.
+
+    Args:
+        level: The level's name, for the message.
+        stated: What the workflow states.
+        recorded: What this module records as the maximum.
+
+    Returns:
+        The problem, or None when the two agree.
+    """
+    if stated > recorded:
+        return (
+            f"the {level} states {stated} against a recorded maximum of {recorded}."
+            " The lane was allowed to grow. That is a finding to argue, not a line to"
+            " type: make the lane faster, or raise the recorded maximum in this same"
+            " change and say why - with a fresh timing sample from the runner"
+        )
+    if stated < recorded:
+        return (
+            f"the {level} states {stated} against a recorded maximum of {recorded}."
+            f" The lane got faster and the maximum was not brought down with it."
+            f" Lower it to {stated} - a slack maximum is banked room for a later"
+            " inflation nobody will have to defend"
+        )
+    return None
+
+
+def guard_tier1_budget(
+    root: Path,
+    files: list[Path],
+    *,
+    recorded_budget: int = TIER1_RECORDED_BUDGET,
+    recorded_ceiling: int = TIER1_RECORDED_CEILING,
+    policy_cutoff_minutes: int = TIER1_POLICY_CUTOFF_MINUTES,
+) -> tuple[Guard, list[Skip]]:
+    """Assert one file owns the tier 1 budget, its levels are ordered, and pinned.
+
+    THE THREE RECORDED LEVELS ARE PARAMETERS WITH DEFAULTS, and that is not
+    configurability - the driver never passes them. It exists so the ORDER arms
+    in tests/test_tier1_budget.py can satisfy the ratchet and isolate the order
+    relation. Without it every order arm would go red for two reasons at once,
+    and deleting the order check would leave all of them green.
+
+    Args:
+        root: The repository root under audit.
+        files: The enumerated candidate files.
+        recorded_budget: The maximum the budget may state.
+        recorded_ceiling: The maximum the ceiling may state.
+        policy_cutoff_minutes: The exact value the runaway cutoff must state.
+
+    Returns:
+        (the guard record, skip records).
+    """
+    skips: list[Skip] = []
+    name = "tier 1 budget"
+    path = root / Path(TIER1_WORKFLOW_RELATIVE)
+    if not path.is_file():
+        skips.append(
+            {"path": TIER1_WORKFLOW_RELATIVE, "reason": "absent - the tier 1 budget is ungraded"}
+        )
+        detail = [f"{TIER1_WORKFLOW_RELATIVE} does not exist, so no lane states a budget"]
+        return _guard("k", name, "WARN", detail), skips
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        reason = _exc_text(exc)
+        skips.append({"path": TIER1_WORKFLOW_RELATIVE, "reason": f"unreadable: {reason}"})
+        detail = [f"{TIER1_WORKFLOW_RELATIVE} is unreadable: {reason}"]
+        return _guard("k", name, "FAIL", detail), skips
+
+    budget, budget_problem = _tier1_declaration(text, TIER1_BUDGET_KEY)
+    ceiling, ceiling_problem = _tier1_declaration(text, TIER1_CEILING_KEY)
+    minutes, minutes_problem = _tier1_declaration(text, TIER1_TIMEOUT_KEY)
+    problems = [item for item in (budget_problem, ceiling_problem, minutes_problem) if item]
+
+    detail = [f"one owner: {TIER1_WORKFLOW_RELATIVE}"]
+    if budget is not None and ceiling is not None and minutes is not None:
+        cutoff = minutes * SECONDS_PER_MINUTE
+        detail.append(f"budget {budget}s - reported every run, warns over, never fails")
+        detail.append(f"ceiling {ceiling}s - fails the lane and names the number")
+        detail.append(f"cutoff {cutoff}s ({minutes} min) - cancels, and proves nothing")
+        detail.append(
+            f"ratchet: budget and ceiling pinned two-way at {recorded_budget} and "
+            f"{recorded_ceiling}; the cutoff is policy at {policy_cutoff_minutes} min"
+        )
+        if not budget < ceiling < cutoff:
+            problems.append(
+                f"the levels are out of order: budget {budget}s, ceiling {ceiling}s, "
+                f"cutoff {cutoff}s. Each must sit strictly below the next, or a breach "
+                f"is handed back to the canceller and reports nothing"
+            )
+        problems.extend(
+            problem
+            for problem in (
+                _tier1_ratchet_problem("budget", budget, recorded_budget),
+                _tier1_ratchet_problem("ceiling", ceiling, recorded_ceiling),
+            )
+            if problem is not None
+        )
+        if minutes != policy_cutoff_minutes:
+            problems.append(
+                f"the runaway cutoff states {minutes} min against a policy of "
+                f"{policy_cutoff_minutes} min. IT IS NOT A TUNABLE. Raising it turns a "
+                f"runaway detector into a budget and removes the only signal that the "
+                f"lane is growing; lowering it hands a slow run back to the canceller, "
+                f"which reports nothing. The ceiling is the level that moves"
+            )
+
+    found, graded, declined = _tier1_second_owners(root, files, skips)
+    detail.append(f"graded {graded} tracked file(s) for a second statement of the target")
+    detail.append(f"declined {declined} file(s) of the append-only record - see the skip list")
+    if found:
+        problems.append("these state a tier 1 duration target and the workflow already owns it:")
+        problems.extend(f"  {item}" for item in found)
+
+    if problems:
+        return _guard("k", name, "FAIL", [*detail, "DRIFT:", *problems]), skips
+    return _guard("k", name, "PASS", detail), skips
+
+
 # --- driver -----------------------------------------------------------------
 
 
@@ -2795,6 +3236,10 @@ def run_all(root: Path) -> tuple[list[Guard], list[Skip], str]:
     dated_guard, dated_skips = guard_dated(root, files)
     guards.append(dated_guard)
     skips.extend(dated_skips)
+
+    budget_guard, budget_skips = guard_tier1_budget(root, files)
+    guards.append(budget_guard)
+    skips.extend(budget_skips)
 
     guards.sort(key=lambda guard: guard["id"])
     return guards, skips, source
