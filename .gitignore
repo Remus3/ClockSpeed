@@ -217,6 +217,15 @@ shell/dist/
 # exit code is captured. Ephemeral in CI; litter when the step is run by hand.
 shell/tap.txt
 shell/out/
+# Written by the NVIDIA user-mode driver, not by anything in this project, when
+# Electron is launched with `shell/` as its working directory - which is exactly
+# how the desktop shortcut launches it. The directory arrives empty, so it is
+# invisible to git today; the entry is here for the day the driver puts a log in
+# it. tests/shell/test_shell_assets.py enumerates this subtree with `--others
+# --exclude-standard`, so an un-ignored binary dropped here would redden the
+# ASCII and carriage-return arms against a file nobody in this project authored.
+# NARROW ON PURPOSE: this one vendor directory, not a wildcard over shell/.
+shell/NVIDIA Corporation/
 
 
 # ===========================================================================

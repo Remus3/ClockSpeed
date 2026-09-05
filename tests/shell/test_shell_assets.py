@@ -859,23 +859,24 @@ def test_main_js_holds_exactly_one_of_each_critical_call_site_in_raw_text(site: 
 CALLBACK_ARGUMENT: Final = "verdicts.codeForOrRefuse(verdict)"
 
 
-def callback_arguments(text: str) -> tuple[str, ...]:
-    """Every argument expression handed to a call spelled ``callback(``.
+def arguments_of(text: str, needle: str) -> tuple[str, ...]:
+    """Every argument expression handed to a call whose opening text is ``needle``.
 
     Parentheses are balanced from the opening one, so a nested call in the
     argument - which is exactly the shape the shipped code uses - is returned
     whole rather than truncated at its first ``)``.
 
-    Note that ``(request, callback) =>`` does not match: the needle carries the
-    opening parenthesis, so a parameter named ``callback`` is not a call.
+    THE NEEDLE MUST CARRY ITS OWN OPENING PARENTHESIS. That is what makes
+    ``(request, callback) =>`` not a match: a parameter named ``callback`` is
+    not a call, and a needle of ``callback`` alone could not tell the two apart.
 
     Args:
-        text: The file text to read, RAW.
+        text: The file text to read.
+        needle: The call's opening text, ending in ``(``.
 
     Returns:
         The argument expressions, stripped of surrounding whitespace, in order.
     """
-    needle = "callback("
     found: list[str] = []
     start = 0
     while True:
@@ -892,6 +893,26 @@ def callback_arguments(text: str) -> tuple[str, ...]:
             index += 1
         found.append(text[at + len(needle) : index - 1].strip())
         start = index
+
+
+def callback_arguments(text: str) -> tuple[str, ...]:
+    """Every argument expression handed to a call spelled ``callback(``.
+
+    A named alias for :func:`arguments_of` with the verify callback's needle
+    already applied. The two share one implementation deliberately: section (l)
+    grades the arguments handed to the supervisor's decisions with the same
+    reader, and
+    :func:`test_the_callback_argument_reader_fires_on_every_measured_bypass`
+    below is the planted-positive proof that covers BOTH callers. A second,
+    separately written scanner would be a second thing to prove.
+
+    Args:
+        text: The file text to read, RAW.
+
+    Returns:
+        The argument expressions, stripped of surrounding whitespace, in order.
+    """
+    return arguments_of(text, "callback(")
 
 
 def test_main_js_hands_the_verify_callback_the_mapped_verdict_and_nothing_else() -> None:
@@ -1729,7 +1750,142 @@ REQUIRED_MAIN_WIRING: Final = (
     "trayLib.tooltip(",
     "new Tray(",
     "dialog.showErrorBox(",
+    # ADDED WITH THE RESOLVER ITSELF, on the slice author's own request. Spawning
+    # the bare interpreter NAME was measured to be a local code-execution vector
+    # on Windows - libuv searches the spawn's working directory before PATH, and
+    # that directory is a repository root granting Modify to Authenticated Users.
+    # Without this entry main.js could resolve nothing, spawn the bare name
+    # again, and every arm here would stay green - which is the precise shape
+    # CS-896 shipped one session earlier.
+    "supervisor.resolveInterpreter(",
 )
+
+
+#: How many seams the table above is required to hold. CS-605's lesson, applied
+#: to the one table that had not learned it: an adversary emptied
+#: ``REQUIRED_MAIN_WIRING`` to ``()``, BOTH arms below went vacuous, and the
+#: module still reported the same number of passing tests, so nothing signalled.
+#: Section (d) is immune to that because it is parametrized - emptying its table
+#: DROPS test cases and the count moves - and the wiring arms are parametrized
+#: below for the same reason. This floor is the second signal: it fires on a
+#: table emptied to nothing and on one quietly shortened by a token or two.
+WIRING_TABLE_SIZE: Final = 12
+
+#: The seams whose loss is a SILENT behavioural regression rather than a crash,
+#: named individually so that shortening the table to drop one of them is red
+#: even if some other token were added to keep the length. Spelled as a subset
+#: check rather than as a second copy of the table, because a second copy is a
+#: second thing to keep in step.
+LOAD_BEARING_SEAMS: Final = (
+    "supervisor.decideStart(",
+    "trayLib.menuTemplate(",
+    "new Tray(",
+    # Losing this one is silent AND is a security regression rather than a
+    # missing feature: main.js would fall back to spawning a bare name, which is
+    # the measured code-execution vector the resolver exists to close.
+    "supervisor.resolveInterpreter(",
+)
+
+#: Every module ``shell/main.js`` binds out of ``./lib/``, as the exact require
+#: line that binding it produces.
+#:
+#: THIS IS ``VERIFY_PATH_BINDINGS`` GENERALISED, AND CS-909 IS WHY. That
+#: constant closed one shadowed-binding attack for ``trust`` and ``verdicts``,
+#: and the arms CS-909 added thirty lines below it did not inherit the lesson.
+#: An adversary replaced ``trayLib`` AND ``supervisor`` with local fake objects
+#: - so neither module was ever loaded - while leaving the require TEXT alive
+#: inside a string literal, and every seam arm stayed green. All 772 lines of
+#: ``shell/test/tray.test.js`` were then grading a module nothing in the
+#: shipped process used. Pinning what a name MEANS is what makes grading the
+#: calls made through that name mean anything, and the pin has to cover every
+#: name, not the two that were attacked first.
+MAIN_MODULE_BINDINGS: Final = (
+    ("endpoint", 'const endpoint = require("./lib/endpoint.js");'),
+    ("trust", 'const trust = require("./lib/trust.js");'),
+    ("state", 'const state = require("./lib/state.js");'),
+    ("geometry", 'const geometry = require("./lib/geometry.js");'),
+    ("windowLib", 'const windowLib = require("./lib/window.js");'),
+    ("verdicts", 'const verdicts = require("./lib/verdict.js");'),
+    ("supervisor", 'const supervisor = require("./lib/supervisor.js");'),
+    ("trayLib", 'const trayLib = require("./lib/tray.js");'),
+)
+
+#: How many bindings the table above is required to hold, for the same reason
+#: :data:`WIRING_TABLE_SIZE` exists.
+MODULE_BINDING_COUNT: Final = 8
+
+#: The exact expression each supervisor decision must be handed, pinned the way
+#: :data:`CALLBACK_ARGUMENT` pins the verify callback's argument and for exactly
+#: the same reason.
+#:
+#: COUNTING THE CALL PROVES ONLY THAT A CALL HAPPENS. Measured: rewriting
+#: ``supervisor.decideStart({ healthy: await probeOnce(healthUrl) })`` as
+#: ``supervisor.decideStart({ healthy: true })`` deletes the entire feature -
+#: the companion stops asking whether a dashboard is already answering and
+#: always adopts - and every arm that counted the token stayed green, because
+#: the token was still there. The argument is the decision; the call is only
+#: where it is spelled.
+REQUIRED_CALL_ARGUMENTS: Final = (
+    ("supervisor.decideStart(", "{ healthy: await probeOnce(healthUrl) }"),
+    ("supervisor.decideStop(", "{ started: startedSurface !== null }"),
+    # CHANGED DELIBERATELY, not loosened. `elapsedMs` became a required field
+    # when the attempt ceiling alone was measured to bound the wait at nearly
+    # three minutes - a listener that accepts and never speaks makes every probe
+    # burn its full timeout instead of failing fast. A caller that stopped
+    # passing it would get a refusal rather than a silent unbounded wait, and
+    # this pin is what makes dropping it a red arm rather than a quiet edit.
+    ("supervisor.decideProbeOutcome(", "{ attempt, answered, elapsedMs }"),
+)
+
+#: How many decisions the table above is required to cover.
+DECISION_ARGUMENT_COUNT: Final = 3
+
+#: A literal answer standing where a computed one belongs. ``null`` is NOT here:
+#: ``{ started: startedSurface !== null }`` is a real comparison against the
+#: real sentinel, and banning the word would ban the shipped code.
+_LITERAL_ANSWER: Final = re.compile(r"(?<![\w$.])(?:true|false|\d)")
+
+#: The statement that keeps the tray alive. ``createTray`` returns a ``Tray``
+#: and ``trayRef`` is the module-scope name that holds it; dropping the
+#: assignment leaves the object unreachable, so it is collected and the icon
+#: disappears from the notification area while the process keeps running. The
+#: window is frameless and hidden by then, so that is an operator with a process
+#: they can neither see nor quit. Measured: deleting ``trayRef = `` from this
+#: line left every seam arm green, because ``createTray(`` was still called.
+TRAY_HELD_AT_MODULE_SCOPE: Final = "trayRef = createTray(win);"
+
+#: The sentinel ``trayRef`` starts at, which is what makes ``!== null`` in the
+#: close guard the right test. Change this to ``undefined`` and the guard below
+#: is always true again, by a different route.
+TRAY_SENTINEL: Final = "let trayRef = null;"
+
+#: The close handler's opening text, used to bound every read below to that one
+#: handler rather than to the whole file.
+CLOSE_HANDLER_OPENER: Final = 'win.on("close", (event) => {'
+
+#: The hide path's guard, normalised to single spaces. BOTH halves are load
+#: bearing and each was attacked separately: ``&&`` to ``||`` strands the
+#: operator whenever the tray is missing, and ``!== null`` to ``!== undefined``
+#: makes the test always true and strands them the same way. Each is a
+#: one-character edit that left the count-based arm reading exactly 1.
+HIDE_PATH_GUARD: Final = "if (!quitting && trayRef !== null)"
+
+#: Any write to ``closing``, in any spelling, with the assigned value captured.
+#: NOT ``code.count("closing = true")``: measured, a second assignment spelled
+#: ``closing=true;`` without spaces left that count reading 1.
+_CLOSING_WRITE: Final = re.compile(r"\bclosing\s*(?:\|\||&&|\?\?|[-+*/%])?=(?!=)\s*([^;\n]*)")
+
+#: The two writes to ``closing`` the file is allowed to hold, in order: the
+#: declaration's initialiser, then the single assignment on the quit path.
+EXPECTED_CLOSING_WRITES: Final = ("false", "true")
+
+#: A JavaScript function declaration, for the orphan census below.
+_FUNCTION_DECLARATION: Final = re.compile(r"\bfunction\s+([A-Za-z_$][\w$]*)\s*\(")
+
+#: The fewest references a declared function may have: the declaration itself
+#: plus at least one use. A function reached only by name - ``.then(start)`` -
+#: counts, which is why the census reads bare identifiers rather than ``name(``.
+MIN_FUNCTION_REFERENCES: Final = 2
 
 
 def main_code() -> str:
@@ -1737,72 +1893,598 @@ def main_code() -> str:
     return strip_js_comments(read_text("shell/main.js"))
 
 
-def test_main_consumes_every_seam_it_was_given() -> None:
-    """main.js CALLS the modules it delegates to, rather than merely importing them.
+def string_content_spans(code: str) -> tuple[tuple[int, int], ...]:
+    """Half-open spans covering the CONTENTS of every string literal in ``code``.
+
+    THE STRIPPER DELIBERATELY KEEPS STRING LITERALS, and section (c) explains
+    why: ``shell/lib/endpoint.js`` builds its URL from a template holding
+    ``://``, and a stripper that truncated there would shrink every population
+    scanned in this module while still reporting zero findings. Keeping them is
+    correct, and it is also the hole an adversary walked through - a seam arm
+    that greps stripped text for ``supervisor.decideStart(`` is satisfied by
+    ``const seamNote = "supervisor.decideStart(";`` while no such call exists.
+
+    So the spans are computed rather than deleted. An occurrence is code when it
+    STARTS outside one, which keeps ``require("./lib/tray.js")`` - a token that
+    legitimately contains a string - matchable, while a whole token buried
+    inside a string is not.
+
+    Expects comments to be gone already; run it on :func:`main_code` output, not
+    on raw text, or a quote inside a comment opens a span that never closes.
+
+    Args:
+        code: Comment-stripped JavaScript.
+
+    Returns:
+        The spans, in order.
+    """
+    spans: list[tuple[int, int]] = []
+    index = 0
+    end = len(code)
+    while index < end:
+        char = code[index]
+        if char in "\"'`":
+            quote = char
+            index += 1
+            start = index
+            while index < end:
+                if code[index] == "\\":
+                    index += 2
+                    continue
+                if code[index] == quote:
+                    break
+                if quote != "`" and code[index] == "\n":
+                    break
+                index += 1
+            spans.append((start, min(index, end)))
+            index += 1
+            continue
+        index += 1
+    return tuple(spans)
+
+
+def code_occurrences(code: str, token: str) -> tuple[int, ...]:
+    """Every offset at which ``token`` appears in ``code`` as CODE, not as string text.
+
+    Args:
+        code: Comment-stripped JavaScript.
+        token: The text to find.
+
+    Returns:
+        The offsets, in order. Empty when the token appears only inside string
+        literals, or not at all.
+    """
+    spans = string_content_spans(code)
+    found: list[int] = []
+    at = code.find(token)
+    while at != -1:
+        if not any(low <= at < high for low, high in spans):
+            found.append(at)
+        at = code.find(token, at + 1)
+    return tuple(found)
+
+
+def blank_string_contents(code: str) -> str:
+    """``code`` with every string literal's contents replaced by spaces.
+
+    Offsets are preserved exactly, so a position found in the result names the
+    same byte of the input. Used for brace matching, where a ``{`` inside a
+    string literal would otherwise unbalance the scan.
+
+    Args:
+        code: Comment-stripped JavaScript.
+
+    Returns:
+        The same text, same length, with string contents blanked.
+    """
+    out = list(code)
+    for low, high in string_content_spans(code):
+        for index in range(low, high):
+            if out[index] != "\n":
+                out[index] = " "
+    return "".join(out)
+
+
+def braced_block(code: str, start: int) -> tuple[int, int]:
+    """Half-open span of the ``{...}`` block whose brace is the first at or after ``start``.
+
+    Args:
+        code: Text whose string contents are already blanked - see
+            :func:`blank_string_contents`.
+        start: Where to begin looking for the opening brace.
+
+    Returns:
+        ``(open, close)``, or ``(-1, -1)`` when there is no brace at all.
+    """
+    opened = code.find("{", start)
+    if opened == -1:
+        return (-1, -1)
+    depth = 0
+    index = opened
+    while index < len(code):
+        if code[index] == "{":
+            depth += 1
+        elif code[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return (opened, index + 1)
+        index += 1
+    return (opened, len(code))
+
+
+def squeezed(text: str) -> str:
+    """``text`` with every run of whitespace collapsed to one space, ends trimmed."""
+    return " ".join(text.split())
+
+
+def test_the_wiring_table_still_holds_every_seam_it_was_written_for() -> None:
+    """The requirement table is neither emptied nor quietly shortened.
+
+    THE ARM THAT WOULD HAVE CAUGHT THE VACUOUS PASS. An adversary emptied
+    ``REQUIRED_MAIN_WIRING`` to ``()``; both wiring arms went vacuous and the
+    module's test count did not move, so nothing anywhere signalled. This arm
+    reds on that, and the parametrized arms below now drop eleven cases when it
+    happens, so the count moves too. Two independent signals, because a floor
+    that lives in the same file as the table it guards can be edited alongside
+    it - the count moving cannot.
+    """
+    total = len(REQUIRED_MAIN_WIRING)
+    assert total == WIRING_TABLE_SIZE, (
+        f"the wiring table holds {total} seams, expected {WIRING_TABLE_SIZE}"
+    )
+
+    distinct = len(set(REQUIRED_MAIN_WIRING))
+    assert distinct == WIRING_TABLE_SIZE, (
+        f"the wiring table holds {distinct} distinct seams, expected {WIRING_TABLE_SIZE}"
+    )
+
+    dropped = tuple(seam for seam in LOAD_BEARING_SEAMS if seam not in REQUIRED_MAIN_WIRING)
+    assert not dropped, f"the wiring table no longer requires: {dropped}"
+
+
+@pytest.mark.parametrize("token", REQUIRED_MAIN_WIRING)
+def test_main_consumes_the_seam_it_was_given(token: str) -> None:
+    """main.js CALLS the module it delegates to, rather than merely importing it.
+
+    ONE CASE PER SEAM, not one loop over eleven. CS-605 measured that emptying a
+    token tuple killed an arm while each single-token deletion survived it, so
+    the proof showed only that at least one of the tokens fired. Parametrizing
+    also makes an emptied table visible in the collected count, which a loop
+    cannot do.
+
+    READ AS CODE, NOT AS TEXT. The occurrence has to start outside a string
+    literal. Measured: ``const seamNote = "supervisor.decideStart(";`` satisfied
+    the substring version of this arm exactly as well as the real call did,
+    which is a seam that is documented and not wired.
 
     STATED LIMITATION, measured the first time this arm ran. It matches TEXT,
     not syntax, so it is sensitive to formatting: a call split as ``trayLib``
     newline ``.menuTemplate(`` is a real call this arm cannot see, and it
     reported exactly that on its first run. The fix taken was to write the call
     on one line rather than to loosen the token, because a looser token is
-    satisfied by more things that are not calls. Anyone reformatting
-    ``shell/main.js`` must expect this arm to speak up, and must not answer it
-    by weakening the list. A parser would not have this weakness; nothing in
-    this repository parses JavaScript, and adding a parser to grade one file is
-    a trade this project has not made.
+    satisfied by more things that are not calls. That trade is deliberately
+    UNCHANGED here: a reformat-tolerant token would also be satisfied by the
+    string literal and the dead function this arm now catches. Anyone
+    reformatting ``shell/main.js`` must expect this arm to speak up, and must
+    not answer it by weakening the list. A parser would not have this weakness;
+    nothing in this repository parses JavaScript, and adding a parser to grade
+    one file is a trade this project has not made.
     """
-    code = main_code()
-    missing = tuple(token for token in REQUIRED_MAIN_WIRING if token not in code)
-    total = len(missing)
-    assert total == 0, f"{total} seam(s) shipped but not consumed by main.js: {missing}"
+    found = code_occurrences(main_code(), token)
+    assert found, f"seam shipped but not consumed by main.js as code: {token!r}"
 
 
-def test_the_wiring_detector_is_blind_to_a_commented_out_call() -> None:
+@pytest.mark.parametrize("token", REQUIRED_MAIN_WIRING)
+def test_the_wiring_detector_is_blind_to_a_commented_out_call(token: str) -> None:
     """A seam named only in a comment does not satisfy the arm above.
 
-    This is the arm that has teeth. Without it the list is satisfied by prose,
-    which is how the same class of check passed last time while the behaviour
-    it claimed to grade had been deleted.
+    This is one of the arms that has teeth. Without it the list is satisfied by
+    prose, which is how the same class of check passed last time while the
+    behaviour it claimed to grade had been deleted.
     """
-    for token in REQUIRED_MAIN_WIRING:
-        commented = f"// {token}\n"
-        assert token not in strip_js_comments(commented), token
+    assert token not in strip_js_comments(f"// {token}\n"), token
 
 
-def test_close_does_not_permanently_disable_persistence() -> None:
-    """The hide path returns before `closing` is set.
+@pytest.mark.parametrize("token", REQUIRED_MAIN_WIRING)
+def test_the_wiring_detector_is_blind_to_a_seam_quoted_in_a_string(token: str) -> None:
+    """A seam named only inside a string literal does not satisfy the arm above.
 
-    `closing` exists to stop a debounced write firing against a DESTROYED
-    window. Hiding destroys nothing, so setting it on the hide path would be
-    permanent - every move after the first hide silently dropped, and the window
-    restoring to wherever it happened to be that once. The guard is that exactly
-    one assignment survives comment-stripping.
+    The second direction of the same proof, and the one the comment control
+    could not give. The stripper KEEPS string literals on purpose, so before
+    this arm existed a token moved into a quoted note was indistinguishable from
+    a token in a call.
+
+    Note the token is quoted with single quotes here: three of the eleven carry
+    double quotes of their own, so a double-quoted fixture would close early and
+    prove nothing.
+    """
+    assert not code_occurrences(f"const note = '{token}';\n", token), token
+
+
+@pytest.mark.parametrize(("name", "binding"), MAIN_MODULE_BINDINGS)
+def test_main_binds_each_seam_to_the_real_module_and_no_other(name: str, binding: str) -> None:
+    """Each ``./lib/`` name in main.js means the real module, bound exactly once.
+
+    THE BYPASS THIS CLOSES IS THE ONE THAT GRADING CALLS INVITES. Once
+    ``supervisor.decideStart(`` is graded as code, the cheapest way to make the
+    companion ignore the supervisor is to leave that call alone and change what
+    ``supervisor`` MEANS. ``const supervisor = { decideStart: () => "ADOPT" };``
+    satisfies every seam arm above, and the module is then never loaded at all.
+
+    COUNTED TWICE, ON TWO DIFFERENT READINGS, because each covers the other's
+    blind spot. The RAW count of ``const <name> = `` sees a shadowing rebind
+    even when it is hidden behind the ``/[/*]/`` regex-literal attack section
+    (c) documents, which blinds the stripper. The CODE count of the full require
+    line sees a require that has been demoted to string text, which raw cannot
+    tell from the real thing.
+    """
+    source = read_text("shell/main.js")
+    raw = source.count(f"const {name} = ")
+    assert raw == 1, f"shell/main.js binds {name!r} {raw} time(s) in raw text, expected 1"
+
+    found = code_occurrences(main_code(), binding)
+    assert len(found) == 1, f"shell/main.js holds {len(found)} code copies of {binding!r}"
+
+
+def test_the_module_binding_table_covers_every_lib_main_requires() -> None:
+    """The binding table is neither emptied nor shorter than the tree it grades.
+
+    Derived from the tree rather than restated: every ``shell/lib/`` module in
+    :data:`REQUIRED_NAMES` must appear on the right-hand side of some binding.
+    A new module added to ``shell/lib/`` and required by main.js without being
+    pinned here would otherwise inherit the exact hole CS-909 shipped.
+    """
+    total = len(MAIN_MODULE_BINDINGS)
+    assert total == MODULE_BINDING_COUNT, (
+        f"the binding table holds {total} bindings, expected {MODULE_BINDING_COUNT}"
+    )
+
+    bound = "\n".join(binding for _, binding in MAIN_MODULE_BINDINGS)
+    modules = tuple(name for name in REQUIRED_NAMES if name.startswith(LIB_PREFIX))
+    unpinned = tuple(
+        name for name in modules if f'require("./{name.removeprefix("shell/")}")' not in bound
+    )
+    assert not unpinned, f"shell/lib modules main.js may bind without a pin: {unpinned}"
+
+
+def test_the_binding_check_fires_on_a_shadowed_or_stringified_module() -> None:
+    """The binding arm is proved to tell the real require from both known fakes.
+
+    Without this the arm is a pair of counts that happen to read 1, and a
+    counter stuck at 1 is the same green as one that measured.
+    """
+    real = 'const supervisor = require("./lib/supervisor.js");\n'
+    assert real.count("const supervisor = ") == 1
+    assert len(code_occurrences(real, real.strip())) == 1
+
+    shadowed = real + 'const supervisor = { decideStart: () => "ADOPT" };\n'
+    after_shadowing = 2
+    assert shadowed.count("const supervisor = ") == after_shadowing, "a rebind was not counted"
+
+    stringified = (
+        "const note = 'const supervisor = require(\"./lib/supervisor.js\");';\n"
+        'const supervisor = { decideStart: () => "ADOPT" };\n'
+    )
+    assert not code_occurrences(stringified, real.strip()), "a stringified require still matched"
+
+
+@pytest.mark.parametrize(("call", "argument"), REQUIRED_CALL_ARGUMENTS)
+def test_each_supervisor_decision_is_handed_the_expression_it_was_written_for(
+    call: str, argument: str
+) -> None:
+    """Every supervisor decision receives its computed input, by exact expression.
+
+    Read with :func:`arguments_of`, the same balanced-paren reader the verify
+    callback is graded with and the one
+    :func:`test_the_callback_argument_reader_fires_on_every_measured_bypass`
+    proves. ``decideStart`` is the case that was measured: its argument is the
+    whole of the CS-909 headline feature, and replacing it with a literal left
+    every token-counting arm green.
+    """
+    found = arguments_of(main_code(), call)
+    assert found, f"no {call!r} call site was found at all; this arm would be vacuous"
+    assert found == (argument,), f"unexpected argument(s) to {call!r}: {found}"
+
+
+def test_no_literal_answer_is_handed_to_a_supervisor_decision() -> None:
+    """Nothing constant is handed to a decision, in any spelling.
+
+    A SECOND AND WIDER NET THAN THE EXACT-EXPRESSION ARMS, for the reason
+    :func:`test_no_digit_ever_reaches_the_verify_callback` gives: those pin one
+    string each and would red on a rename that is entirely legitimate, while
+    this states the property that must hold however the call is spelled. Every
+    bypass in this class ends with a constant standing where a measurement
+    belongs - ``{ healthy: true }``, ``{ started: false }``, ``{ attempt: 1 }``.
+
+    ``null`` is deliberately not banned: ``{ started: startedSurface !== null }``
+    is a real comparison against the real sentinel.
     """
     code = main_code()
-    assignments = code.count("closing = true")
-    assert assignments == 1, f"{assignments} assignments to closing, expected 1"
+    decided = tuple(call for call, _ in REQUIRED_CALL_ARGUMENTS)
+    assert len(decided) == DECISION_ARGUMENT_COUNT, "the decision table was shortened"
 
-    prevented = code.find("event.preventDefault()")
-    assert prevented != -1, "the close handler never prevents the close"
+    literal = tuple(
+        (call, found)
+        for call in decided
+        for found in arguments_of(code, call)
+        if _LITERAL_ANSWER.search(found)
+    )
+    assert not literal, f"a literal answer reached a supervisor decision: {literal}"
+
+
+def test_the_tray_created_at_startup_is_held_at_module_scope() -> None:
+    """The Tray is reachable after ``start()`` returns, so it is not collected.
+
+    A ``Tray`` that becomes unreachable is collected, and the icon then vanishes
+    from the notification area while the process keeps running - which, for a
+    frameless window whose close means hide, is a process the operator can
+    neither see nor quit. Measured: deleting ``trayRef = `` from the one call
+    site left every seam arm green, because ``createTray(`` was still called and
+    ``new Tray(`` was still reached.
+    """
+    code = main_code()
+    assert code_occurrences(code, TRAY_SENTINEL), f"{TRAY_SENTINEL!r} is not in shell/main.js"
+
+    held = code_occurrences(code, TRAY_HELD_AT_MODULE_SCOPE)
+    assert len(held) == 1, f"shell/main.js holds {len(held)} copies of the tray-holding statement"
+
+    sites = code_occurrences(code, "createTray(")
+    declared = code_occurrences(code, "function createTray(")
+    assert len(declared) == 1, f"createTray is declared {len(declared)} time(s), expected 1"
+    called = len(sites) - len(declared)
+    assert called == 1, f"createTray is called {called} time(s), expected exactly 1"
+
+    writes = tuple(
+        squeezed(code[at : code.find(";", at)]) for at in code_occurrences(code, "trayRef = ")
+    )
+    expected_writes = (
+        TRAY_SENTINEL.removeprefix("let ").removesuffix(";"),
+        TRAY_HELD_AT_MODULE_SCOPE.removesuffix(";"),
+    )
+    assert writes == expected_writes, f"unexpected writes to trayRef: {writes}"
+
+
+def test_no_function_in_main_is_declared_and_never_used() -> None:
+    """Every function main.js declares is reached by name somewhere else in the file.
+
+    THE ARM THAT CATCHES A SEAM MOVED INTO DEAD CODE. Measured: taking the real
+    ``supervisor.decideStart(...)`` call out of ``start()`` and dropping it into
+    ``function neverCalledByAnything()`` left every seam arm green - the token
+    was still present, still outside a string, still a real call - while the
+    companion no longer made the decision at all. A declaration with exactly one
+    reference in the file is that shape.
+
+    COUNTED AS BARE IDENTIFIERS, not as ``name(``: ``start`` is reached as
+    ``app.whenReady().then(start)`` and never called with parentheses at all, so
+    a ``name(`` census would report the entry point itself as an orphan.
+
+    STATED LIMITATION. This is reachability by NAME, which is all bytes can
+    establish. A declaration referenced only from inside itself, or from another
+    function that is itself dead, satisfies it. Killing that needs a call graph,
+    and nothing in this repository parses JavaScript.
+    """
+    code = main_code()
+    declared = tuple(_FUNCTION_DECLARATION.findall(code))
+    assert declared, "no function declarations were found at all; this arm would be vacuous"
+
+    orphans = tuple(
+        name
+        for name in declared
+        if len(re.findall(rf"(?<![\w$.]){re.escape(name)}(?![\w$])", code))
+        < MIN_FUNCTION_REFERENCES
+    )
+    assert not orphans, f"declared in shell/main.js and never reached by name: {orphans}"
+
+
+def test_the_dead_code_census_fires_on_a_function_nothing_calls() -> None:
+    """The orphan census is proved on both directions of its own question.
+
+    A census that reported zero on a tree with no orphans in it has measured
+    nothing, and a census that cannot fire is the same green as one that can.
+    """
+    live = "function used() {\n  return 1;\n}\nconst answer = used();\n"
+    declared = tuple(_FUNCTION_DECLARATION.findall(live))
+    assert declared == ("used",), f"the declaration reader found {declared}"
+    assert len(re.findall(r"(?<![\w$.])used(?![\w$])", live)) == MIN_FUNCTION_REFERENCES
+
+    dead = "function neverCalledByAnything() {\n  supervisor.decideStart({ healthy: true });\n}\n"
+    assert _FUNCTION_DECLARATION.findall(dead) == ["neverCalledByAnything"]
+    references = len(re.findall(r"(?<![\w$.])neverCalledByAnything(?![\w$])", dead))
+    assert references < MIN_FUNCTION_REFERENCES, "a function nothing calls read as reached"
+
+    # AND THE SEAM ARM IT WAS BUILT TO DEFEAT IS BLIND TO IT, demonstrated
+    # rather than argued: the call inside the dead function is a real call, in
+    # real code, outside every string literal.
+    blind = code_occurrences(dead, "supervisor.decideStart(")
+    assert blind, "the seam arm was expected to be blind to a call in a dead function"
+
+    # Reached by name without parentheses still counts as reached.
+    handed_over = "function start() {\n  return 1;\n}\napp.whenReady().then(start);\n"
+    assert len(re.findall(r"(?<![\w$.])start(?![\w$])", handed_over)) == MIN_FUNCTION_REFERENCES
+
+
+def guard_condition_faults(condition: str) -> tuple[str, ...]:
+    """Every way the hide path's guard fails to mean what it has to mean.
+
+    Split out of :func:`close_handler_faults` so each reader states one thing,
+    and because the condition is where three of the four measured bypasses
+    landed - it is worth reading on its own.
+
+    Args:
+        condition: The guard text, whitespace already squeezed.
+
+    Returns:
+        One short description per fault, in the order they are checked.
+    """
+    faults: list[str] = []
+    if condition != HIDE_PATH_GUARD:
+        faults.append(f"the hide path's guard is {condition!r}, expected {HIDE_PATH_GUARD!r}")
+    # THE WIDER NETS, for the reason the exact pin cannot carry alone: the pin
+    # reds on any reformat, so it is the nets below that state the meaning.
+    # ``&&`` to ``||`` and ``!== null`` to ``!== undefined`` are each a
+    # one-character edit that strands the operator with an unreachable window,
+    # and each left a ``"trayRef" in condition`` arm perfectly green.
+    if "||" in condition or "&&" not in condition:
+        faults.append(f"the hide path's guard is not a conjunction: {condition!r}")
+    if "trayRef !== null" not in condition:
+        faults.append(f"the hide path is not guarded by the tray existing: {condition!r}")
+    if "!quitting" not in condition:
+        faults.append(f"the hide path is not guarded by the quit flag: {condition!r}")
+    return tuple(faults)
+
+
+def closing_write_faults(
+    code: str, handler: tuple[int, int], guard: tuple[int, int]
+) -> tuple[str, ...]:
+    """Every way the writes to ``closing`` fail the persistence contract.
+
+    Args:
+        code: Comment-stripped JavaScript.
+        handler: The close handler's ``(start, end)`` span.
+        guard: The hide path's ``(start, end)`` span.
+
+    Returns:
+        One short description per fault, in the order they are checked.
+    """
+    faults: list[str] = []
+    # THE ONLY WRITES ARE THE INITIALISER AND ONE ASSIGNMENT. Counted with a
+    # regex rather than with ``code.count("closing = true")``, which a second
+    # assignment spelled ``closing=true;`` walks straight past.
+    writes = tuple(match.group(1).strip() for match in _CLOSING_WRITE.finditer(code))
+    if writes != EXPECTED_CLOSING_WRITES:
+        faults.append(f"writes to closing are {writes}, expected {EXPECTED_CLOSING_WRITES}")
+
+    # THE ASSIGNMENT IS ON THE QUIT PATH, NOT THE HIDE PATH. Measured: MOVING
+    # the single ``closing = true`` into the hide branch reintroduces the
+    # original defect verbatim - every move after the first hide silently
+    # dropped - while leaving the count reading exactly 1.
+    for match in _CLOSING_WRITE.finditer(code):
+        if match.group(1).strip() != "true":
+            continue
+        at = match.start()
+        if not handler[0] < at < handler[1]:
+            faults.append("the only closing=true is outside the close handler")
+        elif guard[0] <= at < guard[1]:
+            faults.append("closing is set on the HIDE path, which disables persistence for good")
+    return tuple(faults)
+
+
+def close_handler_faults(code: str) -> tuple[str, ...]:
+    """Every way ``code``'s close handler fails the persistence contract.
+
+    ONE READER, TWO CALLERS. The arm below runs it on ``shell/main.js`` and
+    expects nothing; the arm after that runs it on four measured bypasses and
+    expects each to produce something. A detector whose only input is a tree
+    that passes has proved that it returns the empty tuple, and nothing else.
+
+    Args:
+        code: Comment-stripped JavaScript holding a ``close`` handler.
+
+    Returns:
+        One short description per fault, in the order they are checked. Empty
+        when the handler is correct.
+    """
+    masked = blank_string_contents(code)
+
+    handler_at = code.find(CLOSE_HANDLER_OPENER)
+    if handler_at == -1:
+        return ("there is no close handler at all",)
+    handler = braced_block(masked, handler_at)
+
+    prevented = code.find("event.preventDefault()", handler[0], handler[1])
+    if prevented == -1:
+        return ("the close handler never prevents the close",)
 
     # THE HIDE IS LOOKED FOR NEXT TO THE PREVENTION, not anywhere in the file.
     # Measured: a bare ``"win.hide()" in code`` arm SURVIVED deleting the hide
     # from this handler, because the tray menu's show/hide toggle also calls
-    # win.hide() and satisfied the token from thirty lines away. A window whose
-    # close is prevented but which never hides is one the operator cannot get
-    # rid of at all, so the two have to be checked together or not at all.
-    window = code[prevented : prevented + 120]
-    assert "win.hide()" in window, "the close handler prevents the close without hiding the window"
+    # win.hide() and satisfied the token from thirty lines away.
+    guard_at = code.rfind("if (", handler[0], prevented)
+    if guard_at == -1:
+        return ("no condition guards the hide path",)
+    guard = braced_block(masked, guard_at)
+    guarded = code[guard[0] : guard[1]]
 
-    # THE HIDE IS GUARDED BY THE TRAY EXISTING. A hidden frameless window has no
-    # taskbar button and no title bar, so the tray is the only route back to it.
-    # Hiding when createTray returned null would strand the operator with a
-    # process they can neither see nor quit. Measured: this guard was MISSING on
-    # the first wiring, while a comment two functions away already claimed it
-    # was there.
-    guard = code.rfind("if (", 0, prevented)
-    assert guard != -1, "no condition guards the hide path"
-    condition = code[guard:prevented]
-    assert "trayRef" in condition, (
-        f"the hide path is not guarded by the tray existing: {condition.strip()!r}"
+    faults: list[str] = [
+        *guard_condition_faults(squeezed(code[guard_at : guard[0]])),
+        *closing_write_faults(code, handler, guard),
+    ]
+    if "win.hide()" not in guarded:
+        faults.append("the close handler prevents the close without hiding the window")
+    if not squeezed(guarded).removesuffix("}").strip().endswith("return;"):
+        faults.append("the hide path does not return before the quit path runs")
+    return tuple(faults)
+
+
+def test_close_does_not_permanently_disable_persistence() -> None:
+    """The hide path returns before ``closing`` is set.
+
+    ``closing`` exists to stop a debounced write firing against a DESTROYED
+    window. Hiding destroys nothing, so setting it on the hide path would be
+    permanent - every move after the first hide silently dropped, and the window
+    restoring to wherever it happened to be that once.
+
+    NAMED AFTER TWO REAL DEFECTS AND, UNTIL CS-909's REPAIR, DETECTING NEITHER.
+    The arm counted ``closing = true`` and looked for the substring ``trayRef``
+    in the guard. Four one-line mutations walked past it: moving the assignment
+    into the hide branch, adding a second one without spaces around the ``=``,
+    turning the guard's ``&&`` into ``||``, and comparing against ``undefined``
+    instead of ``null``. All four are the defect the docstring claims to grade,
+    and the counts stayed at their expected values through every one.
+    """
+    faults = close_handler_faults(main_code())
+    assert faults == (), f"shell/main.js close handler: {faults}"
+
+
+def test_the_close_handler_reader_fires_on_every_measured_bypass() -> None:
+    """The reader is proved on the shipped shape and on all four measured bypasses.
+
+    Each fixture below is the shipped handler with one edit applied, and each
+    edit was measured to leave the previous arm green. They are replayed here as
+    text so the proof does not depend on anyone re-running the mutation.
+    """
+    shipped = (
+        "  let closing = false;\n"
+        f"  {CLOSE_HANDLER_OPENER}\n"
+        "    if (timer !== null) {\n"
+        "      clearTimeout(timer);\n"
+        "      timer = null;\n"
+        "    }\n"
+        f"    {HIDE_PATH_GUARD} {{\n"
+        "      persist();\n"
+        "      event.preventDefault();\n"
+        "      win.hide();\n"
+        "      return;\n"
+        "    }\n"
+        "\n"
+        "    closing = true;\n"
+        "    persist();\n"
+        "  });\n"
     )
+    assert close_handler_faults(shipped) == (), "the shipped shape did not read as correct"
+
+    bypasses = {
+        "closing set on the hide path": shipped.replace(
+            "      win.hide();\n      return;\n", "      win.hide();\n      closing = true;\n"
+        ).replace("\n    closing = true;\n", "\n    return;\n"),
+        "a second assignment without spaces": shipped.replace(
+            "      win.hide();\n", "      win.hide();\n      closing=true;\n"
+        ),
+        "the conjunction turned into a disjunction": shipped.replace(
+            "!quitting && trayRef", "!quitting || trayRef"
+        ),
+        "the sentinel changed out from under the test": shipped.replace(
+            "trayRef !== null", "trayRef !== undefined"
+        ),
+    }
+    survivors = tuple(label for label, text in bypasses.items() if close_handler_faults(text) == ())
+    assert not survivors, f"the reader could not tell these from the shipped handler: {survivors}"
+
+    # AND THE ARM THIS REPLACED WAS BLIND TO ALL FOUR, demonstrated rather than
+    # argued. Both of its measurements read exactly what they read on the
+    # shipped handler, for every one of the four.
+    for label, text in bypasses.items():
+        assert text != shipped, f"{label} did not actually change the fixture"
+        counted = text.count("closing = true")
+        assert counted == 1, f"{label} moved the old count to {counted}"
+        assert "trayRef" in text, label

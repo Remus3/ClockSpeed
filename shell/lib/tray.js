@@ -49,14 +49,29 @@
 // Base64's alphabet carries two characters that are not word characters - a
 // plus and a solidus - plus a padding character. Each one opens a boundary in
 // the middle of an otherwise unbroken run of letters and digits, and this tree
-// is swept by detectors that key on exactly that: the port sweep looks for a
-// standalone integer inside the project's allocated band, and the personal-data
-// sweep looks for a bounded run of thirty-two hex characters and for a run of
-// fifteen or more digits. All three need a non-word character on both sides of
-// the run, and a payload made only of letters and digits cannot supply one. A
-// pair of adjacent solidus characters is worse still: it opens a line comment
-// as far as any text scanner is concerned, and that module's own header records
-// a stripper being defeated in precisely that way.
+// is swept by three detectors that key on exactly that: the port sweep looks
+// for a standalone integer inside the project's allocated band, and the
+// personal-data sweep looks for a bounded run of thirty-two hex characters and
+// for a run of fifteen or more digits.
+//
+// TWO OF THE THREE, NOT ALL THREE. This paragraph used to claim that all three
+// "need a non-word character on both sides of the run, and a payload made only
+// of letters and digits cannot supply one". That is true of the port sweep,
+// which is anchored on word boundaries, and of the hex sweep, whose lookarounds
+// exclude every letter and digit. It is FALSE of the digit-run sweep: its
+// lookarounds are for DIGITS only, so a letter on either side does not stop it
+// matching. A payload of nothing but letters and digits that happened to
+// contain fifteen consecutive digits WOULD be reported as an account id, and
+// the run needs no punctuation around it at all.
+//
+// The shipped payload's longest digit run is TWO, against a threshold of
+// fifteen, so it is clear by a wide margin - but that margin is luck rather
+// than construction, because nothing in the search below constrained digit
+// runs. The regeneration recipe now does; see TO REGENERATE.
+//
+// A pair of adjacent solidus characters is worse still than either: it opens a
+// line comment as far as any text scanner is concerned, and that module's own
+// header records a stripper being defeated in precisely that way.
 //
 // The bytes below were therefore SEARCHED for. A PNG encoder may pick any of
 // five filters per scanline and every choice decodes to the same picture, so
@@ -82,11 +97,24 @@
 // edges into clean antialiasing for free - instead of an upscale from 16.
 //
 // TO REGENERATE: draw the glyph described below, then search the per-scanline
-// filter vector until the base64 is letters and digits with no padding. The
-// exact bytes depend on the zlib build that compressed them, so a regenerated
-// icon will not be byte-identical - but the suite grades the PICTURE and the
-// alphabet, not the bytes, so a regenerated icon either satisfies both or says
-// so loudly.
+// filter vector until the base64 satisfies ALL THREE of these:
+//
+//   1. letters and digits only - no plus, no solidus;
+//   2. no padding character, which means a total length divisible by three
+//      before encoding;
+//   3. NO RUN OF FIFTEEN OR MORE CONSECUTIVE DIGITS anywhere in the payload.
+//
+// The third is the one that is easy to leave out, because the alphabet
+// constraint feels as though it subsumes it and does not - see above. A
+// candidate can satisfy 1 and 2 and still be reported as carrying an account
+// id, which would redden the every-push lane against an image that carries
+// nothing. The search space is large enough that adding the constraint costs
+// nothing; the shipped payload clears it with a longest run of two.
+//
+// The exact bytes depend on the zlib build that compressed them, so a
+// regenerated icon will not be byte-identical - but the suite grades the
+// PICTURE, the alphabet and the digit runs, not the bytes, so a regenerated
+// icon either satisfies all of them or says so loudly.
 //
 // ---------------------------------------------------------------------------
 // WHAT THE ICON DEPICTS, AND WHY IT IS THOSE TWO COLOURS

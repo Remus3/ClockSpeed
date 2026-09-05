@@ -64,8 +64,20 @@ PRIVACY IS THE SHARP EDGE OF THIS SCRIPT, MORE THAN OF ANY OTHER IN scripts/.
 The Desktop sits under the user profile, so its path CONTAINS THE WINDOWS
 ACCOUNT NAME - personal data under CLAUDE.md non-negotiable 3. So:
 
-  - Every refusal message is fixed text naming a remedy. None quotes a path.
-  - The success line names the shortcut FILE and never its directory.
+  - NO MESSAGE EVER NAMES A DIRECTORY. Every refusal is fixed text naming a
+    remedy, and the two messages that are not - the success line, and the
+    refusal that says which shortcut it will not replace - name the shortcut
+    FILE and never where it sits.
+  - THE FILE NAME IS OPERATOR INPUT, SO BOTH OF THOSE REDACT IT. It comes from
+    `--name`, which can carry whatever the operator typed, and redact() is this
+    project's single verdict on whether a string is personal data. CS-909
+    shipped with the success line putting that value through redact() and the
+    already-there refusal printing the identical value in clear, two hundred
+    lines apart. The repair was one call; what the repair is worth is the arm
+    that came with it, which reads every print out of this module's own parse
+    tree and requires each interpolated value to pass a redactor or be an
+    integer. A hand-written list of message sites is what let the two drift in
+    the first place, so the arm enumerates rather than remembers.
   - POWERSHELL'S OWN ERROR TEXT IS NEVER ECHOED, and this is where this script
     departs from scripts/make_cert.py deliberately. That script renders
     openssl's last stderr line through redact(), which is safe there because
@@ -81,6 +93,33 @@ ACCOUNT NAME - personal data under CLAUDE.md non-negotiable 3. So:
     excepthook, where no print() runs and therefore no redaction does either.
     Two barriers close it here as well: `_create` lets no OSError out, and
     `pathless_cause` builds a path-free clone for anyone who catches one.
+
+THE `.lnk` CARRIES MORE THAN THE FOUR PROPERTIES SET ABOVE, and that is
+recorded here rather than left for someone to discover. `WScript.Shell` appends
+a TrackerDataBlock of its own during `Save()`, and it carries the machine's
+COMPUTERNAME together with a version-1 UUID whose node field is derived from a
+network adapter's hardware address. Measured by parsing a shortcut this script
+actually wrote, not inferred from the format documentation.
+
+WHY THAT IS ACCEPTABLE HERE, stated as a boundary rather than as a shrug. The
+rule this could offend is non-negotiable 3, and that rule is about what lands in
+a TRACKED file. This artifact is written to the destination the operator asked
+for - normally the Desktop, which is outside this repository - at the operator's
+own request, and nothing in this project tracks a `.lnk`, reads one back, or
+uploads one. The block therefore never crosses the boundary the rule draws.
+
+IT IS ALSO NOT SOMETHING THIS SCRIPT CONTROLS. The block is written by the COM
+object itself, is exposed as no settable property, and removing it would mean
+emitting the `.lnk` binary format by hand - a far larger surface than the one it
+would close, on an artifact that never leaves the machine. So it is left alone
+deliberately, and the reasoning is written down so a later reader does not have
+to re-derive it.
+
+WHAT A FUTURE READER MUST THEREFORE NOT DO: treat a `.lnk` written by this
+script as safe to attach to an issue, paste into a repository, or hand to
+anyone. It is safe where it is written and nowhere else. This module's promise
+covers what it PRINTS and what it RAISES; it does not, and cannot, cover the
+contents of a file a COM object assembled.
 
 ATOMIC, BECAUSE EXPLORER READS THE DESTINATION. Non-negotiable 5 requires an
 atomic write for any file another process may read, and the Desktop is read
@@ -710,7 +749,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     link_path = destination / link_name
     if link_path.exists() and not args.force:
-        print(f"refusing to overwrite an existing {link_name}")
+        print(f"refusing to overwrite an existing {redact(link_name)}")
         print("The operator may already have pinned or renamed the shortcut that is there.")
         print("Re-run with --force if replacing it is genuinely what you want.")
         return EXIT_REFUSED

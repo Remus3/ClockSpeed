@@ -300,12 +300,19 @@ test("ICON_DATA_URL is 7-bit ASCII, so it can live in an ASCII-only tree", () =>
 // Base64's own alphabet includes two characters that are not word characters -
 // a plus and a solidus - plus the padding character. Every one of them creates
 // a boundary in the middle of an otherwise unbroken run of letters and digits,
-// and this tree is swept by detectors that key on exactly that. The port sweep
-// in tests/shell/test_shell_assets.py looks for a standalone integer inside the
-// project's allocated band; the personal-data sweep in the same module looks
-// for a bounded run of thirty-two hex characters and for a run of fifteen or
-// more digits. All three of those need a non-word character on both sides of
-// the run, and a payload made only of letters and digits cannot supply one.
+// and this tree is swept by three detectors that key on exactly that. The port
+// sweep in tests/shell/test_shell_assets.py looks for a standalone integer
+// inside the project's allocated band; the personal-data sweep in the same
+// module looks for a bounded run of thirty-two hex characters and for a run of
+// fifteen or more digits.
+//
+// TWO OF THE THREE NEED THAT BOUNDARY, NOT ALL THREE. This comment used to say
+// all three did. The port sweep is anchored on word boundaries and the hex
+// sweep's lookarounds exclude every letter and digit, so neither can fire
+// inside an unbroken alphanumeric run. The digit-run sweep is different: its
+// lookarounds are for DIGITS, so letters on either side do not stop it. The
+// arm below the next one demonstrates that on a string rather than asserting
+// it, because a claim like this one is exactly what went wrong before.
 //
 // A pair of solidus characters is worse still: it opens a line comment as far
 // as any text scanner is concerned, and that module's own header records a
@@ -321,6 +328,95 @@ test("the icon payload is letters and digits only, with no padding", () => {
   assert.ok(/^[A-Za-z0-9]+$/.test(payload), "the payload leaves the narrowed alphabet");
   assert.equal(payload.length % 4, 0, "a base64 payload is a whole number of quartets");
   assert.ok(!payload.includes("="), "the payload is padded, so it ends on a word boundary");
+});
+
+// The threshold the personal-data sweep uses, restated from
+// tests/shell/test_shell_assets.py rather than invented here.
+const MIN_ACCOUNT_ID_DIGITS = 15;
+
+// The three sweeps, transcribed from that module so this suite can grade the
+// payload against them from `node --test` rather than waiting for the
+// every-push lane. Transcribed and not approximated: the lookarounds are the
+// whole point, and a paraphrase would lose exactly the asymmetry that made the
+// old comment wrong.
+const PORT_INTEGER_RUN = /\b\d+\b/;
+const ACCOUNT_ID_DIGITS = new RegExp(`(?<!\\d)\\d{${MIN_ACCOUNT_ID_DIGITS},}(?!\\d)`);
+const ACCOUNT_ID_HEX = /(?<![0-9A-Za-z])[0-9a-fA-F]{32}(?![0-9A-Za-z])/;
+
+test("the digit-run sweep fires INSIDE a letters-and-digits run, unlike the other two", () => {
+  // THE CONTROL THAT MAKES THE NEXT ARM MEAN SOMETHING, and the refutation of
+  // what this module's header used to claim. Without it the next arm is a
+  // zero-finding sweep whose detector has never been shown to fire, and a
+  // detector that never fires reports the same clean result as a clean payload.
+  //
+  // THE SPECIMEN IS ASSEMBLED AND NOT SPELLED, and the first draft of this arm
+  // proved why: written out as a literal, the string carries the very shape
+  // tests/shell/test_shell_assets.py sweeps every file under shell/ for - test
+  // files included, since it enumerates the subtree rather than the sources -
+  // and it reddened that sweep on the line demonstrating the sweep. That module
+  // builds its own profile segment by concatenation for exactly this reason,
+  // and its header records being caught the same way twice.
+  //
+  // Derived from the threshold rather than counted out by hand, so a change to
+  // MIN_ACCOUNT_ID_DIGITS moves the specimen with it instead of quietly leaving
+  // an arm that no longer reaches the boundary it is named for.
+  const digitRun = Array.from({ length: MIN_ACCOUNT_ID_DIGITS }, (_, i) => i % 10).join("");
+  assert.equal(digitRun.length, MIN_ACCOUNT_ID_DIGITS, "the specimen lost its length");
+
+  // Letters and digits only - exactly the alphabet the icon payload is
+  // constrained to - with a letter hard against each end of the run.
+  const alphanumeric = `aB${digitRun}cD`;
+  assert.ok(/^[A-Za-z0-9]+$/.test(alphanumeric), "the specimen must be in the narrowed alphabet");
+
+  assert.ok(
+    ACCOUNT_ID_DIGITS.test(alphanumeric),
+    "the digit-run sweep did not fire - the transcription above has drifted"
+  );
+
+  // And the two that genuinely are stopped by the alphabet, so the asymmetry is
+  // pinned rather than asserted in prose.
+  assert.ok(!PORT_INTEGER_RUN.test(alphanumeric), "the port sweep needs a word boundary");
+  assert.ok(!ACCOUNT_ID_HEX.test(alphanumeric), "the hex sweep needs a non-alphanumeric boundary");
+});
+
+test("this suite does not itself carry the shape it sweeps the payload for", () => {
+  // THE ARM ABOVE IS A TRAP FOR ITS OWN AUTHOR. Demonstrating that a run of
+  // digits inside letters trips the account-id sweep requires a specimen with
+  // that exact shape, and a specimen written as a literal puts it in a tracked
+  // file under shell/ - which is precisely the subtree that sweep enumerates.
+  // Measured on the first draft of this file: one finding, on the line proving
+  // the finding was possible.
+  //
+  // So the specimen is assembled at run time, and this arm holds that open. It
+  // reads the file's own bytes rather than reasoning about the source, because
+  // the next editor's instinct will be to inline the string for readability.
+  const source = fs.readFileSync(__filename, "utf8");
+  const runs = ACCOUNT_ID_DIGITS.exec(source);
+  assert.equal(
+    runs,
+    null,
+    "this suite spells a digit run long enough to read as an account id - assemble it instead"
+  );
+});
+
+test("the icon payload carries no digit run long enough to read as an account id", () => {
+  // The constraint the regeneration recipe now names, graded on the bytes that
+  // shipped. The payload is safe today by a wide margin, but nothing in the
+  // search that produced it constrained digit runs, so a regenerated icon could
+  // lose this without losing the alphabet.
+  const payload = iconBase64();
+  assert.ok(!ACCOUNT_ID_DIGITS.test(payload), "the payload reads as an account id");
+
+  // Stated as the margin rather than as a pass, so a regeneration that came
+  // close is visible before it goes over.
+  const longestRun = (payload.match(/\d+/g) || []).reduce(
+    (longest, run) => Math.max(longest, run.length),
+    0
+  );
+  assert.ok(
+    longestRun < MIN_ACCOUNT_ID_DIGITS,
+    `the payload's longest digit run is ${longestRun}, at or over the ${MIN_ACCOUNT_ID_DIGITS} threshold`
+  );
 });
 
 // ---------------------------------------------------------------------------

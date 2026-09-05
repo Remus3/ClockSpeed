@@ -1,5 +1,9 @@
 # Backlog - aspirational and conditional-trigger items
 
+**Section status: LIVE.** A dated heading in this file records provenance - when a
+direction was filed or measured - and never that the section itself is historical.
+Nothing here has happened yet; that is what the file is for.
+
 One line each. No acceptance criteria, no schedule, no narrative. Nothing here is being
 worked on right now - work in progress lives in `ROADMAP.md`.
 
@@ -125,3 +129,26 @@ ruling itself is undisturbed - what it created still owns what it was given.
 - External linear or integer programming optimizer behind the existing `OptimizerBackend`
   interface - conditional on passing the `CONVENTIONS.md` section 14 license gate, and on
   slotting in without changing a single caller.
+
+## Dashboard as a telemetry HUD - an operator design direction, filed 2026-09-05
+
+**Trigger: the producing endpoint exists.** The two components the direction names cannot be
+built before then, and scaffolding against an assumed API surface is ruled out in
+`CLAUDE.md` section 5.
+
+- A milestone objective tracker - text progress bar, estimated time to completion, tier-3
+  shortfall derivation - conditional on `/api/plan` existing AND on unlock state being
+  readable, which `/api/world` currently reports empty because the grammar is unmeasured.
+- A live throughput comparison node - stark demand-versus-supply delta, health-shifting
+  borders, click to expand the upstream stall trace - conditional on `/api/advice` existing,
+  or on some route publishing a recipe set the page can name.
+- A shared card style layer - custom properties, monospace alignment, thin geometric
+  borders, semantic status colours for optimal, throttled and starved - NOT conditional on
+  either, because it does not depend on any payload shape and the overlay problem below is
+  worth solving before there is content to lose to it.
+- Overlay text isolation, measured 2026-09-05 and the reason the style layer is worth doing
+  early: the operator's proposed industrial-orange accent scores 5.88 to 8.51 against every
+  candidate dark slate and passes body-text contrast on all of them, but scores 2.22 over a
+  white game pixel, which fails even the large-text threshold. A shadow raises perceived
+  legibility without changing the measured ratio, so overlay text needs a real backing
+  surface rather than a shadow alone.

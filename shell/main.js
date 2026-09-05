@@ -152,6 +152,11 @@ let trayRef = null;
 // either that it has not exited or that we never started one.
 let surfaceExitCode = null;
 
+// The companion window, once it exists. Held so a SECOND launch can raise this
+// one rather than building another - see the single-instance lock at the foot
+// of this file.
+let windowRef = null;
+
 /**
  * Ask the dashboard whether it is there, once.
  *
@@ -229,15 +234,34 @@ function delay(ms) {
  * GIVE_UP cannot spin forever. Any word that is neither READY nor RETRY ends
  * the wait, so a refusal word added to that module later fails CLOSED here
  * rather than being silently treated as "keep trying".
+ *
+ * ELAPSED TIME IS MEASURED HERE AND JUDGED THERE. The attempt ceiling alone
+ * bounded the wait at nearly three minutes, because a listener that accepts and
+ * never speaks makes every probe burn its full timeout rather than failing
+ * fast. That is the shortcut launch with no window and no tray yet drawn, so
+ * the operator has an icon that did nothing for three minutes. The wall-clock
+ * budget is what actually bounds it now; the ceiling remains as the second of
+ * two independent bounds.
+ *
+ * THE CHILD'S DEATH ALSO ENDS THE WAIT. A dashboard that exits at 0.3 seconds
+ * used to cost the operator the entire remaining budget before saying so, and
+ * the exit code that explains it was already in hand the whole time.
  */
 async function waitForSurface(healthUrl) {
+  const startedAt = Date.now();
   for (let attempt = 1; attempt <= supervisor.PROBE_ATTEMPT_CEILING; attempt += 1) {
     const answered = await probeOnce(healthUrl);
-    const outcome = supervisor.decideProbeOutcome({ attempt, answered });
+    const elapsedMs = Date.now() - startedAt;
+    const outcome = supervisor.decideProbeOutcome({ attempt, answered, elapsedMs });
     if (outcome === supervisor.READY) {
       return true;
     }
     if (outcome !== supervisor.RETRY) {
+      return false;
+    }
+    // Checked AFTER the verdict, so a surface that answered on the same turn it
+    // exited is still READY rather than being failed for having died.
+    if (surfaceExitCode !== null) {
       return false;
     }
     await delay(supervisor.PROBE_INTERVAL_MS);
@@ -248,11 +272,21 @@ async function waitForSurface(healthUrl) {
 /**
  * Start the dashboard as a child of this process.
  *
- * THE INTERPRETER IS RESOLVED FROM PATH BY NAME, exactly as scripts/make_cert.py
- * resolves openssl. An absolute interpreter path would carry the account name of
- * whoever authored it, which is non-negotiable 3. The MODULE to run is not
- * spelled here either - supervisor.serverArgv() owns it, where a test can read
- * it without electron in the way.
+ * THE INTERPRETER IS SPAWNED AS AN ABSOLUTE PATH, AND THAT IS A SECURITY FIX
+ * RATHER THAN A TIDINESS ONE. Spawning the bare name "python" was measured to be
+ * a local code-execution vector on Windows: libuv searches the spawn's working
+ * directory BEFORE PATH, that directory is the repository root, and the root
+ * grants Modify to Authenticated Users on this machine. Any local user could
+ * leave a binary of that name there and own the next double-click of the
+ * shortcut - silently, because this spawn hides its window and discards its
+ * output. supervisor.resolveInterpreter walks PATH itself, refuses any entry
+ * that is not rooted, and never considers the working directory.
+ *
+ * NEITHER THE INTERPRETER NOR THE MODULE IS SPELLED HERE. supervisor.js owns
+ * both names and the resolution rule, where a test can read them without
+ * electron in the way. No absolute path is written into this file either; the
+ * one used is computed at runtime from the environment, because a spelled path
+ * would carry the account name of whoever authored it - non-negotiable 3.
  *
  * The repository root is DERIVED from this file's location rather than spelled,
  * mirroring endpoint.js.
@@ -260,9 +294,30 @@ async function waitForSurface(healthUrl) {
  * Returns the child, or null if it could not be started.
  */
 function spawnSurface() {
+  const interpreter = supervisor.resolveInterpreter({
+    pathValue: process.env.PATH,
+    pathExt: process.env.PATHEXT,
+    // The only filesystem touch on this path, injected so the resolver itself
+    // stays pure and gradable. Answers false rather than throwing, because an
+    // unreadable candidate is one to skip, not one to fail the whole search on.
+    isExecutable: (candidate) => {
+      try {
+        return fs.statSync(candidate).isFile();
+      } catch {
+        return false;
+      }
+    },
+  });
+
+  // A refusal word rather than a path. Fail closed: spawning the bare name as a
+  // fallback is exactly the vector the resolver exists to close.
+  if (!path.isAbsolute(interpreter)) {
+    return null;
+  }
+
   let child = null;
   try {
-    child = spawn("python", supervisor.serverArgv(), {
+    child = spawn(interpreter, supervisor.serverArgv(), {
       cwd: path.join(__dirname, ".."),
       // Inherited pipes would fill and block the child once nobody drains them,
       // and under a shortcut launch nobody ever does.
@@ -473,7 +528,20 @@ function wirePersistence(win, directory, persistedAlwaysOnTop) {
 function createTray(win) {
   let tray;
   try {
-    tray = new Tray(nativeImage.createFromDataURL(trayLib.ICON_DATA_URL));
+    const icon = nativeImage.createFromDataURL(trayLib.ICON_DATA_URL);
+
+    // AN EMPTY IMAGE IS REFUSED HERE, AND OBJECT-NULLNESS IS NOT THE TEST.
+    // MEASURED: `new Tray()` handed an image that decoded to nothing does NOT
+    // throw - it returns a perfectly ordinary, non-null Tray carrying an
+    // INVISIBLE icon. Checking only that the constructor returned something
+    // therefore answers a different question from the one that matters, and the
+    // hazard it misses is the one lib/tray.js names in its own header: once the
+    // window hides instead of closing, an invisible tray icon is an application
+    // the operator can neither reopen nor quit.
+    if (icon.isEmpty()) {
+      return null;
+    }
+    tray = new Tray(icon);
   } catch {
     // A tray is the ONLY way a hidden window comes back. If the toolkit will
     // not give us one, returning null leaves close meaning close, which is
@@ -607,6 +675,7 @@ async function start() {
   const directory = app.getPath("userData");
   const saved = state.load(directory);
   const win = openWindow(saved);
+  windowRef = win;
 
   wirePersistence(win, directory, saved.alwaysOnTop === true);
 
@@ -620,19 +689,37 @@ async function start() {
   trayRef = createTray(win);
 
   // Quit is the ONLY path that ends the process, and it is the only path that
-  // may stop a dashboard. before-quit also covers the routes that never touch
-  // the tray menu - a taskbar Close All, a session logout, Ctrl-C in a terminal
-  // launch - so those hide nothing and shut down properly.
+  // may stop a dashboard. before-quit also covers Ctrl-C in a terminal launch.
+  //
+  // TWO THINGS IT DOES NOT COVER, corrected here because this comment claimed
+  // both and the shipped typings contradict it. A WINDOWS LOGOUT OR SHUTDOWN
+  // emits none of before-quit, will-quit or quit, so a dashboard this launch
+  // started outlives the session that started it; that is left standing rather
+  // than papered over, because the alternative is a shutdown handler racing the
+  // operating system. A TASKBAR CLOSE is not a quit either - the window is
+  // frameless but `skipTaskbar` is never set, so it has a taskbar button, and
+  // closing from there sends WM_CLOSE, which reaches the close handler above
+  // and HIDES like any other close.
   app.on("before-quit", () => {
     quitting = true;
   });
   app.on("will-quit", stopSurfaceIfOurs);
 
-  // Windows ends an app when its last window closes. With a tray presence that
-  // is wrong: the window is normally hidden rather than closed, and if one ever
-  // does close for real, quitting is what decides whether that ends the run.
+  // WITHOUT THIS HANDLER Windows would end the app when its last window closes.
+  // With it, the app survives - which is what a tray application wants, and is
+  // also how this produced a zombie. MEASURED: when createTray returns null the
+  // close handler correctly lets the window close for real, this fires with
+  // `quitting` false, nothing called app.quit(), and merely HAVING registered a
+  // listener suppressed the default quit - leaving an electron process with no
+  // window, no tray icon and a live dashboard it had started, reachable only
+  // through Task Manager.
+  //
+  // So the tray is what decides. A companion with a tray keeps running when its
+  // window closes, because the tray can bring it back. A companion WITHOUT one
+  // has nothing left to be, and quits - which also runs will-quit, and so stops
+  // the dashboard it started rather than abandoning it.
   app.on("window-all-closed", () => {
-    if (quitting) {
+    if (quitting || trayRef === null) {
       app.quit();
     }
   });
@@ -642,11 +729,57 @@ async function start() {
   });
 }
 
-// start() is async now, so a throw inside it lands here rather than crashing
-// the process. Without this it would surface as an unhandled promise rejection:
-// no window, no message, and under a shortcut launch no console to carry it -
-// which is indistinguishable from the icon doing nothing at all.
-app.whenReady().then(start).catch(() => {
-  refuse(PAGE_NOT_LOADED);
-  app.exit(1);
-});
+// ---------------------------------------------------------------------------
+// One companion, not several
+// ---------------------------------------------------------------------------
+
+// A TRAY APPLICATION MUST BE SINGLE-INSTANCE, AND THIS WAS MEASURED THE HARD
+// WAY: the operator double-clicked the shortcut a second time while the first
+// was running and got a second window and a second tray icon. Three faults
+// follow from that, and only the first is cosmetic.
+//
+//   - Two tray icons, of which only one belongs to the window in front of you.
+//   - Two writers on ONE window-state.json. state.js stages through a partial
+//     file with a FIXED name and opens it truncating, so an interleave publishes
+//     a ZERO-BYTE state file over a good one. That falsifies its own atomicity
+//     header and non-negotiable 5, and it is not a race this file can fix from
+//     the outside - it can only decline to create the second writer.
+//   - Two claims on the dashboard's lifetime. Adopt happens to save it today:
+//     the second instance finds the first one's dashboard answering and adopts
+//     rather than spawning a competitor onto a held port. That is luck, not
+//     design, and it is not a property to lean on.
+//
+// THE LOCK IS TAKEN BEFORE whenReady, and therefore before any probe, spawn or
+// window. A second instance that got as far as probing would already have had
+// the chance to spawn.
+if (!app.requestSingleInstanceLock()) {
+  // Not an error. The operator asked for the companion and the companion is
+  // already there; the running instance is about to be shown by the handler
+  // below. Exit 0 and say nothing - a dialog here would be noise on a
+  // double-click that did exactly what was wanted.
+  app.exit(0);
+} else {
+  // Electron delivers this to the FIRST instance when a later one is refused
+  // the lock. Showing the existing window is the whole point: an operator who
+  // double-clicks a second time wants the companion in front of them, and the
+  // window may well be hidden in the tray at that moment.
+  app.on("second-instance", () => {
+    if (windowRef === null) {
+      return;
+    }
+    if (windowRef.isMinimized()) {
+      windowRef.restore();
+    }
+    windowRef.show();
+    windowRef.focus();
+  });
+
+  // start() is async now, so a throw inside it lands here rather than crashing
+  // the process. Without this it would surface as an unhandled promise
+  // rejection: no window, no message, and under a shortcut launch no console to
+  // carry it - which is indistinguishable from the icon doing nothing at all.
+  app.whenReady().then(start).catch(() => {
+    refuse(PAGE_NOT_LOADED);
+    app.exit(1);
+  });
+}

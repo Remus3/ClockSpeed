@@ -84,6 +84,61 @@ CANARY_ACCOUNT = "HomeLikeCanaryOperator"
 #: silently - a pooled absence is otherwise met by its strongest member.
 CANARY_REFUSALS = 6
 
+#: A SECOND CANARY, AND DELIBERATELY THE OPPOSITE CLASS OF ONE. The token above
+#: is built to SURVIVE ``redact()``, which is exactly what makes it a control
+#: for "the script never printed its destination" - but it also makes it unable
+#: to grade whether a message was redacted, because it reads identically on
+#: both sides of that question. An arm that drove it through a message the
+#: script printed IN CLEAR would report a leak that redaction could not have
+#: fixed, and an arm that drove it through a redacted one would report a leak
+#: that was not there. So the redaction arms need the complement: a token the
+#: redactor CLAIMS, whose presence in a stream therefore means the value
+#: reached the operator without passing the chokepoint.
+#:
+#: A DIGIT RUN, because that is the one rule in ``redact()`` that holds on every
+#: machine. The account name and the home prefix are read out of THIS
+#: environment, so a token built to match either would be scrubbed on the
+#: operator's machine and passed through on the tier 1 runner - green in CI for
+#: a reason that has nothing to do with the script. The account-id backstop is
+#: a pattern rather than a lookup, so it claims this token everywhere.
+#:
+#: ALL ZEROS, AND LONGER THAN THE BACKSTOP'S FLOOR. No real platform account id
+#: is all zeros, so nothing here resembles a person's identifier; and the run
+#: is well clear of the minimum the backstop requires, so the control below
+#: keeps holding if that minimum is raised. If it is ever raised past this
+#: length the control reddens and names the reason rather than going quiet.
+CANARY_ACCOUNT_ID = "0" * 17
+
+#: How many distinct outcomes the operator-supplied-name arm drives. Named for
+#: the same reason ``CANARY_REFUSALS`` is: a pooled absence is met by its
+#: strongest member, so the floor and the probe list must not drift apart.
+CANARY_NAME_OUTCOMES = 6
+
+#: The helpers allowed to stand between a value and ``print``. Both put the
+#: value through ``redact()`` - one IS the redactor, the other renders an
+#: OSError's reason through it - so a print sweep that cleared neither would
+#: have nothing left to clear and would be asserting about nothing.
+REDACTING_CALLS = frozenset({"redact", "_failure_detail"})
+
+#: The interpolations the print sweep clears WITHOUT a redactor standing in
+#: front of them. Both are integers rather than strings: a subprocess return
+#: code, and a timeout this module declares as a literal. Neither can carry a
+#: path or a name, and neither is reachable from anything the operator typed.
+#:
+#: THIS IS AN EXEMPTION LIST, WHICH IS THE PART THAT ROTS. Two things stop it.
+#: It is matched against the UNPARSED SOURCE of the interpolated expression, so
+#: it exempts those two spellings and nothing that merely resembles them - a
+#: ``done.returncode`` swapped for ``done.stderr`` is not covered by the entry
+#: that covered the first. And every entry is asserted still present in the
+#: script, so an exemption left behind by a deleted print reddens instead of
+#: sitting there granting cover to whatever is written next.
+PRINT_INTERPOLATION_EXEMPT = frozenset(
+    {
+        "POWERSHELL_TIMEOUT_SECONDS",
+        "done.returncode",
+    }
+)
+
 #: How long one subprocess arm may take. Every one of them either refuses
 #: immediately or drives a stub that returns at once; this is a ceiling, not a
 #: budget. An unbounded wait in a test is the same failure class as an unbounded
@@ -296,6 +351,67 @@ def _streams(done: subprocess.CompletedProcess[bytes]) -> str:
     out = done.stdout.decode("utf-8", errors="replace")
     err = done.stderr.decode("utf-8", errors="replace")
     return out + err
+
+
+def _redacting_call(node: ast.expr) -> bool:
+    """Say whether an expression is a call to something that redacts.
+
+    Args:
+        node: The expression interpolated into a message, or handed to print.
+
+    Returns:
+        True when its outermost call is one of :data:`REDACTING_CALLS`.
+    """
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in REDACTING_CALLS
+    )
+
+
+def _printed_expressions() -> list[tuple[str, bool]]:
+    """Read every value the script interpolates into a message, out of its AST.
+
+    ENUMERATED RATHER THAN REMEMBERED, and that is the whole point of reading
+    the AST for this. A privacy arm built from a hand-written list of call
+    sites grades the sites whoever wrote it thought of, and a print added
+    afterwards is covered by nothing - which is how a message that rendered the
+    operator's ``--name`` in clear sat two hundred lines from one that redacted
+    the same value. A sweep over the parse tree has no such list to fall behind.
+
+    A print argument is read one of three ways. A string constant is fixed text
+    and carries nothing. An f-string is opened and each interpolated expression
+    is graded on its own. Anything else - a bare name, a call, an attribute -
+    is graded whole, which is what covers ``print(_failure_detail(exc))``
+    without special-casing it.
+
+    Returns:
+        One row per interpolated expression: its unparsed source, and whether a
+        redactor stands in front of it.
+    """
+    tree = ast.parse(MAKE_SHORTCUT_SOURCE.read_text(encoding="utf-8"))
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "print"
+    ]
+
+    rows: list[tuple[str, bool]] = []
+    for call in calls:
+        for argument in call.args:
+            if isinstance(argument, ast.Constant):
+                continue
+            if isinstance(argument, ast.JoinedStr):
+                rows.extend(
+                    (ast.unparse(piece.value), _redacting_call(piece.value))
+                    for piece in ast.walk(argument)
+                    if isinstance(piece, ast.FormattedValue)
+                )
+                continue
+            rows.append((ast.unparse(argument), _redacting_call(argument)))
+    return rows
 
 
 def _digest(path: Path) -> str:
@@ -1040,7 +1156,11 @@ def test_no_refusal_renders_a_planted_home_like_token(tmp_path: Path) -> None:
     # A POOLED ABSENCE IS MET BY ITS STRONGEST MEMBER. Without this, six probes
     # that all fell into the SAME early refusal would satisfy every assertion
     # below while five of the six messages went unmeasured - the shape
-    # memory/pooled-guard-hides-its-worst-member.md records.
+    # memory/a-guard-can-be-green-by-accident.md records. THAT NAME WAS WRONG
+    # WHEN THIS ARM WAS WRITTEN, and it survived because it sits in a COMMENT:
+    # the bare-path rung of tests/test_docs_citations.py reads author prose in
+    # docstrings, so the identical spelling one screen below was reported and
+    # this one was not. The leaf it named has never existed in this repository.
     reached = sorted({done.returncode for _label, _code, done in probes})
     probe_count = len(probes)
     assert probe_count >= CANARY_REFUSALS, (
@@ -1052,6 +1172,179 @@ def test_no_refusal_renders_a_planted_home_like_token(tmp_path: Path) -> None:
     )
     assert leaked == [], f"{len(leaked)} refusal(s) rendered the planted account token: {leaked}"
     assert traced == [], f"{len(traced)} refusal(s) escaped as a traceback: {traced}"
+
+
+def test_every_value_the_script_prints_passes_a_redactor_or_is_an_integer() -> None:
+    """A SWEEP OVER EVERY PRINT, not over the ones someone remembered.
+
+    The arm above drives refusals through a planted token, which grades the
+    paths its probe list reaches. This grades the paths NOBODY LISTED: it reads
+    every ``print`` out of the script's own parse tree and requires each value
+    interpolated into one to have gone through a redactor, or to be an integer
+    that cannot carry a string at all.
+
+    THAT IS THE ARM THIS SCRIPT NEEDED AND DID NOT HAVE. Two messages rendered
+    the same value - the file name derived from ``--name`` - and only one of
+    them redacted it. Both were reachable, both were covered by arms, and
+    neither arm was about the difference between them. A sweep is red the
+    moment a new unredacted interpolation is written, whether or not anyone
+    remembers to add a probe for the message carrying it.
+
+    IT DEFAULTS TO REFUTED. An interpolation this arm cannot recognise is
+    counted as unredacted rather than waved through, so extending the script
+    with a message shaped differently costs an explicit exemption rather than
+    silence.
+    """
+    rows = _printed_expressions()
+    rendered = [source for source, _redacted in rows]
+    unredacted = sorted(
+        source
+        for source, redacted in rows
+        if not redacted and source not in PRINT_INTERPOLATION_EXEMPT
+    )
+    stale = sorted(PRINT_INTERPOLATION_EXEMPT - set(rendered))
+
+    interpolation_count = len(rows)
+    assert interpolation_count >= 1, (
+        "no interpolated print value found; this arm is asserting about nothing"
+    )
+    assert unredacted == [], (
+        f"{len(unredacted)} printed value(s) reach the operator without a redactor: {unredacted}"
+    )
+    assert stale == [], (
+        f"{len(stale)} exemption(s) name an interpolation the script no longer has: {stale}"
+    )
+
+
+def test_no_message_renders_an_operator_supplied_name_the_redactor_would_claim(
+    tmp_path: Path,
+) -> None:
+    """``--name`` is operator input, and every message rendering it must redact.
+
+    THE CONTROL RUNS THE OPPOSITE WAY TO THE ONE ABOVE, and it has to. The
+    planted-account arm shows ``redact()`` LEAVING its token alone, so an
+    absence there means the script never printed a path. Here the redactor must
+    be shown CLAIMING the token, because the question is not whether the value
+    was printed - it is whether it went through the chokepoint on the way. A
+    token ``redact()`` passed through would be present in the stream on both
+    sides of the fix, and the arm would be unfalsifiable.
+
+    THE OUTCOMES ARE ASSERTED DISTINCT for the reason
+    ``memory/a-guard-can-be-green-by-accident.md`` records under "Why the pooled
+    check could not catch it": six probes that all fell into the same early
+    refusal would satisfy every absence below while five of the six messages
+    went unmeasured.
+    """
+    desktop = tmp_path / "desk"
+    desktop.mkdir()
+    shell = _fake_shell(tmp_path)
+    empty_shell = tmp_path / "no-shell"
+    empty_shell.mkdir()
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    _powershell_stub(tools)
+
+    # The control. A token the redactor did not claim would make every absence
+    # below true of a script that printed it in clear.
+    assert make_shortcut.redact(CANARY_ACCOUNT_ID) != CANARY_ACCOUNT_ID
+
+    link_name = make_shortcut.shortcut_file_name(CANARY_ACCOUNT_ID)
+    named = dict(_live_overrides(shell, desktop, STUB_CREATE))
+    named[STUB_NAME_ENV] = link_name
+    failing = dict(_live_overrides(shell, desktop, STUB_FAIL))
+    failing[STUB_NAME_ENV] = link_name
+
+    probes: list[tuple[str, int, subprocess.CompletedProcess[bytes]]] = []
+    probes.append(
+        (
+            "runtime absent",
+            make_shortcut.EXIT_NO_ELECTRON,
+            _run_script(
+                ["--desktop-dir", str(desktop), "--name", CANARY_ACCOUNT_ID],
+                path_dir=tools,
+                overrides={make_shortcut.ENV_SHELL_DIR: str(empty_shell)},
+            ),
+        )
+    )
+    probes.append(
+        (
+            "destination absent",
+            make_shortcut.EXIT_NO_DESKTOP,
+            _run_script(
+                ["--desktop-dir", str(tmp_path / "no-such-desk"), "--name", CANARY_ACCOUNT_ID],
+                path_dir=tools,
+                overrides={make_shortcut.ENV_SHELL_DIR: str(shell)},
+            ),
+        )
+    )
+    probes.append(
+        (
+            "powershell absent",
+            make_shortcut.EXIT_NO_POWERSHELL,
+            _run_script(
+                ["--desktop-dir", str(desktop), "--name", CANARY_ACCOUNT_ID],
+                path_dir=tmp_path / "no-tools",
+                overrides={make_shortcut.ENV_SHELL_DIR: str(shell)},
+            ),
+        )
+    )
+    probes.append(
+        (
+            "written",
+            make_shortcut.EXIT_OK,
+            _run_script(
+                ["--desktop-dir", str(desktop), "--name", CANARY_ACCOUNT_ID],
+                path_dir=tools,
+                overrides=named,
+            ),
+        )
+    )
+    # THE SITE THIS ARM WAS WRITTEN FOR, and it is reached by leaving the
+    # shortcut the probe above wrote exactly where it landed. A second run
+    # without --force takes the refusal branch - the one message that rendered
+    # the operator's name in clear while the success line redacted it.
+    probes.append(
+        (
+            "already there",
+            make_shortcut.EXIT_REFUSED,
+            _run_script(
+                ["--desktop-dir", str(desktop), "--name", CANARY_ACCOUNT_ID],
+                path_dir=tools,
+                overrides=named,
+            ),
+        )
+    )
+    probes.append(
+        (
+            "powershell failed",
+            make_shortcut.EXIT_POWERSHELL_FAILED,
+            _run_script(
+                ["--desktop-dir", str(desktop), "--force", "--name", CANARY_ACCOUNT_ID],
+                path_dir=tools,
+                overrides=failing,
+            ),
+        )
+    )
+
+    leaked = sorted(label for label, _code, done in probes if CANARY_ACCOUNT_ID in _streams(done))
+    traced = sorted(label for label, _code, done in probes if "Traceback" in _streams(done))
+    misrouted = sorted(
+        f"{label} exited {done.returncode}, expected {code}"
+        for label, code, done in probes
+        if done.returncode != code
+    )
+    reached = sorted({done.returncode for _label, _code, done in probes})
+
+    probe_count = len(probes)
+    assert probe_count >= CANARY_NAME_OUTCOMES, (
+        "fewer outcomes were probed than this arm claims to cover"
+    )
+    assert misrouted == [], f"{len(misrouted)} probe(s) reached the wrong outcome: {misrouted}"
+    assert len(reached) == probe_count, (
+        f"{probe_count} probes reached only {len(reached)} distinct outcome(s): {reached}"
+    )
+    assert leaked == [], f"{len(leaked)} message(s) rendered the operator's name in clear: {leaked}"
+    assert traced == [], f"{len(traced)} probe(s) escaped as a traceback: {traced}"
 
 
 def test_a_staging_failure_renders_neither_the_planted_token_nor_a_filename(

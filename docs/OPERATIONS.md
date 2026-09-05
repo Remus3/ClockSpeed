@@ -363,7 +363,14 @@ same failure wearing a different hat.
      window before it was a claim about source.
 2. **Always-on-top raises.** With the option on, the window stays above other
    applications' windows when they are focused - not merely above its own siblings.
-   - Observed: `NOT RUN`
+   - Observed: 2026-09-05, at a real display - RAISES as specified. Launched with
+     `--always-on-top`, the companion was still the window at its own centre point after
+     another application - a browser, Opera - had been given focus. BOTH CONTROLS PASSED,
+     and neither is optional: the centre point resolved to the companion while the
+     companion itself held focus, which shows the probe can see the companion at all; and
+     focus demonstrably moved away to the other application, which shows something else
+     could have been on top. Without the second control this check cannot tell "stays
+     above a focused window" from "nothing ever took focus from it".
 3. **The pinned certificate is accepted over a real handshake.** The companion loads the
    running dashboard over TLS without a certificate warning and without any validation
    being disabled. A blank window, a hang, or a warning dialog each falsify this
@@ -375,10 +382,22 @@ same failure wearing a different hat.
 4. **Geometry survives a real restart.** Move and resize the window, fully exit the
    process, and launch it again. Reloading the window is NOT this check - the state is
    written on exit, so only a genuine process restart tests it.
-   - Observed: `NOT RUN`
+   - Observed: 2026-09-05 - SURVIVES. The window was moved, the process was HARD-KILLED so
+     that no close handler could run, and the companion was launched again; it reopened at
+     its saved bounds, x 3024 and y 238 logical. THE KILL IS WHAT MAKES THIS EVIDENCE. A
+     clean exit would have passed this check on the strength of the close handler alone,
+     leaving the debounced write that runs while the window MOVES completely ungraded -
+     and that write is the one an operator's geometry actually depends on, because a
+     process that dies without warning is the case a close handler cannot cover. Geometry
+     recovered after a kill can only have been persisted before it.
 5. **The drag strip drags.** With no OS frame, the injected drag region is the only way to
    move the window. Confirm the window follows the pointer.
-   - Observed: `NOT RUN`
+   - Observed: 2026-09-05 - DRAGS, REPORTED BY THE OPERATOR, who moved the window by its
+     drag strip and confirmed it follows the pointer. Attributed to a person rather than
+     to a measurement on purpose: a real pointer drag against a frameless window is not
+     something anything in this project can generate, and a synthesised event that the
+     window manager quietly declines to treat as a drag would look from the inside exactly
+     like a passing check.
 6. **Deferral behaves as documented.** Navigate the companion to a host that is not the
    dashboard and confirm Chromium's own verification still applies - a bad certificate on
    that host must still be refused. This is the check that would catch a `callback(-3)`
@@ -403,6 +422,16 @@ writes it somewhere other than the desktop, `--name <name>` gives it a different
 same reason 7.1 gives about `scripts/make_cert.py`: a copy of a table is a table that goes
 stale, and a runbook branching on a number reads it from the script.
 
+**Two environment variables also move what it does, and a flag always beats one.**
+`CLOCKSPEED_DESKTOP_DIR` moves where the shortcut is written; `CLOCKSPEED_SHELL_DIR` moves
+where the Electron runtime is looked for. The destination resolves in this order -
+`--desktop-dir`, then `CLOCKSPEED_DESKTOP_DIR`, then the desktop Windows itself records,
+then the conventional spelling under the profile - and `CLOCKSPEED_SHELL_DIR` has no flag
+above it. **The script owns that order and states it**; what is written here is which
+variables exist and which flag outranks which, because a variable nobody has heard of
+cannot be reached for at all. Reach for `CLOCKSPEED_SHELL_DIR` when the clone you want a
+shortcut for is not the clone you are running the script from.
+
 **What one double-click does.** It opens the companion. If no dashboard is answering, the
 launch starts one and OWNS it. If one IS answering - because you started it yourself in
 7.2, or because an earlier double-click did - that dashboard is ADOPTED and left alone.
@@ -417,6 +446,66 @@ yourself is still running afterwards, and 7.4 is still how you stop that one.
 no window and no message.** Read step 3 of 8.1 before concluding the shortcut is broken:
 the Electron runtime is downloaded on first use rather than at install time, and unlike
 8.1 a shortcut has no terminal for that silence - or for a refusal - to appear in.
+
+### 8.5 Checks that no machine performs - the shortcut, the tray and the dashboard
+
+**The rules of 8.3 apply here unchanged, and for the same reasons.** CI has no display,
+never installs Electron, and cannot double-click anything. Nothing in this list is graded
+by any test, any guard or any CI job, and no CI job may be shaped to imply that it was.
+Every step carries an Observed line whose shipped value is the literal token `NOT RUN`; a
+step still reading it HAS NOT BEEN RUN - not passed, not waived, not evidence of anything -
+and the token is replaced with what was seen and the date it was seen, never deleted to
+leave a blank.
+
+**Why this list is separate from 8.3 rather than appended to it.** 8.3 grades CS-602's
+acceptance, which is about the window itself. Everything below grades CS-909's, which is
+about the tray, what closing means, and which dashboard a launch owns. CS-909's acceptance
+clause demands a REAL ELECTRON RUN FROM A REAL SHORTCUT, and no arm in the suite can
+perform one, so this is where that evidence lives. Until it existed, a reader working
+through 8.3 would have concluded the only outstanding manual work was CS-602's four
+remaining checks, because nothing in this document mentioned the rest.
+
+**The ownership checks are the sharp ones.** 5 and 6 are a matched pair, and each is
+nearly worthless alone: a Quit that stopped EVERYTHING would pass 5, and a Quit that
+stopped NOTHING would pass 6. Only the two together say that the shell stops what it
+started and leaves what it did not.
+
+1. **The tray icon appears.** After a launch, the companion has a visible entry in the
+   system tray, and its menu opens.
+   - Observed: 2026-09-05 - PRESENT, CONFIRMED BY THE OPERATOR, who saw the tray entry and
+     opened its menu. Attributed to a person: the notification area is drawn by the Windows
+     shell, and nothing in this project can read back what it actually displayed.
+2. **Closing the window hides it instead of exiting.** Closing the companion must leave the
+   process alive with its window hidden, not terminate it.
+   - Observed: 2026-09-05 - HIDES. A real close was delivered to the window, and all three
+     of the following held afterwards: the process was still alive, the window was hidden
+     rather than destroyed, and the dashboard was still answering. All three are recorded
+     because any one alone is consistent with an outcome this check is meant to exclude -
+     a process that survived with no window is not the same as a window that was hidden.
+3. **A real double-click starts a dashboard and opens the window.** From a shortcut written
+   by 8.4, with nothing answering beforehand.
+   - Observed: 2026-09-05 - STARTS AND OPENS. With no dashboard answering, the shortcut was
+     double-clicked; a dashboard was started by that launch and the companion window opened
+     against it. This is the run CS-909's acceptance clause asks for: a real shortcut, a
+     real Electron process, no terminal in the path.
+4. **A second launch ADOPTS rather than spawning a second dashboard.** With a dashboard
+   already answering, a shortcut launch must load that one and start nothing.
+   - Observed: 2026-09-05 - ADOPTED. A dashboard was started by hand first, then the
+     shortcut was launched; the companion loaded the dashboard that was already there and
+     NO SECOND ONE WAS SPAWNED. The absence of the second listener is the measurement - a
+     launch that spawned one and displayed it would have looked identical from the window.
+5. **Quit stops a dashboard this launch started.** The tray menu's Quit, after a launch that
+   started its own dashboard.
+   - Observed: 2026-09-05 - STOPPED, CONFIRMED BY THE OPERATOR, who quit from the tray menu
+     after a launch of the kind check 3 describes and found the dashboard no longer
+     answering.
+6. **Quit LEAVES a dashboard it merely adopted.** The tray menu's Quit, after a launch of
+   the kind check 4 describes.
+   - Observed: 2026-09-05 - LEFT RUNNING, CONFIRMED BY THE OPERATOR AND VERIFIED BY PROCESS
+     ID. The hand-started dashboard was still answering after Quit, under the SAME process
+     id it held before. The identity check is the whole of it: "still answering" alone
+     cannot distinguish a dashboard that was left alone from one that was stopped and
+     restarted, and only the first is the documented behaviour.
 
 ---
 
