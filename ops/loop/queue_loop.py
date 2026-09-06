@@ -505,6 +505,54 @@ def _taskkill(pid) -> None:
         )
 
 
+def _fault(exc: BaseException) -> str:
+    """Name a fault WITHOUT rendering the exception object. Never its ``str()``.
+
+    CLAUDE.md non-negotiable 12. ``str()`` on an OSError appends the path it
+    failed on, and a path on this machine carries the Windows account name. Two
+    of this module's five former call sites wrote that string into the JSONL
+    LEDGER, which is durable and is exactly the file an operator quotes.
+
+    ``strerror`` is the operating system's own message for the failure - "The
+    system cannot find the file specified" - and carries no path. Anything with
+    no ``strerror`` degrades to its type name, which is a real answer: it says
+    what went wrong in kind without inventing detail.
+
+    Nothing is lost for debugging. Every raise in this module chains its cause,
+    so the full text still reaches a traceback; it is only kept out of the
+    strings that get written down.
+
+    A PER-TYPE ALLOWLIST, modelled on `tools/precommit_gate.py::safe_exc_text`,
+    which is this project's worked answer to the same question. It is not
+    IMPORTED from there: that module is the tier-0 gate, and a lane driver that
+    could fail to start because a gate module failed to import would be trading
+    one silence for another. The shape is copied and cited instead.
+
+    NOT one strerror-shaped branch for everything. `strerror` is an OSError
+    attribute, so a helper that reaches for it on any other type finds nothing -
+    and if it then fell back to `str()` it would be the leak it was written to
+    prevent. Several types that reach here have no strerror at all, and each
+    leaks differently: `TimeoutExpired` renders the whole command line, and
+    `CalledProcessError` renders an argv this driver builds from paths.
+
+    A LAUNCH FAILURE CONTRIBUTES ITS TYPE NAME AND NOTHING MORE, even though
+    the launcher already sanitises its own message. The guard's exemption is
+    structural - a module may render whole an exception type IT defines,
+    because it builds that message - and `LaneLaunchError` is defined one module
+    over. Trusting a promise made in another file is exactly what the structural
+    rule refuses, and it is right to: the trade costs message detail and buys a
+    guarantee. The row still names the OUTCOME and the lane, which is what an
+    operator needs to reproduce it.
+    """
+    if isinstance(exc, OSError):
+        return exc.strerror or type(exc).__name__
+    if isinstance(exc, subprocess.TimeoutExpired):
+        return f"{type(exc).__name__} after {exc.timeout} seconds"
+    if isinstance(exc, subprocess.CalledProcessError):
+        return f"{type(exc).__name__} exit {exc.returncode}"
+    return type(exc).__name__
+
+
 def _emit(line: str) -> None:
     """One progress line, FLUSHED.
 
@@ -659,7 +707,7 @@ def run_local_suite(*, argv=None, runner=None, cwd=None, monotonic=time.monotoni
             "argv": argv,
             "cwd": str(cwd or ""),
             "duration_s": round(monotonic() - started, 1),
-            "detail": f"{type(exc).__name__}: {exc}"[:400],
+            "detail": _fault(exc)[:400],
         }
     verdict = summarize_pytest(out, code)
     verdict.update(
@@ -803,7 +851,7 @@ def _gh(args) -> tuple[int, str]:
     except (OSError, subprocess.SubprocessError) as exc:
         # 127 is "command not found", the common case here (no gh on PATH under
         # a detached pythonw) and it reads correctly in a log.
-        return 127, f"{type(exc).__name__}: {exc}"
+        return 127, _fault(exc)
     if proc.returncode != 0:
         return proc.returncode, ((proc.stderr or "") + (proc.stdout or "")).strip()
     return 0, proc.stdout or ""
@@ -860,7 +908,7 @@ def _gh_json(gh, args):
     try:
         return json.loads(out), None
     except (TypeError, ValueError) as exc:
-        return None, f"gh {rendered} returned unparseable JSON: {exc}"
+        return None, f"gh {rendered} returned unparseable JSON: {_fault(exc)}"
 
 
 def _run_list(gh, spec: CiSpec):
@@ -1426,7 +1474,7 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             # finally below releases again, which is deliberate - release_lane
             # is idempotent, and an unconditional release is the only shape that
             # survives a future launcher that stops cleaning up after itself.
-            outcome, detail = OUTCOME_LAUNCH_FAILED, str(exc)[:400]
+            outcome, detail = OUTCOME_LAUNCH_FAILED, _fault(exc)[:400]
         else:
             pid = run.get("pid")
             if not pid:
@@ -1618,7 +1666,7 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
                 "ended_at": ended_at,
                 "duration_s": round(ended_at - started_at, 3),
                 "outcome": OUTCOME_ERROR,
-                "detail": f"{type(exc).__name__}: {exc}"[:400],
+                "detail": _fault(exc)[:400],
             }
 
         # ---- THE DRIVER-OWNED WAITS, before the append so ONE row carries

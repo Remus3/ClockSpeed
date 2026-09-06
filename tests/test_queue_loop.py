@@ -231,6 +231,47 @@ def test_the_shapes_pytest_actually_emits_are_all_recognised(line):
     assert queue_loop.summarize_pytest(line + "\n", 0)["summary"] == line
 
 
+def test_a_fault_is_named_without_rendering_the_exception_object(tmp_path):
+    """CLAUDE.md non-negotiable 12, asserted on the OUTPUT and not the shape.
+
+    The repo-wide guard in `tests/test_exception_rendering.py` bans the SHAPE -
+    an `{exc}` or `str(exc)` in a message - across every tracked module, which
+    is the stronger net. But a shape check passes just as happily if `_fault`
+    were written to return `str(exc)`, so nothing would then be checking the
+    only thing that matters: that the account name and the path are gone.
+
+    A real OSError is raised against a real missing path under this machine's
+    home directory, because that is the exact string the rule exists to keep out
+    of the JSONL ledger.
+    """
+    missing = tmp_path / "no-such-file.txt"
+    try:
+        missing.read_text(encoding="utf-8")
+    except OSError as exc:
+        # THE CONTROL IS `filename`, NOT `str(exc)`, and that is not a dodge -
+        # `filename` IS the mechanism. It is the attribute OSError's own __str__
+        # appends, so asserting the path is in it proves the exception really
+        # does carry the thing being redacted. Rendering the object here to
+        # prove the point would have written the leak into a tracked file, which
+        # the repo-wide guard rightly refuses; it caught this line on the first
+        # run, which is the guard working.
+        carried = exc.filename or ""
+        named = queue_loop._fault(exc)  # noqa: SLF001 - the site under test
+    else:  # pragma: no cover - tmp_path never carries this file
+        pytest.fail("the missing file was readable")
+
+    assert str(tmp_path) in carried, "the control failed: the exception carried no path"
+    assert str(tmp_path) not in named, "the path survived redaction"
+    assert Path(named).drive == "", f"a rooted path survived redaction: {named!r}"
+    assert named, "a fault must still be NAMED - an empty string reports nothing"
+
+
+def test_a_fault_with_no_strerror_degrades_to_its_type_name():
+    """A real answer, not a silence: it says what went wrong in kind."""
+    fault = queue_loop._fault  # noqa: SLF001 - the site under test
+    assert fault(ValueError("something with a path: C:/x")) == "ValueError"
+
+
 def test_the_local_suite_grades_the_lane_worktree_and_not_the_drivers_own_tree(tmp_path):
     """A green about the wrong commit is worse than no green.
 
@@ -292,7 +333,13 @@ def test_the_local_suite_runner_never_raises_on_a_broken_runner():
 
     got = queue_loop.run_local_suite(runner=runner, monotonic=FakeClock().monotonic)
     assert got["ok"] is False
-    assert "PATH" in got["detail"]
+    # THE TYPE, NOT THE MESSAGE. A single-argument OSError has no `strerror`,
+    # and its message is author-written text that may carry anything - which is
+    # precisely the case the per-type allowlist refuses to render. The verdict
+    # still says the run produced no summary and is not ok, which is what the
+    # loop acts on.
+    assert got["detail"] == "OSError"
+    assert got["truncated"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -830,7 +877,12 @@ def test_a_launch_failure_is_recorded_not_raised():
 
     got = queue_loop.run_cycle(1, **cycle_seams(clock, launch=fails))
     assert got["outcome"] == queue_loop.OUTCOME_LAUNCH_FAILED
-    assert "no worktree" in got["detail"]
+    # THE TYPE, NOT THE MESSAGE, and the reason is the guard's structural rule:
+    # a module may render whole only an exception type IT defines, because it
+    # builds that message. LaneLaunchError is defined in the launcher, so this
+    # module may not take its word for it - see queue_loop._fault. The OUTCOME
+    # is what the loop acts on and it is unaffected.
+    assert got["detail"] == "LaneLaunchError"
 
 
 def test_a_launch_that_returns_no_pid_is_a_launch_failure():
@@ -1236,7 +1288,13 @@ def test_one_fault_is_recorded_and_the_night_goes_on(tmp_path):
     rows = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
     assert len(rows) == THREE_CYCLES
     assert rows[0]["outcome"] == queue_loop.OUTCOME_ERROR
-    assert "one bad cycle" in rows[0]["detail"]
+    # THE TYPE, NOT THE MESSAGE, and that is deliberate rather than a
+    # weakening. This detail is written into the JSONL ledger, and non-negotiable
+    # 12 forbids rendering a caught exception object there: `str()` on an
+    # OSError appends the path it failed on, which carries the account name. So
+    # the row names the fault in KIND. The full text still reaches a traceback
+    # through the chained cause; it is only kept out of the durable file.
+    assert rows[0]["detail"] == "ValueError"
     assert summary["stopped_by"] == queue_loop.STOPPED_BY_MAX_CYCLES
 
 
