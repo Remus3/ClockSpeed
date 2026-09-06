@@ -2829,6 +2829,35 @@ def _write(record, tag):
     scratch.replace(directory / name)
 
 
+def _worker(config):
+    """Which xdist worker this process is, or None when it is the controller.
+
+    DELIBERATELY NOT ``os.environ["PYTEST_XDIST_WORKER"]``, and that is the whole
+    reason this helper exists. THAT VARIABLE IS INHERITED. When the OUTER suite
+    runs under ``-n auto`` the process driving the push is itself an xdist worker,
+    the variable is already set in its environment, and it travels down the whole
+    chain - the environment copy, git, sh, the hook - into this process. The
+    controller then reads a worker id it never earned, files itself as a worker,
+    and every controller-derived field the arms assert on comes back None while
+    the run plainly happened. MEASURED: with the outer suite serial the controller
+    recorded worker=None; with the outer suite under ``-n auto`` the same
+    controller recorded the OUTER run's worker id, and all three arms below failed
+    on ran=False - the two parallel ones beside workers=9, which is a controller
+    miscounted among its own eight, and the degraded-serial one beside workers=1,
+    which is a lone controller counted as the only worker.
+
+    ``config.workerinput`` is injected by xdist INSIDE the worker process
+    (xdist/remote.py sets it before the session configures) and cannot arrive from
+    a parent. It is also xdist's own discriminator - ``xdist.is_xdist_worker`` is
+    exactly this hasattr. It is read with ``getattr`` rather than through an
+    import because the degraded arm hides xdist from this very process.
+    """
+    workerinput = getattr(config, "workerinput", None)
+    if workerinput is None:
+        return None
+    return workerinput.get("workerid", "unnamed")
+
+
 def pytest_configure(config):
     try:
         import xdist  # noqa: F401
@@ -2839,7 +2868,11 @@ def pytest_configure(config):
     _write(
         {
             "kind": "configure",
-            "worker": os.environ.get("PYTEST_XDIST_WORKER"),
+            "worker": _worker(config),
+            # CONTROL ONLY, AND NEVER AN IDENTITY. What the environment claimed
+            # this process was, recorded so an arm can prove an inherited value
+            # reached the child and was overruled rather than merely absent.
+            "env_worker": os.environ.get("PYTEST_XDIST_WORKER"),
             "xdist_importable": importable,
             "numprocesses": getattr(config.option, "numprocesses", None),
         },
@@ -2851,7 +2884,7 @@ def pytest_sessionfinish(session, exitstatus):
     _write(
         {
             "kind": "finish",
-            "worker": os.environ.get("PYTEST_XDIST_WORKER"),
+            "worker": _worker(session.config),
             "exitstatus": int(exitstatus),
         },
         "f",
@@ -2872,6 +2905,15 @@ class SuiteRun(NamedTuple):
     report None for it and are counted only for the report, never asserted on:
     they are separate processes whose files can still be landing when the
     controller has already exited, and an arm that counted them would be a race.
+
+    ``inherited_worker`` IS A CONTROL AND NEVER AN IDENTITY. It is what
+    ``PYTEST_XDIST_WORKER`` said inside the controller, which is a claim the
+    environment makes and not a fact about this process - see ``_worker`` in the
+    recorder for what reading it as an identity cost. It is carried because
+    ``ran=False`` beside a non-zero ``workers`` is otherwise a silent shape: it
+    reads as "nothing ran" when what happened is that everything ran and the
+    controller was misfiled. An xdist worker id is ``gwN``, so this carries no
+    path and is safe to render.
     """
 
     ran: bool
@@ -2879,6 +2921,7 @@ class SuiteRun(NamedTuple):
     xdist_importable: bool | None
     exitstatus: int | None
     workers: int
+    inherited_worker: str | None
 
     @property
     def report(self) -> str:
@@ -2886,7 +2929,8 @@ class SuiteRun(NamedTuple):
         return (
             f"suite: ran={self.ran} distributed={self.distributed} "
             f"xdist_importable={self.xdist_importable} "
-            f"session_exit={self.exitstatus} worker_processes={self.workers}"
+            f"session_exit={self.exitstatus} worker_processes={self.workers} "
+            f"inherited_worker={self.inherited_worker}"
         )
 
 
@@ -2948,12 +2992,14 @@ def read_suite_run(box: Sandbox) -> SuiteRun:
     tail: dict[str, object] = enders[0] if enders else {}
     importable = head.get("xdist_importable")
     status = tail.get("exitstatus")
+    inherited = head.get("env_worker")
     return SuiteRun(
         ran=bool(controllers),
         distributed=head.get("numprocesses") is not None,
         xdist_importable=importable if isinstance(importable, bool) else None,
         exitstatus=status if isinstance(status, int) else None,
         workers=sum(1 for item in configured if item.get("worker") is not None),
+        inherited_worker=inherited if isinstance(inherited, str) else None,
     )
 
 
@@ -3261,4 +3307,143 @@ def test_a_failing_suite_blocks_a_real_push_on_the_degraded_serial_path(
     assert not control_run.distributed, (
         "the control push did not run serially, so it is a control for the parallel path "
         f"and not for the one under test:\n{control_run.report}"
+    )
+
+
+# --- CS-906: the recorder's own identity, which all three arms above assume ---
+#
+# THE THREE ARMS ABOVE ARE GRADED BY read_suite_run, AND READ NOTHING THAT GRADES
+# read_suite_run ITSELF. Every one of them asserts on a field taken from the
+# CONTROLLER's record, so a recorder that cannot tell its controller from a worker
+# makes all three report an all-None SuiteRun - which reads as "the suite never
+# ran" and is indistinguishable from a hook that never launched pytest.
+#
+# THAT IS NOT HYPOTHETICAL AND IT DOES NOT REPRODUCE SERIALLY, which is the whole
+# reason this arm exists rather than a note. The recorder identified itself from
+# PYTEST_XDIST_WORKER, xdist sets that variable in every worker, and the pre-push
+# lane now runs this module under -n auto - so the process driving the push was a
+# worker, the variable came down the chain into the child, and the child's
+# controller filed itself as a worker. The three arms above were green serially
+# and red under an outer -n auto: all three on ran=False, the two parallel ones
+# beside workers=9 and the degraded-serial one beside workers=1.
+#
+# THE ARM BELOW PLANTS THE VARIABLE BY HAND so the serial lane can see the same
+# defect. It needs no xdist and takes no skip: a lane that cannot fail is exactly
+# how this got as far as it did.
+
+WORKER_ENV: Final = "PYTEST_XDIST_WORKER"
+
+# What the guard plants. DELIBERATELY NOT A WELL-FORMED WORKER ID - xdist writes
+# `gwN` - so a failure rendering `gw3` here says a REAL inherited value won and
+# the plant did not take, which a plausible-looking plant could not distinguish.
+# Nothing in pytest 9.0.3 or xdist 3.8.0 reads this variable; xdist/remote.py only
+# WRITES it. Measured by grepping both installed packages, not assumed.
+PLANTED_WORKER: Final = "gw-cs906"
+
+
+def plant_outer_worker(box: Sandbox) -> dict[str, str]:
+    """The sandbox environment as an OUTER distributed run would hand it down.
+
+    WINDOWS FOLDS ENVIRONMENT KEYS AND ``dict(os.environ)`` HANDS BACK UPPER-CASE
+    ONES, so any existing spelling is removed before the canonical name is
+    written - the same reason ``sandbox_without_xdist`` does it. Writing over a
+    dict that already carries another casing leaves both in the block, and which
+    one the child sees is undefined: a plant that silently did not take, read as
+    one that did.
+    """
+    env = env_naming(box, None)
+    for key in [key for key in env if key.upper() == WORKER_ENV]:
+        env.pop(key)
+    env[WORKER_ENV] = PLANTED_WORKER
+    return env
+
+
+def run_sandbox_suite(box: Sandbox, env: dict[str, str]) -> int:
+    """Run the sandbox suite directly under ``env``. ONLY THE INTEGER COMES BACK.
+
+    NO HOOK AND NO PUSH. The arms above drive the hook; this one is about what the
+    recorder writes, and going through git would put the interpreter ladder, the
+    remote and the hook's own branches between the plant and the thing measured.
+
+    RUN UNDER ``sys.executable``, NOT THE BARE NAME. ``import_xdist_exit`` uses the
+    bare name because it must measure what the HOOK will resolve; nothing here
+    depends on the ladder, and pinning the interpreter removes a way for this arm
+    to fail for a reason that is not the recorder.
+
+    The child renders sandbox paths on both streams and nothing here may reach an
+    assertion message (CLAUDE.md non-negotiable 3), so its output is captured and
+    dropped. The oracle is the record the recorder left, never this number.
+    """
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "pytest", str(box.work / SANDBOX_TESTS), "-q"],
+            cwd=str(box.work),
+            capture_output=True,
+            text=True,
+            timeout=CHILD_TIMEOUT,
+            env=env,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return UNRESOLVABLE
+    return proc.returncode
+
+
+def test_the_run_recorder_tells_controller_from_worker_without_reading_the_environment(
+    tmp_path: Path, isolated: Environment
+) -> None:
+    """CS-906. RED before the recorder read ``config.workerinput``.
+
+    THE CHILD IS RUN SERIALLY AND IS STILL HANDED A WORKER ID. That pairing is the
+    point: no xdist process exists anywhere below this line, so the ONLY thing that
+    could call the child's single process a worker is the environment. Under the
+    old recorder that one record was filed as a worker and the reduction came back
+    ran=False, workers=1 - the exact shape the degraded-serial arm reported under
+    an outer ``-n auto``, reproduced here without needing one.
+
+    BOTH RECORDER HOOKS ARE GRADED, not just the first. ``pytest_configure`` is
+    what ``ran`` and ``workers`` come from; ``exitstatus`` can only arrive if
+    ``pytest_sessionfinish`` identified the controller too, and it read the same
+    variable. An arm that checked only the first would leave the second free to
+    rot until the next distributed lane found it.
+
+    WHAT THIS DOES NOT COVER, stated rather than implied: the hook, the push, and
+    the genuinely distributed shape. Those are the three arms above - which now
+    exercise inheritance for real, because the pre-push lane runs them under
+    ``-n auto``. This arm is what lets the SERIAL lane fail too.
+    """
+    box = make_sandbox(tmp_path, isolated, PRE_PUSH, suite_passes=True)
+    instrument_sandbox(box)
+    clear_suite_records(box)
+
+    status = run_sandbox_suite(box, plant_outer_worker(box))
+    run = read_suite_run(box)
+
+    assert run.ran, (
+        "the recorder did not identify the CONTROLLER of a child that ran. With a "
+        "worker id planted in its environment and no xdist process anywhere, this is "
+        "the outer -n auto shape exactly: a controller reads an INHERITED id, files "
+        "itself as a worker, and every field the three arms above assert on comes back "
+        f"None while the run plainly happened:\nchild_exit={status}\n{run.report}"
+    )
+    assert run.inherited_worker == PLANTED_WORKER, (
+        "THE PLANT DID NOT REACH THE CHILD, so this arm graded an ORDINARY child and "
+        "measured nothing about inheritance. Windows folds environment keys and "
+        f"dict(os.environ) hands back upper-case ones:\nchild_exit={status}\n{run.report}"
+    )
+    assert not run.distributed, (
+        "the child ran DISTRIBUTED, so it carries real workers and the count below "
+        "would no longer be evidence about the controller. Something outside this arm "
+        f"is passing a parallel option - PYTEST_ADDOPTS is the usual one:\n{run.report}"
+    )
+    assert run.workers == 0, (
+        "a serial child reported worker processes. The only process that ran was the "
+        "controller, so it was counted as BOTH - which is what reading the identity "
+        f"out of the environment does:\nchild_exit={status}\n{run.report}"
+    )
+    assert run.exitstatus == 0, (
+        "no session-end record was attributed to the controller, so pytest_sessionfinish "
+        "is still reading the identity out of the environment even if pytest_configure "
+        f"is not. Without it the empty-suite arm has no exit status to read:\n"
+        f"child_exit={status}\n{run.report}"
     )

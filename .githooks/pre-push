@@ -193,7 +193,40 @@ fi
 # invocation from the root - that can sweep runtime state directories
 # (CONVENTIONS.md section 7.1). stdin is the ref list git handed us; pytest
 # must not inherit it.
-cs_python -m pytest "$TESTS" -q -x </dev/null
+#
+# SERIAL OR PARALLEL IS DECIDED HERE, ONCE, BEFORE THE RUN (CS-906, under the
+# frozen-file grant recorded in docs/LEDGER.md; read its thirteen conditions
+# before changing anything in this block).
+#
+# THE SUITE IS NEVER RE-RUN. A try-parallel-then-retry-serial shape would run
+# a red suite twice and could turn a flaky red green, which is the CS-703
+# no-op shape one level up. One decision, one run.
+#
+# THE CHOICE IS AN IMPORTABILITY PROBE, NEVER A PARSE OF PYTEST OUTPUT, and it
+# uses cs_python rather than python on purpose: those are DIFFERENT
+# interpreters whenever CLOCKSPEED_PYTHON is set, and a probe that asks one
+# interpreter about a plugin the other will load reports on nothing.
+#
+# A MISSING PLUGIN COSTS SPEED AND NOT COVERAGE, so its absence degrades to
+# serial and does NOT block the push - refusing here would buy no safety. The
+# degrade is LOUD because a silent one is indistinguishable from a lane that
+# was never parallel.
+#
+# MEASURED 2026-09-06 on this 16-processor machine, one byte-identical tree:
+# 765s serial against 296s distributed, both reporting 5362 passed and 4
+# skipped. Parallelism bought 2.59x and cost no coverage.
+PYTEST_PARALLEL=""
+if cs_python -c "import xdist" >/dev/null 2>&1; then
+    PYTEST_PARALLEL="-n auto"
+else
+    printf 'clockspeed pre-push: xdist is not importable, so the suite runs ' >&2
+    printf 'SERIAL - slower, not weaker. Restore the parallel lane with: ' >&2
+    printf 'python -m pip install -e ".[dev]"\n' >&2
+fi
+
+# Unquoted on purpose: the empty case must expand to NO argument, and sh has
+# no arrays. The variable is initialised above, so `set -u` is satisfied.
+cs_python -m pytest "$TESTS" -q -x $PYTEST_PARALLEL </dev/null
 STATUS=$?
 
 if [ "$STATUS" -eq 5 ]; then
