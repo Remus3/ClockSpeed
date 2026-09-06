@@ -1085,11 +1085,64 @@ def test_shipped_mode_and_legacy_mode_produce_different_bytes() -> None:
 SUBPROCESS_TIMEOUT: Final = 300
 
 
+#: The one-line pytest config planted beside every probe module this section
+#: writes. Empty on purpose - it carries no option, and its only job is to be
+#: FOUND, so that the child stops climbing here.
+_ROOTDIR_PIN: Final = b"[pytest]\n"
+
+
+def _probe_sandbox(root: Path, body: str) -> Path:
+    """Write a probe module into ``root`` and pin the child run's rootdir there.
+
+    THE PIN IS THE LOAD-BEARING LINE, and it is a mitigation for CS-448 rather
+    than tidiness. A child given an absolute path under the pytest temp tree,
+    with its cwd set elsewhere, finds no ini file above the probe; pytest then
+    falls back to the common ancestor of the cwd and the argument. From an
+    ordinary checkout that ancestor is the drive root, which pytest discards,
+    so the rootdir lands on the sandbox and collection is instant. From a
+    checkout that shares a large ancestor with the temp root - a scratch clone,
+    which is where the session scratchpad lives - the ancestor is the temp root
+    itself, pytest keeps it, and collection then walks tens of thousands of
+    sibling entries. Measured on this machine with only the cwd varied: 0.35s
+    against 12.27s, and a sibling worker deleting a temp directory mid-walk
+    turns the slow arm into a collection error rather than a slow pass.
+
+    An empty ini in the sandbox ends the climb at the first hop, in every
+    location. ``tests/test_hook_interpreter_ladder.py`` pins its own sandbox
+    the same way, from an independent measurement.
+
+    Args:
+        root: The directory to write into. Created if it does not exist.
+        body: The probe module's source, ASCII.
+
+    Returns:
+        The path of the probe module.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    probe = root / "test_echo_probe.py"
+    probe.write_text(body, encoding="utf-8")
+    (root / "pytest.ini").write_bytes(_ROOTDIR_PIN)
+    return probe
+
+
+def _reported_rootdir(stdout: str) -> Path | None:
+    """The rootdir pytest named in its own session header, or None.
+
+    Returns None rather than raising when the header is absent, so the caller
+    can say WHICH failure it is: a child that reported no rootdir at all and a
+    child that reported the wrong one are different defects.
+    """
+    for line in stdout.splitlines():
+        if line.startswith("rootdir:"):
+            return Path(line.split(":", 1)[1].strip())
+    return None
+
+
 def test_a_failing_builder_call_renders_its_arguments(tmp_path: Path) -> None:
     """Frame ARGUMENTS are rendered by pytest with no --showlocals. Measured."""
     sentinel = "NameThatMustNotEscapeButWill"
-    probe = tmp_path / "test_echo_probe.py"
-    probe.write_text(
+    probe = _probe_sandbox(
+        tmp_path,
         "from tests.save import synthetic\n"
         "\n"
         "def test_probe() -> None:\n"
@@ -1099,7 +1152,6 @@ def test_a_failing_builder_call_renders_its_arguments(tmp_path: Path) -> None:
         "        schemas=[],\n"
         "        shipped=True,\n"
         "    )\n",
-        encoding="utf-8",
     )
 
     result = subprocess.run(
@@ -1115,6 +1167,57 @@ def test_a_failing_builder_call_renders_its_arguments(tmp_path: Path) -> None:
     # The frame-argument rendering, which is the whole point: this is the
     # `table = {...}, text = '...'` line pytest emits above the failing frame.
     assert f"text = '{sentinel}'" in result.stdout
+
+
+def test_the_probe_sandbox_pins_the_child_rootdir_at_itself(tmp_path: Path) -> None:
+    """The CS-448 pin above is MEASURED here, not asserted by its own comment.
+
+    A pin nobody can observe is a pin the next refactor deletes. This arm runs
+    the same helper the test above runs, from a cwd that SHARES A PARENT with
+    the sandbox - which is the arrangement that makes pytest keep the shared
+    ancestor instead of discarding it as a drive root. With the pin the child
+    reports the sandbox; without it the child reports the shared parent, so
+    deleting the one line in ``_probe_sandbox`` turns this red.
+
+    The parent here is a two-entry directory rather than the real temp root, so
+    the arm grades the ROOTDIR and costs the same in both states: it needs no
+    stopwatch and cannot flake on how full this machine's temp directory is.
+
+    NEITHER PATH IS RENDERED. The comparison is bound to a bool before it is
+    asserted, because pytest rewrites the asserted EXPRESSION independently of
+    the message, and both of these paths sit under the operator's profile
+    (non-negotiable 12).
+
+    NO ``resolve`` ON EITHER SIDE, and that is correctness before anything
+    else: both operands descend from the same ``tmp_path`` string - one through
+    ``_probe_sandbox``, one through the argv the child was handed - so there is
+    no normalisation for it to do, and ``Path.__eq__`` already folds case on
+    this platform. It is also the primitive ``reach_guard`` grades, so avoiding
+    it keeps this arm out of a privacy declaration table it has no business in.
+    """
+    sandbox = tmp_path / "sandbox"
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    probe = _probe_sandbox(sandbox, "def test_probe() -> None:\n    assert True\n")
+
+    result = subprocess.run(
+        # NOT -q: the rootdir line lives in the session header, which -q hides.
+        [sys.executable, "-m", "pytest", str(probe), "-p", "no:cacheprovider"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=SUBPROCESS_TIMEOUT,
+        cwd=elsewhere,
+    )
+
+    reported = _reported_rootdir(result.stdout)
+    assert reported is not None, "the child printed no rootdir line, so nothing was measured"
+
+    pinned_at_sandbox = reported == sandbox
+    assert pinned_at_sandbox, (
+        "the child resolved its rootdir above the sandbox, so the CS-448 climb "
+        "is live again: _probe_sandbox no longer plants a pytest config"
+    )
 
 
 def test_the_builder_docstring_does_not_claim_a_containment_it_lacks() -> None:

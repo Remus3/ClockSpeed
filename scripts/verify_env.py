@@ -87,6 +87,25 @@ MIN_PYTHON = (3, 13)
 
 EXPECTED_HOOKS_PATH = ".githooks"
 
+# THE PARALLEL-LANE PYTEST PLUGIN, NAMED TWICE BECAUSE THE TWO NAMES DIFFER.
+# The DISTRIBUTION is what pyproject.toml's dev extra pins and what pip
+# resolves; the MODULE is what an import statement spells. Both are kept
+# deliberately: the row prints the distribution so the operator can act on it,
+# and the probe imports the module because that is what pytest itself does.
+XDIST_DISTRIBUTION = "pytest-xdist"
+XDIST_MODULE = "xdist"
+
+# The probe source, run under the RESOLVED interpreter. A pytest PLUGIN is
+# reached by IMPORT and never by -m: `python -m xdist --version` exits non-zero
+# saying a package cannot be directly executed, so _module_backed_tool_row -
+# correct for pytest, ruff and mypy - would report MISSING for a plugin that is
+# installed and working. MEASURED on this machine with xdist 3.8.0 present.
+#
+# The getattr default keeps a future release that stops exporting __version__
+# reading FOUND rather than MISSING, because the question this row answers is
+# whether the plugin LOADS, not which version it is.
+XDIST_PROBE = f"import {XDIST_MODULE} as _m; print(getattr(_m, '__version__', 'present'))"
+
 # The five known CommunityResources artifacts, by relative path. Names only. No
 # size is asserted against a literal: a game patch changes them, and a measured
 # number frozen into a checker is a lie with a timestamp on it. Sizes are
@@ -749,6 +768,50 @@ def _hard_rows(root: Path, facts: dict) -> list[dict]:
     return rows
 
 
+def _parallel_plugin_row() -> dict:
+    """Report the parallel-lane pytest plugin, SOFT, so its absence cannot fail.
+
+    CS-906 CONDITION SIX. The pre-push hook runs its suite in parallel and
+    DEGRADES TO SERIAL when this plugin is absent, printing a remediation line.
+    An advice line the operator cannot confirm is a false lead, and this row is
+    what makes it confirmable: run the script, read the row, see it flip.
+
+    SOFT AND NOT HARD, and the distinction is the whole point of the condition.
+    The serial fallback runs the same tests and reaches the same verdict, so the
+    plugin is a SPEEDUP. A HARD row would fail the entire environment check on a
+    checkout where nothing is wrong - turning one false lead into two, and
+    teaching the operator to ignore the script that verifies the safety net.
+
+    IT DOES NOT REUSE :func:`_module_backed_tool_row`, for the reason recorded
+    at XDIST_PROBE: the module channel that is correct for pytest, ruff and mypy
+    is wrong here, because a package with no __main__ cannot be run as one.
+
+    NO PATH IS PUT IN THE ROW. The sibling builder resolves an executable to
+    tell the operator which failure they have; there is no xdist executable to
+    resolve, and a discovered path printed here would be an echo path for
+    nothing (CLAUDE.md non-negotiable 12).
+
+    Returns:
+        One dependency row, always SOFT.
+    """
+    version = _first_line(_run([sys.executable, "-c", XDIST_PROBE]))
+    if version:
+        return _row(
+            "SOFT",
+            XDIST_DISTRIBUTION,
+            True,
+            f"{version}  (import {XDIST_MODULE} under the resolved interpreter)",
+        )
+    return _row(
+        "SOFT",
+        XDIST_DISTRIBUTION,
+        False,
+        f"{XDIST_MODULE} not importable by the resolved interpreter",
+        "the pre-push suite falls back to SERIAL and says so - it is slower, not "
+        'broken. Restore the parallel lane with: python -m pip install -e ".[dev]"',
+    )
+
+
 def _optional_tool_rows() -> list[dict]:
     # node, gh and openssl are genuine executables and are judged by PATH. mypy
     # is a python module and shares pytest and ruff's root cause exactly - the
@@ -759,7 +822,12 @@ def _optional_tool_rows() -> list[dict]:
     # (scripts/make_cert.py), and the advice path has to stay runnable on a
     # machine that has neither. A HARD row here would fail the verdict on a
     # machine where nothing is actually wrong.
-    rows = [_row("SOFT", exe, *_tool_version(exe)) for exe in ("node", "gh", "openssl")]
+    # pytest-xdist leads the SOFT block so it renders BESIDE the pytest and ruff
+    # rows that close the HARD block - the three the pre-push hook depends on,
+    # read together. It is judged by neither channel used below; see
+    # _parallel_plugin_row.
+    rows = [_parallel_plugin_row()]
+    rows.extend(_row("SOFT", exe, *_tool_version(exe)) for exe in ("node", "gh", "openssl"))
     rows.append(_module_backed_tool_row("SOFT", "mypy"))
     return rows
 

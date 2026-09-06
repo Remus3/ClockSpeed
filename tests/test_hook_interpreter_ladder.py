@@ -2685,3 +2685,580 @@ def test_no_arm_needing_an_import_time_shell_fails_when_it_cannot_be_resolved(
             "anything - the one such claim that shipped was measured FALSE, and a false "
             f"reassurance is worse than silence: {cited}"
         )
+
+
+# --- CS-906 conditions EIGHT and TWELVE: the parallel path -------------------
+#
+# WHAT THESE ARMS ARE FOR. The pre-push hook is gaining a second way to run the
+# same suite: when pytest-xdist is importable the run is distributed, and when it
+# is not the run degrades to serial with a notice. The suite is NEVER re-run -
+# try-parallel-then-retry-serial would double a 24 minute push on the exact day
+# it is already failing - so there is no second attempt to hide a broken first
+# one, and every property the serial path had must hold on the parallel one by
+# construction rather than by luck.
+#
+# THE THREE ARMS BELOW DO NOT SHARE A RESULT. Condition TWELVE says agreement
+# between the two paths is not evidence, so the serial arm reads nothing the
+# parallel arm measured and each carries its own control. Two paths that agree
+# because both are inert agree perfectly.
+#
+# EVERY ORACLE IS READ OUT OF THE CHILD, not inferred from the push. A refusing
+# hook always exits 1 - ``die`` says so - so the push's own exit code cannot
+# distinguish "pytest returned 5" from "pytest was never runnable", and a hook
+# that never passed a parallel option is indistinguishable from one that did.
+# The sandbox suite therefore carries a conftest that records, from inside the
+# pytest process the hook launched, whether the run was distributed, whether
+# xdist was importable to it, and what exit status the session actually reached.
+#
+# EVERYTHING CS-906 ADDS IS APPENDED BELOW THE LAST ARM, AND NOTHING ABOVE MOVES.
+# Two documentation pins are anchored at LINE NUMBERS in this module, one of them
+# at line 122, and tests/test_docs_citations.py turns red the moment a line
+# shifts under either. Measured: one inserted import at the top and an eight-line
+# docstring at push_attempt broke both pins at once, in two files no slice here
+# may write. That constraint is why the helper below asks whether xdist is
+# importable with a builtin rather than a new import, and why the environment
+# override arrives through Sandbox._replace rather than a new parameter.
+
+XDIST_MODULE: Final = "xdist"
+
+
+def xdist_installed() -> bool:
+    """Whether pytest-xdist can be imported here.
+
+    ``importlib.util.find_spec`` is the ordinary way to ask and would cost one
+    more line at the top of this file. See the note above for why that line is
+    not free. ``__import__`` is a builtin, so this asks the same question from
+    down here.
+
+    ONLY ``ImportError`` IS CAUGHT. An xdist that is installed but raises
+    something else on import is a broken toolchain, and it should surface as a
+    collection error rather than as three arms quietly skipping.
+    """
+    try:
+        __import__(XDIST_MODULE)
+    except ImportError:
+        return False
+    return True
+
+
+XDIST_INSTALLED: Final = xdist_installed()
+XDIST_SKIP: Final = (
+    "pytest-xdist is not installed here, so the parallel path cannot be driven at all. "
+    "A skip is NOT a pass: nothing below ran."
+)
+
+# Where the sandbox conftest leaves its records, relative to the sandbox work
+# tree. Outside the suite directory on purpose - inside it, every arm would pay
+# for pytest scanning a directory that grows one file per worker.
+PROBE_DIR_NAME: Final = "xdist-probe"
+SHIM_DIR_NAME: Final = "no-xdist"
+SANDBOX_TESTS: Final = "tests"
+SANDBOX_SUITE: Final = "test_sandbox_arm.py"
+SANDBOX_CONFTEST: Final = "conftest.py"
+
+PYTHONPATH_ENV: Final = "PYTHONPATH"
+AUTOLOAD_ENV: Final = "PYTEST_DISABLE_PLUGIN_AUTOLOAD"
+
+# Bounded like every other subprocess here. The child is one import.
+PROBE_TIMEOUT: Final = 60
+# What ``import_xdist_exit`` reports when the interpreter could not be started at
+# all. Not 0, because 0 is the answer that would satisfy the known-good half of
+# the control and let a broken control read as an established one.
+UNRESOLVABLE: Final = 127
+
+# pytest's own "no tests collected". The hook already treats it as a refusal on
+# the serial path; condition EIGHT is that it still arrives on the parallel one.
+EMPTY_SUITE_EXIT: Final = 5
+# The hook's own words on that branch, and the ONLY line it prints there that a
+# report can carry. The banner line above it renders $TESTS, which carries a
+# drive letter and is dropped by ``hook_output``, so this indented continuation
+# is what survives.
+EMPTY_SUITE_REFUSAL: Final = "An empty suite is not a green suite"
+
+# THE ONE PIECE OF PROSE THESE ARMS REQUIRE OF THE HOOK, named here so it reads
+# as a specification rather than a guess. When xdist is not importable the hook
+# must write ONE stderr line that begins with its own banner and carries the
+# literal lowercase token below. Beginning with the banner is not decoration:
+# ``hook_output`` keeps only banner lines and two-space continuations, pytest
+# writes to the same stream, and a bare line carrying that token could be either
+# the notice or a stray fragment of a traceback - the assertion could not tell.
+SERIAL_NOTICE: Final = "xdist"
+
+# Makes ``import xdist`` fail in a child WITHOUT uninstalling anything. Shadows
+# the real package from a PYTHONPATH entry, which precedes site-packages on
+# sys.path.
+SHIM_SOURCE: Final = (
+    '"""CS-906 fixture: hides pytest-xdist from one child interpreter."""\n'
+    "\n"
+    'raise ImportError("CS-906 fixture: xdist is hidden from this child")\n'
+)
+
+# The recorder, written into the SANDBOX suite and never into this repository's
+# own tests. It is the only thing that can answer what the hook's child did.
+RUN_RECORDER: Final = '''"""CS-906 probe: what the pytest process the pre-push hook launched did.
+
+Records at configure time whether xdist was importable and whether a parallel
+option reached this process, and at session end the exit status the session
+actually reached. One file per process, named by pid, because under xdist this
+conftest runs in the controller AND in every worker - and only the controller's
+record answers the questions the arms ask.
+
+Written through a temporary name and renamed into place: the parent reads these
+only after the push returns, but a file another process may read is written
+atomically here regardless (CLAUDE.md non-negotiable 5).
+"""
+
+import json
+import os
+import pathlib
+
+RECORDS = "@PROBE_DIR@"
+
+
+def _directory():
+    directory = pathlib.Path(__file__).resolve().parent.parent / RECORDS
+    directory.mkdir(exist_ok=True)
+    return directory
+
+
+def _write(record, tag):
+    directory = _directory()
+    name = "{0}-{1}.json".format(tag, os.getpid())
+    scratch = directory / (name + ".tmp")
+    scratch.write_text(json.dumps(record), encoding="ascii")
+    scratch.replace(directory / name)
+
+
+def pytest_configure(config):
+    try:
+        import xdist  # noqa: F401
+
+        importable = True
+    except ImportError:
+        importable = False
+    _write(
+        {
+            "kind": "configure",
+            "worker": os.environ.get("PYTEST_XDIST_WORKER"),
+            "xdist_importable": importable,
+            "numprocesses": getattr(config.option, "numprocesses", None),
+        },
+        "c",
+    )
+
+
+def pytest_sessionfinish(session, exitstatus):
+    _write(
+        {
+            "kind": "finish",
+            "worker": os.environ.get("PYTEST_XDIST_WORKER"),
+            "exitstatus": int(exitstatus),
+        },
+        "f",
+    )
+'''.replace("@PROBE_DIR@", PROBE_DIR_NAME)
+
+
+class SuiteRun(NamedTuple):
+    """What the pytest process the pre-push hook launched reported about itself.
+
+    Every field is a bool, an int or None. Nothing here carries a path, so unlike
+    ``Sandbox`` and ``Environment`` this type needs no repr guard - and it is safe
+    to render into an assertion message, which is the whole reason the records are
+    reduced to it before anything asserts on them.
+
+    ``distributed`` is read from the CONTROLLER's ``numprocesses``, measured on
+    this toolchain as an int under ``-n auto`` and None without it. The workers
+    report None for it and are counted only for the report, never asserted on:
+    they are separate processes whose files can still be landing when the
+    controller has already exited, and an arm that counted them would be a race.
+    """
+
+    ran: bool
+    distributed: bool
+    xdist_importable: bool | None
+    exitstatus: int | None
+    workers: int
+
+    @property
+    def report(self) -> str:
+        """A path-free rendering safe to put in an assertion message."""
+        return (
+            f"suite: ran={self.ran} distributed={self.distributed} "
+            f"xdist_importable={self.xdist_importable} "
+            f"session_exit={self.exitstatus} worker_processes={self.workers}"
+        )
+
+
+def instrument_sandbox(box: Sandbox) -> None:
+    """Put the run recorder into the sandbox suite.
+
+    DELIBERATELY NOT FOLDED INTO ``make_sandbox``. The arms above measure the
+    interpreter ladder against exactly the suite they were written for, and adding
+    a conftest to every pre-push sandbox would change what those arms collect for
+    the sake of three that came later.
+    """
+    (box.work / SANDBOX_TESTS / SANDBOX_CONFTEST).write_bytes(RUN_RECORDER.encode("ascii"))
+
+
+def set_sandbox_suite(box: Sandbox, *, passes: bool | None) -> None:
+    """Make the sandbox suite pass, fail, or collect NOTHING.
+
+    ``None`` removes the only test file, which is how condition EIGHT's empty
+    collection is produced - the recorder conftest stays, is not itself a test,
+    and pytest collects zero. Measured on this toolchain: exit 5, serially and
+    under ``-n auto`` alike.
+    """
+    arm = box.work / SANDBOX_TESTS / SANDBOX_SUITE
+    if passes is None:
+        arm.unlink(missing_ok=True)
+        return
+    body = "def test_sandbox_arm() -> None:\n    assert %s\n" % passes
+    arm.write_bytes(body.encode("ascii"))
+
+
+def clear_suite_records(box: Sandbox) -> None:
+    """Drop every record before driving a push.
+
+    LOAD-BEARING WHEREVER AN ARM PUSHES TWICE. A control push into the same
+    sandbox would otherwise read the blocked push's controller record and conclude
+    the control ran distributed when it may not have - the stale record and the
+    fresh one are the same shape.
+    """
+    directory = box.work / PROBE_DIR_NAME
+    if directory.is_dir():
+        shutil.rmtree(directory)
+
+
+def read_suite_run(box: Sandbox) -> SuiteRun:
+    """Reduce the records the sandbox conftest left to the facts an arm asserts on."""
+    directory = box.work / PROBE_DIR_NAME
+    records: list[dict[str, object]] = []
+    if directory.is_dir():
+        for path in sorted(directory.glob("*.json")):
+            try:
+                records.append(json.loads(path.read_text(encoding="ascii")))
+            except (OSError, ValueError):
+                continue
+    configured = [item for item in records if item.get("kind") == "configure"]
+    finished = [item for item in records if item.get("kind") == "finish"]
+    controllers = [item for item in configured if item.get("worker") is None]
+    enders = [item for item in finished if item.get("worker") is None]
+    head: dict[str, object] = controllers[0] if controllers else {}
+    tail: dict[str, object] = enders[0] if enders else {}
+    importable = head.get("xdist_importable")
+    status = tail.get("exitstatus")
+    return SuiteRun(
+        ran=bool(controllers),
+        distributed=head.get("numprocesses") is not None,
+        xdist_importable=importable if isinstance(importable, bool) else None,
+        exitstatus=status if isinstance(status, int) else None,
+        workers=sum(1 for item in configured if item.get("worker") is not None),
+    )
+
+
+def sandbox_without_xdist(box: Sandbox, shim: Path) -> Sandbox:
+    """The same sandbox, with ``import xdist`` broken for every child it starts.
+
+    THE OVERRIDE ARRIVES THROUGH ``_replace`` RATHER THAN A NEW PARAMETER ON
+    ``push_attempt``, and that is not a stylistic choice. ``Sandbox`` already owns
+    the child environment, ``push_attempt`` already builds from it through
+    ``env_naming``, and widening that signature would have cost eight lines at the
+    top of the file - which two line-anchored documentation pins do not survive.
+    The replaced sandbox keeps the same work tree, the same remote and the same
+    repr guard, so every helper here takes it unchanged.
+
+    XDIST IS NOT UNINSTALLED, and it is not switched off with ``-p no:xdist``
+    either. A hook that asks whether the plugin is IMPORTABLE must be answered by
+    the import system, and ``-p no:xdist`` leaves the import working - that would
+    simulate a disabled plugin, which is not the case under test.
+
+    THE AUTOLOAD SWITCH IS NOT PADDING, AND IT WAS MEASURED RATHER THAN ASSUMED.
+    With the shim alone, pytest's entry-point autoload does ``import xdist.plugin``,
+    hits the shim, and dies with an ImportError traceback before collecting
+    anything: the suite never runs, and every arm below would then block for a
+    reason with nothing to do with the hook. Disabling autoload is what a machine
+    with no pytest-xdist installed actually looks like from pytest's side - no
+    importable module AND no entry point - and it leaves both plausible shapes of
+    the hook's check reading "unavailable": ``python -c "import xdist"``, and a
+    probe of pytest's own option surface.
+
+    WINDOWS FOLDS ENVIRONMENT KEYS AND ``dict(os.environ)`` HANDS BACK UPPER-CASE
+    ONES, so any existing spelling is removed before the canonical name is
+    written. Writing ``env["PYTHONPATH"]`` over a dict that already carries
+    ``PythonPath`` leaves both in the block, and which one the child sees is not
+    defined - a simulation that silently did not take, reported as clean.
+
+    NOTHING IS SET IN THIS PROCESS, for the reason ``env_naming`` gives about
+    PATH: an arm that hid xdist from the whole pytest run would change what every
+    other arm resolves, invisibly from here.
+    """
+    env = env_naming(box, None)
+    inherited = [key for key in env if key.upper() == PYTHONPATH_ENV]
+    carried = os.pathsep.join(value for value in (env.pop(key) for key in inherited) if value)
+    env[PYTHONPATH_ENV] = str(shim) + (os.pathsep + carried if carried else "")
+    for key in [key for key in env if key.upper() == AUTOLOAD_ENV]:
+        env.pop(key)
+    env[AUTOLOAD_ENV] = "1"
+    return box._replace(env=env)
+
+
+def import_xdist_exit(box: Sandbox) -> int:
+    """Exit code of ``python -c "import xdist"`` in this sandbox's environment.
+
+    RUN BY THE BARE NAME, which is the hook's own first ladder rung, so this
+    measures what the hook will resolve rather than what this process happens to
+    be running.
+
+    ONLY THE INTEGER COMES BACK. The shim raises an ImportError that renders its
+    own absolute path under the user profile, and nothing here may reach an
+    assertion message (CLAUDE.md non-negotiable 3).
+    """
+    try:
+        proc = subprocess.run(
+            ["python", "-c", "import " + XDIST_MODULE],
+            cwd=str(box.work),
+            capture_output=True,
+            text=True,
+            timeout=PROBE_TIMEOUT,
+            env=box.env,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return UNRESOLVABLE
+    return proc.returncode
+
+
+@pytest.mark.skipif(not XDIST_INSTALLED, reason=XDIST_SKIP)
+def test_the_empty_suite_guard_still_returns_five_under_the_parallel_path(
+    tmp_path: Path, isolated: Environment
+) -> None:
+    """CS-906 condition EIGHT. RED at c298ecf: the run was never distributed.
+
+    A MEASUREMENT IS NOT A GUARD, which is the condition's own wording. Exit 5 is
+    produced by the pytest process, not by the hook, and xdist changes how an
+    empty collection is reported - so the property is asserted UNDER the parallel
+    path rather than inherited from a serial measurement taken once. Measured on
+    xdist 3.8.0 at the time of writing: still 5, controller and workers alike.
+    That measurement is the reason to write the guard, not a substitute for it.
+
+    THE ORACLE IS THE SESSION'S OWN EXIT STATUS plus the one hook line only the
+    exit-5 branch can print. Neither alone is enough: the status alone would not
+    show the hook ACTED on it, and the line alone could be printed by a hook that
+    never distributed anything.
+
+    THE PUSH'S OWN EXIT CODE CANNOT CARRY IT. ``die`` exits 1, so from outside
+    every refusal this hook makes looks identical.
+    """
+    box = make_sandbox(tmp_path, isolated, PRE_PUSH, suite_passes=True)
+    instrument_sandbox(box)
+    set_sandbox_suite(box, passes=None)
+
+    clear_suite_records(box)
+    outcome = push_attempt(box)
+    run = read_suite_run(box)
+
+    assert run.distributed, (
+        "the pre-push suite did not run distributed, so this arm measured the SERIAL "
+        "path under a parallel name. The hook must pass a parallel option to pytest "
+        f"when xdist is importable:\n{run.report}\n{outcome.report}"
+    )
+    assert run.exitstatus == EMPTY_SUITE_EXIT, (
+        f"an empty suite did not reach exit {EMPTY_SUITE_EXIT} under the parallel path. "
+        "The hook reads that status to refuse an empty collection, and a path that "
+        f"reports it differently disarms the guard silently:\n{run.report}\n{outcome.report}"
+    )
+    assert outcome.blocked, f"an empty suite reached the remote:\n{run.report}\n{outcome.report}"
+    assert any(EMPTY_SUITE_REFUSAL in line for line in outcome.hook_output), (
+        "blocked, but NOT by the empty-suite guard, so the block cannot be attributed to "
+        f"it. The hook must still treat exit {EMPTY_SUITE_EXIT} as its own refusal on the "
+        f"parallel path:\n{run.report}\n{outcome.report}"
+    )
+
+    # THE CONTROL, ON THE SAME PATH AND IN THE SAME SANDBOX. Everything above is
+    # satisfied by a parallel path that refuses every push. The ref did not land,
+    # so the branch is still absent and a second push really does run the hook.
+    set_sandbox_suite(box, passes=True)
+    clear_suite_records(box)
+    control = push_attempt(box)
+    control_run = read_suite_run(box)
+
+    assert control.accepted, (
+        "the control push of a NON-empty passing suite was blocked, so the refusal above "
+        "cannot be attributed to the empty collection - this sandbox cannot say yes on "
+        f"the parallel path at all:\n{control_run.report}\n{control.report}"
+    )
+    assert control_run.distributed, (
+        "the control push did not run distributed, so it is a control for the serial path "
+        f"and not for the one under test:\n{control_run.report}"
+    )
+
+
+@pytest.mark.skipif(not XDIST_INSTALLED, reason=XDIST_SKIP)
+def test_a_failing_suite_blocks_a_real_push_on_the_parallel_path(
+    tmp_path: Path, isolated: Environment
+) -> None:
+    """CS-906 condition TWELVE, parallel arm. RED at c298ecf: never distributed.
+
+    THE REF IS ASSERTED SEPARATELY FROM THE EXIT CODE, and that separation is the
+    entire reason to drive a real push. A hook that exits non-zero AFTER the ref
+    has already reached the remote is the failure mode that matters, and an
+    exit-code-only arm cannot see it: the push would be reported as blocked while
+    the branch sits on the remote.
+
+    ITS OWN ARM AND ITS OWN CONTROL. The grant says agreement between the two
+    paths is not evidence, so nothing here reads what the serial arm measured.
+
+    ON THIS TOOLCHAIN THE TWO PATHS DO NOT EVEN AGREE ON THE CODE: a failing suite
+    under ``-x`` exits 1 serially and 2 distributed, because xdist raises
+    Interrupted. Nothing below asserts a particular code for exactly that reason -
+    only that it is not 0, which is what the hook's own ``-ne 0`` branch reads.
+    """
+    box = make_sandbox(tmp_path, isolated, PRE_PUSH, suite_passes=False)
+    instrument_sandbox(box)
+
+    clear_suite_records(box)
+    outcome = push_attempt(box)
+    run = read_suite_run(box)
+
+    assert run.distributed, (
+        "the pre-push suite did not run distributed, so this arm measured the SERIAL "
+        "path under a parallel name. The hook must pass a parallel option to pytest "
+        f"when xdist is importable:\n{run.report}\n{outcome.report}"
+    )
+    assert outcome.returncode != 0, (
+        "git push reported SUCCESS with a failing suite on the parallel path:\n"
+        f"{run.report}\n{outcome.report}"
+    )
+    assert not outcome.landed_after, (
+        "the ref REACHED THE REMOTE even though the suite failed. A non-zero exit after "
+        "the ref has landed is not a block - it is a push that happened and then "
+        f"complained:\n{run.report}\n{outcome.report}"
+    )
+
+    # THE CONTROL. Without it, a push that failed for an unrelated reason - an
+    # unreachable remote, a sandbox that never wired the hook - satisfies every
+    # assertion above and proves nothing about the failing test.
+    set_sandbox_suite(box, passes=True)
+    clear_suite_records(box)
+    control = push_attempt(box)
+    control_run = read_suite_run(box)
+
+    assert control.returncode == 0, (
+        "the control push of a PASSING suite was refused, so the block above cannot be "
+        f"attributed to the failing test:\n{control_run.report}\n{control.report}"
+    )
+    assert control.landed_after, (
+        "the control push reported success but the ref never reached the remote, so this "
+        f"sandbox cannot demonstrate a landing at all:\n{control.report}"
+    )
+    assert control_run.distributed, (
+        "the control push did not run distributed, so it is a control for the serial path "
+        f"and not for the one under test:\n{control_run.report}"
+    )
+
+
+@pytest.mark.skipif(not XDIST_INSTALLED, reason=XDIST_SKIP)
+def test_a_failing_suite_blocks_a_real_push_on_the_degraded_serial_path(
+    tmp_path: Path, isolated: Environment
+) -> None:
+    """CS-906 condition TWELVE, serial arm. RED at c298ecf: no degradation notice.
+
+    THE SIMULATION IS FRONTED BY A TWO-SIDED CONTROL, and the second side is the
+    one that matters. A probe reporting "xdist is not importable" proves nothing
+    unless the same probe reports "it is" without the shim: on Windows a key that
+    was never really removed reads exactly like a key that was, and the negative
+    measurement comes back clean either way.
+
+    THE HOOK MUST SAY SO OUT LOUD, and this arm is the specification for that
+    line. When xdist is not importable the hook writes ONE stderr line beginning
+    with its own banner and containing the literal lowercase token ``xdist``.
+    Beginning with the banner is load-bearing, not cosmetic: ``hook_output`` keeps
+    banner lines and two-space continuations, pytest writes to the same stream,
+    and a bare line carrying that token could be either the notice or a stray
+    fragment of a traceback - the assertion could not tell them apart.
+
+    WHAT THIS ARM DELIBERATELY DOES NOT FORBID: the same token appearing on the
+    parallel path. A hook that announces itself on both paths still has to
+    actually degrade to satisfy the three assertions below, so the announcement is
+    the only thing it could be lying about, and forbidding a friendly
+    parallel-path line would constrain wording this arm has no business
+    constraining.
+    """
+    box = make_sandbox(tmp_path, isolated, PRE_PUSH, suite_passes=False)
+    instrument_sandbox(box)
+    shim = tmp_path / SHIM_DIR_NAME
+    shim.mkdir()
+    (shim / (XDIST_MODULE + ".py")).write_bytes(SHIM_SOURCE.encode("ascii"))
+    hidden = sandbox_without_xdist(box, shim)
+
+    assert import_xdist_exit(box) == 0, (
+        "THE KNOWN-GOOD HALF OF THE CONTROL FAILED: a child could not import xdist even "
+        "without the shim, so every refusal below would be evidence about this machine "
+        "rather than about the shim, and the negative measurement would mean nothing"
+    )
+    assert import_xdist_exit(hidden) != 0, (
+        "THE SHIM DID NOT TAKE: a child still imported xdist under the shimmed "
+        "environment, so this arm would drive the PARALLEL path under a serial name and "
+        "pass by measuring nothing"
+    )
+
+    clear_suite_records(hidden)
+    outcome = push_attempt(hidden)
+    run = read_suite_run(hidden)
+
+    assert run.ran, (
+        "no pytest process recorded itself, so the suite the hook is supposed to run "
+        f"never started and nothing below is about a suite result:\n{run.report}\n"
+        f"{outcome.report}"
+    )
+    assert run.xdist_importable is False, (
+        "the child the hook launched could still import xdist, so the shim did not reach "
+        f"the process actually under test:\n{run.report}\n{outcome.report}"
+    )
+    assert not run.distributed, (
+        "the hook ran the suite distributed with xdist NOT importable. It must degrade to "
+        f"serial rather than pass an option the plugin cannot honour:\n{run.report}\n"
+        f"{outcome.report}"
+    )
+    assert any(
+        line.startswith(hidden.prefix) and SERIAL_NOTICE in line for line in outcome.hook_output
+    ), (
+        "the hook degraded to serial SILENTLY. It must write ONE stderr line that begins "
+        f"'{hidden.prefix}:' and carries the token '{SERIAL_NOTICE}', or an operator reads "
+        "a slow push as a normal one and never learns the parallel path is unavailable:\n"
+        f"{run.report}\n{outcome.report}"
+    )
+    assert outcome.returncode != 0, (
+        "git push reported SUCCESS with a failing suite on the degraded serial path:\n"
+        f"{run.report}\n{outcome.report}"
+    )
+    assert not outcome.landed_after, (
+        "the ref REACHED THE REMOTE even though the suite failed. A non-zero exit after "
+        "the ref has landed is not a block - it is a push that happened and then "
+        f"complained:\n{run.report}\n{outcome.report}"
+    )
+
+    # THE CONTROL, on the degraded path and in the same sandbox.
+    set_sandbox_suite(hidden, passes=True)
+    clear_suite_records(hidden)
+    control = push_attempt(hidden)
+    control_run = read_suite_run(hidden)
+
+    assert control.returncode == 0, (
+        "the control push of a PASSING suite was refused on the degraded path, so the "
+        "block above cannot be attributed to the failing test - degrading may simply have "
+        f"broken the hook:\n{control_run.report}\n{control.report}"
+    )
+    assert control.landed_after, (
+        "the control push reported success but the ref never reached the remote, so this "
+        f"sandbox cannot demonstrate a landing at all:\n{control.report}"
+    )
+    assert control_run.ran, (
+        "no pytest process recorded itself on the control push, so it is not a control "
+        f"for anything the suite did:\n{control_run.report}"
+    )
+    assert not control_run.distributed, (
+        "the control push did not run serially, so it is a control for the parallel path "
+        f"and not for the one under test:\n{control_run.report}"
+    )

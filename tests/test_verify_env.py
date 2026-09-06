@@ -1334,3 +1334,289 @@ def test_one_primitive_spawns_everything_this_script_runs() -> None:
         f"{SPAWN_PRIMITIVE}() holds {enclosing.count(SPAWN_PRIMITIVE)} spawn call sites"
         " rather than one, so the primitive is no longer the single funnel"
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-906 - the parallel-lane plugin row, and the SOFT that has to stay SOFT
+# ---------------------------------------------------------------------------
+#
+# THE FOURTH SUBJECT IN THIS FILE. The pre-push hook gained a parallel path
+# that DEGRADES TO SERIAL when pytest-xdist is absent and prints a remediation
+# line saying so. An operator who follows that line has no way to confirm the
+# fix landed unless this script reports the plugin, so condition SIX of the
+# CS-906 frozen-file grant made the row a precondition of the hook edit: a
+# remediation line nothing can confirm is a false lead.
+#
+# THE SOFTNESS IS THE ASSERTION, NOT THE MENTION. The plugin is a SPEEDUP -
+# the serial fallback runs the same tests and reaches the same verdict - so a
+# HARD row would fail the whole script on a checkout where nothing is wrong
+# and turn one false lead into two. A row that merely NAMES xdist reads
+# identically whether it is soft or hard, which is why every arm below binds
+# the EXIT CODE as well as the row.
+#
+# NOTHING HERE UNINSTALLS ANYTHING. Absence is simulated at verify_env._run -
+# the single spawn funnel this file already pins as single - so what answers is
+# the probe the script really built, and the interpreter running these tests
+# keeps its real plugin. The positive control below is what proves the
+# simulation took effect rather than measuring nothing.
+
+#: The row's name. It is the DISTRIBUTION name and not the module name, because
+#: the row exists to be acted on: pyproject.toml pins "pytest-xdist" and that is
+#: what pip resolves. The module it installs is spelled differently.
+XDIST_ROW_NAME = "pytest-xdist"
+
+#: The module the distribution installs, and the token the probe source carries.
+#: The two names DIFFER, and that difference is the whole reason this row cannot
+#: reuse the module-backed builder above: `python -m xdist --version` exits
+#: non-zero saying a package cannot be directly executed, so the module channel
+#: reports MISSING for a plugin that is installed and working.
+XDIST_MODULE_NAME = "xdist"
+
+#: The extra that carries the pin, named in the remediation the row must offer.
+DEV_EXTRA = "[dev]"
+
+
+def parallel_lane_run(importable: set[str], hooks_path: str) -> Callable[..., str | None]:
+    """Answer every probe, with the plugin's IMPORT channel split from the rest.
+
+    THE HOOKS PATH IS ANSWERED, unlike in :func:`toolchain_run`. These arms read
+    the EXIT CODE, and an unwired core.hooksPath is a HARD miss that would make
+    every run return 1 for a reason that has nothing to do with the plugin - the
+    arm would then measure the stub instead of the script.
+
+    Args:
+        importable: The modules the resolved interpreter can import. A module
+            outside this set answers None, which is the real shape of an absent
+            one - _run returns None on a non-zero exit, and both the module
+            probe and the import probe exit non-zero when the module is gone.
+        hooks_path: What ``git config --get core.hooksPath`` should answer.
+
+    Returns:
+        A stand-in for verify_env._run.
+    """
+
+    def run(cmd: list[str], *_args: object, **_kwargs: object) -> str | None:
+        if "--is-inside-work-tree" in cmd:
+            return "true"
+        if "--git-common-dir" in cmd:
+            return None
+        if "core.hooksPath" in cmd:
+            return hooks_path
+        # The plugin probe is [sys.executable, "-c", <source importing it>]. It
+        # is keyed on the module named IN THE SOURCE rather than on "-c" alone,
+        # so a second -c probe added later cannot silently borrow this answer.
+        if cmd[:2] == [sys.executable, "-c"] and XDIST_MODULE_NAME in cmd[2]:
+            return "canned-xdist 3.0" if XDIST_MODULE_NAME in importable else None
+        # The module probe is [sys.executable, "-m", <name>, "--version"].
+        if cmd[:2] == [sys.executable, "-m"]:
+            return "canned 1.0" if cmd[2] in importable else None
+        # Every remaining call is a PATH executable answering --version, and it
+        # answers SUCCESSFULLY - a tool missing from PATH is a different subject.
+        return "canned 1.0"
+
+    return run
+
+
+def parallel_lane_checkout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    importable: set[str],
+    checkout_name: str = "clone",
+) -> Path:
+    """Build a fully wired temporary checkout with a chosen set of importables.
+
+    Every HARD dependency is satisfiable here, which is what lets an arm read
+    ``main()``'s exit code as a statement about the plugin alone.
+
+    Args:
+        tmp_path: The per-test temporary directory.
+        monkeypatch: The patcher, scoped to the calling test.
+        importable: Modules the resolved interpreter can import.
+        checkout_name: The checkout directory name, so a test comparing TWO
+            scenarios can give each one its own root.
+
+    Returns:
+        The checkout root, which is also what repo_root() now answers.
+    """
+    root = checkout_with_hooks(tmp_path, checkout_name)
+    monkeypatch.setattr(
+        verify_env,
+        "_run",
+        parallel_lane_run(importable, str(root / EXPECTED_HOOKS_DIR_NAME)),
+    )
+    monkeypatch.setattr(
+        verify_env,
+        "resolve_tool",
+        toolchain_which({"git", "node", "gh", "openssl", *MODULE_BACKED_TOOLS}, root),
+    )
+    monkeypatch.setattr(verify_env, "resolve_game_dir", lambda: (None, "stubbed"))
+    monkeypatch.setattr(verify_env, "resolve_save_root", lambda: None)
+    monkeypatch.setattr(verify_env, "numeric_account_dirs", lambda _root: [])
+    # main() derives the root from this file's location, which is the REAL
+    # repository. Pointing it at the temporary checkout is what keeps the
+    # exit-code arms independent of how this machine happens to be wired.
+    monkeypatch.setattr(verify_env, "repo_root", lambda: root)
+    return root
+
+
+def parallel_lane_row(root: Path) -> dict:
+    """Collect the rows and return the plugin's, failing loudly if there is none.
+
+    Args:
+        root: The checkout to verify.
+
+    Returns:
+        The single dependency row naming the plugin distribution.
+    """
+    rows, _port_rows, _facts = verify_env.collect_rows(root)
+    matching = [entry for entry in rows if entry["name"] == XDIST_ROW_NAME]
+    assert len(matching) == 1, (
+        f"expected exactly one row named {XDIST_ROW_NAME}, found {len(matching)}; the"
+        " census does not report the plugin the pre-push hook's remediation line names,"
+        " so an operator who follows that line cannot confirm the fix landed"
+    )
+    # Bound to a typed local before returning. verify_env is loaded through
+    # importlib, so mypy types collect_rows() as Any and a bare return of an
+    # element trips no-any-return - the same reason hooks_row() above returns a
+    # tuple rather than the element alone.
+    row: dict = matching[0]
+    return row
+
+
+def test_an_absent_parallel_lane_plugin_is_reported_and_is_soft(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """CS-906 condition SIX. Reported, actionable, and NOT a hard dependency.
+
+    The scope assertion is not decoration. The hook degrades to serial and keeps
+    going, so a HARD row here would stop the operator over a speedup - and the
+    exit-code arm below is what makes this scope binding rather than cosmetic.
+    """
+    root = parallel_lane_checkout(tmp_path, monkeypatch, importable=set(MODULE_BACKED_TOOLS))
+
+    row = parallel_lane_row(root)
+
+    assert row["ok"] is False, (
+        "the plugin reported FOUND while the resolved interpreter cannot import it"
+    )
+    assert row["scope"] == "SOFT", (
+        f"the plugin row is {row['scope']}, so a machine missing an optional speedup"
+        " fails the whole environment check"
+    )
+    remediation_offered = DEV_EXTRA in row["note"]
+    assert remediation_offered, (
+        f"the missing-plugin note does not name the {DEV_EXTRA} extra that carries the"
+        " pin, so the row says what is wrong and not how to fix it"
+    )
+
+
+def test_an_importable_parallel_lane_plugin_is_reported_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """THE POSITIVE CONTROL, and the proof the absence simulation took effect.
+
+    An implementation that reported MISSING unconditionally would satisfy the
+    arm above and be useless, and a stub that answered nothing at all would look
+    exactly like a correctly-detected absence. This pins the other side of the
+    branch: the only difference between the two runs is the stub's answer.
+    """
+    root = parallel_lane_checkout(
+        tmp_path,
+        monkeypatch,
+        importable={*MODULE_BACKED_TOOLS, XDIST_MODULE_NAME},
+    )
+
+    row = parallel_lane_row(root)
+
+    assert row["ok"] is True, (
+        "the plugin reported MISSING while the resolved interpreter CAN import it,"
+        " so the absence reported by the arm above is not evidence of detection"
+    )
+    assert row["value"], "the plugin reported FOUND and showed nothing"
+
+
+def test_a_missing_parallel_lane_plugin_does_not_fail_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """SOFT MEANS THE EXIT CODE, and this is the arm that says so.
+
+    THE CONTROL IS THE SECOND HALF, and without it the first half proves
+    nothing: a main() that returned 0 unconditionally would pass an exit-code
+    assertion just as well as a correct one. The control differs from the
+    subject in ONE respect - pytest is the module made absent instead of the
+    plugin - so a 1 there and a 0 here can only be the scope of the row.
+    """
+    plugin_absent = parallel_lane_checkout(
+        tmp_path, monkeypatch, importable=set(MODULE_BACKED_TOOLS), checkout_name="soft"
+    )
+    row = parallel_lane_row(plugin_absent)
+    assert row["ok"] is False, (
+        "the plugin was reported FOUND, so the exit code below says nothing about"
+        " what happens when it is missing"
+    )
+
+    soft_code = verify_env.main([])
+    capsys.readouterr()
+
+    assert soft_code == 0, (
+        f"verify_env exited {soft_code} with only the optional parallel-lane plugin"
+        " missing, so the hook's own advice line points at a script that refuses to"
+        " confirm the fix"
+    )
+
+    hard_absent = parallel_lane_checkout(
+        tmp_path,
+        monkeypatch,
+        importable={"ruff", "mypy", XDIST_MODULE_NAME},
+        checkout_name="hard",
+    )
+    hard_code = verify_env.main([])
+    capsys.readouterr()
+
+    assert hard_code == 1, (
+        f"the control exited {hard_code} with a HARD dependency missing, so this"
+        " harness cannot produce a non-zero exit at all and the 0 above is a"
+        " constant rather than a measurement"
+    )
+    assert hard_absent != plugin_absent, "the two scenarios shared a root and did not diverge"
+
+
+def test_the_missing_plugin_is_named_in_the_soft_line_and_not_the_verdict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The operator-visible surface, which is the only one the advice line reaches.
+
+    A row present in the rows list but rendered nowhere leaves the remediation
+    unconfirmable exactly as an absent row would. Both halves are required: the
+    plugin has to appear in the SOFT summary, and the VERDICT has to stay PASS.
+
+    Every assertion binds a boolean computed BEFORE it runs. The rendered text
+    carries the redacted checkout path, and pytest renders an asserted
+    expression independently of its message.
+    """
+    root = parallel_lane_checkout(tmp_path, monkeypatch, importable=set(MODULE_BACKED_TOOLS))
+    assert parallel_lane_row(root)["ok"] is False, "the scenario did not make the plugin absent"
+
+    code = verify_env.main([])
+    rendered = capsys.readouterr().out
+
+    named = XDIST_ROW_NAME in rendered
+    soft_line = next(
+        (line for line in rendered.splitlines() if line.startswith("SOFT missing")), ""
+    )
+    named_as_soft = XDIST_ROW_NAME in soft_line
+    verdict_passed = "VERDICT: PASS" in rendered
+
+    assert named, (
+        f"{XDIST_ROW_NAME} is nowhere in what the script prints, so the row exists only"
+        " in the rows list and the operator never sees it"
+    )
+    assert named_as_soft, (
+        f"{XDIST_ROW_NAME} is printed but not on the SOFT missing line, so the summary"
+        " an operator reads does not tell them the plugin is what is absent"
+    )
+    assert verdict_passed, (
+        "the verdict is not PASS with only the optional plugin missing, so the row is"
+        " HARD in effect whatever its scope column says"
+    )
+    assert code == 0, f"the printed verdict and the exit code {code} disagree"
