@@ -878,3 +878,150 @@ def test_every_verdict_the_tree_produces_is_one_this_module_names() -> None:
 
     unknown = sorted(produced - VERDICTS)
     assert unknown == [], f"{len(unknown)} verdict(s) are outside the published set: {unknown}"
+
+
+# ---------------------------------------------------------------------------
+# The platform gate over the runtime arms
+# ---------------------------------------------------------------------------
+
+#: What a runtime arm touches when it grades the current-directory search.
+#: BOTH SPELLINGS ARE HERE BECAUSE THE ARM THAT BROKE THE LANE NAMED NEITHER
+#: OUTRIGHT AT AN IMPORT. It reached the module through ``__import__`` inside a
+#: probe STRING, so a scan for the import statement alone would have reported a
+#: clean population while the defect was live. The scan below reads the whole
+#: unparsed function, string constants included, for exactly that reason.
+CURDIR_ARM_TERMS: Final = ("_winapi", "NeedCurrentDirectoryForExePath")
+
+#: What a decorator must contain, once resolved and unparsed, to count as a
+#: Windows gate. BOTH HALVES ARE REQUIRED AND THAT IS THE POINT: ``skipif``
+#: alone would accept a skip taken for any reason at all, and the population
+#: here is defined by the PLATFORM the mechanism exists on rather than by the
+#: presence of some skip.
+CURDIR_GATE_TERMS: Final = ("skipif", "os.name")
+
+
+def _module_bindings(tree: ast.Module) -> dict[str, str]:
+    """Unparse every module-level ``NAME = ...`` so a bare decorator resolves.
+
+    A gate is routinely written once as a module constant and applied by name -
+    :data:`WINDOWS_ONLY` above is that shape. A scan that read only the
+    decorator's own text would call every such use ungated.
+
+    Args:
+        tree: The parsed module.
+
+    Returns:
+        Name to unparsed value, for simple single-name assignments only.
+    """
+    bindings: dict[str, str] = {}
+    for node in tree.body:
+        targets: list[ast.expr] = []
+        if isinstance(node, ast.Assign):
+            targets = list(node.targets)
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            targets = [node.target]
+        value = getattr(node, "value", None)
+        if value is None:
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name):
+                bindings[target.id] = ast.unparse(value)
+    return bindings
+
+
+def _is_windows_gated(node: ast.FunctionDef, bindings: dict[str, str]) -> bool:
+    """Whether ``node`` carries a decorator that skips it off Windows.
+
+    Args:
+        node: The test function.
+        bindings: Module-level names, from :func:`_module_bindings`.
+
+    Returns:
+        True when some decorator, resolved through ``bindings``, is a skip
+        conditioned on the platform.
+    """
+    for decorator in node.decorator_list:
+        text = ast.unparse(decorator)
+        if isinstance(decorator, ast.Name):
+            text = bindings.get(decorator.id, text)
+        if all(term in text for term in CURDIR_GATE_TERMS):
+            return True
+    return False
+
+
+def _ungated_curdir_arms() -> list[str]:
+    """Every test in ``tests/`` that grades the search without a platform gate.
+
+    Returns:
+        Sorted ``path::name`` for each ungated arm. Repo-relative, so nothing
+        here can carry the account name (non-negotiable 3).
+    """
+    tests_dir = REPO_ROOT / "tests"
+    offenders: list[str] = []
+    for source in sorted(tests_dir.rglob("*.py")):
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        bindings = _module_bindings(tree)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef) or not node.name.startswith("test_"):
+                continue
+            body = ast.unparse(node)
+            if not any(term in body for term in CURDIR_ARM_TERMS):
+                continue
+            if _is_windows_gated(node, bindings):
+                continue
+            relative = source.relative_to(REPO_ROOT).as_posix()
+            offenders.append(f"{relative}::{node.name}")
+    return sorted(offenders)
+
+
+def test_every_current_directory_arm_is_skipped_off_windows() -> None:
+    """CS-910 - an arm for a Windows mechanism may not run where it is absent.
+
+    THIS EXISTS BECAUSE THE POPULATION WAS THREE AND ONE OF THEM ESCAPED. Two
+    of the runtime arms carry a platform skip. The third carried a LIVENESS
+    GATE INSTEAD, written so that it answered True on any non-Windows host -
+    which reports the mechanism live exactly where it does not exist. The arm
+    then reached a control that cannot pass off Windows and failed the lane on
+    a host where there was never anything to grade.
+
+    SO THE GUARD IS STRUCTURAL RATHER THAN BEHAVIOURAL, and it has to be: the
+    development machine is Windows, where the defective arm passes. Nothing
+    that runs here could have caught it. What a scan of the SHAPE catches on
+    every platform is the missing gate itself.
+
+    THE ASSERTION BINDS A LIST OF REPO-RELATIVE NAMES. pytest renders the
+    asserted expression independently of the message, and a temporary path on
+    Windows carries the account name.
+    """
+    ungated = _ungated_curdir_arms()
+
+    assert ungated == [], (
+        f"{len(ungated)} arm(s) grade the current-directory executable search with no"
+        f" skip off Windows, so they run where the mechanism does not exist: {ungated}"
+    )
+
+
+def test_the_current_directory_arm_population_is_not_empty() -> None:
+    """CS-910 - the guard above must be measuring something.
+
+    A SCAN THAT MATCHES NOTHING PASSES FOREVER. If the terms drift out of the
+    suite - renamed, reworded, or reached by some spelling the scan does not
+    know - :func:`_ungated_curdir_arms` returns an empty list and reports a
+    clean population over zero files. That is the unrun-gate failure class
+    (CONVENTIONS.md section 7.2), so the population is asserted non-empty here
+    rather than assumed by the guard.
+    """
+    tests_dir = REPO_ROOT / "tests"
+    matched = 0
+    for source in sorted(tests_dir.rglob("*.py")):
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef) or not node.name.startswith("test_"):
+                continue
+            if any(term in ast.unparse(node) for term in CURDIR_ARM_TERMS):
+                matched += 1
+
+    assert matched > 0, (
+        "no test in the suite mentions the current-directory search, so the guard above"
+        " is scanning an empty population and would pass whatever the tree held"
+    )

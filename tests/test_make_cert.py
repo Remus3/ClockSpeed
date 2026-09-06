@@ -2431,6 +2431,16 @@ def _child_probe(source: str, working_dir: Path, environment: dict[str, str]) ->
 NO_OPENSSL_DIAGNOSTIC = "openssl is not on PATH"
 
 
+@pytest.mark.skipif(
+    os.name != "nt",
+    reason=(
+        "the implicit current-directory executable search is a Windows behaviour."
+        " On POSIX nothing consults the working directory unless PATH names it, so"
+        " the control below cannot fire and this arm would grade nothing. Gated"
+        " rather than short-circuited: a liveness gate that answers True where the"
+        " mechanism does not exist reports an arm live that is absent."
+    ),
+)
 def test_a_planted_openssl_in_the_working_directory_is_never_run(tmp_path: Path) -> None:
     """CS-910 - the current directory may not supply the tool a script runs.
 
@@ -2463,8 +2473,8 @@ def test_a_planted_openssl_in_the_working_directory_is_never_run(tmp_path: Path)
     assert not ran_before, "the marker existed before anything ran"
 
     gate = _child_probe(
-        "import os,sys;sys.stdout.write(str(os.name != 'nt' or"
-        " __import__('_winapi').NeedCurrentDirectoryForExePath('openssl')))",
+        "import sys;sys.stdout.write("
+        "str(__import__('_winapi').NeedCurrentDirectoryForExePath('openssl')))",
         standing,
         environment,
     )
