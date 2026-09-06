@@ -117,6 +117,67 @@ the contract is corrected to say the hook runs the whole suite and why that is w
 cost.
 ---
 
+## CS-920
+
+### FILED 2026-09-06 (session 65) by the merger, from an idea another project on this machine raised for itself
+
+**THE IDEA, AND WHERE IT CAME FROM.** A sibling project asked whether numbers it DERIVES and
+then COMMITS would be read by an outsider as no different from wiki content. Its answer
+split in two, and only the second half transfers here.
+
+**THE FIRST HALF DOES NOT APPLY TO THIS PROJECT AND THAT IS WORTH STATING so nobody files
+it again.** That project transcribes measurements into tracked tables. This one does not:
+`/data/` is gitignored, the registry is extracted from the game's shipped files AT RUNTIME,
+and CS-485 settled that no dataset is lifted from any wiki. There is no committed game
+number here for an outsider to lift, so the wiki-equivalence question does not arise.
+
+**THE SECOND HALF APPLIES SHARPLY, AND TO THIS PROJECT'S MEASUREMENTS OF ITSELF.** Its
+formulation is that provenance which is DOCUMENT-scoped does not survive the number being
+quoted: an outside reader lifts the row, not the document, and the receipt is left behind.
+The same failure happens INSIDE this repository, between sessions, without anyone lifting
+anything - because a number quoted out of its paragraph loses the conditions it was taken
+under, and the next session requotes it as fact.
+
+**MEASURED, IN THIS SESSION ALONE. Three numbers were published and then corrected:**
+
+- a **3.2x** speedup, from comparing readings taken at different times on a contended box,
+  corrected to **2.39x** by a paired back-to-back re-measurement. That was the THIRD
+  unpaired-comparison error recorded against CS-896.
+- **sixteen workers**, which is **eight** - xdist counts physical cores. The evidence was
+  present twice before the correction: a builder reported eight, and a failure signature
+  read `workers=9`, being eight workers plus one misfiled controller.
+- a **shard-specific** variance claim, withdrawn once an adversary showed an identical
+  runner pool reproduces the contrast about one time in three.
+
+None of those was a careless reading. Each was a correct reading whose CONDITIONS did not
+travel with it.
+
+**THE ITEM EXISTS BECAUSE CS-917 ALREADY DEPENDS ON THE ANSWER.** Its acceptance asks for
+"a noise figure that survives its own next reading". **That is a QUERY over a measurement
+history**, and today there is no history to query - the readings for CS-896 alone are spread
+across roughly seven ledger entries, an item note and a workflow comment, in prose, with
+their conditions stated in sentences. A session cannot mechanically ask "was this reading
+taken on a quiet box" or "which readings has a later one falsified".
+
+**WHAT THE RECEIPT HAS TO CARRY**, derived from the three corrections above rather than
+guessed: the metric and its value and unit; the METHOD (paired or unpaired, standalone or
+through the real gate); the worker count actually resolved rather than the core count; the
+LOAD STATE, because "another project's suite was live" is the condition that produced two of
+the three errors; the date and the commit; and whether a later reading has superseded it.
+
+**WHAT THIS IS NOT.** It is not a benchmarking harness and it is not CodSpeed. It records
+readings a human or a session already took, so they can be compared later. And it is not a
+licence question: facts are not copyrightable, so no licence on this repository protects a
+number in it - what distinguishes a measurement from a rumour is the receipt, not the terms.
+
+**RELATION TO EXISTING DOCTRINE.** `CLAUDE.md` section 4 already says "do not restate a
+measured number in prose" and requires one machine-checked owner per fact. That rule is
+enforced today only for a few specific numbers - the tier 1 levels, by drift guard (k) and
+`tests/test_tier1_budget.py`. This item is that same rule applied to the readings themselves
+rather than to the levels derived from them.
+
+---
+
 ## CS-917
 
 ### THE ACCEPTANCE CLAUSE HAD A HOLE AND NOW CARRIES THE ORDERING - MEASURED 2026-09-06 (session 65)
