@@ -99,6 +99,95 @@ and this owns the bare-path form. They share a population boundary problem and a
 they must not run concurrently, but merging them would put two different acceptance
 clauses under one arm.
 
+## Session 62 wakeup note - relocated 2026-09-06 (session 65)
+
+## Session 62 - 2026-09-05 - THE COMPANION RAN FOR THE FIRST TIME EVER and a real shortcut now launches it; the round that shipped it was REFUTED FIVE TIMES including a LOCAL CODE-EXECUTION VECTOR, and the repair brief's own premise was refuted too
+
+NOTHING CLOSED. CS-909 is OPEN and both its commits say so. Suite 5066 -> see the
+final report; the shell lanes moved 203 -> 307 node tests and 77 -> 134 asset arms.
+
+**WHAT EXISTS NOW THAT DID NOT.** A desktop shortcut launches the Electron
+companion with no terminal. It starts the dashboard if nothing answers, ADOPTS one
+that already does, keeps a tray icon, hides rather than exits on close, and on Quit
+stops only the dashboard that launch started. All of that was exercised at a real
+display, some of it by the operator.
+
+**IT HAD NEVER BEEN EXECUTED BEFORE THIS SESSION.** `shell/node_modules` did not
+exist. Every check in `docs/OPERATIONS.md` section 8.3 read `NOT RUN`; five of six
+are now filled and check 6 is not.
+
+**THE TWELVE-OF-TWELVE PATTERN HELD, AND THEN SOME.** The first round shipped with
+five defects its own suites were green against. All five were found by agents that
+wrote none of it, on FOUR DISTINCT LENSES - and the lenses did not overlap:
+adjudication found the overclaimed commit message and the common-mode risk;
+does-it-reproduce found thirteen of fifteen mutations surviving; security found the
+spawn vector; resource-lifetime found the zombie and the state-file corruption.
+Repeated skeptics would have found one of those, not four.
+
+**THE COMMON-MODE RISK, NAMED BY THE ADJUDICATOR AND STILL LIVE.** `healthy` is a
+boolean `shell/lib/supervisor.js` is graded on exhaustively and DOES NOT COMPUTE.
+Its derivation lives in `probeOnce`, inside the one file no test in either language
+can load. Every slice inherited that framing from the brief and encoded it as an
+input. It has already fired once - the BoringSSL probe bug was wrong for an entire
+session with both lanes green.
+
+**FIVE THINGS MEASURED THAT CONTRADICTED A DOCUMENT OR A CLAIM. THE SPIKE WINS.**
+
+1. The pinned Electron ships NO `scripts` block, so `npm install` fetches no binary
+   and exits 0 in about half a second; the runtime downloads lazily on first
+   `require`. `docs/OPERATIONS.md` section 8.1 said otherwise and now does not.
+2. `shutil.which` does NOT exclude the current directory on this interpreter - it
+   returned a RELATIVE path to a planted file. The repair brief asserted the
+   opposite and used it to justify the design. `scripts/make_cert.py` has the same
+   exposure. FILED AS CS-910.
+3. The recorded 2.217s-2.227s cold start does not reproduce. Through the shipped
+   path it is 0.46s-0.53s, every sample answering on attempt 1. The ten-millisecond
+   spread was a fixed constant, not a process start.
+4. `new Tray()` handed an empty image does NOT throw; it returns a non-null Tray
+   with an invisible icon. `trayRef !== null` was therefore the wrong question.
+5. Registering a `window-all-closed` listener SUPPRESSES electron's default quit,
+   which is what turned the no-tray fallback into a zombie holding a live child.
+
+**A CORRECTION THIS SESSION OWES TO ITS OWN FIRST COMMIT.** `8210a3c`'s message
+claims section 8.3 checks 1 to 5 were observed. The file at that commit records
+only 1 and 3. The observations were real; they were never written down. The tracked
+note was correct throughout - the COMMIT MESSAGE was the wrong artifact. Repaired.
+
+**DECISIONS - DO NOT RE-LITIGATE.**
+
+1. THE PROBE USES ELECTRON `net`, NOT NODE `https`. Node's `ca` option is not
+   honoured under electron's BoringSSL build. `net` also deletes a second trust
+   decision rather than moving it. The install-before-probe ORDERING is load-bearing
+   and is graded by NOTHING - probing first poisons the verdict cache permanently.
+2. THE INTERPRETER IS RESOLVED TO AN ABSOLUTE PATH BEFORE SPAWNING. Do not
+   re-pitch spawning a bare name with a fallback; the fallback IS the vector.
+3. THE TRAY DECIDES WHETHER CLOSE MEANS HIDE. No tray means quit, which runs
+   `will-quit` and stops what the launch started.
+4. ADR 0015 EXTENDS THE SEAM: the shell MAY start the surface, and stops only what
+   it started. It does not re-litigate the never-write rule.
+5. THE ICON IS AN ASCII DATA URL, NOT A TRACKED BINARY. This repository has zero
+   tracked binaries and the shell byte sweep would redden on one. 16x16 is
+   IMPOSSIBLE to encode alphanumerically - the fixed IHDR constant at that size
+   contains a solidus - which is why it is 32x32.
+
+**NAMED AND NOT CLOSED.**
+
+- CS-909's manual half now has a home (`docs/OPERATIONS.md` section 8.5) and one
+  check in 8.3 is still `NOT RUN`.
+- CS-910 and CS-911 were filed this session and are untouched.
+- ROADMAP.md is at 107 per cent of its soft budget. A RELOCATE PASS IS OWED and
+  this session made it worse by three lines.
+- `main.js` is still loaded by no test (CS-619). Everything in it is graded by
+  text arms over its source, which cannot prove a call GOVERNS - only that it
+  exists and is reachable by name.
+- The `.lnk` carries a TrackerDataBlock with COMPUTERNAME and a MAC-derived UUID.
+  Recorded in the script's PRIVACY section, not stripped - it is untracked and
+  operator-requested.
+
+**WORKTREE AGENTS STARTED STALE IN THREE OF THREE REPAIR DISPATCHES**, all at
+`7ba2df8` rather than the stated `8210a3c`. Every one fast-forwarded because the
+brief ordered the check. The running tally is now overwhelming: ORDER IT EVERY TIME.
+
 ## Session 61 - 2026-09-05 - CS-896 MEASURED AND NOT CLOSED: the lane's SERIAL MEAN is ABOVE its own cutoff, so the cancellation was the distribution; BOTH repairs were REFUTED, both were then repaired and MERGED
 
 - **Shipped: CS-908 only.** Filed CS-900, CS-906 and CS-907 and opened the `CS-9nn` block on an

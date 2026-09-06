@@ -34,6 +34,106 @@ the line becomes a pointer.
 
 ---
 
+## Session 65 - 2026-09-06 - THE CLOSURE WAS REFUTED 3/3 AND THE MECHANISM FELL TO ONE LINE; four routes repaired, nine mutations now killed, and one of my own arms scored its own mutation green
+
+- **Shipped:** nothing CLOSED. One commit, `77a88d1`, on top of `58a30f1`. Detail in
+  `docs/LEDGER.md`, not here.
+- **In flight:** CS-896 stays OPEN; CS-917's acceptance was TIGHTENED and needs an
+  operator eye; the ROADMAP relocate pass is still owed.
+- **Decisions:** no ADR. Two questions are put to the operator and neither was decided
+  by an agent - see below.
+- **Surprises:** the four routes below, all measured against a tree every gate was green
+  over.
+- **Failed paths:** closing CS-896 by transferring its residual to CS-917. REFUTED, and
+  the reasoning is in the ledger so it is not retried.
+- **Next action:** read the CI run on `77a88d1`. Then put the two operator questions.
+
+**CI RUN 34038527058 ON `58a30f1` WAS GREEN** - that was the previous session's open
+question and it is answered. Five consecutive green sharded runs. The fifth reading:
+fast 353 job-seconds, save 247; the lane's own lines read 346 and 240 within budget.
+
+**THE CLOSURE WAS PROPOSED, FROZEN AT `58a30f1`, AND REFUTED BY THREE ADVERSARIES on
+distinct lenses - measurement integrity, scope laundering, guard defeat.** Every
+load-bearing citation was then verified by the merger against `git show 58a30f1:` rather
+than the working tree, **because one adversary was mutating that tree while the other two
+read it.** That was an orchestration error on the merger's part; the md5 of the workflow
+was recorded BEFORE dispatch and matched afterwards, so the readings stood. **Do not
+dispatch a mutating adversary alongside readers of the same file again.**
+
+**THE MECHANISM CS-896 BUILT WAS DEFEATABLE IN ONE LINE, FOUR WAYS.** Each left guard (k)
+printing PASS, its own detail asserting the levels were "pinned two-way", and the budget
+module green:
+
+1. a job-level or step-level `env:` block restating either level - the guard anchored at
+   line start, so a FLOW mapping never begins one and was invisible while PyYAML resolved
+   it. The BLOCK spelling WAS caught. **The third regex-versus-parser hole in this guard
+   in three sessions.**
+2. `continue-on-error` on a job or step, discarding the ceiling's exit. **Governed by
+   nothing** - the key appeared nowhere under `tests/` or `tools/`.
+3. a second key written into `$GITHUB_ENV` from the start step.
+4. the report step reading a level it cannot parse - all three refusals guarded the start
+   marker and neither level had one, so a run far past every level printed the healthiest
+   verdict it has and exited 0.
+
+**ALL FOUR REPAIRED, NINE MUTATIONS THAT WERE GREEN NOW REDDEN** - five against the guard
+record, four against the arms. Module 122 -> 141 passed. Both shards green locally: fast
+3949 passed, save 1413 passed.
+
+**ONE OF MY OWN ARMS SCORED ITS OWN MUTATION GREEN.** The first `$GITHUB_ENV` arm matched
+greedily; a plain YAML scalar FOLDS a continuation line into the same string, so the
+greedy run reached past the smuggled write to the last marker and captured one key where
+there were two. **It reported the property held with the mutation in the tree.** Only the
+mutation proof caught it. An arm that passes on a clean tree has proved nothing until its
+mutation is shown to red it.
+
+**GUARD (k) ALSO CAUGHT ME**, correctly: the first draft of these arms quoted the override
+in its docstrings, making the test module a second owner of the numbers. Plants are now
+ASSEMBLED at call time, the convention `restatement()` already documents.
+
+**THE BROADER SUITE CAUGHT A THIRD THING THE TARGETED RUN DID NOT** -
+`tests/test_exception_rendering.py` found my new guard code rendering a caught exception
+OBJECT into a message, which is non-negotiable 12. Repaired with `_exc_text`. **Run the
+shard, not just the module.**
+
+**A CLAIM I MADE AND RETRACTED.** I proposed the runner swing is SHARD-SPECIFIC (save
+shard 16s step spread against the fast shard's 94 over the same five runs). An adversary
+refuted it and I verified: the shards are INDEPENDENT DRAWS, so under a pool with a fast
+class appearing once in five fast-shard draws, the save shard missing it in five has
+probability 0.8^5, about one in three. An identical pool reproduces the contrast exactly.
+
+**THE DISPOSITION OF CS-896 TURNS ON ONE OBSERVATION.** Drop the single low fast reading
+and that shard's spread falls from 94s to 34s, and the shipped band is then WIDER than the
+noise - the condition PASSES. Keep it and it FAILS. `n=5` cannot say which, which is
+exactly why another reading is the wrong instrument.
+
+**THE FEASIBILITY ARITHMETIC, NEW AND RECORDED IN THE CS-896 LEAF.** With `M` the worst
+reading and `N` the spread: no false warn needs `B >= M`, a warn before a red needs
+`C - B >= N`, a red rather than a cancel needs `C + N <= cutoff`. So `B <= cutoff - 2N`,
+the feasible budget window is `[M, cutoff - 2N]`, EMPTY once `N > (cutoff - M) / 2`. The
+window is currently non-empty and the SHIPPED budget sits outside it. **THE LEVELS WERE
+NOT TOUCHED and must not be re-derived at this sample size** - three previous
+re-derivations were each falsified by their own next reading. A distribution-free 95/95
+bound needs `n >= 59`.
+
+**TWO QUESTIONS FOR THE OPERATOR, NEITHER DECIDED BY AN AGENT.**
+1. **CS-917's acceptance was TIGHTENED** to require the band not be narrower than the
+   noise figure it is derived from. Two adversaries found it could otherwise close with
+   the condition silently dropped. It is a tightening, not a narrowing, but moving an
+   acceptance clause is not an agent's call - review it.
+2. **Whether CS-896 closes as an HONEST PARTIAL.** Precedent is in `docs/LEDGER.md` under
+   CS-421 and CS-882, both operator rulings. No adjudicator can grant it and none was
+   asked.
+
+**NAMED AND NOT CLOSED.** ROADMAP.md is at 70987 bytes against a 61440 budget (115 per
+cent) and this session added two bytes to it. THE RELOCATE PASS IS STILL OWED, three
+sessions running. RELOCATE, NEVER DELETE.
+
+**THE ECC FOLLOW-UPS ARE STILL UNFILED, and one count in the handoff was already stale:**
+the GitHub Actions carry **13** mutable `uses:` tags, not 11 - the shard split added two.
+A restated count drifted inside one session, which is the doc rule demonstrating itself.
+
+---
+
 ## Session 64 - 2026-09-06 - CI was red for TWO reasons and the handoff named one; tier 1 now runs in two shards; FOUR adversarial passes all returned REFUTED and CS-896 is STILL NOT CLOSED
 
 **ZERO ITEMS CLOSED.** CS-910, CS-900 and CS-896 all took substantive repairs and all three
@@ -183,90 +283,3 @@ published vocabulary waiting on `/api/plan` and `/api/advice`. Two design questi
 and recorded in `docs/hud_doctrine.md`: whether the overlay keeps the companion's warm accent
 when the game's own world is warm, and whether item identity and production status can share
 the colour channel.
-
-## Session 62 - 2026-09-05 - THE COMPANION RAN FOR THE FIRST TIME EVER and a real shortcut now launches it; the round that shipped it was REFUTED FIVE TIMES including a LOCAL CODE-EXECUTION VECTOR, and the repair brief's own premise was refuted too
-
-NOTHING CLOSED. CS-909 is OPEN and both its commits say so. Suite 5066 -> see the
-final report; the shell lanes moved 203 -> 307 node tests and 77 -> 134 asset arms.
-
-**WHAT EXISTS NOW THAT DID NOT.** A desktop shortcut launches the Electron
-companion with no terminal. It starts the dashboard if nothing answers, ADOPTS one
-that already does, keeps a tray icon, hides rather than exits on close, and on Quit
-stops only the dashboard that launch started. All of that was exercised at a real
-display, some of it by the operator.
-
-**IT HAD NEVER BEEN EXECUTED BEFORE THIS SESSION.** `shell/node_modules` did not
-exist. Every check in `docs/OPERATIONS.md` section 8.3 read `NOT RUN`; five of six
-are now filled and check 6 is not.
-
-**THE TWELVE-OF-TWELVE PATTERN HELD, AND THEN SOME.** The first round shipped with
-five defects its own suites were green against. All five were found by agents that
-wrote none of it, on FOUR DISTINCT LENSES - and the lenses did not overlap:
-adjudication found the overclaimed commit message and the common-mode risk;
-does-it-reproduce found thirteen of fifteen mutations surviving; security found the
-spawn vector; resource-lifetime found the zombie and the state-file corruption.
-Repeated skeptics would have found one of those, not four.
-
-**THE COMMON-MODE RISK, NAMED BY THE ADJUDICATOR AND STILL LIVE.** `healthy` is a
-boolean `shell/lib/supervisor.js` is graded on exhaustively and DOES NOT COMPUTE.
-Its derivation lives in `probeOnce`, inside the one file no test in either language
-can load. Every slice inherited that framing from the brief and encoded it as an
-input. It has already fired once - the BoringSSL probe bug was wrong for an entire
-session with both lanes green.
-
-**FIVE THINGS MEASURED THAT CONTRADICTED A DOCUMENT OR A CLAIM. THE SPIKE WINS.**
-
-1. The pinned Electron ships NO `scripts` block, so `npm install` fetches no binary
-   and exits 0 in about half a second; the runtime downloads lazily on first
-   `require`. `docs/OPERATIONS.md` section 8.1 said otherwise and now does not.
-2. `shutil.which` does NOT exclude the current directory on this interpreter - it
-   returned a RELATIVE path to a planted file. The repair brief asserted the
-   opposite and used it to justify the design. `scripts/make_cert.py` has the same
-   exposure. FILED AS CS-910.
-3. The recorded 2.217s-2.227s cold start does not reproduce. Through the shipped
-   path it is 0.46s-0.53s, every sample answering on attempt 1. The ten-millisecond
-   spread was a fixed constant, not a process start.
-4. `new Tray()` handed an empty image does NOT throw; it returns a non-null Tray
-   with an invisible icon. `trayRef !== null` was therefore the wrong question.
-5. Registering a `window-all-closed` listener SUPPRESSES electron's default quit,
-   which is what turned the no-tray fallback into a zombie holding a live child.
-
-**A CORRECTION THIS SESSION OWES TO ITS OWN FIRST COMMIT.** `8210a3c`'s message
-claims section 8.3 checks 1 to 5 were observed. The file at that commit records
-only 1 and 3. The observations were real; they were never written down. The tracked
-note was correct throughout - the COMMIT MESSAGE was the wrong artifact. Repaired.
-
-**DECISIONS - DO NOT RE-LITIGATE.**
-
-1. THE PROBE USES ELECTRON `net`, NOT NODE `https`. Node's `ca` option is not
-   honoured under electron's BoringSSL build. `net` also deletes a second trust
-   decision rather than moving it. The install-before-probe ORDERING is load-bearing
-   and is graded by NOTHING - probing first poisons the verdict cache permanently.
-2. THE INTERPRETER IS RESOLVED TO AN ABSOLUTE PATH BEFORE SPAWNING. Do not
-   re-pitch spawning a bare name with a fallback; the fallback IS the vector.
-3. THE TRAY DECIDES WHETHER CLOSE MEANS HIDE. No tray means quit, which runs
-   `will-quit` and stops what the launch started.
-4. ADR 0015 EXTENDS THE SEAM: the shell MAY start the surface, and stops only what
-   it started. It does not re-litigate the never-write rule.
-5. THE ICON IS AN ASCII DATA URL, NOT A TRACKED BINARY. This repository has zero
-   tracked binaries and the shell byte sweep would redden on one. 16x16 is
-   IMPOSSIBLE to encode alphanumerically - the fixed IHDR constant at that size
-   contains a solidus - which is why it is 32x32.
-
-**NAMED AND NOT CLOSED.**
-
-- CS-909's manual half now has a home (`docs/OPERATIONS.md` section 8.5) and one
-  check in 8.3 is still `NOT RUN`.
-- CS-910 and CS-911 were filed this session and are untouched.
-- ROADMAP.md is at 107 per cent of its soft budget. A RELOCATE PASS IS OWED and
-  this session made it worse by three lines.
-- `main.js` is still loaded by no test (CS-619). Everything in it is graded by
-  text arms over its source, which cannot prove a call GOVERNS - only that it
-  exists and is reachable by name.
-- The `.lnk` carries a TrackerDataBlock with COMPUTERNAME and a MAC-derived UUID.
-  Recorded in the script's PRIVACY section, not stripped - it is untracked and
-  operator-requested.
-
-**WORKTREE AGENTS STARTED STALE IN THREE OF THREE REPAIR DISPATCHES**, all at
-`7ba2df8` rather than the stated `8210a3c`. Every one fast-forwarded because the
-brief ordered the check. The running tally is now overwhelming: ORDER IT EVERY TIME.
