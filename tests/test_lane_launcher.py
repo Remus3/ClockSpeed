@@ -555,6 +555,15 @@ def _executable_strings(source: Path) -> list[str]:
     ]
 
 
+@pytest.mark.skipif(
+    sys.platform != "win32",
+    reason=(
+        "taskkill is a Windows binary, so _kill_argv resolves nothing on POSIX and this"
+        " arm would grade its OWN skip rather than the killer. Read it as NOT RUN here,"
+        " never as covered: the CS-910 rooting property below is UNMEASURED on this"
+        " platform, not satisfied."
+    ),
+)
 def test_a_kill_is_taskkill_and_never_the_powershell_cmdlet() -> None:
     """Stop-Process has hung the tooling pipe here before; taskkill has not.
 
