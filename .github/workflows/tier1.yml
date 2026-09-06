@@ -2,9 +2,9 @@
 # Clockspeed - CI tier 1: the fast lane.
 #
 # CONVENTIONS.md section 8: tier 1 runs on every push and is "the lane that must
-# never be red". This file is the ONE owner of how long that is allowed to take
-# - the env block below states it, and nothing else in the repository restates
-# it (CS-896). tools/drift_guard.py guard (k) holds that.
+# never be red". This file is the ONE owner of how long that is allowed to take;
+# no PROSE restates it, and the two files carrying the same numbers - guard (k)
+# and tests/test_tier1_budget.py - are a RATCHET, not a restatement (CS-896).
 #
 # LEANNESS IS A REQUIREMENT, NOT A STYLE CHOICE. This repo is private and CI
 # minutes are metered (CONVENTIONS.md section 8, budget note), so this lane uses
@@ -68,37 +68,37 @@ env:
   #            tunable - see the note beside it, and guard (k).
   #
   # THE DERIVATION IS WRITTEN OUT so the next person re-derives rather than
-  # guesses, which is what nobody did last time - and then it happened again.
-  # THESE LEVELS ARE PER SHARD. The lane runs two jobs; each measures and grades
-  # ITSELF, so a level here bounds the SLOWEST SHARD and never their sum.
+  # guesses. THESE LEVELS ARE PER SHARD: the lane runs two jobs, each measures
+  # and grades ITSELF, so a level bounds the SLOWEST SHARD and never their sum.
   #
-  # THE PREVIOUS DERIVATION WAS FALSIFIED BY THE SPLIT, IN THE SAME COMMIT THAT
-  # RELIED ON IT. 540 was chosen as "21 above the worst observed job" when that
-  # job was about 519. After the split the worst shard is 323, so 540 sat 221
-  # above it - 69 per cent of headroom where the derivation claimed 4 - and the
-  # lane would have reported "within budget" through nearly four minutes of
-  # growth per shard. An alarm that cannot fire is not an alarm, and CS-896 is
-  # the item about a lane whose growth nothing watched.
+  # TWO DERIVATIONS BEFORE THIS ONE WERE FALSIFIED BY THE VERY RUN OFFERED TO
+  # CLOSE THEM, WHICH IS WHY THE NOISE COMES FIRST HERE. 540 was "21 above the
+  # worst observed job" and the split left it 221 above. 380/420 was "worst +
+  # 3 sd / + 5 sd" taken from ONE sample, and the next run moved the worst
+  # observation 36 seconds - leaving 25s of headroom against a 36s swing, and a
+  # 40s warn band against a spread this item's own note records as 40s.
   #
-  # THE SAMPLE FOR THE NEW SHAPE IS ONE RUN AND THAT IS STATED RATHER THAN
-  # HIDDEN. Run 34016749554: fast 323s, save 225s (job seconds from the API;
-  # the steps reported 319 and 221). Spread is carried from the old shape's four
-  # parallel readings: a 5.76 per cent coefficient of variation, about 19s here.
+  # SO THE BAND IS SIZED FROM THE MEASURED SWING, NOT FROM A SAMPLE. Four
+  # readings, two per shard, from the jobs API: fast 323 and 359, save 225 and
+  # 237. The fast shard added THREE tests worth under 0.1s between those two,
+  # so its 36s is runner noise with the workload held at zero - the same thing
+  # docs/item_notes/phase4-followups-850.md records on the old shape when it
+  # says "adding NOTHING can cost forty seconds".
   #
-  # SO: budget = worst observed + 3 sd = 323 + 57 = 380, which warns on real
-  # growth and not on noise. Ceiling = worst observed + 5 sd = 420, far enough
-  # out that a bad day is not a red on a lane that must never be red. Both are
-  # PROVISIONAL AT n=1 and should be TIGHTENED once several two-shard runs
-  # exist - a wide bound from one sample is banked room, which guard (k)'s own
-  # note calls a later inflation nobody has to defend. The ceiling no longer
-  # sits just under the cutoff and need not: 600 is POLICY, and the ceiling's
-  # job is only to be met FIRST.
+  # BUDGET = worst observed + 61 = 420, which is 1.7x the measured swing, so a
+  # warning means growth rather than a bad morning.
+  # CEILING = budget + 60 = 480. That gap is the WARN BAND and it is 60s on
+  # purpose - "the next minute of growth", the note's own language for what
+  # must be VISIBLE BEFORE IT IS FATAL. A band narrower than the swing cannot
+  # guarantee that ordering: the lane could redden having never once warned. At
+  # the recorded 3.51s per commit this band is about 17 commits of warning.
   #
   # BOTH NUMBERS ARE RATCHETED IN BOTH DIRECTIONS by tools/drift_guard.py guard
   # (k), so raising OR lowering either here alone turns the guard red - which is
-  # what forced this re-derivation to be a diff somebody had to defend.
-  TIER1_BUDGET_SECONDS: '380'
-  TIER1_CEILING_SECONDS: '420'
+  # what forced each of these re-derivations to be a diff somebody defended.
+  # STILL PROVISIONAL at two samples per shard - re-derive from the jobs API.
+  TIER1_BUDGET_SECONDS: '420'
+  TIER1_CEILING_SECONDS: '480'
 
 jobs:
   fast:

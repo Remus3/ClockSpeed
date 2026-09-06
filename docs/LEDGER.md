@@ -160,6 +160,76 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-06 - CS-896 - SECOND REFUTATION. The re-derived levels were falsified by the run offered to close them, a trailing comment defeated the repaired guard, and two counts in the entry below are wrong
+
+**CS-896 STAYS OPEN and this entry does not close it.** A third adversary graded
+`55799c6` - a different SHA from the two that graded `9dc2d86`, because a verdict says
+nothing about commits landed after it rules - and returned REFUTED.
+
+**THE DERIVATION WAS FALSIFIED BY ITS OWN CLOSURE RUN, FOR THE SECOND TIME IN TWO
+COMMITS.** 380/420 was "worst observed + 3 sd / + 5 sd" from a single sample of 323s. Run
+34019708295 then put the fast shard at **359s job-seconds**, so applying the file's own
+stated rule to the data that now existed gave 435/486, not 380/420 - and 420 was worst +2.4
+sd rather than +5. Three specific consequences, all measured:
+
+- **25s of budget headroom against a 36s measured swing.** The next run of an unchanged
+  tree could print "over budget" with nothing having grown.
+- **A 40s warn band against a 40s no-workload spread.** `docs/item_notes/phase4-followups-850.md`
+  records "adding NOTHING can cost forty seconds". A band no wider than the noise cannot
+  guarantee the ordering the same note demands - growth VISIBLE BEFORE IT IS FATAL - because
+  the lane could redden having never once warned.
+- **About 7 commits to a warning** at the recorded 3.51s/commit. The entry two below this one
+  condemns the pre-split shape for warning after about 6.
+
+**THE NOISE IS NOW MEASURED RATHER THAN IMPORTED, WHICH IS THE REAL REPAIR.** The save shard
+ran a byte-identical test set across both runs (`git diff 9dc2d86..55799c6 -- tests/save` is
+empty; both report `1316 passed, 97 skipped`) and moved 206.20s to 214.47s. The fast shard
+added three arms worth under 0.1s together and moved 286.39s to 319.99s. **So roughly 33.5s
+of a 36s swing is runner-side with the workload held at zero**, corroborated per test: four
+unchanged tests in the fast shard ran 6 to 14 per cent slower one hour apart. Levels are
+re-derived from that swing rather than from a sample: **budget 420** (worst observed + 61,
+1.7x the swing) and **ceiling 480**, the gap being a **60s WARN BAND** - "the next minute of
+growth", which is the note's own language for what must be visible first. Merged files:
+`.github/workflows/tier1.yml`, `tools/drift_guard.py`, `tests/test_tier1_budget.py`.
+
+**A TRAILING COMMENT DEFEATED THE CUTOFF REPAIR MADE ONE COMMIT EARLIER.** guard (k) counted
+job ids with `^  ([A-Za-z0-9_-]+):$`, and the `$` anchor means `  third:  # a scratch job`
+matches nothing - as does a quoted id. **MEASURED with PyYAML resolving three jobs while the
+guard and all 120 arms stayed green, and that third job would have run under GitHub's
+360-minute default.** A regex was used where a parser was already in the room. Repaired both
+ways: the pattern now accepts quotes and a trailing comment, and the AUTHORITY is now
+`tests/test_tier1_budget.py::test_every_job_the_parser_sees_states_the_runaway_cutoff`,
+which asks PyYAML rather than a pattern, with
+`::test_every_job_the_parser_sees_states_the_same_cutoff` beside it. Both spellings now
+redden the guard AND the arms.
+
+**TWO DEFECTS IN THE CORRECTION ENTRY BELOW, which is append-only and so is corrected here.**
+
+1. *"left all 187 arms green"* - **WRONG COUNT**, and it appears twice, in that entry and in
+   a docstring at `tests/test_tier1_budget.py`. The module collected 117 arms at `9dc2d86`
+   and 120 at `55799c6`; 187 corresponds to no population. It is a prose count inside the
+   very entry whose fourth claim corrects a prose count.
+2. *"The operator pays less, not more"* - **OVERSTATED AT n=1.** It compared 548 job-seconds
+   against 593 and 617. The next run of the same shape is **596**, above the 593 it was
+   compared to. Billed minutes are 10 either way, so the direction is not reversed, but the
+   bolded general claim is not supported.
+
+**AND ONE CLAIM OF THE ADVERSARY'S IS ITSELF FALSE, recorded so it is not inherited.** It
+reported that the 5.76 per cent coefficient of variation "is not derivable from any artifact
+in the repo or in the run history", having reconstructed 1.3 per cent from three readings.
+**It is derivable, from the four `-n auto` readings recorded in the workflow itself:**
+424.18, 475.98, 483.14 and 470.67 give mean 463.49, sd 26.70, CV 5.76 per cent. The
+adversary dropped the 424.18 reading. The provenance was sound; what was wrong was applying
+a coefficient measured on the single-job shape to a shard, which is why the band is now
+sized from a directly measured swing instead.
+
+**WHAT IS STILL OWED.** Runs of the two-shard lane under the NEW levels - the shape has now
+run twice, both times under levels since replaced, and the note's standard is that a green
+run is one sample from a distribution rather than evidence of health. The 3.51s/commit slope
+is still owned by no item in `ROADMAP.md`, `BACKLOG.md` or `docs/GATED.md`.
+
+---
+
 ### 2026-09-06 - CS-896 - CORRECTION AND REPAIR. Two adversaries REFUTED the closure, the entry below this one carries four false claims, and the fix had disabled the alarm the item exists to provide
 
 **CS-896 STAYS OPEN and this entry does not close it.** The closure was put to two

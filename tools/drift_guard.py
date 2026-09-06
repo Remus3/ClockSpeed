@@ -2855,8 +2855,8 @@ SECONDS_PER_MINUTE = 60
 # raise it to accommodate a slower lane; this is what makes that sentence cost
 # something. It is pinned to its exact value rather than bounded, because there
 # is no direction it is allowed to move on its own.
-TIER1_RECORDED_BUDGET = 380
-TIER1_RECORDED_CEILING = 420
+TIER1_RECORDED_BUDGET = 420
+TIER1_RECORDED_CEILING = 480
 TIER1_POLICY_CUTOFF_MINUTES = 10
 
 # -- THE RESTATEMENT SCAN, AND WHY IT IS THIS NARROW. ------------------------
@@ -3232,9 +3232,18 @@ def guard_tier1_budget(
     # `timeout-minutes` from the save shard left this guard green while that
     # shard's runaway detector became six hours. "Stated once per job" is only a
     # cutoff while the count matches the job count.
-    declared_jobs = re.compile(r"^  ([A-Za-z0-9_-]+):$", re.MULTILINE).findall(
-        text.partition("\njobs:\n")[2]
-    )
+    # THE ANCHOR USED TO BE `:$` AND A TRAILING COMMENT WALKED PAST IT. MEASURED:
+    # a third job declared `  third:  # a scratch job`, or with a quoted id, was
+    # invisible to this count while PyYAML resolved it to a real job - so the
+    # counts matched, the guard stayed green, and that job ran with GitHub's
+    # 360-minute default. A quoted id did the same. Both spellings are accepted
+    # here now. THE COMPLETE ROUTE IS A PARSER RATHER THAN A PATTERN, and it is
+    # taken in tests/test_tier1_budget.py, which already parses this file with
+    # PyYAML and asserts EVERY parsed job states a cutoff. This regex is the
+    # cheap half of a belt-and-braces pair and is not the authority.
+    declared_jobs = re.compile(
+        r"^  [\"']?([A-Za-z0-9_-]+)[\"']?:[ \t]*(?:#.*)?$", re.MULTILINE
+    ).findall(text.partition("\njobs:\n")[2])
     if minutes_problem is None and len(stated_timeouts(text)) != len(declared_jobs):
         minutes = None
         minutes_problem = (
