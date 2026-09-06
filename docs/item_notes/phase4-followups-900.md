@@ -154,6 +154,24 @@ cost.
 
 ## CS-917
 
+### THE ACCEPTANCE CLAUSE HAD A HOLE AND NOW CARRIES THE ORDERING - MEASURED 2026-09-06 (session 65)
+
+**TWO ADVERSARIES ON DIFFERENT LENSES FOUND THE SAME DEFECT IN THIS ITEM'S OWN CLAUSE,
+one session after it was filed.** As written it required the warn band be DERIVED FROM a
+noise figure that survives its next reading. It never required the band be WIDER than
+that figure. Provenance is not width.
+
+**THE CONSEQUENCE, STATED PLAINLY: this item could have closed in full with the band
+still narrower than the noise, a red still reachable having never warned, and the CS-896
+leaf condition it exists to carry silently dropped rather than transferred.** The clause
+now carries the ordering guarantee explicitly.
+
+**THAT MATTERS BECAUSE THE TRANSFER WAS ATTEMPTED.** The merger proposed closing CS-896
+by transferring the condition here. An adversary refuted it on exactly this ground and
+the merger verified every citation before accepting. The transfer LOST the condition; it
+did not move it.
+
+
 ### FILED 2026-09-06 (session 64) by the merger, from four adversarial passes that each named it
 
 **THREE INDEPENDENT ADVERSARIES AND ONE DIRECT MEASUREMENT ALL ARRIVED HERE, which is why it

@@ -428,8 +428,35 @@ jobs:
             echo "Refusing to report a duration this job did not measure."
             exit 1
           fi
-          BUDGET="$TIER1_BUDGET_SECONDS"
-          CEILING="$TIER1_CEILING_SECONDS"
+          BUDGET="${TIER1_BUDGET_SECONDS:-}"
+          CEILING="${TIER1_CEILING_SECONDS:-}"
+          # THE LEVELS GET THE SAME REFUSAL THE START DOES, FOR THE SAME REASON.
+          # MEASURED 2026-09-06 (session 65), against this very script: with
+          # either level empty or carrying a unit, `[ 900 -gt "" ]` exits 2 with
+          # `integer expression expected` on stderr - and an `if` CONDITION is
+          # exempt from `set -e`, so the script did NOT stop. Both comparisons
+          # fell through to `else`, and a 900-second run printed
+          # `tier 1 took 900s - within budget` and exited 0.
+          #
+          # So the healthiest verdict this step can print was exactly what it
+          # printed when its own configuration was broken. The comment above
+          # already claimed every meaningless number "has to end in a refusal
+          # rather than in a cheerful verdict"; all three refusals it shipped
+          # guarded TIER1_STARTED and neither level had one.
+          case "$BUDGET" in
+            "" | *[!0-9]*)
+              echo "FAIL: TIER1_BUDGET_SECONDS is '${BUDGET}', not a whole number of seconds."
+              echo "Refusing to report a duration against a level this job cannot read."
+              exit 1
+              ;;
+          esac
+          case "$CEILING" in
+            "" | *[!0-9]*)
+              echo "FAIL: TIER1_CEILING_SECONDS is '${CEILING}', not a whole number of seconds."
+              echo "Refusing to report a duration against a level this job cannot read."
+              exit 1
+              ;;
+          esac
           if [ "$ELAPSED" -gt "$CEILING" ]; then
             VERDICT="OVER THE CEILING"
           elif [ "$ELAPSED" -gt "$BUDGET" ]; then
@@ -544,8 +571,35 @@ jobs:
             echo "Refusing to report a duration this job did not measure."
             exit 1
           fi
-          BUDGET="$TIER1_BUDGET_SECONDS"
-          CEILING="$TIER1_CEILING_SECONDS"
+          BUDGET="${TIER1_BUDGET_SECONDS:-}"
+          CEILING="${TIER1_CEILING_SECONDS:-}"
+          # THE LEVELS GET THE SAME REFUSAL THE START DOES, FOR THE SAME REASON.
+          # MEASURED 2026-09-06 (session 65), against this very script: with
+          # either level empty or carrying a unit, `[ 900 -gt "" ]` exits 2 with
+          # `integer expression expected` on stderr - and an `if` CONDITION is
+          # exempt from `set -e`, so the script did NOT stop. Both comparisons
+          # fell through to `else`, and a 900-second run printed
+          # `tier 1 took 900s - within budget` and exited 0.
+          #
+          # So the healthiest verdict this step can print was exactly what it
+          # printed when its own configuration was broken. The comment above
+          # already claimed every meaningless number "has to end in a refusal
+          # rather than in a cheerful verdict"; all three refusals it shipped
+          # guarded TIER1_STARTED and neither level had one.
+          case "$BUDGET" in
+            "" | *[!0-9]*)
+              echo "FAIL: TIER1_BUDGET_SECONDS is '${BUDGET}', not a whole number of seconds."
+              echo "Refusing to report a duration against a level this job cannot read."
+              exit 1
+              ;;
+          esac
+          case "$CEILING" in
+            "" | *[!0-9]*)
+              echo "FAIL: TIER1_CEILING_SECONDS is '${CEILING}', not a whole number of seconds."
+              echo "Refusing to report a duration against a level this job cannot read."
+              exit 1
+              ;;
+          esac
           if [ "$ELAPSED" -gt "$CEILING" ]; then
             VERDICT="OVER THE CEILING"
           elif [ "$ELAPSED" -gt "$BUDGET" ]; then

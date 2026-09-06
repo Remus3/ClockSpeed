@@ -2048,3 +2048,473 @@ def test_every_job_the_parser_sees_states_the_same_cutoff() -> None:
         f"the jobs state cutoffs {stated}; every job must state exactly"
         f" {EXPECTED_POLICY_CUTOFF_MINUTES}, which is policy and not a tunable"
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-896 - THE LEVELS ARE A RATCHET ONLY WHILE NOTHING CAN OVERRIDE THEM
+#
+# MEASURED 2026-09-06 (session 65). Three adversaries graded the shipped
+# mechanism at 58a30f1 and all three returned REFUTED. Between them they moved
+# the effective levels or made the ceiling decorative in ONE LINE, with guard
+# (k) printing PASS, this module green at 122 passed, and the 528-test floor
+# green. The four routes they measured, none of which any arm could see:
+#
+#   1. A job-level or step-level `env:` block restating either level. guard (k)
+#      anchors its read at the start of a line, so a FLOW mapping - written
+#      as a flow mapping restating that key - never begins a line and is
+#      invisible to it, while PyYAML resolves it to a real override. This is the
+#      regex-versus-parser family AGAIN, one spelling further out than the `:$`
+#      trailing-comment hole the session before this one found.
+#   2. `continue-on-error` on the job or on the step, which discards the
+#      ceiling's `exit 1`. MEASURED ungoverned: the key appeared nowhere under
+#      tests/ or tools/, so the one mechanism CS-896 adds was decorative on
+#      request.
+#   3. The start step writing any SECOND key into `$GITHUB_ENV`, which sets the
+#      environment for every later step in that job.
+#   4. The report step reading a level it cannot parse. Its three refusals all
+#      guard TIER1_STARTED and the two LEVELS get none. `[ 900 -gt "" ]` exits 2
+#      with `integer expression expected` on stderr, an `if` condition is exempt
+#      from `set -e`, so both comparisons fall to `else` and a 900-second run
+#      prints `within budget` and exits 0.
+#
+# EVERY ARM BELOW GRADES WHAT THE PARSER RESOLVES, NEVER WHAT THE TEXT SPELLS.
+# That is the whole lesson of the repairs before them: each matched a spelling
+# and the next adversary simply wrote a different one.
+# ---------------------------------------------------------------------------
+
+#: The two level keys, by the name GitHub reads.
+BUDGET_KEY = "TIER1_BUDGET_SECONDS"
+CEILING_KEY = "TIER1_CEILING_SECONDS"
+LEVEL_KEYS = (BUDGET_KEY, CEILING_KEY)
+
+#: The key that turns a failing step or job into an advisory one.
+ADVISORY_KEY = "continue-on-error"
+
+#: An elapsed value comfortably past every level this lane states, so a report
+#: that still calls such a run healthy is reporting on nothing it actually read.
+OVER_EVERY_LEVEL_SECONDS = 900
+
+
+def every_parsed_job() -> dict[str, dict[str, Any]]:
+    """Every job THE PARSER resolves, never the ones this module happens to name.
+
+    `fast_job()` addresses one job by id. That is right for arms about that
+    job and wrong for arms about the LANE, because a job added later inherits
+    none of them - which is exactly how a third job once reached the runner
+    under the platform's own 360-minute default.
+
+    Returns:
+        Every job, by id.
+    """
+    jobs = workflow_document().get("jobs")
+    assert isinstance(jobs, dict), f"{WORKFLOW_RELATIVE} declares no jobs mapping"
+    resolved = {str(key): value for key, value in jobs.items() if isinstance(value, dict)}
+    assert resolved, f"{WORKFLOW_RELATIVE} resolved no jobs at all"
+    return resolved
+
+
+def env_blocks_beneath_the_workflow() -> list[tuple[str, dict[str, Any]]]:
+    """Every env block GitHub applies AFTER the workflow-level one, located.
+
+    GitHub layers three environments and the later one wins: workflow, then
+    job, then step. The workflow block is the owner this lane declares; the
+    other two are overrides and there should be none of them.
+
+    Returns:
+        (where it sits, the block) for every job-level and step-level env.
+    """
+    found: list[tuple[str, dict[str, Any]]] = []
+    for job_id, job in every_parsed_job().items():
+        block = job.get("env")
+        if isinstance(block, dict):
+            found.append((f"job {job_id!r}", block))
+        steps = job.get("steps")
+        if not isinstance(steps, list):
+            continue
+        for index, step in enumerate(steps):
+            if not isinstance(step, dict):
+                continue
+            block = step.get("env")
+            if isinstance(block, dict):
+                name = step.get("name", f"index {index}")
+                found.append((f"step {name!r} of job {job_id!r}", block))
+    return found
+
+
+def test_no_env_block_the_parser_resolves_overrides_either_level() -> None:
+    """CS-896 - a level a later env block can restate is not a level.
+
+    THE MUTATION THIS REFUSES, MEASURED GREEN AGAINST THE SHIPPED TREE: one line
+    under the save shard - a flow mapping restating both level keys with higher
+    values - left guard (k) printing PASS and its own detail asserting the pair
+    was pinned two-way, while PyYAML resolved that shard's effective levels to
+    the restated ones. A run long enough to breach the shipped ceiling then
+    exited 0 where the shipped levels exit 1.
+
+    THIS ARM READS THE PARSED DOCUMENT, so the flow spelling that defeated the
+    regex is the same object here as the block spelling that did not.
+    """
+    offenders = [
+        (where, key, block[key])
+        for where, block in env_blocks_beneath_the_workflow()
+        for key in LEVEL_KEYS
+        if key in block
+    ]
+
+    assert offenders == [], (
+        f"{WORKFLOW_RELATIVE} lets a later env block restate a level: {offenders}."
+        " GitHub applies workflow env, then job env, then step env, and the last"
+        " one wins - so a level restated below the workflow block is the level"
+        " that actually grades the run, whatever the workflow block says and"
+        " whatever guard (k) prints"
+    )
+
+
+def test_no_job_or_step_makes_a_failure_advisory() -> None:
+    """CS-896 - the ceiling's `exit 1` is the only thing it adds; one key discards it.
+
+    `continue-on-error` was governed by NOTHING when this was written - it
+    appeared nowhere under tests/ or tools/. On the job it also silently
+    disables that shard's entire suite, which is a coverage hole well beyond
+    the levels.
+
+    The existing ceiling arms assert the SCRIPT's exit code, which stays
+    non-zero under this key; GitHub is what discards it. So they are blind to it
+    by construction and this arm is not a restatement of them.
+    """
+    advisory: list[str] = []
+    for job_id, job in every_parsed_job().items():
+        if ADVISORY_KEY in job:
+            advisory.append(f"job {job_id!r} sets {ADVISORY_KEY}={job[ADVISORY_KEY]!r}")
+        steps = job.get("steps")
+        if not isinstance(steps, list):
+            continue
+        for index, step in enumerate(steps):
+            if isinstance(step, dict) and ADVISORY_KEY in step:
+                name = step.get("name", f"index {index}")
+                advisory.append(
+                    f"step {name!r} of job {job_id!r} sets {ADVISORY_KEY}={step[ADVISORY_KEY]!r}"
+                )
+
+    assert advisory == [], (
+        f"{WORKFLOW_RELATIVE} makes a failure advisory: {advisory}. The ceiling"
+        " fails the lane by exiting non-zero, and this key tells GitHub to"
+        " record that failure as a success - so the lane would drift past its"
+        " stated ceiling with nothing red, which is CS-896's filed defect"
+        " reproduced on CS-896's own repair"
+    )
+
+
+def test_the_start_step_writes_only_the_start_marker_into_the_env_file() -> None:
+    """CS-896 - anything the start step exports overrides the env for every later step.
+
+    `$GITHUB_ENV` is not a scratch file: a line written into it sets that
+    variable for every subsequent step of the job. A start step that writes a
+    second key therefore owns the levels the report step reads, and neither the
+    workflow-level block nor guard (k) would show it.
+    """
+    for job_id, job in every_parsed_job().items():
+        steps = job.get("steps")
+        assert isinstance(steps, list), f"job {job_id!r} declares no step list"
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            script = step.get("run")
+            if not isinstance(script, str) or "GITHUB_ENV" not in script:
+                continue
+            # NON-GREEDY, AND THAT IS THE WHOLE ARM. MEASURED 2026-09-06: the
+            # greedy first draft of this line scored its OWN mutation GREEN. A
+            # plain YAML scalar FOLDS a continuation line into the same string,
+            # so a smuggled second write lands on one line beside the first; a
+            # greedy run then reached from the first key past the second write
+            # to the LAST marker and captured one key where there were two, and
+            # the arm reported the property held with the mutation in the tree.
+            exported = sorted(
+                set(
+                    re.findall(
+                        r"([A-Za-z_][A-Za-z0-9_]*)=[^\n]*?>>[ \t]*\"?\$GITHUB_ENV",
+                        script,
+                    )
+                )
+            )
+            assert exported == ["TIER1_STARTED"], (
+                f"step {step.get('name')!r} of job {job_id!r} writes {exported} into"
+                " $GITHUB_ENV. Only the start marker may be exported: every other key"
+                " written there silently replaces the value the report step reads,"
+                " including either level"
+            )
+
+
+def report_with_levels(
+    tmp_path: Path, elapsed_started: str, levels: dict[str, str]
+) -> subprocess.CompletedProcess[str]:
+    """Run the report step's own script with the LEVELS under test.
+
+    `run_report_step` injects `workflow_env()` unconditionally, so every arm
+    built on it grades the script against the real levels and none of them can
+    reach the branch where a level is the thing that is wrong.
+
+    Args:
+        tmp_path: pytest temporary directory.
+        elapsed_started: The value for TIER1_STARTED.
+        levels: The level variables to set. A None value unsets the key.
+
+    Returns:
+        The completed process.
+    """
+    assert BASH is not None, "guarded by needs_bash"
+    script = step_named(REPORT_STEP)["run"]
+    assert isinstance(script, str), "the report step declares no run script"
+    path = tmp_path / "report_levels.sh"
+    path.write_bytes(script.encode("utf-8"))
+
+    env = dict(os.environ)
+    env.update(workflow_env())
+    env["GITHUB_STEP_SUMMARY"] = (tmp_path / "summary_levels.md").as_posix()
+    env["TIER1_STARTED"] = elapsed_started
+    env.update(levels)
+
+    return subprocess.run(
+        [BASH, "--noprofile", "--norc", "-eo", "pipefail", str(path)],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+        timeout=REPORT_STEP_TIMEOUT,
+    )
+
+
+@needs_bash
+@pytest.mark.parametrize(
+    ("case", "levels"),
+    [
+        ("ceiling empty", {CEILING_KEY: ""}),
+        ("budget empty", {BUDGET_KEY: ""}),
+        ("both empty", {BUDGET_KEY: "", CEILING_KEY: ""}),
+        ("ceiling carries a unit", {CEILING_KEY: "480s"}),
+        ("budget carries a unit", {BUDGET_KEY: "420s"}),
+        ("ceiling is a word", {CEILING_KEY: "none"}),
+    ],
+)
+def test_the_report_refuses_a_level_it_cannot_read(
+    tmp_path: Path, case: str, levels: dict[str, str]
+) -> None:
+    """CS-896 - a comparison against an unreadable level is not a comparison.
+
+    THE MEASURED FAILURE, reproduced against the shipped script: with the
+    a level left empty, the shell's integer comparison against it exits 2 with
+    `integer expression expected` on stderr. An `if` CONDITION is exempt from
+    `set -e`, so the script does not stop; both comparisons fall through to
+    `else` and it prints the healthiest verdict it has, and exits 0.
+
+    The step's own comment claims "every way that number can be meaningless has
+    to end in a refusal rather than in a cheerful verdict". All three refusals
+    it ships guard TIER1_STARTED. The two levels get none, which is what this
+    arm holds it to.
+    """
+    # A start far enough back that the run is unambiguously past every level.
+    # Read correctly, this MUST NOT produce a healthy verdict.
+    started = str(int(time.time()) - OVER_EVERY_LEVEL_SECONDS)
+    proc = report_with_levels(tmp_path, started, levels)
+
+    combined = proc.stdout + proc.stderr
+    assert proc.returncode != 0, (
+        f"{case}: the report exited 0 over an unreadable level and said:"
+        f" {combined.strip()!r}. A level the shell cannot compare against makes"
+        " every branch fall to `else`, so the lane reports the healthiest"
+        " verdict it has exactly when its own configuration is broken"
+    )
+    assert "within budget" not in proc.stdout, (
+        f"{case}: the report printed a within-budget verdict over an unreadable"
+        f" level: {proc.stdout.strip()!r}"
+    )
+
+
+def test_both_shards_run_the_same_report_script() -> None:
+    """CS-896 - a repair applied to one shard's copy leaves the other unrepaired.
+
+    The two jobs carry the report step as duplicated text rather than a shared
+    reference, so nothing structural keeps them in step. The session before this
+    one found a guard that read ONE SIDE of this very split; this arm is what
+    makes that impossible for this step.
+    """
+    scripts: dict[str, str] = {}
+    for job_id, job in every_parsed_job().items():
+        steps = job.get("steps")
+        assert isinstance(steps, list), f"job {job_id!r} declares no step list"
+        matched = [
+            step for step in steps if isinstance(step, dict) and step.get("name") == REPORT_STEP
+        ]
+        assert len(matched) == 1, (
+            f"job {job_id!r} declares {len(matched)} steps named {REPORT_STEP!r};"
+            " every job in this lane must report its own duration exactly once"
+        )
+        script = matched[0].get("run")
+        assert isinstance(script, str), f"job {job_id!r} report step declares no run script"
+        scripts[job_id] = script
+
+    distinct = sorted(set(scripts.values()))
+    assert len(distinct) == 1, (
+        f"the {sorted(scripts)} jobs run DIFFERENT report scripts. They are"
+        " duplicated text, so a repair made to one is not made to the other and"
+        " the shard nobody looked at keeps the defect"
+    )
+
+
+#: A single quote, SPELLED rather than written. The plants below assemble a
+#: level statement, and a literal one here would make this module a second
+#: owner of the number - which guard (k) catches, correctly.
+QUOTE = chr(39)
+
+
+def override_line(key: str, value: str, *, flow: bool) -> str:
+    """A job-level env block restating one level, ASSEMBLED rather than written.
+
+    Assembled for the reason :func:`restatement` gives: a plant written as one
+    literal would make THIS MODULE a second owner of the number and redden the
+    second-owner arm against the real tree. MEASURED 2026-09-06 - the first
+    draft of these arms did exactly that and guard (k) caught it.
+
+    Args:
+        key: The level key to restate.
+        value: The value to restate it as.
+        flow: True for the inline brace spelling that defeated the pattern,
+            False for the ordinary block spelling that did not.
+
+    Returns:
+        The lines to splice under a job, newline-terminated.
+    """
+    quoted = QUOTE + value + QUOTE
+    if flow:
+        return "    env: {" + key + ": " + quoted + "}" + chr(10)
+    return "    env:" + chr(10) + "      " + key + ": " + quoted + chr(10)
+
+
+def job_with(extra: str) -> str:
+    """The shipped workflow with `extra` spliced under the save shard.
+
+    Args:
+        extra: Lines to insert, newline-terminated.
+
+    Returns:
+        The mutated workflow text.
+    """
+    shipped = (REPO_ROOT / WORKFLOW_RELATIVE).read_text(encoding="utf-8")
+    head = "  " + SAVE_JOB_ID + ":" + chr(10)
+    start = shipped.index(head)
+    cut = shipped.index(chr(10), shipped.index("runs-on:", start)) + 1
+    return shipped[:cut] + extra + shipped[cut:]
+
+
+@pytest.mark.parametrize("flow", [True, False], ids=["flow mapping", "block mapping"])
+@pytest.mark.parametrize("key", list(LEVEL_KEYS))
+def test_the_guard_reads_the_level_a_later_env_block_actually_imposes(key: str, flow: bool) -> None:
+    """CS-896 - a level a job can restate is not pinned, whatever the guard prints.
+
+    MEASURED 2026-09-06 by an adversary that wrote none of this: the FLOW
+    spelling moved the save shard's effective levels while guard (k) printed
+    PASS and its detail asserted the pair was pinned two ways. The BLOCK
+    spelling was caught. One spelling of one key was the whole difference, which
+    is why both are graded here rather than the one that broke.
+    """
+    mutated = job_with(override_line(key, "599", flow=flow))
+    problems = drift_guard._tier1_effective_levels(  # noqa: SLF001 - the site under test
+        mutated, EXPECTED_RECORDED_BUDGET, EXPECTED_RECORDED_CEILING
+    )
+
+    assert problems, (
+        f"a job-level env restating {key} in the {'flow' if flow else 'block'}"
+        " spelling was accepted, so that job runs against a level nothing owns"
+    )
+    assert any(key in problem for problem in problems), (
+        f"the rejection does not name {key}: {problems}"
+    )
+
+
+@pytest.mark.parametrize("where", ["job", "step"])
+def test_the_guard_rejects_a_lane_that_records_its_own_failure_as_a_success(
+    where: str,
+) -> None:
+    """CS-896 - the ceiling's non-zero exit is the only thing the ceiling adds.
+
+    `continue-on-error` was governed by NOTHING when this was written. On a job
+    it also silently disables that shard's whole suite, so the blast radius is
+    well past the levels.
+    """
+    advisory = "    " + ADVISORY_KEY + ": true" + chr(10)
+    if where == "job":
+        mutated = job_with(advisory)
+    else:
+        shipped = (REPO_ROOT / WORKFLOW_RELATIVE).read_text(encoding="utf-8")
+        anchor = "      - name: " + REPORT_STEP + chr(10)
+        assert anchor in shipped, "the report step was not found by name"
+        advisory_step = "        " + ADVISORY_KEY + ": true" + chr(10)
+        mutated = shipped.replace(anchor, anchor + advisory_step, 1)
+
+    problems = drift_guard._tier1_effective_levels(  # noqa: SLF001 - the site under test
+        mutated, EXPECTED_RECORDED_BUDGET, EXPECTED_RECORDED_CEILING
+    )
+
+    assert problems, (
+        f"a {where} marked {ADVISORY_KEY} was accepted, so a run over the ceiling"
+        " would be recorded as a success and the lane would go green over a breach"
+    )
+    assert any(ADVISORY_KEY in problem for problem in problems), (
+        f"the rejection does not name {ADVISORY_KEY}: {problems}"
+    )
+
+
+def test_the_effective_level_read_is_green_on_the_shipped_lane() -> None:
+    """The arms above only mean something against a clean floor.
+
+    An arm that reddens on a mutation AND on the shipped tree has proved
+    nothing about the mutation.
+    """
+    shipped = (REPO_ROOT / WORKFLOW_RELATIVE).read_text(encoding="utf-8")
+    problems = drift_guard._tier1_effective_levels(  # noqa: SLF001 - the site under test
+        shipped, EXPECTED_RECORDED_BUDGET, EXPECTED_RECORDED_CEILING
+    )
+    assert problems == [], f"the shipped lane does not read clean: {problems}"
+
+
+@pytest.mark.parametrize("flow", [True, False], ids=["flow mapping", "block mapping"])
+def test_the_guard_record_reddens_on_an_overridden_level_not_merely_the_helper(
+    tmp_path: Path, green_tree: tuple[Path, list[Path]], flow: bool
+) -> None:
+    """CS-896 - a reader nothing calls is a reader that grades nothing.
+
+    The arms above call :func:`_tier1_effective_levels` directly, so deleting
+    its CALL SITE inside the guard would leave every one of them green while the
+    guard went blind again - which is the precise shape of the defect they were
+    written for. This one goes through the guard's public record instead, so the
+    wiring is what it grades.
+    """
+    root, files = green_tree
+    floor, _ = run_guard(root, files)
+    assert floor["status"] == "PASS", (
+        f"the floor is not green, so a red below attributes to nothing: {floor}"
+    )
+
+    # Spliced INSIDE the job rather than appended, because that is where an env
+    # block has to sit to override anything.
+    override = override_line(CEILING_KEY, "599", flow=flow)
+    source = workflow_source()
+    anchor = "  fast:" + chr(10)
+    assert anchor in source, "the synthetic workflow no longer declares that job"
+    mutated = source.replace(anchor, anchor + override, 1)
+    assert mutated != source, "nothing was planted"
+
+    root2 = tmp_path / "mutated"
+    files2 = build_tree(root2, mutated)
+    guard, _ = run_guard(root2, files2)
+
+    assert guard["status"] == "FAIL", (
+        "the guard RECORD stayed "
+        + str(guard["status"])
+        + " while the job it grades ran against an overridden ceiling. The helper"
+        " may see it; what matters is whether the guard does"
+    )
+    rendered_detail = rendered(guard)
+    assert CEILING_KEY in rendered_detail, (
+        "the guard failed without naming the key that was overridden: " + rendered_detail
+    )

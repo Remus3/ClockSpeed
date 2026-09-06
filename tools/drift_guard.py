@@ -3047,6 +3047,136 @@ def _tier1_declaration(
     return int(distinct[0]), None
 
 
+#: The key that turns a failing step or job into an advisory one. GitHub records
+#: the failure as a success, so the ceiling's non-zero exit is discarded and the
+#: lane goes green over a breach. MEASURED 2026-09-06 ungoverned: it appeared
+#: nowhere under tests/ or tools/, so CS-896's one enforcement mechanism could be
+#: switched off in a single line.
+TIER1_ADVISORY_KEY = "continue-on-error"
+
+
+def _tier1_effective_levels(text: str, budget: int | None, ceiling: int | None) -> list[str]:
+    """What actually grades a run, read the way GitHub layers it.
+
+    THE PATTERN ABOVE READS DECLARATIONS. THIS READS EFFECT, and the two are not
+    the same question. GitHub applies workflow ``env``, then job ``env``, then
+    step ``env``, and the LAST one wins. :func:`_tier1_declaration` anchors at
+    the start of a line, so a FLOW mapping - a job-level env written inline in
+    braces - never begins a line and is invisible to it while the parser
+    resolves it to a real override.
+
+    MEASURED 2026-09-06 (session 65), by an adversary that wrote none of this:
+    one such line under the save shard moved that shard's effective levels while
+    this guard printed PASS and its own detail asserted they were pinned two
+    ways. A run past the shipped ceiling then exited 0. That is CS-896's filed
+    defect - the lane drifting past a stated level with nothing failing -
+    reproduced one level up, on CS-896's own repair.
+
+    THIS IS THE THIRD REGEX-VERSUS-PARSER HOLE IN THIS GUARD IN THREE SESSIONS.
+    The pattern is kept as the cheap half of a belt-and-braces pair; this is the
+    half that is authoritative, and a spelling nobody predicted defeats a
+    pattern but not a parser.
+
+    Args:
+        text: The workflow source.
+        budget: The budget the workflow-level block declares, if it is readable.
+        ceiling: The ceiling the workflow-level block declares, if it is readable.
+
+    Returns:
+        One problem per override or advisory key found, empty when the declared
+        levels are the levels every job actually runs under.
+    """
+    try:
+        import yaml  # noqa: PLC0415 - lazy, exactly as tools/edit_lint_check.py imports it
+    except ImportError:  # pragma: no cover - PyYAML is a declared dependency
+        return ["PyYAML is unavailable, so NO job's effective levels were read"]
+    try:
+        document = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        # THE OBJECT IS NEVER RENDERED. A YAML error carries the file it failed
+        # on, and an error message is an echo path exactly like a debug dump
+        # (CLAUDE.md non-negotiable 12). tests/test_exception_rendering.py caught
+        # this line rendering `exc` directly.
+        return [f"the workflow does not parse, so no effective level was read: {_exc_text(exc)}"]
+    if not isinstance(document, dict):
+        return ["the workflow did not parse to a mapping, so no effective level was read"]
+    jobs = document.get("jobs")
+    if not isinstance(jobs, dict):
+        return ["the workflow resolves no jobs mapping, so no effective level was read"]
+
+    owned = {TIER1_BUDGET_KEY: budget, TIER1_CEILING_KEY: ceiling}
+    problems: list[str] = []
+    for job_id, job in jobs.items():
+        if not isinstance(job, dict):
+            continue
+        problems.extend(_tier1_advisory_problems(job_id, job))
+        for where, block in _tier1_env_blocks(job_id, job):
+            problems.extend(
+                f"{where} restates {key} as {block[key]!r} against the"
+                f" workflow block's {declared}. GitHub applies workflow env,"
+                " then job env, then step env, and the LAST one wins - so"
+                " THAT is the level grading this job, whatever the one owner"
+                " above states and whatever this guard would otherwise print"
+                for key, declared in owned.items()
+                if key in block
+            )
+    return problems
+
+
+def _tier1_env_blocks(job_id: str, job: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    """Every env block GitHub applies AFTER the workflow-level one, located.
+
+    Args:
+        job_id: The job's id, for the message.
+        job: The parsed job.
+
+    Returns:
+        (where it sits, the block) for the job's own env and each step's.
+    """
+    blocks: list[tuple[str, dict[str, Any]]] = []
+    block = job.get("env")
+    if isinstance(block, dict):
+        blocks.append((f"job {job_id!r}", block))
+    steps = job.get("steps")
+    if isinstance(steps, list):
+        for index, step in enumerate(steps):
+            if not isinstance(step, dict):
+                continue
+            block = step.get("env")
+            if isinstance(block, dict):
+                blocks.append((f"step {step.get('name', index)!r} of job {job_id!r}", block))
+    return blocks
+
+
+def _tier1_advisory_problems(job_id: str, job: dict[str, Any]) -> list[str]:
+    """Every place this job records its own failure as a success.
+
+    Args:
+        job_id: The job's id, for the message.
+        job: The parsed job.
+
+    Returns:
+        One problem per advisory job or step.
+    """
+    problems: list[str] = []
+    if TIER1_ADVISORY_KEY in job:
+        problems.append(
+            f"job {job_id!r} sets {TIER1_ADVISORY_KEY}={job[TIER1_ADVISORY_KEY]!r},"
+            " which records a failing job as a success - the ceiling's exit is"
+            " discarded and the lane goes green over a breach"
+        )
+    steps = job.get("steps")
+    if isinstance(steps, list):
+        for index, step in enumerate(steps):
+            if isinstance(step, dict) and TIER1_ADVISORY_KEY in step:
+                problems.append(
+                    f"step {step.get('name', index)!r} of job {job_id!r} sets"
+                    f" {TIER1_ADVISORY_KEY}={step[TIER1_ADVISORY_KEY]!r}, which"
+                    " records a failing step as a success"
+                )
+    return problems
+
+
 def _tier1_narrative_reason(relative: str) -> str | None:
     """Why this path records a target rather than stating one, if it does.
 
@@ -3252,6 +3382,11 @@ def guard_tier1_budget(
             " cutoff inherits the platform default instead of this lane's"
         )
     problems = [item for item in (budget_problem, ceiling_problem, minutes_problem) if item]
+    # AND WHAT THE PARSER RESOLVES, BESIDE WHAT THE PATTERN MATCHED. A level
+    # a later env block restates is the level that grades the run; a job or
+    # step marked advisory discards the ceiling's exit entirely. Neither
+    # shape begins a line, so neither is visible to the reads above.
+    problems.extend(_tier1_effective_levels(text, budget, ceiling))
 
     detail = [f"one owner: {TIER1_WORKFLOW_RELATIVE}"]
     if budget is not None and ceiling is not None and minutes is not None:

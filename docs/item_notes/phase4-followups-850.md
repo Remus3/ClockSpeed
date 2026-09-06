@@ -1635,6 +1635,96 @@ docstrings.
 
 ## CS-896
 
+### THE MECHANISM WAS DEFEATABLE IN ONE LINE - MEASURED 2026-09-06 (session 65)
+
+**THREE ADVERSARIES GRADED THE SHIPPED REPAIR AT `58a30f1` AND ALL THREE RETURNED
+REFUTED.** None of them wrote it. Between them they moved the effective levels or made
+the ceiling decorative with every guard green, guard (k) printing PASS, its own detail
+asserting the pair was pinned two ways, and the whole budget module green at 122 passed.
+
+**THE FOUR ROUTES, ALL REPRODUCED BY THE MERGER BEFORE ANY REPAIR.**
+
+1. **A job-level or step-level `env:` block restating either level.** guard (k) anchored
+   its read at the start of a line, so a FLOW mapping never begins one and was invisible
+   while PyYAML resolved it to a real override. The BLOCK spelling of the same override
+   WAS caught. One spelling of one key was the entire difference. **This is the third
+   regex-versus-parser hole in this guard in three sessions**, arriving one spelling
+   further out than the trailing-comment hole the session before found.
+2. **`continue-on-error` on the job or the step**, which records a failing step as a
+   success and discards the ceiling's non-zero exit. MEASURED governed by NOTHING - the
+   key appeared nowhere under `tests/` or `tools/`. On a job it also silently disables
+   that shard's entire suite, so the blast radius is well past the levels.
+3. **A second key written into `$GITHUB_ENV` from the start step**, which sets that
+   variable for every later step in the job.
+4. **The report step reading a level it cannot parse.** Its three refusals all guarded
+   the start marker; neither level had one. With a level left empty the shell's integer
+   comparison exits 2 with `integer expression expected` on stderr, an `if` CONDITION is
+   exempt from `set -e`, so both comparisons fell through to `else` - and a run far past
+   every level printed the healthiest verdict the step has and exited 0.
+
+**ALL FOUR ARE REPAIRED AND EVERY REPAIR IS MUTATION-PROVEN.** The levels now get the
+same refusal the start marker does, in both shards; guard (k) reads what the PARSER
+resolves beside what its pattern matched; and nine planted mutations that were green at
+`58a30f1` now redden - five against the guard record, four against the arms.
+
+**ONE ARM SCORED ITS OWN MUTATION GREEN AND THE MUTATION PROOF IS WHAT CAUGHT IT.** The
+first draft of the `$GITHUB_ENV` arm matched greedily. A plain YAML scalar FOLDS a
+continuation line into the same string, so the smuggled write landed beside the first on
+one line and the greedy run reached past it to the last marker, capturing one key where
+there were two. It reported the property held with the mutation in the tree. Written
+non-greedy it kills both the folded and the block-scalar shapes.
+
+### THE FIFTH READING, AND WHY IT SETTLES LESS THAN IT LOOKS
+
+Run 34038527058 on `58a30f1` was green - a fifth consecutive green sharded run. Both
+shards reported the comparison; the fast shard's own line read 346 seconds within budget.
+
+**THE ACCEPTANCE CLAUSE IN `ROADMAP.md` IS MET AND REPRODUCES.** What is still not met is
+this leaf's added condition that growth be visible before it is fatal.
+
+**AND THE DISPOSITION TURNS ON A SINGLE OBSERVATION, WHICH IS THE REAL FINDING.** Drop
+the one low fast-shard reading and that shard's spread falls from 94 seconds to 34, and
+the shipped band is then WIDER than the noise rather than narrower - the condition passes.
+Keep it and the condition fails. `n=5` cannot say whether that observation is a second
+machine class or a one-off, which is exactly why another reading is the wrong instrument.
+
+**A CLAIM THIS SESSION MADE AND THEN RETRACTED.** The merger proposed that the swing is
+SHARD-SPECIFIC, on the save shard's 16-second step spread against the fast shard's 94 over
+the same five runs. An adversary refuted it and the merger verified the refutation: the
+two shards are separate jobs drawn independently, so under a pool with a fast class
+appearing once in five fast-shard draws, the save shard missing it in five draws has
+probability 0.8 to the fifth - about one in three. **A one-in-three outcome under an
+IDENTICAL pool reproduces the contrast exactly**, so the contrast is not evidence of
+anything. The corollary drawn from it - that only the fast shard fails the condition - is
+withdrawn.
+
+### THE FEASIBILITY ARITHMETIC, WHICH IS NEW AND SURVIVES
+
+Whether the condition can be met AT ALL by choosing levels is decidable, and nobody had
+asked. Write `M` for the worst reading, `N` for the observed spread, `B` and `C` for
+budget and ceiling, and the cutoff as policy:
+
+- no false warn requires `B >= M`
+- a warn before a red requires `C - B >= N`
+- a red rather than a cancel requires `C + N <= cutoff`
+
+Combining the last two gives `B <= cutoff - 2N`, so the feasible budget window is
+`[M, cutoff - 2N]` and it is EMPTY once `N > (cutoff - M) / 2`. At the figures measured
+here the window is non-empty and the SHIPPED budget sits outside it, failing the second
+requirement and only that one.
+
+**THIS IS NOT A LICENCE TO RE-DERIVE THE LEVELS AND THEY WERE NOT TOUCHED.** `N` here is
+a spread over five readings that rests on one observation, and three previous
+re-derivations each sized a band from a figure their own next reading falsified. The
+window is recorded so the next session knows the lever EXISTS and what governs it, not so
+it can be used at this sample size. The binding constraint is `N`, which makes this
+blocked on CS-917 rather than on a better choice of numbers.
+
+**A DISTRIBUTION-FREE BOUND IS NOT AVAILABLE EITHER.** A one-sided 95/95 tolerance bound
+built on the sample maximum has confidence `1 - p**n`, which needs `n >= 59`. At roughly
+one run per commit that is dozens of runs away.
+
+
 ### CORRECTION - MEASURED 2026-09-03 (session 59) by the merger, SAME DAY, BEFORE ANYTHING WAS BUILT ON THE FILING
 
 **THE FILING BELOW IMPLIES THIS ROUND CAUSED A REGRESSION. IT DID NOT, AND MAIN IS GREEN.**

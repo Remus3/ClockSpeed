@@ -160,6 +160,112 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-06 - CS-896 - THE CLOSURE WAS REFUTED BY THREE ADVERSARIES AND THE MECHANISM WAS DEFEATABLE IN ONE LINE. Four routes repaired, nine mutations now killed, and one arm that scored its own mutation green
+
+**CS-896 STAYS OPEN and this entry does not close it.** A closure was proposed, frozen at
+`58a30f1`, and graded by three adversaries on distinct lenses - measurement integrity,
+scope laundering, and guard defeat. **All three returned REFUTED.** Every load-bearing
+citation was then verified by the merger against `git show 58a30f1:` rather than the
+working tree, because one adversary was mutating that tree while the others read it.
+
+**THE PROPOSED CLOSURE AND WHY IT FAILED.** It argued that this item's ROADMAP acceptance
+clause is met - it is, and reproduces - and that the leaf's growth-visibility requirement
+is a purpose clause rather than a condition, transferable to CS-917. **The tree's own
+newest record refutes that in terms**: the entry below reads "That is why this is a record
+and not a closure" and calls the requirement "the CS-896 leaf's added condition". A
+reinterpretation is not a correction, and no new evidence on that point was offered.
+
+**AND THE TRANSFER WOULD HAVE LOST THE CONDITION RATHER THAN MOVED IT.** Two adversaries
+on different lenses found the same defect in CS-917's own acceptance, filed one session
+earlier: it required the warn band be DERIVED FROM a stable noise figure and never that it
+be WIDER than one. **Provenance is not width.** CS-917 could have closed in full with the
+band still narrower than the noise and a red still reachable having never warned.
+`ROADMAP.md` line 91 now carries the ordering guarantee explicitly. **THAT IS A
+TIGHTENING, NOT A NARROWING** - it makes the item harder to close, and it is flagged here
+for the operator rather than treated as routine, because an acceptance clause is not
+something an agent should move on its own authority.
+
+**THE FOUR ROUTES THAT DEFEATED THE MECHANISM, EVERY ONE REPRODUCED BY THE MERGER.**
+At `58a30f1` each of these left guard (k) printing PASS, its own detail asserting the
+levels were "pinned two-way", and the budget module green at 122 passed:
+
+1. **A job-level or step-level `env:` block restating either level.** guard (k) anchored
+   its read at the start of a line, so a FLOW mapping never begins one and was invisible
+   while PyYAML resolved it to a real override. The BLOCK spelling WAS caught - one
+   spelling of one key was the whole difference. **The third regex-versus-parser hole in
+   this guard in three sessions.**
+2. **`continue-on-error` on a job or a step**, discarding the ceiling's non-zero exit.
+   MEASURED governed by nothing: the key appeared nowhere under `tests/` or `tools/`. On a
+   job it also silently disables that shard's entire suite.
+3. **A second key written into `$GITHUB_ENV`** from the start step, which sets that
+   variable for every later step in the job.
+4. **The report step reading a level it cannot parse.** All three of its refusals guarded
+   the start marker and neither level had one. With a level empty, the shell's integer
+   comparison exits 2 on stderr, an `if` CONDITION is exempt from `set -e`, both branches
+   fall to `else`, and a run far past every level printed the healthiest verdict it has
+   and exited 0. **The step's own comment claimed every meaningless number "has to end in
+   a refusal rather than in a cheerful verdict".** It was false for two of three inputs.
+
+**WHAT SHIPPED.** The levels now get the same refusal the start marker does, in BOTH
+shards; guard (k) reads what the parser resolves beside what its pattern matched, in
+`tools/drift_guard.py::_tier1_effective_levels` with `_tier1_env_blocks` and
+`_tier1_advisory_problems`; and `tests/test_tier1_budget.py` gains arms for all four
+routes plus one that grades the guard's RECORD rather than the helper. Verify with
+`python -m pytest tests/test_tier1_budget.py` (141 passed, was 122) and
+`python tools/drift_guard.py` (guard k PASS).
+
+**NINE MUTATIONS THAT WERE GREEN AT `58a30f1` NOW REDDEN** - five against the guard record
+(job env in both spellings, step env, `continue-on-error` on job and on step) and four
+against the arms (job env, advisory job, smuggled env key, one shard's report drifting).
+
+**ONE ARM SCORED ITS OWN MUTATION GREEN, AND ONLY THE MUTATION PROOF CAUGHT IT.** The
+first draft of the `$GITHUB_ENV` arm matched greedily. A plain YAML scalar FOLDS a
+continuation line into the same string, so the smuggled write landed beside the first on
+one line and the greedy run reached past it to the last marker, capturing one key where
+there were two. **It reported the property held with the mutation in the tree.** Rewritten
+non-greedy it kills both the folded and the block-scalar shapes. An arm that passes on a
+clean tree has proved nothing until its mutation is shown to red it.
+
+**THE GUARD ALSO CAUGHT THE MERGER.** The first draft of these arms quoted the override
+in its own docstrings, which made the test module a second owner of the numbers and
+reddened guard (k) correctly. The plants are now ASSEMBLED at call time, which is the
+convention `restatement()` in that module already documents.
+
+**A CLAIM THIS SESSION MADE AND RETRACTED.** The merger proposed that the runner swing is
+SHARD-SPECIFIC, from the save shard's 16-second step spread against the fast shard's 94
+over the same five runs. **An adversary refuted it and the merger verified the
+refutation.** The two shards are independent draws, so under a pool with a fast class
+appearing once in five fast-shard draws, the save shard missing it in five has probability
+0.8 to the fifth - about one in three. A one-in-three outcome under an IDENTICAL pool
+reproduces the contrast exactly. The corollary drawn from it is withdrawn.
+
+**THE FIFTH READING.** Run 34038527058 on `58a30f1`, success, both shards green: fast 353
+job-seconds, save 247, the lane's own lines reading 346 and 240 within budget. **Its
+significance is smaller than it looks and cuts the other way.** Drop the single low fast
+reading and that shard's spread falls from 94 seconds to 34, and the shipped band is then
+WIDER than the noise rather than narrower - the condition passes. Keep it and it fails.
+**The disposition of this item turns on one observation**, which is exactly why another
+reading is the wrong instrument.
+
+**THE FEASIBILITY ARITHMETIC, WHICH IS NEW.** Whether the condition is reachable by
+choosing levels at all is decidable and nobody had asked. With `M` the worst reading and
+`N` the spread: no false warn needs `B >= M`, a warn before a red needs `C - B >= N`, and
+a red rather than a cancel needs `C + N <= cutoff`. So `B <= cutoff - 2N`, the feasible
+budget window is `[M, cutoff - 2N]`, and it is EMPTY once `N > (cutoff - M) / 2`. At the
+figures measured the window is non-empty and the shipped budget sits OUTSIDE it, failing
+the second requirement and only that one. **THE LEVELS WERE NOT TOUCHED** - `N` rests on
+one observation and three previous re-derivations were each falsified by their own next
+reading. The window is recorded so the next session knows the lever exists, not so it can
+be pulled at this sample size. A distribution-free 95/95 bound on the sample maximum needs
+`n >= 59` and is not available either.
+
+**WHAT REMAINS OWED ON THIS ITEM, STATED SO IT IS NOT REDISCOVERED.** The acceptance
+clause is met and reproduces. The leaf's growth-visibility condition is not, it is blocked
+on a stable noise figure, and that is CS-917. Whether this item instead closes as an
+HONEST PARTIAL is an operator ruling with precedent in this file under CS-421 and CS-882;
+no adjudicator can grant it and none was asked.
+
+
 ### 2026-09-06 - CS-896 - READING FOUR CAME IN AND FAILED THE CRITERION IT WAS TAKEN TO SATISFY. The runner has two performance modes and the warn band is narrower than the noise
 
 **CS-896 STAYS OPEN and this entry does not close it.** The entry below records that a
