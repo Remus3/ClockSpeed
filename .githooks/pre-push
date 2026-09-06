@@ -212,12 +212,21 @@ fi
 # degrade is LOUD because a silent one is indistinguishable from a lane that
 # was never parallel.
 #
-# MEASURED 2026-09-06 on this 16-processor machine, one byte-identical tree:
-# 765s serial against 296s distributed, both reporting 5362 passed and 4
-# skipped. Parallelism bought 2.59x and cost no coverage.
+# MEASURED 2026-09-06 on this machine, one byte-identical tree. NOTE THE
+# WORKER COUNT: `-n auto` resolves to 8, not 16 - xdist counts PHYSICAL
+# cores and this box is 8 physical / 16 logical.
+#
+# 765s serial. 318s and 387s distributed under xdist's DEFAULT scheduler.
+# 233s and 243s distributed under `--dist loadfile`. Same 5371 passed and
+# 4 skipped every run, so the scheduler costs no coverage.
+#
+# LOADFILE IS BOTH FASTER AND STEADIER, and the second half is why it is
+# here rather than the first: its two readings span 10s where the default
+# spans 69s, and its WORST reading beats the default's BEST. A gate whose
+# duration swings 69s teaches a reader to ignore its duration.
 PYTEST_PARALLEL=""
 if cs_python -c "import xdist" >/dev/null 2>&1; then
-    PYTEST_PARALLEL="-n auto"
+    PYTEST_PARALLEL="-n auto --dist loadfile"
 else
     printf 'clockspeed pre-push: xdist is not importable, so the suite runs ' >&2
     printf 'SERIAL - slower, not weaker. Restore the parallel lane with: ' >&2

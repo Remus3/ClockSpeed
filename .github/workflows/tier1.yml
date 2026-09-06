@@ -327,10 +327,20 @@ jobs:
       # is written for the developer machine, and the invocation is kept
       # identical here so CI and local never diverge.
       #
-      # `-n auto` WITH NO `--dist` FLAG, because tier2.yml already runs exactly
-      # that and it is therefore this repo's proven invocation. `--dist
-      # loadfile` has never run here, and adopting an unmeasured scheduler to
-      # fix a timing problem trades one unknown for another.
+      # `-n auto --dist loadfile`. THIS COMMENT USED TO DECLINE THAT FLAG, and
+      # its reason was that the flag had never run here - not that it was
+      # wrong. That objection is discharged rather than overruled: it was
+      # MEASURED on 2026-09-06, twice, against two readings of the default.
+      #
+      # 233s and 243s loadfile against 318s and 387s default, on 5371 passed
+      # and 4 skipped every run. The two ranges do not overlap - loadfile's
+      # WORST beats the default's BEST - and loadfile's spread is 10s against
+      # 69s. It is adopted for the STEADINESS as much as the speed.
+      #
+      # THE HOOK AND THIS LANE NOW RUN THE SAME INVOCATION ON PURPOSE. They
+      # diverged for one commit and that is exactly the state this comment
+      # used to warn about: a gate that proves a different thing from the
+      # lane it stands in for.
       #
       # MEASURED, not assumed. The six-reading sample and its range live in the
       # env block above; this step is what the sample was taken from.
@@ -379,7 +389,7 @@ jobs:
       # test, and the threshold keeps the sub-5s tail out of the log.
       - name: Unit tests
         run: >-
-          python -m pytest tests --ignore=tests/save -q -n auto
+          python -m pytest tests --ignore=tests/save -q -n auto --dist loadfile
           --durations=15 --durations-min=5.0
 
       # -- The comparison CS-896's acceptance clause asks for. --
@@ -548,7 +558,9 @@ jobs:
       # THE OTHER HALF OF THE PARTITION. Explicit target directory, never a bare
       # recursive invocation from the repo root - CONVENTIONS.md section 7.1.
       - name: Unit tests
-        run: python -m pytest tests/save -q -n auto --durations=15 --durations-min=5.0
+        run: >-
+          python -m pytest tests/save -q -n auto --dist loadfile
+          --durations=15 --durations-min=5.0
 
       - name: Duration against the budget
         if: always()
