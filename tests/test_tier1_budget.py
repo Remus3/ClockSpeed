@@ -104,8 +104,8 @@ TYPE_STEP = "Type check"
 #: THE RECORDED LEVELS, PINNED. These are the two-way ratchet's other half: the
 #: guard reads the workflow, this reads the guard, and the three only agree when
 #: a change moved all of them together.
-EXPECTED_RECORDED_BUDGET = 540
-EXPECTED_RECORDED_CEILING = 570
+EXPECTED_RECORDED_BUDGET = 380
+EXPECTED_RECORDED_CEILING = 420
 EXPECTED_POLICY_CUTOFF_MINUTES = 10
 EXPECTED_LANE_WINDOW = 6
 
@@ -233,7 +233,7 @@ drift_guard = _load_drift_guard()
 # ---------------------------------------------------------------------------
 
 
-def workflow_source(budget: str = "540", ceiling: str = "570", cutoff: str = "10") -> str:
+def workflow_source(budget: str = "380", ceiling: str = "420", cutoff: str = "10") -> str:
     """A minimal tier 1 workflow carrying the three numbers.
 
     The DEFAULTS are deliberately the shipped ones so an arm that mutates one
@@ -788,7 +788,7 @@ def test_a_ceiling_not_below_the_cutoff_turns_the_guard_red(
     root = tmp_path / "tree"
     files = build_tree(root, workflow_source(ceiling=ceiling, cutoff="10"))
 
-    guard, _skips = run_guard_pinned_to(root, files, "540", ceiling, "10")
+    guard, _skips = run_guard_pinned_to(root, files, "380", ceiling, "10")
 
     assert guard["status"] == "FAIL", f"{why}, and the guard passed:\n{rendered(guard)}"
     assert "out of order" in rendered(guard), (
@@ -867,10 +867,10 @@ def test_the_recorded_levels_are_integer_literals_and_not_derived() -> None:
 @pytest.mark.parametrize(
     ("budget", "ceiling", "why"),
     [
-        ("541", "570", "one second of inflation is still inflation"),
-        ("539", "570", "a slack maximum is banked room for an append nobody defends"),
-        ("540", "571", "the ceiling inflated"),
-        ("540", "569", "the ceiling was lowered and the record was not"),
+        ("381", "420", "one second of inflation is still inflation"),
+        ("379", "420", "a slack maximum is banked room for an append nobody defends"),
+        ("380", "421", "the ceiling inflated"),
+        ("380", "419", "the ceiling was lowered and the record was not"),
         ("3000", "3500", "both levels inflated together, which the order relation permits"),
         ("1", "2", "both levels collapsed together, which the order relation also permits"),
     ],
@@ -979,9 +979,9 @@ def test_a_bare_number_hung_off_a_bound_noun_is_a_second_owner(
         [
             "Tier 1 fast lane",
             "budget:",
-            "540",
+            "380",
             "(ceiling",
-            "570,",
+            "420,",
             "cutoff",
             "600).",
         ]
@@ -1007,7 +1007,7 @@ def test_a_bound_noun_merely_near_a_number_is_not_a_second_owner(
     """
     root, files = green_tree
     sentence = " ".join(
-        ["Tier 1 - the fast lane", "budget", "is generous, and", "540", "proves it."]
+        ["Tier 1 - the fast lane", "budget", "is generous, and", "380", "proves it."]
     )
     planted = plant_file(root, "docs/OPERATIONS.md", f"## CI\n\n{sentence}\n")
 
@@ -1739,36 +1739,109 @@ def suite_invocation(job_id: str) -> list[str]:
     return script.split()
 
 
+#: Every flag that can make pytest collect LESS than its target names. The arm
+#: below refuses all of them outside the one ignore the partition is built from,
+#: because a partition argued from targets alone is defeated by any of these in
+#: total silence - MEASURED: adding `--ignore=tests/save/test_phase4_gate.py`
+#: and `-m "not slow"` to the narrow shard dropped 244 of its 1413 tests while
+#: every guard, gate and arm in this repository stayed green.
+NARROWING_FLAGS = (
+    "-m",
+    "-k",
+    "--ignore",
+    "--ignore-glob",
+    "--deselect",
+    "--collect-only",
+    "--co",
+    "-p",
+    "--lf",
+    "--ff",
+    "--last-failed",
+    "--failed-first",
+    "-x",
+    "--exitfirst",
+    "--maxfail",
+)
+
+
+def narrowing_selectors(tokens: list[str]) -> list[str]:
+    """Every token in ``tokens`` that can reduce what pytest collects.
+
+    Args:
+        tokens: A pytest command, already split.
+
+    Returns:
+        The offending tokens, in order, with any ``=`` value retained so a
+        failure names what was actually written.
+    """
+    if "pytest" not in tokens:
+        return ["<no pytest in the command, so nothing was scanned>"]
+    # SCANNING STARTS AFTER `pytest` AND THAT IS NOT A DETAIL. The command is
+    # `python -m pytest ...`, so a scan over the whole token list reads
+    # PYTHON's -m - the module flag - as pytest's marker expression and fails a
+    # correct lane. Measured the first time this arm ran.
+    after = tokens[tokens.index("pytest") + 1 :]
+    found: list[str] = []
+    for token in after:
+        head = token.split("=", 1)[0]
+        if head in NARROWING_FLAGS:
+            found.append(token)
+    return found
+
+
 def test_the_two_shards_partition_the_suite_with_no_gap_and_no_overlap() -> None:
     """CS-896 - a shard is exactly where a directory stops being tested silently.
 
-    THE PARTITION IS ASSERTED FROM THE TWO INVOCATIONS RATHER THAN TRUSTED. The
-    wide shard runs the suite root with one ignore; the narrow shard runs what
-    that ignore names. Stated that way the partition holds for ANY boundary, so
-    this arm keeps proving it if the boundary moves - which is the point, since
-    a boundary that moved in one job and not the other is the failure it exists
-    to catch.
+    THE FIRST VERSION OF THIS ARM READ ONE SIDE AND AN ADVERSARY WALKED THROUGH
+    THE OTHER. It took the wide shard's ignore list and the narrow shard's
+    target and argued a partition from the pair, which says nothing at all about
+    what the NARROW shard additionally excludes. Adding one ignore and one
+    marker expression to the save job dropped 244 of its 1413 tests - the whole
+    of tests/save/test_phase4_gate.py, including the test CS-448's acceptance
+    names - and this file, the drift guard and the pre-commit gate all stayed
+    green. The docstring claimed the gap case was covered while the gap was
+    reachable in one line.
 
-    A GAP AND AN OVERLAP FAIL DIFFERENTLY AND BOTH ARE HERE. If the wide shard
-    stopped ignoring the narrow one, every save test would run twice and the
-    lane would be slower for nothing. If it ignored something the narrow shard
-    does not run, that directory would be tested by NOBODY while both jobs went
-    green - which is the unrun-gate failure class (CONVENTIONS.md section 7.2).
+    SO THE PARTITION IS NOW ARGUED FROM THE COMPLETE SELECTOR SET OF BOTH
+    SHARDS. The wide shard may narrow itself exactly once, by the ignore that
+    names the narrow shard; the narrow shard may not narrow itself at all. Any
+    other selector on either side fails, by NAME, because the failure has to say
+    which flag reintroduced the hole.
     """
     wide = suite_invocation(JOB_ID)
     narrow = suite_invocation(SAVE_JOB_ID)
 
-    ignored = sorted(token.split("=", 1)[1] for token in wide if token.startswith("--ignore="))
+    wide_selectors = narrowing_selectors(wide)
+    narrow_selectors = narrowing_selectors(narrow)
     narrow_targets = [token for token in narrow if token.startswith(SUITE_ROOT)]
 
     assert SUITE_ROOT in wide, f"the wide shard names no explicit target directory: {wide}"
     assert narrow_targets == [SHARD_BOUNDARY], (
         f"the narrow shard runs {narrow_targets}, not [{SHARD_BOUNDARY!r}]"
     )
-    assert ignored == [SHARD_BOUNDARY], (
-        f"the wide shard ignores {ignored}; it must ignore exactly what the narrow"
-        f" shard runs, or the two are not a partition of {SUITE_ROOT!r}"
+    assert wide_selectors == [f"--ignore={SHARD_BOUNDARY}"], (
+        f"the wide shard's narrowing selectors are {wide_selectors}; it may narrow itself"
+        f" exactly once, by the ignore naming {SHARD_BOUNDARY!r}, or the two shards are"
+        " not a partition"
     )
+    assert narrow_selectors == [], (
+        f"the narrow shard narrows itself with {narrow_selectors}; whatever those exclude"
+        " is run by NEITHER shard and both jobs stay green over it"
+    )
+
+
+def test_both_shards_run_in_parallel_because_one_of_them_owns_an_open_item() -> None:
+    """CS-448 - the flag its acceptance names must be pinned on the shard that runs it.
+
+    Only the wide job's invocation was ever asserted to carry ``-n auto``, and
+    the test CS-448 is filed against lives in the NARROW one. MEASURED: deleting
+    the flag from the save job alone left all 187 arms and the drift guard green,
+    so the acceptance could have been silently ungenerated by a one-word edit.
+    """
+    for job_id in (JOB_ID, SAVE_JOB_ID):
+        tokens = suite_invocation(job_id)
+        joined = " ".join(tokens)
+        assert "-n auto" in joined, f"the {job_id!r} shard does not run in parallel: {joined!r}"
 
 
 def test_no_third_job_runs_the_suite_without_being_part_of_the_partition() -> None:
@@ -1858,9 +1931,65 @@ def test_the_guard_rejects_two_jobs_whose_cutoffs_disagree() -> None:
     assert divergent != shipped, "the cutoff was not found, so nothing was made to disagree"
 
     value, problem = drift_guard._tier1_declaration(  # noqa: SLF001 - the site under test
-        divergent, drift_guard.TIER1_TIMEOUT_KEY
+        divergent, drift_guard.TIER1_TIMEOUT_KEY, per_job=True
     )
 
     assert value is None, "a lane whose two jobs carry different cutoffs was accepted"
     assert problem is not None, "the disagreement was rejected without saying why"
     assert "DISAGREE" in problem, f"the reason does not name the disagreement: {problem}"
+
+
+def test_every_job_records_its_start_before_it_does_anything_else() -> None:
+    """CS-896 - a start recorded late under-reports by whatever ran before it.
+
+    THE STEP IS FIRST ON PURPOSE AND ONLY A COMMENT SAID SO. Moving it below the
+    install leaves the shard reporting a duration that excludes checkout, the
+    interpreter setup and the dependency install - 13 seconds on a warm cache
+    and far more on a cold one - while still printing "within budget". MEASURED:
+    the move left every arm in this file green, which is why this one exists.
+    """
+    jobs = workflow_document().get("jobs")
+    assert isinstance(jobs, dict), f"{WORKFLOW_RELATIVE} declares no jobs mapping"
+
+    misplaced: list[str] = []
+    for job_id, job in jobs.items():
+        if not isinstance(job, dict):
+            continue
+        steps = [step for step in (job.get("steps") or []) if isinstance(step, dict)]
+        if not steps or steps[0].get("name") != START_STEP:
+            first = steps[0].get("name") if steps else "(no steps)"
+            misplaced.append(f"{job_id} starts with {first!r}")
+
+    assert misplaced == [], (
+        f"a job does not record its start first, so it measures less than it ran:"
+        f" {misplaced}. Every job must open with {START_STEP!r}"
+    )
+
+
+def test_every_duration_report_runs_on_every_outcome() -> None:
+    """CS-896 - `if: always()` is the load-bearing half of the report.
+
+    A comparison that ran only when every earlier step succeeded would report
+    nothing on exactly the runs worth measuring - a red or cancelled lane. The
+    workflow's own comment calls this "the load-bearing half"; nothing asserted
+    it, and MEASURED, deleting the key from one shard left every arm green.
+    """
+    jobs = workflow_document().get("jobs")
+    assert isinstance(jobs, dict), f"{WORKFLOW_RELATIVE} declares no jobs mapping"
+
+    conditions: dict[str, object] = {}
+    for job_id, job in jobs.items():
+        if not isinstance(job, dict):
+            continue
+        for step in job.get("steps") or []:
+            if isinstance(step, dict) and step.get("name") == REPORT_STEP:
+                conditions[job_id] = step.get("if")
+
+    assert sorted(conditions) == sorted([JOB_ID, SAVE_JOB_ID]), (
+        f"the jobs carrying a {REPORT_STEP!r} step are {sorted(conditions)}"
+    )
+    silent = sorted(job_id for job_id, value in conditions.items() if value != "always()")
+    assert silent == [], (
+        f"the duration report in {silent} does not run on every outcome, so those shards"
+        " report nothing on precisely the runs worth measuring"
+    )

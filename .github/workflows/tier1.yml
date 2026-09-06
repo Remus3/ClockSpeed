@@ -68,37 +68,37 @@ env:
   #            tunable - see the note beside it, and guard (k).
   #
   # THE DERIVATION IS WRITTEN OUT so the next person re-derives rather than
-  # guesses, which is what nobody did last time. THE FULL SAMPLE IS SIX
-  # READINGS of the pytest step, every one taken on a GitHub 2-vCPU runner
-  # (nproc 2) against ONE byte-identical tree:
+  # guesses, which is what nobody did last time - and then it happened again.
+  # THESE LEVELS ARE PER SHARD. The lane runs two jobs; each measures and grades
+  # ITSELF, so a level here bounds the SLOWEST SHARD and never their sum.
   #
-  #   serial    541.68, 590.82                     (whole job 582, 631)
-  #   -n auto   424.18, 475.98, 483.14, 470.67
+  # THE PREVIOUS DERIVATION WAS FALSIFIED BY THE SPLIT, IN THE SAME COMMIT THAT
+  # RELIED ON IT. 540 was chosen as "21 above the worst observed job" when that
+  # job was about 519. After the split the worst shard is 323, so 540 sat 221
+  # above it - 69 per cent of headroom where the derivation claimed 4 - and the
+  # lane would have reported "within budget" through nearly four minutes of
+  # growth per shard. An alarm that cannot fire is not an alarm, and CS-896 is
+  # the item about a lane whose growth nothing watched.
   #
-  # MEAN TO MEAN THAT IS 1.222x, AND THE RANGE IS THE PART THAT MATTERS. The
-  # pessimistic pair gives 1.121x; the flattering pair gives 1.393x. QUOTE THE
-  # MEAN OR THE PESSIMISTIC PAIR AND NEVER THE FLATTERING ONE - a speedup taken
-  # from the best pair is one the lane delivers only on its best day, and every
-  # ordinary run afterwards then reads as a regression that is not one.
+  # THE SAMPLE FOR THE NEW SHAPE IS ONE RUN AND THAT IS STATED RATHER THAN
+  # HIDDEN. Run 34016749554: fast 323s, save 225s (job seconds from the API;
+  # the steps reported 319 and 221). Spread is carried from the old shape's four
+  # parallel readings: a 5.76 per cent coefficient of variation, about 19s here.
   #
-  # THE BUDGET IS SET FROM THE WORST OBSERVED JOB, NOT FROM A RATIO, because a
-  # ratio applied to a mean discards exactly the tail this lane trips over. The
-  # pytest step is about 94 per cent of the job and every other step totals
-  # roughly 36 seconds, so the slowest parallel reading above is a job of about
-  # 519. The budget sits 21 above that worst observation, and exactly 60 below
-  # the cutoff - the next minute of growth, which is the item note's own
-  # language for the headroom this lane may spend before somebody has to look.
-  #
-  # THE CEILING LEAVES 30 UNDER THE CUTOFF, which is what makes the ceiling -
-  # and not the canceller - the thing a slow run meets first.
+  # SO: budget = worst observed + 3 sd = 323 + 57 = 380, which warns on real
+  # growth and not on noise. Ceiling = worst observed + 5 sd = 420, far enough
+  # out that a bad day is not a red on a lane that must never be red. Both are
+  # PROVISIONAL AT n=1 and should be TIGHTENED once several two-shard runs
+  # exist - a wide bound from one sample is banked room, which guard (k)'s own
+  # note calls a later inflation nobody has to defend. The ceiling no longer
+  # sits just under the cutoff and need not: 600 is POLICY, and the ceiling's
+  # job is only to be met FIRST.
   #
   # BOTH NUMBERS ARE RATCHETED IN BOTH DIRECTIONS by tools/drift_guard.py guard
-  # (k) against maxima recorded there, so raising OR lowering either one here
-  # alone turns the guard red. That is deliberate. CS-896 exists because this
-  # lane drifted past its stated target with nothing failing, and a level
-  # nobody has to defend inside a diff is a level that drifts again.
-  TIER1_BUDGET_SECONDS: '540'
-  TIER1_CEILING_SECONDS: '570'
+  # (k), so raising OR lowering either here alone turns the guard red - which is
+  # what forced this re-derivation to be a diff somebody had to defend.
+  TIER1_BUDGET_SECONDS: '380'
+  TIER1_CEILING_SECONDS: '420'
 
 jobs:
   fast:

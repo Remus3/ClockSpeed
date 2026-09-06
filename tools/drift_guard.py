@@ -2855,8 +2855,8 @@ SECONDS_PER_MINUTE = 60
 # raise it to accommodate a slower lane; this is what makes that sentence cost
 # something. It is pinned to its exact value rather than bounded, because there
 # is no direction it is allowed to move on its own.
-TIER1_RECORDED_BUDGET = 540
-TIER1_RECORDED_CEILING = 570
+TIER1_RECORDED_BUDGET = 380
+TIER1_RECORDED_CEILING = 420
 TIER1_POLICY_CUTOFF_MINUTES = 10
 
 # -- THE RESTATEMENT SCAN, AND WHY IT IS THIS NARROW. ------------------------
@@ -2987,7 +2987,21 @@ TIER1_NARRATIVE_PREFIXES = (
 )
 
 
-def _tier1_declaration(text: str, key: str) -> tuple[int | None, str | None]:
+def stated_timeouts(text: str) -> list[str]:
+    """Every ``timeout-minutes:`` line in the workflow, one per job that states it.
+
+    Args:
+        text: The workflow source.
+
+    Returns:
+        The matched lines.
+    """
+    return re.compile(rf"^[ \t]*{re.escape(TIER1_TIMEOUT_KEY)}:", re.MULTILINE).findall(text)
+
+
+def _tier1_declaration(
+    text: str, key: str, *, per_job: bool = False
+) -> tuple[int | None, str | None]:
     """Read a whole-number declaration that every statement of must agree on.
 
     The key is matched only at the start of a line, so prose naming it in a
@@ -3005,14 +3019,20 @@ def _tier1_declaration(text: str, key: str) -> tuple[int | None, str | None]:
     Args:
         text: The workflow source.
         key: The key to read.
+        per_job: True for a key GitHub reads per job, which a multi-job lane
+            therefore states more than once. False - the default - for a key
+            with one place to live, where a second statement is a restatement
+            and the thing this guard exists to catch.
 
     Returns:
-        (the value, None) when exactly one well-formed declaration exists, and
+        (the value, None) when the declarations are well-formed and agree, and
         (None, the problem) otherwise.
     """
     stated = re.compile(rf"^[ \t]*{re.escape(key)}:", re.MULTILINE).findall(text)
     if not stated:
         return None, f"{key} is not stated, so nothing owns that level"
+    if not per_job and len(stated) > 1:
+        return None, f"{key} is stated {len(stated)} times - it must have exactly one owner"
     valued = re.compile(
         rf"^[ \t]*{re.escape(key)}:[ \t]*[\"']?(\d+)[\"']?[ \t]*(?:#.*)?$", re.MULTILINE
     ).findall(text)
@@ -3198,7 +3218,30 @@ def guard_tier1_budget(
 
     budget, budget_problem = _tier1_declaration(text, TIER1_BUDGET_KEY)
     ceiling, ceiling_problem = _tier1_declaration(text, TIER1_CEILING_KEY)
-    minutes, minutes_problem = _tier1_declaration(text, TIER1_TIMEOUT_KEY)
+    # PER JOB, and only this one. `timeout-minutes` is a job key, so a two-shard
+    # lane states it twice and neither statement restates the other. The budget and
+    # the ceiling above are workflow-level `env:` and still have exactly one place
+    # to live - a second statement of either is a restatement, which is what this
+    # guard is for. MEASURED: a blanket relaxation let a job-level `env:` restate
+    # the budget while the guard still printed one owner.
+    minutes, minutes_problem = _tier1_declaration(text, TIER1_TIMEOUT_KEY, per_job=True)
+
+    # -- E2: STATED BY EVERY JOB, not merely stated. --
+    # A per-job key that one job omits is not inherited from the other; GitHub
+    # applies its own 360-minute default to the silent one. MEASURED: deleting
+    # `timeout-minutes` from the save shard left this guard green while that
+    # shard's runaway detector became six hours. "Stated once per job" is only a
+    # cutoff while the count matches the job count.
+    declared_jobs = re.compile(r"^  ([A-Za-z0-9_-]+):$", re.MULTILINE).findall(
+        text.partition("\njobs:\n")[2]
+    )
+    if minutes_problem is None and len(stated_timeouts(text)) != len(declared_jobs):
+        minutes = None
+        minutes_problem = (
+            f"{TIER1_TIMEOUT_KEY} is stated {len(stated_timeouts(text))} time(s) for"
+            f" {len(declared_jobs)} job(s) {sorted(declared_jobs)} - a job that states no"
+            " cutoff inherits the platform default instead of this lane's"
+        )
     problems = [item for item in (budget_problem, ceiling_problem, minutes_problem) if item]
 
     detail = [f"one owner: {TIER1_WORKFLOW_RELATIVE}"]

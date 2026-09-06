@@ -160,6 +160,101 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-06 - CS-896 - CORRECTION AND REPAIR. Two adversaries REFUTED the closure, the entry below this one carries four false claims, and the fix had disabled the alarm the item exists to provide
+
+**CS-896 STAYS OPEN and this entry does not close it.** The closure was put to two
+with different lenses, both of which returned REFUTED. Neither wrote any of the work it graded, and both
+graded a frozen SHA - `9dc2d86`, tree clean, unedited for the duration. This entry corrects
+the record and records the repairs; it does not claim the item is done.
+
+**THE CENTRAL FINDING, AND IT IS AGAINST THE FIX ITSELF.** The budget of 540 had its
+derivation written into the workflow: *"the budget sits 21 above that worst observation,
+and exactly 60 below the cutoff - the next minute of growth."* After the split the worst
+shard is 323s, so 540 sat **221 above** it - 69 per cent of headroom where the derivation
+claimed 4. **A shard could have absorbed nearly four minutes of growth while reporting
+"within budget" every single run.** At the recorded 3.51s per commit the pre-split lane
+warned after about 6 commits; the fast shard would have needed about 62. **CS-896's fix had
+disabled CS-896's own alarm, and the two-way ratchet did not catch it because the number
+did not move.** Repaired here: the levels are re-derived for a two-shard lane and are now
+**380 / 420**, stated per shard, with the derivation, the single sample it rests on and its
+provisional status written out beside them. Merged files: `.github/workflows/tier1.yml`,
+`tools/drift_guard.py`, `tests/test_tier1_budget.py`.
+
+**FOUR CLAIMS IN THE ENTRY BELOW THIS ONE ARE FALSE. This file is append-only, so they are
+corrected here rather than edited there.**
+
+1. *"the partition holds for any boundary"* - **FALSE AS SHIPPED.** The arm read the wide
+   shard's `--ignore` and the narrow shard's target and nothing else, so any selector on the
+   NARROW shard defeated it in silence. **MEASURED by the adversary: adding
+   `--ignore=tests/save/test_phase4_gate.py -m "not slow"` to the save job dropped 244 of
+   its 1413 tests - the whole of `tests/save/test_phase4_gate.py`, including the test
+   CS-448's acceptance names - and this file's arms, `tools/drift_guard.py` and
+   `tools/precommit_gate.py` all stayed green.** The arm now reads the complete selector set
+   of BOTH shards and refuses every narrowing flag outside the single ignore the partition
+   is built from. Verified by
+   `tests/test_tier1_budget.py::test_the_two_shards_partition_the_suite_with_no_gap_and_no_overlap`,
+   which fails on that exact counter-example naming the flags.
+2. *"timeout-minutes is policy, guard (k) pins it"* - **WAS FALSE FOR THE SECOND JOB.** The
+   guard read the value of whatever statements existed and never required each job to make
+   one, so deleting the key from the save shard left the guard GREEN while that shard
+   inherited GitHub's 360-minute default. Repaired: guard (k) now compares the count of
+   statements against the count of declared jobs. Verified by the mutant, which now reports
+   `timeout-minutes is stated 1 time(s) for 2 job(s) ['fast', 'save']`.
+3. *"WHAT THIS COST, KNOWINGLY ... roughly 35 seconds"* - **WRONG IN DIRECTION AND IN
+   MAGNITUDE.** Measured from the jobs API: duplicated setup on the save shard is **15s**
+   (job 2s, checkout 2s, python 3s, install 8s), and total metered job-seconds went DOWN,
+   from 593 (run 34010764125) and 617 (run 34013336391) to **548** (run 34016749554).
+   Billed minutes 10 or 11, to 10. Wall clock to green 617s to 323s. **The operator pays
+   less, not more.** The idle-worker time the split removed more than repays the second
+   install - which is CS-900's concentration finding cashing out.
+4. *"the suite at 5334 tests"* - a prose count, which `CLAUDE.md` section 4 says a document
+   should not carry, and it was already wrong: the frozen tree collects 5342.
+
+**TWO MORE HOLES THE FIRST ADVERSARY FOUND, BOTH REPAIRED.** The duplicated duration step
+was asserted byte-identical but nothing asserted the properties that make it work: deleting
+`if: always()` from one shard, or moving that shard's `Record the start` below the install,
+each left every arm green. The first makes a shard silent on exactly the runs worth
+measuring; the second under-reports by 13s on a warm cache and more on a cold one. Verified
+by `::test_every_duration_report_runs_on_every_outcome` and
+`::test_every_job_records_its_start_before_it_does_anything_else`, each confirmed against
+its mutant. A third hole: `-n auto` was asserted only on the wide shard, while the test
+CS-448 is filed against runs in the narrow one - deleting it there left all 187 arms green.
+Verified by `::test_both_shards_run_in_parallel_because_one_of_them_owns_an_open_item`.
+
+**AND A RELAXATION MADE EARLIER THE SAME DAY WAS TOO WIDE.** Allowing a key to be stated
+more than once was applied to EVERY key, but only `timeout-minutes` is per-job; the budget
+and the ceiling are workflow-level `env:` with one place to live. **MEASURED: a job-level
+`env:` restating `TIER1_BUDGET_SECONDS` passed the guard while it still printed "one
+owner".** The relaxation is now per-key, and the workflow is the one file the second-owner
+scan skips, so nothing else would ever have caught it.
+
+**WHAT THE SPLIT COSTS THAT WAS NOT RECORDED, and none of it is repaired here.**
+
+- **CS-900's concentration got WORSE, measured on the runner.** The most expensive test was
+  168.66s of a 555s step, 30.4 per cent. It is now **170.30s of the save shard's 208s step -
+  81.9 per cent**. The save shard's makespan floor is one unparallelisable test, so more
+  runners cannot move it. CS-900's acceptance also became ambiguous: "share of the step" now
+  has two steps to mean, and a future session could report 6.3 per cent against the fast
+  shard while the real concentration is 81.9 per cent one job over.
+- **CS-448's antagonist is structurally absent from the shard that runs its test.** Its
+  measured mechanism needs a sibling worker creating and destroying `clockspeed_gate_*`
+  directories; the only drivers of those are `tests/test_precommit_gate.py` and
+  `tests/test_edit_lint_check.py`, both now in the OTHER shard on another runner. Repeated
+  green save-shard runs are therefore a CONTROL, not a null result - the exact error CS-448's
+  own note diagnoses.
+- **The slope is owned by no item.** 3.51s per commit appears in this file and in no line of
+  `ROADMAP.md`, `BACKLOG.md` or `docs/GATED.md`. A split buys a fixed number of seconds and
+  therefore a fixed number of commits.
+- **Three containers run the whole suite and only one was fixed.** `.githooks/pre-push` runs
+  it serially in one process with NO timeout at all, and both `tier2.yml` jobs run it
+  unsharded under 30 minutes.
+
+**WHAT IS STILL OWED BEFORE CS-896 CAN CLOSE.** A run of the two-shard lane reporting inside
+the NEW levels - the shape has run exactly once, and the item's own note says a green run is
+one sample from a distribution rather than evidence of health.
+
+---
+
 ### 2026-09-06 - CS-896 - The lane runs in two shards, because with the cutoff fixed and the suite grown there was no third option
 
 **CS-896 STAYS OPEN until a run reports its comparison from inside the budget.** This
