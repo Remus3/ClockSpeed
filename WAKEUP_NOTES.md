@@ -34,6 +34,80 @@ the line becomes a pointer.
 
 ---
 
+## Session 63 - 2026-09-05 - CS-911 and CS-912 CLOSED; the HUD style layer took SEVEN audit rounds and none returned CLEAR; CS-910's done-claim was REFUTED TWICE and three of four adversaries returned REFUTED
+
+**CLOSED.** CS-911 - every stage takes a unique filename and opens `"wx"`, so the
+truncation primitive is gone rather than made unlikely. CS-912 - `/api/registry` publishes
+the registry as a tenth route, and 731 of 731 producible items built a solve request naming
+only published identifiers.
+
+**OPEN, and both for reasons worth reading.** CS-910 routed seven spawn sites and its commit
+message claimed the remainder was all frozen. That was FALSE TWICE: `scripts/verify_env.py`
+is not frozen, was on the write-list, and still put a bare `git` into three argv; and the
+remainder is FIVE indirect delegations, not three. CS-913's filed cause is REFUTED by the
+code and its line is rewritten.
+
+**FILED.** CS-914 (the CS-911 shape in Python, on the DEFAULT production path), CS-915 (two
+latent guard holes), CS-916 (one asset-extraction prerequisite that three separate features
+are all gated on), CS-G06 (the mature-world corpus, an operator action).
+
+**SEVEN CS-600 AUDIT ROUNDS ON ONE STYLE LAYER AND NOT ONE RETURNED CLEAR.** Rounds 1 to 4
+each found the same fault one selector further out - the rule's own `color`, then its
+`border`, then the nested `.hud-*` descendants, then every OTHER descendant - because every
+repair defined its boundary as "the tokens something I can see reads". Round 4 named it:
+each repair closed the set the previous auditor named and drew the new boundary exactly
+where the previous finding stopped. WHAT ENDED IT WAS A MEASUREMENT, NOT A BETTER REPAIR:
+the four `--overlay-*` tokens were byte-identical to the DARK values of `--bg`, `--text`,
+`--accent-hud` and `--hud-rule`, so the overlay palette had been the dark palette all along.
+Rounds 5 to 7 then left the palette entirely - `color-scheme` is not a custom property;
+round 6 found the round-5 fix had landed on `.hud-overlay`, which renders ZERO times, while
+`:root` had none; round 7 defeated the repaired guard with an OPTIONAL TRAILING SEMICOLON.
+Round 7 graded the RENDERED page PASS on all five phases with zero live defects, and THE
+OPERATOR RULED TO COMMIT on that evidence. Every finding is repaired and each is proven by
+a planted mutation.
+
+**THE MEASUREMENTS WORTH KEEPING.** #FA9549 scores 2.22 / 2.07 / 1.96 on this page's own
+LIGHT grounds - it fails even the large-text threshold there, not merely over a game pixel,
+because a light theme IS a white pixel that is always on screen. Contrast over a scrim is
+NOT MONOTONIC: it falls from 2.22 at no scrim to 1.02 near alpha 0.35, where the composited
+ground crosses the accent's own luminance, then climbs to 8.38 opaque. A light scrim lands
+at the WORST legibility available.
+
+**THREE OF FOUR ADVERSARIES RETURNED REFUTED, WITH DISTINCT LENSES.** Security found three
+live bare-name spawns in a non-frozen file plus both guards blind to them. Does-it-reproduce
+found CS-912's paired control vacuous - it SUBSTITUTED the foreign key into a request naming
+one recipe, so it also removed the target's own producer, and proved it with a live mutant
+that kept the arm green while `tests/solve` went red. Completeness found four guards each
+reporting zero findings because they could not SEE findings. Scope confirmed the
+`workdir.py` race is reachable on the default path and measured 31 of 240 concurrent copies
+failing. FOUR LENSES, FOUR DIFFERENT CLASSES - repeated skeptics would have found one.
+
+**OPERATOR RULINGS THIS SESSION.** Commit on audit round 7 rather than iterate to CLEAR.
+Wiki and community sources are READ-AND-CITE ONLY - CS-485 stands, no dataset is lifted, no
+crawl is run. The local `Satisfactory Designs` downloads are REVIEW ONLY and nothing derived
+from them is committed.
+
+**A UI/UX DOCTRINE FROM ANOTHER PROJECT WAS INGESTED** and adapted into
+`docs/hud_doctrine.md`, which is now the owner file for the two surfaces. It records what
+does NOT transfer as carefully as what does, and names THREE SHIPPED ARMS an overlay will
+collide with: the no-timer arm, the one-clickable-target arm, and the 7-bit ASCII arm, which
+with a CSP publishing no `img-src` leaves an overlay with neither a glyph nor an image.
+
+**TRAPS MEASURED THIS SESSION.** `dict(os.environ)` UPPER-CASES KEYS ON WINDOWS, so popping
+a mixed-case variable removes nothing and the probe reports clean while measuring nothing -
+it produced a GREEN result on genuinely defective code. A `;` CHAIN ENDING IN `tail` EATS
+PYTEST'S EXIT CODE exactly as a pipe does: a red suite was reported as exit 0 twice, once to
+me and once to a slice. AND I BROKE A FREEZE I DECLARED THREE TIMES - three separate agents
+caught it independently; one recovered the start bytes and diffed to prove its verdict still
+stood.
+
+**NAMED AND NOT CLOSED.** ROADMAP.md is at 112 PER CENT of its soft budget and this session
+made it worse; a relocate pass is owed. The HUD layer renders ZERO times today - it is a
+published vocabulary waiting on `/api/plan` and `/api/advice`. Two design questions are open
+and recorded in `docs/hud_doctrine.md`: whether the overlay keeps the companion's warm accent
+when the game's own world is warm, and whether item identity and production status can share
+the colour channel.
+
 ## Session 62 - 2026-09-05 - THE COMPANION RAN FOR THE FIRST TIME EVER and a real shortcut now launches it; the round that shipped it was REFUTED FIVE TIMES including a LOCAL CODE-EXECUTION VECTOR, and the repair brief's own premise was refuted too
 
 NOTHING CLOSED. CS-909 is OPEN and both its commits say so. Suite 5066 -> see the
@@ -177,129 +251,3 @@ brief ordered the check. The running tally is now overwhelming: ORDER IT EVERY T
 - **Next action: decide the ceiling. Either make the lane faster (CS-900 is the unblocker and
   names the concentration) or move both levels through guard (k)'s two-way ratchet with a
   stated reason. DO NOT re-derive them from one sample - that is the error this session made.**
-
-## Session 60 - 2026-09-04 - CS-891 CLOSED AS AN HONEST PARTIAL after FIVE refutations; the round's repair reproduced its own filed fault a FIFTH consecutive session and its own adversaries caught every instance, and the repair then would not fit under a data-hygiene ceiling
-
-- **Shipped: CS-891 CLOSED AS AN HONEST PARTIAL**, the unmet conjunct named in the ledger in
-  those words. Filed CS-897, CS-898 and CS-899, each measured before filing. Suite 4721 -> 4887;
-  the citation guard alone went 162 -> 326 arms across two modules. **No acceptance clause was rewritten - an ELEVENTH consecutive session.**
-
-- **THE PATTERN HELD A FIFTH TIME AND THE ROUND CAUGHT IT ITSELF.** The bare-path arm
-  shipped green at 302 passed and was then refuted five ways: a unique suffix hit resolved a
-  dead citation into `tests/` and into `.claude/` while DOCUMENTING that it needed no
-  ratchet; the reason ceiling could be written as the length of its own table, making the
-  budget a tautology with no number left in the diff; a forgiveness table named with a
-  leading double underscore escaped the walk written to make escaping impossible; three
-  non-vacuity floors could each be set to zero with nothing going red; and two legs the
-  shape's own prose NAMES could be deleted without an arm noticing. All five repaired, each
-  original mutant now dies.
-
-- **THE SHARPEST ONE IS THAT THE SOURCE DENIED THE HOLE RATHER THAN OMITTING IT.** The
-  suffix rung was documented as "a RESOLUTION rather than a forgiveness, so it needs no
-  ratchet". Exactly one hit proves a path names A file and never THE intended file, which is
-  the property the module's own trap 2 says a bare path does not carry. A false clearance is
-  worse than a silence, and this one left no trace in a diff.
-
-- **THE REPAIR DID NOT FIT.** It took `tests/test_docs_citations.py` to 273753 bytes against
-  a 262144 ceiling that exists to catch a trimmed real game-data file. The builder REFUSED
-  to raise it, correctly. The module was split into a derivation and its arms with the
-  collected test-id list identical across the split, and the class-closing walks now run
-  over a DERIVED module closure - a table relocated into the new module without registration
-  reddens, while the old single-module walk stays blind. That is filed as CS-898 because the
-  gate's own claim that it never trips on ordinary test code is now false and a second
-  module sits at 96 per cent of the same ceiling.
-
-- **Decisions: the guarded doc set went 21 -> 39 and it was a merger call, ruled legitimate
-  by an adjudicator that verified the mechanism rather than the argument.** It is FORCED,
-  not chosen: a new judged pattern must join the membership contract, which widens what
-  counts as a carrier. Measured cost zero, and the seven flagship docs it adds - `CLAUDE.md`
-  and `BOOTSTRAP.md` among them - carry no citation at all under the four pre-existing
-  shapes. The standing consequence is real: a dead backticked path in `CLAUDE.md` now
-  reddens the suite.
-
-- **Surprises: THE ROADMAP BUDGET IS A WARN, NOT A HARD FAIL.** The previous handoff said
-  the next item line breaks it. `tools/doc_budget.py` returns non-zero only on a HARD
-  failure and says why in its own header - a warn that blocks a commit gets disabled and
-  then enforces nothing. So three items were filed and the relocate pass is handed forward
-  as measurably owed rather than suppressed to protect a soft number.
-
-- **Failed paths, and four of them are mine.** My "independent" ladder control IMPORTED the
-  module it graded and consumed its population boundary, so it was independent only in the
-  rungs - which is exactly why it and the shipped arm agreed on seven AND both missed the
-  same dead citation. I dismissed that citation early as out of population without asking
-  whether the exemption's stated reason covered it; it does not, and it is now CS-897. I
-  briefed a builder that a path root was untracked when the package carries it nested, and
-  the builder measured me wrong and said so. And my own sweep regex made backticks OPTIONAL
-  while I was arguing in the same session that the backtick was load-bearing.
-
-- **In flight: nothing uncommitted.** Do NOT prune worktrees on a dirty reading - the count
-  grew again this session and every sampled file in a dirty worktree is byte-identical to
-  main at a stale base. Only a diff against main decides.
-
-- **The repair was RE-ADJUDICATED from a frozen SHA and STANDS.** A first adjudicator ruled
-  at `c5c3947`, I kept building, and it correctly refused to certify repairs it had not
-  watched land - so a second pass was dispatched scoped to the three commits it could not
-  see. Thirteen of thirteen filed mutants now die, each against a pre-repair control proving
-  it was genuinely silent before. Tier 1 CI on the pushed head: SUCCESS in 8m44s.
-
-- **THE SIGNATURE FAULT REPRODUCED A SEVENTH TIME, INSIDE THE SPLIT.** A ceiling in the
-  module the split created can be rewritten as the length of its own table and survives -
-  the exact tautology the repair closed two commits earlier. It is LATENT, not live, and it
-  is recorded with three other residuals in `docs/LEDGER.md` under the session 60 entry.
-
-- **THE NEXT ITEM ID FORCES A DECISION NOBODY HAS MADE, and that is why those four residuals
-  carry no `CS-` id.** CS-899 was the last id the `CS-8nn` block holds. ADR 0011 says
-  reaching CS-900 is "a `ROADMAP.md` ID-block question rather than a doc-topology one" and
-  explicitly declines to answer it. **SETTLE THE ID BLOCK BEFORE FILING ANYTHING ELSE** -
-  allocating CS-900 in passing answers by accident a question the project deferred on
-  purpose.
-
-- **The session ran on past that point, HEADLESS, and closed CS-897 too - also an HONEST
-  PARTIAL.** The archive exemption's reason now rests on three claims the archive makes about
-  itself, checked both ways, and its rot is pinned per arm. An adjudicator confirmed the
-  population at 28 by reimplementing all six arms rather than calling the module's code -
-  which mattered, because two earlier derivations of that number were wrong, mine included.
-
-- **SEVEN findings against that repair are RECORDED, NOT FIXED, and the reason is a hard
-  limit.** `tests/test_docs_citations.py` is 260661 bytes against a 262144 data-hygiene
-  ceiling: **1483 bytes left**. Seven fixes and their arms do not fit, and that ceiling must
-  not be raised. Two of the seven are CS-897's own defect class in text CS-897 authored.
-
-- **THE MODULE IS NOW THE BINDING CONSTRAINT ON THE PROJECT.** CS-899 extends this same file
-  and has under 1.5 KB to do it in, and CS-898 exists because the gate's own claim that it
-  never trips ordinary test code is false. **The relocate pass is the precondition for
-  everything downstream, not a tidy-up.**
-
-- **The `CS-8nn` id block is FULL at 100 of 100** - measured, with 64 still open. Creating the
-  next block is an OPERATOR decision with a recorded precedent: `CS-4nn` filled at 98 of 100
-  and the operator created `CS-8nn` on 2026-08-21. ADR 0011 anticipated CS-900 and declined it
-  in terms. **Only FILING is blocked; work on existing items continues.**
-
-- **CI ON THE FINAL COMMIT RAN 9m55s - FIVE SECONDS UNDER THE CUTOFF**, the tightest
-  margin ever recorded. CS-896 is no longer a lane inside the noise band; it is a lane AT
-  its cutoff, and the sixth data point already proved the variance is runner-side rather
-  than workload. Expect a cancellation with nothing failing, and do not read it as
-  flakiness. Detail in the CS-896 note.
-
-- **THE RELOCATE PASS IS DONE.** The citation guard went 260661 -> 234638 bytes, 99.4 per
-  cent -> 89, headroom 1483 -> 27506. The archive-rot machinery has its own guard and arms
-  pair. Behaviour unchanged arm for arm; no test id vanished. **The split exposed a LIVE
-  import cycle the suite was green over** - four entry orders imported cleanly and the
-  fifth raised ImportError, and pytest never enters through a non-test module. Fixed, with
-  an arm that re-enters from every side in a fresh interpreter.
-
-- **CI ON THE FINAL COMMIT WAS CANCELLED AT 10m19s, NINETEEN SECONDS OVER THE CUTOFF, AND
-  NOTHING FAILED.** The same tree ran 4897 passed / 4 skipped / exit 0 in the pre-push hook
-  minutes earlier, and the only cancelled step is the unit-test step. CS-896 predicted this
-  one run earlier and it landed. **DO NOT read it as flakiness and do not re-run hoping for
-  green** - the variance is runner-side and the lane is now over its cutoff, so a re-run
-  only re-samples a distribution whose mean has crossed the line. CS-896 IS NOW THE TOP
-  ITEM.
-
-- **Next action: CS-896, because tier 1 no longer completes.** Then the seven recorded
-  findings against CS-897, which now fit. Two are that
-  item's own defect class in text it authored: a floor whose stated property holds for two
-  of five shapes, and a coverage proxy that admits the exact case its message says it
-  prevents. Detail in the CS-897 ledger entry. Then CS-899, which also needed this room., because it gates
-  CS-898, CS-899 and the seven recorded findings alike. Then the operator's id-block call.
-  `ROADMAP.md` is also over its soft budget and owes its own relocate pass.

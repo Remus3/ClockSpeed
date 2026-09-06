@@ -7254,3 +7254,133 @@ a property it does not have.
 **WHAT WOULD SETTLE IT:** an arm that interleaves two writers on one directory and
 reddens on the shipped implementation, plus a decision about whether the header's
 claim is narrowed to one writer or the implementation is widened to honour it.
+
+---
+
+## Session 60 - RELOCATED from `WAKEUP_NOTES.md` 2026-09-05 (session 63)
+
+### Session 60 - 2026-09-04 - CS-891 CLOSED AS AN HONEST PARTIAL after FIVE refutations; the round's repair reproduced its own filed fault a FIFTH consecutive session and its own adversaries caught every instance, and the repair then would not fit under a data-hygiene ceiling
+
+- **Shipped: CS-891 CLOSED AS AN HONEST PARTIAL**, the unmet conjunct named in the ledger in
+  those words. Filed CS-897, CS-898 and CS-899, each measured before filing. Suite 4721 -> 4887;
+  the citation guard alone went 162 -> 326 arms across two modules. **No acceptance clause was rewritten - an ELEVENTH consecutive session.**
+
+- **THE PATTERN HELD A FIFTH TIME AND THE ROUND CAUGHT IT ITSELF.** The bare-path arm
+  shipped green at 302 passed and was then refuted five ways: a unique suffix hit resolved a
+  dead citation into `tests/` and into `.claude/` while DOCUMENTING that it needed no
+  ratchet; the reason ceiling could be written as the length of its own table, making the
+  budget a tautology with no number left in the diff; a forgiveness table named with a
+  leading double underscore escaped the walk written to make escaping impossible; three
+  non-vacuity floors could each be set to zero with nothing going red; and two legs the
+  shape's own prose NAMES could be deleted without an arm noticing. All five repaired, each
+  original mutant now dies.
+
+- **THE SHARPEST ONE IS THAT THE SOURCE DENIED THE HOLE RATHER THAN OMITTING IT.** The
+  suffix rung was documented as "a RESOLUTION rather than a forgiveness, so it needs no
+  ratchet". Exactly one hit proves a path names A file and never THE intended file, which is
+  the property the module's own trap 2 says a bare path does not carry. A false clearance is
+  worse than a silence, and this one left no trace in a diff.
+
+- **THE REPAIR DID NOT FIT.** It took `tests/test_docs_citations.py` to 273753 bytes against
+  a 262144 ceiling that exists to catch a trimmed real game-data file. The builder REFUSED
+  to raise it, correctly. The module was split into a derivation and its arms with the
+  collected test-id list identical across the split, and the class-closing walks now run
+  over a DERIVED module closure - a table relocated into the new module without registration
+  reddens, while the old single-module walk stays blind. That is filed as CS-898 because the
+  gate's own claim that it never trips on ordinary test code is now false and a second
+  module sits at 96 per cent of the same ceiling.
+
+- **Decisions: the guarded doc set went 21 -> 39 and it was a merger call, ruled legitimate
+  by an adjudicator that verified the mechanism rather than the argument.** It is FORCED,
+  not chosen: a new judged pattern must join the membership contract, which widens what
+  counts as a carrier. Measured cost zero, and the seven flagship docs it adds - `CLAUDE.md`
+  and `BOOTSTRAP.md` among them - carry no citation at all under the four pre-existing
+  shapes. The standing consequence is real: a dead backticked path in `CLAUDE.md` now
+  reddens the suite.
+
+- **Surprises: THE ROADMAP BUDGET IS A WARN, NOT A HARD FAIL.** The previous handoff said
+  the next item line breaks it. `tools/doc_budget.py` returns non-zero only on a HARD
+  failure and says why in its own header - a warn that blocks a commit gets disabled and
+  then enforces nothing. So three items were filed and the relocate pass is handed forward
+  as measurably owed rather than suppressed to protect a soft number.
+
+- **Failed paths, and four of them are mine.** My "independent" ladder control IMPORTED the
+  module it graded and consumed its population boundary, so it was independent only in the
+  rungs - which is exactly why it and the shipped arm agreed on seven AND both missed the
+  same dead citation. I dismissed that citation early as out of population without asking
+  whether the exemption's stated reason covered it; it does not, and it is now CS-897. I
+  briefed a builder that a path root was untracked when the package carries it nested, and
+  the builder measured me wrong and said so. And my own sweep regex made backticks OPTIONAL
+  while I was arguing in the same session that the backtick was load-bearing.
+
+- **In flight: nothing uncommitted.** Do NOT prune worktrees on a dirty reading - the count
+  grew again this session and every sampled file in a dirty worktree is byte-identical to
+  main at a stale base. Only a diff against main decides.
+
+- **The repair was RE-ADJUDICATED from a frozen SHA and STANDS.** A first adjudicator ruled
+  at `c5c3947`, I kept building, and it correctly refused to certify repairs it had not
+  watched land - so a second pass was dispatched scoped to the three commits it could not
+  see. Thirteen of thirteen filed mutants now die, each against a pre-repair control proving
+  it was genuinely silent before. Tier 1 CI on the pushed head: SUCCESS in 8m44s.
+
+- **THE SIGNATURE FAULT REPRODUCED A SEVENTH TIME, INSIDE THE SPLIT.** A ceiling in the
+  module the split created can be rewritten as the length of its own table and survives -
+  the exact tautology the repair closed two commits earlier. It is LATENT, not live, and it
+  is recorded with three other residuals in `docs/LEDGER.md` under the session 60 entry.
+
+- **THE NEXT ITEM ID FORCES A DECISION NOBODY HAS MADE, and that is why those four residuals
+  carry no `CS-` id.** CS-899 was the last id the `CS-8nn` block holds. ADR 0011 says
+  reaching CS-900 is "a `ROADMAP.md` ID-block question rather than a doc-topology one" and
+  explicitly declines to answer it. **SETTLE THE ID BLOCK BEFORE FILING ANYTHING ELSE** -
+  allocating CS-900 in passing answers by accident a question the project deferred on
+  purpose.
+
+- **The session ran on past that point, HEADLESS, and closed CS-897 too - also an HONEST
+  PARTIAL.** The archive exemption's reason now rests on three claims the archive makes about
+  itself, checked both ways, and its rot is pinned per arm. An adjudicator confirmed the
+  population at 28 by reimplementing all six arms rather than calling the module's code -
+  which mattered, because two earlier derivations of that number were wrong, mine included.
+
+- **SEVEN findings against that repair are RECORDED, NOT FIXED, and the reason is a hard
+  limit.** `tests/test_docs_citations.py` is 260661 bytes against a 262144 data-hygiene
+  ceiling: **1483 bytes left**. Seven fixes and their arms do not fit, and that ceiling must
+  not be raised. Two of the seven are CS-897's own defect class in text CS-897 authored.
+
+- **THE MODULE IS NOW THE BINDING CONSTRAINT ON THE PROJECT.** CS-899 extends this same file
+  and has under 1.5 KB to do it in, and CS-898 exists because the gate's own claim that it
+  never trips ordinary test code is false. **The relocate pass is the precondition for
+  everything downstream, not a tidy-up.**
+
+- **The `CS-8nn` id block is FULL at 100 of 100** - measured, with 64 still open. Creating the
+  next block is an OPERATOR decision with a recorded precedent: `CS-4nn` filled at 98 of 100
+  and the operator created `CS-8nn` on 2026-08-21. ADR 0011 anticipated CS-900 and declined it
+  in terms. **Only FILING is blocked; work on existing items continues.**
+
+- **CI ON THE FINAL COMMIT RAN 9m55s - FIVE SECONDS UNDER THE CUTOFF**, the tightest
+  margin ever recorded. CS-896 is no longer a lane inside the noise band; it is a lane AT
+  its cutoff, and the sixth data point already proved the variance is runner-side rather
+  than workload. Expect a cancellation with nothing failing, and do not read it as
+  flakiness. Detail in the CS-896 note.
+
+- **THE RELOCATE PASS IS DONE.** The citation guard went 260661 -> 234638 bytes, 99.4 per
+  cent -> 89, headroom 1483 -> 27506. The archive-rot machinery has its own guard and arms
+  pair. Behaviour unchanged arm for arm; no test id vanished. **The split exposed a LIVE
+  import cycle the suite was green over** - four entry orders imported cleanly and the
+  fifth raised ImportError, and pytest never enters through a non-test module. Fixed, with
+  an arm that re-enters from every side in a fresh interpreter.
+
+- **CI ON THE FINAL COMMIT WAS CANCELLED AT 10m19s, NINETEEN SECONDS OVER THE CUTOFF, AND
+  NOTHING FAILED.** The same tree ran 4897 passed / 4 skipped / exit 0 in the pre-push hook
+  minutes earlier, and the only cancelled step is the unit-test step. CS-896 predicted this
+  one run earlier and it landed. **DO NOT read it as flakiness and do not re-run hoping for
+  green** - the variance is runner-side and the lane is now over its cutoff, so a re-run
+  only re-samples a distribution whose mean has crossed the line. CS-896 IS NOW THE TOP
+  ITEM.
+
+- **Next action: CS-896, because tier 1 no longer completes.** Then the seven recorded
+  findings against CS-897, which now fit. Two are that
+  item's own defect class in text it authored: a floor whose stated property holds for two
+  of five shapes, and a coverage proxy that admits the exact case its message says it
+  prevents. Detail in the CS-897 ledger entry. Then CS-899, which also needed this room., because it gates
+  CS-898, CS-899 and the seven recorded findings alike. Then the operator's id-block call.
+  `ROADMAP.md` is also over its soft budget and owes its own relocate pass.
