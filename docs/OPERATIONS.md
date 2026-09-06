@@ -554,7 +554,137 @@ temp-file form is the default.
 
 ---
 
-## 10. Cross-references
+## 10. Runbook: the headless `queue` lane
+
+**Filed 2026-09-06 with CS-918.** The lane executes ONE work item per worker process and
+exits; `ops/loop/queue_loop.py` is what repeats it. Read that file's docstring before
+changing anything here - it carries the measurements the design is built on.
+
+### 10.1 What runs where
+
+| Piece | Path | Job |
+|---|---|---|
+| lane lock | `ops/loop/lanes.py` | Decides who may run. FREE / RUNNING / RECLAIMABLE, by PROBING the pid |
+| launcher | `ops/loop/lane_launcher.py` | Turns a claim into a worker in a git worktree |
+| runner | `ops/loop/run_lane.ps1` | The headless `claude -p` invocation, prompt piped on stdin |
+| driver | `ops/loop/queue_loop.py` | Repeats the cycle, and OWNS EVERY WAIT |
+| detached launcher | `ops/loop/launch_queue_loop.ps1` | Starts the driver hidden, for a night |
+| worker prompt | `tools/headless-queue.md` | What the worker is told to do. TRACKED - a worktree is a fresh checkout and carries no gitignored file |
+
+The lane runs in `C:\cs-worktrees\cs-lane-queue` on branch `lane/queue`.
+**It may NEVER run against `C:\Clockspeed` itself** - two writers in one working directory
+is index corruption that retrying does not fix. That is enforced three times: in the lock,
+again in the launcher, and again at spawn time.
+
+### 10.2 THE DIVISION OF WAITING, and why it is not a style choice
+
+**The driver waits. The worker never does.** The worker does its row, pushes, and exits.
+The driver then blocks until CI has graded that push, and only then starts the next cycle.
+
+The reason is measured, in the tree this was ported from. The rule was first written as
+PROSE in the worker's prompt - "block until your own run completes" - and over six cycles
+the worker complied twice and bailed early four times. Each early exit let the next cycle's
+push cancel the run the previous cycle was being graded on. **An instruction a worker can
+rationalize past is not a mechanism.** The driver cannot rationalize: it is the only thing
+that starts the next cycle, so while it is waiting there exists nothing that could cancel
+the run.
+
+Against this repo's CI specifically:
+
+- `tier1.yml` fires on every branch push and sets `cancel-in-progress: true`, so the
+  self-cancelling trap is live here. The driver waits it out.
+- `tier2.yml` does NOT fire on a branch push - only on the nightly cron, on a `v*` tag, and
+  on `workflow_dispatch`. So the full suite does not exist for a worker's commit unless
+  something asks for it. **The driver dispatches it and waits for that too.** tier2 sets
+  `cancel-in-progress: false`, so a dispatched run cannot be cancelled by the next cycle.
+
+Both verdicts land in the SAME ledger row as the cycle that caused them.
+
+### 10.3 Prove one cycle before firing a night
+
+```bash
+python ops/loop/queue_loop.py --once --local-suite
+```
+
+That claims the lane, launches one worker, waits for it, releases, runs the full local
+suite, and writes exactly one row to `ops/loop/reports/queue_loop.jsonl`. Read the row
+before doing anything else:
+
+```bash
+python -c "import json,pathlib; print(json.dumps(json.loads(pathlib.Path('ops/loop/reports/queue_loop.jsonl').read_text().splitlines()[-1]), indent=2))"
+```
+
+**Grade it on the summary line AND the exit code, never on either alone.** A crashed
+parallel run leaves no summary line at all, and `grep -c FAILED` over that log returns 0 -
+which reads exactly like a green run. The row therefore carries `suite.summary` verbatim
+and `suite.exit_code` as an integer, and `suite.ok` is true only when a line was parsed
+and the code is zero.
+
+### 10.4 Fire a night
+
+```bash
+powershell -NoProfile -ExecutionPolicy Bypass -File ops\loop\launch_queue_loop.ps1 -Cycles 12
+```
+
+It refuses, printing no success banner, when a stop sentinel is already present, and exits
+2 - the same number the driver itself uses for that condition. `-Force` gets past THIS
+script only; the driver re-checks the same files before cycle 1 and will still run zero
+cycles while they exist.
+
+### 10.5 Stop it
+
+Three files, checked before EVERY cycle including the first:
+
+| File | Stops |
+|---|---|
+| `ops/loop/control/STOP` | everything on this box |
+| `ops/loop/control/lanes/QUEUE_STOP` | this lane only |
+| `ops/loop/control/lanes/QUEUE_DRAINED` | written by the WORKER when the queue is empty |
+
+Creating one stops the loop at the next cycle boundary; it does not kill a worker that is
+already running. To stop a running driver and its worker:
+
+```bash
+taskkill /F /T /PID <driver pid>
+```
+
+**Never the PowerShell process-stopping cmdlet** - CLAUDE.md hard rule, it hangs the MCP
+pipe. `/T` is required: the recorded pid is the powershell wrapper and `claude` is its
+child, so killing only the wrapper orphans a live worker inside the lane worktree.
+
+### 10.6 Exit codes
+
+| Code | Meaning | What to do |
+|---|---|---|
+| 0 | Cycles ran, or the queue drained mid-run | Nothing. Read the ledger |
+| 2 | A stop sentinel was ALREADY there - zero cycles ran | Delete the file the message names |
+| 3 | Another driver holds the mutex | Stop that one first. Two drivers interleave rows into one ledger |
+| 4 | A worker OUTLIVED its kill | **Act on this one.** Treat the lane worktree as having a possible live writer and check by hand before firing again |
+| 5 | The same fault repeated until the loop gave up | Read the last rows; whatever broke cycle 3 will break cycle 4 |
+| 6 | A gating CI job went red on a pushed sha | Fix the red before firing again |
+| 7 | The driver's own local suite went red | Same |
+
+### 10.7 Checks that no machine performs
+
+Each of these is a real property that no test in the suite covers, and the reason is
+stated rather than left as an omission.
+
+1. **The refusal path, end to end.** Create `ops/loop/control/lanes/QUEUE_STOP`, run the
+   launcher WITHOUT `-Force`, and confirm it prints the refusal, prints NO success banner,
+   and that `$LASTEXITCODE` is 2. The suite grades this statically because running it would
+   spawn a real driver against the real lane.
+2. **A worker actually starts and writes its log.** Fire `--once` and confirm
+   `ops/loop/reports/lane_queue_<run_id>.log` grows. This is the property
+   `DETACHED_PROCESS` silently destroys: a real pid, exit 0, and a log that is never
+   written.
+3. **The lock re-points at the WORKER.** While a cycle is running, read
+   `ops/loop/control/lanes/0.lock` and confirm its `pid` is the powershell wrapper's, not
+   the driver's. If it stays the driver's, the lane reads RUNNING forever after the worker
+   dies.
+4. **The lane worktree is the worktree.** Confirm the worker's commits land on
+   `lane/queue` and that `C:\Clockspeed` is untouched while a cycle runs.
+
+## 11. Cross-references
 
 - Module map, seams, card contract: `docs/ARCHITECTURE.md`
 - Decisions and their fences: `docs/adr/README.md`

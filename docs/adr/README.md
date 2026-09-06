@@ -85,6 +85,7 @@ Status line to point at the successor and leave every other word of it untouched
 | [0014](0014-the-shell-trusts-one-pinned-certificate.md) | The shell trusts one pinned certificate and defers every other host | `accepted` |
 | [0015](0015-the-shell-may-start-the-surface.md) | The shell may start the surface, and stops only what it started | `accepted` |
 | [0016](0016-unlock-arrays-carriers-and-serialized-grammar.md) | The unlock arrays' carriers, and their serialized grammar | `proposed` |
+| [0017](0017-the-lane-forks-the-shared-loop-modules.md) | The lane FORKS the cross-repo loop modules rather than joining their pin | `accepted` |
 
 Slots 0002, 0003 and 0004 were reserved for the three phase-1 spike decisions and have now
 been written, in the order the spikes ran: S8, then S4, then S6. These three are the spikes

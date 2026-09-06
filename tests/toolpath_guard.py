@@ -205,7 +205,16 @@ TOOLPATH_MODULES: Final = frozenset({"toolpath", "tools.toolpath"})
 INTERPRETER_EXPRESSION: Final = "sys.executable"
 
 #: The directories a shipped run executes from. See the module docstring.
-SPAWN_ROOTS: Final = ("clockspeed", "scripts", "tools")
+#:
+#: ``ops`` joined with CS-918, and it is the MOST exposed member rather than a
+#: routine addition. The headless lane spawns `git`, `powershell` and `taskkill`
+#: with its working directory set to the LANE WORKTREE - a directory whose
+#: entire purpose is to be written into by an unattended agent for hours. So the
+#: precondition CS-910 measured is not incidental here, it is the design: a file
+#: named like a tool, dropped in that tree by the very worker the lane launched,
+#: is searched before PATH and executed by the driver that launched it. Of every
+#: root on this list, this is the one where a bare tool name is least defensible.
+SPAWN_ROOTS: Final = ("clockspeed", "ops", "scripts", "tools")
 
 #: What a folded program must NOT contain to count as a bare name.
 DIRECTORY_MARKERS: Final = ("/", "\\", ":")

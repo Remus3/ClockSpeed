@@ -160,6 +160,98 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-06 - CS-918 - the headless `queue` lane lands, ported from a sibling repo with three named fixes; the END-TO-END CYCLE IS NOT YET RUN and this entry does not claim it
+
+**CS-918 STAYS OPEN and this entry does not close it.** Everything below is built, graded and merged, but
+the acceptance clause that matters most - one real cycle end to end writing one JSONL row -
+requires the lane's own code to be reachable from a commit, so it could not run before this
+one existed. A second entry records that run and its outcome. Read this entry as "the
+machinery is here and it is graded"; read the next as "and it works".
+
+**What shipped.** A one-row-per-worker headless lane and the driver that repeats it.
+Merged files: `ops/loop/lanes.py`, `ops/loop/lane_launcher.py`, `ops/loop/run_lane.ps1`,
+`ops/loop/winmutex.py`, `ops/loop/queue_loop.py`, `ops/loop/launch_queue_loop.ps1`,
+`tools/headless-queue.md`, `tools/dashboard_probe.py`, and the runbook in
+`docs/OPERATIONS.md` section 10. The fork ruling is `docs/adr/0017`.
+
+**THE FIX THAT IS THE POINT OF THE PORT: the driver owns every wait and the worker owns
+none.** The upstream wrote that rule as PROSE in its worker's prompt and MEASURED it
+half-hold over six cycles - two workers blocked, four exited early, and each early exit let
+the next cycle's push cancel the run the previous cycle was being graded on. An instruction
+a worker can rationalize past is not a mechanism. Here the wait sits in `run_loop`, between
+cycles, where the only thing that could start the next cycle is the loop that is doing the
+waiting. Graded as an ORDER rather than as a call count by
+`tests/test_queue_loop.py::test_the_driver_waits_between_cycles_and_the_next_cycle_cannot_start_first`,
+because a wait that does not sit BETWEEN two cycles serialises nothing.
+
+**WHAT THAT MEANS AGAINST THIS REPO'S CI, read out of the workflow files rather than
+inherited from the upstream.** `tier1.yml` fires on every branch push and sets
+`cancel-in-progress: true`, so the self-cancelling trap is live here. `tier2.yml` does NOT
+fire on a branch push - only on the nightly cron, a `v*` tag, and `workflow_dispatch` - so
+the full suite does not exist for a worker's commit unless something asks for it, and the
+driver asks. Both facts are pinned against the files themselves by
+`tests/test_queue_loop_ci_specs.py`, which is the only place in the suite where the driver's
+job matchers are compared with the jobs that actually exist; every other arm grades
+fixtures, and a fixture agrees with whatever it was written from forever.
+
+**A VERDICT IS A SUMMARY LINE AND AN EXIT CODE, NEVER EITHER ALONE.** A crashed parallel run
+leaves no summary line, and `grep -c FAILED` over that log returns 0 - indistinguishable
+from green. `summarize_pytest` answers `ok` only when a line was parsed AND the code is
+zero, and the row carries both verbatim. Graded by
+`::test_a_truncated_log_that_exited_zero_is_not_green`. The same principle governs the CI
+grader: a required job matching NOTHING is `unavailable`, an answer about the tool, never a
+pass - `::test_a_required_matcher_that_matches_nothing_is_unavailable_not_success`.
+
+**EVERY MATRIX LEG IS GRADED, NOT THE POOL.** `full suite (ubuntu-latest)` and
+`full suite (windows-latest)` are two jobs, and a grader asking "did any leg pass" leaves
+the weakest unmeasured while the acceptance clause still reads green.
+`::test_one_failed_matrix_leg_fails_the_whole_workflow`.
+
+**THE SHARED-FILE TRAP, AND THE RULING.** Two files in the upstream lane are
+BYTE-IDENTICAL-BY-CONTRACT across three repositories, pinned by a digest table in that
+repo's suite. A fourth copy here would not be covered by that pin. **Forked, not joined** -
+`docs/adr/0017` records why: joining the pin means joining the PROTOCOL, and the shared
+governor's token bucket rations concurrent workers between those three repositories, so a
+fourth participant consumes their slots by editing a file in a fourth tree. `winmutex.py` is
+an explicitly forked copy naming its upstream digest; the governor is not copied at all, and
+`lanes.py` records that its two needed pieces are DERIVED. Neither sibling tree was touched.
+
+**A NEW AUTHORED ROOT MADE THREE REPO-WIDE GUARDS SPEAK, AND EACH WAS A DECISION RATHER
+THAN A WIDENING.** `ops/` joined the mypy `files` key, `chained_cause_guard.SWEPT_ROOTS` and
+`toolpath_guard.SPAWN_ROOTS`. The third is the one that mattered: CS-910's finding is that
+Windows searches the current directory before PATH, and **this lane spawns with the LANE
+WORKTREE as its working directory - a tree whose whole purpose is to be written into by an
+unattended agent for hours.** Of every root on that list this is the most exposed, so `git`,
+`gh`, `powershell` and `taskkill` now resolve through `tools/toolpath.py::resolve_tool` and
+`tests/test_toolpath.py::test_no_program_in_the_spawn_roots_can_be_supplied_by_the_working_directory`
+covers them.
+
+**"Does the dashboard run" is a SCRIPT now, not an opinion.** It had been relitigated three
+times because it was a judgment call. `tools/dashboard_probe.py` launches it, polls the
+port, asserts a named JSON key and named DOM nodes, captures one screenshot and decides by
+exit code, with nine distinct codes so a launch failure and a content failure are never one
+answer. It carries its own known-good controls - a finder that sees a present id AND does
+not see an absent one - because a negative measurement with no control is worthless. It
+pins the dashboard's own certificate rather than waiving verification, and says on its own
+face when `--no-verify` makes a run no evidence about the certificate. Measured here: exit
+0, 29 assertions, 0 bytes of stderr, port released.
+
+**Verified.** 201 lane arms plus 113 in the spawn and subprocess guards, all green;
+`ruff check .` clean; `mypy` clean over 170 files. A seven-mutant battery against the
+substrate - a dead pid reading RUNNING, a mutating `lane_state`, a worktree guard that
+accepts the main tree, a removed ABA guard, DETACHED_PROCESS restored, a launch that stops
+releasing the lane, and the API-key clear removed - **caught 7 of 7**, on a verified
+pristine floor with a digest-verified restore. Two of those mutants were mis-aimed on the
+first pass and reported VOID and SURVIVED; both were re-anchored rather than scored, because
+a mutation that never applied and a surviving one produce the same output.
+
+**Not verified, and stated rather than rounded up.** `run_lane.ps1` has never been executed
+against a live worker by any automated arm - it is parse-checked under both PowerShell
+majors and graded on its executable lines. `winmutex.hold()` is called by no test, because
+taking a real named mutex is forbidden. The real `_spawn`, the real `_git` and the real `gh`
+are graded statically; the CI path was exercised read-only against real completed runs of
+both tiers, which is not the same as having waited out a live one.
+
 ### 2026-09-06 - CS-896 and CS-917 - TWO OPERATOR RULINGS, answering the questions the entry below put and leaving both items where they stand
 
 **BOTH RULINGS CONFIRM THE TREE RATHER THAN CHANGING IT.** No file moved on account of
