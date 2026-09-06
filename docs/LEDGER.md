@@ -160,6 +160,53 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-06 - CS-906 - CORRECTION. The shipped speedup is 2.39x and not the 3.2x the commit above claims, and the scheduler's benefit does not show on a real push
+
+**THE TWO ENTRIES BELOW OVERSTATE THE RESULT AND THIS CORRECTS THEM.** Nothing is edited;
+a wrong record is corrected by a later one. The change is still a large win and the
+direction was never in doubt - the SIZE was.
+
+**WHAT WAS CLAIMED.** The `--dist loadfile` commit says "765s to about 238s, roughly 3.2x",
+projected from standalone readings of 233s and 243s.
+
+**WHAT A REAL PUSH DOES.** Two pushes through the shipped hook took 321s and 320s wall,
+316.98s and 317.93s inside pytest. The 238s projection did not survive contact with the
+gate it was projected for.
+
+**THE HONEST SHIPPED FIGURE, all of it from REAL PUSHES rather than standalone runs:**
+
+| | measured |
+|---|---|
+| before, serial | 762s, 765s, 769s |
+| after, distributed | 321s, 320s |
+| shipped improvement | **2.39x, about 445 seconds off every push** |
+
+**THE SCHEDULER IS KEPT, AND ITS BENEFIT IS NARROWED RATHER THAN WITHDRAWN.** Measured
+PAIRED and back to back, both matching the hook's exact invocation including `-x` and the
+absolute test path: default 308s, `--dist loadfile` 253s. So the flag really is about 18
+per cent faster in a clean paired run, and Riot Commander's own suite corroborates the
+direction at a much larger scale. **But that benefit did NOT appear on the one real push
+measured with it**, where 316.98s was indistinguishable from the 317.93s without it. Push
+wall clock carries variance this comparison cannot see through at n=1 per arm.
+
+**WHY THE FIRST COMPARISON WAS WRONG, STATED SO IT IS NOT REPEATED.** The 233s and 243s
+loadfile readings were taken against default readings of 318s and 387s that were NOT
+measured back to back with them. The 387s reading in particular was taken while three
+builder agents were live on this machine. An unpaired comparison across a contended
+machine is the same instrument error this item has already been burned by twice, and it
+was made a third time here.
+
+**WHAT IS SAFE TO QUOTE.** 2.39x, from real pushes. Not 3.2x, and not 2.59x - that earlier
+figure was against the suite before condition TWELVE's arms existed and is already
+corrected in the entry below.
+
+**A SECOND CORRECTION, TO A COUNT.** `-n auto` resolves to EIGHT workers on this machine,
+not sixteen. xdist counts PHYSICAL cores; this box is 8 physical and 16 logical. Two
+artifacts said or implied sixteen before this was checked. Riot Commander measured the
+same eight-of-sixteen on the same physical box, so the cross-project comparison is
+like-for-like.
+
+
 ### 2026-09-06 - CS-906 - CLOSED. The pre-push suite runs distributed, all thirteen grant conditions met, and the arms caught an edit that would have reddened every push
 
 Verification: `python -m pytest tests -q -n auto` -> 5371 passed, 4 skipped.
