@@ -136,6 +136,84 @@ a clone made there re-arms it immediately.
 
 ---
 
+## Session 64 wakeup note - relocated 2026-09-06 (session 68)
+
+## Session 64 - 2026-09-06 - CI was red for TWO reasons and the handoff named one; tier 1 now runs in two shards; FOUR adversarial passes all returned REFUTED and CS-896 is STILL NOT CLOSED
+
+**ZERO ITEMS CLOSED.** CS-910, CS-900 and CS-896 all took substantive repairs and all three
+stay open. Seven commits, `8729191..b9ca505`, all pushed, CI green.
+
+**THE HANDOFF WAS WRONG ON ITS TOP ITEM.** It said tier 1 was red on the duration ceiling
+alone with every test passing. Both red runs read `1 failed, 5213 passed, 119 skipped`. The
+lane was red for TWO reasons and only one had been read.
+
+**CS-910 - a Windows-only arm ran on Linux.**
+`tests/test_make_cert.py::test_a_planted_openssl_in_the_working_directory_is_never_run`
+grades the implicit current-directory executable search. Two of the three CS-910 runtime
+arms carry a platform skip; the third carried a LIVENESS GATE written
+`os.name != 'nt' or NeedCurrentDirectoryForExePath(...)`, which SHORT-CIRCUITS TRUE on
+POSIX - so it reported the mechanism live where it does not exist. Fixed with the skip its
+siblings had, plus a structural guard that reads every test function's UNPARSED BODY for the
+two spellings, because the offending arm named the module only inside a probe STRING.
+
+**WHY IT ESCAPED, AND THE FIRST FILED CAUSE WAS WRONG.** Not `cancel-in-progress`. **GitHub
+Actions creates one run per PUSH event, against the TIP commit.** Twelve commits went up in
+one push; the commit that introduced the test was never eligible for a run. The development
+machine is Windows, where the arm passes, so tier 0 could not see it either.
+
+**CS-900 - the liveness sweep re-parsed 8.4 MB of source 3457 times.** `module_function` took
+a module's SOURCE and called `ast.parse` on it for every question. **89.93s before, 0.89s
+after**; twelve sibling helpers in the same module had the identical shape and now share one
+cache. `tests/test_liveness.py` went from roughly 146s to 41.19s.
+
+**TIER 1 NOW RUNS IN TWO SHARDS, and that was an operator decision.** Run 34013336391 was
+CANCELLED at 611s at 99 per cent of the suite with NOTHING FAILING. The cutoff is policy and
+was not raised, so the work was given a second runner rather than trimmed: `fast` runs
+`tests --ignore=tests/save`, `save` runs `tests/save`. **Coverage is unchanged BY
+CONSTRUCTION** - verified two ways, a node-id partition (3245 + 1413 = 4658, empty
+intersection) and identical skip sets (49 sites, 120 skips) before and after.
+
+**FOUR ADVERSARIAL PASSES, ALL FOUR REFUTED, each against a frozen SHA it had not written.**
+Every one found a defect that every gate, guard and arm in the tree was green over:
+
+1. The budget's derivation was falsified BY THE SPLIT ITSELF - 540 was "21 above the worst
+   observed job" and the split left it 221 above, so **CS-896's fix had disabled CS-896's
+   own alarm**.
+2. **The partition guard read ONE SIDE.** Adding one ignore and one marker expression to the
+   save shard dropped **244 of its 1413 tests** with everything green.
+3. **A trailing YAML comment defeated the cutoff guard.** `  third:  # a scratch job` was
+   invisible to a regex anchored at `:$` while PyYAML resolved three jobs - that job would
+   have run under GitHub's 360-minute default.
+4. The warning margin was overstated 2.5x, and a ledger entry cited evidence THIS SESSION'S
+   OWN COMMIT had deleted.
+
+**AND A FIFTH FINDING CAME FROM THE DATA.** Reading four of the fast shard arrived at **260
+job-seconds** against 323, 359 and 358 - on a **byte-identical population** (`3911 passed, 23
+skipped` in both runs), an **88-second swing on identical work**. That widened the sample sd
+from 20.5 to 46.5 and pushed the 95/95 tolerance bound to **564s, above the 480 ceiling**.
+**The fourth reading did not discharge the sample objection - it failed it.**
+
+**SO CS-896 IS NOT CLOSED, and the reason is specific.** The ROADMAP acceptance clause is met
+four times over. What is NOT met is the CS-896 leaf's added condition that growth be visible
+before it is fatal, because every warn band this session derived was narrower than the noise
+its own next reading revealed: 21s, then 36s, now at least 88s.
+
+**LEVELS SHIPPED AT 420 / 480 AND ARE NOT THE COMPLAINT.** All four readings sit inside them;
+the worst fast reading is 359 and the worst save reading 237. A fifth re-derivation on n=4
+would repeat the mistake the last three made.
+
+**CS-917 FILED** - the growth SLOPE (3.51s per commit) is owned by no item, verified at three
+SHAs.
+
+**THE ECC TRIAGE: TAKE NOTHING.** `https://github.com/affaan-m/ECC`, MIT, verified 250044
+stars. The licence gate CLEARS, so the refusal is on quality: our character-set gate bans
+every byte above 0x7E while ECC's allowlists (c), (R), (TM) and does not ban an em-dash;
+our PII layer resolves account ids and world tokens at runtime against its two regexes.
+**ECC fails our non-negotiable 4 itself**, and its installer writes `~/.claude/` by default -
+running it would modify our FROZEN `.claude/settings.json` with no grant. IDEAS-ONLY.
+
+---
+
 ## Session 62 wakeup note - relocated 2026-09-06 (session 65)
 
 ## Session 62 - 2026-09-05 - THE COMPANION RAN FOR THE FIRST TIME EVER and a real shortcut now launches it; the round that shipped it was REFUTED FIVE TIMES including a LOCAL CODE-EXECUTION VECTOR, and the repair brief's own premise was refuted too

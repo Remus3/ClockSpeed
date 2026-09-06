@@ -121,6 +121,7 @@ _SKIP_DIR_NAMES_AT_ROOT = frozenset(
         "dist",
         "gamedata",
         "logs",
+        "moon_sync_inbox",
         "run",
         "screenshots",
         "var",

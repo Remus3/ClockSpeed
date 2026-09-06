@@ -1033,7 +1033,6 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/workdir.py", 688): "e2d30d6ce513",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/world.py", 989): "7b4d51124c45",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/world.py", 1109): "25062ba27287",
-    ("docs/item_notes/phase4-followups-850.md", "tests/conftest.py", 426): "7d14cd734379",
     (
         "docs/item_notes/phase4-followups-850.md",
         "tests/save/test_container_elements.py",
@@ -1141,7 +1140,15 @@ UNFORBIDDEN_LINE_POINTERS: Final[frozenset[tuple[str, str, int]]] = frozenset(
 #: whole, so the number is bigger and the hole is smaller. NOTHING WAS FORGIVEN
 #: TO GET HERE: 45 pins plus 21 dispositions, both enumerated, both already in
 #: the tree before this change.
-FORGIVEN_LINE_POINTER_CEILING: Final = 66
+#:
+#: 66 TO 65, A REPAIR RATHER THAN AN APPEND. The phase-4 followups note pinned
+#: a line in tests/conftest.py; an unrelated edit added one line above that
+#: target and the pin followed the rot, landing on the comment above the name
+#: it meant. It was converted to the symbol form, which an edit above cannot
+#: invalidate, so the line form is GONE rather than re-cut. The ceiling drops
+#: with it: 65 recorded against 66 is exactly the banked slack this ratchet
+#: exists to refuse.
+FORGIVEN_LINE_POINTER_CEILING: Final = 65
 
 # --- resolution -------------------------------------------------------------
 

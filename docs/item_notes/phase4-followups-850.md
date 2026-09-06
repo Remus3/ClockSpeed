@@ -1125,7 +1125,7 @@ in the family to learn that from its own output.
 rules makes the original sentences true again. The audit then found TWO sentences still false
 - and PRE-EXISTING, false at `afd85bd` as well, so not this session's damage:
 `tests/assertion_rendering_guard.py` claimed the report redactor recognises a MACHINE NAME.
-Measured false - `_ACCOUNT_VARIABLES` at `tests/conftest.py:426` holds `USERNAME`, `USER` and
+Measured false - `tests/conftest.py::_ACCOUNT_VARIABLES` holds `USERNAME`, `USER` and
 `LOGNAME` and reads `COMPUTERNAME` nowhere. `clockspeed/data/locate.py` redacts a machine
 name; the conftest redactor that rule borrows does not. Two redactors, and only one of them
 is behind that rule. Corrected in place.

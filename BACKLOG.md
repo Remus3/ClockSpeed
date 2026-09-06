@@ -53,6 +53,13 @@ the first: a consumer actually needs to follow a component to its parent.**
   the frozen list, so no adjudicator grant is needed - conditional on the forcing being
   withdrawn, or on the warning becoming a failure.
 
+- Nothing reddens if the `/moon_sync_inbox/` line is removed from `.gitignore`: the
+  cross-project channel would go back to untracked and visible, and only the
+  pre-commit gate's PII arm would stand between a sibling's note and a commit - which
+  is the arm that already fired once, so the missing guard costs visibility rather
+  than protection - conditional on a second unguarded ignore entry appearing, at which
+  point the arm is worth writing once for the class instead of for the line.
+
 ## Mod content support
 
 Architecture is first-class from phase 0 - namespaced identifiers, unknown classes
@@ -83,8 +90,11 @@ below is deliberately deferred. **Trigger for all three: phase 6 completes.**
   operator-launched GUI that is unbound most of the time, so the probe reported a reserved
   block as free. Nothing here had bound a port yet, so the move cost nothing. **The durable
   rule: verify a band against the owning project's registry in SOURCE, never against a live
-  scan.** Machine-wide blocks now: RM 8770-8789, LL 8810-8819, DS 8860-8879, RC 8888-8895
-  plus 2999, LW 8900-8919, CS 8920-8939.
+  scan.** Machine-wide blocks AS RECORDED ON 2026-08-29: RM 8770-8789, LL 8810-8819,
+  DS 8860-8879, RC 8888-8895 plus 2999, LW 8900-8919, CS 8920-8939. That list has since
+  grown and this copy is NOT maintained - `config/ports.json` owns the record and is the
+  only place to read it current. Dated here rather than updated, because a second list
+  kept in step by hand is the drift the topology rule exists to prevent.
 
 ## Doc topology
 

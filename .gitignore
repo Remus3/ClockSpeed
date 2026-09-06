@@ -259,6 +259,28 @@ shell/NVIDIA Corporation/
 # tracking it would make one operator's pick everyone's.
 /ops/loop/config.json
 
+# The cross-project message channel. Sibling projects on this box drop notes
+# here under a shared directory name, and every tree that uses it gitignores it.
+# LOCAL-ONLY: a mailbox is machine-local by construction - what lands in it
+# depends on which siblings exist beside this checkout, so it is never the same
+# on two machines.
+#
+# It is ALSO treated as potentially PII-BEARING, like the logs above, and that
+# is measured rather than assumed: the first note delivered here named a world
+# discovered on this machine, as a whole word, in two places. The pre-commit
+# gate blocked it under non-negotiable 3 when a `git add -A` swept the directory
+# in. Notes here are authored by OTHER projects, which do not run this repo's
+# redaction rules, so the next note is no safer than that one was.
+#
+# The DIRECTORY is ignored, not its contents, so nothing inside it can be added
+# by a `git add -A` that reaches in.
+#
+# ANCHORED on purpose: the channel is a root-level convention in every tree that
+# uses it. A copy at any other depth is unexpected, and should stay visible to
+# `git status` and be blocked by the gate rather than silently ignored - the
+# diagnosable fail-closed this repo's PII surfaces choose everywhere else.
+/moon_sync_inbox/
+
 
 # ===========================================================================
 # LOCAL-ONLY - OS and editor noise.

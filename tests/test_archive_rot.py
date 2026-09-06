@@ -157,13 +157,31 @@ _CYCLE_MODULE_FLOOR: Final = 4
 #: invalidated by an edit above it. It is part of what the exemption hides, so
 #: leaving it out would be a boundary nobody re-derives - the founding finding
 #: of the module this one was split out of, one more time.
+#:
+#: MOVED 2026-09-06 BY CS-921. ONE SITE, ONE BUCKET, AND THE PER-ARM SPLIT IS
+#: WHAT SHOWED IT. `_ROT_EMPTY` 3 to 2 and `_ROT_FORM` 13 to 14 are the same
+#: pointer, not two findings. The archive names line 665 of `tests/conftest.py`
+#: three times, always meaning `tests/conftest.py::redact_personal_data`, and
+#: that pointer was ALREADY stale: at the parent commit line 665 held the blank
+#: line two below the def. A one-line insertion into that module's no-git
+#: fallback skip list shifted it onto the docstring's first line, so it stopped
+#: landing on nothing and started landing on a real line in the refused form.
+#: NO NEW ROT ARRIVED and nothing in the archive was edited - a pointer that was
+#: already wrong became wrong in a different bucket. That is the exact inversion
+#: the paragraph above predicts, and pooled it would have moved no total at all.
+#:
+#: THIS COMMENT AVOIDS THE COLON-NUMBER SHAPE ON PURPOSE, and the first draft of
+#: it did not. Spelling the stale pointer out here turned the forbid arm red on
+#: the NEXT full run: a note ABOUT a line pointer is a line pointer as far as
+#: the guard can see, it cannot tell the two apart, and it should not try. Name
+#: the symbol and say the number in prose.
 ARCHIVE_ROT: Final[Mapping[str, int]] = {
     _ROT_CITATION: 5,
     _ROT_RANGE: 0,
-    _ROT_EMPTY: 3,
+    _ROT_EMPTY: 2,
     _ROT_NAME: 3,
     _ROT_PATH: 4,
-    _ROT_FORM: 13,
+    _ROT_FORM: 14,
 }
 
 

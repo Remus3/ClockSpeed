@@ -160,6 +160,106 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-06 - CS-921 - CLOSED. The cross-project inbox is gitignored and the world name is gone; one line added to a fallback list moved THREE pin populations, all repaired in the same commit
+
+**What changed.** `moon_sync_inbox/` - the cross-project message channel the sibling
+trees on this box share - was untracked, UNIGNORED, and carried a world name discovered
+on this machine as a whole word in two places. The pre-commit gate blocked it under
+non-negotiable 3 when a `git add -A` swept it in. Both halves are now closed:
+
+- `.gitignore` gains `/moon_sync_inbox/`, filed under LOCAL-ONLY with the
+  potentially-PII-BEARING note the `/logs/` and `/ops/loop/` entries already carry.
+- The two colliding sites in the received note were rewritten to the sibling project's
+  closed-up directory form, which does not match. The note carries a `LOCAL EDIT` block
+  recording that a delivered message was modified and why.
+
+**The collision was in a SIBLING PROJECT'S NAME, not in the note's subject.** The gate's
+world detection is VALUE-based and whole-word, so a two-word project display name whose
+second word is a world on this machine trips it. That is a channel-level hazard, not a
+defect in the note, and it is carried back to the sender.
+
+**Merged files:** `.gitignore`, `tests/conftest.py`, `tests/test_docs_citations.py`,
+`tests/test_archive_rot.py`, `docs/item_notes/phase4-followups-850.md`, `config/ports.json`.
+
+**Verified by:** `tests/test_docs_citations.py::test_every_live_pin_anchors_a_line_that_is_still_there`,
+`::test_no_line_pointer_names_a_tracked_python_module_without_a_record`,
+`::test_the_forgiveness_budget_is_spent_exactly_and_cannot_grow`,
+`tests/test_archive_rot.py::test_the_deep_archives_rot_is_measured_and_pinned_per_arm`, and
+`tools/drift_guard.py` guard (e) port record. The ignore itself is proven end to end by
+the gesture that broke before: `git add -A` now stages only tracked files and leaves the
+directory out, and `tools/precommit_gate.py --files` on the note goes BLOCKED (2
+diagnostics) to PASS.
+
+**THE ONE-LINE SYNC PULLED THREE REPAIRS INTO THE SAME COMMIT, AND A PARTIAL COMMIT HERE IS
+RED BY CONSTRUCTION.** `tests/conftest.py` keeps a hand-maintained mirror of the
+root-anchored ignore patterns for its no-git fallback walk, and states that a disagreement
+with `.gitignore` is a bug in the list. Adding one entry to it shifted every line below by
+one, which moved a line-number citation pin off its target. This is the CS-500 defect class
+exactly, arriving from the other direction.
+
+- The pin at `docs/item_notes/phase4-followups-850.md` was converted to the symbol form
+  `tests/conftest.py::_ACCOUNT_VARIABLES` and its record removed from
+  `UNVERIFIED_LINE_POINTERS`. The guard REFUSES a re-cut digest in terms worth keeping:
+  re-cutting "keeps a pointer that has already been shown to follow the rot".
+- `FORGIVEN_LINE_POINTER_CEILING` drops 66 to 65. A repair lowers the ceiling; leaving 65
+  recorded against 66 is exactly the banked slack that ratchet exists to refuse.
+- `tests/test_archive_rot.py` re-pins the DEEP ARCHIVE's rot: `_ROT_EMPTY` 3 to 2 and
+  `_ROT_FORM` 13 to 14. THIS IS ONE SITE MOVING BUCKET, NOT TWO FINDINGS. The archive's
+  three references all name line 665 of `tests/conftest.py`, meaning
+  `tests/conftest.py::redact_personal_data`, and that pointer was ALREADY stale at the
+  parent commit - line 665 held the blank line two below the def. The shift moved it onto the docstring's first line, so it stopped landing on
+  nothing and started landing on a real line in the refused form. No new rot arrived and
+  nothing in the archive was edited. **The per-arm design is what made it visible**: the
+  table's own comment predicts the inverse move and notes that pooled, the total would
+  not shift at all.
+
+**THE ARCHIVE RE-PIN'S OWN JUSTIFICATION WENT RED, WHICH IS THE SAME GUARD WORKING.**
+The comment recording the bump first spelled the stale site in the colon-number form,
+and `test_no_line_pointer_names_a_tracked_python_module_without_a_record` counted it as
+a NEW line pointer in a tracked module - correctly. A note ABOUT a line pointer is a
+line pointer to the guard, which cannot tell the two apart and should not try. The
+comment now names `tests/conftest.py::redact_personal_data` and gives the number in
+prose, and it records that trap for the next person. THREE full-suite runs were spent
+on one line of test data; the targeted runs passed for the first two.
+
+**DECISION - the world name was NOT added to `world_name_exclusions`.** The gate offers
+that route in its own diagnostic, and it was declined. The exclusion is repo-wide and
+permanent: it would let a real world of that name commit anywhere in the tree, forever,
+to spare two words in one gitignored note. `tools/precommit_gate.py`'s own source already
+records the same trade being refused once, when CS-208 proposed raising the world-name
+length floor. Narrowing a PII blocklist to fix a cosmetic collision is the wrong direction
+and stays refused.
+
+**DECISION - the pattern is ANCHORED, `/moon_sync_inbox/`, not bare.** The sender's note
+asked for the bare form, which the three sibling trees use. Anchored was chosen anyway:
+the channel is a root-level convention in every tree that has it, and a copy at any other
+depth should stay visible to `git status` and be caught by the gate rather than silently
+ignored. That is the diagnosable fail-closed this repo's PII surfaces choose everywhere
+else. The two forms are identical for the actual use.
+
+**CROSS-PROJECT, and the reason it is in this entry rather than only in the inbox.**
+`config/ports.json` now records `RSC 8790-8809` in its machine-wide block list, recorded
+as read from ResinCompute's note and NOT independently probed - the record says so in
+those words. What this tree confirms on its own is narrower: 8790-8809 is the gap between
+RM's exclusive end at 8789 and LL's start at 8810, which this registry already showed
+unclaimed, and nothing here binds inside it.
+
+**A NUMBER THIS PROJECT PUBLISHED ABOUT ITSELF WAS READ BACK STALE BY A SIBLING, WHICH IS
+CS-920's THESIS ARRIVING FROM OUTSIDE.** The note credited `config/ports.json` with "its
+own 8900-8911 allocation". That band was vacated 2026-08-29 because it sat wholly inside
+LegionWallpaper's 8900-8919; this project holds 8920-8939. The sentence is TRUE about the
+historical allocation and the lesson it credits is recorded accurately - what did not
+travel with the number was that it is former. In a disjointness document the band is the
+load-bearing part, so a reader would have routed around the right numbers under the wrong
+owner. Corrected in the received note, marked in place, and carried back in a reply filed in
+ResinCompute's own inbox this session. CS-920 is NOT closed by this and gains a worked
+example from a real reader.
+
+**Not guarded:** nothing reddens if the `.gitignore` line is removed. Filed to
+`BACKLOG.md` rather than `ROADMAP.md` because the gate still fails closed on the harm that
+matters - a world-name-bearing note reaching a commit - so the missing arm costs
+visibility, not protection.
+
 ### 2026-09-06 - CS-918 - CLOSED. One real cycle ran end to end, and it caught a defect in its own author
 
 **The cycle, from the ledger it wrote.** `ops/loop/reports/queue_loop.jsonl`, one row:

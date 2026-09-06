@@ -34,6 +34,71 @@ the line becomes a pointer.
 
 ---
 
+## Session 68 - 2026-09-06 - CS-921 CLOSED: the cross-project inbox is gitignored and the world name is gone; one line added to a fallback list moved THREE pin populations
+
+**NUMBERING: there is no Session 67 entry in this file and that gap is real, not a filing
+error.** The session before this one labelled its commits `Session 65 handoff` while its
+handoff prompt called this one 68. Nothing renumbers cleanly, so 68 is kept because it is
+the operator's frame of reference. Do not "repair" the gap by renumbering.
+
+- **Shipped:** **CS-921 CLOSED.** `moon_sync_inbox/` is gitignored as `/moon_sync_inbox/`,
+  anchored, and the world name it carried in two places is gone. Detail in `docs/LEDGER.md`.
+
+- **In flight:** nothing. The tree is clean, main is pushed, and CI was read rather than
+  assumed. The suite was run SERIALLY because Riot Commander's lane was running eight
+  pytest processes throughout - `-n auto` on top of that is the documented fork-exhaustion
+  trap and would have produced false reds on unrelated subprocess tests.
+
+- **Decisions:** no ADR. Three worth not re-litigating, all recorded with their fences in
+  the ledger entry: the world name was NOT added to `world_name_exclusions` (repo-wide and
+  permanent, to spare two words in one gitignored note - the same trade `precommit_gate.py`
+  already refused once at CS-208); the pattern is ANCHORED rather than the bare form the
+  sender asked for; and the citation pin was converted to the SYMBOL form rather than
+  having its digest re-cut, which the guard refuses in terms worth keeping.
+
+- **Surprises:**
+  - **Nothing contradicted `BOOTSTRAP.md`.**
+  - **`grep -c $'\r'` DOES NOT COUNT CARRIAGE RETURNS in this harness's Git Bash.** It
+    returns the TOTAL line count on a pure-LF file. Measured with a control: 3 on a file
+    with zero CRs, 3 on a file with three. It nearly caused a normalising pass over
+    `.gitignore`, which was already clean - the false reading agreed exactly with the known
+    `edit-tool-writes-crlf` fault. Count line endings in Python on raw bytes. Filed to the
+    harness memory store as `grep-cr-count-matches-every-line`.
+  - **A SIBLING READ ONE OF THIS PROJECT'S OWN PUBLISHED NUMBERS BACK STALE.** ResinCompute
+    credited `config/ports.json` with "its own 8900-8911 allocation"; that band was vacated
+    2026-08-29 and this project holds 8920-8939. The sentence was true about the historical
+    allocation - what did not travel with the number was that it is former. **That is
+    CS-920's thesis arriving from outside the repo**, and it is now a worked example rather
+    than a hypothetical. CS-920 is NOT closed by it.
+  - **A cross-project note can block this repo's commit gate by naming a sibling project.**
+    The gate's world detection is value-based and whole-word, so a two-word project display
+    name whose second word is a world on this machine trips it. Carried back to the channel
+    with the fix: spell siblings in their closed-up directory form.
+
+- **Failed paths:** adding one entry to `tests/conftest.py`'s no-git fallback list looked
+  like a one-line sync and was not - it shifted every line below it by one and moved a
+  line-number citation pin off its target, turning `tests/test_docs_citations.py` red. This
+  is the **CS-500 defect class arriving from the other direction**, and it confirms the
+  standing warning: a citation-pin repair MUST land in the same commit as the edit that
+  moved the line. A partial commit is red by construction.
+  **It moved THREE pin populations, not one, and the third only showed up in the FULL
+  suite** - `UNVERIFIED_LINE_POINTERS`, `FORGIVEN_LINE_POINTER_CEILING`, and the deep
+  archive's `ARCHIVE_ROT` in `tests/test_archive_rot.py`. A targeted run over the guards
+  that consume the enumeration passed while the archive arm was still red. Budget for
+  the full suite whenever a line is inserted into a module the docs pin by NUMBER.
+  **AND THE REPAIR ITSELF WENT RED ON THE NEXT RUN.** The comment justifying the
+  archive re-pin spelled the stale pointer out in the colon-number form, and the
+  forbid arm counted it as a NEW line pointer in a tracked module. A note ABOUT a
+  line pointer is a line pointer as far as the guard can see; it cannot tell the
+  two apart and should not try. Name the symbol, say the number in prose. THREE
+  full suite runs were spent on one line of test data, and only the third was
+  green - budget accordingly.
+
+- **Next action:** take **CS-919**. Its fence is unchanged and load-bearing - DO NOT RUN
+  THE LANE FOR A NIGHT UNTIL IT IS CLOSED, because this session watched three other
+  projects push to this box while it worked, which is exactly the condition that makes the
+  lane's CI attribution wrong.
+
 ## Session 66 - 2026-09-06 - CS-918 CLOSED: a headless queue lane, ported with the driver owning every wait; one real cycle ran and caught three defects of its own author
 
 - **Shipped:** **CS-918 CLOSED.** Four commits, `e0523d8..09aa678`. A one-row-per-worker
@@ -218,81 +283,5 @@ sessions running. RELOCATE, NEVER DELETE.
 **THE ECC FOLLOW-UPS ARE STILL UNFILED, and one count in the handoff was already stale:**
 the GitHub Actions carry **13** mutable `uses:` tags, not 11 - the shard split added two.
 A restated count drifted inside one session, which is the doc rule demonstrating itself.
-
----
-
-## Session 64 - 2026-09-06 - CI was red for TWO reasons and the handoff named one; tier 1 now runs in two shards; FOUR adversarial passes all returned REFUTED and CS-896 is STILL NOT CLOSED
-
-**ZERO ITEMS CLOSED.** CS-910, CS-900 and CS-896 all took substantive repairs and all three
-stay open. Seven commits, `8729191..b9ca505`, all pushed, CI green.
-
-**THE HANDOFF WAS WRONG ON ITS TOP ITEM.** It said tier 1 was red on the duration ceiling
-alone with every test passing. Both red runs read `1 failed, 5213 passed, 119 skipped`. The
-lane was red for TWO reasons and only one had been read.
-
-**CS-910 - a Windows-only arm ran on Linux.**
-`tests/test_make_cert.py::test_a_planted_openssl_in_the_working_directory_is_never_run`
-grades the implicit current-directory executable search. Two of the three CS-910 runtime
-arms carry a platform skip; the third carried a LIVENESS GATE written
-`os.name != 'nt' or NeedCurrentDirectoryForExePath(...)`, which SHORT-CIRCUITS TRUE on
-POSIX - so it reported the mechanism live where it does not exist. Fixed with the skip its
-siblings had, plus a structural guard that reads every test function's UNPARSED BODY for the
-two spellings, because the offending arm named the module only inside a probe STRING.
-
-**WHY IT ESCAPED, AND THE FIRST FILED CAUSE WAS WRONG.** Not `cancel-in-progress`. **GitHub
-Actions creates one run per PUSH event, against the TIP commit.** Twelve commits went up in
-one push; the commit that introduced the test was never eligible for a run. The development
-machine is Windows, where the arm passes, so tier 0 could not see it either.
-
-**CS-900 - the liveness sweep re-parsed 8.4 MB of source 3457 times.** `module_function` took
-a module's SOURCE and called `ast.parse` on it for every question. **89.93s before, 0.89s
-after**; twelve sibling helpers in the same module had the identical shape and now share one
-cache. `tests/test_liveness.py` went from roughly 146s to 41.19s.
-
-**TIER 1 NOW RUNS IN TWO SHARDS, and that was an operator decision.** Run 34013336391 was
-CANCELLED at 611s at 99 per cent of the suite with NOTHING FAILING. The cutoff is policy and
-was not raised, so the work was given a second runner rather than trimmed: `fast` runs
-`tests --ignore=tests/save`, `save` runs `tests/save`. **Coverage is unchanged BY
-CONSTRUCTION** - verified two ways, a node-id partition (3245 + 1413 = 4658, empty
-intersection) and identical skip sets (49 sites, 120 skips) before and after.
-
-**FOUR ADVERSARIAL PASSES, ALL FOUR REFUTED, each against a frozen SHA it had not written.**
-Every one found a defect that every gate, guard and arm in the tree was green over:
-
-1. The budget's derivation was falsified BY THE SPLIT ITSELF - 540 was "21 above the worst
-   observed job" and the split left it 221 above, so **CS-896's fix had disabled CS-896's
-   own alarm**.
-2. **The partition guard read ONE SIDE.** Adding one ignore and one marker expression to the
-   save shard dropped **244 of its 1413 tests** with everything green.
-3. **A trailing YAML comment defeated the cutoff guard.** `  third:  # a scratch job` was
-   invisible to a regex anchored at `:$` while PyYAML resolved three jobs - that job would
-   have run under GitHub's 360-minute default.
-4. The warning margin was overstated 2.5x, and a ledger entry cited evidence THIS SESSION'S
-   OWN COMMIT had deleted.
-
-**AND A FIFTH FINDING CAME FROM THE DATA.** Reading four of the fast shard arrived at **260
-job-seconds** against 323, 359 and 358 - on a **byte-identical population** (`3911 passed, 23
-skipped` in both runs), an **88-second swing on identical work**. That widened the sample sd
-from 20.5 to 46.5 and pushed the 95/95 tolerance bound to **564s, above the 480 ceiling**.
-**The fourth reading did not discharge the sample objection - it failed it.**
-
-**SO CS-896 IS NOT CLOSED, and the reason is specific.** The ROADMAP acceptance clause is met
-four times over. What is NOT met is the CS-896 leaf's added condition that growth be visible
-before it is fatal, because every warn band this session derived was narrower than the noise
-its own next reading revealed: 21s, then 36s, now at least 88s.
-
-**LEVELS SHIPPED AT 420 / 480 AND ARE NOT THE COMPLAINT.** All four readings sit inside them;
-the worst fast reading is 359 and the worst save reading 237. A fifth re-derivation on n=4
-would repeat the mistake the last three made.
-
-**CS-917 FILED** - the growth SLOPE (3.51s per commit) is owned by no item, verified at three
-SHAs.
-
-**THE ECC TRIAGE: TAKE NOTHING.** `https://github.com/affaan-m/ECC`, MIT, verified 250044
-stars. The licence gate CLEARS, so the refusal is on quality: our character-set gate bans
-every byte above 0x7E while ECC's allowlists (c), (R), (TM) and does not ban an em-dash;
-our PII layer resolves account ids and world tokens at runtime against its two regexes.
-**ECC fails our non-negotiable 4 itself**, and its installer writes `~/.claude/` by default -
-running it would modify our FROZEN `.claude/settings.json` with no grant. IDEAS-ONLY.
 
 ---
