@@ -339,6 +339,9 @@ ADR_0015: Final = "docs/adr/0015-the-shell-may-start-the-surface.md"
 #: CS-913 - the unlock carriers and their serialized grammar.
 ADR_0016: Final = "docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md"
 
+#: The operating law of the companion and the overlay, adapted 2026-09-05.
+HUD_DOCTRINE: Final = "docs/hud_doctrine.md"
+
 #: The LIVE per-item detail file, created 2026-08-23 when the operator ruled the
 #: NOTE bodies out of `ROADMAP.md`. IT IS GUARDED RATHER THAN RECORDED UNGUARDED,
 #: and the reason is the move itself: every body in it came VERBATIM out of
@@ -404,6 +407,9 @@ GUARDED_DOCS: Final = (
     # session that watched three line pointers rot when an import moved the
     # lines beneath them.
     ADR_0016,
+    # Guarded on arrival: every arm it names resolves today, and it exists to be
+    # read when the overlay is built rather than rediscovered then.
+    HUD_DOCTRINE,
     ITEM_NOTES,
     *ITEM_NOTES_LEAVES,
     # A memory leaf that cites a test by name. Guarded rather than recorded,

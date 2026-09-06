@@ -175,6 +175,12 @@ building it that whoever writes those components will otherwise re-discover the 
   light scrim chosen to keep the game visible lands at the WORST legibility available,
   strictly worse than no scrim. Body text clears 4.5:1 at alpha 0.65, the accent at 0.80.
 
+**The surface law now has an owner file, filed 2026-09-05.** `docs/hud_doctrine.md`
+holds what the companion and the overlay are each FOR, which channel may carry what, and
+the three shipped arms an overlay will collide with. It was adapted from a doctrine the
+operator supplied from another project and records what does NOT transfer as carefully as
+what does.
+
 **Three-tier disclosure cannot use `details` or `summary`, measured 2026-09-05.**
 `tests/surface/test_web_assets.py::test_the_page_offers_exactly_one_kind_of_clickable_target`
 bans `a`, `input`, `select`, `textarea`, `details` and `summary` outright: the only clickable

@@ -156,6 +156,7 @@ restated fact is a fact that will drift. This table is the anti-drift control.
 | `docs/OPERATIONS.md` | Commands, restart, scheduled tasks, runbooks | Architecture, rationale |
 | `docs/adr/` | One file per architectural decision, indexed in `docs/adr/README.md` | Anything not a decision |
 | `docs/GATED.md` | Items blocked on something outside the repo | Items merely unstarted |
+| `docs/hud_doctrine.md` | The operating law of the companion and the overlay surfaces | Palette values, build detail, open work |
 | `docs/upstream_watch.md` | The upstream wiki watch list and the ordering it is read in | Lifted upstream content, the CS-485 licence verdict |
 | `docs/history_notes.md` | Deep archive of pruned notes and retired ledger entries | Current state, live instructions for OPEN work |
 | `memory/` | Durable cross-project and cross-session facts | Project state derivable from code |
