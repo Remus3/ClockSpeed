@@ -7,13 +7,19 @@ Clockspeed reads the game's own shipped data files and your save file, computes 
 production mathematics, and tells you what to build next in one line - with the complete
 derivation available on demand.
 
-> **Status: phase 0 scaffold. Nothing is built yet.** This repository currently contains
-> the project scaffold and its specifications. There is no working program to run. The
-> sections below describe what Clockspeed is being built to be and how it will be used.
+> **Status: the foundations are built and the advisor is not.** The data layer, the
+> solver core, the save reader and the local dashboard exist, run and are covered by the
+> test suite. The advice layer that sits on top of them is still being built, so the
+> endpoints that would serve advice, audits and milestone plans answer a documented
+> pending status rather than a result. `/api/health` reports the route table and what is
+> wired to it, which is the authoritative answer to "what works today" - this paragraph
+> is a summary of it and the code is what settles any disagreement.
 
 ---
 
 ## What it does
+
+**Working today.**
 
 - **Target-rate ratio solve.** Ask for a given output per minute and get the complete
   production tree: every intermediate, exact building counts, exact clock speeds,
@@ -22,6 +28,12 @@ derivation available on demand.
 - **Alternate-recipe selection under constraints.** Choose the recipe set that minimizes
   raw resource use, power draw, building count or footprint - or maximizes sink points per
   unit of raw input - constrained to what you have actually unlocked.
+- **Reading your world.** Clockspeed locates your install and your most recent save on its
+  own, copies the save before parsing it, and serves the resulting world state and the
+  normalized item and recipe registry over a local dashboard.
+
+**Being built.**
+
 - **Whole-world audit from your save.** Idle and starved machines with the upstream cause,
   overclock waste, belt and pipe saturation with the binding segment, power headroom and
   brownout risk, under-extracted nodes and extractor tier mismatches.
@@ -77,27 +89,44 @@ to create, no API key to supply and no network service to depend on.
 
 ## Install
 
-Nothing is installable yet at phase 0. When there is something to install, the path will
-be: obtain a copy of the repository, then run the environment check.
+Obtain a copy of the repository, then check the environment:
 
 ```
 python scripts/verify_env.py
 ```
 
 It exits non-zero and names the missing item if a hard dependency is absent. Contributors
-run one additional step to wire the local git hooks; see `docs/OPERATIONS.md`.
+run one additional step to wire the local git hooks; see `docs/OPERATIONS.md`, which owns
+the bootstrap order and should be run first thing in a fresh clone.
 
 ## Running it
 
-**Not yet available.** When the surfaces land, Clockspeed will run as a local HTTPS
-dashboard on this machine, on a port recorded in `config/ports.json`, with an optional
-desktop companion window that loads the same dashboard on a second monitor.
+```
+python -m clockspeed.surface
+```
+
+That starts the local HTTPS dashboard on the port recorded in `config/ports.json`. It
+takes no arguments: it finds the newest save on this machine and serves it, because a
+dashboard that has to be told where to look is a dashboard you have to be taught to use.
+
+A machine with **no save and no game still starts and still binds**. The absence is
+reported as a status by the endpoint that serves your world, and in the health body, which
+is a true statement about a working system rather than a failure of one.
+
+If the port is already taken the process exits and names it. No second port is ever tried
+- an operator who asked for a port and silently got a different one has a dashboard they
+cannot find and a companion window that will not connect.
+
+An optional desktop companion window loads the same dashboard on a second monitor.
 
 ## What the first result looks like
 
 Clockspeed finds your game installation and your most recent save automatically - you do
-not tell it where anything is. It parses the save, audits the world, and shows a short
-ordered list of advice cards. A card looks like this in shape:
+not tell it where anything is. It parses the save and serves your world state, the item
+and recipe registry, and the solver.
+
+When the advice layer lands, the same dashboard will show a short ordered list of advice
+cards. A card looks like this in shape:
 
 ```
 Build a second smelter line on the north iron node

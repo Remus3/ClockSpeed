@@ -159,6 +159,131 @@ machine-checked artifact that produces it.
 ---
 
 ## Entries
+
+### 2026-09-05 - CS-900 - MEASUREMENT AND REPAIR RECORD. The liveness sweep re-parsed 8.4 MB of source 3457 times, and the fix that shipped is the one an adversary found after REFUTING the fix that was proposed
+
+**CS-900 STAYS OPEN.** Its acceptance asks for a runner profile taken BEFORE and AFTER that
+reports the most expensive test's share both times. The before half exists now; the after
+half does not, because the profile below was taken on the tree that still carried the
+defect.
+
+**THE PROFILE, taken on the tier 1 runner** - run 34010764125 on `c189d33`, `pytest -n auto
+--durations=40`, `5215 passed, 120 skipped in 554.70s`:
+
+| seconds | test |
+|---|---|
+| 168.66 | `tests/save/test_phase4_gate.py::test_the_save_suite_passes_with_no_install_and_no_save` |
+| 81.69 | `tests/test_liveness.py::test_the_resolved_routes_recover_only_functions_that_really_reach_grading` |
+| 30.71 | `tests/save/test_absolute_claims.py::test_a_marked_claim_at_each_parse_derived_position_is_caught` |
+| 26.31 | `tests/save/test_reach_guard.py::test_every_library_reaching_module_in_the_package_is_declared` |
+
+**THE DEFECT.** `tests/liveness.py::module_function` took a module's SOURCE and called
+`ast.parse` on it for every question asked. The route sweep asks 3457 questions about 156
+tracked files totalling roughly 8.4 MB, so the same sources were parsed thousands of times
+to answer what is a dictionary lookup. **Measured on the development machine: 89.93s for
+those 3457 calls, and 0.89s for the same calls after.** Twelve sibling helpers in the same
+module had the identical shape and now share one cache. Merged file: `tests/liveness.py`.
+`tests/test_liveness.py` runs 100 passed in 41.19s against roughly 146s before.
+
+**THE FIX THAT WAS PROPOSED WAS REFUTED, AND THE REFUTATION IS THE RECORD WORTH KEEPING.**
+The plan was to mark the two most expensive tests `slow` and have tier 1 run `-m 'not
+slow'`. An adversary that wrote none of it returned REFUTED on six of seven points. Three
+were fatal:
+
+- **CS-907's note already forbids it, in capitals** - "DO NOT CLOSE THIS BY MARKING TESTS
+  `slow` UNTIL THE NUMBER LOOKS RIGHT. A marker applied to whatever is slowest today is a
+  subset defined by a stopwatch rather than by risk." The plan was exactly that.
+- **CS-448's acceptance would have been handed to the lane its own note refuses as
+  evidence.** That acceptance asks for deterministic passing under `-n auto` across
+  REPEATED runs; tier 1 generates those at 26 a day, tier 2 at one, only on main, and only
+  when an opportunistic `pip install pytest-xdist` succeeds.
+- **CS-900's own metric would have moved by 0.7 points.** Deleting a test from the step
+  shrinks the denominator too: the post-change top test would have been 18.2 per cent
+  against the 18.9 per cent the item was filed about.
+
+It also found two real per-push coverage losses that the plan had not enumerated, in
+`tests/test_mypy_gate.py`, and that the plan gave away a 1.6s fork-bomb guard for about
+three seconds.
+
+**AND IT REFUTED A NUMBER THIS SESSION HAD ALREADY REPORTED.** The claim that the most
+expensive test "grew +57s" compared 111.39s at `c33afca`, which is a SERIAL reading, against
+168.66s, which is PARALLEL and taken while a sibling xdist worker contends for the second
+vCPU. The two are not comparable and the growth is not established by them. The share
+figure has the same fault: on two workers the per-test shares of a makespan sum to about
+200 per cent, not 100, so "share of the step" is not the same quantity it was when the item
+was filed.
+
+**WHAT IS STILL OWED, AND IT IS A SLOPE AND NOT A LEVEL.** Measured: 26 commits landed
+between `c33afca` and `c189d33` in one working day, and the parallel step went 463.49s to
+554.70s over them - **3.51 seconds per commit**. Any fix that buys a fixed number of seconds
+buys a fixed number of commits. Verified by
+`tests/test_liveness.py::test_module_function_returns_the_first_definition_of_a_repeated_name`,
+`::test_module_function_does_not_answer_one_source_from_another` and
+`::test_module_function_reports_a_name_the_module_does_not_define`.
+
+---
+
+### 2026-09-05 - CS-910 - REPAIR RECORD. The arm that graded a Windows-only mechanism ran on Linux and failed tier 1, and the liveness gate that should have stopped it answered TRUE where the mechanism does not exist
+
+**CS-910 STAYS OPEN and this entry does not close it.** It still owes the adjudicator grant
+for the four frozen sites, the runtime arms over the remaining indirect delegations, and the
+31 ungraded findings under `tests/`. This records a repair to a test that CS-910's own work
+introduced.
+
+**THE HANDOFF INTO THIS SESSION WAS WRONG ON A MATERIAL POINT and it is corrected here.** It
+recorded that tier 1 was red on the duration ceiling alone, with every test passing. Both
+red runs read `1 failed, 5213 passed, 119 skipped`:
+
+| run | commit | pytest step | job |
+|---|---|---|---|
+| 34008102419 | `4e89375` | 538.98s | 574s |
+| 34009025621 | `8729191` | 546.97s | 582s |
+
+The lane was red for TWO reasons and only one of them had been read.
+
+**THE MECHANISM.** `tests/test_make_cert.py::test_a_planted_openssl_in_the_working_directory_is_never_run`
+grades the implicit current-directory executable search, which is a Windows behaviour. Two
+of the three CS-910 runtime arms carry a platform skip - `tests/test_make_shortcut.py` by an
+inline `skipif` and `tests/test_toolpath.py` by `WINDOWS_ONLY`. The third carried a LIVENESS
+GATE INSTEAD, written `os.name != 'nt' or NeedCurrentDirectoryForExePath(...)`, which
+SHORT-CIRCUITS TRUE on POSIX. So the gate reported the mechanism live exactly where it is
+absent, and the arm walked on to a control asking `shutil.which` to offer a plant in the
+working directory, which off Windows cannot pass. **The control did its job and the gate
+lied.**
+
+**WHY NOTHING CAUGHT IT, AND THE FIRST FILED CAUSE WAS WRONG.** The first commit message on
+this repair said `cancel-in-progress` cancelled the runs for `b02e174` and `af3e99d`.
+**MEASURED FALSE.** `git log 53ac4b5..4e89375` is TWELVE commits and `gh run list --commit`
+returns nothing for either SHA. GitHub Actions creates one run per PUSH event against the
+TIP commit, so every intermediate commit of a multi-commit push is never eligible for a run
+at all - nothing was queued and nothing was cancelled. `b02e174`, which introduced the test,
+could not have been tested, and `4e89375` was the first run in existence to execute it. The
+development machine is Windows, where the arm passes, so tier 0 could not see it either.
+
+**THE REPAIR IS THE GATE ITS TWO SIBLINGS ALREADY HAD**, plus a structural guard, because
+nothing that runs on this machine could have caught the missing gate. Merged files:
+`tests/test_make_cert.py`, `tests/test_toolpath.py`. Verified by
+`tests/test_toolpath.py::test_every_current_directory_arm_is_skipped_off_windows`, which
+reads every test function under `tests/` for the two spellings that reach the mechanism and
+asserts each carries a platform skip. It reads the WHOLE UNPARSED FUNCTION rather than the
+import statements, because the arm that broke the lane named the module only inside a probe
+STRING - a scan for the import would have reported a clean population over a live defect.
+Its companion,
+`tests/test_toolpath.py::test_the_current_directory_arm_population_is_not_empty`, asserts the
+scanned population is non-empty so the guard cannot pass by matching nothing.
+
+**MEASURED, BOTH DIRECTIONS.** The guard fails on the pre-fix tree naming exactly one arm.
+The population is exactly three and they are the three CS-910 runtime arms. CI run
+34010764125 reports `5215 passed, 120 skipped`, zero failures, on Linux.
+
+**NO BACKFILL IS OWED AND HERE IS HOW THAT WAS ESTABLISHED.** The defect is confined to a
+test's own skip condition. The set checked is every write site in the arm and its four
+helpers - `_plant_openssl`, `_curdir_search_env`, `_child_probe` and the arm itself - and
+every one writes only under a pytest `tmp_path` that is discarded. No product code changed,
+so no persisted card id or world-token key can have been computed by the defective path.
+
+---
+
 ### 2026-09-05 - CS-910 - MEASUREMENT RECORD. Seven spawn sites routed, and the claim that the remainder was all frozen was FALSE TWICE
 
 **CS-910 STAYS OPEN and this entry does not close it.** Its acceptance asks the same

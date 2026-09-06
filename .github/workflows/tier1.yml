@@ -370,8 +370,15 @@ jobs:
       # opportunistically and tolerates its absence; this lane must NOT, because
       # silently falling back to serial puts it back over the cutoff while
       # saying nothing about why.
+      # `--durations` IS THE HALF CS-896 KEPT ASKING FOR AND NEVER HAD. The lane
+      # already reports how long it took; until now it never reported WHERE the
+      # time went, so every investigation began by pushing a diagnostic branch to
+      # find out. The item's note refuses a local profile in terms - the runner is
+      # roughly 2x slower for subprocess-heavy work - so the profile has to be
+      # taken here or not at all. It costs nothing: pytest already times every
+      # test, and the threshold keeps the sub-5s tail out of the log.
       - name: Unit tests
-        run: python -m pytest tests -q -n auto
+        run: python -m pytest tests -q -n auto --durations=15 --durations-min=5.0
 
       # -- The comparison CS-896's acceptance clause asks for. --
       # `if: always()` is the load-bearing half. A comparison that ran only when
