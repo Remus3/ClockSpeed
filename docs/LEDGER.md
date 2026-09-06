@@ -160,6 +160,82 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-06 - CS-906 - CLOSED. The pre-push suite runs distributed, all thirteen grant conditions met, and the arms caught an edit that would have reddened every push
+
+Verification: `python -m pytest tests -q -n auto` -> 5371 passed, 4 skipped.
+`python scripts/install_hooks.py` -> exit 0. The frozen-file edit is `a8eb697`, strictly
+later than the grant entry below and strictly later than `b3d744e`, which carries the
+test-side conditions - the ordering conditions SEVEN and THIRTEEN require, verifiable from
+`git log` rather than from this sentence.
+
+**WHAT SHIPPED.** `.githooks/pre-push` chooses serial or parallel ONCE, before the run,
+from an importability probe, and never re-runs the suite. Scope held: only the pytest
+invocation and its comment block moved. Everything after `STATUS=$?` compares byte-equal to
+its parent, and the `cs_probe` block, the interpreter ladder, the pytest importability
+check and the exit-5 guard are untouched.
+
+**THE MEASUREMENT, AND THE FLATTERING NUMBER IS NAMED SO IT IS NOT QUOTED.** Before:
+serial, 765s over three runs on 5362 tests. After: distributed, 387s on 5371 tests. That
+is **1.98x and about 378 seconds off every push**. An earlier reading of **2.59x** (765s
+against 296s) was taken against the suite BEFORE condition TWELVE's arms existed and MUST
+NOT be quoted as the shipped figure. The grant's own 1.222x was a 2-vCPU runner; this
+machine has 16 logical processors, which is why condition TEN demanded a local reading.
+
+**THE ARMS CAUGHT A DEFECT THAT WOULD HAVE SHIPPED GREEN AND REDDENED EVERY PUSH.** The
+first edit passed when its module ran alone and failed, three of three, under an outer
+`-n auto`. The hook now runs the whole suite distributed; that suite CONTAINS the arms that
+grade the hook. Without condition TWELVE this would have been discovered by the first
+person to push.
+
+**THE ROOT CAUSE IS GENERAL.** `PYTEST_XDIST_WORKER` is an ordinary environment variable
+and it is INHERITED. Under an outer distributed run the process driving the push is itself
+a worker, so the variable travels the whole chain - environment copy, git, sh, the hook -
+into the nested pytest, whose CONTROLLER then reads a worker id it never earned and files
+itself as a worker. Every controller-derived field returns None while the run plainly
+happened. **The signature is `ran=False` beside a NON-ZERO worker count**, which is not
+"nothing ran" but "everything ran and the controller was misfiled"; it was measured wearing
+two different numbers, `workers=9` and `workers=1`.
+
+**THE FIX ASKS `config.workerinput`**, which xdist injects INSIDE the worker process before
+the session configures and which therefore cannot arrive from a parent. It is xdist's own
+discriminator - `is_xdist_worker` is exactly that `hasattr` - and it is read with `getattr`
+rather than an import because the degraded arm hides xdist from that very process. **No
+assertion was weakened.** The arms still require the run to have distributed, the push to
+be blocked, the ref not to land, and exit 5 to survive; a control field now records what
+the environment CLAIMED so the misfiled shape cannot be silent again, and a new arm grades
+the discriminator itself rather than only its consequence.
+
+**CONDITION NINE, RECORDED RATHER THAN HIDDEN.** This change makes one module SLOWER:
+`tests/test_hook_interpreter_ladder.py` goes 41.45s to 85.48s serially, 88 arms to 92,
+because every sandbox now starts xdist workers and the new arms drive six real pushes. A
+slower module against 378 seconds off every push is a trade worth stating plainly.
+
+**CONDITION SEVEN SHRANK ON MEASUREMENT.** Of sixteen candidate modules exactly ONE was
+vulnerable to the CS-448 rootdir climb. The mechanism needs two conditions at once: no ini
+above the argument AND a cwd sharing a non-drive-root ancestor with it. Four gate modules
+were measured immune because their in-repo argument finds `pyproject.toml` before the
+fallback branch runs; four were already pinned; five are not nested-pytest sites at all.
+Measured with only the cwd varied: 0.35s resolving to the sandbox, 12.27s resolving to the
+temp root, 0.37s back to the sandbox once pinned.
+
+**CONDITION SIX FOUND A SPELLING THAT LIES.** `python -m xdist` fails on an INSTALLED
+plugin - a package is not directly executable - so the module channel that is correct for
+pytest, ruff and mypy would have reported a working xdist as MISSING. The probe is an
+import.
+
+**WHAT THIS DOES NOT CLOSE. CS-907 STAYS OPEN and this entry does not touch it.** The hook
+still runs the whole tests directory while `CONVENTIONS.md` section 8 assigns tier 0 a
+"fast unit subset" and the hook's own header still claims it runs one. This grant treated
+the SYMPTOM by the adjudicator's own ruling; subsetting remains the doctrinally correct
+remedy and lost only on timing. Do not read a faster hook as a corrected contract.
+
+**AN UNRELATED GAP FOUND AND DELIBERATELY NOT FIXED.** `pyyaml` is in the `dev` extra and
+`scripts/verify_env.py` reports it nowhere, while `tools/drift_guard.py` imports it at
+module level - so its absence breaks that guard outright rather than degrading. A builder
+found it and declined to widen a frozen-file grant's conditions from inside a slice, which
+is the correct refusal. It is filed rather than smuggled in.
+
+
 ### 2026-09-06 - CS-896 and CS-917 - TWO OPERATOR RULINGS, answering the questions the entry below put and leaving both items where they stand
 
 **BOTH RULINGS CONFIRM THE TREE RATHER THAN CHANGING IT.** No file moved on account of
