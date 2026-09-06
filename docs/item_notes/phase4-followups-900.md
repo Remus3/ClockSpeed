@@ -89,41 +89,6 @@ subprocess-heavy work. Take the measurement on the runner or do not take it.
 
 ---
 
-## CS-906
-
-### FILED 2026-09-05 (session 61) by the merger, AFTER an adjudicator GRANTED the frozen-file change
-
-**THE GRANT IS RECORDED IN `docs/LEDGER.md` AND NO EDIT HAS BEEN MADE UNDER IT.** Read that
-entry FIRST - it carries all thirteen conditions and they are the acceptance. CLAUDE.md
-section 6 requires the grant to land before the edit, and this item is what the grant
-closes against. A grant records permission; it is not a work record.
-
-**WHY IT WAS ASKED FOR.** The hook runs the whole suite serially. Nine measurements in an
-earlier session put that at 742s to 865s, and on 2026-09-05 the same suite reached only 22
-per cent in 13 minutes because an unrelated project held the machine at 99 per cent CPU,
-projecting to about an hour. That makes tier 0 the bottleneck on landing anything.
-
-**THE BENEFIT IS SMALLER THAN THE FRAMING SUGGESTS, AND THE RANGE IS ON THE RECORD.** Six
-samples of the pytest step on a 2-vCPU runner over one byte-identical tree: serial 541.68s
-and 590.82s; `-n auto` 424.18s, 475.98s, 483.14s and 470.67s. Mean to mean, 1.222x. The
-pessimistic pair is 1.121x and the flattering pair is 1.393x. **Do not quote the flattering
-one.** Coverage is unaffected: every one of those runs reported 4784 passed, 117 skipped.
-
-**THE TWO CONDITIONS THAT GATE EVERYTHING ELSE.** Condition TEN requires a LOCAL measurement
-at this machine's worker count before the flag ships - the evidence above is a 2-vCPU runner
-and this machine reports 16 logical processors, and several of the most expensive tests spawn
-NESTED pytest runs, so 16 outer workers each spawning more is unmeasured and may be net
-negative. Condition SEVEN requires the CS-448 rootdir mechanism to be neutralised in `tests/`
-first. **NEITHER CAN BE HONESTLY MET ON A CONTENDED MACHINE**, which is why this was filed
-rather than built on the day the grant was issued.
-
-**THE MECHANISM IS LIVE HERE EVEN THOUGH IT DOES NOT FIRE.** The temp root held 31688
-top-level entries when this was filed. It does not fire because the checkout is not under
-that root - a property of the PATH, not of the code. The session scratchpad IS under it, so
-a clone made there re-arms it immediately.
-
----
-
 ## CS-907
 
 ### FILED 2026-09-05 (session 61) by the merger, on an adjudicator's finding that this is the REAL defect
