@@ -1635,6 +1635,26 @@ docstrings.
 
 ## CS-896
 
+### READING SIX, TAKEN AFTER THE REPAIRS LANDED - MEASURED 2026-09-06 (session 65)
+
+Run 34042622100 on `77a88d1`, success, both shards green. Fast shard **360 job-seconds**,
+its own line reporting 355 within budget; save shard 246, reporting 240. **The repaired
+report step and the parser-backed guard both ran on the runner and neither changed the
+verdict**, which is what a repair to a reporting mechanism should look like.
+
+**IT IS THE WORST FAST READING YET, BY ONE SECOND**, and that is worth stating plainly
+rather than burying: the series of fast job-seconds is now 323, 359, 358, 260, 353, 360.
+The spread is 100 seconds and the worst observation is 360 against a 420 budget - **60
+seconds of margin against a 100-second spread.** The lane has never warned, and on this
+sample it would take very little for it to.
+
+**WHAT THAT DOES TO THE FEASIBILITY WINDOW recorded below.** With the worst reading at 360
+and the spread at 100, the window `[M, cutoff - 2N]` is `[360, 400]` and the shipped budget
+of 420 is still outside it. The window has NARROWED from the reading before, and it closes
+entirely once the spread passes 120. **Still not a licence to re-derive on this sample** -
+the point is only that the window is shrinking rather than holding, which is the thing
+CS-917 has to answer before any level moves.
+
 ### THE MECHANISM WAS DEFEATABLE IN ONE LINE - MEASURED 2026-09-06 (session 65)
 
 **THREE ADVERSARIES GRADED THE SHIPPED REPAIR AT `58a30f1` AND ALL THREE RETURNED

@@ -46,7 +46,9 @@ the line becomes a pointer.
   over.
 - **Failed paths:** closing CS-896 by transferring its residual to CS-917. REFUTED, and
   the reasoning is in the ledger so it is not retried.
-- **Next action:** read the CI run on `77a88d1`. Then put the two operator questions.
+- **Next action:** put the two operator questions below. CI on `77a88d1` is ALREADY
+  READ and was GREEN - reading six is filed in the CS-896 leaf, and it is the worst
+  fast reading yet by one second, leaving 60s of margin against a 100s spread.
 
 **CI RUN 34038527058 ON `58a30f1` WAS GREEN** - that was the previous session's open
 question and it is answered. Five consecutive green sharded runs. The fifth reading:
