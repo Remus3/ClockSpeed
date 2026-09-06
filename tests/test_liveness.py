@@ -2736,3 +2736,78 @@ def test_the_runtime_counter_leaves_no_trace_function_behind(tmp_path: Path) -> 
         "the trace hook survived a call that raised, so a single failing grader would "
         "leave it installed for the rest of the session"
     )
+
+
+# ---------------------------------------------------------------------------
+# What a memoized lookup must not break
+# ---------------------------------------------------------------------------
+
+
+def test_module_function_returns_the_first_definition_of_a_repeated_name() -> None:
+    """CS-900 - the lookup is memoized, and the obvious table flips this.
+
+    THE ORIGINAL RETURNED ON THE FIRST MATCH, so a module that defines a name
+    twice at module scope answers with the FIRST. A table built the natural way
+    - a dict comprehension over the body - keeps the LAST, and every caller
+    would silently start reading a different function. Nothing else in the
+    suite pinned this, so the memoization would have been free to change it.
+    """
+    source = "def duplicated() -> int:\n    return 1\n\n\ndef duplicated() -> int:\n    return 2\n"
+
+    node = liveness.module_function(source, "duplicated")
+
+    assert node is not None, "the lookup found neither definition of a name defined twice"
+    answered = ast.unparse(node.body[0])
+    assert answered == "return 1", (
+        f"the lookup answered with a later definition of a repeated name: {answered}"
+    )
+
+
+def test_module_function_does_not_answer_one_source_from_another() -> None:
+    """CS-900 - the memoization is keyed by SOURCE, and a wrong key is invisible.
+
+    A cache keyed by the NAME alone, or by anything two modules share, answers
+    the second caller with the first caller's node, and every assertion built on
+    it becomes a statement about the wrong file. BOTH DIRECTIONS ARE ASSERTED
+    because a cache that answered everything from the SECOND source would pass a
+    one-directional check.
+    """
+    first = "def shared() -> int:\n    return 11\n"
+    second = "def shared() -> int:\n    return 22\n"
+
+    from_first = liveness.module_function(first, "shared")
+    from_second = liveness.module_function(second, "shared")
+    again_from_first = liveness.module_function(first, "shared")
+
+    assert from_first is not None, "the first source answered nothing"
+    assert from_second is not None, "the second source answered nothing"
+    assert again_from_first is not None, "the first source answered nothing when read again"
+    one = ast.unparse(from_first.body[0])
+    two = ast.unparse(from_second.body[0])
+    three = ast.unparse(again_from_first.body[0])
+    assert one == "return 11", f"the first source answered with {one}"
+    assert two == "return 22", f"the second source answered with {two}"
+    assert three == "return 11", (
+        f"the first source answered with {three} after a second source was read"
+    )
+
+
+def test_module_function_reports_a_name_the_module_does_not_define() -> None:
+    """CS-900 - a miss must stay a miss once the lookup is memoized.
+
+    A table populated on first use can answer a MISS from a half-built table if
+    the miss is cached before the table is complete. The absent name is asked
+    for BEFORE and AFTER a present one, because only the second order catches a
+    table filled lazily per name rather than per module.
+    """
+    source = "def present() -> int:\n    return 1\n"
+
+    missing_first = liveness.module_function(source, "absent")
+    present = liveness.module_function(source, "present")
+    missing_after = liveness.module_function(source, "absent")
+
+    assert missing_first is None, "a name the module does not define was answered"
+    assert present is not None, "a name the module does define was not answered"
+    assert missing_after is None, (
+        "a name the module does not define was answered after a present one was read"
+    )
