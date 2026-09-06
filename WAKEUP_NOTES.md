@@ -117,7 +117,12 @@ NOT TOUCHED and must not be re-derived at this sample size** - three previous
 re-derivations were each falsified by their own next reading. A distribution-free 95/95
 bound needs `n >= 59`.
 
-**TWO QUESTIONS FOR THE OPERATOR, NEITHER DECIDED BY AN AGENT.**
+**TWO OPERATOR RULINGS, BOTH GIVEN THIS SESSION AND RECORDED IN `docs/LEDGER.md`.**
+Neither changed a file - both confirm the tree. **1. CS-917's tightened acceptance
+STANDS. 2. CS-896 STAYS OPEN, blocked on CS-917**, with closing it as an honest partial
+and lowering the budget into the window both DECLINED. Do not re-open either.
+
+The questions as they were put:
 1. **CS-917's acceptance was TIGHTENED** to require the band not be narrower than the
    noise figure it is derived from. Two adversaries found it could otherwise close with
    the condition silently dropped. It is a tightening, not a narrowing, but moving an

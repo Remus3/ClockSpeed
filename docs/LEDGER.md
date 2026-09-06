@@ -160,6 +160,45 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-06 - CS-896 and CS-917 - TWO OPERATOR RULINGS, answering the questions the entry below put and leaving both items where they stand
+
+**BOTH RULINGS CONFIRM THE TREE RATHER THAN CHANGING IT.** No file moved on account of
+either. This entry exists because the entry below flagged two questions for the operator,
+and a flagged question with no recorded answer is how a decision gets re-litigated three
+sessions later.
+
+**RULING ONE - CS-917'S TIGHTENED ACCEPTANCE STANDS.** The clause as filed required the
+warn band be DERIVED FROM a noise figure that survives its own next reading, and never that
+the band be WIDER than that figure. Two adversaries on different lenses established that
+CS-917 could therefore close in full with the band still narrower than the noise, a red
+still reachable having never warned, and the CS-896 leaf condition it exists to carry
+silently dropped rather than transferred. **The operator ruled to KEEP the tightening**:
+`ROADMAP.md` line 91 carries the ordering guarantee, and the amendment is a TIGHTENING
+rather than a narrowing - it makes the item harder to close, not easier.
+
+**WHY THIS IS RECORDED AS A RULING AND NOT AS AN EDIT.** `docs/history_notes.md` records
+that narrowing an acceptance clause is fence 1's forbidden move and that no adjudicator can
+grant it. This moved a clause in the opposite direction, but the same reasoning applies to
+who may move it at all, so it was put to the operator rather than taken.
+
+**RULING TWO - CS-896 STAYS OPEN, BLOCKED ON CS-917.** Its ROADMAP acceptance clause is met
+and reproduces over six consecutive green sharded runs. The leaf's added growth-visibility
+condition is not met, and this session established that it is blocked on the NOISE rather
+than on a better choice of levels: the feasible budget window is `[M, cutoff - 2N]`, which
+at reading six is `[360, 400]` with the shipped budget outside it, and which closes
+entirely once the spread passes 120. **The operator declined both alternatives** - closing
+it as an honest partial in the CS-421 / CS-882 shape, and lowering the budget into the
+window now. The second was declined on the merger's own recommendation: three previous
+re-derivations were each falsified by their own next reading, and reading six narrowed the
+window rather than holding it.
+
+**SO NOTHING CLOSED THIS SESSION AND THAT IS THE CORRECT OUTCOME.** The item that could
+have been declared done was refuted three times; the mechanism it had already shipped was
+defeatable in one line four ways; and the successor item meant to carry its residual had a
+hole that would have dropped it. All three are now repaired, and the item is open for a
+reason that is written down rather than remembered.
+
+
 ### 2026-09-06 - CS-896 - THE CLOSURE WAS REFUTED BY THREE ADVERSARIES AND THE MECHANISM WAS DEFEATABLE IN ONE LINE. Four routes repaired, nine mutations now killed, and one arm that scored its own mutation green
 
 **CS-896 STAYS OPEN and this entry does not close it.** A closure was proposed, frozen at
