@@ -55,11 +55,17 @@ safely GET, and both ``<id>`` rows carry none; each therefore reports the
 liveness ``/api/health`` already publishes for it and names that as the source in
 its own "read from" column. MEASURED rather than argued: this same harness,
 widened in memory to serve both against a stand-in id, rendered a page identical
-in every byte the audit reads - the note line stayed "5 of 9 routes answered a
-direct GET" and both rows stayed "not probed". Two more canned answers buy
-nothing observable. ``tests/surface/test_web_assets.py`` pins that premise
-against ``app.js`` itself, so the day either row gains a probe path this
-paragraph goes red instead of going quietly stale a second time.
+in every byte the audit reads - the note line was BYTE-IDENTICAL either way and
+both rows stayed "not probed". Two more canned answers buy nothing observable.
+
+THE COUNT THAT USED TO SIT IN THAT SENTENCE IS GONE ON PURPOSE. It read "5 of 9
+routes answered a direct GET", transcribed from a run, and CS-912's tenth route
+made it "6 of 10" without touching this file - the third time this paragraph
+went stale. The invariant is that widening changes nothing, and that is true at
+any counts, so the numbers are not restated here. The claim this paragraph used
+to make about being pinned was also wrong: the arm it named pins only the two
+``<id>`` rows, and it was a DIFFERENT row gaining a probe path that falsified
+the sentence.
 
 AND AN INVENTED ID WOULD BE A NEW DIVERGENCE RATHER THAN A SMALLER ONE. Nothing
 hands this page a card identifier while ``/api/advice`` is itself unbacked, so
@@ -102,7 +108,7 @@ from clockspeed.save.world import (
     WARN_NODE_SEMANTICS_UNAVAILABLE,
 )
 from clockspeed.surface import config, server
-from clockspeed.surface.api import contract, health, pending, solve
+from clockspeed.surface.api import contract, health, pending, registry, solve
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -276,7 +282,10 @@ def _world_data() -> dict[str, object]:
 WORLD_ENDPOINT: Final = "/api/world"
 
 #: Which templates the server's own route table would report as live. The five
-#: in ``pending.UNBACKED`` have no layer beneath them; the other four do.
+#: in ``pending.UNBACKED`` have no layer beneath them; the rest do. THE COUNT
+#: OF THE REST IS NOT SPELLED HERE: it read "four" from nine templates until
+#: CS-912 published a tenth, which is the third sentence in this repository
+#: that a new route falsified without touching the file it sat in.
 _UNBACKED_TEMPLATES: Final = frozenset(template for _method, template in pending.UNBACKED)
 
 
@@ -349,6 +358,70 @@ def _plan_data() -> dict[str, object]:
     }
 
 
+def _registry_data() -> dict[str, object]:
+    """Build the ``/api/registry`` data object.
+
+    SMALL AND SYNTHETIC ON PURPOSE. The real route serves the whole normalized
+    registry off the shipped documents; this harness must answer on a machine
+    with no game installed, and the audit reads the liveness row rather than the
+    contents. THE REAL COUNTS ARE NOT SPELLED HERE - `clockspeed/data/version.py`
+    owns them, they cannot be re-measured without the install, and an earlier
+    draft of this docstring carried two of them here in the same change that
+    removed them from `app.js` for being exactly that.
+
+    Keyed by :data:`registry.DATA_KEYS`, with every rational served through
+    ``contract.rational`` because ``contract`` refuses a float at any
+    depth and ``json.dumps`` cannot encode a ``Fraction`` at all.
+
+    Returns:
+        The body, keyed exactly as ``clockspeed/surface/api/registry.py`` keys it.
+    """
+    return {
+        "items": [
+            {
+                "key": "Item_ExampleOre_C",
+                "display_name": "Example Ore",
+                "form": "solid",
+                "is_fluid": False,
+                "energy_value": None,
+                "sink_points": 1,
+            },
+            {
+                "key": "Item_ExamplePlate_C",
+                "display_name": "Example Plate",
+                "form": "solid",
+                "is_fluid": False,
+                "energy_value": None,
+                "sink_points": 3,
+            },
+        ],
+        "recipes": [
+            {
+                "key": "Recipe_ExamplePlate_C",
+                "display_name": "Example Plate",
+                "duration": contract.rational(Fraction(2, 1)),
+                "inputs": [
+                    {"item_key": "Item_ExampleOre_C", "amount": contract.rational(Fraction(3, 2))}
+                ],
+                "outputs": [
+                    {"item_key": "Item_ExamplePlate_C", "amount": contract.rational(Fraction(1, 1))}
+                ],
+                "produced_in": ["Build_ExampleSmelter_C"],
+            }
+        ],
+        "buildings": [{"key": "Build_ExampleSmelter_C", "display_name": "Example Smelter"}],
+        "counts": {
+            "items": 2,
+            "recipes": 1,
+            "buildings": 1,
+            "warnings": 0,
+            "unknown_groups": 0,
+        },
+        "warnings": [],
+        "unknown_groups": [],
+    }
+
+
 def _canned() -> dict[tuple[str, str], contract.Response]:
     """Build the whole routable answer table.
 
@@ -361,6 +434,7 @@ def _canned() -> dict[tuple[str, str], contract.Response]:
     table: dict[tuple[str, str], contract.Response] = {
         ("GET", health.ENDPOINT): contract.ok(health.ENDPOINT, _health_data()),
         ("GET", WORLD_ENDPOINT): contract.ok(WORLD_ENDPOINT, _world_data()),
+        ("GET", registry.ENDPOINT): contract.ok(registry.ENDPOINT, _registry_data()),
         ("POST", solve.SOLVE_ENDPOINT): contract.ok(solve.SOLVE_ENDPOINT, _plan_data()),
         ("POST", solve.OPTIMIZE_ENDPOINT): contract.ok(
             solve.OPTIMIZE_ENDPOINT,
@@ -382,6 +456,11 @@ def _canned() -> dict[tuple[str, str], contract.Response]:
             table[method, template] = PENDING_BODIES[template]
     return table
 
+
+#: The endpoint map this harness serves inside ``/api/health``, published for
+#: the same reason :data:`CANNED` is: an arm asserting the two agree should read
+#: a stated fact rather than reach through an underscore into the builder.
+LIVENESS: Final[Mapping[str, str]] = MappingProxyType(_liveness())
 
 #: The routable answers, keyed by exact path. A path absent from here is a
 #: contract 404, and the two path-parameter templates are absent on purpose -

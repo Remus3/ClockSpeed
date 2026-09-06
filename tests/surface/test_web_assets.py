@@ -68,6 +68,11 @@ SCRIPT: Final = "app.js"
 #: collide with ``health.ENDPOINT`` at any shared import site.
 WORLD_ENDPOINT: Final = "/api/world"
 
+#: The route template ``clockspeed/surface/api/registry.py`` answers, spelled
+#: here for the same reason and no other: that module also names it
+#: ``ENDPOINT``. CS-912 added it as the tenth template.
+REGISTRY_ENDPOINT: Final = "/api/registry"
+
 #: The highest byte the project's character-set rule admits. Restated from
 #: nowhere: it is the same 0x7E ``contract.MAX_ASCII_BYTE`` and the commit gate
 #: both use, and it is spelled here because a test that imports a constant to
@@ -534,11 +539,296 @@ def test_the_palette_is_declared_light_first_and_redefined_for_dark() -> None:
 
     dark_query = _block(css, "@media (prefers-color-scheme: dark) {")
     assert dark_query, "no prefers-color-scheme: dark block found"
-    dark = set(_VAR_DECLARE.findall(dark_query))
+    #
+    # SCOPED TO THE INNER :root, NOT TO THE WHOLE MEDIA BLOCK. Reading the whole
+    # query counted a token declared anywhere inside it, including PAST the
+    # :root closer where the browser applies nothing - so the light side was
+    # measured against a rule body and the dark side against a container, and a
+    # token paired only in the container's eyes passed. Measured: a planted pair
+    # whose dark half sat inside the media block but outside :root reported
+    # 34/34 with zero unpaired while the browser never applied the dark value.
+    # The guard could not see the fault it is named for.
+    #
+    dark_root = _block(dark_query, ":root {")
+    assert dark_root, "no :root inside the prefers-color-scheme: dark query"
+    dark = set(_VAR_DECLARE.findall(dark_root))
 
     unpaired = tuple(sorted(light ^ dark))
     total = len(unpaired)
     assert total == 0, f"{total} token(s) defined in only one scheme: {unpaired}"
+
+
+def test_the_harness_answers_every_route_it_publishes_as_live() -> None:
+    """A route the harness calls live must have an answer behind it.
+
+    ``audit_harness._liveness`` derives its map by subtracting
+    ``pending.UNBACKED`` from ``health.ENDPOINT_TEMPLATES``, so a route that
+    gains a layer flips to live for free - which is the behaviour that function
+    advertises and wants. ``_canned`` gains nothing automatically, and the two
+    halves drifted the moment CS-912 published the tenth route: the harness
+    reported ``/api/registry`` live and then answered it 404, so the mandatory
+    CONVENTIONS 13.2 ritual graded the page in a state production never reaches
+    and showed a red pill that was an artifact of the instrument.
+
+    THE WHOLE SUITE STAYED GREEN THROUGH THAT, which is the point of this arm.
+    A template carrying a path parameter is exempt for the reason the harness
+    module docstring gives - the table is keyed by exact path and the page asks
+    for neither - and that exemption is derived from the template rather than
+    listed, so it cannot quietly cover a parameterless route.
+    """
+    answered = {path for _method, path in audit_harness.CANNED}
+    live = {
+        template
+        for template, word in audit_harness.LIVENESS.items()
+        if word == health.LIVE and "<" not in template
+    }
+    assert live, "the harness reports no parameterless route as live; this arm is vacuous"
+
+    unanswered = tuple(sorted(live - answered))
+    total = len(unanswered)
+    assert total == 0, (
+        f"{total} route(s) the harness calls live have no canned answer, so the "
+        f"audit grades a 404 production never returns: {unanswered}"
+    )
+
+
+#: The only three rules allowed to carry colour. Everything else reads a token,
+#: so that redefining the tokens on ``.hud-overlay`` really does repaint the
+#: whole subtree. The dark ``:root`` appears under the same selector as the
+#: light one, which is why this is a set of two names and not of three.
+_COLOUR_BLOCKS: Final = frozenset({":root", ".hud-overlay"})
+
+#: Properties that can put a colour on the screen. A declaration of one of
+#: these outside the three blocks must read a token, whatever notation it would
+#: otherwise use.
+_COLOUR_BEARING: Final = frozenset(
+    {
+        "color",
+        "background",
+        "background-color",
+        "background-image",
+        "border",
+        "border-color",
+        "border-top",
+        "border-right",
+        "border-bottom",
+        "border-left",
+        "border-top-color",
+        "border-right-color",
+        "border-bottom-color",
+        "border-left-color",
+        "outline",
+        "outline-color",
+        "box-shadow",
+        "text-shadow",
+        "text-decoration-color",
+        "column-rule-color",
+        "caret-color",
+        "accent-color",
+        "fill",
+        "stroke",
+        # scrollbar-color IS THE USER-AGENT-PAINTED SURFACE ROUNDS 5 AND 6 WERE
+        # ABOUT, one step further out again: it colours the same scrollbar
+        # `color-scheme` selects a palette for, and it takes a literal.
+        "scrollbar-color",
+        # -webkit-text-fill-color OVERRIDES `color` outright where supported,
+        # so a check that watched only `color` would miss the paint entirely.
+        "-webkit-text-fill-color",
+        # The shorthands whose longhands were already listed. A shorthand is
+        # the obvious way past a longhand-only list.
+        "text-decoration",
+        "column-rule",
+        "text-emphasis",
+        "text-emphasis-color",
+        "border-image",
+        "border-block-color",
+        "border-inline-color",
+    }
+)
+
+#: The values of a colour-bearing property that name no colour, and so need no
+#: token behind them.
+_COLOURLESS_VALUES: Final = frozenset(
+    {"none", "inherit", "initial", "unset", "revert", "transparent", "currentcolor", "auto", "0"}
+)
+
+#: One `property: value` pair out of a whitespace-normalised rule body.
+#:
+#: THE TRAILING SEMICOLON IS OPTIONAL AND REQUIRING IT DEFEATED THE WHOLE LEG.
+#: CSS lets the last declaration in a block omit it, so `color: black` with no
+#: semicolon was invisible to every check built on this pattern - one character,
+#: every property at once. Measured: the same literal is caught with the
+#: semicolon and missed without it, and Chromium paints them identically.
+_DECLARATIONS: Final = re.compile(r"([a-zA-Z-]+)\s*:\s*([^;]+?)\s*(?:;|$)")
+
+#: A custom property declaration together with its value. Case-insensitive on
+#: the NAME because custom property names are case-sensitive in CSS: an earlier
+#: version declared with ``[A-Za-z0-9-]`` and compared with ``[a-z0-9-]``, so an
+#: uppercase token drifted silently past the value check.
+_VAR_DECLARED_VALUE: Final = re.compile(r"(--[A-Za-z0-9-]+):\s*([^;]+);")
+
+
+def _token_sourced(value: str) -> bool:
+    """Whether a colour-bearing value takes its colour from something redefinable.
+
+    THERE ARE EXACTLY TWO SANCTIONED SOURCES. A custom property, which
+    ``.hud-overlay`` redefines; or ``currentColor``, which IS the element's own
+    ``color`` - and ``color`` is a colour-bearing property this same leg checks,
+    so a value resting on it is token-sourced one step removed rather than
+    exempt. ``.hud-status`` uses the second: ``border: 1px solid currentColor``
+    tracks whichever ``--status-*`` the chip is carrying.
+
+    Args:
+        value: The declaration's value, whitespace-normalised.
+
+    Returns:
+        Whether the value names no colour, or names one that a token supplies.
+    """
+    #
+    # EVERY COMMA-SEPARATED PART IS CHECKED, NOT THE VALUE AS A WHOLE. A
+    # substring test for `var(--` passed a literal riding ALONGSIDE a token -
+    # `box-shadow: 0 0 0 2px #ff0000, 0 0 0 4px var(--border)` was green, and
+    # this sheet already uses that multi-part shape. Each part must stand up on
+    # its own.
+    #
+    for part in value.split(","):
+        lowered = part.strip().lower()
+        if not lowered:
+            continue
+        if lowered in _COLOURLESS_VALUES:
+            continue
+        if "var(--" in part or "currentcolor" in lowered:
+            continue
+        return False
+    return True
+
+
+def test_the_overlay_redefines_the_whole_palette_as_the_dark_scheme() -> None:
+    """Every ``:root`` token is redefined on ``.hud-overlay`` at its dark value.
+
+    FOUR ROUNDS OF THE SAME FAULT ENDED HERE. The overlay sits over a game
+    pixel and does not follow the reader's scheme, so a descendant resolving a
+    LIGHT colour paints it on a dark ground: measured at 1.04:1 on ``color``,
+    then on ``border``, then on nested ``.hud-*`` rules, then on ``.facts dd``,
+    ``h2`` and ``.lede``. Each repair enumerated the tokens some set of rules
+    was known to read, and the next audit found a rule outside that set.
+
+    SO THE REQUIREMENT IS DERIVED FROM THE SHEET'S OWN DECLARATION LIST rather
+    than from any rule's reads. A token that exists must be redefined here,
+    whoever reads it and whether or not anything reads it yet - which is the
+    only boundary that does not move when someone writes a new rule.
+    """
+    css = read_asset(STYLESHEET)
+
+    light_root = _block(css, ":root {")
+    dark_root = _block(_block(css, "@media (prefers-color-scheme: dark) {"), ":root {")
+    rules = css_rules(css)
+    overlay = dict(rules).get(".hud-overlay", "")
+    assert overlay, "there is no .hud-overlay rule to carry the redefinitions"
+
+    declared = set(_VAR_DECLARE.findall(light_root))
+    assert declared, "the sheet declares no palette; this arm would be vacuous"
+
+    redefined = set(_VAR_DECLARE.findall(overlay))
+    missing = tuple(sorted(declared - redefined))
+    total = len(missing)
+    assert total == 0, (
+        f"{total} token(s) a descendant could resolve to a light value inside "
+        f"the overlay, because the rule does not redefine them: {missing}"
+    )
+
+    dark_values = dict(_VAR_DECLARED_VALUE.findall(dark_root))
+    overlay_values = dict(_VAR_DECLARED_VALUE.findall(overlay))
+    drifted = tuple(
+        sorted(
+            name
+            for name in declared
+            if overlay_values.get(name, "").strip() != dark_values.get(name, "").strip()
+        )
+    )
+    count = len(drifted)
+    assert count == 0, (
+        f"{count} token(s) redefined on the overlay differ from the dark :root "
+        f"value they mirror, so the spelled copy has drifted: {drifted}"
+    )
+
+    # THE THREE BLOCKS ARE THE WHOLE COLOUR SURFACE, and that is what makes the
+    # count above mean anything. A custom property declared on some other rule,
+    # or a colour written as a literal with no token at all, reaches the overlay
+    # subtree without passing through :root - so neither could be seen by a
+    # check derived from :root, and both were demonstrated GREEN against the
+    # first version of this arm.
+    stray_tokens = tuple(
+        sorted(
+            f"{selector} declares {name}"
+            for selector, body in rules
+            if selector not in _COLOUR_BLOCKS
+            for name in _VAR_DECLARE.findall(body)
+        )
+    )
+    strays = len(stray_tokens)
+    assert strays == 0, (
+        f"{strays} custom propert(ies) declared outside the three colour blocks, "
+        f"where the overlay cannot redefine them: {stray_tokens}"
+    )
+
+    # A COLOUR OUTSIDE THE BLOCKS MUST READ A TOKEN. The previous spelling of
+    # this leg matched hex, `rgb(` and `hsl(` - three NOTATIONS - and was shown
+    # green against `color: black`, `background: white`, `oklch(...)`,
+    # `color-mix(...)` and `CanvasText`. A fourth pattern would have been beaten
+    # by a fifth spelling, so the rule is inverted: the VALUE of a colour-bearing
+    # declaration must either read a custom property or be one of the few
+    # keywords that name no colour at all. That is closed over notations nobody
+    # has invented yet - though NOT over how a declaration is spelled: an audit
+    # defeated an earlier version of this leg with an optional trailing
+    # semicolon, and the claim that it was closed was itself the fault.
+    unsourced = tuple(
+        sorted(
+            f"{selector}: {prop}: {value.strip()}"
+            for selector, body in rules
+            if selector not in _COLOUR_BLOCKS
+            for prop, value in _DECLARATIONS.findall(body)
+            if prop.strip().lower() in _COLOUR_BEARING and not _token_sourced(value)
+        )
+    )
+    unsourced_total = len(unsourced)
+    assert unsourced_total == 0, (
+        f"{unsourced_total} colour-bearing declaration(s) outside the three blocks "
+        f"do not read a token, so the overlay cannot redefine them: {unsourced}"
+    )
+
+    # `color-scheme` IS NOT A CUSTOM PROPERTY, which is exactly why it escaped
+    # a check derived from :root's declaration list. It selects the palette the
+    # user agent paints scrollbars, form widgets and the caret from. The VALUE
+    # is asserted and not merely the declaration's presence, because a presence
+    # check passed `light` and `normal` when it was first written.
+    scheme = re.search(r"color-scheme:\s*([^;]+);", overlay)
+    assert scheme is not None, (
+        "the overlay redefines every token and never declares color-scheme, so the "
+        "user-agent-painted half still follows the reader's scheme"
+    )
+    declared_scheme = scheme.group(1).strip()
+    assert declared_scheme == "dark", (
+        f"the overlay declares color-scheme: {declared_scheme}, but it sits over a "
+        f"game pixel and must pin the user-agent palette exactly as it pins the rest"
+    )
+
+    # `@property` DECLARES A CUSTOM PROPERTY THAT css_rules NEVER RETURNS, because
+    # it drops every selector beginning with `@`. An `initial-value` there is a
+    # colour no block owns and the overlay cannot redefine, invisible to both
+    # legs above. The sheet uses none, and the cheapest way to keep it that way
+    # is to say so.
+    assert "@property" not in css, (
+        "the sheet declares an @property custom property, whose initial-value is a "
+        "colour outside the three blocks that .hud-overlay cannot redefine"
+    )
+
+    # WHAT THIS ARM CANNOT DO, STATED RATHER THAN IMPLIED. It reads characters.
+    # It cannot resolve a cascade, cannot evaluate `light-dark()`, and cannot see
+    # what any of this COMPUTES to - CONVENTIONS 13.3 asks for computed styles
+    # and says a character read is not one. The rendered CS-600 audit discharges
+    # that half; this arm only guarantees that every colour has a token to be
+    # redefined through.
 
 
 def test_the_body_paints_its_own_background_and_foreground() -> None:
@@ -617,7 +907,7 @@ def test_focus_is_visible_and_is_not_removed_anywhere() -> None:
 def test_the_wide_table_scrolls_inside_its_own_container() -> None:
     """The endpoint table sits in a container that owns its overflow.
 
-    A nine-row table with six columns is the widest thing on the page. Letting
+    A ten-row table with six columns is the widest thing on the page. Letting
     it push the document sideways is the failure; giving its wrapper
     ``overflow-x: auto`` is the fix, and the markup has to actually use the
     wrapper for the rule to matter.
@@ -1454,8 +1744,9 @@ def test_the_body_does_not_clip_a_sideways_overflow() -> None:
     """``body`` declares no ``overflow-x``, so a future overflow still shows.
 
     ``overflow-x: hidden`` sat here and nothing needed it: the audit walked 62
-    elements past the viewport edge at 375px and found all 62 inside a working
-    scroller. What it did do was swallow the signal - a scrollbar is the only
+    elements past the viewport edge at 375px - 5 of them structural boxes
+    overhanging by 0.333px of sub-pixel rounding - and found all 57 real ones
+    inside a working scroller. What it did do was swallow the signal - a scrollbar is the only
     warning a reader or an auditor gets that something has burst its container,
     and clipping removes the evidence rather than the fault.
 
@@ -1512,6 +1803,16 @@ def test_both_running_prose_classes_are_capped_to_a_readable_measure() -> None:
         assert measure <= MAX_MEASURE_CH, f"{name} is capped at {measure}ch"
 
 
+#: Right-aligned selectors that name no table cell, and so have no header to
+#: pair with. A HUD figure is a stacked numeric readout inside a card: it lines
+#: its digits up against the card's right edge, and the thing naming it sits
+#: beside it rather than above it. The list is EXPLICIT rather than a pattern
+#: so that a new right-aligned rule has to be added here on purpose - the arm
+#: below still refuses any right-aligned selector that is neither paired nor
+#: named, which is the ratchet the original spelling provided.
+_RIGHT_ALIGNED_NON_COLUMN: Final = (".hud-figure",)
+
+
 def test_a_numeric_column_header_shares_the_alignment_of_its_cells() -> None:
     """Whatever right-aligns ``td.count`` right-aligns ``th.count`` too.
 
@@ -1520,11 +1821,26 @@ def test_a_numeric_column_header_shares_the_alignment_of_its_cells() -> None:
     word naming the column at the opposite end of it from the numbers. The
     header carries the same class as the cells, so the pairing is one token in
     the markup rather than two rules agreeing by coincidence.
+
+    A SELECTOR THAT NAMES NO TABLE CELL IS OUT OF THIS INVARIANT'S SCOPE, and
+    is admitted only by being listed in ``_RIGHT_ALIGNED_NON_COLUMN``. The arm
+    checks those really do name no cell, so the list cannot be used to excuse a
+    column from the pairing it does owe.
     """
     rules = css_rules(read_asset(STYLESHEET))
     aligned = tuple(selector for selector, body in rules if "text-align: right" in body)
     assert aligned, "nothing on the page is right-aligned"
+
+    stale = tuple(name for name in _RIGHT_ALIGNED_NON_COLUMN if name not in aligned)
+    assert not stale, f"named as right-aligned but no longer is: {stale}"
+
     for selector in aligned:
+        if selector in _RIGHT_ALIGNED_NON_COLUMN:
+            names_a_cell = "td" in selector or "th" in selector
+            assert not names_a_cell, (
+                f"{selector} is excused from the header pairing but names a table cell"
+            )
+            continue
         paired = "th.count" in selector and "td.count" in selector
         assert paired, f"a right-aligned rule does not carry its header with it: {selector}"
 
@@ -1580,19 +1896,19 @@ def test_the_script_no_longer_claims_avoiding_innerhtml_is_enough() -> None:
 
 
 # ---------------------------------------------------------------------------
-# j. The page's own content: nine rows, and the blocked-by id as text
+# j. The page's own content: ten rows, and the blocked-by id as text
 # ---------------------------------------------------------------------------
 
 
 def test_the_script_names_every_published_route_template() -> None:
-    """All nine of ``health.ENDPOINT_TEMPLATES`` appear in the row table.
+    """All ten of ``health.ENDPOINT_TEMPLATES`` appear in the row table.
 
     Read from the endpoint module rather than restated here, so a tenth route
     landing in BOOTSTRAP.md section 7.1 turns this red instead of leaving the
     page one row short and silent.
 
     CS-875 SWEEP: comments come out first. ``app.js`` opens with a comment that
-    names the nine routes in section order, so a template deleted from the row
+    names the ten routes in section order, so a template deleted from the row
     table was still findable in the prose describing it.
     """
     code = code_only(read_asset(SCRIPT))
@@ -1619,6 +1935,7 @@ def test_the_script_gives_each_route_the_method_its_owner_publishes() -> None:
         solve.OPTIMIZE_ENDPOINT: solve.METHOD_POST,
         health.ENDPOINT: "GET",
         WORLD_ENDPOINT: "GET",
+        REGISTRY_ENDPOINT: "GET",
     }
     assert len(expected) == len(health.ENDPOINT_TEMPLATES), sorted(expected)
 
@@ -1699,7 +2016,7 @@ def test_the_comment_stripper_removes_a_comment_and_keeps_the_code() -> None:
 def test_the_script_renders_the_blocking_item_id_as_text() -> None:
     """``blocked_by`` is read off a response body and assigned to ``textContent``.
 
-    The 501 rows are the deliverable, not a gap to disguise: five of nine routes
+    The 501 rows are the deliverable, not a gap to disguise: five of ten routes
     have no layer beneath them and the page says which item would build them.
 
     GRADED ON THE CODE, WITH THE COMMENTS STRIPPED, and stated as two structural
@@ -2119,7 +2436,7 @@ def test_every_canned_body_encodes_as_seven_bit_ascii_with_no_float(
 def test_the_harness_health_body_carries_the_shape_the_endpoint_publishes(
     harness: audit_harness.AuditHarness,
 ) -> None:
-    """Same top-level keys, same data keys, same nine-entry liveness map."""
+    """Same top-level keys, same data keys, same ten-entry liveness map."""
     code, body, _type = get(harness.port, health.ENDPOINT)
     assert code == HTTP_OK, code
     payload = json.loads(body)

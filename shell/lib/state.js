@@ -28,9 +28,13 @@
 // truncating, so the paragraph above was true of one writer and false of two.
 // MEASURED against this module: writer A stages, writer B opens the same fixed
 // path truncating, writer A renames, and what lands over a good state file is
-// ZERO BYTES. In the same arms 91 of 240 concurrent saves failed outright with
-// ENOENT, each writer's rename finding that another had already taken its
-// partial. Narrowing the header to "one writer only" was the cheaper option
+// ZERO BYTES. In the same arms a large minority of concurrent saves also failed
+// outright with ENOENT, each writer's rename finding that another had already
+// taken its partial. NO RATIO IS SPELLED HERE ON PURPOSE: it is a load-dependent
+// race count, an earlier draft of this comment gave 91 of 240, and five
+// re-measurements on one machine observed 60, 68, 74, 76 and 81. A number no
+// guard can check and no run reproduces is exactly the hardcoded measurement
+// CLAUDE.md section 4 forbids; the ARM is the record, not this sentence. Narrowing the header to "one writer only" was the cheaper option
 // and was rejected: a single-writer atomicity guarantee is not what
 // non-negotiable 5 asks for, and the single-instance lock that removes today's
 // only known second writer lives in another file and can be removed there,
@@ -117,8 +121,9 @@ const RENAME_BACKOFF_MS = 50;
 //
 // ENOENT IS DELIBERATELY NOT ON THIS LIST, and CS-911 is why it had to be
 // decided rather than left unstated. Under the old fixed-name staging it was
-// the DOMINANT failure - 91 of 240 concurrent saves - because a second writer
-// renamed the first writer's stage away before the first could commit. Adding
+// the DOMINANT failure - a large minority of concurrent saves, varying by load -
+// because a second writer renamed the first writer's stage away before the first
+// could commit. Adding
 // it here would have been the wrong repair twice over: a rename whose source
 // does not exist does not become possible by waiting, so every retry is dead
 // time before the same failure; and it would have converted a corruption bug

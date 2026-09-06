@@ -159,6 +159,268 @@ machine-checked artifact that produces it.
 ---
 
 ## Entries
+### 2026-09-05 - CS-910 - MEASUREMENT RECORD. Seven spawn sites routed, and the claim that the remainder was all frozen was FALSE TWICE
+
+**CS-910 STAYS OPEN and this entry does not close it.** Its acceptance asks the same
+question of "every other external tool this repository spawns", and that is not answered.
+
+**What shipped.** `tools/toolpath.py` resolves a spawned tool at runtime, walks `PATH`,
+refuses any non-rooted entry and never consults the working directory. `shutil.which` was
+MEASURED on the pinned interpreter to return a RELATIVE path to a file planted in the
+current directory when `NoDefaultCurrentDirectoryInExePath` is absent - and an independent
+probe confirmed that variable is absent at BOTH `HKLM` and `HKCU` on this machine, so the
+arm stripping it from the child restores reality rather than manufacturing a defect.
+
+**The done-claim was REFUTED by an adversary, and the repair was refuted again by its own
+census.** The first commit's message said seven sites were routed and "the four that
+remain are FROZEN". `scripts/verify_env.py` is not frozen, was on that slice's write-list,
+and still put a BARE `git` into three argv in `scripts/verify_env.py::_hard_rows` - reproduced end to
+end with a plant, the row flipping from the real repository root to "rev-parse says no".
+Worse, both guards were structurally incapable of seeing it: the static census read that
+file's single spawn as INDIRECT, and the runtime arm that was supposed to compensate
+asserted `len(recorded) == 2` while a real run builds TEN argv, three of them bare. A count
+bound is how it hid. The repaired arm drives the real code path and asserts every argv is
+rooted with no ceiling.
+
+**Three further blind spots, each proven by a landed mutation before being repaired.**
+`from os import system` inside a spawn root produced `sites=0` - not a finding, not even an
+enumerated site - because the aliased-import defence was applied to `subprocess` and to the
+resolver module and never to `os`. `argv = ["git", "status"]` one line above a spawn folded
+to INDIRECT, which is the plainest indirection there is. And the exemption table's
+justification tested `path not in <the whole of CLAUDE.md>`, so an exemption for
+`tools/drift_guard.py` passed - ten non-frozen paths appear somewhere in that document.
+
+**What it still owes, re-derived rather than quoted.** Four exempted sites genuinely behind
+CLAUDE.md section 6, needing an adjudicator grant recorded here before any edit:
+`scripts/install_hooks.py::run_git` and `::run_git_optional`, `tools/precommit_gate.py::ruff_command` and `::git`. FIVE
+INDIRECT delegations in spawn roots and not three - the earlier count had missed both
+`precommit_gate` sites. Of those five only `verify_env`'s is re-derived; `make_cert` and
+`make_shortcut` are named, not vouched for, because their test modules were off the slice's
+write-list. And 31 ungraded findings under `tests/`.
+
+**A trap worth more than the item.** A reproduction came back CLEAN and had measured
+nothing: `dict(os.environ)` upper-cases keys on Windows, so popping the mixed-case gate
+variable removed nothing and the child never had the defect available to reproduce. A
+known-good control caught the dead instrument.
+
+Independent corroboration by a linter nobody in this project wrote:
+`ruff check --isolated --select S607` over `scripts/`, `tools/` and `clockspeed/` reports
+exactly three partial-path spawns, all of them in frozen files.
+
+Verification: `python -m pytest tests/test_toolpath.py tests/test_verify_env.py` - 96
+passed. See `tests/toolpath_guard.py` and
+`tests/test_make_cert.py::test_a_planted_openssl_in_the_working_directory_is_never_run`.
+
+### 2026-09-05 - CS-600 - MEASUREMENT RECORD. SEVEN audit rounds on one style layer, no round returned CLEAR, and the operator ruled to commit on the seventh
+
+**CS-600 STAYS OPEN and this entry does not close it.** It is the phase-6 gate; this
+records what its ritual caught on the HUD style layer.
+
+**What shipped.** `clockspeed/surface/web/app.css` gained the telemetry-HUD token layer
+the direction in `BACKLOG.md` asks for - an industrial-orange accent, three semantic
+status colours with their fills, a thin geometric rule, and `.hud`, `.hud-card`,
+`.hud-status`, `.hud-figure`, `.hud-accent` and `.hud-overlay`. No component consumes
+them yet: the milestone tracker needs `/api/plan` and readable unlock state, and the
+throughput node needs `/api/advice`. Both are still 501.
+
+**The measurement that set the palette.** #FA9549 scores 2.22 on `--surface`, 2.07 on
+`--bg` and 1.96 on `--surface-alt` - it fails even the 3:1 large-text threshold on this
+page's own LIGHT grounds, not merely over a game pixel, because a light theme IS a white
+pixel that is always on screen. Hue 25.8deg and saturation 0.947 were held and only
+lightness moved, to #9f4704, which scores 6.22 / 5.79 / 5.49. A status colour is graded
+on its own tinted fill as well as the three page grounds: the first candidate cleared
+every page ground at 4.56 and then scored 4.18 on the fill it was drawn for.
+
+**The overlay measurement, which is the part worth keeping.** Contrast over a scrim is
+NOT MONOTONIC in opacity. Accent over `--bg` over a white game pixel falls from 2.22 at
+no scrim to 1.02 near alpha 0.35 - where the composited ground crosses the accent's own
+luminance and the text vanishes - then climbs to 8.38 fully opaque. A designer reaching
+for a light scrim to keep the game visible lands at the WORST legibility available,
+strictly worse than drawing no scrim at all. Body text clears 4.5:1 at alpha 0.65, the
+accent at 0.80.
+
+**FIVE ROUNDS, AND FOUR OF THEM FOUND THE SAME FAULT ONE SELECTOR FURTHER OUT.** Round 1
+found the rule's own `color` reading a scheme-FOLLOWING token onto a scheme-FROZEN ground
+- 1.04:1 measured in a real browser. Round 2 found the repair had left `border` doing it.
+Round 3 found a `.hud-card` nested in the overlay at 1.18:1. Round 4 found `.facts dd` at
+1.04:1, `h2` at 2.25:1 and `.lede` at 3.10:1 - none of them `.hud` rules. Each repair
+defined its boundary as "the tokens something I can see reads", and each next audit found
+a rule outside that set. Round 4 named the pattern in its own words: "Each repair closed
+the set the previous auditor named and drew the new boundary exactly where the previous
+finding stopped."
+
+**What ended it was a measurement, not another repair.** `--overlay-ground`,
+`--overlay-fg`, `--overlay-accent` and `--overlay-rule` were byte-identical to the DARK
+values of `--bg`, `--text`, `--accent-hud` and `--hud-rule`. Four tokens had been
+spelling, one at a time, something the sheet already said whole. They are retired, and
+`.hud-overlay` now redefines all 30 `:root` tokens at their dark values: inside an
+overlay, the palette IS the dark palette. `test_the_overlay_redefines_the_whole_palette_as_the_dark_scheme`
+derives its requirement from the `:root` declaration list, so a token ADDED to the sheet
+turns it red until the rule covers it - verified by planting one.
+
+**Two instrument faults the audits refused to report as findings**, both caught by
+control: the browser pane fakes `resize` and never dispatches `blur`/`focusout`, and
+`:focus-visible` never matches in it. The focus ring is graded from the CSSOM and said to
+be so, rather than reported as a pass nobody measured.
+
+**A round-3 finding worth its own sentence.** `tests/surface/audit_harness.py` published
+`/api/registry` as live and then answered it 404, because `_liveness()` derives from
+`health.ENDPOINT_TEMPLATES` minus `pending.UNBACKED` while `_canned()` gains nothing
+automatically. The mandatory CONVENTIONS 13.2 ritual was grading the page in a state
+production never reaches, and the whole suite stayed green throughout.
+`test_the_harness_answers_every_route_it_publishes_as_live` now fails if any parameterless
+live route has no canned answer.
+
+**ROUNDS 5 TO 7 LEFT THE PALETTE ENTIRELY, WHICH IS WHY THE COUNT IS SEVEN.** Round 5
+found `color-scheme` - not a custom property, so it could never appear in the `:root`
+declaration list the arm derived its requirement from, and a `.scroll-x` nested in the
+overlay painted a WHITE scrollbar on the dark ground. Round 6 found that repair had landed
+on `.hud-overlay`, which renders ZERO times, while `:root` - which renders on every load -
+declared no `color-scheme` at all. Round 7 found the repaired arm defeated by an OPTIONAL
+TRAILING SEMICOLON: CSS lets the last declaration in a block omit it, so one character
+blinded every property at once, and the comment claimed the leg was closed. It also found
+that the "62 elements" repair had corrected the RIGHT number and left the wrong one,
+leaving "walked 57 ... found all 62" - impossible, because a subset cannot outnumber what
+it was drawn from. Measured: 62 past the edge, 5 of them structural boxes overhanging
+0.333px, 57 real ones, all inside the scroller.
+
+**NO ROUND RETURNED `AUDIT: CLEAR`, AND THIS ENTRY DOES NOT PRETEND ONE DID.** Round 7
+graded the RENDERED page PASS on all five phases and measured zero live defects - 294
+declarations parsed, 0 invisible, no semicolon-less declaration, no `@property`, no
+`scrollbar-color`, no literal beside a token anywhere in the sheet. Every finding from
+round 5 on was in a guard protecting CSS that renders zero times, or in prose. On that
+evidence the operator ruled to commit. The four round-7 findings were repaired first and
+each is proven by a planted mutation.
+
+**The pattern, stated for whoever reads this next.** Four repairs in a row each closed
+exactly the set the previous audit had named and drew the new boundary where the previous
+finding stopped. What ended it was not a better repair but a MEASUREMENT: the four
+`--overlay-*` tokens were byte-identical to the dark values of `--bg`, `--text`,
+`--accent-hud` and `--hud-rule`, so the overlay palette had been the dark palette all
+along. A boundary drawn around a mechanism gets stepped around; one drawn around the
+sheet's own declaration list does not.
+
+Verification: `python -m pytest tests` - 5324 passed, 4 skipped, exit 0, observed by the
+merger. See `tests/surface/test_web_assets.py::test_the_overlay_redefines_the_whole_palette_as_the_dark_scheme`.
+
+### 2026-09-05 - CS-913 - RE-SPEC RECORD. The filed cause is REFUTED by the code: the unlock reader is an argument-free stub, and the decoder it needs has no caller
+
+**CS-913 STAYS OPEN and this entry does not close it.** It records that the item as
+filed asked for the wrong thing, and what it should ask for instead.
+
+**What the item said.** That unlock state is empty for every save "because its serialized
+grammar has never been measured".
+
+**What the code says, verified independently three times - by the merger, by the slice
+that measured it, and by an adversary told not to read either.**
+`clockspeed/save/world.py::_read_unlocks` takes ZERO arguments - no bytes, no object
+table, no property map - and its whole body returns `EMPTY_UNLOCK_STATE` plus one
+warning, unconditionally. Its only call site is argument-free. So the emptiness is a
+property of the PRODUCER and not of any save, and it would survive the grammar being
+measured in full. Meanwhile `clockspeed/save/objects.py::read_properties` is a complete
+tagged-property decoder: its only non-test caller is its own thin wrapper, and the only
+mentions anywhere else in the package are two lines of docstring prose. The grammar was
+measured; the plumbing was never built.
+
+**The acceptance clause also named a world that cannot satisfy it.** It asked for the
+measurement to be taken against the pinned development world. ADR 0004 states plainly
+that S6 must NOT be settled there and that doing so "would have produced the wrong
+answer" - the pinned world is the CONTROL and must stay empty. A spike measured worse:
+every record of every `(14,60)` save decodes ZERO property tags, so the pinned world
+cannot exercise the decoder at all, and ADR 0004's control - reached by string scan,
+which does not care about payload grammar - is not reproducible through it.
+
+**What was measured instead**, and recorded in
+`docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md`: the six carriers by
+type path, that `mPurchasedSchematics` is an `ArrayProperty` of `ObjectProperty` whose
+payload is an asset reference matching no record's instance name, that the recipe set is
+`mAvailableRecipes` on a DIFFERENT actor and that `mUnlockedRecipes` decodes on no
+carrier at all, and that `mCurrentGamePhase` is an `ObjectProperty` naming a `GP_*`
+asset - which refutes `UnlockState.current_game_phase: int | None`, since no integer
+index can be filled from an asset reference without inventing one.
+
+**Not closed, and the reason is outside the repo.** The measurement has no repeatable
+home: `.gitignore` reserves `/corpus/` and the directory does not exist. Filed as
+`CS-G06`. The roadmap line has been rewritten to carry the corrected cause.
+
+Verification: `docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md`, and
+`clockspeed/save/world.py::_read_unlocks` read directly.
+
+### 2026-09-05 - CS-912 - CLOSED. A route publishes the registry, so the two live solver doors stop being unreachable
+
+**What shipped.** `clockspeed/surface/api/registry.py` publishes `/api/registry` as a
+tenth route template, carrying items, recipes, buildings, counts, warnings and unknown
+groups. `/api/solve` and `/api/optimize` were already LIVE and completely unreachable
+from the page, because both require `targets`, `recipes` and `raw_items` and nothing the
+surface served let a caller name a single identifier without inventing one. Measured on
+the base commit with a registry present: ZERO of the nine published templates named a
+single item or recipe identifier in any body.
+
+**Why a tenth route was a cross-cutting change rather than a new module.**
+`clockspeed/surface/api/routes.py` enforces a bijection onto `health.ENDPOINT_TEMPLATES`
+and raises at IMPORT on any surplus route, and the count nine was hard-coded across five
+test modules. `BOOTSTRAP.md` section 7.1 says "Endpoints, minimum:", and that word is
+what licensed the tenth.
+
+**The wire constraints held.** `contract` refuses a float at any depth and `json.dumps`
+cannot encode a `Fraction`, so every duration, amount and energy value goes through
+`contract.rational`. The body is built by NAMING every field - no `asdict`, no `vars()`,
+no `fields()` walk - so a field added upstream cannot silently reach the wire. An
+adversary attacked all of that with a hostile registry carrying every optional
+`Fraction` populated, an unmodelled recipe side and an Unreal-path warning subject, and
+could not produce a float, a path or a save-derived string.
+
+**The acceptance clause, satisfied end to end and at full scale.** 731 of 731 producible
+items built a solve request naming ONLY published identifiers, zero foreign; 610 answered
+a plan and all 121 refusals were `chain_unsolvable`, a solver verdict rather than the
+`invalid_parameter` an invented identifier produces.
+
+**The paired control was REFUTED and repaired in the same change.** As first written it
+SUBSTITUTED the foreign key into a request that names exactly one recipe, so it also
+removed the target's own producer - and a bare "not 200" cannot tell that refusal from
+the one it means to observe. Demonstrated with a live mutant: a solve layer that silently
+drops unpublished identifiers kept the control green while `tests/solve` went red. The
+control now ADDS rather than substitutes and asserts the reason is `invalid_parameter`
+specifically.
+
+Verification: `python -m pytest tests/surface/test_registry.py` - 42 passed. See
+`tests/surface/test_registry.py::test_the_foreign_identifier_detector_fires_on_an_added_key`.
+
+### 2026-09-05 - CS-911 - CLOSED. Every stage gets its own filename and an exclusive open, so the truncation primitive is gone rather than made unlikely
+
+**What shipped.** `shell/lib/state.js` staged through a partial file with a FIXED name
+opened truncating, so two writers on one userData directory published a ZERO-BYTE state
+file over a good one - falsifying that module's own atomicity header and non-negotiable
+5. Every stage now takes a unique name and opens `"wx"`.
+
+**The arm reddens on the shipped implementation**, which is what makes it an arm: a
+literal 0-byte published file over a good one. An adversary re-derived the same failure
+by a route the test does not use - two real OS processes, no monkey-patching - measuring
+`before=95 after=0` on the pre-change module and `before=95 after=97` on the repaired
+one. So the test's injected interleave is a determinizer for a window that is genuinely
+there, not the cause of it.
+
+**The header was WIDENED rather than narrowed, and the reason matters.** Narrowing the
+claim to "one writer only" was cheaper and was rejected: CS-909's single-instance lock
+lives in ANOTHER FILE and could be removed there, silently un-fixing this one. A
+guarantee that holds only while a caller elsewhere keeps behaving is not one this module
+can state.
+
+**ENOENT stays out of `TRANSIENT_CODES`**, recorded with its reasoning: a rename whose
+source does not exist never becomes possible by waiting, so retrying would have traded a
+corruption bug for a latency bug and still published zero bytes.
+
+**A count was removed from the module rather than corrected.** The header cited "91 of
+240 concurrent saves"; five re-measurements observed 60, 68, 74, 76 and 81. A
+load-dependent race count that no guard can check is exactly the hardcoded measurement
+CLAUDE.md section 4 forbids, so the ratio is gone and the arm is the record.
+
+**The fix has unfixed siblings in Python, filed as CS-914** - `clockspeed/save/workdir.py`
+carries the same shape on the default production path and `clockspeed/data/version.py`
+carries it with a weaker trigger. Neither is closed by this entry.
+
+Verification: `(cd shell && node --test)` - 315 tests, 315 pass, 0 fail, observed by the
+merger rather than reported. See `shell/test/state.test.js`.
 
 ### 2026-09-05 - CS-896 - MEASUREMENT RECORD. The mechanism shipped and PROVED ITSELF ON ITS FIRST REAL RUN by reporting the lane OVER BUDGET, and the same reading shows no valid ceiling exists at this lane's cost
 Verification: tier 1 run 33981934085 on `38f9599`, step `Duration against the budget`, which

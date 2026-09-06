@@ -616,7 +616,7 @@ reproduced the frame-argument render independently before accepting it.
 
 **THE FRAME ARGUMENT IS THE CONSTRUCT `tests/test_exception_rendering.py:75` CALLS "the
 FIX".** That line names `helper(NAME)` as the remedy for CS-205. Live instances:
-`clockspeed/save/workdir.py:688`, `tools/drift_guard.py::_ascii_violations`, `scripts/verify_env.py:370`
+`clockspeed/save/workdir.py:688`, `tools/drift_guard.py::_ascii_violations`, `scripts/verify_env.py::load_ports`
 - the last with a comment saying it drops the discovered path, which is true of the
 MESSAGE and false of the FRAME. **BUT THIS IS NOT A LIVE LEAK AND THE REASON MATTERS:**
 `repr()` of an OSError OMITS `filename`; only `str()` carries it. Measured on the exact

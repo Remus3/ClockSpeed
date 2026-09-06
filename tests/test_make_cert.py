@@ -2426,6 +2426,11 @@ def _child_probe(source: str, working_dir: Path, environment: dict[str, str]) ->
     return done.stdout.strip()
 
 
+#: The line ``scripts/make_cert.py`` prints on the no-openssl branch. Spelled
+#: here rather than imported because the script builds it inline at the print.
+NO_OPENSSL_DIAGNOSTIC = "openssl is not on PATH"
+
+
 def test_a_planted_openssl_in_the_working_directory_is_never_run(tmp_path: Path) -> None:
     """CS-910 - the current directory may not supply the tool a script runs.
 
@@ -2493,6 +2498,17 @@ def test_a_planted_openssl_in_the_working_directory_is_never_run(tmp_path: Path)
     assert not planted_ran, (
         "the openssl planted in the WORKING DIRECTORY was executed - the tool this"
         " script runs is chosen by where the process happens to be standing"
+    )
+    # THE DIAGNOSTIC IS ASSERTED BECAUSE THE EXIT CODE ALONE IS AMBIGUOUS.
+    # EXIT_NO_OPENSSL is 1, which is also the status Python gives an uncaught
+    # exception, so this arm's GREEN was satisfiable by a main() that crashed
+    # before reaching the branch - MEASURED, by replacing the resolver call with
+    # a raise and watching the arm still pass. The printed line is what makes
+    # the pass a statement about the branch actually taken.
+    spoke = NO_OPENSSL_DIAGNOSTIC in done.stdout
+    assert spoke, (
+        "the script exited without printing the no-openssl diagnostic, so the exit"
+        " code alone does not say which branch it took"
     )
     status = done.returncode
     assert status == make_cert.EXIT_NO_OPENSSL, (

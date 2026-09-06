@@ -336,6 +336,9 @@ ADR_0014: Final = "docs/adr/0014-the-shell-trusts-one-pinned-certificate.md"
 #: `shell/main.js` imports electron and is loaded by no test in either language.
 ADR_0015: Final = "docs/adr/0015-the-shell-may-start-the-surface.md"
 
+#: CS-913 - the unlock carriers and their serialized grammar.
+ADR_0016: Final = "docs/adr/0016-unlock-arrays-carriers-and-serialized-grammar.md"
+
 #: The LIVE per-item detail file, created 2026-08-23 when the operator ruled the
 #: NOTE bodies out of `ROADMAP.md`. IT IS GUARDED RATHER THAN RECORDED UNGUARDED,
 #: and the reason is the move itself: every body in it came VERBATIM out of
@@ -396,6 +399,11 @@ GUARDED_DOCS: Final = (
     ADR_0012,
     ADR_0014,
     ADR_0015,
+    # CS-913's measurement. Guarded on arrival rather than recorded unguarded:
+    # every citation in it resolves today, and it was authored in the same
+    # session that watched three line pointers rot when an import moved the
+    # lines beneath them.
+    ADR_0016,
     ITEM_NOTES,
     *ITEM_NOTES_LEAVES,
     # A memory leaf that cites a test by name. Guarded rather than recorded,
@@ -824,6 +832,33 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
     # the correcting paragraph is the repair. That second correction states the
     # forbid leg's rule as the project's own practice, in the project's own
     # words: cite that module BY NAME, not by line.
+    #
+    # THE CS-910 PAIR IS THE FIRST MOVED RATHER THAN NO_TARGET IN THIS CLASS.
+    # Both entries read their line as the `import verify_env` that makes the
+    # tools rung resolve, and CS-910 gave each module a module-scope resolver
+    # import, which pushed that line down inside the function that already
+    # owned it. The declaration the prose describes is therefore still live and
+    # nameable, so a target may be assigned instead of refused.
+    (LEDGER, line_key("tools/drift_guard.py", 312)): Disposition(
+        MOVED,
+        "tools/drift_guard.py::_load_verify_env",
+        "the entry reads that line as the deferred `import verify_env`, which"
+        " now sits at :372 inside _load_verify_env. Note the entry's prose and"
+        " its frozen digest ALREADY disagreed at 53ac4b5 - the digest held"
+        " `def _exc_text(...)` while the sentence describes the import - so the"
+        " pin was recording an unexamined site, exactly as it claims to.",
+        1,
+    ),
+    (LEDGER, line_key("tools/facts_probe.py", 121)): Disposition(
+        MOVED,
+        "tools/facts_probe.py::_build_string",
+        "the entry reads that line as the deferred `import verify_env` that"
+        " makes the tools rung cost 9 errors and not 4. It now sits at :136"
+        " inside _build_string, whose docstring carries the same reasoning the"
+        " ledger entry does - the reader lives in scripts/verify_env.py and"
+        " stays there.",
+        1,
+    ),
     (LEDGER, line_key("tools/precommit_gate.py", 2311)): Disposition(
         NO_TARGET,
         "",
@@ -967,10 +1002,8 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/LEDGER.md", "scripts/install_hooks.py", 310): "4facec475176",
     ("docs/LEDGER.md", "tests/data/test_phase2_gate.py", 775): "edaece1458c2",
     ("docs/LEDGER.md", "tests/test_hook_interpreter_ladder.py", 1678): "341d96509c98",
-    ("docs/LEDGER.md", "tools/drift_guard.py", 312): "b2bb449c4310",
     ("docs/LEDGER.md", "tools/edit_lint_check.py", 82): "c52969cc5a4b",
     ("docs/LEDGER.md", "tools/edit_lint_check.py", 113): "a7515962ef0b",
-    ("docs/LEDGER.md", "tools/facts_probe.py", 121): "826132b5510a",
     ("docs/LEDGER.md", "tools/precommit_gate.py", 570): "4b165904f3ca",
     ("docs/LEDGER.md", "tools/precommit_gate.py", 704): "7db8a31d0783",
     ("docs/LEDGER.md", "tools/precommit_gate.py", 1802): "7545e5808a11",
@@ -983,7 +1016,6 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/workdir.py", 688): "e2d30d6ce513",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/world.py", 989): "7b4d51124c45",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/world.py", 1109): "25062ba27287",
-    ("docs/item_notes/phase4-followups-850.md", "scripts/verify_env.py", 370): "6514c0097132",
     ("docs/item_notes/phase4-followups-850.md", "tests/conftest.py", 426): "7d14cd734379",
     (
         "docs/item_notes/phase4-followups-850.md",
@@ -1073,7 +1105,26 @@ UNFORBIDDEN_LINE_POINTERS: Final[frozenset[tuple[str, str, int]]] = frozenset(
 #: and its note moved to `docs/history_notes.md`, which is exempt from this module
 #: for exactly the quoting-versus-citing reason, taking the last such site out of
 #: the guarded set with it.
-FORGIVEN_LINE_POINTER_CEILING: Final = 54
+#:
+#: 54 TO 53 WHEN CS-910 MOVED THREE PINNED LINES. Three pins left the table and
+#: two dispositions arrived, which is a net repair of one: the item-notes leaf
+#: took the symbol form outright, and the two ledger sites were RECORDED rather
+#: than repaired for the reason class 4 gives - so they moved from an unexamined
+#: pin to an adjudicated MOVED with a live target, which is a smaller
+#: forgiveness but still a forgiveness. The ratchet caught this itself; the
+#: ceiling was not lowered by hand until it did.
+#:
+#: 53 TO 66, AND THIS RAISE TIGHTENS THE RATCHET RATHER THAN LOOSENING IT. An
+#: adversary demonstrated that the budget counted only LINE-POINTER-keyed
+#: dispositions, so 13 of the 21 rows in DISPOSITIONS cost nothing: dropping the
+#: four unverifiable symbol-form rows failed five arms while the budget stayed
+#: green at 53 against 53. A symbol-keyed forgiveness was therefore FREE - no
+#: ceiling to raise, no number in the diff to defend - which is the exact escape
+#: the docstring below claims the budget closed. The count now spans both tables
+#: whole, so the number is bigger and the hole is smaller. NOTHING WAS FORGIVEN
+#: TO GET HERE: 45 pins plus 21 dispositions, both enumerated, both already in
+#: the tree before this change.
+FORGIVEN_LINE_POINTER_CEILING: Final = 66
 
 # --- resolution -------------------------------------------------------------
 
@@ -1590,9 +1641,14 @@ def forgiveness_budget_problems(
         forgiveness added without argument. UNDER it is a ceiling gone slack
         after a repair, which is banked room for a future append.
     """
-    spent = len(set(pins)) + sum(
-        1 for _doc, cited in dispositions if LINE_POINTER_RE.fullmatch(cited)
-    )
+    # EVERY DISPOSITION COSTS, NOT ONLY THE LINE-POINTER-KEYED ONES. Counting
+    # only the line form left 13 of 21 rows free, so a symbol-keyed
+    # `Disposition(NO_TARGET, ...)` silenced a brand-new dead citation with no
+    # ceiling to raise and no number in the diff for anyone to defend - which is
+    # the precise escape the docstring below says the budget closed. MEASURED:
+    # dropping the four unverifiable symbol-form rows failed five arms while the
+    # budget stayed green at 53 against 53, so they were load-bearing and free.
+    spent = len(set(pins)) + len(set(dispositions))
     if spent > ceiling:
         return [
             f"{spent} forgivenesses recorded against a ceiling of {ceiling}."

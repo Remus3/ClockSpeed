@@ -29,7 +29,7 @@
   panel becomes mouse-only, invisibly." Refresh is the button in the header and
   nothing else repaints this page.
 
-  WHY THIS PAGE ISSUES NO POST AT ALL. Two of the nine routes take a body and
+  WHY THIS PAGE ISSUES NO POST AT ALL. Two of the ten routes take a body and
   one takes a state change. Exercising any of them from here would put a
   state-changing request on a page an operator leaves open, which is the whole
   precondition for request forgery. Their liveness is read from the endpoint map
@@ -44,6 +44,21 @@
   For those four the page prints what /api/health says and names that as the
   source, rather than inventing a transport code it never observed.
 
+  WHY /api/registry IS PROBED EVEN THOUGH ITS BODY IS LARGE. The four rows
+  above say "not probed" because the page CANNOT ask - it has no card id, or
+  the route wants a body this page will not send. Cost is not that reason, and
+  making it one would quietly turn a rule about ABILITY into a rule about
+  taste. /api/registry is a parameterless GET, so the page asks. Its body is the
+  largest this page fetches - /api/world is the next largest - and the figures
+  are deliberately NOT restated here: they are a property of the installed
+  documents, they cannot be re-measured on a machine with no game, and
+  CLAUDE.md section 4 names a hardcoded measurement in prose as a lie with a
+  timestamp on it. What was measured is that the delay is invisible: it lands
+  after first paint, which draws the headings and the "reading ..." row before
+  any fetch is issued. If the registry ever grows enough for that to stop being
+  true, the answer is a cheaper liveness question on the route, not a fifth
+  silent reason for a row to go unprobed.
+
   AN EARLIER VERSION OF THIS PARAGRAPH GAVE A DIFFERENT REASON - that the
   router matched paths exactly and refused to register a template carrying a
   path parameter. Both halves were true when written and are now false: the
@@ -53,13 +68,14 @@
 */
 
 /*
-  The nine routes BOOTSTRAP.md section 7.1 publishes, in that section's order,
+  The ten routes BOOTSTRAP.md section 7.1 publishes, in that section's order,
   each with the verb its own endpoint module registers and the concrete path -
   if there is one - this page may safely ask for with a GET.
 */
 var ROUTES = [
   { template: "/api/health", method: "GET", probe: "/api/health" },
   { template: "/api/world", method: "GET", probe: "/api/world" },
+  { template: "/api/registry", method: "GET", probe: "/api/registry" },
   { template: "/api/advice", method: "GET", probe: "/api/advice" },
   { template: "/api/advice/<id>/derivation", method: "GET", probe: null },
   { template: "/api/advice/<id>/state", method: "POST", probe: null },
@@ -424,7 +440,8 @@ async function refresh() {
     WHAT WAS MEASURED. This function used to set button.disabled = true for the
     length of the fetches. A user agent blurs a focused element the instant it
     becomes disabled, and nothing here put the focus back. On a genuine click,
-    with the repaint confirmed landed - five fetches issued, and a row node held
+    with the repaint confirmed landed - five fetches issued at the time, six
+    since /api/registry joined the table, and a row node held
     from before the click no longer connected to the document - the focus
     events read focus, focusin, blur, focusout on the button and activeElement
     finished at BODY. Refresh is the ONLY control this page has, so every press
@@ -501,7 +518,11 @@ window.addEventListener("resize", syncScrollRegions);
   BEFORE THE FIRST FETCH, NOT AFTER IT. The endpoint table overflows at 375px on
   its headings alone, so it needs a keyboard route from first paint. Deriving the
   stop only at the end of refresh() left it unreachable for a MEASURED 14641ms
-  while five probes resolved - the static markup this replaced carried the stop
+  while the probes of the day resolved - there are more of them now, and the
+  figure is left as measured rather than rescaled to a run nobody made; the
+  count is not restated here because the ROUTES table below owns it and
+  renderEndpoints recomputes it - the static markup this replaced carried the
+  stop
   immediately, so a derived affordance that waits is a regression against it.
 */
 syncScrollRegions();

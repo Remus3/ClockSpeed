@@ -16,10 +16,12 @@ a. THE END-TO-END ARM AND ITS PAIRED CONTROL ARE ONE UNIT.
    object, not the fixture, the encoded response - and drives ``/api/solve`` with
    it. On its own that arm proves nothing: a request built from the fixture
    directly would pass it identically. The control,
-   :func:`test_the_foreign_identifier_detector_fires_on_a_substituted_key`,
-   substitutes ONE identifier the body never published and asserts both that the
-   detector sees it and that the solve stops answering a plan. An arm with no
-   control is a claim about its own author's care.
+   :func:`test_the_foreign_identifier_detector_fires_on_an_added_key`, ADDS one
+   identifier the body never published, leaving every real one in place, and
+   asserts both that the detector sees it and that the solve refuses with
+   ``invalid_parameter`` specifically. An arm with no control is a claim about
+   its own author's care - and a control that cannot say WHY the refusal came
+   is barely more than one, which is what the first version of it was.
 b. THE BODY IS BUILT BY NAMING EVERY FIELD. No ``asdict``, no ``astuple``, no
    ``vars()``, no ``dataclasses.fields`` walk and no ``__dict__`` read anywhere in
    the shipped module, asserted on its AST and proved able to fire against five
@@ -110,7 +112,7 @@ FOREIGN_KEY: Final = "Desc_NotInTheRegistry_C"
 
 #: Exactly one identifier is substituted in the control, so the count the
 #: detector reports is a value this module can assert rather than a range.
-ONE_SUBSTITUTION: Final = 1
+ONE_FOREIGN_KEY: Final = 1
 
 #: What the target rate is set to. Any exact rate does; this one is spelled as a
 #: plain integer so the request text carries no shape the grammar could refuse
@@ -603,7 +605,7 @@ def test_a_solve_request_built_only_from_the_registry_body_answers_a_plan(
     assert planned > 0, "the solve answered 200 with no production steps in it"
 
 
-def test_the_foreign_identifier_detector_fires_on_a_substituted_key(
+def test_the_foreign_identifier_detector_fires_on_an_added_key(
     body: Mapping[str, object], corpus: Registry
 ) -> None:
     published = frozenset(published_keys(body, "items")) | frozenset(
@@ -612,20 +614,35 @@ def test_the_foreign_identifier_detector_fires_on_a_substituted_key(
     target = _solvable_target(body)
     request = dict(solve_request_from(body, target))
 
+    # THIS ADDS RATHER THAN SUBSTITUTES, AND THE DIFFERENCE IS THE WHOLE ARM.
+    # The derived request names exactly ONE recipe - the producer of the target -
+    # so replacing the first element dropped that producer as collateral. The
+    # refusal that followed was then fully explained by the missing producer:
+    # MEASURED, removing that recipe and adding NO foreign key at all also
+    # refuses, with reason `chain_unsolvable`. A bare `not 200` cannot tell the
+    # two apart, so the control was green against a solve layer that ignores
+    # unpublished identifiers entirely - demonstrated with a live mutant that
+    # turned `tests/solve` red and left this module at 41 passed.
     original = request[solve_endpoint.PARAM_RECIPES].split(solve_endpoint.SEPARATOR)
-    assert original, "the derived request names no recipe, so nothing can be substituted"
-    request[solve_endpoint.PARAM_RECIPES] = solve_endpoint.SEPARATOR.join(
-        [FOREIGN_KEY, *original[1:]]
-    )
+    assert original, "the derived request names no recipe, so nothing can be added to it"
+    request[solve_endpoint.PARAM_RECIPES] = solve_endpoint.SEPARATOR.join([*original, FOREIGN_KEY])
 
     foreign = foreign_identifiers(request, published)
     stray = len(foreign)
-    assert stray == ONE_SUBSTITUTION, f"the detector reported {stray} foreign identifiers"
+    assert stray == ONE_FOREIGN_KEY, f"the detector reported {stray} foreign identifiers"
     assert foreign == (FOREIGN_KEY,), foreign
 
     response = solve_endpoint.solve_handler(_StubRegistryProvider(corpus))(request)
-    assert response.http_status != contract.HTTP_OK, (
+    answered = response.http_status
+    assert answered != contract.HTTP_OK, (
         "a request naming an identifier the registry never published still answered a plan"
+    )
+    # THE REASON IS ASSERTED, NOT ONLY THE REFUSAL. `chain_unsolvable` and
+    # `invalid_parameter` are both non-200, and only the second one is a
+    # statement about the identifier this arm planted.
+    reason = response.payload.get("reason")
+    assert reason == contract.REASON_INVALID_PARAMETER, (
+        f"the solve refused, but for {reason!r} rather than for the foreign identifier"
     )
 
 

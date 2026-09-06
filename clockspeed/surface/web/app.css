@@ -18,6 +18,23 @@
 */
 
 :root {
+  /*
+    THE PAGE DECLARES WHAT SCHEMES IT SUPPORTS, AND IT DID NOT UNTIL ROUND 6.
+    `color-scheme` selects the palette the user agent paints scrollbars, form
+    widgets and the caret from. Without it the UA paints LIGHT chrome while
+    this sheet paints a dark ground - MEASURED, an input rendered #ffffff on
+    the dark page ground and #3b3b3b once this line existed, and the document
+    scrollbar here is the classic 15px kind rather than an overlay one.
+
+    THE ROUND-5 REPAIR PUT THIS ON `.hud-overlay` AND NOT HERE, which is the
+    same fault at the next altitude out: it landed on the element that renders
+    ZERO times today and skipped the one that renders on every load.
+    `test_the_body_paints_its_own_background_and_foreground` exists so the page
+    never borrows the host's colours; without this line that intent held for
+    everything except the half the user agent paints.
+  */
+  color-scheme: light dark;
+
   --bg: #f5f7f9;
   --surface: #ffffff;
   --surface-alt: #eef1f5;
@@ -40,6 +57,38 @@
   --btn-fg: #ffffff;
   --btn-border: #163f6f;
   --shadow: rgba(20, 24, 29, 0.09);
+
+  /* --- the CS-600 HUD layer, measured 2026-09-05 ------------------------
+
+    THE ACCENT IS THE OPERATOR'S INDUSTRIAL ORANGE WALKED DOWN IN LIGHTNESS
+    UNTIL IT CARRIES TEXT, AND NOTHING ELSE ABOUT IT MOVED. #FA9549 is hue
+    25.8deg, saturation 0.947, lightness 0.633. Measured against this page's
+    own light grounds it scores 2.22 on --surface, 2.07 on --bg and 1.96 on
+    --surface-alt - it fails even the 3:1 large-text threshold on all three.
+
+    THAT IS THE SAME 2.22 THE OVERLAY NOTE RECORDS AGAINST A WHITE GAME PIXEL,
+    and it lands here, on the page as it ships today, rather than in some
+    future overlay mode. A light scheme is a white game pixel that is always
+    on screen. Only the lightness was moved - hue and saturation are held at
+    25.8deg and 0.947 - so this reads as the same accent rather than as a
+    different colour - held to 8-bit quantisation, which lands #9f4704 at
+    25.9deg and 0.951 rather than exactly 25.8 and 0.947. It scores 6.22,
+    5.79 and 5.49 on those same three grounds.
+
+    A STATUS COLOUR IS MEASURED ON ITS OWN TINTED FILL AS WELL AS ON THE THREE
+    PAGE GROUNDS. The first candidate for --status-throttled was lightness
+    0.36, which cleared every page ground at 4.56 and then scored 4.18 on its
+    own fill - a token that works everywhere except the one place it was drawn
+    for. The floor across all four is what selects the value.
+  */
+  --accent-hud: #9f4704;
+  --status-optimal: #0f5132;
+  --status-optimal-bg: #d8efdf;
+  --status-throttled: #9f4704;
+  --status-throttled-bg: #fbe3d0;
+  --status-starved: #9b2226;
+  --status-starved-bg: #f7d7da;
+  --hud-rule: #74828f;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -66,6 +115,16 @@
     --btn-fg: #ffffff;
     --btn-border: #4d8cd2;
     --shadow: rgba(0, 0, 0, 0.45);
+
+    /* The HUD layer's dark half. See the light block for what was measured. */
+    --accent-hud: #fa9549;
+    --status-optimal: #6fcf97;
+    --status-optimal-bg: #163220;
+    --status-throttled: #fa9549;
+    --status-throttled-bg: #3a2416;
+    --status-starved: #f3777f;
+    --status-starved-bg: #391b1f;
+    --hud-rule: #647694;
   }
 }
 
@@ -90,7 +149,12 @@ body {
   reader or an auditor gets that something has burst its container, and clipping
   it swallows the evidence rather than the fault. .scroll-x below owns the real
   overflow, so nothing needs clipping today: the audit walked 62 elements past
-  the viewport edge at 375px and found all 62 inside a working scroller.
+  the viewport edge at 375px, of which 5 are HTML, BODY, the header, main and
+  the footer overhanging by 0.333px of sub-pixel rounding rather than by
+  content, and found all 57 real ones inside a working scroller. THE TWO
+  NUMBERS ARE DIFFERENT POPULATIONS AND AN EARLIER REPAIR CORRECTED THE WRONG
+  ONE, leaving "walked 57 ... found all 62" - which cannot be true of any
+  measurement, because a subset cannot outnumber what it was drawn from.
 */
 
 /* --- the focus ring, declared once and never suppressed anywhere ------- */
@@ -342,7 +406,7 @@ td {
   200px, so it was not sticking to anything.
 
   IT IS REMOVED RATHER THAN REPAIRED. Making it work means giving .scroll-x a
-  max-height, which buys a pinned header for a nine-row table at the price of a
+  max-height, which buys a pinned header for a ten-row table at the price of a
   second nested scroller and a second keyboard scroll trap on the page. CSS that
   reads as working and does nothing is the fault CONVENTIONS.md section 13.3
   names; deleting it is the honest half of the two ways to clear it.
@@ -548,4 +612,238 @@ tbody td:first-child:not(.empty) {
     white-space: normal;
     overflow-wrap: anywhere;
   }
+}
+
+/* --- the CS-600 HUD layer ----------------------------------------------
+
+  WHAT THIS IS AND WHAT IT IS NOT. This is the shared card vocabulary the
+  telemetry-HUD direction in BACKLOG.md asks for: custom properties, monospace
+  alignment, thin geometric borders and the three semantic status colours. It
+  is NOT either of the two components that direction names. A milestone
+  objective tracker needs /api/plan and readable unlock state; a live
+  throughput comparison node needs /api/advice or a route that publishes a
+  recipe set. Both are not_implemented today, and writing either now would mean
+  inventing its payload before its producer exists.
+
+  THE STATUS VOCABULARY IS A SECOND AXIS, NOT A REPLACEMENT FOR .pill-*. The
+  pills carry an ENDPOINT's status - ok, not_implemented, unavailable, error -
+  which is a fact about this surface. optimal, throttled and starved are facts
+  about a PRODUCTION LINE. A route that answers correctly about a starved line
+  is an ok pill and a starved figure at the same time, so collapsing the two
+  vocabularies would make that state unsayable.
+
+  EVERY COLOUR BELOW WAS MEASURED BEFORE IT WAS WRITTEN, on its own fill and on
+  all three page grounds, in both schemes. The floor across those four is 5.03
+  in light and 5.63 in dark; the accent's own floor is 5.49 and 6.87. Nothing
+  here relies on a text-shadow, which raises perceived legibility without
+  moving the measured ratio.
+*/
+
+.hud {
+  /*
+    THE MONOSPACE STACK IS DECLARED HERE RATHER THAN AS A TOKEN. A custom
+    property would have to be repeated in the dark block to satisfy the
+    light-first parity arm, and a font stack has no light-or-dark half.
+  */
+  font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas,
+    "Liberation Mono", Menlo, monospace;
+  /*
+    TABULAR FIGURES ARE THE WHOLE POINT OF A MONOSPACE HUD. Proportional digits
+    make a column of rates ragged, and a rate that moves between repaints
+    appears to shift sideways when only its value changed.
+  */
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.hud-card {
+  /*
+    A THIN GEOMETRIC BORDER, SQUARE. No radius and no shadow: the card is
+    defined by its rule, so the rule is the only thing drawing it.
+  */
+  border: 1px solid var(--hud-rule);
+  border-radius: 0;
+  background: var(--surface);
+  padding: 0.75rem 0.875rem;
+}
+
+/*
+  THE STATUS EDGE IS A THICKENED LEFT BORDER IN THE STATUS COLOUR, AND IT IS
+  NEVER THE ONLY CARRIER OF THE STATE. A border alone is unavailable to a
+  reader who cannot see it and to one whose user agent drops the colour, so
+  .hud-status below writes the same fact as text in the same colour. Colour is
+  the second channel here, never the first.
+*/
+.hud-card[data-status] {
+  border-left-width: 3px;
+}
+
+.hud-card[data-status="optimal"] {
+  border-left-color: var(--status-optimal);
+}
+
+.hud-card[data-status="throttled"] {
+  border-left-color: var(--status-throttled);
+}
+
+.hud-card[data-status="starved"] {
+  border-left-color: var(--status-starved);
+}
+
+.hud-status {
+  display: inline-block;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid currentColor;
+  border-radius: 0;
+  /*
+    0.8rem AND WEIGHT 600 MATCH .badge, the nearest peer component. 0.8125rem
+    wedged a fourth step into a 0.32px window of an existing scale, and
+    weight 400 rendered this chip lighter than the .pill and .badge chips
+    sitting beside it. Uppercase with tracking is the pairing that costs
+    most at small sizes, so the weight is carrying it.
+  */
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.hud-status[data-status="optimal"] {
+  color: var(--status-optimal);
+  background: var(--status-optimal-bg);
+}
+
+.hud-status[data-status="throttled"] {
+  color: var(--status-throttled);
+  background: var(--status-throttled-bg);
+}
+
+.hud-status[data-status="starved"] {
+  color: var(--status-starved);
+  background: var(--status-starved-bg);
+}
+
+.hud-figure {
+  /*
+    RIGHT-ALIGNED SO THE UNITS COLUMN LINES UP, AND IT CARRIES THE STACK ITSELF
+    RATHER THAN INHERITING IT. Measured: with no .hud ancestor this element
+    fell back to the page's proportional system-ui, where the same ten glyphs
+    span 32.53px to 134.7px instead of one width. The digits still lined up,
+    because the fallback face honours tnum - so the column SURVIVED while the
+    monospaced face silently did not, and nothing announced the loss.
+  */
+  font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas,
+    "Liberation Mono", Menlo, monospace;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.hud-accent {
+  color: var(--accent-hud);
+}
+
+/*
+  --- overlay text isolation, and why the whole palette is redefined here -----
+
+  INSIDE AN OVERLAY THE PALETTE IS THE DARK PALETTE, ALWAYS. That single
+  sentence is the fourth attempt at this rule and the first one whose boundary
+  cannot shrink. The first pinned `color`. The second added `border`. The third
+  redefined the ten tokens the `.hud-*` rules read. Each closed exactly the set
+  the previous audit had named, and each time the fault reappeared one selector
+  further out - `.facts dd` at 1.04:1, `h2` at 2.25:1 and `.lede` at 3.10:1,
+  none of which are `.hud` rules and all of which land in this subtree as
+  readily as a card does. ONLY THE FIRST IS 1.04:1; an earlier draft of this
+  paragraph attached that one ratio to all three, which is the same restated-
+  measurement fault the rest of this sheet is careful about. `--text` is the
+  only one of the thirty light tokens that lands in that band.
+
+  THE MEASUREMENT THAT COLLAPSED IT. --overlay-ground, --overlay-fg,
+  --overlay-accent and --overlay-rule were byte-identical to the DARK values of
+  --bg, --text, --accent-hud and --hud-rule. Four tokens had been spelling, one
+  at a time, a thing the sheet already said whole. So they are retired and every
+  token is redefined here from the dark scheme instead - which is correct rather
+  than merely uniform, because this element sits over a game pixel and a dark
+  ground is the one that holds for a pixel of any colour.
+
+  `test_the_overlay_redefines_the_whole_palette_as_the_dark_scheme` derives the
+  requirement from `:root` itself, so a token added to the sheet turns it red
+  until this rule covers it. A LIST OF TOKENS SOMETHING READS WAS THE BUG, four
+  times over; the sheet's own declaration list is the only boundary that does
+  not move when a new rule is written.
+
+  WHAT WAS MEASURED ABOUT THE SCRIM, and why this ships fully opaque. Accent
+  over this ground over a WHITE game pixel, alpha 0.00 to 1.00 in twentieths:
+
+    alpha 0.00   2.22      alpha 0.50   1.58      alpha 0.80   4.53
+    alpha 0.20   1.44      alpha 0.65   2.61      alpha 0.90   6.43
+    alpha 0.35   1.02      alpha 0.70   3.13      alpha 1.00   8.38
+
+  THE CURVE IS NOT MONOTONIC AND THAT IS THE TRAP. Contrast FALLS from 2.22 at
+  no scrim to 1.02 around alpha 0.35, where the composited ground passes through
+  the accent's own luminance and the text disappears entirely. A designer
+  reaching for a light scrim to keep the game visible lands at the worst
+  legibility available - strictly worse than drawing no scrim at all. Body text
+  clears 4.5:1 at alpha 0.65 and the accent at 0.80, so the floor is opacity
+  rather than taste, and an opaque ground is the only value that holds for a
+  game pixel of ANY colour rather than for the white worst case alone.
+*/
+.hud-overlay {
+  --bg: #0f131a;
+  --surface: #171d26;
+  --surface-alt: #1e2631;
+  --border: #2c3745;
+  --text: #e8edf3;
+  --muted: #98a4b3;
+  --accent: #7db3f0;
+  --ok-fg: #82d8a6;
+  --ok-bg: #163220;
+  --pending-fg: #ebc978;
+  --pending-bg: #382d11;
+  --warn-fg: #f0b183;
+  --warn-bg: #3a2416;
+  --bad-fg: #f3a3a9;
+  --bad-bg: #391b1f;
+  --idle-fg: #a9b4c1;
+  --idle-bg: #232c38;
+  --focus: #8cc0ff;
+  --btn-bg: #2f6db3;
+  --btn-fg: #ffffff;
+  --btn-border: #4d8cd2;
+  --shadow: rgba(0, 0, 0, 0.45);
+  --accent-hud: #fa9549;
+  --status-optimal: #6fcf97;
+  --status-optimal-bg: #163220;
+  --status-throttled: #fa9549;
+  --status-throttled-bg: #3a2416;
+  --status-starved: #f3777f;
+  --status-starved-bg: #391b1f;
+  --hud-rule: #647694;
+
+  /*
+    THE UA-PAINTED HALF IS NOT A CUSTOM PROPERTY AND SO WAS NOT COVERED BY
+    REDEFINING THIRTY OF THEM. `color-scheme` selects the palette the user
+    agent paints scrollbars, form widgets and the caret from; it takes no
+    part in the cascade of `--x` names, cannot appear in :root's declaration
+    list, and therefore could not be seen by an arm derived from that list.
+    MEASURED at 1280 in the LIGHT scheme: a `.scroll-x` nested here painted a
+    WHITE classic scrollbar with white arrow buttons on this #0f131a ground -
+    the brightest object in the subtree. An A/B whose only change was this one
+    declaration turned it dark grey with the ground and the text byte-identical
+    either side, so the cause is this line's absence and nothing else.
+
+    THIS IS THE FIFTH ROUND OF ONE FAULT AND THE FIRST THAT LEFT THE PALETTE.
+    The four before it moved outward within the tokens - a property, then a
+    second property, then the `.hud-*` descendants, then every other
+    descendant. This one stepped out of the token mechanism entirely. The
+    lesson the arm now carries is that "every token" was still a boundary
+    drawn around a mechanism rather than around the subtree.
+  */
+  color-scheme: dark;
+
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--hud-rule);
+  border-radius: 0;
+  padding: 0.5rem 0.75rem;
 }

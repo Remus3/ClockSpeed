@@ -152,3 +152,32 @@ built before then, and scaffolding against an assumed API surface is ruled out i
   white game pixel, which fails even the large-text threshold. A shadow raises perceived
   legibility without changing the measured ratio, so overlay text needs a real backing
   surface rather than a shadow alone.
+
+**The style layer landed, measured 2026-09-05.** `clockspeed/surface/web/app.css` now
+declares `--accent-hud`, the three `--status-*` colours with their fills, `--hud-rule` and
+`--overlay-ground`, in both schemes, plus `.hud`, `.hud-card`, `.hud-status`, `.hud-figure`,
+`.hud-accent` and `.hud-overlay`. NO COMPONENT CONSUMES THEM YET and that is deliberate -
+the two named components still wait on their producers. Three things were measured while
+building it that whoever writes those components will otherwise re-discover the hard way:
+
+- **The accent fails on the LIGHT SCHEME, not only over a game pixel.** The direction above
+  frames #FA9549's 2.22 as an overlay problem. Measured against this page's own light
+  grounds it scores 2.22 on `--surface`, 2.07 on `--bg` and 1.96 on `--surface-alt` - it
+  fails even the 3:1 large-text threshold on all three, on the page as it ships today. A
+  light theme is a white game pixel that is always on screen. The light half holds hue at
+  25.8deg and saturation at 0.947 and moves lightness only, to #9f4704.
+- **A status colour must be measured on its own tinted fill as well as on the page.** The
+  first candidate cleared all three page grounds at 4.56 and then scored 4.18 on the fill it
+  was drawn for. The floor across all four is what selects a value, not the page grounds.
+- **Overlay contrast is NOT MONOTONIC in scrim opacity.** Accent over `--overlay-ground` over
+  a white pixel falls from 2.22 at no scrim to 1.02 near alpha 0.35, where the composited
+  ground crosses the accent's own luminance, then climbs back to 8.38 at full opacity. A
+  light scrim chosen to keep the game visible lands at the WORST legibility available,
+  strictly worse than no scrim. Body text clears 4.5:1 at alpha 0.65, the accent at 0.80.
+
+**Three-tier disclosure cannot use `details` or `summary`, measured 2026-09-05.**
+`tests/surface/test_web_assets.py::test_the_page_offers_exactly_one_kind_of_clickable_target`
+bans `a`, `input`, `select`, `textarea`, `details` and `summary` outright: the only clickable
+target the page admits is a `button`, which is what makes the 24px hit-target arm a claim
+about the whole page rather than about one selector. So the direction's "click to expand the
+upstream stall trace" is a button toggling `hidden`, never a disclosure element.

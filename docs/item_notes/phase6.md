@@ -271,35 +271,3 @@ now does and is the shape to mirror.
 **WHAT WOULD SETTLE IT:** an arm that plants a candidate in the working directory
 and reddens if the resolver offers it, applied to every spawn site the repository
 has, not only to the two known ones.
-
-
-## CS-911
-
-**Two writers publish a zero-byte state file over a good one.**
-
-`shell/lib/state.js` writes atomically by staging into a partial file and renaming.
-Its header states the property plainly: a reader sees either the previous file or
-the new one, never a half-written one. That holds for ONE writer.
-
-MEASURED 2026-09-05 by an adversary, against the real module: the partial file has
-a FIXED name and is opened truncating, so two processes sharing one userData
-directory interleave as `A.writePartial` then `B.open(partial, "w")` then
-`A.commitPartial`, and what gets published is EMPTY. Observed directly - a good
-state file of 78 bytes replaced by 0 bytes, after which `inspect` reports
-`restored=false` with the fault "the state file was not valid JSON" and `load`
-falls back to defaults. That falsifies the module's own header and non-negotiable 5.
-
-The same run measured 120 failures out of 800 concurrent saves, all `ENOENT`, which
-is not in that module's `TRANSIENT_CODES` and so is not retried. In `main.js` those
-are swallowed into a single stderr line, under the shortcut launch that has no
-terminal to read it.
-
-**CS-909's SINGLE-INSTANCE LOCK REMOVES TODAY'S ONLY KNOWN SECOND WRITER, AND DOES
-NOT MAKE THE WRITE SAFE.** Do not read that lock as closing this item. It removes
-the one path that was reachable by double-clicking a shortcut; the module remains
-unsafe for any second writer that arrives another way, and its header still claims
-a property it does not have.
-
-**WHAT WOULD SETTLE IT:** an arm that interleaves two writers on one directory and
-reddens on the shipped implementation, plus a decision about whether the header's
-claim is narrowed to one writer or the implementation is widened to honour it.

@@ -13,12 +13,12 @@ grade it. An adjudicator that did not produce this measurement moves it to `acce
 
 ADR 0004 settled that unlock state IS recoverable from a save, and named the fields by
 scanning a decompressed body for property-name strings. It deliberately did not measure
-how those fields serialize. `clockspeed/save/world.py:486` says so on `UnlockState`
+how those fields serialize. `clockspeed/save/world.py::UnlockState` says so on `UnlockState`
 itself, and the load carries `WARN_UNLOCK_GRAMMAR_UNMEASURED` for that reason.
 
 CS-913 was filed on the premise that the published unlock state is empty BECAUSE that
 grammar was never measured. **That premise is wrong, and the code says so before any save
-is opened.** `_read_unlocks` at `clockspeed/save/world.py:858` takes zero arguments - no
+is opened.** `_read_unlocks` at `clockspeed/save/world.py::_read_unlocks` takes zero arguments - no
 bytes, no `ObjectTable`, no `PropertyMap` - and its body at `:868` returns
 `EMPTY_UNLOCK_STATE` plus one warning unconditionally. Its only call site, `:1003`, is
 argument-free too. Nothing in scope could vary by save, so every world publishes
@@ -27,7 +27,7 @@ rather than the mechanism, and `/api/world` is innocent: it would publish real s
 moment the producer returned any.
 
 Meanwhile the decoder those bytes would go through already exists.
-`objects.read_properties` at `clockspeed/save/objects.py:5424` is a full tagged-property
+`objects.read_properties` at `clockspeed/save/objects.py::read_properties` is a full tagged-property
 reader. Grepping `read_properties|parse_properties` across `clockspeed/` outside
 `objects.py` returns exactly two hits - `world.py:44` and `world.py:50` - and both are
 docstring prose. **The decoder has no production caller.**
@@ -119,7 +119,7 @@ warning it emits is honest about the state being empty and inaccurate about the 
 ## Consequences
 
 **`UnlockState.current_game_phase: int | None` is the wrong shape and must change.**
-`clockspeed/save/world.py:523` declares an integer phase index. The save carries an asset
+`clockspeed/save/world.py::UnlockState` declares an integer phase index. The save carries an asset
 reference. An integer field can only be filled here by inventing one - deriving an index
 from an asset path is exactly the fabrication `UnlockState`'s own docstring forbids. This
 is the finding with a shipped consequence, and it is why CS-913 cannot be closed by
@@ -167,7 +167,7 @@ references from `references` gets an empty answer and no warning. The values are
 **Any test for this must build a synthetic `PropertyMap`.** `read_properties` takes a
 non-optional one, sourced from `usmap`, which requires the game install. **CI has no
 install and neither does a fresh clone**, so a library-backed test is not portable.
-`tests/save/test_properties.py:2706` already builds a map from `usmap`'s own public types
+`tests/save/test_properties.py::_synthetic_map` already builds a map from `usmap`'s own public types
 with no file, and that is the pattern. It also satisfies the standing rule that fixtures
 are hand-authored synthetic registries, never slices of real data.
 

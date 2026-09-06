@@ -50,6 +50,31 @@ the item.
 
 ## Open gated items
 
+### CS-G06 - A mature-world snapshot with a repeatable home
+
+**One line:** CS-913 cannot be validated without a save that demonstrably carries unlock
+state, kept somewhere a later run can reproduce.
+
+**Unblocked by:** the operator placing a snapshot of a progressed world into `corpus/`.
+`.gitignore` already reserves `/corpus/` and the directory does not exist; ADR 0004
+recommended exactly this and it was never done. **No amount of work inside this repo can
+close it** - a save is a personal-data-bearing artifact under non-negotiables 11 and 12,
+it may never be committed, and an agent may not place one.
+
+**Why a synthetic fixture is not a substitute, and this entry refuses that trade.** The
+settled rule is that fixtures are small synthetic registries hand-authored in the repo,
+and CS-913's arms must indeed run on a machine with no game installed - that is what a
+synthetic `PropertyMap` is for. But a synthetic fixture built parallel to the reader
+stays green through the real defect, which is the failure ADR 0004 names in its own
+consequences. The corpus is what tells us the reader agrees with a real save, once.
+
+**The pinned development world cannot serve.** ADR 0004 states S6 must not be settled on
+it, and a 2026-09-05 spike measured worse: every record of every `(14,60)` save decodes
+ZERO property tags, so it cannot exercise the decoder at all. It is the CONTROL. This is
+adjacent to CS-G05 and does not supersede it.
+
+**Filed 2026-09-05** out of the CS-913 re-spec recorded in `docs/LEDGER.md`.
+
 ### CS-G01 - Asset-parsing library for resource-node extraction
 
 **One line:** Extract resource-node coordinates and purity from the shipped game assets,
