@@ -71,10 +71,13 @@ from tests.toolpath_guard import (  # noqa: E402
     describe,
     exemption_budget_problems,
     findings,
+    frozen_files,
     graded_python_files,
+    is_frozen,
     scan_repository,
     scan_source,
     stale_exemptions,
+    unfrozen_exemptions,
     ungraded,
 )
 
@@ -551,12 +554,66 @@ def test_every_exemption_names_a_file_frozen_by_claude_md() -> None:
     external tool this repository spawns, and these four sit behind CLAUDE.md
     section 6, which no agent may open for itself.
     """
-    frozen_text = (REPO_ROOT / "CLAUDE.md").read_text(encoding="ascii")
-    outside = sorted({path for (path, _f, _c, _l) in EXEMPTIONS if path not in frozen_text})
+    outside = unfrozen_exemptions(EXEMPTIONS)
 
     assert outside == [], (
-        f"{len(outside)} exemption(s) name a file CLAUDE.md does not freeze, so the"
-        f" table's stated reason does not apply to them: {outside}"
+        f"{len(outside)} exemption(s) name a file CLAUDE.md's frozen LIST does not"
+        f" cover, so the table's stated reason does not apply to them:\n" + "\n".join(outside)
+    )
+
+
+def test_the_frozen_check_reads_the_list_and_not_the_whole_document() -> None:
+    """THE META-TEST ON THE ORACLE, because the oracle is what was broken.
+
+    The arm above used to ask ``path not in CLAUDE.md``. CLAUDE.md's module map
+    and tooling map name ten non-frozen ``.py`` files, so that check accepted an
+    exemption for any of them - MEASURED by planting a row keyed on
+    ``tools/drift_guard.py``, hashing the file to prove the mutation landed, and
+    watching the arm pass.
+
+    The document-mention is asserted here on purpose. Without it this test would
+    pass for the wrong reason on a day CLAUDE.md stopped mentioning the file at
+    all, and would then be pinning nothing.
+    """
+    entries = frozen_files()
+    document = (REPO_ROOT / "CLAUDE.md").read_text(encoding="ascii")
+    decoy = "tools/drift_guard.py"
+
+    assert decoy in document, (
+        f"{decoy} is no longer mentioned in CLAUDE.md, so it is not the decoy this"
+        " arm needs - pick another non-frozen file the document names"
+    )
+    assert is_frozen("tools/precommit_gate.py", entries), (
+        "a file the frozen list names was not recognised, so the parser read the"
+        " wrong section or the list shape changed"
+    )
+    assert not is_frozen(decoy, entries), (
+        f"{decoy} is mentioned by CLAUDE.md and is NOT in its frozen list, so a"
+        " check that accepts it is reading the document rather than the list"
+    )
+    planted = {(decoy, "planted", "subprocess.run", 1): "a reason that does not apply"}
+    assert len(unfrozen_exemptions(planted)) == 1, (
+        "an exemption naming a non-frozen file was not reported, so the table's"
+        " justification is still unchecked"
+    )
+
+
+def test_the_frozen_list_covers_the_hook_directory_it_freezes() -> None:
+    """The glob entry, which an exact-string comparison would silently drop.
+
+    CLAUDE.md freezes the hook directory as a pattern rather than file by file.
+    A membership test that compared strings would accept the literal entry - a
+    path no file has - while refusing every real hook under it, so the one
+    directory most worth freezing would be the one left unprotected.
+    """
+    entries = frozen_files()
+
+    assert is_frozen(".githooks/pre-commit", entries), (
+        "a file directly under the frozen hook directory was not recognised as"
+        " frozen, so the glob entry is being compared rather than honoured"
+    )
+    assert not is_frozen("tools/toolpath.py", entries), (
+        "an unrelated file matched the frozen list, so the glob is too greedy"
     )
 
 
@@ -694,6 +751,68 @@ def test_an_aliased_import_does_not_walk_past_the_scanner() -> None:
 
     verdicts = [site.verdict for site in scan_source("tools/synthetic.py", source)]
     assert verdicts == [CURDIR_RESOLVER]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from os import system\ndef f():\n    system('git status')\n",
+        "from os import system as s\ndef f():\n    s('git status')\n",
+    ],
+    ids=["plain", "aliased"],
+)
+def test_an_os_spawner_imported_by_name_does_not_walk_past_the_scanner(source: str) -> None:
+    """A WHOLE IMPORT FORM THE CENSUS DID NOT ENUMERATE.
+
+    MEASURED before the repair: both sources below produced ZERO sites - not a
+    finding, not an ungraded row, nothing. A site the walk never records is
+    invisible to :func:`findings`, to :func:`ungraded` and to the site floor
+    alike, so the census reported a clean tree while one of its spawn roots held
+    a live ``os.system``. That was confirmed end to end: the plant was written
+    into a real spawn root, the mutation was hashed to prove it landed, and the
+    whole module stayed green.
+
+    THE DEFENCE EXISTED TWICE AND WAS NOT APPLIED THE THIRD TIME.
+    ``_imported_from`` was already run over ``subprocess`` and over the resolver
+    module, and never over ``os`` - so ``import os`` was covered, an aliased
+    ``from shutil import ...`` was covered, and this form fell between them.
+    """
+    verdicts = [site.verdict for site in scan_source("tools/synthetic.py", source)]
+
+    assert verdicts == [BARE_NAME], (
+        "an os spawner bound by a from-import was not enumerated at all, so no"
+        " assertion in this file could have reached it"
+    )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import subprocess\ndef f():\n    argv = ['git', 'x']\n    subprocess.run(argv)\n",
+        "import subprocess\ndef f():\n    argv = ('git', 'x')\n    subprocess.run(argv)\n",
+    ],
+    ids=["list", "tuple"],
+)
+def test_a_program_list_bound_to_a_name_does_not_walk_past_the_scanner(source: str) -> None:
+    """THE PLAINEST INDIRECTION THERE IS, and the fold used to stop one step short.
+
+    ``tests/toolpath_guard.py`` claims one hop of constant folding because "one
+    indirection is what an ordinary edit produces". A list literal bound to a
+    name on the line above the spawn is the MOST ordinary form of that, and it
+    folded to INDIRECT: the sequence was unwrapped only at the direct-argument
+    position, so a Name bound to a List gave up rather than taking its first
+    element.
+
+    INDIRECT is not a finding, so this shape was reported as ungraded and the
+    census stayed green - the same walk-past the constant-fold arm above exists
+    to prevent, wearing different syntax.
+    """
+    verdicts = [site.verdict for site in scan_source("tools/synthetic.py", source)]
+
+    assert verdicts == [BARE_NAME], (
+        "a program list bound to a name folded to something other than the bare"
+        " name it holds, so an ordinary edit walks past this census"
+    )
 
 
 def test_a_binding_inside_a_nested_function_is_not_folded_into_the_outer_scope() -> None:

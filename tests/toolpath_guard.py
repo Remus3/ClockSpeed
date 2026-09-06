@@ -28,20 +28,47 @@ WORSE THAN NO GUARD. A program expression that does not fold to a constant is
 recorded :data:`INDIRECT` and is NOT a finding. ``subprocess.run(argv, ...)``
 inside a function that received ``argv`` from its caller cannot be graded by
 reading one function, and an interprocedural walk that guessed would manufacture
-confidence rather than evidence. Three live sites are in that class -
-``scripts/make_cert.py``, ``scripts/make_shortcut.py`` and
-``scripts/verify_env.py`` each spawn an argv built elsewhere - and each is
-covered instead by a RUNTIME arm in its own test module, which observes what was
-actually handed to the spawn. Static reach and runtime reach are different
-instruments and neither one is a substitute for the other.
+confidence rather than evidence. Several live sites are in that class - among
+them ``scripts/make_cert.py``, ``scripts/make_shortcut.py`` and
+``scripts/verify_env.py``, which each spawn an argv built elsewhere - and each is
+meant to be covered instead by a RUNTIME arm in its own test module, which
+observes what was actually handed to the spawn. Static reach and runtime reach
+are different instruments and neither one is a substitute for the other.
+
+THE POPULATION IS NOT RESTATED HERE. A prose count of that class was carried in
+this docstring and was WRONG - it named three while the census reported five,
+having missed both sites in ``tools/precommit_gate.py``. Ask :func:`ungraded`
+and the INDIRECT verdict for the current set rather than reading a number off
+this paragraph.
+
+THAT DELEGATION IS A CLAIM ABOUT ANOTHER FILE, AND IT WAS ONCE FALSE. The arm
+for ``scripts/verify_env.py`` called two hand-picked functions and then asserted
+the spawn count equalled two - which EXCLUDED BY CONSTRUCTION the six argv a
+real collection builds, three of them a bare ``git``. The defect was live and
+reproducible while this docstring asserted it was covered. That arm now drives
+the script's own entry point rather than a chosen list of functions, asserts
+every recorded argv is rooted with no ceiling on the population, and carries a
+companion arm proving a single primitive is the only spawn in the file - which
+is what makes "every argv recorded" mean "every argv built". THE OTHER TWO
+DELEGATIONS ABOVE HAVE NOT BEEN RE-DERIVED HERE and are named, not vouched for.
 
 CONSTANT FOLDING IS ONE HOP AND DELIBERATELY SO. ``prog = "git"`` followed by
 ``subprocess.run([prog, ...])`` is the obvious way to walk past a scanner that
 only reads call sites, so a Name is resolved against its enclosing function's
-assignments and then against module scope. It is not a dataflow analysis and does
-not claim to be: a name assembled from fragments, read off a mapping, or passed
-in from another module folds to nothing and lands in INDIRECT with everything
-else.
+assignments and then against module scope. A SEQUENCE FOLDS TO ITS FIRST ELEMENT
+WHEREVER IT IS REACHED, which is a repair: unwrapping used to happen only where
+a list was written inline, so ``argv = ["git", "x"]`` on the line above the spawn
+answered INDIRECT - the plainest indirection there is, walking past the scanner
+by one ordinary edit. It is not a dataflow analysis and does not claim to be: a
+name assembled from fragments, read off a mapping, or passed in from another
+module folds to nothing and lands in INDIRECT with everything else.
+
+EVERY IMPORT FORM IS ENUMERATED, AND ONE OF THEM WAS NOT. Aliases are followed
+for ``subprocess`` spawners, for the current-directory resolver, and - since a
+census that reported ZERO sites for ``from os import system`` was measured
+against a plant in a real spawn root - for the ``os`` spawners too. A site the
+walk never records is invisible to :func:`findings`, to :func:`ungraded` and to
+the site floor at once, which is strictly worse than a site graded wrongly.
 
 THE GRADED POPULATION IS THE SPAWN ROOTS AND THAT BOUNDARY IS A DECISION.
 :data:`SPAWN_ROOTS` is what a shipped run executes - a script the operator
@@ -66,6 +93,7 @@ rule cannot catch by itself.
 from __future__ import annotations
 
 import ast
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -189,6 +217,14 @@ MODULE_SCOPE: Final = "<module>"
 #: census quadratic; the cycle check below is what makes it terminate.
 MAX_FOLD_DEPTH: Final = 8
 
+#: The heading that opens CLAUDE.md's frozen-file list. The section NUMBER is
+#: optional in the pattern deliberately: renumbering the document must not
+#: quietly turn the justification check into a check of nothing.
+FROZEN_HEADING: Final = re.compile(r"^#+\s*(?:\d+\.)?\s*Frozen files\s*$", re.IGNORECASE)
+
+#: One entry of that list. Backtick-quoted, one per bullet.
+FROZEN_BULLET: Final = re.compile(r"^-\s+`([^`]+)`\s*$")
+
 #: How long the enumeration waits on git.
 GIT_TIMEOUT: Final = 120
 
@@ -212,15 +248,29 @@ EXEMPTION_REASON_MINIMUM: Final = 60
 # that function. A line that moves reddens the staleness arm below, which is a
 # loud false refusal and the direction this project prefers.
 #
-# EVERY ROW HERE IS A FROZEN FILE AND THAT IS THE WHOLE TABLE. CLAUDE.md
-# section 6 lists scripts/install_hooks.py and tools/precommit_gate.py as
-# requiring explicit operator approval to modify, routed through an adjudicator
-# and recorded in docs/LEDGER.md before the edit. No agent grants itself that
-# exception and none widens the list, so these four sites carry the SAME defect
-# as the seven that were repaired and are recorded here as OUTSTANDING rather
-# than closed. CS-910 therefore does not fully close while this table is
-# non-empty: its acceptance says "every other external tool this repository
-# spawns", and four of them are behind a door this slice may not open.
+# EVERY ROW HERE IS A FROZEN FILE, AND THAT CLAIM IS NOW CHECKED AGAINST THE
+# LIST. CLAUDE.md section 6 lists scripts/install_hooks.py and
+# tools/precommit_gate.py as requiring explicit operator approval to modify,
+# routed through an adjudicator and recorded in docs/LEDGER.md before the edit.
+# No agent grants itself that exception and none widens the list, so these four
+# sites carry the SAME defect as the ones that were repaired and are recorded
+# here as OUTSTANDING rather than closed.
+#
+# THE JUSTIFICATION USED TO BE UNCHECKED. The arm behind this table asked
+# whether the path appeared anywhere in CLAUDE.md, and CLAUDE.md names twelve
+# .py spellings of which exactly two are frozen - the module map and the tooling
+# map account for the rest. MEASURED: a row keyed on tools/drift_guard.py PASSED
+# that check. It is now checked against the parsed frozen LIST.
+#
+# WHAT THIS TABLE IS NOT. It is the set of graded findings that are excused, and
+# NOT a statement that the four are all CS-910 has left. INDIRECT sites are not
+# findings and never enter this table, tests/ is enumerated and not asserted
+# over, and a bare name reached through a shape the fold does not read is
+# recorded ungraded rather than here. A live HIGH defect sat in
+# scripts/verify_env.py - a file that is NOT frozen - while this table held four
+# rows, so "the remainder is the frozen four" is exactly the inference this
+# comment must not invite. Read ungraded() and the runtime arms before claiming
+# a remainder, and re-derive it rather than quoting a prior claim.
 EXEMPTIONS: Final[dict[tuple[str, str, str, int], str]] = {
     ("scripts/install_hooks.py", "run_git", "subprocess.run", 119): (
         "FROZEN under CLAUDE.md section 6 - scripts/install_hooks.py needs an adjudicator"
@@ -421,6 +471,15 @@ class _Census(ast.NodeVisitor):
         self._subprocess = _module_aliases(tree, "subprocess")
         self._os = _module_aliases(tree, "os")
         self._direct_spawners = _imported_from(tree, "subprocess", SUBPROCESS_SPAWNERS)
+        # THE THIRD APPLICATION, WHICH WAS MISSING. This defence was already run
+        # over subprocess and over the resolver module and never over os, so
+        # `from os import system` produced sites=0 - not a finding, not an
+        # ungraded row, invisible to findings(), to ungraded() and to the site
+        # floor alike. MEASURED by planting one in a real spawn root, hashing the
+        # file to prove the mutation landed, and watching the whole module stay
+        # green. Two arms looked like they covered this and did not: one tests
+        # `from shutil import which as w`, the other `import os; os.system(...)`.
+        self._direct_os_spawners = _imported_from(tree, "os", OS_SPAWNERS)
         self._direct_resolvers = _imported_from(
             tree, CURDIR_RESOLVER_MODULE, frozenset(CURDIR_RESOLVERS)
         )
@@ -439,8 +498,11 @@ class _Census(ast.NodeVisitor):
             if base in self._os and function.attr in OS_SPAWNERS:
                 return f"os.{function.attr}"
             return None
-        if isinstance(function, ast.Name) and function.id in self._direct_spawners:
-            return f"subprocess.{self._direct_spawners[function.id]}"
+        if isinstance(function, ast.Name):
+            if function.id in self._direct_spawners:
+                return f"subprocess.{self._direct_spawners[function.id]}"
+            if function.id in self._direct_os_spawners:
+                return f"os.{self._direct_os_spawners[function.id]}"
         return None
 
     def _resolver_callee(self, node: ast.Call) -> str | None:
@@ -501,6 +563,31 @@ class _Census(ast.NodeVisitor):
             return "<toolpath>", RESOLVED
         return "<call>", INDIRECT
 
+    def _fold_sequence(
+        self, expression: ast.List | ast.Tuple, scope: ast.AST, seen: frozenset[str]
+    ) -> tuple[str, str]:
+        """An argv literal: the program is its first element.
+
+        REACHED FROM ANYWHERE, and not only from the direct-argument position.
+        ``argv = ["git", "x"]`` one line above the spawn used to fold to INDIRECT
+        because unwrapping happened only where the sequence was written inline: a
+        Name bound to a List arrived at the fold and gave up. That is the
+        plainest indirection there is, and this module's own docstring calls one
+        indirection what an ordinary edit produces.
+
+        Args:
+            expression: The sequence literal.
+            scope: The function the spawn sits in.
+            seen: Identifiers already being resolved, so a cycle terminates.
+
+        Returns:
+            The rendered program and its verdict. An empty sequence names no
+            program at all and is INDIRECT rather than a finding.
+        """
+        if not expression.elts:
+            return "<empty>", INDIRECT
+        return self._fold(expression.elts[0], scope, seen)
+
     def _fold(
         self, expression: ast.expr, scope: ast.AST, seen: frozenset[str] = frozenset()
     ) -> tuple[str, str]:
@@ -512,6 +599,8 @@ class _Census(ast.NodeVisitor):
         """
         if isinstance(expression, ast.Constant) and isinstance(expression.value, str):
             return expression.value, self._verdict_of(expression.value)
+        if isinstance(expression, ast.List | ast.Tuple):
+            return self._fold_sequence(expression, scope, seen)
         if isinstance(expression, ast.Attribute):
             return self._fold_attribute(expression)
         if isinstance(expression, ast.Call):
@@ -712,6 +801,98 @@ def stale_exemptions(sites: list[ProgramSite]) -> list[str]:
         f"{path}:{line} {callee} in {function}() is exempted and is not a live finding"
         for (path, function, callee, line) in sorted(EXEMPTIONS)
         if (path, function, callee, line) not in live
+    ]
+
+
+def frozen_files() -> list[str]:
+    """The entries of CLAUDE.md's frozen-file LIST, in the order they are written.
+
+    WHY THE LIST AND NEVER THE DOCUMENT. The arm that checks the exemption
+    table's justification used to ask ``path not in CLAUDE.md``, and CLAUDE.md
+    mentions twelve ``.py`` spellings of which exactly two are frozen - the
+    module map and the tooling map name the rest. MEASURED: an exemption keyed
+    on ``tools/drift_guard.py`` PASSED that check, because the tooling map
+    mentions the file. A substring test against a whole document is not a test
+    of membership in a list inside it; it is a test of whether the document has
+    ever heard of the string.
+
+    Returns:
+        The entries exactly as written, backticks stripped.
+
+    Raises:
+        RuntimeError: The section could not be found or held no entries. Loud
+            rather than empty: an empty answer would silently make every
+            exemption unjustified, which is the safe direction but names the
+            wrong cause.
+    """
+    text = (REPO_ROOT / "CLAUDE.md").read_text(encoding="ascii")
+    lines = text.splitlines()
+    entries: list[str] = []
+    inside = False
+    for line in lines:
+        if FROZEN_HEADING.match(line):
+            inside = True
+            continue
+        if inside:
+            if line.startswith("#"):
+                break
+            matched = FROZEN_BULLET.match(line)
+            if matched:
+                entries.append(matched.group(1))
+            elif entries and line.strip() and not line.startswith("-"):
+                # The list has ended and the prose after it has begun.
+                break
+    if not entries:
+        message = (
+            "CLAUDE.md section 6 yielded no frozen-file entries - the heading or the"
+            " list shape changed, so no exemption can be justified against it"
+        )
+        raise RuntimeError(message)
+    return entries
+
+
+def is_frozen(path: str, entries: list[str]) -> bool:
+    """Whether ``path`` is covered by one of the frozen-list entries.
+
+    THE GLOB ENTRY IS HONOURED RATHER THAN COMPARED. CLAUDE.md freezes
+    ``.githooks/*`` as a directory, so an exact-string test would refuse every
+    real file under it while accepting the literal entry, which no path is.
+
+    Args:
+        path: A repo-relative posix path.
+        entries: The frozen list, as :func:`frozen_files` returns it.
+
+    Returns:
+        True when the path is frozen.
+    """
+    for entry in entries:
+        if entry.endswith("/*"):
+            prefix = entry[:-1]
+            if path.startswith(prefix) and "/" not in path[len(prefix) :]:
+                return True
+        elif path == entry:
+            return True
+    return False
+
+
+def unfrozen_exemptions(pinned: dict[tuple[str, str, str, int], str]) -> list[str]:
+    """Exemption rows naming a file CLAUDE.md's frozen LIST does not cover.
+
+    The table's entire stated justification is that every row sits behind
+    CLAUDE.md section 6. This is that claim, checked against the list rather
+    than against the prose surrounding it.
+
+    Args:
+        pinned: The recorded exemptions.
+
+    Returns:
+        One line per row whose file is not frozen.
+    """
+    entries = frozen_files()
+    return [
+        f"{path} is exempted as FROZEN and is not in CLAUDE.md's frozen-file list"
+        for path in sorted({path for (path, _f, _c, _l) in pinned})
+        if not is_frozen(path, entries)
     ]
 
 
