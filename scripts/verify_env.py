@@ -650,7 +650,29 @@ def _hard_rows(root: Path, facts: dict) -> list[dict]:
     git_ok, git_value = _tool_version("git")
     rows.append(_row("HARD", "git", git_ok, git_value))
 
-    tree = _run(["git", "-C", str(root), "rev-parse", "--is-inside-work-tree"]) if git_ok else None
+    # CS-910 - RESOLVED ONCE, AND EVERY git BELOW SPAWNS THIS AND NOT A NAME.
+    # The row above already resolved git properly and then threw the answer
+    # away, and the three calls that followed handed CreateProcess a bare
+    # "git" - which searches the CURRENT DIRECTORY first whenever the gate
+    # variable is absent, its state at both machine and user scope here.
+    # REPRODUCED: with a planted git in the working directory, the row "repo
+    # root is a git work tree" flipped from ok to "rev-parse says no".
+    #
+    # THE REACH IS WHAT MADE IT URGENT. docs/OPERATIONS.md runs this script
+    # SECOND in a fresh clone, before any protection is installed, and invokes
+    # it repo-relative - so the working directory IS the repository root and
+    # the operator has not yet run anything that would notice a plant.
+    #
+    # NO PATH IS SPELLED HERE. Non-negotiable 3 forbids that outright; this is
+    # a runtime resolution against the PATH the process was handed.
+    git_exe = resolve_tool("git")
+
+    # The guard is the RESOLVED PATH and no longer the row's boolean. They
+    # agree today, and tying the spawn to the thing being spawned means a
+    # future edit cannot leave a None reaching the argv.
+    tree = (
+        _run([git_exe, "-C", str(root), "rev-parse", "--is-inside-work-tree"]) if git_exe else None
+    )
     tree_ok = tree == "true"
     rows.append(
         _row(
@@ -685,10 +707,16 @@ def _hard_rows(root: Path, facts: dict) -> list[dict]:
         )
     )
 
+    # CS-910 - both spawn the resolved path bound above, for the reason recorded
+    # there. These two decide the core.hooksPath verdict, so a planted git here
+    # reports a wired clone while nothing is wired - the silent failure the
+    # installer's own docstring calls out as the one that must never happen.
     configured = (
-        _run(["git", "-C", str(root), "config", "--get", "core.hooksPath"]) if git_ok else None
+        _run([git_exe, "-C", str(root), "config", "--get", "core.hooksPath"]) if git_exe else None
     )
-    common_dir = _run(["git", "-C", str(root), "rev-parse", "--git-common-dir"]) if git_ok else None
+    common_dir = (
+        _run([git_exe, "-C", str(root), "rev-parse", "--git-common-dir"]) if git_exe else None
+    )
     hooks_path_ok = hooks_path_is_wired(root, configured, common_dir)
 
     # PRIVACY. The configured value is a DISCOVERED absolute path, so on a

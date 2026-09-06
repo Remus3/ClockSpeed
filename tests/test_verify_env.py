@@ -1197,10 +1197,58 @@ def test_a_genuine_path_executable_is_still_judged_by_the_path(
 # CS-910 - what this script actually hands to the spawn
 # ---------------------------------------------------------------------------
 
-#: The two ways this script starts a process: a PATH executable answering
-#: ``--version``, and the interpreter answering ``-m``. Named rather than written
-#: as a 2 at the assertion, so a channel added or lost says which one it was.
-SPAWN_CHANNELS = 2
+#: The spawn primitive every argv in this script funnels through. Named because
+#: the coverage arm below asserts it is the ONLY one, which is what makes
+#: "every argv the script builds" and "every argv the recorder saw" the same set.
+SPAWN_PRIMITIVE = "_run"
+
+#: The lower bound on how many programs a real collection spawns. A FLOOR, not a
+#: measurement, and deliberately well beneath what this tree produces.
+#:
+#: WHY A FLOOR AND NEVER AN EQUALITY. The arm this replaced asserted
+#: ``len(recorded) == 2`` after calling two hand-picked functions, and that bound
+#: EXCLUDED THE DEFECT BY CONSTRUCTION: a real collection builds six argv, three
+#: of which were a bare ``git``, and the arm could not have seen them because it
+#: never ran the function that builds them and would have failed on the count if
+#: it had. A ceiling on a population is a promise that the population will not
+#: grow, which is not a property any guard should want.
+SPAWN_FLOOR = 4
+
+#: Tool names that must never appear as a spawned program. A bare name is chosen
+#: by the operating system, current directory first - the defect CS-910 measured.
+BARE_TOOL_NAMES = frozenset({"git", "ruff", "pytest", "mypy", "node", "gh", "openssl"})
+
+
+def _record_every_spawn(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
+    """Drive a real collection and return every argv it handed to the spawn.
+
+    IT DRIVES ``collect_rows``, WHICH IS WHAT ``main`` CALLS. That is the repair:
+    naming individual row builders is how the previous arm came to miss
+    :func:`_hard_rows` entirely, so nothing here picks a function - a spawn added
+    anywhere beneath the entry point is seen without this file being touched.
+
+    THE PORT PROBE IS STUBBED AND NOTHING ELSE IS. It binds twenty loopback
+    sockets and builds no argv, so removing it costs this arm no coverage while
+    keeping a test run from racing a server another session is starting. The
+    resolver is NOT stubbed - stubbing it would grade the stub.
+
+    Args:
+        monkeypatch: The fixture used to intercept the spawn.
+
+    Returns:
+        Every argv, in the order it was built.
+    """
+    recorded: list[list[str]] = []
+
+    def record(argv: list[str], **_kwargs: object) -> object:
+        recorded.append(list(argv))
+        raise OSError(errno.ENOENT, "recorded, never launched")
+
+    monkeypatch.setattr(verify_env.subprocess, "run", record)
+    monkeypatch.setattr(verify_env, "probe_port", lambda _port: ("FREE", ""))
+
+    verify_env.collect_rows(verify_env.repo_root())
+    return recorded
 
 
 def test_every_program_this_script_spawns_is_rooted(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1210,30 +1258,79 @@ def test_every_program_this_script_spawns_is_rooted(monkeypatch: pytest.MonkeyPa
     records it INDIRECT and grades it not at all - reading one function cannot
     say where an argument came from, and a walk that guessed would manufacture
     confidence. This arm intercepts the spawn instead and looks at what was
-    really built, across BOTH channels the script uses: a PATH executable
-    answering ``--version``, and the interpreter answering ``-m``.
+    really built, across every channel a real collection uses.
 
-    IT USES THE REAL RESOLVER, deliberately. Stubbing it would grade the stub.
-
-    NOTHING BELOW ASSERTS ON A PATH - every assertion binds a count or a boolean,
-    because pytest renders the asserted expression independently of the message.
+    NOTHING BELOW ASSERTS ON AN ABSOLUTE PATH. ``unrooted`` and ``bare`` hold
+    only programs that are NOT absolute, so rendering them cannot echo a home
+    directory; every other assertion binds a count or a boolean, because pytest
+    renders the asserted expression independently of the message.
     """
-    recorded: list[list[str]] = []
+    recorded = _record_every_spawn(monkeypatch)
 
-    def record(argv: list[str], **_kwargs: object) -> object:
-        recorded.append(list(argv))
-        raise OSError(errno.ENOENT, "recorded, never launched")
-
-    monkeypatch.setattr(verify_env.subprocess, "run", record)
-
-    verify_env._tool_version("git")  # noqa: SLF001 - the PATH-executable channel
-    verify_env._module_version("ruff")  # noqa: SLF001 - the interpreter channel
-
-    assert len(recorded) == SPAWN_CHANNELS, (
-        "the script did not spawn once per channel, so this grades nothing - a resolver"
-        " that refused would skip its spawn entirely and leave the loop below empty"
+    spawns = len(recorded)
+    assert spawns >= SPAWN_FLOOR, (
+        f"a real collection spawned {spawns} program(s), beneath the floor of"
+        f" {SPAWN_FLOOR} - this arm graded almost nothing, so treat it as broken"
+        " rather than as a pass"
     )
-    unrooted = [argv[0] for argv in recorded if not Path(argv[0]).is_absolute()]
-    assert unrooted == [], f"{len(unrooted)} spawned program(s) are not absolute paths"
-    bare = [argv[0] for argv in recorded if argv[0] in {"git", "ruff"}]
-    assert bare == [], f"{len(bare)} spawned program(s) are a bare tool name"
+    unrooted = sorted({argv[0] for argv in recorded if not Path(argv[0]).is_absolute()})
+    assert unrooted == [], (
+        f"{len(unrooted)} spawned program(s) are not absolute paths, so the operating"
+        f" system picks them - current directory first: {unrooted}"
+    )
+    bare = sorted({argv[0] for argv in recorded if argv[0] in BARE_TOOL_NAMES})
+    assert bare == [], f"{len(bare)} spawned program(s) are a bare tool name: {bare}"
+
+
+def test_the_recorded_spawns_reach_the_git_subcommand_channel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The coverage the arm above depends on, asserted rather than assumed.
+
+    The three sites that carried the defect are ``git`` SUBCOMMAND calls, not the
+    ``git --version`` call beside them, and they are skipped entirely when git
+    does not resolve. Without this arm a machine with no git turns the rooted
+    check above into a statement about the interpreter channel alone, and it
+    would report that as a pass.
+    """
+    recorded = _record_every_spawn(monkeypatch)
+
+    subcommands = len([argv for argv in recorded if "rev-parse" in argv or "config" in argv])
+    assert subcommands >= 1, (
+        "no git subcommand was spawned, so the three sites CS-910's adversary"
+        " reproduced were never reached and the rooted check graded none of them"
+    )
+
+
+def test_one_primitive_spawns_everything_this_script_runs() -> None:
+    """What makes "every argv recorded" mean "every argv built".
+
+    The runtime arms above intercept ``subprocess.run``. That is a complete
+    reading of the script only while every spawn funnels through the single
+    helper that calls it - a second call site added elsewhere would be a program
+    those arms never see, and they would stay green while missing it.
+    """
+    tree = ast.parse(VERIFY_ENV_SOURCE.read_text(encoding="ascii"))
+    enclosing: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+        enclosing.extend(
+            node.name
+            for inner in ast.walk(node)
+            if isinstance(inner, ast.Call)
+            and isinstance(inner.func, ast.Attribute)
+            and inner.func.attr == "run"
+            and isinstance(inner.func.value, ast.Name)
+            and inner.func.value.id == "subprocess"
+        )
+
+    outside = sorted({name for name in enclosing if name != SPAWN_PRIMITIVE})
+    assert outside == [], (
+        f"{len(outside)} function(s) other than {SPAWN_PRIMITIVE}() call subprocess.run,"
+        f" so the runtime arms above do not read the whole script: {outside}"
+    )
+    assert enclosing.count(SPAWN_PRIMITIVE) == 1, (
+        f"{SPAWN_PRIMITIVE}() holds {enclosing.count(SPAWN_PRIMITIVE)} spawn call sites"
+        " rather than one, so the primitive is no longer the single funnel"
+    )
