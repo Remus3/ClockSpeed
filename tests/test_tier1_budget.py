@@ -1688,3 +1688,179 @@ def test_the_stale_ledger_pointers_are_corrected_by_an_appended_record() -> None
         f"would enrol the new entry in tests/test_docs_citations.py's own pinned pointer set and "
         f"redden it, which is the rot this correction is about."
     )
+
+
+# ---------------------------------------------------------------------------
+# The lane runs in two shards, and a shard is where coverage goes missing
+# ---------------------------------------------------------------------------
+
+#: The second job. The lane was split on 2026-09-06 after run 34013336391 was
+#: CANCELLED at 611s at 99 per cent of the suite with nothing failing.
+SAVE_JOB_ID = "save"
+
+#: What the save shard runs, and therefore what the other shard must ignore.
+SHARD_BOUNDARY = "tests/save"
+
+#: What the wide shard runs before its ignore is applied.
+SUITE_ROOT = "tests"
+
+
+def job_named(job_id: str) -> dict[str, Any]:
+    """One job of the lane, addressed by its id.
+
+    Args:
+        job_id: The key under ``jobs``.
+
+    Returns:
+        The parsed job.
+    """
+    jobs = workflow_document().get("jobs")
+    assert isinstance(jobs, dict), f"{WORKFLOW_RELATIVE} declares no jobs mapping"
+    job = jobs.get(job_id)
+    assert isinstance(job, dict), f"{WORKFLOW_RELATIVE} declares no job named {job_id!r}"
+    return job
+
+
+def suite_invocation(job_id: str) -> list[str]:
+    """The pytest command one job runs, as tokens.
+
+    Args:
+        job_id: The key under ``jobs``.
+
+    Returns:
+        The tokens of the single step named :data:`SUITE_STEP`.
+    """
+    listed = job_named(job_id).get("steps")
+    assert isinstance(listed, list), f"the {job_id!r} job declares no step list"
+    matched = [step for step in listed if isinstance(step, dict) and step.get("name") == SUITE_STEP]
+    assert len(matched) == 1, f"the {job_id!r} job has {len(matched)} steps named {SUITE_STEP!r}"
+    script = matched[0].get("run")
+    assert isinstance(script, str), f"the {job_id!r} job's suite step runs nothing"
+    return script.split()
+
+
+def test_the_two_shards_partition_the_suite_with_no_gap_and_no_overlap() -> None:
+    """CS-896 - a shard is exactly where a directory stops being tested silently.
+
+    THE PARTITION IS ASSERTED FROM THE TWO INVOCATIONS RATHER THAN TRUSTED. The
+    wide shard runs the suite root with one ignore; the narrow shard runs what
+    that ignore names. Stated that way the partition holds for ANY boundary, so
+    this arm keeps proving it if the boundary moves - which is the point, since
+    a boundary that moved in one job and not the other is the failure it exists
+    to catch.
+
+    A GAP AND AN OVERLAP FAIL DIFFERENTLY AND BOTH ARE HERE. If the wide shard
+    stopped ignoring the narrow one, every save test would run twice and the
+    lane would be slower for nothing. If it ignored something the narrow shard
+    does not run, that directory would be tested by NOBODY while both jobs went
+    green - which is the unrun-gate failure class (CONVENTIONS.md section 7.2).
+    """
+    wide = suite_invocation(JOB_ID)
+    narrow = suite_invocation(SAVE_JOB_ID)
+
+    ignored = sorted(token.split("=", 1)[1] for token in wide if token.startswith("--ignore="))
+    narrow_targets = [token for token in narrow if token.startswith(SUITE_ROOT)]
+
+    assert SUITE_ROOT in wide, f"the wide shard names no explicit target directory: {wide}"
+    assert narrow_targets == [SHARD_BOUNDARY], (
+        f"the narrow shard runs {narrow_targets}, not [{SHARD_BOUNDARY!r}]"
+    )
+    assert ignored == [SHARD_BOUNDARY], (
+        f"the wide shard ignores {ignored}; it must ignore exactly what the narrow"
+        f" shard runs, or the two are not a partition of {SUITE_ROOT!r}"
+    )
+
+
+def test_no_third_job_runs_the_suite_without_being_part_of_the_partition() -> None:
+    """CS-896 - the partition is over EVERY job, not over the two it names.
+
+    A third job added later that ran its own pytest would be outside the
+    argument above, and the arm would keep passing while the lane silently ran
+    something a fourth reader knows nothing about. The set of suite-running jobs
+    is pinned instead of assumed.
+    """
+    jobs = workflow_document().get("jobs")
+    assert isinstance(jobs, dict), f"{WORKFLOW_RELATIVE} declares no jobs mapping"
+
+    running = sorted(
+        job_id
+        for job_id, job in jobs.items()
+        if isinstance(job, dict)
+        and any(
+            isinstance(step, dict) and "pytest" in str(step.get("run", ""))
+            for step in (job.get("steps") or [])
+        )
+    )
+
+    assert running == sorted([JOB_ID, SAVE_JOB_ID]), (
+        f"the jobs that run pytest are {running}; the partition above reasons about"
+        f" exactly {sorted([JOB_ID, SAVE_JOB_ID])} and says nothing about any other"
+    )
+
+
+def test_every_job_reports_its_own_duration_with_the_identical_step() -> None:
+    """CS-896 - the duplicated step is duplicated, and that is the risk.
+
+    THE ACCEPTANCE IS PER JOB. "Reports its own duration against a budget" is a
+    claim about whichever job is slowest, so a shard without the step could run
+    to the cutoff reporting nothing - the cancellation-shaped silence the item
+    was filed about.
+
+    THE STEP IS COPIED RATHER THAN SHARED, because a job key cannot be written
+    once for two jobs, and its shell carries three refusals that took a
+    measurement each to find. A copy that drifts keeps one of them and loses the
+    other, so the two are asserted BYTE-IDENTICAL rather than merely both
+    present.
+    """
+    jobs = workflow_document().get("jobs")
+    assert isinstance(jobs, dict), f"{WORKFLOW_RELATIVE} declares no jobs mapping"
+
+    scripts: dict[str, str] = {}
+    for job_id, job in jobs.items():
+        if not isinstance(job, dict):
+            continue
+        for step in job.get("steps") or []:
+            if isinstance(step, dict) and step.get("name") == REPORT_STEP:
+                scripts[job_id] = str(step.get("run"))
+
+    reporting = sorted(scripts)
+    assert reporting == sorted([JOB_ID, SAVE_JOB_ID]), (
+        f"the jobs carrying a {REPORT_STEP!r} step are {reporting}, so some job can"
+        " reach the cutoff without reporting the duration it took"
+    )
+    distinct = sorted(set(scripts.values()))
+    assert len(distinct) == 1, (
+        f"the {len(scripts)} duration steps are NOT identical, so one shard grades its"
+        " duration by rules the other does not"
+    )
+
+
+def test_the_guard_rejects_two_jobs_whose_cutoffs_disagree() -> None:
+    """CS-896 - a per-job level is only a level while every job states the same one.
+
+    The multiplicity rejection was relaxed when the lane gained a second job:
+    ``timeout-minutes`` is a JOB key, so two jobs state it twice and neither is
+    a restatement. What replaced it is this - the statements must AGREE - and a
+    relaxation nobody re-armed is how a cutoff gets raised one job at a time.
+    """
+    shipped = (REPO_ROOT / WORKFLOW_RELATIVE).read_text(encoding="utf-8")
+    stated = shipped.count("\n    timeout-minutes:")
+    assert stated > 1, (
+        "the lane no longer states a per-job cutoff more than once, so this arm is"
+        " grading a shape the workflow does not have"
+    )
+
+    divergent = shipped.replace(
+        f"timeout-minutes: {EXPECTED_POLICY_CUTOFF_MINUTES}",
+        f"timeout-minutes: {EXPECTED_POLICY_CUTOFF_MINUTES + 5}",
+        1,
+    )
+    assert divergent != shipped, "the cutoff was not found, so nothing was made to disagree"
+
+    value, problem = drift_guard._tier1_declaration(  # noqa: SLF001 - the site under test
+        divergent, drift_guard.TIER1_TIMEOUT_KEY
+    )
+
+    assert value is None, "a lane whose two jobs carry different cutoffs was accepted"
+    assert problem is not None, "the disagreement was rejected without saying why"
+    assert "DISAGREE" in problem, f"the reason does not name the disagreement: {problem}"

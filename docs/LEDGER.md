@@ -160,6 +160,74 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-06 - CS-896 - The lane runs in two shards, because with the cutoff fixed and the suite grown there was no third option
+
+**CS-896 STAYS OPEN until a run reports its comparison from inside the budget.** This
+entry records the reshape and the measurement that forced it, not a closure.
+
+**THE MEASUREMENT.** Run 34013336391 on `2489bdf` was **CANCELLED at 611s, at 99 per cent
+of the suite, with NOTHING FAILING**. The run before it, 34010764125, FAILED the ceiling at
+588s. The three before that: 574s, 582s, both failing the ceiling. So the lane crossed from
+"fails naming a number" to "cancelled naming none" - which is one level WORSE, because a
+cancelled run is evidence of nothing, and it is the exact condition the item was filed
+about.
+
+**THE ARITHMETIC LEFT NO THIRD OPTION.** The cutoff is `timeout-minutes: 10`, it is POLICY,
+guard (k) pins it, and the note beside it refuses a raise in capitals. With the cutoff fixed
+and the suite at 5334 tests, the work had to be given more than one runner or taken out of
+the lane. **It was SPLIT rather than trimmed.** Merged file:
+`.github/workflows/tier1.yml`. The `fast` job runs `tests` with `tests/save` ignored; the
+new `save` job runs `tests/save`. Every test that ran before still runs on every push, in
+one shard or the other, so per-push coverage is unchanged BY CONSTRUCTION rather than by
+argument.
+
+**WHAT THIS COST, KNOWINGLY.** The header's leanness rule asked for one runner and no
+matrix, because minutes are metered. Two jobs pay a second checkout and a second install,
+roughly 35 seconds. Operator decision, 2026-09-06, taken against the alternative of moving
+tests to a nightly lane.
+
+**THE ALTERNATIVE WAS REFUTED BEFORE THIS WAS BUILT.** Marking the expensive tests `slow`
+and having tier 1 skip them was put to an adversary and came back REFUTED on six of seven
+points - CS-907's note forbids marker-by-stopwatch in capitals, CS-448's acceptance would
+have moved to the lane its own note refuses as evidence, and CS-900's share would have
+improved only by shrinking its own denominator. The record is in this file under CS-900.
+
+**A PARTITION IS EXACTLY WHERE COVERAGE GOES MISSING, so it is asserted rather than
+trusted.** Verified by
+`tests/test_tier1_budget.py::test_the_two_shards_partition_the_suite_with_no_gap_and_no_overlap`,
+which reads both invocations and requires the wide shard to ignore precisely what the narrow
+shard runs - so the partition holds for any boundary, and a boundary that moved in one job
+and not the other reddens. Its siblings
+`::test_no_third_job_runs_the_suite_without_being_part_of_the_partition` pins the set of
+suite-running jobs, and
+`::test_every_job_reports_its_own_duration_with_the_identical_step` holds the duplicated
+duration step byte-identical across both jobs, because a job key cannot be written once for
+two jobs and a copy that drifts keeps one of its three refusals and loses the other.
+**MEASURED: dropping the ignore fails the partition arm naming the empty ignore list, and
+altering one job's duration step fails the identity arm naming both.**
+
+**GUARD (k) WAS RELAXED IN ONE PLACE AND RE-ARMED IN ANOTHER, which is the part to read
+before trusting it.** `timeout-minutes` is a JOB key, so a two-job lane states it twice and
+neither statement restates the other - the old "exactly one owner" rule could not express
+that. It now requires every statement to AGREE, which is what the rule was always for: a
+lane whose shards carry different cutoffs has no cutoff, only the larger one. Merged file:
+`tools/drift_guard.py`. Verified by
+`tests/test_tier1_budget.py::test_the_guard_rejects_two_jobs_whose_cutoffs_disagree`, which
+builds a divergent lane from the shipped one and asserts the rejection names the
+disagreement.
+
+**AND THE RESTRUCTURE BROKE TWO PERMANENT LEDGER POINTERS, WHICH IS WHY THE HEADER EDIT IS
+LINE-COUNT NEUTRAL.** `docs/LEDGER.md` cites `.github/workflows/tier1.yml:130` and `:250`,
+this file is append-only, and the citation guard reddens on a pointer landing on a blank or
+punctuation-only line. A fifteen-line header correction moved line 130 onto a bare `#` and
+turned `tests/test_docs_citations.py::test_no_line_pointer_in_the_scoped_population_lands_on_nothing`
+red. The correction was rewritten to occupy exactly the six lines it replaced, and the long
+explanation moved below both pointers onto the new job. **A file with permanent line
+citations into it cannot absorb an insertion above them**, which is an argument for by-name
+citation and is already this repository's stated repair.
+
+---
+
 ### 2026-09-05 - CS-900 - MEASUREMENT AND REPAIR RECORD. The liveness sweep re-parsed 8.4 MB of source 3457 times, and the fix that shipped is the one an adversary found after REFUTING the fix that was proposed
 
 **CS-900 STAYS OPEN.** Its acceptance asks for a runner profile taken BEFORE and AFTER that

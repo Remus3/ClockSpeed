@@ -8,10 +8,10 @@
 #
 # LEANNESS IS A REQUIREMENT, NOT A STYLE CHOICE. This repo is private and CI
 # minutes are metered (CONVENTIONS.md section 8, budget note), so this lane uses
-# one runner (ubuntu-latest, the cheapest), one interpreter, one dependency
-# install and no matrix. Everything expensive - the Windows runner, the full
-# suite with parallelism, the clean-checkout probe, the dependency and license
-# audits - lives in tier2.yml and runs nightly and on tag.
+# the cheapest runner, one interpreter and one dependency install PER SHARD. It
+# runs TWO jobs and once ran one - the reason, and the measurement that forced
+# it, are on the second job below. Everything expensive - the Windows runner,
+# the clean-checkout probe, the audits - lives in tier2.yml, nightly and on tag.
 #
 # CLEAN-MACHINE INVARIANT. BOOTSTRAP.md section 8.1: test fixtures are small
 # synthetic registries hand-authored in the repo, never slices of real game
@@ -378,7 +378,9 @@ jobs:
       # taken here or not at all. It costs nothing: pytest already times every
       # test, and the threshold keeps the sub-5s tail out of the log.
       - name: Unit tests
-        run: python -m pytest tests -q -n auto --durations=15 --durations-min=5.0
+        run: >-
+          python -m pytest tests --ignore=tests/save -q -n auto
+          --durations=15 --durations-min=5.0
 
       # -- The comparison CS-896's acceptance clause asks for. --
       # `if: always()` is the load-bearing half. A comparison that ran only when
@@ -405,6 +407,122 @@ jobs:
       #
       # All three print the same sentence, because they are the same fault:
       # this job did not measure the thing it is about to report.
+      - name: Duration against the budget
+        if: always()
+        run: |
+          if [ -z "${TIER1_STARTED:-}" ]; then
+            echo "FAIL: no start was recorded, so there is nothing to compare against."
+            echo "Refusing to report a duration this job did not measure."
+            exit 1
+          fi
+          case "$TIER1_STARTED" in
+            *[!0-9]*)
+              echo "FAIL: the recorded start is not a whole number of seconds."
+              echo "Refusing to report a duration this job did not measure."
+              exit 1
+              ;;
+          esac
+          ELAPSED=$(( $(date +%s) - TIER1_STARTED ))
+          if [ "$ELAPSED" -lt 0 ]; then
+            echo "FAIL: the clock ran backwards - elapsed came out as ${ELAPSED}s."
+            echo "Refusing to report a duration this job did not measure."
+            exit 1
+          fi
+          BUDGET="$TIER1_BUDGET_SECONDS"
+          CEILING="$TIER1_CEILING_SECONDS"
+          if [ "$ELAPSED" -gt "$CEILING" ]; then
+            VERDICT="OVER THE CEILING"
+          elif [ "$ELAPSED" -gt "$BUDGET" ]; then
+            VERDICT="over budget"
+          else
+            VERDICT="within budget"
+          fi
+          LINE="tier 1 took ${ELAPSED}s - ${VERDICT}"
+          DETAIL="budget ${BUDGET}s, ceiling ${CEILING}s"
+          echo "${LINE} (${DETAIL})"
+          {
+            echo "### tier 1 duration"
+            echo ""
+            echo "| level | seconds |"
+            echo "| --- | --- |"
+            echo "| elapsed | ${ELAPSED} |"
+            echo "| budget | ${BUDGET} |"
+            echo "| ceiling | ${CEILING} |"
+            echo ""
+            echo "${LINE} (${DETAIL})"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$ELAPSED" -gt "$CEILING" ]; then
+            echo "::error::${LINE} (${DETAIL})"
+            echo "The ceiling sits BELOW the runaway cutoff on purpose, so this is a"
+            echo "failure naming a number rather than a cancellation naming none."
+            exit 1
+          fi
+          if [ "$ELAPSED" -gt "$BUDGET" ]; then
+            echo "::warning::${LINE} (${DETAIL})"
+            echo "Over budget is a REPORT, not a failure - the lane must never be red"
+            echo "for runner noise. The ceiling is what fails it."
+          fi
+
+  # -- THE SECOND SHARD, AND THE REASON THE LANE HAS TWO. --
+  #
+  # MEASURED 2026-09-06: run 34013336391 was CANCELLED at 611s, at 99 per cent of
+  # the suite, with NOTHING FAILING. The lane had reached the runaway cutoff, and a
+  # cancelled run is evidence of nothing - which is the exact condition CS-896 was
+  # filed about, arriving one level worse than the ceiling breach that preceded it.
+  #
+  # THE CUTOFF WAS NOT RAISED AND MUST NOT BE. It is policy, guard (k) pins it, and
+  # the note beside it says so in capitals. With the cutoff fixed the only remaining
+  # move is to give the work more than one runner, so the suite is SPLIT rather than
+  # trimmed: every test that ran before still runs on every push, in one shard or the
+  # other, and no test moved to a slower lane. Coverage is unchanged BY CONSTRUCTION
+  # rather than by argument.
+  #
+  # THIS COSTS THE LEANNESS RULE IN THE HEADER, KNOWINGLY. That rule asks for one
+  # runner and no matrix because minutes are metered. Two jobs pay a second checkout
+  # and a second install - about 35 seconds - to halve a step that had stopped
+  # finishing at all. Operator decision, 2026-09-06.
+  #
+  # THE SPLIT IS A PARTITION AND tests/test_tier1_budget.py HOLDS IT THERE. This job
+  # runs tests/save; the job above runs tests with tests/save ignored. A shard that
+  # silently stopped covering a directory would be green over nothing, which is the
+  # unrun-gate failure class, so the two invocations are asserted to partition the
+  # suite rather than merely to look like they do.
+  #
+  # NO GATES HERE. The character set, lint, format, doc budget, drift, link and type
+  # gates all read the WHOLE TREE, so running them again in this job would measure
+  # the same bytes twice and pay twice for it. They belong to the job above.
+  save:
+    name: tests (save shard)
+    runs-on: ubuntu-latest
+    # THE SAME CUTOFF AS THE JOB ABOVE, for the same reason, and guard (k) pins this
+    # one too. A shard is not a licence to run long.
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Record the start
+        run: echo "TIER1_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install toolchain
+        run: python -m pip install -e ".[dev]"
+
+      # THE OTHER HALF OF THE PARTITION. Explicit target directory, never a bare
+      # recursive invocation from the repo root - CONVENTIONS.md section 7.1.
+      - name: Unit tests
+        run: python -m pytest tests/save -q -n auto --durations=15 --durations-min=5.0
+
       - name: Duration against the budget
         if: always()
         run: |

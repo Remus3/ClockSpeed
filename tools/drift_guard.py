@@ -2988,11 +2988,19 @@ TIER1_NARRATIVE_PREFIXES = (
 
 
 def _tier1_declaration(text: str, key: str) -> tuple[int | None, str | None]:
-    """Read one whole-number declaration that must appear exactly once.
+    """Read a whole-number declaration that every statement of must agree on.
 
     The key is matched only at the start of a line, so prose naming it in a
     comment is not a second declaration - which matters, because the workflow's
     own comments have to be able to explain what the key is for.
+
+    ONE STATEMENT PER JOB RATHER THAN ONE PER FILE, and the difference is the
+    lane's shape rather than a weakening. ``timeout-minutes`` is a JOB key, so a
+    lane with two jobs states it twice and neither statement is a restatement of
+    the other - there is no single place it could be written once. What the rule
+    is FOR is that nobody raises one job's cutoff quietly, and disagreement is
+    what catches that now. A lane whose shards carry different cutoffs has no
+    cutoff, only the larger one.
 
     Args:
         text: The workflow source.
@@ -3005,14 +3013,18 @@ def _tier1_declaration(text: str, key: str) -> tuple[int | None, str | None]:
     stated = re.compile(rf"^[ \t]*{re.escape(key)}:", re.MULTILINE).findall(text)
     if not stated:
         return None, f"{key} is not stated, so nothing owns that level"
-    if len(stated) > 1:
-        return None, f"{key} is stated {len(stated)} times - it must have exactly one owner"
     valued = re.compile(
         rf"^[ \t]*{re.escape(key)}:[ \t]*[\"']?(\d+)[\"']?[ \t]*(?:#.*)?$", re.MULTILINE
     ).findall(text)
-    if len(valued) != 1:
+    if len(valued) != len(stated):
         return None, f"{key} is stated but its value is not a whole number"
-    return int(valued[0]), None
+    distinct = sorted(set(valued))
+    if len(distinct) > 1:
+        return None, (
+            f"{key} is stated {len(stated)} times and they DISAGREE: {distinct}."
+            " A per-job level must be the same level in every job"
+        )
+    return int(distinct[0]), None
 
 
 def _tier1_narrative_reason(relative: str) -> str | None:
