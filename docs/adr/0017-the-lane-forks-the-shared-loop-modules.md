@@ -90,12 +90,21 @@ otherwise, which is worse than either state on its own.
 **THE PRICE, MEASURED THE SAME DAY THIS WAS DECIDED, AND IT IS NOT SMALL.** Declining the
 shared bucket also declines its governance: nothing now stops this project's lane and a
 sibling's lane from running at once, because the bucket is the only thing on this box that
-was bounding them. During CS-918's first proving cycle a sibling lane was running
-`pytest` in its own worktree at 6.3 GB resident, of 31 GB with 9 GB free, and a
-whole-suite run here was **truncated at 78 per cent** - exit 1, no summary line, and
-`grep -c FAILED` returning 0, which is the false-green shape `summarize_pytest` exists to
-refuse. The verdict was caught rather than believed, which is the mechanism working; but
-the contention that caused it is a standing condition of this decision and not a one-off.
+was bounding them. During CS-918's proving work THREE `pytest` runs were live at once in
+three different projects' worktrees - two of them sibling lanes, one of those resident at
+6.3 GB - on a box with 31 GB. Two whole-suite runs here were destroyed, in two different
+shapes, and neither said "out of memory" anywhere a skim would find it:
+
+- **Truncated at 78 per cent.** Exit 1, no summary line, `grep -c FAILED` returning 0 -
+  the false-green shape exactly.
+- **Crashed rendering a traceback.** `INTERNALERROR> MemoryError`, and it printed
+  `3402 passed, 3 warnings, 1 error` with exit 3. That reads like one small failure; the
+  tree collects 5565, so **2163 tests never ran at all.**
+
+`summarize_pytest` refused both - the first for having no summary line, the second for its
+exit code - so the verdicts were caught rather than believed, which is the mechanism
+working. But the contention that caused them is a standing condition of this decision and
+not a one-off, and it is the reason a lane run here needs the box checked first.
 
 That is the honest shape of the trade: the alternative was consuming a slot those repos
 ration between themselves, which this ADR refuses on the grounds that it is not ours to

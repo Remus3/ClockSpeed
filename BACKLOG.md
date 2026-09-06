@@ -187,3 +187,17 @@ bans `a`, `input`, `select`, `textarea`, `details` and `summary` outright: the o
 target the page admits is a `button`, which is what makes the 24px hit-target arm a claim
 about the whole page rather than about one selector. So the direction's "click to expand the
 upstream stall trace" is a button toggling `hidden`, never a disclosure element.
+
+## Lane - the suite grader does not check how much of the tree was collected
+
+Filed 2026-09-06 out of CS-918's proving work. **Trigger: a run that collects a SUBSET of
+the tree and still exits 0.**
+
+- `ops/loop/queue_loop.py::summarize_pytest` grades a run on its summary line AND its exit
+  code, which is what catches a truncated run (no summary) and a crashed one (exit 3, and
+  `INTERNALERROR> MemoryError` was measured this session). Neither half looks at HOW MANY
+  tests ran, so `3402 passed in 826.38s` with exit 0 would grade green even though the tree
+  collects far more - the same "nothing failed, so it must be fine" shape one level over.
+  The fix must DERIVE the expected count rather than record one: a `--collect-only -q` pass
+  before the run, compared against the total the run reports. A number written into a file
+  would be a restated measurement and would drift on the next test added.
