@@ -85,18 +85,18 @@ env:
   # docs/item_notes/phase4-followups-850.md records on the old shape when it
   # says "adding NOTHING can cost forty seconds".
   #
-  # BUDGET = worst observed + 61 = 420, which is 1.7x the measured swing, so a
-  # warning means growth rather than a bad morning.
-  # CEILING = budget + 60 = 480. That gap is the WARN BAND and it is 60s on
-  # purpose - "the next minute of growth", the note's own language for what
-  # must be VISIBLE BEFORE IT IS FATAL. A band narrower than the swing cannot
-  # guarantee that ordering: the lane could redden having never once warned. At
-  # the recorded 3.51s per commit this band is about 17 commits of warning.
+  # BUDGET = worst observed + 61 = 420, which is 1.7x the measured swing.
+  # CEILING = budget + 60 = 480, and that 60s gap is the WARN BAND.
+  #
+  # WHAT THE BAND GUARANTEES IS 24 SECONDS, NOT 60. 60 is the MEAN-TO-MEAN
+  # distance; the swing is plus or minus 18s, so a within-budget reading
+  # tolerates a true mean of 438 while a red needs only 462. The growth between
+  # the last silent reading and the first red is therefore 24s - about
+  # 7 commits, small but ABOVE ZERO - which a band as wide as the noise is not.
   #
   # BOTH NUMBERS ARE RATCHETED IN BOTH DIRECTIONS by tools/drift_guard.py guard
   # (k), so raising OR lowering either here alone turns the guard red - which is
   # what forced each of these re-derivations to be a diff somebody defended.
-  # STILL PROVISIONAL at two samples per shard - re-derive from the jobs API.
   TIER1_BUDGET_SECONDS: '420'
   TIER1_CEILING_SECONDS: '480'
 

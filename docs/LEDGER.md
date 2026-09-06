@@ -160,6 +160,68 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-06 - CS-896 - THIRD REFUTATION, and it could not break the acceptance. Two documentation errors repaired; the mechanism survived every other point
+
+**CS-896 STAYS OPEN and this entry does not close it**, but the ground has narrowed to one
+thing. A fourth adversary graded `e826b6d` and reported, in terms: *"The acceptance clause
+itself is met and I could not break it."* It found two errors, both documentation rather
+than mechanism, and both are repaired here.
+
+**1. THE WARNING MARGIN WAS OVERSTATED BY 2.5x, IN THE FILE THAT OWNS IT.**
+`.github/workflows/tier1.yml` claimed the 60s warn band was "about 17 commits of warning".
+**60 is the MEAN-TO-MEAN distance, not the guarantee.** The swing is plus or minus 18s about
+a mean, so a within-budget reading tolerates a true mean of 438 while a red needs only 462:
+the growth that must occur between the last possible silent reading and the first possible
+red is **24s, about 7 commits**. Seven is the number this file condemns two entries below as
+one of the defects that sank the previous derivation. The comment now states the guaranteed
+figure and says why it differs from the band. **What is still true, and is the reason the
+band was widened: 24s is ABOVE ZERO, and the 40s band it replaced was not** - that lane
+could have reddened having never once warned.
+
+**2. THE ENTRY TWO BELOW CITES EVIDENCE THAT THIS SESSION'S OWN COMMIT HAD DELETED.** It
+rebuts an adversary by saying the four `-n auto` readings are "recorded in the workflow
+itself". True at `9dc2d86`; **false at `55799c6` and after**, because the re-derivation that
+landed there removed them. So the adversary was reading a coefficient whose inputs had been
+deleted, and the rebuttal pointed at a file that no longer held them. **The arithmetic
+rebuttal stands** - 424.18, 475.98, 483.14 and 470.67 give mean 463.49, sd 26.70, CV 5.76
+per cent, confirmed independently - **and only the locator was wrong. The readings live in
+`docs/item_notes/phase4-followups-900.md` and in this file's own earlier entries.**
+
+**WHAT SURVIVED, and it is most of the item.**
+
+- **The two parser arms are load-bearing, not decoration.** The adversary found three job
+  spellings guard (k)'s hardened regex still misses - a flow mapping, `third :` with a space
+  before the colon, and an anchor - and proved by deselection that with such a job planted,
+  *every other arm in the module passes* and only the two parser arms redden.
+- **The `str()` comparison masks nothing.** Eleven cutoff spellings were probed; only `10`,
+  `"10"` and `'10'` collapse, and those are the same value to GitHub. `10.0`, `010` and `20`
+  each redden.
+- **The derivation reproduces its own numbers** - worst observed 359, plus 61 is the budget,
+  plus 60 more is the ceiling, 61/36 is 1.7x. Both predecessors failed exactly this test.
+  **By one second, though:** the closure run's fast job was 358s against the pinned 359, and
+  two seconds slower would have falsified it a third time.
+- **Every figure in the correction entry below checks out** - the arm counts, the
+  job-seconds, the byte-identical save shard, the CV arithmetic.
+
+**AND THE SAMPLE OBJECTION IS NOW A NUMBER RATHER THAN A POSTURE.** Asked to name what would
+suffice rather than repeat that n is small, the adversary computed a one-sided 95/95 normal
+tolerance bound over the fast shard's readings (323, 359, 358): at n=3 the bound is 503.6s,
+above the 480 ceiling; **at n=4 it is 452.1s, below it.** So ONE more run of the current
+shape discharges it at the conventional level. It also recorded that the note's original
+standard - "one sample from a distribution that straddles the cutoff" - no longer applies,
+because nothing straddles: the nearest reading sits 121s below the ceiling.
+
+**WHAT IS OWED BEFORE CLOSURE IS NOW EXACTLY ONE THING:** a fourth reading of the fast shard
+under these levels. The run of the commit carrying this entry is that reading.
+
+**AND ONE THING THAT OUTLIVES THE ITEM.** The 3.51s-per-commit slope is still owned by no
+line in `ROADMAP.md`, `BACKLOG.md` or `docs/GATED.md`, verified again at this SHA. Closing
+CS-896 retires the only item watching lane growth while the growth itself stays unowned. The
+save shard compounds it: at 236s against a 420s budget it has no growth signal for roughly
+fifty commits.
+
+---
+
 ### 2026-09-06 - CS-896 - SECOND REFUTATION. The re-derived levels were falsified by the run offered to close them, a trailing comment defeated the repaired guard, and two counts in the entry below are wrong
 
 **CS-896 STAYS OPEN and this entry does not close it.** A third adversary graded
