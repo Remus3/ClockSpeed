@@ -7530,3 +7530,76 @@ claim is narrowed to one writer or the implementation is widened to honour it.
   prevents. Detail in the CS-897 ledger entry. Then CS-899, which also needed this room., because it gates
   CS-898, CS-899 and the seven recorded findings alike. Then the operator's id-block call.
   `ROADMAP.md` is also over its soft budget and owes its own relocate pass.
+
+## CS-918 - RELOCATED from `docs/item_notes/phase4-followups-900.md` 2026-09-06, on closure
+
+### Relocated 2026-09-06. CS-918 CLOSED; its record is in `docs/LEDGER.md`.
+
+A closed item's detail belongs here rather than in a phase leaf - the leaf holds LIVE instructions for OPEN work, and a closed item's section read as live is an instruction to redo it.
+
+**WHAT THIS SECTION ASKED FOR WAS DONE AND THE ANSWER IS IN THE LEDGER.** The cycle ran, the row carried a verdict, and the checks below were performed - including the one this note predicted would be skipped, the lock re-point, which is exactly where the defect turned out to be. Read the closure entry before reading the rest of this: the section was written before the cycle and does not know how it went.
+
+## CS-918
+
+**Filed 2026-09-06 by the merger, on the commit that landed the lane.** The machinery is
+merged and graded; what is unproven is that it RUNS. Read `docs/LEDGER.md`'s CS-918 entry
+before starting - it says in its own words that it does not close this item, and it lists
+precisely what was and was not verified.
+
+### THE ONE THING THIS ITEM OWES
+
+One real cycle, end to end, with the row read back. Not a smoke test of the parts.
+
+```
+python ops/loop/queue_loop.py --once --local-suite --no-ci-gate --repo-root <the tree that carries ops/>
+```
+
+`--repo-root` is not optional until this lane's own code is on `main`. The launcher reads
+the worker's prompt from `lane_launcher.REPO_ROOT`, which is the MAIN checkout by design -
+so before the merge that checkout does not carry `tools/headless-queue.md` at all, and the
+cycle records `launch_failed` for a reason that has nothing to do with the lane. That was
+found by dry-running the wiring, not by guessing; `command_path("queue")` refuses against
+the main tree today and resolves against a branch worktree.
+
+### WHAT COUNTS AS PROOF, AND WHAT DOES NOT
+
+**PROOF:** the JSONL row at `ops/loop/reports/queue_loop.jsonl` carries `outcome`,
+`duration_s`, a `pid` that was real, and a `suite` block whose `summary` is a verbatim
+pytest line and whose `exit_code` is an integer - quoted into the closing ledger entry. Plus
+the worker's own log under `ops/loop/reports/`, which is what proves a process actually did
+something rather than exiting instantly.
+
+**NOT PROOF:** an `outcome` of `completed` on its own. A worker that starts and exits in two
+seconds having done nothing produces exactly that word. The log and the duration are what
+separate the two, which is the whole DETACHED_PROCESS lesson one level down - a real pid, a
+zero exit, and no work done.
+
+**ALSO NOT PROOF:** a green local suite whose `cwd` was the driver's own tree. The verdict
+must name the LANE WORKTREE. The worker commits there and the driver's checkout has not
+pulled, so a suite run in the wrong tree grades a commit nobody made and is indistinguishable
+from a real green in the row. There is an arm for this
+(`test_the_local_suite_grades_the_lane_worktree_and_not_the_drivers_own_tree`), but confirm
+it on the real row too - the arm grades an argument, the row records a fact.
+
+### THE CI HALF IS DELIBERATELY OFF IN THAT COMMAND, AND WHY
+
+`--no-ci-gate` keeps a proving run from dispatching a real tier2 (four job types, both
+platforms, metered minutes on a private repo). The CI path was instead exercised READ-ONLY
+against real completed runs of both tiers: tier1 graded `success` on its two jobs, tier2 on
+all six required matrix legs with the advisory audit excluded, and a planted red leg came
+back `failure` naming `full suite (windows-latest)`. That is evidence the grader reads real
+payloads correctly. **It is NOT evidence that the driver waited out a live run**, and those
+are different claims. Whoever closes this item should say which one they are making.
+
+### THE CHECKS NO MACHINE PERFORMS
+
+`docs/OPERATIONS.md` section 10.7 lists four. The one most likely to be skipped is the
+third: while a cycle is running, read the lock and confirm its `pid` is the powershell
+WRAPPER's rather than the driver's. If the re-point silently failed, the lane reads RUNNING
+forever after the worker dies, and every arm in the suite still passes - because they grade
+`repoint_lane_pid` against an injected token, not against a live spawn.
+
+### DO NOT FIRE THE LOOP UNATTENDED TO CLOSE THIS
+
+One cycle closes it. A night is a separate operator decision and is not this item's
+acceptance.

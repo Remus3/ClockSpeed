@@ -160,6 +160,83 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-06 - CS-918 - CLOSED. One real cycle ran end to end, and it caught a defect in its own author
+
+**The cycle, from the ledger it wrote.** `ops/loop/reports/queue_loop.jsonl`, one row:
+
+```
+"cycle": 1, "run_id": "e085d9aa", "outcome": "completed", "pid": 13784,
+"duration_s": 1882.131, "worker_ok": true, "ok": false,
+"suite": {"summary": "1 failed, 5672 passed, 33 skipped, 7 warnings in 820.97s (0:13:40)",
+          "exit_code": 1, "ok": false, "truncated": false,
+          "cwd": "C:\\cs-worktrees\\cs-lane-queue"},
+"ci": {"verdict": "success", "waited_s": 1108.1, "workflows": [
+    {"workflow": "tier1.yml", "run_id": 34052624755, "waited_s": 2.2,   "jobs": {...2 jobs}},
+    {"workflow": "tier2.yml", "run_id": 34053821344, "waited_s": 1105.9, "jobs": {...7 jobs}}]}
+```
+
+Worker spawned 13:20:55, `lane exit ... code=0` at 13:52:16 in
+`ops/loop/reports/lane_queue_e085d9aa.log`. Loop stopped `suite_red`, exit
+EXIT_SUITE_RED. Every acceptance clause on the ROADMAP line is met: a row carrying a test
+verdict, the worker's log and the row read back, and `cwd` naming the lane worktree as the
+tree that was graded.
+
+**THE DRIVER-OWNED WAIT WORKED, AND `py-spy` SAYS SO RATHER THAN THE PROSE.** Mid-cycle the
+driver's stack was `_watch -> wait_for_workflow -> wait_for_ci -> run_loop`: it waited 2.2s
+on the tier1 the push had already triggered and **1105.9s on a tier2 run it dispatched
+itself**, because tier2 fires on no branch push. Nothing else could start a cycle during
+either, which is the whole mechanism.
+
+**THE WORKER BAILED ON ITS OWN WAIT, ON THE FIRST REAL RUN.** Its last words were "The
+whole suite is running now. I will not touch the tree until it returns", followed
+immediately by `lane exit code=0`. `run_lane.ps1` does set the 40-minute background
+ceiling, so that is not the cause. This is the ported repo's measured failure reproduced
+here at the first opportunity, and it is the entire argument for where the wait lives. The
+worker committed nothing; ten files were left uncommitted in the lane worktree.
+
+**THE ONE FAILING TEST WAS THIS ITEM'S OWN.** `tests/test_liveness.py` refused
+`test_a_fault_is_named_without_rendering_the_exception_object`, added an hour earlier in
+the entry below: its `try` body graded nothing and its failure sat in an `else`, which the
+try generosity does not count and should not. Reshaped to `pytest.raises`. **The lane
+caught a defect its author's own subset runs had missed** - which is the strongest thing
+that can be said for it, and it is worth more than a green first cycle would have been.
+
+**TWO DEFECTS THE CYCLE EXPOSED, BOTH FIXED HERE.**
+
+- **The lane lock was never released.** `lanes.py` was reachable under two names - the
+  driver imports `ops.loop.lanes`, the launcher bound `clockspeed_loop_lanes` - so
+  `repoint_lane_pid` recorded ownership in one object's `_OWNED` and `release_lane` checked
+  the other's, refused, and left the lock. `lane_launcher`'s own docstring predicts exactly
+  this; it happened anyway because the launcher and its TEST agreed with each other, both
+  loading by file path, while nothing asked the driver. **Two agreeing parties are not
+  evidence when both rest on the same assumption.** The package route is now tried first
+  everywhere, both test modules reach lanes the way production does, and
+  `::test_a_release_after_a_launcher_repoint_actually_removes_the_lock` grades the
+  consequence rather than the cause.
+- **The row read `"ok": true` beside `"suite": {"ok": false}`.** Both fields were correctly
+  scoped and the pair was still a trap: anyone grepping the ledger for a failure walks past
+  it. The cycle-scoped field is now `worker_ok`, and `ok` is the roll-up a reader assumes -
+  graded by `::test_a_red_verdict_is_not_carried_by_a_green_row`.
+
+**ONE FINDING NOT FIXED, AND IT IS FILED RATHER THAN LEFT.** The CI gate graded
+`f80b95af7e2e`, which another session on this box pushed during the cycle - not the
+worker's commit, because the worker made none. `head_sha()` compares `origin/main` before
+and after, so any push in the window is attributed to the cycle, and 18 minutes of tier2
+were spent on someone else's tree. Filed as **CS-919**.
+
+**A THIRD THING, MEASURED AND RECORDED IN `docs/adr/0017` RATHER THAN HERE.** A sibling
+repo's lane was running `pytest` at 6.3 GB during this work and a whole-suite run here was
+truncated at 78 per cent - exit 1, no summary line, `grep -c FAILED` returning 0. That is
+the false-green shape, and `summarize_pytest` refused it (`truncated: true, ok: false`)
+rather than believing it. The contention is the standing price of ADR 0017's refusal to
+join the sibling projects' shared slot bucket, and that ADR now says so.
+
+**Verified.** 206 lane arms; `ruff check`, `ruff format --check` and `mypy` clean over 170
+files; a seven-mutant battery against the substrate caught 7 of 7 and a five-mutant battery
+against the launcher caught 5 of 5, both on verified pristine floors with digest-verified
+restores; the launcher's refusal path exercised live at exit 2 with no success banner; the
+dashboard gate run for real at exit 0 with 29 assertions and zero stderr bytes.
+
 ### 2026-09-06 - CS-918 - the headless `queue` lane lands, ported from a sibling repo with three named fixes; the END-TO-END CYCLE IS NOT YET RUN and this entry does not claim it
 
 **CS-918 STAYS OPEN and this entry does not close it.** Everything below is built, graded and merged, but

@@ -674,9 +674,24 @@ stated rather than left as an omission.
    and that `$LASTEXITCODE` is 2. The suite grades this statically because running it would
    spawn a real driver against the real lane.
 2. **A worker actually starts and writes its log.** Fire `--once` and confirm
-   `ops/loop/reports/lane_queue_<run_id>.log` grows. This is the property
-   `DETACHED_PROCESS` silently destroys: a real pid, exit 0, and a log that is never
-   written.
+   `ops/loop/reports/lane_queue_<run_id>.log` exists and carries its `lane start`
+   header. This is the property `DETACHED_PROCESS` silently destroys: a real pid,
+   exit 0, and a log that is never written.
+
+   **BUT LOG SIZE IS NOT A PROGRESS SIGNAL ON THIS LANE, and mistaking it for one
+   wastes an hour.** MEASURED on the first real cycle: the file sat at its 175-byte
+   header for 31 minutes and then gained everything at once. `claude -p` writes its
+   output when it finishes, so a log that is not growing says nothing at all about
+   whether the worker is working. The signals that DO answer it:
+
+   - the worker's process tree - `claude.exe` accumulating CPU and holding a few
+     hundred MB is work; a bare `powershell.exe` with nothing under it is not;
+   - `git -C C:\cs-worktrees\cs-lane-queue status --short` - a worker doing a row
+     changes files in its worktree long before it writes a word to the log.
+
+   The log's LAST line is the one that matters when it ends: `lane exit ... code=N`
+   is written by the runner, so a log without it belonged to a worker that was
+   killed rather than one that finished.
 3. **The lock re-points at the WORKER.** While a cycle is running, read
    `ops/loop/control/lanes/0.lock` and confirm its `pid` is the powershell wrapper's, not
    the driver's. If it stays the driver's, the lane reads RUNNING forever after the worker

@@ -36,6 +36,8 @@ from typing import Any, Final
 import pytest
 
 REPO_ROOT: Final = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 LANES_SOURCE: Final = REPO_ROOT / "ops" / "loop" / "lanes.py"
 LAUNCHER_SOURCE: Final = REPO_ROOT / "ops" / "loop" / "lane_launcher.py"
 RUNNER_SOURCE: Final = REPO_ROOT / "ops" / "loop" / "run_lane.ps1"
@@ -93,8 +95,15 @@ def _load(name: str, source: Path) -> ModuleType:
     return module
 
 
-lanes = _load(LANES_MODULE_NAME, LANES_SOURCE)
-launcher = _load(LAUNCHER_MODULE_NAME, LAUNCHER_SOURCE)
+# THE PACKAGE ROUTE, NOT A FILE-PATH LOAD, and that is the correction CS-918's
+# first real cycle forced. Loading lanes.py by path here gave this module its own
+# copy of the module object - and the launcher had another - so the arm asserting
+# "the launcher binds the same lanes module this suite holds" passed while the
+# DRIVER held a third. The lock was never released on a real run. A test that
+# reaches its subject by a route production does not use is a test that agrees
+# with itself.
+from ops.loop import lane_launcher as launcher  # noqa: E402
+from ops.loop import lanes  # noqa: E402
 
 
 @dataclass

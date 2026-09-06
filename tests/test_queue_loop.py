@@ -29,7 +29,7 @@ if str(ROOT) not in sys.path:
 # A PLAIN IMPORT, never importorskip. A missing driver must be a COLLECTION
 # ERROR, not a skip: CONVENTIONS.md section 7.2 - "the unrun gate is where the
 # bug hides. A skipped suite is not a passing suite."
-from ops.loop import queue_loop  # noqa: E402
+from ops.loop import lane_launcher, lanes, queue_loop  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Fakes. Every one of them records what it was asked, because half the
@@ -244,21 +244,29 @@ def test_a_fault_is_named_without_rendering_the_exception_object(tmp_path):
     home directory, because that is the exact string the rule exists to keep out
     of the JSONL ledger.
     """
+    # `pytest.raises` RATHER THAN try/except/else, and the reshape is the
+    # liveness guard's doing rather than taste. A member credited to the try
+    # generosity has to carry a try that GRADES - one whose body asserts, or
+    # whose HANDLER terminates in failure. This test's first shape had a bare
+    # read in the body and its failure in an `else`, which the guard does not
+    # count and should not: a try that grades nothing is a try that cannot fail.
+    # `raises` makes the expectation the assertion, which is what was meant.
     missing = tmp_path / "no-such-file.txt"
-    try:
+    # FileNotFoundError, not the OSError base: it is what a missing file
+    # actually raises, and naming the broad base would let an unrelated
+    # OSError satisfy this arm. It is still an OSError, so it takes the
+    # same branch of the per-type allowlist under test.
+    with pytest.raises(FileNotFoundError) as caught:
         missing.read_text(encoding="utf-8")
-    except OSError as exc:
-        # THE CONTROL IS `filename`, NOT `str(exc)`, and that is not a dodge -
-        # `filename` IS the mechanism. It is the attribute OSError's own __str__
-        # appends, so asserting the path is in it proves the exception really
-        # does carry the thing being redacted. Rendering the object here to
-        # prove the point would have written the leak into a tracked file, which
-        # the repo-wide guard rightly refuses; it caught this line on the first
-        # run, which is the guard working.
-        carried = exc.filename or ""
-        named = queue_loop._fault(exc)  # noqa: SLF001 - the site under test
-    else:  # pragma: no cover - tmp_path never carries this file
-        pytest.fail("the missing file was readable")
+
+    # THE CONTROL IS `filename`, NOT `str(exc)`, and that is not a dodge -
+    # `filename` IS the mechanism. It is the attribute OSError's own __str__
+    # appends, so asserting the path is in it proves the exception really does
+    # carry the thing being redacted. Rendering the object here to prove the
+    # point would have written the leak into a tracked file, which the repo-wide
+    # guard rightly refuses; it caught that line on the first run.
+    carried = caught.value.filename or ""
+    named = queue_loop._fault(caught.value)  # noqa: SLF001 - the site under test
 
     assert str(tmp_path) in carried, "the control failed: the exception carried no path"
     assert str(tmp_path) not in named, "the path survived redaction"
@@ -817,7 +825,10 @@ def test_a_clean_cycle_completes_and_records_the_worker_pid():
     clock = FakeClock()
     got = queue_loop.run_cycle(1, **cycle_seams(clock))
     assert got["outcome"] == queue_loop.OUTCOME_COMPLETED
-    assert got["ok"] is True
+    # `run_cycle` knows only whether the WORKER finished. Whether the cycle
+    # was good news needs the verdicts, and only `run_loop` has those.
+    assert got["worker_ok"] is True
+    assert "ok" not in got, "run_cycle must not claim a roll-up it cannot compute"
     assert got["pid"] == WORKER_PID
 
 
@@ -865,7 +876,7 @@ def test_a_held_lane_is_recorded_and_is_not_an_error():
         ),
     )
     assert got["outcome"] == queue_loop.OUTCOME_LANE_HELD
-    assert got["ok"] is False
+    assert got["worker_ok"] is False
     assert clock.slept == [30, 30], "no wait after the FINAL attempt"
 
 
@@ -1104,6 +1115,42 @@ def test_one_cycle_writes_exactly_one_jsonl_row_carrying_its_verdict(tmp_path):
     for key in ("cycle", "run_id", "outcome", "pid", "duration_s", "ci"):
         assert key in row, f"a row without {key!r} cannot be read at 3am"
     assert row["ci"]["verdict"] == "success"
+
+
+def test_a_red_verdict_is_not_carried_by_a_green_row(tmp_path):
+    """THE 3AM PROPERTY. A row whose tests failed must not say `ok`.
+
+    Measured on the first real cycle: the row read `"ok": true` beside
+    `"suite": {"ok": false, "exit_code": 1}`. Each field was correctly scoped -
+    the outer one about the worker, the inner one about the tests - and the pair
+    was still a trap, because anyone grepping the ledger for a failure would
+    have walked straight past it. The outer field now says which question it
+    answers, and `ok` answers the one a reader assumes.
+    """
+    log = tmp_path / "queue_loop.jsonl"
+    clock = FakeClock()
+    queue_loop.run_loop(
+        **loop_seams(
+            clock,
+            ci_gate=False,
+            local_suite=True,
+            suite=lambda **_kw: {
+                "ok": False,
+                "summary": "1 failed, 5672 passed in 820.97s",
+                "exit_code": 1,
+                "truncated": False,
+                "argv": ["pytest"],
+                "duration_s": 820.97,
+                "detail": "exit 1",
+            },
+            cycle_log=log,
+            control_dir=tmp_path / "control",
+            hold=NullHold(),
+        )
+    )
+    row = json.loads(log.read_text(encoding="utf-8").strip())
+    assert row["worker_ok"] is True, "the worker did finish - that half is unchanged"
+    assert row["ok"] is False, "a row whose suite went red must not read as ok"
 
 
 def test_the_local_suite_verdict_rides_on_the_same_row(tmp_path):
@@ -1463,6 +1510,56 @@ def test_the_exit_codes_are_all_distinct():
         name: getattr(queue_loop, name) for name in dir(queue_loop) if name.startswith("EXIT_")
     }
     assert len(set(codes.values())) == len(codes), f"colliding exit codes: {codes}"
+
+
+# ---------------------------------------------------------------------------
+# THE DRIVER/LAUNCHER SEAM. One lanes module, or the lane never frees itself.
+# ---------------------------------------------------------------------------
+
+
+def test_the_driver_and_the_launcher_hold_one_lanes_module():
+    """MEASURED on the first real cycle, and it left the lock behind.
+
+    `lanes.py` carries process-global state: `_OWNED`, the table that decides
+    whether a release is ours. Loaded under two names it becomes two objects
+    with two tables, and then `repoint_lane_pid` records ownership in one while
+    `release_lane` checks the other, finds a mismatch, and refuses. The lock
+    survives every cycle and the lane reads RECLAIMABLE for ever.
+
+    The launcher's own docstring predicts exactly this. It still happened,
+    because the launcher and its test agreed with each other - both loaded
+    lanes by file path - while the DRIVER imports the package. Two agreeing
+    parties are not evidence when both derive from the same assumption.
+    """
+    assert lane_launcher.lanes is lanes, (
+        f"the launcher holds {lane_launcher.lanes.__name__!r} and the driver holds "
+        f"{lanes.__name__!r}; a re-point recorded in one is invisible to a release "
+        f"called on the other"
+    )
+
+
+def test_a_release_after_a_launcher_repoint_actually_removes_the_lock(tmp_path):
+    """The behaviour the shared module exists for, end to end on a real lock.
+
+    This is the arm that would have caught it. The identity check above states
+    the cause; this one states the CONSEQUENCE, and it would still fail if some
+    future change split the modules again by another route.
+
+    A real lock file under `tmp_path` - no OS mutex, no process, no git.
+    """
+    root = tmp_path / "lanes"
+    claim = lanes.try_acquire_lane("queue", run_id="r1", worktree=tmp_path / "wt", root=root)
+    token = claim["token"]
+    assert claim["ok"], "the lane was not claimed"
+    assert Path(token).exists(), "no lock file was written"
+
+    # Re-pointed the way `launch_lane` does it - through the LAUNCHER's binding.
+    assert lane_launcher.lanes.repoint_lane_pid(token, WORKER_PID, root=root)
+    # Released the way `run_cycle` does it - through the DRIVER's binding.
+    released = lanes.release_lane(token, root=root)
+
+    assert released, "the release refused a lock this process owns"
+    assert not Path(token).exists(), "the lock survived its own release"
 
 
 # ---------------------------------------------------------------------------

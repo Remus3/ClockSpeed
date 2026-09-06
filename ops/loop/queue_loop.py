@@ -1432,7 +1432,7 @@ def run_cycle(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         return {
             "cycle": int(cycle),
             "run_id": run_id,
-            "ok": bool(ok),
+            "worker_ok": bool(ok),
             "pid": pid,
             "started_at": started_at,
             "ended_at": ended_at,
@@ -1660,7 +1660,7 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
             record = {
                 "cycle": int(cycle),
                 "run_id": run_id,
-                "ok": False,
+                "worker_ok": False,
                 "pid": None,
                 "started_at": started_at,
                 "ended_at": ended_at,
@@ -1712,6 +1712,18 @@ def run_loop(  # noqa: PLR0913, PLR0912, PLR0915 - see THE SEAMS ARE THE POINT
         local = record.get("suite")
         if local:
             note += f" suite={'ok' if local['ok'] else 'RED'} [{local['summary']}]"
+
+        # THE ROLL-UP, and it is the LAST thing set before the row is written.
+        # `worker_ok` says the worker ran to completion, which is all `run_cycle`
+        # can know; `ok` says the whole cycle is good news, which is what anyone
+        # reading this file actually wants. Keeping only the first was measured
+        # to produce `"ok": true` beside `"suite": {"ok": false}` on a cycle
+        # whose tests went red - both fields correct, the pair a trap.
+        record["ok"] = bool(
+            record["worker_ok"]
+            and (local is None or local["ok"])
+            and (verdict is None or verdict["verdict"] != CI_FAILURE)
+        )
 
         records.append(record)
         append_record(record, cycle_log, hold=hold, emit=emit)

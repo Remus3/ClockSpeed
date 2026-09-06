@@ -208,67 +208,49 @@ and are not the complaint.
 
 ---
 
-## CS-918
+## CS-919
 
-**Filed 2026-09-06 by the merger, on the commit that landed the lane.** The machinery is
-merged and graded; what is unproven is that it RUNS. Read `docs/LEDGER.md`'s CS-918 entry
-before starting - it says in its own words that it does not close this item, and it lists
-precisely what was and was not verified.
+**Filed 2026-09-06 by the merger, out of CS-918's first real cycle.** Read that closure
+entry in `docs/LEDGER.md` first - this item exists because of something the cycle did, not
+because of something someone thought might happen.
 
-### THE ONE THING THIS ITEM OWES
+### WHAT WAS MEASURED
 
-One real cycle, end to end, with the row read back. Not a smoke test of the parts.
+The driver reads `origin/main` before the cycle and again after it, and treats a change as
+"our worker pushed". On the first real cycle the worker committed NOTHING - it left ten
+files uncommitted in the lane worktree - while another session on the same box pushed
+`f80b95af7e2e`. The driver saw the ref move, attributed it to the cycle, waited out tier1,
+**dispatched a tier2 run**, and waited 1105.9 seconds for it. The row records
+`"ci": {"verdict": "success"}` against a sha the lane never produced.
 
-```
-python ops/loop/queue_loop.py --once --local-suite --no-ci-gate --repo-root <the tree that carries ops/>
-```
+### WHY THIS IS WORSE THAN IT LOOKS
 
-`--repo-root` is not optional until this lane's own code is on `main`. The launcher reads
-the worker's prompt from `lane_launcher.REPO_ROOT`, which is the MAIN checkout by design -
-so before the merge that checkout does not carry `tools/headless-queue.md` at all, and the
-cycle records `launch_failed` for a reason that has nothing to do with the lane. That was
-found by dry-running the wiring, not by guessing; `command_path("queue")` refuses against
-the main tree today and resolves against a branch worktree.
+It is silent, and it fails in BOTH directions. A neighbour's green is written into this
+lane's ledger as though the lane had earned it - and a neighbour's RED would stop the night
+under `ci_red`, blaming a worker that pushed nothing. Neither shows up as an error; both
+read as ordinary rows. The ledger is the only durable record of a night, so a row that
+cites the wrong sha is worse than a row that cites none.
 
-### WHAT COUNTS AS PROOF, AND WHAT DOES NOT
+### WHAT IS NOT THE FIX
 
-**PROOF:** the JSONL row at `ops/loop/reports/queue_loop.jsonl` carries `outcome`,
-`duration_s`, a `pid` that was real, and a `suite` block whose `summary` is a verbatim
-pytest line and whose `exit_code` is an integer - quoted into the closing ledger entry. Plus
-the worker's own log under `ops/loop/reports/`, which is what proves a process actually did
-something rather than exiting instantly.
+**Do not narrow the window.** The window is the whole cycle - tens of minutes by design -
+and any attempt to shrink it trades a large silent error for a smaller silent error.
 
-**NOT PROOF:** an `outcome` of `completed` on its own. A worker that starts and exits in two
-seconds having done nothing produces exactly that word. The log and the duration are what
-separate the two, which is the whole DETACHED_PROCESS lesson one level down - a real pid, a
-zero exit, and no work done.
+**Do not assume one lane per box.** That is the assumption that produced this. The operator
+runs several projects' sessions concurrently on this machine; the measurement above is that
+configuration behaving normally, not an anomaly.
 
-**ALSO NOT PROOF:** a green local suite whose `cwd` was the driver's own tree. The verdict
-must name the LANE WORKTREE. The worker commits there and the driver's checkout has not
-pulled, so a suite run in the wrong tree grades a commit nobody made and is indistinguishable
-from a real green in the row. There is an arm for this
-(`test_the_local_suite_grades_the_lane_worktree_and_not_the_drivers_own_tree`), but confirm
-it on the real row too - the arm grades an argument, the row records a fact.
+### THE SHAPE OF AN ANSWER
 
-### THE CI HALF IS DELIBERATELY OFF IN THAT COMMAND, AND WHY
+The lane can know what its own worker produced without asking the remote: the worker commits
+in a worktree the driver owns the path of, so the driver can read `lane/queue`'s tip before
+and after and compare THAT, or read the reflog of the branch it launched into. A sha the
+lane cannot attribute to itself must record `unattributable` and grade nothing - an absent
+verdict is a real answer, and it is the one CS-918's own driver already gives when the
+remote cannot be resolved.
 
-`--no-ci-gate` keeps a proving run from dispatching a real tier2 (four job types, both
-platforms, metered minutes on a private repo). The CI path was instead exercised READ-ONLY
-against real completed runs of both tiers: tier1 graded `success` on its two jobs, tier2 on
-all six required matrix legs with the advisory audit excluded, and a planted red leg came
-back `failure` naming `full suite (windows-latest)`. That is evidence the grader reads real
-payloads correctly. **It is NOT evidence that the driver waited out a live run**, and those
-are different claims. Whoever closes this item should say which one they are making.
+### THE ARM THAT PROVES IT
 
-### THE CHECKS NO MACHINE PERFORMS
-
-`docs/OPERATIONS.md` section 10.7 lists four. The one most likely to be skipped is the
-third: while a cycle is running, read the lock and confirm its `pid` is the powershell
-WRAPPER's rather than the driver's. If the re-point silently failed, the lane reads RUNNING
-forever after the worker dies, and every arm in the suite still passes - because they grade
-`repoint_lane_pid` against an injected token, not against a live spawn.
-
-### DO NOT FIRE THE LOOP UNATTENDED TO CLOSE THIS
-
-One cycle closes it. A night is a separate operator decision and is not this item's
-acceptance.
+Redden on a FOREIGN sha landing between the two reads. A test that only checks the happy
+path would have passed on the shipped code, because the shipped code is correct whenever
+nobody else pushes - which is every run on an idle box and no run on this one.

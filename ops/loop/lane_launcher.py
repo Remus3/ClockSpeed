@@ -85,8 +85,23 @@ _LANES_MODULE_NAME = "clockspeed_loop_lanes"
 def _load_lanes() -> Any:
     """Bind the SAME lanes module everything else uses - never a second copy.
 
-    An already-imported module wins, whatever route imported it, so a test
-    harness, a driver and this launcher all share one ``_OWNED`` table.
+    THE PACKAGE IMPORT IS TRIED FIRST, and that ordering is the whole fix.
+    Preferring an already-loaded PRIVATE name was not enough: the driver reaches
+    lanes.py as ``ops.loop.lanes`` - the ordinary package route, now that
+    ``ops/`` carries ``__init__.py`` - so on a real cycle this module built a
+    SECOND object under the private name and the two never met. MEASURED on the
+    first real cycle: ``repoint_lane_pid`` recorded ownership in this copy,
+    ``release_lane`` checked the driver's, refused, and the lock was still on
+    disk when the cycle ended.
+
+    The docstring above this one predicted that exact failure, and it happened
+    anyway, because this module and its test agreed with each other - both
+    loaded lanes by file path - while nothing asked the DRIVER. Two agreeing
+    parties are not evidence when both rest on the same assumption.
+
+    The private file-path bind stays as the FALLBACK, for a caller with no
+    package on ``sys.path``: the detached launcher can run this file by
+    absolute path, and that route has no ``ops`` package to import.
 
     Returns:
         The lanes module.
@@ -94,6 +109,10 @@ def _load_lanes() -> Any:
     Raises:
         ImportError: lanes.py could not be turned into a module.
     """
+    try:
+        return importlib.import_module("ops.loop.lanes")
+    except ImportError:
+        pass
     existing = sys.modules.get(_LANES_MODULE_NAME)
     if existing is not None:
         return existing

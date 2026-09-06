@@ -87,6 +87,27 @@ added to the sibling `SHARED_SHA256` table on the strength of this ADR alone. Do
 would restore the coupling this decision removed while leaving the fork headers claiming
 otherwise, which is worse than either state on its own.
 
+**THE PRICE, MEASURED THE SAME DAY THIS WAS DECIDED, AND IT IS NOT SMALL.** Declining the
+shared bucket also declines its governance: nothing now stops this project's lane and a
+sibling's lane from running at once, because the bucket is the only thing on this box that
+was bounding them. During CS-918's first proving cycle a sibling lane was running
+`pytest` in its own worktree at 6.3 GB resident, of 31 GB with 9 GB free, and a
+whole-suite run here was **truncated at 78 per cent** - exit 1, no summary line, and
+`grep -c FAILED` returning 0, which is the false-green shape `summarize_pytest` exists to
+refuse. The verdict was caught rather than believed, which is the mechanism working; but
+the contention that caused it is a standing condition of this decision and not a one-off.
+
+That is the honest shape of the trade: the alternative was consuming a slot those repos
+ration between themselves, which this ADR refuses on the grounds that it is not ours to
+take. Both states have a cost. This one's cost is paid in wall time and in occasional
+truncated runs on a loaded box, and it is visible - the other's would have been paid
+silently, in three other projects, by a change none of them made.
+
+**Revisit ALSO if** the contention stops being tolerable - if a lane here is regularly
+starved or truncated by a sibling's. The answer then is not to join the bucket unilaterally
+but to raise it with the operator as a cross-repo question, because the bucket's size is a
+shared ceiling and changing who draws on it changes what it means for everyone.
+
 **Revisit if:** the shared governor stops being a shared token bucket, or the three trees
 adopt a published package instead of copied files. Either would remove the reason above,
 and at that point joining is the cheaper answer.
