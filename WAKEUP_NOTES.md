@@ -36,23 +36,31 @@ the line becomes a pointer.
 
 ## Session 65 - 2026-09-06 - THE CLOSURE WAS REFUTED 3/3 AND THE MECHANISM FELL TO ONE LINE; four routes repaired, nine mutations now killed, and one of my own arms scored its own mutation green
 
-- **Shipped:** nothing CLOSED. One commit, `77a88d1`, on top of `58a30f1`. Detail in
-  `docs/LEDGER.md`, not here.
-- **In flight:** CS-896 stays OPEN; CS-917's acceptance was TIGHTENED and needs an
-  operator eye; the ROADMAP relocate pass is still owed.
-- **Decisions:** no ADR. Two questions are put to the operator and neither was decided
-  by an agent - see below.
+- **Shipped:** nothing CLOSED, and that is the correct outcome. Four commits,
+  `58a30f1..7295efc`, all pushed, CI green. Detail in `docs/LEDGER.md`, not here.
+- **In flight:** CS-896 stays OPEN, blocked on CS-917 - by an OPERATOR RULING, not by
+  an unfinished thought. The ROADMAP relocate pass is still owed.
+- **Decisions:** no ADR. TWO OPERATOR RULINGS, both recorded in `docs/LEDGER.md` and
+  both confirming the tree rather than changing it - see below. Do not re-open either.
 - **Surprises:** the four routes below, all measured against a tree every gate was green
   over.
 - **Failed paths:** closing CS-896 by transferring its residual to CS-917. REFUTED, and
   the reasoning is in the ledger so it is not retried.
-- **Next action:** put the two operator questions below. CI on `77a88d1` is ALREADY
-  READ and was GREEN - reading six is filed in the CS-896 leaf, and it is the worst
-  fast reading yet by one second, leaving 60s of margin against a 100s spread.
+- **Next action:** NOTHING IS PENDING FROM THIS SESSION. Pick the top open item. The two
+  strongest candidates are CS-917 (which CS-896 is now formally blocked on) and the
+  ROADMAP relocate pass, which is three sessions owed.
 
 **CI RUN 34038527058 ON `58a30f1` WAS GREEN** - that was the previous session's open
 question and it is answered. Five consecutive green sharded runs. The fifth reading:
 fast 353 job-seconds, save 247; the lane's own lines read 346 and 240 within budget.
+
+**AND THE LANE WENT GREEN TWICE MORE ON THIS SESSION'S OWN COMMITS.** Reading six on
+`77a88d1` (fast 360, the worst yet by one second) is filed in the CS-896 leaf; reading
+seven on `4033b0e` came in at fast 353, save 222 - a new save-shard MINIMUM. **The
+repaired report step and the parser-backed guard have now run on the runner three times
+and changed no verdict**, which is what a repair to a reporting mechanism should look
+like. Fast series: 323, 359, 358, 260, 353, 360, 353. Save series: 225, 237, 242, 227,
+247, 246, 222.
 
 **THE CLOSURE WAS PROPOSED, FROZEN AT `58a30f1`, AND REFUTED BY THREE ADVERSARIES on
 distinct lenses - measurement integrity, scope laundering, guard defeat.** Every
