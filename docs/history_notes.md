@@ -7603,3 +7603,84 @@ forever after the worker dies, and every arm in the suite still passes - because
 
 One cycle closes it. A night is a separate operator decision and is not this item's
 acceptance.
+
+## Session 63 wakeup note - RELOCATED from `WAKEUP_NOTES.md` 2026-09-06
+
+### Relocated 2026-09-06 when session 66 landed and the file went past three entries.
+
+`WAKEUP_NOTES.md` holds the last two to three sessions at full fidelity; older entries
+come here rather than being dropped.
+
+## Session 63 - 2026-09-05 - CS-911 and CS-912 CLOSED; the HUD style layer took SEVEN audit rounds and none returned CLEAR; CS-910's done-claim was REFUTED TWICE and three of four adversaries returned REFUTED
+
+**CLOSED.** CS-911 - every stage takes a unique filename and opens `"wx"`, so the
+truncation primitive is gone rather than made unlikely. CS-912 - `/api/registry` publishes
+the registry as a tenth route, and 731 of 731 producible items built a solve request naming
+only published identifiers.
+
+**OPEN, and both for reasons worth reading.** CS-910 routed seven spawn sites and its commit
+message claimed the remainder was all frozen. That was FALSE TWICE: `scripts/verify_env.py`
+is not frozen, was on the write-list, and still put a bare `git` into three argv; and the
+remainder is FIVE indirect delegations, not three. CS-913's filed cause is REFUTED by the
+code and its line is rewritten.
+
+**FILED.** CS-914 (the CS-911 shape in Python, on the DEFAULT production path), CS-915 (two
+latent guard holes), CS-916 (one asset-extraction prerequisite that three separate features
+are all gated on), CS-G06 (the mature-world corpus, an operator action).
+
+**SEVEN CS-600 AUDIT ROUNDS ON ONE STYLE LAYER AND NOT ONE RETURNED CLEAR.** Rounds 1 to 4
+each found the same fault one selector further out - the rule's own `color`, then its
+`border`, then the nested `.hud-*` descendants, then every OTHER descendant - because every
+repair defined its boundary as "the tokens something I can see reads". Round 4 named it:
+each repair closed the set the previous auditor named and drew the new boundary exactly
+where the previous finding stopped. WHAT ENDED IT WAS A MEASUREMENT, NOT A BETTER REPAIR:
+the four `--overlay-*` tokens were byte-identical to the DARK values of `--bg`, `--text`,
+`--accent-hud` and `--hud-rule`, so the overlay palette had been the dark palette all along.
+Rounds 5 to 7 then left the palette entirely - `color-scheme` is not a custom property;
+round 6 found the round-5 fix had landed on `.hud-overlay`, which renders ZERO times, while
+`:root` had none; round 7 defeated the repaired guard with an OPTIONAL TRAILING SEMICOLON.
+Round 7 graded the RENDERED page PASS on all five phases with zero live defects, and THE
+OPERATOR RULED TO COMMIT on that evidence. Every finding is repaired and each is proven by
+a planted mutation.
+
+**THE MEASUREMENTS WORTH KEEPING.** #FA9549 scores 2.22 / 2.07 / 1.96 on this page's own
+LIGHT grounds - it fails even the large-text threshold there, not merely over a game pixel,
+because a light theme IS a white pixel that is always on screen. Contrast over a scrim is
+NOT MONOTONIC: it falls from 2.22 at no scrim to 1.02 near alpha 0.35, where the composited
+ground crosses the accent's own luminance, then climbs to 8.38 opaque. A light scrim lands
+at the WORST legibility available.
+
+**THREE OF FOUR ADVERSARIES RETURNED REFUTED, WITH DISTINCT LENSES.** Security found three
+live bare-name spawns in a non-frozen file plus both guards blind to them. Does-it-reproduce
+found CS-912's paired control vacuous - it SUBSTITUTED the foreign key into a request naming
+one recipe, so it also removed the target's own producer, and proved it with a live mutant
+that kept the arm green while `tests/solve` went red. Completeness found four guards each
+reporting zero findings because they could not SEE findings. Scope confirmed the
+`workdir.py` race is reachable on the default path and measured 31 of 240 concurrent copies
+failing. FOUR LENSES, FOUR DIFFERENT CLASSES - repeated skeptics would have found one.
+
+**OPERATOR RULINGS THIS SESSION.** Commit on audit round 7 rather than iterate to CLEAR.
+Wiki and community sources are READ-AND-CITE ONLY - CS-485 stands, no dataset is lifted, no
+crawl is run. The local `Satisfactory Designs` downloads are REVIEW ONLY and nothing derived
+from them is committed.
+
+**A UI/UX DOCTRINE FROM ANOTHER PROJECT WAS INGESTED** and adapted into
+`docs/hud_doctrine.md`, which is now the owner file for the two surfaces. It records what
+does NOT transfer as carefully as what does, and names THREE SHIPPED ARMS an overlay will
+collide with: the no-timer arm, the one-clickable-target arm, and the 7-bit ASCII arm, which
+with a CSP publishing no `img-src` leaves an overlay with neither a glyph nor an image.
+
+**TRAPS MEASURED THIS SESSION.** `dict(os.environ)` UPPER-CASES KEYS ON WINDOWS, so popping
+a mixed-case variable removes nothing and the probe reports clean while measuring nothing -
+it produced a GREEN result on genuinely defective code. A `;` CHAIN ENDING IN `tail` EATS
+PYTEST'S EXIT CODE exactly as a pipe does: a red suite was reported as exit 0 twice, once to
+me and once to a slice. AND I BROKE A FREEZE I DECLARED THREE TIMES - three separate agents
+caught it independently; one recovered the start bytes and diffed to prove its verdict still
+stood.
+
+**NAMED AND NOT CLOSED.** ROADMAP.md is at 112 PER CENT of its soft budget and this session
+made it worse; a relocate pass is owed. The HUD layer renders ZERO times today - it is a
+published vocabulary waiting on `/api/plan` and `/api/advice`. Two design questions are open
+and recorded in `docs/hud_doctrine.md`: whether the overlay keeps the companion's warm accent
+when the game's own world is warm, and whether item identity and production status can share
+the colour channel.
