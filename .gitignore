@@ -239,6 +239,26 @@ shell/NVIDIA Corporation/
 /var/
 *.log
 
+# The headless lane's control plane and its reports (CS-918). LOCAL-ONLY runtime
+# state: the lane LOCK carries a live pid, a worktree path and a run id; the
+# stop sentinels are operator gestures made on one machine; the reports hold
+# per-cycle worker logs and the JSONL ledger. None of it is the same on two
+# machines, and the worker logs quote whatever the worker printed - which can
+# include a parsed save header - so they are treated as potentially PII-bearing
+# like every other log here.
+#
+# The DIRECTORIES are ignored, not their contents, so nothing under them can be
+# added by a `git add -A` that reaches inside. ops/loop/*.py and
+# ops/loop/*.ps1 stay tracked: only these two subdirectories are runtime.
+/ops/loop/control/
+/ops/loop/reports/
+
+# The lane's model config, read by ops/loop/run_lane.ps1 via $PSScriptRoot with
+# a known-good fallback so a lane never fails to spawn over a config read.
+# LOCAL-ONLY: which model a box drives its lane with is a machine choice, and
+# tracking it would make one operator's pick everyone's.
+/ops/loop/config.json
+
 
 # ===========================================================================
 # LOCAL-ONLY - OS and editor noise.

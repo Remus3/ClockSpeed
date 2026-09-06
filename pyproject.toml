@@ -241,6 +241,22 @@ ignore = [
   "T201",
 ]
 
+# ops/** is the headless lane. It carries the SAME three exemptions as tools/
+# and scripts/ above, for the same reasons and no others:
+#   S603/S607  it shells out to `git`, `gh` and `taskkill` on purpose. Every
+#              argv is built from module constants and validated inputs, never
+#              from anything a save file or a web page supplied, and every call
+#              site sets an explicit timeout. See ops/loop/queue_loop.py._gh,
+#              which is the ONE place this package talks to a CLI.
+#   T201       the driver's only progress channel is stdout. It runs detached
+#              under pythonw with stdout redirected to a file, so a print that
+#              is not flushed is a log an operator cannot tail - which is why
+#              _emit exists rather than bare prints.
+"ops/**" = [
+  "S603", "S607",
+  "T201",
+]
+
 [tool.ruff.lint.isort]
 known-first-party = ["clockspeed"]
 
@@ -313,8 +329,10 @@ python_version = "3.13"
 # read it. "The gate is green" and "the gate looked at this file" are different
 # claims, and only the second is worth anything about a specific file.
 #
-# ALL FOUR AUTHORED DIRECTORIES ARE NAMED, a set completed by CS-415. scripts/
-# arrived with CS-411 and tools/ closes it. That matters most for the two files
+# EVERY AUTHORED DIRECTORY IS NAMED, and the list above is the only record of
+# which they are - no count is written here, because a count goes stale the next
+# time one is added (it did: ops/ arrived with CS-918). scripts/ arrived with
+# CS-411 and tools/ with CS-415. That matters most for the two files
 # a fresh clone depends on before anything else has run: scripts/install_hooks.py,
 # whose failure leaves a clone unprotected while reporting itself protected
 # (CLAUDE.md section 2.2), and tools/precommit_gate.py, the tier-0 blocking gate
@@ -323,7 +341,7 @@ python_version = "3.13"
 # The DIRECTORIES are named, not the individual files, deliberately. A
 # file-by-file list would leave every script and tool added tomorrow outside the
 # gate by default, which is the same defect wearing a later date.
-files = ["clockspeed", "scripts", "tests", "tools"]
+files = ["clockspeed", "ops", "scripts", "tests", "tools"]
 
 # THERE IS NO `exclude` KEY HERE, AND ADDING ONE IS THE WRONG REFLEX. CS-414
 # deleted the last one, and tests/test_mypy_gate.py pins its absence so it
@@ -450,6 +468,22 @@ show_error_codes = true
 # comparison, so the claim is executed rather than believed.
 [[tool.mypy.overrides]]
 module = ["ruff", "yaml"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# psutil (CS-918), in a block of its OWN rather than folded into the one above.
+# That block's module list is PINNED by
+# tests/test_mypy_gate.py::test_the_stubless_import_override_exists_and_is_narrow
+# because it is what keeps the frozen tools/precommit_gate.py inside the gate
+# with no edit to it - so adding a name to it silently removed that pin, and the
+# gate caught it. Two exemptions with two reasons read better as two blocks.
+#
+# psutil ships no stubs and is an OPTIONAL dependency of the lane:
+# ops/loop/lanes.py imports it inside a try and degrades to "cannot prove pid
+# reuse" without it, which is the fail-soft answer that predicate is built
+# around. A missing-stub error on an import already allowed to be missing would
+# redden the gate over the very absence the code is designed to survive.
+module = ["psutil"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

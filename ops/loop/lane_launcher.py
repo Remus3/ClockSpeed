@@ -1,0 +1,554 @@
+#!/usr/bin/env python
+r"""Lane launcher - turn a held lane lock into a running headless worker.
+
+``ops/loop/lanes.py`` decides WHO may run; this module is what actually runs.
+The split is deliberate: the lock is pure state management and must stay
+gradeable without spawning anything, so nothing in lanes.py starts a process and
+nothing here decides eligibility.
+
+WORKTREE-MANDATORY, ENFORCED TWICE. A lane may fire while an interactive session
+is live, but it may only ever run against a git worktree - never the main tree.
+``try_acquire_lane`` already refuses a worktree that resolves to the repository
+root; this module refuses it AGAIN at spawn time, because the two checks happen
+at different moments and a path can be handed in between them. Two writers in
+one working directory is the concurrent-index corruption class, and it is not
+recoverable by retrying.
+
+THE PID IN THE LOCK IS THE WORKER'S, NOT THE CLAIMER'S. A driver claims the lane
+from a process that outlives every worker it starts. If the lock kept that pid,
+``lane_state`` would probe a process that is always alive and the lane would
+read RUNNING forever after its worker died. ``launch_lane`` re-points the lock
+through ``lanes.repoint_lane_pid`` as soon as it has a real pid, and RELEASES
+the lane if anything in the spawn path fails - a lock with no process behind it
+is strictly worse than no lock at all.
+
+DETACHED_PROCESS (0x8) IS BANNED, AND THAT IS A MEASUREMENT RATHER THAN A STYLE
+CALL. Three spawns of one script differing only in creation flags:
+
+    CREATE_NO_WINDOW | DETACHED_PROCESS -> pid issued, rc 0, log NEVER written
+    CREATE_NO_WINDOW                    -> pid issued, rc 0, log written
+    DETACHED_PROCESS                    -> pid issued, rc 0, log NEVER written
+
+powershell.exe cannot initialise its host without a console, so it exits
+immediately and SILENTLY - a success exit code, a real pid, and no work done.
+The lane would flip RUNNING then RECLAIMABLE on schedule having produced
+nothing, which is the worst shape a failure can take here. CREATE_NO_WINDOW
+alone already suppresses the console flash, and the child outlives this process
+anyway because nothing waits on it past the liveness grace below.
+
+THE LIVENESS GRACE IS THIS PORT'S ONE DELIBERATE DIVERGENCE from the runner it
+was ported from, and it is what turns that measurement into something the
+launcher can SEE. A spawn is followed by a short bounded wait: still running is
+the healthy outcome, and an exit inside the window is reported as a failed
+launch instead of a tracked worker that was never there. It bounds the child the
+way every other spawn in this repository is bounded, and it is honest about its
+reach - it catches the immediate-exit class only. A worker that dies a minute
+later is caught by the pid probe in ``lanes.lane_state``, which is what that
+probe is for.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import importlib.util
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Any
+
+_HERE = Path(__file__).resolve().parent
+
+# tools/ carries no __init__.py, so `toolpath` is imported under its BARE name:
+# importing it as `tools.toolpath` makes mypy resolve one file under two module
+# names and refuse the run outright. This is the same six lines
+# scripts/make_cert.py, scripts/make_shortcut.py and scripts/verify_env.py each
+# carry, and the same reason.
+_TOOLS_DIR = Path(__file__).resolve().parents[2] / "tools"
+if str(_TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TOOLS_DIR))
+
+from toolpath import resolve_tool  # noqa: E402
+
+#: The ONE name ops/loop/lanes.py is bound under anywhere in this project.
+#: lanes.py carries process-global state - ``_OWNED``, the ABA guard that
+#: decides whether a release is ours. A file-path bind under a private name
+#: creates a SECOND module object with its OWN table, so a re-point recorded in
+#: one copy is invisible to a release called on the other and the lane can never
+#: be released. That is measured rather than predicted: the first cut of the
+#: upstream this was ported from did exactly that, and two launcher arms failed
+#: on it.
+_LANES_MODULE_NAME = "clockspeed_loop_lanes"
+
+
+def _load_lanes() -> Any:
+    """Bind the SAME lanes module everything else uses - never a second copy.
+
+    THE PACKAGE IMPORT IS TRIED FIRST, and that ordering is the whole fix.
+    Preferring an already-loaded PRIVATE name was not enough: the driver reaches
+    lanes.py as ``ops.loop.lanes`` - the ordinary package route, now that
+    ``ops/`` carries ``__init__.py`` - so on a real cycle this module built a
+    SECOND object under the private name and the two never met. MEASURED on the
+    first real cycle: ``repoint_lane_pid`` recorded ownership in this copy,
+    ``release_lane`` checked the driver's, refused, and the lock was still on
+    disk when the cycle ended.
+
+    The docstring above this one predicted that exact failure, and it happened
+    anyway, because this module and its test agreed with each other - both
+    loaded lanes by file path - while nothing asked the DRIVER. Two agreeing
+    parties are not evidence when both rest on the same assumption.
+
+    The private file-path bind stays as the FALLBACK, for a caller with no
+    package on ``sys.path``: the detached launcher can run this file by
+    absolute path, and that route has no ``ops`` package to import.
+
+    Returns:
+        The lanes module.
+
+    Raises:
+        ImportError: lanes.py could not be turned into a module.
+    """
+    try:
+        return importlib.import_module("ops.loop.lanes")
+    except ImportError:
+        pass
+    existing = sys.modules.get(_LANES_MODULE_NAME)
+    if existing is not None:
+        return existing
+    spec = importlib.util.spec_from_file_location(_LANES_MODULE_NAME, _HERE / "lanes.py")
+    if spec is None or spec.loader is None:
+        message = "could not load ops/loop/lanes.py"
+        raise ImportError(message)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[_LANES_MODULE_NAME] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+lanes = _load_lanes()
+
+#: One answer for the main tree, taken from the module that owns the question.
+REPO_ROOT = lanes.REPO_ROOT
+RUNNER = _HERE / "run_lane.ps1"
+LOG_DIR = _HERE / "reports"
+
+#: Worktrees live OUTSIDE the repository. Inside it they would land in the very
+#: tree a lane is forbidden to touch, and every repository-wide guard would then
+#: scan them. Drive-rooted and outside any user profile, because an absolute
+#: path under a home directory in a tracked file is forbidden outright
+#: (CLAUDE.md non-negotiable 3). Overridable by environment for a box that
+#: keeps its checkouts elsewhere.
+DEFAULT_WORKTREE_BASE = r"C:\cs-worktrees"
+WORKTREE_BASE = Path(os.environ.get("CS_LANE_WORKTREE_BASE", DEFAULT_WORKTREE_BASE))
+
+#: Lane -> the command doc fed to the worker as its prompt. TRACKED paths only
+#: (tools/*.md), never a gitignored command mirror: a worktree is a fresh
+#: checkout and does not carry gitignored files, so a lane pointed at a mirror
+#: would start with an empty prompt. It is the same trap as a fresh clone whose
+#: git hooks are not wired yet - the file that makes it work is exactly the file
+#: a new checkout does not have.
+LANE_COMMANDS = {"queue": "tools/headless-queue.md"}
+
+#: Branch per lane, stable across fires so a lane resumes its own history rather
+#: than sprouting a branch per launch.
+BRANCH_PREFIX = "lane"
+
+#: CREATE_NO_WINDOW, and nothing else. See the DETACHED_PROCESS measurement in
+#: the module docstring - this is the whole of the creation-flag policy, and
+#: ``tests/test_lane_launcher.py`` walks this module's syntax tree to assert
+#: that no other expression ever reaches a ``creationflags=``.
+_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
+
+#: How long a freshly spawned runner has to prove it survived its own start.
+#: Sized for the immediate-exit class rather than for a slow worker: the failure
+#: it exists to catch happens before the process has done anything at all.
+_SPAWN_LIVENESS_GRACE_S = 2.0
+
+_GIT_TIMEOUT_S = 120
+_KILL_TIMEOUT_S = 20
+
+#: What a run id may contribute to a filename. A run id reaches the filesystem,
+#: so it is filtered rather than trusted.
+_SAFE_RUN_ID = "-_"
+_SAFE_RUN_ID_LENGTH = 32
+
+
+class LaneLaunchError(RuntimeError):
+    """Anything that stops a lane from starting. Always releases the lane."""
+
+
+def worktree_path(lane: str, base: Any = None) -> Path:
+    """Where the lane's long-lived checkout lives.
+
+    Args:
+        lane: The lane name.
+        base: The directory worktrees are kept under, or None for the default.
+
+    Returns:
+        The worktree path.
+    """
+    return (WORKTREE_BASE if base is None else Path(base)) / f"cs-lane-{lane}"
+
+
+def branch_name(lane: str) -> str:
+    """The lane's branch, stable across fires.
+
+    Args:
+        lane: The lane name.
+
+    Returns:
+        The branch name.
+    """
+    return f"{BRANCH_PREFIX}/{lane}"
+
+
+def command_path(lane: str, root: Any = None) -> Path:
+    """The tracked command doc that becomes the worker's prompt.
+
+    Args:
+        lane: The lane name.
+        root: The repository root, or None for the main tree.
+
+    Returns:
+        The command doc's path.
+
+    Raises:
+        LaneLaunchError: The lane is not wired, or the doc is not on disk. A
+            worker started against a doc that is not there would run to a clean
+            exit having done nothing, which is the failure shape hardest to see.
+    """
+    relative = LANE_COMMANDS.get(lane)
+    if relative is None:
+        wired = ", ".join(sorted(LANE_COMMANDS)) or "none"
+        message = f"lane {lane!r} has no command doc wired yet (wired: {wired})"
+        raise LaneLaunchError(message)
+    path = (REPO_ROOT if root is None else Path(root)) / relative
+    if not path.is_file():
+        message = f"command doc missing on disk: {path}"
+        raise LaneLaunchError(message)
+    return path
+
+
+def _same_path(one: Any, other: Any) -> bool:
+    """True when two spellings name the same directory.
+
+    ``bool()`` around the comparison is not decoration: ``lanes`` is bound by
+    file path, so its attributes are typed ``Any`` and the comparison would
+    otherwise widen this function's declared ``bool`` back to ``Any`` the moment
+    ``ops/`` joins the type gate.
+
+    Args:
+        one: A path.
+        other: The path to compare it against.
+
+    Returns:
+        True when both spell the same directory.
+    """
+    return bool(lanes._key(one) == lanes._key(other))  # noqa: SLF001 - one owner, one spelling
+
+
+def _git(args: list[str], cwd: Any = None, timeout: int = _GIT_TIMEOUT_S) -> Any:
+    """Run one git command and hand back the completed process.
+
+    The module attribute is the seam a test rebinds, so no arm here ever starts
+    a real git.
+
+    Args:
+        args: The arguments after ``git``.
+        cwd: Where to run it.
+        timeout: Seconds before the call is abandoned as hung.
+
+    Returns:
+        The completed process.
+    """
+    exe = resolve_tool("git")
+    if exe is None:
+        # A lane that cannot find git cannot make its worktree, and a worktree
+        # is mandatory. Refusing loudly beats spawning into the wrong tree.
+        raise LaneLaunchError("git could not be resolved from PATH")
+    return subprocess.run(
+        [exe, *args],
+        # tracked file is forbidden by CLAUDE.md non-negotiable 3
+        cwd=str(cwd) if cwd else None,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+        creationflags=_NO_WINDOW,
+    )
+
+
+def _refuse_main_tree(worktree: Any, repo: Any, lane: str) -> None:
+    """Refuse to run a lane against a main working tree.
+
+    BOTH the root this call was given AND the repository's real root are
+    consulted. Checking only the given root would make overriding ``root`` a way
+    to point a lane at the checkout the operator is reading.
+
+    Args:
+        worktree: The proposed working directory.
+        repo: The repository root this call was given.
+        lane: The lane name, for the message.
+
+    Raises:
+        LaneLaunchError: The worktree is a main tree.
+    """
+    if _same_path(worktree, repo) or _same_path(worktree, REPO_ROOT):
+        message = f"refusing to run lane {lane!r} against the main tree"
+        raise LaneLaunchError(message)
+
+
+def ensure_worktree(lane: str, base: Any = None, root: Any = None) -> Path:
+    """Create the lane's worktree if absent, reuse it if present.
+
+    Reuse is deliberate. A worktree per fire would leave a directory and a
+    branch behind on every launch, and ``git worktree add`` on an existing
+    branch fails anyway - so the lane keeps one long-lived checkout it resumes.
+
+    Args:
+        lane: The lane name.
+        base: The directory worktrees are kept under, or None for the default.
+        root: The repository root, or None for the main tree.
+
+    Returns:
+        The worktree path.
+
+    Raises:
+        LaneLaunchError: The worktree is a main tree, or git could not make it.
+    """
+    repo = REPO_ROOT if root is None else Path(root)
+    worktree = worktree_path(lane, base)
+    _refuse_main_tree(worktree, repo, lane)
+    if (worktree / ".git").exists():
+        return worktree
+
+    worktree.parent.mkdir(parents=True, exist_ok=True)
+    branch = branch_name(lane)
+    existing = _git(["rev-parse", "--verify", "--quiet", branch], cwd=repo)
+    args = (
+        ["worktree", "add", str(worktree), branch]
+        if existing.returncode == 0
+        else ["worktree", "add", str(worktree), "-b", branch]
+    )
+    made = _git(args, cwd=repo)
+    if made.returncode != 0 or not (worktree / ".git").exists():
+        detail = (made.stderr or made.stdout or "").strip()[:300]
+        message = f"git worktree add failed for {lane!r}: {detail}"
+        raise LaneLaunchError(message)
+    return worktree
+
+
+def _log_path(lane: str, run_id: Any, log_dir: Any = None) -> Path:
+    """Where this fire's worker log is written.
+
+    Args:
+        lane: The lane name.
+        run_id: The caller's run identifier. Filtered before it reaches a
+            filename - a run id is an input, and an input that becomes a path
+            is a path traversal waiting for the wrong caller.
+        log_dir: The log directory, or None for the default.
+
+    Returns:
+        The log path.
+    """
+    directory = LOG_DIR if log_dir is None else Path(log_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    safe = "".join(
+        character for character in str(run_id) if character.isalnum() or character in _SAFE_RUN_ID
+    )[:_SAFE_RUN_ID_LENGTH]
+    return directory / f"lane_{lane}_{safe or 'run'}.log"
+
+
+def _spawn(runner: Path, prompt: Path, cwd: Path, log: Path) -> Any:
+    """Start the hidden PowerShell runner and prove it survived its own start.
+
+    Args:
+        runner: The PowerShell runner.
+        prompt: The command doc piped to the worker on stdin.
+        cwd: The worktree the worker runs in.
+        log: Where the worker's output is written.
+
+    Returns:
+        The process handle.
+
+    Raises:
+        LaneLaunchError: The runner is missing, the spawn failed, or the runner
+            exited inside the liveness grace - see the module docstring.
+    """
+    if not runner.is_file():
+        message = f"runner missing: {runner}"
+        raise LaneLaunchError(message)
+    # RESOLVED FROM PATH, NEVER NAMED (CS-910). This is the single most exposed
+    # spawn in the tree: `cwd` below is the LANE WORKTREE, the directory an
+    # unattended worker writes into for hours, and Windows searches the current
+    # directory before PATH. A `powershell.exe` dropped there by the worker
+    # would be executed by the launcher that started it, on the next cycle.
+    shell = resolve_tool("powershell")
+    if shell is None:
+        raise LaneLaunchError("powershell could not be resolved from PATH")
+    argv = [
+        shell,
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(runner),
+        "-PromptFile",
+        str(prompt),
+        "-Cwd",
+        str(cwd),
+        "-Log",
+        str(log),
+    ]
+    try:
+        # A fixed argv assembled here - no shell, and no caller string reaches
+        # the command line. "powershell" is resolved from PATH because an
+        # absolute tool path in a tracked file is forbidden by CLAUDE.md
+        # non-negotiable 3.
+        proc = subprocess.Popen(
+            argv,
+            cwd=str(cwd),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=_NO_WINDOW,
+        )
+    except OSError as exc:
+        # A NAMED FIELD, NEVER THE OBJECT. ``str()`` on an OSError appends the
+        # PATH it failed on, and the paths this function handles run through a
+        # user profile - so rendering the exception whole is a personal-data
+        # echo path (CLAUDE.md non-negotiable 12). ``strerror`` is the operating
+        # system's message text and carries no path; the type name is the
+        # fallback when there is no strerror to render.
+        message = f"spawn failed: {exc.strerror or type(exc).__name__}"
+        raise LaneLaunchError(message) from exc
+
+    try:
+        code = proc.wait(timeout=_SPAWN_LIVENESS_GRACE_S)
+    except subprocess.TimeoutExpired:
+        return proc
+    message = (
+        f"the runner exited {code} within {_SPAWN_LIVENESS_GRACE_S}s of starting,"
+        " so no worker is behind this lane"
+    )
+    raise LaneLaunchError(message)
+
+
+def _kill_argv(pid: Any) -> list[str] | None:
+    """The argv that kills one process, or None when taskkill cannot be found.
+
+    taskkill, never the PowerShell cmdlet - Stop-Process has hung the tooling
+    pipe on this machine. No ``/T``: this kills the one pid this module spawned
+    and could not track. Killing a whole lane tree is the driver's job and the
+    driver's flag.
+
+    THE PROGRAM IS RESOLVED FROM PATH, NEVER NAMED (CS-910). Windows searches
+    the current directory before PATH, and this spawn happens with the LANE
+    WORKTREE as the working directory - the one place an unattended worker has
+    been writing files for hours. A bare name here is that finding at its most
+    reachable.
+
+    Args:
+        pid: The process id.
+
+    Returns:
+        The argv, or None when taskkill did not resolve. None is a real answer
+        rather than an error: the only caller already treats a failed kill as a
+        failed kill, and the driver's own verified re-probe is what turns that
+        into a stop.
+    """
+    killer = resolve_tool("taskkill")
+    return None if killer is None else [killer, "/F", "/PID", str(pid)]
+
+
+def _kill(pid: Any) -> None:
+    """Kill one process, reporting nothing.
+
+    Args:
+        pid: The process id.
+    """
+    # A kill that itself fails must not mask the failure that asked for it.
+    argv = _kill_argv(pid)
+    if argv is None:
+        return
+    with contextlib.suppress(OSError, subprocess.SubprocessError):
+        subprocess.run(
+            argv,
+            capture_output=True,
+            timeout=_KILL_TIMEOUT_S,
+            check=False,
+            creationflags=_NO_WINDOW,
+        )
+
+
+def launch_lane(
+    lane: str,
+    *,
+    run_id: Any,
+    token: Any,
+    base: Any = None,
+    root: Any = None,
+    log_dir: Any = None,
+    spawn: Any = None,
+) -> dict[str, Any]:
+    """Start the lane's worker and re-point its lock at the spawned process.
+
+    On ANY failure the lane is released before the error propagates, so a failed
+    launch can never leave a lock nobody is behind. If the lock cannot be
+    re-pointed the spawned worker is KILLED and the launch fails: a worker that
+    cannot be tracked is worse than no worker, because the lane would read
+    RUNNING behind the claimer forever while a real process kept working.
+
+    Args:
+        lane: The lane to start.
+        run_id: The caller's run identifier.
+        token: What ``lanes.try_acquire_lane`` handed back.
+        base: The directory worktrees are kept under, or None for the default.
+        root: The repository root, or None for the main tree.
+        log_dir: The log directory, or None for the default.
+        spawn: The injection seam. The DEFAULT REALLY STARTS A PROCESS and no
+            test may reach it.
+
+    Returns:
+        The lane, the run id, the worker pid, the worktree, the log, the prompt
+        and the wall-clock start time.
+
+    Raises:
+        LaneLaunchError: Anything at all went wrong. The lane is released first.
+    """
+    starter = _spawn if spawn is None else spawn
+    try:
+        prompt = command_path(lane, root=root)
+        worktree = ensure_worktree(lane, base=base, root=root)
+        _refuse_main_tree(worktree, REPO_ROOT if root is None else Path(root), lane)
+        log = _log_path(lane, run_id, log_dir=log_dir)
+        proc = starter(RUNNER, prompt, worktree, log)
+        pid = getattr(proc, "pid", None)
+        if not pid:
+            message = "spawn returned no pid"
+            raise LaneLaunchError(message)
+        if not lanes.repoint_lane_pid(token, pid):
+            _kill(pid)
+            message = "could not re-point the lane lock at the worker"
+            raise LaneLaunchError(message)
+    except LaneLaunchError:
+        lanes.release_lane(token)
+        raise
+    except Exception as exc:  # ANY fault at all must free the lane, not only ours
+        lanes.release_lane(token)
+        # The TYPE only. This handler catches anything at all, so there is no
+        # type whose fields are known to be path-free - and the chained cause
+        # still carries the full detail into the traceback for a reader who is
+        # entitled to it (CLAUDE.md non-negotiable 12).
+        message = f"launch failed: {type(exc).__name__}"
+        raise LaneLaunchError(message) from exc
+    return {
+        "lane": lane,
+        "run_id": str(run_id),
+        "pid": pid,
+        "worktree": str(worktree),
+        "log": str(log),
+        "prompt": str(prompt),
+        "started_at": time.time(),
+    }

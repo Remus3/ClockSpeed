@@ -475,6 +475,17 @@ GUARDED_DOCS: Final = (
     # module its lesson was learned in, and that module is tracked today - the
     # same reason those three are guarded rather than recorded.
     "memory/a-guard-can-be-accepted-and-unscoped.md",
+    # The lane's fork ruling (CS-918). It names the two modules the fork
+    # decision is ABOUT, so the whole point of the record is those two pointers
+    # staying live - an ADR whose subject has been renamed out from under it
+    # argues about nothing.
+    "docs/adr/0017-the-lane-forks-the-shared-loop-modules.md",
+    # The headless queue lane's worker prompt (CS-918). Guarded on arrival
+    # rather than recorded, because every path in it resolves today AND because
+    # of who reads it: an unattended worker, once per cycle, with nobody
+    # watching. That is precisely where a rotted pointer goes unobserved - the
+    # worker would follow it, find nothing, and improvise.
+    "tools/headless-queue.md",
 )
 
 # `.claude/` is OUT OF DOMAIN rather than exempt. It is Claude Code

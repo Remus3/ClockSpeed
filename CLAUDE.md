@@ -72,6 +72,7 @@ file restates the numbers.
 | `clockspeed/advisor/` | Rule trace, rules, card identity and rendering tiers, per-world ledger and global mutes (pillar 5) |
 | `clockspeed/surface/` | Local HTTPS API and dashboard |
 | `shell/` | Electron companion window |
+| `ops/loop/` | The headless `queue` lane - lane lock, launcher, runner, and the driver that owns every wait |
 | `tests/` | Test suites, synthetic fixtures only |
 | `tools/` | Gates, guards, sync, probes |
 | `scripts/` | `install_hooks.py`, `verify_env.py` |
@@ -96,6 +97,10 @@ computes. A layer that reaches past its neighbor is a design bug.
 | `tools/doc_budget.py` | File-size budget enforcement |
 | `tools/facts_probe.py` | `SessionStart` live-state injection |
 | `tools/memory_sync.py` | Mirrors markdown memory into the recall store, idempotent |
+| `tools/dashboard_probe.py` | The SCRIPTED answer to "does the dashboard run". Launch, poll, assert a JSON key and a DOM node, one screenshot, exit code decides |
+| `tools/headless-queue.md` | The `queue` lane worker's prompt. TRACKED, because a worktree is a fresh checkout and carries no gitignored file |
+| `ops/loop/queue_loop.py` | The lane driver. Repeats the one-row worker AND owns every wait, so nothing can cancel a run mid-grade |
+| `ops/loop/launch_queue_loop.ps1` | Starts the driver detached. Refuses over a stop sentinel and prints no banner over a no-op |
 | `.githooks/pre-commit`, `commit-msg`, `pre-push` | Tier-0 blocking gates. Authoritative; the Claude hooks are a convenience layer |
 
 **A fresh clone runs zero protection until someone wires it.** The bootstrap order lives in

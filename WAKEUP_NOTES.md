@@ -34,6 +34,52 @@ the line becomes a pointer.
 
 ---
 
+## Session 66 - 2026-09-06 - CS-918 CLOSED: a headless queue lane, ported with the driver owning every wait; one real cycle ran and caught three defects of its own author
+
+- **Shipped:** **CS-918 CLOSED.** Four commits, `e0523d8..09aa678`. A one-row-per-worker
+  headless lane - lock, launcher, runner, driver, worker prompt - plus
+  `tools/dashboard_probe.py`, which turns "does the dashboard run" from a judgment call
+  relitigated three times into a script with nine exit codes. Detail in `docs/LEDGER.md`.
+- **In flight:** NOTHING half-written in the tree - it is clean and every commit is made.
+  Two things are outstanding and neither is code: the branch was NOT PUSHED at the time of
+  writing (see Failed paths), and `C:\cs-worktrees\cs-lane-queue` holds TEN UNCOMMITTED
+  FILES from the proving cycle's worker, left deliberately rather than reverted - they are
+  someone else's abandoned row, not this session's work.
+- **Decisions:** ADR 0017 - the lane FORKS the cross-repo loop modules rather than joining
+  their byte-identical pin. Joining the pin means joining the PROTOCOL: the shared governor
+  rations concurrent workers between three repositories through one token bucket, so a
+  fourth participant consumes their slots by editing a file in a fourth tree. The ADR now
+  also records the PRICE of that refusal, measured the same day.
+- **Surprises:**
+  - **The worker bailed on its own wait, first time out.** Its last words were "The whole
+    suite is running now. I will not touch the tree until it returns", then
+    `lane exit code=0`. That is the ported repo's measured failure reproduced at the first
+    opportunity, and it is the entire argument for the driver owning the wait.
+  - **`-m "not slow"` deselects 12 tests of 5708.** It is not a fast subset. There is no
+    cheap whole-tree lever here; scoping to the touched module is the only real one. This
+    corroborates CS-906 and CS-907 rather than adding to them.
+  - **The lane lock was never released,** because `lanes.py` was reachable under two module
+    names. `lane_launcher`'s own docstring predicts that exact failure - it happened anyway
+    because the launcher and its TEST agreed with each other while nothing asked the driver.
+  - **Three concurrent projects' pytest runs exhausted the box.** One suite truncated at 78
+    per cent with no summary line and `grep -c FAILED` returning 0; another died
+    `INTERNALERROR> MemoryError` reporting "3402 passed, 1 error" while 2163 tests never
+    ran. Saved to the harness memory store, not to a repo doc.
+- **Failed paths:**
+  - **The push is BLOCKED and nothing reached the remote.** `.githooks/pre-push` ran its
+    whole-suite gate and pytest died - `Windows fatal exception: stack overflow`, reported
+    as exit 127 - under four other projects' concurrent suites. It is ENVIRONMENTAL: the
+    same tree ran green standalone thirty minutes earlier (`5704 passed, 4 skipped`, exit
+    0, and 5704+4 matching the expected collection of 5708 exactly). **Do not reach for
+    `--no-verify`** - it is forbidden here and the hook is frozen. Retry when the box is
+    quiet.
+  - Two suite runs were graded and discarded rather than believed, which is the grader
+    working. Do not treat either number as a result.
+- **Next action:** push `claude/jovial-franklin-2270d7` when the box is quiet, then read
+  CS-919 before running the lane for anything.
+
+---
+
 ## Session 65 - 2026-09-06 - THE CLOSURE WAS REFUTED 3/3 AND THE MECHANISM FELL TO ONE LINE; four routes repaired, nine mutations now killed, and one of my own arms scored its own mutation green
 
 - **Shipped:** nothing CLOSED, and that is the correct outcome. Four commits,
@@ -224,77 +270,3 @@ our PII layer resolves account ids and world tokens at runtime against its two r
 running it would modify our FROZEN `.claude/settings.json` with no grant. IDEAS-ONLY.
 
 ---
-
-## Session 63 - 2026-09-05 - CS-911 and CS-912 CLOSED; the HUD style layer took SEVEN audit rounds and none returned CLEAR; CS-910's done-claim was REFUTED TWICE and three of four adversaries returned REFUTED
-
-**CLOSED.** CS-911 - every stage takes a unique filename and opens `"wx"`, so the
-truncation primitive is gone rather than made unlikely. CS-912 - `/api/registry` publishes
-the registry as a tenth route, and 731 of 731 producible items built a solve request naming
-only published identifiers.
-
-**OPEN, and both for reasons worth reading.** CS-910 routed seven spawn sites and its commit
-message claimed the remainder was all frozen. That was FALSE TWICE: `scripts/verify_env.py`
-is not frozen, was on the write-list, and still put a bare `git` into three argv; and the
-remainder is FIVE indirect delegations, not three. CS-913's filed cause is REFUTED by the
-code and its line is rewritten.
-
-**FILED.** CS-914 (the CS-911 shape in Python, on the DEFAULT production path), CS-915 (two
-latent guard holes), CS-916 (one asset-extraction prerequisite that three separate features
-are all gated on), CS-G06 (the mature-world corpus, an operator action).
-
-**SEVEN CS-600 AUDIT ROUNDS ON ONE STYLE LAYER AND NOT ONE RETURNED CLEAR.** Rounds 1 to 4
-each found the same fault one selector further out - the rule's own `color`, then its
-`border`, then the nested `.hud-*` descendants, then every OTHER descendant - because every
-repair defined its boundary as "the tokens something I can see reads". Round 4 named it:
-each repair closed the set the previous auditor named and drew the new boundary exactly
-where the previous finding stopped. WHAT ENDED IT WAS A MEASUREMENT, NOT A BETTER REPAIR:
-the four `--overlay-*` tokens were byte-identical to the DARK values of `--bg`, `--text`,
-`--accent-hud` and `--hud-rule`, so the overlay palette had been the dark palette all along.
-Rounds 5 to 7 then left the palette entirely - `color-scheme` is not a custom property;
-round 6 found the round-5 fix had landed on `.hud-overlay`, which renders ZERO times, while
-`:root` had none; round 7 defeated the repaired guard with an OPTIONAL TRAILING SEMICOLON.
-Round 7 graded the RENDERED page PASS on all five phases with zero live defects, and THE
-OPERATOR RULED TO COMMIT on that evidence. Every finding is repaired and each is proven by
-a planted mutation.
-
-**THE MEASUREMENTS WORTH KEEPING.** #FA9549 scores 2.22 / 2.07 / 1.96 on this page's own
-LIGHT grounds - it fails even the large-text threshold there, not merely over a game pixel,
-because a light theme IS a white pixel that is always on screen. Contrast over a scrim is
-NOT MONOTONIC: it falls from 2.22 at no scrim to 1.02 near alpha 0.35, where the composited
-ground crosses the accent's own luminance, then climbs to 8.38 opaque. A light scrim lands
-at the WORST legibility available.
-
-**THREE OF FOUR ADVERSARIES RETURNED REFUTED, WITH DISTINCT LENSES.** Security found three
-live bare-name spawns in a non-frozen file plus both guards blind to them. Does-it-reproduce
-found CS-912's paired control vacuous - it SUBSTITUTED the foreign key into a request naming
-one recipe, so it also removed the target's own producer, and proved it with a live mutant
-that kept the arm green while `tests/solve` went red. Completeness found four guards each
-reporting zero findings because they could not SEE findings. Scope confirmed the
-`workdir.py` race is reachable on the default path and measured 31 of 240 concurrent copies
-failing. FOUR LENSES, FOUR DIFFERENT CLASSES - repeated skeptics would have found one.
-
-**OPERATOR RULINGS THIS SESSION.** Commit on audit round 7 rather than iterate to CLEAR.
-Wiki and community sources are READ-AND-CITE ONLY - CS-485 stands, no dataset is lifted, no
-crawl is run. The local `Satisfactory Designs` downloads are REVIEW ONLY and nothing derived
-from them is committed.
-
-**A UI/UX DOCTRINE FROM ANOTHER PROJECT WAS INGESTED** and adapted into
-`docs/hud_doctrine.md`, which is now the owner file for the two surfaces. It records what
-does NOT transfer as carefully as what does, and names THREE SHIPPED ARMS an overlay will
-collide with: the no-timer arm, the one-clickable-target arm, and the 7-bit ASCII arm, which
-with a CSP publishing no `img-src` leaves an overlay with neither a glyph nor an image.
-
-**TRAPS MEASURED THIS SESSION.** `dict(os.environ)` UPPER-CASES KEYS ON WINDOWS, so popping
-a mixed-case variable removes nothing and the probe reports clean while measuring nothing -
-it produced a GREEN result on genuinely defective code. A `;` CHAIN ENDING IN `tail` EATS
-PYTEST'S EXIT CODE exactly as a pipe does: a red suite was reported as exit 0 twice, once to
-me and once to a slice. AND I BROKE A FREEZE I DECLARED THREE TIMES - three separate agents
-caught it independently; one recovered the start bytes and diffed to prove its verdict still
-stood.
-
-**NAMED AND NOT CLOSED.** ROADMAP.md is at 112 PER CENT of its soft budget and this session
-made it worse; a relocate pass is owed. The HUD layer renders ZERO times today - it is a
-published vocabulary waiting on `/api/plan` and `/api/advice`. Two design questions are open
-and recorded in `docs/hud_doctrine.md`: whether the overlay keeps the companion's warm accent
-when the game's own world is warm, and whether item identity and production status can share
-the colour channel.

@@ -606,7 +606,15 @@ CONTROL_MODULES: Final = (
 #: root declared here actually holds tracked Python: a root with nothing in
 #: it is a domain widened for free, which is the shape that lets an
 #: unreviewed scope in without a decision.
-SWEPT_ROOTS: Final = ("clockspeed/", "scripts/", "tests/", "tools/")
+#: ``ops/`` joined with CS-918, and it is a DECISION rather than a widening -
+#: which is what the paragraph above asks for. The headless lane is authored
+#: Python that raises across a process boundary: ``lane_launcher`` converts a
+#: failed spawn into ``LaneLaunchError`` and ``queue_loop`` converts anything a
+#: cycle throws into a ledger row. Those are exactly the sites where a dropped
+#: cause costs the most, because the only reader is an operator at 3am holding
+#: one JSONL line and a log - there is no session to ask. Leaving the root
+#: unswept would have graded none of them while the suite stayed green.
+SWEPT_ROOTS: Final = ("clockspeed/", "ops/", "scripts/", "tests/", "tools/")
 
 #: Bucket 1. Code an agent may repair today whose raises are not this
 #: census's own planted controls, so a verdict on it is ACTIONABLE. NOT
