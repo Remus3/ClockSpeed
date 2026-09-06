@@ -99,6 +99,63 @@ and this owns the bare-path form. They share a population boundary problem and a
 they must not run concurrently, but merging them would put two different acceptance
 clauses under one arm.
 
+## Session 61 - 2026-09-05 - CS-896 MEASURED AND NOT CLOSED: the lane's SERIAL MEAN is ABOVE its own cutoff, so the cancellation was the distribution; BOTH repairs were REFUTED, both were then repaired and MERGED
+
+- **Shipped: CS-908 only.** Filed CS-900, CS-906 and CS-907 and opened the `CS-9nn` block on an
+  operator decision. **CS-896 IS NOT CLOSED** - its acceptance needs a run that reports the
+  comparison and no such run exists. No acceptance clause was rewritten, a THIRTEENTH
+  consecutive session.
+
+- **THE MEASUREMENT THE ITEM ASKED FOR THREE SESSIONS AGO WAS TAKEN ON THE RUNNER.** The serial
+  job MEAN is 606.5s against a 600s cutoff, from two runs of a byte-identical tree at 582s and
+  631s. So roughly half of all runs would be cancelled and the cancellation was never flakiness.
+  `-n auto` is worth 1.222x mean to mean (range 1.121x to 1.393x, do NOT quote the flattering
+  end), and all six runs reported 4784 passed and 117 skipped, so the verdict does not change.
+
+- **In flight: NOTHING is uncommitted, and CI is the open question.** Both repairs landed. The
+  CS-896 one was refuted with 18 of 26 mutants surviving, repaired, and re-proved at 53 mutants
+  run and 53 killed. **CS-896's acceptance needs a run that REPORTS THE COMPARISON**, so read the
+  tier 1 run on the pushed head before deciding anything about that item.
+
+- **Decisions: the `CS-9nn` block is open and CS-901 through CS-905 are NOT allocatable** - they
+  are synthetic fixture ids in the drift-guard corpus. The handoff said CS-903 and CS-904 were
+  clean; both measured FALSE. A frozen-file grant for `.githooks/pre-push` was issued with
+  THIRTEEN conditions and NO EDIT WAS MADE UNDER IT, because two conditions cannot be honestly
+  met on a machine another project held at 84 to 99 per cent.
+
+- **Surprises: the CS-896 note's own premise was half wrong.** It said the three slowest local
+  tests are library-backed and cost nothing on the runner. True of ONE. The other two got MORE
+  expensive - 51.5s local to 111.4s on the runner, and 25.8s to 50.5s. The runner is about 2x
+  SLOWER for subprocess-heavy work. Recorded under CS-900.
+
+- **Failed paths.** My brace-matching scan reported ELEVEN unbounded subprocess sites; NINE are
+  real, and a builder corrected me - one was comment prose, one a `Popen` already bounded. My
+  first two speedup figures, 1.774x inherited from an adversary and 1.335x from single samples,
+  were both wrong; the controlled six-sample figure is 1.222x. I also framed the ledger
+  line-pointer question as a two-way choice and an adjudicator refuted both options and produced
+  a third.
+
+- **THE MECHANISM SHIPPED AND PROVED ITSELF ON ITS FIRST REAL RUN, by reporting the lane OVER
+  BUDGET.** Run 33981934085 printed `tier 1 took 565s - over budget (budget 540s, ceiling 570s)`.
+  CS-896's clause has two halves: the lane REPORTS its duration against a stated budget, and it
+  does NOT complete inside it. **CS-896 STAYS OPEN on the first half.**
+
+- **THE FINDING THAT MATTERS, and it is worse than a missed budget.** The runner's spread on a
+  BYTE-IDENTICAL tree is 49s, so a ceiling that does not fire on noise must sit about 49s above
+  the observed 565 - roughly 614, which is ABOVE the 600s cutoff. **AT THIS LANE'S COST THERE IS
+  NO VALID CEILING.** The one in the tree sits 5 seconds above the lane and WILL fire on noise,
+  so the next push may turn tier 1 RED at a number. That is loud rather than silent, which is
+  the property the item wanted, but it is not a healthy lane.
+
+- **WHY THE BUDGET WAS ALREADY STALE WHEN IT SHIPPED.** It came from four parallel samples whose
+  worst job was about 519s, on a tree the runner counted at 4784 passed. The merged tree counts
+  4953 - this session added 169 - and the unit step went 483s to 530s. **A speedup measured
+  before the session's own work is not a speedup the session delivers.**
+
+- **Next action: decide the ceiling. Either make the lane faster (CS-900 is the unblocker and
+  names the concentration) or move both levels through guard (k)'s two-way ratchet with a
+  stated reason. DO NOT re-derive them from one sample - that is the error this session made.**
+
 ## Session 59 wakeup note - relocated 2026-09-05 (session 62)
 
 ## Session 59 - 2026-09-03 - THREE ITEMS CLOSED and every one was REFUTED FIRST; every repair reproduced its own filed fault one level up, and CS-889's ratchet caught its own closure within minutes of shipping

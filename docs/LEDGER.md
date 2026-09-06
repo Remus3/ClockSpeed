@@ -160,6 +160,62 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-06 - CS-896 - READING FOUR CAME IN AND FAILED THE CRITERION IT WAS TAKEN TO SATISFY. The runner has two performance modes and the warn band is narrower than the noise
+
+**CS-896 STAYS OPEN and this entry does not close it.** The entry below records that a
+fourth reading of the fast shard would discharge the sample objection at the 95/95 level,
+and that the run of that commit would be it. **It was, and it did the opposite.**
+
+**THE READING.** Run 34024118253 on `b9ca505`, success, both shards green: save 227
+job-seconds, fast **260**. The three before it were 323, 359 and 358.
+
+**IT IS NOT A SHORTER WORKLOAD, WHICH WAS THE FIRST THING CHECKED.** The fast shard reports
+`3911 passed, 23 skipped` in run 34021868008 AND in run 34024118253 - a byte-identical
+population, since no commit between them touched a test that shard runs. Its pytest step ran
+**314.64s and then 226.24s**. That is an **88-second swing on identical work**, and the step
+rather than the setup is where it moved, so it is the machine and not the cache.
+
+**WHAT THAT DOES TO THE ARITHMETIC.** Sample sd over the four readings is **46.5s**, not the
+20.5s the three-reading sample gave. The one-sided 95/95 normal tolerance bound at n=4 is
+therefore **564s, ABOVE the 480 ceiling** - where the entry below predicted 452.1s and
+called it discharged. **Adding the fourth reading did not satisfy the criterion; it widened
+the distribution and failed it.**
+
+**AND IT FALSIFIES THIS SESSION'S NOISE FIGURE BY 2.4x.** The warn band was sized at 60s
+from a measured 36s swing, with the guaranteed margin computed as 24s. The real swing on
+identical work is at least 88s. **The band is again NARROWER THAN THE NOISE**, which is the
+precise defect that sank the 40s band two entries down, recurring with a larger number. The
+levels are NOT changed here: every one of the four readings is inside them, the worst being
+359 against a 420 budget, and a fifth re-derivation on n=4 would repeat exactly the mistake
+the last three made - deriving a bound from a sample too small to bound anything.
+
+**THE INSTRUMENT IS PROBABLY WRONG, AND THAT IS THE MORE USEFUL FINDING.** 323, 358 and 359
+cluster within 36s; 260 sits 98s below all of them. That is the shape of a HETEROGENEOUS
+RUNNER POOL - two machine classes - not one normal distribution. A normal tolerance bound
+applied to a bimodal sample is the wrong test in both directions, so "n=4 discharges it" was
+never going to be the right question. **What the next session needs is a distribution-free
+criterion, or enough readings to characterise both modes, not one more sample.**
+
+**WHAT IS ACTUALLY TRUE OF THE LANE, STATED PLAINLY BECAUSE IT IS EASY TO LOSE IN THE ABOVE.**
+Four consecutive runs of the two-shard lane are green. Both shards report their duration
+against a stated budget on every run. Nothing has warned and nothing has reddened. The worst
+fast-shard reading is 359 against a 420 budget and a 480 ceiling; the worst save-shard
+reading is 237. The ROADMAP acceptance clause - "tier 1 completes inside a stated budget and
+reports its own duration against it, proven by a run that reports the comparison" - is met
+four times over. **What is not met is the CS-896 leaf's added condition that growth be
+visible before it is fatal, because a band narrower than the noise cannot guarantee that
+ordering.** That is why this is a record and not a closure.
+
+**FOUR ADVERSARIAL PASSES RAN THIS SESSION AND ALL FOUR RETURNED REFUTED**, each against a
+frozen SHA it had not written: two on `9dc2d86`, one on `55799c6`, one on `e826b6d`. Each
+found a defect that every gate, guard and arm in the tree was green over - the disabled
+alarm, the one-sided partition, the trailing comment that defeated the cutoff guard, and the
+overstated warning margin. The fourth stated it could not break the acceptance clause
+itself. **This entry is the fifth finding and it came from the data rather than from an
+adversary.**
+
+---
+
 ### 2026-09-06 - CS-896 - THIRD REFUTATION, and it could not break the acceptance. Two documentation errors repaired; the mechanism survived every other point
 
 **CS-896 STAYS OPEN and this entry does not close it**, but the ground has narrowed to one

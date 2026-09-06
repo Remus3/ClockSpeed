@@ -150,3 +150,40 @@ to whatever is slowest today is a subset defined by a stopwatch rather than by r
 next expensive test lands outside it. Either the selection rule is stated and defended, or
 the contract is corrected to say the hook runs the whole suite and why that is worth its
 cost.
+---
+
+## CS-917
+
+### FILED 2026-09-06 (session 64) by the merger, from four adversarial passes that each named it
+
+**THREE INDEPENDENT ADVERSARIES AND ONE DIRECT MEASUREMENT ALL ARRIVED HERE, which is why it
+is an item rather than a remark.** CS-896 watches the lane's DURATION. Nothing watches its
+GROWTH RATE, and `grep -n "3.51\|per commit\|slope" ROADMAP.md BACKLOG.md docs/GATED.md`
+returned nothing at three separate SHAs this session.
+
+**THE MEASUREMENT.** The lane gained **3.51 seconds per commit** over the 26 commits of
+2026-09-05 - the parallel pytest step went 463.49s to 554.70s across them. Every fix applied
+to CS-896 buys a fixed number of SECONDS and therefore a fixed number of COMMITS: the split
+bought roughly 60, the memoization roughly 25 before it.
+
+**AND THE NOISE FIGURE THAT EVERY WARN BAND WAS DERIVED FROM IS UNSTABLE, WHICH IS THE HALF
+THAT MAKES THIS HARD.** Measured on 2026-09-06: the fast shard ran a BYTE-IDENTICAL
+population - `3911 passed, 23 skipped` in runs 34021868008 and 34024118253 - in 314.64s and
+then 226.24s. **An 88-second swing on identical work.** Three re-derivations this session
+each sized a warn band from a noise figure their own next reading falsified: 21s, then 36s,
+now at least 88s. **A band narrower than the noise cannot guarantee that growth is visible
+before it is fatal**, which is the CS-896 leaf's stated condition.
+
+**THE INSTRUMENT IS PART OF THE PROBLEM.** Fast-shard job-seconds read 323, 359, 358 and
+260. Three cluster within 36s and the fourth sits 98s below all of them - the shape of a
+HETEROGENEOUS RUNNER POOL rather than one normal distribution. A normal tolerance bound over
+that sample gives 564s at n=4 against a 480 ceiling, having given 452s at n=3; the bound
+moved the wrong way because the sample was not from one distribution. **Do not answer this
+item by taking one more reading.** Characterise both modes, or choose a distribution-free
+criterion.
+
+**WHAT THIS ITEM IS NOT.** It is not "make the suite faster" - that is CS-900, which is about
+concentration, and its own measurement got WORSE after the split (the most expensive test is
+now 81.9 per cent of the save shard's step against 30.4 per cent of the old single step). It
+is not a request to raise any level. The levels shipped at 420/480 contain all four readings
+and are not the complaint.

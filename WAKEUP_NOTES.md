@@ -34,6 +34,82 @@ the line becomes a pointer.
 
 ---
 
+## Session 64 - 2026-09-06 - CI was red for TWO reasons and the handoff named one; tier 1 now runs in two shards; FOUR adversarial passes all returned REFUTED and CS-896 is STILL NOT CLOSED
+
+**ZERO ITEMS CLOSED.** CS-910, CS-900 and CS-896 all took substantive repairs and all three
+stay open. Seven commits, `8729191..b9ca505`, all pushed, CI green.
+
+**THE HANDOFF WAS WRONG ON ITS TOP ITEM.** It said tier 1 was red on the duration ceiling
+alone with every test passing. Both red runs read `1 failed, 5213 passed, 119 skipped`. The
+lane was red for TWO reasons and only one had been read.
+
+**CS-910 - a Windows-only arm ran on Linux.**
+`tests/test_make_cert.py::test_a_planted_openssl_in_the_working_directory_is_never_run`
+grades the implicit current-directory executable search. Two of the three CS-910 runtime
+arms carry a platform skip; the third carried a LIVENESS GATE written
+`os.name != 'nt' or NeedCurrentDirectoryForExePath(...)`, which SHORT-CIRCUITS TRUE on
+POSIX - so it reported the mechanism live where it does not exist. Fixed with the skip its
+siblings had, plus a structural guard that reads every test function's UNPARSED BODY for the
+two spellings, because the offending arm named the module only inside a probe STRING.
+
+**WHY IT ESCAPED, AND THE FIRST FILED CAUSE WAS WRONG.** Not `cancel-in-progress`. **GitHub
+Actions creates one run per PUSH event, against the TIP commit.** Twelve commits went up in
+one push; the commit that introduced the test was never eligible for a run. The development
+machine is Windows, where the arm passes, so tier 0 could not see it either.
+
+**CS-900 - the liveness sweep re-parsed 8.4 MB of source 3457 times.** `module_function` took
+a module's SOURCE and called `ast.parse` on it for every question. **89.93s before, 0.89s
+after**; twelve sibling helpers in the same module had the identical shape and now share one
+cache. `tests/test_liveness.py` went from roughly 146s to 41.19s.
+
+**TIER 1 NOW RUNS IN TWO SHARDS, and that was an operator decision.** Run 34013336391 was
+CANCELLED at 611s at 99 per cent of the suite with NOTHING FAILING. The cutoff is policy and
+was not raised, so the work was given a second runner rather than trimmed: `fast` runs
+`tests --ignore=tests/save`, `save` runs `tests/save`. **Coverage is unchanged BY
+CONSTRUCTION** - verified two ways, a node-id partition (3245 + 1413 = 4658, empty
+intersection) and identical skip sets (49 sites, 120 skips) before and after.
+
+**FOUR ADVERSARIAL PASSES, ALL FOUR REFUTED, each against a frozen SHA it had not written.**
+Every one found a defect that every gate, guard and arm in the tree was green over:
+
+1. The budget's derivation was falsified BY THE SPLIT ITSELF - 540 was "21 above the worst
+   observed job" and the split left it 221 above, so **CS-896's fix had disabled CS-896's
+   own alarm**.
+2. **The partition guard read ONE SIDE.** Adding one ignore and one marker expression to the
+   save shard dropped **244 of its 1413 tests** with everything green.
+3. **A trailing YAML comment defeated the cutoff guard.** `  third:  # a scratch job` was
+   invisible to a regex anchored at `:$` while PyYAML resolved three jobs - that job would
+   have run under GitHub's 360-minute default.
+4. The warning margin was overstated 2.5x, and a ledger entry cited evidence THIS SESSION'S
+   OWN COMMIT had deleted.
+
+**AND A FIFTH FINDING CAME FROM THE DATA.** Reading four of the fast shard arrived at **260
+job-seconds** against 323, 359 and 358 - on a **byte-identical population** (`3911 passed, 23
+skipped` in both runs), an **88-second swing on identical work**. That widened the sample sd
+from 20.5 to 46.5 and pushed the 95/95 tolerance bound to **564s, above the 480 ceiling**.
+**The fourth reading did not discharge the sample objection - it failed it.**
+
+**SO CS-896 IS NOT CLOSED, and the reason is specific.** The ROADMAP acceptance clause is met
+four times over. What is NOT met is the CS-896 leaf's added condition that growth be visible
+before it is fatal, because every warn band this session derived was narrower than the noise
+its own next reading revealed: 21s, then 36s, now at least 88s.
+
+**LEVELS SHIPPED AT 420 / 480 AND ARE NOT THE COMPLAINT.** All four readings sit inside them;
+the worst fast reading is 359 and the worst save reading 237. A fifth re-derivation on n=4
+would repeat the mistake the last three made.
+
+**CS-917 FILED** - the growth SLOPE (3.51s per commit) is owned by no item, verified at three
+SHAs.
+
+**THE ECC TRIAGE: TAKE NOTHING.** `https://github.com/affaan-m/ECC`, MIT, verified 250044
+stars. The licence gate CLEARS, so the refusal is on quality: our character-set gate bans
+every byte above 0x7E while ECC's allowlists (c), (R), (TM) and does not ban an em-dash;
+our PII layer resolves account ids and world tokens at runtime against its two regexes.
+**ECC fails our non-negotiable 4 itself**, and its installer writes `~/.claude/` by default -
+running it would modify our FROZEN `.claude/settings.json` with no grant. IDEAS-ONLY.
+
+---
+
 ## Session 63 - 2026-09-05 - CS-911 and CS-912 CLOSED; the HUD style layer took SEVEN audit rounds and none returned CLEAR; CS-910's done-claim was REFUTED TWICE and three of four adversaries returned REFUTED
 
 **CLOSED.** CS-911 - every stage takes a unique filename and opens `"wx"`, so the
@@ -194,60 +270,3 @@ note was correct throughout - the COMMIT MESSAGE was the wrong artifact. Repaire
 **WORKTREE AGENTS STARTED STALE IN THREE OF THREE REPAIR DISPATCHES**, all at
 `7ba2df8` rather than the stated `8210a3c`. Every one fast-forwarded because the
 brief ordered the check. The running tally is now overwhelming: ORDER IT EVERY TIME.
-
-## Session 61 - 2026-09-05 - CS-896 MEASURED AND NOT CLOSED: the lane's SERIAL MEAN is ABOVE its own cutoff, so the cancellation was the distribution; BOTH repairs were REFUTED, both were then repaired and MERGED
-
-- **Shipped: CS-908 only.** Filed CS-900, CS-906 and CS-907 and opened the `CS-9nn` block on an
-  operator decision. **CS-896 IS NOT CLOSED** - its acceptance needs a run that reports the
-  comparison and no such run exists. No acceptance clause was rewritten, a THIRTEENTH
-  consecutive session.
-
-- **THE MEASUREMENT THE ITEM ASKED FOR THREE SESSIONS AGO WAS TAKEN ON THE RUNNER.** The serial
-  job MEAN is 606.5s against a 600s cutoff, from two runs of a byte-identical tree at 582s and
-  631s. So roughly half of all runs would be cancelled and the cancellation was never flakiness.
-  `-n auto` is worth 1.222x mean to mean (range 1.121x to 1.393x, do NOT quote the flattering
-  end), and all six runs reported 4784 passed and 117 skipped, so the verdict does not change.
-
-- **In flight: NOTHING is uncommitted, and CI is the open question.** Both repairs landed. The
-  CS-896 one was refuted with 18 of 26 mutants surviving, repaired, and re-proved at 53 mutants
-  run and 53 killed. **CS-896's acceptance needs a run that REPORTS THE COMPARISON**, so read the
-  tier 1 run on the pushed head before deciding anything about that item.
-
-- **Decisions: the `CS-9nn` block is open and CS-901 through CS-905 are NOT allocatable** - they
-  are synthetic fixture ids in the drift-guard corpus. The handoff said CS-903 and CS-904 were
-  clean; both measured FALSE. A frozen-file grant for `.githooks/pre-push` was issued with
-  THIRTEEN conditions and NO EDIT WAS MADE UNDER IT, because two conditions cannot be honestly
-  met on a machine another project held at 84 to 99 per cent.
-
-- **Surprises: the CS-896 note's own premise was half wrong.** It said the three slowest local
-  tests are library-backed and cost nothing on the runner. True of ONE. The other two got MORE
-  expensive - 51.5s local to 111.4s on the runner, and 25.8s to 50.5s. The runner is about 2x
-  SLOWER for subprocess-heavy work. Recorded under CS-900.
-
-- **Failed paths.** My brace-matching scan reported ELEVEN unbounded subprocess sites; NINE are
-  real, and a builder corrected me - one was comment prose, one a `Popen` already bounded. My
-  first two speedup figures, 1.774x inherited from an adversary and 1.335x from single samples,
-  were both wrong; the controlled six-sample figure is 1.222x. I also framed the ledger
-  line-pointer question as a two-way choice and an adjudicator refuted both options and produced
-  a third.
-
-- **THE MECHANISM SHIPPED AND PROVED ITSELF ON ITS FIRST REAL RUN, by reporting the lane OVER
-  BUDGET.** Run 33981934085 printed `tier 1 took 565s - over budget (budget 540s, ceiling 570s)`.
-  CS-896's clause has two halves: the lane REPORTS its duration against a stated budget, and it
-  does NOT complete inside it. **CS-896 STAYS OPEN on the first half.**
-
-- **THE FINDING THAT MATTERS, and it is worse than a missed budget.** The runner's spread on a
-  BYTE-IDENTICAL tree is 49s, so a ceiling that does not fire on noise must sit about 49s above
-  the observed 565 - roughly 614, which is ABOVE the 600s cutoff. **AT THIS LANE'S COST THERE IS
-  NO VALID CEILING.** The one in the tree sits 5 seconds above the lane and WILL fire on noise,
-  so the next push may turn tier 1 RED at a number. That is loud rather than silent, which is
-  the property the item wanted, but it is not a healthy lane.
-
-- **WHY THE BUDGET WAS ALREADY STALE WHEN IT SHIPPED.** It came from four parallel samples whose
-  worst job was about 519s, on a tree the runner counted at 4784 passed. The merged tree counts
-  4953 - this session added 169 - and the unit step went 483s to 530s. **A speedup measured
-  before the session's own work is not a speedup the session delivers.**
-
-- **Next action: decide the ceiling. Either make the lane faster (CS-900 is the unblocker and
-  names the concentration) or move both levels through guard (k)'s two-way ratchet with a
-  stated reason. DO NOT re-derive them from one sample - that is the error this session made.**
