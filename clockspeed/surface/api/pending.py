@@ -185,12 +185,24 @@ def routes() -> tuple[contract.Route, ...]:
     aggregate route table this project assembles is keyed BY TEMPLATE where it
     is read - ``{route.template: route.method for route in ROUTES}`` in
     ``tests/surface/test_acceptance.py`` - and is asserted to hold exactly the
-    nine templates ``BOOTSTRAP.md`` section 7.1 names, counted before anything
+    templates ``BOOTSTRAP.md`` section 7.1 names, counted before anything
     iterates. A second entry under ``/api/advice/<id>/state`` would be silently
     dropped by that mapping, and which of the two survived would depend on
-    iteration order: the aggregate would still hold nine templates while
-    answering one of them with the wrong verb. Publishing the two sets through
-    two accessors makes the assembler state which it wants instead of guessing.
+    iteration order: the aggregate would still hold one entry per published
+    template while answering one of them with the wrong verb. Publishing the two
+    sets through two accessors makes the assembler state which it wants instead
+    of guessing.
+
+    HOW MANY TEMPLATES THAT IS, THIS MODULE DOES NOT SAY (CS-927). The sentence
+    above spelled the number until CS-912 published ``/api/registry`` and moved
+    it, and because a docstring is not executed nothing went red: the prose and
+    the table drifted apart in silence for a phase, each still internally
+    consistent. ``health.ENDPOINT_TEMPLATES`` is the one owner of that number -
+    ``clockspeed/surface/api/routes.py`` refuses to restate it for the same
+    reason - so naming the SET here rather than its SIZE is what keeps this
+    paragraph true the next time a route lands.
+    ``tests/surface/test_pending_route_count.py`` reddens if a count word
+    reappears in front of "templates" anywhere in this module.
 
     Returns:
         The five routes, in a stable order, with pairwise distinct templates.
