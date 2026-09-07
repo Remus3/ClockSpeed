@@ -10,9 +10,15 @@ DERIVED FROM, NOT COPIED FROM. Two things this module needs come from the
 sibling projects' shared slot governor, ``slots.py``, pinned across those trees
 at sha256
 
-    5297f2d041030398a9ba240aad527b2b01a86d6e7f57a196719af8f0a91cb0a6
+    71fa2a683f2eaa04dd61feb2bebc646b5f9086e692c5acc05a9239de49d07d1b
 
-by a digest arm in the tree that owns it. The pid probe and the
+by a digest arm in each tree that vendors it. RE-RECORDED 2026-09-07: the
+carriers reworded that file's opening paragraph so it names no sibling project,
+and the digest above was re-measured on THIS disk across all three carrier
+working copies rather than taken from the hand-off note that announced it. The
+change was prose only - the differing line indices are five consecutive
+docstring lines and nothing else - so what is derived here is unaffected in
+behaviour and only its recorded identity moved. The pid probe and the
 ``O_CREAT|O_EXCL`` bucket at a single slot are re-implemented HERE rather than
 copied, and the reason is behavioural rather than stylistic. That file sets its
 default root to a machine-wide token bucket under ProgramData which several

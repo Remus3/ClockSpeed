@@ -61,7 +61,7 @@ WINMUTEX_MODULE_NAME: Final = "clockspeed_loop_winmutex"
 #: are recorded so the provenance stated in a header can be checked
 #: mechanically instead of believed.
 UPSTREAM_WINMUTEX_DIGEST: Final = "f1b4b011112685efb88616c52752657cf896fbb0993b2d2d264e7b3edde8b4f4"
-UPSTREAM_SLOTS_DIGEST: Final = "5297f2d041030398a9ba240aad527b2b01a86d6e7f57a196719af8f0a91cb0a6"
+UPSTREAM_SLOTS_DIGEST: Final = "71fa2a683f2eaa04dd61feb2bebc646b5f9086e692c5acc05a9239de49d07d1b"
 
 #: Named locally because ruff's PLR2004 reads a bare integer in a comparison as
 #: a magic value, and a name in the comparison reads better than a suppression.

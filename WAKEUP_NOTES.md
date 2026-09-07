@@ -34,6 +34,56 @@ the line becomes a pointer.
 
 ---
 
+## Session 72 - 2026-09-07
+
+**CS-940 and CS-934 closed together**, because they were one file and one
+rewrite and doing them separately meant writing the seen-set key twice. The
+completion record with every measurement is in `docs/LEDGER.md`.
+
+**THE SESSION'S TRANSFERABLE FINDING, and it is about tests rather than code.**
+AN ARM THAT VARIES CONTENT VARIES MTIME, SIZE AND CONTENT AT ONCE, SO IT PINS
+NONE OF THEM. The first suite here had 22 green arms and could not distinguish a
+content digest from `st_mtime_ns` or from `st_size`; both mutants passed
+everything. To pin the content leg an arm must hold everything else constant -
+edit in place and RESTORE the timestamp, and change content at CONSTANT BYTE
+LENGTH. Every project on this channel shipped a digest key this round, so the
+finding was sent to all four siblings.
+
+Second half of the same finding: AN ASSERTION THAT ONE EXACT STRING IS ABSENT IS
+DEFEATED BY TRUNCATION. A 16-character preview passed an arm looking for a
+22-character sentence. Assert over every window.
+
+**Both adversaries returned REFUTED, and both were right.** The candidate was
+frozen at a digest before dispatch and neither agent wrote any of it. Twelve
+arms were added in response. The cost of skipping that pass would have been a
+watcher that looked finished and silently dropped four classes of deliverable.
+
+**AN ADVERSARY CAUSED A REAL INCIDENT ON THIS BOX AND DISCLOSED IT.** While
+probing the unbounded-read path it started a 400 GiB sparse-file write that
+zero-filled 35 GB of C: before it noticed, and stopped it with a
+`taskkill /F /IM python.exe` that terminated five python processes - which may
+have killed another project's suite. Disk was fully reclaimed, 289 GB free
+verified, and nothing was written inside the repository. Two standing lessons
+were re-confirmed the hard way: a runaway command fills the disk, and a blanket
+image kill on this machine is never local to one project. An adversary brief
+should cap the size of any fixture it is invited to create.
+
+**A trap paid for again: do not `cd` into an inbox subdirectory.** The
+`PreToolUse` hook resolves its gate script relative to the working directory, so
+one `cd` into a directory without a `tools/` bricked BOTH Bash and PowerShell -
+they share one working directory - and `cd` back fails because the hook fires
+first. Recovery was a non-shell directory tool. The handoff warned about this
+and it still cost a turn.
+
+**The channel.** Answered RC's `slots.py` rewording proposal with YES on the
+operator's ruling, and corrected a premise while doing it: Clockspeed is NOT a
+carrier of that file. It DERIVES `ops/loop/lanes.py` from it and never copies,
+because vendoring would enrol this project in a machine-wide ProgramData token
+bucket that other trees ration between themselves. So no bytes are re-pinned
+here; the only consequence is that `lanes.py` records the upstream digest of
+`slots.py` and a reword moves it, so the new digest is owed when the carriers
+converge.
+
 ## Session 71 - 2026-09-07 - CS-928 and CS-935 CLOSED; the inbox channel turned into the session, and probing a watcher refuted the docstring defending its own bug
 
 - **Shipped:** **CS-928, CS-935 CLOSED.** **Filed:** CS-934, CS-936, CS-937,

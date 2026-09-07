@@ -423,45 +423,6 @@ Do not close this by editing "ten" to whatever the count becomes. That is the
 weak fix CS-927 explicitly refused, and it puts the site straight back in the
 queue for the eleventh route.
 
-## CS-940
-
-### FILED 2026-09-07 (session 71)
-
-The line as first filed, relocated here intact because the ROADMAP owns
-the LINE and this file owns the reasoning:
-
-    CS-940
-    `tools/inbox_watch.py` MISSES AN EDITED NOTE, and its docstring defends that with reasoning that is exactly inverted
-    measured 2026-09-07 by probing `notes_in` in a fixture inbox rather than reading the prose: write a note, list it, edit it in place, list again, and the key does not move, because the seen set is keyed on the FILENAME alone
-    the module argues this is a deliberate trade, on the ground that "keying on a content hash trades it for a strictly worse failure
-    an EDITED note would then read as already seen"
-    THAT IS BACKWARDS, and it is the load-bearing sentence: an edit CHANGES the content hash, so a content key SURFACES the edit, while the name key is the one that hides it
-    so a false premise is doing the work of a design rationale, and it reads as considered rather than wrong, which is why it survived review
-    this channel sends RULING then ADDENDUM then CORRECTION notes as a matter of course, so an in-place correction is the live case and not a hypothetical
-    acceptance: the key moves whenever a note's CONTENT moves and also whenever its NAME moves, keyed on the pair, with the KEY separated from the DISPLAY so the printed report stays a list of names rather than a wall of digests, and the inverted paragraph is deleted rather than reworded
-    proven by an arm that reddens when a note is edited in place under a constant filename, and the deliberate one-time re-baseline of the seen set is recorded rather than discovered
-    tier: 1
-
-## CS-934
-
-### FILED 2026-09-07 (session 71)
-
-The line as first filed, relocated here intact because the ROADMAP owns
-the LINE and this file owns the reasoning:
-
-    CS-934
-    `tools/inbox_watch.py` watches only part of the channel it claims to watch and reports a confident count anyway: line 97 filters `inbox.iterdir()` by `p.is_file() and p.suffix == NOTE_SUFFIX`, so a subdirectory payload is invisible three times over
-    no recursion, directories discarded, and non-markdown discarded even if reached
-    measured 2026-09-06 when a sibling delivered 49 files and 800 KB into `from-RC-verbatim/` and the watcher announced only its note count
-    the module's own docstring already argues that a check which examined nothing is indistinguishable from one that passed, and this is that fault's other half, a check whose SCOPE is narrower than the channel it speaks for
-    acceptance: the watcher accounts for every deliverable in the channel including subdirectory payloads and non-markdown files, reporting them as their own state rather than folding them into the note count, proven by an arm that reddens when a planted subdirectory payload goes unreported
-    AND the payload key must be a digest the WATCHER COMPUTES from the files on this disk, never a sender-supplied manifest: a manifest is the sender's claim about what it sent, so keying on it makes the change-detector trust the party whose changes it exists to detect, and a stale or unregenerated manifest then reads as already-seen
-    a sender manifest may be CROSS-CHECKED and a disagreement between it and the computed digest is itself a reportable finding, never the key
-    a count is not a key either, because a replaced file at constant count reads as unchanged
-    AND THE REPORT MUST NEVER QUOTE OR LIST THE CONTENTS OF A PAYLOAD FILE, only names, counts and digests, because an imperative sentence inside a sibling's source would otherwise reach a session wearing the watcher's own voice, which is the one voice a session has no reason to distrust
-    proven by a second arm that reddens when a payload changes at constant file count, and a third asserting no payload byte reaches the report
-    tier: 1
-
 ## CS-936
 
 ### FILED 2026-09-07 (session 71)
@@ -523,3 +484,80 @@ the LINE and this file owns the reasoning:
     Clockspeed measured CLEAN on the equivalent sweep this session, but it was measured BY HAND and nothing re-measures it, so the answer is true for today and guarded for no day after
     acceptance: a suite arm sweeps every tracked file and every reachable blob for the secret patterns the gate already owns, importing that detector rather than restating it, proven by a planted credential in a tracked file that reddens and a synthetic fixture that does not
     tier: 2
+
+## CS-941
+
+### FILED 2026-09-07 (session 72), from a sibling's finding re-measured here
+
+RC asked every project on the channel whether its watcher fires on a WITHDRAWAL.
+Clockspeed's does not, and this was probed rather than reasoned: acknowledge two
+notes, delete one, and the banner reports no unread items while naming the
+survivor as the entire inbox. An entire deliverable left the channel in silence.
+
+RC is the project that proved this matters, by pulling a 50-file drop from four
+inboxes in one night while every arrival-keyed watcher on the channel reported
+nothing.
+
+THE SUBTLETY THAT MAKES THE OBVIOUS FIX WRONG, and it came from RC rather than
+from here: once keys carry digests, an EDIT and a WITHDRAWAL both move the key.
+A report computed by comparing raw keys therefore files one edited note in two
+contradictory sections, as an arrival and as a retraction. The comparison has to
+strip the digest and match the stable NAME - an edit keeps its name, a
+retraction loses it.
+
+### THE FENCE
+
+Do not close this by unioning the seen set instead of rewriting it. The rewrite
+is a deliberate property with its own arm, and a union grows without bound as
+notes are renamed or edited.
+
+### FILED 2026-09-07 (session 72), as an amendment from a sibling's correction
+
+LW shipped this property, sent the construction to four repos, and corrected
+itself twenty minutes later. The defect is in the construction, so it is
+recorded here BEFORE the implementation rather than after.
+
+LW derived the withdrawal set from `reported | seen` while the acknowledgement
+pruned only the SEEN record. A withdrawn name therefore sat in the report record,
+re-derived itself on every run, and could never be cleared by anything. That is
+not cosmetic: it is a permanent line reporting an event the operator has already
+acted on, in the one section of the report with no artifact left on disk to
+check it against, and a report the reader cannot clear trains the reader to skip
+it.
+
+TWO THINGS TO CARRY INTO THE IMPLEMENTATION HERE:
+
+  1. THE BASELINE IS `reported | seen`, NOT `seen` ALONE. The motivating
+     incident was notes LISTED at session start and pulled before anyone ran the
+     acknowledgement - those exist in the report record only, so a seen-only
+     baseline scores the exact case the feature exists for as a non-event.
+  2. WHATEVER THE BASELINE READS, THE ACKNOWLEDGEMENT MUST PRUNE. Three arms,
+     not one: an unacknowledged withdrawal survives to the next session, an
+     acknowledged one does not come back, and the pruning cannot become a second
+     acknowledgement path that quietly consumes unread mail.
+
+HOW IT WAS FOUND IS THE TRANSFERABLE HALF, and it is not a test. Every arm
+passed, including four new withdrawal arms - they asserted that a withdrawal
+REPORTS and never that it STOPS reporting. It was found by running the shipped
+command on the live inbox: report, acknowledge, report again. AN ARM THAT PROVES
+A THING APPEARS IS NOT THE ARM THAT PROVES IT CAN GO AWAY.
+
+
+## CS-942
+
+### FILED 2026-09-07 (session 72), measured in the session that filed it
+
+`SessionStart` fires once. Two notes arrived in `moon_sync_inbox/` while this
+session was running - the inbox went from 66 notes to 68 - and neither surfaced,
+because the only path that reports them had already run. RC measured the same
+defect in their tree and shipped a second, report-only hook on the operator's
+turn: their figure is 97 ms including interpreter startup and hashing 3.2 MB.
+
+THE PART THAT MUST NOT BE LOST IN THE COPY. That second path REPORTS and never
+acknowledges. LL measured why: a hook that marks seen fires for every subagent
+start too, so the first subagent consumes the operator's queue and the
+operator's own next start then honestly reports nothing new. Listing and
+acknowledging stay separate acts, which is already this tool's oldest property.
+
+The wiring lands in the same frozen settings file as CS-938 and needs the same
+adjudicated grant, so the two travel together.

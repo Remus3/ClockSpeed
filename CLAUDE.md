@@ -96,7 +96,7 @@ computes. A layer that reaches past its neighbor is a design bug.
 | `tools/drift_guard.py` | Doc and pin drift detection |
 | `tools/doc_budget.py` | File-size budget enforcement |
 | `tools/facts_probe.py` | Live-state fact set. Run BY HAND from `/drift-guard` and `/sync-docs`; NOT a hook |
-| `tools/inbox_watch.py` | Unread `moon_sync_inbox/` notes at session start. Listing never acknowledges |
+| `tools/inbox_watch.py` | Unread `moon_sync_inbox/` items at session start, payloads included. Listing never acknowledges |
 | `tools/memory_sync.py` | Mirrors markdown memory into the recall store, idempotent |
 | `tools/dashboard_probe.py` | The SCRIPTED answer to "does the dashboard run". Launch, poll, assert a JSON key and a DOM node, one screenshot, exit code decides |
 | `tools/headless-queue.md` | The `queue` lane worker's prompt. TRACKED, because a worktree is a fresh checkout and carries no gitignored file |

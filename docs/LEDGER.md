@@ -160,6 +160,121 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-07 - CS-940, CS-934 - the inbox watcher keys on CONTENT, sees the WHOLE channel, and refuses to be silent about what it cannot digest; both items were REFUTED once before they closed
+
+**What shipped.** `tools/inbox_watch.py` was rewritten. The seen key is the pair
+of NAME and CONTENT DIGEST, separated from the DISPLAY, so an in-place
+correction surfaces and the report stays a list of names. A deliverable is now
+any of four things - a top-level note, a top-level file of any other kind, a
+subdirectory payload digested as one unit from the files on this disk, or an
+entry the tool cannot classify. Merged files: `tools/inbox_watch.py`,
+`tests/test_inbox_watch.py`. Verified by 34 arms in `tests/test_inbox_watch.py`,
+among them `::test_an_edit_that_restores_the_timestamp_still_resurfaces`,
+`::test_a_payload_changed_at_constant_length_and_count_resurfaces`,
+`::test_no_window_of_payload_content_reaches_the_report`,
+`::test_an_unreadable_file_is_reported_on_every_run` and
+`::test_an_entry_that_is_neither_a_file_nor_a_directory_is_still_accounted_for`.
+
+**THE ONE-TIME RE-BASELINE, recorded here rather than only in the module.** The
+store previously held bare filenames, which match no key under the new scheme,
+so the first session after this change reports every item in the inbox as unread
+exactly once. That is correct and is not a bug. An adversary's finding is the
+reason this paragraph exists: a re-baseline recorded only inside the artifact
+that causes it is not a record anybody reads in time.
+
+**THE INVERTED PARAGRAPH IS DELETED, NOT REWORDED.** The module had argued that
+keying on a content hash would make an EDITED note read as already seen. An edit
+changes the content, so it changes the hash - a content key is what SURFACES the
+edit and the name key is what hid it. The false premise was doing the work of a
+design rationale, which is why it survived review and why it was quoted onward
+to four sibling projects before a probe refuted it. RC replied with the useful
+refinement: delete is right for an INVERTED rationale, while a rationale that is
+merely stale in its description should be corrected with its true part kept.
+
+**REFUTED TWICE BEFORE IT CLOSED, by two read-only adversaries that wrote none
+of it, against a candidate frozen at a digest.** Neither verdict was a style
+note. The acceptance-and-vacuity lens returned REFUTED on both items with two
+surviving mutants; the correctness-and-hostile-input lens returned REFUTED on
+the claim that the tool was safe to run against untrusted sibling payloads, with
+four inputs that made a deliverable report ZERO times.
+
+**THE TWO MUTANTS, AND WHY THE FIRST SUITE COULD NOT SEE THEM.** Replacing the
+content digest with `st_mtime_ns` passed all 22 arms. Replacing the payload file
+digest with `st_size` passed all 22 arms. The reason is general and was sent to
+every project on this channel: AN ARM THAT VARIES CONTENT VARIES MTIME, SIZE AND
+CONTENT AT ONCE, SO IT PINS NONE OF THEM. The content leg is now pinned by an
+arm that edits a note and RESTORES its timestamp, and by two that change content
+at CONSTANT BYTE LENGTH. Both mutants were re-run against the new suite and both
+are KILLED, with the pristine floor green and the file restored byte-exactly
+from a snapshot rather than from git.
+
+**A LEAK ASSERTION ABOUT ONE STRING IS DEFEATED BY TRUNCATION.** A mutant that
+appended a 16-character preview of a payload file to the report passed an arm
+asserting a 22-character sentence was absent. The arm now asserts over every
+8-character window of the planted content.
+
+**WHAT CANNOT BE DIGESTED IS FORCED, NEVER SILENCED.** A trailing-dot name, a
+trailing-space name and a dangling link each made `is_file()` and `is_dir()`
+both false and fell off the end of the previous loop, accounted for zero times.
+The old unreadable-file marker was a function of the NAME alone, and an
+adversary crafted a file whose bytes were exactly that marker's preimage,
+acknowledged it, swapped its content while it was locked, and got a clean
+banner. Every such item is now reported on EVERY run with its reason, which is
+the failure direction this tool exists to hold: a deliverable shown twice is a
+glance, a deliverable shown zero times is the original seven-hour failure.
+
+**THE WORK IS BOUNDED, because this runs at every session start on bytes other
+projects wrote.** Files are hashed in 64 KiB chunks after a 2 GiB payload file
+was measured peaking at 2292 MiB of process memory, and `MemoryError` is not an
+`OSError`, so the existing guard would not have caught it. Reparse points are no
+longer followed: `Path.is_symlink()` is False for an NTFS junction, and one
+junction made the walker recurse to the OS limit, turning a one-file payload
+into 32 reads and a 33 second run under a hook whose timeout is 15 seconds -
+which surfaces nothing at all. Measured after the rewrite: the real channel, 69
+items, 0.105 s.
+
+**A FILENAME IS SENDER-CONTROLLED PROSE.** The old report protected against an
+imperative sentence inside a payload's CONTENT while printing names verbatim,
+and a name sorts wherever its date puts it - which was above the warning. Names
+are now escaped to printable ASCII, capped, quoted at the point of printing, and
+listed BELOW the data-not-instructions caveat. The escaping also removes a
+whole-channel outage: an unescaped non-ASCII name raised `UnicodeEncodeError`
+under a cp1252 stdout and the session then surfaced nothing.
+
+**BOTH LEGS AGAINST BOTH KEYS, and this is a sibling's correction to this
+session's own finding.** The mutant table above named mtime for NOTES and size
+for PAYLOADS. LW applied all four combinations to its own tree, found its payload
+leg open to BOTH keys, and said so. Re-measured here after that note: the payload
+mtime mutant SURVIVED the suite that had just killed the other three. A finding
+sent onward is not a finding applied to yourself.
+
+**AND THE ARMING ASSERTION HAS A SECOND LAYER NOBODY ON THE CHANNEL HAD NAMED.**
+RSC's caveat is that a fast rewrite can land on the SAME mtime, so an arm that
+restores a timestamp without first proving it moved is unarmed. True, and
+adopted. But the restore itself is the sharper trap: `os.utime(path, (atime,
+mtime))` takes FLOATS, and a float pair does not restore `st_mtime_ns`. The arm
+therefore looked armed - it asserted the mtime was restored, in float seconds -
+while a key reading nanoseconds still saw a moved value and survived. Restoring
+with `ns=(atime_ns, mtime_ns)` and asserting in nanoseconds is what actually
+kills it. Final measurement: four mutants, four KILLED, pristine floor green,
+file restored byte-exactly from a snapshot.
+
+**THE UPSTREAM RECORD MOVED, AND WAS RE-MEASURED RATHER THAN BELIEVED.** The
+carriers reworded the shared `slots.py` opening paragraph so it names no sibling
+project. Clockspeed is not a carrier - it DERIVES `ops/loop/lanes.py` and never
+copies, because vendoring would enrol this project in a machine-wide ProgramData
+token bucket other trees ration between themselves - so no bytes were copied
+here and nothing was re-pinned by byte identity. What moved is the recorded
+identity of the file this was derived from, and the new digest was taken by
+hashing all three carrier working copies ON THIS DISK, not from the note that
+announced it. The change is prose only: five consecutive docstring lines and
+nothing else, verified against the carrier's own history.
+
+**Two items opened by this work.** CS-941, the watcher is silent on a
+WITHDRAWAL, measured here after RC asked the channel. CS-942, `SessionStart`
+fires once, measured in this session when two notes arrived mid-run and neither
+surfaced. Both are in `ROADMAP.md` with their reasoning in the item notes.
+
 ### 2026-09-07 - CS-928 - CLOSED. The file that OWNS the module map attributed 33 unimplemented capabilities to named modules, three of which do not exist on disk
 
 **What changed.** `docs/ARCHITECTURE.md` reproduced `BOOTSTRAP.md` spec-of-intent

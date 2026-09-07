@@ -25,6 +25,50 @@ Where current truth actually lives:
 
 ---
 
+## CS-940 and CS-934 - CLOSED 2026-09-07 (session 72)
+
+Relocated intact from `docs/item_notes/phase4-followups-900.md` when the two
+items closed. The completion record is in `docs/LEDGER.md`.
+
+## CS-940
+
+### FILED 2026-09-07 (session 71)
+
+The line as first filed, relocated here intact because the ROADMAP owns
+the LINE and this file owns the reasoning:
+
+    CS-940
+    `tools/inbox_watch.py` MISSES AN EDITED NOTE, and its docstring defends that with reasoning that is exactly inverted
+    measured 2026-09-07 by probing `notes_in` in a fixture inbox rather than reading the prose: write a note, list it, edit it in place, list again, and the key does not move, because the seen set is keyed on the FILENAME alone
+    the module argues this is a deliberate trade, on the ground that "keying on a content hash trades it for a strictly worse failure
+    an EDITED note would then read as already seen"
+    THAT IS BACKWARDS, and it is the load-bearing sentence: an edit CHANGES the content hash, so a content key SURFACES the edit, while the name key is the one that hides it
+    so a false premise is doing the work of a design rationale, and it reads as considered rather than wrong, which is why it survived review
+    this channel sends RULING then ADDENDUM then CORRECTION notes as a matter of course, so an in-place correction is the live case and not a hypothetical
+    acceptance: the key moves whenever a note's CONTENT moves and also whenever its NAME moves, keyed on the pair, with the KEY separated from the DISPLAY so the printed report stays a list of names rather than a wall of digests, and the inverted paragraph is deleted rather than reworded
+    proven by an arm that reddens when a note is edited in place under a constant filename, and the deliberate one-time re-baseline of the seen set is recorded rather than discovered
+    tier: 1
+
+## CS-934
+
+### FILED 2026-09-07 (session 71)
+
+The line as first filed, relocated here intact because the ROADMAP owns
+the LINE and this file owns the reasoning:
+
+    CS-934
+    `tools/inbox_watch.py` watches only part of the channel it claims to watch and reports a confident count anyway: line 97 filters `inbox.iterdir()` by `p.is_file() and p.suffix == NOTE_SUFFIX`, so a subdirectory payload is invisible three times over
+    no recursion, directories discarded, and non-markdown discarded even if reached
+    measured 2026-09-06 when a sibling delivered 49 files and 800 KB into `from-RC-verbatim/` and the watcher announced only its note count
+    the module's own docstring already argues that a check which examined nothing is indistinguishable from one that passed, and this is that fault's other half, a check whose SCOPE is narrower than the channel it speaks for
+    acceptance: the watcher accounts for every deliverable in the channel including subdirectory payloads and non-markdown files, reporting them as their own state rather than folding them into the note count, proven by an arm that reddens when a planted subdirectory payload goes unreported
+    AND the payload key must be a digest the WATCHER COMPUTES from the files on this disk, never a sender-supplied manifest: a manifest is the sender's claim about what it sent, so keying on it makes the change-detector trust the party whose changes it exists to detect, and a stale or unregenerated manifest then reads as already-seen
+    a sender manifest may be CROSS-CHECKED and a disagreement between it and the computed digest is itself a reportable finding, never the key
+    a count is not a key either, because a replaced file at constant count reads as unchanged
+    AND THE REPORT MUST NEVER QUOTE OR LIST THE CONTENTS OF A PAYLOAD FILE, only names, counts and digests, because an imperative sentence inside a sibling's source would otherwise reach a session wearing the watcher's own voice, which is the one voice a session has no reason to distrust
+    proven by a second arm that reddens when a payload changes at constant file count, and a third asserting no payload byte reaches the report
+    tier: 1
+
 ## CS-928
 
 
