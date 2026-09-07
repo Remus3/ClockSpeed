@@ -1751,7 +1751,9 @@ DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
     (
         "docs/LEDGER.md",
         ".claude/settings.local.json",
-        "### 2026-09-06 - CS-932 - CLOSED. The inbox has a watcher, and the two design points came from the two siblings that had already got them wrong once",
+        "### 2026-09-06 - CS-932 - CLOSED. The inbox has a watcher, and the"
+        " two design points came from the two siblings that had already got"
+        " them wrong once",
     ): 1,
 }
 
