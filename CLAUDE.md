@@ -109,6 +109,23 @@ computes. A layer that reaches past its neighbor is a design bug.
 as proof it fires - the only valid test is end to end: stage a violation, attempt a real
 commit, assert HEAD is unchanged.
 
+### 2.3 Output constraints - the transcript is a cost, not a scratchpad
+
+**Keep each chat response under roughly 500 output tokens.** Break long work across turns,
+or write verbose output to a file. Operator directive, 2026-09-06.
+
+The operator watches several project sessions side by side, so prose in the main transcript
+costs tokens on both ends AND buries the thing being decided. A quiet session is one where
+the tool-call labels carry the narration.
+
+- Speak to ask for a ruling, to notify, or to answer a direct question. Otherwise act.
+- No narration between tool calls, and never restate what a tool just printed.
+- Put the step description in the tool call's own `description` field - it renders as the
+  visible label and costs nothing in the response body.
+- Long findings go to a file, a ledger entry or an item note, never into chat.
+- **Do NOT poll a background task in a loop of one-line turns.** Each poll is a whole turn.
+  Wait for the completion notification.
+
 ---
 
 ## 3. Non-negotiables
