@@ -75,7 +75,7 @@ the line becomes a pointer.
 
 - **The hole was NARROWER than the first framing and an adjudicator refuted it.** A clone
   that never bootstraps is not a mode hole at all (`core.hooksPath` is unset, so
-  `.githooks/` is never consulted), and `install_hooks.py:197-209` chmods +x on POSIX so
+  `.githooks/` is never consulted), and `scripts/install_hooks.py::set_executable` chmods +x on POSIX so
   a bootstrapped clone is repaired. The real residual: a BOOTSTRAPPED POSIX clone that
   then pulls a REWRITTEN hook file gets it materialised at the index mode, destroying the
   exec bit while `core.hooksPath` stays set.

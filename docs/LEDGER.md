@@ -337,7 +337,7 @@ firing is indistinguishable from one that fires and finds nothing.
 
 **THE HOLE IS NARROWER THAN THE SIBLING'S, AND THE FIRST FRAMING OF IT WAS WRONG.**
 A clone that never runs the bootstrap is NOT a mode hole: `core.hooksPath` is unset
-there, so `.githooks/` is never consulted at all. `scripts/install_hooks.py:197-209`
+there, so `.githooks/` is never consulted at all. `scripts/install_hooks.py::set_executable`
 chmods +x on POSIX, so a bootstrapped clone is repaired. The residual is later-arriving
 and specific: a BOOTSTRAPPED POSIX clone that then runs `git pull`, `checkout`, `merge`
 or `reset --hard` over a REWRITTEN hook file gets it materialised at the INDEX mode,
@@ -361,9 +361,9 @@ ever have revealed it, because there was nothing to fail." A different file, the
 defect: a permission bit set by code that no assertion reads back.
 
 **THE AGGRAVATING FACT: the mitigation itself is ungraded.** `git grep set_executable
--- tests/` returns zero hits and there is no `tests/test_install_hooks.py`. Its POSIX
-branch never executes on the operator's machine - `install_hooks.py:203-204` returns
-"n/a on windows" - so the one function standing between this repo and the sibling's
+-- tests/` returns zero hits and no test module covers that script at all. Its POSIX
+branch never executes on the operator's machine - it returns
+"n/a on windows" there - so the one function standing between this repo and the sibling's
 outage has never been exercised by anything.
 
 **Verification.** `tests/test_hook_file_mode.py::test_every_tracked_hook_is_executable_in_the_index`,
@@ -376,7 +376,7 @@ Windows cannot reintroduce 100644 without turning it red.
 
 **WHAT THIS GRANT DOES NOT CLOSE, stated so it is not read as closed.** No Clockspeed
 hook has ever been measured FIRING on a POSIX host, at either mode.
-`.github/workflows/tier2.yml:219-224` says so in its own comment: "PRESENCE IS NOT
+`.github/workflows/tier2.yml` says so in its own comment: "PRESENCE IS NOT
 FIRING ... That test is deliberately not written here." The clean-checkout probe
 asserts WIRING only. The flip does not change that, and an end-to-end arm on the ubuntu
 leg - stage a violation, attempt a real commit, assert exit 1 and HEAD unchanged -
@@ -386,7 +386,7 @@ remains unwritten. Filed as CS-924.
 Legion Wallpaper (2) and Resin Compute (3) are all already `100755`. **Lanternlight is
 `100644` on both of its tracked hooks and its repository is PUBLIC**, so the
 third-party POSIX clone population that is merely prospective here exists for it today.
-Its `scripts/install_hooks.py:70-84` chmods on POSIX, so its profile matches this one
+Its own hook installer chmods on POSIX too, so its profile matches this one
 exactly. Reported to the sibling trees through `moon_sync_inbox/`; nothing in any
 sibling tree was read beyond its hook modes and its installer, and nothing was written
 outside the inbox channel.
