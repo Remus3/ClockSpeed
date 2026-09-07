@@ -160,6 +160,21 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-07 - CS-940 - CORRECTION to the entry below it: the arm count was 34 when written and 35 when committed
+
+The CS-940 / CS-934 entry states "Verified by 34 arms in
+`tests/test_inbox_watch.py`". The count was true when the sentence was written
+and false when the commit landed: `test_a_payload_file_edited_with_its_timestamp_restored_resurfaces`
+was added afterwards, in response to a sibling's correction that the payload leg
+was open to an mtime key as well as a size key.
+
+Measured at `1a8c735`: **35 passed, exit 0**.
+
+This file is append-only, so the number is corrected here rather than edited
+there. Recorded because a restated measurement is exactly the drift class
+`CLAUDE.md` section 4 forbids, and because the same session sent four sibling
+projects a note about counts that go stale between the writing and the shipping.
+
 ### 2026-09-07 - CS-940, CS-934 - the inbox watcher keys on CONTENT, sees the WHOLE channel, and refuses to be silent about what it cannot digest; both items were REFUTED once before they closed
 
 **What shipped.** `tools/inbox_watch.py` was rewritten. The seen key is the pair

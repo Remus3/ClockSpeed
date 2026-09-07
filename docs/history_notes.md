@@ -25,6 +25,98 @@ Where current truth actually lives:
 
 ---
 
+## Session 69 - relocated from `WAKEUP_NOTES.md` 2026-09-07
+
+Pruned from the live notes when session 72 closed, under the two-to-three
+session rule. Nothing here is current.
+
+## Session 69 - 2026-09-06 - CS-922 and CS-923 CLOSED: the GitHub public face is built, and an agent that did not write the README REFUTED seven of its claims
+
+- **Shipped:** **CS-922 CLOSED.** Repository description, homepage (`docs/adr`) and 20
+  topics set and re-read from the API rather than inferred from a silent success.
+  `CITATION.cff` and `.github/ISSUE_TEMPLATE/` added. `README.md` refreshed - `tier1`
+  badge, the game named, and seven false capability claims removed. **CS-923 CLOSED.**
+  The three tracked hooks moved from mode `100644` to `100755` under a frozen-file grant.
+
+- **THE FINDING OF THE SESSION, and it is not the metadata.** A read-only verifier was
+  dispatched to check every claim in `README.md` against the code and returned
+  **REFUTED**. Four claims of SHIPPED capability described things that do not exist:
+  "exact clock speeds", "total power draw" and "total build cost" are produced by nothing
+  (`ProductionPlan` has no such fields, and build-cost DATA does not exist in the
+  registry at all); "footprint" and "maximizes sink points per unit of raw input" are not
+  selectable objectives and would be REFUSED at runtime, because `OBJECTIVES` is a closed
+  three-tuple and the optimizer has no maximize direction; "constrained to what you have
+  actually unlocked" is inverted, because `unlocked` is caller-supplied and the save's
+  unlock state is empty by construction (CS-913); and the card accept/dismiss/snooze/pin
+  paragraph was PRESENT TENSE for a package with zero executable code.
+
+- **THE MECHANISM, which is the reusable part.** Every one of those sentences was copied
+  forward from `BOOTSTRAP.md`. **A specification sentence is a claim about the INTENDED
+  build. Copying it into a README silently converts it into a claim about the SHIPPED
+  one.** Nothing warns you. The README had been wrong this way for as long as it has
+  existed, and the only thing that found it was pointing an agent that had not written it
+  at the code with instructions to default to STALE.
+
+- **The first command in the README exited 3 on a fresh clone and nobody knew.** The
+  listener is HTTPS only and `/certs/` is gitignored, so `python -m clockspeed.surface`
+  cannot start without `scripts/make_cert.py`, which the README never mentioned.
+  Established by PROBE - `CLOCKSPEED_CERT_DIR` pointed at an empty directory - not by
+  reading the code.
+
+- **CS-923: the three tracked hooks were mode `100644`.** Git silently refuses to run a
+  non-executable hook on POSIX and reports nothing. **Windows cannot show you this** -
+  measured both arms on git 2.53, a `100644` hook FIRED and blocked a commit here exactly
+  as `100755` did, because Git for Windows masks `X_OK`. Found by reading a sibling
+  project's CI step, not by any local signal.
+
+- **The hole was NARROWER than the first framing and an adjudicator refuted it.** A clone
+  that never bootstraps is not a mode hole at all (`core.hooksPath` is unset, so
+  `.githooks/` is never consulted), and `scripts/install_hooks.py::set_executable` chmods +x on POSIX so
+  a bootstrapped clone is repaired. The real residual: a BOOTSTRAPPED POSIX clone that
+  then pulls a REWRITTEN hook file gets it materialised at the index mode, destroying the
+  exec bit while `core.hooksPath` stays set.
+
+- **The aggravating half is worth more than the fix.** `set_executable` - the one function
+  standing between this repo and a silently absent gate - is graded by NOTHING.
+  `git grep set_executable -- tests/` returns zero hits, and its POSIX branch never runs
+  on the operator's machine. Filed as CS-925. This is the CS-605 shape exactly.
+
+- **Frozen-file route followed in full.** `.githooks/*` is frozen. Routed to an
+  adjudicator that did not produce the proposal, operator-approved, grant recorded in
+  `docs/LEDGER.md` BEFORE the edit. Scope proven held: the three blob SHAs are identical
+  before and after, so no hook content byte moved.
+
+- **NOT DONE, deliberately.** The repository is **still PRIVATE**. `CS-G03` gates the flip
+  on seven checks plus operator sign-off AND records that the public artifact ships from a
+  squashed or orphan history, because every existing commit carries a real-identity author
+  line and the pre-scrub `BOOTSTRAP.md`. No release cut and no social-preview card - both
+  reasoned, both in the CS-922 ledger entry.
+
+- **Cross-project.** Hook modes measured in all five trees on this disk. RiotCommander,
+  LegionWallpaper and ResinCompute are clean at `100755`. **Lanternlight was `100644` on
+  both hooks AND its repository is PUBLIC**, so the exposed population that is merely
+  prospective here existed for it then. RETRACTED 2026-09-07 (session 72): Lanternlight
+  asked this project to correct the claim and it is right. Re-measured from its tree this
+  session, `git ls-files -s .githooks/` reports `100755` for `commit-msg` and
+  `pre-commit`. The measurement was true when taken and is false now; it is corrected here
+  rather than deleted, because the finding that hook MODE is a silent-non-execution class
+  still stands and is what made the measurement worth taking. Note delivered to four sibling inboxes, which also
+  records why Clockspeed declined a `docs-guards` workflow: RC needs one because its
+  `ci.yml` carries `paths-ignore` on `**/*.md`; Clockspeed has no path filter at all, so
+  `tier1` already runs the doc guards on every push.
+
+- **Filed:** CS-924 (no hook has ever been measured FIRING on POSIX - `tier2.yml` says so
+  in its own comment), CS-925 (`set_executable` ungraded), CS-926 (`ROADMAP.md` at 117 per
+  cent of its soft budget, so `doc_budget.py` is permanently amber), CS-927
+  (`pending.py` says NINE route templates, `health.py` holds TEN, stale since CS-912).
+
+- **A COUNT NOT CARRIED FORWARD.** The tier-2 suite this session started was STOPPED at
+  22 per cent, deliberately: it began before the new test, the mode flip and the doc
+  edits, so its count could not describe the final tree. The authoritative full-suite run
+  is the pre-push hook on the final tree. The verifier's `2688 passed` covers four
+  packages at a mid-session tree and is NOT a whole-suite figure. Do not quote either as
+  the session's suite count.
+
 ## CS-940 and CS-934 - CLOSED 2026-09-07 (session 72)
 
 Relocated intact from `docs/item_notes/phase4-followups-900.md` when the two
