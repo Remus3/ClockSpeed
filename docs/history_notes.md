@@ -8028,3 +8028,51 @@ The headline this item carried before its line was cut to the one-liner the
 `ROADMAP.md` header asks for. Relocated verbatim, never deleted:
 
 `ROADMAP.md` is over its own soft budget at 117 per cent, so `tools/doc_budget.py` returns WARN rather than PASS on every run and the single signal that would announce a genuinely NEW budget breach is already lit - a guard that is permanently amber grades nothing
+
+## RELOCATED 2026-09-06 (session 70) - session 66's wakeup entry, moved out of WAKEUP_NOTES.md to keep it at the last three sessions
+
+### Session 66 - 2026-09-06 - CS-918 CLOSED: a headless queue lane, ported with the driver owning every wait; one real cycle ran and caught three defects of its own author
+
+- **Shipped:** **CS-918 CLOSED.** Four commits, `e0523d8..09aa678`. A one-row-per-worker
+  headless lane - lock, launcher, runner, driver, worker prompt - plus
+  `tools/dashboard_probe.py`, which turns "does the dashboard run" from a judgment call
+  relitigated three times into a script with nine exit codes. Detail in `docs/LEDGER.md`.
+- **In flight:** NOTHING half-written in the tree - it is clean and every commit is made.
+  Two things are outstanding and neither is code: the branch was NOT PUSHED at the time of
+  writing (see Failed paths), and `C:\cs-worktrees\cs-lane-queue` holds TEN UNCOMMITTED
+  FILES from the proving cycle's worker, left deliberately rather than reverted - they are
+  someone else's abandoned row, not this session's work.
+- **Decisions:** ADR 0017 - the lane FORKS the cross-repo loop modules rather than joining
+  their byte-identical pin. Joining the pin means joining the PROTOCOL: the shared governor
+  rations concurrent workers between three repositories through one token bucket, so a
+  fourth participant consumes their slots by editing a file in a fourth tree. The ADR now
+  also records the PRICE of that refusal, measured the same day.
+- **Surprises:**
+  - **The worker bailed on its own wait, first time out.** Its last words were "The whole
+    suite is running now. I will not touch the tree until it returns", then
+    `lane exit code=0`. That is the ported repo's measured failure reproduced at the first
+    opportunity, and it is the entire argument for the driver owning the wait.
+  - **`-m "not slow"` deselects 12 tests of 5708.** It is not a fast subset. There is no
+    cheap whole-tree lever here; scoping to the touched module is the only real one. This
+    corroborates CS-906 and CS-907 rather than adding to them.
+  - **The lane lock was never released,** because `lanes.py` was reachable under two module
+    names. `lane_launcher`'s own docstring predicts that exact failure - it happened anyway
+    because the launcher and its TEST agreed with each other while nothing asked the driver.
+  - **Three concurrent projects' pytest runs exhausted the box.** One suite truncated at 78
+    per cent with no summary line and `grep -c FAILED` returning 0; another died
+    `INTERNALERROR> MemoryError` reporting "3402 passed, 1 error" while 2163 tests never
+    ran. Saved to the harness memory store, not to a repo doc.
+- **Failed paths:**
+  - **The push is BLOCKED and nothing reached the remote.** `.githooks/pre-push` ran its
+    whole-suite gate and pytest died - `Windows fatal exception: stack overflow`, reported
+    as exit 127 - under four other projects' concurrent suites. It is ENVIRONMENTAL: the
+    same tree ran green standalone thirty minutes earlier (`5704 passed, 4 skipped`, exit
+    0, and 5704+4 matching the expected collection of 5708 exactly). **Do not reach for
+    `--no-verify`** - it is forbidden here and the hook is frozen. Retry when the box is
+    quiet.
+  - Two suite runs were graded and discarded rather than believed, which is the grader
+    working. Do not treat either number as a result.
+- **Next action:** push `claude/jovial-franklin-2270d7` when the box is quiet, then read
+  CS-919 before running the lane for anything.
+
+---

@@ -34,6 +34,91 @@ the line becomes a pointer.
 
 ---
 
+## Session 70 - 2026-09-06 - CS-924 CLOSED, then its own repair REFUTED and repaired again; six items closed; the inbox has a watcher that found 27 unread where the eye found 6
+
+- **Shipped:** **CS-924, CS-925, CS-926, CS-927, CS-931, CS-932 CLOSED.**
+  **Filed:** CS-928, CS-930, CS-933, plus CS-929 whose acceptance was rewritten
+  after an adversary measured the filed one unachievable.
+
+- **THE ITEM WAS WRONG, THEN THE FIX WAS WRONG, AND AGENTS THAT WROTE NEITHER
+  CAUGHT BOTH.** CS-924 claimed no hook had ever been measured running on POSIX
+  at any file mode. FALSE - three modules have driven real git through
+  byte-identical tracked hooks since 2026-08-22, on ubuntu, every push. The
+  decisive measurement: at `4b776f2`, hooks tracked at `100644`, tier1 run
+  `34067366062` was GREEN on those same arms, because the sandboxes
+  `chmod(0o755)` a byte copy and the index entry never reaches git.
+
+- **THEN THE REPAIR ITSELF WAS REFUTED, and this is the reusable part.** The
+  first arm claimed to measure firing "at its tracked index mode". It could
+  not: `scripts/install_hooks.py::set_executable` ORs the exec bits in unconditionally
+  during Bootstrap 1/3, hundreds of log lines BEFORE the arm's `-x` check. **A
+  hook tracked at 100644 would have been repaired by the bootstrap and the arm
+  would still have passed - zero signal.** Repaired by PLACEMENT, not by
+  wording: a new step asserts the index mode after the clone and BEFORE the
+  bootstrap, over all three hooks. **A CHECK'S POSITION IN A PIPELINE IS PART OF
+  WHAT IT MEASURES.**
+
+- **The counter-example the adversary named but could not run was executed
+  here.** It had no POSIX host; the index-mode half needs none, because an index
+  mode lives in git rather than on the filesystem.
+  `git update-index --chmod=-x` gives exit 1, intact gives exit 0.
+
+- **Verified live, not asserted:** tier2 `34079064351` seven of seven green,
+  ubuntu `git 2.55.0` blocking a real commit with HEAD unchanged. tier1
+  `34080228403` discharged CS-925's honest residual - `4317 passed, 24 skipped`
+  with NO skip from `test_install_hooks.py`, so both exec-bit arms ran against a
+  real POSIX kernel.
+
+- **BUILD COST EXISTS AND THE LEDGER SAID IT DID NOT.** No `mBuildCost` key -
+  the naive lookup that made it look absent - but 545 of 550 build-gun recipes
+  carry it as `mIngredients`, the extractor already reads them, and all 550 are
+  in the registry with `inputs` populated. `automated_recipes` filters them out.
+  `BOOTSTRAP.md` needs NO correction; what remains is a join (CS-930). A
+  CORRECTION record was appended rather than the entry edited.
+
+- **Surprises:** `CLAUDE.md` named a `SessionStart` hook this repo does not have
+  (CS-931), found only because a sibling asked how the inbox watcher is invoked.
+  Third time this session an outside question beat the inside view.
+
+- **A DATE ERROR I MADE ALL SESSION.** I wrote `2026-09-07` throughout while the
+  clock and `git log` both said `2026-09-06`. Caught by a subagent that used the
+  git-verifiable date rather than matching my prose. Ten headings and every
+  delivered sibling note corrected. **Read the clock; do not infer the rollover.**
+
+- **Failed paths:** none abandoned. Two self-inflicted detours, both instructive:
+  new item notes used `module.py:NNN` pointers that
+  `tests/test_docs_citations.py` forbids, all converted to the symbol form; and
+  a heredoc collapsed `\n` escapes exactly as this project's own memory warns,
+  so payloads with escapes now go through the Write tool.
+
+- **A RULE I BROKE, RECORDED:** the premise adversary was dispatched against
+  `32255a3` and I edited `tier2.yml` while it graded. It pinned its citations to
+  the committed blob and its verdict stands, but CLAUDE.md section 5 says freeze
+  the candidate before dispatch. It cost nothing because the agent was careful,
+  which is luck rather than method.
+
+- **WORKTREES: 18 audited, ZERO prunable** - every one held work. 12 committed
+  onto their own branches, 18 directories removed with zero loss verified AFTER
+  removal, 1 stray EMPTY directory `git worktree list` did not know about, 59
+  branches pruned, 53 pushed to `refs/wip/*`. **That namespace is deliberate:
+  `refs/heads/**` would have fired 53 metered tier1 runs; custom refs fire none,
+  and zero were observed.** My own audit tool nearly deleted two trees - a
+  failed `git hash-object` returned `None` on both sides and **two failed
+  lookups compared EQUAL**. Four trees hold TWO COMPETING LINEAGES of one open
+  item, so none of it was merged.
+
+- **The inbox has a watcher** (`tools/inbox_watch.py`, CS-932). Design from two
+  siblings, both reasons recorded. Listing NEVER acknowledges. Seen set on DISK,
+  which is what makes it survive `/clear`. Wired in the gitignored local Claude settings file, which is NOT on the
+  frozen list, so the wiring is machine-local and a fresh clone does not get it. **Not yet observed firing at
+  SessionStart; that is presence, not firing, and it proves out next session.**
+
+- **Next action:** take CS-928. `docs/ARCHITECTURE.md` restates BOOTSTRAP's
+  spec-of-intent as SHIPPED capability under an `Implemented by:` line naming
+  modules that implement no such thing. It is the session-69 README mechanism
+  still live in the file that OWNS the module map, and `ProductionPlan` was
+  already measured as carrying none of the six fields it promises.
+
 ## Session 69 - 2026-09-06 - CS-922 and CS-923 CLOSED: the GitHub public face is built, and an agent that did not write the README REFUTED seven of its claims
 
 - **Shipped:** **CS-922 CLOSED.** Repository description, homepage (`docs/adr`) and 20
@@ -180,49 +265,3 @@ the operator's frame of reference. Do not "repair" the gap by renumbering.
   THE LANE FOR A NIGHT UNTIL IT IS CLOSED, because this session watched three other
   projects push to this box while it worked, which is exactly the condition that makes the
   lane's CI attribution wrong.
-
-## Session 66 - 2026-09-06 - CS-918 CLOSED: a headless queue lane, ported with the driver owning every wait; one real cycle ran and caught three defects of its own author
-
-- **Shipped:** **CS-918 CLOSED.** Four commits, `e0523d8..09aa678`. A one-row-per-worker
-  headless lane - lock, launcher, runner, driver, worker prompt - plus
-  `tools/dashboard_probe.py`, which turns "does the dashboard run" from a judgment call
-  relitigated three times into a script with nine exit codes. Detail in `docs/LEDGER.md`.
-- **In flight:** NOTHING half-written in the tree - it is clean and every commit is made.
-  Two things are outstanding and neither is code: the branch was NOT PUSHED at the time of
-  writing (see Failed paths), and `C:\cs-worktrees\cs-lane-queue` holds TEN UNCOMMITTED
-  FILES from the proving cycle's worker, left deliberately rather than reverted - they are
-  someone else's abandoned row, not this session's work.
-- **Decisions:** ADR 0017 - the lane FORKS the cross-repo loop modules rather than joining
-  their byte-identical pin. Joining the pin means joining the PROTOCOL: the shared governor
-  rations concurrent workers between three repositories through one token bucket, so a
-  fourth participant consumes their slots by editing a file in a fourth tree. The ADR now
-  also records the PRICE of that refusal, measured the same day.
-- **Surprises:**
-  - **The worker bailed on its own wait, first time out.** Its last words were "The whole
-    suite is running now. I will not touch the tree until it returns", then
-    `lane exit code=0`. That is the ported repo's measured failure reproduced at the first
-    opportunity, and it is the entire argument for the driver owning the wait.
-  - **`-m "not slow"` deselects 12 tests of 5708.** It is not a fast subset. There is no
-    cheap whole-tree lever here; scoping to the touched module is the only real one. This
-    corroborates CS-906 and CS-907 rather than adding to them.
-  - **The lane lock was never released,** because `lanes.py` was reachable under two module
-    names. `lane_launcher`'s own docstring predicts that exact failure - it happened anyway
-    because the launcher and its TEST agreed with each other while nothing asked the driver.
-  - **Three concurrent projects' pytest runs exhausted the box.** One suite truncated at 78
-    per cent with no summary line and `grep -c FAILED` returning 0; another died
-    `INTERNALERROR> MemoryError` reporting "3402 passed, 1 error" while 2163 tests never
-    ran. Saved to the harness memory store, not to a repo doc.
-- **Failed paths:**
-  - **The push is BLOCKED and nothing reached the remote.** `.githooks/pre-push` ran its
-    whole-suite gate and pytest died - `Windows fatal exception: stack overflow`, reported
-    as exit 127 - under four other projects' concurrent suites. It is ENVIRONMENTAL: the
-    same tree ran green standalone thirty minutes earlier (`5704 passed, 4 skipped`, exit
-    0, and 5704+4 matching the expected collection of 5708 exactly). **Do not reach for
-    `--no-verify`** - it is forbidden here and the hook is frozen. Retry when the box is
-    quiet.
-  - Two suite runs were graded and discarded rather than believed, which is the grader
-    working. Do not treat either number as a result.
-- **Next action:** push `claude/jovial-franklin-2270d7` when the box is quiet, then read
-  CS-919 before running the lane for anything.
-
----
