@@ -160,6 +160,192 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-07 - CS-924 - CLOSED. A Clockspeed hook has now been measured FIRING on POSIX, in a real clone, at its tracked mode, wired by the real bootstrap - and the item's own premise was REFUTED on the way
+
+**THE ITEM AS FILED WAS FALSE, AND THAT IS RECORDED HERE RATHER THAN QUIETLY
+DROPPED.** `ROADMAP.md` claimed "no hook in this repository has been measured
+RUNNING on a POSIX host at any file mode". An adversary dispatched to refute it
+did so, first try. THREE modules have driven real git through byte-identical
+copies of the tracked hooks since 2026-08-22:
+`tests/test_hook_interpreter_ladder.py` (all three hooks, real commit AND real
+push, with the ref checked on a bare remote), `tests/test_commit_msg_gate.py`
+and `tests/test_precommit_gate.py`. tier1 runs them on ubuntu-latest on every
+push, and the collected count matches the passed-plus-skipped count exactly, so
+nothing is deselected on Linux.
+
+**THE DECISIVE MEASUREMENT THAT KILLED THE PREMISE**, and it is not a reading of
+the code: at `4b776f2`, with all three hooks tracked at `100644`, tier1 run
+`34067366062` on ubuntu was fully green on those same arms. So CS-923's flip to
+`100755` changed nothing they can see, because the sandboxes `chmod(0o755)` a
+byte copy and the tracked index entry never reaches git.
+
+**WHAT WAS GENUINELY UNMEASURED, AND IS NOW MEASURED.** Four things, none of
+which any existing arm could reach:
+1. Firing at the TRACKED INDEX MODE, materialised by a checkout rather than
+   chmodded into place by the test.
+2. Firing in a REAL CLONE wired by the REAL `scripts/install_hooks.py`. Every
+   prior arm hand-set `core.hooksPath` in a `git init` repo.
+3. Firing on a filesystem where the exec bit is REAL. Every end-to-end
+   measurement in this ledger was taken on `git 2.53.0.windows.3`, which masks
+   `X_OK`, so the operator's machine cannot observe a non-executable hook
+   silently not running - which is the exact failure CS-923 was about.
+4. That an UNCONFIGURED clone FAILS rather than skips. Nothing asserted it.
+
+**VERIFICATION - the observed ubuntu log, tier2 run `34079064351`, job
+`clean-checkout probe (ubuntu-latest)`, Ubuntu, `git version 2.55.0`:**
+
+```
+core.hooksPath = .githooks
+OK: the pre-commit hook is executable on this POSIX host.
+OK: control - a legitimate commit LANDED through the hooks.
+precommit_gate: BLOCKED
+cs924_violation.md:1:24: CHARSET non-ASCII character: U+2014 em dash
+clockspeed pre-commit: BLOCKED (gate exit 1). HEAD is unchanged.
+git commit exit code: 1
+OK: the refusal carries this project's own gate banner.
+OK: control - the identical violation LANDED under --no-verify.
+OK: a Clockspeed hook was measured FIRING end to end, in a real
+clone, at its tracked mode, wired by scripts/install_hooks.py.
+```
+
+**THE ARM IS THREE ASSERTIONS AND TWO CONTROLS, and the controls are the half
+that makes it mean anything.** Assertions: non-zero exit, HEAD unchanged, and
+the refusal carries this project's own gate banner rather than git's - because a
+missing identity, an unborn branch or an empty index each produce a non-zero
+exit that has nothing to do with the hook. Control 1: a clean commit must LAND,
+so a clone that refuses EVERYTHING cannot report success. Control 2: the
+identical violation must LAND under `--no-verify`, which is what attributes the
+refusal to the HOOK LAYER rather than to the content.
+
+**DISCRIMINATION WAS MEASURED BEFORE THE COMMIT, not asserted after it.** The
+step's `run` block was extracted out of the YAML by parser and executed under
+GitHub's exact `bash --noprofile --norc -eo pipefail` against fresh clones:
+armed exit 0; pre-commit replaced by a no-op exit 1; `core.hooksPath` unset exit
+1; the gate emptied exit 1. The last of those is caught by CONTROL 1 rather than
+by an assertion, which is precisely why control 1 exists.
+
+**THE EM DASH IS WRITTEN AS RAW UTF-8 BYTES AT RUN TIME.** Putting the character
+into the workflow would violate CLAUDE.md non-negotiable 4 and tier1's own
+character-set gate would reject the file that tests the character-set gate.
+
+**PLACED LAST IN THE JOB DELIBERATELY.** It creates real commits and one carries
+an em dash; the suite step above enumerates tracked files and would rightly go
+red on that content.
+
+**THE COMMENT THAT SAID THIS WAS "deliberately not written here" IS GONE**, not
+left to become the next stale sentence.
+
+**HONEST RESIDUAL.** The arm runs on both matrix legs. The exec-bit clause is
+guarded on the PLATFORM - a fact about the runner, never about the code under
+test - and prints an explicit NOTE on Windows rather than a silent pass, because
+Git for Windows masks `X_OK` and a green there would be a statement about
+nothing.
+
+### 2026-09-07 - CS-925 - CLOSED. The exec bit `set_executable` lands is now asserted on disk, not the fact that it was called
+
+`scripts/install_hooks.py::set_executable` was the only thing repairing a hook's
+POSIX exec bit per clone and NOTHING graded it: `git grep set_executable --
+tests/` returned zero hits and no module covered that script at all. Its POSIX
+branch never runs on the operator's Windows machine, where it returns
+`n/a on windows`. This is the CS-605 shape exactly - a permission bit set by
+code whose RESULT no assertion reads back.
+
+**THE ARM ASSERTS THE MODE ON DISK.** A test that mocked `os.chmod` and checked
+its arguments would restate the implementation and fail this acceptance, because
+that is what CS-605 closed on.
+
+**THE SKIP IS GATED ON A MEASURED FILESYSTEM FACT, NOT A PLATFORM NAME** -
+the pattern already established by `tests/test_make_cert.py` for CS-605: write a
+throwaway file, chmod it, read the mode back, gate on the result. Branching on
+`os.name` would freeze today's answer into the suite as though it were
+permanent. **The probe never calls `set_executable`**, so no defect in the
+function can mute the arm that grades it.
+
+**DISCRIMINATION: 8 mutants, all RED as expected**, installed by rebinding on
+the loaded module and never on disk - never chmods; owner bit only; clobbers the
+rw bits; wrong report string; unconditional chmod breaking idempotence; the nt
+branch faking the bit; the nt branch claiming `executable`; a refused chmod
+swallowed. A pristine floor ran green before each. The nt arms count chmod CALLS
+rather than comparing modes, because on Windows a faked bit and no bit read back
+identically.
+
+**FROZEN FILE UNTOUCHED AND PROVEN SO.** `scripts/install_hooks.py` is
+byte-identical to HEAD, confirmed by hash rather than by inspection. No grant was
+needed because the arm lives in `tests/`.
+
+Verification: `tests/test_install_hooks.py`, four arms. On Windows:
+`2 passed, 2 skipped`, the skips naming the measured filesystem reason.
+
+**UNVERIFIED AND SAID SO:** at the time of writing, the two exec-bit arms had
+never run against a real POSIX kernel - there is no WSL distribution and no
+docker on this box, so the discrimination harness used an in-process stand-in for
+a mode-honouring filesystem. That proves the assertions discriminate; it does not
+prove behaviour against a POSIX filesystem. The first real measurement is CI.
+
+### 2026-09-07 - CS-927 - CLOSED. `pending.py` stops spelling a route count it does not own, and the weak fix is now blocked by CI
+
+The docstring said the aggregate route table holds exactly the NINE templates
+`BOOTSTRAP.md` section 7.1 names. `clockspeed/surface/api/health.py::ENDPOINT_TEMPLATES`
+has held TEN since CS-912 published `/api/registry`.
+
+**`BOOTSTRAP.md` WAS NOT STALE.** Section 7.1 already lists ten and says in its
+own text that `/api/registry` arrived under CS-912. The spec and the shipped
+table moved together and only the prose was left behind, so CLAUDE.md section 8
+did not apply and nothing was filed against the spec.
+
+**THE FIX IS THE DERIVED FORM.** The docstring now names the SET and its OWNER
+and spells no aggregate integer at all, matching the idiom
+`clockspeed/surface/api/routes.py` already uses. A rewrite to "ten" would have
+been back within a phase, which is the whole of CLAUDE.md section 4's argument.
+
+**BOTH MUTATIONS MEASURED.** Restoring a bare count word goes RED - so the weak
+fix is refused by CI and not merely by intent. Adding a template to the owning
+table goes red at import, as a collection error rather than an assertion
+failure, and the test's docstring says so rather than implying a clean assert.
+
+Verification:
+`tests/surface/test_pending_route_count.py::test_pending_does_not_spell_the_aggregate_template_count`,
+with the count vocabulary parametrized so deleting one word cannot leave the
+suite green. The detector normalises whitespace across the whole file because
+the original offence spanned a line break, which a line-oriented scan misses.
+`python -m pytest tests/surface -q` observed `633 passed`.
+
+**TWO SIBLINGS LEFT UNTOUCHED AND FILED RATHER THAN SWEPT.**
+`clockspeed/surface/server.py` carries the same stale sentence and is filed as
+CS-929; the CS-927 detector is scoped to `pending.py` alone and cannot see it.
+`docs/adr/0012-dashboard-refusal-vocabulary-and-wire-form.md` also says nine and
+is deliberately NOT filed: an accepted ADR records what was true when it was
+written.
+
+### 2026-09-07 - CORRECTION to the CS-922 record - build cost DOES exist, and the cause recorded on 2026-09-06 was wrong on two of its three clauses
+
+**This corrects an earlier record rather than editing it**, per this file's own
+rule. The CS-922 entry states that build "COST DATA DOES NOT EXIST AT ALL" and
+that "the docs extractor never reads one". A read-only probe against the real
+install refutes both.
+
+- **"Building has no cost field"** - TRUE, and it stays true.
+- **"build cost data does not exist at all"** - FALSE. There is no `mBuildCost`
+  key anywhere, which is what made the naive lookup say absent. Build cost is
+  carried on the BUILD GUN RECIPES: of 872 `FGRecipe` entries, 550 name a build
+  gun in `mProducedIn` and 545 carry a non-empty `mIngredients`.
+- **"the docs extractor never reads one"** - FALSE. The extractor reads the
+  ingredients key for all 872 recipes, including all 550 build recipes. A real
+  registry build yields items=750, recipes=872, buildings=68 with all 550 build
+  recipes present as `Recipe` objects with `inputs` populated.
+
+`clockspeed/data/registry.py::automated_recipes` returns 291 and filters all 550
+out - correct for its purpose, and the reason they are invisible downstream.
+65 of 68 modelled Buildings join to a build recipe.
+
+**CONSEQUENCE FOR THE SPEC:** `BOOTSTRAP.md`'s "total build cost" promise is NOT
+an unlabelled false assumption and needs no correction under CLAUDE.md section 8.
+The remaining work is a join plus an aggregation over data already loaded, filed
+as CS-930. The probe also found the same spec sentence restated in
+`docs/ARCHITECTURE.md` under an `Implemented by` line naming modules that
+implement no such thing - the session-69 README mechanism still live in the file
+that owns the module map - filed as CS-928.
+
 ### 2026-09-06 - CS-922 - CLOSED. The GitHub-side public face is built and independently re-read from the API; the visibility FLIP itself is untouched and stays gated
 
 **What changed.** The repository had an empty description, no homepage and ZERO topics.

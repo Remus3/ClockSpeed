@@ -280,3 +280,118 @@ remote cannot be resolved.
 Redden on a FOREIGN sha landing between the two reads. A test that only checks the happy
 path would have passed on the shipped code, because the shipped code is correct whenever
 nobody else pushes - which is every run on an idle box and no run on this one.
+
+## CS-928
+
+### FILED 2026-09-07 (session 70), from a read-only probe that was sent to check a DIFFERENT claim
+
+The probe was dispatched to establish whether build cost data exists at all
+(CS-930). It came back having refuted that premise AND having found this, which
+is a separate defect in a separate file.
+
+`docs/ARCHITECTURE.md` reproduces `BOOTSTRAP.md` section 4 pillar 1 almost verbatim -
+"every intermediate, exact building counts, exact clock speeds, byproduct
+handling, raw input totals, total power draw, and total build cost" - and then
+then appends:
+
+    Implemented by: solve/exact.py, solve/ratio.py, solve/power.py, over
+    data/registry.py
+
+### WHY THE `Implemented by` LINE IS WHAT MAKES IT A DEFECT
+
+`BOOTSTRAP.md` is the specification and is ALLOWED to describe an intended
+build. It says so about itself. Copying a spec sentence into a file that then
+attributes it to named shipped modules converts a statement of intent into a
+false claim about shipped code, and nothing warns you.
+
+That is precisely the mechanism recorded at the CS-922 entry in `docs/LEDGER.md` after seven
+`README.md` claims were refuted in session 69. The README was repaired. **This
+file was not, and it is the file that OWNS the module map**, so it is the more
+authoritative of the two.
+
+Measured against the cited modules: `ProductionPlan` (`clockspeed/solve/ratio.py::ProductionPlan`)
+carries six fields - `steps`, `targets`, `raw_inputs`, `byproducts`, `excluded`,
+`byproduct_policy`. No clock speed, no power total, no build cost. `PlanStep`
+carries `recipe_key` and `machines`.
+
+### THE FENCE
+
+Do not repair this by deleting the `Implemented by` line and keeping the prose.
+The prose is the claim; the attribution only dates it. Either the capability is
+present in the named module or the sentence goes.
+
+## CS-929
+
+### FILED 2026-09-07 (session 70) by the CS-927 builder, which correctly refused to sweep it
+
+`clockspeed/surface/server.py` says `/api/advice/<id>/state` are "two of the
+NINE endpoints `BOOTSTRAP.md` section 7.1 publishes". Section 7.1 has named TEN
+since CS-912 published `/api/registry` - `BOOTSTRAP.md` section 7.1, which
+saying so explicitly.
+
+Same root cause as CS-927, different module. It was left untouched deliberately
+because it sat outside that slice's declared write-list.
+
+### WHY THIS IS NOT JUST "FIX THE NUMBER"
+
+CS-927 closed by making `pending.py` name the SET and its OWNER rather than its
+SIZE, and shipped `tests/surface/test_pending_route_count.py` to keep it that
+way. **That detector is scoped to `pending.py` alone** - stated in its own
+docstring - so it cannot see this site. Widening the detector is the greater
+half of this item; editing the sentence is the lesser half.
+
+`tests/surface/audit_harness.py` already records that CS-912 falsified
+"the THIRD sentence in this repository that a new route falsified without
+touching the file it sat in". This is the fourth. The population is the finding.
+
+### ALSO SEEN, AND DELIBERATELY NOT FILED
+
+`docs/adr/0012-dashboard-refusal-vocabulary-and-wire-form.md` also says nine.
+It is stamped `accepted - 2026-08-29`. An ADR records what was decided when it
+was decided; correcting it would rewrite history rather than fix drift. Left
+alone on purpose. Do not file it without arguing that point first.
+
+## CS-930
+
+### FILED 2026-09-07 (session 70). THE PREMISE THAT SENT THE PROBE WAS REFUTED, AND SO WAS THE LEDGER
+
+The session-69 handoff asked whether the shipped docs file exposes build cost at
+all, and warned that if it does not, `BOOTSTRAP.md` carries an unlabelled
+assumption and CLAUDE.md section 8 applies. **It does expose it.** The item that
+remains is a join, not an acquisition.
+
+### WHAT WAS MEASURED, against the real install
+
+- **There is no `mBuildCost` key. Zero occurrences.** That naive lookup is what
+  made this look absent, and it is why the earlier note was written.
+- Build cost is carried on the BUILD GUN RECIPES. Of 872 `FGRecipe` entries,
+  550 name a build gun in `mProducedIn` and **545 carry a non-empty
+  `mIngredients`**. `Recipe_ConstructorMk1_C` inputs are reinforced iron plate
+  x2 and cable x8 - that is the Constructor's build cost.
+- **It is already inside this project's registry.** A real build yields
+  items=750, recipes=872, buildings=68, and all 550 build recipes are present as
+  `Recipe` objects with `inputs` populated, tagged
+  `unresolved_produced_in=('BP_BuildGun_C',)`, which `clockspeed/data/registry.py`
+  already names as a tolerated token.
+- **`clockspeed/data/registry.py::automated_recipes` returns 291 and filters all
+  550 out.** Correct for its purpose, and the reason they are invisible
+  downstream.
+- **65 of 68** modelled Buildings have a build recipe whose output joins by
+  `Desc_` to `Build_` substitution. The three that do not are part of the item.
+
+### THE EXISTING RECORD IS WRONG AND MUST NOT BE INHERITED
+
+the CS-922 entry in `docs/LEDGER.md` states build "COST DATA DOES NOT EXIST AT ALL" and that
+"the docs extractor never reads one". The first clause is FALSE and the second
+is FALSE - the extractor reads `KEY_INGREDIENTS` for all 872 recipes including
+all 550 build recipes. Only "`Building` has no cost field" is true.
+
+The ledger is append-only, so that entry is not edited; a correction is appended
+beside the CS-930 filing rather than written over it.
+
+### WHAT THIS ITEM IS NOT
+
+It is not a data-acquisition problem and must not be scoped as one. It is a join
+plus an aggregation over data already loaded. Do not re-pitch extracting build
+cost from a wiki or any community source - `CLAUDE.md` section 7 settles that,
+and the data is on disk anyway.
