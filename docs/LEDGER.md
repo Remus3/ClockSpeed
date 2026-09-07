@@ -160,6 +160,105 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-07 - CORRECTION to today's CS-924, CS-925 and CS-927 records, from an adversary that graded work it did not produce - one claim was FALSE and is now repaired in the workflow rather than only in prose
+
+**A refutation pass over the three records returned REFUTED on CS-924's
+load-bearing clause.** It is corrected here, and the underlying gap is CLOSED in
+`.github/workflows/tier2.yml` rather than merely admitted.
+
+**FALSE AS WRITTEN: "at its tracked index mode".** The CS-924 entry, the
+workflow's success banner and the step's own comment all claimed the firing arm
+measured the hook at the mode the checkout materialised from the index. They
+could not have. `scripts/install_hooks.py::set_executable` ORs the exec bits in
+UNCONDITIONALLY on POSIX during Bootstrap 1/3, and the arm's `-x` check ran
+hundreds of log lines later - so it was reading what the installer had just
+written. A hook tracked at `100644` would have been chmodded to `0755` by the
+bootstrap and the check would still have passed. **The arm gave ZERO signal
+about the index mode**, which is precisely the blind spot CS-923 existed to
+close, silently reopened.
+
+The entry's phrase "materialised by a checkout rather than chmodded into place
+by the test" drew a distinction that does not exist: it WAS chmodded into place,
+by the bootstrap step instead of by the test.
+
+**THE REPAIR, and it is placed rather than worded.** A new step,
+`Assert the tracked index mode BEFORE the bootstrap can repair it`, runs
+immediately after the clone and before Bootstrap 1/3. It reads `git ls-files -s`
+for ALL THREE hooks and requires `100755`, then - on POSIX only - requires each
+to have materialised executable. Its position is load-bearing and its comment
+says so.
+
+**THE COUNTER-EXAMPLE THE ADVERSARY NAMED WAS THEN EXECUTED**, which it could
+not do for want of a POSIX host. `git update-index --chmod=-x .githooks/pre-commit`
+against a fresh clone, running the step extracted from the YAML under GitHub's
+exact shell: `100755` exits 0, `100644` exits 1 naming the hook. The index-mode
+half is testable on Windows because an index mode lives in git rather than on
+the filesystem, so this measurement did not need a runner.
+
+**SCOPE, CORRECTED.** The old banner said "a Clockspeed hook". Only `pre-commit`
+is armed end to end. `commit-msg` runs during those commits but purely as a
+pass-through - a non-executable `commit-msg` is INVISIBLE to that arm, because
+git would skip it silently and the commit would still land. `pre-push` is never
+invoked in that job at all. The new pre-bootstrap step covers all three for
+MODE; the FIRING claim remains about `pre-commit` alone and now says so in the
+banner itself.
+
+**AN ATTRIBUTION GAP, ALSO CLOSED.** The refusal check accepted any
+`precommit_gate: BLOCKED`, and its alternative `clockspeed pre-commit` matches
+EVERY `die()` in the hook - including "gate not found", "no usable python
+interpreter found" and "the gate DID NOT RUN". So a dead character-set check
+plus any other blocking finding would have read as success. The arm now requires
+the `CHARSET non-ASCII character` diagnostic by name, tying the refusal to the
+violation the step actually staged.
+
+**FALSE IN THE CS-925 RECORD: "no test module covered that script at all".**
+`git grep set_executable -- tests/` returning zero hits is true; the conclusion
+drawn from it is not. `tests/test_exception_rendering.py` copies
+`scripts/install_hooks.py` into a sandbox and RUNS IT AS A SUBPROCESS, so on
+POSIX CI `set_executable` was already executing for all three hooks on every
+run. `scripts/install_hooks.py` says so in its own docstring. The accurate and
+more interesting statement is narrower: the script was covered and the function
+was executed - only its RESULT was never read back. "Uncovered" and "ungraded"
+are different defects and this record confused them.
+
+**CS-925's residual is DISCHARGED.** tier1 run `34080228403` at `3d36050` on
+ubuntu reported `4317 passed, 24 skipped` with NO skip from
+`tests/test_install_hooks.py`, against `4281 passed, 24 skipped` before. Both
+exec-bit arms ran against a real POSIX kernel and passed.
+
+**CS-925, narrower than its prose:** 2 of its 4 arms are graded on a chmod CALL
+COUNT rather than a mode - the Windows arm and the idempotence arm - for the
+stated reason that on Windows a faked bit and no bit read back identically. The
+acceptance arm does assert the mode. The module discloses this; the ledger entry
+did not. A sweep of every permission-setting site in the tree found NO third
+CS-605 instance: `install_hooks.py` and `make_cert.py` are the only two, and
+both now have their resulting mode asserted.
+
+**UNDERCOUNT IN THE CS-927 RECORD: "TWO SIBLINGS".** There are THREE live
+restatements of the aggregate endpoint count, not two. The third is
+`clockspeed/surface/web/app.js`, which says "The ten routes BOOTSTRAP.md section
+7.1 publishes" and "Two of the ten routes take a body". It is ACCURATE TODAY,
+live, ungraded and unfiled - and it will go stale at the eleventh route exactly
+as `pending.py` went stale at the tenth. The sweep that produced "two" searched
+for the NUMBER NINE rather than for the SHAPE, so a currently-correct
+restatement was invisible to it. Filed as CS-933.
+
+**A PRESENTATION FAULT, recorded because this file is evidence.** The log block
+quoted in the CS-924 entry is accurate line for line and in order, but it ELIDES
+intermediate lines with no ellipsis marking the cuts - the `HEAD before:` line,
+the gate's own PASS line and five PII skip lines. Presented as a fenced verbatim
+log it reads as contiguous and is not. Future quoted logs mark their cuts.
+
+**WHAT SURVIVED THE PASS.** CS-924's other three claims hold: a real clone, the
+real bootstrap, a real POSIX filesystem, and an unconfigured clone that FAILS
+rather than skips. The `printf` em-dash byte emission is portable on both
+runners and fails loud rather than silent. `HOOKS_PATH` relative resolution is
+correct on both. `scripts/install_hooks.py` is byte-identical across all six of
+this session's commits, verified by blob hash. tier2 run `34079064351` did have
+all seven jobs green - with the caveat, not previously stated, that its head SHA
+is not an ancestor of `main`, so that run says nothing about CS-925 or CS-927;
+those are covered by tier1 `34080228403` instead.
+
 ### 2026-09-07 - CS-924 - CLOSED. A Clockspeed hook has now been measured FIRING on POSIX, in a real clone, at its tracked mode, wired by the real bootstrap - and the item's own premise was REFUTED on the way
 
 **THE ITEM AS FILED WAS FALSE, AND THAT IS RECORDED HERE RATHER THAN QUIETLY
