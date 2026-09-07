@@ -175,10 +175,31 @@ _CYCLE_MODULE_FLOOR: Final = 4
 #: the NEXT full run: a note ABOUT a line pointer is a line pointer as far as
 #: the guard can see, it cannot tell the two apart, and it should not try. Name
 #: the symbol and say the number in prose.
+#: `_ROT_EMPTY` 2 TO 3, 2026-09-07, AND THE NEW SITE WAS READ BEFORE THE PIN
+#: MOVED. CS-928 deleted 144 lines from `docs/ARCHITECTURE.md` - it had attributed
+#: unimplemented capabilities to named modules, three of them files that do not
+#: exist - and section 3 moved up. A wave-4 record in the archive cites that
+#: document to locate where the raw-docs prohibition is scoped, and its target
+#: line is now blank. Two pointers died at that one line: this one, and the
+#: CS-300 pointer in the append-only ledger, which took the adjudicated
+#: forgiveness recorded under CS-928.
+#:
+#: THE RECORDED REASON COVERS THIS SITE, and it is worth saying why rather than
+#: asserting it. The reason is anchored to the archive's own status declaration -
+#: the file says `Section status: HISTORICAL` and `This file holds NOTHING
+#: current`. A record of what a past session measured is not repairable by
+#: editing it; the citation was RIGHT WHEN WRITTEN and the document moved
+#: underneath it. That is rot by construction, which is the stated exemption,
+#: rather than a claim that was ever false.
+#:
+#: NO COLON-NUMBER SHAPE APPEARS IN THIS COMMENT, per the note above: a comment
+#: ABOUT a line pointer is a line pointer to the forbid arm, which cannot tell
+#: the two apart and should not try. The target is named by its document and its
+#: section, and the number is left unspelled.
 ARCHIVE_ROT: Final[Mapping[str, int]] = {
     _ROT_CITATION: 5,
     _ROT_RANGE: 0,
-    _ROT_EMPTY: 2,
+    _ROT_EMPTY: 3,
     _ROT_NAME: 3,
     _ROT_PATH: 4,
     _ROT_FORM: 14,

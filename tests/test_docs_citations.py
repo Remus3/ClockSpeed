@@ -917,6 +917,40 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
         " argv builder. _restrict is live and is the target the sentence means.",
         1,
     ),
+    # THE ONLY ROW IN THIS TABLE THAT COST A CEILING NOTCH, and the only one so
+    # far that ever has. Granted by an adjudicator that authored neither CS-928
+    # nor this row, and defended in `docs/LEDGER.md` rather than typed; the
+    # raise it forced sits in the same change, on
+    # `FORGIVEN_LINE_POINTER_CEILING` below.
+    #
+    # THE POINTER WAS RIGHT WHEN WRITTEN, demonstrated rather than asserted: at
+    # the citing commit `db3b404` the cited line and the one after it were the
+    # solve/ clause and the first line of the advisor/ raw-docs clause, which
+    # are the two the CS-300 sentence names. CS-928 rewrote section 3 under it
+    # and the line went blank.
+    #
+    # NEITHER RECORDED REPAIR REACHES IT. By-name citation, which this project
+    # states as the repair, would mean editing a record inside a carrier whose
+    # own header forbids editing records. The line-count-neutral repair that
+    # answered the CS-896 restructure is not merely costly here but incoherent:
+    # the two pointers into this section moved by five lines and by eight, so
+    # no single padding restores both, and the one that moved by eight was
+    # repaired this session, so restoring the old offsets would re-break it.
+    (LEDGER, line_key("docs/ARCHITECTURE.md", 136)): Disposition(
+        NO_TARGET,
+        "",
+        "the entry reads that line as the seam clause scoping the raw-docs"
+        " prohibition to the advisor layer rather than to every layer. The line"
+        " is blank today. NO_TARGET rather than MOVED because `resolves`"
+        " answers only Python module-scope names, so a markdown heading handed"
+        " to it would be reported dead - the durable target is therefore"
+        " carried here in full for a human to audit, since no machine can:"
+        " section `## 3. Seam discipline` of docs/ARCHITECTURE.md, the"
+        " surviving `solve/ never reads a save` clause under it, and the"
+        " paragraph beginning `One rule on this list constrains code that does"
+        " not exist yet`.",
+        1,
+    ),
     # THE ONE THE REPAIR SLICE REFUSED, and the refusal is the strongest
     # evidence in CS-889 for why a wrong-but-resolving pointer is worse than a
     # dead one. The obvious symbol conversion WOULD have resolved: at an earlier
@@ -1098,13 +1132,29 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
 #:
 #: Pinned as sites for :data:`UNVERIFIED_LINE_POINTERS`' reason - a count alone
 #: is satisfied by any set of the same size.
+#:
+#: CS-928 MOVED ONE OF THESE AND COULD NOT MOVE THE OTHER, and the pair is worth
+#: reading together because it measures exactly what the stated price above buys.
+#: CS-928 rewrote `docs/ARCHITECTURE.md` section 3 and both pointers into it
+#: rotted. The `tests/test_precommit_gate.py` one is a REPAIR - :144 named the
+#: raw-docs paragraph rather than the `tools/` prohibition the comment claims, so
+#: the pointer was re-cut to :141 and this site follows it. Nothing here was
+#: forgiven: a repaired pointer moves the pin, it does not spend one.
+#:
+#: THE LEDGER ONE WAS NOT REPAIRED, because `docs/LEDGER.md` is append-only by
+#: its own header and the repair this table would otherwise demand is an edit
+#: that file forbids. The correcting record is appended instead. That leaves the
+#: pointer live and BLANK, which leg 1 refuses and which no pin here answers -
+#: blankness is not what this table forgives. It is REPORTED rather than
+#: absorbed; see the CS-300 correction record in `docs/LEDGER.md`, which spells the
+#: disposition an adjudicator would have to grant for it to go green.
 UNFORBIDDEN_LINE_POINTERS: Final[frozenset[tuple[str, str, int]]] = frozenset(
     (
         ("docs/LEDGER.md", ".github/workflows/tier1.yml", 130),
         ("docs/LEDGER.md", ".github/workflows/tier1.yml", 250),
         ("docs/LEDGER.md", "docs/ARCHITECTURE.md", 136),
         ("tests/test_docs_citations.py", ".github/workflows/tier1.yml", 250),
-        ("tests/test_precommit_gate.py", "docs/ARCHITECTURE.md", 144),
+        ("tests/test_precommit_gate.py", "docs/ARCHITECTURE.md", 141),
     )
 )
 
@@ -1148,7 +1198,33 @@ UNFORBIDDEN_LINE_POINTERS: Final[frozenset[tuple[str, str, int]]] = frozenset(
 #: invalidate, so the line form is GONE rather than re-cut. The ceiling drops
 #: with it: 65 recorded against 66 is exactly the banked slack this ratchet
 #: exists to refuse.
-FORGIVEN_LINE_POINTER_CEILING: Final = 65
+#: 65 TO 66, THE FIRST RAISE IN THIS RATCHET'S RECORDED HISTORY THAT ACTUALLY
+#: BUYS A FORGIVENESS. Neither raise above is precedent for it, and the
+#: distinction is the entire price. 53 to 66 widened the counted POPULATION and
+#: forgave nothing - its own paragraph says so - and 66 to 65 was a repair. This
+#: one adds a NO_TARGET disposition for a pointer no repair can reach, so
+#: "a ratchet that has only ever come down" is FALSE and is deliberately not
+#: written anywhere here. The true and narrower claim is that until now no raise
+#: had ever spent a forgiveness.
+#:
+#: IT WAS UNAVOIDABLE RATHER THAN CONVENIENT. The carrier is `docs/LEDGER.md`,
+#: which forbids editing the record that spells the pointer, so the by-name
+#: repair cannot be applied to it; and the line-count-neutral alternative is not
+#: merely costly but incoherent, because the two pointers into the rewritten
+#: section moved by five lines and by eight and no single padding restores both.
+#: Silently raising a ceiling to make a red test green stays forbidden - what
+#: happened here is the argued raise the docstring below was built to permit,
+#: and the argument is in `docs/LEDGER.md` under CS-928.
+#:
+#: THE NOTCH IS RECLAIMED, and this is stated so the forgiveness is not
+#: permanent by default: when this arm can verify a markdown target by HEADING
+#: PRESENCE the way it already verifies a Python one by name, the row above
+#: converts from an unverifiable NO_TARGET to a checked MOVED and the ceiling
+#: comes back to 65. That capability is the target side of the line-pointer
+#: gap filed as CS-937. Nothing else discharges it: a later record merely
+#: MENTIONING the file is the markdown keyword detector CS-899 already priced
+#: and REFUSED for failing in the permissive direction.
+FORGIVEN_LINE_POINTER_CEILING: Final = 66
 
 # --- resolution -------------------------------------------------------------
 
@@ -1757,33 +1833,30 @@ DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
     ): 1,
 }
 
-#: R3's live membership, DISCLOSED. Six are the module map's package-relative
-#: spellings of the three planned advisor modules - the same three the reason
-#: table answers in their repo-relative spelling, which is what makes the pair
-#: readable as one residual rather than two. Three are a guard's own
-#: metasyntactic example paths, under roots this repository does not own.
+#: R3's live membership, DISCLOSED. Three are the names of the three files
+#: CS-928 proved never existed, spelled at module scope by the guard that now
+#: asserts their absence - each twice, once in the roster it walks and once in
+#: the prose that says why. Three are a guard's own metasyntactic example
+#: paths, under roots this repository does not own.
+#:
+#: WHAT THIS ROW SET USED TO BE IS THE POINT OF READING IT. Six of the nine
+#: were `docs/ARCHITECTURE.md` spelling those same three names - the rows below
+#: carry the spelling - under Pillar 5, section 5.1 and section 6.2, in
+#: sentences that said what each of those files DID. They said it of files that
+#: do not exist. The rung declined them for a reason that was true and
+#: irrelevant - `advisor/` is not a repository root, so the ladder could not
+#: resolve them either way - and the disclosure recorded the decline without
+#: anything ever asking whether the sentence above it was true. CS-928 asked.
+#: The six sites are gone; the three that replaced them are a test ASSERTING
+#: the absence rather than a doc ASSUMING the presence, which is the same
+#: spelling doing the opposite job.
 #:
 #: PINNED AND BUDGETED, for the table above's reason.
 DECLINED_UNDER_AN_UNTRACKED_ROOT: Final[Mapping[tuple[str, str, str], int]] = {
-    (
-        "docs/ARCHITECTURE.md",
-        "advisor/cards.py",
-        "### 5.1 The critical constraint: one trace, three projections",
-    ): 1,
-    ("docs/ARCHITECTURE.md", "advisor/cards.py", "### Pillar 5 - The advisor"): 1,
-    (
-        "docs/ARCHITECTURE.md",
-        "advisor/ledger.py",
-        "### 6.2 Two persistence layers, both durable across sessions, reloads and patches",
-    ): 1,
-    ("docs/ARCHITECTURE.md", "advisor/ledger.py", "### Pillar 5 - The advisor"): 1,
-    (
-        "docs/ARCHITECTURE.md",
-        "advisor/trace.py",
-        "### 5.1 The critical constraint: one trace, three projections",
-    ): 1,
-    ("docs/ARCHITECTURE.md", "advisor/trace.py", "### Pillar 5 - The advisor"): 1,
     ("tests/data/test_drift_guard_data.py", "notes/DONE.md", "_WORK_ITEM_CLAUDE_MD"): 1,
+    ("tests/test_architecture_attributions.py", "advisor/cards.py", ""): 2,
+    ("tests/test_architecture_attributions.py", "advisor/ledger.py", ""): 2,
+    ("tests/test_architecture_attributions.py", "advisor/trace.py", ""): 2,
     ("tests/test_chained_cause_census.py", "also/not/frozen.py", "_FROZEN_MARKDOWN"): 1,
     ("tests/test_chained_cause_census.py", "not/frozen.py", "_FROZEN_MARKDOWN"): 1,
 }
@@ -1827,23 +1900,38 @@ DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
 #: integer literal a person typed, which
 #: :func:`derived_bound_problems` is what keeps true.
 DECLARED_UNTRACKED_CEILING: Final = 7
-UNTRACKED_ROOT_CEILING: Final = 9
+#: 9 TO 6 WHEN CS-928 DELETED THE THREE FALSE ADVISOR ATTRIBUTIONS. Six
+#: `docs/ARCHITECTURE.md` rows left the rung and three arrived from the guard
+#: that now asserts those files absent, so the disclosure holds six rows and the
+#: ceiling comes down to six. It counts ROWS, not sites: the three new rows
+#: disclose two sites each.
+UNTRACKED_ROOT_CEILING: Final = 6
 FIXTURE_LITERAL_CEILING: Final = 7
 
 #: THE ONLY BUDGET IN THIS SECTION. Everything above is a disclosure that
 #: cannot be added to; this is the escape hatch, and it ratchets.
 #:
-#: SEVEN ENTRIES, FOUR OF ONE KIND AND THREE OF ANOTHER, and each is checked
+#: FOUR ENTRIES, TWO OF ONE KIND AND TWO SINGLETONS, and each is checked
 #: against the corpus in three directions by
 #: :func:`bare_path_reason_problems`.
 #:
-#: - THREE PLANNED MODULES, cited repo-relative in the module map and twice
-#:   more in the phase leaves that plan them. `docs/ARCHITECTURE.md` documents
-#:   what phase 5 will build, so its advisor rows name modules that do not
-#:   exist yet. Deleting the rows would make the architecture doc silent about
-#:   the phase it exists to describe; creating empty modules to satisfy a guard
-#:   would be the guard writing the code. The citation is right and the tree
-#:   has not caught up.
+#: - ONE PLANNED MODULE, named twice by the two phase leaves that plan it - the
+#:   card-state store phase 5 will build. A leaf that plans a module has to be
+#:   able to name it, and creating an empty module to satisfy a guard would be
+#:   the guard writing the code. The citation is right and the tree has not
+#:   caught up. The rows below carry the spelling; this bullet does not, for
+#:   the reason the fourth one gives.
+#:
+#:   THIS BULLET USED TO READ "THREE PLANNED MODULES, cited repo-relative in
+#:   the module map", and the module-map half was WRONG - not stale, wrong. It
+#:   forgave `docs/ARCHITECTURE.md` for attributing owned capability to three
+#:   advisor modules that have never existed, on the argument that "deleting
+#:   the rows would make the architecture doc silent about the phase it exists
+#:   to describe". CS-928 refuted that: the doc now says NOT BUILT and names
+#:   what `BOOTSTRAP.md` specifies, which is neither silence nor a false
+#:   attribution. The three rows went with it and their forgivenesses are spent
+#:   down here. A record that outlives what it answered is the direction
+#:   :func:`stale_pin_problems` exists to catch, and it caught these.
 #: - ONE PATH DELIBERATELY NOT CREATED, QUOTED RATHER THAN CITED. ADR 0010
 #:   records the decision that the item-notes family gets no index file of that
 #:   name, and it names the path in order to say so. This is trap 4 in the
@@ -1856,25 +1944,6 @@ FIXTURE_LITERAL_CEILING: Final = 7
 #:   alternative - describing the member without naming it - trades a checked
 #:   record for vaguer prose.
 BARE_PATH_REASONS: Final[Mapping[tuple[str, str, str], BarePathReason]] = {
-    (
-        "docs/ARCHITECTURE.md",
-        bare_path("clockspeed", "advisor", "cards.py"),
-        "### 1.1 What each module owns",
-    ): BarePathReason(
-        "a phase 5 module the architecture doc plans and the tree has not built."
-        " Deleting the row would silence the doc about the phase it describes.",
-        1,
-    ),
-    (
-        "docs/ARCHITECTURE.md",
-        bare_path("clockspeed", "advisor", "ledger.py"),
-        "### 1.1 What each module owns",
-    ): BarePathReason("a phase 5 module the architecture doc plans; see the row above.", 1),
-    (
-        "docs/ARCHITECTURE.md",
-        bare_path("clockspeed", "advisor", "trace.py"),
-        "### 1.1 What each module owns",
-    ): BarePathReason("a phase 5 module the architecture doc plans; see the row above.", 1),
     (
         "docs/adr/0010-item-notes-is-an-index-over-per-phase-leaves.md",
         bare_path("docs", "item_notes", "README.md"),
@@ -1908,7 +1977,12 @@ BARE_PATH_REASONS: Final[Mapping[tuple[str, str, str], BarePathReason]] = {
 #: THE BARE-PATH RATCHET'S RECORDED BUDGET, SEPARATE from the line-pointer one
 #: for the reason :func:`bare_path_budget_problems` states. Checked in BOTH
 #: directions, so it can only come down.
-BARE_PATH_REASON_CEILING: Final = 7
+#:
+#: 7 TO 4 WHEN CS-928 REPAIRED THE MODULE MAP. Three forgivenesses were spent on
+#: rows that attributed owned capability to three files that do not exist; the
+#: rows are gone and the ceiling comes down with them. The ratchet caught this
+#: itself - the reason table reported all three stale before the number moved.
+BARE_PATH_REASON_CEILING: Final = 4
 
 #: The floor under the live population, so the live arm cannot pass on nothing.
 #: An `assert not problems` is byte-identical whether the property holds or
@@ -3903,11 +3977,51 @@ def test_the_recorded_exemptions_are_the_only_files_the_line_arm_declines(
 
 # --- contract 9: CS-891 - the bare path is judged, and each decline is a rule -
 
-#: How many package-relative paths the module map must resolve by suffix before
-#: that arm is measuring the population it describes. A FLOOR rather than a pin:
-#: ten resolve today, and a doc that grows a row should not spend an
-#: adjudication.
-_ARCHITECTURE_SUFFIX_FLOOR: Final = 8
+#: How many `docs/ARCHITECTURE.md` paths the ladder must ANSWER - at any rung
+#: that resolves - before that arm's empty finding list is an answer rather than
+#: silence. 33 do today: 28 at R0 and 5 at R1.
+#:
+#: THIS FLOOR USED TO COUNT R1 ALONE, AND THAT WAS THE WRONG SUBJECT. It read
+#: ``_ARCHITECTURE_SUFFIX_FLOOR: Final = 8`` against ten R1 hits, two rows of
+#: slack under a census. CS-928 deleted five of those ten and the floor called
+#: an improvement a regression. WHAT THE FIVE WERE, measured rather than
+#: assumed: `data/registry.py` and `save/world.py` under Pillar 3 and again
+#: under Pillar 4, and `solve/power.py` under Pillar 1. All five were inside
+#: "**Implemented by:**" sentences attributing pillars 3 and 4 to `audit/` and
+#: `progress/`, which hold a package docstring each and no code. Deleting a
+#: false attribution is the repair working. A vacuity floor that reddens when
+#: one lands is measuring the wrong thing.
+#:
+#: A HYPOTHESIS THIS REFUTES, recorded because it is the plausible wrong answer.
+#: The five were NOT re-spelled fully qualified and promoted to R0. R0 did rise
+#: by five over the same edit, but by six arrivals less one departure, and not
+#: one of the six is a re-spelling of a lost R1 path: they are
+#: `clockspeed/surface/api/pending.py`, four phase-gate test modules under
+#: section 3.1, and `tests/test_architecture_attributions.py`. Nothing moved
+#: rungs. Five citations were deleted because the claims around them were
+#: false, and five more arrived elsewhere for unrelated reasons.
+#:
+#: WHY THE SUBJECT IS "RESOLVES AT ALL". The arm's finding list is
+#: AMBIGUOUS_SUFFIX plus UNRESOLVED, and an empty one is only an answer if the
+#: ladder read a real population out of this doc. That population is every path
+#: it ANSWERED, whichever rung answered it. Counting one rung made the floor
+#: hostage to which SPELLING the prose happens to use, so every future repair
+#: that deletes a suffix-spelled citation would demand another lowering, and a
+#: floor lowered on each repair reaches zero while staying green - which is the
+#: defect :func:`floor_problems` exists to prevent, arrived by instalments.
+#:
+#: TWELVE, AND THE TWO NUMBERS IT SITS BETWEEN. Section 1.1's module map alone
+#: answers 17 - one row per module, a table rather than prose, so it cannot
+#: shrink far without the doc ceasing to be a module map. Every way the reader
+#: can fail produces 0 or near it: a carrier dropped from the population, a
+#: regex that stops matching, an empty tracked set. 12 is five rows under the
+#: structural core and an order of magnitude over the failure mode, so ordinary
+#: prose churn cannot reach it and a collapse cannot miss it.
+#:
+#: R1 IS STILL ASSERTED ON THIS DOC, as a bare non-empty check in the arm
+#: itself. A number there is what went wrong; a floor of one is not a budget
+#: anybody can shave.
+_ARCHITECTURE_RESOLVED_FLOOR: Final = 12
 
 #: How many bare paths this module must spell of its own before the
 #: self-infliction arm's clean answer is worth anything. Measured well above
@@ -4102,11 +4216,23 @@ def test_the_architecture_module_map_resolves_by_unique_suffix_not_by_reporting(
     than resolved.
 
     ASSERTED ON THE LIVE DOC rather than on a plant, because the claim is about
-    this corpus: that the arm's findings here are the three planned modules and
-    nothing else.
+    this corpus: that this doc's paths are ANSWERED by the ladder and none is
+    left ambiguous or dead.
+
+    THE NON-VACUITY SUBJECT IS THE ANSWERED POPULATION, NOT R1's SHARE OF IT.
+    See :data:`_ARCHITECTURE_RESOLVED_FLOOR`, which records what counting R1
+    alone cost. R1 keeps a non-empty check of its own here so the rung this arm
+    is named for is still exercised against the live doc, and it is a bare
+    assertion rather than a number precisely because a number is what rotted.
     """
     doc = "docs/ARCHITECTURE.md"
     by_suffix = [site for site in live_bare_path_ladder[RESOLVED_SUFFIX] if site.carrier == doc]
+    answered = [
+        site
+        for rung in (RESOLVED_EXACT, RESOLVED_SUFFIX)
+        for site in live_bare_path_ladder[rung]
+        if site.carrier == doc
+    ]
     unanswered = [
         site
         for rung in (AMBIGUOUS_SUFFIX, UNRESOLVED)
@@ -4115,10 +4241,14 @@ def test_the_architecture_module_map_resolves_by_unique_suffix_not_by_reporting(
     ]
 
     short = floor_problems(
-        "module-map paths resolving by suffix", len(by_suffix), _ARCHITECTURE_SUFFIX_FLOOR
+        "module-map paths the ladder answers", len(answered), _ARCHITECTURE_RESOLVED_FLOOR
     )
 
     assert not short, "\n".join(short) + (" This arm is not measuring the population it describes.")
+    assert by_suffix, (
+        "no path in this doc resolves by unique suffix, so R1 - the rung this arm exists"
+        " to assert - is unexercised here and an empty finding list says nothing about it"
+    )
     assert not unanswered, "module-map paths the ladder could not answer:\n" + "\n".join(
         f"  {site.cited} under {site.anchor}" for site in unanswered
     )
@@ -4891,7 +5021,7 @@ def test_appending_to_a_decline_disclosure_spends_its_budget() -> None:
     ("what", "floor"),
     [
         ("bare-path sites", BARE_PATH_POPULATION_FLOOR),
-        ("module-map paths resolving by suffix", _ARCHITECTURE_SUFFIX_FLOOR),
+        ("module-map paths the ladder answers", _ARCHITECTURE_RESOLVED_FLOOR),
         ("bare paths spelled by this module", _SELF_SPELLED_FLOOR),
     ],
 )
@@ -4929,7 +5059,7 @@ def test_every_floor_this_module_uses_is_one_this_arm_grades() -> None:
     assert used, "this module passes no named floor to floor_problems at all"
     graded = {
         "BARE_PATH_POPULATION_FLOOR",
-        "_ARCHITECTURE_SUFFIX_FLOOR",
+        "_ARCHITECTURE_RESOLVED_FLOOR",
         "_SELF_SPELLED_FLOOR",
     }
     ungraded = sorted(used - graded)

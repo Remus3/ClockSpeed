@@ -2015,7 +2015,7 @@ def test_the_same_commit_is_blocked_without_the_exclusion(
 # why four of the tests below are about the gate SURVIVING rather than about
 # it blocking.
 #
-# The seam is not violated: docs/ARCHITECTURE.md:144 prohibits clockspeed/
+# The seam is not violated: docs/ARCHITECTURE.md:141 prohibits clockspeed/
 # importing tools/ and NOT the reverse, and tools/drift_guard.py already
 # lazily imports clockspeed.data.* and records that direction as correct.
 

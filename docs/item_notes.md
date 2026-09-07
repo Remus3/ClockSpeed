@@ -209,10 +209,15 @@ a pass - every equality here is satisfied for free by an empty population.
 | CS-917 | `docs/item_notes/phase4-followups-900.md` |
 | CS-919 | `docs/item_notes/phase4-followups-900.md` |
 | CS-920 | `docs/item_notes/phase4-followups-900.md` |
-| CS-928 | `docs/item_notes/phase4-followups-900.md` |
 | CS-929 | `docs/item_notes/phase4-followups-900.md` |
 | CS-930 | `docs/item_notes/phase4-followups-900.md` |
 | CS-933 | `docs/item_notes/phase4-followups-900.md` |
+| CS-934 | `docs/item_notes/phase4-followups-900.md` |
+| CS-936 | `docs/item_notes/phase4-followups-900.md` |
+| CS-937 | `docs/item_notes/phase4-followups-900.md` |
+| CS-938 | `docs/item_notes/phase4-followups-900.md` |
+| CS-939 | `docs/item_notes/phase4-followups-900.md` |
+| CS-940 | `docs/item_notes/phase4-followups-900.md` |
 | CS-909 | `docs/item_notes/phase6.md` |
 | CS-910 | `docs/item_notes/phase6.md` |
 | CS-876 | `docs/item_notes/phase4-followups-850.md` |

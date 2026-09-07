@@ -160,6 +160,323 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-07 - CS-928 - CLOSED. The file that OWNS the module map attributed 33 unimplemented capabilities to named modules, three of which do not exist on disk
+
+**What changed.** `docs/ARCHITECTURE.md` reproduced `BOOTSTRAP.md` spec-of-intent
+prose and appended `**Implemented by:**` lines naming shipped modules, converting
+statements of intent into false claims about shipped code. 144 lines deleted, 80
+inserted. Pillars 3, 4 and 5 now carry `**Status:** specified in `BOOTSTRAP.md`
+section 4, NOT BUILT` in place of an attribution, and the module map marks
+`audit/`, `progress/` and `advisor/rules/` as NOTHING YET.
+
+**Verification pointer.** Merged file `docs/ARCHITECTURE.md`; the arm is
+`tests/test_architecture_attributions.py`. It was proven to REDDEN before it was
+trusted: run against the pre-repair document it reported 20 failed, 127 passed;
+against the repaired one, 134 passed. Non-vacuity was measured, not asserted - 53
+paths, 32 tree entries, 33 witnesses and 4 NOT BUILT sections graded, and three
+planted document mutations each reddened, one of them caught ONLY by the
+anti-drift tiling check that requires every capability sentence to carry a
+manifest entry. The document was restored byte-identically from a pre-mutation
+snapshot rather than from git, because a restore from git would have discarded the
+uncommitted repair.
+
+**THE MEASUREMENT, per pillar, taken by three agents that did not write the repair.**
+Pillar 1: 5 of 12 clauses absent, including the headline promise - there is no
+expansion that discovers intermediates, the recipe set is caller-supplied. Pillar
+2: 3 of 15 absent, all three being advertised objectives with ZERO occurrences
+anywhere in `clockspeed/`. Pillars 3 and 4: 19 of 19 absent, both packages holding
+a docstring and no code. Pillar 5: 6 of 7 absent, and three of its five attributed
+files have never existed. A separate sweep found 20 further false attributions
+outside the five attribution lines, so the write-list was the whole file.
+
+**Two traps recorded because a checker that falls for either is worthless.**
+`audit_exact` in `clockspeed/solve/exact.py` is a float-absence assertion, not a
+world audit, and lives OUTSIDE the attributed package - a keyword grep scores
+pillar 3 as partially present. And `tests/test_scaffold.py` already named both
+empty packages while asserting only directory existence and importability, so it
+passed green against exactly the state that made the document false. A test naming
+a module is not a test measuring it.
+
+**Same defect class, two further files, both corrected here.** `pyproject.toml`
+claimed pillar 2 ships a branch-and-bound or weighted-greedy search behind
+`OptimizerBackend`; `branch-and-bound` returns zero hits across `clockspeed/`, and
+the description now names the two backends that exist. A stale line pointer in
+`tests/test_precommit_gate.py` was repaired, and its own weakness filed as CS-937.
+
+**Decision, recorded so it is not re-litigated.** An unbuilt pillar KEEPS its
+section and loses its attribution, rather than being deleted. An architecture
+document may describe a planned layer; what it may never do is attribute an
+unbuilt capability to a named module. Do not re-pitch deleting the sections, and
+do not re-pitch keeping the prose while dropping the `Implemented by:` line - the
+prose is the claim and the attribution only dates it.
+
+**No license gate was engaged; nothing external was consulted or vendored.**
+
+### 2026-09-07 - CS-935 - CLOSED. The frozen-file grant was applied, and the adjudicator's two conditions were the ones that mattered
+
+**What changed.** Three operator-environment keys left the tracked, frozen
+`.claude/settings.json`: `defaultMode`, `effortLevel`, and the duplicated
+`permissions.defaultMode`. Diff is exactly 3 deletions, 0 insertions. `$schema`,
+`env`, `hooks` and the `permissions` object with both empty arrays are preserved.
+
+**Verification pointer.** Merged file `.claude/settings.json`; proven by
+`tests/test_pretooluse_gate.py`, observed at 59 passed, exit 0, after the edit.
+All four of that module's settings reads touch only `hooks`, and no guard asserts
+`defaultMode`, which is why the removal is invisible to the suite by design rather
+than by luck. The grant record precedes this entry in this file, per CLAUDE.md
+section 6.
+
+**THE TWO HAZARDS THE PROPOSAL DID NOT KNOW ABOUT.** First, the gitignored local
+settings file ALREADY EXISTED and already carried the `SessionStart` hook running
+`tools/inbox_watch.py` plus five allow entries. A fresh write would have destroyed
+the inbox watcher AND NO GUARD WOULD HAVE NOTICED, because a gitignored file is
+invisible to `git ls-files`. It was merged, and the hook and all five entries were
+asserted present afterwards. Second, the RECORD of the grant nearly broke the
+build before the edit did: a citation budget was spent exactly, so an entry citing
+the local settings file by bare path would have derived one site too many. That
+file is named here through its ignore-file line instead. The ceiling was NOT
+raised.
+
+**Decision.** The severity claim that reached this repo through the note channel -
+that tracked permission keys arrive silently with a checkout and are honoured -
+was WITHDRAWN by its own author, on the ground that a path-keyed trust gate sits
+above the settings file. That withdrawal is accepted and is NOT re-asserted here.
+This was a category correction, not a security fix. Do not re-pitch it as one.
+
+**The grant was single-use and EXPIRED ON APPLICATION.** It does not cover any
+future hook rewiring, and specifically does not cover CS-938, whose fix edits the
+same frozen file and needs its own grant.
+
+### 2026-09-07 - CS-928, CS-937 - FORGIVENESS GRANT. The first raise of `FORGIVEN_LINE_POINTER_CEILING` that actually spends a forgiveness, and the condition under which it is taken back
+
+**CS-937 STAYS OPEN and this entry does not close it.** It appears in the heading
+because the forgiveness taken here is the reason CS-937 was filed, not because
+anything about it shipped. CS-937 owns the weakness that a line pointer whose only
+content check is non-blankness certifies a pointer naming the wrong rule, and that
+weakness is untouched. Its OPEN line lives in `ROADMAP.md`, which remains its sole
+owner. CS-928 is the item this entry's grant belongs to and the only one it closes
+anything for.
+
+**WHAT WAS FORGIVEN, exactly one thing.** A `NO_TARGET` disposition in
+`tests/test_docs_citations.py::DISPOSITIONS` for the line pointer this file's own
+CS-300 entry carries into `docs/ARCHITECTURE.md`, plus the raise of
+`tests/test_docs_citations.py::FORGIVEN_LINE_POINTER_CEILING` from 65 to 66 that the
+budget forces into the same change. That is the whole of it: one row, one number, no
+other ceiling touched and no other table widened. The disposition names no target to
+verify, so it silences
+`tests/test_docs_citations.py::test_no_line_pointer_in_the_scoped_population_lands_on_nothing`
+on that one site and buys nothing else.
+
+**WHY IT WAS UNAVOIDABLE RATHER THAN CONVENIENT, which is the only thing that
+distinguishes a grant from an escape.** Both repairs this repository has recorded for
+a rotted pointer are unavailable here, and neither was ruled out by taste. By-name
+citation - the repair this project states - would mean editing the CS-300 record, and
+the header of this file forbids editing a record once written; a correction can only
+be appended, and an appended correction does not move the pointer the guard reads. The
+line-count-neutral edit that answered the CS-896 restructure was measured and is
+INCOHERENT here rather than merely expensive: CS-928 moved the section heading up five
+lines and the `tools/` clause up eight, so no single padding restores both offsets, and
+the second pointer's repair is already in this session's diff and is a genuine
+correctness fix, so restoring the old offsets would re-break a pointer that was just
+corrected. Deleting the pointer is the same forbidden edit wearing a different hat.
+
+**THE POINTER WAS RIGHT WHEN WRITTEN AND ITS TARGET MOVED UNDER A REPAIR.** This was
+demonstrated against the citing commit rather than assumed: `git show db3b404` puts the
+`solve/` clause and the first line of the `advisor/` raw-docs clause on exactly the two
+lines the CS-300 sentence names. The record has no defect. What happened is that CS-928
+rewrote section 3 of `docs/ARCHITECTURE.md` to remove capability claims that were not
+true, and a correct citation into a corrected document went blank. Forgiving a pointer
+that was WRONG WHEN WRITTEN would be a different act entirely and this grant is not
+authority for it - the ROADMAP item CS-937 exists precisely because one such pointer was
+found this session, sat wrong for three weeks, and no guard caught it.
+
+**WHAT WOULD HAVE TO BE TRUE FOR THE NOTCH TO BE RECLAIMED.** A forgiveness with no
+stated reclamation condition is a permanent one, so the condition is written here and in
+the ceiling comment both. When the line-pointer arm can verify a MARKDOWN target by
+heading presence the way it already verifies a Python target by module-scope name, this
+disposition converts from an unverifiable `NO_TARGET` to a checked redirect naming
+section `## 3. Seam discipline`, and the ceiling returns to 65. That capability is the
+target-side half of the gap filed as CS-937. Two things explicitly do NOT discharge it.
+A later record merely mentioning `docs/ARCHITECTURE.md` does not, because that is the
+markdown keyword detector CS-899 already priced and REFUSED for failing in the
+permissive direction - it would forgive every dead pointer into the file at once. And a
+human re-reading the `why` string does not, because the whole defect being paid for is
+that no machine can check it.
+
+**THE FENCE, recorded so the next agent inherits the boundary and not just the
+precedent.** This grant authorises a forgiveness ONLY where all four hold together: the
+carrier declares itself append-only in its own header, so the pointer cannot be re-cut;
+the pointer was right when written, shown against the citing commit rather than
+asserted; a correcting record naming the durable target has already been appended; and
+the raise sits in the same change as the disposition and is defended in a record by an
+adjudicator who authored neither. It is NOT authority for a raise in a repairable
+carrier, a raise to clear a pointer that was wrong when written, a raise taken by the
+agent that caused the rot, or a raise banked ahead of need - the budget's under-ceiling
+leg refuses that last one on its own, which is why 66 is recorded against 66 rather than
+left slack.
+
+**TWO REDS ARE LEFT STANDING RATHER THAN CLEARED, and they are named here because a
+second forgiveness taken to make the first one work is how a budget dies.** Neither is
+this grant's business and neither is touched by it. `test_the_unforbidden_line_pointer_residual_is_pinned_in_both_directions`
+and `test_no_line_pointer_names_a_tracked_python_module_without_a_record` both redden on
+line pointers that arrived in `ROADMAP.md` and in this file AFTER the adjudication was
+frozen, spelled as the SUBJECTS of the CS-937 filing and of the correction record above
+rather than as citations. That is the quoting-versus-citing shape CS-899 owns and it is
+a different finding with a different fix; it must not be paid for out of this ceiling.
+
+**VERIFIED BY** `tests/test_docs_citations.py::test_no_line_pointer_in_the_scoped_population_lands_on_nothing`
+passing on the CS-300 site, `tests/test_docs_citations.py::test_the_forgiveness_budget_is_spent_exactly_and_cannot_grow`
+holding at 66 against 66, and
+`tests/test_docs_citations.py::test_every_recorded_disposition_covers_exactly_the_sites_it_records`
+holding the new row at one site - which is also why neither this record nor the ceiling
+comment spells the forgiven pointer in its line form anywhere: a second spelling would
+be a second site under an existing forgiveness, which is the exact drift that check
+exists to catch.
+
+### 2026-09-07 - CS-300, CS-928 - CORRECTION RECORD. The CS-300 entry below carries a line pointer into `docs/ARCHITECTURE.md` that CS-928 moved, and one of the two rotted pointers it moved CANNOT be repaired
+
+**THIS ENTRY CORRECTS THE CS-300 ENTRY BELOW IT, which is append-only and therefore
+not edited.** That entry cites `docs/ARCHITECTURE.md` by LINE to support its claim
+that the raw-docs prohibition is scoped to the advisor layer rather than to every
+layer. The claim is still TRUE and the pointer is now WRONG. CS-928 rewrote that
+file's section 3; the section heading moved up five lines and the scoped-prohibition
+paragraph moved down, so the cited line is now blank. Read the CS-300 entry as citing
+the paragraph that begins "One rule on this list constrains code that does not exist
+yet" under section 3 of `docs/ARCHITECTURE.md`. Cite that section BY NAME, not by
+line, which is this file's stated repair and is what the surviving pointer above
+already does.
+
+**A SECOND POINTER ROTTED THE SAME WAY AND WAS REPAIRED RATHER THAN RECORDED.**
+`tests/test_precommit_gate.py` cited the same section by line to say the `tools/`
+prohibition runs one way only. It named the wrong rule after the rewrite - a
+paragraph about unbuilt layers - and NO GUARD CAUGHT IT, because the line it landed
+on is not blank and nothing checks that a line pointer names the rule its sentence
+describes. That file is not append-only, so the pointer was re-cut and its pin in
+`tests/test_docs_citations.py` moved with it. The gap is real and is filed: a
+line-pointer arm whose only content check is non-blankness passes any pointer that
+names the wrong thing.
+
+**WHAT LEAVES THIS SESSION RED, stated rather than absorbed.**
+`tests/test_docs_citations.py::test_no_line_pointer_in_the_scoped_population_lands_on_nothing`
+fails on the CS-300 pointer above and this record does not make it pass. The two
+repairs this repository has recorded for the shape are both unavailable: by-name
+citation cannot be applied to a file that forbids editing the record, and the
+line-count-neutral edit that answered the CS-896 restructure would mean padding a
+repaired doc back to a stale offset. Going green needs a `NO_TARGET` disposition and
+a raise of `FORGIVEN_LINE_POINTER_CEILING`. That is an adjudicator's grant, not a
+builder's, and it was not taken.
+
+**TWO CLAIMS IN THE PARAGRAPH ABOVE WERE WRONG WHEN FIRST DRAFTED AND ARE CORRECTED
+HERE BEFORE THIS RECORD LANDS**, because a record is append-only once committed and
+an error carried into it can afterwards only be answered, never removed:
+
+- The first draft called `FORGIVEN_LINE_POINTER_CEILING` "a ratchet that has only
+  ever come down". FALSE. The ceiling's own comment records a raise, `53 TO
+  66`. The substantive point survives in a narrower form and only in that form: THAT
+  raise bought no forgiveness - an adversary had shown the budget was counting only
+  line-pointer-keyed dispositions, so it was an accounting correction that TIGHTENED
+  the ratchet. A raise to 66 would be the first that actually spends a forgiveness,
+  which is why it needs a grant. The blanket claim would have been a false premise
+  sitting in the permanent record, and the next session would have inherited it.
+- The first draft attributed the line-count-neutral repair to CS-859. WRONG ITEM.
+  CS-859 is an OPEN prose-fence item against `tests/test_redaction_scope.py`. The
+  neutral edit belongs to CS-896, recorded in this file's own CS-896 entry, and
+  the clause that actually decides the precedent is the one the first draft dropped:
+  it is an argument for by-name citation, which this repository already states as its
+  repair. Cited to the wrong item, the precedent reads as supporting padding; cited
+  correctly, it argues against it.
+
+**THREE CITATION RECORDS WERE SPENT DOWN, WHICH IS THE REPAIR SHOWING UP AS A
+NUMBER.** `BARE_PATH_REASONS` forgave `docs/ARCHITECTURE.md` for naming three advisor
+modules that have never existed, on the argument that deleting the rows would silence
+the doc about the phase it describes. CS-928 refuted that argument and deleted the
+rows, so the three forgivenesses are gone and `BARE_PATH_REASON_CEILING` drops from 7
+to 4. `DECLINED_UNDER_AN_UNTRACKED_ROOT` lost the six package-relative spellings of
+the same three files and gained three rows from
+`tests/test_architecture_attributions.py`, which now ASSERTS their absence where the
+doc used to ASSUME their presence; `UNTRACKED_ROOT_CEILING` drops from 9 to 6.
+
+**A NON-VACUITY FLOOR WAS MEASURING THE WRONG POPULATION AND WAS REPOINTED RATHER
+THAN LOWERED.** The floor under the module-map arm counted only the paths resolving
+by unique suffix, calibrated two rows under the ten observed. CS-928 deleted five of
+those ten and the floor called an improvement a regression. The five were measured,
+not assumed: they sat inside "Implemented by" sentences attributing pillars 3 and 4
+to packages holding a docstring and no code. A HYPOTHESIS THAT THOSE FIVE HAD MERELY
+MOVED TO A STRONGER RUNG WAS TESTED AND REFUTED - the exact-match rung did rise by
+five over the same edit, but by six unrelated arrivals less one departure, and not
+one of the six is a re-spelling of a lost path. Nothing changed rungs. The floor now
+counts every path the ladder ANSWERS at any resolving rung, which is the property
+that makes an empty finding list an answer, and the rung the arm is named for keeps a
+bare non-empty assertion of its own so it stays exercised without a number to shave.
+
+**AND THE SAME DEFECT CLASS WAS FOUND IN A THIRD FILE.** `pyproject.toml` said
+pillar 2 ships "a branch-and-bound or weighted-greedy search" behind
+`OptimizerBackend`. There is no branch-and-bound anywhere in `clockspeed/`; the
+shipped backends are `ExhaustiveBackend` and `GreedyBackend`. The sentence was
+lifted from `BOOTSTRAP.md`, where it is spec written in the future tense, and
+restated in the present tense as a description of the tree - which is CS-928's
+mechanism exactly, one file over. Corrected to name what is actually behind the seam.
+
+---
+
+### 2026-09-06 - CS-935 - FROZEN-FILE GRANT, recorded BEFORE the edit per CLAUDE.md section 6
+
+**This is a grant record, not a completion record.** It authorizes ONE edit to
+`.claude/settings.json`, which CLAUDE.md section 6 freezes. The operator approved
+the change in principle; an adjudicator that did not propose it ruled GRANTED WITH
+CONDITIONS on the scope. The closing record is separate.
+
+**WHAT IS AUTHORIZED, and nothing else:** deleting exactly three keys - `defaultMode`
+(top level), `effortLevel` (top level) and `permissions.defaultMode`. The `$schema`,
+`env`, `hooks` and `permissions` objects are preserved, with `allow` and `deny`
+retained as empty arrays so the object does not disappear.
+
+**WHY.** The three keys hold a value identical across all five sibling projects on
+this machine, which makes them a description of the operator's environment rather
+than configuration of this repository. The stronger claim that reached this repo
+through the note channel - that tracked permission keys arrive silently with a
+checkout and are honoured - was WITHDRAWN by its own author after a correction, on
+the ground that a path-keyed trust gate sits above the settings file. That
+withdrawal is accepted here and the severity is NOT re-asserted. This is a category
+correction, not a security fix, and the record says so rather than borrowing an
+urgency the measurement does not support.
+
+**THE POSTURE DOES NOT CHANGE, and that was measured rather than assumed.** The
+user-level settings file on this machine already sets the same keys, so the
+repo-level copy is redundant. `bypassPermissions` is a LOOSENING rather than a
+protection, so removing it can only move the posture toward more prompting, never
+toward less. A tidy that silently weakened a gate would have been denied.
+
+**TWO HAZARDS THE PROPOSAL DID NOT KNOW ABOUT, both caught by the adjudicator and
+both now binding conditions:**
+
+1. The gitignored local settings file - the one ignored at `.gitignore:149` -
+   ALREADY EXISTS and already carries the CS-932 `SessionStart` hook that runs
+   `tools/inbox_watch.py`, plus five `permissions.allow` entries. A fresh write of
+   that file would have destroyed the inbox watcher, and NO GUARD WOULD HAVE
+   NOTICED, because the file is gitignored and therefore invisible to
+   `git ls-files`. It must be MERGED, never overwritten, and backed up outside the
+   repo first.
+2. THE RECORD OF THE GRANT CAN BREAK THE BUILD BEFORE THE EDIT DOES.
+   `DECLINED_AS_DECLARED_UNTRACKED` in `tests/test_docs_citations.py` holds 7 rows
+   against `DECLARED_UNTRACKED_CEILING = 7` - spent exactly. A grant entry citing
+   the local settings file by bare path under a new heading would derive an eighth
+   site and redden the suite. This entry therefore names that file through its
+   `.gitignore` line rather than by path token. The ceiling was NOT raised;
+   silently raising a ceiling to make a red test green is forbidden.
+
+**Verification, independent of this record:** `python -m pytest
+tests/test_pretooluse_gate.py -q -p no:randomly` is green for the same reason it is
+green now - all four of its settings reads touch only `hooks`, and no guard asserts
+`defaultMode`. `tools/drift_guard.py` and `scripts/verify_env.py` do not reference
+the file at all. A `json.load` of the result exits 0, as `.claude/commands/drift-guard.md`
+line 67 requires.
+
+**THE GRANT IS SINGLE-USE AND EXPIRES ON APPLICATION.** It authorizes one edit
+against HEAD `67180af`. It does not cover CS-815, any future hook rewiring, or any
+other frozen file: `LICENSE`, `.githooks/*`, `scripts/install_hooks.py` and
+`tools/precommit_gate.py` are NOT in this grant and each would need its own.
+
 ### 2026-09-06 - CS-932 - CLOSED. The inbox has a watcher, and the two design points came from the two siblings that had already got them wrong once
 
 Nothing watched `moon_sync_inbox/`. Measured this session: a note sat unread for

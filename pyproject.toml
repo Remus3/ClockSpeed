@@ -43,8 +43,8 @@ dynamic = ["version"]
 
 # NO runtime dependencies, and this is a decision rather than an omission.
 # BOOTSTRAP.md section 11: "No external optimizer dependency in phase 3.
-# Interface first, dependency later and gated." Pillar 2 ships a
-# branch-and-bound or weighted-greedy search behind OptimizerBackend, and any
+# Interface first, dependency later and gated." Pillar 2 ships an exhaustive
+# lattice search and a weighted-greedy search behind OptimizerBackend, and any
 # external linear/integer programming library goes through the CONVENTIONS.md
 # section 14 license gate before it is added and must slot behind the existing
 # interface without changing a caller. The advice path is also fully

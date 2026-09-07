@@ -33,13 +33,10 @@ clockspeed/
     optimize.py
     backends/
     power.py
-  audit/          pillar 3 whole-world audit
-  progress/       pillar 4 milestone routing
-  advisor/        pillar 5
+  audit/          pillar 3 whole-world audit - NOT BUILT
+  progress/       pillar 4 milestone routing - NOT BUILT
+  advisor/        pillar 5 - NOT BUILT
     rules/
-    trace.py
-    cards.py
-    ledger.py
   surface/
     server.py
     api/
@@ -72,12 +69,9 @@ data/             generated artifacts - GITIGNORED
 | `clockspeed/solve/optimize.py` | Pillar 2 objective handling and the `OptimizerBackend` interface. Owns the interface, not any particular solver. |
 | `clockspeed/solve/backends/` | Pluggable optimizer implementations behind that interface. Swapping one changes no caller. |
 | `clockspeed/solve/power.py` | Power and clock mathematics, including the overclock scaling exponent taken from data rather than hardcoded. |
-| `clockspeed/audit/` | Pillar 3: the diff between what is built and what should be, and the attribution of each finding to its binding constraint. |
-| `clockspeed/progress/` | Pillar 4: milestone and phase routing against a freely selected target, emitting a dependency-ordered plan. |
-| `clockspeed/advisor/rules/` | One module per rule family. Each rule declares its inputs and its required unlocks as data. |
-| `clockspeed/advisor/trace.py` | The rule execution trace - the single record of what was read, what fired, what was computed and what was rejected. |
-| `clockspeed/advisor/cards.py` | Card identity and the three rendering tiers, all projected from the trace. |
-| `clockspeed/advisor/ledger.py` | Per-world card state and the global per-rule mute, written atomically, schema-versioned. |
+| `clockspeed/audit/` | NOTHING YET. The package is reserved for pillar 3 and holds a docstring and no code. What it will own is specified in `BOOTSTRAP.md` section 4. |
+| `clockspeed/progress/` | NOTHING YET. The package is reserved for pillar 4 and holds a docstring and no code. What it will own is specified in `BOOTSTRAP.md` section 4. |
+| `clockspeed/advisor/rules/` | NOTHING YET. The package is reserved for pillar 5 and holds a docstring and no code. What it will own is specified in `BOOTSTRAP.md` sections 4 and 5. |
 | `clockspeed/surface/server.py` | The local HTTPS listener and static serving. Port allocation is recorded in `config/ports.json`; see `docs/OPERATIONS.md`. |
 | `clockspeed/surface/api/` | JSON endpoints. Serialization only - no computation. |
 | `clockspeed/surface/web/` | Dashboard assets. |
@@ -90,8 +84,9 @@ data/             generated artifacts - GITIGNORED
 
 ## 2. Data flow
 
-Two independent ingest lanes converge at the advisor. Neither lane ever writes to its
-source.
+Two independent ingest lanes. They are designed to converge at the advisor and today
+converge at the surface, because pillars 3, 4 and 5 are not built. Neither lane ever
+writes to its source.
 
 ```
 game install (read-only)
@@ -110,12 +105,12 @@ save file (read-only at its source)                       |
     -> save/world.py         world model  ----------------+
                                                           |
                                                           v
-                            solve/ (registry only)   audit/, progress/ (registry + world)
+                            solve/ (registry only)        |
                                                           |
-                                                          v
-                            advisor/rules -> advisor/trace.py -> advisor/cards.py
-                                                          |
-                                        advisor/ledger.py (card state, mutes)
+                            [pillars 3, 4 and 5 - NOT     |
+                             BUILT. Nothing above         |
+                             save/world.py consumes       |
+                             the world model yet.]        |
                                                           |
                                                           v
                                         surface/api -> surface/web, shell/
@@ -141,13 +136,15 @@ Concretely, and each of these is a bug when violated, not a style note:
 
 - `solve/` never reads a save. It takes a registry and a request. It has no import path
   to `save/` and no reason to acquire one.
-- `advisor/` never reads the raw docs file. It takes the normalized registry and the
-  world model.
 - `surface/` never computes. It serializes what the layers below produced. A number that
   first exists in `surface/` is a number with no trace behind it.
-- `audit/` and `progress/` consume the world model and the registry, never save bytes.
 - `tools/` is never imported by `clockspeed/`. Gates depend on the product; the product
   never depends on the gates.
+
+One rule on this list constrains code that does not exist yet, and is marked so rather
+than stated in the present tense alongside the four above: when `advisor/`, `audit/` and
+`progress/` are built, they will take the normalized registry and the world model, never
+the raw docs file and never save bytes.
 
 **A layer that reaches past its neighbor is a design bug.**
 
@@ -156,16 +153,20 @@ Concretely, and each of these is a bug when violated, not a style note:
 The seam is stated as a model, and layering stated as models reduces to an allowed-import
 matrix. That makes every one of the rules above mechanically checkable:
 
-1. **Import direction is testable.** A test walks the import graph of `clockspeed/` and
-   asserts each package imports only from its permitted set. A reach-past shows up as a
-   failing test at the moment it is introduced, not at review time.
+1. **Import direction is testable, one layer at a time.** `tests/data/test_phase2_gate.py`,
+   `tests/save/test_phase4_gate.py` and `tests/solve/test_phase3_gate.py` each declare the
+   permitted-import set for their own layer and assert it, so a reach-past inside `data/`,
+   `save/` or `solve/` shows up as a failing test at the moment it is introduced, not at
+   review time. There is no whole-package matrix: `surface/` and the three unbuilt
+   packages are not graded as importers by any gate today.
 2. **The model is the contract.** Because each seam has a named type - the registry, the
    world model, the trace, the card - a layer cannot accidentally depend on a
    representation detail of the layer two below it. To cheat, it must import something it
    is not allowed to import, which is case 1.
-3. **The rule suite runs with no game install and no save present.** `advisor/` and
-   `solve/` are tested entirely against small synthetic fixtures. A hidden dependency on
-   real save bytes or a real install fails immediately in that environment, and in CI.
+3. **The suite runs with no game install and no save present.** `solve/` is tested
+   entirely against small synthetic fixtures - `tests/solve/synthetic.py`. A hidden
+   dependency on real save bytes or a real install fails immediately in that environment,
+   and in CI. `advisor/` has no tests, because it has no code to test.
 4. **`surface/` computing nothing is checkable by the same test suite**, because any
    computation it wanted to do would require importing `solve/` internals rather than
    calling a produced result.
@@ -177,144 +178,79 @@ entirely inside `data/`, and the seam is what confines it there.
 
 ## 4. The five pillars and their packages
 
-All five ship. Pillars 1 and 2 are the engine, pillar 3 is the world reader's consumer,
-pillars 4 and 5 are what the operator actually looks at.
+All five are in scope for v1. Pillars 1 and 2 are the engine and are built; pillar 3 is
+the world reader's consumer and pillars 4 and 5 are what the operator will actually look
+at, and those three are NOT BUILT. Each section below states which it is. A section that
+names an implementing module is claiming shipped code, and
+`tests/test_architecture_attributions.py` reddens when a named module does not carry the
+capability the sentence attributes to it.
 
 ### Pillar 1 - Target-rate ratio solve
 
-Given a requested rate of an item, emit the complete production tree: every intermediate,
-exact building counts, exact clock speeds, byproduct handling, raw input totals, total
-power draw and total build cost. It solves both directions - "I want this much of X" and
-"I have this raw input, what is the best output". Arithmetic is exact rational end to end
-because floating-point drift in a ratio calculator is a correctness bug and not a
-rounding nuisance. Recipe loops and byproducts that feed back into their own chain are
-the hard case and are handled explicitly rather than assumed away.
-**Implemented by:** `solve/exact.py`, `solve/ratio.py`, `solve/power.py`, over
-`data/registry.py`.
+Given a requested rate of an item, emit exact building counts, byproduct handling and raw
+input totals. It solves both directions - "I want this much of X" and "I have this much of
+a raw input, what rate of the named item does it buy". Arithmetic is exact rational end to
+end because floating-point drift in a ratio calculator is a correctness bug and not a
+rounding nuisance. Recipe loops and byproducts that feed back into their own chain are the
+hard case and are handled explicitly rather than assumed away.
+**Implemented by:** `solve/exact.py` and `solve/ratio.py`, over `data/registry.py`.
 
 ### Pillar 2 - Alt-recipe selection under constraints
 
-Given an objective and the set of genuinely unlocked recipes, choose the recipe set that
-optimizes it. Objectives are individually selectable and combinable with weights:
-minimize raw resource consumption, minimize power draw, minimize building count, minimize
-footprint proxy, maximize sink points per unit of raw input. The implementation starts
-dependency-free - exact ratio solve plus a branch-and-bound or weighted-greedy search -
-behind a pluggable optimizer interface, and constrains by what is unlocked rather than by
-what exists in the data. An external linear or integer programming library is a later and
-gated decision that must slot behind the existing interface without changing a caller.
+Given an objective and the set of unlocked recipes, choose the recipe set that optimizes
+it. Objectives are individually selectable and combinable with weights: minimize raw
+resource consumption, minimize power draw, minimize building count. The implementation
+starts dependency-free - exact ratio solve plus a weighted-greedy search - behind a
+pluggable optimizer interface, and constrains by what is unlocked rather than by what
+exists in the data. An external linear or integer programming library is a later and gated
+decision that must slot behind the existing interface without changing a caller.
 **Implemented by:** `solve/optimize.py` (the interface) and `solve/backends/` (the
 implementations).
 
 ### Pillar 3 - Whole-world audit from the save
 
-Diff what is actually built against what should be, and name the cause rather than the
-symptom: idle or starved machines together with the upstream cause of the starvation,
-overclock waste where a machine is clocked above what its supply can feed, belt and pipe
-saturation with the binding segment identified, power headroom and brownout risk and fuel
-chain sizing against real consumption, resource nodes claimed but under-extracted along
-with extractor tier mismatches, and sink-point throughput actually achieved.
-**Implemented by:** `audit/`, consuming `save/world.py` and `data/registry.py`, using
-`solve/` for the arithmetic.
+**Status:** NOT BUILT. Reserved for `audit/`, which holds a package docstring and no code.
+Specified in `BOOTSTRAP.md` section 4.
+
+Intent: diff what is actually built against what should be, and name the cause rather than
+the symptom.
 
 ### Pillar 4 - Milestone and progression routing
 
-Point the system at the current milestone or at any future milestone or phase target and
-get what must be added, upgraded, redesigned or torn down to reach it from the current
-world state. The target is a free selector and not a fixed pointer at "next"; selecting a
-target several tiers out and getting a redesign plan is a required capability. Output is
-a dependency-ordered plan rather than an unordered list of gaps, and it distinguishes
-"you need more of this" from "you need to replace this" - the second is the expensive one
-and is called out as such.
-**Implemented by:** `progress/`, consuming `save/world.py` and `data/registry.py`, using
-`solve/`.
+**Status:** NOT BUILT. Reserved for `progress/`, which holds a package docstring and no
+code. Specified in `BOOTSTRAP.md` section 4.
+
+Intent: route from the current world state to a freely selected milestone or phase target,
+emitting a dependency-ordered plan rather than an unordered list of gaps.
 
 ### Pillar 5 - The advisor
 
-The synthesizing layer that everything above feeds. It runs data-driven modular rules
-over the registry and the world model, records one execution trace per firing, and emits
-cards. Rules declare their inputs and their required unlocks explicitly, so no rule can
-recommend an action whose preconditions are unmet - an invariant carried by a property
-test over generated world states, not by code review. A game patch that changes recipes,
-buildings or milestones is absorbed by re-running the extractor and updating the version
-pin; if a patch forces a rule edit, that rule encoded a fact it should have read from
-data.
-**Implemented by:** `advisor/rules/`, `advisor/trace.py`, `advisor/cards.py`,
-`advisor/ledger.py`, surfaced through `surface/`.
+**Status:** NOT BUILT. Reserved for `advisor/`, which holds two package docstrings and no
+code. Specified in `BOOTSTRAP.md` sections 4 and 5. The five endpoints that would surface
+it answer 501 today - see `clockspeed/surface/api/pending.py`.
+
+Intent: the synthesizing layer that everything above feeds, running data-driven modular
+rules over the registry and the world model.
 
 ---
 
 ## 5. The advice card contract
 
-Every piece of advice is a card with a stable identity and three rendering tiers.
+**Status:** NOT BUILT. Reserved for `advisor/`, which holds two package docstrings and no
+code. Specified in `BOOTSTRAP.md` sections 5.1, 5.2 and 5.4, which own the tier
+definitions, the card identity and the rule-engine constraints.
 
-| Tier | Content | Default |
-|---|---|---|
-| 1 - Headline | One line. Imperative. What to do. No reasoning. | Always shown |
-| 2 - Reason | One line. The binding constraint or trigger. | Shown inline |
-| 3 - Derivation | The complete chain: every input read with its source, every rule that fired, every number computed, every alternative considered and why each was rejected. | On expand only |
+Intent, in one line each, so this file records the seams without claiming any of them
+exists yet: advice is a card with a stable identity and three rendering tiers; all three
+tiers are projections of ONE rule execution trace rather than three hand-written
+renderings; the card carries a per-world state and a global per-rule mute, both durable
+across sessions, reloads and patches.
 
-Tier 3 is a **learning surface, not a debug dump**. It is written to be read by a human
-who wants to understand the how and the why well enough to reason it out themselves next
-time.
-
-### 5.1 The critical constraint: one trace, three projections
-
-**All three tiers are projections of ONE rule execution trace. They are never three
-hand-written renderings.**
-
-This is a structural constraint, not a preference:
-
-- The trace is produced by `advisor/trace.py` from each rule's declared inputs and its
-  recorded decisions. `advisor/cards.py` projects tier 1, tier 2 and tier 3 out of that
-  single object.
-- Because there is one source, the tiers **cannot drift from each other**. A headline
-  that disagrees with its own derivation is not a bug that can occur; it is a state the
-  data model cannot represent.
-- It is also why the advice path needs no language model. The derivation already exists
-  as structured fact by the time anything is rendered - there is nothing left to
-  summarize or explain.
-- A rule that reads an input it did not declare produces an incomplete trace and
-  therefore a lying tier 3. That is a bug and a test catches it.
-
-The failure mode this forbids is specific: hand-authoring a nice-sounding tier 3 next to
-a separately computed tier 1. That reads well on the day it is written and is wrong
-forever after.
-
----
-
-## 6. Card identity and persistence
-
-### 6.1 Identity
-
-**Card ID is a deterministic hash of `(rule_id, subject_key, target_milestone)`.**
-
-- Recomputing on a changed save must produce the SAME id for the same underlying advice.
-  If it does not, every piece of persisted state is lost on every reload, which makes
-  dismiss, snooze and pin worthless.
-- `subject_key` is the stable identity of the thing the advice is about - a node, a
-  factory region, a recipe, a milestone. **It must not encode anything volatile.** A save
-  filename, a timestamp, an array index or an in-memory object id are all disqualified.
-- `target_milestone` is part of the identity because the same rule about the same subject
-  is genuinely different advice under a different target.
-
-### 6.2 Two persistence layers, both durable across sessions, reloads and patches
-
-**Layer 1 - per-world ledger.** Keyed to the world token carried in the save header,
-**never to a save filename** - filenames change on every save and autosaves rotate. Card
-states are `new`, `accepted`, `dismissed`, `snoozed(until)`, `pinned` and `completed`.
-`completed` is set automatically when the world state satisfies the advice, and that
-transition is itself worth surfacing to the operator. The ledger tolerates a world token
-it has never seen by treating it as a new world rather than failing.
-
-**Layer 2 - global per-rule mute.** Any rule type can be silenced across all worlds,
-permanently, from the card itself. This is the "stop telling me about power, I know"
-control, and it is deliberately separate from per-world state: muting a rule everywhere
-and dismissing one card are different intents.
-
-Both layers live in a plain JSON file in the gitignored project data directory, written
-atomically, carrying a schema version field from the first write. Owned by
-`advisor/ledger.py`. Note that this is card state and is unrelated to `docs/LEDGER.md`,
-which is the project's completion record.
+Nothing in this repository implements any of that. There is no card type, no trace, no
+tier renderer, no identity hash and no ledger store. The three files an earlier revision
+of this section named as their owners have never existed on disk, which is the defect
+CS-928 records; the detail they described lives in `BOOTSTRAP.md` and is reproduced here
+only when there is code to attribute it to.
 
 ---
 

@@ -34,6 +34,75 @@ the line becomes a pointer.
 
 ---
 
+## Session 71 - 2026-09-07 - CS-928 and CS-935 CLOSED; the inbox channel turned into the session, and probing a watcher refuted the docstring defending its own bug
+
+- **Shipped:** **CS-928, CS-935 CLOSED.** **Filed:** CS-934, CS-936, CS-937,
+  CS-938, CS-939, CS-940.
+
+- **CS-928 was bigger than filed.** The item named five `Implemented by:` lines;
+  a sweep found 20 further false attributions, so the write-list was the whole
+  file. Measured by three agents that did not write the repair: pillar 1 five of
+  twelve clauses absent INCLUDING the headline promise (nothing expands a recipe
+  tree, the set is caller-supplied), pillar 2 three of fifteen with zero
+  occurrences anywhere in the package, pillars 3 and 4 nineteen of nineteen
+  against two docstring-only packages, pillar 5 six of seven with three of its
+  five attributed files never having existed. 144 lines deleted, 80 inserted.
+
+- **THE ARM WAS PROVEN TO REDDEN BEFORE IT WAS TRUSTED** - 20 failed on the
+  pre-repair document, 134 passed after, three planted mutations each red, one
+  caught ONLY by the anti-drift tiling half. `tests/test_scaffold.py` already
+  named both empty packages while asserting only that they import, so it passed
+  green against exactly the state that made the doc false. A test naming a module
+  is not a test measuring it.
+
+- **A HYPOTHESIS FROM THE MERGER WAS REFUTED AND THE CONCLUSION SURVIVED IT.** I
+  proposed the suffix-resolving count fell because paths became fully qualified.
+  False - nothing moved rungs; five paths were DELETED as false claims. The
+  agent kept the conclusion (do not lower the floor) on better reasoning: a
+  vacuity floor that reddens when a false attribution is removed is measuring the
+  wrong subject, and lowering it per repair walks to zero while staying green.
+
+- **The remaining red cost one forgiveness, adjudicated.** `FORGIVEN_LINE_POINTER_CEILING`
+  65 to 66. The adjudicator REFUTED the builder's claim that the ratchet had only
+  ever come down - it went 53 to 66 once - but that raise TIGHTENED it, so this is
+  the first that spends one. A reclamation condition is recorded. Two further reds
+  were MY OWN prose: item lines describing a defect spell `file:line` pointers, and
+  the guard cannot tell quoting from citing. Fixed by rewriting my prose, not by
+  spending a second notch.
+
+- **CS-935: the two hazards were the adjudicator's, not the proposal's.** The
+  gitignored local settings file already carried the `SessionStart` watcher hook,
+  so a fresh write would have destroyed it AND NO GUARD WOULD HAVE NOTICED,
+  because gitignored files are invisible to `git ls-files`. And the RECORD of the
+  grant nearly broke the build before the edit did - a citation budget spent
+  exactly at 7 of 7.
+
+- **PROBING BEAT READING, and this is the session's transferable finding.**
+  `tools/inbox_watch.py` misses an EDITED note, and its docstring DEFENDS that in
+  capitals with a stated tradeoff whose central claim is inverted: it says a
+  content-hash key would make an edit read as already-seen. An edit changes the
+  hash, so a hash key surfaces it; the name key is what hides it. I read that
+  paragraph, believed it, and repeated its framing to four sibling repos before
+  probing the function refuted it. A WRONG RATIONALE IS MORE DURABLE THAN A WRONG
+  LINE OF CODE, because it answers the next reader's question before they ask.
+  CS-940's acceptance requires DELETING the paragraph, not rewording it.
+
+- **Surprises:** a deliberate 2026-08-14 PII scrub commit edited files FORWARD, so
+  three world names remain in earlier blobs (CS-936). Contained - reachable only
+  from an unpushed local branch, `origin/main` carries none. And the inbox watcher
+  is wired ONLY in an untracked file, so a fresh clone runs no watcher at all
+  (CS-938).
+
+- **Failed paths:** do not `cd` into an inbox subdirectory. The `PreToolUse` hook
+  resolves its script relative to cwd, a sibling payload contains its own `tools/`,
+  and the hook then dies in both shells with no way back. It POISONS SUBAGENTS TOO -
+  one ran its whole task unable to execute a single command.
+
+- **Next action:** take CS-940 and CS-934 together - they are one file and one
+  rewrite. The key must move on content AND name, subdirectory payloads must be
+  reported, the digest must be computed by the RECEIVER rather than read from a
+  sender's manifest, and no payload byte may reach the report.
+
 ## Session 70 - 2026-09-06 - CS-924 CLOSED, then its own repair REFUTED and repaired again; six items closed; the inbox has a watcher that found 27 unread where the eye found 6
 
 - **Shipped:** **CS-924, CS-925, CS-926, CS-927, CS-931, CS-932 CLOSED.**
@@ -200,68 +269,3 @@ the line becomes a pointer.
   is the pre-push hook on the final tree. The verifier's `2688 passed` covers four
   packages at a mid-session tree and is NOT a whole-suite figure. Do not quote either as
   the session's suite count.
-
-## Session 68 - 2026-09-06 - CS-921 CLOSED: the cross-project inbox is gitignored and the world name is gone; one line added to a fallback list moved THREE pin populations
-
-**NUMBERING: there is no Session 67 entry in this file and that gap is real, not a filing
-error.** The session before this one labelled its commits `Session 65 handoff` while its
-handoff prompt called this one 68. Nothing renumbers cleanly, so 68 is kept because it is
-the operator's frame of reference. Do not "repair" the gap by renumbering.
-
-- **Shipped:** **CS-921 CLOSED.** `moon_sync_inbox/` is gitignored as `/moon_sync_inbox/`,
-  anchored, and the world name it carried in two places is gone. Detail in `docs/LEDGER.md`.
-
-- **In flight:** nothing. The tree is clean, main is pushed, and CI was read rather than
-  assumed. The suite was run SERIALLY because Riot Commander's lane was running eight
-  pytest processes throughout - `-n auto` on top of that is the documented fork-exhaustion
-  trap and would have produced false reds on unrelated subprocess tests.
-
-- **Decisions:** no ADR. Three worth not re-litigating, all recorded with their fences in
-  the ledger entry: the world name was NOT added to `world_name_exclusions` (repo-wide and
-  permanent, to spare two words in one gitignored note - the same trade `precommit_gate.py`
-  already refused once at CS-208); the pattern is ANCHORED rather than the bare form the
-  sender asked for; and the citation pin was converted to the SYMBOL form rather than
-  having its digest re-cut, which the guard refuses in terms worth keeping.
-
-- **Surprises:**
-  - **Nothing contradicted `BOOTSTRAP.md`.**
-  - **`grep -c $'\r'` DOES NOT COUNT CARRIAGE RETURNS in this harness's Git Bash.** It
-    returns the TOTAL line count on a pure-LF file. Measured with a control: 3 on a file
-    with zero CRs, 3 on a file with three. It nearly caused a normalising pass over
-    `.gitignore`, which was already clean - the false reading agreed exactly with the known
-    `edit-tool-writes-crlf` fault. Count line endings in Python on raw bytes. Filed to the
-    harness memory store as `grep-cr-count-matches-every-line`.
-  - **A SIBLING READ ONE OF THIS PROJECT'S OWN PUBLISHED NUMBERS BACK STALE.** ResinCompute
-    credited `config/ports.json` with "its own 8900-8911 allocation"; that band was vacated
-    2026-08-29 and this project holds 8920-8939. The sentence was true about the historical
-    allocation - what did not travel with the number was that it is former. **That is
-    CS-920's thesis arriving from outside the repo**, and it is now a worked example rather
-    than a hypothetical. CS-920 is NOT closed by it.
-  - **A cross-project note can block this repo's commit gate by naming a sibling project.**
-    The gate's world detection is value-based and whole-word, so a two-word project display
-    name whose second word is a world on this machine trips it. Carried back to the channel
-    with the fix: spell siblings in their closed-up directory form.
-
-- **Failed paths:** adding one entry to `tests/conftest.py`'s no-git fallback list looked
-  like a one-line sync and was not - it shifted every line below it by one and moved a
-  line-number citation pin off its target, turning `tests/test_docs_citations.py` red. This
-  is the **CS-500 defect class arriving from the other direction**, and it confirms the
-  standing warning: a citation-pin repair MUST land in the same commit as the edit that
-  moved the line. A partial commit is red by construction.
-  **It moved THREE pin populations, not one, and the third only showed up in the FULL
-  suite** - `UNVERIFIED_LINE_POINTERS`, `FORGIVEN_LINE_POINTER_CEILING`, and the deep
-  archive's `ARCHIVE_ROT` in `tests/test_archive_rot.py`. A targeted run over the guards
-  that consume the enumeration passed while the archive arm was still red. Budget for
-  the full suite whenever a line is inserted into a module the docs pin by NUMBER.
-  **AND THE REPAIR ITSELF WENT RED ON THE NEXT RUN.** The comment justifying the
-  archive re-pin spelled the stale pointer out in the colon-number form, and the
-  forbid arm counted it as a NEW line pointer in a tracked module. A note ABOUT a
-  line pointer is a line pointer as far as the guard can see; it cannot tell the
-  two apart and should not try. Name the symbol, say the number in prose. THREE
-  full suite runs were spent on one line of test data, and only the third was
-  green - budget accordingly.
-
-- **Next action:** take **CS-919**. Its fence is unchanged and load-bearing - DO NOT RUN
-  THE LANE FOR A NIGHT UNTIL IT IS CLOSED, because this session watched three other
-  projects push to this box while it worked, which is exactly the condition that makes the
-  lane's CI attribution wrong.

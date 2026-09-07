@@ -25,6 +25,113 @@ Where current truth actually lives:
 
 ---
 
+## CS-928
+
+
+### FILED 2026-09-06 (session 70), from a read-only probe that was sent to check a DIFFERENT claim
+
+The probe was dispatched to establish whether build cost data exists at all
+(CS-930). It came back having refuted that premise AND having found this, which
+is a separate defect in a separate file.
+
+`docs/ARCHITECTURE.md` reproduces `BOOTSTRAP.md` section 4 pillar 1 almost verbatim -
+"every intermediate, exact building counts, exact clock speeds, byproduct
+handling, raw input totals, total power draw, and total build cost" - and then
+then appends:
+
+    Implemented by: solve/exact.py, solve/ratio.py, solve/power.py, over
+    data/registry.py
+
+### WHY THE `Implemented by` LINE IS WHAT MAKES IT A DEFECT
+
+`BOOTSTRAP.md` is the specification and is ALLOWED to describe an intended
+build. It says so about itself. Copying a spec sentence into a file that then
+attributes it to named shipped modules converts a statement of intent into a
+false claim about shipped code, and nothing warns you.
+
+That is precisely the mechanism recorded at the CS-922 entry in `docs/LEDGER.md` after seven
+`README.md` claims were refuted in session 69. The README was repaired. **This
+file was not, and it is the file that OWNS the module map**, so it is the more
+authoritative of the two.
+
+Measured against the cited modules: `ProductionPlan` (`clockspeed/solve/ratio.py::ProductionPlan`)
+carries six fields - `steps`, `targets`, `raw_inputs`, `byproducts`, `excluded`,
+`byproduct_policy`. No clock speed, no power total, no build cost. `PlanStep`
+carries `recipe_key` and `machines`.
+
+### THE FENCE
+
+Do not repair this by deleting the `Implemented by` line and keeping the prose.
+The prose is the claim; the attribution only dates it. Either the capability is
+present in the named module or the sentence goes.
+
+
+## Session 68 - 2026-09-06 - CS-921 CLOSED: the cross-project inbox is gitignored and the world name is gone; one line added to a fallback list moved THREE pin populations
+
+**NUMBERING: there is no Session 67 entry in this file and that gap is real, not a filing
+error.** The session before this one labelled its commits `Session 65 handoff` while its
+handoff prompt called this one 68. Nothing renumbers cleanly, so 68 is kept because it is
+the operator's frame of reference. Do not "repair" the gap by renumbering.
+
+- **Shipped:** **CS-921 CLOSED.** `moon_sync_inbox/` is gitignored as `/moon_sync_inbox/`,
+  anchored, and the world name it carried in two places is gone. Detail in `docs/LEDGER.md`.
+
+- **In flight:** nothing. The tree is clean, main is pushed, and CI was read rather than
+  assumed. The suite was run SERIALLY because Riot Commander's lane was running eight
+  pytest processes throughout - `-n auto` on top of that is the documented fork-exhaustion
+  trap and would have produced false reds on unrelated subprocess tests.
+
+- **Decisions:** no ADR. Three worth not re-litigating, all recorded with their fences in
+  the ledger entry: the world name was NOT added to `world_name_exclusions` (repo-wide and
+  permanent, to spare two words in one gitignored note - the same trade `precommit_gate.py`
+  already refused once at CS-208); the pattern is ANCHORED rather than the bare form the
+  sender asked for; and the citation pin was converted to the SYMBOL form rather than
+  having its digest re-cut, which the guard refuses in terms worth keeping.
+
+- **Surprises:**
+  - **Nothing contradicted `BOOTSTRAP.md`.**
+  - **`grep -c $'\r'` DOES NOT COUNT CARRIAGE RETURNS in this harness's Git Bash.** It
+    returns the TOTAL line count on a pure-LF file. Measured with a control: 3 on a file
+    with zero CRs, 3 on a file with three. It nearly caused a normalising pass over
+    `.gitignore`, which was already clean - the false reading agreed exactly with the known
+    `edit-tool-writes-crlf` fault. Count line endings in Python on raw bytes. Filed to the
+    harness memory store as `grep-cr-count-matches-every-line`.
+  - **A SIBLING READ ONE OF THIS PROJECT'S OWN PUBLISHED NUMBERS BACK STALE.** ResinCompute
+    credited `config/ports.json` with "its own 8900-8911 allocation"; that band was vacated
+    2026-08-29 and this project holds 8920-8939. The sentence was true about the historical
+    allocation - what did not travel with the number was that it is former. **That is
+    CS-920's thesis arriving from outside the repo**, and it is now a worked example rather
+    than a hypothetical. CS-920 is NOT closed by it.
+  - **A cross-project note can block this repo's commit gate by naming a sibling project.**
+    The gate's world detection is value-based and whole-word, so a two-word project display
+    name whose second word is a world on this machine trips it. Carried back to the channel
+    with the fix: spell siblings in their closed-up directory form.
+
+- **Failed paths:** adding one entry to `tests/conftest.py`'s no-git fallback list looked
+  like a one-line sync and was not - it shifted every line below it by one and moved a
+  line-number citation pin off its target, turning `tests/test_docs_citations.py` red. This
+  is the **CS-500 defect class arriving from the other direction**, and it confirms the
+  standing warning: a citation-pin repair MUST land in the same commit as the edit that
+  moved the line. A partial commit is red by construction.
+  **It moved THREE pin populations, not one, and the third only showed up in the FULL
+  suite** - `UNVERIFIED_LINE_POINTERS`, `FORGIVEN_LINE_POINTER_CEILING`, and the deep
+  archive's `ARCHIVE_ROT` in `tests/test_archive_rot.py`. A targeted run over the guards
+  that consume the enumeration passed while the archive arm was still red. Budget for
+  the full suite whenever a line is inserted into a module the docs pin by NUMBER.
+  **AND THE REPAIR ITSELF WENT RED ON THE NEXT RUN.** The comment justifying the
+  archive re-pin spelled the stale pointer out in the colon-number form, and the
+  forbid arm counted it as a NEW line pointer in a tracked module. A note ABOUT a
+  line pointer is a line pointer as far as the guard can see; it cannot tell the
+  two apart and should not try. Name the symbol, say the number in prose. THREE
+  full suite runs were spent on one line of test data, and only the third was
+  green - budget accordingly.
+
+- **Next action:** take **CS-919**. Its fence is unchanged and load-bearing - DO NOT RUN
+  THE LANE FOR A NIGHT UNTIL IT IS CLOSED, because this session watched three other
+  projects push to this box while it worked, which is exactly the condition that makes the
+  lane's CI attribution wrong.
+
+
 ## Session 65 - 2026-09-06 - CS-906 CLOSED: the pre-push suite runs distributed, 2.39x off every push; the CS-896 closure was REFUTED 3/3 and its mechanism fell to one line
 
 **THE SECOND HALF OF THIS SESSION IS BELOW THE CS-896 MATERIAL.** The entry was written mid-session and then the session kept going. Read both halves.

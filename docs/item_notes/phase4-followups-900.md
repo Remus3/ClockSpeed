@@ -302,46 +302,6 @@ Redden on a FOREIGN sha landing between the two reads. A test that only checks t
 path would have passed on the shipped code, because the shipped code is correct whenever
 nobody else pushes - which is every run on an idle box and no run on this one.
 
-## CS-928
-
-
-### FILED 2026-09-06 (session 70), from a read-only probe that was sent to check a DIFFERENT claim
-
-The probe was dispatched to establish whether build cost data exists at all
-(CS-930). It came back having refuted that premise AND having found this, which
-is a separate defect in a separate file.
-
-`docs/ARCHITECTURE.md` reproduces `BOOTSTRAP.md` section 4 pillar 1 almost verbatim -
-"every intermediate, exact building counts, exact clock speeds, byproduct
-handling, raw input totals, total power draw, and total build cost" - and then
-then appends:
-
-    Implemented by: solve/exact.py, solve/ratio.py, solve/power.py, over
-    data/registry.py
-
-### WHY THE `Implemented by` LINE IS WHAT MAKES IT A DEFECT
-
-`BOOTSTRAP.md` is the specification and is ALLOWED to describe an intended
-build. It says so about itself. Copying a spec sentence into a file that then
-attributes it to named shipped modules converts a statement of intent into a
-false claim about shipped code, and nothing warns you.
-
-That is precisely the mechanism recorded at the CS-922 entry in `docs/LEDGER.md` after seven
-`README.md` claims were refuted in session 69. The README was repaired. **This
-file was not, and it is the file that OWNS the module map**, so it is the more
-authoritative of the two.
-
-Measured against the cited modules: `ProductionPlan` (`clockspeed/solve/ratio.py::ProductionPlan`)
-carries six fields - `steps`, `targets`, `raw_inputs`, `byproducts`, `excluded`,
-`byproduct_policy`. No clock speed, no power total, no build cost. `PlanStep`
-carries `recipe_key` and `machines`.
-
-### THE FENCE
-
-Do not repair this by deleting the `Implemented by` line and keeping the prose.
-The prose is the claim; the attribution only dates it. Either the capability is
-present in the named module or the sentence goes.
-
 ## CS-929
 
 
@@ -463,3 +423,103 @@ Do not close this by editing "ten" to whatever the count becomes. That is the
 weak fix CS-927 explicitly refused, and it puts the site straight back in the
 queue for the eleventh route.
 
+## CS-940
+
+### FILED 2026-09-07 (session 71)
+
+The line as first filed, relocated here intact because the ROADMAP owns
+the LINE and this file owns the reasoning:
+
+    CS-940
+    `tools/inbox_watch.py` MISSES AN EDITED NOTE, and its docstring defends that with reasoning that is exactly inverted
+    measured 2026-09-07 by probing `notes_in` in a fixture inbox rather than reading the prose: write a note, list it, edit it in place, list again, and the key does not move, because the seen set is keyed on the FILENAME alone
+    the module argues this is a deliberate trade, on the ground that "keying on a content hash trades it for a strictly worse failure
+    an EDITED note would then read as already seen"
+    THAT IS BACKWARDS, and it is the load-bearing sentence: an edit CHANGES the content hash, so a content key SURFACES the edit, while the name key is the one that hides it
+    so a false premise is doing the work of a design rationale, and it reads as considered rather than wrong, which is why it survived review
+    this channel sends RULING then ADDENDUM then CORRECTION notes as a matter of course, so an in-place correction is the live case and not a hypothetical
+    acceptance: the key moves whenever a note's CONTENT moves and also whenever its NAME moves, keyed on the pair, with the KEY separated from the DISPLAY so the printed report stays a list of names rather than a wall of digests, and the inverted paragraph is deleted rather than reworded
+    proven by an arm that reddens when a note is edited in place under a constant filename, and the deliberate one-time re-baseline of the seen set is recorded rather than discovered
+    tier: 1
+
+## CS-934
+
+### FILED 2026-09-07 (session 71)
+
+The line as first filed, relocated here intact because the ROADMAP owns
+the LINE and this file owns the reasoning:
+
+    CS-934
+    `tools/inbox_watch.py` watches only part of the channel it claims to watch and reports a confident count anyway: line 97 filters `inbox.iterdir()` by `p.is_file() and p.suffix == NOTE_SUFFIX`, so a subdirectory payload is invisible three times over
+    no recursion, directories discarded, and non-markdown discarded even if reached
+    measured 2026-09-06 when a sibling delivered 49 files and 800 KB into `from-RC-verbatim/` and the watcher announced only its note count
+    the module's own docstring already argues that a check which examined nothing is indistinguishable from one that passed, and this is that fault's other half, a check whose SCOPE is narrower than the channel it speaks for
+    acceptance: the watcher accounts for every deliverable in the channel including subdirectory payloads and non-markdown files, reporting them as their own state rather than folding them into the note count, proven by an arm that reddens when a planted subdirectory payload goes unreported
+    AND the payload key must be a digest the WATCHER COMPUTES from the files on this disk, never a sender-supplied manifest: a manifest is the sender's claim about what it sent, so keying on it makes the change-detector trust the party whose changes it exists to detect, and a stale or unregenerated manifest then reads as already-seen
+    a sender manifest may be CROSS-CHECKED and a disagreement between it and the computed digest is itself a reportable finding, never the key
+    a count is not a key either, because a replaced file at constant count reads as unchanged
+    AND THE REPORT MUST NEVER QUOTE OR LIST THE CONTENTS OF A PAYLOAD FILE, only names, counts and digests, because an imperative sentence inside a sibling's source would otherwise reach a session wearing the watcher's own voice, which is the one voice a session has no reason to distrust
+    proven by a second arm that reddens when a payload changes at constant file count, and a third asserting no payload byte reaches the report
+    tier: 1
+
+## CS-936
+
+### FILED 2026-09-07 (session 71)
+
+The line as first filed, relocated here intact because the ROADMAP owns
+the LINE and this file owns the reasoning:
+
+    CS-936
+    the 2026-08-14 PII scrub (`0e273c4`, "Phase 2: data layer, plus the LICENSE ratification and the PII scrub") edited the files FORWARD, so three world names it removed from the working tree remain in the blobs at `10ca0cf` and `d483477`
+    measured 2026-09-07 with an armed pickaxe over every ref, controls behaving (a present-string control returned 32 files rc=0, an absent-string control rc=1)
+    CONTAINMENT, measured not assumed: those three commits are reachable ONLY from the local branch `archive/local-history`, `git branch -r --contains` returns nothing for all three, and `origin/main` carries none of them, so NOTHING IS PUBLISHED and this is a latent rather than a live exposure
+    the two needles that do hit `main` are four-letter alphabetic strings, one of them 54 sites across `registry.py`, `docs_extract.py` and `tier2.yml`, which is the shape of a domain word rather than a leak and is recorded here as a FALSE POSITIVE so a later session does not re-raise it
+    the settled decision is private first PUBLIC LATER, so an unpushed branch is one `git push --all` from being the thing that publishes it
+    acceptance: either the affected history is unreachable from every ref that can be pushed, or the branch is deliberately retained with the retention recorded and a guard that reddens when a pushable ref contains a scrub-era commit, AND the world-name detector is hardened so a four-letter common word cannot manufacture a finding, proven by an arm that reddens on a planted world name in a pushable ref and stays green on the false-positive shape
+    tier: 1
+
+## CS-937
+
+### FILED 2026-09-07 (session 71)
+
+The line as first filed, relocated here intact because the ROADMAP owns
+the LINE and this file owns the reasoning:
+
+    CS-937
+    a line-pointer whose only content check is NON-BLANKNESS passes a pointer that names the wrong rule
+    the `tools/` prohibition pointer in `tests/test_precommit_gate.py` named line 144 of `docs/ARCHITECTURE.md` and the guard stayed GREEN, because that line was non-blank and a markdown target is exempt from the forbid leg
+    AND THE POINTER WAS WRONG WHEN WRITTEN RATHER THAN ROTTED, which is the sharper fault and was established by an adjudicator rather than assumed: `git show eeba277` proves that line held the `advisor/` clause on the day the pointer was authored, while the `tools/` rule sat five lines further down, so a live guard certified a citation that never named its own subject, for three weeks
+    a dead pointer is visibly dead and this is not
+    acceptance: a line pointer is graded against what its own sentence CLAIMS the target says, not merely that a line exists there, without becoming a prose-matcher that reddens on correct history
+    the acceptance must state the discharge condition and be proven by TWO arms, one reddening on a pointer silently retargeted to a different non-blank line and one staying GREEN across a whitespace-only reflow of the target
+    tier: 2
+
+## CS-938
+
+### FILED 2026-09-07 (session 71)
+
+The line as first filed, relocated here intact because the ROADMAP owns
+the LINE and this file owns the reasoning:
+
+    CS-938
+    the CS-932 inbox watcher is wired ONLY in an untracked file, so a fresh clone of this repository runs no watcher at all and the operator's standing directive to review the channel has no mechanism behind it
+    measured 2026-09-07 and cross-checked against a direct read of both files: tracked `.claude/settings.json` declares `PreToolUse` and `PostToolUse` and nothing else, at HEAD and in the working tree, while the `SessionStart` hook running `tools/inbox_watch.py` lives in the gitignored local settings file beside it, which the ignore file covers and `git ls-files --error-unmatch` confirms untracked
+    the tool is tracked and tested and the WIRING is not, which is the same shape CLAUDE.md 2.2 already records for git hooks ("a fresh clone runs zero protection until someone wires it") except that the bootstrap does not cover this one, so nothing would ever wire it
+    acceptance: the watcher is reachable from a fresh clone through a TRACKED path, or the bootstrap wires it and says so, proven by an arm that reddens when the wiring is absent from every tracked file
+    NOTE the obvious fix edits the tracked settings file, which CLAUDE.md section 6 FREEZES, so it needs its own adjudicated grant and must not be taken as covered by the CS-935 grant, which expired on application
+    tier: 1
+
+## CS-939
+
+### FILED 2026-09-07 (session 71)
+
+The line as first filed, relocated here intact because the ROADMAP owns
+the LINE and this file owns the reasoning:
+
+    CS-939
+    no test sweeps the TRACKED TREE for secrets, so a credential committed before the gate existed is never rescanned
+    `check_secrets` in `tools/precommit_gate.py` runs only over staged bytes or explicitly named files, which means it can only ever see what is changing now and is blind to what already landed
+    this is the class a sibling measured tonight in its own repo: a live token tracked from the initial commit for 133 days, invisible to every working-tree check because nothing ever re-read the tree
+    Clockspeed measured CLEAN on the equivalent sweep this session, but it was measured BY HAND and nothing re-measures it, so the answer is true for today and guarded for no day after
+    acceptance: a suite arm sweeps every tracked file and every reachable blob for the secret patterns the gate already owns, importing that detector rather than restating it, proven by a planted credential in a tracked file that reddens and a synthetic fixture that does not
+    tier: 2
