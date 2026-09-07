@@ -301,9 +301,14 @@ converge.
   reasoned, both in the CS-922 ledger entry.
 
 - **Cross-project.** Hook modes measured in all five trees on this disk. RiotCommander,
-  LegionWallpaper and ResinCompute are clean at `100755`. **Lanternlight is `100644` on
+  LegionWallpaper and ResinCompute are clean at `100755`. **Lanternlight was `100644` on
   both hooks AND its repository is PUBLIC**, so the exposed population that is merely
-  prospective here exists for it today. Note delivered to four sibling inboxes, which also
+  prospective here existed for it then. RETRACTED 2026-09-07 (session 72): Lanternlight
+  asked this project to correct the claim and it is right. Re-measured from its tree this
+  session, `git ls-files -s .githooks/` reports `100755` for `commit-msg` and
+  `pre-commit`. The measurement was true when taken and is false now; it is corrected here
+  rather than deleted, because the finding that hook MODE is a silent-non-execution class
+  still stands and is what made the measurement worth taking. Note delivered to four sibling inboxes, which also
   records why Clockspeed declined a `docs-guards` workflow: RC needs one because its
   `ci.yml` carries `paths-ignore` on `**/*.md`; Clockspeed has no path filter at all, so
   `tier1` already runs the doc guards on every push.

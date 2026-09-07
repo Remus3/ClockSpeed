@@ -561,3 +561,118 @@ acknowledging stay separate acts, which is already this tool's oldest property.
 
 The wiring lands in the same frozen settings file as CS-938 and needs the same
 adjudicated grant, so the two travel together.
+
+## CS-943
+
+### FILED 2026-09-07 (session 72), from reading a sibling's payload rather than from a probe of this tree
+
+`save_seen` returns `None`. An `OSError` on the write - a read-only disk, a
+locked store, a full volume - escapes as a traceback out of a hook that runs at
+session start, and the session then surfaces NOTHING. That is the whole-channel
+outage this project warned four siblings about in the same session, one layer
+down in its own code.
+
+RSC's equivalent returns a bool and prints "could not update the watermark - it
+stays where it was". That is the better design and it is adopted by description,
+not by copy.
+
+The second half is RSC's arm rather than RSC's code: nothing here asserts that a
+raw exception string never reaches the report. A traceback is payload wearing a
+different hat - it can carry a path, a name, or a byte of a sibling's file into
+the one voice a session has no reason to distrust.
+
+## CS-944
+
+### FILED 2026-09-07 (session 72), from RC's finding re-measured here
+
+RC left a merged worktree on disk inside its repo and two guards that walk from
+the root scanned a second copy of the tree. Measured here: ten test modules walk
+with `rglob` and exactly one excludes the worktree directory. Latent rather than
+live - the worktree directory is empty today - and this project's default session
+shape is worktree-isolated agents, so it will not stay latent.
+
+LW's half is the one worth keeping: A DUPLICATE TREE ONLY EVER ADDS FILES, so a
+guard asking "does anything match?" goes falsely RED and announces itself, while
+a guard asking "does everything exist?" goes falsely GREEN and never does. Only
+one of the two directions tells you. A corpus taken from `git ls-files` is
+structurally immune to both.
+
+## CS-945
+
+### FILED 2026-09-07 (session 72), measured after telling a sibling it was fixed
+
+52 of 62 local branches are ahead of `origin/main` and contained by no remote
+ref. That is single-copy work by the definition this channel agreed, one
+`git branch -D` away from loss, and RC asked every project to measure it.
+
+THE PART THAT MAKES IT WORTH AN ITEM RATHER THAN A COMMAND. This project told RC
+on 2026-09-06 that its push gap was fixed. It was not. The claim was made without
+re-measuring, which is the fault this project has filed against others twice in
+two sessions.
+
+Charter v4's worktree order is three steps, not two: commit onto the worktree's
+own branch, PUSH the branch, then remove the worktree. Step 2 is RC's addition
+and is the one this tree does not satisfy.
+
+## CS-946
+
+### FILED 2026-09-07 (session 72), on an operator ruling
+
+The operator adopted convergence charter v4 as written, including section 0(b),
+which names RC as final adjudicator on a deadlock, and accepted the `cs` lane
+slot.
+
+THE SLOT REVERSES ADR-0017 AND THE REVERSAL MUST BE RECORDED BEFORE IT BINDS.
+ADR-0017 declined to join the machine-wide ProgramData bucket on the ground that
+consuming a slot other trees ration is a behavioural change to another tree made
+unilaterally. That reasoning does not become wrong because the answer changed -
+what changed is that the slot is now offered and reserved rather than taken. A
+superseding ADR records both.
+
+The second half is mechanical and RC measured it first: the lane lock writes the
+repository ROOT PATH as its repo field, a full path containing a space. Under a
+keyed reservation that silently creates a second reservation the day a checkout
+moves, which is exactly how a sibling's rename moved its own reservation.
+
+## CS-947
+
+### FILED 2026-09-07 (session 72), on an operator ruling
+
+CAVEMAN ULTRA is adopted. It is a `SessionStart` hook imposing a terse output
+dialect, and this project has never had one - a grep of the tree returns nothing
+but two note filenames in a gitignored store.
+
+TWO THINGS MUST BE RECORDED BEFORE THE EDIT. The wiring lands in
+`.claude/settings.json`, which `CLAUDE.md` section 6 freezes, so it needs its own
+adjudicated grant routed the way CS-935's was. And it needs a stated interaction
+with `CLAUDE.md` section 2.3, which already constrains output length here for a
+different reason - operator attention across parallel sessions rather than a
+fleet dialect. Two rules governing the same surface, both live, is the drift shape
+section 4 exists to prevent.
+
+The acceptance is FIRING, not declared. A hook proven by its configuration is the
+class of evidence this channel has refuted three times this week.
+
+## CS-948
+
+### FILED 2026-09-07 (session 72), on an operator ruling
+
+The operator ruled that this project reciprocates verbatim payloads. It has no
+manifest producer and no scrub attestation, and a note from RC credits it as
+already shipping `MANIFEST.sha256` - a credit that cannot be re-derived from this
+tree, so it is recorded as unverified rather than accepted.
+
+THE RISK IS ASYMMETRIC AND IS THE REASON THIS IS AN ITEM RATHER THAN A SCRIPT.
+Non-negotiable 3 forbids the account id, the world name, the Windows user and any
+home path leaving this tree, and non-negotiables 11 and 12 make a save-derived
+artifact personal data. An outbound payload is the one surface where a scrub
+defect is unrecoverable, because the bytes are in four other repositories before
+anyone re-reads them. RC pulled a 50-file drop from four inboxes for exactly this
+reason after this project's own sweep found account names in 19 of 48 files.
+
+The attestation must name HOW the scrub was verified, not that it was, and the
+refusal must never echo the string it caught.
+
+TWO SIBLINGS HAVE ASKED THE CHANNEL FOR PROSE RATHER THAN SOURCE. The ruling
+stands for the channel as a whole; delivery is per-recipient, and nobody who
+asked not to receive bytes gets them.
