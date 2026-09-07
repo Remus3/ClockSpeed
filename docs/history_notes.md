@@ -1949,6 +1949,91 @@ shape and neither states a rule.
 
 ---
 
+## Session 70 wakeup note - relocated 2026-09-07 (session 73)
+
+- **Shipped:** **CS-924, CS-925, CS-926, CS-927, CS-931, CS-932 CLOSED.**
+  **Filed:** CS-928, CS-930, CS-933, plus CS-929 whose acceptance was rewritten
+  after an adversary measured the filed one unachievable.
+
+- **THE ITEM WAS WRONG, THEN THE FIX WAS WRONG, AND AGENTS THAT WROTE NEITHER
+  CAUGHT BOTH.** CS-924 claimed no hook had ever been measured running on POSIX
+  at any file mode. FALSE - three modules have driven real git through
+  byte-identical tracked hooks since 2026-08-22, on ubuntu, every push. The
+  decisive measurement: at `4b776f2`, hooks tracked at `100644`, tier1 run
+  `34067366062` was GREEN on those same arms, because the sandboxes
+  `chmod(0o755)` a byte copy and the index entry never reaches git.
+
+- **THEN THE REPAIR ITSELF WAS REFUTED, and this is the reusable part.** The
+  first arm claimed to measure firing "at its tracked index mode". It could
+  not: `scripts/install_hooks.py::set_executable` ORs the exec bits in unconditionally
+  during Bootstrap 1/3, hundreds of log lines BEFORE the arm's `-x` check. **A
+  hook tracked at 100644 would have been repaired by the bootstrap and the arm
+  would still have passed - zero signal.** Repaired by PLACEMENT, not by
+  wording: a new step asserts the index mode after the clone and BEFORE the
+  bootstrap, over all three hooks. **A CHECK'S POSITION IN A PIPELINE IS PART OF
+  WHAT IT MEASURES.**
+
+- **The counter-example the adversary named but could not run was executed
+  here.** It had no POSIX host; the index-mode half needs none, because an index
+  mode lives in git rather than on the filesystem.
+  `git update-index --chmod=-x` gives exit 1, intact gives exit 0.
+
+- **Verified live, not asserted:** tier2 `34079064351` seven of seven green,
+  ubuntu `git 2.55.0` blocking a real commit with HEAD unchanged. tier1
+  `34080228403` discharged CS-925's honest residual - `4317 passed, 24 skipped`
+  with NO skip from `test_install_hooks.py`, so both exec-bit arms ran against a
+  real POSIX kernel.
+
+- **BUILD COST EXISTS AND THE LEDGER SAID IT DID NOT.** No `mBuildCost` key -
+  the naive lookup that made it look absent - but 545 of 550 build-gun recipes
+  carry it as `mIngredients`, the extractor already reads them, and all 550 are
+  in the registry with `inputs` populated. `automated_recipes` filters them out.
+  `BOOTSTRAP.md` needs NO correction; what remains is a join (CS-930). A
+  CORRECTION record was appended rather than the entry edited.
+
+- **Surprises:** `CLAUDE.md` named a `SessionStart` hook this repo does not have
+  (CS-931), found only because a sibling asked how the inbox watcher is invoked.
+  Third time this session an outside question beat the inside view.
+
+- **A DATE ERROR I MADE ALL SESSION.** I wrote `2026-09-07` throughout while the
+  clock and `git log` both said `2026-09-06`. Caught by a subagent that used the
+  git-verifiable date rather than matching my prose. Ten headings and every
+  delivered sibling note corrected. **Read the clock; do not infer the rollover.**
+
+- **Failed paths:** none abandoned. Two self-inflicted detours, both instructive:
+  new item notes used `module.py:NNN` pointers that
+  `tests/test_docs_citations.py` forbids, all converted to the symbol form; and
+  a heredoc collapsed `\n` escapes exactly as this project's own memory warns,
+  so payloads with escapes now go through the Write tool.
+
+- **A RULE I BROKE, RECORDED:** the premise adversary was dispatched against
+  `32255a3` and I edited `tier2.yml` while it graded. It pinned its citations to
+  the committed blob and its verdict stands, but CLAUDE.md section 5 says freeze
+  the candidate before dispatch. It cost nothing because the agent was careful,
+  which is luck rather than method.
+
+- **WORKTREES: 18 audited, ZERO prunable** - every one held work. 12 committed
+  onto their own branches, 18 directories removed with zero loss verified AFTER
+  removal, 1 stray EMPTY directory `git worktree list` did not know about, 59
+  branches pruned, 53 pushed to `refs/wip/*`. **That namespace is deliberate:
+  `refs/heads/**` would have fired 53 metered tier1 runs; custom refs fire none,
+  and zero were observed.** My own audit tool nearly deleted two trees - a
+  failed `git hash-object` returned `None` on both sides and **two failed
+  lookups compared EQUAL**. Four trees hold TWO COMPETING LINEAGES of one open
+  item, so none of it was merged.
+
+- **The inbox has a watcher** (`tools/inbox_watch.py`, CS-932). Design from two
+  siblings, both reasons recorded. Listing NEVER acknowledges. Seen set on DISK,
+  which is what makes it survive `/clear`. Wired in the gitignored local Claude settings file, which is NOT on the
+  frozen list, so the wiring is machine-local and a fresh clone does not get it. **Not yet observed firing at
+  SessionStart; that is presence, not firing, and it proves out next session.**
+
+- **Next action:** take CS-928. `docs/ARCHITECTURE.md` restates BOOTSTRAP's
+  spec-of-intent as SHIPPED capability under an `Implemented by:` line naming
+  modules that implement no such thing. It is the session-69 README mechanism
+  still live in the file that OWNS the module map, and `ProductionPlan` was
+  already measured as carrying none of the six fields it promises.
+
 ## Session 48 wakeup note - relocated 2026-08-31 (session 51)
 
 ## Session 48 - 2026-08-30 - CS-605 CLOSED and tier-1 CI is GREEN on ubuntu; the first repair of the home-path arm built a guard that muted itself, and an adversary caught it with a mutant the old assert had killed

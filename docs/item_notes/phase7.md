@@ -419,3 +419,100 @@ checklist and this project is going public. Two further surfaces from the same
 report: a mirror clone DOES fetch `refs/pull/*/head` (531 commits existed on no
 other ref), and deleting a repository deletes its LFS store. The git object
 store is not the whole surface.
+
+## CS-700
+
+### FILED 2026-09-07 (session 73), queueing the plan session
+
+**THE NEXT SESSION PRODUCES A PLAN AND EXECUTES NOTHING.** The session after it
+implements. That split is the operator's instruction and it is also the right
+shape: every trap in section 2 below was paid for by a sibling who wrote the
+verdict before doing the act, and the deliverable that prevents a repeat is a
+plan a second pair of eyes can refuse.
+
+**WHERE THE PLAN GOES.** Into this section, as CS-700's detail. It gets no new
+file, because a new owner file needs a row in the CLAUDE.md topology table and
+the plan is not a new fact - it is this item's detail.
+
+**THE ONE DECISION THE PLAN MUST MAKE, AND IT IS AN ADR.** CONVENTIONS section
+17 ends with a clause this project has never answered: **if history is dirty,
+the honest fix is a fresh-history public repo, not a rewrite that will be
+incomplete.** RC ran the rewrite branch today and needed two passes plus a
+delete-and-recreate; the plan must choose between the branches deliberately and
+record the choice in `docs/adr/`, not discover it midway.
+
+### 1. What is already measured, so the plan does not re-derive it
+
+**`refs/pull` on this remote is ZERO, and it is armed.** Measured 2026-09-07:
+
+    CONTROL   git ls-remote origin 'refs/heads/*'          -> 6 rows
+              git ls-remote origin 'refs/pull/*/head'      -> 0 rows
+    STRONGEST git fetch origin '+refs/pull/*/head:refs/remotes/pullcheck/*'
+                                                            -> exit 0, 0 refs
+
+The control is the load-bearing half and it is LL's practice, not this
+project's: an empty result and a broken pattern print the same thing and
+neither errors. RC measured 13 on its own remote by the same method, with 531
+commits reachable from no other ref. **This project has no permanent
+pull-request snapshots to purge.**
+
+**Sibling names are CLEARED.** The operator ruled 2026-09-07 that cross-project
+references are acceptable for all projects at this time. The plan does not
+budget for scrubbing them and does not need a per-sibling consent round.
+
+### 2. The four traps RC measured the hard way, none of them closed here
+
+All four were measured by RC on 2026-09-07 and reported to this channel.
+
+**(a) A mirror clone DOES fetch `refs/pull/*/head`.** Not a risk here given
+section 1, but the plan must still state which refs it expects a mirror to
+carry and check what actually arrived rather than reasoning about what GitHub
+advertises.
+
+**(b) A ref-pattern check can fail GREEN.** `for-each-ref` and `ls-remote` do
+not take the same pattern language and neither errors on a pattern matching
+nothing. RC's first deletion pass matched nothing while 13 refs existed and
+then reported "remaining: 0" using the same broken pattern. **Every verification
+step in the plan carries a positive control in the same command family, or it
+is not a verification step.**
+
+**(c) A content scrub can be COMPLETE and still publish the names, because a
+filename is not content.** Filed separately as CS-953 and it is the trap aimed
+at this project. Do not treat CS-953 as satisfied by anything in this item.
+
+**(d) Deleting a repository deletes its LFS store.** The plan enumerates what
+the forge holds besides the object store - pull refs, LFS, releases, Actions
+artifacts, caches, wikis, pages branches - and states the disposition of each.
+
+### 3. What the plan must check IN HISTORY, not in the working tree
+
+The working tree is the easy half and it is not the half that leaks. For each,
+the plan states the command, its positive control, and the disposition:
+
+- The platform account id, the world name, the Windows account name, and any
+  absolute home path - non-negotiable 3.
+- Any save file or save-derived artifact - non-negotiables 11 and 12. Including
+  anything a header parser ever echoed into a fixture, a log or a test output.
+- Publisher-owned game data, extracted or lifted, in any commit - the
+  never-commit rule and CONVENTIONS 17 gate item 4.
+- `data/` and `moon_sync_inbox/`, both gitignored NOW. Gitignored now says
+  nothing about every commit since the first, and the inbox holds sibling notes
+  and at least one delivered reference payload.
+- Credentials and tokens, whole history - gate item 1.
+
+### 4. The remaining CONVENTIONS 17 gate items, which are not scans
+
+Gate items 3, 5, 6 and 7 - the third-party licence audit, README-gets-an-
+outsider-to-a-first-result, all doc cross-references resolve, and a clean-
+checkout probe on a machine that has never seen the project. **Gate item 7 is
+the one this project will fail today and already knows why: CS-952 records that
+the watcher wiring is gitignored, so a fresh clone runs no watcher.** The plan
+sequences CS-952 relative to the flip rather than discovering the conflict
+during it.
+
+### 5. What the plan is NOT
+
+Not the execution. Not a scrub run, not a mirror clone, not a visibility
+change. **A session that produces the plan and also runs any part of it has
+removed the second pair of eyes the split exists to buy**, which is CLAUDE.md
+section 5's rule that the agent producing a thing never grades it.
