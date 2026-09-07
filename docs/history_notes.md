@@ -7941,3 +7941,90 @@ published vocabulary waiting on `/api/plan` and `/api/advice`. Two design questi
 and recorded in `docs/hud_doctrine.md`: whether the overlay keeps the companion's warm accent
 when the game's own world is warm, and whether item identity and production status can share
 the colour channel.
+
+
+## CLOSED 2026-09-06 (session 70) - item-note sections relocated with their ledger entries
+
+These items closed in session 70. Their detail is kept here rather than
+deleted, per CLAUDE.md section 4: relocate, never delete. The completion
+records are in `docs/LEDGER.md`.
+
+### CS-931
+
+
+#### FILED 2026-09-06 (session 70), while answering a sibling project's question about watchers
+
+`CLAUDE.md` section 2.2's tooling map row reads:
+
+    tools/facts_probe.py | `SessionStart` live-state injection
+
+**MEASURED: `.claude/settings.json` declares exactly two hook events,
+`PreToolUse` and `PostToolUse`.** There is no `SessionStart` entry. The
+user-level settings file does declare `SessionStart`, but it runs no Python
+script at all, so `facts_probe.py` is not wired to it there either.
+
+What actually invokes the tool: `.claude/commands/drift-guard.md`,
+`.claude/commands/sync-docs.md` and `.claude/agents/doc-sync.md`, all by hand.
+
+#### WHY THIS IS WORSE THAN AN ORDINARY STALE LINE
+
+`CLAUDE.md` is auto-loaded every turn, so this sentence is read into context at
+the start of every session in this repository and is believed by default. It
+describes a protection that does not exist - the exact shape CONVENTIONS.md
+section 16 item 4 warns about, where presence is inferred from a claim rather
+than measured.
+
+It also has a live cost: a session that believes live state is injected
+automatically has no reason to run the probe, so the state is never gathered.
+
+#### THE FENCE
+
+Do NOT close this by wiring a `SessionStart` hook. `.claude/settings.json` is a
+FROZEN FILE under CLAUDE.md section 6 and that route needs an adjudicator grant
+recorded before the edit. The cheap and correct close is to make the claim true
+by correcting it. Wiring the hook is CS-932's problem, not this one's.
+
+### CS-932
+
+
+#### FILED 2026-09-06 (session 70), from a cross-project exchange in `moon_sync_inbox/`
+
+A sibling project asked how Clockspeed's inbox watcher is invoked. The honest
+answer is that there is none: no scheduled task, no file-system watch, no poll
+loop. `schtasks /query` matched nothing. Notes are read only because the
+operator's continuation prompt tells the session to read them.
+
+**MEASURED LATENCY: about seven hours for one note this session**, and unbounded
+in the general case, because nothing bounds it.
+
+#### THE DESIGN TWO SIBLINGS HAVE ALREADY CONVERGED ON
+
+Surface unread notes at session start. It costs one directory listing, cannot
+flash a console, and survives a `/clear` by construction because a `/clear` IS a
+session start.
+
+**TRACK SEEN FILENAMES AS A SET, NEVER AN MTIME WATERMARK.** A watermark
+advances on write, so it can move past a note nobody read. Both siblings dropped
+the watermark for that reason before building theirs; inheriting the conclusion
+without the reason is how it comes back.
+
+#### THE FROZEN-FILE ROUTE IS THE REAL COST, AND IT IS NOT FIFTEEN MINUTES
+
+The sibling's estimate assumed a `SessionStart` hook already exists here. It
+does not - see CS-931. Wiring one means editing `.claude/settings.json`, which
+is FROZEN under CLAUDE.md section 6: the proposal routes through an adjudicator
+that did not produce it, and the grant is recorded in `docs/LEDGER.md` BEFORE
+the edit is made.
+
+`moon_sync_inbox/` is gitignored, so the seen-set must live somewhere untracked
+too, and must not put a filename carrying a project code into a tracked file.
+
+### CS-926
+
+
+#### RELOCATED 2026-09-06 from the ROADMAP item line, for the CS-926 budget pass
+
+The headline this item carried before its line was cut to the one-liner the
+`ROADMAP.md` header asks for. Relocated verbatim, never deleted:
+
+`ROADMAP.md` is over its own soft budget at 117 per cent, so `tools/doc_budget.py` returns WARN rather than PASS on every run and the single signal that would announce a genuinely NEW budget breach is already lit - a guard that is permanently amber grades nothing

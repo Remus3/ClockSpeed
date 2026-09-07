@@ -366,6 +366,14 @@ demonstrating.
 **DO NOT close this by editing `ITEM_ID`.** It is correct as written and the assertion that
 consumes it is true.
 
+### RELOCATED 2026-09-06 from the ROADMAP item line, for the CS-926 budget pass
+
+The headline this item carried before its line was cut to the one-liner the
+`ROADMAP.md` header asks for. Relocated verbatim, never deleted:
+
+An owner recorded against a shipped table is checked for the `CS-` PREFIX only, so an id naming no item satisfies every guard and an entry keeps pointing at nothing once its owner closes
+
+
 ## CS-846
 
 ### NOTE - filed 2026-08-24 by the merger, on the CS-842 builder's recommendation
@@ -1048,3 +1056,10 @@ prospective.
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
 
 NOTE: found 2026-08-22 (session 29) by the CS-807 permissive-failure refuter, OUTSIDE its brief, and reproduced independently on `main` by the merger: a planted sibling read as harmless, rewritten at the same path to reach the library, still answered `[]` until `cache_clear()`, which then answered `['sweep']`. **IT IS LATENT TODAY, NOT LIVE** - pytest's per-test `tmp_path` gives each control a fresh path, which is exactly why no existing test sees it. It becomes real the moment a control plants two sibling versions at one path, which is a natural thing to write and would fail in the direction that reads as SAFE.
+
+### RELOCATED 2026-09-06 from the ROADMAP item line, for the CS-926 budget pass
+
+The headline this item carried before its line was cut to the one-liner the
+`ROADMAP.md` header asks for. Relocated verbatim, never deleted:
+
+`_reaching_names_of` and `_wrapping_names_of` are `@cache`d on a `Path`, so a stale parse answers for a changed file at the same path

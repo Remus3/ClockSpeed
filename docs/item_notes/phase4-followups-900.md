@@ -29,6 +29,7 @@ anything was filed**, which is why the range is stated here rather than trusted.
 
 ## CS-900
 
+
 ### FILED 2026-09-05 (session 61) by the merger, MEASURED ON THE RUNNER BEFORE FILING
 
 **THIS ITEM EXISTS BECAUSE CS-896's FIX HAS A CEILING AND THE CEILING IS SHAPED LIKE A
@@ -91,6 +92,7 @@ subprocess-heavy work. Take the measurement on the runner or do not take it.
 
 ## CS-907
 
+
 ### FILED 2026-09-05 (session 61) by the merger, on an adjudicator's finding that this is the REAL defect
 
 **THE HOOK HAS OUTGROWN ITS OWN STATED CONTRACT AND BOTH HALVES ARE IN THE TREE TODAY.**
@@ -117,7 +119,16 @@ the contract is corrected to say the hook runs the whole suite and why that is w
 cost.
 ---
 
+### RELOCATED 2026-09-06 from the ROADMAP item line, for the CS-926 budget pass
+
+The headline this item carried before its line was cut to the one-liner the
+`ROADMAP.md` header asks for. Relocated verbatim, never deleted:
+
+`CONVENTIONS.md` assigns tier-0 pre-push a "fast unit subset" and reserves the full suite with parallelism for tier 2, but the hook runs the whole tests directory while its own header claims it runs the subset, and the sanctioned lever - the registered `slow` marker that `tests/test_scaffold.py` ships a test for - carries 12 tests and is used by nothing
+
+
 ## CS-920
+
 
 ### FILED 2026-09-06 (session 65) by the merger, from an idea another project on this machine raised for itself
 
@@ -178,7 +189,16 @@ rather than to the levels derived from them.
 
 ---
 
+### RELOCATED 2026-09-06 from the ROADMAP item line, for the CS-926 budget pass
+
+The headline this item carried before its line was cut to the one-liner the
+`ROADMAP.md` header asks for. Relocated verbatim, never deleted:
+
+every measured number this project makes about ITSELF lives in PROSE and carries its provenance at DOCUMENT scope rather than ROW scope, so a reading cannot be compared with another without a human reading both paragraphs: this session alone published a 3.2x speedup that a paired re-measurement corrected to 2.39x, a worker count of sixteen that is eight, and a shard-specific variance claim that an identical runner pool reproduces one time in three - and CS-917's acceptance asks for a noise figure that SURVIVES ITS OWN NEXT READING, which is a query over a measurement history that does not exist
+
+
 ## CS-917
+
 
 ### THE ACCEPTANCE CLAUSE HAD A HOLE AND NOW CARRIES THE ORDERING - MEASURED 2026-09-06 (session 65)
 
@@ -236,6 +256,7 @@ and are not the complaint.
 
 ## CS-919
 
+
 **Filed 2026-09-06 by the merger, out of CS-918's first real cycle.** Read that closure
 entry in `docs/LEDGER.md` first - this item exists because of something the cycle did, not
 because of something someone thought might happen.
@@ -283,7 +304,8 @@ nobody else pushes - which is every run on an idle box and no run on this one.
 
 ## CS-928
 
-### FILED 2026-09-07 (session 70), from a read-only probe that was sent to check a DIFFERENT claim
+
+### FILED 2026-09-06 (session 70), from a read-only probe that was sent to check a DIFFERENT claim
 
 The probe was dispatched to establish whether build cost data exists at all
 (CS-930). It came back having refuted that premise AND having found this, which
@@ -322,7 +344,8 @@ present in the named module or the sentence goes.
 
 ## CS-929
 
-### FILED 2026-09-07 (session 70) by the CS-927 builder, which correctly refused to sweep it
+
+### FILED 2026-09-06 (session 70) by the CS-927 builder, which correctly refused to sweep it
 
 `clockspeed/surface/server.py` says `/api/advice/<id>/state` are "two of the
 NINE endpoints `BOOTSTRAP.md` section 7.1 publishes". Section 7.1 has named TEN
@@ -351,9 +374,28 @@ It is stamped `accepted - 2026-08-29`. An ADR records what was decided when it
 was decided; correcting it would rewrite history rather than fix drift. Left
 alone on purpose. Do not file it without arguing that point first.
 
+### MEASURED 2026-09-06 (session 70) - the filed acceptance was unachievable
+
+The item originally required "the detector's scope reaches this module, proven
+by a mutation that reddens it". **That cannot be done**, and the measurement is
+not a matter of opinion: running the shipped CS-927 detector over
+`clockspeed/surface/server.py` yields **seven false positives** - all of them
+"two templates" phrases about template COLLISION rather than counts - and
+**zero hits on the actual stale sentence**.
+
+The reason is structural. The stale noun is **endpoints**, and `COUNTED_NOUNS`
+in `tests/surface/test_pending_route_count.py` deliberately excludes it so that
+`pending.py` can keep saying "the five unbacked endpoints" about its own set.
+Widening the detector to `server.py` therefore either floods or misses.
+
+**So the acceptance was rewritten** to require a guard proven by mutation
+WITHOUT mandating that it be the CS-927 detector. Left as filed, this item would
+have closed on a green run that measured nothing - the exact shape CS-605
+closed on.
 ## CS-930
 
-### FILED 2026-09-07 (session 70). THE PREMISE THAT SENT THE PROBE WAS REFUTED, AND SO WAS THE LEDGER
+
+### FILED 2026-09-06 (session 70). THE PREMISE THAT SENT THE PROBE WAS REFUTED, AND SO WAS THE LEDGER
 
 The session-69 handoff asked whether the shipped docs file exposes build cost at
 all, and warned that if it does not, `BOOTSTRAP.md` carries an unlabelled
@@ -396,70 +438,28 @@ plus an aggregation over data already loaded. Do not re-pitch extracting build
 cost from a wiki or any community source - `CLAUDE.md` section 7 settles that,
 and the data is on disk anyway.
 
-## CS-931
+## CS-933
 
-### FILED 2026-09-07 (session 70), while answering a sibling project's question about watchers
 
-`CLAUDE.md` section 2.2's tooling map row reads:
+### FILED 2026-09-06 (session 70) by an adversary sweeping for SIBLINGS of CS-927
 
-    tools/facts_probe.py | `SessionStart` live-state injection
+`clockspeed/surface/web/app.js` says "The ten routes `BOOTSTRAP.md` section 7.1
+publishes" and "Two of the ten routes take a body".
 
-**MEASURED: `.claude/settings.json` declares exactly two hook events,
-`PreToolUse` and `PostToolUse`.** There is no `SessionStart` entry. The
-user-level settings file does declare `SessionStart`, but it runs no Python
-script at all, so `facts_probe.py` is not wired to it there either.
+**IT IS CORRECT TODAY. That is precisely why it is filed.** Every sweep this
+session searched for the NUMBER NINE - the stale value - so a restatement
+carrying the CURRENT value was invisible to all of them, including the sweep
+that produced the CS-927 record's "two siblings". There are three.
 
-What actually invokes the tool: `.claude/commands/drift-guard.md`,
-`.claude/commands/sync-docs.md` and `.claude/agents/doc-sync.md`, all by hand.
-
-### WHY THIS IS WORSE THAN AN ORDINARY STALE LINE
-
-`CLAUDE.md` is auto-loaded every turn, so this sentence is read into context at
-the start of every session in this repository and is believed by default. It
-describes a protection that does not exist - the exact shape CONVENTIONS.md
-section 16 item 4 warns about, where presence is inferred from a claim rather
-than measured.
-
-It also has a live cost: a session that believes live state is injected
-automatically has no reason to run the probe, so the state is never gathered.
+**THE LESSON, which outranks the fix.** A drifting-count sweep must be defined
+by the SHAPE - an aggregate count restated in prose with no owner and no guard -
+and never by the value that happens to be wrong this week. A sweep keyed to the
+wrong value finds only the sites that have already broken, which is the set you
+already knew about.
 
 ### THE FENCE
 
-Do NOT close this by wiring a `SessionStart` hook. `.claude/settings.json` is a
-FROZEN FILE under CLAUDE.md section 6 and that route needs an adjudicator grant
-recorded before the edit. The cheap and correct close is to make the claim true
-by correcting it. Wiring the hook is CS-932's problem, not this one's.
+Do not close this by editing "ten" to whatever the count becomes. That is the
+weak fix CS-927 explicitly refused, and it puts the site straight back in the
+queue for the eleventh route.
 
-## CS-932
-
-### FILED 2026-09-07 (session 70), from a cross-project exchange in `moon_sync_inbox/`
-
-A sibling project asked how Clockspeed's inbox watcher is invoked. The honest
-answer is that there is none: no scheduled task, no file-system watch, no poll
-loop. `schtasks /query` matched nothing. Notes are read only because the
-operator's continuation prompt tells the session to read them.
-
-**MEASURED LATENCY: about seven hours for one note this session**, and unbounded
-in the general case, because nothing bounds it.
-
-### THE DESIGN TWO SIBLINGS HAVE ALREADY CONVERGED ON
-
-Surface unread notes at session start. It costs one directory listing, cannot
-flash a console, and survives a `/clear` by construction because a `/clear` IS a
-session start.
-
-**TRACK SEEN FILENAMES AS A SET, NEVER AN MTIME WATERMARK.** A watermark
-advances on write, so it can move past a note nobody read. Both siblings dropped
-the watermark for that reason before building theirs; inheriting the conclusion
-without the reason is how it comes back.
-
-### THE FROZEN-FILE ROUTE IS THE REAL COST, AND IT IS NOT FIFTEEN MINUTES
-
-The sibling's estimate assumed a `SessionStart` hook already exists here. It
-does not - see CS-931. Wiring one means editing `.claude/settings.json`, which
-is FROZEN under CLAUDE.md section 6: the proposal routes through an adjudicator
-that did not produce it, and the grant is recorded in `docs/LEDGER.md` BEFORE
-the edit is made.
-
-`moon_sync_inbox/` is gitignored, so the seen-set must live somewhere untracked
-too, and must not put a filename carrying a project code into a tracked file.

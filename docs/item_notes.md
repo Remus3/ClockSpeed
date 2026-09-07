@@ -212,10 +212,28 @@ a pass - every equality here is satisfied for free by an empty population.
 | CS-928 | `docs/item_notes/phase4-followups-900.md` |
 | CS-929 | `docs/item_notes/phase4-followups-900.md` |
 | CS-930 | `docs/item_notes/phase4-followups-900.md` |
-| CS-931 | `docs/item_notes/phase4-followups-900.md` |
-| CS-932 | `docs/item_notes/phase4-followups-900.md` |
+| CS-933 | `docs/item_notes/phase4-followups-900.md` |
 | CS-909 | `docs/item_notes/phase6.md` |
 | CS-910 | `docs/item_notes/phase6.md` |
+| CS-876 | `docs/item_notes/phase4-followups-850.md` |
+| CS-877 | `docs/item_notes/phase4-followups-850.md` |
+| CS-604 | `docs/item_notes/phase6.md` |
+| CS-606 | `docs/item_notes/phase6.md` |
+| CS-607 | `docs/item_notes/phase6.md` |
+| CS-610 | `docs/item_notes/phase6.md` |
+| CS-611 | `docs/item_notes/phase6.md` |
+| CS-612 | `docs/item_notes/phase6.md` |
+| CS-620 | `docs/item_notes/phase6.md` |
+| CS-621 | `docs/item_notes/phase6.md` |
+| CS-622 | `docs/item_notes/phase6.md` |
+| CS-623 | `docs/item_notes/phase6.md` |
+| CS-913 | `docs/item_notes/phase6.md` |
+| CS-914 | `docs/item_notes/phase6.md` |
+| CS-915 | `docs/item_notes/phase6.md` |
+| CS-916 | `docs/item_notes/phase6.md` |
+| CS-603 | `docs/item_notes/phase6.md` |
+| CS-608 | `docs/item_notes/phase6.md` |
+| CS-613 | `docs/item_notes/phase6.md` |
 
 ## Rules every leaf obeys
 

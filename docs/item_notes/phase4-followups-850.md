@@ -679,6 +679,14 @@ stronger claim and was one step from restating a tier-1 acceptance on it.
 - **WALKING THE WHOLE ARGUMENT SUBTREE IS WRONG.** It took the hand-off count 42 to 92 by
   absorbing `helper(str(exc))`, which is a STRING and CS-205's channel, not this one.
 
+### RELOCATED 2026-09-06 from the ROADMAP item line, for the CS-926 budget pass
+
+The headline this item carried before its line was cut to the one-liner the
+`ROADMAP.md` header asks for. Relocated verbatim, never deleted:
+
+A caught exception's content reaches a report under DEFAULT flags by chaining, by the rewritten assert and by the callee frame argument, and a guard keyed on `except ... as NAME` grades none of the three because an unnamed handler renders identically
+
+
 ## CS-854
 
 ### NOTE - filed 2026-08-25 (session 40) by the merger, from the CS-829 repairing slice
@@ -1329,6 +1337,14 @@ elsewhere is a different guard, not a repair of this one.
 delegates to something `objects.parse_body` itself consults. A reading rebuilt out of
 shipped `_Cursor` primitives is moved by neither plant. That residue is this item's.
 
+### RELOCATED 2026-09-06 from the ROADMAP item line, for the CS-926 budget pass
+
+The headline this item carried before its line was cut to the one-liner the
+`ROADMAP.md` header asks for. Relocated verbatim, never deleted:
+
+the static seam arms in `tests/save/test_independent_table.py` scan syntax rather than reach, so a two-level reach and a `getattr` call escape every one of them
+
+
 ## CS-865
 
 ### Filed 2026-08-30 (session 50), from the CS-829 adjudication
@@ -1536,6 +1552,13 @@ already use exactly that, for exactly this reason.
 holds blanket, unlimited-site immunity with no count pin. The item text is scoped to
 modules that buy immunity by importing, so the owner sits outside the clause - but the
 argument against module-keying applies to it unchallenged and nobody has answered it.
+
+### RELOCATED 2026-09-06 from the ROADMAP item line, for the CS-926 budget pass
+
+The headline this item carried before its line was cut to the one-liner the
+`ROADMAP.md` header asks for. Relocated verbatim, never deleted:
+
+an `EXEMPT` site count answers HOW MANY reads a reason forgives, never WHICH, so a compensating swap leaving the count unchanged is silent across every leg
 
 
 ## CS-894
@@ -1953,3 +1976,23 @@ churning file.
 "which does not exist" matcher. That is a prose heuristic, it fails SILENTLY in the
 permissive direction, and it forgives a real dead citation forever with nothing red. A loud
 false positive beats a silent forgiveness, which is this module's own recorded doctrine.
+
+
+## CS-876
+
+### RELOCATED 2026-09-06 from the ROADMAP item line, for the CS-926 budget pass
+
+The headline this item carried before its line was cut to the one-liner the
+`ROADMAP.md` header asks for. Relocated verbatim, never deleted:
+
+the independent oracle in `tests/save/independent_table.py` consumes the trailing body references but no caller reads its final offset, so the pre-CS-867 `int32` reading passes it
+
+
+## CS-877
+
+### RELOCATED 2026-09-06 from the ROADMAP item line, for the CS-926 budget pass
+
+The headline this item carried before its line was cut to the one-liner the
+`ROADMAP.md` header asks for. Relocated verbatim, never deleted:
+
+no arm enumerates the shell's `insertCSS` call sites, so a second injection or a swapped constant voids `app.css`'s no-clip decision again with every arm green

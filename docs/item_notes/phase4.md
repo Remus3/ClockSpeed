@@ -479,6 +479,14 @@ Relocated from `ROADMAP.md` 2026-08-18 (session 20) for budget, not deleted. The
 
 **MEASURED, all at `tests/save` 1040 passed, exit 0.** (1) `_DISPATCH_SITES` in `tests/save/test_byte_order_status.py` is a hand-written 2-tuple; deleting one entry drops every oracle that entry owns and costs the probe NOTHING, because `_coarseness_observation` reaches its dispatch directly rather than through the tuple - so two line deletions inside that one module restore the zero-coarseness-call state the second refutation closed. (2) An ordinary extract-method refactor - moving `_tally_mantissa_coarseness` behind a helper called from the census - takes the call out of the scanned body while the oracle still runs, and EVERY control passes, which is stealthier than an alias because the neutering patch still bites. A rename dropping the `_tally_` prefix IS caught, but only by `monkeypatch.setattr` raising on a missing attribute, not by the derivation. (3) `_PROBE_VALUE_PAIRS` is graded by nothing: emptying it leaves the module green at 8 passed, and 3 of its 5 shapes cannot move anything under any combination, because both dispatch sites key on IntProperty and FloatProperty alone.
 
+### RELOCATED 2026-09-06 from the ROADMAP item line, for the CS-926 budget pass
+
+The headline this item carried before its line was cut to the one-liner the
+`ROADMAP.md` header asks for. Relocated verbatim, never deleted:
+
+Close the reach control's remaining seam, where the oracles it requires are derived by NAME but the bodies it reads are still listed
+
+
 ## CS-479
 
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
@@ -530,6 +538,14 @@ name. A module edited to claim a type in every table at once contradicts itself 
 library-free check can tell a false width or a false shape from a true one, which is CS-426's
 gap. So the acceptance cannot rest on another contradiction; it needs either a fixture that
 costs more than one `struct.pack` call, or evidence from outside this module's own tables.
+
+### RELOCATED 2026-09-06 from the ROADMAP item line, for the CS-926 budget pass
+
+The headline this item carried before its line was cut to the one-liner the
+`ROADMAP.md` header asks for. Relocated verbatim, never deleted:
+
+Bound the tag-carried exemption against a module that CLAIMS a type consistently instead of contradicting itself over it
+
 
 ## CS-499
 

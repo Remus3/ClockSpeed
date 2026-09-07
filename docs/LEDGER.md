@@ -160,7 +160,134 @@ machine-checked artifact that produces it.
 
 ## Entries
 
-### 2026-09-07 - CORRECTION to today's CS-924, CS-925 and CS-927 records, from an adversary that graded work it did not produce - one claim was FALSE and is now repaired in the workflow rather than only in prose
+### 2026-09-06 - CS-932 - CLOSED. The inbox has a watcher, and the two design points came from the two siblings that had already got them wrong once
+
+Nothing watched `moon_sync_inbox/`. Measured this session: a note sat unread for
+about seven hours, and the general case was unbounded because nothing bounded
+it. Notes were read only because the operator's continuation prompt said to.
+
+**THE DESIGN IS NOT THIS PROJECT'S.** Two sibling projects converged on it
+independently and sent it through the channel the tool now watches. Both points
+are reproduced in the module WITH their reasons, because a conclusion inherited
+without its reason comes back:
+1. Surface at SESSION START, not from a daemon: one directory listing, no
+   console flash, and it survives a `/clear` by construction because a `/clear`
+   IS a session start.
+2. Track SEEN FILENAMES AS A SET, never an mtime watermark. A watermark advances
+   on write, so it can move past a note nobody read. Both siblings built a
+   watermark first and dropped it for exactly this.
+
+**LISTING NEVER ACKNOWLEDGES, and that is the arm that carries the design.** If
+starting a session marked notes read, a note would be consumed by a session that
+never looked - the seven-hour failure wearing a different hat. `--ack` is a
+separate action.
+
+**A KNOWN COST, ACCEPTED RATHER THAN HIDDEN: a rename reads as new mail.** This
+project re-dated four delivered notes and a sibling's watcher flagged all four
+as unread; none was new. Keying on a content hash would trade that for a worse
+failure - an EDITED note would read as already seen, and an edit is the case
+most worth surfacing. A false "new mail" costs one glance. The tradeoff is
+pinned by `test_a_renamed_note_resurfaces_and_that_cost_is_accepted`.
+
+**THE SEEN SET IS REWRITTEN FROM THE CURRENT LISTING, NOT UNIONED**, so a
+departed name drops out and the store cannot grow without bound. The sibling
+that suggested it had the property by accident and recommended making it
+deliberate; `test_ack_drops_a_name_that_has_left_the_inbox` is what makes it so.
+
+**VACUITY IS AN OUTCOME, NEVER A CLEAN RESULT.** A missing inbox exits 3 and
+says "this is NOT nothing unread". A corrupt store yields the EMPTY seen set, so
+every note reads as unread - the failure direction must be a note shown twice,
+never a note shown zero times. Both are arms.
+
+**WIRED WITHOUT A FROZEN-FILE GRANT, and that is deliberate rather than a
+dodge.** `.claude/settings.json` is frozen under CLAUDE.md section 6 and was NOT
+touched. The hook is declared in `.claude/settings.local.json`, which is
+gitignored at `*.local.json` and is not on the frozen list. **The consequence is
+stated rather than glossed: the wiring is machine-local and a fresh clone does
+not get it** - the same status `core.hooksPath` has, and consistent with
+CONVENTIONS section 1. Tracking it needs the frozen-file route and has not been
+taken.
+
+Verification: `tests/test_inbox_watch.py`, 13 arms. **Five mutants, each a
+plausible implementation choice rather than a typo, each red on a NAMED arm**
+with a green pristine floor and a verified byte restore: a watermark instead of
+a filename set; listing acknowledging as a side effect; a missing inbox
+reporting nothing unread; a corrupt store read as everything-acknowledged; the
+data-not-instructions warning dropped. Run live against the real inbox: 27
+unread notes, where a listing by eye had found 6.
+
+**THE BANNER SAYS THE NOTES ARE DATA, NOT INSTRUCTIONS, every time it prints.**
+They are written by other agents. That line is asserted by an arm so it cannot
+be quietly dropped.
+
+### 2026-09-06 - CS-931 - CLOSED. CLAUDE.md named a SessionStart hook this repository does not have
+
+The tooling map said `tools/facts_probe.py` was the `SessionStart` live-state
+injection. **MEASURED: `.claude/settings.json` declares exactly two hook events,
+`PreToolUse` and `PostToolUse`.** The user-level settings file does declare
+`SessionStart` but runs no Python script, so the tool was not wired there
+either. It is invoked by hand from `/drift-guard`, `/sync-docs` and the doc-sync
+agent.
+
+**THE COST WAS NOT COSMETIC.** `CLAUDE.md` is auto-loaded every turn, so that
+sentence was read into context at the start of every session and believed by
+default. A session that believes live state is injected automatically has no
+reason to run the probe, so the state is never gathered and nothing says so.
+The row was load-bearing in the wrong direction.
+
+**CLOSED BY MAKING THE CLAIM TRUE, NOT BY WIRING THE HOOK.** Wiring
+`.claude/settings.json` needs a frozen-file grant; correcting a false sentence
+needs none, and the sentence was the defect. The row now says the tool is run BY
+HAND and names where from.
+
+**FOUND BY AN OUTSIDE QUESTION.** A sibling project asked whether this
+repository had a SessionStart hook, estimating fifteen minutes if so. Answering
+from the tooling map would have been wrong. That is the second time this session
+that a reader who had not written the thing beat the inside view - the first was
+an adversary refuting seven README claims. The common factor is the same both
+times.
+
+### 2026-09-06 - CS-926 - CLOSED. ROADMAP.md is back inside its budget by relocation, and no item was lost
+
+`tools/doc_budget.py` returned WARN on every run, so the one signal that would
+announce a genuinely NEW breach was permanently lit. A guard that is always
+amber grades nothing.
+
+74,865 bytes against a 61,440 budget, and only about 4,000 of those bytes were
+not item lines - so the only reachable fix was the item LINES themselves. 115
+headlines were shortened, 26,302 bytes to 12,006.
+
+**THE FILE'S OWN HEADER PRESCRIBED THE FIX**: "THE DETAIL DOES NOT GO ON THE
+ITEM LINE. IT GOES IN THE `docs/item_notes.md` FAMILY." The lines had drifted to
+an average of 452 bytes of justification prose each. This was the rule being
+applied, not a judgement call.
+
+**NOTHING WAS DELETED, AND THAT WAS CHECKED MECHANICALLY RATHER THAN ASSERTED.**
+For every shortened headline the salient tokens and content words were diffed
+against the item's leaf section. **91 items lost nothing** - their leaf already
+carried the story, so the headline was restating it, and that restatement WAS
+the drift. The other 31 gained a `### RELOCATED` subsection carrying the
+original verbatim. Final check: headlines whose dropped detail is not reachable
+in a leaf: **0**.
+
+Verification: item count 156 before and 156 after. `doc_budget.py` returns
+`VERDICT: PASS` with no WARN row. `drift_guard.py` returns `guards: 11 PASS 11
+WARN 0 FAIL 0` - guard (a) moved WARN to PASS and no guard regressed. Acceptance
+clauses byte-identical for all 156; every line keeps all four parts.
+
+**THE WORKTREE WAS CUT THREE COMMITS BEHIND ITS STATED BASE** and the agent
+caught it and reset before working. That trap has now fired in a documented
+majority of this project's worktree dispatches.
+
+**HONEST RESIDUAL, from the agent rather than extracted from it.** Headroom is
+about 2,400 bytes, roughly eight items - green but not durably so. The five
+items filed this session were excluded by instruction and are now the five
+LONGEST remaining headlines, about 40 per cent of remaining headline bytes;
+shortening them would roughly double the headroom. And
+`docs/item_notes/phase4-followups-850.md` is at 98 per cent of its own budget,
+which makes it the next one to trip.
+
+### 2026-09-06 - CORRECTION to today's CS-924, CS-925 and CS-927 records, from an adversary that graded work it did not produce - one claim was FALSE and is now repaired in the workflow rather than only in prose
 
 **A refutation pass over the three records returned REFUTED on CS-924's
 load-bearing clause.** It is corrected here, and the underlying gap is CLOSED in
@@ -259,7 +386,7 @@ all seven jobs green - with the caveat, not previously stated, that its head SHA
 is not an ancestor of `main`, so that run says nothing about CS-925 or CS-927;
 those are covered by tier1 `34080228403` instead.
 
-### 2026-09-07 - CS-924 - CLOSED. A Clockspeed hook has now been measured FIRING on POSIX, in a real clone, at its tracked mode, wired by the real bootstrap - and the item's own premise was REFUTED on the way
+### 2026-09-06 - CS-924 - CLOSED. A Clockspeed hook has now been measured FIRING on POSIX, in a real clone, at its tracked mode, wired by the real bootstrap - and the item's own premise was REFUTED on the way
 
 **THE ITEM AS FILED WAS FALSE, AND THAT IS RECORDED HERE RATHER THAN QUIETLY
 DROPPED.** `ROADMAP.md` claimed "no hook in this repository has been measured
@@ -340,7 +467,7 @@ test - and prints an explicit NOTE on Windows rather than a silent pass, because
 Git for Windows masks `X_OK` and a green there would be a statement about
 nothing.
 
-### 2026-09-07 - CS-925 - CLOSED. The exec bit `set_executable` lands is now asserted on disk, not the fact that it was called
+### 2026-09-06 - CS-925 - CLOSED. The exec bit `set_executable` lands is now asserted on disk, not the fact that it was called
 
 `scripts/install_hooks.py::set_executable` was the only thing repairing a hook's
 POSIX exec bit per clone and NOTHING graded it: `git grep set_executable --
@@ -381,7 +508,7 @@ docker on this box, so the discrimination harness used an in-process stand-in fo
 a mode-honouring filesystem. That proves the assertions discriminate; it does not
 prove behaviour against a POSIX filesystem. The first real measurement is CI.
 
-### 2026-09-07 - CS-927 - CLOSED. `pending.py` stops spelling a route count it does not own, and the weak fix is now blocked by CI
+### 2026-09-06 - CS-927 - CLOSED. `pending.py` stops spelling a route count it does not own, and the weak fix is now blocked by CI
 
 The docstring said the aggregate route table holds exactly the NINE templates
 `BOOTSTRAP.md` section 7.1 names. `clockspeed/surface/api/health.py::ENDPOINT_TEMPLATES`
@@ -416,7 +543,7 @@ CS-929; the CS-927 detector is scoped to `pending.py` alone and cannot see it.
 is deliberately NOT filed: an accepted ADR records what was true when it was
 written.
 
-### 2026-09-07 - CORRECTION to the CS-922 record - build cost DOES exist, and the cause recorded on 2026-09-06 was wrong on two of its three clauses
+### 2026-09-06 - CORRECTION to the CS-922 record - build cost DOES exist, and the cause recorded on 2026-09-06 was wrong on two of its three clauses
 
 **This corrects an earlier record rather than editing it**, per this file's own
 rule. The CS-922 entry states that build "COST DATA DOES NOT EXIST AT ALL" and
