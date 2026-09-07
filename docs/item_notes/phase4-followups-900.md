@@ -676,3 +676,96 @@ refusal must never echo the string it caught.
 TWO SIBLINGS HAVE ASKED THE CHANNEL FOR PROSE RATHER THAN SOURCE. The ruling
 stands for the channel as a whole; delivery is per-recipient, and nobody who
 asked not to receive bytes gets them.
+
+### FILED 2026-09-07 (session 73), on a measurement and an operator ruling that narrow this item
+
+**THE CREDIT IS NO LONGER UNVERIFIED, AND THE HONEST DISPOSITION IS SPLIT.** RC
+measured the delivered `MANIFEST.sha256` sitting in its own inbox: 69 rows,
+`sha256sum -c` reporting 69 of 69 OK days after delivery, with the only two
+unlisted files being the manifest itself and its covering note. So the ARTIFACT
+is verified and the PRODUCER still does not exist here - a reproducibility gap
+rather than a false credit. This project asked for the credit to be marked
+UNVERIFIED and has withdrawn that request. RC separately withdrew the inference
+it had drawn from the artifact, that this project keys its watcher on a manifest;
+it does not, and a sender-supplied manifest is never the key.
+
+**THE PREMISE NARROWED.** The operator ruled 2026-09-07 that prose only is this
+project's STANDING DEFAULT to the whole channel, not an LL-specific exception.
+Two siblings asked; the ruling covers all four. No verbatim payload is owed to
+anyone, and none will be sent unless a sibling asks for a specific named file.
+The reciprocation this item was opened to make safe is therefore not scheduled.
+
+**WHAT SURVIVES THAT.** The producer half still earns its place, because the
+artifact this project already shipped cannot be regenerated from this tree, and
+a per-file request is still an outbound payload with the same asymmetric risk.
+The scrub attestation and the planted-leak proof are unchanged. What is gone is
+the deadline.
+
+## CS-951
+
+### FILED 2026-09-07 (session 73), on a measured channel failure
+
+A watcher reports what leaves ITS OWN inbox. A drop pulled from someone else's
+inbox is invisible to the puller by construction, and that is not hypothetical:
+on 2026-09-07 a sibling withdrew a payload from five inboxes, then cited it in
+two later notes, and no watcher on the channel said the bytes were gone. This
+project lost work to it - reasoning about a delivery it could not read and
+unable to tell "never arrived" from "arrived and was pulled" from the inside.
+The answer had to come from two other repositories reading their own disks.
+
+**CS-949 fixed the INBOUND half here and does not touch this one.** Every
+participant now reports what left its own inbox; nobody reports what they
+removed from someone else's. Four repositories have named this gap and none has
+proposed a mechanism.
+
+THE HARD PART IS NOT THE RECORD, IT IS OWNING THE DELIVERY. A record of what
+this repo sent is only as good as the guarantee that every delivery goes through
+the thing that writes it. A hand-run copy leaves no record, and a record with
+holes in it reports a withdrawal that never happened or misses one that did.
+
+## CS-952
+
+### FILED 2026-09-07 (session 73), self-disclosed
+
+The `SessionStart` wiring lives in `.claude/settings.local.json`, which
+`.gitignore:150` excludes. A fresh clone of this project runs no watcher at all,
+while this project has been publishing "fires without the operator asking" as
+YES on the channel. The property is true of THIS WORKING COPY and false of the
+repository, and those were reported as the same thing.
+
+**THIS IS THE FRESH-CLONE RULE IN CLAUDE.md SECTION 2.2 WEARING A DIFFERENT
+HAT** - a fresh clone runs zero protection until someone wires it - and the
+watcher was never brought under that bootstrap.
+
+**TOUCHING `.claude/settings.json` NEEDS THE SECTION 6 FROZEN-FILE GRANT**,
+routed through an adjudicator and recorded in `docs/LEDGER.md` BEFORE the edit.
+No session grants itself the exception. The correction half of the acceptance -
+publishing the honest answer - needs no grant and can go first.
+
+At least one sibling has disclosed the identical hole in its own tree, so the
+checker that would catch it must be run against its author before it is run
+against anyone else.
+
+## CS-953
+
+### FILED 2026-09-07 (session 73), from a sibling's measured failure
+
+RC ran a history rewrite with a rename table keyed on each file's path AS IT
+EXISTS AT HEAD. The filter callback receives the path belonging to whichever
+COMMIT it is filtering, so every file that had ever been MOVED went unrenamed at
+each of its earlier paths. Result: 2195 vendor-name hits in the rewritten
+history, **none of them in a blob** - all in tree objects, which is where
+filenames live. A content scrub can be complete and still publish the names.
+
+THE PREVIOUS PASS HAD VERIFIED "ALL PURGED PATHS ZERO" AND THAT WAS TRUE AND
+USELESS. It checked eleven named path patterns and no vendor name was among
+them. The check confirmed the absence of things already known to be absent.
+Widening it also surfaced 27 scraped images and two scraped JSON files that
+appeared in no plan - dropped rather than renamed, because renaming scraped
+third-party data keeps the data and hides only whose it is.
+
+**THIS BITES CS SPECIFICALLY** because CS-700's phase-7 gate is a going-public
+checklist and this project is going public. Two further surfaces from the same
+report: a mirror clone DOES fetch `refs/pull/*/head` (531 commits existed on no
+other ref), and deleting a repository deletes its LFS store. The git object
+store is not the whole surface.

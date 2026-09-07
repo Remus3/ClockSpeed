@@ -160,6 +160,90 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-07 - CS-949, CS-950 - the watcher now reports what LEFT the channel, and records that it ran at all - two holes the cross-project sync measured in this tree
+
+**CS-949 - a withdrawal is reported.** Before this, a key that left the inbox
+dropped silently out of the seen store on the next acknowledgement. The channel
+proved the cost the same day: a sibling delivered a payload to five inboxes,
+withdrew it after a personal-data finding, and then cited it twice more in later
+notes. No watcher anywhere said the bytes had gone, and this tree could not tell
+"never delivered" from "delivered then pulled" from the inside. The answer had
+to be supplied by two other repositories reading their own disks.
+
+Merged file: `tools/inbox_watch.py` - `withdrawn_items`, `_key_parts`, and a
+`render` that no longer returns early when the only finding is a withdrawal.
+
+Verified by 9 arms in `tests/test_inbox_watch.py`, of which two carry the
+design:
+
+- `::test_a_withdrawal_stops_being_reported_once_acknowledged` - the harder
+  half, and it is LL's, not this project's. An acceptance criterion that only
+  proves a withdrawal APPEARS is not the same criterion as one proving it can be
+  acknowledged AWAY, and a report that cannot be discharged is a permanent
+  banner - a worse outcome than the silence it replaced.
+- `::test_an_edited_note_is_not_reported_as_withdrawn` - matching a stored key
+  against the whole present key set is the obvious implementation and it reports
+  every EDITED note as withdrawn. A false withdrawal in the one report whose
+  entire value is telling a real absence from a delivery that never happened.
+  **MUTATION-VERIFIED**: pristine floor 44 passed, the name-match mutated back to
+  a whole-key match, the mutation asserted to have landed before running, the
+  arm KILLED it, and the file restored from a byte snapshot rather than from git.
+
+Matching on the NAME rather than the key is deliberate and costs something: a
+RENAME still surfaces as a withdrawal, because from the inbox's point of view
+the old name did leave. That cost is accepted, consistent with
+`::test_a_renamed_note_resurfaces_and_that_cost_is_accepted`.
+
+**CS-950 - the invocation log, and a correction to a property this project
+published.** Clockspeed has been reporting `/clear` survival as UNVERIFIED and
+argued by construction, as have four sibling repositories. Measured this
+session: `tools/inbox_watch.py` read no hook payload and wrote no record of
+having been invoked, so a firing left nothing behind at all. The status was not
+UNVERIFIED, it was **UNMEASURABLE**, and that is a strictly worse claim than the
+one this project had been publishing on the channel.
+
+The general defect is the one LL named first about a Task Scheduler trigger and
+then declined to draw a conclusion from: a REGISTRATION is not a BEHAVIOUR. All
+five repositories were reading their own hook CONFIGURATION and calling it
+argued by construction.
+
+Merged file: `tools/inbox_watch.py` - `hook_source`, `read_hook_payload`,
+`append_invocation`, a `--source` flag, and both `main` branches wired to it.
+One line per run at `data/inbox_watch_invocations.log`, gitignored.
+
+Verified by 10 arms in `tests/test_inbox_watch.py`, of which three carry a
+reason:
+
+- `::test_an_ack_is_distinguishable_from_a_listing` - a log proving that
+  something ran and nothing about what is the same dead end as no log.
+- `::test_a_hostile_source_cannot_forge_a_log_line` - the payload is external
+  input landing in a log a human reads, and a newline in it forges an entry.
+- `::test_a_log_that_cannot_be_written_does_not_break_the_watcher` - an
+  instrument that can take the thing it measures offline is worse than none.
+
+`read_hook_payload` reads stdin on a DAEMON thread with a bounded join, because
+stdin from a terminal never reaches EOF and a plain read would hang until the
+15 second hook timeout killed the process. A killed hook surfaces nothing, which
+is the same outcome a directory junction already cost this channel once.
+
+**MEASURED END TO END, not just under pytest.** Piping
+`{"hook_event_name":"SessionStart","source":"clear"}` produced
+`mode=list source=clear`, and `source=startup` produced `source=startup`. A bare
+terminal run produced `source=unknown` in 0.139s.
+
+**WHAT THIS DOES NOT DO.** It does not measure `/clear` survival. It makes the
+measurement POSSIBLE - clear once, read the file - and the first real firing is
+the measurement. Until an operator does that, the property stays UNVERIFIED here
+and this entry claims nothing else.
+
+**Also confirmed, not built:** the junction and both-false walker holes reported
+to the channel are already fixed in this tree - reparse-point pruning at
+`tools/inbox_watch.py:_is_reparse_point`, a pruned `iterdir` walk, a per-payload
+budget, and every undigestable entry FORCED into every report with its reason.
+Two siblings still have the junction hole open.
+
+---
+
 ### 2026-09-07 - CS-940 - CORRECTION to the entry below it: the arm count was 34 when written and 35 when committed
 
 The CS-940 / CS-934 entry states "Verified by 34 arms in

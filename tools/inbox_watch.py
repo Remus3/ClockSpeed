@@ -104,10 +104,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import stat
 import sys
+import threading
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
 
@@ -119,6 +122,26 @@ INBOX_DIRNAME: Final = "moon_sync_inbox"
 #: The seen store. Under `data/`, which CLAUDE.md section 2.1 records as
 #: gitignored and never tracked.
 SEEN_RELPATH: Final = Path("data") / "inbox_seen.json"
+
+#: The invocation log. One line per run, so that "does this hook fire after a
+#: /clear" is a question the operator ANSWERS by clearing once and reading a
+#: file, instead of one five repositories argued from their config files.
+LOG_RELPATH: Final = Path("data") / "inbox_watch_invocations.log"
+
+#: Newest lines kept. A per-session hook writing an unbounded log is a disk
+#: that fills quietly; 117 GB went that way on this box once already.
+MAX_LOG_LINES: Final = 500
+
+#: Recorded when the harness sent no usable source. NOT the same claim as a
+#: source that was sent and read.
+SOURCE_UNKNOWN: Final = "unknown"
+
+#: Longest a source token may be after sanitising.
+MAX_SOURCE_CHARS: Final = 24
+
+#: Seconds to wait for a hook payload on stdin. Bounded because stdin may be a
+#: terminal that never reaches EOF, and a watcher that hangs surfaces nothing.
+STDIN_WAIT_SECONDS: Final = 1.0
 
 #: A top-level file with this suffix is a NOTE. Anything else at the top level
 #: is still a deliverable (CS-934); it is just not a note.
@@ -170,6 +193,100 @@ class Deliverable:
     key: str
     detail: str = ""
     forced: bool = False
+
+
+def hook_source(payload: str) -> str:
+    """The session source named in a hook payload, sanitised.
+
+    A SessionStart payload distinguishes `startup` from `clear`, `resume` and
+    `compact`, which is the only thing that makes /clear survival measurable
+    from inside this process.
+
+    FAILS OPEN. Anything unparseable yields SOURCE_UNKNOWN rather than raising:
+    a watcher that dies when the payload shape changes surfaces nothing at all,
+    and "the source was not established" is an honest line where "startup"
+    would be a fabricated one.
+
+    Args:
+        payload: Raw stdin text. Sender-controlled, so it is sanitised to a
+            single bare token - it lands in a log a human reads, and a newline
+            inside it would forge a whole entry.
+
+    Returns:
+        A lowercase token of ASCII letters, digits, underscore and hyphen, or
+        SOURCE_UNKNOWN.
+    """
+    try:
+        data = json.loads(payload)
+    except ValueError:
+        return SOURCE_UNKNOWN
+    if not isinstance(data, dict):
+        return SOURCE_UNKNOWN
+    raw = data.get("source")
+    if not isinstance(raw, str):
+        return SOURCE_UNKNOWN
+    token = re.sub(r"[^a-z0-9_-]", "", raw.lower())[:MAX_SOURCE_CHARS]
+    return token or SOURCE_UNKNOWN
+
+
+def read_hook_payload(timeout: float = STDIN_WAIT_SECONDS) -> str:
+    """Read stdin without ever blocking the hook budget.
+
+    Read on a DAEMON thread and abandoned on timeout. When this runs from a
+    terminal rather than from a hook, stdin never reaches EOF, and a plain
+    `sys.stdin.read()` would hang until the 15 second hook timeout killed the
+    process - and a killed hook reports nothing, which is the exact outcome a
+    junction already cost this channel once.
+    """
+    captured: list[str] = []
+
+    def _pump() -> None:
+        try:
+            captured.append(sys.stdin.read())
+        except (OSError, ValueError):
+            captured.append("")
+
+    reader = threading.Thread(target=_pump, daemon=True)
+    reader.start()
+    reader.join(timeout)
+    return captured[0] if captured else ""
+
+
+def append_invocation(
+    log_path: Path,
+    *,
+    mode: str,
+    source: str,
+    unread: int,
+    withdrawn: int,
+    now: datetime | None = None,
+) -> None:
+    """Record one invocation. Counts and a source token only.
+
+    NO NAME AND NO DIGEST. A log is an echo path under CLAUDE.md
+    non-negotiable 12, and note filenames carry sibling codes and collide with
+    a world name on this machine (CS-701). The same reasoning that keeps a
+    digest out of the banner keeps it out of here.
+
+    NEVER RAISES. The log is an instrument, and an instrument that can take the
+    thing it measures offline is worse than no instrument, so a log that cannot
+    be written is dropped rather than propagated.
+    """
+    stamp = (now or datetime.now(UTC)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    line = f"{stamp} mode={mode} source={source} unread={unread} withdrawn={withdrawn}"
+    try:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            kept = log_path.read_text(encoding="utf-8").splitlines()
+        except (OSError, ValueError):
+            kept = []
+        kept.append(line)
+        body = "\n".join(kept[-MAX_LOG_LINES:]) + "\n"
+        tmp = log_path.with_suffix(log_path.suffix + ".tmp")
+        tmp.write_text(body, encoding="utf-8", newline="\n")
+        tmp.replace(log_path)
+    except OSError:
+        return
 
 
 def repo_root() -> Path:
@@ -412,6 +529,51 @@ def unread(inbox: Path, seen_path: Path) -> list[str]:
     return [d.display for d in unread_items(inbox, seen_path)]
 
 
+def _key_parts(key: str) -> tuple[str, str]:
+    """The kind and the RAW name carried inside a stored key.
+
+    The key is ``kind:name:digest``, so a store written before withdrawal
+    reporting existed still names what it lost. Nothing here consults a
+    side table: a format that already carries the name is not improved by
+    duplicating it somewhere that can disagree with it.
+    """
+    parts = key.split(":", 2)
+    kind = parts[0] if parts and parts[0] in KIND_ORDER else KIND_UNKNOWN
+    name = parts[1] if len(parts) > 1 else key
+    return kind, name
+
+
+def withdrawn_items(inbox: Path, seen_path: Path) -> list[Deliverable]:
+    """Every acknowledged item whose NAME is no longer in the inbox.
+
+    A DROP THAT LEAVES THE CHANNEL MUST NOT LEAVE IT SILENTLY. On 2026-09-07 a
+    sibling delivered a payload to five inboxes, withdrew it after a
+    personal-data finding, and then cited it twice more; no watcher said the
+    bytes had gone, and the receiver could not tell "never delivered" from
+    "delivered then pulled" from inside its own tree. That is the defect this
+    reports.
+
+    Matched on the NAME rather than on the whole key, deliberately. An edit
+    moves the key while the item is still sitting there, and reporting that as
+    a withdrawal would be false. A rename does surface here, because from the
+    inbox's point of view the old name genuinely left.
+    """
+    present = {_key_parts(d.key) for d in deliverables(inbox)}
+    gone = [key for key in load_seen(seen_path) if _key_parts(key) not in present]
+    items = []
+    for key in gone:
+        kind, name = _key_parts(key)
+        items.append(
+            Deliverable(
+                kind=kind,
+                display=safe_display(name),
+                key=key,
+                detail="withdrawn",
+            )
+        )
+    return sorted(items, key=lambda d: (KIND_ORDER.index(d.kind), d.display))
+
+
 def render(inbox: Path, seen_path: Path) -> tuple[str, int]:
     """The session-start banner, and the exit code that goes with it.
 
@@ -429,18 +591,24 @@ def render(inbox: Path, seen_path: Path) -> tuple[str, int]:
 
     present = deliverables(inbox)
     pending = unread_items(inbox, seen_path)
-    if not pending:
+    gone = withdrawn_items(inbox, seen_path)
+    if not pending and not gone:
         return (
             f"{TOOL_NAME}: no unread items ({len(present)} in the inbox, all acknowledged).\n",
             EXIT_NOTHING_UNREAD,
         )
 
+    counted = f"{len(pending)} UNREAD" + (f" and {len(gone)} WITHDRAWN" if gone else "")
     notes = sum(1 for d in present if d.kind == KIND_NOTE)
     payloads = sum(1 for d in present if d.kind == KIND_PAYLOAD)
     loose = sum(1 for d in present if d.kind == KIND_FILE)
     unknown = sum(1 for d in present if d.kind == KIND_UNKNOWN)
     lines = [
-        f"{TOOL_NAME}: {len(pending)} UNREAD of {len(present)} item(s) in {INBOX_DIRNAME}/.",
+        # The word WITHDRAWN is kept OUT of the header when there are none.
+        # An arm asserting a clean run says nothing about withdrawals reads the
+        # whole banner, and a header that always names the section makes that
+        # assertion unwritable.
+        f"{TOOL_NAME}: {counted} of {len(present)} item(s) in {INBOX_DIRNAME}/.",
         f"  The inbox holds {notes} note(s), {payloads} payload(s), {loose} loose file(s)"
         f" and {unknown} unclassifiable entry(s).",
         "",
@@ -456,6 +624,17 @@ def render(inbox: Path, seen_path: Path) -> tuple[str, int]:
     lines.extend(
         f'  "{item.display}"' + (f" ({item.detail})" if item.detail else "") for item in pending
     )
+    if gone:
+        lines += [
+            "",
+            f"  {len(gone)} WITHDRAWN. Each was acknowledged here and has since left the",
+            "  inbox. This is NOT a delivery failure and NOT an item you missed: the",
+            "  bytes arrived, were acknowledged, and were then removed - by their",
+            "  sender, or here. Anything you concluded from them is worth re-checking,",
+            "  and acknowledging again clears this section.",
+            "",
+        ]
+        lines.extend(f'  "{item.display}"' for item in gone)
     lines += ["", f"  Acknowledge with: python tools/{TOOL_NAME}.py --ack", ""]
     return "\n".join(lines), EXIT_UNREAD
 
@@ -484,6 +663,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--source",
+        default=None,
+        help=(
+            "Session source to record. Defaults to the SessionStart hook"
+            " payload on stdin, and to 'unknown' when none arrives - which is a"
+            " different claim from a source that was sent and read."
+        ),
+    )
+    parser.add_argument(
         "--root",
         type=Path,
         default=None,
@@ -494,6 +682,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     root = args.root if args.root is not None else repo_root()
     inbox = root / INBOX_DIRNAME
     seen_path = root / SEEN_RELPATH
+    log_path = root / LOG_RELPATH
+    source = args.source if args.source is not None else hook_source(read_hook_payload())
 
     if args.ack:
         if not inbox.is_dir():
@@ -503,8 +693,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         # REWRITTEN FROM THE CURRENT LISTING, NOT UNIONED. A key that has left
         # the inbox drops out, so the store cannot grow without bound as notes
         # are renamed, edited or archived.
+        cleared = len(withdrawn_items(inbox, seen_path))
         save_seen(seen_path, {d.key for d in present})
         forced = sum(1 for d in present if d.forced)
+        append_invocation(
+            log_path, mode="ack", source=source, unread=len(present), withdrawn=cleared
+        )
         sys.stdout.write(
             f"{TOOL_NAME}: acknowledged {len(present)} item(s);"
             f" {forced} cannot be digested and will report again.\n"
@@ -512,6 +706,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     banner, code = render(inbox, seen_path)
+    append_invocation(
+        log_path,
+        mode="list",
+        source=source,
+        unread=len(unread_items(inbox, seen_path)),
+        withdrawn=len(withdrawn_items(inbox, seen_path)),
+    )
     sys.stdout.write(banner)
     return code
 
