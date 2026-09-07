@@ -1831,6 +1831,11 @@ DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
         " two design points came from the two siblings that had already got"
         " them wrong once",
     ): 1,
+    (
+        "docs/item_notes/phase4-followups-900.md",
+        ".claude/settings.local.json",
+        "### FILED 2026-09-07 (session 73), self-disclosed",
+    ): 1,
 }
 
 #: R3's live membership, DISCLOSED. Three are the names of the three files
@@ -1899,7 +1904,19 @@ DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
 #: pooled, for the reason :func:`decline_budget_problems` states. Each is an
 #: integer literal a person typed, which
 #: :func:`derived_bound_problems` is what keeps true.
-DECLARED_UNTRACKED_CEILING: Final = 7
+#: 7 TO 8 FOR CS-952, WHICH IS AN ITEM ABOUT THE PATH ITS NEW ROW NAMES. The
+#: item records that the inbox watcher's whole wiring lives in the gitignored
+#: per-machine settings override, so a fresh clone runs no watcher while the
+#: property was published as YES. The citation cannot be checked because that
+#: file is per-machine by design, and naming it is the item's entire content -
+#: so the row is bought rather than the sentence reworded to slip past the
+#: ladder.
+#:
+#: THIS COMMENT DELIBERATELY DESCRIBES THAT PATH RATHER THAN CITING IT. The
+#: first draft wrote it as a code span and thereby created a SECOND undisclosed
+#: citation, inside the guard's own file, which the guard then caught. A
+#: disclosure that has to disclose itself ratchets forever.
+DECLARED_UNTRACKED_CEILING: Final = 8
 #: 9 TO 6 WHEN CS-928 DELETED THE THREE FALSE ADVISOR ATTRIBUTIONS. Six
 #: `docs/ARCHITECTURE.md` rows left the rung and three arrived from the guard
 #: that now asserts those files absent, so the disclosure holds six rows and the

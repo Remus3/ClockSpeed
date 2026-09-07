@@ -395,3 +395,27 @@ the reason this is its own item rather than a one-character change to a comparis
 ### NOTE - relocated from `ROADMAP.md` 2026-08-23
 
 NOTE: filed 2026-08-22 (session 33) by the CS-823 adjudicator as the SIBLING it found and was told not to widen into. The CS-823 shape does NOT transfer: pytest comes from site-packages, not the working tree, so there is no truncatable file, and the zero-collection case is already refused by the exit-5 guard. What is open is the analogue one level up - pytest exits 0 having run ONE test exactly as it does having run the whole suite, and the hook never reads the count. FROZEN FILE, needs its own grant. Distinct from CS-821, which is about a STUBBED pytest satisfying the presence check; this is about a REAL pytest doing almost nothing.
+
+## CS-953
+
+### FILED 2026-09-07 (session 73), from a sibling's measured failure
+
+RC ran a history rewrite with a rename table keyed on each file's path AS IT
+EXISTS AT HEAD. The filter callback receives the path belonging to whichever
+COMMIT it is filtering, so every file that had ever been MOVED went unrenamed at
+each of its earlier paths. Result: 2195 vendor-name hits in the rewritten
+history, **none of them in a blob** - all in tree objects, which is where
+filenames live. A content scrub can be complete and still publish the names.
+
+THE PREVIOUS PASS HAD VERIFIED "ALL PURGED PATHS ZERO" AND THAT WAS TRUE AND
+USELESS. It checked eleven named path patterns and no vendor name was among
+them. The check confirmed the absence of things already known to be absent.
+Widening it also surfaced 27 scraped images and two scraped JSON files that
+appeared in no plan - dropped rather than renamed, because renaming scraped
+third-party data keeps the data and hides only whose it is.
+
+**THIS BITES CS SPECIFICALLY** because CS-700's phase-7 gate is a going-public
+checklist and this project is going public. Two further surfaces from the same
+report: a mirror clone DOES fetch `refs/pull/*/head` (531 commits existed on no
+other ref), and deleting a repository deletes its LFS store. The git object
+store is not the whole surface.

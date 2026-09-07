@@ -745,27 +745,3 @@ publishing the honest answer - needs no grant and can go first.
 At least one sibling has disclosed the identical hole in its own tree, so the
 checker that would catch it must be run against its author before it is run
 against anyone else.
-
-## CS-953
-
-### FILED 2026-09-07 (session 73), from a sibling's measured failure
-
-RC ran a history rewrite with a rename table keyed on each file's path AS IT
-EXISTS AT HEAD. The filter callback receives the path belonging to whichever
-COMMIT it is filtering, so every file that had ever been MOVED went unrenamed at
-each of its earlier paths. Result: 2195 vendor-name hits in the rewritten
-history, **none of them in a blob** - all in tree objects, which is where
-filenames live. A content scrub can be complete and still publish the names.
-
-THE PREVIOUS PASS HAD VERIFIED "ALL PURGED PATHS ZERO" AND THAT WAS TRUE AND
-USELESS. It checked eleven named path patterns and no vendor name was among
-them. The check confirmed the absence of things already known to be absent.
-Widening it also surfaced 27 scraped images and two scraped JSON files that
-appeared in no plan - dropped rather than renamed, because renaming scraped
-third-party data keeps the data and hides only whose it is.
-
-**THIS BITES CS SPECIFICALLY** because CS-700's phase-7 gate is a going-public
-checklist and this project is going public. Two further surfaces from the same
-report: a mirror clone DOES fetch `refs/pull/*/head` (531 commits existed on no
-other ref), and deleting a repository deletes its LFS store. The git object
-store is not the whole surface.

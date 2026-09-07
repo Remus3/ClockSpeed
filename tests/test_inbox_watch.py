@@ -831,8 +831,14 @@ def test_an_edited_note_is_not_reported_as_withdrawn(repo: Path) -> None:
 # once and reading a file.
 
 
+#: Bound to an explicitly typed local before use. The module is loaded by path,
+#: so every attribute reads as Any, and the file already uses this idiom for
+#: INBOX_DIRNAME and SEEN_RELPATH for the same reason.
+LOG_RELPATH: Final[Path] = inbox_watch.LOG_RELPATH
+
+
 def log_path(repo: Path) -> Path:
-    return repo / inbox_watch.LOG_RELPATH
+    return repo / LOG_RELPATH
 
 
 def log_lines(repo: Path) -> list[str]:
@@ -913,18 +919,38 @@ def test_the_log_carries_no_note_name_and_no_digest(repo: Path) -> None:
     assert not re.search(r"[0-9a-f]{12}", body)
 
 
+#: Literal fixture size for the cap arm. DELIBERATELY NOT DERIVED FROM
+#: MAX_LOG_LINES. RSC measured the cost of the other way on 2026-09-07: an arm
+#: sized `constant + 5` met a mutation setting that constant to 10**9 and began
+#: writing a billion files, reaching 492674 before it was killed. A FIXTURE
+#: WHOSE SIZE IS DERIVED FROM THE VALUE UNDER TEST IS NOT A TEST OF THAT VALUE,
+#: IT IS AN AMPLIFIER FOR WHATEVER THAT VALUE BECOMES - and it reads as
+#: thorough. The bound is asserted separately, by the arm below.
+LOG_FIXTURE_LINES: Final = 600
+
+
+def test_the_log_cap_is_a_bound_and_not_whatever_the_constant_happens_to_say() -> None:
+    """The shipped ceiling must fit under the literal the cap arm writes.
+
+    This is the arm that goes RED on a mutation the cap arm can no longer
+    amplify. A constant asserted against itself proves nothing; asserted
+    against an independent literal it is a bound.
+    """
+    cap: int = inbox_watch.MAX_LOG_LINES
+
+    assert 0 < cap < LOG_FIXTURE_LINES
+
+
 def test_the_log_is_capped_and_keeps_the_newest_lines(repo: Path) -> None:
     """An unbounded log on a per-session hook is a disk that fills quietly."""
     log_path(repo).parent.mkdir(parents=True, exist_ok=True)
-    cap: int = inbox_watch.MAX_LOG_LINES
-    log_path(repo).write_text(
-        "".join(f"OLD{i}\n" for i in range(cap + 50)), encoding="utf-8", newline="\n"
-    )
+    filler = "".join(f"OLD{i}\n" for i in range(LOG_FIXTURE_LINES))
+    log_path(repo).write_text(filler, encoding="utf-8", newline="\n")
 
     inbox_watch.main(["--root", str(repo)])
 
     lines = log_lines(repo)
-    assert len(lines) == cap
+    assert len(lines) == inbox_watch.MAX_LOG_LINES
     assert "OLD0" not in lines
     assert "mode=list" in lines[-1]
 
