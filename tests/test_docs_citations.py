@@ -1748,6 +1748,11 @@ DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
     ): 1,
     ("tests/save/test_workdir.py", "config/local.json", "isolate_from_the_real_machine"): 1,
     ("tools/precommit_gate.py", "config/local.json", ""): 1,
+    (
+        "docs/LEDGER.md",
+        ".claude/settings.local.json",
+        "### 2026-09-06 - CS-932 - CLOSED. The inbox has a watcher, and the two design points came from the two siblings that had already got them wrong once",
+    ): 1,
 }
 
 #: R3's live membership, DISCLOSED. Six are the module map's package-relative
@@ -1819,7 +1824,7 @@ DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
 #: pooled, for the reason :func:`decline_budget_problems` states. Each is an
 #: integer literal a person typed, which
 #: :func:`derived_bound_problems` is what keeps true.
-DECLARED_UNTRACKED_CEILING: Final = 6
+DECLARED_UNTRACKED_CEILING: Final = 7
 UNTRACKED_ROOT_CEILING: Final = 9
 FIXTURE_LITERAL_CEILING: Final = 7
 
