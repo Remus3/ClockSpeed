@@ -60,7 +60,17 @@ the line becomes a pointer.
   guard's own file and was caught again. A disclosure written in the vocabulary
   of the thing it discloses becomes another instance of it. Also: a cap arm was
   sized from the constant under test, which RSC measured as an amplifier that
-  wrote 492674 files under a mutation; fixed before it was ever run.
+  wrote 492674 files under a mutation; fixed before it was ever run. AND the one
+  that matters most - a commit reached the remote without pre-push ever running
+  against it, because this session committed while a push was in flight. Filed
+  as CS-954, tier 1, mechanism NOT established. The risk was flagged aloud
+  earlier in the same session with the WRONG consequence predicted: a spurious
+  red was expected, a skipped gate is what happened.
+- Open, none started: CS-951 (outbound withdrawals), CS-952 (gitignored wiring,
+  needs a frozen-file grant before `.claude/settings.json` is touched), CS-953
+  (the HEAD-path scrub trap), CS-954 (the push race, tier 1 and the only tier 1
+  here). The A1 output filter promised to RC before its trial window opens has
+  no item and no code - it exists only as an outbound commitment in a note.
 - Next action: **PRODUCE THE PUBLIC-FLIP PLAN AND EXECUTE NONE OF IT.** The
   scope, the four measured traps, the history-only checks and the one decision
   that needs an ADR are already written up as CS-700's detail in

@@ -516,3 +516,55 @@ Not the execution. Not a scrub run, not a mirror clone, not a visibility
 change. **A session that produces the plan and also runs any part of it has
 removed the second pair of eyes the split exists to buy**, which is CLAUDE.md
 section 5's rule that the agent producing a thing never grades it.
+
+## CS-954
+
+### FILED 2026-09-07 (session 73), from an incident in this repository
+
+**MEASURED, and stated as three observations rather than as a mechanism.**
+
+1. `git push origin main` was invoked when local `main` was `5192aaf`.
+2. The pre-push hook ran the whole suite to completion - `5941 passed, 6
+   skipped` in 235s - and git printed the ref update as `0e547b3..5192aaf
+   main -> main`, exit 0.
+3. `git ls-remote origin refs/heads/main` afterwards returned `1ee8b64`, a
+   commit created BY THIS SESSION while the hook was still running.
+
+So the gate's verdict named one commit and the remote ended at a later one.
+`5192aaf` is an ancestor of `1ee8b64`, so nothing was lost - but `1ee8b64`
+shipped without the suite having run against it.
+
+**WHAT IS NOT ESTABLISHED, AND MUST NOT BE WRITTEN DOWN AS THOUGH IT WERE.**
+Whether git re-resolved the ref after the hook returned, or resolved once and
+packed later, is INFERRED and not measured. The hook's stdin was not captured.
+A repair built on the wrong half of that would be a repair to nothing, so the
+first act on this item is the reproduction: advance the local ref during a
+deliberately slowed hook and record the hook's stdin, git's printed range, and
+the resulting remote tip together.
+
+**WHY IT IS TIER 1.** Not for this incident, which was four documentation files
+that passed a clean re-run afterwards. The class is that a tier-0 gate can
+report on a commit that never ships and stay silent about one that does, and
+this project already treats a gate that measures nothing as worse than no gate
+- see CS-821 and CS-824, which are the same family one level up.
+
+**THE WINDOW IS A FUNCTION OF THE SUITE'S DURATION**, so it widens as the suite
+grows. The pre-push run measured 235s under xdist here and has been over twenty
+minutes serially in this project's recent history. Anything that lengthens the
+hook lengthens the race.
+
+**THE OPERATOR-FACING HALF, WHICH NEEDS NO CODE.** Do not commit while a push is
+in flight. That is a discipline rather than a guard, which is exactly why the
+item exists: a discipline that has to be remembered during a twenty-minute wait
+is one that will be forgotten.
+
+**RELATED AND DISTINCT.** A durable harness-side session note - which lives in
+the session store outside this repository, NOT in this project's tracked
+`memory/` - records that CI grades only the tip of a push, so intermediate
+commits go untested. This is the layer below: the tip itself can differ from
+what the local gate graded.
+
+Citing that note by a repo-shaped path is what the first draft of this section
+did, and the citation ladder caught it: no tracked path is it or ends with it.
+Worth keeping as its own small finding, since the two stores have the same
+directory name and only one of them is in the repository.

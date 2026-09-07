@@ -160,6 +160,35 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-07 - CS-950 - CORRECTION to the entry below it: the arm count was 10 when written and 11 when the repair landed
+
+The CS-949 / CS-950 entry states "Verified by 10 arms in
+`tests/test_inbox_watch.py`" for CS-950. **Measured in the file now: 11.** CS-949's
+count of 9 is correct and unchanged.
+
+**WHAT MOVED IT.** The follow-up commit added
+`::test_the_log_cap_is_a_bound_and_not_whatever_the_constant_happens_to_say`,
+which exists because the cap arm's fixture was sized from the constant under
+test. The entry was written before that repair existed, and the session kept
+working after writing it.
+
+**THIS IS THE SECOND TIME IN TWO SESSIONS.** The entry immediately above the
+CS-940 / CS-934 record corrects the same class - "the arm count was 34 when
+written and 35 when committed". The mechanism is not carelessness about
+arithmetic, it is that **a count written into an append-only record is true at
+the instant of writing and the work does not stop there.** A ledger entry is
+composed before a session ends, by definition.
+
+The general repair is not "count more carefully". It is that a completion
+record should cite what PROVES the item - the file and the test names - and
+should not carry a total that a later commit in the same session can move. The
+CS-949 half of that entry names its two load-bearing arms individually and
+those citations are still exactly true; only the aggregate went stale.
+
+Nothing is edited above. This entry is the correction, per this file's own rule.
+
+---
+
 ### 2026-09-07 - CS-949, CS-950 - the watcher now reports what LEFT the channel, and records that it ran at all - two holes the cross-project sync measured in this tree
 
 **CS-949 - a withdrawal is reported.** Before this, a key that left the inbox
