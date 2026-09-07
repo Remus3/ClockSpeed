@@ -1,0 +1,93 @@
+name: Unmodeled or wrong game content
+description: Report an item, recipe or building Clockspeed skipped, or a number it computed wrong.
+title: "[content] "
+labels: ["content"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Read this first - it is about YOUR privacy, not ours
+
+        **Do not attach a save file, and do not paste raw header bytes.** A
+        save header carries your platform name, your account id and your
+        player display name in plaintext. Attaching one to a public issue
+        publishes all three permanently, and closing the issue does not
+        unpublish them.
+
+        Clockspeed redacts those strings by default, so anything the tool
+        prints under default flags is safe to paste. Anything you obtained by
+        passing an explicit opt-in flag is not.
+
+        ## Why the fields below are required
+
+        Clockspeed carries no dataset of its own. Every item, recipe and
+        building fact is extracted from the data files of one specific
+        installation, so a report without the build it was observed on cannot
+        be reproduced or acted on. Unknown content is flagged and skipped by
+        design rather than guessed at, so "it was skipped" is sometimes the
+        correct behaviour and sometimes a gap - the build is what separates
+        the two.
+
+  - type: input
+    id: game_build
+    attributes:
+      label: Game build
+      description: >-
+        The build string Clockspeed pinned, printed by
+        `python tools/drift_guard.py`. Not the store page version number.
+      placeholder: "++FactoryGame+rel-main-anniversary-2026-CL-502094"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of gap is this?
+      description: >-
+        These fail in completely different ways. A skipped class is the
+        documented behaviour for content the extractor does not model; a wrong
+        number is a defect in the mathematics.
+      options:
+        - Content was flagged and skipped, and it should not have been
+        - Content was modeled, but a value is wrong
+        - A computed rate, building count or clock speed is wrong
+        - A power or build-cost total is wrong
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect, and how did you establish it?
+      description: >-
+        The method matters more than the number. A value read off an in-game
+        panel and a value copied from a wiki fail in different ways, and this
+        project does not treat a wiki as authoritative over the install.
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: What did Clockspeed actually produce?
+      description: >-
+        Paste the output under default flags. Redacted fields are expected and
+        you do not need to fill them in.
+      render: text
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Before you submit
+      options:
+        - label: >-
+            I have not attached a save file and have not pasted raw save
+            header bytes.
+          required: true
+        - label: >-
+            The build string above is the one this was actually observed on,
+            not the current build.
+          required: true

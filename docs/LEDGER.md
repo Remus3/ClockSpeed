@@ -160,6 +160,237 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-06 - CS-922 - CLOSED. The GitHub-side public face is built and independently re-read from the API; the visibility FLIP itself is untouched and stays gated
+
+**What changed.** The repository had an empty description, no homepage and ZERO topics.
+All three are now set, plus the outsider-facing files two sibling projects added when
+they did the same work on 2026-09-06.
+
+- **Description, homepage and 20 topics** set via `gh repo edit`. Homepage points at
+  `docs/adr`, matching the sibling that judged its ADR set the most distinctive artifact
+  it had; this repo has 17 ADRs plus an index.
+- **`README.md`** gains a first-party `tier1` Actions badge, NAMES the game it plans
+  for, states in the opening that it carries no item, recipe or building dataset of its
+  own, and has SEVEN false capability claims removed - see the refutation below, which is
+  the substance of this entry.
+- **`CITATION.cff`** added. Parses as YAML with all four CFF-required keys present.
+  Author email deliberately omitted.
+- **`.github/ISSUE_TEMPLATE/`** added - `config.yml` plus `content-gap.yml`, which
+  requires the pinned game build and gates submission on an acknowledgement that no save
+  file is attached.
+
+**VERIFIED BY RE-READING THE API, NOT BY THE ABSENCE OF AN ERROR.** `gh repo edit`
+printed nothing on success, which is not evidence. `gh api repos/Remus3/Clockspeed`
+returns the description, the homepage, `topic_count: 20`, and `private: true`.
+
+**THE BADGES WERE NOT COMMITTED UNTIL BOTH LANES WERE GREEN.** `tier1` run 34067366062
+and `tier2` run 34053821344 are both `success` on `main`, read from `gh run list` before
+the markdown was written. A badge committed alongside the workflow it describes ships
+red, and a red badge on a public face is worse than no badge. First-party Actions badges
+only - no `shields.io`, so the README pulls no third-party image.
+
+**THE REFRESH NEARLY INTRODUCED THE DEFECT IT EXISTED TO REMOVE.** Naming the game in
+the description while `README.md` still said "a single-player factory-building game"
+would have left the two public surfaces disagreeing about the most basic fact in the
+project. The sibling project recorded exactly this failure one day earlier, where a
+README refresh made the file contradict itself three lines apart. Resolved by naming the
+game in both, and by rewriting the closing disclaimer to name the publisher rather than
+"any game it reads". **The game was never secret** - `clockspeed/data/locate.py` names it
+eight times as install-path constants, so the generic phrasing was habit rather than
+policy.
+
+**THE README WAS AUDITED BY AN AGENT THAT DID NOT WRITE IT, AND THE VERDICT WAS
+REFUTED.** This is the finding of the session and it is worth more than everything above
+it. A read-only verifier was dispatched to check every factual claim in `README.md`
+against the code, with instructions to default to STALE where it could not prove a claim
+true. It ran the four package suites (`2688 passed`, exit 0), started a real listener,
+and probed the endpoints rather than reading about them. **Seven claims failed to
+re-derive, four of them claims of SHIPPED CAPABILITY THAT DOES NOT EXIST:**
+
+- **"exact clock speeds", "total power draw" and "total build cost"** were listed under
+  "Working today". None is produced. `ProductionPlan` (`clockspeed/solve/ratio.py`) has
+  no clock field and no power field; `_total_power` in `clockspeed/solve/optimize.py` is
+  private and reachable only from `score_plan`, never delivered as an output; and build
+  COST DATA DOES NOT EXIST AT ALL - `Building` in `clockspeed/data/registry.py` has no
+  cost field and the docs extractor never reads one.
+- **"footprint" and "maximizes sink points per unit of raw input"** were listed as
+  selectable objectives. `OBJECTIVES` is a closed three-tuple of raw, power and
+  buildings; `footprint` returns ZERO hits across `clockspeed/`; and there is no maximize
+  direction in the optimizer at all - `check_objective` refuses anything that does not
+  name a direction to MINIMIZE in. Both would be refused at runtime.
+- **"constrained to what you have actually unlocked"** described a capability inverted
+  from the truth. `unlocked` is a CALLER-SUPPLIED request parameter. The save's unlock
+  state is empty on every path by construction - `_read_unlocks` returns
+  `EMPTY_UNLOCK_STATE` with no read of its own, which is CS-913 - so Clockspeed cannot
+  know what the player has unlocked.
+- **The first command under "Running it" exits 3 on a fresh clone.** The listener is
+  HTTPS only, `/certs/` is gitignored, and the README never mentioned
+  `scripts/make_cert.py`. Proven by probe, not by reading: with `CLOCKSPEED_CERT_DIR`
+  pointed at an empty directory the process exits 3 and names the missing pair.
+- **The card accept/dismiss/snooze/pin paragraph was written in the present tense** for a
+  package with ZERO executable code - `clockspeed/advisor/`, `audit/` and `progress/` are
+  docstring-only stubs, and no card, card id, ledger or mute store exists anywhere.
+
+**EVERY ONE OF THOSE SENTENCES CAME FROM `BOOTSTRAP.md`.** The verifier traced them: the
+capability bullet is `BOOTSTRAP.md` section on the solver copied forward, and the
+objectives bullet likewise. **A specification sentence is a statement about the intended
+build; copying it into a README converts it into a claim about the shipped one, and the
+copy is silent.** That is the mechanism, and it is the reusable part of this entry.
+
+All seven are corrected in the merged `README.md`, plus three the audit raised in
+passing: the "no dataset of its own" line THIS SESSION ADDED was itself overstated and is
+narrowed to item, recipe and building data; the dashboard is no longer described as
+serving the registry and the solver, because it renders neither; and the redaction
+sentence is replaced with the STRONGER true claim, that the parsed header has no field to
+hold a save name, options string or session name at all.
+
+**THE tier2 BADGE WAS REMOVED AFTER BEING ADDED, in this same session.** `tier2` fires on
+a nightly cron and on `v*` tags only, so a green `tier2` badge is a statement about last
+night rather than about HEAD. `tier1` fires on every push to every branch and is the only
+one of the two whose badge means what a reader will take it to mean.
+
+**The audit also handed back one defect that is not a README defect,** filed as `CS-927`:
+`clockspeed/surface/api/pending.py` states in prose that the aggregate route table holds
+exactly NINE templates, while `health.ENDPOINT_TEMPLATES` holds TEN - stale since CS-912
+added `/api/registry`.
+
+**A COVERAGE GAP THE AUDIT FOUND IN A PASSING CLAIM.** "A machine with no save and no
+game still starts and still binds" is TRUE - the verifier bound a listener with all four
+detection seams scrubbed and got a 200 from `/api/health` - but no TEST binds a real
+listener under that scrub; the acceptance bind arms run in the ambient environment, which
+on this machine has both a game and a save. The claim currently rests on a probe rather
+than on the suite. Not corrected in the README, because it is true; recorded here because
+the evidence for it is weaker than a reader would assume.
+
+**DELIBERATELY NOT DONE, each with its reason, so a later session does not read a gap as
+an oversight:**
+
+- **The repository was NOT made public.** `docs/GATED.md` `CS-G03` gates that on seven
+  checks plus operator sign-off, and records an operator decision that the public
+  artifact ships from a SQUASHED OR ORPHAN history because every existing commit carries
+  a real-identity author line and the pre-scrub `BOOTSTRAP.md`. Flipping this repository
+  would publish that history. Everything above is the PREP half, which `CS-G03` states
+  is workable now.
+- **No release was cut, though the sibling published `v0.1.0`.** A tag on this history
+  is a tag on a history that will never be published, per `CS-G03`. It would have to be
+  cut again on the fresh history and would then disagree with this one.
+- **No social-preview card, though the other sibling committed one.** Two reasons: the
+  upload has no REST endpoint and is web-UI only, so a session cannot land it; and it
+  would be this repository's FIRST tracked binary - `git ls-files` currently matches zero
+  `.png`, `.jpg`, `.ico`, `.gif`, `.pdf` or `.zip`. That is a decision about the tree,
+  not a chore, and it does not belong in a wrap.
+- **Topics deliberately EXCLUDE `ai-agents`, `llm-tooling` and `anthropic`**, which the
+  sibling uses. Its product IS agent-built tooling; this project's headline claim is that
+  there is no language model anywhere in the advice path, and a topic set implying
+  otherwise undercuts the one property the description leads with. `multi-agent`,
+  `claude-code` and `git-hooks` are kept, because the operating doctrine is real and is
+  accurately described by them.
+- **A `docs-guards` workflow and badge were considered and DECLINED.** The sibling's
+  exists because its `ci.yml` carries a `paths-ignore` on `**/*.md`, so a docs-only
+  commit fires no workflow while roughly 48 of its modules assert on tracked `.md`
+  content. **This repository has no path filter at all** - a grep for `paths` and
+  `paths-ignore` across both workflow files returns only comment prose - and `tier1`
+  already runs the character-set gate, `tools/doc_budget.py`, `tools/drift_guard.py` and
+  the markdown link check on every push to every branch. The gap the badge advertises is
+  already covered by the lane that already carries a badge. Recorded in the cross-project
+  inbox so it is not re-pitched from the sibling's side.
+
+**RECORDED QUESTION, not a task.** Both public siblings are Apache-2.0; this repository
+is MIT. The sibling's own license review concluded Apache-2.0 dominates MIT on the merits
+- express patent grant plus retaliation, trademark denial, state-your-changes - and that
+both are permissive so neither serves a do-not-commercialize goal. `LICENSE` is a FROZEN
+file and no grant was sought, so nothing changed. Raised here because `CS-G03` is the
+moment the choice becomes permanent for an outside audience.
+
+**Secret scanning and push protection are enabled on both public siblings and report
+`null` here**, because the repository is private and the feature is not available to it.
+That is a consequence of `CS-G03`, not a configuration gap, and it resolves itself at the
+flip rather than needing an item.
+
+**Verification.** Merged files: `README.md`, `CITATION.cff`,
+`.github/ISSUE_TEMPLATE/config.yml`, `.github/ISSUE_TEMPLATE/content-gap.yml`. Gates run
+on the final tree with the new files made visible to them by `git add -N` first, because
+an untracked file is invisible to a guard that enumerates through `git ls-files`:
+`python -m ruff check .` all checks passed, `ruff format --check` 170 files already
+formatted, `tools/doc_budget.py` exit 0, `tools/drift_guard.py` `guards: 11 PASS 10 WARN
+1 FAIL 0` exit 0, and the character-set gate over all tracked files `PASS - 293 checked,
+0 skipped, 0 blocking`. The single `drift_guard` WARN and the single `doc_budget` WARN
+are the same pre-existing finding - `ROADMAP.md` at 117 per cent of its soft budget -
+filed this session as `CS-926` and untouched by this item.
+
+### 2026-09-06 - CS-923 - FROZEN-FILE GRANT, recorded BEFORE the edit. The three tracked hooks were mode 100644, so the tier-0 gate is one `git pull` away from silently not firing on any POSIX clone
+
+**FROZEN-FILE GRANT under `CLAUDE.md` section 6.** `.githooks/*` is frozen. The
+proposal was routed to an adjudicator that did not produce it, the operator approved
+the verdict, and this record is written BEFORE the edit as section 6 requires.
+
+**SCOPE GRANTED, and nothing wider.** `git update-index --chmod=+x` on
+`.githooks/pre-commit`, `.githooks/commit-msg` and `.githooks/pre-push`. **No byte of
+hook content changes.** The three blob SHAs `b7a4cd0`, `e12e087` and `4b3a567` are
+identical after the flip, and that identity is the mechanical proof the scope held.
+`scripts/install_hooks.py` is separately frozen and is NOT covered by this grant.
+
+**What was measured.** `git ls-files -s .githooks/` returned all three at `100644`.
+Git refuses to run a non-executable hook on POSIX and reports NOTHING when it
+declines - no warning, no non-zero exit, no log line - so a gate that has stopped
+firing is indistinguishable from one that fires and finds nothing.
+
+**THE HOLE IS NARROWER THAN THE SIBLING'S, AND THE FIRST FRAMING OF IT WAS WRONG.**
+A clone that never runs the bootstrap is NOT a mode hole: `core.hooksPath` is unset
+there, so `.githooks/` is never consulted at all. `scripts/install_hooks.py:197-209`
+chmods +x on POSIX, so a bootstrapped clone is repaired. The residual is later-arriving
+and specific: a BOOTSTRAPPED POSIX clone that then runs `git pull`, `checkout`, `merge`
+or `reset --hard` over a REWRITTEN hook file gets it materialised at the INDEX mode,
+which destroys the exec bit the bootstrap set, while `core.hooksPath` stays set. The
+trigger is live rather than theoretical - `.githooks/` carries 7 commits, three of them
+on 2026-09-06 under CS-906.
+
+**WINDOWS IS UNAFFECTED, MEASURED BOTH WAYS RATHER THAN ASSUMED.** On git
+2.53.0.windows.3 with `core.filemode=false`, a hook at index mode 100644 FIRED and
+blocked the commit, and repeating at 100755 behaved identically. Git for Windows masks
+`X_OK`. That is also precisely why this defect is invisible from the operator's machine
+and had to be found from a sibling's incident record.
+
+**NOTHING IN THE TREE GRADED THE MODE.** A repo-wide search over tracked files for
+`100755`, `100644`, `ls-files -s`, `update-index` and `core.filemode` returned ZERO
+hits, so no guard turns red on the flip and no guard would have caught it.
+**This repo has already paid for this exact shape once.** CS-605 found
+`scripts/make_cert.py` chmodding a key to 0600 with nothing grading the result, and
+recorded it as "no test in the tree asserted the resulting mode - so no CI run could
+ever have revealed it, because there was nothing to fail." A different file, the same
+defect: a permission bit set by code that no assertion reads back.
+
+**THE AGGRAVATING FACT: the mitigation itself is ungraded.** `git grep set_executable
+-- tests/` returns zero hits and there is no `tests/test_install_hooks.py`. Its POSIX
+branch never executes on the operator's machine - `install_hooks.py:203-204` returns
+"n/a on windows" - so the one function standing between this repo and the sibling's
+outage has never been exercised by anything.
+
+**Verification.** `tests/test_hook_file_mode.py::test_every_tracked_hook_is_executable_in_the_index`,
+written FIRST and watched fail for the right reason at `1 failed`, naming all three
+paths with their observed `100644` and printing the repair command. It refuses to pass
+over a shrunken set - fewer than three tracked hooks is a failure, not a green tick -
+because a stale pathspec finding nothing is the exact guard shape this item exists to
+prevent. The arm lives in `tests/`, a NON-frozen file, so a fourth hook authored on
+Windows cannot reintroduce 100644 without turning it red.
+
+**WHAT THIS GRANT DOES NOT CLOSE, stated so it is not read as closed.** No Clockspeed
+hook has ever been measured FIRING on a POSIX host, at either mode.
+`.github/workflows/tier2.yml:219-224` says so in its own comment: "PRESENCE IS NOT
+FIRING ... That test is deliberately not written here." The clean-checkout probe
+asserts WIRING only. The flip does not change that, and an end-to-end arm on the ubuntu
+leg - stage a violation, attempt a real commit, assert exit 1 and HEAD unchanged -
+remains unwritten. Filed as CS-924.
+
+**CROSS-PROJECT, measured on this disk the same session.** Riot Commander (6 hooks),
+Legion Wallpaper (2) and Resin Compute (3) are all already `100755`. **Lanternlight is
+`100644` on both of its tracked hooks and its repository is PUBLIC**, so the
+third-party POSIX clone population that is merely prospective here exists for it today.
+Its `scripts/install_hooks.py:70-84` chmods on POSIX, so its profile matches this one
+exactly. Reported to the sibling trees through `moon_sync_inbox/`; nothing in any
+sibling tree was read beyond its hook modes and its installer, and nothing was written
+outside the inbox channel.
+
 ### 2026-09-06 - CS-921 - CLOSED. The cross-project inbox is gitignored and the world name is gone; one line added to a fallback list moved THREE pin populations, all repaired in the same commit
 
 **What changed.** `moon_sync_inbox/` - the cross-project message channel the sibling

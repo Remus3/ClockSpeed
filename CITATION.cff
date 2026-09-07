@@ -1,0 +1,45 @@
+cff-version: 1.2.0
+title: Clockspeed
+message: >-
+  If you use Clockspeed, or cite a number it computed, please cite the game
+  build it was pinned to. Every quantity this project produces is derived from
+  the data files of one specific installation, and a patched build is a
+  different derivation rather than a confirmation of the same one.
+type: software
+authors:
+  - name: Moonbeam
+repository-code: https://github.com/Remus3/Clockspeed
+license: MIT
+abstract: >-
+  A local, deterministic planning and advisory system for the factory-building
+  game Satisfactory. Clockspeed reads the data files the player's own
+  installation ships with and the player's own save file, computes exact
+  production mathematics over them, and issues terse actionable advice about
+  what to build next.
+
+  Two properties separate it from the calculators and planners that already
+  exist. It carries no dataset of its own: item, recipe and building facts are
+  extracted from the install at runtime, so the answer always matches the build
+  actually being played rather than whatever version a hand-maintained table
+  was last updated against. And the advice path contains no language model, no
+  cloud service and no API key at any point, so every recommendation is
+  reproducible from the same inputs and two runs that disagree are a bug rather
+  than sampling.
+
+  The solve path uses exact rational arithmetic and asserts the absence of
+  floating point. Clockspeed never writes to the game install directory and
+  never modifies a save file; saves are copied before they are parsed. Save
+  headers carry platform, account and player-name strings in plaintext, so the
+  header parser redacts them by default and requires an explicit opt-in to
+  render them.
+
+  Not affiliated with, endorsed by or connected to Coffee Stain Studios.
+keywords:
+  - satisfactory
+  - production-planner
+  - factory-game
+  - save-file-parser
+  - deterministic
+  - exact-arithmetic
+  - read-only
+  - game-companion

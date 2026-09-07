@@ -34,6 +34,88 @@ the line becomes a pointer.
 
 ---
 
+## Session 69 - 2026-09-06 - CS-922 and CS-923 CLOSED: the GitHub public face is built, and an agent that did not write the README REFUTED seven of its claims
+
+- **Shipped:** **CS-922 CLOSED.** Repository description, homepage (`docs/adr`) and 20
+  topics set and re-read from the API rather than inferred from a silent success.
+  `CITATION.cff` and `.github/ISSUE_TEMPLATE/` added. `README.md` refreshed - `tier1`
+  badge, the game named, and seven false capability claims removed. **CS-923 CLOSED.**
+  The three tracked hooks moved from mode `100644` to `100755` under a frozen-file grant.
+
+- **THE FINDING OF THE SESSION, and it is not the metadata.** A read-only verifier was
+  dispatched to check every claim in `README.md` against the code and returned
+  **REFUTED**. Four claims of SHIPPED capability described things that do not exist:
+  "exact clock speeds", "total power draw" and "total build cost" are produced by nothing
+  (`ProductionPlan` has no such fields, and build-cost DATA does not exist in the
+  registry at all); "footprint" and "maximizes sink points per unit of raw input" are not
+  selectable objectives and would be REFUSED at runtime, because `OBJECTIVES` is a closed
+  three-tuple and the optimizer has no maximize direction; "constrained to what you have
+  actually unlocked" is inverted, because `unlocked` is caller-supplied and the save's
+  unlock state is empty by construction (CS-913); and the card accept/dismiss/snooze/pin
+  paragraph was PRESENT TENSE for a package with zero executable code.
+
+- **THE MECHANISM, which is the reusable part.** Every one of those sentences was copied
+  forward from `BOOTSTRAP.md`. **A specification sentence is a claim about the INTENDED
+  build. Copying it into a README silently converts it into a claim about the SHIPPED
+  one.** Nothing warns you. The README had been wrong this way for as long as it has
+  existed, and the only thing that found it was pointing an agent that had not written it
+  at the code with instructions to default to STALE.
+
+- **The first command in the README exited 3 on a fresh clone and nobody knew.** The
+  listener is HTTPS only and `/certs/` is gitignored, so `python -m clockspeed.surface`
+  cannot start without `scripts/make_cert.py`, which the README never mentioned.
+  Established by PROBE - `CLOCKSPEED_CERT_DIR` pointed at an empty directory - not by
+  reading the code.
+
+- **CS-923: the three tracked hooks were mode `100644`.** Git silently refuses to run a
+  non-executable hook on POSIX and reports nothing. **Windows cannot show you this** -
+  measured both arms on git 2.53, a `100644` hook FIRED and blocked a commit here exactly
+  as `100755` did, because Git for Windows masks `X_OK`. Found by reading a sibling
+  project's CI step, not by any local signal.
+
+- **The hole was NARROWER than the first framing and an adjudicator refuted it.** A clone
+  that never bootstraps is not a mode hole at all (`core.hooksPath` is unset, so
+  `.githooks/` is never consulted), and `install_hooks.py:197-209` chmods +x on POSIX so
+  a bootstrapped clone is repaired. The real residual: a BOOTSTRAPPED POSIX clone that
+  then pulls a REWRITTEN hook file gets it materialised at the index mode, destroying the
+  exec bit while `core.hooksPath` stays set.
+
+- **The aggravating half is worth more than the fix.** `set_executable` - the one function
+  standing between this repo and a silently absent gate - is graded by NOTHING.
+  `git grep set_executable -- tests/` returns zero hits, and its POSIX branch never runs
+  on the operator's machine. Filed as CS-925. This is the CS-605 shape exactly.
+
+- **Frozen-file route followed in full.** `.githooks/*` is frozen. Routed to an
+  adjudicator that did not produce the proposal, operator-approved, grant recorded in
+  `docs/LEDGER.md` BEFORE the edit. Scope proven held: the three blob SHAs are identical
+  before and after, so no hook content byte moved.
+
+- **NOT DONE, deliberately.** The repository is **still PRIVATE**. `CS-G03` gates the flip
+  on seven checks plus operator sign-off AND records that the public artifact ships from a
+  squashed or orphan history, because every existing commit carries a real-identity author
+  line and the pre-scrub `BOOTSTRAP.md`. No release cut and no social-preview card - both
+  reasoned, both in the CS-922 ledger entry.
+
+- **Cross-project.** Hook modes measured in all five trees on this disk. RiotCommander,
+  LegionWallpaper and ResinCompute are clean at `100755`. **Lanternlight is `100644` on
+  both hooks AND its repository is PUBLIC**, so the exposed population that is merely
+  prospective here exists for it today. Note delivered to four sibling inboxes, which also
+  records why Clockspeed declined a `docs-guards` workflow: RC needs one because its
+  `ci.yml` carries `paths-ignore` on `**/*.md`; Clockspeed has no path filter at all, so
+  `tier1` already runs the doc guards on every push.
+
+- **Filed:** CS-924 (no hook has ever been measured FIRING on POSIX - `tier2.yml` says so
+  in its own comment), CS-925 (`set_executable` ungraded), CS-926 (`ROADMAP.md` at 117 per
+  cent of its soft budget, so `doc_budget.py` is permanently amber), CS-927
+  (`pending.py` says NINE route templates, `health.py` holds TEN, stale since CS-912).
+
+- **A COUNT NOT CARRIED FORWARD.** The tier-2 suite this session started was STOPPED at
+  22 per cent, deliberately: it began before the new test, the mode flip and the doc
+  edits, so its count could not describe the final tree. The authoritative full-suite run
+  is the pre-push hook on the final tree. The verifier's `2688 passed` covers four
+  packages at a mid-session tree and is NOT a whole-suite figure. Do not quote either as
+  the session's suite count.
+
 ## Session 68 - 2026-09-06 - CS-921 CLOSED: the cross-project inbox is gitignored and the world name is gone; one line added to a fallback list moved THREE pin populations
 
 **NUMBERING: there is no Session 67 entry in this file and that gap is real, not a filing
@@ -142,146 +224,5 @@ the operator's frame of reference. Do not "repair" the gap by renumbering.
     working. Do not treat either number as a result.
 - **Next action:** push `claude/jovial-franklin-2270d7` when the box is quiet, then read
   CS-919 before running the lane for anything.
-
----
-
-## Session 65 - 2026-09-06 - CS-906 CLOSED: the pre-push suite runs distributed, 2.39x off every push; the CS-896 closure was REFUTED 3/3 and its mechanism fell to one line
-
-**THE SECOND HALF OF THIS SESSION IS BELOW THE CS-896 MATERIAL.** The entry was written mid-session and then the session kept going. Read both halves.
-
-### CS-906 CLOSED - the pre-push hook, all thirteen grant conditions met
-
-**765s serial becomes 320s distributed - 2.39x, about 445 seconds off every push**, measured on REAL pushes rather than standalone runs. `.githooks/pre-push` now decides serial or parallel ONCE from an importability probe using `cs_python` (not `python` - different interpreters whenever CLOCKSPEED_PYTHON is set), never re-runs the suite, and degrades loudly when xdist is missing.
-
-**THE ARMS CAUGHT A DEFECT THAT WOULD HAVE REDDENED EVERY PUSH.** The first edit passed with its module run alone and failed three-of-three under an outer `-n auto` - and the hook now runs the whole suite distributed, so that suite CONTAINS the arms grading the hook. **`PYTEST_XDIST_WORKER` IS INHERITED**: under a distributed outer run the process driving the push is itself a worker, the variable rides the whole chain into the nested pytest, and that run's CONTROLLER files itself as a worker. The signature is `ran=False` beside a NON-ZERO worker count. Fixed by asking `config.workerinput`, which cannot arrive from a parent.
-
-**TWO FIGURES I PUBLISHED WERE WRONG AND ARE CORRECTED IN THE LEDGER.** 3.2x was an unpaired comparison across a contended box - the third instrument error of this kind on this item. And `-n auto` resolves to EIGHT workers, not sixteen: xdist counts PHYSICAL cores.
-
-**`--dist loadfile` ADOPTED** in the hook and both CI shards, on a PAIRED reading - default 308s against loadfile 253s. Riot Commander measured it superlinear on their far larger suite. **It does NOT show on a real push** and the hook's comment says so.
-
-### THE DASHBOARD IS LIVE AND CORRECT
-
-The running instance was a child of the Electron companion, started the previous day, and predated CS-912 - so `/api/registry` 404'd. Restarted from the desktop shortcut; it now answers 200 with 750 items, 872 recipes, 68 buildings. Five of ten routes are live; the other five return an honest 501 naming CS-500.
-
-### SESSION 66's WORK IS MERGED INTO MAIN
-
-CS-918's five commits never reached the remote - its push died on a contended box - and its worktree was then closed. The branch survived, so it is merged here. ONE conflict, `docs/LEDGER.md`, resolved by keeping BOTH sides newest-first on commit time. Nothing dropped.
-
-### THE CS-500 TRACE ENGINE IS SPECCED AND NOT BUILT
-
-A planner produced the spec and a seven-slice decomposition. **It found that creating the advisor's trace module - the one the architecture map already names, which does not exist yet - turns `tests/test_docs_citations.py` RED** - three pins resolve differently once that path becomes tracked - so the citation-pin repair must land in the SAME commit as the module. No code was written. The worktree was removed externally and held zero commits.
-
-### THE ORIGINAL CS-896 MATERIAL FOLLOWS
-
-- **Shipped:** nothing CLOSED, and that is the correct outcome. Four commits,
-  `58a30f1..7295efc`, all pushed, CI green. Detail in `docs/LEDGER.md`, not here.
-- **In flight:** CS-896 stays OPEN, blocked on CS-917 - by an OPERATOR RULING, not by
-  an unfinished thought. The ROADMAP relocate pass is still owed.
-- **Decisions:** no ADR. TWO OPERATOR RULINGS, both recorded in `docs/LEDGER.md` and
-  both confirming the tree rather than changing it - see below. Do not re-open either.
-- **Surprises:** the four routes below, all measured against a tree every gate was green
-  over.
-- **Failed paths:** closing CS-896 by transferring its residual to CS-917. REFUTED, and
-  the reasoning is in the ledger so it is not retried.
-- **Next action:** NOTHING IS PENDING FROM THIS SESSION. Pick the top open item. The two
-  strongest candidates are CS-917 (which CS-896 is now formally blocked on) and the
-  ROADMAP relocate pass, which is three sessions owed.
-
-**CI RUN 34038527058 ON `58a30f1` WAS GREEN** - that was the previous session's open
-question and it is answered. Five consecutive green sharded runs. The fifth reading:
-fast 353 job-seconds, save 247; the lane's own lines read 346 and 240 within budget.
-
-**AND THE LANE WENT GREEN TWICE MORE ON THIS SESSION'S OWN COMMITS.** Reading six on
-`77a88d1` (fast 360, the worst yet by one second) is filed in the CS-896 leaf; reading
-seven on `4033b0e` came in at fast 353, save 222 - a new save-shard MINIMUM. **The
-repaired report step and the parser-backed guard have now run on the runner three times
-and changed no verdict**, which is what a repair to a reporting mechanism should look
-like. Fast series: 323, 359, 358, 260, 353, 360, 353. Save series: 225, 237, 242, 227,
-247, 246, 222.
-
-**THE CLOSURE WAS PROPOSED, FROZEN AT `58a30f1`, AND REFUTED BY THREE ADVERSARIES on
-distinct lenses - measurement integrity, scope laundering, guard defeat.** Every
-load-bearing citation was then verified by the merger against `git show 58a30f1:` rather
-than the working tree, **because one adversary was mutating that tree while the other two
-read it.** That was an orchestration error on the merger's part; the md5 of the workflow
-was recorded BEFORE dispatch and matched afterwards, so the readings stood. **Do not
-dispatch a mutating adversary alongside readers of the same file again.**
-
-**THE MECHANISM CS-896 BUILT WAS DEFEATABLE IN ONE LINE, FOUR WAYS.** Each left guard (k)
-printing PASS, its own detail asserting the levels were "pinned two-way", and the budget
-module green:
-
-1. a job-level or step-level `env:` block restating either level - the guard anchored at
-   line start, so a FLOW mapping never begins one and was invisible while PyYAML resolved
-   it. The BLOCK spelling WAS caught. **The third regex-versus-parser hole in this guard
-   in three sessions.**
-2. `continue-on-error` on a job or step, discarding the ceiling's exit. **Governed by
-   nothing** - the key appeared nowhere under `tests/` or `tools/`.
-3. a second key written into `$GITHUB_ENV` from the start step.
-4. the report step reading a level it cannot parse - all three refusals guarded the start
-   marker and neither level had one, so a run far past every level printed the healthiest
-   verdict it has and exited 0.
-
-**ALL FOUR REPAIRED, NINE MUTATIONS THAT WERE GREEN NOW REDDEN** - five against the guard
-record, four against the arms. Module 122 -> 141 passed. Both shards green locally: fast
-3949 passed, save 1413 passed.
-
-**ONE OF MY OWN ARMS SCORED ITS OWN MUTATION GREEN.** The first `$GITHUB_ENV` arm matched
-greedily; a plain YAML scalar FOLDS a continuation line into the same string, so the
-greedy run reached past the smuggled write to the last marker and captured one key where
-there were two. **It reported the property held with the mutation in the tree.** Only the
-mutation proof caught it. An arm that passes on a clean tree has proved nothing until its
-mutation is shown to red it.
-
-**GUARD (k) ALSO CAUGHT ME**, correctly: the first draft of these arms quoted the override
-in its docstrings, making the test module a second owner of the numbers. Plants are now
-ASSEMBLED at call time, the convention `restatement()` already documents.
-
-**THE BROADER SUITE CAUGHT A THIRD THING THE TARGETED RUN DID NOT** -
-`tests/test_exception_rendering.py` found my new guard code rendering a caught exception
-OBJECT into a message, which is non-negotiable 12. Repaired with `_exc_text`. **Run the
-shard, not just the module.**
-
-**A CLAIM I MADE AND RETRACTED.** I proposed the runner swing is SHARD-SPECIFIC (save
-shard 16s step spread against the fast shard's 94 over the same five runs). An adversary
-refuted it and I verified: the shards are INDEPENDENT DRAWS, so under a pool with a fast
-class appearing once in five fast-shard draws, the save shard missing it in five has
-probability 0.8^5, about one in three. An identical pool reproduces the contrast exactly.
-
-**THE DISPOSITION OF CS-896 TURNS ON ONE OBSERVATION.** Drop the single low fast reading
-and that shard's spread falls from 94s to 34s, and the shipped band is then WIDER than the
-noise - the condition PASSES. Keep it and it FAILS. `n=5` cannot say which, which is
-exactly why another reading is the wrong instrument.
-
-**THE FEASIBILITY ARITHMETIC, NEW AND RECORDED IN THE CS-896 LEAF.** With `M` the worst
-reading and `N` the spread: no false warn needs `B >= M`, a warn before a red needs
-`C - B >= N`, a red rather than a cancel needs `C + N <= cutoff`. So `B <= cutoff - 2N`,
-the feasible budget window is `[M, cutoff - 2N]`, EMPTY once `N > (cutoff - M) / 2`. The
-window is currently non-empty and the SHIPPED budget sits outside it. **THE LEVELS WERE
-NOT TOUCHED and must not be re-derived at this sample size** - three previous
-re-derivations were each falsified by their own next reading. A distribution-free 95/95
-bound needs `n >= 59`.
-
-**TWO OPERATOR RULINGS, BOTH GIVEN THIS SESSION AND RECORDED IN `docs/LEDGER.md`.**
-Neither changed a file - both confirm the tree. **1. CS-917's tightened acceptance
-STANDS. 2. CS-896 STAYS OPEN, blocked on CS-917**, with closing it as an honest partial
-and lowering the budget into the window both DECLINED. Do not re-open either.
-
-The questions as they were put:
-1. **CS-917's acceptance was TIGHTENED** to require the band not be narrower than the
-   noise figure it is derived from. Two adversaries found it could otherwise close with
-   the condition silently dropped. It is a tightening, not a narrowing, but moving an
-   acceptance clause is not an agent's call - review it.
-2. **Whether CS-896 closes as an HONEST PARTIAL.** Precedent is in `docs/LEDGER.md` under
-   CS-421 and CS-882, both operator rulings. No adjudicator can grant it and none was
-   asked.
-
-**NAMED AND NOT CLOSED.** ROADMAP.md is at 70987 bytes against a 61440 budget (115 per
-cent) and this session added two bytes to it. THE RELOCATE PASS IS STILL OWED, three
-sessions running. RELOCATE, NEVER DELETE.
-
-**THE ECC FOLLOW-UPS ARE STILL UNFILED, and one count in the handoff was already stale:**
-the GitHub Actions carry **13** mutable `uses:` tags, not 11 - the shard split added two.
-A restated count drifted inside one session, which is the doc rule demonstrating itself.
 
 ---

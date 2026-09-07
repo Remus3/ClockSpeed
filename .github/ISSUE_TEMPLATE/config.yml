@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Check what the health endpoint says is wired
+    url: https://github.com/Remus3/Clockspeed/blob/main/README.md
+    about: >-
+      Advice, audit and milestone endpoints answer a documented pending status
+      rather than a result. That is the current state of the project, not a
+      defect, and /api/health is the authoritative answer to what is wired.
+  - name: Read the architecture decisions first
+    url: https://github.com/Remus3/Clockspeed/tree/main/docs/adr
+    about: >-
+      Several behaviours that look like bugs are recorded decisions with the
+      alternatives already weighed. The ADR states what is foreclosed and what
+      would have to change for it to be revisited.

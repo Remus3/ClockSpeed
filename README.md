@@ -1,11 +1,16 @@
 # Clockspeed
 
-A local, deterministic planning and advisory system for a single-player factory-building
-game.
+[![tier1](https://github.com/Remus3/Clockspeed/actions/workflows/tier1.yml/badge.svg)](https://github.com/Remus3/Clockspeed/actions/workflows/tier1.yml)
 
-Clockspeed reads the game's own shipped data files and your save file, computes exact
-production mathematics, and tells you what to build next in one line - with the complete
-derivation available on demand.
+A local, deterministic planning and advisory system for Satisfactory.
+
+Clockspeed reads the data files your own installation ships with and your own save file,
+computes exact production mathematics, and tells you what to build next in one line - with
+the complete derivation available on demand.
+
+It carries no item, recipe or building dataset of its own. Every one of those facts is
+extracted from the install at runtime, so the answer matches the build you are actually
+playing rather than whatever version a hand-maintained table was last updated against.
 
 > **Status: the foundations are built and the advisor is not.** The data layer, the
 > solver core, the save reader and the local dashboard exist, run and are covered by the
@@ -21,16 +26,16 @@ derivation available on demand.
 
 **Working today.**
 
-- **Target-rate ratio solve.** Ask for a given output per minute and get the complete
-  production tree: every intermediate, exact building counts, exact clock speeds,
-  byproduct handling, raw input totals, total power draw and total build cost. The
-  arithmetic is exact rational arithmetic, not floating point.
+- **Target-rate ratio solve.** Ask for a given output per minute and get the production
+  tree: every intermediate, exact building counts, byproduct handling and raw input
+  totals. The arithmetic is exact rational arithmetic, not floating point.
 - **Alternate-recipe selection under constraints.** Choose the recipe set that minimizes
-  raw resource use, power draw, building count or footprint - or maximizes sink points per
-  unit of raw input - constrained to what you have actually unlocked.
+  raw resource use, power draw or building count, restricted to a recipe set you supply.
+  Those three objectives are the whole list, and an objective outside it is refused rather
+  than ignored.
 - **Reading your world.** Clockspeed locates your install and your most recent save on its
-  own, copies the save before parsing it, and serves the resulting world state and the
-  normalized item and recipe registry over a local dashboard.
+  own, copies the save before parsing it, and serves header facts and world inventory
+  COUNTS plus the normalized item and recipe registry over a local dashboard.
 
 **Being built.**
 
@@ -71,8 +76,10 @@ to create, no API key to supply and no network service to depend on.
 - You supply your own copy of the game. Clockspeed reads it where it is installed.
 - **Game data files, extracted assets and save files are never redistributed** and are
   never committed to this repository. They belong to the game's publisher.
-- Save files contain personal data in their headers. Clockspeed redacts it by default and
-  never writes it to a log, a fixture or a test.
+- Save files carry personal data in their headers. The parsed header does not merely
+  redact it - it has no field to hold a save name, an options string or a session name at
+  all, so there is nothing for a log, a fixture or a test to leak. Unreachable beats
+  redacted.
 - The tests ship with small hand-written synthetic data, so the test suite runs on a
   machine with no game installed at all.
 
@@ -82,9 +89,9 @@ to create, no API key to supply and no network service to depend on.
 
 - Windows.
 - A local installation of the game, kept up to date.
-- Python 3. The exact required interpreter version, along with every other external
-  dependency, is asserted by `scripts/verify_env.py` - run it and it prints what is found
-  and what is missing.
+- Python 3, at or above the floor `scripts/verify_env.py` asserts, plus `git` and
+  `openssl`. Run that script and it prints every dependency it found and every one it did
+  not, separated into HARD and SOFT - it exits non-zero only on a HARD one.
 - Node is needed only for the optional companion window, not for the core.
 
 ## Install
@@ -95,9 +102,18 @@ Obtain a copy of the repository, then check the environment:
 python scripts/verify_env.py
 ```
 
-It exits non-zero and names the missing item if a hard dependency is absent. Contributors
-run one additional step to wire the local git hooks; see `docs/OPERATIONS.md`, which owns
-the bootstrap order and should be run first thing in a fresh clone.
+It exits non-zero and names the missing item if a hard dependency is absent.
+
+**The dashboard is HTTPS only and will not start without a certificate pair**, which is
+gitignored and therefore absent from every fresh clone. Mint one before the first run:
+
+```
+python scripts/make_cert.py
+```
+
+Skip it and the next command exits 3 and says so. `docs/OPERATIONS.md` owns the full
+bootstrap order - three commands, plus the certificate - and should be run first thing in
+a fresh clone.
 
 ## Running it
 
@@ -122,8 +138,9 @@ An optional desktop companion window loads the same dashboard on a second monito
 ## What the first result looks like
 
 Clockspeed finds your game installation and your most recent save automatically - you do
-not tell it where anything is. It parses the save and serves your world state, the item
-and recipe registry, and the solver.
+not tell it where anything is. It parses the save and serves header facts and world
+inventory counts over the dashboard, with the registry and the solver available as local
+JSON endpoints rather than as dashboard panels.
 
 When the advice layer lands, the same dashboard will show a short ordered list of advice
 cards. A card looks like this in shape:
@@ -135,8 +152,10 @@ Build a second smelter line on the north iron node
 ```
 
 One line of instruction, one line of reason, and the complete chain of reasoning one
-keystroke away. Cards can be accepted, dismissed, snoozed or pinned, and that state
-survives reloading the world and patching the game.
+keystroke away. Cards will be acceptable, dismissable, snoozable and pinnable, with that
+state surviving a world reload and a game patch. **None of that exists yet** - the
+advisor package is a documented seam with no executable code in it, and this paragraph
+describes the target rather than the build.
 
 ---
 
@@ -145,4 +164,5 @@ survives reloading the world and patching the game.
 See `LICENSE`.
 
 Clockspeed is an independent project. It is not affiliated with, endorsed by, or connected
-to the publisher or developer of any game it reads.
+to Coffee Stain Studios. Satisfactory and its data files are the property of their
+publisher; nothing extracted from a local installation is redistributed here.
