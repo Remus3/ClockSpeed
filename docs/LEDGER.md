@@ -160,6 +160,89 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-08 - CS-952 - NOT A COMPLETION RECORD. A frozen-file grant was issued and deliberately NOT SPENT; the claim was corrected instead, and the guard that would have caught it twice earlier now exists
+
+**CS-952 STAYS OPEN and this entry does not close it.** The repository half of its acceptance is
+done. The channel half is not: the property was also published to sibling
+repositories as outbound notes this repository does not hold, and retracting one
+is an operator-authorised channel action rather than a commit. The item stays
+OPEN in `ROADMAP.md` with that single remaining condition named.
+
+**THE DEFECT.** The `SessionStart` hook that runs `tools/inbox_watch.py` is
+declared only in `.claude/settings.local.json`, excluded by `.gitignore:150`
+(`*.local.json`). `CLAUDE.md` section 2.2 published the firing as a property of
+the TOOL. It is a property of ONE WORKING COPY. A fresh clone, and every
+worktree, ran no watcher while the auto-loaded rules file told every session one
+was running.
+
+**THE GRANT.** A proposal to insert a `SessionStart` key into
+`.claude/settings.json` - a CLAUDE.md section 6 frozen file - was routed to an
+adjudicator that did not write it. Ruling: GRANT, single-use, with the file
+pinned at sha256 `c28a9d2d1add89ac07ee219647bfdd194c49a6b524ad6d9aaedf2184e8377fe3`
+and four conditions, one of which was that CS-952 must not be published as
+closed on the edit.
+
+**THE GRANT WAS THEN REFUSED BY ITS AUTHOR, ON AN ADVERSARY'S MEASUREMENT, AND
+THAT IS THE PART OF THIS ENTRY WORTH READING.** A read-only adversary given a
+precedent lens refuted the premise rather than the edit:
+
+    `moon_sync_inbox/` is ITSELF gitignored (`.gitignore:282`). A fresh clone has
+    no channel to read. `tools/inbox_watch.py` answers that state with EXIT 3 and
+    a message on stdout. A `SessionStart` hook that exits non-zero does not get
+    its stdout injected. The tracked wiring would therefore have FIRED, FAILED
+    AND SAID NOTHING, in every clone and every worktree.
+
+So the edit would have moved the published claim from FALSE to false in a
+harder-to-see way, and spent a frozen-file exception to do it. **A grant is
+permission, not an instruction.** The adjudicator had itself flagged the missing
+channel as a residual gap and still granted; the adversary is what turned the
+same fact into the decision. Agreement between the two on the FACT and
+disagreement on the CONCLUSION is what a self-adversarial pass is for.
+
+**THE PRECEDENT THE PROPOSAL FAILED TO CITE, and the correction is mine.** This
+ledger already records the answer twice: the CS-928 entry states that wiring the
+watcher machine-locally was DELIBERATE with the fresh-clone consequence written
+down, and the CS-931 entry closes a near-identical defect - the same tooling map
+naming a `SessionStart` hook for `tools/facts_probe.py` that does not exist - by
+MAKING THE CLAIM TRUE, NOT BY WIRING THE HOOK. The proposal argued on a blank
+record and distinguished neither. Neither entry is a section 7 fence, so this
+was precedent rather than prohibition, and it still decided the case.
+
+**WHAT SHIPPED.** `CLAUDE.md`'s section 2.2 row now says the wiring is local-only
+and that a fresh clone and every worktree run no watcher.
+`tools/inbox_watch.py`'s module docstring carries the same statement, because
+CS-931 corrected one file and left its siblings claiming otherwise - measured
+still true today of `tools/facts_probe.py` - and this item was not going to
+repeat that. A stale `.gitignore:149` pointer in `docs/item_notes/phase7.md` is
+corrected to `:150`.
+
+**THE GUARD.** `tests/test_session_start_wiring.py`, 6 arms. It grades
+AGREEMENT, not a branch: the tracked claim and the tracked wiring must say the
+same thing, so it is green under either half of a disjunctive acceptance and red
+only when a row promises firing a clone does not get. Two controls make the
+verdict non-vacuous - a repository whose only wiring is untracked must read as
+UNWIRED, and one whose wiring is committed must read as WIRED - because the
+whole defect is a working tree holding what the repository does not, and a
+reader that fell back to the filesystem would have passed green on the very tree
+that motivated the item. A third control exercises the claim reader against both
+a firing row and a withdrawn one, since an agreement guard that cannot see the
+claim passes trivially. A fourth asserts the row still exists at all.
+
+**THE GUARD READS HEAD, AND THE COST IS STATED RATHER THAN DISCOVERED.** A clone
+materialises HEAD, so HEAD is the honest subject; the consequence is that the
+commit which repairs the row is the commit that turns the arm green, and the
+enforcement point is the pre-push suite. That is the right place: a push is the
+first moment the defect could reach a clone.
+
+**WHAT IS NOT CLOSED, so it is not read as closed.** Three things remain
+unmeasured anywhere in this repository, and no green here may be cited against
+any of them: whether a hook declared in a TRACKED project settings file fires at
+all in an untrusted fresh clone; whether a hook's stdout reaches the transcript
+when it exits non-zero; and whether `python` in a hook command resolves to the
+toolchain-bearing interpreter, which `tests/test_pretooluse_gate.py` guards for
+`PreToolUse` and nothing guards for `SessionStart`. The guard asserts that the
+wiring SHIPS or that the claim is WITHDRAWN, and nothing stronger.
+
 ### 2026-09-08 - CS-954 - CLOSED. The pre-push gate reads the ref list it had ignored since it was written, and refuses a ref that moved under its verdict
 
 **THE ACCEPTANCE IS MET ON ITS SECOND BRANCH.** The item asked for either a push

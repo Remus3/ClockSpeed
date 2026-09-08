@@ -19,6 +19,20 @@ its reason comes back:
      on write, so it can move past a note nobody read. Both siblings built a
      watermark first and dropped it for exactly that reason.
 
+WHERE THIS IS ACTUALLY WIRED, AND WHERE IT IS NOT (CS-952). The `SessionStart`
+hook that runs this tool is declared in `.claude/settings.local.json`, which
+`.gitignore` excludes at `*.local.json`. **THE FIRING IS A PROPERTY OF ONE
+WORKING COPY, NOT OF THIS REPOSITORY.** A fresh clone and every worktree run no
+watcher at all - the same status `core.hooksPath` has, and stated here because
+the design points above describe what the hook does WHERE IT IS WIRED and were
+read twice as a claim about the repository. Tracking the wiring was proposed,
+granted as a frozen-file edit and then refused on measurement: `moon_sync_inbox/`
+is itself gitignored, so a clone has no channel, this tool answers that with
+exit 3, and a `SessionStart` hook exiting non-zero has its stdout dropped. The
+tracked hook would have fired, failed and said nothing.
+`tests/test_session_start_wiring.py` is what keeps the published claim and the
+shipped wiring from drifting apart a third time.
+
 ACKNOWLEDGEMENT IS A SEPARATE ACTION FROM LISTING, and this is the part that
 makes the tool honest. Listing does NOT mark anything seen. If merely starting a
 session marked notes read, a note would be consumed by a session that never
@@ -73,7 +87,8 @@ original failure. An adversary demonstrated the alternative - a file whose bytes
 were exactly the old unreadable marker's preimage, acknowledged and then swapped
 while locked, reported as clean.
 
-THE WORK IS BOUNDED because this runs on every session start against bytes other
+THE WORK IS BOUNDED because this runs on every session start - on a machine
+where it is wired, see above - against bytes other
 projects wrote. Files are hashed in chunks rather than read whole - a 2 GiB
 payload file previously peaked at 2292 MiB of process memory. Reparse points are
 NOT followed: a single directory junction made the walker recurse to the OS

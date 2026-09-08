@@ -723,7 +723,7 @@ content, stars, forks, LFS objects.
 
 **Gate item 7 - a clean-checkout probe on a machine that has never seen the
 project - FAILS TODAY.** The entire `SessionStart` wiring lives in
-`.claude/settings.local.json`, gitignored at `.gitignore:149`, so a fresh clone
+`.claude/settings.local.json`, gitignored at `.gitignore:150`, so a fresh clone
 runs no watcher - while this project published its fires-at-session-start
 property to the channel as YES.
 

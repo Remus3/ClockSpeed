@@ -1841,6 +1841,16 @@ DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
         ".claude/settings.local.json",
         "#### 5. CS-952 is sequenced BEFORE the flip and is a hard blocker",
     ): 1,
+    (
+        "docs/LEDGER.md",
+        ".claude/settings.local.json",
+        "### 2026-09-08 - CS-952 - NOT A COMPLETION RECORD. A frozen-file grant"
+        " was issued and deliberately NOT SPENT; the claim was corrected"
+        " instead, and the guard that would have caught it twice earlier now"
+        " exists",
+    ): 1,
+    ("tests/test_session_start_wiring.py", ".claude/settings.local.json", ""): 1,
+    ("tools/inbox_watch.py", ".claude/settings.local.json", ""): 1,
 }
 
 #: R3's live membership, DISCLOSED. Three are the names of the three files
@@ -1932,7 +1942,17 @@ DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
 #: was not here, which trades a disclosed row for an ambiguous instruction.
 #: THIS COMMENT DESCRIBES THAT PATH RATHER THAN CITING IT, for the reason the
 #: paragraph above gives.
-DECLARED_UNTRACKED_CEILING: Final = 9
+#: 9 TO 12 FOR CS-952'S REPAIR, AND THE THREE ROWS ARE THE REPAIR RATHER THAN A
+#: COST OF IT. The defect was a published claim that a watcher fires, when the
+#: hook declaring it lives in a per-machine override file this repository does
+#: not track. Every correction of that claim has to say WHICH FILE holds the
+#: wiring, because "it is wired somewhere untracked" is the ambiguity that let
+#: the row read as a property of the repository twice. So the ledger record, the
+#: tool whose own docstring made the claim, and the guard that now grades the
+#: claim against the shipped wiring each name it once. Describing it obliquely
+#: was available and was rejected for the same reason the row above rejects it:
+#: an oblique instruction is a row not bought and a reader not told.
+DECLARED_UNTRACKED_CEILING: Final = 12
 #: 9 TO 6 WHEN CS-928 DELETED THE THREE FALSE ADVISOR ATTRIBUTIONS. Six
 #: `docs/ARCHITECTURE.md` rows left the rung and three arrived from the guard
 #: that now asserts those files absent, so the disclosure holds six rows and the
