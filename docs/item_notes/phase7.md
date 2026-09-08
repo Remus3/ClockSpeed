@@ -739,7 +739,7 @@ name, so the payload is benign; the frozen-file route is still mandatory.
 **CS-952 closes before S7.** A public repo whose clean-checkout probe fails is a
 public repo advertising a property it does not have.
 
-#### 6. THE OPERATOR DECISION, ASKED AND ANSWERED 2026-09-08
+#### 6. THE OPERATOR DECISION ON COMMIT IDENTITY - filed 2026-09-08 (session 74)
 
 **520 of 521 commits on `main` carry a real personal email address in both the
 author and the committer field.** Measured at `c885879`. Publishing under a real
