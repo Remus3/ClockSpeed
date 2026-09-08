@@ -160,6 +160,116 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-08 - CS-954 - FROZEN-FILE GRANT, recorded BEFORE the edit per CLAUDE.md section 6
+
+**This is a grant record, not a completion record.** It authorizes ONE edit to
+`.githooks/pre-push`, which CLAUDE.md section 6 freezes. An adjudicator that
+neither proposed the change nor wrote the hook, the item note or the
+reproductions ruled GRANTED WITH CONDITIONS. The closing record is separate.
+
+**THE CANDIDATE IS PINNED.** HEAD `c9474bd1b8021c6e827e8dae34acb150d8ff085e`,
+`.githooks/pre-push` at sha256
+`485bc24c3536d9d853f1659e4c8d0456962797888eb76c0452f3a000062c62c8`.
+
+**WHAT IS AUTHORIZED, and nothing else:** two additive regions and their comment
+block - a stdin capture placed BEFORE the interpreter ladder, and a ref re-read
+placed AFTER the pytest status is taken. Everything else survives byte-identical:
+the CS-703 probe block and its rationale, the interpreter ladder, the pytest
+importability check, the entire CS-906 invocation block and its comments, the
+exit-5 guard and the exit path. The grant is SINGLE-USE and expires on
+application. It covers no other frozen path, and it does NOT cover the standing
+trailer-range-scan proposal against this same file, which CS-906's grant already
+ruled needs its own.
+
+**WHY.** The hook has never read its stdin - every redirect in it is
+`</dev/null`, and nothing consumes the ref list git supplies - so it grades the
+WORKING TREE and never learns which commits are being pushed. A gate that can
+report on a commit that never ships and stay silent about one that does is the
+CS-821 and CS-824 family one level up.
+
+**THE INCIDENT IS MEASURED, AND THE FORGE SETTLES IT.** `git reflog show
+refs/remotes/origin/main` records `update by push` to `5192aaf` at 2026-09-07
+18:28:04 -0500, while the local reflog records `1ee8b64` committed at 18:27:44
+-0500 - inside that push. `gh run list --commit` on the FULL 40-character SHA of
+`5192aaf` returns empty: no CI run has ever existed for the commit the hook
+graded. Exactly one push-event run exists for `1ee8b64`, created 23:28:07Z,
+three seconds after the ref update. One push event, and its tip was never graded.
+
+**STRONGER THAN FILED, and found by the adjudicator rather than by the proposer:
+git's own ref-update report disagreed with what shipped.** The tracking reflog
+named `5192aaf` while CI and the later fetch fast-forward both show the remote
+took `1ee8b64`. Git's reporting path and its shipping path already disagreed once
+in this incident.
+
+**THE MECHANISM REMAINS UNESTABLISHED AND IS NOT WRITTEN DOWN AS THOUGH IT WERE.**
+Two controlled reproductions on 2026-09-08 - one over a plain local path, one
+over `file://` - advanced the local ref mid-hook and BOTH shipped exactly the SHA
+the hook was handed, with a control proving the ref really had moved by the time
+the hook returned. The real incident used HTTPS to the forge and the difference
+is unexplained. **The authorized change is therefore MECHANISM-AGNOSTIC:** it
+grades the hook's own refusal, never git's transport. Whichever half is true, the
+outcome is safe - either git ships the graded SHA and the check never fires, or
+it ships a later one and the push is blocked before it can.
+
+**WHY NOT A NON-FROZEN ROUTE.** Ruled on and rejected, each for a measured
+reason. A CI-side check cannot block a push and grades only the tip. A wrapper
+script is bypassed by the bare `git push` that caused the incident, and CLAUDE.md
+2.2 makes the hooks authoritative and everything else a convenience layer. A
+second hook does not exist as a git concept - `scripts/install_hooks.py` names
+exactly three hooks and there is no `.d` chaining - so dispatching to one is
+itself a frozen-file edit, and a worse one whose absence fails open. The
+operator discipline the item already records cannot bind `ops/loop/queue_loop.py`,
+which commits autonomously with no operator in the loop, and the window is a
+function of suite duration and so grows monotonically.
+
+**THE FIFTEEN CONDITIONS BIND THE GRANT.** Recorded here in full so the edit can
+be graded against them by someone who was not present:
+
+1. This record is committed BEFORE the commit that edits the hook.
+2. Scope is the two regions and their comment block; everything else byte-identical.
+3. Stdin is read EXACTLY ONCE, into a variable, before the ladder runs.
+4. The re-read runs ONLY when the pytest status is 0. It never rewrites, masks or
+   clobbers a non-zero status - a red suite still reports as a red suite.
+5. A zero-SHA or delete ref is SKIPPED, not refused. Nothing was graded and
+   nothing ships.
+6. Any other mismatch or unresolvable local ref REFUSES, naming the ref, the
+   handed SHA and the observed SHA.
+7. NEVER echo the remote URL or any raw stdin line. An HTTPS remote can carry an
+   embedded credential and a local remote carries a home path - non-negotiables 3
+   and 12, the same reason the hook already refuses to echo its interpreter
+   variable.
+8. Every new variable is initialised before first use, including on the failure
+   path that renders it. `set -u` precedent: the probe's own two initialisations.
+9. Empty stdin is LOUD on stderr and does NOT refuse, with its own arm, so a
+   no-op is distinguishable from a check that never ran.
+10. The comment block states plainly that this NARROWS the window to the
+    hook-exit-to-git-resolve gap and does NOT close it, and that the mechanism
+    remains unestablished. No claim of closure anywhere.
+11. An end-to-end arm drives a REAL push to a throwaway bare remote with the
+    local ref advanced during the hook, asserting non-zero exit AND that the
+    later commit did not land. RED demonstrated first. A paired arm asserts a
+    clean push still succeeds when the ref does not move.
+12. Every existing arm that runs the real hook bytes gets explicit stdin, and one
+    arm asserts the hook does not block on a closed or empty stdin.
+13. `python scripts/install_hooks.py` runs clean after the edit; every added byte
+    is 7-bit ASCII, LF, no BOM.
+14. A byte-identical file is a legitimate outcome. If a mechanism is later
+    established under which the check cannot fire, the grant is spent unused and
+    that is the finding.
+15. Single-use, expires on application, covers no other frozen path.
+
+**THE COMMON-MODE RISK IS RECORDED RATHER THAN DISCHARGED.** Both reproductions
+and the authorized check read the LOCAL REF as the authority on what ships. Any
+mechanism where the shipped SHA comes from somewhere else - a packed-refs versus
+loose-ref disagreement, or a resolution inside the HTTPS remote helper that never
+touches the loose ref - defeats the check silently, and neither the reproduction
+nor the check tests it. It would have fired on THIS incident, because the local
+ref genuinely moved. This is a coverage gap, not a defect in the proposal.
+
+**WHAT WOULD SETTLE THE RESIDUAL.** `GIT_TRACE_PACKET=1` with `GIT_TRACE=1` on a
+real HTTPS push whose ref is advanced mid-hook, capturing the update command
+actually sent. Until that exists, condition 10 governs what may be written down.
+
 ### 2026-09-07 - CS-950 - CORRECTION to the entry below it: the arm count was 10 when written and 11 when the repair landed
 
 The CS-949 / CS-950 entry states "Verified by 10 arms in
