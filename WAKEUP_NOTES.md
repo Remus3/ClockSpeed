@@ -34,6 +34,74 @@ the line becomes a pointer.
 
 ---
 
+## Session 75 - 2026-09-08 - the grant was refused on a measurement, and every artifact this session built was refuted before it was believed
+
+- Shipped: CS-952 CLOSED. CS-956 and CS-958 FILED. CS-957 and CS-958 built and
+  hardened but OPEN by design. Detail in `docs/LEDGER.md`, not here.
+
+- In flight: nothing. Tree clean, no worktrees, no stash, nothing unpushed.
+
+- THE SESSION'S SHAPE WAS BUILD-THEN-REFUTE AND EVERY REFUTATION PAID. Seven
+  graders ran. Not one returned empty, and three found the defect in the
+  EVIDENCE rather than in the artifact - which is the part to carry forward.
+
+- CS-952: A FROZEN-FILE GRANT WAS ISSUED AND DELIBERATELY NOT SPENT. An
+  adjudicator granted the edit to `.claude/settings.json` with conditions. An
+  adversary then refuted the PREMISE: `moon_sync_inbox/` is itself gitignored,
+  so a fresh clone has no channel, the watcher answers that with exit 3, and a
+  `SessionStart` hook exiting non-zero has its stdout dropped. The tracked
+  wiring would have fired, failed and said nothing. A GRANT IS PERMISSION, NOT
+  AN INSTRUCTION. The claim was corrected instead - which this ledger already
+  recorded twice, under CS-928 and CS-931, and the proposal cited neither.
+
+- THE CHANNEL HALF WAS SENT. One note, 3712 bytes, to four sibling inboxes,
+  operator-authorised, bytes checked for ASCII and personal data BEFORE the send
+  was reported. Its only record is the ledger entry, which is CS-951
+  demonstrated rather than argued.
+
+- CS-957, the outbound leak gate: REFUTED THREE TIMES. The exclusion hatch it
+  relied on was consumed inside `discover_world_names`, which `PiiMatchers`
+  builds for BOTH gates - so silencing an outbound false positive would have
+  blinded the frozen commit gate to that real world name, permanently. Measured
+  1 to 0 diagnostics, blocklist 25 to 17. Split into its own key.
+
+- A MUTATION PASS THEN REFUTED THE SUITE, NOT THE CODE. Ten mutants, two shipped
+  green: `_canary_measured` hardcoded True, and the oracle reconciliation
+  no-op'd. The second was silently backstopping two other arms. FOURTEEN PASSING
+  ARMS WERE NOT EVIDENCE THEY GRADED ANYTHING.
+
+- CS-958, the send path: the gate had ZERO call sites, so it was an instrument
+  beside the channel rather than a gate in front of it. An adversary then
+  demonstrated four defects in the sender, including a real partial delivery
+  reported as "nothing was sent", and a TOCTOU window that delivered ungraded
+  bytes recorded as CLEAN.
+
+- Decisions: none needing an ADR. The CS-952 branch choice is recorded in the
+  ledger with its fence.
+
+- Surprises: nothing contradicted `BOOTSTRAP.md`. No spec update is owed.
+
+- Failed paths: tracking the watcher wiring (refused on measurement, do not
+  re-pitch); a higher length floor for the world-name class (the commit gate
+  already denied it by measurement - 8 of 25 real names would drop out of the
+  COMMIT gate too).
+
+- MY OWN FAULTS, KEPT VISIBLE BECAUSE THEY ARE THE TRANSFERABLE PART. A stash
+  used to attribute a test-count change reverted the tree BEFORE I snapshotted
+  it, so my "working copy" snapshot was already HEAD and restoring from it
+  restored HEAD - the whole repair sat in `stash@{0}` while the tree read clean.
+  Recovered by luck, not design. And twice I wrote a probe helper that accepted
+  an `env` argument and never passed it to the subprocess, which produced a
+  false negative I nearly banked as a verified fix, and wrote a real delivery
+  record into the repository's default location.
+
+- Next action: **REFUTE THE REPAIRED SENDER.** CS-958's four fixes answer the
+  pass against the PREVIOUS commit and have had no adversarial pass of their
+  own. Four demonstrated defects in the first cut is a reason to expect the
+  second cut is not clean.
+
+---
+
 ## Session 74 - 2026-09-08 - the flip plan chose its branch, and CS-954's repair introduced the hang its own refutation caught
 
 - Shipped: CS-954 CLOSED. CS-700's PLAN produced and CS-700 stays OPEN by design.
@@ -139,102 +207,3 @@ the line becomes a pointer.
   grading its execution.
 
 ---
-
-## Session 72 - 2026-09-07
-
-**CS-940 and CS-934 closed together**, because they were one file and one
-rewrite and doing them separately meant writing the seen-set key twice. The
-completion record with every measurement is in `docs/LEDGER.md`.
-
-**THE SESSION'S TRANSFERABLE FINDING, and it is about tests rather than code.**
-AN ARM THAT VARIES CONTENT VARIES MTIME, SIZE AND CONTENT AT ONCE, SO IT PINS
-NONE OF THEM. The first suite here had 22 green arms and could not distinguish a
-content digest from `st_mtime_ns` or from `st_size`; both mutants passed
-everything. To pin the content leg an arm must hold everything else constant -
-edit in place and RESTORE the timestamp, and change content at CONSTANT BYTE
-LENGTH. Every project on this channel shipped a digest key this round, so the
-finding was sent to all four siblings.
-
-Second half of the same finding: AN ASSERTION THAT ONE EXACT STRING IS ABSENT IS
-DEFEATED BY TRUNCATION. A 16-character preview passed an arm looking for a
-22-character sentence. Assert over every window.
-
-**Both adversaries returned REFUTED, and both were right.** The candidate was
-frozen at a digest before dispatch and neither agent wrote any of it. Twelve
-arms were added in response. The cost of skipping that pass would have been a
-watcher that looked finished and silently dropped four classes of deliverable.
-
-**AN ADVERSARY CAUSED A REAL INCIDENT ON THIS BOX AND DISCLOSED IT.** While
-probing the unbounded-read path it started a 400 GiB sparse-file write that
-zero-filled 35 GB of C: before it noticed, and stopped it with a
-`taskkill /F /IM python.exe` that terminated five python processes - which may
-have killed another project's suite. Disk was fully reclaimed, 289 GB free
-verified, and nothing was written inside the repository. Two standing lessons
-were re-confirmed the hard way: a runaway command fills the disk, and a blanket
-image kill on this machine is never local to one project. An adversary brief
-should cap the size of any fixture it is invited to create.
-
-**A trap paid for again: do not `cd` into an inbox subdirectory.** The
-`PreToolUse` hook resolves its gate script relative to the working directory, so
-one `cd` into a directory without a `tools/` bricked BOTH Bash and PowerShell -
-they share one working directory - and `cd` back fails because the hook fires
-first. Recovery was a non-shell directory tool. The handoff warned about this
-and it still cost a turn.
-
-**The channel.** Answered RC's `slots.py` rewording proposal with YES on the
-operator's ruling, and corrected a premise while doing it: Clockspeed is NOT a
-carrier of that file. It DERIVES `ops/loop/lanes.py` from it and never copies,
-because vendoring would enrol this project in a machine-wide ProgramData token
-bucket that other trees ration between themselves. So no bytes are re-pinned
-here; the only consequence is that `lanes.py` records the upstream digest of
-`slots.py` and a reword moves it, so the new digest is owed when the carriers
-converge.
-
-### The second half of the session - the channel, read whole
-
-**EVERY FILE IN `moon_sync_inbox/` WAS READ, on an operator directive**: 73 notes,
-a 7-file payload and one loose reference file, by seven read-only agents over
-disjoint slices. The inbox was acknowledged ONLY after that - 75 items, 0
-undigestible. An acknowledgement made before the reading would have been the
-seven-hour failure with better manners.
-
-**FOUR OPERATOR RULINGS, each filed with its cost rather than acted on bare.**
-Charter v4 ADOPTED as written, including RC as final adjudicator on a deadlock.
-The `cs` lane slot ACCEPTED, which reverses ADR-0017 and therefore needs a
-superseding ADR before it binds. CAVEMAN ULTRA ADOPTED, needing an adjudicated
-grant against the frozen settings file. Verbatim reciprocation AGREED, needing a
-manifest producer and a scrub attestation. All four are CS-946, CS-947 and
-CS-948; none is started.
-
-**THREE DEFECTS IN THIS TREE FOUND BY READING OTHER PROJECTS' WORK**, not by
-probing this one. `save_seen` lets an `OSError` escape as a traceback out of a
-session-start hook, so a locked store crashes the watcher and the session
-surfaces NOTHING - the outage this project warned four siblings about, one layer
-down in its own code (CS-943). Ten test modules walk with `rglob` and one
-excludes the worktree directory (CS-944). And 52 of 62 local branches are ahead
-of `origin/main` on no remote, after this project told a sibling that gap was
-fixed (CS-945).
-
-**A RETRACTION PAID.** This project measured Lanternlight's hooks at `100644` and
-broadcast it to four repos; both are `100755`, re-measured from their tree.
-Corrected in this file beside the original rather than deleted, because the
-finding that hook MODE is a silent-non-execution class still stands. One wrong
-measurement reached four trees in about an hour, which is the broadcast rule
-working in the wrong direction.
-
-**A PAYLOAD TWO SIBLINGS BELIEVE THEY DELIVERED IS NOT HERE.** RC's notes name a
-facts-probe module inside a verbatim payload directory of their own; the only
-payload directory in this inbox belongs to a different sibling. The path is
-deliberately not spelled here - a described path is a CITATION to the doc guard,
-which is the same trap as describing a line pointer. Most likely RC's own URGENT
-pull did what it said, which
-means two senders spent a night reasoning about bytes the receiver did not have
-and nothing on either side said so. That is the withdrawal property arguing for
-itself, and it is why CS-941 exists.
-
-**ROADMAP.md IS OVER ITS SOFT BUDGET** by about 1 KB at 161 open items. The
-driver is item COUNT, not formatting: the file is item lines, and an acceptance
-clause belongs on the line. `doc_budget.py` exits 0 and the suite is green, so
-nothing is red - but the relocate pass it asks for has no honest target left, and
-the fix is an operator decision rather than an edit.
-
