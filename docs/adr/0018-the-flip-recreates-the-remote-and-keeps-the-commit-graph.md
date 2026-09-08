@@ -127,9 +127,12 @@ NOT clean.** Measured at `c885879`: 520 of 521 commits on `main` carry a real
 personal email address in both the author and the committer field. `CONVENTIONS`
 17 gate item 2 does not reach it - it says tracked files and commit messages, and
 identity is neither - and measurement 1 did not look for it. **Whether to publish
-under that identity is an operator decision, it is recorded as an open blocker in
-CS-700's plan section 6, and the flip's final step does not run until it is
-answered.** A rewrite undertaken for that reason is not the rewrite this ADR
+under that identity was put to the operator on 2026-09-08 and RULED: rewrite
+author and committer across all 521 commits to a GitHub noreply address.
+Accept-as-is and squash-to-fresh-history were both declined.** The mechanics and
+the sequencing consequence - every SHA changes, so the preservation bundle must
+be taken and proven restorable BEFORE the rewrite - are in CS-700's plan section
+6 and step S7a. A rewrite undertaken for that reason is not the rewrite this ADR
 rejects, and CS-701 is the same surface already filed.
 
 **Revisit if any stated premise changes.** If `main` acquires a dirty commit

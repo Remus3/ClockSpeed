@@ -613,10 +613,14 @@ the oldest and newest run.
   shipped without searching it.** Those are the only two honest outcomes.
 - **The credential axis needs an allowlist before S1 can abort on a hit.** An
   honest needle set returns 166 hits on `main` - `AKIA` 140, `github_pat_` 9,
-  `AIza` 9, `BEGIN PRIVATE KEY` 8 - every one of them a FIXTURE inside
+  `AIza` 9, `BEGIN PRIVATE KEY` 8 - every one of them a FIXTURE. Mapped to
+  paths over all main-reachable blobs, the allowlist is exactly SIX files:
   `tools/precommit_gate.py`, `tests/test_precommit_gate.py`,
-  `tests/test_make_cert.py` and `docs/history_notes.md`. Real prefixes
-  (`ghp_`, `gho_`, `sk-ant-`, `xoxb-`, RSA bodies) return 0. **Without a recorded
+  `tests/test_pretooluse_gate.py`, `tests/test_make_cert.py`,
+  `docs/history_notes.md` and `WAKEUP_NOTES.md` - the scanner's own pattern
+  table, its tests, and two notes quoting them. Real prefixes (`ghp_`, `gho_`,
+  `sk-ant-`, `xoxb-`, RSA bodies) return 0, so **the credential axis is CLEAN and
+  this is a FALSE-ABORT hazard, not a leak.** **Without a recorded
   allowlist, a literal S1 aborts the entire flip on this project's own secret
   scanner.** The allowlist is by PATH plus needle, is written into the plan
   before S1 runs, and follows the CS-209 precedent: a named recorded exception,
@@ -671,7 +675,16 @@ or `ROADMAP.md`. Budget a build, not a run.
 
 **S7 - Gate item 7, and CS-952 closes here.** See section 5.
 
-**S8 - RE-RUN S1 AND S2 IN FULL.** S6, S7 and S10 all land new commits on `main`.
+**S7a - Rewrite commit identity across all 521 commits**, per the ruling in
+section 6. Author and committer only; messages, trees, paths and dates
+unchanged. Controls: assert the rewritten commit COUNT equals the pre-rewrite
+count, assert every tree SHA is unchanged commit-for-commit - the rewrite must
+touch identity and nothing else - and assert `git log --format='%ae %ce'` yields
+exactly one address across the whole graph, with a pre-rewrite control showing
+it yielded two. **The S3/S4 bundle must already exist and be proven restorable
+before this runs**, because this step invalidates every SHA the remote holds.
+
+**S8 - RE-RUN S1 AND S2 IN FULL.** S6, S7 and S7a all change `main`.
 **S1 scanned a tree that no longer exists by push time**, and the first draft
 said so in prose while omitting the step. It costs about 7 seconds. This is the
 last check before anything irreversible.
@@ -726,7 +739,7 @@ name, so the payload is benign; the frozen-file route is still mandatory.
 **CS-952 closes before S7.** A public repo whose clean-checkout probe fails is a
 public repo advertising a property it does not have.
 
-#### 6. THE OPEN OPERATOR DECISION THAT BLOCKS S12
+#### 6. THE OPERATOR DECISION, ASKED AND ANSWERED 2026-09-08
 
 **520 of 521 commits on `main` carry a real personal email address in both the
 author and the committer field.** Measured at `c885879`. Publishing under a real
@@ -738,14 +751,23 @@ It is genuinely an operator call and not an agent's: the only remedy is rewritin
 every commit's identity, which ADR 0018 currently forecloses for content and
 which this section explicitly does NOT foreclose for identity.
 
-Three dispositions, and the operator picks one before S12:
-- **ACCEPT** - publish under the real identity, record the acceptance in the
-  ledger, and narrow ADR 0018's Foreclosed clause to content only.
-- **REWRITE IDENTITY** - rewrite author and committer across all 521 commits to
-  a GitHub noreply address. This is the one thing that reopens the rewrite
-  branch, and it reopens it on a different axis than section 17's clause.
-- **SQUASH** - the fresh-history repo of CONVENTIONS 17, which erases the
-  identity trail along with the record. Cheapest and most destructive.
+**RULED 2026-09-08: REWRITE IDENTITY TO NOREPLY.** Author and committer are
+rewritten across all 521 commits to the operator's GitHub noreply address,
+keeping every message, tree, path and date. ACCEPT-as-is and SQUASH-to-fresh-
+history were both put and both declined. **Do not re-pitch either**, and do not
+re-pitch publishing under the real identity as a simplification.
+
+**This reopens the rewrite branch on the IDENTITY axis only.** It is not the
+content rewrite ADR 0018 rejects, and it does not disturb measurement 1.
+
+**The consequence that must be sequenced, not discovered: every SHA changes.**
+So the S3/S4 bundle holds refs pointing at the OLD SHAs, and after S7a not one
+of the 53 wip refs or 5 salvage tags matches anything in the rewritten graph.
+That is acceptable only because those refs are being discarded from the remote
+anyway - but it means **the bundle is the sole copy of the pre-rewrite graph**,
+and S5's placement rule and S4's restorability gate are now load-bearing for
+the whole project's history, not just for 53 stray refs. Take the bundle before
+S7a, never after.
 
 **Related and already filed: CS-701** records that the operator git author line
 coincides with a 4-character world name on this machine, and that a
