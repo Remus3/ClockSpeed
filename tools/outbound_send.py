@@ -27,18 +27,48 @@ operator fixes the missing sibling, re-runs, and only then discovers the note
 carries a home path. The gate is also the cheaper check, and the one whose
 answer cannot be changed by the state of the channel.
 
-ANY FAULT REFUSES THE WHOLE SEND, NEVER A SUBSET. A missing destination, or a
-filename already present at any one of them, aborts everything. A partial
-delivery leaves a partial record, and a partial record is precisely the CS-951
-hole with extra steps - the reconciler's question is "does the copy this
-repository believes it put there still exist", and it cannot be answered for a
-destination the record never learned about.
+ANY FAULT REFUSES THE WHOLE SEND, AND THE FIRST VERSION OF THIS CLAIM WAS
+FALSE. It validated every destination and then wrote in a loop, so a failure on
+the third write left the first two delivered while stderr said "nothing was
+sent" - demonstrated in one command by an adversary, who put a DIRECTORY at the
+temporary name the writer uses, a name validation never checked. The repair is
+two phases: every destination is STAGED to a temporary file first, and only when
+all of them are staged is any of them renamed into place. The failure-prone work
+- space, permissions, a path too long, a name already taken - happens in the
+phase where nothing has been delivered yet, and a failure there unlinks the
+staged files and delivers nothing.
+
+WHAT TWO PHASES STILL DO NOT BUY, stated rather than glossed. A failure DURING
+the rename phase can still leave a subset delivered; a rename is per-file and
+this is not a transaction. So the tool no longer claims otherwise: it records
+every destination that actually landed, names them, and says plainly that a
+partial delivery occurred. A record that is honest about a partial send is what
+a CS-951 reconciler needs; a message asserting "nothing was sent" over a
+delivered note is worse than the partial send itself.
 
 UNMEASURED IS NOT CLEARED. A class the gate could not derive is a class nobody
 looked at, so the default is to refuse and `--allow-unmeasured` is an explicit
 operator act that lands in the record as the verdict at the time of sending.
 A reader of that record can then tell a delivery that was fully graded from one
 that was not, which a boolean "sent" flag could never express.
+
+THE NOTE IS READ EXACTLY ONCE, AND THAT IS A SECURITY PROPERTY RATHER THAN AN
+OPTIMISATION. The first version read the note to grade it and read it AGAIN to
+deliver it, so anything that changed the file in between was delivered
+ungraded. Demonstrated: a writer thread swapping a home path into a large note
+during the gate's scan produced a delivery whose bytes the gate would have
+refused, recorded under `"gate_verdict": "CLEAN"` beside the digest of the
+DIRTY bytes - the record permanently attesting a grade that never happened to
+the bytes it names. The payload is now read once, graded as bytes, delivered as
+those same bytes, and recorded by their digest. There is no window because
+there is no second read.
+
+A DESTINATION IS A SINGLE PATH SEGMENT AND NOTHING ELSE. `root / name` lets an
+ABSOLUTE name replace the root outright, so `--to` with a drive-qualified path
+escaped the channel entirely, put an absolute path into the record, and walked
+straight past the exclusion that keeps this repository out of its own
+broadcast. A name carrying a separator, a drive, a leading dot or a parent
+reference is refused before anything is resolved.
 
 WHAT THIS RECORDS AND WHAT IT DOES NOT. One entry per DESTINATION rather than
 one per send, because a pooled entry for two siblings cannot answer the
@@ -226,18 +256,40 @@ def inbox_holders(root: Path) -> list[str]:
     return found
 
 
-def grade(note: Path) -> tuple[int, str, str]:
-    """Run the gate over `note`, returning (code, its stdout, its stderr).
+def grade(payload: bytes) -> tuple[int, str, str]:
+    """Grade BYTES ALREADY IN HAND, returning (code, its stdout, its stderr).
 
-    In process rather than as a subprocess, so the sender and the gate cannot
-    drift into two different answers about the same bytes, and so no payload
-    ever reaches an argument vector.
+    Bytes rather than a path, so that what was graded and what is delivered are
+    the same object and no window exists between them. Taking a path here is
+    what made the gate bypassable: the grader read the file, the writer read it
+    again, and anything that changed in between shipped ungraded under a CLEAN
+    verdict.
+
+    In process rather than as a subprocess so the sender and the gate cannot
+    drift into two answers about one payload, and so no payload ever reaches an
+    argument vector.
     """
     gate = load_outbound_gate()
-    text = note.read_bytes().decode("utf-8")
-    refusals, warnings, coverage = gate.scan(text)
+    refusals, warnings, coverage = gate.scan(payload.decode("utf-8"))
     out, err = gate.render(refusals, warnings, coverage)
     return gate.verdict(refusals, coverage), out, err
+
+
+def is_plain_segment(name: str) -> bool:
+    """Whether `name` is one ordinary directory name and nothing else.
+
+    A destination is joined onto the channel root, and `Path("/a") / "C:/b"`
+    yields `C:/b` - so an absolute or separator-bearing name escapes the channel
+    silently. Measured: `--to` with a drive-qualified path resolved to this
+    repository's own inbox, wrote an absolute path into the record, and walked
+    past the self-exclusion. Rejecting the shape is cheaper and more honest than
+    trying to detect every escape after the join.
+    """
+    if not name or name in {".", ".."} or name.startswith("."):
+        return False
+    if any(separator in name for separator in ("/", "\\", ":")):
+        return False
+    return len(Path(name).parts) == 1 and not Path(name).is_absolute()
 
 
 def record_path() -> Path:
@@ -268,33 +320,87 @@ def append_record(path: Path, entries: Sequence[dict[str, object]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     tmp.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8", newline="\n")
-    tmp.replace(path)
+    try:
+        tmp.replace(path)
+    except OSError:
+        # THE STAGING FILE IS REMOVED ON FAILURE. Measured: a record path
+        # that could not be replaced left a `.tmp` beside it, so the next
+        # run would find a stale staging file and no record at all - the
+        # failure preserved in a shape nothing reads.
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+        raise
 
 
-def deliver(source: Path, destination: Path) -> None:
-    """Write `source`'s bytes into `destination` atomically.
+def staging_name(destination: Path) -> Path:
+    """The temporary file `destination` is staged through.
 
-    Through a temporary file in the SAME directory, because a replace across
-    filesystems is not atomic and the destination is another repository's tree.
-    A sibling's watcher keys on (name, content digest), so a half-written note
-    would read as new mail carrying a truncated payload.
+    In the SAME directory, because a replace across filesystems is not atomic
+    and the destination is another repository's tree. A sibling's watcher keys
+    on (name, content digest), so a half-written note would read as new mail
+    carrying a truncated payload.
     """
-    tmp = destination.with_name(destination.name + ".tmp")
-    tmp.write_bytes(source.read_bytes())
-    tmp.replace(destination)
+    return destination.with_name(destination.name + ".tmp")
+
+
+def stage_all(payload: bytes, targets: Sequence[tuple[str, Path]]) -> tuple[list[Path], str]:
+    """Write every destination's temporary file. All or none.
+
+    PHASE ONE OF TWO, and the phase where every plausible failure lives: no
+    space, no permission, a path too long, a name already taken. Nothing has
+    been delivered when it fails, so the staged files are unlinked and the send
+    is refused with nothing on the channel - which is what the first version
+    claimed to do and did not.
+    """
+    staged: list[Path] = []
+    for _name, target in targets:
+        tmp = staging_name(target)
+        try:
+            tmp.write_bytes(payload)
+        except OSError as exc:
+            for done in staged:
+                with contextlib.suppress(OSError):
+                    done.unlink()
+            gate = None
+            with contextlib.suppress(BaseException):
+                gate = load_outbound_gate().load_precommit_gate()
+            detail = gate.safe_exc_text(exc) if gate is not None else type(exc).__name__
+            return [], detail
+        staged.append(tmp)
+    return staged, ""
+
+
+def commit_all(targets: Sequence[tuple[str, Path]]) -> tuple[list[str], str]:
+    """Rename every staged file into place, reporting what actually landed.
+
+    PHASE TWO. A rename is per file and this is not a transaction, so a failure
+    here CAN leave a subset delivered. The names that landed are returned rather
+    than discarded, because the caller has to record them and has to tell the
+    truth about them - a tool that says "nothing was sent" over a delivered note
+    is worse than the partial send it is hiding.
+    """
+    landed: list[str] = []
+    for name, target in targets:
+        try:
+            staging_name(target).replace(target)
+        except OSError as exc:
+            gate = None
+            with contextlib.suppress(BaseException):
+                gate = load_outbound_gate().load_precommit_gate()
+            detail = gate.safe_exc_text(exc) if gate is not None else type(exc).__name__
+            return landed, detail
+        landed.append(name)
+    return landed, ""
 
 
 def _refuse(lines: Sequence[str]) -> int:
     """Report a refusal and send nothing."""
     body = "".join("  " + _ascii(line) + "\n" for line in lines)
-    write_stream(
-        sys.stderr,
-        "%s: REFUSED\n%s%s: REFUSED - nothing was sent.\n" % (TOOL, body, TOOL),
-    )
+    write_stream(sys.stderr, "%s: REFUSED\n%s%s: REFUSED.\n" % (TOOL, body, TOOL))
     return EXIT_REFUSED
 
 
-def gate_phase(note: Path, *, allow_unmeasured: bool) -> tuple[int, int | None]:
+def gate_phase(payload: bytes, *, allow_unmeasured: bool) -> tuple[int, int | None]:
     """Grade the note and decide whether the send may continue.
 
     Returns (the gate's verdict, an exit code to stop on or None). Lifted out of
@@ -303,7 +409,7 @@ def gate_phase(note: Path, *, allow_unmeasured: bool) -> tuple[int, int | None]:
     and so the refusal paths are readable next to each other instead of buried
     among the channel's own failures.
     """
-    code, gate_out, gate_err = grade(note)
+    code, gate_out, gate_err = grade(payload)
     write_stream(sys.stdout, gate_out)
     if code == EXIT_REFUSED:
         write_stream(sys.stderr, gate_err)
@@ -316,6 +422,130 @@ def gate_phase(note: Path, *, allow_unmeasured: bool) -> tuple[int, int | None]:
         )
         return code, EXIT_UNMEASURED
     return code, None
+
+
+def perform_send(
+    payload: bytes,
+    note_name: str,
+    targets: Sequence[tuple[str, Path]],
+    verdict_name: str,
+    delivered: list[str],
+) -> int:
+    """Stage every destination, commit them, record what landed, and report.
+
+    `delivered` is the caller's own list and is appended to in place, so a
+    failure raised anywhere after a rename is still visible to the handler that
+    reports it. A tool that says nothing was sent over a delivered note is worse
+    than the partial send it hides.
+    """
+    _staged, stage_error = stage_all(payload, targets)
+    if stage_error:
+        return _refuse(
+            [
+                "could not stage every destination: " + stage_error,
+                "nothing was delivered; the staged files were removed",
+            ]
+        )
+
+    landed_names, commit_error = commit_all(targets)
+    delivered.extend(landed_names)
+
+    # THE RECORD IS WRITTEN FOR WHAT LANDED, EVEN WHEN THE SEND WENT WRONG.
+    # A delivery the record never learned about is exactly the CS-951 hole,
+    # and a rename that failed halfway is when the record matters most.
+    stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    digest = hashlib.sha256(payload).hexdigest()
+    entries: list[dict[str, object]] = [
+        {
+            "sent_utc": stamp,
+            "note": note_name,
+            "destination": name,
+            "sha256": digest,
+            "bytes": len(payload),
+            "gate_verdict": verdict_name,
+        }
+        for name in landed_names
+    ]
+    record_error = ""
+    if entries:
+        try:
+            append_record(record_path(), entries)
+        except OSError as exc:
+            record_error = type(exc).__name__
+
+    if commit_error:
+        return _refuse(
+            [
+                "the send failed part way through: " + commit_error,
+                "DELIVERED to %d of %d destination(s): %s"
+                % (
+                    len(landed_names),
+                    len(targets),
+                    _ascii(", ".join(landed_names)) or "none",
+                ),
+                "this is a PARTIAL delivery and the record says so",
+            ]
+        )
+    if record_error:
+        return _refuse(
+            [
+                "the notes were DELIVERED but the record could not be written: " + record_error,
+                "delivered to: " + _ascii(", ".join(landed_names)),
+                "record this by hand or the reconciler will not know",
+            ]
+        )
+    write_stream(
+        sys.stdout,
+        "%s: DELIVERED %s to %d destination(s): %s [gate %s]\n"
+        % (
+            TOOL,
+            _ascii(note_name),
+            len(landed_names),
+            _ascii(", ".join(landed_names)),
+            verdict_name,
+        ),
+    )
+    return EXIT_OK
+
+
+def resolve_targets(
+    root: Path, names: Sequence[str], note_name: str
+) -> tuple[list[tuple[str, Path]], list[str]]:
+    """Turn destination names into targets, collecting every problem found.
+
+    EVERY problem rather than the first, because a send that reports one fault
+    per run costs an operator one round trip per destination, and the whole
+    point of validating before staging is that the operator learns the full
+    story while nothing has been written.
+    """
+    targets: list[tuple[str, Path]] = []
+    problems: list[str] = []
+    for name in names:
+        if not is_plain_segment(name):
+            problems.append("destination %s is not a plain project name" % _ascii(repr(name)))
+            continue
+        inbox = root / name / INBOX
+        if not inbox.is_dir():
+            problems.append("destination %s has no %s directory" % (_ascii(name), INBOX))
+            continue
+        target = inbox / note_name
+        if target.exists():
+            problems.append(
+                "destination %s already holds a note named %s" % (_ascii(name), _ascii(note_name))
+            )
+            continue
+        if staging_name(target).exists():
+            # THE VALIDATION MUST COVER THE NAME THE WRITER ACTUALLY USES. The
+            # first version checked only the final name, so a directory at the
+            # staging name made the write raise AFTER earlier destinations had
+            # already been delivered - a partial send reported as no send.
+            problems.append(
+                "destination %s already holds a staging file for %s"
+                % (_ascii(name), _ascii(note_name))
+            )
+            continue
+        targets.append((name, target))
+    return targets, problems
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -336,13 +566,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--channel-root", default=None, help="where sibling projects live")
     args = parser.parse_args(argv)
 
+    # Visible to the handler below, so a failure AFTER a delivery cannot report
+    # that nothing was sent. Measured: it did.
+    delivered: list[str] = []
     try:
         note = Path(args.note)
 
         # THE GATE FIRST. Nothing about the channel has been touched yet, so a
         # refusal here cannot be reported alongside - or after - a fault the
         # operator would have to fix before seeing it.
-        code, stop = gate_phase(note, allow_unmeasured=args.allow_unmeasured)
+        payload = note.read_bytes()
+        code, stop = gate_phase(payload, allow_unmeasured=args.allow_unmeasured)
         if stop is not None:
             return stop
 
@@ -351,21 +585,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if not names:
             return _refuse(["no destination was named and none was discovered"])
 
-        targets = []
-        problems = []
-        for name in names:
-            inbox = root / name / INBOX
-            if not inbox.is_dir():
-                problems.append("destination %s has no %s directory" % (_ascii(name), INBOX))
-                continue
-            target = inbox / note.name
-            if target.exists():
-                problems.append(
-                    "destination %s already holds a note named %s"
-                    % (_ascii(name), _ascii(note.name))
-                )
-                continue
-            targets.append((name, target))
+        targets, problems = resolve_targets(root, names, note.name)
         if problems:
             return _refuse(problems)
 
@@ -385,33 +605,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return EXIT_OK
 
-        stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-        entries: list[dict[str, object]] = []
-        for name, target in targets:
-            deliver(note, target)
-            landed = target.read_bytes()
-            entries.append(
-                {
-                    "sent_utc": stamp,
-                    "note": note.name,
-                    "destination": name,
-                    "sha256": hashlib.sha256(landed).hexdigest(),
-                    "bytes": len(landed),
-                    "gate_verdict": verdict_name,
-                }
-            )
-        append_record(record_path(), entries)
-        write_stream(
-            sys.stdout,
-            "%s: DELIVERED %s to %d destination(s): %s [gate %s]\n"
-            % (
-                TOOL,
-                _ascii(note.name),
-                len(entries),
-                _ascii(", ".join(name for name, _ in targets)),
-                verdict_name,
-            ),
-        )
+        return perform_send(payload, note.name, targets, verdict_name, delivered)
+
     except BaseException as exc:
         # FAIL CLOSED, AND CATCH BaseException. Every failure leaves the send in
         # an unknown state, and an unknown state must never read as a success. A
@@ -425,8 +620,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             detail = load_outbound_gate().load_precommit_gate().safe_exc_text(exc)
         except BaseException:  # the renderer is best-effort
             detail = type(exc).__name__
-        return _refuse([_ascii(detail)])
-    return EXIT_OK
+        lines = [_ascii(detail)]
+        if delivered:
+            lines.append("NOTE ALREADY DELIVERED to: " + _ascii(", ".join(delivered)))
+        return _refuse(lines)
 
 
 if __name__ == "__main__":
