@@ -1846,6 +1846,7 @@ DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
     ): 1,
     ("tests/test_session_start_wiring.py", ".claude/settings.local.json", ""): 1,
     ("tools/inbox_watch.py", ".claude/settings.local.json", ""): 1,
+    ("tests/test_outbound_send.py", "data/outbound_deliveries.json", ""): 1,
 }
 
 #: R3's live membership, DISCLOSED. Three are the names of the three files
@@ -1953,7 +1954,15 @@ DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
 #: existing rather than changing carrier. A relocation on closure therefore
 #: REFUNDS a disclosed row, and the ceiling has to come down with it or the
 #: refund becomes headroom nobody voted for.
-DECLARED_UNTRACKED_CEILING: Final = 11
+#: 11 TO 12 FOR CS-958'S DELIVERY RECORD. The sender writes its record under
+#: `data/`, which is gitignored because the record is a generated runtime
+#: artifact rather than a tracked fact. The test module names that default path
+#: once, to say what the environment override it uses is an override OF - an arm
+#: that redirected the record without naming what it redirected would leave the
+#: next reader unable to tell an override from an invention. The module under
+#: test buys no row: it builds the same path from components rather than
+#: spelling it, which is not a citation.
+DECLARED_UNTRACKED_CEILING: Final = 12
 #: 9 TO 6 WHEN CS-928 DELETED THE THREE FALSE ADVISOR ATTRIBUTIONS. Six
 #: `docs/ARCHITECTURE.md` rows left the rung and three arrived from the guard
 #: that now asserts those files absent, so the disclosure holds six rows and the
