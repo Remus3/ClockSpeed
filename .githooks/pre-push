@@ -22,6 +22,43 @@ die() {
     exit 1
 }
 
+# CS-954: CAPTURE THE REF LIST BEFORE ANYTHING ELSE RUNS.
+#
+# Until this existed the hook never read its stdin at all - every redirect in
+# this file is </dev/null - so it graded the WORKING TREE and never learned which
+# commits were being pushed. A gate that can report on a commit that never ships
+# and stay silent about one that does is the CS-821 and CS-824 family one level
+# up, which is why this is tier 1.
+#
+# THE INCIDENT, 2026-09-07. The hook was handed one commit, ran the whole suite,
+# and git printed that commit's range and exited 0. The forge holds a LATER
+# commit, created by the same session while the hook was still running. The
+# forge settles it: no CI run has ever existed for the SHA the hook graded, and
+# exactly one push-event run exists for the later commit, created three seconds
+# after the ref update.
+#
+# THE MECHANISM IS NOT ESTABLISHED, AND THIS BLOCK DOES NOT PRETEND OTHERWISE.
+# Two controlled reproductions on 2026-09-08 - one over a plain local path, one
+# over file:// - advanced the local ref mid-hook and BOTH shipped exactly the SHA
+# the hook was handed, with a control proving the ref really had moved by the
+# time the hook returned. The real incident used HTTPS to the forge and the
+# difference is unexplained.
+#
+# SO THIS CHECK NARROWS THE WINDOW AND DOES NOT CLOSE IT. It compares the ref at
+# the hook's own exit against what git handed it. A ref that moves AFTER this
+# hook returns and before git resolves what to send is still unguarded, and that
+# residual gap is unbounded and unmeasured. Do not write down that CS-954 is
+# closed by this block.
+#
+# READ EXACTLY ONCE. stdin is a stream, not a file; a second read gets nothing.
+# Everything downstream already carries an explicit </dev/null, so nothing can
+# inherit it either.
+#
+# EMPTY STDIN IS LOUD AND DOES NOT REFUSE. `git push` with nothing to do, and a
+# hand-run or test invocation of this hook, both arrive that way. A silent no-op
+# there would be indistinguishable from a check that never ran.
+CS_REFS=$(cat)
+
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || ROOT=""
 if [ -z "$ROOT" ]; then
     die "not inside a git work tree; refusing to run."
@@ -252,6 +289,67 @@ fi
 if [ "$STATUS" -ne 0 ]; then
     printf 'clockspeed pre-push: BLOCKED (pytest exit %s). Nothing was pushed.\n' \
         "$STATUS" >&2
+fi
+
+# CS-954: THE REF MUST STILL BE WHAT THE SUITE GRADED.
+#
+# ONLY ON A GREEN SUITE. A red suite already blocks, and re-deciding here could
+# only rewrite a non-zero status into a different one - the verdict on a red
+# suite must stay the red suite's.
+#
+# THE DEFAULT IS REFUSAL on any mismatch or any ref that will not resolve. This
+# hook already states the trade one screen up: in a gate a LOUD FALSE REFUSAL
+# beats a SILENT FALSE ACCEPT. A wrong refusal here costs one message and one
+# retry; a wrong acceptance is the defect that made this item exist.
+#
+# THE REMOTE URL AND THE RAW STDIN LINES ARE NEVER ECHOED. An HTTPS remote can
+# carry an embedded credential and a local remote carries a home path -
+# non-negotiables 3 and 12, the same reason this hook refuses to echo the value
+# of CLOCKSPEED_PYTHON. Only the ref NAME and two object ids are rendered, and an
+# object id is not personal data.
+#
+# A DELETE IS SKIPPED, NOT REFUSED. git sends the all-zero id as the local sha
+# when a ref is being deleted; nothing was graded and nothing ships.
+if [ "$STATUS" -eq 0 ] && [ -z "$CS_REFS" ]; then
+    # LOUD, AND NOT A REFUSAL. A hand-run hook and a test invocation both arrive
+    # with nothing on stdin, and so does a push with no ref to update. Refusing
+    # would break running this file by hand; staying silent would make a check
+    # that never ran look exactly like a check that ran and found nothing.
+    printf 'clockspeed pre-push: no ref list on stdin, so the CS-954 ref check ' >&2
+    printf 'did NOT run. The suite result above still stands.\n' >&2
+fi
+
+if [ "$STATUS" -eq 0 ] && [ -n "$CS_REFS" ]; then
+    # Initialised before the loop so `set -u` cannot abort on the failure path
+    # that renders them - the same reason cs_probe initialises both of its own.
+    cs_ref_name=""
+    cs_graded=""
+    cs_now=""
+    cs_moved=0
+    # Field order on each line is: local-ref local-sha remote-ref remote-sha.
+    while read -r cs_ref_name cs_graded _ _; do
+        [ -n "$cs_ref_name" ] || continue
+        case "$cs_graded" in
+            *[!0]*) ;;
+            *) continue ;;
+        esac
+        cs_now=$(git rev-parse --verify --quiet "$cs_ref_name" 2>/dev/null) || cs_now=""
+        if [ "$cs_now" != "$cs_graded" ]; then
+            cs_moved=1
+            printf 'clockspeed pre-push: BLOCKED. %s moved while the suite ran.\n' \
+                "$cs_ref_name" >&2
+            printf '  graded:   %s\n' "$cs_graded" >&2
+            printf '  now:      %s\n' "${cs_now:-(will not resolve)}" >&2
+        fi
+    done <<CS_954_REFS
+$CS_REFS
+CS_954_REFS
+    if [ "$cs_moved" -ne 0 ]; then
+        die "the ref moved out from under the verdict; nothing was pushed." \
+            "The suite graded one commit and the branch now points at another," \
+            "so pushing would ship a commit no gate has run against - CS-954." \
+            "Do not commit while a push is in flight. Re-run the push."
+    fi
 fi
 
 exit "$STATUS"
