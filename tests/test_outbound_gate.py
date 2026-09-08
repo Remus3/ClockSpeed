@@ -47,10 +47,12 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import pytest
 
@@ -642,3 +644,299 @@ def test_emit_is_not_reused(tmp_path: Path) -> None:
 
         assert "PASS - " not in both, "the commit gate's PASS idiom was reused"
         assert "blocking" not in both, "the commit gate's blocking-count idiom was reused"
+
+
+# --------------------------------------------------------------------------
+# 15-18. THE COVERAGE ROWS' POLARITY, AND THE UNATTRIBUTED ORACLE BRANCH
+#
+# ADDED AFTER A MUTATION PASS REFUTED THE CLAIM THAT THE FOURTEEN ARMS ABOVE
+# GRADE THIS MODULE. Ten mutants were planted in tools/outbound_gate.py and two
+# shipped GREEN: ``_canary_measured`` hardcoded to ``return True``, and the
+# oracle reconciliation inside ``scan`` no-op'd.
+#
+# Both survivors are of the module's OWN stated subject, which is what makes
+# them worth four arms rather than one. A coverage block that reassures without
+# measuring is the defect the gate exists to repair, reproduced inside the
+# repair; and "a rule this module fails to attribute cannot become a rule it
+# fails to enforce" is the sentence the reconciliation is the whole of.
+#
+# THE LAST TWO ARMS ARE DRIVEN IN-PROCESS, and that is forced rather than
+# preferred. Both halves of the oracle comparison share one rule table, so the
+# disagreement cannot be produced through the CLI by any payload; and a rule
+# cannot be weakened from outside the process without editing a module this
+# slice does not own. Every patch lands through the gate's own
+# ``load_precommit_gate`` so it reaches the SAME module object ``scan``
+# resolves, and pytest's monkeypatch restores each one at teardown.
+# --------------------------------------------------------------------------
+
+# A regex that matches nothing anywhere: `(?!)` is an empty negative lookahead,
+# so it fails at every position of every string. It is the weakened rule the
+# canary arm substitutes in, and it is deliberately a VALID pattern - a rule
+# that raised on compile would make the arm a test about an exception.
+NEVER_MATCHES = re.compile("(?!)")
+
+# The phantom position the oracle is made to report in the last two arms. Line
+# 4 is past the end of the payloads those arms scan, so the per-matcher half
+# cannot produce it by any route and the reconciliation is the only thing that
+# can turn it into a finding.
+PHANTOM_LINE = 4
+PHANTOM_COL = 17
+
+# The marker the last arm's payload carries. Not personal data, not a
+# credential shape, and matched by no rule - its only job is to be a value the
+# rendered refusal must not echo.
+PHANTOM_MARKER = "holes957" + "marker"
+
+
+def load_outbound_gate() -> ModuleType:
+    """Import tools/outbound_gate.py by path, for the in-process arms.
+
+    By path for the same reason ``load_precommit_gate`` above is: tools/ has no
+    ``__init__.py``, so the import form would depend on the shape of sys.path.
+    Cached in sys.modules so repeated arms share one module object - which is
+    also what lets ``monkeypatch.setattr`` reach the object ``scan`` uses.
+    """
+    require_gate()
+    name = "clockspeed_outbound_gate_under_test"
+    cached = sys.modules.get(name)
+    if cached is not None:
+        return cached
+    spec = importlib.util.spec_from_file_location(name, GATE)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    # Registered BEFORE exec_module, matching load_precommit_gate: the module
+    # declares dataclasses under `from __future__ import annotations`, and
+    # @dataclass resolves those string annotations through sys.modules.
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def pin_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Give an in-process arm the capability-removing environment base_env gives.
+
+    ``base_env`` builds a dict for a CHILD process; an arm that calls ``scan``
+    inside the pytest process inherits this machine's real environment instead,
+    where a save root and a real world name may both be discoverable. So the
+    same removals are applied here through monkeypatch, which restores them at
+    teardown. Nothing here grants the process anything.
+
+    The outbound exclusion key is popped as well: an operator who has silenced
+    a false positive on this machine would otherwise change what these arms
+    measure. The key's NAME is read out of the gate rather than restated.
+    """
+    outbound = load_outbound_gate()
+    monkeypatch.setenv("CLOCKSPEED_SAVE_ROOT", str(tmp_path / "absent-save-root"))
+    monkeypatch.setenv("CLOCKSPEED_LOCAL_CONFIG", str(tmp_path / "absent-local-config.json"))
+    for key in ("CLOCKSPEED_WORLD_NAMES", "CLOCKSPEED_WORLD_TOKENS", "CLOCKSPEED_ACCOUNT_DIR"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.delenv(outbound.ENV_OUTBOUND_EXCLUSIONS, raising=False)
+    monkeypatch.setenv("USERNAME", "gatetestaccount")
+    monkeypatch.setenv("USER", "gatetestaccount")
+
+
+def coverage_verdict(out_text: str, klass: str) -> str:
+    """Return the verdict word from the coverage ROW for `klass`.
+
+    Reads one row rather than searching the whole block for the word
+    UNMEASURED, and that difference is the hole this closes. On any machine
+    with no save root three rows are legitimately unmeasured, so the word is
+    present under EITHER polarity of the two canary rows - which is exactly how
+    a ``_canary_measured`` hardcoded to True satisfied every arm above.
+    """
+    prefix = "  " + klass.ljust(14) + " "
+    rows = [line for line in out_text.splitlines() if line.startswith(prefix)]
+    assert len(rows) == 1, f"expected exactly one coverage row for {klass}, read {len(rows)}"
+    word = rows[0][len(prefix) :].split(" ", 1)[0]
+    assert word in {"MEASURED", "UNMEASURED"}, f"unreadable verdict word on the {klass} row"
+    return word
+
+
+def coverage_row_for(rows: object, klass: str) -> Any:
+    """Return the single Coverage row for `klass` out of a `scan` result.
+
+    Typed `Any` rather than `object` because the module under test is loaded by
+    path at runtime, so its `Coverage` class is not a name this file can import
+    without duplicating the loader. `object` was the honest first answer and it
+    made every attribute read at the call sites a type error - four of them,
+    caught by the repo-wide mypy gate rather than by the module's own run.
+    """
+    matching = [row for row in rows if row.klass == klass]  # type: ignore[attr-defined]
+    assert len(matching) == 1, f"expected exactly one {klass} row, got {len(matching)}"
+    return matching[0]
+
+
+def patch_oracle_phantom(monkeypatch: pytest.MonkeyPatch, gate: ModuleType) -> None:
+    """Make the commit gate's `check_pii` report one position no matcher can.
+
+    The real oracle still runs, so everything the arms would otherwise observe
+    is unchanged and only the disagreement is added. This is the ONLY way to
+    reach the reconciliation branch: the per-matcher scan and ``check_pii``
+    share one rule table, so end to end they cannot disagree.
+    """
+    real_check_pii = gate.check_pii
+
+    def phantom_check_pii(label: str, payload: str, matchers: object, report: object) -> None:
+        """Run the real oracle, then add a position the scan cannot produce."""
+        real_check_pii(label, payload, matchers, report)
+        report.add(  # type: ignore[attr-defined]
+            gate.Diagnostic(label, PHANTOM_LINE, PHANTOM_COL, "PII", "a phantom oracle position")
+        )
+
+    monkeypatch.setattr(gate, "check_pii", phantom_check_pii)
+
+
+def test_coverage_polarity_is_per_class(tmp_path: Path) -> None:
+    """Prove each coverage row carries ITS OWN polarity, read by name.
+
+    KILLS THE MUTANT ``_canary_measured`` HARDCODED TO ``return True``. That
+    mutant shipped green against all fourteen arms above, demonstrated with a
+    two-cell control: the home-path rule was replaced by a never-matching regex
+    and the home-path row flipped between MEASURED and UNMEASURED while the
+    suite reported the identical failure set both ways. No arm above reads a
+    row; ``test_vacuity_is_not_clean`` and ``test_clean_payload_passes`` are
+    satisfied by either polarity.
+
+    On a machine with no save root the polarity is fully determined, and
+    per-class rather than pooled is the module's own contract: home-path and
+    credential are canary-derived and need no machine state, while the three
+    save-derived classes are underivable. The account-name row is deliberately
+    NOT pinned - its population comes from the environment, and it is the one
+    row here that may legitimately differ between an operator box and a bare
+    runner. It is still required to render a legible verdict word.
+
+    The two canary rows are asserted as their WHOLE rendered text, so a gate
+    reporting MEASURED against a reason describing something else fails too.
+    """
+    code, out, err = run_gate(env=base_env(tmp_path), stdin=CLEAN_PAYLOAD.encode("ascii"))
+    out_text = text(out)
+
+    assert code == UNMEASURED, f"exit {code}; stderr {text(err)!r}"
+    verdicts = {name: coverage_verdict(out_text, name) for name in CLASSES}
+    expected = {
+        "home-path": "MEASURED",
+        "account-id": "UNMEASURED",
+        "world-name": "UNMEASURED",
+        "world-token": "UNMEASURED",
+        "credential": "MEASURED",
+    }
+    actual = {name: verdicts[name] for name in expected}
+    assert actual == expected, "a coverage row reported the wrong polarity"
+
+    lines = out_text.splitlines()
+    for name in ("home-path", "credential"):
+        row = "  " + name.ljust(14) + " MEASURED    canary matched"
+        assert row in lines, f"the {name} row is not a canary verdict"
+
+
+def test_canary_row_is_derived_not_asserted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Prove the home-path coverage row MEASURES the rules it reports on.
+
+    KILLS THE MUTANT ``_canary_measured`` HARDCODED TO ``return True``, and its
+    mirror image - a constant False - in the same arm. A two-cell control in
+    ONE invocation each: the same scan runs against the real rules and then
+    against a regex that cannot match, and the row must FLIP. A row that is a
+    constant cannot flip, and a row that flips is not a constant. That is the
+    property ``_canary_measured``'s own docstring claims and that nothing else
+    in this suite checked.
+
+    The refusal counts are asserted alongside the rows, so the weakened cell is
+    known to have actually disarmed the rule rather than merely to have been
+    reported as disarmed - the same conjunctive shape
+    ``test_coverage_lines_are_not_a_pii_verdict`` uses, for the same reason.
+    """
+    outbound = load_outbound_gate()
+    pin_environment(monkeypatch, tmp_path)
+    payload = "See " + WINDOWS_HOME_PATH + " and " + POSIX_HOME_PATH + " here.\n"
+
+    healthy_refusals, _, healthy_rows = outbound.scan(payload)
+    healthy_row = coverage_row_for(healthy_rows, "home-path")
+    healthy_hits = sum(1 for finding in healthy_refusals if finding.klass == "home-path")
+
+    assert healthy_row.measured is True, "the home-path canary failed against the real rules"
+    assert healthy_row.reason == "canary matched"
+    assert healthy_hits > 0, "the control cell caught nothing; the weakened cell would prove little"
+
+    gate = outbound.load_precommit_gate()
+    monkeypatch.setattr(gate, "PII_WIN_HOME_RE", NEVER_MATCHES)
+    monkeypatch.setattr(gate, "PII_NIX_HOME_RE", NEVER_MATCHES)
+
+    weakened_refusals, _, weakened_rows = outbound.scan(payload)
+    weakened_row = coverage_row_for(weakened_rows, "home-path")
+    weakened_hits = sum(1 for finding in weakened_refusals if finding.klass == "home-path")
+
+    assert weakened_hits == 0, "the substituted rule still matched; the cell is not weakened"
+    assert weakened_row.measured is False, "a home-path rule that catches nothing read MEASURED"
+    assert weakened_row.reason == "the rules failed their canary"
+
+
+def test_oracle_disagreement_becomes_unattributed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Prove a position only the oracle reports is still refused.
+
+    KILLS THE MUTANT THAT NO-OP'D THE RECONCILIATION in ``scan``. That mutant
+    shipped green at 14 passed: an instrumented reachability probe with a
+    known-good control showed the ``unattributed`` branch is not entered once
+    across every arm above. It is not dead code - it silently backstops other
+    arms, and disabling the home-path scan alone reddens three arms while
+    disabling the scan AND the reconciliation reddens five, so two arms were
+    being held green by the oracle rather than by what they claim to grade.
+
+    The payload is ordinary prose that yields no finding at all, so the only
+    thing that can produce a refusal here is the reconciliation. The verdict is
+    asserted alongside the finding because attribution without enforcement is
+    the failure the module's docstring rules out in as many words.
+    """
+    outbound = load_outbound_gate()
+    pin_environment(monkeypatch, tmp_path)
+    gate = outbound.load_precommit_gate()
+
+    clean_refusals, _, _ = outbound.scan(CLEAN_PAYLOAD)
+    assert not clean_refusals, "the payload is not clean; the disagreement would be ambiguous"
+
+    patch_oracle_phantom(monkeypatch, gate)
+    refusals, _, coverage = outbound.scan(CLEAN_PAYLOAD)
+    positions = [(finding.klass, finding.line, finding.col) for finding in refusals]
+
+    assert positions == [("unattributed", PHANTOM_LINE, PHANTOM_COL)], (
+        "the oracle's extra position was not attributed to the unattributed class"
+    )
+    assert outbound.verdict(refusals, coverage) == REFUSED, (
+        "an unattributed finding was reported but did not refuse"
+    )
+
+
+def test_unattributed_refusal_names_the_class_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Prove the rendered unattributed line names the class and echoes nothing.
+
+    KILLS THE SAME RECONCILIATION MUTANT from the reporting side: a gate that
+    dropped the branch renders no line here at all. It also extends
+    ``test_refusal_never_echoes_the_value`` to the one class that arm cannot
+    reach - the unattributed line is rendered from a position with no matcher
+    behind it, so it is the refusal most likely to reach for the payload to
+    explain itself, and CLAUDE.md non-negotiable 12 forbids exactly that.
+
+    The marker is checked through ``assert_absent_in_any_case``, which binds a
+    count before asserting so the failure report cannot render the value it is
+    complaining about.
+    """
+    outbound = load_outbound_gate()
+    pin_environment(monkeypatch, tmp_path)
+    gate = outbound.load_precommit_gate()
+    patch_oracle_phantom(monkeypatch, gate)
+
+    payload = "a note carrying " + PHANTOM_MARKER + " and nothing else\n"
+    refusals, warnings, coverage = outbound.scan(payload)
+    _, err = outbound.render(refusals, warnings, coverage)
+
+    assert "outbound-gate: REFUSED" in err
+    assert "<pii:unattributed>" in err, "the refusal line does not name the class"
+    assert "line %d col %d" % (PHANTOM_LINE, PHANTOM_COL) in err, "the position is not reported"
+    assert "disagreed with this gate's attribution" in err, "the reason does not say what happened"
+    assert_absent_in_any_case(PHANTOM_MARKER, (err.encode("ascii"),))
