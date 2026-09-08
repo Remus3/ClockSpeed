@@ -517,181 +517,253 @@ change. **A session that produces the plan and also runs any part of it has
 removed the second pair of eyes the split exists to buy**, which is CLAUDE.md
 section 5's rule that the agent producing a thing never grades it.
 
-### THE PLAN - filed 2026-09-08 (session 74). NOTHING IN IT WAS EXECUTED
+### THE PLAN - filed 2026-09-08 (session 74), REPAIRED the same session after refutation
 
-**This section is the deliverable CS-700 asked for and it is the whole of it.**
-The session that wrote it ran no scrub, made no mirror clone, changed no
-visibility, and made no write of any kind against the remote. The two
-reconnaissance passes it did run were read-only and local, and they exist so
-that the ADR below is a measurement rather than a guess.
+**This section is the deliverable CS-700 asked for.** The session that wrote it
+ran no scrub, made no mirror clone, changed no visibility, and made no write of
+any kind against the remote. Its reconnaissance was read-only.
 
-**THE DECISION IS ADR 0018**, `docs/adr/0018-the-flip-recreates-the-remote-and-keeps-the-commit-graph.md`.
-Read it before reading the steps, because it is what makes most of the steps
-unnecessary. In one line: **the publishable commit graph is CLEAN and is kept
-unrewritten; the REMOTE is deleted and recreated, and `main` alone is pushed to
-it.** The CONVENTIONS 17 clause about dirty history does not fire for the graph
-and fires decisively for what the forge accreted around it.
+**IT WAS REFUTED ONCE AND REPAIRED.** A read-only adversary graded the first
+draft at its frozen SHA and returned REFUTED on all six lenses. Nine repairs were
+named; eight are applied below and the ninth is an operator decision recorded in
+section 6 as a hard blocker. **The corrections are kept visible rather than
+smoothed away**, because two of them are instances of the very trap this item
+exists to defend against.
 
-#### 0. What section 1 above got right, and the one thing it missed
+**THE DECISION IS ADR 0018**. In one line: **the publishable commit graph is
+clean of CONTENT and is kept unrewritten; the REMOTE is deleted and recreated,
+and `main` alone is pushed to it.** Read the ADR before the steps.
 
-Session 73's `refs/pull` measurement re-confirmed independently: 0 head refs and
-0 merge refs, against a control of 6 heads. **This project has no permanent
-pull-request snapshots to purge, and that is now measured twice.**
+#### 0. Two corrections to the first draft, both trap (b) firing on its own evidence
 
-**What no one had looked for: the remote carries 53 `refs/wip/*` refs.** 53
-distinct SHAs, not one an ancestor of `main`. They do not appear in the REST or
-GraphQL ref listing, which returns 11 - heads plus tags - but they are fully
-advertised over the git wire. **A UI-based or API-based audit of this remote
-reports it clean while 53 unmeasured refs stand.** This is RC's "531 commits
-reachable from no other ref" in this project's own remote, and it was found only
-because trap (b) forced a control into a listing nobody expected to be
-interesting.
+**CORRECTION 1 - "the 53 wip refs are invisible to REST and GraphQL" IS FALSE.**
+The first draft asserted it from a listing that returned 11. Measured properly:
 
-#### 1. The measurements this plan rests on. Do not re-derive them; DO re-run 1a
+    BROKEN    gh api "repos/<owner>/Clockspeed/git/refs"        -> 11 (unpaginated)
+    CORRECT   gh api --paginate ".../git/refs?per_page=100"     -> 64, INCLUDING all 53
+    CONTROL   git ls-remote origin 'refs/wip/*'                 -> 53
+              git ls-remote origin 'refs/heads/*'               -> 6
 
-All were taken 2026-09-08, read-only, each with a positive control in its own
-command family, and a negative control where a zero was possible.
+The refs are real and the count is right; the claim about their visibility was
+produced by an unpaginated query that returned a short answer without erroring.
+**That is trap (b) exactly, occurring inside the evidence offered as proof that
+trap (b) had been designed out.** It is recorded here rather than deleted because
+the lesson is the point: a control proves your pattern MATCHES, and it does not
+prove your query is COMPLETE. Pagination is a second failure mode and it needs
+its own control - compare two command families, not two patterns.
 
-**(1a) The publishable graph is CLEAN on all six axes.** Personal data, save
-artifacts, publisher-owned game data, `data/` and `moon_sync_inbox/` paths,
-credentials, and non-ASCII - measured in blob content, in tree paths and in
-commit messages as THREE SEPARATE CHANNELS, per trap (c). Nothing reachable from
-`main`, from `refs/remotes/origin/*`, or from any `salvage/*` tag hits any axis.
-Controls: present-token 1700 blobs and 772 blobs, absent-token 0 on the same
-pass, paths 84 `.md` and 178 `.py`, commit messages 613 of 682.
-**COST: about 7 SECONDS for a full pass over every object on disk.** It is cheap
-enough that the implementing session re-runs it immediately before the push
-rather than trusting this paragraph - and it must, because `main` will have
-moved by then.
+**CORRECTION 2 - the 53 wip refs do not exist locally.** `git for-each-ref
+'refs/wip/*'` returns 0, because `remote.origin.fetch` is heads-only. The first
+draft's S3 would have bundled nothing and its stated control - bundle count
+against "the count going in" - computed both sides from the same empty local
+pattern, so **0 == 0 would have passed green** while 53 refs went to the
+deletion unpreserved. Repaired in S3 below.
 
-**(1b) The dirt that exists is off-main and has never been pushed.** Two
-buckets. The 4-commit local branch `archive/local-history`, the deliberately
-retained pre-scrub history, carrying 3 blobs across 2 paths - `BOOTSTRAP.md` and
-`tests/test_precommit_gate.py`. And 76 ref-less commit objects with 79 pathless
-blobs, which no push and no clone transfers and which `git gc --prune` deletes.
-**Scope correction the implementing session needs: 520 commits is `main` alone.
-All refs is 592. Commit objects on disk is 682, of which 76 are in no ref.**
+**Counts are stated AS OF A SHA from here on.** The first draft wrote "520
+commits" and it was 521 by the time the adversary read it, because the draft's
+own commit landed in between. That is the session-73 ledger lesson repeating:
+a count written into a record is true at the instant of writing and the session
+does not stop there. Cite the SHA or cite nothing.
 
-**(1c) The forge holds nothing of value to lose.** Zero issues, zero pull
-requests, zero releases and assets, zero packages, zero LFS objects, no wiki
-content despite the feature toggle being on, no Pages, one collaborator, no
-branch protection, no rulesets, no secrets, no variables, no deploy keys, no
-webhooks. **Trap (d) does not fire: the LFS store is empty and that was confirmed
-with a control** - `text=auto` hit 60 of 60 tips while `filter=lfs` hit none.
+#### 1. The measurements this plan rests on
 
-**(1d) What survives a force-push, which is why there is no force-push.** All 53
-`refs/wip` refs, all 5 `salvage/*` tags, all 5 non-`main` branches, all 233
-Actions run records and their logs, 17 live artifacts, and 11 caches totalling
-about 534 MiB. **21 of the 233 runs are FAILED runs, and a failed run's log is
-the highest-risk surface on the forge for absolute paths.** Logs returned HTTP
-200 on both the oldest and the newest run, so they are retained and they become
-world-readable the instant the repo is public.
+Taken 2026-09-08 at `4338fde`, read-only, each zero carrying a positive control
+in its own command family and a negative control where a zero was possible.
+Independently re-derived by an adversary with its own controls, which agreed.
 
-**ONE CONTROL PROBE DID NOT FIRE, and it is recorded as a known blind spot.** The
-gitignore-shape classifier tests `endswith(".local.json")`, so a bare
-`config/local.json` is not recognised. Nothing in history has that name; the
-blind spot is in the instrument, not in the repo.
+**(1a) The publishable graph is clean of CONTENT on six axes.** Personal data,
+save artifacts, publisher-owned game data, `data/` and `moon_sync_inbox/` paths,
+credentials, and non-ASCII - in blob content, in tree paths and in commit
+messages as three separate channels, per trap (c). Nothing reachable from `main`
+hits any axis. **COST: about 7 seconds** over every object on disk.
 
-#### 2. Two limits of (1a) that are NOT coverage, carried as work
+**(1b) A FOURTH CHANNEL EXISTS AND IT IS NOT CLEAN: commit author and committer
+identity.** At `c885879`, 520 of 521 commits on `main` carry a real personal
+email address in BOTH the author and the committer field; one carries a GitHub
+noreply address. **CONVENTIONS 17 gate item 2 does not cover it** - it says
+"tracked files and commit messages", and identity is neither. Neither did the
+first draft. See section 6: this is an operator decision and it blocks S9.
 
-- **The needles were derived from the save directory as it exists TODAY.** A leak
-  naming a world that has since been deleted would not have been seen. This
-  under-counts only on the archive branch, which is already non-zero and already
-  destined never to be pushed - but the limit is real and is stated rather than
-  papered over.
-- **The save header's PLAYER DISPLAY NAME was not searched at all.** Deriving it
-  requires parsing a save, which read-only recon does not do. Non-negotiable 12
-  names it explicitly as a plaintext personal-data field in the options string.
-  **The implementing session searches for it, or states in the ledger that it
-  shipped without searching for it.** Those are the only two honest outcomes.
+**(1c) The dirt that exists is off-main and has never been pushed.** The
+4-commit local branch `archive/local-history` - the deliberately retained
+pre-scrub history - carrying 3 blobs across 2 paths; plus ref-less commit
+objects and pathless blobs that no push and no clone transfers and that
+`git gc --prune` deletes.
 
-#### 3. The steps, in order. Each says what it does, its control, and its abort
+**(1d) The forge holds nothing of value to lose.** Zero issues, PRs, releases,
+assets, packages, LFS objects; no wiki content despite the toggle being on; no
+Pages; one collaborator; no branch protection, rulesets, secrets, variables,
+deploy keys or webhooks. **Trap (d) does not fire: the LFS store is empty,
+confirmed with a control** - `text=auto` hit 60 of 60 tips, `filter=lfs` hit none.
 
-Every step that asserts a zero carries a positive control in the SAME command
-family. A step whose control does not return non-zero is NOT a passed step; it
-is an UNMEASURED step, and it aborts the sequence.
+**(1e) What survives a force-push, which is why there is no force-push.** All 53
+`refs/wip` refs, 5 `salvage/*` tags, 5 non-`main` branches, 233 Actions run
+records and their logs, 17 live artifacts of 35, and 11 caches totalling about
+534 MiB. **21 of the 233 runs are FAILED runs, and a failed run's log is the
+highest-risk surface on the forge for absolute paths.** Logs returned 200 on both
+the oldest and newest run.
 
-**S1 - Re-run the six-axis pass on the current `main`.** Controls as in (1a).
-ABORT on any hit; the ADR's central premise is dead and the whole plan is
-reopened rather than patched.
+#### 2. Three limits that are NOT coverage, carried as work
 
-**S2 - Search for the player display name.** Closes the second limit in section
-2. Derive it without writing it anywhere; report a count, never a value. ABORT
-on any hit in the publishable graph.
+- **Needles came from the save directory as it exists TODAY.** A leak naming a
+  since-deleted world would not have been seen.
+- **The save header's PLAYER DISPLAY NAME was not searched at all**, because
+  deriving it requires parsing a save. Non-negotiable 12 names it as a plaintext
+  personal-data field. **S2 searches it, or the ledger records that the flip
+  shipped without searching it.** Those are the only two honest outcomes.
+- **The credential axis needs an allowlist before S1 can abort on a hit.** An
+  honest needle set returns 166 hits on `main` - `AKIA` 140, `github_pat_` 9,
+  `AIza` 9, `BEGIN PRIVATE KEY` 8 - every one of them a FIXTURE inside
+  `tools/precommit_gate.py`, `tests/test_precommit_gate.py`,
+  `tests/test_make_cert.py` and `docs/history_notes.md`. Real prefixes
+  (`ghp_`, `gho_`, `sk-ant-`, `xoxb-`, RSA bodies) return 0. **Without a recorded
+  allowlist, a literal S1 aborts the entire flip on this project's own secret
+  scanner.** The allowlist is by PATH plus needle, is written into the plan
+  before S1 runs, and follows the CS-209 precedent: a named recorded exception,
+  never a shortened matcher.
 
-**S3 - Bundle every ref other than `main`, locally.** `git bundle create` over
-the 53 wip refs, the 5 tags, the 5 branches and `archive/local-history`. Verify
-with `git bundle verify` plus a ref count read back from the bundle and compared
-to the count going in. The bundle is a local artifact, is never committed, and
-is never pushed. **This is what makes the deletion in S6 lose no work.**
+#### 3. The steps. Every step states its command, its control, and its abort
 
-**S4 - Gate items 3, 5 and 6.** The licence audit against CONVENTIONS 14 over
+**The rule for every step below: a step whose positive control does not return
+non-zero is not a passed step, it is an UNMEASURED step, and it aborts the
+sequence.** Where a zero is possible, a negative control runs on the same pass.
+Where an API is paged, a second command FAMILY confirms the count - correction 1.
+
+**S0 - Write the needle set and the allowlist into this section.** Commands,
+needles, both controls, and the section-2 allowlist by path. **The first draft
+recorded outcome counts and no commands, which is not reproducible**: a session
+holding only that text would have invented its own needles and declared itself
+clean. S0 exists so S1 is auditable by someone who was not here.
+
+**S1 - Six-axis pass over the publishable closure.** Closure is everything
+reachable from what S7 will push, computed as such rather than assumed.
+Controls: a present token expected in the thousands, a synthetic absent token
+expected at 0 on the same pass, path controls on `.md` and `.py`, a commit
+message control. ABORT on any hit outside the S0 allowlist.
+
+**S2 - Search for the player display name.** Derive it without writing it
+anywhere; report a count, never a value. ABORT on any hit.
+
+**S3 - Preserve every non-`main` ref, REPAIRED.**
+`git fetch origin '+refs/wip/*:refs/wip/*' '+refs/heads/*:refs/preserve/heads/*' '+refs/tags/*:refs/tags/*'`
+FIRST - correction 2 - then bundle. **The control compares the bundled ref count
+against `git ls-remote origin` output, NEVER against a local pattern**, because
+the local pattern is what returned 0. Include `archive/local-history`.
+
+**S4 - Verify the bundle is RESTORABLE, not merely well-formed.**
+`git bundle verify` checks prerequisites against the repo it is run in and is
+NOT a restore test. Clone the bundle into a scratch directory and assert its ref
+count and every tip SHA equal the pre-deletion `ls-remote` set. **No irreversible
+step runs until a second, independently readable copy has been proven to exist.**
+
+**S5 - The bundle lives OUTSIDE the repo tree, or `*.bundle` is ignored first.**
+Nothing ignores it today, and it carries `archive/local-history`, the one bucket
+that must never be published. A bundle committed by accident publishes precisely
+what the plan exists to withhold.
+
+**S6 - Gate items 3, 5 and 6.** Licence audit against CONVENTIONS 14 over
 `pyproject.toml` and `shell/package.json`; `README.md` gets an outsider from zero
 to a first result; all doc cross-references resolve. **Gate item 6 needs a tool
-built - it does not exist.** `tools/drift_guard.py` has `_link_targets` and
-`_citation_findings`, but `guard_memory` scopes them to `memory/` alone. Nothing
-resolves markdown links in `docs/`, `CLAUDE.md`, `README.md` or `ROADMAP.md`.
-`guard_index` covers item-notes routing and `guard_topology` covers the CLAUDE.md
-table; neither is a general resolver. Budget this as a build, not a run.
+BUILT - it does not exist.** `tools/drift_guard.py` has `_link_targets` and
+`_citation_findings`, but they are called only from `guard_memory` and scoped to
+`memory/`. Nothing resolves markdown links in `docs/`, `CLAUDE.md`, `README.md`
+or `ROADMAP.md`. Budget a build, not a run.
 
-**S5 - Gate item 7, and it is where CS-952 lands.** See section 4 below. S5 does
-not begin until CS-952 is closed.
+**S7 - Gate item 7, and CS-952 closes here.** See section 5.
 
-**S6 - Delete the remote repository and recreate it.** The single irreversible
-step. **It requires the operator's explicit go-ahead at the moment of running,
-not this plan's existence.** Immediately before it: re-confirm (1c) still holds -
-zero issues, zero PRs, zero releases, zero packages, zero LFS - each with its
-control, because delete-and-recreate is only free while that is true.
+**S8 - RE-RUN S1 AND S2 IN FULL.** S6, S7 and S10 all land new commits on `main`.
+**S1 scanned a tree that no longer exists by push time**, and the first draft
+said so in prose while omitting the step. It costs about 7 seconds. This is the
+last check before anything irreversible.
 
-**S7 - Push `main` alone.** No `--mirror`, no `--all`, no `--tags`. Then read
-back what the remote actually advertises **over the git wire, not over REST**,
-and assert it is exactly one head and zero of everything else - with the same
-6-heads-style control that found the 53 wip refs in the first place. Per trap
-(a): check what arrived, never what the forge advertises it would carry.
+**S9 - Delete the remote repository and RECREATE IT PRIVATE.** The first
+irreversible step, and **it requires the operator's explicit go-ahead at the
+moment of running, not this plan's existence.** The recreated repository is
+created PRIVATE and explicitly asserted private before S10, so that S12 stays
+the sole publication event; a repo created public would make S10 the publication
+and strand S11's protections. Immediately before S9, re-confirm (1d) with its
+controls - delete-and-recreate is only free while it holds.
 
-**S8 - Re-enter by hand what deletion discarded:** 20 topics, 10 labels, the
-description and the homepage. Then set branch protection on `main`, which the
-old remote never had, and turn on the security features that were all off.
+**S10 - Push `main` alone.** No `--mirror`, no `--all`, no `--tags`.
 
-**S9 - Flip visibility, last.** Nothing after it is reversible either.
+**S11 - Verify by MIRROR CLONE, not by `ls-remote`.** Brief section 2(a) says
+check what actually ARRIVED, never what the forge advertises. `ls-remote` reads
+the advertisement, and after S9 there is no 6-heads control left to check a
+pattern against - so the first draft's read-back was trap (b) relocated, not
+removed. Clone the recreated remote `--mirror` into scratch and enumerate what
+came back: assert exactly one head, zero tags, zero wip, zero of every other
+namespace. Then set branch protection on `main`, which the old remote never had,
+turn on the security features that were all off, and re-enter by hand the 20
+topics, 10 labels, description and homepage that deletion discarded.
 
-#### 4. CS-952 is sequenced BEFORE the flip, and it is a hard blocker
+**S12 - Flip visibility. Last, and blocked by section 6.**
+
+#### 4. What deletion costs, stated so it is chosen and not discovered
+
+LOST: 65 refs and their objects, 233 run records and logs, 17 artifacts, 11
+caches, topics, labels, description, homepage, all traffic history, and the repo
+`node_id`. PRESERVED by S3 and S4: every ref, in a verified restorable bundle.
+NOT LOST, because it does not exist: issues, PRs, releases, packages, wiki
+content, stars, forks, LFS objects.
+
+#### 5. CS-952 is sequenced BEFORE the flip and is a hard blocker
 
 **Gate item 7 - a clean-checkout probe on a machine that has never seen the
-project - FAILS TODAY and this project already knows why.** The entire
-`SessionStart` wiring lives in `.claude/settings.local.json`, gitignored at
-`.gitignore:149`. A fresh clone runs no watcher. Meanwhile this project published
-its fires-at-session-start property to the channel as YES.
+project - FAILS TODAY.** The entire `SessionStart` wiring lives in
+`.claude/settings.local.json`, gitignored at `.gitignore:149`, so a fresh clone
+runs no watcher - while this project published its fires-at-session-start
+property to the channel as YES.
 
-**Measured this session, and it narrows CS-952's repair:** `.claude/settings.json`
-IS tracked, and it is on the CLAUDE.md section 6 frozen list. So the
-"track the wiring" half of CS-952's acceptance means editing a frozen file, and
-**that needs the section 6 grant - routed through an adjudicator and recorded in
-`docs/LEDGER.md` BEFORE the edit.** No session grants itself the exception. The
-correction half - fixing the published claim wherever it was published - needs no
-grant and can go first.
+**Measured this session, and it narrows the repair:** `.claude/settings.json` IS
+tracked and IS on the CLAUDE.md section 6 frozen list. So "track the wiring"
+means editing a frozen file, and **that needs the section 6 grant, routed through
+an adjudicator and recorded in `docs/LEDGER.md` BEFORE the edit.** No session
+grants itself the exception. The correction half - fixing the published claim -
+needs no grant and goes first. The content to be promoted was inspected: 697
+bytes, one absolute path and it is the project root, no home path and no account
+name, so the payload is benign; the frozen-file route is still mandatory.
 
-**Sequencing ruling: CS-952 closes BEFORE S5.** Not after the flip and not during
-it. A public repo whose clean-checkout probe fails is a public repo advertising a
-property it does not have, which is the same defect CS-952 already names, only
-louder and to strangers.
+**CS-952 closes before S7.** A public repo whose clean-checkout probe fails is a
+public repo advertising a property it does not have.
 
-#### 5. What this plan does NOT discharge
+#### 6. THE OPEN OPERATOR DECISION THAT BLOCKS S12
+
+**520 of 521 commits on `main` carry a real personal email address in both the
+author and the committer field.** Measured at `c885879`. Publishing under a real
+identity is the ordinary default for a public repository and may well be exactly
+what the operator wants - **but it has never been decided on the record here, and
+it is the one exposure no step in this plan removes.**
+
+It is genuinely an operator call and not an agent's: the only remedy is rewriting
+every commit's identity, which ADR 0018 currently forecloses for content and
+which this section explicitly does NOT foreclose for identity.
+
+Three dispositions, and the operator picks one before S12:
+- **ACCEPT** - publish under the real identity, record the acceptance in the
+  ledger, and narrow ADR 0018's Foreclosed clause to content only.
+- **REWRITE IDENTITY** - rewrite author and committer across all 521 commits to
+  a GitHub noreply address. This is the one thing that reopens the rewrite
+  branch, and it reopens it on a different axis than section 17's clause.
+- **SQUASH** - the fresh-history repo of CONVENTIONS 17, which erases the
+  identity trail along with the record. Cheapest and most destructive.
+
+**Related and already filed: CS-701** records that the operator git author line
+coincides with a 4-character world name on this machine, and that a
+world-name-keyed PII scan will therefore trip on every commit. **That item and
+this decision are the same surface and should be settled together.**
+
+#### 7. What this plan does NOT discharge
 
 **CS-953 stays open on its own terms.** A filename is not content. ADR 0018
-removes the NEED for a scrub rather than proving a scrub correct, so CS-953's
-acceptance - a probe over a synthetic history with a renamed file that goes RED
-when only HEAD paths are checked - is untouched by any of this. Do not close it
-as collateral.
+removes the NEED for a scrub rather than proving one correct.
 
 **CS-954 stays TIER 1 and outranks this item.** A push that can ship an ungraded
-ref is a defect in the mechanism S7 depends on.
+ref is a defect in the mechanism S10 depends on.
 
-**The 53 wip refs are DISCARDED, not cleared.** Nothing in this plan measures
-them. That is deliberate and it is the cheap half of ADR 0018: discarding an
-unmeasured ref is sound, while keeping one is not. Any single ref may be
-recovered from the S3 bundle later and pushed **only after it is measured on all
-six axes in its own right**, one at a time and on the record.
+**The 53 wip refs are DISCARDED, not cleared.** Nothing here measures them; that
+is deliberate, and it is sound only because S3 and S4 preserve them first.
+Any one may be recovered from the bundle and pushed later, **only after it is
+measured on all six axes in its own right**, one at a time and on the record.
 
 ## CS-954
 
