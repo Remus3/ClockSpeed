@@ -301,10 +301,19 @@ def race_a_push(box: Sandbox, *, advance: bool) -> Race:
 def test_the_wired_hook_is_a_byte_identical_copy_of_the_tracked_hook(
     tmp_path: Path, isolated: Environment
 ) -> None:
-    """Without this, every arm below could be grading a copy that drifted."""
+    """Without this, every arm below could be grading a copy that drifted.
+
+    THE WHOLE PREDICATE IS BOUND TO A BOOL, and it took both guards in this
+    suite to arrive there. Binding the sandbox hook's BYTES leaves a local
+    derived from a field whose class ships a ``__repr__`` to WITHHOLD it, and
+    ``--showlocals`` renders that frame whatever the assertion said. Inlining the
+    read instead moves the same field into the asserted EXPRESSION, which pytest
+    reprs independently of the message. Only a plain scalar satisfies both: it
+    neither holds the field nor renders it.
+    """
     box = make_sandbox(tmp_path, isolated, seconds=0.0)
-    copied = (box.hooks / PRE_PUSH).read_bytes()
-    assert copied == (HOOKS_DIR / PRE_PUSH).read_bytes(), (
+    identical = (box.hooks / PRE_PUSH).read_bytes() == (HOOKS_DIR / PRE_PUSH).read_bytes()
+    assert identical, (
         "the sandbox hook is not the tracked hook, so nothing below grades the real file"
     )
 

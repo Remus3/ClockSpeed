@@ -8404,3 +8404,245 @@ The headline this item carried before its line was cut to the one-liner the
   CS-919 before running the lane for anything.
 
 ---
+
+## Session 71 - 2026-09-07 - CS-928 and CS-935 CLOSED; the inbox channel turned into the session, and probing a watcher refuted the docstring defending its own bug
+
+- **Shipped:** **CS-928, CS-935 CLOSED.** **Filed:** CS-934, CS-936, CS-937,
+  CS-938, CS-939, CS-940.
+
+- **CS-928 was bigger than filed.** The item named five `Implemented by:` lines;
+  a sweep found 20 further false attributions, so the write-list was the whole
+  file. Measured by three agents that did not write the repair: pillar 1 five of
+  twelve clauses absent INCLUDING the headline promise (nothing expands a recipe
+  tree, the set is caller-supplied), pillar 2 three of fifteen with zero
+  occurrences anywhere in the package, pillars 3 and 4 nineteen of nineteen
+  against two docstring-only packages, pillar 5 six of seven with three of its
+  five attributed files never having existed. 144 lines deleted, 80 inserted.
+
+- **THE ARM WAS PROVEN TO REDDEN BEFORE IT WAS TRUSTED** - 20 failed on the
+  pre-repair document, 134 passed after, three planted mutations each red, one
+  caught ONLY by the anti-drift tiling half. `tests/test_scaffold.py` already
+  named both empty packages while asserting only that they import, so it passed
+  green against exactly the state that made the doc false. A test naming a module
+  is not a test measuring it.
+
+- **A HYPOTHESIS FROM THE MERGER WAS REFUTED AND THE CONCLUSION SURVIVED IT.** I
+  proposed the suffix-resolving count fell because paths became fully qualified.
+  False - nothing moved rungs; five paths were DELETED as false claims. The
+  agent kept the conclusion (do not lower the floor) on better reasoning: a
+  vacuity floor that reddens when a false attribution is removed is measuring the
+  wrong subject, and lowering it per repair walks to zero while staying green.
+
+- **The remaining red cost one forgiveness, adjudicated.** `FORGIVEN_LINE_POINTER_CEILING`
+  65 to 66. The adjudicator REFUTED the builder's claim that the ratchet had only
+  ever come down - it went 53 to 66 once - but that raise TIGHTENED it, so this is
+  the first that spends one. A reclamation condition is recorded. Two further reds
+  were MY OWN prose: item lines describing a defect spell `file:line` pointers, and
+  the guard cannot tell quoting from citing. Fixed by rewriting my prose, not by
+  spending a second notch.
+
+- **CS-935: the two hazards were the adjudicator's, not the proposal's.** The
+  gitignored local settings file already carried the `SessionStart` watcher hook,
+  so a fresh write would have destroyed it AND NO GUARD WOULD HAVE NOTICED,
+  because gitignored files are invisible to `git ls-files`. And the RECORD of the
+  grant nearly broke the build before the edit did - a citation budget spent
+  exactly at 7 of 7.
+
+- **PROBING BEAT READING, and this is the session's transferable finding.**
+  `tools/inbox_watch.py` misses an EDITED note, and its docstring DEFENDS that in
+  capitals with a stated tradeoff whose central claim is inverted: it says a
+  content-hash key would make an edit read as already-seen. An edit changes the
+  hash, so a hash key surfaces it; the name key is what hides it. I read that
+  paragraph, believed it, and repeated its framing to four sibling repos before
+  probing the function refuted it. A WRONG RATIONALE IS MORE DURABLE THAN A WRONG
+  LINE OF CODE, because it answers the next reader's question before they ask.
+  CS-940's acceptance requires DELETING the paragraph, not rewording it.
+
+- **Surprises:** a deliberate 2026-08-14 PII scrub commit edited files FORWARD, so
+  three world names remain in earlier blobs (CS-936). Contained - reachable only
+  from an unpushed local branch, `origin/main` carries none. And the inbox watcher
+  is wired ONLY in an untracked file, so a fresh clone runs no watcher at all
+  (CS-938).
+
+- **Failed paths:** do not `cd` into an inbox subdirectory. The `PreToolUse` hook
+  resolves its script relative to cwd, a sibling payload contains its own `tools/`,
+  and the hook then dies in both shells with no way back. It POISONS SUBAGENTS TOO -
+  one ran its whole task unable to execute a single command.
+
+- **Next action:** take CS-940 and CS-934 together - they are one file and one
+  rewrite. The key must move on content AND name, subdirectory payloads must be
+  reported, the digest must be computed by the RECEIVER rather than read from a
+  sender's manifest, and no payload byte may reach the report.
+
+## CS-954 - relocated from `docs/item_notes/phase7.md` 2026-09-08 on closure
+
+Relocated whole and unedited when the item closed, per the membership rule: a
+closed item's detail leaves the live leaf. The closing record is in
+`docs/LEDGER.md`; this is the working detail behind it.
+
+### CS-954 - the item as it stood at closure
+
+### FILED 2026-09-07 (session 73), from an incident in this repository
+
+**MEASURED, and stated as three observations rather than as a mechanism.**
+
+1. `git push origin main` was invoked when local `main` was `5192aaf`.
+2. The pre-push hook ran the whole suite to completion - `5941 passed, 6
+   skipped` in 235s - and git printed the ref update as `0e547b3..5192aaf
+   main -> main`, exit 0.
+3. `git ls-remote origin refs/heads/main` afterwards returned `1ee8b64`, a
+   commit created BY THIS SESSION while the hook was still running.
+
+So the gate's verdict named one commit and the remote ended at a later one.
+`5192aaf` is an ancestor of `1ee8b64`, so nothing was lost - but `1ee8b64`
+shipped without the suite having run against it.
+
+**WHAT IS NOT ESTABLISHED, AND MUST NOT BE WRITTEN DOWN AS THOUGH IT WERE.**
+Whether git re-resolved the ref after the hook returned, or resolved once and
+packed later, is INFERRED and not measured. The hook's stdin was not captured.
+A repair built on the wrong half of that would be a repair to nothing, so the
+first act on this item is the reproduction: advance the local ref during a
+deliberately slowed hook and record the hook's stdin, git's printed range, and
+the resulting remote tip together.
+
+**WHY IT IS TIER 1.** Not for this incident, which was four documentation files
+that passed a clean re-run afterwards. The class is that a tier-0 gate can
+report on a commit that never ships and stay silent about one that does, and
+this project already treats a gate that measures nothing as worse than no gate
+- see CS-821 and CS-824, which are the same family one level up.
+
+**THE WINDOW IS A FUNCTION OF THE SUITE'S DURATION**, so it widens as the suite
+grows. The pre-push run measured 235s under xdist here and has been over twenty
+minutes serially in this project's recent history. Anything that lengthens the
+hook lengthens the race.
+
+**THE OPERATOR-FACING HALF, WHICH NEEDS NO CODE.** Do not commit while a push is
+in flight. That is a discipline rather than a guard, which is exactly why the
+item exists: a discipline that has to be remembered during a twenty-minute wait
+is one that will be forgotten.
+
+**RELATED AND DISTINCT.** A durable harness-side session note - which lives in
+the session store outside this repository, NOT in this project's tracked
+`memory/` - records that CI grades only the tip of a push, so intermediate
+commits go untested. This is the layer below: the tip itself can differ from
+what the local gate graded.
+
+Citing that note by a repo-shaped path is what the first draft of this section
+did, and the citation ladder caught it: no tracked path is it or ends with it.
+Worth keeping as its own small finding, since the two stores have the same
+directory name and only one of them is in the repository.
+
+### MEASURED 2026-09-08 (session 74): the reproduction, and what it refuted
+
+**THE FIRST ACT WAS THE REPRODUCTION, as this section demanded, and it did NOT
+reproduce.** Two controlled runs in throwaway repositories - one with the remote
+as a plain local path, one over `file://`, which uses receive-pack rather than
+git's direct-local shortcut - advanced the local ref during a deliberately
+slowed hook and BOTH shipped exactly the SHA the hook was handed.
+
+**THE CONTROL IS WHAT MAKES THAT A MEASUREMENT.** The reproduction hook recorded
+the ref at its own entry and again at its own exit. Entry showed the graded
+commit and exit showed the later one, so the race window was real and the
+advance genuinely landed inside it. The push then shipped the graded commit
+anyway.
+
+    handed to the hook on stdin : refs/heads/main <B> refs/heads/main <A>
+    ref as the hook STARTED     : <B>
+    ref as the hook RETURNED    : <C>      <- the advance landed
+    what git PRINTED            : <A>..<B>
+    what the REMOTE holds       : <B>      <- the graded commit, not <C>
+
+**SO "GIT RE-RESOLVES AFTER THE HOOK RETURNS" IS REFUTED FOR LOCAL TRANSPORTS ON
+THIS GIT, and the incident's mechanism remains UNESTABLISHED.** The real incident
+used HTTPS to the forge. The difference is unexplained and is not written down as
+though it were understood. What would settle it: `GIT_TRACE_PACKET=1` with
+`GIT_TRACE=1` on a real HTTPS push whose ref is advanced mid-hook, capturing the
+update command actually sent.
+
+### THE INCIDENT IS CONFIRMED INDEPENDENTLY, and the forge is the witness
+
+The filed account rested on one session's observation. Three artifacts now agree:
+
+- `git reflog show refs/remotes/origin/main` records `update by push` to the
+  graded commit at 18:28:04 -0500; the local reflog records the later commit
+  created at 18:27:44 -0500, inside that push.
+- `gh run list --commit` on the FULL 40-character SHA of the graded commit
+  returns EMPTY. **No CI run has ever existed for the commit the hook graded.**
+- Exactly one push-event CI run exists for the later commit, created three
+  seconds after the ref update.
+
+One push event, and its tip was never graded by anything local.
+
+**STRONGER THAN FILED, and found by the adjudicator rather than by the author:
+git's own ref-update report disagreed with what shipped.** The tracking reflog
+named the graded commit while CI and the later fetch fast-forward both show the
+remote took the later one. Git's reporting path and its shipping path already
+disagreed once in this incident, which is why no arm added for this item uses a
+remote-tracking ref as its witness.
+
+### THE ROOT, in one sentence
+
+**The hook graded the working tree and never learned which commits were being
+pushed, because it never read its stdin** - every redirect in the file was
+`</dev/null` and nothing consumed the ref list git supplies - **so its verdict
+named a value that was free to change before the transfer happened.**
+
+### BACKFILL: nothing was left behind, and here is the set that was checked
+
+**THE SET: the 25 most recent `update by push` entries on
+`refs/remotes/origin/main`.** For each, whether any CI run has ever existed for
+the SHA that push recorded. **Exactly one came back zero** - the incident's own
+graded commit. Every other push in the window recorded a SHA that CI did run on.
+
+So the defect fired ONCE in the last 25 pushes, and "the SHA a push recorded has
+no CI run" is a precise detector for it rather than a noisy one.
+
+**NOTHING IS CORRUPT AND NOTHING NEEDS REGENERATING.** The defect wrote no
+artifact - it is a gate that failed to run, not a producer. The commit that
+shipped ungraded was graded by CI immediately afterwards and its run succeeded,
+and later pushes re-graded the same tree. No ledger entry, cached registry,
+normalized artifact, card id or world-token key was computed by the defective
+path, because the defective path computes nothing.
+
+### THE SIBLING, found by MECHANISM and FILED rather than fixed
+
+Searching for the shape - **a gate whose verdict names a value that can change
+before the guarded action completes** - rather than for the symptom string:
+
+- **`.githooks/pre-commit` with `tools/precommit_gate.py --staged` is the same
+  defect one level down.** The gate reads the bytes FROM THE INDEX, and git then
+  builds the commit from the index, so a stage landing while the hook runs is
+  committed ungraded. The window is far narrower - the gate is fast where the
+  pre-push suite is minutes - but the mechanism is identical. **FILED AS CS-955,
+  not fixed here:** it is a different frozen file, and this item's grant is
+  single-use and explicitly covers no other frozen path.
+- **`.githooks/commit-msg` is the same family and is ALREADY OWNED by CS-813** -
+  cleanup runs after the hook, so every check there PREDICTS the stored bytes
+  rather than observing them. Excluded as already filed.
+- **CS-704 is the same consequence by a different mechanism** - rebase,
+  cherry-pick, revert, am and `--no-verify` fire no hook at all. Excluded as
+  already filed.
+
+### WHAT THE REPAIR DOES AND DOES NOT DO
+
+The hook now captures the ref list once, before the interpreter ladder, and
+after a GREEN suite re-reads each pushed ref; a ref that no longer resolves to
+what git handed it blocks the push. **This NARROWS the window to the gap between
+the hook returning and git resolving what to send. It does NOT close it, that
+residual is unbounded and unmeasured, and nothing here claims otherwise.**
+
+**THE CHECK IS MECHANISM-AGNOSTIC ON PURPOSE**, because the mechanism is not
+established: whichever half is true, the outcome is safe - either git ships the
+graded SHA and the check never fires, or it ships a later one and the push is
+blocked before it can.
+
+**THE COMMON-MODE RISK, recorded rather than discharged.** Both reproductions
+and the check read the LOCAL REF as the authority on what ships. A mechanism
+where the shipped SHA comes from somewhere else - a packed-refs versus loose-ref
+disagreement, or a resolution inside the HTTPS remote helper that never touches
+the loose ref - defeats the check silently, and neither the reproduction nor the
+check tests it. It would have fired on THIS incident, because the local ref
+genuinely moved.
+
+**THE OPERATOR-FACING HALF STILL STANDS.** Do not commit while a push is in
+flight. The guard narrows the window; it does not make the discipline unnecessary.

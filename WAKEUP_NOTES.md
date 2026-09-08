@@ -34,6 +34,66 @@ the line becomes a pointer.
 
 ---
 
+## Session 74 - 2026-09-08 - the flip plan chose its branch, and CS-954's repair introduced the hang its own refutation caught
+
+- Shipped: CS-954 CLOSED. CS-700's PLAN produced and CS-700 stays OPEN by design.
+  ADR 0018 accepted. CS-955 filed. Detail in `docs/LEDGER.md`, not here.
+
+- In flight: nothing. Tree clean, no worktrees, no stash.
+
+- THE SESSION'S SHAPE WAS PLAN-THEN-REFUTE, TWICE, AND BOTH REFUTATIONS PAID.
+  Each deliverable was committed to freeze it, graded by an agent that did not
+  write it, and repaired. Both times the adversary found a defect in the
+  author's own evidence rather than only in the artifact, which is the part
+  worth carrying forward.
+
+- CS-700's PLAN: the CONVENTIONS 17 clause is CONDITIONAL and its antecedent
+  does not fire. The publishable graph is clean of CONTENT on six axes, so no
+  rewrite is owed for the reason section 17 contemplates. What is dirty is
+  off-main and never pushed. The exposure is what the FORGE accreted: 53
+  `refs/wip` refs, 233 Actions run logs of which 21 are failed runs, 17
+  artifacts, 534 MiB of caches - all surviving a force-push. ADR 0018 therefore
+  recreates the remote and pushes `main` alone, which makes the deletion the
+  verification.
+
+- TWO OF MY OWN CLAIMS WERE FALSIFIED BY THE ADVERSARY, and both are kept
+  visible in the documents rather than smoothed away. I asserted the wip refs
+  were invisible to REST; paginated REST returns all 53, and my "11" came from
+  an unpaginated query that answered short without erroring - trap (b) firing
+  inside the evidence offered as proof trap (b) was handled. And the plan's
+  first bundle step would have preserved nothing, because the wip refs exist
+  only on the remote, so its control compared two empty local counts and 0 == 0
+  would have passed green.
+
+- THE FOURTH CHANNEL NOBODY HAD LOOKED AT: commit author and committer identity.
+  520 of 521 commits carry a real personal email in both fields. CONVENTIONS 17
+  gate item 2 does not reach it. The operator RULED: rewrite to noreply.
+
+- CS-954: THE REPRODUCTION REFUTED THE FILED MECHANISM AND THE ITEM WAS REPAIRED
+  ANYWAY. Two controlled runs - plain local path and `file://` - advanced the
+  local ref mid-hook and BOTH shipped exactly the SHA the hook was handed, with
+  a control proving the ref had really moved. The incident is nonetheless REAL:
+  no CI run has ever existed for the SHA the hook graded, and one push-event run
+  exists for the later commit created three seconds after the ref update. So the
+  repair was built MECHANISM-AGNOSTIC on purpose.
+
+- THE REPAIR INTRODUCED A HANG AND THE REFUTATION CAUGHT IT. Reading stdin
+  unconditionally makes the hook wait forever for an EOF a terminal never sends,
+  so hand-running it wedged where it used to exit. The arm meant to cover that
+  asserted only CLOSED stdin while its docstring claimed to cover the debugging
+  case - which is the terminal case, and was the one that hung. Also caught: a
+  condition implemented but ungraded, proven by a mutant that survived all four
+  arms while changing real behaviour.
+
+- Next action: read the CS-700 plan section in `docs/item_notes/phase7.md`. It
+  is the implementing session's brief and it is now step-by-step. Its step S0 is
+  to write the needle set and the allowlist into the plan before S1 runs.
+
+- Watch out for: `/clear` survival is STILL not measured across five repos. The
+  three same-second lines in the invocation log are session 73 exercising the
+  instrument by hand via `--source`, not hook fires. CS-952 is a hard blocker on
+  the flip and needs a frozen-file grant. ROADMAP.md is over its soft budget.
+
 ## Session 73 - 2026-09-07 - the cross-project sync turned into two shipped items, four self-inflicted defects, and a queued plan
 
 - Shipped: CS-949 (withdrawal reporting) and CS-950 (the invocation log). Detail
@@ -178,71 +238,3 @@ clause belongs on the line. `doc_budget.py` exits 0 and the suite is green, so
 nothing is red - but the relocate pass it asks for has no honest target left, and
 the fix is an operator decision rather than an edit.
 
-## Session 71 - 2026-09-07 - CS-928 and CS-935 CLOSED; the inbox channel turned into the session, and probing a watcher refuted the docstring defending its own bug
-
-- **Shipped:** **CS-928, CS-935 CLOSED.** **Filed:** CS-934, CS-936, CS-937,
-  CS-938, CS-939, CS-940.
-
-- **CS-928 was bigger than filed.** The item named five `Implemented by:` lines;
-  a sweep found 20 further false attributions, so the write-list was the whole
-  file. Measured by three agents that did not write the repair: pillar 1 five of
-  twelve clauses absent INCLUDING the headline promise (nothing expands a recipe
-  tree, the set is caller-supplied), pillar 2 three of fifteen with zero
-  occurrences anywhere in the package, pillars 3 and 4 nineteen of nineteen
-  against two docstring-only packages, pillar 5 six of seven with three of its
-  five attributed files never having existed. 144 lines deleted, 80 inserted.
-
-- **THE ARM WAS PROVEN TO REDDEN BEFORE IT WAS TRUSTED** - 20 failed on the
-  pre-repair document, 134 passed after, three planted mutations each red, one
-  caught ONLY by the anti-drift tiling half. `tests/test_scaffold.py` already
-  named both empty packages while asserting only that they import, so it passed
-  green against exactly the state that made the doc false. A test naming a module
-  is not a test measuring it.
-
-- **A HYPOTHESIS FROM THE MERGER WAS REFUTED AND THE CONCLUSION SURVIVED IT.** I
-  proposed the suffix-resolving count fell because paths became fully qualified.
-  False - nothing moved rungs; five paths were DELETED as false claims. The
-  agent kept the conclusion (do not lower the floor) on better reasoning: a
-  vacuity floor that reddens when a false attribution is removed is measuring the
-  wrong subject, and lowering it per repair walks to zero while staying green.
-
-- **The remaining red cost one forgiveness, adjudicated.** `FORGIVEN_LINE_POINTER_CEILING`
-  65 to 66. The adjudicator REFUTED the builder's claim that the ratchet had only
-  ever come down - it went 53 to 66 once - but that raise TIGHTENED it, so this is
-  the first that spends one. A reclamation condition is recorded. Two further reds
-  were MY OWN prose: item lines describing a defect spell `file:line` pointers, and
-  the guard cannot tell quoting from citing. Fixed by rewriting my prose, not by
-  spending a second notch.
-
-- **CS-935: the two hazards were the adjudicator's, not the proposal's.** The
-  gitignored local settings file already carried the `SessionStart` watcher hook,
-  so a fresh write would have destroyed it AND NO GUARD WOULD HAVE NOTICED,
-  because gitignored files are invisible to `git ls-files`. And the RECORD of the
-  grant nearly broke the build before the edit did - a citation budget spent
-  exactly at 7 of 7.
-
-- **PROBING BEAT READING, and this is the session's transferable finding.**
-  `tools/inbox_watch.py` misses an EDITED note, and its docstring DEFENDS that in
-  capitals with a stated tradeoff whose central claim is inverted: it says a
-  content-hash key would make an edit read as already-seen. An edit changes the
-  hash, so a hash key surfaces it; the name key is what hides it. I read that
-  paragraph, believed it, and repeated its framing to four sibling repos before
-  probing the function refuted it. A WRONG RATIONALE IS MORE DURABLE THAN A WRONG
-  LINE OF CODE, because it answers the next reader's question before they ask.
-  CS-940's acceptance requires DELETING the paragraph, not rewording it.
-
-- **Surprises:** a deliberate 2026-08-14 PII scrub commit edited files FORWARD, so
-  three world names remain in earlier blobs (CS-936). Contained - reachable only
-  from an unpushed local branch, `origin/main` carries none. And the inbox watcher
-  is wired ONLY in an untracked file, so a fresh clone runs no watcher at all
-  (CS-938).
-
-- **Failed paths:** do not `cd` into an inbox subdirectory. The `PreToolUse` hook
-  resolves its script relative to cwd, a sibling payload contains its own `tools/`,
-  and the hook then dies in both shells with no way back. It POISONS SUBAGENTS TOO -
-  one ran its whole task unable to execute a single command.
-
-- **Next action:** take CS-940 and CS-934 together - they are one file and one
-  rewrite. The key must move on content AND name, subdirectory payloads must be
-  reported, the digest must be computed by the RECEIVER rather than read from a
-  sender's manifest, and no payload byte may reach the report.
