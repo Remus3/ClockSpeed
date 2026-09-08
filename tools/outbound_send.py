@@ -63,12 +63,27 @@ the bytes it names. The payload is now read once, graded as bytes, delivered as
 those same bytes, and recorded by their digest. There is no window because
 there is no second read.
 
-A DESTINATION IS A SINGLE PATH SEGMENT AND NOTHING ELSE. `root / name` lets an
-ABSOLUTE name replace the root outright, so `--to` with a drive-qualified path
-escaped the channel entirely, put an absolute path into the record, and walked
-straight past the exclusion that keeps this repository out of its own
-broadcast. A name carrying a separator, a drive, a leading dot or a parent
-reference is refused before anything is resolved.
+A DESTINATION IS GRADED AS A RESOLVED PATH, NOT AS A STRING, AND THE FIRST
+VERSION OF THIS CLAIM WAS ALSO FALSE. It checked the SPELLING - no separator, no
+drive, no leading dot, one path component - and then followed wherever that
+spelling led. A string cannot tell you where a path goes. Measured, all three
+against a synthetic root: a junction made with `mklink /J` passed the shape
+check and delivered a note OUTSIDE the channel root with exit 0; `--to` at this
+repository's own name delivered into this repository's own inbox, because the
+self-exclusion lived in the discovery function that only `--all` calls; and a
+trailing dot, which Win32 strips, put the note in one directory and recorded it
+under a name no directory has.
+
+So a destination is accepted only when `root / name / INBOX` RESOLVES to a
+directory whose grandparent is the resolved channel root and which is not this
+repository, and the name that reaches the record is RE-DERIVED from that
+resolved directory. The shape check stays in front of it because it is cheap and
+because an absolute name really does replace the root outright - `Path("/a") /
+"C:/b"` yields `C:/b` - but it is a fast rejection and never the containment
+guarantee. The same resolved path is what the dedup is keyed on: two spellings
+of one directory on a case-insensitive filesystem are one destination, not two,
+and treating them as two staged one temporary file twice and reported a complete
+delivery as PARTIAL.
 
 WHAT THIS RECORDS AND WHAT IT DOES NOT. One entry per DESTINATION rather than
 one per send, because a pooled entry for two siblings cannot answer the
@@ -276,14 +291,25 @@ def grade(payload: bytes) -> tuple[int, str, str]:
 
 
 def is_plain_segment(name: str) -> bool:
-    """Whether `name` is one ordinary directory name and nothing else.
+    """A CHEAP FRONT CHECK ON THE SPELLING. It is NOT the containment guarantee.
 
-    A destination is joined onto the channel root, and `Path("/a") / "C:/b"`
-    yields `C:/b` - so an absolute or separator-bearing name escapes the channel
-    silently. Measured: `--to` with a drive-qualified path resolved to this
-    repository's own inbox, wrote an absolute path into the record, and walked
-    past the self-exclusion. Rejecting the shape is cheaper and more honest than
-    trying to detect every escape after the join.
+    That distinction is the whole of CS-958 F3 and this docstring used to get it
+    wrong. This function grades a STRING, and a string cannot tell you where a
+    path goes: `NUL`, `CON`, `COM1`, an 8.3 short name, a fullwidth solidus and a
+    trailing dot all pass the shape test, and a junction sitting at a perfectly
+    ordinary name resolves clean out of the channel root. Measured: a junction
+    made under a synthetic root with `mklink /J` was accepted here, followed
+    through `is_dir()`, and the note was written outside the root with exit 0.
+    What contains the send is :func:`resolve_targets` grading the RESOLVED path;
+    everything below is a fast rejection of shapes that are obviously not a
+    project name, kept because it is cheap and because it refuses before any
+    filesystem call is made.
+
+    The shape it does rule out matters on its own terms: a destination is joined
+    onto the channel root, and `Path("/a") / "C:/b"` yields `C:/b` - so an
+    absolute or separator-bearing name replaces the root outright. Measured:
+    `--to` with a drive-qualified path resolved to this repository's own inbox
+    and wrote an absolute path into the record.
     """
     if not name or name in {".", ".."} or name.startswith("."):
         return False
@@ -517,21 +543,80 @@ def resolve_targets(
     per run costs an operator one round trip per destination, and the whole
     point of validating before staging is that the operator learns the full
     story while nothing has been written.
+
+    THE STRING IS NOT GRADED. THE RESOLVED PATH IS. A destination is accepted
+    only when `root / name / INBOX` RESOLVES to a directory whose grandparent is
+    the resolved channel root and which is not this repository. One check, and
+    it closes three separately measured holes at once:
+
+      * a junction under the channel root pointing outside it was accepted by
+        the shape check, followed by `is_dir()`, and delivered a note outside
+        the root with exit 0 (F3). Its resolved grandparent is not the root, so
+        it is refused now;
+      * `--to <this repository's own name>` delivered into this repository's own
+        inbox, because the self-exclusion lived in :func:`inbox_holders` and
+        ONLY `--all` calls that (F2). The identity clause here covers the path
+        an operator actually types;
+      * a trailing dot is stripped by Win32, so the note landed in the undotted
+        directory while the record filed it under the dotted name - a name no
+        destination has (F7). The name is now RE-DERIVED from the resolved
+        directory, so the record cannot name a directory that does not exist.
+
+    AND THE DEDUP IS KEYED ON THE RESOLVED PATH TOO, for the same reason. The
+    caller's `dict.fromkeys` dedups case-SENSITIVELY while Windows resolves
+    case-INSENSITIVELY, so two spellings of one directory staged one temporary
+    file twice; the first rename consumed it and the second raised, and a
+    delivery that had completely succeeded was reported as PARTIAL and recorded
+    that way (F7). Two spellings of one directory are one target.
+
+    NO REFUSAL ADDED HERE ECHOES THE VALUE IT MATCHED, and the shape refusal
+    stopped doing so. Measured on the unrepaired tool: a `--to` carrying a
+    drive-qualified home path came back as `destination '<the whole path>' is
+    not a plain project name`, so the one check whose job is to catch a name
+    that is secretly a path was the one that printed the path. This tool exists
+    because outbound bytes leak; a refusal that renders what it refused reports
+    the fault by committing a smaller version of it. The ORDINAL is reported
+    instead, which is what an operator needs to know which of five names to fix.
     """
+    resolved_root = root.resolve()
     targets: list[tuple[str, Path]] = []
     problems: list[str] = []
-    for name in names:
+    # Resolved inbox -> the position that already claimed it, so a second
+    # spelling of one directory collapses rather than staging it twice.
+    claimed: dict[Path, int] = {}
+    for position, name in enumerate(names, start=1):
         if not is_plain_segment(name):
-            problems.append("destination %s is not a plain project name" % _ascii(repr(name)))
+            problems.append("destination %d is not a plain project name" % position)
             continue
-        inbox = root / name / INBOX
+        try:
+            inbox = (root / name / INBOX).resolve()
+        except OSError:
+            # A name the operating system will not even resolve is refused
+            # rather than raised on, so one bad destination reports alongside
+            # the others instead of ending the run at the first fault.
+            problems.append("destination %d could not be resolved" % position)
+            continue
         if not inbox.is_dir():
             problems.append("destination %s has no %s directory" % (_ascii(name), INBOX))
             continue
+        project = inbox.parent
+        if project.parent != resolved_root or project == REPO_ROOT:
+            problems.append(
+                "destination %d does not resolve to a project directly inside the "
+                "channel root, or resolves to this repository itself" % position
+            )
+            continue
+        if inbox in claimed:
+            continue
+        claimed[inbox] = position
+        # THE NAME IS THE RESOLVED DIRECTORY'S OWN, not the spelling that was
+        # typed. The record must name a directory that exists.
+        real_name = project.name
         target = inbox / note_name
         if target.exists():
             problems.append(
-                "destination %s already holds a note named %s" % (_ascii(name), _ascii(note_name))
+                "destination %s already holds a note named %s"
+                % (_ascii(real_name), _ascii(note_name))
             )
             continue
         if staging_name(target).exists():
@@ -541,10 +626,10 @@ def resolve_targets(
             # already been delivered - a partial send reported as no send.
             problems.append(
                 "destination %s already holds a staging file for %s"
-                % (_ascii(name), _ascii(note_name))
+                % (_ascii(real_name), _ascii(note_name))
             )
             continue
-        targets.append((name, target))
+        targets.append((real_name, target))
     return targets, problems
 
 

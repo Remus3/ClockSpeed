@@ -119,6 +119,29 @@ DEST_NO_INBOX = "gamma958"
 DEST_INBOX_IS_A_FILE = "zeta958"
 DEST_ABSENT = "delta958"
 
+# CONTAINMENT AND IDENTITY (CS-958 F2, F3, F7). Four more populations, each
+# named because the string a destination is SPELLED with and the directory it
+# RESOLVES to are different things and this slice is about the difference.
+#
+#   DEST_ESCAPE      a junction under the channel root pointing OUT of it
+#   DEST_MIRROR      a junction under the channel root pointing at the
+#                    directory the arm is treating as this repository
+#   DEST_SELF        that directory, which lives OUTSIDE the channel root so
+#                    that its NAME differs from the name it is reachable by -
+#                    which is what makes a name comparison distinguishable
+#                    from a resolved-path comparison
+#   OUTSIDE_DIR      an ordinary project, with an inbox, outside the channel
+DEST_ESCAPE = "escape958"
+DEST_MIRROR = "mirror958"
+DEST_SELF = "selfrepo958"
+OUTSIDE_DIR = "outside958"
+
+# One directory, spelled three ways. Windows resolves all three to the same
+# path; a dedup keyed on the STRING sees three destinations and stages one
+# temporary file three times (CS-958 F7).
+DEST_A_UPPER = DEST_A.upper()
+DEST_A_DOTTED = DEST_A + "."
+
 NOTE_NAME = "note958-first.md"
 SECOND_NOTE_NAME = "note958-second.md"
 
@@ -250,6 +273,32 @@ def make_channel(
         (channel / name).mkdir(parents=True, exist_ok=True)
         (channel / name / INBOX).write_bytes(b"not a directory\n")
     return channel
+
+
+def make_junction(link: Path, target: Path) -> None:
+    """Create a directory junction at ``link`` pointing at ``target``.
+
+    A JUNCTION AND NOT A SYMLINK, because a junction needs no privilege on
+    Windows while a directory symlink needs either an elevated token or
+    developer mode - so an arm built on a symlink would skip on the machine
+    that matters and grade nothing. That is the same vacuity this slice is
+    deleting elsewhere in this file.
+
+    FAILURE HERE IS A TEST FAILURE AND NOT A SKIP. An arm that quietly stopped
+    grading when the link could not be made would be green on exactly the
+    platform where the escape it is about is possible.
+    """
+    link.parent.mkdir(parents=True, exist_ok=True)
+    proc = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+        capture_output=True,
+        timeout=TIMEOUT,
+        check=False,
+    )
+    assert proc.returncode == 0, (
+        "a directory junction could not be created; this arm cannot grade containment"
+    )
+    assert link.is_dir(), "the junction was reported created but is not a directory"
 
 
 def write_note(tmp_path: Path, name: str, payload: bytes) -> Path:
@@ -1165,45 +1214,337 @@ def test_channel_root_is_honoured_and_no_real_inbox_is_touched(tmp_path: Path) -
     assert after_record == before_record, "the repository's own delivery record was written"
 
 
-def test_all_does_not_broadcast_to_this_repository() -> None:
+def test_all_does_not_broadcast_to_this_repository(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Prove `--all` excludes this repository from its own broadcast.
 
-    AUTHORSHIP DISCLOSED: this arm was written by the author of
-    `tools/outbound_send.py`, unlike every other arm in this module, because the
-    defect was found after the slice that wrote the rest had finished. It has
-    not been independently graded and should be.
+    AGAINST A SYNTHETIC ROOT, WHICH IS THE REPAIR TO THIS ARM. The version this
+    replaces guarded on ``(REPO_ROOT / INBOX).is_dir()`` and skipped when it was
+    absent. That directory is UNTRACKED, so the arm skipped in CI, in a fresh
+    clone and in every worktree - which is this project's default session shape,
+    so the arm was skipping in the exact place the work gets done. Measured on
+    the worktree that repaired it: `33 passed, 1 skipped`, and this was the skip.
+    A synthetic channel plus a monkeypatched repository root grades the same
+    clause with nothing to guard on, so it always executes.
 
-    FOUND BY RUNNING THE REAL THING, not by reading it. A dry run against the
-    live channel listed five destinations and the first was this project, which
-    has an inbox like every other participant. A note delivered there would be
-    read back by this repository's own watcher as inbound mail from itself.
+    IT COMPARES RESOLVED PATHS AND THE FIXTURE IS BUILT TO PROVE THAT. The
+    directory standing in for this repository lives OUTSIDE the channel and is
+    reachable inside it only through a junction whose NAME IS DIFFERENT. So:
 
-    READ-ONLY AND WRITES NOTHING. It calls the discovery function directly
-    against the real sibling root rather than driving the CLI, because the
-    exclusion is keyed on a resolved path equal to the repository root and no
-    synthetic channel can hold such a directory without a link this suite is not
-    entitled to create. Listing a directory is not writing to it, so mechanism 1
-    of the isolation guarantee is not weakened: `run_send` is still the only
-    spawn site and still injects a synthetic channel root.
+      * an implementation comparing ``entry.name`` to ``REPO_ROOT.name`` sees
+        two different names, includes the junction, and this arm reds;
+      * an implementation comparing ``entry`` to ``REPO_ROOT`` without
+        ``.resolve()`` sees two different paths, includes the junction, and this
+        arm reds.
 
-    A CONTROL FIRST, because the assertion is an ABSENCE. If this repository has
-    no inbox of its own there is nothing to exclude and the arm would pass
-    against any implementation at all, so that case skips rather than passing.
+    Both mutants shipped GREEN against the version this replaces. Both were
+    planted against this version and both went red.
+
+    A CONTROL IN THE SAME RUN, because the assertion is an absence: an ordinary
+    sibling must still be discovered. Without it an ``inbox_holders`` that
+    returned nothing at all would satisfy the exclusion completely.
 
     Were this arm absent, restoring the one-clause change that excludes the
     repository would be green, and a broadcast would put a note this project
     wrote into the queue this project reads.
     """
     sender = load_sender()
-    own_inbox = REPO_ROOT / INBOX
-    if not own_inbox.is_dir():
-        pytest.skip("this repository has no inbox of its own; there is nothing to exclude")
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    fake_repo = tmp_path / DEST_SELF
+    (fake_repo / INBOX).mkdir(parents=True)
+    make_junction(channel / DEST_MIRROR, fake_repo)
+    monkeypatch.setattr(sender, "REPO_ROOT", fake_repo.resolve())
 
-    holders = sender.inbox_holders(REPO_ROOT.parent)
-    hit = REPO_ROOT.name in holders
+    holders = sender.inbox_holders(channel)
 
-    assert holders, "no sibling with an inbox was discovered; the arm cannot grade"
-    assert not hit, "--all would deliver this repository's note into its own inbox"
+    assert DEST_A in holders, "no ordinary sibling was discovered; the arm cannot grade"
+    assert holders == [DEST_A], (
+        f"--all would broadcast into this repository's own inbox; it discovered {holders}"
+    )
+
+
+# --------------------------------------------------------------------------
+# CONTAINMENT AND IDENTITY. 16-20 - CS-958 F2, F3 and F7. Every arm below is
+# about one idea: the string a destination is SPELLED with is not the directory
+# it RESOLVES to, and only the resolved path can be graded for containment. A
+# shape check on the string cannot see a reparse point, cannot see that two
+# spellings are one directory, and cannot see that a name Win32 will rewrite
+# lands somewhere the record does not say.
+# --------------------------------------------------------------------------
+
+
+def test_a_junction_that_leaves_the_channel_root_is_refused(tmp_path: Path) -> None:
+    """Prove a destination that resolves OUT of the channel root delivers nothing.
+
+    CS-958 F3, reproduced end to end before it was repaired: `mklink /J` a
+    junction under a synthetic root, `--to` it, and the tool reported
+    `DELIVERED ... [gate CLEAN]` with exit 0 and the note written outside the
+    root it was told to stay inside. The record holds no path by design, so
+    nothing downstream could tell a contained delivery from an escaped one.
+
+    THE ARM IS THE ABSENCE OUTSIDE THE ROOT AND NOT THE EXIT CODE. A tool that
+    wrote the note and then returned 1 would satisfy an exit-code assertion
+    completely, and the byte outside the channel is the irreversible half. So
+    the tree OUTSIDE the channel is hashed before and after and nothing in it
+    may differ.
+
+    THE REFUSAL IS ALSO CHECKED FOR WHAT IT SAYS. This tool exists because
+    outbound bytes leak, so a refusal that pasted the escaping path into stderr
+    would report the fault by committing a smaller version of it.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    outside = tmp_path / OUTSIDE_DIR
+    (outside / INBOX).mkdir(parents=True)
+    make_junction(channel / DEST_ESCAPE, outside)
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    before = tree_snapshot(outside)
+
+    code, out, err = run_send(
+        "--note",
+        str(note),
+        "--to",
+        DEST_ESCAPE,
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+    escaped = changed_paths(before, tree_snapshot(outside))
+    streams = text(out) + text(err)
+
+    assert escaped == [], f"the send escaped the channel root and wrote {escaped}"
+    assert code == EXIT_REFUSED, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
+    assert len(record_entries(env)) == 0, "an escaping destination reached the record"
+    assert not DRIVE_LETTER_RE.search(streams), "the refusal rendered an absolute path"
+
+
+def test_an_ordinary_sibling_delivers_while_a_junction_sits_beside_it(tmp_path: Path) -> None:
+    """The NEGATIVE CONTROL for the whole containment set.
+
+    Without it every refusal arm above and below is satisfied by a tool that
+    refuses everything, and a containment check that rejected all destinations
+    would look like four passing safety arms.
+
+    THE JUNCTION IS PRESENT AND SIMPLY NOT NAMED, which is the sharper control:
+    it proves the check grades the destination that was ASKED for rather than
+    the state of the channel. An implementation that refused any send whose root
+    contained a reparse point anywhere would pass a control built on a clean
+    channel and fail this one.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    outside = tmp_path / OUTSIDE_DIR
+    (outside / INBOX).mkdir(parents=True)
+    make_junction(channel / DEST_ESCAPE, outside)
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    source = note.read_bytes()
+    assert gate_verdict(note, env) != EXIT_REFUSED, (
+        "the gate refuses this suite's clean prose on this machine; the arm cannot grade"
+    )
+
+    code, out, err = run_send(
+        "--note",
+        str(note),
+        "--to",
+        DEST_A,
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+    landed = delivered(channel, DEST_A)
+
+    assert code == EXIT_OK, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
+    assert landed.is_file(), "an ordinary sibling was refused; the containment check refuses all"
+    assert landed.read_bytes() == source, "the delivered bytes are not the source bytes"
+
+
+def test_a_destination_resolving_to_this_repository_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Prove a `--to` naming this repository is refused, not only `--all`.
+
+    CS-958 F2. The self-exclusion lived inside ``inbox_holders``, which ONLY
+    ``--all`` calls; ``resolve_targets`` never consulted it. Merger-confirmed
+    with its own positive control: ``resolve_targets`` at the real channel root
+    resolved this repository's own name to this repository's own inbox with
+    ZERO problems, while ``inbox_holders`` excluded it on the same run. The
+    property the item cares about is that a note never lands in our own inbox;
+    the code guarded only the path an operator does not have to take.
+
+    THE REPOSITORY ROOT IS MONKEYPATCHED AND NOTHING REAL IS TOUCHED. The clause
+    under test compares a resolved destination against ``REPO_ROOT``, so an
+    honest fixture needs a directory that IS the repository root and sits under
+    the channel root - and no synthetic channel can contain the real one. The
+    constant is therefore pointed at a synthetic project inside a synthetic
+    channel. The comparison being graded is the real one; only its right-hand
+    side is fixture.
+
+    THE POSITIVE CONTROL IS IN THE SAME RUN AND ON THE SAME NAME. Unpatched,
+    that identical destination must resolve to exactly one target - so the
+    refusal is attributable to the identity clause and not to a resolver that
+    had already rejected the name for some unrelated reason.
+    """
+    sender = load_sender()
+    channel = make_channel(tmp_path, with_inbox=(DEST_SELF, DEST_A))
+
+    control, control_problems = sender.resolve_targets(channel, [DEST_SELF], NOTE_NAME)
+    assert control_problems == [], f"the control could not resolve the name: {control_problems}"
+    assert len(control) == 1, "the control resolved no target; the refusal below proves nothing"
+
+    monkeypatch.setattr(sender, "REPO_ROOT", (channel / DEST_SELF).resolve())
+    targets, problems = sender.resolve_targets(channel, [DEST_SELF], NOTE_NAME)
+
+    assert targets == [], "a destination resolving to this repository was accepted"
+    assert len(problems) == 1, f"expected exactly one problem, got {len(problems)}"
+    assert not DRIVE_LETTER_RE.search(problems[0]), "the refusal rendered an absolute path"
+
+
+def test_case_variant_spellings_collapse_to_one_destination(tmp_path: Path) -> None:
+    """Prove two spellings of ONE directory are one target, not a false PARTIAL.
+
+    CS-958 F7. ``dict.fromkeys`` dedups case-SENSITIVELY while Windows resolves
+    case-INSENSITIVELY, so a pair of spellings naming one directory staged one
+    temporary file twice and the second rename raised ``FileNotFoundError`` -
+    because the first rename had already consumed it. The tool then reported a
+    PARTIAL delivery over a destination that had landed completely, and wrote
+    that partial into the record. A reconciler reading it would go looking for a
+    delivery that had in fact succeeded.
+
+    FOUR ASSERTIONS BECAUSE FOUR THINGS WENT WRONG AT ONCE: the exit code, the
+    stderr claim, the number of files that appeared in the channel, and the
+    number of record entries. A repair that collapsed the target list but still
+    recorded twice would satisfy the first three.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    before = tree_snapshot(channel)
+
+    code, out, err = run_send(
+        "--note",
+        str(note),
+        "--to",
+        DEST_A,
+        "--to",
+        DEST_A_UPPER,
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+    changed = changed_paths(before, tree_snapshot(channel))
+    partial = "PARTIAL" in text(err)
+
+    assert code == EXIT_OK, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
+    assert not partial, "a complete delivery to one directory was reported as partial"
+    assert changed == [f"{DEST_A}/{INBOX}/{NOTE_NAME}"], f"the send changed {changed}"
+    assert len(record_entries(env)) == 1, "one directory was recorded more than once"
+
+
+def test_a_trailing_dot_is_recorded_under_the_name_the_directory_has(tmp_path: Path) -> None:
+    """Prove the recorded destination names a directory that EXISTS.
+
+    CS-958 F7, second half. Win32 strips a trailing dot from a path component,
+    so a dotted spelling put the note in the undotted directory and filed it in
+    the record under the dotted name - a name no destination on this channel
+    has. The record is the only thing a later CS-951 reconciler has, and a
+    reconciler looking for that destination finds nothing and cannot tell a
+    misfiled delivery from a vanished one.
+
+    THIS IMPLEMENTATION RESOLVES RATHER THAN REFUSES, and the choice is asserted
+    here so it is visible rather than incidental. Both were open. Resolving is
+    chosen because the containment check already proves the resolved directory
+    is a project directly under the channel root, so the delivery is contained
+    either way; refusing would add a second rule about strings on top of a check
+    that does not need one, which is the exact mistake this slice is undoing.
+    What must not happen is what the tool did before: deliver to one name and
+    record another.
+
+    Measured on this machine before the arm was written: the dotted spelling
+    resolves to the undotted directory and ``is_dir()`` is true for both.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    before = tree_snapshot(channel)
+
+    code, out, err = run_send(
+        "--note",
+        str(note),
+        "--to",
+        DEST_A_DOTTED,
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+    changed = changed_paths(before, tree_snapshot(channel))
+    names = sorted(record_strings(record_entries(env)))
+    dotted_in_record = DEST_A_DOTTED in names
+
+    assert code == EXIT_OK, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
+    assert changed == [f"{DEST_A}/{INBOX}/{NOTE_NAME}"], f"the send changed {changed}"
+    assert DEST_A in names, "the record does not name the directory the note landed in"
+    assert not dotted_in_record, "the record files the delivery under a name no directory has"
+
+
+def test_a_refused_destination_is_not_echoed_back(tmp_path: Path) -> None:
+    """Prove the shape refusal does not print the value it refused.
+
+    MEASURED BEFORE THE ARM WAS WRITTEN, on the unrepaired tool: a `--to`
+    carrying a drive-qualified home path came back as
+    ``destination '<the whole path>' is not a plain project name``. The one
+    refusal whose job is to catch a name that is secretly a PATH was the one
+    that rendered the path, and a home path is personal data under CLAUDE.md
+    non-negotiable 12 - which counts error messages as echo paths explicitly.
+    The operator pastes a refusal into a session; that is how it leaves.
+
+    A POSITIVE CONTROL IN THE SAME RUN, because the assertion is an absence and
+    an absence is satisfied by a tool that printed nothing at all: the refusal
+    must still say WHICH destination in the list was the bad one, so the
+    ordinal has to be there. Without that half, deleting the message entirely
+    would be green and the operator would be told a send was refused with no
+    way to tell which of five names did it.
+
+    THE DRIVE-LETTER REGEX IS THE LOAD-BEARING CHECK AND THE SUBSTRING IS NOT,
+    which was itself measured here: the unrepaired message rendered the value
+    through ``repr()``, so every backslash arrived DOUBLED and a whole-path
+    substring search found nothing while the path was plainly on stderr. The
+    substring check therefore asks for the one component that survives repr
+    escaping intact, and the regex asks the question that cannot be escaped
+    around.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    before = tree_snapshot(channel)
+
+    code, out, err = run_send(
+        "--note",
+        str(note),
+        "--to",
+        DEST_A,
+        "--to",
+        WINDOWS_HOME_PATH,
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+    changed = changed_paths(before, tree_snapshot(channel))
+
+    assert code == EXIT_REFUSED, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
+    assert changed == [], f"a refused send still wrote {changed}"
+    assert_absent_in_any_case(WINDOWS_HOME_PATH.split("\\")[2], (out, err))
+    assert not DRIVE_LETTER_RE.search(text(out) + text(err)), (
+        "the refusal rendered an absolute path"
+    )
+    assert "destination 2" in text(err), (
+        "the refusal does not say which destination was refused; it is unusable"
+    )
 
 
 def test_output_is_seven_bit_ascii(tmp_path: Path) -> None:
