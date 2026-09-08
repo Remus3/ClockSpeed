@@ -722,3 +722,198 @@ THE HARD PART IS NOT THE RECORD, IT IS OWNING THE DELIVERY. A record of what
 this repo sent is only as good as the guarantee that every delivery goes through
 the thing that writes it. A hand-run copy leaves no record, and a record with
 holes in it reports a withdrawal that never happened or misses one that did.
+
+## CS-958
+
+### MEASURED 2026-09-08 (session 76), four adversarial lenses against the REPAIRED sender
+
+Candidate frozen at `25ff29f`, tree clean before and after, confirmed by all
+four graders and again by the merger. Four adversaries, four independent
+lenses, FOUR REFUTED VERDICTS. None of the four wrote a byte into any of the
+five real `moon_sync_inbox` directories; counts were identical before and
+after in every report. The repairs at `aff7c20` answered a pass against
+`bbd7347` and had never been graded themselves; this is that pass.
+
+**F1 - THE NOTE'S FILENAME AND THE DESTINATION NAME ARE NEVER GRADED, AND THE
+RECORD STAMPS THEM CLEAN.** `grade()` takes `payload: bytes` and nothing else;
+merger-confirmed signature `(payload: bytes) -> tuple[int, str, str]`. The same
+account-name value the gate REFUSES in a note's content is accepted as that
+note's FILENAME, echoed to stdout, written into every sibling inbox as a
+filename, and recorded under `"gate_verdict": "CLEAN"`. Non-negotiables 3 and
+12. This is the severe one: the record permanently attests a grade that never
+covered the strings it holds. Synthetic canary reproduction: a note whose
+FILENAME is a well-formed AWS access key id delivers with exit 0, while the
+identical string in CONTENT returns `<pii:credential>` and exit 1. The canary
+itself is not reproduced here - the COMMIT gate refused this very paragraph when
+it was, which is the frozen gate doing its job and is not to be excluded around.
+
+**F2 - `--to <this repository's own directory name>` DELIVERS INTO THIS
+REPOSITORY'S OWN INBOX.** The self-exclusion lives inside `inbox_holders`,
+which only `--all` calls; `resolve_targets` never consults it. Merger-confirmed
+with its own positive control: `resolve_targets(Path("C:/"), ["Clockspeed"])`
+resolves to `C:\Clockspeed\moon_sync_inbox\...` with zero problems, while
+`inbox_holders(Path("C:/"))` excludes it on the same run. The property the item
+cares about is "a note never lands in our own inbox"; the code guards only the
+discovery path, and the only arm covering it guards the same half.
+
+**F3 - A JUNCTION UNDER THE CHANNEL ROOT LEAVES THE CHANNEL ROOT.**
+`is_plain_segment` grades a STRING and cannot see a reparse point;
+`resolve_targets` then follows it through `is_dir()`. Demonstrated end to end
+against a synthetic root: `mklink /J <root>\escape_hatch <outside>` then
+`--to escape_hatch --send` reported `DELIVERED ... [gate CLEAN]` exit 0 with the
+note written outside the root. `--all` follows it too. The record holds no path
+by design, so it cannot distinguish a contained delivery from an escaped one.
+`NUL`, `CON`, `COM1`, `CLOCKS~1`, a fullwidth solidus and a trailing dot are all
+ACCEPTED by the shape check and refused later only by `is_dir` - contained by
+accident, not by the guard.
+
+**F4 - COMMIT-PHASE LITTER IS AN UNRECORDED FULL DELIVERY.** `commit_all`
+returns on the first failure and nothing ever unlinks the staging files of the
+destinations that were never renamed. Measured: a three-destination send
+reported `DELIVERED to 1 of 3`, exit 1, and left
+`<sibling>/moon_sync_inbox/<note>.md.tmp` BYTE-IDENTICAL to the note (`cmp`
+clean). `tools/inbox_watch.py` reads it as `1 UNREAD ... 1 loose file(s)`. The
+sibling has the whole payload while our record says it was not delivered -
+precisely the CS-951 hole this module exists to close. It is also PERMANENT: the
+staging-name validation then refuses every future send to that destination, even
+as a dry run, and the remedy is hand-deleting a file inside another repository.
+
+**F5 - THE TOCTOU BETWEEN VALIDATION AND RENAME SILENTLY DESTROYS A SIBLING'S
+NOTE.** `resolve_targets` checks `target.exists()`; `commit_all` calls
+`.replace()`, which overwrites. Control: a note present at validation time is
+refused and the victim survives. Race: a victim written inside the window was
+replaced, with `SEND_EXIT=0`, `DELIVERED ... [gate CLEAN]`, and an ordinary
+record entry. Won at the tightest two-destination window `destroyed=1` over 10
+attempts, so it is not an artifact of a wide N.
+
+**F6 - A COMPLETE SUCCESS EXITS 1.** With the record path unwritable, both notes
+were DELIVERED and the tool exited 1 through `_refuse`. The docstring calls 1
+"refused ... Fail closed" and the codes "a closed set a caller can branch on".
+Channel, record and exit code disagree on the same run.
+
+**F7 - CASE-VARIANT AND TRAILING-DOT DESTINATIONS DEFEAT THE DEDUP.**
+`dict.fromkeys` dedups case-SENSITIVELY while Windows resolves case-
+INSENSITIVELY, so `--to X --to XX` where both spell one directory stages one
+`.tmp` twice and the second rename raises `FileNotFoundError`. The tool then
+reports a PARTIAL delivery when the one real destination landed completely. A
+trailing dot is stripped by Win32, so the note lands in `Lanternlight/` while the
+record files it under `"Lanternlight."` - a name no destination has.
+
+**F8 - AN EMPTY ENVIRONMENT OVERRIDE SELECTS THE REAL RECORD.** `record_path()`
+tests truthiness, so `CLOCKSPEED_OUTBOUND_RECORD=""` returns
+`data/outbound_deliveries.json`. Merger-confirmed with its control. A wrapper or
+arm that CLEARS the variable rather than unsetting it writes to the operator's
+live record - the accident session 75 already had once.
+
+**F9 - THE SUITE DOES NOT GRADE THE GUARD.** `is_plain_segment` appears ZERO
+times in `tests/`, merger-confirmed by search; deleting its call site would
+leave the suite green. Pristine floor observed at `34 passed`, 0 skipped. Two
+SUBTLE mutants of the exclusion shipped green where deleting it outright reds
+the arm: comparing `entry.name` to `REPO_ROOT.name`, and dropping `.resolve()`.
+`test_all_does_not_broadcast_to_this_repository` guards on an UNTRACKED
+directory, so it skips in CI, in a fresh clone, and in EVERY WORKTREE - which is
+this project's default session shape. Its neighbour's `real_inbox_counts()`
+is a POOLED sum, so one file added and one removed compares equal.
+
+**F10 - NAMED, NOT PROVEN.** `stage_all` appends to `staged` only AFTER
+`write_bytes` returns, so a mid-write failure leaves the raising file behind
+while stderr says the staged files were removed. Forcing ENOSPC on this shared
+box was refused as unsafe. Do not close this one by reading it.
+
+**WHAT SURVIVED, and is not to be re-litigated by a repair.** No payload BYTE
+reaches the record by any route four lenses could find. `safe_exc_text` redacts
+the absolute path in `FileNotFoundError` (control: raw Python printed it, the
+tool printed only `No such file or directory`). `QuietParser` holds against a
+note's full text passed as `--note` (control: a stock parser echoed it). The
+record is gitignored, `.gitignore:132:/data/` by `git check-ignore -v`. The
+gate-before-destination ordering, the single read, and the STAGE phase's
+all-or-none behaviour all held.
+
+### THE REPAIR DECOMPOSITION for F1, F2 and F3 - filed 2026-09-08 (session 76)
+
+**F1, F2 AND F3 ARE NOT THREE DISJOINT SLICES, AND SAYING SO IS THE FIRST
+FINDING OF THE DECOMPOSITION.** All three land in `resolve_targets` and `main`
+of one file, plus one test file. CLAUDE.md section 5 requires disjointness to be
+CHECKED before dispatch rather than hoped for, so three parallel builders here
+would be three agents editing one function - the failure this project already
+measured in session 45 as a tree moving under its own grader. They are ordered,
+not parallel.
+
+**THE ORDERING IS FORCED, NOT PREFERRED.** F3's repair re-derives a
+destination's NAME from its RESOLVED path, because that is what makes the record
+name a directory that exists (F7: a trailing dot landed in `Lanternlight/` and
+was recorded as `"Lanternlight."`). F1 grades the destination name. So F1 must
+grade the name F3 produces, or it grades a string the tool then discards. **S1
+before S2. Not concurrently.**
+
+**S1 - CONTAINMENT AND IDENTITY. Closes F2 and F3, and F7's record lie falls
+out of it.** Write-list: `tools/outbound_send.py` (`resolve_targets`,
+`is_plain_segment` and its call site), `tests/test_outbound_send.py`.
+The mechanism is one idea applied twice: STOP GRADING THE STRING AND START
+GRADING THE RESOLVED PATH. A destination is accepted only when
+`(root / name / INBOX)` resolves to a directory whose grandparent IS the
+resolved channel root, and whose resolved path is not `REPO_ROOT`. That single
+check refuses the junction (F3), refuses `--to <own name>` on the path
+`--all` never takes (F2), and makes a trailing dot either resolve to its real
+directory - which is then recorded under the name that directory actually has -
+or be refused. `is_plain_segment` STAYS as a cheap front check; it is not the
+containment guarantee and its docstring must stop implying it is.
+Arms that must FAIL FIRST, each named because a passing arm written after the
+fix proves nothing: a junction under a synthetic root is refused; `--to` at this
+repository's own directory name is refused; a trailing-dot spelling is either
+refused or recorded under the resolved name; two case-variant spellings of one
+directory collapse to ONE target rather than producing the false PARTIAL of F7.
+**Every arm uses a SYNTHETIC channel root** - the existing self-exclusion arm
+guards on the untracked real inbox and therefore skips in CI, in a fresh clone
+and in every worktree, which is this project's default session shape. That
+guard is deleted as part of this slice, not left beside the new arms.
+
+**S2 - THE METADATA IS GRADED. Closes F1.** Write-list: `tools/outbound_send.py`
+(`gate_phase` or a named step beside it, and every line that prints a name),
+`tests/test_outbound_send.py`. **NO CHANGE TO `tools/outbound_gate.py` IS
+NEEDED and none is authorised without its own finding**: `scan()` already takes
+text, so a filename is graded by the same rule table as a payload, and a second
+scanner would be the CS-948 mistake in a new place.
+Two decisions the builder does NOT get to make silently, because both are
+visible in the record forever:
+(1) the metadata grade consumes the REFUSALS from `scan()` and NOT its coverage
+rows - coverage is a property of the machine and is already accounted for by the
+payload's grade, so folding it in again would report UNMEASURED twice for one
+send; and
+(2) a dirty name REFUSES THE WHOLE SEND. It does not rename, does not warn, does
+not deliver to the clean destinations. The settled fence is that the outbound
+gate refuses and does not rewrite, and a filename is the one string that is
+simultaneously outbound bytes, a record field and a thing a sibling's watcher
+prints.
+**THE ORDER OF OPERATIONS IS THE REPAIR, not an implementation detail.** The
+tool currently echoes `note.name` to stdout in its DRY RUN and DELIVERED lines
+and writes it to the record; measured, an ungraded account name reached stdout.
+So the name is graded BEFORE any line that prints it and before any record entry
+is built. An arm must pin that a refused name never appears on stdout or stderr,
+with a positive control showing the arm can see a name when one is printed.
+
+**WHAT IS EXPLICITLY OUT OF SCOPE HERE.** F4, F5 and F6 are the commit phase and
+the exit-code contract; they are a separate slice against different functions
+(`commit_all`, `perform_send`) and must not be swept into these two. F8 is a
+one-line truthiness fix that belongs with them. F10 is unproven and is not
+repaired on a reading.
+
+**HOW IT IS GRADED.** S1 merges, then S2 is cut from the merged tree - not from
+`25ff29f`, and the dispatch says so, because five of five worktree agents in one
+past session started behind their stated base. An adjudicator that produced
+neither slice rules on the merged result at a FROZEN sha, and the refutation
+pass re-runs the F1, F2, F3 and F7 reproductions recorded above rather than
+reading the diff. A fix that looks right and changes nothing has already shipped
+here once.
+
+**THE SEND STAYS BLOCKED UNTIL BOTH LAND.** The A1 notice RC is waiting on goes
+out through this tool, and F1 means the tool is currently the leak it was built
+to prevent.
+
+**THE SHAPE OF THE REPAIR, so a later session does not mis-scope it.** F1, F2
+and F3 are the item's acceptance clauses failing, not polish: the gate is not in
+front of everything that leaves, the exclusion does not cover the path an
+operator will actually type, and the channel root does not contain. F4 and F5
+are the record telling the reconciler something false, which is worse for CS-951
+than no record. Do not repair any of them without an arm that FAILS first, and
+do not bank a fix on the code change - re-run each reproduction above.
