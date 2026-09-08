@@ -1836,6 +1836,11 @@ DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
         ".claude/settings.local.json",
         "### FILED 2026-09-07 (session 73), self-disclosed",
     ): 1,
+    (
+        "docs/item_notes/phase7.md",
+        ".claude/settings.local.json",
+        "#### 5. CS-952 is sequenced BEFORE the flip and is a hard blocker",
+    ): 1,
 }
 
 #: R3's live membership, DISCLOSED. Three are the names of the three files
@@ -1916,7 +1921,18 @@ DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
 #: first draft wrote it as a code span and thereby created a SECOND undisclosed
 #: citation, inside the guard's own file, which the guard then caught. A
 #: disclosure that has to disclose itself ratchets forever.
-DECLARED_UNTRACKED_CEILING: Final = 8
+#:
+#: 8 TO 9 FOR CS-700, WHICH INHERITS CS-952'S PURCHASE RATHER THAN MAKING A NEW
+#: ONE. The public-flip plan sequences CS-952 as a hard blocker on the flip -
+#: gate item 7 is a clean-checkout probe, and a fresh clone runs no watcher for
+#: exactly the reason the row above records. The plan's section 5 has to name
+#: the same per-machine override file to say what the blocker IS, so it buys the
+#: same row against a second carrier. The alternative was to describe the file
+#: obliquely in the one document whose job is to be executable by a session that
+#: was not here, which trades a disclosed row for an ambiguous instruction.
+#: THIS COMMENT DESCRIBES THAT PATH RATHER THAN CITING IT, for the reason the
+#: paragraph above gives.
+DECLARED_UNTRACKED_CEILING: Final = 9
 #: 9 TO 6 WHEN CS-928 DELETED THE THREE FALSE ADVISOR ATTRIBUTIONS. Six
 #: `docs/ARCHITECTURE.md` rows left the rung and three arrived from the guard
 #: that now asserts those files absent, so the disclosure holds six rows and the
