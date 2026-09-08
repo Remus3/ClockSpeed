@@ -1832,11 +1832,6 @@ DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
         " them wrong once",
     ): 1,
     (
-        "docs/item_notes/phase4-followups-900.md",
-        ".claude/settings.local.json",
-        "### FILED 2026-09-07 (session 73), self-disclosed",
-    ): 1,
-    (
         "docs/item_notes/phase7.md",
         ".claude/settings.local.json",
         "#### 5. CS-952 is sequenced BEFORE the flip and is a hard blocker",
@@ -1952,7 +1947,13 @@ DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
 #: claim against the shipped wiring each name it once. Describing it obliquely
 #: was available and was rejected for the same reason the row above rejects it:
 #: an oblique instruction is a row not bought and a reader not told.
-DECLARED_UNTRACKED_CEILING: Final = 12
+#: 12 TO 11 WHEN CS-952 CLOSED AND ITS DETAIL LEFT THE LIVE LEAF. The row the
+#: item note held is gone rather than moved: the closed section relocated to
+#: `docs/history_notes.md`, which this corpus does not carry, so the site stopped
+#: existing rather than changing carrier. A relocation on closure therefore
+#: REFUNDS a disclosed row, and the ceiling has to come down with it or the
+#: refund becomes headroom nobody voted for.
+DECLARED_UNTRACKED_CEILING: Final = 11
 #: 9 TO 6 WHEN CS-928 DELETED THE THREE FALSE ADVISOR ATTRIBUTIONS. Six
 #: `docs/ARCHITECTURE.md` rows left the rung and three arrived from the guard
 #: that now asserts those files absent, so the disclosure holds six rows and the

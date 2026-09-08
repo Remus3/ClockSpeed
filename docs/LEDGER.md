@@ -160,6 +160,57 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-08 - CS-952 - CLOSED. The channel half was delivered to four sibling inboxes, and the delivery is recorded here because nothing else in this repository would know it happened
+
+**CLOSES CS-952.** The entry directly below this one is the repository half and
+says the item stayed open on the channel. This is the channel half. Both halves
+of the disjunctive acceptance's second branch are now met: the claim is
+corrected wherever this repository published it, and
+`tests/test_session_start_wiring.py` asserts the honest answer against a clean
+checkout.
+
+**WHAT WAS DELIVERED, AND WHERE.** One note, 3712 bytes, byte-identical to four
+destinations - the `moon_sync_inbox/` of Lanternlight, Riot Commander, Resin
+Compute and Legion Wallpaper. Written tmp-then-replace, and no destination
+already held the name. The operator authorised the send after being shown the
+destination list; a send is an outward-facing action and this session did not
+take it unattended.
+
+**WHAT THE NOTE SAYS, in one line each.** The YES is retracted. The wiring is in
+a per-machine override file, so a fresh clone and every worktree run no watcher
+- including our own headless lane sessions, which nothing had said. Tracking it
+was granted and refused on three measured facts. Two questions decide whether a
+sibling has the same hole: is their wiring tracked, and is their inbox tracked.
+Three things are unmeasured here and no green of ours may be cited against them.
+
+**THE OUTBOUND BYTES WERE CHECKED BEFORE THE SEND WAS REPORTED, not after.**
+Pure 7-bit ASCII, LF endings, and zero occurrences of the Windows account name,
+`AppData`, `Users`, `FactoryGame`, `SaveGames` or even this project's own root
+directory name. Non-negotiables 3, 4, 11 and 12 all bear on a note that leaves
+this tree, and a read-only measurement reported outward can carry personal data
+without writing a byte here - which is the A1 output filter this project owes RC
+in writing, still unfiled and still unbuilt.
+
+**THIS RECORD IS THE WHOLE OF THE OUTBOUND MEMORY, AND THAT IS CS-951'S POINT
+DEMONSTRATED RATHER THAN ARGUED.** Nothing in this repository observed the send.
+No tool wrote it down, no watcher will notice if a destination later deletes the
+note, and the only reason a future session can know it happened is that a human
+instruction produced this paragraph. Four deliveries were made and the mechanism
+that would record them does not exist. CS-951 stays open and is now the item
+with a live example attached.
+
+**WHAT CLOSING DOES NOT BUY, stated so the close is not over-read.** Three hook
+properties remain unmeasured and are filed as CS-956: whether a hook in a
+TRACKED settings file fires at all in an untrusted fresh clone, whether a
+non-zero-exit hook's stdout reaches the transcript, and whether `python` in a
+hook command resolves to the toolchain-bearing interpreter. Two of those three
+are load-bearing in the refusal recorded below - they are why the grant was not
+spent - and this project acted on them without having measured them itself.
+That is the honest shape of the decision and CS-956 exists to correct it.
+
+**VERIFICATION.** `tests/test_session_start_wiring.py`, 6 arms, green against
+HEAD. Whole suite green on the committed tree: 5954 passed, 6 skipped, exit 0.
+
 ### 2026-09-08 - CS-952 - NOT A COMPLETION RECORD. A frozen-file grant was issued and deliberately NOT SPENT; the claim was corrected instead, and the guard that would have caught it twice earlier now exists
 
 **CS-952 STAYS OPEN and this entry does not close it.** The repository half of its acceptance is

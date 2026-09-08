@@ -8646,3 +8646,60 @@ genuinely moved.
 
 **THE OPERATOR-FACING HALF STILL STANDS.** Do not commit while a push is in
 flight. The guard narrows the window; it does not make the discipline unnecessary.
+
+## CS-952 - relocated from `docs/item_notes/phase4-followups-900.md` 2026-09-08 on closure
+
+Relocated whole and unedited when the item closed, per the membership rule: a
+closed item's detail leaves the live leaf. The closing record is in
+`docs/LEDGER.md`; this is the working detail behind it.
+
+### CS-952 - the item as it stood at closure
+
+### FILED 2026-09-07 (session 73), self-disclosed
+
+The `SessionStart` wiring lives in `.claude/settings.local.json`, which
+`.gitignore:150` excludes. A fresh clone of this project runs no watcher at all,
+while this project has been publishing "fires without the operator asking" as
+YES on the channel. The property is true of THIS WORKING COPY and false of the
+repository, and those were reported as the same thing.
+
+**THIS IS THE FRESH-CLONE RULE IN CLAUDE.md SECTION 2.2 WEARING A DIFFERENT
+HAT** - a fresh clone runs zero protection until someone wires it - and the
+watcher was never brought under that bootstrap.
+
+**TOUCHING `.claude/settings.json` NEEDS THE SECTION 6 FROZEN-FILE GRANT**,
+routed through an adjudicator and recorded in `docs/LEDGER.md` BEFORE the edit.
+No session grants itself the exception. The correction half of the acceptance -
+publishing the honest answer - needs no grant and can go first.
+
+At least one sibling has disclosed the identical hole in its own tree, so the
+checker that would catch it must be run against its author before it is run
+against anyone else.
+
+### MEASURED 2026-09-08 (session 75) - the tracking branch was granted and REFUSED
+
+**THE REPOSITORY HALF IS DONE. THE CHANNEL HALF IS WHAT KEEPS THIS ITEM OPEN.**
+Full record in `docs/LEDGER.md`; only the live instruction is here.
+
+The grant was sought and issued, then not spent. `moon_sync_inbox/` is itself
+gitignored, so a fresh clone has NO CHANNEL, `tools/inbox_watch.py` answers that
+with exit 3, and a `SessionStart` hook exiting non-zero has its stdout dropped.
+Tracked wiring would have fired, failed and said nothing in every clone and
+every worktree. **DO NOT RE-PITCH tracking the wiring on the argument that it
+makes the CLAUDE.md row true - it does not, and the measurement is above.** If
+someone wants the tracked hook anyway, the thing to fix FIRST is that a clone
+has no channel, and that is a different item.
+
+**WHAT REMAINS, and it is the only thing.** The property was published to
+sibling repositories on the channel. Those are outbound notes this repository
+does not hold - which is CS-951's subject - so the correction is a SEND, and a
+send is an outward-facing action the operator authorises. The draft correction
+is one paragraph: the watcher fires here and does not ship, a clone has no
+channel to watch anyway, and any sibling that adopted the design should check
+which of the two it has.
+
+**THREE THINGS STAY UNMEASURED and no green may be cited against them:** whether
+a hook in a TRACKED project settings file fires at all in an untrusted fresh
+clone; whether a hook's stdout reaches the transcript when it exits non-zero;
+and whether `python` in a hook command resolves to the toolchain-bearing
+interpreter, which is guarded for `PreToolUse` and for nothing else.
