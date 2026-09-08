@@ -160,6 +160,116 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-08 - CS-954 - CLOSED. The pre-push gate reads the ref list it had ignored since it was written, and refuses a ref that moved under its verdict
+
+**THE ACCEPTANCE IS MET ON ITS SECOND BRANCH.** The item asked for either a push
+that cannot ship a ref the hook did not grade, or a hook that refuses when the
+ref moves under it, **proven by a real push whose local ref is advanced mid-hook
+and which is BLOCKED rather than shipped.** That is
+`tests/test_pre_push_ref_race.py::test_a_ref_advanced_mid_hook_is_refused_rather_than_shipped`,
+which drives a real `git push` at a throwaway bare remote with the branch
+advanced during the hook, and which was demonstrated RED against the pre-fix
+hook before the change landed.
+
+**WHAT CLOSES IS THE ITEM, NOT THE RACE, and the distinction is the point.** The
+repair NARROWS the window to the gap between the hook returning and git
+resolving what to send. That residual is unbounded and unmeasured. The hook's
+own comment block says so, the item note says so, and this record says so -
+condition 10 of the grant required exactly that, because a gate that overstates
+its coverage is the failure this project keeps finding.
+
+**THE MECHANISM WAS NEVER ESTABLISHED, AND THE REPAIR DOES NOT DEPEND ON IT.**
+The item forbade writing the mechanism down as though it were known, and the
+reproduction is why that was right: two controlled runs - one over a plain local
+path, one over `file://` - advanced the local ref mid-hook and BOTH shipped
+exactly the SHA the hook was handed, with a control proving the ref really had
+moved by the time the hook returned. The real incident used HTTPS to the forge
+and the difference is unexplained. The check therefore grades the hook's own
+REFUSAL and never git's transport, and is safe either way: if git ships the
+graded SHA the check never fires, and if it ships a later one the push is
+blocked before it can.
+
+**THE INCIDENT WAS CONFIRMED INDEPENDENTLY BEFORE ANYTHING WAS REPAIRED**, which
+the item demanded. Three artifacts agree: the tracking reflog recorded the push
+to the graded commit at 18:28:04 -0500; the local reflog recorded the later
+commit created at 18:27:44 -0500, inside that push; and `gh run list --commit`
+on the FULL 40-character SHA of the graded commit returns EMPTY, while exactly
+one push-event run exists for the later commit, created three seconds after the
+ref update. **No CI run has ever existed for the commit the hook graded.**
+
+**BACKFILL: nothing was left behind. THE SET CHECKED was the 25 most recent
+`update by push` entries on `refs/remotes/origin/main`**, asking of each whether
+any CI run has ever existed for the SHA that push recorded. **Exactly one came
+back zero** - the incident's own graded commit - so the defect fired once in
+that window and the test is a precise detector rather than a noisy one. Nothing
+is corrupt and nothing needs regenerating: the defect is a gate that failed to
+run, not a producer, so it wrote no artifact; the commit that shipped ungraded
+was graded by CI immediately afterwards and that run succeeded.
+
+**THE SIBLING WAS FOUND BY MECHANISM AND FILED RATHER THAN FIXED.** Searching
+for the shape - a gate whose verdict names a value that can change before the
+guarded action completes - rather than for the symptom string found
+`.githooks/pre-commit` with `tools/precommit_gate.py --staged`: it grades THE
+INDEX and git then builds the commit from the index, so a stage landing while
+the hook runs is committed ungraded. **Filed as CS-955.** It was not fixed here
+because it is a different frozen file and this item's grant is single-use and
+covers no other frozen path. `.githooks/commit-msg` is the same family and is
+already owned by CS-813; CS-704 is the same consequence by a different mechanism
+and is already filed.
+
+**IT WAS REFUTED ONCE AND REPAIRED, AND THE REPAIR MATTERED.** A read-only
+adversary graded the change at its frozen SHA with the does-it-reproduce lens. It
+CONFIRMED the load-bearing claim independently - restoring the pre-fix hook into
+a scratch copy and measuring `2 failed` there against `4 passed` after, with both
+controls live - and then found four defects the author had not:
+
+1. **A HANG THE REPAIR ITSELF INTRODUCED.** Reading stdin unconditionally makes
+   the hook wait forever for an end-of-file a TERMINAL never sends, so anyone
+   running the file by hand got a hang where they used to get an exit. Repaired
+   with an `[ -t 0 ]` guard that refuses to read a terminal at all. The arm that
+   was supposed to cover this asserted only CLOSED stdin while its docstring
+   claimed to cover "the way a person debugging it would" invoke the hook - which
+   is the terminal case, and was the one case that hung. The docstring now says
+   what the arm actually covers, and what it still does not.
+2. **CONDITION 5 WAS IMPLEMENTED AND UNGRADED.** Deleting the zero-sha skip from
+   the hook left all four arms green while a real `git push --delete` went from
+   accepted to BLOCKED. A condition no arm can fail is a sentence, not a
+   guarantee. `test_deleting_a_ref_is_not_refused_by_the_ref_check` now kills
+   that mutant - verified by applying it, watching the arm go RED, and restoring
+   from a byte snapshot rather than from git.
+3. **THE RACE ARM COUNTED THE REFUSAL WITHOUT ATTRIBUTING IT.** `returncode != 0`
+   is satisfied by any non-zero push exit, so a network failure would have
+   satisfied CS-954's acceptance. The arm now asserts the hook's own banner.
+4. **A PATH LEAKED THROUGH PYTEST'S EXPRESSION RENDERING**, on the very run that
+   proved the mutant died. The message was clean; `assert deleted.returncode == 0`
+   renders the whole `CompletedProcess` independently of it, absolute sandbox path
+   included. Bound to a scalar first - non-negotiables 3 and 12.
+
+**THE GRANT IS SPENT.** Its record is the entry below this one, and all fifteen
+conditions were applied - condition 12 only after the refutation, since satisfying
+it was part of applying the grant rather than a second use of it. The scope held: two additive regions and their comment
+block, with the CS-703 probe, the interpreter ladder, the pytest importability
+check, the entire CS-906 invocation block, the exit-5 guard and the exit path
+byte-identical.
+
+**THE COMMON-MODE RISK IS CARRIED FORWARD, not discharged.** The check reads the
+LOCAL REF as the authority on what ships, so any mechanism resolving the shipped
+SHA elsewhere - a packed-refs versus loose-ref disagreement, or a resolution
+inside the HTTPS remote helper that never touches the loose ref - defeats it
+silently. It would have fired on this incident, because the local ref genuinely
+moved.
+
+**THE OPERATOR-FACING HALF STILL STANDS.** Do not commit while a push is in
+flight. The guard narrows the window; it does not retire the discipline.
+
+**VERIFY INDEPENDENTLY:** `tests/test_pre_push_ref_race.py` - four arms, all
+driving the real tracked hook bytes:
+`test_the_wired_hook_is_a_byte_identical_copy_of_the_tracked_hook`,
+`test_an_unraced_push_is_still_accepted`,
+`test_the_hook_does_not_block_when_stdin_is_closed`, and
+`test_a_ref_advanced_mid_hook_is_refused_rather_than_shipped`.
+Merged file: `.githooks/pre-push`.
+
 ### 2026-09-08 - CS-954 - FROZEN-FILE GRANT, recorded BEFORE the edit per CLAUDE.md section 6
 
 **This is a grant record, not a completion record.** It authorizes ONE edit to

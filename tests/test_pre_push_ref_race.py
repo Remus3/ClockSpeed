@@ -331,9 +331,16 @@ def test_the_hook_does_not_block_when_stdin_is_closed(
 ) -> None:
     """The check reads stdin, and a blocking read is a HANG rather than a failure.
 
-    A hung hook reads as a wedged suite and gets killed rather than diagnosed, so
-    this arm exists to make that failure mode loud and bounded. The hook is
-    invoked directly, the way a person debugging it would, with stdin closed.
+    WHAT THIS ARM COVERS IS EXACTLY CLOSED STDIN, and the docstring says so
+    because its first version did not. It claimed to cover "the way a person
+    debugging it would" invoke the hook - and a person debugging it runs it from
+    a TERMINAL, which was the one case the arm did not exercise and the one case
+    that hung. The hook now refuses to read a terminal at all; that guard cannot
+    be exercised here, because a pseudo-terminal is not portable to this suite.
+
+    STILL UNCOVERED AND DELIBERATELY SO: stdin held open by another process
+    blocks, as it would for any program reading to end-of-file. Real ``git push``
+    always closes the pipe.
     """
     box = make_sandbox(tmp_path, isolated, seconds=0.0)
     proc = subprocess.run(
@@ -375,6 +382,43 @@ def test_a_ref_advanced_mid_hook_is_refused_rather_than_shipped(
         "the hook accepted a push whose ref moved out from under its verdict - "
         f"CS-954:\n{race.report}"
     )
+    # ATTRIBUTE THE REFUSAL, do not merely count it. A bare `returncode != 0`
+    # is satisfied by ANY non-zero push exit - a network failure, a rejected
+    # non-fast-forward, a red suite - so without this the arm would accept an
+    # unrelated failure as evidence that CS-954's check fired.
+    assert any("moved while the suite ran" in line for line in race.hook_said), (
+        "the push failed, but not because of the CS-954 ref check - so this arm "
+        f"would pass on an unrelated failure:\n{race.report}"
+    )
     assert race.remote_tip != race.advanced_tip, (
         f"the ungraded mid-hook commit reached the remote - CS-954:\n{race.report}"
     )
+
+
+def test_deleting_a_ref_is_not_refused_by_the_ref_check(
+    tmp_path: Path, isolated: Environment
+) -> None:
+    """A delete sends the all-zero id as the local sha; nothing was graded.
+
+    THIS ARM EXISTS BECAUSE THE SKIP WAS IMPLEMENTED AND UNGRADED. An adversary
+    deleted the zero-sha branch from the hook and all four arms stayed green,
+    while a real delete went from accepted to BLOCKED. A condition that no arm
+    can fail is a sentence, not a guarantee.
+    """
+    box = make_sandbox(tmp_path, isolated, seconds=0.5)
+    pushed = race_a_push(box, advance=False)
+    assert not pushed.blocked, f"the sandbox branch would not push:\n{pushed.report}"
+
+    deleted = run_git(box, "push", "origin", "--delete", SANDBOX_BRANCH)
+    said = hook_output(deleted.stderr)
+    # BOUND TO A SCALAR BEFORE ASSERTING, and this is not style. pytest rewrites
+    # the asserted EXPRESSION and renders it independently of the message, so
+    # `assert deleted.returncode == 0` prints the whole CompletedProcess - argv,
+    # stdout and stderr - which carries the sandbox's absolute path under the
+    # operator's profile. Measured here: it leaked one on the run that proved
+    # this arm kills its mutant. Non-negotiables 3 and 12.
+    code = deleted.returncode
+    assert code == 0, (
+        "the hook refused a ref DELETE, which grades nothing and ships nothing:\n" + "\n".join(said)
+    )
+    assert not remote_tip(box), "the branch is still on the remote after a delete"

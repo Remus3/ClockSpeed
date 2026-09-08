@@ -838,3 +838,118 @@ Citing that note by a repo-shaped path is what the first draft of this section
 did, and the citation ladder caught it: no tracked path is it or ends with it.
 Worth keeping as its own small finding, since the two stores have the same
 directory name and only one of them is in the repository.
+
+### MEASURED 2026-09-08 (session 74): the reproduction, and what it refuted
+
+**THE FIRST ACT WAS THE REPRODUCTION, as this section demanded, and it did NOT
+reproduce.** Two controlled runs in throwaway repositories - one with the remote
+as a plain local path, one over `file://`, which uses receive-pack rather than
+git's direct-local shortcut - advanced the local ref during a deliberately
+slowed hook and BOTH shipped exactly the SHA the hook was handed.
+
+**THE CONTROL IS WHAT MAKES THAT A MEASUREMENT.** The reproduction hook recorded
+the ref at its own entry and again at its own exit. Entry showed the graded
+commit and exit showed the later one, so the race window was real and the
+advance genuinely landed inside it. The push then shipped the graded commit
+anyway.
+
+    handed to the hook on stdin : refs/heads/main <B> refs/heads/main <A>
+    ref as the hook STARTED     : <B>
+    ref as the hook RETURNED    : <C>      <- the advance landed
+    what git PRINTED            : <A>..<B>
+    what the REMOTE holds       : <B>      <- the graded commit, not <C>
+
+**SO "GIT RE-RESOLVES AFTER THE HOOK RETURNS" IS REFUTED FOR LOCAL TRANSPORTS ON
+THIS GIT, and the incident's mechanism remains UNESTABLISHED.** The real incident
+used HTTPS to the forge. The difference is unexplained and is not written down as
+though it were understood. What would settle it: `GIT_TRACE_PACKET=1` with
+`GIT_TRACE=1` on a real HTTPS push whose ref is advanced mid-hook, capturing the
+update command actually sent.
+
+### THE INCIDENT IS CONFIRMED INDEPENDENTLY, and the forge is the witness
+
+The filed account rested on one session's observation. Three artifacts now agree:
+
+- `git reflog show refs/remotes/origin/main` records `update by push` to the
+  graded commit at 18:28:04 -0500; the local reflog records the later commit
+  created at 18:27:44 -0500, inside that push.
+- `gh run list --commit` on the FULL 40-character SHA of the graded commit
+  returns EMPTY. **No CI run has ever existed for the commit the hook graded.**
+- Exactly one push-event CI run exists for the later commit, created three
+  seconds after the ref update.
+
+One push event, and its tip was never graded by anything local.
+
+**STRONGER THAN FILED, and found by the adjudicator rather than by the author:
+git's own ref-update report disagreed with what shipped.** The tracking reflog
+named the graded commit while CI and the later fetch fast-forward both show the
+remote took the later one. Git's reporting path and its shipping path already
+disagreed once in this incident, which is why no arm added for this item uses a
+remote-tracking ref as its witness.
+
+### THE ROOT, in one sentence
+
+**The hook graded the working tree and never learned which commits were being
+pushed, because it never read its stdin** - every redirect in the file was
+`</dev/null` and nothing consumed the ref list git supplies - **so its verdict
+named a value that was free to change before the transfer happened.**
+
+### BACKFILL: nothing was left behind, and here is the set that was checked
+
+**THE SET: the 25 most recent `update by push` entries on
+`refs/remotes/origin/main`.** For each, whether any CI run has ever existed for
+the SHA that push recorded. **Exactly one came back zero** - the incident's own
+graded commit. Every other push in the window recorded a SHA that CI did run on.
+
+So the defect fired ONCE in the last 25 pushes, and "the SHA a push recorded has
+no CI run" is a precise detector for it rather than a noisy one.
+
+**NOTHING IS CORRUPT AND NOTHING NEEDS REGENERATING.** The defect wrote no
+artifact - it is a gate that failed to run, not a producer. The commit that
+shipped ungraded was graded by CI immediately afterwards and its run succeeded,
+and later pushes re-graded the same tree. No ledger entry, cached registry,
+normalized artifact, card id or world-token key was computed by the defective
+path, because the defective path computes nothing.
+
+### THE SIBLING, found by MECHANISM and FILED rather than fixed
+
+Searching for the shape - **a gate whose verdict names a value that can change
+before the guarded action completes** - rather than for the symptom string:
+
+- **`.githooks/pre-commit` with `tools/precommit_gate.py --staged` is the same
+  defect one level down.** The gate reads the bytes FROM THE INDEX, and git then
+  builds the commit from the index, so a stage landing while the hook runs is
+  committed ungraded. The window is far narrower - the gate is fast where the
+  pre-push suite is minutes - but the mechanism is identical. **FILED AS CS-955,
+  not fixed here:** it is a different frozen file, and this item's grant is
+  single-use and explicitly covers no other frozen path.
+- **`.githooks/commit-msg` is the same family and is ALREADY OWNED by CS-813** -
+  cleanup runs after the hook, so every check there PREDICTS the stored bytes
+  rather than observing them. Excluded as already filed.
+- **CS-704 is the same consequence by a different mechanism** - rebase,
+  cherry-pick, revert, am and `--no-verify` fire no hook at all. Excluded as
+  already filed.
+
+### WHAT THE REPAIR DOES AND DOES NOT DO
+
+The hook now captures the ref list once, before the interpreter ladder, and
+after a GREEN suite re-reads each pushed ref; a ref that no longer resolves to
+what git handed it blocks the push. **This NARROWS the window to the gap between
+the hook returning and git resolving what to send. It does NOT close it, that
+residual is unbounded and unmeasured, and nothing here claims otherwise.**
+
+**THE CHECK IS MECHANISM-AGNOSTIC ON PURPOSE**, because the mechanism is not
+established: whichever half is true, the outcome is safe - either git ships the
+graded SHA and the check never fires, or it ships a later one and the push is
+blocked before it can.
+
+**THE COMMON-MODE RISK, recorded rather than discharged.** Both reproductions
+and the check read the LOCAL REF as the authority on what ships. A mechanism
+where the shipped SHA comes from somewhere else - a packed-refs versus loose-ref
+disagreement, or a resolution inside the HTTPS remote helper that never touches
+the loose ref - defeats the check silently, and neither the reproduction nor the
+check tests it. It would have fired on THIS incident, because the local ref
+genuinely moved.
+
+**THE OPERATOR-FACING HALF STILL STANDS.** Do not commit while a push is in
+flight. The guard narrows the window; it does not make the discipline unnecessary.

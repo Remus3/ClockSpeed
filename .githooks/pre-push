@@ -57,7 +57,23 @@ die() {
 # EMPTY STDIN IS LOUD AND DOES NOT REFUSE. `git push` with nothing to do, and a
 # hand-run or test invocation of this hook, both arrive that way. A silent no-op
 # there would be indistinguishable from a check that never ran.
-CS_REFS=$(cat)
+#
+# A TERMINAL IS NOT READ AT ALL, and this guard is a REGRESSION REPAIR rather
+# than a precaution. The first version of this block read stdin unconditionally,
+# and an adversary measured what that does when someone runs this file by hand:
+# `cat` waits for an end-of-file the terminal never sends, so the hook HANGS
+# FOREVER where it used to exit. A hung gate reads as a wedged suite and gets
+# killed rather than diagnosed, which is worse than either answer.
+#
+# WHAT THIS DOES NOT COVER, stated rather than implied: stdin held open by
+# another process - a pipe whose writer never exits - still blocks here, exactly
+# as it would for any program that reads until end-of-file. Real `git push`
+# always closes the pipe, so that case is reachable only by constructing it.
+if [ -t 0 ]; then
+    CS_REFS=""
+else
+    CS_REFS=$(cat)
+fi
 
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || ROOT=""
 if [ -z "$ROOT" ]; then
