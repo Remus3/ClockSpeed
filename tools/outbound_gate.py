@@ -80,7 +80,9 @@ treats 3 as advisory would otherwise send a payload carrying a home path.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib.util
+import os
 import re
 import sys
 from dataclasses import dataclass
@@ -89,7 +91,7 @@ from types import ModuleType
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
-    from collections.abc import Sequence
+    from collections.abc import Iterable, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PRECOMMIT_GATE = REPO_ROOT / "tools" / "precommit_gate.py"
@@ -131,25 +133,59 @@ CLASS_REASONS = {
     CLASS_WORLD_TOKEN: "a world token for this machine appears",
     CLASS_CREDENTIAL: "a credential shape",
     CLASS_UNATTRIBUTED: (
-        "the commit gate's scan found more than this gate attributed; "
-        "refusing rather than guessing which class it was"
+        "the commit gate's scan disagreed with this gate's attribution; "
+        "refusing rather than reporting a total it cannot explain"
     ),
 }
 
-#: Classes derivable with no machine state at all. These two are the reason a
-#: bare CI box still grades something rather than reporting a uniform silence.
-ALWAYS_MEASURABLE = frozenset({CLASS_HOME_PATH, CLASS_CREDENTIAL})
+#: THE OUTBOUND GATE'S OWN EXCLUSION CHANNEL, AND WHY IT MUST NOT SHARE THE
+#: COMMIT GATE'S. Measured 2026-09-08 by a read-only adversary: the commit
+#: gate's `world_name_exclusions` key is consumed inside `discover_world_names`,
+#: which `PiiMatchers.__init__` calls for BOTH gates. So an operator silencing
+#: an outbound false positive through that key ALSO blinds
+#: `tools/precommit_gate.py` - a CLAUDE.md section 6 frozen file - to that same
+#: real world name, permanently, for every future commit. Demonstrated, not
+#: argued: the commit gate's diagnostics on a payload carrying that name went
+#: 1 to 0 while the blocklist went 25 to 17.
+#:
+#: That converts an over-fire from "a send a human then edits" into a certain,
+#: invisible, cross-gate fail-open, which is the exact trade the commit gate's
+#: own source says must never be made. So this gate reads its OWN key and
+#: applies it to its OWN verdict only. The value never reaches `PiiMatchers`.
+#: SUPPRESSING AN OUTBOUND FALSE POSITIVE MUST NEVER BE DONE THROUGH THE COMMIT
+#: GATE'S KEY.
+ENV_OUTBOUND_EXCLUSIONS = "CLOCKSPEED_OUTBOUND_EXCLUSIONS"
 
-#: What each class's coverage row says when it IS measured. A count of derived
-#: spellings is safe to print; a spelling is not, and none is ever printed.
-MEASURED_BY_RULE = "anchored shape rules, no machine state required"
+#: Classes whose short values are WARNED about rather than refused, and the
+#: length at or below which that applies. MEASURED on 217 files: every
+#: world-name finding in the corpus came from a length-4 name, and no name of
+#: length 12 or more ever fired. A short discovered value is an ordinary word
+#: before it is a world, and this project's own vocabulary and its world names
+#: are drawn from the same semantic well - one world named `run` made 46 of 79
+#: real outbound notes unsendable.
+#:
+#: A HIGHER FLOOR WAS THE OBVIOUS FIX AND IS THE WRONG ONE. The commit gate
+#: already denied it by measurement: a floor of 5 drops 8 of the 25 real names
+#: on this machine out of the COMMIT gate too. Warning keeps the value graded
+#: and visible while leaving the send possible, which a dropped floor does not.
+WARN_SHORT_CLASSES = frozenset({CLASS_WORLD_NAME, CLASS_ACCOUNT_NAME})
+WARN_SHORT_CHARS = 5
+
+#: The canaries the always-derivable classes are PROVEN against rather than
+#: assumed. Assembled from fragments because this gate's own source is scanned
+#: by the commit gate, and a spelled-out home path or credential here would
+#: block the commit that adds it - the same reason the commit gate assembles
+#: its own.
+CANARY_WIN_HOME = "C:" + "\\" + "Users" + "\\" + "canary" + "\\" + "file.txt"
+CANARY_NIX_HOME = "/" + "home" + "/canary" + "/file.txt"
+CANARY_CREDENTIAL = "AKIA" + ("Q7" * 8)
 
 TOOL = "outbound-gate"
 
 
 @dataclass(frozen=True)
 class Finding:
-    """One refusal, carrying a position and a class and never a value."""
+    """One hit, carrying a position and a class and never a value."""
 
     klass: str
     line: int
@@ -163,6 +199,81 @@ class Coverage:
     klass: str
     measured: bool
     reason: str
+
+
+class QuietParser(argparse.ArgumentParser):
+    """An argument parser that never echoes what it was given.
+
+    MEASURED 2026-09-08 by a read-only adversary: the stock parser's error path
+    writes `unrecognized arguments: <argv>` to stderr and exits before any of
+    this module's path-free renderers exist. The ordinary slip of passing the
+    payload as an argument instead of on stdin therefore printed the whole
+    ungraded payload - home path, world name and token included. The proof was
+    that feeding this gate its own exit-2 stderr made it refuse to send it.
+
+    `--help` maps to the usage code rather than 0 for a second reason from the
+    same pass: 0 means CLEAN in this gate's closed set, and a help run scanned
+    nothing. A caller branching on 0 would read a help text as a clean verdict.
+    """
+
+    def error(self, message: str) -> None:  # type: ignore[override]  # noqa: ARG002
+        """Report a usage error without quoting the argument vector."""
+        write_stream(sys.stderr, "%s: usage error; nothing was scanned\n" % TOOL)
+        raise SystemExit(EXIT_USAGE)
+
+    def exit(self, status: int = 0, message: str | None = None) -> None:  # type: ignore[override]
+        """Leave through the usage code, never through CLEAN."""
+        if message:
+            write_stream(sys.stderr, message)
+        raise SystemExit(EXIT_USAGE if status == 0 else status)
+
+
+def write_stream(stream: object, payload: str) -> None:
+    """Write to a stream, tolerating one that has gone away.
+
+    MEASURED: `sys.stdout.write` sat outside this module's guard, so a run
+    piped into a consumer that closes stdin exited 120 - a code outside the set
+    this gate's own docstring tells a caller to branch on. A caller written as
+    `if code == REFUSED: block else: send` therefore SENT a payload carrying a
+    home path. The verdict must survive the reporting of it.
+    """
+    try:
+        stream.write(payload)  # type: ignore[attr-defined]
+        stream.flush()  # type: ignore[attr-defined]
+    except (OSError, ValueError, AttributeError):
+        _neutralise(stream)
+
+
+def _neutralise(stream: object) -> None:
+    """Point a broken stream at the null device so shutdown cannot re-raise.
+
+    SWALLOWING THE WRITE IS NOT ENOUGH, and the first repair of this defect
+    stopped there and did not work. Measured: a refusal piped into a consumer
+    that closes the pipe still exited 120 on three of three runs, because the
+    failed flush leaves the payload in the buffer and CPython flushes again
+    during interpreter shutdown - after main has returned its verdict, where no
+    handler of this module's can reach it. The interpreter reports that as
+    `Exception ignored` and overrides the exit status with 120, a code outside
+    the closed set a caller was told to branch on.
+
+    Redirecting the underlying file descriptor at the null device discards the
+    buffer's destination, so the shutdown flush succeeds against nothing and
+    the verdict survives its own reporting.
+    """
+    try:
+        fileno = stream.fileno()  # type: ignore[attr-defined]
+    except (OSError, ValueError, AttributeError):
+        return
+    try:
+        null = os.open(os.devnull, os.O_WRONLY)
+    except OSError:
+        return
+    try:
+        with contextlib.suppress(OSError):
+            os.dup2(null, fileno)
+    finally:
+        with contextlib.suppress(OSError):
+            os.close(null)
 
 
 def load_precommit_gate() -> ModuleType:
@@ -190,6 +301,17 @@ def load_precommit_gate() -> ModuleType:
     return module
 
 
+def outbound_exclusions() -> frozenset[str]:
+    """The values this gate alone suppresses, folded for comparison.
+
+    Read from this gate's OWN environment key and never from the commit gate's
+    configuration. See ENV_OUTBOUND_EXCLUSIONS for the measurement that forced
+    the split.
+    """
+    raw = os.environ.get(ENV_OUTBOUND_EXCLUSIONS, "")
+    return frozenset(part.strip().casefold() for part in raw.split(",") if part.strip())
+
+
 def _skip_reason(skipped: Sequence[tuple[str, str]], label: str, hint: str) -> str:
     """The discovery channel's own words for why a class was not derived.
 
@@ -209,7 +331,7 @@ def _skip_reason(skipped: Sequence[tuple[str, str]], label: str, hint: str) -> s
     return "no value of this class is discoverable on this machine"
 
 
-def _matches(patterns: Sequence[re.Pattern[str]], text: str, klass: str) -> list[Finding]:
+def _matches(patterns: Iterable[re.Pattern[str]], text: str, klass: str) -> list[Finding]:
     """Every position `patterns` match in `text`, tagged with `klass`."""
     found: list[Finding] = []
     for lineno, line in enumerate(text.split("\n"), 1):
@@ -220,42 +342,128 @@ def _matches(patterns: Sequence[re.Pattern[str]], text: str, klass: str) -> list
     return found
 
 
-def scan(text: str) -> tuple[list[Finding], list[Coverage]]:
-    """Grade `text`, returning its findings and one coverage row per class.
+def _valued_matches(
+    gate: ModuleType,
+    values: Sequence[str],
+    text: str,
+    klass: str,
+    fold: bool,
+) -> tuple[list[Finding], list[Finding], list[Finding], int]:
+    """Scan `values` one at a time, splitting hits into refusals and warnings.
+
+    ONE VALUE AT A TIME, through the commit gate's own `_word_res`, so the
+    escaping and folding semantics are the gate's rather than a reimplementation
+    of them - and so each hit is attributable to the LENGTH of the value that
+    produced it. A pooled compile cannot tell a four-character world from a
+    thirty-six character one, and that distinction is the whole of the warn
+    tier.
+
+    Returns (refusals, warnings, suppressed, excluded_count).
+
+    SUPPRESSED POSITIONS ARE RETURNED RATHER THAN DISCARDED, and that is not
+    bookkeeping. The oracle below treats any position it found that this gate
+    did not as `unattributed` and refuses on it. A value suppressed by this
+    gate's own exclusion key is still matched by `check_pii`, so discarding its
+    positions made the oracle fire on exactly the value the operator had
+    excluded - measured: the exclusion suppressed the class and the run still
+    exited 1. The exclusion has to be visible to the reconciliation or it is
+    not an exclusion at all.
+    """
+    excluded = outbound_exclusions()
+    refusals: list[Finding] = []
+    warnings: list[Finding] = []
+    suppressed: list[Finding] = []
+    dropped = 0
+    for value in values:
+        if value.casefold() in excluded:
+            dropped += 1
+            patterns = gate._word_res([value], fold=fold)  # noqa: SLF001
+            suppressed.extend(_matches(patterns, text, klass))
+            continue
+        # SLF001: the commit gate's own compiler is used deliberately. Its
+        # escaping and word-boundary semantics are the contract being
+        # matched against, and reimplementing them here would be a second
+        # copy free to drift from the one that grades commits.
+        patterns = gate._word_res([value], fold=fold)  # noqa: SLF001
+        hits = _matches(patterns, text, klass)
+        if klass in WARN_SHORT_CLASSES and len(value) <= WARN_SHORT_CHARS:
+            warnings.extend(hits)
+        else:
+            refusals.extend(hits)
+    return refusals, warnings, suppressed, dropped
+
+
+def _canary_measured(patterns: Iterable[re.Pattern[str]], canaries: Sequence[str]) -> bool:
+    """Whether these rules still match values built to be matched.
+
+    DERIVED RATHER THAN ASSERTED, and the difference is the item's own subject.
+    The first draft carried a hardcoded set of always-measurable classes, so the
+    two rows that need no machine state said MEASURED without consulting
+    anything - meaning a silently weakened home-path rule would leave the
+    coverage block reassuring while nothing was caught. That is the shape of the
+    defect this gate exists to repair, reproduced inside it. A canary makes the
+    row a measurement.
+    """
+    return all(any(pattern.search(canary) for pattern in patterns) for canary in canaries)
+
+
+def scan(text: str) -> tuple[list[Finding], list[Finding], list[Coverage]]:
+    """Grade `text`. Returns (refusals, warnings, coverage rows).
 
     The coverage rows are built from the SAME `PiiMatchers` construction whose
-    matchers do the scanning, so a class cannot be reported measured by one
-    half and go unscanned by the other - which is precisely the split that made
-    the commit gate's stdin mode reassuring and empty.
+    values do the scanning, so a class cannot be reported measured by one half
+    and go unscanned by the other - which is precisely the split that made the
+    commit gate's stdin mode reassuring and empty.
     """
     gate = load_precommit_gate()
     report = gate.Report()
     matchers = gate.PiiMatchers(report)
     skipped = list(report.skipped)
 
-    findings: list[Finding] = []
-    findings.extend(_matches([gate.PII_WIN_HOME_RE], text, CLASS_HOME_PATH))
-    findings.extend(_matches([gate.PII_NIX_HOME_RE], text, CLASS_HOME_PATH))
-    findings.extend(_matches(matchers.name_res, text, CLASS_ACCOUNT_NAME))
-    findings.extend(_matches(matchers.id_res, text, CLASS_ACCOUNT_ID))
-    findings.extend(_matches(matchers.world_name_res, text, CLASS_WORLD_NAME))
-    findings.extend(_matches(matchers.world_token_res, text, CLASS_WORLD_TOKEN))
+    home_res = [gate.PII_WIN_HOME_RE, gate.PII_NIX_HOME_RE]
+    refusals = _matches(home_res, text, CLASS_HOME_PATH)
+    warnings: list[Finding] = []
+    suppressed: list[Finding] = []
+    dropped: dict[str, int] = {}
+
+    valued = (
+        (CLASS_ACCOUNT_NAME, matchers.account_names, True),
+        (CLASS_ACCOUNT_ID, matchers.account_ids, False),
+        (CLASS_WORLD_NAME, matchers.world_names, True),
+        (CLASS_WORLD_TOKEN, matchers.world_tokens, False),
+    )
+    for klass, values, fold in valued:
+        hits, warned, quiet, count = _valued_matches(gate, values, text, klass, fold)
+        refusals.extend(hits)
+        warnings.extend(warned)
+        suppressed.extend(quiet)
+        dropped[klass] = count
 
     secret_report = gate.Report()
     gate.check_secrets("outbound", text, secret_report)
-    findings.extend(
+    refusals.extend(
         Finding(CLASS_CREDENTIAL, diag.line, diag.col) for diag in secret_report.diagnostics
     )
 
-    # THE INDEPENDENT ORACLE. check_pii answers the same question through its
-    # own code path; if it finds more than this module attributed, the excess
-    # is a rule this module does not know about and the run refuses on it
-    # rather than reporting a total it cannot explain.
+    # THE INDEPENDENT ORACLE, COMPARED AS A SET AND NOT AS A COUNT. `check_pii`
+    # answers the same question through its own code path. The first draft
+    # compared LENGTHS, and an adjudicator demonstrated two equal-length
+    # disagreements cancelling: the oracle finding a hit at one column while
+    # this module reported another. Sets cannot cancel that way. Anything the
+    # oracle saw that this module did not becomes an `unattributed` refusal, so
+    # a rule this gate fails to attribute cannot become one it fails to enforce.
+    #
+    # WHAT THIS ORACLE CANNOT DO, stated rather than implied: it shares its
+    # matchers and its rule table with the thing it checks, so its ceiling is
+    # `check_pii` itself. A class the commit gate never learned to detect yields
+    # nothing from both halves. That residual is not closeable from this module.
     oracle = gate.Report()
     gate.check_pii("outbound", text, matchers, oracle)
-    attributed = sum(1 for finding in findings if finding.klass != CLASS_CREDENTIAL)
-    unattributed = max(0, len(oracle.diagnostics) - attributed)
-    findings.extend(Finding(CLASS_UNATTRIBUTED, 0, 0) for _ in range(unattributed))
+    seen = {(finding.line, finding.col) for finding in refusals + warnings + suppressed}
+    unattributed = {
+        (diag.line, diag.col) for diag in oracle.diagnostics if (diag.line, diag.col) not in seen
+    }
+    refusals.extend(Finding(CLASS_UNATTRIBUTED, line, col) for line, col in sorted(unattributed))
 
     populations = {
         CLASS_ACCOUNT_NAME: (matchers.account_names, gate.PII_ACCOUNT_NAME_LABEL, "account name"),
@@ -265,15 +473,30 @@ def scan(text: str) -> tuple[list[Finding], list[Coverage]]:
     }
     coverage: list[Coverage] = []
     for klass in CLASS_ORDER:
-        if klass in ALWAYS_MEASURABLE:
-            coverage.append(Coverage(klass, True, MEASURED_BY_RULE))
+        if klass == CLASS_HOME_PATH:
+            live = _canary_measured(home_res, (CANARY_WIN_HOME, CANARY_NIX_HOME))
+            coverage.append(
+                Coverage(klass, live, "canary matched" if live else "the rules failed their canary")
+            )
+            continue
+        if klass == CLASS_CREDENTIAL:
+            probe = gate.Report()
+            gate.check_secrets("canary", CANARY_CREDENTIAL, probe)
+            live = bool(probe.diagnostics)
+            coverage.append(
+                Coverage(klass, live, "canary matched" if live else "the rules failed their canary")
+            )
             continue
         values, label, hint = populations[klass]
         if values:
-            coverage.append(Coverage(klass, True, "%d spelling(s) discovered" % len(values)))
+            count = dropped.get(klass, 0)
+            detail = "%d spelling(s) discovered" % len(values)
+            if count:
+                detail += ", %d suppressed by %s" % (count, ENV_OUTBOUND_EXCLUSIONS)
+            coverage.append(Coverage(klass, True, detail))
         else:
             coverage.append(Coverage(klass, False, _skip_reason(skipped, label, hint)))
-    return findings, coverage
+    return refusals, warnings, coverage
 
 
 def _ascii(value: str) -> str:
@@ -288,7 +511,11 @@ def _ascii(value: str) -> str:
     return value.encode("ascii", "replace").decode("ascii")
 
 
-def render(findings: Sequence[Finding], coverage: Sequence[Coverage]) -> tuple[str, str]:
+def render(
+    refusals: Sequence[Finding],
+    warnings: Sequence[Finding],
+    coverage: Sequence[Coverage],
+) -> tuple[str, str]:
     """Return the (stdout, stderr) text for one run.
 
     The coverage block prints on EVERY run including a clean one, because its
@@ -297,24 +524,35 @@ def render(findings: Sequence[Finding], coverage: Sequence[Coverage]) -> tuple[s
     """
     out = [TOOL + ": coverage"]
     for row in coverage:
-        verdict = "MEASURED  " if row.measured else "UNMEASURED"
-        out.append("  %-14s %s  %s" % (row.klass, verdict, _ascii(row.reason)))
+        verdict_word = "MEASURED  " if row.measured else "UNMEASURED"
+        out.append("  %-14s %s  %s" % (row.klass, verdict_word, _ascii(row.reason)))
+    out.extend(
+        "  WARN  <pii:%s>  line %d col %d  a short discovered value; not refused"
+        % (warning.klass, warning.line, warning.col)
+        for warning in sorted(warnings, key=lambda f: (f.line, f.col, f.klass))
+    )
 
     err: list[str] = []
-    if findings:
+    if refusals:
         err.append(TOOL + ": REFUSED")
         err.extend(
             "  <pii:%s>  line %d col %d  %s"
             % (finding.klass, finding.line, finding.col, _ascii(CLASS_REASONS[finding.klass]))
-            for finding in sorted(findings, key=lambda f: (f.line, f.col, f.klass))
+            for finding in sorted(refusals, key=lambda f: (f.line, f.col, f.klass))
         )
-        err.append("%s: REFUSED - %d finding(s). Nothing was sent." % (TOOL, len(findings)))
+        err.append("%s: REFUSED - %d finding(s). Nothing was sent." % (TOOL, len(refusals)))
     return "\n".join(out) + "\n", ("\n".join(err) + "\n" if err else "")
 
 
-def verdict(findings: Sequence[Finding], coverage: Sequence[Coverage]) -> int:
-    """The exit code: a finding dominates, then an unmeasured class, then clean."""
-    if findings:
+def verdict(refusals: Sequence[Finding], coverage: Sequence[Coverage]) -> int:
+    """The exit code: a finding dominates, then an unmeasured class, then clean.
+
+    A WARNING NEVER CHANGES THE CODE. That is the point of the tier: the value
+    is named and its position printed, and the send remains possible, because a
+    gate that refuses routine prose is a gate that gets routed around - and a
+    routed-around gate restores exactly the hazard it was built to close.
+    """
+    if refusals:
         return EXIT_REFUSED
     if any(not row.measured for row in coverage):
         return EXIT_UNMEASURED
@@ -334,9 +572,19 @@ def read_payload(path: str | None) -> str:
     return data.decode("utf-8")
 
 
+def _refuse_ungraded(detail: str) -> int:
+    """Report a payload this gate could not grade, without echoing a path."""
+    write_stream(
+        sys.stderr,
+        "%s: REFUSED\n  <gate:error>  %s\n%s: REFUSED - the payload was not graded. "
+        "Nothing was sent.\n" % (TOOL, _ascii(detail), TOOL),
+    )
+    return EXIT_REFUSED
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Grade one payload and report. Writes nothing, reaches no network."""
-    parser = argparse.ArgumentParser(
+    parser = QuietParser(
         prog=TOOL,
         description="Grade outbound text for personal data and credentials before it is sent.",
     )
@@ -349,30 +597,37 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         text = read_payload(args.file)
-        findings, coverage = scan(text)
-    except Exception as exc:  # fail closed, see below
-        # FAIL CLOSED. Every failure here - an undecodable payload, an
-        # unreadable file, a matcher that raised - leaves the payload ungraded,
-        # and an ungraded payload must never read as a safe one. The exception
-        # is rendered through the commit gate's own path-free helper where that
-        # is loadable, because an OSError's str() carries the filename it
-        # failed on and that filename can be personal data.
+        refusals, warnings, coverage = scan(text)
+        out, err = render(refusals, warnings, coverage)
+        code = verdict(refusals, coverage)
+    except BaseException as exc:
+        # FAIL CLOSED, AND CATCH BaseException RATHER THAN Exception. Every
+        # failure here leaves the payload ungraded, and an ungraded payload must
+        # never read as a safe one. BaseException because a `SystemExit` raised
+        # inside the loaded commit gate would otherwise escape and print an
+        # interpreter traceback - and a traceback renders this file's absolute
+        # path per frame, which is personal data wherever the tool runs from a
+        # home-rooted checkout or worktree. That is the deployment this gate was
+        # written for, so the guard has to cover it.
+        if isinstance(exc, KeyboardInterrupt):
+            raise
         try:
             detail = load_precommit_gate().safe_exc_text(exc)
-        except Exception:  # the renderer is best-effort
+        except BaseException:  # the renderer is best-effort
             detail = type(exc).__name__
-        sys.stderr.write(
-            "%s: REFUSED\n  <gate:error>  %s\n%s: REFUSED - the payload was not graded. "
-            "Nothing was sent.\n" % (TOOL, _ascii(detail), TOOL)
-        )
-        return EXIT_REFUSED
+        return _refuse_ungraded(detail)
 
-    out, err = render(findings, coverage)
-    sys.stdout.write(out)
+    # The writes are INSIDE the guarded region by construction: write_stream
+    # swallows a stream that has gone away, so a broken pipe cannot turn a
+    # refusal into an exit code outside the closed set.
+    write_stream(sys.stdout, out)
     if err:
-        sys.stderr.write(err)
-    return verdict(findings, coverage)
+        write_stream(sys.stderr, err)
+    return code
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        raise SystemExit(EXIT_REFUSED) from None
