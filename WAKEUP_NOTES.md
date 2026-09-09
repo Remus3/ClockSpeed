@@ -34,6 +34,52 @@ the line becomes a pointer.
 
 ---
 
+## Session 76 - 2026-09-08 - the repaired sender was refuted on all four lenses, and the second cut's fault was the evidence rather than the code
+
+- Shipped: nothing CLOSED. CS-958's slice S1 merged and the item stays OPEN.
+  CS-959 FILED. Detail in `docs/LEDGER.md`, not here.
+
+- In flight: nothing. Tree clean, no worktrees, no stash.
+
+- THE SESSION DID EXACTLY WHAT SESSION 75 HANDED IT AND THE ANSWER WAS YES.
+  Four adversaries, four REFUTED verdicts, nine defects in a tool this project
+  had already called repaired once. Four demonstrated defects in a first cut is
+  a reason to expect the second cut is not clean; it was not.
+
+- THE SEVERE FINDING INVERTS THE TOOL'S PURPOSE. `grade()` takes bytes only, so
+  a note's FILENAME and a destination's NAME were never graded. The value the
+  gate REFUSES in content ships as a filename into every sibling inbox and is
+  recorded `gate_verdict: CLEAN`. The gate was in front of the payload and
+  beside everything else.
+
+- S1 MERGED AND ITS OWN FIRST CUT WAS REFUTED FIRST. The mechanism held against
+  a junction, a two-deep chain, an inbox-level junction, a subst drive and a UNC
+  root. The suite did not: three of four subtle mutants shipped a green 40 of
+  40, two restoring a measured finding of this item verbatim.
+
+- TWO EVIDENCE FAILURES WORTH CARRYING PAST THIS ITEM. A fixture built parallel
+  to the implementation is the shape that makes an arm agree with a bug - the
+  `.resolve()` mutant survived because pytest resolves `basetemp`. And a
+  monkeypatch that supplies the value under test converts an integration
+  property into a unit tautology - both arms patched `REPO_ROOT`, so the clause
+  was graded and the binding never was, while a copy running from a worktree
+  still delivered into the real inbox.
+
+- Decisions: none needing an ADR. F1/F2/F3 were decomposed as TWO ORDERED slices
+  rather than three parallel ones; the fence is in the ledger entry.
+
+- Surprises: none contradicting `BOOTSTRAP.md`. No spec update is owed.
+
+- Failed paths: `cd` into `moon_sync_inbox` to read a note bricked every shell
+  call for the rest of the turn, because the hooks resolve their own script path
+  from cwd. The memory that covers it named worktree removal as the trigger and
+  recommended a shim recovery that would have meant writing into a sibling's
+  inbox. Both corrected.
+
+- Next action: REFUTE THE S1 REPAIR. It answered an adversary and has had no
+  adversarial pass of its own, and it introduced an asymmetry it named but did
+  not resolve.
+
 ## Session 75 - 2026-09-08 - the grant was refused on a measurement, and every artifact this session built was refuted before it was believed
 
 - Shipped: CS-952 CLOSED. CS-956 and CS-958 FILED. CS-957 and CS-958 built and
@@ -161,49 +207,3 @@ the line becomes a pointer.
   three same-second lines in the invocation log are session 73 exercising the
   instrument by hand via `--source`, not hook fires. CS-952 is a hard blocker on
   the flip and needs a frozen-file grant. ROADMAP.md is over its soft budget.
-
-## Session 73 - 2026-09-07 - the cross-project sync turned into two shipped items, four self-inflicted defects, and a queued plan
-
-- Shipped: CS-949 (withdrawal reporting) and CS-950 (the invocation log). Detail
-  in `docs/LEDGER.md`.
-- In flight: nothing mid-edit. Two commits landed, `5d184c8` then `5192aaf`,
-  the second repairing four defects the first introduced.
-- Decisions: no ADR. The operator ruled three things on the channel - prose only
-  is CS's standing default to every sibling, sibling names in a sibling's public
-  history are fine for all projects at this time, and CS volunteers as RC's
-  pairwise responder-trial partner with CS's end restricted to measure-and-reply
-  actions, adopting a standing responder only after RC repairs or strikes A3
-  and A4.
-- Surprises: P4 (`/clear` survival) was not UNVERIFIED here, it was
-  UNMEASURABLE - the watcher wrote no record of ever running. Four other repos
-  were reading their own hook CONFIGURATION and calling it argued by
-  construction. CS-950 makes the measurement possible and does not perform it.
-  Separately: 19 outbound notes exist across the four sibling inboxes and ZERO
-  are traceable in CS's own tracked content, so a cold session reading only this
-  disk would correctly conclude CS has never replied to anyone. Filed as part of
-  CS-951.
-- Failed paths: the first push was REJECTED by pre-push, and correctly - the
-  citation ladder caught CS-952's note citing a permanently untracked path. The
-  comment written to buy that disclosure then cited the same path inside the
-  guard's own file and was caught again. A disclosure written in the vocabulary
-  of the thing it discloses becomes another instance of it. Also: a cap arm was
-  sized from the constant under test, which RSC measured as an amplifier that
-  wrote 492674 files under a mutation; fixed before it was ever run. AND the one
-  that matters most - a commit reached the remote without pre-push ever running
-  against it, because this session committed while a push was in flight. Filed
-  as CS-954, tier 1, mechanism NOT established. The risk was flagged aloud
-  earlier in the same session with the WRONG consequence predicted: a spurious
-  red was expected, a skipped gate is what happened.
-- Open, none started: CS-951 (outbound withdrawals), CS-952 (gitignored wiring,
-  needs a frozen-file grant before `.claude/settings.json` is touched), CS-953
-  (the HEAD-path scrub trap), CS-954 (the push race, tier 1 and the only tier 1
-  here). The A1 output filter promised to RC before its trial window opens has
-  no item and no code - it exists only as an outbound commitment in a note.
-- Next action: **PRODUCE THE PUBLIC-FLIP PLAN AND EXECUTE NONE OF IT.** The
-  scope, the four measured traps, the history-only checks and the one decision
-  that needs an ADR are already written up as CS-700's detail in
-  `docs/item_notes/phase7.md`. Read that section first. The session AFTER the
-  plan implements it, so that the agent producing the plan is not the one
-  grading its execution.
-
----

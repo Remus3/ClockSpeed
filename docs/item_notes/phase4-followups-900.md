@@ -968,6 +968,43 @@ returns `destination someoperator has no moon_sync_inbox directory` - raw
 operator input on stderr, which is the class non-negotiable 3 names. S2's
 write-list owns it.
 
+### S1 MERGED AFTER ITS REPAIR PASS - MEASURED 2026-09-08 (session 76)
+
+All four refutation defects answered, and the merger re-ran the evidence rather
+than taking it on report: `47 passed`, 0 skipped, exit 0, `ruff check` exit 0,
+only the two write-list files changed, and the five real inboxes unmoved -
+reconciled against a recursive count that differs from a top-level one only
+because the channel carries PAYLOAD SUBDIRECTORIES a top-level count never sees.
+
+**The three green mutants are now killed**, each re-planted against the final
+formatted file, asserted landed, and restored from a byte snapshot. The
+`.resolve()` mutant needed an arm that passes a deliberately NON-canonical root,
+because the previous fixture was resolved by pytest's own `basetemp` before the
+implementation ever saw it.
+**The identity binding no longer comes from `__file__`.** It resolves the
+repository through the `.git` entry - a FILE in a worktree, carrying a `gitdir:`
+line into the main checkout - and degrades rather than raising when there is no
+`.git` at all. Pinned by an arm that runs the tool AS A SUBPROCESS from a real
+git worktree, which is the only shape that grades the binding rather than the
+clause.
+The typed ordinal is now true with duplicates present, and `--all` names no
+ordinal at all: it says to re-run with `--to`, because an index into a sorted
+discovery list the operator never saw is not actionable.
+
+**NOT YET REFUTED, and that is the state it merged in.** The repair answered an
+adversary and has had no adversarial pass of its own. Four demonstrated defects
+in the first cut is a reason to expect a second cut is not clean.
+
+**A NEW ASYMMETRY THE REPAIR INTRODUCED AND DID NOT RESOLVE.**
+`inbox_holders` still self-excludes on the file-relative `REPO_ROOT` while
+`resolve_targets` now uses the repository-resolved binding. From a worktree with
+an explicit `--channel-root` at the real sibling root, `--all` would discover the
+main checkout and `resolve_targets` would then refuse the WHOLE broadcast. Fail
+closed, not a leak, and unverified by an arm - it is D4's shape in a second
+place, and it belongs on the follow-up slice's write-list with D4 and D6.
+`REPO_ROOT` deliberately still binds `DEFAULT_RECORD`, because repointing that
+at the main checkout would make a worktree run write the operator's live record.
+
 **THE SHAPE OF THE REPAIR, so a later session does not mis-scope it.** F1, F2
 and F3 are the item's acceptance clauses failing, not polish: the gate is not in
 front of everything that leaves, the exclusion does not cover the path an

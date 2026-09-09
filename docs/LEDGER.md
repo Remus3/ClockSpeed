@@ -160,6 +160,75 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-08 - CS-958 - NOT A COMPLETION RECORD. The sender was refuted on four independent lenses, one slice of the repair merged, and the item stays OPEN with five findings unrepaired
+
+**CS-958 STAYS OPEN and this entry does not close it.** Its acceptance has five
+clauses and this session met one of them. What is recorded here is a refutation
+and a partial repair, because the refutation is the durable part: nine measured
+defects against a tool this project had already called repaired once.
+
+**FOUR LENSES, FOUR REFUTED VERDICTS, against `aff7c20`.** The repairs there had
+answered an adversarial pass against `bbd7347` and had never been graded
+themselves. No grader wrote a byte into any of the five real inboxes, verified
+by before-and-after counts in every report and re-counted by the merger. The
+nine findings are in `docs/item_notes/phase4-followups-900.md` under `## CS-958`
+with a reproduction command each; they are not restated here.
+
+**THE SEVERE ONE, because it inverts the tool's whole purpose.** `grade()` takes
+bytes and nothing else, so a note's FILENAME and a destination's NAME were never
+graded. The same account-name value the gate REFUSES in content ships as a
+filename into every sibling inbox, is echoed to stdout, and is recorded under
+`"gate_verdict": "CLEAN"` - a record permanently attesting a grade that never
+covered the strings it holds. Non-negotiables 3 and 12. The gate was in front of
+the payload and beside everything else.
+
+**WHAT MERGED: slice S1, containment and identity.** A destination is now graded
+as a RESOLVED PATH rather than as a string - accepted only when
+`root/name/moon_sync_inbox` resolves to a directory whose grandparent is the
+resolved channel root and which is not this repository. The recorded name is
+re-derived from the resolved directory, and the dedup is keyed on the resolved
+inbox. Closes findings F2, F3 and F7. Merged file: `tools/outbound_send.py`.
+Verified by `tests/test_outbound_send.py::test_the_identity_binding_survives_a_worktree`,
+`::test_a_look_alike_grandparent_is_not_the_channel_root`,
+`::test_a_non_canonical_channel_root_still_contains` and
+`::test_all_does_not_broadcast_to_this_repository`.
+
+**S1'S OWN FIRST CUT WAS REFUTED AND THE FAULT WAS THE EVIDENCE.** The mechanism
+held against a junction, a two-deep chain, an inbox-level junction, a `subst`
+drive and a UNC root. The suite did not: three of four subtle mutants shipped a
+green 40 of 40, two of them restoring a measured finding of this item verbatim.
+The `.resolve()` mutant was green only because pytest resolves `basetemp`, so
+the one arm calling `resolve_targets` directly was handed an already-canonical
+root - **a fixture built parallel to the implementation is the shape that makes
+an arm agree with a bug.** All three are now killed by arms that plant them.
+
+**AND THE ACCEPTANCE CLAUSE WAS PASSING IN A SHAPE THE PROJECT NEVER RUNS IN.**
+`REPO_ROOT` came from `__file__`, so a copy running from a git worktree computed
+its identity as the worktree and delivered into the real repository's inbox
+exactly as before. Both new arms `monkeypatch` that binding, grading the clause
+and never the binding. **A monkeypatch that supplies the value under test
+converts an integration property into a unit tautology.** The identity now
+resolves through the `.git` entry - a FILE in a worktree, carrying a `gitdir:`
+line into the main checkout - and is pinned by an arm that runs the tool as a
+SUBPROCESS from a real worktree.
+
+**A DECISION, RECORDED WITH ITS FENCE.** F1, F2 and F3 were decomposed as TWO
+ORDERED slices rather than three parallel ones, because all three land in one
+function of one file and because S1 re-derives the destination name that S2 has
+to grade. Do not re-pitch parallel slicing of them: disjointness is a
+precondition checked before dispatch, not a hope.
+
+**WHAT IS STILL OPEN ON THIS ITEM**, each with a reproduction in the item note:
+F1 the ungraded metadata (slice S2); F4 commit-phase `.tmp` litter that is a
+byte-identical delivery the record says never happened; F5 the validate-rename
+TOCTOU that destroys a sibling's note at exit 0; F6 a fully successful send that
+exits 1; F8 an empty `CLOCKSPEED_OUTBOUND_RECORD` silently selecting the real
+record; and F10, unproven and not to be closed on a reading.
+
+**NO SEND WAS MADE.** The A1 output filter this project owes RC remains
+undelivered, and that is correct rather than a slip: until F1 is repaired the
+sender is the leak it was built to prevent.
+
 ### 2026-09-08 - CS-952 - CLOSED. The channel half was delivered to four sibling inboxes, and the delivery is recorded here because nothing else in this repository would know it happened
 
 **CLOSES CS-952.** The entry directly below this one is the repository half and

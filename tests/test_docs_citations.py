@@ -1847,6 +1847,11 @@ DECLINED_AS_DECLARED_UNTRACKED: Final[Mapping[tuple[str, str, str], int]] = {
     ("tests/test_session_start_wiring.py", ".claude/settings.local.json", ""): 1,
     ("tools/inbox_watch.py", ".claude/settings.local.json", ""): 1,
     ("tests/test_outbound_send.py", "data/outbound_deliveries.json", ""): 1,
+    (
+        "docs/item_notes/phase4-followups-900.md",
+        "data/outbound_deliveries.json",
+        "### MEASURED 2026-09-08 (session 76), four adversarial lenses against the REPAIRED sender",
+    ): 1,
 }
 
 #: R3's live membership, DISCLOSED. Three are the names of the three files
@@ -1962,7 +1967,15 @@ DECLINED_AS_A_FIXTURE_LITERAL: Final[Mapping[tuple[str, str, str], int]] = {
 #: next reader unable to tell an override from an invention. The module under
 #: test buys no row: it builds the same path from components rather than
 #: spelling it, which is not a citation.
-DECLARED_UNTRACKED_CEILING: Final = 12
+#: 12 TO 13 WHEN CS-958'S REFUTATION RECORD NAMED THE RECORD IT PROTECTS. The
+#: item note has to say WHICH file an adversary was forbidden to append to, and
+#: naming it is the whole content of that constraint - a note that said "the
+#: delivery record" would leave the next grader to guess, and a grader that
+#: guesses wrong writes to the operator's live history. The row is bought for
+#: the leaf that carries the finding, not for the item: when CS-958 closes and
+#: its detail relocates to `docs/history_notes.md`, this row REFUNDS and the
+#: ceiling comes back down with it, exactly as CS-952's did.
+DECLARED_UNTRACKED_CEILING: Final = 13
 #: 9 TO 6 WHEN CS-928 DELETED THE THREE FALSE ADVISOR ATTRIBUTIONS. Six
 #: `docs/ARCHITECTURE.md` rows left the rung and three arrived from the guard
 #: that now asserts those files absent, so the disclosure holds six rows and the

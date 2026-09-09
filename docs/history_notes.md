@@ -25,6 +25,54 @@ Where current truth actually lives:
 
 ---
 
+## Session 73 - relocated from `WAKEUP_NOTES.md` 2026-09-08
+
+## Session 73 - 2026-09-07 - the cross-project sync turned into two shipped items, four self-inflicted defects, and a queued plan
+
+- Shipped: CS-949 (withdrawal reporting) and CS-950 (the invocation log). Detail
+  in `docs/LEDGER.md`.
+- In flight: nothing mid-edit. Two commits landed, `5d184c8` then `5192aaf`,
+  the second repairing four defects the first introduced.
+- Decisions: no ADR. The operator ruled three things on the channel - prose only
+  is CS's standing default to every sibling, sibling names in a sibling's public
+  history are fine for all projects at this time, and CS volunteers as RC's
+  pairwise responder-trial partner with CS's end restricted to measure-and-reply
+  actions, adopting a standing responder only after RC repairs or strikes A3
+  and A4.
+- Surprises: P4 (`/clear` survival) was not UNVERIFIED here, it was
+  UNMEASURABLE - the watcher wrote no record of ever running. Four other repos
+  were reading their own hook CONFIGURATION and calling it argued by
+  construction. CS-950 makes the measurement possible and does not perform it.
+  Separately: 19 outbound notes exist across the four sibling inboxes and ZERO
+  are traceable in CS's own tracked content, so a cold session reading only this
+  disk would correctly conclude CS has never replied to anyone. Filed as part of
+  CS-951.
+- Failed paths: the first push was REJECTED by pre-push, and correctly - the
+  citation ladder caught CS-952's note citing a permanently untracked path. The
+  comment written to buy that disclosure then cited the same path inside the
+  guard's own file and was caught again. A disclosure written in the vocabulary
+  of the thing it discloses becomes another instance of it. Also: a cap arm was
+  sized from the constant under test, which RSC measured as an amplifier that
+  wrote 492674 files under a mutation; fixed before it was ever run. AND the one
+  that matters most - a commit reached the remote without pre-push ever running
+  against it, because this session committed while a push was in flight. Filed
+  as CS-954, tier 1, mechanism NOT established. The risk was flagged aloud
+  earlier in the same session with the WRONG consequence predicted: a spurious
+  red was expected, a skipped gate is what happened.
+- Open, none started: CS-951 (outbound withdrawals), CS-952 (gitignored wiring,
+  needs a frozen-file grant before `.claude/settings.json` is touched), CS-953
+  (the HEAD-path scrub trap), CS-954 (the push race, tier 1 and the only tier 1
+  here). The A1 output filter promised to RC before its trial window opens has
+  no item and no code - it exists only as an outbound commitment in a note.
+- Next action: **PRODUCE THE PUBLIC-FLIP PLAN AND EXECUTE NONE OF IT.** The
+  scope, the four measured traps, the history-only checks and the one decision
+  that needs an ADR are already written up as CS-700's detail in
+  `docs/item_notes/phase7.md`. Read that section first. The session AFTER the
+  plan implements it, so that the agent producing the plan is not the one
+  grading its execution.
+
+---
+
 ## Session 69 - relocated from `WAKEUP_NOTES.md` 2026-09-07
 
 Pruned from the live notes when session 72 closed, under the two-to-three
