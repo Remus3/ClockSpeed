@@ -499,6 +499,38 @@ def assert_absent_in_any_case(needle: str, haystacks: tuple[bytes, ...]) -> None
     assert hits == 0, f"a value that must not be echoed appeared {hits} time(s)"
 
 
+def assert_path_absent(needle: str, haystacks: tuple[bytes, ...]) -> None:
+    """Assert a PATH appears in no blob, in no case and through no escaping.
+
+    A SEPARATE FUNCTION FROM :func:`assert_absent_in_any_case` BECAUSE A PATH
+    IS NOT AN ORDINARY NEEDLE, and the difference was measured rather than
+    anticipated (CS-958 D5). The record arm searched the record's raw bytes for
+    ``str(tmp_path)``; the record is JSON, JSON doubles every backslash, and a
+    record plainly holding that path scored ZERO hits. The arm's two other
+    needles carry no backslash at all, so they matched, and the line that
+    asserted nothing sat between two that worked.
+
+    So each blob is searched in three forms - as it is, with doubled
+    backslashes collapsed, and with backslashes turned into forward slashes -
+    and the needle in both separator spellings. Collapsing an escape can only
+    ever CREATE a match, never hide one, which is the right direction of error
+    for a check whose whole job is to fail when a path is present.
+
+    The count is bound to a scalar before it is asserted, for the same reason
+    the sibling helper does it: an asserted expression is rendered into the
+    failure report, and this needle is an absolute path.
+    """
+    folded = needle.lower()
+    assert folded, "an empty needle would make this check vacuous"
+    needles = {folded, folded.replace("\\", "/")}
+    hits = 0
+    for blob in haystacks:
+        raw = text(blob).lower()
+        for form in (raw, raw.replace("\\\\", "\\"), raw.replace("\\\\", "/").replace("\\", "/")):
+            hits += sum(form.count(one) for one in needles)
+    assert hits == 0, f"a path that must not be recorded appeared {hits} time(s)"
+
+
 def real_inbox_counts() -> tuple[int, int]:
     """Count the real sibling inboxes and the files in them. NAMES ARE NEVER READ OUT.
 
@@ -1109,7 +1141,7 @@ def test_the_record_holds_no_absolute_path_and_no_payload(tmp_path: Path) -> Non
     assert code == EXIT_OK, f"exit {code}; stderr {text(err)!r}"
     assert len(entries) > 0, "nothing was recorded; the arm would be vacuous"
     assert_absent_in_any_case(PAYLOAD_MARKER, (raw,))
-    assert_absent_in_any_case(str(tmp_path), (raw,))
+    assert_path_absent(str(tmp_path), (raw,))
     assert len(rooted) == 0, f"{len(rooted)} record value(s) begin with a path separator"
     assert drives == 0, f"{drives} record value(s) carry a drive letter"
 
@@ -1394,7 +1426,7 @@ def test_a_destination_resolving_to_this_repository_is_refused(
     assert control_problems == [], f"the control could not resolve the name: {control_problems}"
     assert len(control) == 1, "the control resolved no target; the refusal below proves nothing"
 
-    monkeypatch.setattr(sender, "REPO_ROOT", (channel / DEST_SELF).resolve())
+    monkeypatch.setattr(sender, "SELF_ROOT", (channel / DEST_SELF).resolve())
     targets, problems = sender.resolve_targets(channel, [DEST_SELF], NOTE_NAME)
 
     assert targets == [], "a destination resolving to this repository was accepted"
@@ -1654,3 +1686,503 @@ def test_exit_codes_are_closed_set(tmp_path: Path) -> None:
     assert observed <= CLOSED_EXIT_SET, f"codes outside the closed set: {sorted(observed)}"
     assert EXIT_REFUSED in observed, "no refusal was exercised; the subset check would be vacuous"
     assert EXIT_USAGE in observed, "an unknown flag was not reported as a usage error"
+
+
+# --------------------------------------------------------------------------
+# THE REPAIR PASS ON S1 - CS-958 D1, D2, D3 and D5. Every arm below exists
+# because the FIRST cut of this slice shipped a green 40 of 40 over three
+# subtle mutants that each restored a measured finding of this item, an
+# ordinal that counted the wrong list, an identity binding no arm could see,
+# and one assertion that searched a JSON blob for a string JSON does not
+# contain. The mechanism held; what GRADED it did not.
+# --------------------------------------------------------------------------
+
+
+def git_main_checkout() -> Path:
+    """The main checkout behind this test process, asked of GIT and not of the module.
+
+    AN INDEPENDENT ORACLE ON PURPOSE. The thing under test derives this same
+    answer by reading `.git` itself, so an arm that asked the module for it
+    would be comparing an implementation against itself. `git worktree list`
+    names the main worktree first, and that is a fact about the repository
+    rather than about the file being graded.
+    """
+    proc = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "worktree", "list", "--porcelain"],
+        capture_output=True,
+        timeout=TIMEOUT,
+        check=False,
+    )
+    assert proc.returncode == 0, "git could not list this repository's worktrees"
+    first = text(proc.stdout).splitlines()[0]
+    assert first.startswith("worktree "), "git worktree list did not name a worktree first"
+    return Path(first.split(" ", 1)[1].strip()).resolve()
+
+
+def add_probe_worktree(tmp_path: Path) -> Path:
+    """Create a REAL git worktree of this repository and return its root.
+
+    A REAL ONE, because the defect this fixture exists for is invisible to any
+    imitation of it: `Path(__file__).resolve().parents[1]` is a correct answer
+    in a normal checkout and a wrong answer in a worktree, and the only thing
+    that tells them apart is a `.git` that is a FILE carrying a `gitdir:`
+    line. A directory with a hand-written `.git` file would grade the parser
+    and not the property.
+
+    THE WORKING TREE'S SENDER IS COPIED IN OVER THE CHECKED-OUT ONE, and that
+    is not a shortcut - it is what makes the arm grade the code being edited.
+    `git worktree add` checks out a COMMIT, so without the copy this arm would
+    silently grade HEAD and report a repair as broken while it worked, or as
+    working while it was reverted. The property under test is about the SHAPE
+    of the checkout - a `.git` that is a file - and the copy leaves that shape
+    untouched.
+
+    The worktree is removed by the caller. It is never entered by any shell -
+    the tests drive it by absolute path only.
+    """
+    probe = tmp_path / "s1r-probe-worktree"
+    proc = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "worktree", "add", "--detach", str(probe), "HEAD"],
+        capture_output=True,
+        timeout=TIMEOUT,
+        check=False,
+    )
+    assert proc.returncode == 0, "a probe worktree could not be created; this arm cannot grade"
+    assert (probe / ".git").is_file(), "the probe worktree has no .git FILE; it is not a worktree"
+    (probe / "tools" / "outbound_send.py").write_bytes(SENDER.read_bytes())
+    return probe
+
+
+def remove_probe_worktree(probe: Path) -> None:
+    """Remove a probe worktree AND its metadata under the main checkout's .git."""
+    subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "worktree", "remove", "--force", str(probe)],
+        capture_output=True,
+        timeout=TIMEOUT,
+        check=False,
+    )
+    subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "worktree", "prune"],
+        capture_output=True,
+        timeout=TIMEOUT,
+        check=False,
+    )
+
+
+def run_copy_dry(sender: Path, *args: str, env: dict[str, str]) -> tuple[int, bytes, bytes]:
+    """Drive an ARBITRARY copy of the sender, DRY RUN ONLY, and return the result.
+
+    THIS IS THE ONE SPAWN SITE IN THIS FILE THAT DOES NOT GO THROUGH
+    :func:`run_send`, and the exception is deliberate and narrow. The property
+    being graded is that a copy running from a worktree still knows which
+    channel participant it IS, and that property is only visible at the REAL
+    channel root - no synthetic root can contain the real repository, which is
+    exactly why the arm this replaces had to monkeypatch the answer and
+    therefore graded nothing.
+
+    THE SAFETY IS MECHANICAL, NOT A PROMISE. `--send` is refused here by
+    assertion, so every call is a dry run and writes no byte anywhere; the
+    delivery record is still redirected out of the repository by the same
+    :data:`ENV_RECORD` mechanism every other arm uses. A dry run against the
+    real channel root reads directories and prints; a broken build reports
+    "would deliver" and still writes nothing, which is what makes it safe to
+    grade the broken case at all.
+    """
+    assert "--send" not in args, "this helper is dry-run only and must never deliver"
+    assert sender.is_file(), "the sender copy under test does not exist"
+    assert env.get(ENV_RECORD, "").endswith(RECORD_NAME), (
+        "the delivery record was not redirected out of the repository"
+    )
+    proc = subprocess.run(
+        [sys.executable, str(sender), *args],
+        capture_output=True,
+        env=env,
+        timeout=TIMEOUT,
+        check=False,
+    )
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+IDENTITY_PROBE = """
+import importlib.util
+import sys
+from pathlib import Path
+
+spec = importlib.util.spec_from_file_location("s1r_identity_probe", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+main_checkout = Path(sys.argv[2])
+print("SAME" if module.SELF_ROOT == main_checkout else "OTHER")
+print("DIFFERS" if module.REPO_ROOT != main_checkout else "IDENTICAL")
+"""
+
+
+def test_the_identity_binding_survives_a_worktree(tmp_path: Path) -> None:
+    """Prove a copy running from a WORKTREE still knows it is the main checkout.
+
+    CS-958 D3, and the reason the first cut of this slice was refuted. The
+    acceptance clause it added compares a resolved destination against this
+    repository's root, and both arms that graded that clause monkeypatched the
+    root. A MONKEYPATCH THAT SUPPLIES THE VALUE UNDER TEST CONVERTS AN
+    INTEGRATION PROPERTY INTO A UNIT TAUTOLOGY: the clause was graded and the
+    BINDING never was, so a copy running from a worktree - which is this
+    project's default session shape - computed its identity as the worktree and
+    resolved this repository's own name into this repository's own inbox
+    exactly as before the repair.
+
+    THREE MEASUREMENTS, AND THE FIRST IS THE LOAD-BEARING ONE because it is the
+    only one that can never go vacuous:
+
+      1. a real worktree is created with `git worktree add`, the sender is
+         imported FROM IT in a child process, and its computed identity must
+         equal the main checkout. The child also reports whether the file-
+         relative root DIFFERS from the main checkout, which is the non-vacuity
+         control: if the fixture were not really a worktree, both answers would
+         be trivially true and the arm would grade nothing;
+      2. the same copy is asked, AS A SUBPROCESS AND AS A DRY RUN, to deliver
+         to the main checkout's own directory name at the real channel root,
+         and must refuse. This is the end-to-end shape of the finding. Where
+         this repository has no inbox of its own - a fresh clone, a CI runner -
+         the refusal arrives for the more boring reason instead, so the sharper
+         assertion is made only when there is something to grade and the arm
+         still requires the refusal either way. It never skips;
+      3. a positive control on the same copy: the SAME destination name against
+         a synthetic channel root containing an ordinary directory of that name
+         must be accepted, which proves the refusal is about a resolved path
+         and not about the string.
+
+    NOTHING IS EVER DELIVERED BY THIS ARM. :func:`run_copy_dry` refuses
+    `--send` by assertion, and a dry run writes no byte even when the code
+    under test is the broken one - which is what makes the broken case safe to
+    measure at all.
+    """
+    if not (REPO_ROOT / ".git").exists():
+        pytest.skip("this checkout carries no .git at all; there is no worktree binding to grade")
+    main_checkout = git_main_checkout()
+    probe = add_probe_worktree(tmp_path)
+    try:
+        probe_sender = probe / "tools" / "outbound_send.py"
+        script = tmp_path / "s1r_identity_probe.py"
+        script.write_text(IDENTITY_PROBE, encoding="ascii")
+        env = base_env(tmp_path)
+        note = clean_note(tmp_path)
+
+        proc = subprocess.run(
+            [sys.executable, str(script), str(probe_sender), str(main_checkout)],
+            capture_output=True,
+            env=env,
+            timeout=TIMEOUT,
+            check=False,
+        )
+        answers = text(proc.stdout).split()
+
+        assert proc.returncode == 0, f"the identity probe failed: {text(proc.stderr)[:400]!r}"
+        assert answers[1:] == ["DIFFERS"], (
+            "the probe copy's file-relative root already equals the main checkout, "
+            "so this fixture is not a worktree and the arm would grade nothing"
+        )
+        assert answers[:1] == ["SAME"], (
+            "a copy running from a worktree computes its identity as the worktree; "
+            "--to this repository's own name would resolve into its own inbox"
+        )
+
+        sharp = (main_checkout / INBOX).is_dir()
+        code, out, err = run_copy_dry(
+            probe_sender,
+            "--note",
+            str(note),
+            "--to",
+            main_checkout.name,
+            "--channel-root",
+            str(main_checkout.parent),
+            "--allow-unmeasured",
+            env=env,
+        )
+        streams = text(out) + text(err)
+
+        assert code == EXIT_REFUSED, f"exit {code}; a send to this repository was not refused"
+        assert "DRY RUN" not in streams, "the tool offered to deliver into this repository"
+        if sharp:
+            assert "does not resolve to a project" in streams, (
+                "the refusal is not the containment and identity refusal; "
+                "it came from somewhere else and this arm did not grade the clause"
+            )
+
+        decoy = make_channel(tmp_path, with_inbox=(main_checkout.name,))
+        control_code, control_out, control_err = run_copy_dry(
+            probe_sender,
+            "--note",
+            str(note),
+            "--to",
+            main_checkout.name,
+            "--channel-root",
+            str(decoy),
+            "--allow-unmeasured",
+            env=env,
+        )
+
+        assert control_code == EXIT_OK, (
+            f"exit {control_code}; stderr {text(control_err)!r} - the control was refused too, "
+            "so the refusal above is not attributable to the identity clause"
+        )
+        assert "DRY RUN" in text(control_out), "the control did not reach the dry-run report"
+    finally:
+        remove_probe_worktree(probe)
+
+
+def test_a_look_alike_grandparent_is_not_the_channel_root(tmp_path: Path) -> None:
+    """Prove containment compares PATHS and not the grandparent's NAME.
+
+    CS-958 D1, mutant one of three. Replacing the containment comparison with
+    `project.parent.name != resolved_root.name` shipped a green 40 of 40 on the
+    first cut of this slice and RESTORED F3 verbatim: a junction under the
+    channel root delivered a note outside it at exit 0. Every containment arm
+    stayed green because in each of their fixtures the escape target's parent
+    was pytest's own temporary directory, whose NAME differs from the channel
+    root's anyway - a name comparison and a path comparison agreed by accident.
+
+    So this fixture makes them disagree on purpose. The escape target sits
+    inside a SECOND directory that carries the channel root's own name, at a
+    different place in the tree. A name comparison sees the channel root and
+    accepts; a path comparison sees somewhere else and refuses.
+
+    THE ARM IS THE ABSENCE OUTSIDE THE ROOT, not the exit code: a tool that
+    wrote the note and then returned 1 would satisfy an exit-code assertion
+    completely, and the byte outside the channel is the irreversible half.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    look_alike = tmp_path / "decoy958" / CHANNEL_DIR_NAME
+    outside = look_alike / OUTSIDE_DIR
+    (outside / INBOX).mkdir(parents=True)
+    make_junction(channel / DEST_ESCAPE, outside)
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    before = tree_snapshot(look_alike)
+
+    code, out, err = run_send(
+        "--note",
+        str(note),
+        "--to",
+        DEST_ESCAPE,
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+    escaped = changed_paths(before, tree_snapshot(look_alike))
+
+    assert escaped == [], f"the send escaped into a look-alike tree and wrote {escaped}"
+    assert code == EXIT_REFUSED, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
+    assert len(record_entries(env)) == 0, "an escaping destination reached the record"
+
+
+def test_three_spellings_of_one_directory_are_one_delivery(tmp_path: Path) -> None:
+    """Prove the dedup is keyed on the RESOLVED inbox, not on the joined path.
+
+    CS-958 D1, mutant two of three, and it restored F7 verbatim. Keying the
+    dedup on the UNRESOLVED `root / name / INBOX` shipped green because
+    `PurePath` comparison on Windows is already case-INSENSITIVE, so the
+    existing pair-of-case-variants arm could not tell the two keys apart. A
+    TRAILING DOT can: Win32 strips it from a path component while `Path` keeps
+    it, so the dotted and undotted spellings are different unresolved keys and
+    the same resolved directory.
+
+    Under that mutant the same temporary file is staged twice, the first rename
+    consumes it, the second raises `FileNotFoundError`, and a delivery that
+    landed completely is reported and RECORDED as partial - which is the lie a
+    CS-951 reconciler would later act on.
+
+    THREE SPELLINGS RATHER THAN TWO because the fault is a pair that survives
+    one comparison and not another, and a third spelling costs nothing.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    before = tree_snapshot(channel)
+
+    code, out, err = run_send(
+        "--note",
+        str(note),
+        "--to",
+        DEST_A,
+        "--to",
+        DEST_A_UPPER,
+        "--to",
+        DEST_A_DOTTED,
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+    changed = changed_paths(before, tree_snapshot(channel))
+    partial = "PARTIAL" in text(err)
+
+    assert code == EXIT_OK, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
+    assert not partial, "a complete delivery to one directory was reported as partial"
+    assert changed == [f"{DEST_A}/{INBOX}/{NOTE_NAME}"], f"the send changed {changed}"
+    assert len(record_entries(env)) == 1, "one directory was recorded more than once"
+
+
+def test_a_non_canonical_channel_root_still_contains(tmp_path: Path) -> None:
+    """Prove the channel root is CANONICALISED before anything is compared to it.
+
+    CS-958 D1, mutant three of three, and the one whose survival names a shape
+    rather than a line. Dropping `.resolve()` from the channel root shipped
+    green for a reason that has nothing to do with the code: pytest hands out
+    an ALREADY-RESOLVED `tmp_path`, so the single arm that called
+    `resolve_targets` directly passed a root the implementation would have
+    resolved to itself. A FIXTURE BUILT PARALLEL TO THE IMPLEMENTATION IS THE
+    SHAPE THAT MAKES AN ARM AGREE WITH A BUG.
+
+    So this arm passes a root that is deliberately not canonical - it walks
+    into a destination and back out through `..`, naming the same directory by
+    a path no comparison will match literally. Without the resolve, every
+    destination under it is refused as though it were outside the channel; with
+    it, the ordinary destination resolves exactly as the control does.
+
+    THE CONTROL IS THE CANONICAL SPELLING IN THE SAME RUN, so a resolver that
+    refused everything cannot satisfy this arm by refusing both.
+    """
+    sender = load_sender()
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    non_canonical = channel / DEST_A / ".."
+    is_literally_different = non_canonical != channel
+
+    control, control_problems = sender.resolve_targets(channel, [DEST_A], NOTE_NAME)
+    targets, problems = sender.resolve_targets(non_canonical, [DEST_A], NOTE_NAME)
+
+    assert is_literally_different, "the fixture root is already canonical; the arm grades nothing"
+    assert control_problems == [], f"the canonical control failed: {control_problems}"
+    assert len(control) == 1, "the canonical control resolved no target; the arm cannot grade"
+    assert problems == [], f"a non-canonical channel root refused its own destination: {problems}"
+    assert len(targets) == 1, "a non-canonical channel root resolved no target"
+
+
+def test_the_ordinal_counts_the_names_the_operator_typed(tmp_path: Path) -> None:
+    """Prove a refusal's ordinal is a position in what was TYPED.
+
+    CS-958 D2. The refusal reports an ordinal rather than the value it refused,
+    because the one check whose job is to catch a name that is secretly a path
+    must not print the path. That is only useful if the number is true of the
+    list the operator has in front of them, and it was not: `main` deduplicated
+    `--to` with `dict.fromkeys` BEFORE the resolver enumerated, so every
+    repeated spelling shifted every later position left. Measured on the first
+    cut: a fault at the fifth typed name reported as `destination 3`.
+
+    An ordinal that points at the wrong name is worse than no ordinal, because
+    the operator edits a name that was fine and re-runs into the same refusal.
+
+    THE DUPLICATES ARE THE FIXTURE. Four repetitions of one good name in front
+    of one bad one, so the reported position and the deduplicated position
+    cannot coincide, and the arm asserts the wrong number is ABSENT as well as
+    that the right one is present - a message naming both would otherwise pass.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    before = tree_snapshot(channel)
+
+    code, out, err = run_send(
+        "--note",
+        str(note),
+        "--to",
+        DEST_A,
+        "--to",
+        DEST_A,
+        "--to",
+        DEST_A,
+        "--to",
+        DEST_A,
+        "--to",
+        WINDOWS_HOME_PATH,
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+    changed = changed_paths(before, tree_snapshot(channel))
+    streams = text(out) + text(err)
+
+    assert code == EXIT_REFUSED, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
+    assert changed == [], f"a refused send still wrote {changed}"
+    assert "destination 5" in streams, "the refusal does not name the position that was typed"
+    assert "destination 2" not in streams, (
+        "the refusal names the position in the DEDUPLICATED list, which the operator never saw"
+    )
+    assert not DRIVE_LETTER_RE.search(streams), "the refusal rendered an absolute path"
+
+
+def test_a_discovered_destination_is_not_reported_as_an_ordinal(tmp_path: Path) -> None:
+    """Prove `--all` does not answer a refusal with a position in a list nobody saw.
+
+    CS-958 D2, second half. Under `--all` the operator types no destination at
+    all, so an ordinal indexes a sorted discovery list they have never seen and
+    cannot act on: `destination 1` names nothing they can edit. The refusal
+    must instead say that the destination was DISCOVERED and tell them the one
+    move that makes the fault locatable, which is to name destinations
+    explicitly.
+
+    THE FIXTURE IS A DOT-PREFIXED SIBLING because it is the cheapest discovered
+    destination the shape check refuses, and it needs no reparse point.
+
+    SCOPE, STATED SO A LATER READER DOES NOT MIS-READ THIS ARM AS AN
+    ENDORSEMENT: that one unusable sibling refuses the WHOLE broadcast is a
+    separate open finding of this item (D4) about the WIDTH of the refusal.
+    This arm pins only what the diagnostic says, and deliberately asserts
+    nothing about whether refusing everything was the right call.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    (channel / ".hidden958" / INBOX).mkdir(parents=True)
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    before = tree_snapshot(channel)
+
+    code, out, err = run_send(
+        "--note",
+        str(note),
+        "--all",
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+    changed = changed_paths(before, tree_snapshot(channel))
+    streams = text(out) + text(err)
+    ordinals = [token for token in ("destination 1", "destination 2") if token in streams]
+
+    assert code == EXIT_REFUSED, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
+    assert changed == [], f"a refused broadcast still wrote {changed}"
+    assert ordinals == [], f"a discovered destination was reported by ordinal: {ordinals}"
+    assert "--to" in streams, "the refusal offers the operator no way to locate the destination"
+    assert not DRIVE_LETTER_RE.search(streams), "the refusal rendered an absolute path"
+
+
+def test_the_record_path_check_can_see_a_json_escaped_path(tmp_path: Path) -> None:
+    """Prove the record's absolute-path check is not vacuous. THE CONTROL FOR AN ARM.
+
+    CS-958 D5. `test_the_record_holds_no_absolute_path_and_no_payload` searched
+    the record's RAW BYTES for `str(tmp_path)`, and a JSON encoder doubles
+    every backslash - so a record plainly holding that path scored zero hits
+    while the arm's other two needles, which carry no backslash, scored one
+    each and looked like proof the check worked. The arm's other assertions
+    still bite; that one line asserted nothing at all.
+
+    THIS ARM GRADES THE CHECK RATHER THAN THE TOOL, which is why it plants the
+    value itself: a positive control that must RAISE, a negative control that
+    must not, and a third measurement pinning the defect itself - that a naive
+    substring search over the same planted blob really does score zero - so
+    that a later reader can see the vacuity was reproduced rather than
+    reasoned about.
+    """
+    planted = json.dumps({"destination": str(tmp_path)}).encode("ascii")
+    clean = json.dumps({"destination": DEST_A}).encode("ascii")
+    naive_hits = text(planted).lower().count(str(tmp_path).lower())
+
+    with pytest.raises(AssertionError):
+        assert_path_absent(str(tmp_path), (planted,))
+    assert_path_absent(str(tmp_path), (clean,))
+
+    assert naive_hits == 0, (
+        "a plain substring search now finds the planted path, so the defect this "
+        "arm exists for is no longer reproducible and the arm should be re-read"
+    )
