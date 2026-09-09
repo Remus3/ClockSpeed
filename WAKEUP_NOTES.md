@@ -34,6 +34,55 @@ the line becomes a pointer.
 
 ---
 
+## Session 77 - 2026-09-08 - the red CI was a Windows assumption, and every claim this session made was refuted before it was believed
+
+- Shipped: nothing CLOSED as an ITEM. CS-958's F1, F4, F5, F6 and F8 closed
+  inside it; the item stays OPEN on F10, D4 and D6. Detail in `docs/LEDGER.md`.
+
+- In flight: nothing. Tree clean, no stash. One adversary worktree survives at
+  `.claude/worktrees/agent-af6f0393f63bd2adb`, clean, at `519cadf`.
+
+- THE SESSION OPENED ON RED CI AND THE CAUSE WAS ONE ASSUMPTION IN EIGHT
+  PLACES. Slice S1's arms encoded WINDOWS filesystem semantics as universal:
+  no `mklink` on ubuntu, a trailing dot not stripped, a case-SENSITIVE
+  filesystem, and a JSON encoder that does not double a forward slash. Repaired
+  by making each arm measure its OWN platform's mechanism - a junction here, a
+  symlink there - and never with `skipif`. CI green, and the passed count rose
+  by exactly the number of arms while the skip count did not move.
+
+- FOUR REFUTATION PASSES, FOUR VERDICTS AGAINST, AND EVERY ONE WAS RIGHT. Three
+  adversaries on the S2 candidate and one verifier on the commit phase. They
+  found: an ungraded STAGED filename that a length-floor rule refuses, the
+  gate's WARN tier dropped on the floor, two refusals that were byte-identical
+  about different faults, a discarded locate hint, refusals that named nobody,
+  a full suite red on a citation guard the targeted suite cannot see, an exit 1
+  printed beside NOTE ALREADY DELIVERED, and a dry run that wrote to disk.
+
+- FOUR MUTANTS SURVIVED ALL 36 ARMS OF THE FIRST S2 CUT, and the reasons
+  transfer better than the fixes. Every fixture put its dirty value at batch
+  index 1, so line attribution was never exercised. Every arm passed
+  `--allow-unmeasured`, so a documented precedence was never reached. The WARN
+  tier is structurally unreachable from this suite. And one mutant was
+  EQUIVALENT rather than surviving - the delivered filename is a strict PREFIX
+  of the staged one and no scanning rule is end-anchored, so no VALUE can tell
+  them apart and the property had to be measured structurally with a recording
+  spy.
+
+- Decisions: no ADR. The exit-code set gained a fourth member so that 1 can go
+  back to meaning nothing was written; the fence is in `docs/LEDGER.md`.
+
+- Surprises: nothing contradicted `BOOTSTRAP.md`. No spec update is owed.
+
+- Failed paths: dispatching a mutating adversary into the main checkout beside
+  read-only siblings. Stopped it before it wrote and re-dispatched it into a
+  worktree - a mutation there would have made both sibling verdicts statements
+  about an unknown tree.
+
+- Next action: read the continuation prompt. The responder-runner filings were
+  DRAFTED and deliberately NOT filed on an operator standby ruling.
+
+---
+
 ## Session 76 - 2026-09-08 - the repaired sender was refuted on all four lenses, and the second cut's fault was the evidence rather than the code
 
 - Shipped: nothing CLOSED. CS-958's slice S1 merged and the item stays OPEN.
@@ -145,65 +194,3 @@ the line becomes a pointer.
   pass against the PREVIOUS commit and have had no adversarial pass of their
   own. Four demonstrated defects in the first cut is a reason to expect the
   second cut is not clean.
-
----
-
-## Session 74 - 2026-09-08 - the flip plan chose its branch, and CS-954's repair introduced the hang its own refutation caught
-
-- Shipped: CS-954 CLOSED. CS-700's PLAN produced and CS-700 stays OPEN by design.
-  ADR 0018 accepted. CS-955 filed. Detail in `docs/LEDGER.md`, not here.
-
-- In flight: nothing. Tree clean, no worktrees, no stash.
-
-- THE SESSION'S SHAPE WAS PLAN-THEN-REFUTE, TWICE, AND BOTH REFUTATIONS PAID.
-  Each deliverable was committed to freeze it, graded by an agent that did not
-  write it, and repaired. Both times the adversary found a defect in the
-  author's own evidence rather than only in the artifact, which is the part
-  worth carrying forward.
-
-- CS-700's PLAN: the CONVENTIONS 17 clause is CONDITIONAL and its antecedent
-  does not fire. The publishable graph is clean of CONTENT on six axes, so no
-  rewrite is owed for the reason section 17 contemplates. What is dirty is
-  off-main and never pushed. The exposure is what the FORGE accreted: 53
-  `refs/wip` refs, 233 Actions run logs of which 21 are failed runs, 17
-  artifacts, 534 MiB of caches - all surviving a force-push. ADR 0018 therefore
-  recreates the remote and pushes `main` alone, which makes the deletion the
-  verification.
-
-- TWO OF MY OWN CLAIMS WERE FALSIFIED BY THE ADVERSARY, and both are kept
-  visible in the documents rather than smoothed away. I asserted the wip refs
-  were invisible to REST; paginated REST returns all 53, and my "11" came from
-  an unpaginated query that answered short without erroring - trap (b) firing
-  inside the evidence offered as proof trap (b) was handled. And the plan's
-  first bundle step would have preserved nothing, because the wip refs exist
-  only on the remote, so its control compared two empty local counts and 0 == 0
-  would have passed green.
-
-- THE FOURTH CHANNEL NOBODY HAD LOOKED AT: commit author and committer identity.
-  520 of 521 commits carry a real personal email in both fields. CONVENTIONS 17
-  gate item 2 does not reach it. The operator RULED: rewrite to noreply.
-
-- CS-954: THE REPRODUCTION REFUTED THE FILED MECHANISM AND THE ITEM WAS REPAIRED
-  ANYWAY. Two controlled runs - plain local path and `file://` - advanced the
-  local ref mid-hook and BOTH shipped exactly the SHA the hook was handed, with
-  a control proving the ref had really moved. The incident is nonetheless REAL:
-  no CI run has ever existed for the SHA the hook graded, and one push-event run
-  exists for the later commit created three seconds after the ref update. So the
-  repair was built MECHANISM-AGNOSTIC on purpose.
-
-- THE REPAIR INTRODUCED A HANG AND THE REFUTATION CAUGHT IT. Reading stdin
-  unconditionally makes the hook wait forever for an EOF a terminal never sends,
-  so hand-running it wedged where it used to exit. The arm meant to cover that
-  asserted only CLOSED stdin while its docstring claimed to cover the debugging
-  case - which is the terminal case, and was the one that hung. Also caught: a
-  condition implemented but ungraded, proven by a mutant that survived all four
-  arms while changing real behaviour.
-
-- Next action: read the CS-700 plan section in `docs/item_notes/phase7.md`. It
-  is the implementing session's brief and it is now step-by-step. Its step S0 is
-  to write the needle set and the allowlist into the plan before S1 runs.
-
-- Watch out for: `/clear` survival is STILL not measured across five repos. The
-  three same-second lines in the invocation log are session 73 exercising the
-  instrument by hand via `--source`, not hook fires. CS-952 is a hard blocker on
-  the flip and needs a frozen-file grant. ROADMAP.md is over its soft budget.

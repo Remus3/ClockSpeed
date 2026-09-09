@@ -1087,3 +1087,39 @@ restored byte-identical each time. Suite: 44 passed.
 byte-identical delivery the record says never happened - the adversary used it
 to make an UNGRADED FILENAME durable in a sibling's tree. Grading the staged
 name closes the S2 half; the litter itself is still F4's.
+
+### THE COMMIT PHASE LANDED AND A VERIFIER REFUSED ITS FIRST CUT - MEASURED 2026-09-08 (session 77)
+
+**F4, F5, F6 AND F8 ARE CLOSED.** With F1, F2, F3 and F7 that leaves F10, D4 and
+D6. The mechanisms and the verification pointers are in `docs/LEDGER.md`; what
+follows is only what a later session would otherwise have to rediscover.
+
+**F10 IS STILL OPEN AND THE CHANGE THAT LOOKS LIKE ITS FIX IS NOT ONE.**
+`stage_all` now appends a staging path to its cleanup list BEFORE writing it
+rather than after, so a write that raises part way through is unlinked. That is
+the right shape and it is NOT a closure: no arm forces a partial write, forcing
+ENOSPC on this shared box was refused as unsafe once already, and F10's own
+fence says it is not to be closed on a reading. It stays open until an arm
+proves it.
+
+**THE PROBE PROVES THE DIRECTORY, NOT THE RECORD FILE.** A read-only record FILE
+passes `prepare_record` and still fails at the replace, landing exit 4. That is
+honest - the run did deliver - and it is the reason the fourth code exists
+rather than a hole to close by strengthening the probe. Writing the record back
+as a probe would flatten a corrupt one that `load_record` cannot parse.
+
+**THE VERIFIER'S THREE FINDINGS ARE THE TRANSFERABLE PART.**
+
+1. **A GREEN TARGETED SUITE SAYS NOTHING ABOUT THE CITATION GUARD.** A new
+   docstring cited `data/outbound_deliveries.json`, which is gitignored, and the
+   full suite went red on a gate that lives in a different module entirely.
+   Repointing at a live symbol beat disclosing a decline, because the disclosure
+   leg has a CEILING and adding a row failed it in the same run.
+2. **A HANDLER THAT PRINTS TWO FACTS CAN BE PRINTING A CONTRADICTION.**
+   `REFUSED` and `NOTE ALREADY DELIVERED` were emitted together and had been for
+   as long as the handler existed. The artifact was carrying the proof it was
+   wrong.
+3. **A CHECK MOVED EARLIER FOR SAFETY CAN CROSS A BOUNDARY THAT MATTERS.** Doing
+   the record probe before the dry-run branch made a dry run write to disk. The
+   ordering fix for one property broke another property of the same function,
+   and only an agent asking "what did this change break" found it.

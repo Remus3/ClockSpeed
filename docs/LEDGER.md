@@ -160,6 +160,70 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-08 - CS-958 - NOT A COMPLETION RECORD. The commit phase stops lying about what it did, four findings close, and a verifier refused the first cut of that on three counts
+
+**CS-958 STAYS OPEN and this entry does not close it.** F1, F2, F3, F4, F5, F6,
+F7 and F8 are closed. F10 is open and UNPROVEN - no arm forces a partial write -
+and D4 and D6 are open and named. Whether the item's acceptance is now met is a
+ruling for an adjudicator that produced none of this work; this session built it
+and does not get to grade it.
+
+**What shipped.** Merged files: `tools/outbound_send.py`,
+`tests/test_outbound_send.py`.
+
+- **F5.** The commit renamed with `replace()`, which overwrites, while the check
+  that a target was free ran in a much earlier phase. A note a sibling wrote
+  into that window was DESTROYED and the run reported exit 0 with an ordinary
+  record entry. A second existence check is not the fix - two checks with a
+  rename between them is the same race with a smaller window - so the rename is
+  now the guard: `os.rename` on Windows, which refuses an existing destination,
+  and `os.link` plus an unlink on POSIX, where a plain rename would overwrite.
+- **F4.** `commit_all` returned on the first failure and unlinked nothing, so
+  every destination it never reached kept a staging file byte-identical to the
+  note - a full delivery the record says never happened, which the sibling's own
+  watcher lists as a loose file, and which permanently blocked re-sending to
+  that destination. Every undelivered staging file is now removed, including the
+  one whose rename failed.
+- **F6.** The record is proven writable while nothing has been staged, and a
+  FOURTH exit code carries the case where something did leave. The published set
+  is now 0 delivered and recorded, 1 nothing written, 2 usage, 3 unmeasured, 4
+  something was delivered and the run did not finish cleanly.
+- **F8.** `record_path` tested the override for truth, so an empty
+  `CLOCKSPEED_OUTBOUND_RECORD` selected the operator's live record - the exact
+  accident a wrapper that clears rather than unsets is trying to avoid. Refused.
+
+**Verified by** `tests/test_outbound_send.py::test_the_commit_phase_never_overwrites_a_note_that_appeared_after_validation`,
+`::test_the_commit_phase_removes_the_staging_files_it_never_renamed`,
+`::test_an_empty_record_override_is_refused_rather_than_selecting_the_real_record`,
+`::test_an_unwritable_record_refuses_before_anything_is_delivered`,
+`::test_a_record_path_that_is_a_directory_refuses_before_delivering`,
+`::test_a_partial_delivery_reports_incomplete_rather_than_refused`,
+`::test_a_delivery_whose_record_cannot_be_written_is_incomplete_not_refused`,
+`::test_a_dry_run_does_not_touch_the_record_or_the_filesystem` and
+`::test_a_raise_after_a_delivery_is_incomplete_and_not_refused`.
+
+**A VERIFIER THAT WROTE NONE OF IT RETURNED NOT VERIFIED, ON THREE COUNTS, AND
+ALL THREE WERE REAL.** The targeted suite was green and the FULL suite was red -
+a bare-path citation in a new docstring, which the citation guard caught and the
+module's own suite could never see; the citation is repointed at a live symbol
+rather than disclosed as a decline, because a decline would have needed the
+ceiling raised. Exit 1 could still mean something was delivered: an exception
+this module does not name escapes `perform_send`'s `(OSError, ValueError)` and
+reached a handler that printed `REFUSED` and `NOTE ALREADY DELIVERED` on the
+same run - the second line was already proof the first was false. And the record
+probe sat ABOVE the dry-run branch, so a dry run created the record's parent
+directory and a temporary file inside it while printing "nothing was written",
+against this module's own rule that `--send` is the only way to write a byte.
+
+**How to verify this independently.** `python -m pytest
+tests/test_outbound_send.py -q` from the repository root, then `python -m pytest
+tests -q -n auto` - the targeted suite says nothing about the citation guard.
+Then replace `rename_no_clobber`'s body with `staged.replace(target)` and re-run:
+the overwrite arm must red. Eleven mutants were planted against the merged tree
+and ten died; `no-record-probe` survives on Windows only because the arm that
+grades it skips there - this platform does not honour a chmod on a directory -
+and CI runs that arm on ubuntu.
+
 ### 2026-09-08 - CS-958 - NOT A COMPLETION RECORD. The gate now grades the names as well as the bytes, three adversaries refuted the first cut of that, and the item stays OPEN with six findings unrepaired
 
 **CS-958 STAYS OPEN and this entry does not close it.** F1 is closed and F2, F3
