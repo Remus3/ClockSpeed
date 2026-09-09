@@ -160,6 +160,54 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-08 - CS-958 - NOT A COMPLETION RECORD. The gate now grades the names as well as the bytes, three adversaries refuted the first cut of that, and the item stays OPEN with six findings unrepaired
+
+**CS-958 STAYS OPEN and this entry does not close it.** F1 is closed and F2, F3
+and F7 were closed by S1. F4, F5, F6, F8, F10, D4 and D6 are untouched. The
+send this tool exists to make is still blocked until the commit-phase slice
+lands.
+
+**What shipped.** Slice S2: every string that leaves this machine is graded by
+`tools/outbound_gate.py`, not only the payload. `grade()` took bytes and nothing
+else, so a note's FILENAME and a destination's NAME were never scanned - the
+same value the gate REFUSES in content shipped as a filename into a sibling's
+inbox, was echoed on stdout, and was recorded `"gate_verdict": "CLEAN"`. Now
+graded: the delivered filename, the STAGED filename it is written under, every
+destination name as typed, and every destination name as RESOLVED. Each before
+any line that prints it and before any record entry is built; a refusal never
+renders the value it matched; one dirty name refuses the whole send. Merged
+files: `tools/outbound_send.py`, `tests/test_outbound_send.py`. No change to
+`tools/outbound_gate.py` - `scan()` already takes text, and a second scanner
+would be the CS-948 mistake in a new place.
+
+**Verified by** `tests/test_outbound_send.py::test_a_dirty_filename_refuses_the_send_and_is_never_echoed`,
+`::test_the_staged_filename_is_graded_and_not_only_the_delivered_one`,
+`::test_a_warning_on_a_name_is_made_visible_and_does_not_refuse`,
+`::test_a_dirty_name_after_a_clean_one_is_attributed_to_its_own_position`,
+`::test_a_resolved_name_is_graded_even_when_the_typed_name_is_clean` and
+`::test_both_spellings_of_the_filename_reach_the_gate`. Suite: 44 passed.
+
+**THREE ADVERSARIES ON THE FROZEN CANDIDATE, THREE REFUTED VERDICTS, AND EACH
+FOUND SOMETHING A GREEN SUITE OF 36 ARMS COULD NOT SEE.** The staged filename
+was ungraded and a rule with a length floor is satisfied by the four characters
+the suffix adds; the gate's WARN tier was dropped on the floor, so a short
+discovered value that prints as CONTENT went out silently as a NAME; a
+resolved-name refusal was byte-identical to a typed-name one; the locate hint
+was discarded so an `--all` refusal named nothing; and the collision refusals
+named nobody at all. Four mutants had survived every arm, and one more is
+EQUIVALENT rather than surviving - the delivered spelling is a strict prefix of
+the staged one and no scanning rule is end-anchored, so it is measured with a
+recording spy instead of a value. Thirteen mutants planted against the repaired
+tree, thirteen dead, the file restored byte-identical each time. The detail is
+in `docs/item_notes/phase4-followups-900.md` under CS-958.
+
+**How to verify this independently.** `python -m pytest
+tests/test_outbound_send.py -q` from the repository root. Then delete the
+`STAGED_LABEL` entry from the batch in `gate_phase` and re-run: exactly one arm
+must red. Every arm here drives the tool as a subprocess against a synthetic
+channel root under `tmp_path` with its record redirected, so no run touches a
+real `moon_sync_inbox`.
+
 ### 2026-09-08 - CS-958 - NOT A COMPLETION RECORD. The sender was refuted on four independent lenses, one slice of the repair merged, and the item stays OPEN with five findings unrepaired
 
 **CS-958 STAYS OPEN and this entry does not close it.** Its acceptance has five

@@ -1012,3 +1012,78 @@ operator will actually type, and the channel root does not contain. F4 and F5
 are the record telling the reconciler something false, which is worse for CS-951
 than no record. Do not repair any of them without an arm that FAILS first, and
 do not bank a fix on the code change - re-run each reproduction above.
+
+### S2 MERGED AND THE F1 REPRODUCTION NO LONGER REPRODUCES - MEASURED 2026-09-08 (session 77)
+
+**F1 IS CLOSED. F2, F3 and F7 were closed by S1.** What remains OPEN on this
+item is F4, F5, F6, F8, F10, D4 and D6. Merged files: `tools/outbound_send.py`,
+`tests/test_outbound_send.py`. No change to `tools/outbound_gate.py`, as the
+decomposition required.
+
+**THE MECHANISM.** `grade_names` grades a metadata string through `gate.scan` -
+the same rule table, exclusions and independent oracle a payload meets, not a
+second scanner. It consumes the REFUSALS and not the coverage rows, carries the
+WARN tier through as visible notices, scans a whole batch in one pass and
+attributes each finding by the line number `Finding` already carries. Graded:
+the delivered filename, the STAGED filename, every destination name as typed,
+and every destination name as RESOLVED. `resolve_targets` is now resolve, grade,
+report - phase two resolves without naming anything, phase three grades the
+resolved names, phase four reports and may name them because they are graded.
+Verified by `tests/test_outbound_send.py`, section METADATA 27-38.
+
+**THREE ADVERSARIES ON THE FROZEN `519cadf`, THREE REFUTED VERDICTS, AND EACH
+WAS RIGHT.** Recorded because every one of them found a defect a green suite of
+36 arms could not see.
+
+- **THE STAGED FILENAME WAS NEVER GRADED.** The writer creates `<note>.tmp` in
+  the sibling's tree and renames it after; that string is four characters
+  longer than the graded one, and a rule with a LENGTH FLOOR is satisfied by
+  exactly that. Measured in process: a bearer-shaped run one character short of
+  the twenty-character floor scans CLEAN, the same name plus the suffix scans
+  REFUSED. Driven end to end, the refused spelling reached a sibling's inbox and
+  `tools/inbox_watch.py` printed it as a loose file.
+- **THE WARN TIER WAS DROPPED ON THE FLOOR.** The gate has three tiers and the
+  first cut implemented two, so the identical short discovered value that
+  prints `WARN <pii:world-name>` as CONTENT went out SILENTLY as a destination
+  NAME and into the record. F1's own shape one tier down.
+- **A RESOLVED-NAME REFUSAL WAS BYTE-IDENTICAL TO A TYPED-NAME ONE**, so an
+  operator whose typed name was clean was sent to inspect that clean name. D2's
+  rule - an ordinal pointing at the wrong thing is worse than none - in a second
+  place.
+- **THE `locate` HALF OF `_which` WAS DISCARDED** at the metadata call site, so
+  an `--all` refusal named a destination that cannot be named and gave no way to
+  find it.
+- **THE TWO `already holds` REFUSALS NAMED NOBODY.** The first cut suppressed the
+  resolved name there; under `--all` that tells an operator broadcasting to five
+  siblings that one holds the note and not which. The fix is ORDER, not silence.
+
+**FOUR MUTANTS SURVIVED ALL 36 ARMS OF THE FIRST CUT**, and the reasons
+transfer. `line1-attribution` - pinning every finding to batch line 1 - survived
+because every fixture put its dirty value at index 1, either as a single-entry
+batch or because the credential spelling sorts ahead of the ordinary names under
+`--all`. **A BATCH-ATTRIBUTION MECHANISM IS UNTESTED UNTIL A FIXTURE PUTS THE
+FAULT SECOND.** `unmeasured-wins` survived because every arm passed
+`--allow-unmeasured`, so a documented precedence was never reached: **A FLAG
+EVERY ARM PASSES IS A BRANCH NO ARM GRADES.** `warnings-folded-in` survived
+because the warn tier is structurally unreachable from this suite - `base_env`
+makes every save-derived class underivable - so the arm stubs the gate and
+grades this module's own consumption rule instead. `skip-typed-only` survived
+because no discovered-path message renders a name.
+
+**AND ONE MUTANT IS EQUIVALENT, WHICH IS A DIFFERENT ANSWER FROM A SURVIVING
+ONE.** Deleting the DELIVERED spelling from the batch cannot be killed by any
+value: it is a strict PREFIX of the staged spelling and no scanning rule is
+end-anchored - the only anchored expressions in `tools/precommit_gate.py` are
+the save-file NAME parsers - so appending can create a match and never destroy
+one. Weakening the claim to "the staged name is graded" would be the wrong
+repair, because the delivered name is the one that persists in the inbox and the
+record. The property is measured structurally instead, with a RECORDING SPY over
+the gate asserting both spellings reach it.
+
+**THIRTEEN MUTANTS PLANTED AGAINST THE REPAIRED TREE, THIRTEEN DEAD**, file
+restored byte-identical each time. Suite: 44 passed.
+
+**F4 NOW HAS A SHARPER FORM.** The commit-phase `.tmp` litter is not only a
+byte-identical delivery the record says never happened - the adversary used it
+to make an UNGRADED FILENAME durable in a sibling's tree. Grading the staged
+name closes the S2 half; the litter itself is still F4's.
