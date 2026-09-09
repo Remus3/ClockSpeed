@@ -63,12 +63,37 @@ the bytes it names. The payload is now read once, graded as bytes, delivered as
 those same bytes, and recorded by their digest. There is no window because
 there is no second read.
 
-A DESTINATION IS A SINGLE PATH SEGMENT AND NOTHING ELSE. `root / name` lets an
-ABSOLUTE name replace the root outright, so `--to` with a drive-qualified path
-escaped the channel entirely, put an absolute path into the record, and walked
-straight past the exclusion that keeps this repository out of its own
-broadcast. A name carrying a separator, a drive, a leading dot or a parent
-reference is refused before anything is resolved.
+A DESTINATION IS GRADED AS A RESOLVED PATH, NOT AS A STRING, AND THE FIRST
+VERSION OF THIS CLAIM WAS ALSO FALSE. It checked the SPELLING - no separator, no
+drive, no leading dot, one path component - and then followed wherever that
+spelling led. A string cannot tell you where a path goes. Measured, all three
+against a synthetic root: a junction made with `mklink /J` passed the shape
+check and delivered a note OUTSIDE the channel root with exit 0; `--to` at this
+repository's own name delivered into this repository's own inbox, because the
+self-exclusion lived in the discovery function that only `--all` calls; and a
+trailing dot, which Win32 strips, put the note in one directory and recorded it
+under a name no directory has.
+
+So a destination is accepted only when `root / name / INBOX` RESOLVES to a
+directory whose grandparent is the resolved channel root and which is not this
+repository, and the name that reaches the record is RE-DERIVED from that
+resolved directory. The shape check stays in front of it because it is cheap and
+because an absolute name really does replace the root outright - `Path("/a") /
+"C:/b"` yields `C:/b` - but it is a fast rejection and never the containment
+guarantee. The same resolved path is what the dedup is keyed on: two spellings
+of one directory on a case-insensitive filesystem are one destination, not two,
+and treating them as two staged one temporary file twice and reported a complete
+delivery as PARTIAL.
+
+AND THIS REPOSITORY'S IDENTITY IS DERIVED FROM THE REPOSITORY, NOT FROM WHERE
+THIS FILE SITS. The clause above refuses a destination that resolves to us, and
+its first cut compared against the directory the running file sits in. That is
+the WORKTREE when the tool runs from one, and worktree-isolated slices are this
+project's default session shape - so the clause was false in exactly the place
+the work is done, and `--to <our own name>` resolved into our own inbox as
+before. `self_root()` walks up to `.git` and reads the worktree link when it
+finds a file rather than a directory, degrading to the file-relative answer
+when there is no `.git` at all.
 
 WHAT THIS RECORDS AND WHAT IT DOES NOT. One entry per DESTINATION rather than
 one per send, because a pooled entry for two siblings cannot answer the
@@ -108,8 +133,106 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from collections.abc import Sequence
 
+#: Where THIS FILE sits, which is what the gate beside it and the record
+#: beneath it are relative to. It is NOT this project's identity on the
+#: channel - see :func:`self_root`, and the two really do differ in the shape
+#: this project works in every day.
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OUTBOUND_GATE = REPO_ROOT / "tools" / "outbound_gate.py"
+
+
+def _main_checkout_of_worktree(dot_git: Path) -> Path | None:
+    """The main checkout behind a worktree's `.git` FILE, or None if it is unreadable.
+
+    A worktree's `.git` is a file holding one `gitdir:` line pointing at
+    `<main checkout>/.git/worktrees/<name>`, and that directory holds a
+    `commondir` file whose contents locate the shared `.git`. Both are plain
+    text and both are read here with plain file I/O - NO SUBPROCESS. A tool
+    whose whole job is to decide whether bytes may leave should not shell out
+    to answer a question about its own installation, and a `git` that is
+    absent, slow or hooked would turn a delivery decision into a process
+    launch.
+
+    None means "cannot tell", never a guess: the caller degrades rather than
+    inventing an identity.
+    """
+    try:
+        gitdir_line = next(
+            (
+                line
+                for line in dot_git.read_text(encoding="utf-8", errors="replace").splitlines()
+                if line.strip().startswith("gitdir:")
+            ),
+            None,
+        )
+        if gitdir_line is None:
+            return None
+        gitdir = Path(gitdir_line.split(":", 1)[1].strip())
+        if not gitdir.is_absolute():
+            gitdir = dot_git.parent / gitdir
+        gitdir = gitdir.resolve()
+        commondir = gitdir / "commondir"
+        if commondir.is_file():
+            relative = commondir.read_text(encoding="utf-8", errors="replace").strip()
+            common = (gitdir / relative).resolve() if relative else None
+        elif gitdir.parent.name == "worktrees":
+            common = gitdir.parent.parent
+        else:
+            common = None
+    except OSError:
+        return None
+    if common is None or common.name != ".git":
+        return None
+    return common.parent
+
+
+def self_root() -> Path:
+    """WHICH CHANNEL PARTICIPANT THIS PROCESS IS. Not the directory this file sits in.
+
+    THE DISTINCTION IS THE WHOLE OF CS-958 D3 AND IT WAS MEASURED, not argued.
+    The identity clause in :func:`resolve_targets` refuses a destination that
+    resolves to this repository, and its first cut compared against
+    `Path(__file__).resolve().parents[1]`. That is the checkout the running
+    FILE sits in - which, in a git worktree, is the worktree and not the
+    project on the channel. This project's default session shape is
+    worktree-isolated slices, so the acceptance clause was false in the shape
+    the work is actually done in: a copy running from a worktree resolved this
+    repository's own name into this repository's own inbox exactly as it had
+    before the repair.
+
+    So the identity is derived from the REPOSITORY rather than from the file:
+    walk up from this file to the first `.git`. A `.git` DIRECTORY means an
+    ordinary checkout and its parent is the answer. A `.git` FILE means a
+    worktree, and it carries a `gitdir:` line from which the main checkout is
+    derivable - see :func:`_main_checkout_of_worktree`.
+
+    IT DEGRADES AND NEVER RAISES, and the fallback is stated because a caller
+    reading a refusal deserves to know what was compared. When there is no
+    `.git` anywhere above this file - a tarball export, a vendored copy, a
+    single-file deployment - or when the worktree link cannot be read, the
+    answer falls back to :data:`REPO_ROOT`, which is exactly the old behaviour
+    and is correct for every checkout that is not a worktree. A send must not
+    fail because the tool could not work out its own name.
+    """
+    here = Path(__file__).resolve()
+    for candidate in here.parents:
+        dot_git = candidate / ".git"
+        try:
+            if dot_git.is_dir():
+                return candidate
+            if dot_git.is_file():
+                found = _main_checkout_of_worktree(dot_git)
+                return found if found is not None else REPO_ROOT
+        except OSError:
+            return REPO_ROOT
+    return REPO_ROOT
+
+
+try:
+    #: This repository's identity ON THE CHANNEL, resolved once at import.
+    SELF_ROOT = self_root()
+except OSError:  # pragma: no cover - degrade rather than refuse to start
+    SELF_ROOT = REPO_ROOT
 
 EXIT_OK = 0
 EXIT_REFUSED = 1
@@ -276,14 +399,25 @@ def grade(payload: bytes) -> tuple[int, str, str]:
 
 
 def is_plain_segment(name: str) -> bool:
-    """Whether `name` is one ordinary directory name and nothing else.
+    """A CHEAP FRONT CHECK ON THE SPELLING. It is NOT the containment guarantee.
 
-    A destination is joined onto the channel root, and `Path("/a") / "C:/b"`
-    yields `C:/b` - so an absolute or separator-bearing name escapes the channel
-    silently. Measured: `--to` with a drive-qualified path resolved to this
-    repository's own inbox, wrote an absolute path into the record, and walked
-    past the self-exclusion. Rejecting the shape is cheaper and more honest than
-    trying to detect every escape after the join.
+    That distinction is the whole of CS-958 F3 and this docstring used to get it
+    wrong. This function grades a STRING, and a string cannot tell you where a
+    path goes: `NUL`, `CON`, `COM1`, an 8.3 short name, a fullwidth solidus and a
+    trailing dot all pass the shape test, and a junction sitting at a perfectly
+    ordinary name resolves clean out of the channel root. Measured: a junction
+    made under a synthetic root with `mklink /J` was accepted here, followed
+    through `is_dir()`, and the note was written outside the root with exit 0.
+    What contains the send is :func:`resolve_targets` grading the RESOLVED path;
+    everything below is a fast rejection of shapes that are obviously not a
+    project name, kept because it is cheap and because it refuses before any
+    filesystem call is made.
+
+    The shape it does rule out matters on its own terms: a destination is joined
+    onto the channel root, and `Path("/a") / "C:/b"` yields `C:/b` - so an
+    absolute or separator-bearing name replaces the root outright. Measured:
+    `--to` with a drive-qualified path resolved to this repository's own inbox
+    and wrote an absolute path into the record.
     """
     if not name or name in {".", ".."} or name.startswith("."):
         return False
@@ -509,7 +643,7 @@ def perform_send(
 
 
 def resolve_targets(
-    root: Path, names: Sequence[str], note_name: str
+    root: Path, names: Sequence[str], note_name: str, *, discovered: bool = False
 ) -> tuple[list[tuple[str, Path]], list[str]]:
     """Turn destination names into targets, collecting every problem found.
 
@@ -517,21 +651,105 @@ def resolve_targets(
     per run costs an operator one round trip per destination, and the whole
     point of validating before staging is that the operator learns the full
     story while nothing has been written.
+
+    THE STRING IS NOT GRADED. THE RESOLVED PATH IS. A destination is accepted
+    only when `root / name / INBOX` RESOLVES to a directory whose grandparent is
+    the resolved channel root and which is not this repository. One check, and
+    it closes three separately measured holes at once:
+
+      * a junction under the channel root pointing outside it was accepted by
+        the shape check, followed by `is_dir()`, and delivered a note outside
+        the root with exit 0 (F3). Its resolved grandparent is not the root, so
+        it is refused now;
+      * `--to <this repository's own name>` delivered into this repository's own
+        inbox, because the self-exclusion lived in :func:`inbox_holders` and
+        ONLY `--all` calls that (F2). The identity clause here covers the path
+        an operator actually types, and it is compared against
+        :data:`SELF_ROOT` - the repository, derived from `.git` - rather than
+        against the directory this file happens to sit in. The first cut
+        compared against the latter and was therefore false in a worktree,
+        which is this project's default session shape (D3);
+      * a trailing dot is stripped by Win32, so the note landed in the undotted
+        directory while the record filed it under the dotted name - a name no
+        destination has (F7). The name is now RE-DERIVED from the resolved
+        directory, so the record cannot name a directory that does not exist.
+
+    AND THE DEDUP IS THIS FUNCTION'S JOB AND KEYED ON THE RESOLVED PATH, for
+    the same reason. The caller used to dedup with `dict.fromkeys` before
+    calling, which dedups case-SENSITIVELY while Windows resolves
+    case-INSENSITIVELY, so two spellings of one directory staged one temporary
+    file twice; the first rename consumed it and the second raised, and a
+    delivery that had completely succeeded was reported as PARTIAL and recorded
+    that way (F7). Two spellings of one directory are one target, and there is
+    now exactly one place that decides so.
+
+    NO REFUSAL ADDED HERE ECHOES THE VALUE IT MATCHED, and the shape refusal
+    stopped doing so. Measured on the unrepaired tool: a `--to` carrying a
+    drive-qualified home path came back as `destination '<the whole path>' is
+    not a plain project name`, so the one check whose job is to catch a name
+    that is secretly a path was the one that printed the path. This tool exists
+    because outbound bytes leak; a refusal that renders what it refused reports
+    the fault by committing a smaller version of it.
+
+    WHAT THE REFUSAL SAYS INSTEAD, and the docstring claims only what was
+    measured. For a TYPED destination it is an ORDINAL, and the ordinal counts
+    the `--to` flags the operator wrote. That is a repair too: the caller's
+    deduplication ran BEFORE this enumeration, so a repeated spelling shifted
+    every later position left, and a fault at the fifth typed name was measured
+    reporting as `destination 3` (D2). An ordinal pointing at the wrong name is
+    worse than none, because the operator edits a name that was fine.
+
+    For a DISCOVERED destination - `--all` - there is no typed list, and an
+    ordinal into a sorted directory listing names nothing the operator has ever
+    seen. So the refusal says the destination was discovered and names the one
+    move that makes the fault locatable, which is to pass `--to` explicitly and
+    read the ordinal off their own list. `discovered` is the caller's statement
+    about where the names came from; it changes no decision, only the wording.
     """
+    resolved_root = root.resolve()
     targets: list[tuple[str, Path]] = []
     problems: list[str] = []
-    for name in names:
+    # Resolved inbox -> the position that already claimed it, so a second
+    # spelling of one directory collapses rather than staging it twice.
+    claimed: dict[Path, int] = {}
+    for position, name in enumerate(names, start=1):
+        # WHICH DESTINATION, said in the only terms the operator can act on.
+        # An ordinal is meaningful when they typed the list; when `--all`
+        # discovered it, the actionable thing is the way to get an ordinal.
+        which = "a destination discovered by --all" if discovered else "destination %d" % position
+        locate = "; re-run naming destinations with --to to identify it" if discovered else ""
         if not is_plain_segment(name):
-            problems.append("destination %s is not a plain project name" % _ascii(repr(name)))
+            problems.append("%s is not a plain project name%s" % (which, locate))
             continue
-        inbox = root / name / INBOX
+        try:
+            inbox = (root / name / INBOX).resolve()
+        except OSError:
+            # A name the operating system will not even resolve is refused
+            # rather than raised on, so one bad destination reports alongside
+            # the others instead of ending the run at the first fault.
+            problems.append("%s could not be resolved%s" % (which, locate))
+            continue
         if not inbox.is_dir():
             problems.append("destination %s has no %s directory" % (_ascii(name), INBOX))
             continue
+        project = inbox.parent
+        if project.parent != resolved_root or project == SELF_ROOT:
+            problems.append(
+                "%s does not resolve to a project directly inside the "
+                "channel root, or resolves to this repository itself%s" % (which, locate)
+            )
+            continue
+        if inbox in claimed:
+            continue
+        claimed[inbox] = position
+        # THE NAME IS THE RESOLVED DIRECTORY'S OWN, not the spelling that was
+        # typed. The record must name a directory that exists.
+        real_name = project.name
         target = inbox / note_name
         if target.exists():
             problems.append(
-                "destination %s already holds a note named %s" % (_ascii(name), _ascii(note_name))
+                "destination %s already holds a note named %s"
+                % (_ascii(real_name), _ascii(note_name))
             )
             continue
         if staging_name(target).exists():
@@ -541,10 +759,10 @@ def resolve_targets(
             # already been delivered - a partial send reported as no send.
             problems.append(
                 "destination %s already holds a staging file for %s"
-                % (_ascii(name), _ascii(note_name))
+                % (_ascii(real_name), _ascii(note_name))
             )
             continue
-        targets.append((name, target))
+        targets.append((real_name, target))
     return targets, problems
 
 
@@ -581,11 +799,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             return stop
 
         root = channel_root(args.channel_root)
-        names = inbox_holders(root) if args.all else list(dict.fromkeys(args.to))
+        # THE TYPED LIST REACHES THE RESOLVER INTACT, duplicates and all. It
+        # used to be deduplicated here with `dict.fromkeys`, which did two
+        # things wrong at once: it deduplicated by SPELLING, so two spellings
+        # of one directory survived as two destinations and staged one
+        # temporary file twice (F7); and it shortened the list the resolver
+        # then enumerated, so every refusal after a repeat reported an ordinal
+        # into a list the operator never typed - measured, a fault at the fifth
+        # name reported as `destination 3` (D2). Deduplication now happens once,
+        # in `resolve_targets`, keyed on the resolved inbox.
+        names = inbox_holders(root) if args.all else list(args.to)
         if not names:
             return _refuse(["no destination was named and none was discovered"])
 
-        targets, problems = resolve_targets(root, names, note.name)
+        targets, problems = resolve_targets(root, names, note.name, discovered=args.all)
         if problems:
             return _refuse(problems)
 
