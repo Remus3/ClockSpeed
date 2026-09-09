@@ -160,6 +160,90 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-09 - LICENCE GATE RESULT for the save-parser field, and a refuted premise this project had been building on. NOT A COMPLETION RECORD
+
+**Nothing closed. This is a gate verdict plus a measured correction**, recorded before
+anything acts on it, the way CS-485's wiki verdict was. Two researchers worked
+independently from different starting points and converged.
+
+**THE REFUTED PREMISE.** This project has treated a `.usmap` mappings file as a
+precondition for decoding a save's property payloads - `read_properties` takes a
+non-optional `PropertyMap`, `cached_usmap()` returns None with no install, and the
+world layer therefore steps over roughly three quarters of every save body. That
+premise is a CATEGORY ERROR. Satisfactory saves use Unreal's TAGGED property
+serialization: every property carries its own name, type word, size and inner-type
+metadata inline, so the payload is self-describing. A mappings file is required for
+UNVERSIONED serialization and for reading COOKED ASSETS out of the `.pak`, which is a
+different job - it is why `FactoryGame.usmap` ships in the install for asset tooling.
+Three independent implementations were read and all three walk the tag stream with no
+mappings file anywhere in the path. AN IN-TREE PROBE IS THE ONLY THING THAT SETTLES IT
+FOR THIS CODEBASE and it is what a later session must read before relying on this
+paragraph - an external agent's reading is a hypothesis, not a measurement of our tree.
+
+**THE OTHER BLOCKER IS REAL AND IS OURS.** `WorldModel` carries no body bytes, so a
+record's `body_offset` points into a buffer nobody kept. Every tool examined decodes
+properties DURING the object walk and hands the caller decoded values rather than
+offsets into a dropped buffer. That is architecture, not format, and no external
+knowledge is needed to change it.
+
+**A TESTABLE CAUSE FOR THE (header 14, save 60) WALL**, where this project's tag walk
+reaches a terminator on ZERO payloads. Recent Unreal versions replace the tag's inline
+inner-type strings with a type-name TREE - name, then a tree of nodes, then size, then a
+flags byte, with the array index and the guid present only when their flag bits are set.
+The discriminator is a per-OBJECT UE5 file version carried in the object's own version
+data for save versions at or above 53, NOT a field in the file header. A decoder that
+never parses that structure cannot select the right layout at all, and would mis-parse
+at the first property of every object - which is exactly the observed failure. Two
+sources give the gating constant as 1011 and 1012 and DISAGREE; neither number is to be
+hardcoded from a citation. Probe it against the operator's own save.
+
+**GATE VERDICTS.** `CONVENTIONS.md` section 14, all five traps checked per candidate.
+
+- **REFUSED - GPL-3.0, copyleft, do not vendor regardless of any verbal clearance:**
+  `moritz-h/satisfactory-3d-map` (and its PyPI `satisfactory-save`),
+  `GreyHak/sat_sav_parse`, `PhysoxNB/SatisFacts`. Vendoring any of them would relicense
+  this project, which is MIT. For two of the three no author copyright line was observed
+  at all, so trap 2 is OPEN and the grantor is not established.
+- **REFUSED - source-available, not open source:** `AnthorNet/SC-InteractiveMap`, the
+  parser behind the interactive map the operator named. No LICENSE file, `private: true`
+  in its manifest, and a README stating reuse of the source and data assets is not
+  permitted in any case. Its bundled game-data API is doubly refused, by that README and
+  by the standing no-lifted-datasets decision. Its own site terms could not be read - the
+  domain returned 403 - so that leg is UNRESOLVED, which doctrine treats as refused.
+- **CLEARED WITH A CONDITION - MIT:** `etothepii4/satisfactory-file-parser`. Full
+  permission and warranty text in both the licence file and the manifest, single named
+  holder, no NOTICE and no undeclared upstreams found. THE CONDITION: it is TypeScript,
+  so the realistic use is READING it. A file-for-file port is a TRANSLATION and therefore
+  a derivative work - it is not a reimplementation and must not be called one. Vendoring
+  is cleared only if it is ever consumed as-is, with the copyright line reproduced.
+- **Reading and citing a URL is CLEARED and carries no obligation**, which is what this
+  entry is. One nuance worth keeping: the best format document in the field sits INSIDE a
+  GPL-licensed repository, so its PROSE AND TABLE LAYOUT are licensed accordingly even
+  though the facts it states are not.
+
+**THE DISTINCTION THAT GOVERNS WHAT HAPPENS NEXT, stated so it is not re-litigated.** A
+file format is an interface and a set of facts. "The tag is a name, then a type-name
+tree, then a size, then a flags byte" is a protocol fact. So is "clock speed is stored in
+`mCurrentPotential`" - a property name is the GAME's identifier, not any parser author's
+creation. Learning those by reading and then writing an original decoder is not
+derivation of anyone's code. What IS protected is source text, file and function
+organisation, comments, and a document's prose. So: external sources are HYPOTHESIS
+GENERATORS ONLY; every hypothesis is confirmed against LOCAL BYTES - the operator's own
+save and the shipped install, both lawful runtime inputs this project already reads and
+never commits - and every confirmed fact is recorded in this project's own words beside
+the probe that confirmed it. Never transcribe a table, never mirror a decomposition.
+
+**THE ONE THING THAT IS NOT DERIVABLE FROM THE TAG STREAM ALONE**, and it is small: map
+and set ELEMENT interiors carry no type information, so a table keyed by parent class
+path plus property name is required. Build it by observation from local saves, one
+verifiable entry at a time. Do NOT copy any existing project's table - one of them is
+explicitly refused above, and such a table is authored judgement about game content,
+which is closer to a dataset than to a format fact.
+
+**NO EXTERNAL GATE BLOCKS THIS PROJECT.** Nothing the field's map tools display comes
+from information this project cannot legitimately obtain. The format is self-describing,
+the version discriminator is inside the file, and the reference world is on this machine.
+
 ### 2026-09-08 - CS-958 - NOT A COMPLETION RECORD. The commit phase stops lying about what it did, four findings close, and a verifier refused the first cut of that on three counts
 
 **CS-958 STAYS OPEN and this entry does not close it.** F1, F2, F3, F4, F5, F6,
