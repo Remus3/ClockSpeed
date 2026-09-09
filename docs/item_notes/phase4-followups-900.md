@@ -910,6 +910,64 @@ here once.
 out through this tool, and F1 means the tool is currently the leak it was built
 to prevent.
 
+### S1 WAS REFUTED AT ITS FIRST CUT - MEASURED 2026-09-08 (session 76)
+
+Branch `cs958-s1` at `3ed5885`, graded by an adversary that did not build it, at a
+frozen sha, tree unmoved, no real inbox touched. **The mechanism HELD and the
+suite did not.** Recorded because the mechanism surviving is the part a later
+session will otherwise re-litigate, and the suite failing is the part it will
+otherwise inherit.
+
+**HELD, and not to be redesigned:** the resolved-grandparent check refused a
+single junction, a two-deep junction chain, an INBOX-level junction pointing at
+another repository's inbox, a `subst` drive and a real UNC channel root - each
+against a positive control proving the same fixture escapes the unrepaired tool
+at `4659b86` with exit 0. The re-derived name was TRUE for an 8.3 short name, a
+case variant, a trailing dot, a trailing space and a junction alias, and all
+three spellings collapsed to one target with nothing left undelivered.
+
+**D1 - THE SUITE DOES NOT GRADE THE FIX. Three of four subtle mutants ship a
+green 40 of 40, and two of them restore a measured finding of this item
+verbatim.** `project.parent.name != resolved_root.name` delivers outside the
+channel root at exit 0 - F3 restored. Keying the dedup on the UNRESOLVED inbox
+reproduces the false PARTIAL - F7 restored. Dropping `.resolve()` on the root is
+green because pytest resolves `basetemp`, so the one arm calling
+`resolve_targets` directly hands it an already-resolved root: **a fixture built
+parallel to the implementation, which is the shape that makes an arm agree with
+a bug.** Only removing the `REPO_ROOT` half was killed.
+
+**D2 - THE ORDINAL IS WRONG BY THE NUMBER OF EARLIER DUPLICATES.** `main`
+applies `dict.fromkeys` before `resolve_targets` enumerates, so a repeated
+spelling shifts every later position. Measured on five typed names: reported as
+3, typed 5th. The docstring added by the repair claims the ordinal is what an
+operator needs to fix the right name, which is the claim the measurement
+refutes. Under `--all` it indexes a sorted discovery list the operator never saw.
+
+**D3 - F2'S ACCEPTANCE CLAUSE STILL FAILS IN THE SHAPE THIS PROJECT ACTUALLY
+RUNS IN.** `REPO_ROOT = Path(__file__).resolve().parents[1]`, so a copy running
+from a WORKTREE computes its identity as the worktree and `--to Clockspeed`
+resolves into the real repository's inbox exactly as before. Both new arms
+`monkeypatch.setattr(sender, "REPO_ROOT", ...)`, so the CLAUSE is graded and the
+BINDING never is. The old arm's fault was skipping in a worktree; the
+replacement always runs and still cannot see the worktree hole. **A monkeypatch
+that supplies the value under test converts an integration property into a unit
+tautology.**
+
+**D4 - the `--all` fail-closed behaviour is wider than the builder named.** Any
+sibling carrying a reparse point OR a dot-prefixed directory name refuses the
+WHOLE broadcast, with a diagnostic that names no directory. Latent today - all
+five real siblings measured clean - and it is a real regression in usability.
+
+**D5 - one vacuous ASSERTION, not a vacuous arm.**
+`assert_absent_in_any_case(str(tmp_path), (raw,))` searches `json.dumps` output,
+where every backslash is doubled, so a record plainly holding the path scores
+zero hits while both controls score one. The arm's other checks still bite.
+
+**D6 - an echo path survives, declared rather than fixed.** `--to someoperator`
+returns `destination someoperator has no moon_sync_inbox directory` - raw
+operator input on stderr, which is the class non-negotiable 3 names. S2's
+write-list owns it.
+
 **THE SHAPE OF THE REPAIR, so a later session does not mis-scope it.** F1, F2
 and F3 are the item's acceptance clauses failing, not polish: the gate is not in
 front of everything that leaves, the exclusion does not cover the path an
