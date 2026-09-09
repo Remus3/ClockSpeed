@@ -256,6 +256,12 @@ VERDICT_NAME = {EXIT_OK: "CLEAN", EXIT_UNMEASURED: "UNMEASURED"}
 
 TOOL = "outbound-send"
 
+# How a refusal refers to the note's own filename. A LABEL AND NEVER THE VALUE:
+# the filename is the one string that is simultaneously outbound bytes, a
+# record field and a thing a sibling's watcher prints, so a refusal about it
+# must not be a second copy of it.
+NOTE_LABEL = "the note's filename"
+
 
 class QuietParser(argparse.ArgumentParser):
     """An argument parser that never echoes what it was given.
@@ -391,11 +397,109 @@ def grade(payload: bytes) -> tuple[int, str, str]:
     In process rather than as a subprocess so the sender and the gate cannot
     drift into two answers about one payload, and so no payload ever reaches an
     argument vector.
+
+    THIS FUNCTION GRADES THE PAYLOAD AND ONLY THE PAYLOAD. It took `payload:
+    bytes` and nothing else for its whole first life, which meant a note's
+    FILENAME and a destination's NAME were never graded at all - the gate stood
+    in front of the content and beside everything else, and the same value it
+    REFUSES in a note shipped as that note's filename under a recorded verdict
+    of CLEAN (CS-958 F1). The names go through :func:`grade_names`, which is
+    the same gate through a different door, NOT a second scanner.
     """
     gate = load_outbound_gate()
     refusals, warnings, coverage = gate.scan(payload.decode("utf-8"))
     out, err = gate.render(refusals, warnings, coverage)
     return gate.verdict(refusals, coverage), out, err
+
+
+def _which(position: int, discovered: bool) -> tuple[str, str]:
+    """Name ONE destination in a refusal, without echoing what it is called.
+
+    Returns (how to refer to it, how to locate it). For a TYPED destination the
+    reference is an ORDINAL and it counts the `--to` flags the operator wrote.
+    For a DISCOVERED one there is no typed list, and an ordinal into a sorted
+    directory listing names nothing the operator has ever seen - so the refusal
+    says the destination was discovered and names the one move that makes the
+    fault locatable, which is to pass `--to` and read the ordinal off their own
+    list.
+
+    LIFTED OUT OF :func:`resolve_targets` BECAUSE IT NOW HAS TWO CALLERS and
+    the two must not drift: a metadata refusal that numbered destinations
+    differently from a containment refusal would send the operator to edit a
+    name that was fine, which is the D2 fault this wording exists to fix.
+    """
+    if discovered:
+        return (
+            "a destination discovered by --all",
+            "; re-run naming destinations with --to to identify it",
+        )
+    return "destination %d" % position, ""
+
+
+def grade_names(labelled: Sequence[tuple[str, str]]) -> tuple[list[str], frozenset[int]]:
+    """Grade metadata STRINGS - a filename, a destination name - as outbound text.
+
+    CS-958 F1, and the reason this exists at all: a filename is outbound bytes.
+    It is written into a sibling's tree, printed by that sibling's watcher,
+    echoed on this tool's own stdout and stored in the delivery record forever.
+    The gate refused the value in content and stamped the identical value CLEAN
+    as a name, which is not a gap in the rule table - it is the rule table
+    never being asked.
+
+    SO IT IS THE SAME GATE THROUGH A DIFFERENT DOOR AND NOT A SECOND SCANNER.
+    `gate.scan` already takes text, so a name is graded by the same rule table,
+    the same exclusions and the same independent oracle as a payload. A second
+    scanner here would be the CS-948 mistake in a new place: two implementations
+    of one rule, free to drift, with the weaker one deciding.
+
+    IT CONSUMES THE REFUSALS AND NOT THE COVERAGE ROWS, which is a decision and
+    not an omission. Coverage says which classes could be derived ON THIS
+    MACHINE at all; it is a property of the box, it is identical for every
+    string graded in one run, and the payload's own grade has already reported
+    it. Folding it in again would report one unmeasured class two or three
+    times for a single note, and would let a filename turn a send UNMEASURED
+    for a reason that has nothing to do with the filename. Warnings are left
+    alone for the same reason the gate leaves them alone: a warning never
+    changes a verdict.
+
+    ONE SCAN FOR THE WHOLE BATCH, attributed by LINE. `Finding` carries a line
+    number, so joining the values with newlines and reading the line back is
+    the gate's own attribution rather than a per-value loop that would rebuild
+    the matcher population once per destination. A value CARRYING a line break
+    would destroy that attribution, so it is refused before the join rather
+    than silently mis-attributed - and a name with a newline in it is not a
+    project name on any platform.
+
+    NO REFUSAL HERE ECHOES THE VALUE IT MATCHED. It names the label, the class
+    and the gate's own reason. This function exists because outbound strings
+    leak; a refusal that rendered what it refused would report the fault by
+    committing a smaller version of it.
+    """
+    problems: list[str] = []
+    refused: set[int] = set()
+    scannable: list[tuple[int, str, str]] = []
+    for index, (label, value) in enumerate(labelled, start=1):
+        if "\n" in value or "\r" in value:
+            problems.append("%s carries a line break and cannot be graded as one name" % label)
+            refused.add(index)
+            continue
+        scannable.append((index, label, value))
+    if not scannable:
+        return problems, frozenset(refused)
+
+    gate = load_outbound_gate()
+    refusals, _warnings, _coverage = gate.scan(
+        "\n".join(value for _index, _label, value in scannable)
+    )
+    by_line: dict[int, set[str]] = {}
+    for finding in refusals:
+        by_line.setdefault(finding.line, set()).add(finding.klass)
+    for line, (index, label, _value) in enumerate(scannable, start=1):
+        for klass in sorted(by_line.get(line, ())):
+            reason = gate.CLASS_REASONS.get(klass, "a class the gate refuses")
+            problems.append("%s carries <pii:%s> - %s" % (label, klass, _ascii(reason)))
+            refused.add(index)
+    return problems, frozenset(refused)
 
 
 def is_plain_segment(name: str) -> bool:
@@ -534,20 +638,43 @@ def _refuse(lines: Sequence[str]) -> int:
     return EXIT_REFUSED
 
 
-def gate_phase(payload: bytes, *, allow_unmeasured: bool) -> tuple[int, int | None]:
-    """Grade the note and decide whether the send may continue.
+def gate_phase(payload: bytes, note_name: str, *, allow_unmeasured: bool) -> tuple[int, int | None]:
+    """Grade the note - its BYTES and its FILENAME - and decide whether to go on.
 
     Returns (the gate's verdict, an exit code to stop on or None). Lifted out of
     :func:`main` so the ordering this module turns on is a NAMED STEP rather
     than a fact about statement order that a later edit could quietly reverse -
     and so the refusal paths are readable next to each other instead of buried
     among the channel's own failures.
+
+    THE FILENAME IS GRADED HERE BECAUSE HERE IS BEFORE EVERYTHING THAT PRINTS
+    IT (CS-958 F1). The name reaches stdout in the DRY RUN and DELIVERED lines,
+    reaches a refusal inside :func:`resolve_targets`, and reaches the record's
+    `note` field. Measured on the unrepaired tool: a note whose filename was a
+    well-formed credential delivered at exit 0 and was recorded `gate_verdict:
+    CLEAN`, while the identical string in the note's CONTENT was refused. No
+    destination has been touched at this point either, so the refusal cannot
+    arrive alongside a channel fault the operator would have to fix first.
+
+    A REFUSAL DOMINATES AN UNMEASURED CLASS, which is the gate's own precedence
+    (`outbound_gate.verdict`: a finding first, then an unmeasured class, then
+    clean). So the name is graded between the two payload branches rather than
+    after them: a dirty filename refuses whether or not `--allow-unmeasured`
+    was passed, and it refuses for its own reason rather than being reported as
+    a coverage problem.
+
+    THE RETURNED VERDICT STAYS THE PAYLOAD'S. It is what lands in the record as
+    the gate verdict at the time of sending, and a metadata refusal never gets
+    that far - there is no send to record.
     """
     code, gate_out, gate_err = grade(payload)
     write_stream(sys.stdout, gate_out)
     if code == EXIT_REFUSED:
         write_stream(sys.stderr, gate_err)
         return code, _refuse(["the gate refused this note; its findings are above"])
+    name_problems, _refused = grade_names([(NOTE_LABEL, note_name)])
+    if name_problems:
+        return code, _refuse(name_problems)
     if code == EXIT_UNMEASURED and not allow_unmeasured:
         write_stream(
             sys.stderr,
@@ -708,7 +835,20 @@ def resolve_targets(
     """
     resolved_root = root.resolve()
     targets: list[tuple[str, Path]] = []
-    problems: list[str] = []
+    # EVERY NAME IS GRADED BEFORE THE LOOP BELOW CAN PUT ONE IN A MESSAGE.
+    # `destination %s has no %s directory` echoes the typed spelling, and a
+    # typed spelling is operator input that reaches this project's stdout
+    # (CS-958 F1, and D6). Grading the whole list in one scan rather than
+    # per-destination rebuilds the gate's matcher population once instead of
+    # once per name.
+    problems, refused = grade_names(
+        [(_which(position, discovered)[0], name) for position, name in enumerate(names, start=1)]
+    )
+    # The label and the resolved name of every destination this loop accepts,
+    # graded together after it. THE NAME THE TOOL PRINTS AND RECORDS IS THE
+    # RESOLVED DIRECTORY'S OWN, not the spelling that was typed, so grading the
+    # typed list alone would grade a string the tool then discards.
+    resolved_names: list[tuple[str, str]] = []
     # Resolved inbox -> the position that already claimed it, so a second
     # spelling of one directory collapses rather than staging it twice.
     claimed: dict[Path, int] = {}
@@ -716,8 +856,16 @@ def resolve_targets(
         # WHICH DESTINATION, said in the only terms the operator can act on.
         # An ordinal is meaningful when they typed the list; when `--all`
         # discovered it, the actionable thing is the way to get an ordinal.
-        which = "a destination discovered by --all" if discovered else "destination %d" % position
-        locate = "; re-run naming destinations with --to to identify it" if discovered else ""
+        if position in refused:
+            # ALREADY REFUSED BY THE GRADE ABOVE, AND EXAMINING IT FURTHER IS
+            # WHAT LEAKS IT. The send is refused whatever the rest of this
+            # loop would find, and every remaining message about THIS name
+            # renders the spelling that was typed - `destination <name> has
+            # no moon_sync_inbox directory` first among them. Measured: with
+            # the grade in place but the name still walked, the refused value
+            # reached stderr through exactly that line.
+            continue
+        which, locate = _which(position, discovered)
         if not is_plain_segment(name):
             problems.append("%s is not a plain project name%s" % (which, locate))
             continue
@@ -745,11 +893,17 @@ def resolve_targets(
         # THE NAME IS THE RESOLVED DIRECTORY'S OWN, not the spelling that was
         # typed. The record must name a directory that exists.
         real_name = project.name
+        resolved_names.append((which, real_name))
         target = inbox / note_name
         if target.exists():
+            # NEITHER OF THE TWO MESSAGES BELOW RENDERS THE DESTINATION'S NAME,
+            # and that is the F1 repair rather than a style choice. This name
+            # is the RESOLVED directory's, read off the operator's real sibling
+            # tree, and it reaches this line before the grade below has run on
+            # it. The ordinal locates the destination without echoing it; the
+            # note name is graded in `main` before this function is called.
             problems.append(
-                "destination %s already holds a note named %s"
-                % (_ascii(real_name), _ascii(note_name))
+                "%s already holds a note named %s%s" % (which, _ascii(note_name), locate)
             )
             continue
         if staging_name(target).exists():
@@ -758,11 +912,17 @@ def resolve_targets(
             # staging name made the write raise AFTER earlier destinations had
             # already been delivered - a partial send reported as no send.
             problems.append(
-                "destination %s already holds a staging file for %s"
-                % (_ascii(real_name), _ascii(note_name))
+                "%s already holds a staging file for %s%s" % (which, _ascii(note_name), locate)
             )
             continue
         targets.append((real_name, target))
+    # THE RESOLVED NAMES ARE GRADED BEFORE THE CALLER CAN PRINT OR RECORD ONE.
+    # This is the value that reaches the DRY RUN line, the DELIVERED line and
+    # the record's `destination` field, and a link at an ordinary name pointing
+    # at a directory the gate refuses passes every containment check in this
+    # function - its grandparent IS the channel root.
+    resolved_problems, _resolved_refused = grade_names(resolved_names)
+    problems.extend(resolved_problems)
     return targets, problems
 
 
@@ -794,7 +954,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         # refusal here cannot be reported alongside - or after - a fault the
         # operator would have to fix before seeing it.
         payload = note.read_bytes()
-        code, stop = gate_phase(payload, allow_unmeasured=args.allow_unmeasured)
+        code, stop = gate_phase(payload, note.name, allow_unmeasured=args.allow_unmeasured)
         if stop is not None:
             return stop
 

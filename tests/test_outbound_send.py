@@ -161,6 +161,37 @@ DEST_A_DOTTED = DEST_A + "."
 NOTE_NAME = "note958-first.md"
 SECOND_NOTE_NAME = "note958-second.md"
 
+# METADATA (CS-958 F1). A synthetic credential shape, ASSEMBLED FROM FRAGMENTS
+# so this file does not itself carry one - the same construction the gate uses
+# for its own canary (tools/outbound_gate.py::CANARY_CREDENTIAL). It is a
+# well-formed AWS access key id, which the gate REFUSES in content and which is
+# at the same time a perfectly legal filename and a perfectly legal directory
+# name. That is the whole of F1 in one value: the identical string, refused in
+# one place and stamped CLEAN in the other.
+#
+# THE 958 MARKER IS SEPARATED BY A HYPHEN ON PURPOSE. Every destination name in
+# this file carries the marker (module docstring, mechanism 3), but appending
+# it directly would put a word character where the rule's trailing ``\b`` needs
+# a boundary and the value would stop being refused at all - a fixture that
+# quietly grades nothing. Measured against the rule before these arms were
+# written: bare, hyphen-marked and hyphen-marked-with-a-suffix all refuse.
+SYNTHETIC_CREDENTIAL = "AKIA" + ("Q7" * 8)
+DIRTY_NOTE_NAME = SYNTHETIC_CREDENTIAL + "-958.md"
+DEST_DIRTY = SYNTHETIC_CREDENTIAL + "-958"
+
+# Two links inside the channel, one at a clean destination and one at the dirty
+# one. They are what separates grading the name an operator TYPED from grading
+# the name the destination RESOLVES to - the second is the one that reaches
+# stdout and the record.
+ALIAS_TO_CLEAN = "alias958"
+ALIAS_TO_DIRTY = "aliasdirty958"
+
+# The gate's own coverage header. Counted rather than searched, because the
+# metadata grade must consume the gate's REFUSALS and not its coverage rows: a
+# second block on one send would mean one machine's unmeasured class reported
+# twice for one note.
+COVERAGE_HEADER = "outbound-gate: coverage"
+
 # Assembled, never spelled out. See the module docstring.
 WINDOWS_HOME_PATH = "C:" + "\\" + "Users" + "\\" + "someoperator" + "\\" + "notes.txt"
 POSIX_HOME_PATH = "/" + "home" + "/someoperator" + "/app.log"
@@ -2301,3 +2332,357 @@ def test_the_record_path_check_can_see_a_json_escaped_path(tmp_path: Path) -> No
         "platform's JSON encoder did to the path, so the defect this arm exists "
         "for is no longer reproducible as described and the arm should be re-read"
     )
+
+
+# --------------------------------------------------------------------------
+# METADATA. 27-32 - CS-958 F1, the severe finding, and slice S2. `grade()`
+# takes `payload: bytes` and nothing else, so a note's FILENAME and a
+# destination's NAME were never graded at all: the gate stood in FRONT of the
+# payload and BESIDE everything else. The same value the gate REFUSES in
+# content shipped as a filename into every sibling inbox, was echoed to stdout,
+# and was recorded under `"gate_verdict": "CLEAN"` - a record that permanently
+# attests a grade which never covered the strings it holds. Every arm below is
+# one idea: a string that leaves this machine is graded before anything prints
+# it or records it, whether it is content or a name.
+#
+# EVERY ARM CARRIES A POSITIVE CONTROL IN THE SAME RUN, because every assertion
+# here is an ABSENCE - a value not on the streams, a note not delivered, a
+# record not written - and an absence is satisfied completely by a tool that
+# refuses everything or prints nothing.
+# --------------------------------------------------------------------------
+
+
+def test_a_dirty_filename_refuses_the_send_and_is_never_echoed(tmp_path: Path) -> None:
+    """Prove a note whose FILENAME the gate refuses is not delivered, or printed.
+
+    CS-958 F1 end to end. Reproduced on the unrepaired tool: a note whose
+    filename is a well-formed credential delivered at exit 0 with
+    `DELIVERED <the credential> to 1 destination(s) ... [gate CLEAN]`, while the
+    identical string placed in the note's CONTENT was refused at exit 1. The
+    filename then sat in a sibling's inbox, in this project's record, and in
+    whatever the operator pasted the stdout line into.
+
+    THE CONTROL IS THE INSTRUMENT AND RUNS FIRST. The load-bearing assertion is
+    that a value does NOT appear on the streams, which is satisfied by a tool
+    that prints nothing at all - so a clean note is sent first and its filename
+    MUST appear on the streams. That is the proof this arm can see a filename
+    when one is printed.
+
+    THE ASSERTED EXPRESSION NEVER CARRIES THE VALUE (CS-850). The count is
+    bound to a scalar first, and the message names the fault rather than the
+    string, because pytest renders the expression it was given.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    env = base_env(tmp_path)
+    control_note = clean_note(tmp_path)
+    dirty = clean_note(tmp_path, name=DIRTY_NOTE_NAME)
+
+    control_code, control_out, control_err = run_send(
+        "--note",
+        str(control_note),
+        "--to",
+        DEST_A,
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+    control_streams = text(control_out) + text(control_err)
+    after_control = tree_snapshot(channel)
+
+    code, out, err = run_send(
+        "--note",
+        str(dirty),
+        "--to",
+        DEST_A,
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+    changed = changed_paths(after_control, tree_snapshot(channel))
+    streams = text(out) + text(err)
+    leaked = streams.count(SYNTHETIC_CREDENTIAL)
+    entries = len(record_entries(env))
+
+    assert control_code == EXIT_OK, f"the control was refused; stderr {text(control_err)!r}"
+    assert NOTE_NAME in control_streams, (
+        "the control's filename never reached the streams, so this arm cannot see one"
+    )
+    assert code == EXIT_REFUSED, f"exit {code}; a refused filename did not refuse the send"
+    assert changed == [], f"a note with a refused filename was still written: {changed}"
+    assert leaked == 0, "the refusal echoed the value it refused"
+    assert entries == 1, f"{entries} record entries; the refused send reached the record"
+
+
+def test_a_dirty_filename_is_refused_before_the_dry_run_line_prints_it(tmp_path: Path) -> None:
+    """Prove the grade happens BEFORE the line that echoes the name, not after.
+
+    THE ORDER OF OPERATIONS IS THE REPAIR. A tool that graded the filename
+    after resolving destinations and printing its report would satisfy every
+    delivery assertion in the arm above - nothing is written by a dry run
+    either - while still having put the value on stdout, which is the echo path
+    CLAUDE.md non-negotiable 12 names explicitly. A dry run is the sharpest
+    place to measure it, because the DRY RUN line's whole content is the note's
+    name and the destinations.
+
+    THE CONTROL IS A CLEAN DRY RUN IN THE SAME RUN, and it must reach the DRY
+    RUN line with its filename on it. Without that half, a tool that refused
+    every dry run would pass.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    env = base_env(tmp_path)
+    control_note = clean_note(tmp_path)
+    dirty = clean_note(tmp_path, name=DIRTY_NOTE_NAME)
+
+    control_code, control_out, control_err = run_send(
+        "--note", str(control_note), "--to", DEST_A, "--allow-unmeasured", channel=channel, env=env
+    )
+    control_streams = text(control_out) + text(control_err)
+
+    code, out, err = run_send(
+        "--note", str(dirty), "--to", DEST_A, "--allow-unmeasured", channel=channel, env=env
+    )
+    streams = text(out) + text(err)
+    leaked = streams.count(SYNTHETIC_CREDENTIAL)
+
+    assert control_code == EXIT_OK, f"the control was refused; stderr {text(control_err)!r}"
+    assert "DRY RUN" in control_streams, "the control never reached the dry-run report"
+    assert NOTE_NAME in control_streams, "the dry-run report does not print the note's name"
+    assert code == EXIT_REFUSED, f"exit {code}; a dry run accepted a refused filename"
+    assert "DRY RUN" not in streams, "the dry-run report was reached with an ungraded filename"
+    assert leaked == 0, "the refusal echoed the value it refused"
+
+
+def test_a_typed_destination_whose_name_is_dirty_refuses_the_whole_send(tmp_path: Path) -> None:
+    """Prove a dirty DESTINATION name refuses everything, including the clean ones.
+
+    THE SETTLED DECISION IS ASSERTED HERE SO IT IS VISIBLE RATHER THAN
+    INCIDENTAL (the S2 spec, decision 2): a dirty name does not rename, does not
+    warn, and does not deliver to the clean destinations. The outbound gate
+    refuses and does not rewrite, and a destination name is the one string that
+    is simultaneously outbound bytes, a record field, and a thing a sibling's
+    watcher prints.
+
+    SO THE LOAD-BEARING ASSERTION IS THE CLEAN DESTINATION'S ABSENCE. A tool
+    that refused only the dirty destination and delivered to the other would
+    satisfy the exit code, the record count and the echo check all three.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A, DEST_DIRTY))
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    before = tree_snapshot(channel)
+
+    control_code, control_out, control_err = run_send(
+        "--note", str(note), "--to", DEST_A, "--allow-unmeasured", channel=channel, env=env
+    )
+
+    code, out, err = run_send(
+        "--note",
+        str(note),
+        "--to",
+        DEST_A,
+        "--to",
+        DEST_DIRTY,
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+    changed = changed_paths(before, tree_snapshot(channel))
+    streams = text(out) + text(err)
+    leaked = streams.count(SYNTHETIC_CREDENTIAL)
+    entries = len(record_entries(env))
+
+    assert control_code == EXIT_OK, f"the control was refused; stderr {text(control_err)!r}"
+    assert "DRY RUN" in text(control_out), "the clean destination is not deliverable at all"
+    assert code == EXIT_REFUSED, f"exit {code}; a refused destination name did not refuse the send"
+    assert changed == [], f"a send carrying a refused destination name still wrote {changed}"
+    assert leaked == 0, "the refusal echoed the value it refused"
+    assert entries == 0, f"{entries} record entries; a refused send reached the record"
+
+
+def test_all_refuses_the_whole_broadcast_when_a_discovered_name_is_dirty(tmp_path: Path) -> None:
+    """Prove `--all` grades the names it DISCOVERED, not only the ones typed.
+
+    THE DISCOVERED PATH IS THE ONE THAT MATTERS MOST AND THE ONE AN OPERATOR
+    CANNOT INSPECT. `--to` at least passes through the operator's own keyboard;
+    `--all` reads the sibling root and writes whatever it finds there into
+    stdout and into the record. A repair that graded `args.to` alone would
+    leave the whole of F1 open on the flag this project actually broadcasts
+    with, and would look complete.
+
+    THE CONTROL IS A SECOND, CLEAN CHANNEL AND A REAL `--all --send`, so a
+    discovery that returned nothing at all - which would satisfy the refusal
+    below perfectly - is ruled out by a broadcast that lands.
+    """
+    control_parent = tmp_path / "control958"
+    control_parent.mkdir()
+    control_channel = make_channel(control_parent, with_inbox=(DEST_A,))
+    channel = make_channel(tmp_path, with_inbox=(DEST_A, DEST_DIRTY))
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    before = tree_snapshot(channel)
+
+    control_code, _control_out, control_err = run_send(
+        "--note",
+        str(note),
+        "--all",
+        "--send",
+        "--allow-unmeasured",
+        channel=control_channel,
+        env=env,
+    )
+    control_landed = delivered(control_channel, DEST_A).is_file()
+
+    code, out, err = run_send(
+        "--note", str(note), "--all", "--send", "--allow-unmeasured", channel=channel, env=env
+    )
+    changed = changed_paths(before, tree_snapshot(channel))
+    streams = text(out) + text(err)
+    leaked = streams.count(SYNTHETIC_CREDENTIAL)
+    entries = len(record_entries(env))
+
+    assert control_code == EXIT_OK, f"the control was refused; stderr {text(control_err)!r}"
+    assert control_landed, "the control broadcast delivered nothing; discovery is not working"
+    assert code == EXIT_REFUSED, f"exit {code}; a discovered dirty name did not refuse --all"
+    assert changed == [], f"a refused broadcast still wrote {changed}"
+    assert leaked == 0, "the refusal echoed the value it refused"
+    assert entries == 1, f"{entries} record entries; only the control may have recorded one"
+
+
+def test_a_resolved_name_is_graded_even_when_the_typed_name_is_clean(tmp_path: Path) -> None:
+    """Prove the graded name is the one that gets PRINTED and RECORDED.
+
+    THE NAME THE TOOL USES IS NOT THE NAME THE OPERATOR TYPED, which is S1's
+    doing and is correct: a destination's name is RE-DERIVED from its resolved
+    directory so the record can never file a delivery under a name no directory
+    has. That re-derivation is exactly why grading `--to` as typed is not
+    enough. A link inside the channel, at an ordinary name, resolving to a
+    directory whose OWN name the gate refuses, is accepted by every containment
+    check S1 added - its grandparent IS the channel root - and its resolved name
+    then reaches stdout and the record.
+
+    THE CONTROL IS THE SAME MECHANISM AT A CLEAN TARGET, in the same run: a
+    second link, resolving to an ordinary destination, must deliver. Without it
+    a tool that refused every link would pass this arm while breaking the
+    containment behaviour S1 measured.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A, DEST_DIRTY))
+    make_directory_link(channel / ALIAS_TO_CLEAN, channel / DEST_A)
+    make_directory_link(channel / ALIAS_TO_DIRTY, channel / DEST_DIRTY)
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+
+    control_code, _control_out, control_err = run_send(
+        "--note",
+        str(note),
+        "--to",
+        ALIAS_TO_CLEAN,
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+    control_landed = delivered(channel, DEST_A).is_file()
+    after_control = tree_snapshot(channel)
+
+    code, out, err = run_send(
+        "--note",
+        str(note),
+        "--to",
+        ALIAS_TO_DIRTY,
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+    changed = changed_paths(after_control, tree_snapshot(channel))
+    streams = text(out) + text(err)
+    leaked = streams.count(SYNTHETIC_CREDENTIAL)
+    recorded = sorted(record_strings(record_entries(env)))
+    dirty_recorded = DEST_DIRTY in recorded
+
+    assert control_code == EXIT_OK, f"the control was refused; stderr {text(control_err)!r}"
+    assert control_landed, "a link at a clean destination did not deliver; the arm cannot grade"
+    assert DEST_A in recorded, "the control's resolved name is not in the record"
+    assert code == EXIT_REFUSED, f"exit {code}; a refused RESOLVED name did not refuse the send"
+    assert changed == [], f"a send resolving to a refused name still wrote {changed}"
+    assert leaked == 0, "the refusal echoed the value it refused"
+    assert not dirty_recorded, "a refused destination name was written into the record"
+
+
+def test_a_typed_name_that_never_resolves_is_graded_before_it_is_echoed(tmp_path: Path) -> None:
+    """Prove the TYPED spelling is graded too, on the path where it is the thing printed.
+
+    WRITTEN BECAUSE A MUTANT SURVIVED. Deleting the pre-loop grade of the typed
+    list left the six arms above completely green, and the reason is worth
+    keeping: in every one of them the typed name and the RESOLVED name are the
+    same string, so the grade applied to the resolved list caught it and the
+    earlier one was never load-bearing. A guard on a path no arm takes is a
+    guard nobody has measured.
+
+    THE PATH IT IS LOAD-BEARING ON IS A DESTINATION THAT NEVER BECOMES A
+    TARGET. `destination <name> has no moon_sync_inbox directory` renders the
+    operator's own typed spelling, and a name that fails there never reaches
+    the resolved list at all - so with the earlier grade gone, the one refusal
+    whose job is to say a destination is missing is the one that prints it.
+
+    THE CONTROL IS THE SAME REFUSAL OVER A CLEAN NAME, and it is the sharpest
+    kind available: that message MUST echo the clean name, which proves the arm
+    can see a typed name on this exact code path rather than on some other one.
+    """
+    channel = make_channel(
+        tmp_path, with_inbox=(DEST_A,), without_inbox=(DEST_NO_INBOX, DEST_DIRTY)
+    )
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    before = tree_snapshot(channel)
+
+    control_code, control_out, control_err = run_send(
+        "--note", str(note), "--to", DEST_NO_INBOX, "--allow-unmeasured", channel=channel, env=env
+    )
+    control_streams = text(control_out) + text(control_err)
+
+    code, out, err = run_send(
+        "--note", str(note), "--to", DEST_DIRTY, "--allow-unmeasured", channel=channel, env=env
+    )
+    changed = changed_paths(before, tree_snapshot(channel))
+    streams = text(out) + text(err)
+    leaked = streams.count(SYNTHETIC_CREDENTIAL)
+
+    assert control_code == EXIT_REFUSED, f"exit {control_code}; a name with no inbox was accepted"
+    assert DEST_NO_INBOX in control_streams, (
+        "the missing-inbox refusal does not print the typed name, so this arm sees nothing"
+    )
+    assert code == EXIT_REFUSED, f"exit {code}; a refused typed name did not refuse the send"
+    assert leaked == 0, "the missing-inbox refusal echoed the value the gate refuses"
+    assert changed == [], f"a refused dry run wrote {changed}"
+
+
+def test_the_metadata_grade_reports_coverage_once(tmp_path: Path) -> None:
+    """Prove the metadata grade consumes REFUSALS and not the gate's coverage rows.
+
+    THE S2 SPEC'S FIRST DECISION, ASSERTED RATHER THAN LEFT TO A READING.
+    Coverage is a property of the MACHINE - which classes could be derived here
+    at all - and it is already accounted for by the payload's own grade. A
+    metadata grade that folded coverage in again would report one machine's
+    unmeasured class two or three times for a single note, and would let a
+    filename turn a send UNMEASURED for a reason that has nothing to do with
+    the filename.
+
+    ONE HEADER IS BOTH HALVES OF THE ASSERTION: two would be the duplication,
+    and zero would mean the arm is counting a string the tool no longer prints,
+    so the count pins presence and non-duplication in one measurement.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A, DEST_B))
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+
+    code, out, err = run_send(
+        "--note", str(note), "--all", "--send", "--allow-unmeasured", channel=channel, env=env
+    )
+    headers = text(out).count(COVERAGE_HEADER)
+
+    assert code == EXIT_OK, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
+    assert headers == 1, f"the gate's coverage block was reported {headers} time(s) for one note"
