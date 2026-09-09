@@ -75,6 +75,19 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SENDER = REPO_ROOT / "tools" / "outbound_send.py"
 GATE = REPO_ROOT / "tools" / "outbound_gate.py"
 
+# WHICH PLATFORM, AND WHY AN ARM IS EVER ALLOWED TO ASK. The containment
+# property is identical on both: a destination is accepted only when it
+# RESOLVES to a project directly inside the channel root. What differs is the
+# MECHANISM an arm has to build to attack it. Windows escapes through a
+# junction and gives two spellings of one directory for free - it folds case
+# and strips a trailing dot; POSIX escapes through a symlink, is
+# case-SENSITIVE, and keeps the dot, so a second spelling of one directory has
+# to be made rather than assumed. This constant selects the mechanism. It never
+# selects whether an arm runs: an arm that skips on one platform is the vacuity
+# this slice deleted elsewhere in this file, and a gate that skips its checks
+# still reports PASS.
+WINDOWS = os.name == "nt"
+
 # The closed exit set, named rather than spelled inline. Named because a bare
 # `== 1` is both a ruff PLR2004 magic value and unreadable at the call site:
 # the whole contract of this tool is WHICH code came back.
@@ -136,9 +149,12 @@ DEST_MIRROR = "mirror958"
 DEST_SELF = "selfrepo958"
 OUTSIDE_DIR = "outside958"
 
-# One directory, spelled three ways. Windows resolves all three to the same
-# path; a dedup keyed on the STRING sees three destinations and stages one
-# temporary file three times (CS-958 F7).
+# One directory, spelled three ways, ON EITHER PLATFORM - see
+# :func:`spellings_of_one_directory`, which supplies the second and third
+# spelling however the running platform makes them. A dedup keyed on the STRING
+# sees three destinations and stages one temporary file three times (CS-958
+# F7). The two alternate spellings are the ones Windows itself produces, so the
+# POSIX fixture reproduces the Windows situation rather than inventing another.
 DEST_A_UPPER = DEST_A.upper()
 DEST_A_DOTTED = DEST_A + "."
 
@@ -275,20 +291,36 @@ def make_channel(
     return channel
 
 
-def make_junction(link: Path, target: Path) -> None:
-    """Create a directory junction at ``link`` pointing at ``target``.
+def make_directory_link(link: Path, target: Path) -> None:
+    """Make a directory entry at ``link`` that RESOLVES to ``target``.
 
-    A JUNCTION AND NOT A SYMLINK, because a junction needs no privilege on
-    Windows while a directory symlink needs either an elevated token or
-    developer mode - so an arm built on a symlink would skip on the machine
-    that matters and grade nothing. That is the same vacuity this slice is
+    THE MECHANISM IS THE PLATFORM'S; THE PROPERTY IS NOT. Containment is
+    decided on the resolved path, and both platforms let a name inside the
+    channel root resolve somewhere else - what differs is how. This helper owns
+    that difference so no arm has to, and NEITHER PLATFORM IS ALLOWED TO SKIP:
+    the escape is possible on both, so an arm that stopped grading on one would
+    be green exactly where the hole is open.
+
+    ON WINDOWS, A JUNCTION AND NOT A SYMLINK, because a junction needs no
+    privilege while a directory symlink needs either an elevated token or
+    developer mode - so an arm built on a symlink would skip on the operator's
+    own machine and grade nothing. That is the same vacuity this slice is
     deleting elsewhere in this file.
 
-    FAILURE HERE IS A TEST FAILURE AND NOT A SKIP. An arm that quietly stopped
-    grading when the link could not be made would be green on exactly the
-    platform where the escape it is about is possible.
+    ON POSIX, AN ORDINARY DIRECTORY SYMLINK, which needs no privilege there and
+    is the escape a POSIX runner actually has. ``mklink`` does not exist on
+    that platform at all; the arms that used it unconditionally were the eight
+    that went red in CI while the whole suite was green on Windows.
+
+    FAILURE HERE IS A TEST FAILURE AND NOT A SKIP, on either platform.
     """
     link.parent.mkdir(parents=True, exist_ok=True)
+    if not WINDOWS:
+        link.symlink_to(target, target_is_directory=True)
+        assert link.is_dir(), (
+            "a directory symlink could not be created; this arm cannot grade containment"
+        )
+        return
     proc = subprocess.run(
         ["cmd", "/c", "mklink", "/J", str(link), str(target)],
         capture_output=True,
@@ -299,6 +331,40 @@ def make_junction(link: Path, target: Path) -> None:
         "a directory junction could not be created; this arm cannot grade containment"
     )
     assert link.is_dir(), "the junction was reported created but is not a directory"
+
+
+def spellings_of_one_directory(channel: Path, name: str) -> tuple[str, str, str]:
+    """Three spellings that name ONE directory under ``channel``, per platform.
+
+    WHY A HELPER RATHER THAN THREE LITERALS. The property under test is that
+    the dedup is keyed on the RESOLVED inbox, so two spellings of one directory
+    are one delivery and the record names the directory that EXISTS. Windows
+    hands that fixture over for free, because Win32 folds case and strips a
+    trailing dot from a path component - so ``alpha958``, ``ALPHA958`` and
+    ``alpha958.`` are one directory there with nothing built. POSIX does
+    neither: those are three DISTINCT names, two of which do not exist, and an
+    arm that assumed otherwise measured the "no such destination" refusal while
+    claiming to measure the dedup. That is what the eight CI failures were.
+
+    So on POSIX the same three spellings are MADE to name one directory, with
+    two directory symlinks beside it. The alternate spellings are deliberately
+    the ones Windows itself produces, so the two platforms grade the same
+    situation through each one's own mechanism rather than grading two
+    different situations.
+
+    THE MUTANT THIS KEEPS BITING ON BOTH PLATFORMS is CS-958 D1 mutant two:
+    keying the dedup on the UNRESOLVED ``root / name / INBOX``. All three
+    unresolved keys differ on POSIX - it compares case-sensitively and keeps
+    the dot - and the dotted one differs on Windows, so the mutant stages one
+    temporary file three times either way and the arm reds.
+
+    Returns the spellings in typing order; the FIRST is the real directory's
+    own name, which is the name the record must carry.
+    """
+    if not WINDOWS:
+        for alias in (name.upper(), name + "."):
+            make_directory_link(channel / alias, channel / name)
+    return (name, name.upper(), name + ".")
 
 
 def write_note(tmp_path: Path, name: str, payload: bytes) -> Path:
@@ -1262,7 +1328,9 @@ def test_all_does_not_broadcast_to_this_repository(
 
     IT COMPARES RESOLVED PATHS AND THE FIXTURE IS BUILT TO PROVE THAT. The
     directory standing in for this repository lives OUTSIDE the channel and is
-    reachable inside it only through a junction whose NAME IS DIFFERENT. So:
+    reachable inside it only through a link whose NAME IS DIFFERENT - a
+    junction on Windows, a directory symlink on POSIX, and
+    :func:`make_directory_link` owns which. So:
 
       * an implementation comparing ``entry.name`` to ``REPO_ROOT.name`` sees
         two different names, includes the junction, and this arm reds;
@@ -1285,7 +1353,7 @@ def test_all_does_not_broadcast_to_this_repository(
     channel = make_channel(tmp_path, with_inbox=(DEST_A,))
     fake_repo = tmp_path / DEST_SELF
     (fake_repo / INBOX).mkdir(parents=True)
-    make_junction(channel / DEST_MIRROR, fake_repo)
+    make_directory_link(channel / DEST_MIRROR, fake_repo)
     monkeypatch.setattr(sender, "REPO_ROOT", fake_repo.resolve())
 
     holders = sender.inbox_holders(channel)
@@ -1306,7 +1374,7 @@ def test_all_does_not_broadcast_to_this_repository(
 # --------------------------------------------------------------------------
 
 
-def test_a_junction_that_leaves_the_channel_root_is_refused(tmp_path: Path) -> None:
+def test_a_link_that_leaves_the_channel_root_is_refused(tmp_path: Path) -> None:
     """Prove a destination that resolves OUT of the channel root delivers nothing.
 
     CS-958 F3, reproduced end to end before it was repaired: `mklink /J` a
@@ -1314,6 +1382,13 @@ def test_a_junction_that_leaves_the_channel_root_is_refused(tmp_path: Path) -> N
     `DELIVERED ... [gate CLEAN]` with exit 0 and the note written outside the
     root it was told to stay inside. The record holds no path by design, so
     nothing downstream could tell a contained delivery from an escaped one.
+
+    THE ESCAPE IS THE RUNNING PLATFORM'S OWN - a junction on Windows, a
+    directory symlink on POSIX - and :func:`make_directory_link` owns the
+    difference. The property is one property: containment is decided on the
+    resolved path, and both platforms can make a name inside the root resolve
+    outside it. The first cut of this arm spelled `mklink` inline and was one
+    of eight that could only run on Windows.
 
     THE ARM IS THE ABSENCE OUTSIDE THE ROOT AND NOT THE EXIT CODE. A tool that
     wrote the note and then returned 1 would satisfy an exit-code assertion
@@ -1328,7 +1403,7 @@ def test_a_junction_that_leaves_the_channel_root_is_refused(tmp_path: Path) -> N
     channel = make_channel(tmp_path, with_inbox=(DEST_A,))
     outside = tmp_path / OUTSIDE_DIR
     (outside / INBOX).mkdir(parents=True)
-    make_junction(channel / DEST_ESCAPE, outside)
+    make_directory_link(channel / DEST_ESCAPE, outside)
     env = base_env(tmp_path)
     note = clean_note(tmp_path)
     before = tree_snapshot(outside)
@@ -1352,14 +1427,16 @@ def test_a_junction_that_leaves_the_channel_root_is_refused(tmp_path: Path) -> N
     assert not DRIVE_LETTER_RE.search(streams), "the refusal rendered an absolute path"
 
 
-def test_an_ordinary_sibling_delivers_while_a_junction_sits_beside_it(tmp_path: Path) -> None:
+def test_an_ordinary_sibling_delivers_while_an_escaping_link_sits_beside_it(
+    tmp_path: Path,
+) -> None:
     """The NEGATIVE CONTROL for the whole containment set.
 
     Without it every refusal arm above and below is satisfied by a tool that
     refuses everything, and a containment check that rejected all destinations
     would look like four passing safety arms.
 
-    THE JUNCTION IS PRESENT AND SIMPLY NOT NAMED, which is the sharper control:
+    THE LINK IS PRESENT AND SIMPLY NOT NAMED, which is the sharper control:
     it proves the check grades the destination that was ASKED for rather than
     the state of the channel. An implementation that refused any send whose root
     contained a reparse point anywhere would pass a control built on a clean
@@ -1368,7 +1445,7 @@ def test_an_ordinary_sibling_delivers_while_a_junction_sits_beside_it(tmp_path: 
     channel = make_channel(tmp_path, with_inbox=(DEST_A,))
     outside = tmp_path / OUTSIDE_DIR
     (outside / INBOX).mkdir(parents=True)
-    make_junction(channel / DEST_ESCAPE, outside)
+    make_directory_link(channel / DEST_ESCAPE, outside)
     env = base_env(tmp_path)
     note = clean_note(tmp_path)
     source = note.read_bytes()
@@ -1434,7 +1511,7 @@ def test_a_destination_resolving_to_this_repository_is_refused(
     assert not DRIVE_LETTER_RE.search(problems[0]), "the refusal rendered an absolute path"
 
 
-def test_case_variant_spellings_collapse_to_one_destination(tmp_path: Path) -> None:
+def test_two_spellings_of_one_directory_collapse_to_one_destination(tmp_path: Path) -> None:
     """Prove two spellings of ONE directory are one target, not a false PARTIAL.
 
     CS-958 F7. ``dict.fromkeys`` dedups case-SENSITIVELY while Windows resolves
@@ -1445,12 +1522,20 @@ def test_case_variant_spellings_collapse_to_one_destination(tmp_path: Path) -> N
     that partial into the record. A reconciler reading it would go looking for a
     delivery that had in fact succeeded.
 
+    THE SECOND SPELLING COMES FROM :func:`spellings_of_one_directory`, which is
+    the repair to this arm. It used to be ``DEST_A.upper()`` outright, which is
+    one directory on Windows and a DIFFERENT, ABSENT one on POSIX - so in CI
+    this arm measured the "no such destination" refusal while its name and its
+    assertions claimed it measured the dedup. The property is not
+    Windows-only; only the way a second spelling comes to exist is.
+
     FOUR ASSERTIONS BECAUSE FOUR THINGS WENT WRONG AT ONCE: the exit code, the
     stderr claim, the number of files that appeared in the channel, and the
     number of record entries. A repair that collapsed the target list but still
     recorded twice would satisfy the first three.
     """
     channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    real, second, _ = spellings_of_one_directory(channel, DEST_A)
     env = base_env(tmp_path)
     note = clean_note(tmp_path)
     before = tree_snapshot(channel)
@@ -1459,9 +1544,9 @@ def test_case_variant_spellings_collapse_to_one_destination(tmp_path: Path) -> N
         "--note",
         str(note),
         "--to",
-        DEST_A,
+        real,
         "--to",
-        DEST_A_UPPER,
+        second,
         "--send",
         "--allow-unmeasured",
         channel=channel,
@@ -1497,8 +1582,16 @@ def test_a_trailing_dot_is_recorded_under_the_name_the_directory_has(tmp_path: P
 
     Measured on this machine before the arm was written: the dotted spelling
     resolves to the undotted directory and ``is_dir()`` is true for both.
+
+    ON POSIX THE DOT IS KEPT, so the dotted spelling is made to name the same
+    directory through a symlink instead - :func:`spellings_of_one_directory`.
+    The graded property is unchanged and is not about dots at all: the recorded
+    destination must be the RESOLVED directory's own name and not the spelling
+    that was typed. Asserting the Windows rewrite as though it were universal
+    is what made this arm one of the eight that failed in CI.
     """
     channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    _, _, dotted = spellings_of_one_directory(channel, DEST_A)
     env = base_env(tmp_path)
     note = clean_note(tmp_path)
     before = tree_snapshot(channel)
@@ -1507,7 +1600,7 @@ def test_a_trailing_dot_is_recorded_under_the_name_the_directory_has(tmp_path: P
         "--note",
         str(note),
         "--to",
-        DEST_A_DOTTED,
+        dotted,
         "--send",
         "--allow-unmeasured",
         channel=channel,
@@ -1954,7 +2047,7 @@ def test_a_look_alike_grandparent_is_not_the_channel_root(tmp_path: Path) -> Non
     look_alike = tmp_path / "decoy958" / CHANNEL_DIR_NAME
     outside = look_alike / OUTSIDE_DIR
     (outside / INBOX).mkdir(parents=True)
-    make_junction(channel / DEST_ESCAPE, outside)
+    make_directory_link(channel / DEST_ESCAPE, outside)
     env = base_env(tmp_path)
     note = clean_note(tmp_path)
     before = tree_snapshot(look_alike)
@@ -1994,8 +2087,15 @@ def test_three_spellings_of_one_directory_are_one_delivery(tmp_path: Path) -> No
 
     THREE SPELLINGS RATHER THAN TWO because the fault is a pair that survives
     one comparison and not another, and a third spelling costs nothing.
+
+    AND THE MUTANT DIES ON BOTH PLATFORMS, which is why the spellings come from
+    :func:`spellings_of_one_directory` rather than from the two literals. POSIX
+    compares case-SENSITIVELY and keeps the dot, so all three unresolved keys
+    differ there; Windows folds the case, so only the dotted key differs. Under
+    the mutant the same temporary file is staged three times either way.
     """
     channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    first, second, third = spellings_of_one_directory(channel, DEST_A)
     env = base_env(tmp_path)
     note = clean_note(tmp_path)
     before = tree_snapshot(channel)
@@ -2004,11 +2104,11 @@ def test_three_spellings_of_one_directory_are_one_delivery(tmp_path: Path) -> No
         "--note",
         str(note),
         "--to",
-        DEST_A,
+        first,
         "--to",
-        DEST_A_UPPER,
+        second,
         "--to",
-        DEST_A_DOTTED,
+        third,
         "--send",
         "--allow-unmeasured",
         channel=channel,
@@ -2173,16 +2273,31 @@ def test_the_record_path_check_can_see_a_json_escaped_path(tmp_path: Path) -> No
     substring search over the same planted blob really does score zero - so
     that a later reader can see the vacuity was reproduced rather than
     reasoned about.
+
+    THE THIRD MEASUREMENT ASKS THE ENCODER RATHER THAN ASSUMING THE ANSWER. The
+    vacuity needs a path carrying a character JSON escapes, and only Windows
+    hands one over: a POSIX temporary directory holds no backslash, so the
+    naive search finds it and scoring zero would be the surprising result. The
+    first cut hardcoded the Windows answer and went red in CI on a check whose
+    whole subject is a false negative. So the expectation is DERIVED - the
+    encoder is asked whether it altered this platform's path, and the naive hit
+    count must match that answer. The two controls above are unconditional and
+    grade identically on both platforms.
     """
     planted = json.dumps({"destination": str(tmp_path)}).encode("ascii")
     clean = json.dumps({"destination": DEST_A}).encode("ascii")
     naive_hits = text(planted).lower().count(str(tmp_path).lower())
+    # True when this platform's path survives JSON encoding unaltered, which is
+    # exactly when a naive substring search can still find it.
+    encoded_intact = json.dumps(str(tmp_path)) == '"%s"' % str(tmp_path)
+    expected_hits = 1 if encoded_intact else 0
 
     with pytest.raises(AssertionError):
         assert_path_absent(str(tmp_path), (planted,))
     assert_path_absent(str(tmp_path), (clean,))
 
-    assert naive_hits == 0, (
-        "a plain substring search now finds the planted path, so the defect this "
-        "arm exists for is no longer reproducible and the arm should be re-read"
+    assert naive_hits == expected_hits, (
+        "a plain substring search over the planted blob disagrees with what this "
+        "platform's JSON encoder did to the path, so the defect this arm exists "
+        "for is no longer reproducible as described and the arm should be re-read"
     )
