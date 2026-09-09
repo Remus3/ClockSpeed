@@ -67,7 +67,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -185,6 +185,31 @@ DEST_DIRTY = SYNTHETIC_CREDENTIAL + "-958"
 # stdout and the record.
 ALIAS_TO_CLEAN = "alias958"
 ALIAS_TO_DIRTY = "aliasdirty958"
+
+# A name that is CLEAN on its own and REFUSED once the writer's staging suffix
+# is appended to it. Assembled from fragments, like every other violating value
+# in this file. The mechanism is a rule with a LENGTH FLOOR: the credential
+# rules match a token run of twenty characters or more, and this run is
+# nineteen - so the four characters of the suffix are what push it over.
+# Measured in process before the arm was written: the base scans CLEAN and the
+# base plus the suffix scans REFUSED.
+STAGED_ONLY_NAME = "bearer " + ("a" * 19)
+
+# The suffix the sender stages every destination through, and a label for the
+# in-process probes that prove a fixture's asymmetry is real.
+STAGING_SUFFIX = ".tmp"
+PROBE_LABEL = "probe"
+
+# How a metadata refusal tags the class it found. COUNTED rather than searched:
+# one dirty name must produce ONE refusal, and a second copy would mean the
+# name was graded twice - once as typed and once as resolved - which is what a
+# mutant that survived the first cut of this slice actually did.
+CREDENTIAL_TAG = "<pii:" + "credential>"
+
+# The phrase that distinguishes a refusal about what a destination RESOLVES to
+# from one about the spelling that was typed. Without it the two are byte
+# identical and the operator inspects a name that was fine.
+RESOLVED_PHRASE = "resolves to"
 
 # The gate's own coverage header. Counted rather than searched, because the
 # metadata grade must consume the gate's REFUSALS and not its coverage rows: a
@@ -2335,7 +2360,7 @@ def test_the_record_path_check_can_see_a_json_escaped_path(tmp_path: Path) -> No
 
 
 # --------------------------------------------------------------------------
-# METADATA. 27-32 - CS-958 F1, the severe finding, and slice S2. `grade()`
+# METADATA. 27-38 - CS-958 F1, the severe finding, and slice S2. `grade()`
 # takes `payload: bytes` and nothing else, so a note's FILENAME and a
 # destination's NAME were never graded at all: the gate stood in FRONT of the
 # payload and BESIDE everything else. The same value the gate REFUSES in
@@ -2541,12 +2566,18 @@ def test_all_refuses_the_whole_broadcast_when_a_discovered_name_is_dirty(tmp_pat
     changed = changed_paths(before, tree_snapshot(channel))
     streams = text(out) + text(err)
     leaked = streams.count(SYNTHETIC_CREDENTIAL)
+    tagged = streams.count(CREDENTIAL_TAG)
     entries = len(record_entries(env))
 
     assert control_code == EXIT_OK, f"the control was refused; stderr {text(control_err)!r}"
     assert control_landed, "the control broadcast delivered nothing; discovery is not working"
     assert code == EXIT_REFUSED, f"exit {code}; a discovered dirty name did not refuse --all"
     assert changed == [], f"a refused broadcast still wrote {changed}"
+    # ONE DIRTY NAME IS ONE REFUSAL. A second copy means the name was graded
+    # twice - once as typed and once as resolved - which is what a discovered
+    # destination looks like when the refused-index skip is bypassed for it. A
+    # mutant doing exactly that survived every arm of the first cut.
+    assert tagged == 1, f"one dirty discovered name was reported {tagged} time(s)"
     assert leaked == 0, "the refusal echoed the value it refused"
     assert entries == 1, f"{entries} record entries; only the control may have recorded one"
 
@@ -2658,6 +2689,443 @@ def test_a_typed_name_that_never_resolves_is_graded_before_it_is_echoed(tmp_path
     assert code == EXIT_REFUSED, f"exit {code}; a refused typed name did not refuse the send"
     assert leaked == 0, "the missing-inbox refusal echoed the value the gate refuses"
     assert changed == [], f"a refused dry run wrote {changed}"
+
+
+def test_the_staged_filename_is_graded_and_not_only_the_delivered_one(
+    tmp_path: Path,
+) -> None:
+    """Prove the name the WRITER creates is graded, not only the one it delivers.
+
+    FOUND BY AN ADVERSARY AGAINST THE FIRST CUT OF THIS SLICE, and it inverts
+    the slice's own claim. Every destination is staged through
+    ``<note name>.tmp`` and only then renamed into place, so the first string
+    to appear in a sibling's tree is not the graded one - it is four characters
+    longer. That matters because a rule with a LENGTH FLOOR is satisfied by the
+    suffix: the credential rules match a token run of twenty characters or
+    more, and the suffix extends a run of nineteen past the floor.
+
+    THE STAGED FILE REACHES THE SIBLING EITHER WAY. On the success path it sits
+    in their tree between the write and the rename; on the commit-failure path
+    CS-958 F4 leaves it there permanently and that sibling's own inbox watcher
+    prints it as a loose file - measured by the adversary, end to end. A string
+    this project's own gate refuses does not belong in another repository for
+    any length of time.
+
+    THE FIXTURE'S ASYMMETRY IS ASSERTED RATHER THAN ASSUMED, and without that
+    the arm would be about nothing: a name that was dirty on its own would be
+    refused by the delivered-name grade whether or not the staged name is
+    graded at all. So both spellings are scanned through the tool's own
+    ``grade_names`` first, and the arm requires the base to be CLEAN and the
+    staged spelling to be REFUSED before its other assertions mean anything.
+    """
+    sender = load_sender()
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path, name=STAGED_ONLY_NAME)
+    base_problems = sender.grade_names([(PROBE_LABEL, STAGED_ONLY_NAME, "")])[0]
+    staged_problems = sender.grade_names([(PROBE_LABEL, STAGED_ONLY_NAME + STAGING_SUFFIX, "")])[0]
+    before = tree_snapshot(channel)
+
+    code, out, err = run_send(
+        "--note",
+        str(note),
+        "--to",
+        DEST_A,
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+    changed = changed_paths(before, tree_snapshot(channel))
+    entries = len(record_entries(env))
+
+    assert base_problems == [], (
+        "the fixture's base name is refused on its own, so this arm would pass "
+        "without the staged name being graded at all"
+    )
+    assert staged_problems != [], (
+        "the fixture's staged name is not refused, so this arm grades nothing"
+    )
+    assert code == EXIT_REFUSED, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
+    assert changed == [], f"a refused staged name still put {changed} in a sibling's tree"
+    assert entries == 0, f"{entries} record entries; a refused send reached the record"
+
+
+def test_a_warning_on_a_name_is_made_visible_and_does_not_refuse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prove the WARN tier survives the trip through the metadata door.
+
+    THE GATE HAS THREE TIERS AND THE FIRST CUT OF THIS SLICE IMPLEMENTED TWO.
+    `outbound_gate.scan` returns refusals, warnings and coverage; a warning is
+    a short discovered value that is named and positioned on stdout while the
+    send stays possible, because a gate that refuses routine prose is a gate
+    that gets routed around. `grade_names` bound the warnings to a throwaway
+    and dropped them, so the identical string that prints
+    `WARN <pii:world-name>` as CONTENT went out silently as a destination NAME
+    and into the record - measured end to end by an adversary. That is F1's own
+    shape one tier down.
+
+    SO THE PROPERTY IS TWO-SIDED AND BOTH SIDES ARE GRADED HERE: a warning must
+    produce a VISIBLE notice, and it must NOT refuse. A repair that refused on
+    warnings would satisfy the visibility half while breaking the tier; one
+    that keeps dropping them satisfies the refusal half, which is what the
+    first cut did.
+
+    THE GATE IS STUBBED, AND ONLY THE GATE. The warn tier fires only on short
+    save-derived values, and this suite deliberately runs with no derivable
+    save root - so no arm here can reach it through the real gate, which is
+    exactly why the gap went untested. What is under test is this module's own
+    consumption rule: which of the three things `scan` returns reach which
+    output. The gate's own warn tier is graded in tests/test_outbound_gate.py,
+    where the save fixtures live.
+
+    THE CONTROL IS THE SAME STUB CARRYING A REFUSAL, so a `grade_names` that
+    returned nothing at all - which satisfies "does not refuse" completely -
+    cannot pass.
+    """
+    sender = load_sender()
+    finding = SimpleNamespace(klass="world-name", line=1, col=1)
+    refusal = SimpleNamespace(klass="credential", line=1, col=1)
+
+    def stub(refusals: object, warnings: object) -> object:
+        return SimpleNamespace(
+            CLASS_REASONS={"world-name": "a world name", "credential": "a credential shape"},
+            scan=lambda _text: (refusals, warnings, []),
+        )
+
+    monkeypatch.setattr(sender, "load_outbound_gate", lambda: stub([], [finding]))
+    warn_problems, warn_refused, warn_notices = sender.grade_names([(PROBE_LABEL, "orbz", "")])
+
+    monkeypatch.setattr(sender, "load_outbound_gate", lambda: stub([refusal], []))
+    refuse_problems, refuse_refused, refuse_notices = sender.grade_names(
+        [(PROBE_LABEL, "orbz", "")]
+    )
+
+    assert refuse_problems != [], "the control produced no refusal; this arm cannot grade"
+    assert refuse_refused == frozenset({1}), (
+        f"a refusal did not mark its own entry refused: {sorted(refuse_refused)}"
+    )
+    assert warn_problems == [], f"a warning was consumed as a refusal: {warn_problems}"
+    assert warn_refused == frozenset(), "a warning marked its entry refused"
+    assert warn_notices != [], "a warning on a name produced no visible notice at all"
+    assert refuse_notices == [], f"a refusal was also reported as a notice: {refuse_notices}"
+
+
+def test_a_dirty_name_after_a_clean_one_is_attributed_to_its_own_position(
+    tmp_path: Path,
+) -> None:
+    """Prove a batch grade attributes each finding to the name that produced it.
+
+    WRITTEN BECAUSE A MUTANT SURVIVED ALL THIRTY-SIX ARMS. `grade_names` scans
+    a whole batch in ONE pass and reads each finding's LINE back to decide
+    which name it belongs to; pinning that line to 1 changed nothing any arm
+    could see. The reason is a property of the fixtures rather than of the
+    code: every arm that planted a dirty value had it at batch index 1, either
+    because the batch held one entry or because the credential spelling sorts
+    ahead of the ordinary destination names under `--all`.
+
+    MIS-ATTRIBUTION IS TWO FAULTS AT ONCE AND BOTH ARE MEASURED HERE. The
+    refusal names the WRONG destination, which is the D2 fault `_which` exists
+    to prevent - an ordinal pointing at a name that was fine sends the operator
+    to edit the wrong thing. And the dirty name is then absent from the refused
+    set, so the loop walks it and the missing-inbox refusal renders it.
+    Measured under the mutant: the value reached stderr once and the ordinal
+    said destination 1.
+
+    THE DIRTY DESTINATION DELIBERATELY HAS NO INBOX, because that is what makes
+    the echoing line reachable. The one existing arm with a dirty name at
+    position 2 gives it an inbox, so it never gets that far.
+
+    THE CONTROL PUTS A CLEAN NAME IN THE SAME SLOT and requires the echo, which
+    proves this arm can see a name at position 2 through this exact refusal.
+    """
+    channel = make_channel(
+        tmp_path, with_inbox=(DEST_A,), without_inbox=(DEST_NO_INBOX, DEST_DIRTY)
+    )
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+
+    control_code, control_out, control_err = run_send(
+        "--note",
+        str(note),
+        "--to",
+        DEST_A,
+        "--to",
+        DEST_NO_INBOX,
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+    control_streams = text(control_out) + text(control_err)
+
+    code, out, err = run_send(
+        "--note",
+        str(note),
+        "--to",
+        DEST_A,
+        "--to",
+        DEST_DIRTY,
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+    streams = text(out) + text(err)
+    leaked = streams.count(SYNTHETIC_CREDENTIAL)
+    blamed = [token for token in ("destination 1", "destination 2") if token in streams]
+
+    assert control_code == EXIT_REFUSED, f"exit {control_code}; a name with no inbox was accepted"
+    assert DEST_NO_INBOX in control_streams, (
+        "the missing-inbox refusal does not print a name at position 2; the arm sees nothing"
+    )
+    assert code == EXIT_REFUSED, f"exit {code}; a refused name at position 2 did not refuse"
+    assert leaked == 0, "the refused value reached the streams through the missing-inbox line"
+    assert blamed == ["destination 2"], (
+        f"the refusal blames {blamed}; the fault is at the second typed destination"
+    )
+
+
+def test_a_dirty_filename_refuses_rather_than_reporting_unmeasured(tmp_path: Path) -> None:
+    """Prove a refused filename dominates an unmeasured class, without the flag.
+
+    `gate_phase` claims this precedence in its own docstring - a finding first,
+    then an unmeasured class, then clean, which is the gate's own ordering -
+    and NO ARM MEASURED IT, because every other arm in this file passes
+    `--allow-unmeasured` and never reaches the branch. A mutant that graded the
+    filename only when the payload was measurable survived all thirty-six.
+
+    THE DIFFERENCE IS WHAT THE OPERATOR IS TOLD AND WHAT THEY DO NEXT. Reported
+    as UNMEASURED at exit 3, the remedy printed on stderr is to re-run with
+    `--allow-unmeasured` - which would then send the note, because the coverage
+    problem was never the reason. A credential in a filename must come back as
+    a refusal at exit 1 and stay refused however that flag is set.
+
+    THE CONTROL IS THE SAME RUN WITH A CLEAN FILENAME and it must come back
+    UNMEASURED. Without it this arm cannot tell "the filename was refused" from
+    "this machine derives every class anyway", and on a box with a save library
+    present the second is what it would be measuring.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    env = base_env(tmp_path)
+    control_note = clean_note(tmp_path)
+    dirty = clean_note(tmp_path, name=DIRTY_NOTE_NAME)
+
+    control_code, _control_out, control_err = run_send(
+        "--note", str(control_note), "--to", DEST_A, channel=channel, env=env
+    )
+
+    code, out, err = run_send("--note", str(dirty), "--to", DEST_A, channel=channel, env=env)
+    streams = text(out) + text(err)
+    leaked = streams.count(SYNTHETIC_CREDENTIAL)
+
+    assert control_code == EXIT_UNMEASURED, (
+        f"exit {control_code}; this machine derives every class, so the arm cannot tell a "
+        f"refusal from a measurable box. stderr {text(control_err)!r}"
+    )
+    assert code == EXIT_REFUSED, (
+        f"exit {code}; a refused filename was reported as a coverage problem, and the remedy "
+        "printed for that is the flag that would have sent it"
+    )
+    assert leaked == 0, "the refusal echoed the value it refused"
+
+
+def test_a_refusal_about_a_resolved_name_is_distinguishable_from_a_typed_one(
+    tmp_path: Path,
+) -> None:
+    """Prove the operator can tell WHICH of the two names was the bad one.
+
+    MEASURED BY AN ADVERSARY: the two refusals were byte identical. A typed
+    destination the gate refuses and a clean typed destination that RESOLVES to
+    a directory the gate refuses both came back as `destination 1 carries
+    <pii:credential>`. In the second case the operator inspects the name they
+    typed, finds nothing wrong with it, and has been told nothing about the
+    link or the directory it points at.
+
+    THAT IS THE D2 FAULT IN A NEW PLACE. `_which` exists because an ordinal
+    pointing at the wrong thing is worse than no ordinal, and here the ordinal
+    is right while the thing it names is not the thing that failed.
+
+    THE TWO RUNS ARE THE ASSERTION. Both must refuse - so a tool that accepted
+    either cannot pass - and their refusals must DIFFER. Neither may echo the
+    value.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A, DEST_DIRTY))
+    make_directory_link(channel / ALIAS_TO_DIRTY, channel / DEST_DIRTY)
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+
+    typed_code, typed_out, typed_err = run_send(
+        "--note", str(note), "--to", DEST_DIRTY, "--allow-unmeasured", channel=channel, env=env
+    )
+    alias_code, alias_out, alias_err = run_send(
+        "--note", str(note), "--to", ALIAS_TO_DIRTY, "--allow-unmeasured", channel=channel, env=env
+    )
+    typed_streams = text(typed_out) + text(typed_err)
+    alias_streams = text(alias_out) + text(alias_err)
+    leaked = typed_streams.count(SYNTHETIC_CREDENTIAL) + alias_streams.count(SYNTHETIC_CREDENTIAL)
+
+    assert typed_code == EXIT_REFUSED, f"exit {typed_code}; a typed dirty name was accepted"
+    assert alias_code == EXIT_REFUSED, f"exit {alias_code}; a dirty resolved name was accepted"
+    assert leaked == 0, "a refusal echoed the value it refused"
+    assert typed_streams != alias_streams, (
+        "the two refusals are identical, so the operator is sent to inspect the name they "
+        "typed when the fault is in what it resolves to"
+    )
+    assert RESOLVED_PHRASE in alias_streams, (
+        "the refusal does not say the fault is in what the destination resolves to"
+    )
+
+
+def test_a_discovered_metadata_refusal_says_how_to_locate_the_destination(
+    tmp_path: Path,
+) -> None:
+    """Prove an --all metadata refusal is locatable at all.
+
+    `_which` returns TWO halves and the metadata call site used only the first.
+    Under `--all` the first half is `a destination discovered by --all`, which
+    names nothing: there is no typed list to count into, and the second half -
+    re-run with `--to` and read the ordinal off your own list - is the only
+    thing that turns the refusal into an action. Measured by an adversary: the
+    hint was absent, so the operator is told a nameless destination on a
+    channel of five is bad and given no way to find out which.
+
+    NO ORDINAL IS THE OTHER HALF OF THE ASSERTION, because an ordinal into a
+    sorted directory listing the operator has never seen would be worse than
+    none - it is a number pointing into a list that exists only inside this
+    tool.
+
+    THE CONTROL IS THE TYPED FORM OF THE SAME FAULT, which must carry an
+    ordinal and must NOT carry the hint. Without it, a tool that printed the
+    hint on every refusal would pass.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A, DEST_DIRTY))
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+
+    control_code, control_out, control_err = run_send(
+        "--note", str(note), "--to", DEST_DIRTY, "--allow-unmeasured", channel=channel, env=env
+    )
+    control_streams = text(control_out) + text(control_err)
+
+    code, out, err = run_send(
+        "--note", str(note), "--all", "--allow-unmeasured", channel=channel, env=env
+    )
+    streams = text(out) + text(err)
+    ordinals = [token for token in ("destination 1", "destination 2") if token in streams]
+    leaked = streams.count(SYNTHETIC_CREDENTIAL)
+
+    assert control_code == EXIT_REFUSED, f"exit {control_code}; the typed control was accepted"
+    assert "destination 1" in control_streams, "the typed refusal carries no ordinal"
+    assert "--to" not in control_streams, "the typed refusal carries the discovered-only hint"
+    assert code == EXIT_REFUSED, f"exit {code}; a discovered dirty name did not refuse --all"
+    assert ordinals == [], f"a discovered destination was reported by ordinal: {ordinals}"
+    assert "--to" in streams, "the refusal offers the operator no way to locate the destination"
+    assert leaked == 0, "the refusal echoed the value it refused"
+
+
+def test_a_collision_under_all_names_the_destination_that_holds_the_note(
+    tmp_path: Path,
+) -> None:
+    """Prove a graded destination name is still USABLE in a refusal.
+
+    THE FIRST CUT OF THIS SLICE OVERSHOT. It stopped rendering the destination
+    in the two `already holds` refusals because at that point in the function
+    the resolved name had not been graded yet. Under `--all` that leaves a
+    refusal naming nobody: five siblings, one of them already holds the note,
+    and the operator is told to re-run with `--to` and find out which. An
+    adversary judged it a real loss rather than a trade, and the reasoning is
+    sound - the suppressed string is the RESOLVED directory's own name, which
+    this same function grades and which the tool prints unredacted on its own
+    DELIVERED line. Suppressing it buys nothing for a name that passed the
+    grade.
+
+    SO THE ORDER IS THE FIX, NOT THE SILENCE: every resolved name is graded
+    BEFORE any refusal renders one, and then the refusal may name it. This arm
+    is the half that stops the silence from coming back; the arms above are the
+    half that stops an ungraded name from being printed.
+
+    THE CONTROL IS THE SAME RUN'S OTHER SIBLING, which is deliverable and must
+    NOT be named - so a tool that dumped the whole channel into every refusal
+    cannot pass.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A, DEST_B))
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    delivered(channel, DEST_B).write_bytes(CLEAN_BODY.encode("ascii"))
+    before = tree_snapshot(channel)
+
+    code, out, err = run_send(
+        "--note", str(note), "--all", "--send", "--allow-unmeasured", channel=channel, env=env
+    )
+    streams = text(out) + text(err)
+    changed = changed_paths(before, tree_snapshot(channel))
+
+    assert code == EXIT_REFUSED, f"exit {code}; a collision did not refuse the whole broadcast"
+    assert changed == [], f"a refused broadcast still wrote {changed}"
+    assert DEST_B in streams, (
+        "the refusal names no destination, so an operator broadcasting to a channel of "
+        "five is told a collision happened and not where"
+    )
+    assert DEST_A not in streams, (
+        "a destination with no problem was named; the refusal is dumping the channel"
+    )
+
+
+def test_both_spellings_of_the_filename_reach_the_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prove the DELIVERED filename is graded and not just the STAGED one.
+
+    WRITTEN BECAUSE THE OBVIOUS MUTANT IS AN EQUIVALENT ONE. Deleting the
+    delivered spelling from the batch leaves every other arm green, and no
+    fixture can change that: the delivered name is a strict PREFIX of the
+    staged name, and no rule in the gate's table is end-anchored - measured,
+    the only anchored expressions in tools/precommit_gate.py are the save-file
+    NAME parsers, not the scanners. Appending four characters can therefore
+    create a match and never destroy one, so no VALUE exists that is refused as
+    delivered and cleared as staged. Weakening the claim to "the staged name is
+    graded" would be the wrong repair: the delivered name is the one that
+    persists in a sibling's inbox and in the record, and staging is an
+    implementation detail this tool is free to change.
+
+    SO THE PROPERTY IS STRUCTURAL AND IS MEASURED STRUCTURALLY, with a
+    RECORDING SPY over the gate rather than a value. The spy delegates to the
+    real gate - the verdict is the real one - and records the text of every
+    scan. One of those scans must be the metadata batch, and that batch must
+    hold BOTH spellings, in order.
+
+    THE PAYLOAD'S OWN SCAN IS THE POSITIVE CONTROL, in the same run: the spy
+    must have seen it too, which proves the recorder is wired into the path
+    under test rather than into nothing.
+    """
+    sender = load_sender()
+    real = sender.load_outbound_gate()
+    scanned: list[list[str]] = []
+
+    def recording_scan(text: str) -> object:
+        scanned.append(text.split("\n"))
+        return real.scan(text)
+
+    monkeypatch.setattr(
+        sender,
+        "load_outbound_gate",
+        lambda: SimpleNamespace(
+            scan=recording_scan,
+            render=real.render,
+            verdict=real.verdict,
+            CLASS_REASONS=real.CLASS_REASONS,
+        ),
+    )
+
+    _code, stop = sender.gate_phase(CLEAN_BODY.encode("ascii"), NOTE_NAME, allow_unmeasured=True)
+    payload_seen = any(CLEAN_BODY.startswith(batch[0]) for batch in scanned if batch)
+    metadata_batch = [NOTE_NAME, NOTE_NAME + STAGING_SUFFIX]
+
+    assert stop is None, "a clean note was stopped; this arm never reached the metadata grade"
+    assert payload_seen, "the spy never saw the payload scan, so it is not wired into the path"
+    assert metadata_batch in scanned, (
+        f"the gate was handed {scanned[1:]!r}; both spellings of the filename must be graded"
+    )
 
 
 def test_the_metadata_grade_reports_coverage_once(tmp_path: Path) -> None:
