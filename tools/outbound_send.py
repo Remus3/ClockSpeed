@@ -126,11 +126,33 @@ this module does not attempt it.
 
 Exit codes, a closed set a caller can branch on:
 
-    0  delivered, or a dry run that would have delivered
-    1  refused - by the gate, a missing destination, a collision, or because
-       this tool itself raised. Fail closed.
+    0  delivered and recorded, or a dry run that would have delivered
+    1  refused - by the gate, a missing destination, a collision, an unwritable
+       record, or because this tool itself raised. NOTHING WAS WRITTEN. Fail
+       closed.
     2  usage
     3  the gate returned UNMEASURED and --allow-unmeasured was not given
+    4  incomplete - SOMETHING WAS DELIVERED and the run did not finish cleanly.
+       Read stderr and the record.
+
+AND 1 REALLY DOES MEAN NOTHING WAS WRITTEN, WHICH TOOK A FOURTH CODE. Two paths
+returned 1 having delivered: a commit phase that failed part way through, and a
+complete delivery whose record could not be written. A caller branching on 1 -
+the CS-951 reconciler this record exists for, above all - was wrong on both. The
+incomplete case now has its own code, and the record is proven writable BEFORE
+anything is staged, so the common cause of the second path refuses while nothing
+has left.
+
+THE COMMIT PHASE CANNOT CLOBBER AND CANNOT LITTER. It renamed with `replace()`,
+which overwrites: a note a sibling wrote into the window between this tool's
+existence check and its rename was DESTROYED, and the run reported exit 0 with
+an ordinary record entry. Two checks with a rename between them is the same race
+with a smaller window, so the rename itself is now the guard - `os.rename` on
+Windows, which refuses an existing destination, and `os.link` plus an unlink on
+POSIX, where a plain rename would overwrite. And a commit that fails no longer
+walks away from the staging files it never renamed: they were left byte-
+identical to the note in siblings' inboxes, where their watchers read them as
+loose files, while this project's record said the delivery never happened.
 """
 
 from __future__ import annotations
@@ -142,6 +164,7 @@ import importlib.util
 import json
 import os
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
@@ -255,6 +278,7 @@ EXIT_OK = 0
 EXIT_REFUSED = 1
 EXIT_USAGE = 2
 EXIT_UNMEASURED = 3
+EXIT_INCOMPLETE = 4
 
 #: The inbox directory name every participant on this channel uses.
 INBOX = "moon_sync_inbox"
@@ -272,6 +296,12 @@ DEFAULT_RECORD = REPO_ROOT / "data" / "outbound_deliveries.json"
 VERDICT_NAME = {EXIT_OK: "CLEAN", EXIT_UNMEASURED: "UNMEASURED"}
 
 TOOL = "outbound-send"
+
+# WHICH PLATFORM, and the only thing this tool asks it for: how to rename a
+# staged file into place WITHOUT overwriting whatever may have appeared
+# there. Windows `os.rename` refuses an existing destination; POSIX
+# `os.rename` overwrites it, so there the pair is `os.link` plus an unlink.
+WINDOWS = os.name == "nt"
 
 # How a refusal refers to the note's own filename. A LABEL AND NEVER THE VALUE:
 # the filename is the one string that is simultaneously outbound bytes, a
@@ -594,9 +624,54 @@ def is_plain_segment(name: str) -> bool:
 
 
 def record_path() -> Path:
-    """The delivery record's location, overridable for tests."""
+    """The delivery record's location, overridable for tests.
+
+    AN OVERRIDE THAT IS SET BUT EMPTY IS REFUSED (CS-958 F8). This tested the
+    value for TRUTH, so `CLOCKSPEED_OUTBOUND_RECORD=""` fell through to the
+    operator's LIVE record - which is the exact accident a wrapper that CLEARS
+    the variable rather than unsetting it is trying to avoid, and this project
+    has had that accident once. Treating it as a relative path instead would
+    write litter into whatever directory the tool was launched from, which is
+    no better and harder to notice. Set-but-empty is a caller mistake, and this
+    tool fails closed on those.
+    """
     override = os.environ.get(ENV_RECORD)
-    return Path(override) if override else DEFAULT_RECORD
+    if override is None:
+        return DEFAULT_RECORD
+    if not override:
+        message = ENV_RECORD + " is set but empty; unset it to use the default record"
+        raise ValueError(message)
+    return Path(override)
+
+
+def prepare_record() -> tuple[Path | None, str]:
+    """Resolve the record path and prove it is writable, before anything is sent.
+
+    CS-958 F6, and the repair is ORDER rather than wording. With the record
+    unwritable, both notes were DELIVERED and the tool exited 1 through a
+    refusal whose own words are "nothing was sent" - so the channel, the record
+    and the exit code disagreed on one run. Proving the record now, while
+    nothing has been staged, converts the worst case from a delivery nobody can
+    reconcile into a send that did not happen, which is the direction this tool
+    is supposed to fail in.
+
+    IT PROBES THE DIRECTORY AND DOES NOT TOUCH THE RECORD ITSELF. Writing the
+    record back as a probe would flatten a corrupt one that `load_record`
+    cannot parse, destroying history that a later hand-repair could still
+    recover; the directory is what `append_record` actually needs, because it
+    stages beside the record and replaces.
+    """
+    try:
+        path = record_path()
+        if path.exists() and not path.is_file():
+            message = "the record path exists and is not a file"
+            raise OSError(message)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".outbound-probe"):
+            pass
+    except (OSError, ValueError) as exc:
+        return None, _safe_detail(exc)
+    return path, ""
 
 
 def load_record(path: Path) -> list[dict[str, object]]:
@@ -633,6 +708,22 @@ def append_record(path: Path, entries: Sequence[dict[str, object]]) -> None:
         raise
 
 
+def _safe_detail(exc: BaseException) -> str:
+    """An exception rendered without the absolute path it usually carries.
+
+    Through the commit gate's own redactor, best effort: this is an error path
+    and a failure to render must not become a second failure. Lifted out of the
+    three copies that each rebuilt it, so a fourth caller cannot get it subtly
+    wrong.
+    """
+    gate = None
+    with contextlib.suppress(BaseException):
+        gate = load_outbound_gate().load_precommit_gate()
+    if gate is None:
+        return type(exc).__name__
+    return str(gate.safe_exc_text(exc))
+
+
 def staging_name(destination: Path) -> Path:
     """The temporary file `destination` is staged through.
 
@@ -642,6 +733,32 @@ def staging_name(destination: Path) -> Path:
     carrying a truncated payload.
     """
     return destination.with_name(destination.name + STAGING_SUFFIX)
+
+
+def rename_no_clobber(staged: Path, target: Path) -> None:
+    """Move `staged` onto `target`, REFUSING if anything is already there.
+
+    CS-958 F5. The commit phase used `Path.replace`, which overwrites, while
+    the validation that a target was free had run in a much earlier phase. A
+    note a sibling wrote into that window was destroyed and the run reported
+    exit 0 with an ordinary record entry - this tool silently deleting another
+    repository's mail and recording the event as a clean delivery.
+
+    A SECOND EXISTENCE CHECK IS NOT THE FIX, because two checks with a rename
+    between them is the same race with a smaller window. The rename itself has
+    to be the guard, and each platform already has one: Windows `os.rename`
+    fails when the destination exists, and POSIX `os.link` fails the same way -
+    a plain POSIX rename would overwrite, which is the whole difference.
+
+    THE POSIX PAIR IS LINK-THEN-UNLINK and the order matters: the link is the
+    atomic no-clobber step, and a failure to remove the staging file afterwards
+    leaves litter rather than losing the delivery.
+    """
+    if WINDOWS:
+        staged.rename(target)
+        return
+    os.link(staged, target)
+    staged.unlink()
 
 
 def stage_all(payload: bytes, targets: Sequence[tuple[str, Path]]) -> tuple[list[Path], str]:
@@ -656,18 +773,21 @@ def stage_all(payload: bytes, targets: Sequence[tuple[str, Path]]) -> tuple[list
     staged: list[Path] = []
     for _name, target in targets:
         tmp = staging_name(target)
+        # RECORDED BEFORE THE WRITE, NOT AFTER. A write that raises part way
+        # through has still created the file, and appending afterwards left
+        # exactly that file behind while stderr said the staged files were
+        # removed. This does not CLOSE CS-958 F10 - no arm here forces a
+        # partial write, and F10 stays open until one does - but the cleanup
+        # list is now the files this function created rather than the files it
+        # finished.
+        staged.append(tmp)
         try:
             tmp.write_bytes(payload)
         except OSError as exc:
             for done in staged:
                 with contextlib.suppress(OSError):
                     done.unlink()
-            gate = None
-            with contextlib.suppress(BaseException):
-                gate = load_outbound_gate().load_precommit_gate()
-            detail = gate.safe_exc_text(exc) if gate is not None else type(exc).__name__
-            return [], detail
-        staged.append(tmp)
+            return [], _safe_detail(exc)
     return staged, ""
 
 
@@ -681,15 +801,22 @@ def commit_all(targets: Sequence[tuple[str, Path]]) -> tuple[list[str], str]:
     is worse than the partial send it is hiding.
     """
     landed: list[str] = []
-    for name, target in targets:
+    for index, (name, target) in enumerate(targets):
         try:
-            staging_name(target).replace(target)
+            rename_no_clobber(staging_name(target), target)
         except OSError as exc:
-            gate = None
-            with contextlib.suppress(BaseException):
-                gate = load_outbound_gate().load_precommit_gate()
-            detail = gate.safe_exc_text(exc) if gate is not None else type(exc).__name__
-            return landed, detail
+            # THE PAYLOAD DOES NOT STAY BEHIND IN A SIBLING'S TREE (CS-958 F4).
+            # This returned on the first failure and unlinked nothing, so every
+            # destination it had not reached kept a staging file BYTE-IDENTICAL
+            # to the note. The sibling's own watcher reads it as a loose file,
+            # so they hold the whole payload while this project's record says
+            # the delivery never happened - and the staging-name validation
+            # then refuses every future send to that destination, even a dry
+            # run, until someone hand-deletes a file inside another repository.
+            for _later, remaining in targets[index:]:
+                with contextlib.suppress(OSError):
+                    staging_name(remaining).unlink()
+            return landed, _safe_detail(exc)
         landed.append(name)
     return landed, ""
 
@@ -699,6 +826,22 @@ def _refuse(lines: Sequence[str]) -> int:
     body = "".join("  " + _ascii(line) + "\n" for line in lines)
     write_stream(sys.stderr, "%s: REFUSED\n%s%s: REFUSED.\n" % (TOOL, body, TOOL))
     return EXIT_REFUSED
+
+
+def _incomplete(lines: Sequence[str]) -> int:
+    """Report a run that DID deliver something and did not finish cleanly.
+
+    A separate word and a separate code from a refusal, because the two are
+    different facts about the channel and a caller has to be able to tell them
+    apart. "REFUSED" over a note that is sitting in a sibling's inbox is the
+    lie this code exists to stop telling.
+    """
+    body = "".join("  " + _ascii(line) + "\n" for line in lines)
+    write_stream(
+        sys.stderr,
+        "%s: INCOMPLETE\n%s%s: INCOMPLETE - something was delivered.\n" % (TOOL, body, TOOL),
+    )
+    return EXIT_INCOMPLETE
 
 
 def gate_phase(payload: bytes, note_name: str, *, allow_unmeasured: bool) -> tuple[int, int | None]:
@@ -805,11 +948,11 @@ def perform_send(
     if entries:
         try:
             append_record(record_path(), entries)
-        except OSError as exc:
+        except (OSError, ValueError) as exc:
             record_error = type(exc).__name__
 
     if commit_error:
-        return _refuse(
+        return _incomplete(
             [
                 "the send failed part way through: " + commit_error,
                 "DELIVERED to %d of %d destination(s): %s"
@@ -822,7 +965,7 @@ def perform_send(
             ]
         )
     if record_error:
-        return _refuse(
+        return _incomplete(
             [
                 "the notes were DELIVERED but the record could not be written: " + record_error,
                 "delivered to: " + _ascii(", ".join(landed_names)),
@@ -1072,10 +1215,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         # name reported as `destination 3` (D2). Deduplication now happens once,
         # in `resolve_targets`, keyed on the resolved inbox.
         names = inbox_holders(root) if args.all else list(args.to)
-        if not names:
-            return _refuse(["no destination was named and none was discovered"])
-
-        targets, problems = resolve_targets(root, names, note.name, discovered=args.all)
+        # ONE REFUSAL POINT FOR EVERY DESTINATION FAULT, including having none
+        # at all. Two exits saying the same thing is two places for the wording
+        # and the code to drift apart.
+        targets: list[tuple[str, Path]] = []
+        problems = ["no destination was named and none was discovered"]
+        if names:
+            targets, problems = resolve_targets(root, names, note.name, discovered=args.all)
         if problems:
             return _refuse(problems)
 
@@ -1095,6 +1241,31 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return EXIT_OK
 
+        # THE RECORD IS PROVEN WRITABLE WHILE NOTHING HAS BEEN STAGED (F6),
+        # AND ONLY ON THE PATH THAT WILL WRITE. Measured on the unrepaired
+        # tool: with the record unwritable both notes were DELIVERED and the
+        # run exited 1 through a refusal whose own words are "nothing was
+        # sent". A delivery this project cannot record is the CS-951 hole, so
+        # the send does not start until the place it will be recorded has
+        # answered.
+        #
+        # BELOW THE DRY-RUN BRANCH, NOT ABOVE IT, and a verifier caught the
+        # first cut of this on the wrong side of it. The probe creates the
+        # record's parent directory and a temporary file inside it, so a dry
+        # run that reached it MUTATED THE FILESYSTEM while printing "nothing
+        # was written" - contradicting this module's own rule that `--send` is
+        # the only way to write a byte - and could refuse a dry run outright
+        # for a fault that has no bearing on what a dry run does.
+        _record, record_problem = prepare_record()
+        if record_problem:
+            return _refuse(
+                [
+                    "the delivery record cannot be written: " + record_problem,
+                    "nothing was sent; a delivery this project cannot record is worse "
+                    "than a send that did not happen",
+                ]
+            )
+
         return perform_send(payload, note.name, targets, verdict_name, delivered)
 
     except BaseException as exc:
@@ -1104,7 +1275,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         # escape and print an interpreter traceback, which renders this file's
         # absolute path per frame - personal data wherever the tool runs from a
         # home-rooted checkout, which is the deployment it is written for.
-        if isinstance(exc, KeyboardInterrupt):
+        #
+        # AND A RAISE AFTER A DELIVERY IS INCOMPLETE, NOT REFUSED. A verifier
+        # reproduced exit 1 with the note sitting in two inboxes: an exception
+        # this module does not name - a `RuntimeError` out of the record
+        # writer, say - escapes `perform_send` and lands here, which printed
+        # `REFUSED` and `NOTE ALREADY DELIVERED` on the same run. The second
+        # line was already proof the first was false. `delivered` is the
+        # caller's own list, appended to in place the moment a rename lands, so
+        # it is exactly the question "did anything leave".
+        if isinstance(exc, KeyboardInterrupt) and not delivered:
             raise
         try:
             detail = load_outbound_gate().load_precommit_gate().safe_exc_text(exc)
@@ -1113,7 +1293,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         lines = [_ascii(detail)]
         if delivered:
             lines.append("NOTE ALREADY DELIVERED to: " + _ascii(", ".join(delivered)))
-        return _refuse(lines)
+            lines.append("record this by hand or the reconciler will not know")
+        report = _incomplete if delivered else _refuse
+        return report(lines)
 
 
 if __name__ == "__main__":

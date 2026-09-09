@@ -95,7 +95,8 @@ EXIT_OK = 0
 EXIT_REFUSED = 1
 EXIT_USAGE = 2
 EXIT_UNMEASURED = 3
-CLOSED_EXIT_SET = frozenset({EXIT_OK, EXIT_REFUSED, EXIT_USAGE, EXIT_UNMEASURED})
+EXIT_INCOMPLETE = 4
+CLOSED_EXIT_SET = frozenset({EXIT_OK, EXIT_REFUSED, EXIT_USAGE, EXIT_UNMEASURED, EXIT_INCOMPLETE})
 
 # The gate's own verdict vocabulary, keyed by the gate's own exit code. The
 # record is required to carry one of these words rather than a code, because a
@@ -1776,7 +1777,7 @@ def test_output_is_seven_bit_ascii(tmp_path: Path) -> None:
 
 
 def test_exit_codes_are_closed_set(tmp_path: Path) -> None:
-    """Prove every code the sender returns is one of 0, 1, 2 and 3.
+    """Prove every code the sender returns is one of 0, 1, 2, 3 and 4.
 
     A caller branches on this set, so a fifth code is an unhandled branch at
     every call site - and this tool's callers are the ones deciding whether
@@ -3154,3 +3155,532 @@ def test_the_metadata_grade_reports_coverage_once(tmp_path: Path) -> None:
 
     assert code == EXIT_OK, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
     assert headers == 1, f"the gate's coverage block was reported {headers} time(s) for one note"
+
+
+# --------------------------------------------------------------------------
+# THE COMMIT PHASE AND THE EXIT-CODE CONTRACT. 39-43 - CS-958 F4, F5, F6 and
+# F8. Everything above is about what must not LEAVE; this section is about what
+# happens after the decision to send has been taken correctly. Three of the
+# four findings here are the record telling a CS-951 reconciler something
+# false, which is worse for that item than no record at all, and the fourth
+# hands the operator's own live record to a wrapper that meant to redirect it.
+# --------------------------------------------------------------------------
+
+
+def test_an_empty_record_override_is_refused_rather_than_selecting_the_real_record(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Prove an override that is SET but empty does not silently mean the real record.
+
+    CS-958 F8. `record_path` tested the override for TRUTH, so
+    ``CLOCKSPEED_OUTBOUND_RECORD=""`` fell through to the operator's LIVE
+    record at `tools/outbound_send.py::DEFAULT_RECORD`. A wrapper
+    or an arm that CLEARS the variable rather than unsetting it therefore
+    writes the very file it was trying to redirect away from, and session 75
+    had that accident once already.
+
+    REFUSING BEATS EITHER ALTERNATIVE. Falling back to the real record is the
+    bug. Treating the empty string as a relative path would write
+    ``.`` -relative litter into whatever directory the tool was launched from,
+    which is no better and harder to notice. An empty value is a caller
+    mistake, and this tool fails closed on caller mistakes.
+
+    TWO CONTROLS IN THE SAME RUN, because the assertion is that ONE input is
+    special: unset must still give the default, and a real value must still be
+    honoured. Without them, a `record_path` that raised unconditionally would
+    pass.
+    """
+    sender = load_sender()
+    chosen = tmp_path / RECORD_NAME
+
+    monkeypatch.delenv(ENV_RECORD, raising=False)
+    default = sender.record_path()
+
+    monkeypatch.setenv(ENV_RECORD, str(chosen))
+    honoured = sender.record_path()
+
+    monkeypatch.setenv(ENV_RECORD, "")
+    with pytest.raises(ValueError, match="empty"):
+        sender.record_path()
+
+    assert default == sender.DEFAULT_RECORD, "an unset override no longer gives the default"
+    assert honoured == chosen, "a real override was not honoured"
+
+
+def test_an_unwritable_record_refuses_before_anything_is_delivered(tmp_path: Path) -> None:
+    """Prove the record is proven writable BEFORE a byte reaches a sibling.
+
+    CS-958 F6. With the record path unwritable both notes were DELIVERED and
+    the tool exited 1 through the refusal path, whose own words are "nothing
+    was sent". Channel, record and exit code disagreed on one run, and exit 1
+    is documented as the code a caller may branch on to mean nothing left this
+    machine.
+
+    THE REPAIR IS ORDER, NOT WORDING. The record is prepared and proven
+    writable while nothing has been delivered, so the refusal is TRUE when it
+    says nothing was sent. That also converts the worst case from "a delivery
+    nobody can reconcile" into "a send that did not happen", which is the
+    direction this tool is supposed to fail in.
+
+    THE CONTROL DELIVERS THE SAME NOTE TO THE SAME DESTINATION with a writable
+    record, in the same run, so the refusal below is attributable to the record
+    and not to anything about the channel.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    second = clean_note(tmp_path, name=SECOND_NOTE_NAME)
+
+    control_code, _control_out, control_err = run_send(
+        "--note",
+        str(note),
+        "--to",
+        DEST_A,
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+    after_control = tree_snapshot(channel)
+
+    blocker = tmp_path / "blocked958"
+    blocker.write_bytes(b"not a directory\n")
+    blocked = dict(env)
+    blocked[ENV_RECORD] = str(blocker / RECORD_NAME)
+
+    code, out, err = run_send(
+        "--note",
+        str(second),
+        "--to",
+        DEST_A,
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=blocked,
+    )
+    changed = changed_paths(after_control, tree_snapshot(channel))
+
+    assert control_code == EXIT_OK, f"the control was refused; stderr {text(control_err)!r}"
+    assert delivered(channel, DEST_A).is_file(), "the control delivered nothing"
+    assert code == EXIT_REFUSED, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
+    assert changed == [], (
+        f"the send was refused for an unwritable record and still delivered {changed}"
+    )
+
+
+def test_the_commit_phase_removes_the_staging_files_it_never_renamed(tmp_path: Path) -> None:
+    """Prove a failed commit leaves no payload behind in a sibling's tree.
+
+    CS-958 F4. `commit_all` returned on the first failure and nothing ever
+    unlinked the staging files of the destinations it had not reached.
+    Measured: a three-destination send reported DELIVERED to 1 of 3, exit 1,
+    and left ``<sibling>/moon_sync_inbox/<note>.md.tmp`` BYTE-IDENTICAL to the
+    note. `tools/inbox_watch.py` reads it as a loose file, so the sibling holds
+    the whole payload while this project's record says the delivery never
+    happened - the CS-951 hole this module exists to close, in the shape that
+    is hardest to notice. It is also PERMANENT: the staging-name validation
+    then refuses every future send to that destination, even as a dry run, and
+    the remedy is hand-deleting a file inside another repository.
+
+    GRADED AT THE FUNCTION rather than end to end, because the failure has to
+    be deterministic and a real commit failure is a race. Removing one
+    destination's staged file makes its rename raise for certain, which is the
+    same fault the measurement above produced by other means.
+
+    THE FIRST DESTINATION IS THE CONTROL and must land: a `commit_all` that
+    delivered nothing at all would satisfy every cleanup assertion here.
+    """
+    sender = load_sender()
+    channel = make_channel(tmp_path, with_inbox=(DEST_A, DEST_B, DEST_C))
+    payload = CLEAN_BODY.encode("ascii")
+    targets = [(name, delivered(channel, name)) for name in (DEST_A, DEST_B, DEST_C)]
+
+    staged, stage_error = sender.stage_all(payload, targets)
+    sender.staging_name(targets[1][1]).unlink()
+    landed, commit_error = sender.commit_all(targets)
+    litter = sorted(name for name, target in targets if sender.staging_name(target).exists())
+
+    assert stage_error == "", f"the staging phase failed: {stage_error}"
+    assert len(staged) == 3, f"{len(staged)} destinations staged; the arm needs three"  # noqa: PLR2004
+    assert landed == [DEST_A], f"the control did not land: {landed}"
+    assert commit_error != "", "a commit that could not rename reported no error"
+    assert litter == [], f"the commit phase left the payload behind at {litter}"
+
+
+def test_the_commit_phase_never_overwrites_a_note_that_appeared_after_validation(
+    tmp_path: Path,
+) -> None:
+    """Prove a sibling's own note survives a send that races it.
+
+    CS-958 F5. `resolve_targets` checks ``target.exists()`` and `commit_all`
+    called ``.replace()``, which OVERWRITES. A note written into the window
+    between the two was destroyed, and the run reported SEND_EXIT=0,
+    ``DELIVERED ... [gate CLEAN]`` and an ordinary record entry - so the tool
+    destroyed another repository's note and recorded the event as a clean
+    success. Won at the tightest two-destination window over ten attempts, so
+    it is not an artifact of a wide race.
+
+    THE FIX IS A RENAME THAT CANNOT CLOBBER, not a second existence check: two
+    checks with a rename between them is the same race with a smaller window.
+    The victim is planted deterministically here rather than raced, because
+    what must be graded is the CONSEQUENCE - the bytes at the target - and a
+    race that is merely hard to win would make this arm flaky rather than
+    strict.
+
+    THE FIRST DESTINATION IS THE CONTROL and must land, so a commit phase that
+    refused everything cannot pass.
+    """
+    sender = load_sender()
+    channel = make_channel(tmp_path, with_inbox=(DEST_A, DEST_B))
+    payload = CLEAN_BODY.encode("ascii")
+    victim_bytes = (CLEAN_BODY + "A sibling wrote this first.\n").encode("ascii")
+    targets = [(name, delivered(channel, name)) for name in (DEST_A, DEST_B)]
+
+    _staged, stage_error = sender.stage_all(payload, targets)
+    targets[1][1].write_bytes(victim_bytes)
+    landed, commit_error = sender.commit_all(targets)
+    survivor = targets[1][1].read_bytes()
+    litter = sorted(name for name, target in targets if sender.staging_name(target).exists())
+
+    assert stage_error == "", f"the staging phase failed: {stage_error}"
+    assert landed == [DEST_A], f"the control did not land: {landed}"
+    assert survivor == victim_bytes, "the commit phase destroyed a note it did not write"
+    assert commit_error != "", "overwriting was avoided but the caller was not told"
+    assert litter == [], f"the commit phase left the payload behind at {litter}"
+
+
+def test_a_partial_delivery_reports_incomplete_rather_than_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Prove exit 1 keeps meaning that nothing was written.
+
+    CS-958 F6, the half that is a CONTRACT rather than an ordering. The module
+    publishes its codes as a closed set a caller can branch on, and calls 1
+    "refused ... Fail closed". Two paths returned 1 having delivered: a partial
+    commit, and a complete delivery whose record could not be written. A caller
+    that branches on 1 to mean "nothing left this machine" is wrong on both,
+    and that caller is the CS-951 reconciler this record exists for.
+
+    SO THE INCOMPLETE CASE GETS ITS OWN CODE and 1 goes back to being true. The
+    set stays closed and stays branchable: 0 delivered and recorded, 1 nothing
+    written, 2 usage, 3 unmeasured, 4 something was delivered and the run did
+    not complete cleanly - read stderr and the record.
+
+    THE FAILURE IS FORCED WITH A DIRECTORY AT THE SECOND TARGET, which no
+    rename can replace on either platform. `perform_send` is called directly
+    because `resolve_targets` would refuse that destination long before the
+    commit phase - which is correct, and is why this arm has to reach past it
+    to grade the phase underneath.
+
+    THE CONTROL IS A CLEAN CALL IN THE SAME RUN returning EXIT_OK, so a
+    `perform_send` that reported every send incomplete cannot pass.
+    """
+    sender = load_sender()
+    channel = make_channel(tmp_path, with_inbox=(DEST_A, DEST_B))
+    monkeypatch.setenv(ENV_RECORD, str(tmp_path / RECORD_NAME))
+    payload = CLEAN_BODY.encode("ascii")
+
+    control = sender.perform_send(
+        payload,
+        SECOND_NOTE_NAME,
+        [(DEST_A, delivered(channel, DEST_A, SECOND_NOTE_NAME))],
+        "CLEAN",
+        [],
+    )
+
+    delivered(channel, DEST_B).mkdir()
+    targets = [(name, delivered(channel, name)) for name in (DEST_A, DEST_B)]
+    code = sender.perform_send(payload, NOTE_NAME, targets, "CLEAN", [])
+    entries = record_entries({ENV_RECORD: str(tmp_path / RECORD_NAME)})
+    names = sorted(record_strings(entries))
+
+    assert control == EXIT_OK, f"the control returned {control}; a clean send must be 0"
+    assert code == EXIT_INCOMPLETE, (
+        f"a partial delivery returned {code}; 1 is documented as nothing having been written"
+    )
+    assert delivered(channel, DEST_A).is_file(), "the deliverable destination did not land"
+    assert names.count(DEST_A) == 2, (  # noqa: PLR2004
+        f"the record does not hold both deliveries to the destination that landed: {names}"
+    )
+    assert DEST_B not in names, "a destination that never landed was recorded"
+
+
+def test_a_delivery_whose_record_cannot_be_written_is_incomplete_not_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Prove the second path that returned 1 having delivered now returns 4.
+
+    CS-958 F6 as it was originally measured: with the record path unwritable,
+    both notes were DELIVERED and the tool exited 1. `prepare_record` now makes
+    that almost unreachable by proving the record before anything is staged,
+    and ALMOST is the reason this arm exists - the record can still fail
+    between the probe and the write, and a branch nothing exercises is a branch
+    this project has repeatedly found broken.
+
+    THE WRITE IS MADE TO FAIL BY STUBBING `append_record`, which is a
+    COLLABORATOR of the function under test and not the function itself. What
+    is graded is `perform_send`'s answer when the record refuses it: the note
+    is in the sibling's inbox, so the run is INCOMPLETE and not REFUSED, and
+    the operator is told to record it by hand.
+
+    THE CONTROL IS THE SAME CALL WITHOUT THE STUB, returning EXIT_OK, so a
+    `perform_send` that reported everything incomplete cannot pass.
+    """
+    sender = load_sender()
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    monkeypatch.setenv(ENV_RECORD, str(tmp_path / RECORD_NAME))
+    payload = CLEAN_BODY.encode("ascii")
+
+    control = sender.perform_send(
+        payload,
+        SECOND_NOTE_NAME,
+        [(DEST_A, delivered(channel, DEST_A, SECOND_NOTE_NAME))],
+        "CLEAN",
+        [],
+    )
+
+    def raising_append(_path: Path, _entries: object) -> None:
+        message = "the record is not writable"
+        raise OSError(message)
+
+    monkeypatch.setattr(sender, "append_record", raising_append)
+    code = sender.perform_send(
+        payload, NOTE_NAME, [(DEST_A, delivered(channel, DEST_A))], "CLEAN", []
+    )
+
+    assert control == EXIT_OK, f"the control returned {control}; a clean send must be 0"
+    assert code == EXIT_INCOMPLETE, (
+        f"a delivered note whose record failed returned {code}; 1 means nothing was written"
+    )
+    assert delivered(channel, DEST_A).is_file(), (
+        "the note was not delivered; the arm grades nothing"
+    )
+
+
+def test_a_record_path_that_is_a_directory_refuses_before_delivering(tmp_path: Path) -> None:
+    """Prove the record probe covers what `append_record` actually has to do.
+
+    A directory AT the record path passes every check that only asks about the
+    PARENT: the parent exists, it is writable, and a staging file can be made
+    beside it. `append_record` then stages happily and fails at the replace -
+    after the notes are in siblings' inboxes, which is the CS-958 F6 shape all
+    over again. So the probe asks the question the writer will ask.
+
+    DETERMINISTIC ON BOTH PLATFORMS, which is why this case is graded here
+    rather than only through a permission-denied directory: neither Windows nor
+    POSIX will let a file replace a directory.
+
+    THE CONTROL DELIVERS THE SAME NOTE with an ordinary record path, in the
+    same run, so the refusal is attributable to the record and not the channel.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    second = clean_note(tmp_path, name=SECOND_NOTE_NAME)
+
+    control_code, _control_out, control_err = run_send(
+        "--note",
+        str(note),
+        "--to",
+        DEST_A,
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+    after_control = tree_snapshot(channel)
+
+    blocked = dict(env)
+    blocked[ENV_RECORD] = str(tmp_path / "recorddir958" / RECORD_NAME)
+    Path(blocked[ENV_RECORD]).mkdir(parents=True)
+
+    code, out, err = run_send(
+        "--note",
+        str(second),
+        "--to",
+        DEST_A,
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=blocked,
+    )
+    changed = changed_paths(after_control, tree_snapshot(channel))
+
+    assert control_code == EXIT_OK, f"the control was refused; stderr {text(control_err)!r}"
+    assert code == EXIT_REFUSED, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
+    assert changed == [], f"a send refused for its record still delivered {changed}"
+
+
+def test_a_record_directory_that_cannot_be_written_refuses_before_delivering(
+    tmp_path: Path,
+) -> None:
+    """Prove the write probe itself bites, on a platform that honours the mode.
+
+    THE PROBE EXISTS FOR THE CASE NO STRUCTURAL CHECK CAN SEE: a record
+    directory that is present, and is a directory, and still will not accept a
+    file. That is a locked-down box or a read-only mount, and it is the one
+    remaining way the CS-958 F6 measurement could recur.
+
+    THE SKIP IS GUARDED BY A POSITIVE CONTROL AND IS NOT A SILENT ONE. Windows
+    does not honour a chmod on a directory, so the arm first proves the mode
+    took by trying to create a file itself; if that succeeds, the platform did
+    not restrict anything and a green result here would be a statement about
+    nothing. CI runs this module on ubuntu, where the mode is honoured and the
+    probe is measured. This project has already been bitten by a gate that
+    skipped its checks and still reported PASS, so the reason is spelled out
+    rather than left to a bare marker.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    locked = tmp_path / "lockedrecord958"
+    locked.mkdir()
+    locked.chmod(0o500)
+    try:
+        try:
+            (locked / "control958.txt").write_bytes(b"")
+            honoured = False
+        except OSError:
+            honoured = True
+        if not honoured:
+            pytest.skip(
+                "this platform did not honour a chmod on a directory it had just created, "
+                "so an unwritable record directory cannot be built here and a green result "
+                "would be a statement about nothing. The probe is UNMEASURED on this "
+                "platform, not absent - CI runs this module on ubuntu, where it is measured"
+            )
+
+        blocked = dict(env)
+        blocked[ENV_RECORD] = str(locked / RECORD_NAME)
+        before = tree_snapshot(channel)
+        code, out, err = run_send(
+            "--note",
+            str(note),
+            "--to",
+            DEST_A,
+            "--send",
+            "--allow-unmeasured",
+            channel=channel,
+            env=blocked,
+        )
+        changed = changed_paths(before, tree_snapshot(channel))
+    finally:
+        locked.chmod(0o700)
+
+    assert code == EXIT_REFUSED, f"exit {code}; stdout {text(out)!r} stderr {text(err)!r}"
+    assert changed == [], f"a send refused for an unwritable record still delivered {changed}"
+
+
+def test_a_dry_run_does_not_touch_the_record_or_the_filesystem(tmp_path: Path) -> None:
+    """Prove `--send` is still the only way this tool writes a byte.
+
+    FOUND BY A VERIFIER AGAINST THE FIRST CUT OF THE COMMIT-PHASE SLICE. The
+    record probe was placed above the dry-run branch, so a dry run created the
+    record's parent directory and a temporary file inside it while printing
+    "nothing was written. Pass --send to deliver." - measured, on a directory
+    that did not exist before the run. The module's own first rule is that
+    `--send` is the only way a byte is written, and a probe is a byte.
+
+    IT ALSO REFUSED A DRY RUN OUTRIGHT for a record fault that has no bearing
+    on what a dry run does, which turns the one safe way to inspect a send into
+    something that can fail for an unrelated reason.
+
+    THE ABSENCE OF THE DIRECTORY IS THE ASSERTION, not the exit code: a tool
+    that returned 0 and still created it would satisfy an exit-code check
+    completely. The record path points inside a directory that does not exist,
+    so any touch at all is visible.
+
+    THE CONTROL IS THE SAME RECORD PATH USED BY A REAL SEND in the same run,
+    which MUST create the directory - otherwise this arm would pass against a
+    tool that had simply stopped recording anything.
+    """
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    env = base_env(tmp_path)
+    note = clean_note(tmp_path)
+    unborn = tmp_path / "recordparent958"
+    env[ENV_RECORD] = str(unborn / RECORD_NAME)
+
+    code, out, err = run_send(
+        "--note", str(note), "--to", DEST_A, "--allow-unmeasured", channel=channel, env=env
+    )
+    touched_by_dry_run = unborn.exists()
+
+    sent_code, _sent_out, sent_err = run_send(
+        "--note",
+        str(note),
+        "--to",
+        DEST_A,
+        "--send",
+        "--allow-unmeasured",
+        channel=channel,
+        env=env,
+    )
+
+    assert code == EXIT_OK, f"exit {code}; a dry run was refused. stderr {text(err)!r}"
+    assert "DRY RUN" in text(out), "the dry run did not reach its report"
+    assert not touched_by_dry_run, "the dry run created the record's parent directory"
+    assert sent_code == EXIT_OK, f"the control send exited {sent_code}; {text(sent_err)!r}"
+    assert unborn.is_dir(), "the control send did not create the record directory either"
+
+
+def test_a_raise_after_a_delivery_is_incomplete_and_not_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Prove exit 1 keeps meaning nothing was written, even when the tool raises.
+
+    FOUND BY A VERIFIER, and the artifact was already carrying the proof it was
+    wrong: `main`'s handler printed `REFUSED` and `NOTE ALREADY DELIVERED` on
+    the same run. An exception this module does not name - a `RuntimeError` out
+    of the record writer, which `perform_send` catches only `OSError` and
+    `ValueError` from - escapes to the outer handler, which reported a refusal
+    over a note sitting in a sibling's inbox. That is the exact lie the fourth
+    exit code was added to stop telling, told through the one path the fourth
+    code did not cover.
+
+    THE STUB RAISES A CLASS THE CODE DOES NOT HANDLE, which is the point: an
+    `OSError` would be caught by `perform_send` and would already answer 4. The
+    branch under test is the one for a failure nobody anticipated, and "nobody
+    anticipated it" is exactly when a false "nothing was sent" is most likely to
+    be believed.
+
+    THE CONTROL IS A RAISE WITH NOTHING DELIVERED, in the same run, which must
+    still be REFUSED - so a handler that answered 4 unconditionally, and thereby
+    told the opposite lie, cannot pass.
+    """
+    sender = load_sender()
+    channel = make_channel(tmp_path, with_inbox=(DEST_A,))
+    monkeypatch.setenv(ENV_RECORD, str(tmp_path / RECORD_NAME))
+    note = clean_note(tmp_path)
+    argv = [
+        "--note",
+        str(note),
+        "--to",
+        DEST_A,
+        "--send",
+        "--allow-unmeasured",
+        "--channel-root",
+        str(channel),
+    ]
+
+    def raising_append(_path: Path, _entries: object) -> None:
+        message = "a class this module does not name"
+        raise RuntimeError(message)
+
+    def raising_stage(_payload: bytes, _targets: object) -> tuple[list[Path], str]:
+        message = "a class this module does not name"
+        raise RuntimeError(message)
+
+    monkeypatch.setattr(sender, "append_record", raising_append)
+    code = sender.main(argv)
+    landed = delivered(channel, DEST_A).is_file()
+
+    monkeypatch.setattr(sender, "stage_all", raising_stage)
+    control = sender.main([*argv[:2], "--to", DEST_B, *argv[4:]])
+
+    assert landed, "the note was not delivered; this arm grades nothing"
+    assert code == EXIT_INCOMPLETE, (
+        f"a raise over a delivered note returned {code}; 1 means nothing was written"
+    )
+    assert control == EXIT_REFUSED, (
+        f"a raise before anything was delivered returned {control}; that run wrote nothing"
+    )
