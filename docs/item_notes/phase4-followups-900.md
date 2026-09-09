@@ -1111,8 +1111,11 @@ as a probe would flatten a corrupt one that `load_record` cannot parse.
 **THE VERIFIER'S THREE FINDINGS ARE THE TRANSFERABLE PART.**
 
 1. **A GREEN TARGETED SUITE SAYS NOTHING ABOUT THE CITATION GUARD.** A new
-   docstring cited `data/outbound_deliveries.json`, which is gitignored, and the
-   full suite went red on a gate that lives in a different module entirely.
+   docstring cited the delivery record by PATH - a path that is gitignored, so
+   the citation guard declines it - and the full suite went red on a gate that
+   lives in a different module entirely. Cite it as
+   `tools/outbound_send.py::DEFAULT_RECORD` instead; this paragraph did the
+   very thing it describes on its first draft and was caught by the same gate.
    Repointing at a live symbol beat disclosing a decline, because the disclosure
    leg has a CEILING and adding a row failed it in the same run.
 2. **A HANDLER THAT PRINTS TWO FACTS CAN BE PRINTING A CONTRADICTION.**
