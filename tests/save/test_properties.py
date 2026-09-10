@@ -122,7 +122,7 @@ import struct
 from collections import Counter
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from functools import lru_cache
 from pathlib import Path
 from types import FrameType, MappingProxyType
@@ -2969,6 +2969,226 @@ def test_an_unresolved_schema_still_decodes_and_is_still_flagged() -> None:
     assert objects.WARN_UNRESOLVED_SCHEMA in [warning.code for warning in result.warnings]
 
 
+# ---------------------------------------------------------------------------
+# CS-960 - the decode with NO property map at all
+#
+# ``usmap.cached_usmap()`` answers None on a machine with no game install, so
+# CI and every fresh clone are in that state. A reader that required a map
+# decoded nothing there. The map was never an INPUT to the decode - a payload
+# is tagged serialization and carries its own names, type words and widths -
+# so the only thing an absent map may cost is the RESOLUTION report.
+#
+# AND ABSENT IS NOT UNMODELLED. With no map supplied nothing has claimed the
+# class is unknown, so ``resolved`` answers None and no unresolved-schema
+# warning is raised. Emitting one would be the confident-wrong answer
+# non-negotiable 7 forbids, and it mirrors what this module already does one
+# layer up, where ``known_classes=None`` flags nothing.
+# ---------------------------------------------------------------------------
+
+
+#: The ``PropertyResult`` fields a missing map is ALLOWED to move. Everything
+#: else is the decode itself, and the decode does not consult the map.
+#:
+#: THE SET IS SUBTRACTED FROM THE DATACLASS RATHER THAN LISTED BESIDE IT, so a
+#: field added to :class:`objects.PropertyResult` later is compared by default
+#: and has to be exempted deliberately rather than forgotten into safety.
+_MAP_SENSITIVE_RESULT_FIELDS: Final = frozenset({"resolved", "warnings"})
+
+
+#: A value inside the readable struct below, distinct from every scalar the
+#: base fixture carries so an interior that came back with the wrong field
+#: cannot match by coincidence.
+_STRUCT_INTERIOR_INT: Final = 4242
+
+
+def _readable_struct_tag() -> bytes:
+    """A ``StructProperty`` whose interior is a well-formed nested TAG LIST.
+
+    THE BASE FIXTURE'S STRUCT TAG IS DELIBERATELY OPAQUE - it is there to prove
+    an unmeasured type is skipped and counted - so it yields no interior at
+    all. An arm claiming "no struct interior differs" against a result carrying
+    zero interiors is claiming nothing, so this tag supplies the population.
+
+    Returns:
+        The whole tag.
+    """
+    interior = _scalar_tag("mInteriorField", "IntProperty", _i32(_STRUCT_INTERIOR_INT)) + _fstring(
+        "None"
+    )
+    return _struct_tag("mReadableStruct", _SYNTHETIC_STRUCT_WORD, interior)
+
+
+#: The two states a SUPPLIED map can be in, so the comparison below runs
+#: against both. Against the modelled map the warning tuples are equal
+#: outright; against the unmodelled one the mapped decode carries an
+#: unresolved-schema warning the unmapped decode must not, which is the only
+#: state where the warning half of the claim is non-vacuous.
+_SUPPLIED_MAP_STATES: Final = ("modelled", "unmodelled")
+
+
+def _mapped_and_unmapped(map_state: str) -> tuple[objects.PropertyResult, objects.PropertyResult]:
+    """Decode ONE synthetic payload twice - with a supplied map, and with none.
+
+    The same body and the same record both times, so any difference between
+    the two results is attributable to the map and to nothing else.
+
+    The payload is the base fixture plus :func:`_readable_struct_tag`, so all
+    three populations the acceptance clause names - decoded values, decoded
+    references and decoded struct interiors - are non-empty and are actually
+    being compared.
+
+    Args:
+        map_state: Whether the supplied map models the fixture's class, from
+            :data:`_SUPPLIED_MAP_STATES`.
+
+    Returns:
+        ``(mapped, unmapped)``.
+    """
+    supplied = _synthetic_map(_SYNTHETIC_SCHEMA if map_state == "modelled" else "SomeOtherSchema_C")
+    head = _actor_head((_SYNTHETIC_COMPONENT,))
+    tags = b"".join((*_MEASURED_TAGS, *_UNMEASURED_TAGS)) + _readable_struct_tag()
+    payload = head + tags + _fstring("None") + _TRAILING_RUN
+    body = _synthetic_body(payload)
+    record = _synthetic_record(payload)
+    return (
+        objects.read_properties(body, record, supplied),
+        objects.read_properties(body, record, None),
+    )
+
+
+@pytest.mark.parametrize("map_state", _SUPPLIED_MAP_STATES)
+def test_a_decode_with_no_map_differs_from_the_mapped_one_in_nothing_but_resolution(
+    map_state: str,
+) -> None:
+    """CS-960's load-bearing arm. Every field is compared, not a count of them.
+
+    A COUNT WOULD BE MET BY THE STRONGEST MEMBER while a weak one went
+    unmeasured - the same values with a lost reference, or a struct interior
+    that read one field short, both keep ``len(properties)`` intact. So the
+    comparison walks :class:`objects.PropertyResult`'s own field list and
+    demands equality on everything the exemption set does not name.
+
+    ``properties`` is compared as the raw mapping rather than through
+    :func:`_decoded_shape`: the reduction there drops each container element's
+    ABSOLUTE body offset, which is exactly the kind of interior a decode
+    reading from a different starting point would move. Both decodes run
+    against the same bytes, so the offsets must match exactly and there is no
+    reason to grade them loosely here.
+
+    Args:
+        map_state: Whether the supplied map models the class. BOTH ARE RUN
+            because the warning half of the claim is vacuous against a
+            modelled map - neither decode raises an unresolved-schema warning
+            there, so an equality between the two tuples would hold however
+            the no-map branch were written.
+    """
+    mapped, unmapped = _mapped_and_unmapped(map_state)
+
+    # NON-VACUITY FIRST. An equality between two empty results is an equality
+    # about nothing, and each of the three populations the acceptance clause
+    # names - values, references, struct interiors - has to be present for
+    # this arm to be saying anything about it.
+    assert mapped.properties, "no values decoded, so the value comparison is vacuous"
+    assert mapped.references, "no references decoded, so the reference comparison is vacuous"
+    assert mapped.struct_interiors, "no struct interiors, so that comparison is vacuous"
+
+    carried = {field.name for field in fields(mapped)}
+    compared = sorted(carried - _MAP_SENSITIVE_RESULT_FIELDS)
+    assert carried >= _MAP_SENSITIVE_RESULT_FIELDS, (
+        "the exemption set names a field PropertyResult does not carry, so a real field "
+        "may be going uncompared under a stale name"
+    )
+
+    differing = [name for name in compared if getattr(mapped, name) != getattr(unmapped, name)]
+    assert not differing, (
+        f"decoding the same payload without a property map changed {differing}. The map is "
+        "not an input to the decode - a payload is tagged serialization - so the only "
+        f"permitted differences are {sorted(_MAP_SENSITIVE_RESULT_FIELDS)}"
+    )
+
+    # The permitted two, asserted rather than merely excused. The warning tuple
+    # may lose the unresolved-schema entry and MUST keep every other warning in
+    # the same order.
+    assert mapped.resolved is (map_state == "modelled")
+    assert unmapped.resolved is None
+    assert (
+        tuple(
+            warning for warning in mapped.warnings if warning.code != objects.WARN_UNRESOLVED_SCHEMA
+        )
+        == unmapped.warnings
+    )
+    carried_the_schema_warning = objects.WARN_UNRESOLVED_SCHEMA in [
+        warning.code for warning in mapped.warnings
+    ]
+    assert carried_the_schema_warning is (map_state == "unmodelled"), (
+        "the subtraction above only says anything where the mapped decode actually "
+        "carries the warning, and this fixture state is not producing it"
+    )
+
+
+def test_resolution_reports_absent_unmodelled_and_modelled_as_three_distinct_states() -> None:
+    """ABSENT and UNMODELLED may not collapse, and ``is`` is what stops them.
+
+    ``False`` and ``None`` compare equal under ``not`` and under a truthiness
+    test, so an arm written with ``assert not result.resolved`` would pass on
+    either and would let a later edit answer False where no map was supplied -
+    which is this project claiming the class is unmodelled on the strength of
+    having looked at nothing.
+    """
+    payload = _synthetic_payload(actor=True)
+    body = _synthetic_body(payload)
+    record = _synthetic_record(payload)
+
+    absent = objects.read_properties(body, record, None)
+    unmodelled = objects.read_properties(body, record, _synthetic_map("SomeOtherSchema_C"))
+    modelled = objects.read_properties(body, record, _synthetic_map(_SYNTHETIC_SCHEMA))
+
+    assert absent.resolved is None
+    assert unmodelled.resolved is False
+    assert modelled.resolved is True
+    assert {absent.resolved, unmodelled.resolved, modelled.resolved} == {None, False, True}
+
+
+def test_no_unresolved_schema_warning_is_raised_when_no_map_was_supplied() -> None:
+    """No map means nothing has claimed the class is unknown.
+
+    The warning's meaning is "a mapping was consulted and does not model this
+    class". Raising it for an absent mapping would report unknown content that
+    nothing measured, and would drown the real ones: on a machine with no
+    install EVERY record would carry it.
+
+    The unmodelled case is asserted alongside so this arm cannot pass by the
+    warning having been deleted outright.
+    """
+    payload = _synthetic_payload(actor=True)
+    body = _synthetic_body(payload)
+    record = _synthetic_record(payload)
+
+    absent = objects.read_properties(body, record, None)
+    unmodelled = objects.read_properties(body, record, _synthetic_map("SomeOtherSchema_C"))
+
+    assert objects.WARN_UNRESOLVED_SCHEMA not in [warning.code for warning in absent.warnings]
+    assert objects.WARN_UNRESOLVED_SCHEMA in [warning.code for warning in unmodelled.warnings]
+
+
+def test_a_zero_length_payload_reports_an_absent_map_the_same_way() -> None:
+    """The early return is a SECOND construction site for the resolution report.
+
+    ``read_properties`` builds a :class:`objects.PropertyResult` on four paths.
+    A fix applied to the last one alone would answer None where the payload has
+    content and False where it has none, which is the same class of split this
+    module's frame-leak arm was bitten by.
+    """
+    body = _synthetic_body(b"")
+    record = _synthetic_record(b"", body_length=0)
+
+    result = objects.read_properties(body, record, None)
+
+    assert result.resolved is None
+    assert result.warnings == ()
+    assert result.properties == {}
+
+
 def test_the_synthetic_decode_touches_no_save_locator(monkeypatch) -> None:
     """THE PROOF THAT THIS HALF NEEDS NO LIBRARY, rather than the claim of it.
 
@@ -3147,25 +3367,39 @@ def test_an_out_of_range_payload_extent_raises_for_an_unresolved_class_too() -> 
 _PROPERTY_READERS: Final = ("read_properties", "parse_properties")
 
 
-def _raise_through(entry_point: str, body: bytes, record: objects.ObjectRecord) -> BaseException:
+#: The two map states the frame scrub has to survive, CS-960. ``del`` on a name
+#: bound to None is perfectly legal, so the None path costs the mechanism
+#: nothing - but "costs nothing" is a prediction until the arm runs it, and the
+#: no-map call is now the DEFAULT one on any machine with no game install.
+_MAP_STATES: Final = ("mapped", "unmapped")
+
+
+def _raise_through(
+    entry_point: str, body: bytes, record: objects.ObjectRecord, map_state: str
+) -> BaseException:
     """Call one exported reader with an out-of-range extent and return the error.
 
     Args:
         entry_point: The name of the reader, from :data:`_PROPERTY_READERS`.
         body: The synthetic body.
         record: A record whose declared extent runs past it.
+        map_state: ``"mapped"`` or ``"unmapped"``, from :data:`_MAP_STATES`.
 
     Returns:
         The raised exception, so the caller can walk its traceback.
     """
     reader = getattr(objects, entry_point)
+    supplied = _synthetic_map() if map_state == "mapped" else None
     with pytest.raises(objects.ObjectTruncatedError) as caught:
-        reader(body, record, _synthetic_map())
+        reader(body, record, supplied)
     return caught.value
 
 
+@pytest.mark.parametrize("map_state", _MAP_STATES)
 @pytest.mark.parametrize("entry_point", _PROPERTY_READERS)
-def test_no_clockspeed_frame_holds_the_body_when_the_extent_raises(entry_point: str) -> None:
+def test_no_clockspeed_frame_holds_the_body_when_the_extent_raises(
+    entry_point: str, map_state: str
+) -> None:
     """The leak the widened reachability opened, closed at EVERY exported way in.
 
     The ``ObjectTruncatedError`` MESSAGE is clean and always was; that is not
@@ -3187,14 +3421,21 @@ def test_no_clockspeed_frame_holds_the_body_when_the_extent_raises(entry_point: 
     withholds every string it carries, which is this module's existing control
     and is checked elsewhere.
 
+    IT IS ALSO PARAMETRIZED OVER THE MAP STATE, CS-960. Both raise sites drop
+    ``property_map`` alongside ``body``, and ``del`` on a name bound to None is
+    legal - but the no-map call is now the DEFAULT one wherever there is no
+    game install, so the path that runs everywhere is the one that has to be
+    exercised rather than the one that runs on the operator's machine.
+
     Args:
         entry_point: The exported reader under test.
+        map_state: Whether a property map was supplied at all.
     """
     payload = _synthetic_payload(actor=True)
     body = _synthetic_body(payload) + _LEAK_MARKER.encode("ascii")
     overrun = _synthetic_record(payload, body_length=len(body))
 
-    raised = _raise_through(entry_point, body, overrun)
+    raised = _raise_through(entry_point, body, overrun, map_state)
 
     leaks = {
         frame.f_code.co_name: _leaking_locals(frame, _LEAK_MARKER)
@@ -3202,10 +3443,10 @@ def test_no_clockspeed_frame_holds_the_body_when_the_extent_raises(entry_point: 
         if _leaking_locals(frame, _LEAK_MARKER)
     }
     assert not leaks, (
-        f"entered through objects.{entry_point}, a clockspeed frame in the raised "
-        "traceback still holds the save body. A renderer showing locals prints it "
-        "verbatim, head and tail (non-negotiable 12). Offending frame(s) and local "
-        f"name(s): {leaks}"
+        f"entered through objects.{entry_point} with a {map_state} call, a clockspeed "
+        "frame in the raised traceback still holds the save body. A renderer showing "
+        "locals prints it verbatim, head and tail (non-negotiable 12). Offending "
+        f"frame(s) and local name(s): {leaks}"
     )
     # NON-VACUITY. Without this the sweep passes just as happily when the
     # marker was never in any frame to begin with, which is the ABSOLUTE_PATH

@@ -351,7 +351,9 @@ def _sweep_one_save(
     Args:
         data: The save file's bytes.
         parsed: Its parsed header.
-        property_map: The shipped mapping, which ``read_properties`` requires.
+        property_map: The shipped mapping, which this sweep supplies on purpose.
+            ``read_properties`` accepts None since CS-960 - see the caller's
+            ``Returns`` clause for why this sweep does not take that path.
         into: The accumulator, mutated in place.
         pairs: Version pair to tag count, mutated in place.
     """
@@ -391,7 +393,11 @@ def _sweep_potential() -> _PotentialSweep | None:
 
     Returns:
         The sweep, or None when no save library is reachable or the shipped
-        property mapping did not load - ``read_properties`` requires one.
+        property mapping did not load. SINCE CS-960 THAT SECOND CONDITION IS A
+        CHOICE THIS SWEEP MAKES RATHER THAN A REQUIREMENT IT INHERITS:
+        ``read_properties`` decodes with no map at all, but it then reports
+        resolution against no registry, and a sweep whose subject is what
+        resolved may not quietly change what it resolved against.
     """
     saves = test_properties._library_save_paths()  # noqa: SLF001
     if not saves:

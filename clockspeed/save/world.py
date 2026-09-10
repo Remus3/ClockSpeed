@@ -41,10 +41,12 @@ continues with no property map: ``objects.parse_object_headers`` takes
 flagged every class in that state would report a world of pure unknown content
 rather than a world it has not checked.
 
-``objects.parse_properties`` takes a NON-OPTIONAL ``PropertyMap``, which is the
-trap in the seam: a composer that called it unconditionally is a ``TypeError``
-on every machine that has never had the game installed. **This module does not
-call it at all**, and the reason is not the None case.
+``objects.parse_properties`` ACCEPTS None, and used not to (CS-960). While the
+map was mandatory, a composer that called the reader unconditionally broke on
+every machine that had never had the game installed, and that trap is now
+gone: the mapping was never an input to the decode, so an absent one costs the
+resolution report and nothing else. **This module still does not call either
+reader at all**, and the reason never was the None case.
 
 WHAT EITHER PROPERTY READER CAN DECODE IS ``objects``' FACT, and it is stated
 at ``objects.read_properties`` rather than a second time here. A capability

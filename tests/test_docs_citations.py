@@ -1048,7 +1048,7 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/LEDGER.md", "clockspeed/data/locate.py", 657): "c0f880c0e553",
     ("docs/LEDGER.md", "clockspeed/data/version.py", 352): "1e211b03496a",
     ("docs/LEDGER.md", "clockspeed/data/version.py", 815): "d5cb7f2c533e",
-    ("docs/LEDGER.md", "clockspeed/save/objects.py", 2945): "bee547e7a02b",
+    ("docs/LEDGER.md", "clockspeed/save/objects.py", 2954): "bee547e7a02b",
     ("docs/LEDGER.md", "clockspeed/save/usmap.py", 46): "82be9ba39f87",
     ("docs/LEDGER.md", "scripts/install_hooks.py", 310): "4facec475176",
     ("docs/LEDGER.md", "tests/data/test_phase2_gate.py", 775): "edaece1458c2",
@@ -1063,10 +1063,10 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 141): "fa085c760a09",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/data/locate.py", 187): "53bcd3acffa2",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/header.py", 927): "2b49f05b544d",
-    ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/objects.py", 1747): "0e68b6914ed2",
+    ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/objects.py", 1756): "0e68b6914ed2",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/workdir.py", 688): "e2d30d6ce513",
-    ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/world.py", 989): "7b4d51124c45",
-    ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/world.py", 1109): "25062ba27287",
+    ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/world.py", 991): "7b4d51124c45",
+    ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/world.py", 1111): "25062ba27287",
     (
         "docs/item_notes/phase4-followups-850.md",
         "tests/save/test_container_elements.py",
@@ -1118,7 +1118,7 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/item_notes/phase4.md", "tests/data/test_locate.py", 858): "7b83ed5742f3",
     ("docs/item_notes/phase4.md", "tests/save/synthetic.py", 1079): "b260445518a9",
     ("docs/item_notes/phase4.md", "tests/save/test_byte_order_status.py", 878): "5d5874e29659",
-    ("docs/item_notes/phase4.md", "tests/save/test_objects.py", 776): "98fb3674bec1",
+    ("docs/item_notes/phase4.md", "tests/save/test_objects.py", 834): "98fb3674bec1",
     ("docs/item_notes/phase4.md", "tests/save/test_phase4_gate.py", 2089): "d2973a15655f",
 }
 

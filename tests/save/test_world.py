@@ -20,9 +20,11 @@ catch.
 2. **An absent property map is a warning, not a crash.** ``cached_usmap()``
    returns None on a machine with no install and never raises for absence, so
    the no-install path is the DEFAULT path in CI and on any fresh clone.
-   ``objects.parse_properties`` takes a non-optional ``PropertyMap``, which is
-   the trap: a composer that calls it unconditionally is a ``TypeError`` on
-   every machine that has never had the game installed.
+   It was also a TypeError trap until CS-960: ``objects.parse_properties``
+   took a NON-OPTIONAL ``PropertyMap``, so a composer that called it
+   unconditionally crashed on every machine that had never had the game
+   installed. It takes ``PropertyMap | None`` now and decodes either way, which
+   removes the trap and leaves the warning this acceptance is about.
 
 3. **Wrapping widens the leak surface.** ``raise ... from exc`` makes the
    CAUSE's text part of the wrapper's formatted traceback. A save is a
@@ -963,9 +965,13 @@ def test_an_absent_property_map_warns_and_still_loads(
 ) -> None:
     """Acceptance 6. ``cached_usmap`` returns None for absence and NEVER raises for it.
 
-    ``objects.parse_properties`` takes a non-optional ``PropertyMap``, so a
-    composer that called it unconditionally is a TypeError on every machine that
-    has never had the game installed - which is CI, and every fresh clone.
+    THE TRAP THIS ARM WAS WRITTEN BESIDE IS GONE AND THE ARM IS NOT.
+    ``objects.parse_properties`` took a non-optional ``PropertyMap`` until
+    CS-960, so a composer that called it unconditionally was a TypeError on
+    every machine that has never had the game installed - which is CI, and every
+    fresh clone. It accepts None now. WHAT THIS ARM ASSERTS IS UNCHANGED, and it
+    is the half that never depended on that signature: absence is WARNED, and
+    the load continues.
     """
     _no_install(monkeypatch, tmp_path)
 

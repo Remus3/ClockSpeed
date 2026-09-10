@@ -9534,7 +9534,7 @@ value reading is unmeasured - `ArrayProperty`, `MapProperty`, `SetProperty`, `St
 `ArrayProperty` is recorded in `DECLINED_VALUE_READINGS`. The other three are declined in
 `UNMEASURED_PAYLOAD_REGIONS` on sample size, the criterion `WIDTH_SHIPPING_RULE` disclaims. CS-456 was
 filed against `TextProperty` alone and is rewritten in `ROADMAP.md` to the family.
-**WHAT SURVIVED, and it is the item's one real result.** `clockspeed/save/objects.py:2945` is
+**WHAT SURVIVED, and it is the item's one real result.** `clockspeed/save/objects.py:2954` is
 `at = value_start + size` and it is the only tag-walk advance in the package, so an EXTENT width
 genuinely cannot move the cursor. The word "cannot" stands, attacked and unbroken by both passes.
 

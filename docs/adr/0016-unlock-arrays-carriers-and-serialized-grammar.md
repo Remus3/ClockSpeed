@@ -164,9 +164,13 @@ the reference join and its diagnostics see none of them. A consumer reading unlo
 references from `references` gets an empty answer and no warning. The values are in
 `ContainerValue.elements`.
 
-**Any test for this must build a synthetic `PropertyMap`.** `read_properties` takes a
-non-optional one, sourced from `usmap`, which requires the game install. **CI has no
-install and neither does a fresh clone**, so a library-backed test is not portable.
+**Any test for this must build a synthetic `PropertyMap`.** `read_properties` took a
+non-optional one when this was written, sourced from `usmap`, which requires the game
+install. **CI has no install and neither does a fresh clone**, so a library-backed test is
+not portable. AMENDED 2026-09-09 by CS-960: that signature now accepts an absent mapping
+and decodes either way, so it is no longer what forces the synthetic map. The conclusion
+is unchanged and now rests on the portability clause alone, plus the standing fixture
+rule below.
 `tests/save/test_properties.py::_synthetic_map` already builds a map from `usmap`'s own public types
 with no file, and that is the pattern. It also satisfies the standing rule that fixtures
 are hand-authored synthetic registries, never slices of real data.
