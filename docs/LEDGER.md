@@ -160,6 +160,98 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-10 - CS-961 - CLOSED. A world load publishes decoded property values, and the item was REFUTED TWICE by one lens before it was true
+
+**What shipped.** `WorldProperties` and `RecordProperties` are built during the walk
+that already holds the bytes and are keyed BY RECORD INDEX, never by offset, which
+is what the acceptance means by a stated model. `WorldModel.properties` is defaulted,
+so the single construction site stayed the only edit. The payload dies with the walk:
+no published type carries a `bytes` or `Path` field, and the frame is scrubbed on any
+unwind. `resolved` is carried verbatim from CS-960 - three states, never flattened.
+Merged files: `clockspeed/save/world.py`, `tests/save/synthetic.py`. Verified by
+`tests/save/test_world.py::test_a_synthetic_world_publishes_one_decoded_property_value_end_to_end`,
+`::test_the_two_determinate_resolved_states_are_both_reachable`,
+`::test_no_body_byte_reaches_any_echo_path`,
+`::test_no_published_world_type_annotates_a_carrier_field`,
+`::test_a_published_container_keeps_every_element_without_its_position`,
+`::test_no_published_property_value_carries_an_absolute_body_offset`,
+`::test_no_clockspeed_frame_holds_the_raw_save_on_any_refusal_path` and
+`tests/save/test_synthetic.py::test_the_decodable_payload_agrees_with_the_independent_encoder`.
+
+**THE ACCEPTANCE COULD NOT BE WRITTEN WHEN IT WAS FILED, AND THAT WAS FOUND BY THE
+PLANNER RATHER THAN BY A FAILING TEST.** It asked for one decoded value read end to
+end from a SYNTHETIC world. Every levelled fixture built its payload as
+`bytes(payload_size)` - zero bytes - and `synthetic.py` said so in its own prose:
+payload content is opaque filler, and any slice decoding a field out of one is
+decoding an invention. A fixture slice had to come first. **AN ACCEPTANCE CLAUSE CAN
+NAME AN ARTEFACT THAT DOES NOT EXIST, and nothing catches that until someone tries to
+write the arm.**
+
+**THE COMMON-MODE RISK WAS MADE THE FIXTURE SLICE'S OWN ACCEPTANCE.** A slice that
+authors both the payload encoder and the arm proving it decodes has measured its own
+consistency and nothing else. So S0 had to reach byte equality against
+`tests/save/test_properties.py`'s separately authored encoder, and did. The
+independence was re-measured twice rather than inherited: that file is absent from
+S0's diffstat, predates the base, and shares no import. An adversarial pass then found
+the one input the check cannot see - the two encoders differ on the EMPTY STRING, one
+writing a bare zero count and the other a count of one plus a null, neither measured.
+Neither was declared right; the divergence was PINNED so a later arm cannot lose the
+second opinion silently.
+
+**REFUTED ON THE FIRST CUT, ON THE DEFECT THE ITEM EXISTS TO PREVENT.** A decoded
+`ArrayProperty`, `SetProperty` or `MapProperty` is a `ContainerValue` whose elements
+each carry an ABSOLUTE OFFSET INTO THE BODY - so the published model handed out
+offsets into a buffer nobody holds, which is verbatim the defect CS-961 was filed to
+abolish, while its own docstring claimed it never would. **Neither decodable fixture
+produced a container, so no arm could have caught it: the fixture was built parallel
+to the assumption rather than against it.** The repair publishes the type word, the
+extent and the value with no position, recursively through struct interiors, and its
+arm is a REFLEXIVE DEEP WALK rather than a list of known types, so a container type
+added later is caught too.
+
+**REFUTED ON THE SECOND CUT, ONE LEVEL DOWN, BY THE SAME LENS.** `load_world_from_bytes`
+bound the raw save as a frame local, so a renderer showing locals printed the
+plaintext options string. Scrubbing this layer's own frames was not enough:
+`parse_header` and `decompress_body` bind the same blob in THEIR frames, and
+`raise ... from exc` puts those in the rendered traceback. That half is pre-existing,
+lives in two modules this item never scoped, and is FILED AS CS-963 rather than
+absorbed - burying a non-negotiable 12 finding inside an unrelated merge is not a fix.
+What changed here is the CLAIM: both sentences asserting no frame holds the raw save
+now say what was measured, which is this layer's own frames only.
+
+**THE SHAPE BEHIND BOTH REFUTATIONS, and it is the transferable part.** Each time, the
+suite was green, a verifier had CONFIRMED, and the arm that should have caught the
+defect was STRUCTURALLY INCAPABLE OF FAILING FOR IT - the first because no fixture
+produced the type, the second because the frame walker follows `__traceback__` and
+never `__cause__`. **AN ORACLE THAT CANNOT SEE THE VALUE IT IS ASKED ABOUT RETURNS AN
+EMPTY VERDICT ABOUT ITSELF, AND THAT VERDICT READS EXACTLY LIKE A PASS.** Only the
+adversarial lens found either. Agreement among the other passes was not evidence.
+
+**PINS: THREE REPOINTED, TWO RETIRED, AND THE DIFFERENCE IS THE DIGEST.** A repoint is
+honest only while the digest carries over unchanged, because that is the guard itself
+proving the new line holds byte-identical content; three did and were re-checked
+independently. The `STAGE_HEADER` raise did NOT - it gained an indent level when the
+blob was scrubbed - so its line changed as well as moved, and re-cutting a digest from
+today's tree is the laundering the guard's own comment forbids. Those two were
+retired to symbol form instead, and `FORGIVEN_LINE_POINTER_CEILING` came down 66 to 64
+with them, because a ceiling left slack is that arm's own finding in the other
+direction. **A SLICE REPORTED BOTH AS BYTE-IDENTICAL AND WAS WRONG ABOUT ONE**; the
+merger checked rather than accepted, and a verifier re-derived the same conclusion.
+
+**What this is NOT evidence for.** That real saves decode - the arms are synthetic
+throughout. That any consumer exists; none does. That the wire stays safe once
+`properties` joins `DATA_KEYS`. And the whole item rests on the K-TH PAYLOAD
+ALIGNMENT, which `objects.py` states the synthetic corpus cannot corroborate - only
+the real saves do. Byte equality between two independent encoders proves encoder
+consistency, never that either matches the shipped format.
+
+**Independently verified.** Three graders, none of which produced the work. Whole suite
+re-run by the verifier: 6117 passed, 7 skipped, exit 0, every skip read and accounted
+for. The end-to-end arm was broken deliberately - three mutants, each asserted APPLIED
+before the result was believed, since `world.py` imports `read_properties` by name and
+patching `objects` is a silent no-op. `ruff`, `ruff format`, `mypy` over 185 files and
+`tools/drift_guard.py` all clean.
+
 ### 2026-09-09 - CS-960 - CLOSED. The decode path accepts an absent property map, and the requirement it dropped was self-imposed by a docstring written when the function decoded nothing
 
 **What shipped.** `objects.read_properties` and `objects.parse_properties` now take
