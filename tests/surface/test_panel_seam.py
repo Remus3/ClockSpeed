@@ -1,4 +1,4 @@
-"""CS-960 slice S0 - the dashboard's panel seam, graded statically and by running it.
+"""CS-962 slice S0 - the dashboard's panel seam, graded statically and by running it.
 
 WHAT THE SEAM IS. ``clockspeed/surface/web/app.js`` publishes one global,
 ``registerPanel(id, mountFn)``. A panel module calls it once at load and is

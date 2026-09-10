@@ -152,7 +152,12 @@ MIN_ENDPOINT_MODULES: Final = 2
 
 #: The whole static surface, as a count an arm asserts rather than a literal
 #: buried inside one.
-STATIC_SURFACE_SIZE: Final = 3
+#: SEVEN SINCE CS-962, not three: the page, the sheet, the script and the
+#: four panel modules. DERIVED FROM THE SERVER'S OWN TABLE rather than
+#: retyped, because a hand-kept count in a second file is the drift this
+#: arm exists to catch - and a count that has to be edited in two places
+#: when a panel is added is a count that will be edited in one.
+STATIC_SURFACE_SIZE: Final = len(server.ASSET_NAMES)
 
 #: Header names every answer carries, whatever its status.
 FIXED_HEADER_NAMES: Final = ("cache-control", "x-content-type-options", "referrer-policy")
@@ -2784,10 +2789,27 @@ def test_the_arithmetic_detector_spares_a_set_difference_and_a_path_join() -> No
     assert found == 0, "the arithmetic detector fails correct code and will be switched off"
 
 
-def test_the_static_surface_is_exactly_three_names() -> None:
+def test_the_static_surface_is_exactly_the_names_the_page_loads() -> None:
+    """Prove the served set is the panel set, and neither has drifted.
+
+    RENAMED AND WIDENED BY CS-962. It asserted exactly three names, so adding a
+    panel module reddened it unconditionally - and it sits in a file no panel
+    slice had on its write-list, which is how a decomposition that proved its
+    own disjointness still collided. The count now derives from the server's
+    own table; the NAMES are still spelled out, because that is the half that
+    catches a module served by accident.
+    """
     entries = len(server.STATIC_ROUTES)
     assert entries == STATIC_SURFACE_SIZE
-    assert sorted(server.ASSET_NAMES) == ["app.css", "app.js", "index.html"]
+    assert sorted(server.ASSET_NAMES) == [
+        "app.css",
+        "app.js",
+        "index.html",
+        "panel_registry.js",
+        "panel_scope.js",
+        "panel_solve.js",
+        "panel_warnings.js",
+    ]
 
 
 def test_address_reuse_is_off_because_windows_permits_a_hijack_with_it_on() -> None:

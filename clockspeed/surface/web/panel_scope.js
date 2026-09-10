@@ -1,7 +1,7 @@
 "use strict";
 
 /*
-  CS-960 - the Scope panel's module. A SEAM STUB: it holds a place in the
+  CS-962 - the Scope panel's module. A SEAM STUB: it holds a place in the
   panel registry and builds nothing else yet.
 
   WHY A STUB IS SHIPPED RATHER THAN NOTHING. The seam is only proved by a

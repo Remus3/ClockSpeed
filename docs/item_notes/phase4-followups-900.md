@@ -1200,3 +1200,71 @@ terminator. The observation that zero reached one "at every alignment tried"
 argues against a pure start-offset error, but the set of alignments tried was
 never recorded, so it does not settle it either. Do not close CS-G05 by
 resemblance to the three readable pairs - its own section forbids exactly that.
+
+## CS-962
+
+### SLICE S0 MERGED - the panel seam - MEASURED 2026-09-09 (session 78)
+
+**WHAT THE SEAM IS.** Every dashboard panel wanted to edit `app.js` and
+`index.html`, which would have made four panels one ordered queue. S0 publishes
+`registerPanel(id, mountFn)`; a panel receives a DOM root and the
+ALREADY-FETCHED payloads and never issues its own fetch, so `app.js` keeps sole
+ownership of I/O and its sequential-probe discipline is untouched. A panel whose
+mount throws does not stop the others - measured by removing the guard and
+watching three arms redden, not asserted.
+
+**THE DECOMPOSITION PROVED ITS OWN DISJOINTNESS AND STILL COLLIDED, AND THAT IS
+THE LESSON.** The planner enumerated fifteen paths, proved no two slices shared
+one, and the write-list was still wrong: `tests/surface/test_server.py` pinned
+the static surface at exactly three names, in a file no slice had listed. Adding
+a panel module reddened it unconditionally. **A WRITE-LIST IS DERIVED FROM WHO
+WRITES, AND THE THING THAT BREAKS IS WHOEVER READS.** The next decomposition
+must ask what ASSERTS on a value, not only what edits a file. The builder
+correctly refused to widen its own write-list and reported the collision
+instead; the merger repaired it.
+
+**THE COUNT IS NOW DERIVED, NOT RETYPED.** That arm's constant reads the
+server's own table rather than a hand-kept literal, because a count maintained
+in two files is a count that will be updated in one. The NAMES stay spelled out
+- that half catches a module served by accident, which a derived count cannot.
+
+**AN ID COLLISION THE MERGER CAUSED.** The builder had no roadmap item and
+allocated `CS-960` itself, saying so plainly and filing nothing. The merger had
+allocated the same id to the decode work in the same session, from the same
+"highest is CS-959" reading. Ten references were moved to CS-962 at merge.
+**TWO AGENTS ALLOCATING FROM ONE HIGH-WATER MARK IN PARALLEL WILL COLLIDE** -
+the id must come from the dispatch, not from the builder.
+
+**WHAT IS NOT MEASURED, carried from the builder's own report.** No real browser
+ran: the behavioural arms use a hand-written DOM stand-in under node, so layout,
+focus and the `defer` load order are NOT graded - `defer` is asserted as markup
+only. A CS-600-style Chromium pass over the new panel host is owed. The node
+dependency is new to the Python suite and fails loudly rather than skipping, but
+whether node is on PATH in the tier-2 CI job was not verified here.
+
+**STILL OPEN ON THIS ITEM:** the four panels themselves - registry browser,
+solve bench, warnings list, scope note. The stubs are served and registered and
+render nothing.
+
+### OPERATOR DECISIONS ON THIS ITEM - FILED 2026-09-09, do not re-litigate
+
+- **THE PAGE MAY POST, FOR SOLVE.** `app.js` carries a written rationale headed
+  "WHY THIS PAGE ISSUES NO POST AT ALL", grounded in request forgery against a
+  long-lived loopback page. The operator reversed it for the solve bench. Two
+  facts made the trade cheap: the server reads NO request body anywhere, so a
+  POST here is a query string with a different verb, and solve and optimize are
+  pure reads that happen to be registered POST. **THAT RATIONALE BLOCK IS NOW
+  FALSE AND MUST BE REWRITTEN BY WHOEVER LANDS THE SOLVE PANEL** - it lives in
+  `app.js`, which no panel slice may touch, so it is a merger's edit.
+- **AN EXACT RATIONAL IS RENDERED AS THE PAIR PLUS A MARKED DECIMAL.** `7/3` is
+  the truth and is shown; a rounded decimal sits beside it, explicitly labelled
+  an approximation for display. The float never enters a decision path.
+  *Do not re-pitch:* rendering the decimal alone.
+- **`byproduct_policy` IS PRESELECTED AS `balanced` AND SHOWN AS AN EDITABLE
+  FIELD**, not hidden. The page makes the modelling choice visibly rather than
+  making the player answer it before their first result.
+- **NODE COORDINATES MAY BE PUBLISHED.** The resource-node actors are decoded
+  with exact translations and the wire carries only a count. The operator ruled
+  they may go on the wire - node purity and resource type are NOT in the save,
+  so a node panel shows placement and class only. This is a new endpoint plus a
+  panel, not a UI-only slice, and it is unbuilt.

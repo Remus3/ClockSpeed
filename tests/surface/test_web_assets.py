@@ -63,7 +63,7 @@ INDEX: Final = "index.html"
 STYLESHEET: Final = "app.css"
 SCRIPT: Final = "app.js"
 
-#: The panel modules, in the order ``index.html`` loads them. CS-960 split the
+#: The panel modules, in the order ``index.html`` loads them. CS-962 split the
 #: page's panels out of ``app.js`` so a future panel is a NEW FILE rather than
 #: an edit to the one script every other panel also wants to edit. The seam
 #: itself - ``registerPanel`` and the mount loop - stays in ``app.js``, which is
@@ -139,7 +139,7 @@ def test_the_server_names_exactly_seven_assets() -> None:
     An arm that grades a name set it invented would stay green while the server
     served an eighth file nobody checked.
 
-    SEVEN RATHER THAN THREE SINCE CS-960: the page, the sheet, the script and
+    SEVEN RATHER THAN THREE SINCE CS-962: the page, the sheet, the script and
     the four panel modules the page loads after it. The count is asserted
     against the names rather than beside them, so a module added to the table
     without being added here goes red on the set and not only on the length.

@@ -427,7 +427,7 @@ function renderWorld(result) {
 /* --- the panel seam ----------------------------------------------------- */
 
 /*
-  CS-960 - WHY THIS SEAM EXISTS, AND WHAT IT IS NOT.
+  CS-962 - WHY THIS SEAM EXISTS, AND WHAT IT IS NOT.
 
   Every panel this page will grow wants to touch two files: this one and
   index.html. That makes a queue out of work that has no reason to be ordered -

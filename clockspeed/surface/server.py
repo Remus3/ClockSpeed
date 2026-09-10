@@ -192,7 +192,7 @@ __all__ = [
 #: entry is an edit to this literal and nothing else; there is no directory
 #: walk, no suffix guess and no path join built from a request.
 #:
-#: WHY THE PANEL MODULES ARE NAMED ONE BY ONE RATHER THAN GLOBBED (CS-960). A
+#: WHY THE PANEL MODULES ARE NAMED ONE BY ONE RATHER THAN GLOBBED (CS-962). A
 #: glob over ``web/`` would publish whatever is sitting in that directory,
 #: which turns a stray editor backup or a half-written module into a route this
 #: server serves. The point of a literal is that the served set is decided in
