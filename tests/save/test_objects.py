@@ -3743,9 +3743,9 @@ def _sweep_payload_attribution() -> _AttributionSweep | None:
 def test_every_real_save_attributes_a_payload_extent_to_every_record() -> None:
     """THE FLOOR. Every record in every real save now points at its own payload.
 
-    The corpus cannot carry this claim - its payloads are opaque filler - so
-    this is the assertion that decides whether the seam is populated against
-    bytes the game wrote.
+    The corpus cannot carry this claim - the payloads in its parametrized
+    matrices are filler - so this is the assertion that decides whether the
+    seam is populated against bytes the game wrote.
 
     Skip-if-absent, because CI has no save library, and COUNTS ONLY.
     """

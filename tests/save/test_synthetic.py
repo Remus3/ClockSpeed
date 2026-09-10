@@ -73,6 +73,14 @@ import pytest
 
 from clockspeed.data import locate
 
+# The SHIPPED readers, imported for the CS-961 section at the foot of this file
+# and used nowhere above it. They do not touch control 1: the header, the chunk
+# frame and the record table are still re-derived by hand here out of the format
+# description, and no constant crosses this import into that reader. See the
+# CS-961 banner for why the decode side cannot be graded by a second hand
+# written reader, and what gets the second opinion instead.
+from clockspeed.save import chunks, objects
+
 # `test_properties` is imported for its CONTAINMENT and GRADING machinery only -
 # the contained discovery, the two forced-failure pairs and the reach guard. No
 # format constant and no builder opinion crosses this import, so control 1's
@@ -1622,4 +1630,277 @@ def test_an_unexpected_read_failure_does_not_unwind_through_the_anchor(
     assert reported == _forced, (
         f"the shape-anchor reader reported {reported} rather than the one contained "
         f"{_forced}, so the unexpected read failure was not recorded as a type name"
+    )
+
+
+# ---------------------------------------------------------------------------
+# CS-961 - THE ONE FIXTURE WHOSE PAYLOAD IS A REAL TAGGED PROPERTY PAYLOAD
+#
+# WHAT THE CORPUS COULD NOT DO BEFORE THIS SECTION. Every levelled fixture
+# builds its object payloads as a run of zero bytes, and the builder says so:
+# only the int32 length FRAMING around a payload is measured, so a field
+# decoded out of one is decoded out of an invention. The consequence is
+# measurable rather than theoretical - every actor and every component of every
+# levelled fixture returns zero properties and one unparsed-payload flag, which
+# :func:`test_a_filler_payload_in_the_same_body_decodes_to_nothing` pins as the
+# control below. Nothing in this repo could show a world load reaching a
+# DECODED VALUE without a real save on the machine.
+#
+# WHY THE SHIPPED READER DOES THE DECODING HERE. Control 1's independence claim
+# is about the header, the chunk frame and the record table, all three of which
+# are still re-derived by hand in this module out of the format description. The
+# claim graded in this section is a different one - that ONE fixture's payload
+# decodes to the values it was built from - and a second hand-written reader
+# could not grade it without re-deriving the whole property grammar, which would
+# be a third opinion rather than a check.
+#
+# SO THE ENCODER IS WHAT GETS THE SECOND OPINION, NOT THE DECODER. The builder's
+# payload encoder and the expectation below were authored in one slice, which is
+# self-consistency and not evidence: an encoder and an expectation that share one
+# misreading of the tag grammar agree with each other and with nothing else.
+# ``tests/save/test_properties.py`` carries a SEPARATE encoder for the same
+# grammar, authored long before this slice and validated against the real save
+# library, and :func:`test_the_decodable_payload_agrees_with_the_independent_encoder`
+# asserts the two emit the SAME BYTES.
+#
+# EVERY OPERAND IN THIS SECTION IS A LITERAL FROM TRACKED SOURCE. The fixture is
+# synthetic, so no decoded value here can be world content and rendering one in a
+# failing assertion discloses nothing (non-negotiable 12). That is a property of
+# THIS fixture and not a licence: an arm decoding a real save may not be written
+# this way.
+# ---------------------------------------------------------------------------
+
+#: How many times the perturbation control's needle may appear in the body. More
+#: than one and the control cannot say which occurrence it moved.
+_ONE_OCCURRENCE: Final = 1
+
+#: What the perturbation control adds to the encoded integer. Any non-zero step
+#: works; it is named so the arithmetic is not a bare literal in an assertion.
+_PERTURBATION_STEP: Final = 1
+
+
+def _decodable_body() -> bytes:
+    """Decompress the CS-961 fixture the way a caller holding the file would.
+
+    Returns:
+        The body, length prefix included, which is the buffer the record
+        extents index into.
+    """
+    fixture = synthetic.SAVE_LEVELLED_DECODABLE
+    return chunks.decompress_body(
+        fixture.blob, fixture.chunk_offset, header_version=fixture.header_version
+    ).payload
+
+
+def _decodable_records(body: bytes) -> tuple[objects.ObjectRecord, ...]:
+    """Walk the CS-961 fixture's body into its records.
+
+    Args:
+        body: The decompressed body, length prefix included.
+
+    Returns:
+        Every record, in file order, each carrying its own payload extent.
+    """
+    fixture = synthetic.SAVE_LEVELLED_DECODABLE
+    return objects.parse_body(
+        body, save_version=fixture.save_version, header_version=fixture.header_version
+    ).records
+
+
+def _properties_of(body: bytes, instance_name: str) -> objects.PropertyResult:
+    """Decode one named record's payload out of a walked body.
+
+    Args:
+        body: The decompressed body, length prefix included.
+        instance_name: The record to find. A tracked-source literal.
+
+    Returns:
+        What the shipped reader made of that record's payload.
+    """
+    for record in _decodable_records(body):
+        if record.instance_name == instance_name:
+            return objects.read_properties(body, record)
+    pytest.fail(f"the fixture carries no record named {instance_name}")
+
+
+def test_the_decodable_fixture_sits_on_a_pair_whose_tag_grammar_was_measured() -> None:
+    """The pair is one the grammar READS, and is explicitly not the one it refuses.
+
+    A fixture on (14,60) would decode nothing whatever the payload said - not
+    one payload of that pair reaches a terminator - so it would prove the
+    opposite of what this fixture exists for while looking identical.
+    """
+    fixture = synthetic.SAVE_LEVELLED_DECODABLE
+    pair = (fixture.header_version, fixture.save_version)
+
+    assert pair in test_properties.TAGGED_PAIRS
+    assert pair != test_properties.UNMEASURED_PAIR
+
+
+def test_the_decodable_fixture_does_not_widen_either_published_matrix() -> None:
+    """A slice does not quietly widen a contract other modules parametrize over."""
+    assert synthetic.SAVE_LEVELLED_DECODABLE not in synthetic.LEVELLED_SAVES
+    assert synthetic.SAVE_LEVELLED_DECODABLE not in synthetic.ALL_SAVES
+
+
+def test_the_decodable_actor_payload_decodes_to_exactly_the_values_encoded() -> None:
+    """THE SLICE'S CLAIM: a synthetic world yields a decoded property VALUE.
+
+    By value on both halves, not merely non-empty and not by repr. The actor
+    branch is the one that has to step over a parent reference and a component
+    list first, and a reader that skipped that head would desynchronise on the
+    first tag rather than return a wrong value.
+    """
+    body = _decodable_body()
+
+    result = _properties_of(body, synthetic.DECODABLE_INSTANCE)
+
+    assert result.properties[synthetic.DECODABLE_INT_NAME] == synthetic.DECODABLE_INT_VALUE
+    assert result.properties[synthetic.DECODABLE_STR_NAME] == synthetic.DECODABLE_STR_VALUE
+    assert dict(result.properties) == dict(synthetic.DECODABLE_PROPERTIES)
+    assert not [w for w in result.warnings if w.code == objects.WARN_UNPARSED_PROPERTY_PAYLOAD]
+
+
+def test_every_decoded_value_carries_a_type_word_the_reader_calls_measured() -> None:
+    """The published expectation may not rest on a type whose value grammar is not read.
+
+    A tag whose word is outside ``MEASURED_VALUE_TYPES`` is counted and skipped
+    rather than decoded, so an expectation naming one could only ever be
+    satisfied by a decoder that had stopped skipping it.
+    """
+    words = set(synthetic.DECODABLE_TYPE_WORDS.values())
+
+    assert words
+    assert words <= set(objects.MEASURED_VALUE_TYPES)
+
+
+def test_the_decodable_component_payload_needs_no_actor_head() -> None:
+    """The other branch. A component payload opens directly with its tags.
+
+    Carried in the SAME body as the actor, so the pair also proves the walk
+    dispatches on the record's own kind rather than on the fixture.
+    """
+    body = _decodable_body()
+
+    result = _properties_of(body, synthetic.DECODABLE_COMPONENT_INSTANCE)
+
+    assert dict(result.properties) == dict(synthetic.DECODABLE_COMPONENT_PROPERTIES)
+
+
+def test_the_decodable_payload_agrees_with_the_independent_encoder() -> None:
+    """CONTROL - the common-mode check this slice exists to survive.
+
+    The builder's encoder and this slice's expectation were authored together,
+    so agreement between them is not evidence. ``test_properties`` carries a
+    second encoder for the same tag grammar, written in an earlier slice and
+    against the real save library, and the same logical properties are rebuilt
+    through it here.
+
+    BYTE EQUALITY IS THE CHECK, over the whole payload. The only literal shared
+    by the two sides is the opaque run after the terminator, which is not part
+    of the tag grammar under check - every grammar byte on the right-hand side
+    is produced by the other module's own field order, widths and string
+    encoding.
+    """
+    rebuilt = (
+        test_properties._actor_head((synthetic.DECODABLE_COMPONENT_PATH,))  # noqa: SLF001
+        + test_properties._scalar_tag(  # noqa: SLF001
+            synthetic.DECODABLE_INT_NAME,
+            synthetic.DECODABLE_INT_TYPE_WORD,
+            struct.pack("<i", synthetic.DECODABLE_INT_VALUE),
+        )
+        + test_properties._scalar_tag(  # noqa: SLF001
+            synthetic.DECODABLE_STR_NAME,
+            synthetic.DECODABLE_STR_TYPE_WORD,
+            test_properties._fstring(synthetic.DECODABLE_STR_VALUE),  # noqa: SLF001
+        )
+        + test_properties._fstring(synthetic.PROPERTY_TERMINATOR)  # noqa: SLF001
+        + synthetic.DECODABLE_TRAILING_RUN
+    )
+
+    assert rebuilt == synthetic.DECODABLE_ACTOR_PAYLOAD
+
+
+def test_the_decodable_component_payload_agrees_with_the_independent_encoder() -> None:
+    """The same second opinion over the head-free branch."""
+    rebuilt = (
+        test_properties._scalar_tag(  # noqa: SLF001
+            synthetic.DECODABLE_COMPONENT_INT_NAME,
+            synthetic.DECODABLE_INT_TYPE_WORD,
+            struct.pack("<i", synthetic.DECODABLE_COMPONENT_INT_VALUE),
+        )
+        + test_properties._fstring(synthetic.PROPERTY_TERMINATOR)  # noqa: SLF001
+        + synthetic.DECODABLE_TRAILING_RUN
+    )
+
+    assert rebuilt == synthetic.DECODABLE_COMPONENT_PAYLOAD
+
+
+def test_a_filler_payload_in_the_same_body_decodes_to_nothing() -> None:
+    """NON-VACUITY 1 - the arm above would not pass on the payload it replaced.
+
+    The CS-961 fixture's persistent level keeps the corpus's ORIGINAL filler
+    payloads, so one body carries both kinds. If a run of zero bytes decoded to
+    anything, the decode arm would be measuring the walk and not the payload.
+    """
+    body = _decodable_body()
+
+    filler = _properties_of(body, synthetic.FILLER_PAYLOAD_INSTANCE)
+
+    assert not filler.properties
+    assert [w.code for w in filler.warnings] == [objects.WARN_UNPARSED_PROPERTY_PAYLOAD]
+
+
+def test_a_perturbed_decodable_payload_no_longer_yields_the_encoded_value() -> None:
+    """NON-VACUITY 2 - the decoded value follows the BYTES, not the expectation.
+
+    One value's four bytes are moved in the decompressed body and nothing else
+    is touched, so the body stays structurally valid and every offset is
+    unchanged. The decode must report the moved number, which a reader
+    returning a constant, or reading some other field, cannot do.
+    """
+    body = _decodable_body()
+    needle = struct.pack("<i", synthetic.DECODABLE_INT_VALUE)
+    moved = synthetic.DECODABLE_INT_VALUE + _PERTURBATION_STEP
+    assert body.count(needle) == _ONE_OCCURRENCE, (
+        "the encoded integer is not unique in the body, so this control cannot say "
+        "which occurrence it moved"
+    )
+
+    perturbed = body.replace(needle, struct.pack("<i", moved), _ONE_OCCURRENCE)
+    result = _properties_of(perturbed, synthetic.DECODABLE_INSTANCE)
+
+    assert result.properties[synthetic.DECODABLE_INT_NAME] == moved
+    assert result.properties[synthetic.DECODABLE_INT_NAME] != synthetic.DECODABLE_INT_VALUE
+
+
+def test_the_two_encoders_disagree_on_the_empty_string_and_the_bound_is_recorded() -> None:
+    """THE CROSS-CHECK ABOVE IS VALID FOR NON-EMPTY TEXT AND THIS ARM SAYS SO.
+
+    Found by the adversarial pass over this slice, which could not break the
+    byte-equality check but did find the one input that escapes it. The two
+    encoders are independent, which is what makes the check evidence - and
+    independent encoders may also silently differ. On the empty string they do.
+
+    NEITHER IS BEING DECLARED RIGHT HERE, because neither has been measured.
+    ``synthetic.fstring`` says so in its own prose: the bare zero count is
+    MODELLED, the Unreal convention, and the one field shape in that module no
+    probe confirmed. ``test_properties._fstring`` takes no position at all - it
+    has no empty-string branch, so its answer is what its arithmetic happens to
+    produce on an input it was never handed.
+
+    WHAT THIS ARM BUYS IS THAT THE DIVERGENCE IS LOUD. A later CS-961 arm that
+    encodes an empty property name or an empty string value would silently lose
+    the second opinion, or take a red that says nothing about the code under
+    test. Pinned here, changing either encoder reddens this and the next author
+    has to decide deliberately rather than discover it as a puzzle.
+    """
+    assert synthetic.fstring("") != test_properties._fstring(""), (  # noqa: SLF001
+        "the two encoders now agree on the empty string, so either one was changed or "
+        "the shape was measured - if it was measured, record which, and retire this arm "
+        "rather than loosening it"
+    )
+    assert synthetic.fstring("x") == test_properties._fstring("x"), (  # noqa: SLF001
+        "the two encoders disagree on NON-empty text, which is the population the "
+        "byte-equality cross-check above rests on - that check is now worthless"
     )

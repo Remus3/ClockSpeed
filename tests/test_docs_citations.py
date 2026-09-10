@@ -1116,7 +1116,7 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
         122,
     ): "bbf9278cdad0",
     ("docs/item_notes/phase4.md", "tests/data/test_locate.py", 858): "7b83ed5742f3",
-    ("docs/item_notes/phase4.md", "tests/save/synthetic.py", 1079): "b260445518a9",
+    ("docs/item_notes/phase4.md", "tests/save/synthetic.py", 1093): "b260445518a9",
     ("docs/item_notes/phase4.md", "tests/save/test_byte_order_status.py", 878): "5d5874e29659",
     ("docs/item_notes/phase4.md", "tests/save/test_objects.py", 834): "98fb3674bec1",
     ("docs/item_notes/phase4.md", "tests/save/test_phase4_gate.py", 2089): "d2973a15655f",
