@@ -15,7 +15,8 @@ seam, and getting it wrong is the defect the corpus was built to catch.
 THE COMPOSITION, IN ORDER
 ---------------------------
 ``workdir.copy_for_read`` -> ``header.parse_header`` -> ``chunks.decompress_body``
--> ``usmap.cached_usmap`` -> ``objects.parse_body`` -> :class:`WorldModel`.
+-> ``usmap.cached_usmap`` -> ``objects.parse_body`` -> ``objects.read_properties``
+once per walked record -> :class:`WorldModel`.
 
 Nothing here re-implements any of them. Each sibling was proven separately and
 this module is deliberately thin: every byte-level decision lives one layer
@@ -41,12 +42,15 @@ continues with no property map: ``objects.parse_object_headers`` takes
 flagged every class in that state would report a world of pure unknown content
 rather than a world it has not checked.
 
-``objects.parse_properties`` ACCEPTS None, and used not to (CS-960). While the
+EITHER PROPERTY READER ACCEPTS None, and neither used to (CS-960). While the
 map was mandatory, a composer that called the reader unconditionally broke on
 every machine that had never had the game installed, and that trap is now
 gone: the mapping was never an input to the decode, so an absent one costs the
-resolution report and nothing else. **This module still does not call either
-reader at all**, and the reason never was the None case.
+resolution report and nothing else. **That removal is what lets this module
+call a reader at all** (CS-961). The no-install path is the COMMON one, so a
+decode that needed a registry would decode nothing in CI, on a fresh clone, or
+on any machine that has never had the game - which is not a reduced capability
+but an absent one.
 
 WHAT EITHER PROPERTY READER CAN DECODE IS ``objects``' FACT, and it is stated
 at ``objects.read_properties`` rather than a second time here. A capability
@@ -55,12 +59,93 @@ is precisely what happened to this paragraph: it named a reason - the data
 section's grammar - that had since been measured, while the conclusion it was
 attached to stayed true and kept the whole sentence reading as current.
 
-WHAT THIS MODULE STATES IS NARROWER AND IS ITS OWN. No property value reaches
-:class:`WorldModel`, because nothing here asks for one.
-``tests/save/test_world.py::test_the_world_layer_states_no_property_capability_it_does_not_own``
-asserts that from the AST rather than from this sentence, so it stays true
-whatever the readers one layer down later learn to decode - and the day this
-module wants a value, that test is what turns red and sends the author here.
+WHAT THIS MODULE STATES IS NARROWER AND IS ITS OWN, and under CS-961 it became
+a POSITIVE claim where it had been an absence. Decoded property values reach
+:class:`WorldModel` through :class:`WorldProperties` and one
+:class:`RecordProperties` per walked record - and through nothing else. The
+capability is bounded on four sides, each of them mechanical rather than a
+matter of review:
+
+- THE READER IS ``objects.read_properties``, NEVER ``objects.parse_properties``.
+  The second is the DISCARDING accessor: it throws away ``resolved`` and the
+  per-record warnings, and both are things this model publishes, so reaching
+  for it would be a defect rather than a style choice.
+  ``tests/save/test_world.py::test_the_world_layer_states_no_property_capability_it_does_not_own``
+  binds that pair from the AST.
+- THE KEY IS A RECORD INDEX, NEVER A BYTE OFFSET. An offset is a position in
+  bytes this layer promised nothing above it would ever see, so publishing one
+  is the reach-past-your-neighbour the seam discipline forbids; an index into
+  ``WorldModel.objects.records`` is a position in a collection the consumer
+  already holds. ``ObjectRecord.body_offset`` and ``body_length`` STAY WHERE
+  THEY ARE - they are diagnostics this package reads and publishes to nobody.
+
+  **THAT RULE IS ABOUT EVERY REACHABLE VALUE, NOT ONLY THE KEY**, and the first
+  version of this module obeyed it at the key and broke it three levels down.
+  ``read_properties`` decodes an array, a set or a map to an
+  ``objects.ContainerValue`` whose ``elements`` carry ``start`` - an absolute
+  offset into the decompressed body - and those went out verbatim inside
+  ``RecordProperties.values``. Neither decodable fixture produced a container,
+  so no arm had one to look at. THE REPAIR IS A PUBLISHED CONTAINER TYPE WITH NO
+  POSITION IN IT: :class:`ContainerContents` and :class:`ContainerEntry` carry
+  the element type word, its extent and its value, and an entry's place among
+  its siblings is its index in a tuple the consumer holds. Nothing is dropped -
+  a container published short of its elements would make present world content
+  read as absent, which non-negotiable 7 forbids. The narrowing is recursive,
+  because a container can sit inside a struct interior, and it is graded
+  STRUCTURALLY rather than by a list of known types:
+  ``tests/save/test_world.py::test_no_published_property_value_carries_an_absolute_body_offset``
+  walks everything reachable from ``WorldModel.properties`` and asserts no
+  integer lands inside the record's own payload extent, with the raw reader
+  result as the control that the walk can see one when it is there.
+- THE DECODE IS EAGER, AND THE PAYLOAD DIES WITH THE WALK. A lazy entry would
+  have to retain the decompressed body, which is the one thing no type any
+  higher layer holds may carry - so neither new type declares a ``bytes`` or a
+  ``Path`` field, asserted against the shipped-tree guard's own carrier set by
+  ``tests/save/test_world.py::test_no_published_world_type_annotates_a_carrier_field``.
+- WHAT IS DECODED IS AN ECHO PATH IN BOTH HALVES. Property NAMES are read out
+  of the save's own bytes and VALUES are player-authored, so non-negotiable 12
+  covers the whole entry. Both new types hand-write a ``repr`` rendering counts
+  and flags and no string at all, on the terms ``objects.PropertyResult``
+  already set, and
+  ``tests/save/test_world.py::test_no_body_byte_reaches_any_echo_path`` sweeps
+  six channels for a marker planted in the payload.
+
+  THAT SWEEP MEASURES THE DECODED VALUE AND NOT THE FILE, and the two are
+  different channels. Its marker is deflated into the blob, so it can never
+  appear in the RAW save - which is what :func:`load_world_from_bytes` takes as
+  a parameter and what its own frame held on every raise path until CS-961.
+  ``tests/save/test_world.py::test_no_clockspeed_frame_holds_the_raw_save_on_any_refusal_path``
+  plants a second marker in the plaintext header and grades THIS LAYER'S OWN
+  FRAMES. The CAUSE CHAIN is not covered and still leaks the raw save out of
+  ``header`` and ``chunks``; that is CS-963, measured and filed, not fixed here.
+
+WHAT AN ENTRY MAY NOT DO IS READ AS "NOT SET" (non-negotiable 7). Every walked
+record gets an entry, and an entry whose payload did not read under the measured
+grammar says so through ``payload_read`` and carries
+``objects.WARN_UNPARSED_PROPERTY_PAYLOAD``, rather than publishing an empty
+mapping that a consumer cannot tell from a record holding nothing.
+
+AN OVERRUNNING EXTENT IS NOT THAT CASE AND IS DELIBERATELY FATAL. A record
+whose declared payload extent runs past the body is claiming bytes that do not
+exist, and ``objects.read_properties`` raises rather than flags for exactly
+that reason - reporting it as merely unparsed would let a truncated or
+misattributed body pass as a world this project simply does not model. The
+extents came out of THIS layer's own walk of THIS body, so an overrun is a
+contradiction in the walk rather than content the walk did not understand.
+:func:`_decode_properties` therefore runs inside the same guard as the walk and
+reaches the caller as a :class:`WorldLoadError` at :data:`STAGE_OBJECTS` with
+no new stage and no new taxonomy.
+
+**IT IS ALSO UNREACHABLE FROM HERE BY CONSTRUCTION**, which is a stronger
+statement than "no fixture reaches it" and is the reason the branch is kept
+rather than deleted. ``objects`` builds each extent as ``(cursor.offset,
+length)`` and then skips ``length``, which bounds-checks against the body, so
+an extent produced by this walk cannot overrun the body this walk read; and the
+flat reader attributes no extent at all. The branch is a guard against that
+construction changing one layer down, and the frame scrub behind it is graded
+by an arm that injects the overrunning record directly - see
+:func:`_decode_properties` for what that arm measures and for the wider claim
+it replaced.
 
 A mapping that is PRESENT and unreadable is a different thing entirely and does
 raise, because collapsing the two would hide a shipped-format change behind the
@@ -105,7 +190,10 @@ every real body is opaque property payload this walk steps over by declared
 length - 69.5% to 77.7% across the eight real save-52 files, and 12100463 of
 18086289 bytes on the one real save-42 file. What the grammar names is a 1.8%
 to 2.7% framing skeleton plus its length-prefixed strings. So a record COUNT
-out of this module is trustworthy and a record's PROPERTIES do not exist yet.
+out of this module is trustworthy, and a record's PROPERTIES are decoded from
+exactly that stepped-over payload, one record at a time and one payload at a
+time. Whether any given one READ is therefore a per-record answer rather than a
+property of the load, which is why :class:`RecordProperties` carries it.
 
 A pair outside the measured set is still refused EAGERLY with a
 :class:`WorldLoadError` whose cause is ``objects.UnsupportedBodyLayoutError``,
@@ -263,12 +351,18 @@ from typing import Final
 from clockspeed.save.chunks import ChunkError, DecompressedBody, decompress_body
 from clockspeed.save.header import HeaderError, SaveHeader, masked_token, parse_header
 from clockspeed.save.objects import (
+    WARN_UNPARSED_PROPERTY_PAYLOAD,
+    WARN_UNRESOLVED_SCHEMA,
+    ContainerValue,
     ObjectError,
     ObjectRecord,
     ObjectTable,
+    PropertyResult,
+    StructValue,
     class_name_of,
     parse_body,
     parse_object_headers,
+    read_properties,
 )
 from clockspeed.save.usmap import (
     WARN_DESYNCHRONISED_SECTION,
@@ -285,6 +379,7 @@ __all__ = [
     "BODY_LAYOUT_FLAT",
     "BODY_LAYOUT_LEVELLED",
     "EMPTY_UNLOCK_STATE",
+    "EMPTY_WORLD_PROPERTIES",
     "NODE_CLASS_NAMES",
     "SOURCE_CHUNKS",
     "SOURCE_HEADER",
@@ -301,10 +396,14 @@ __all__ = [
     "WARN_NODE_TRANSFORM_ABSENT",
     "WARN_NO_PROPERTY_MAP",
     "WARN_UNLOCK_GRAMMAR_UNMEASURED",
+    "ContainerContents",
+    "ContainerEntry",
+    "RecordProperties",
     "ResourceNode",
     "UnlockState",
     "WorldLoadError",
     "WorldModel",
+    "WorldProperties",
     "WorldWarning",
     "load_world",
     "load_world_from_bytes",
@@ -357,6 +456,28 @@ WARN_NO_PROPERTY_MAP: Final = "no-property-map"
 WARN_UNLOCK_GRAMMAR_UNMEASURED: Final = "unlock-grammar-unmeasured"
 WARN_NODE_SEMANTICS_UNAVAILABLE: Final = "node-semantics-unavailable"
 WARN_NODE_TRANSFORM_ABSENT: Final = "node-transform-absent"
+
+#: The ``objects`` warning codes that report SCHEMA RESOLUTION rather than
+#: anything about the payload, and which :class:`RecordProperties` therefore
+#: does NOT repeat in its ``warning_codes``.
+#:
+#: TWO REASONS, AND THE SECOND IS THE ONE THAT BITES. ``resolved`` already
+#: carries this fact in the three states ``objects.PropertyResult`` defines, so
+#: a code saying it again is a second copy of one fact in one object - the
+#: drift class CLAUDE.md section 4 exists to stop. And it would make the field
+#: ENVIRONMENT DEPENDENT: ``usmap.cached_usmap()`` answers None on a machine
+#: with no game install and a mapping on one with, so a record of a class no
+#: shipped registry models carries this code on the operator's machine and not
+#: in CI. An assertion about a payload flag would then be green in one place
+#: and red in the other while the payload was identical, which is the shape
+#: states it was written to avoid:
+#: tests/save/test_world.py::test_a_synthetic_world_publishes_one_decoded_property_value_end_to_end
+#:
+#: THE PAYLOAD CODES ARE NOT FILTERED. ``WARN_UNPARSED_PROPERTY_PAYLOAD``,
+#: ``WARN_UNMEASURED_PROPERTY_TYPE`` and ``WARN_MEASURED_VALUE_DISAGREED`` all
+#: describe what happened to the bytes and all reach ``warning_codes``
+#: unaltered.
+_RESOLUTION_WARNING_CODES: Final = frozenset({WARN_UNRESOLVED_SCHEMA})
 
 #: One fixed line per warning code. Keyed rather than formatted, so a detail can
 #: never be built from something read out of a save.
@@ -588,6 +709,301 @@ class ResourceNode:
 
 
 @dataclass(frozen=True, repr=False)
+class ContainerEntry:
+    """One element half of a published container, WITHOUT ITS POSITION.
+
+    ``objects.ContainerElement`` carries ``start`` - an absolute offset into the
+    decompressed body - and it is right to: it is a save-layer diagnostic read
+    inside that package. Publishing one is a different thing entirely. An offset
+    is a position in a buffer this layer promised nothing above it would ever
+    see, and CS-961 exists precisely to stop handing out offsets into a buffer
+    nobody holds; shipping one inside the fix would be the defect wearing the
+    repair. **THE CHOICE MADE HERE IS THAT THERE IS NO POSITION AT ALL.** The
+    entry's place among its siblings is its index in
+    :attr:`ContainerContents.entries`, which is a position in a collection the
+    consumer already has - the same substitution :class:`WorldProperties` makes
+    one level up.
+
+    NOTHING IS DROPPED TO ACHIEVE THAT. The element's type word, its extent and
+    its decoded value all survive, because a container published short of its
+    elements would make world content that IS present read as absent, which
+    non-negotiable 7 forbids more strongly than the leak it would fix.
+
+    ``repr`` renders no value, on the terms :class:`RecordProperties` already
+    set: an element's value is player-authored world content and a test runner
+    reprs a value before a human chooses what to print.
+
+    Attributes:
+        type_word: The element's own type word, carried from
+            ``objects.ContainerElement``. Shipped vocabulary, never anything
+            invented here.
+        length: How many bytes the element spanned. An EXTENT, which is a size
+            rather than a position, so it locates nothing in a buffer.
+        value: The decoded value, or None when ``objects`` does not decode that
+            element's type. NONE MEANS "NOT DECODED", NEVER "EMPTY" - the
+            distinction ``objects.ContainerElement`` draws, carried verbatim.
+            DECODED WORLD CONTENT where it is not None.
+    """
+
+    type_word: str
+    length: int
+    value: object | None = None
+
+    def __repr__(self) -> str:
+        """Render the type word and the extent, and withhold the value.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(type_word={self.type_word!r}, "
+            f"length={self.length}, decoded={self.value is not None})"
+        )
+
+
+@dataclass(frozen=True, repr=False)
+class ContainerContents:
+    """What one array, set or map property published to a higher layer.
+
+    THE NARROWING OF ``objects.ContainerValue``, AND THE ONLY FIELD THAT
+    CHANGES IS THE ELEMENT LIST. Everything the save layer measured about the
+    container - its own type word, the element type words its tag carried, the
+    count it declared, which of ``objects.ELEMENT_SHAPES`` bounded it, and the
+    struct word an array of structs names - is carried VERBATIM, because each is
+    shipped vocabulary or a count rather than a position. What is replaced is
+    ``elements``: :class:`ContainerEntry` is ``objects.ContainerElement`` minus
+    its absolute ``start``.
+
+    ``element_shape`` IS CARRIED RATHER THAN DROPPED because the three shapes
+    are not equally strong - ``objects`` records which one bounded the elements
+    so a consumer can tell a self-delimiting reading from a derived one, and
+    flattening that away here would publish a weak reading as a strong one.
+
+    ``repr`` renders counts and shipped words only, on the same terms as
+    :class:`ContainerEntry`.
+
+    Attributes:
+        type_word: The container's own type word, from
+            ``objects.CONTAINER_TYPE_WORDS``.
+        element_words: The element type words the tag carried - one for an array
+            or a set, a key word and a value word for a map.
+        element_count: The count the container itself declared. NOT the same as
+            ``len(entries)``: a map yields two entries per declared entry, and a
+            container whose declared count disagrees with its bytes is a fact a
+            consumer needs rather than one to reconcile away.
+        entries: One entry per element HALF, in the order the bytes carry them.
+        element_shape: Which of ``objects.ELEMENT_SHAPES`` bounded the elements.
+        struct_word: The struct type word an array of ``StructProperty`` names
+            in its inner tag, or None.
+    """
+
+    type_word: str
+    element_words: tuple[str, ...]
+    element_count: int
+    entries: tuple[ContainerEntry, ...]
+    element_shape: str
+    struct_word: str | None = None
+
+    def __repr__(self) -> str:
+        """Render counts and shipped words only.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(type_word={self.type_word!r}, "
+            f"element_words={self.element_words!r}, "
+            f"element_count={self.element_count}, "
+            f"entries={len(self.entries)}, "
+            f"element_shape={self.element_shape!r}, "
+            f"struct_word={self.struct_word is not None})"
+        )
+
+
+@dataclass(frozen=True, repr=False)
+class RecordProperties:
+    """What one record's payload yielded, and what it did not.
+
+    ONE OF THESE EXISTS FOR EVERY WALKED RECORD, INCLUDING THE ONES THAT
+    YIELDED NOTHING. That is non-negotiable 7 rather than tidiness: a record
+    ABSENT from :attr:`WorldProperties.by_record_index` is indistinguishable
+    from one whose payload genuinely held no property, and an absence that
+    reads as "not set" is the confident wrong answer the rule forbids. So the
+    two ways of holding nothing are spelled differently - ``payload_read``
+    True with an empty mapping means the payload was read and held nothing,
+    and False means it was not read at all.
+
+    ``repr`` is hand written and withholds every string, on the terms
+    :class:`objects.PropertyResult` already set and for a stronger reason:
+    every layer above the save layer holds a :class:`WorldModel`, and this
+    object hangs off it. The VALUES are player-authored and the KEYS are
+    property names read out of the save's own bytes, so both halves of every
+    entry are world content under non-negotiable 12, and ``schema_name`` is a
+    fragment of a class path :class:`ObjectRecord` already withholds. A test
+    runner reprs a value before a human chooses what to print.
+    ``tests/save/test_world.py::test_no_body_byte_reaches_any_echo_path``
+    plants a marker in a property name AND in a property value and sweeps six
+    rendering channels for it.
+
+    NO FIELD HERE IS A CARRIER. ``bytes`` and ``Path`` are the two annotations
+    ``tests/repr_rendering_guard.py`` names as able to render raw save content
+    or a home directory, and
+    ``tests/save/test_world.py::test_no_published_world_type_annotates_a_carrier_field``
+    asserts their absence. This is also why the decode is eager: a lazy entry
+    would have to retain the decompressed body to answer later.
+
+    Attributes:
+        values: The decoded properties, by name, from
+            ``objects.PropertyResult.properties``. Holds values of the types
+            ``objects.MEASURED_VALUE_TYPES`` names and no others - a property
+            whose type encoding is unmeasured is absent here and counted in
+            ``unmeasured_value_count``, so an absent name never means "this
+            property is not set". DECODED WORLD CONTENT: a consumer that
+            renders it is an echo path under non-negotiable 12.
+
+            EVERY VALUE IS CARRIED VERBATIM EXCEPT A CONTAINER, WHICH IS
+            NARROWED. ``objects.ContainerValue`` holds elements carrying an
+            absolute offset into the decompressed body; a container reaches
+            here as :class:`ContainerContents` instead, whose entries carry the
+            element type word, its extent and its value and NO position. The
+            narrowing is recursive, so a container nested inside a struct
+            interior is narrowed too. See :func:`_published_value`.
+        schema_name: The class name the record's type path resolved to. A
+            fragment of world content, withheld from ``repr``.
+        resolved: Whether the property mapping models that class. THREE
+            STATES, CARRIED VERBATIM AND NEVER FLATTENED (CS-960). None means
+            NO MAPPING WAS SUPPLIED, so nothing was consulted and nothing is
+            claimed - the state CI and every fresh clone are in. False means
+            one WAS supplied and does not model this class. True means it
+            does. Collapsing None into False would report a world of unknown
+            content on the strength of having looked at nothing.
+        payload_read: Whether the payload read under the measured grammar. A
+            record the walk attributed NO extent to - which is every record
+            from the flat reader - is True with an empty mapping: there was no
+            payload to fail on. False is the flagged case and always arrives
+            with ``objects.WARN_UNPARSED_PROPERTY_PAYLOAD`` in
+            ``warning_codes``, because it is derived from that code rather
+            than tracked beside it.
+        unmeasured_value_count: How many tags carried a type whose value
+            encoding is unmeasured, from the reader.
+        disagreeing_value_count: How many tags carried a MEASURED type whose
+            bytes disagreed with the declared size. Counted apart from the
+            field above because the two mean opposite things: non-zero here is
+            a reason to distrust this record's other values, and non-zero
+            above is not.
+        warning_codes: The reader's own codes for what was flagged about this
+            payload, in the order it raised them. Closed vocabulary from
+            ``objects``, never anything read out of a save. Codes reporting
+            schema RESOLUTION are excluded - see
+            :data:`_RESOLUTION_WARNING_CODES` for why the exclusion is not a
+            style choice.
+    """
+
+    values: Mapping[str, object]
+    schema_name: str
+    resolved: bool | None
+    payload_read: bool
+    unmeasured_value_count: int = 0
+    disagreeing_value_count: int = 0
+    warning_codes: tuple[str, ...] = ()
+
+    def __repr__(self) -> str:
+        """Render counts and flags, and withhold every string.
+
+        The warning codes are rendered as a COUNT even though they are closed
+        vocabulary and safe. Rendering the population rather than its members
+        is the habit that survives a later edit widening what a code may hold,
+        and this repr is the one a test runner reaches for unasked.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(values={len(self.values)}, "
+            f"resolved={self.resolved}, "
+            f"payload_read={self.payload_read}, "
+            f"unmeasured_value_count={self.unmeasured_value_count}, "
+            f"disagreeing_value_count={self.disagreeing_value_count}, "
+            f"warning_codes={len(self.warning_codes)})"
+        )
+
+
+@dataclass(frozen=True, repr=False)
+class WorldProperties:
+    """Every walked record's decoded properties, keyed by RECORD INDEX.
+
+    THE KEY IS THE WHOLE POINT AND IS NOT A BYTE OFFSET. An offset is a
+    position in a buffer this layer promised nothing above it would ever see,
+    so publishing one would hand a consumer the reach past its neighbour the
+    seam discipline forbids - and would do it in the one type every higher
+    layer holds. An index into :attr:`WorldModel.objects.records` is a
+    position in a collection that consumer already has, so following it needs
+    nothing this layer withheld.
+
+    ``ObjectRecord.body_offset`` and ``body_length`` are untouched by that and
+    stay where they are. They are diagnostics read INSIDE this package - the
+    decode below reads them - and they are published to nobody.
+
+    ``repr`` renders the population size and nothing about any member, for the
+    reason :class:`RecordProperties` gives.
+
+    Attributes:
+        by_record_index: One entry per walked record, keyed by that record's
+            index in :attr:`WorldModel.objects.records`. TOTAL over that
+            table: a record with no entry cannot be told from a record whose
+            payload held nothing, which non-negotiable 7 forbids.
+    """
+
+    by_record_index: Mapping[int, RecordProperties]
+
+    @property
+    def total(self) -> int:
+        """How many records got an entry.
+
+        Equal to the walked record count by construction, and worth asking
+        rather than deriving: a consumer holding this object can check the two
+        agree without reaching into the record table.
+
+        Returns:
+            The count.
+        """
+        return len(self.by_record_index)
+
+    @property
+    def unread_payload_count(self) -> int:
+        """How many entries report a payload that did not read.
+
+        The honest denominator for anything computed off these values. A
+        consumer that treats an empty mapping as "this record has no
+        properties" is wrong by exactly this many records.
+
+        Returns:
+            The count.
+        """
+        return sum(1 for entry in self.by_record_index.values() if not entry.payload_read)
+
+    def __repr__(self) -> str:
+        """Render the two counts, and nothing about any entry.
+
+        Returns:
+            The safe rendering.
+        """
+        return (
+            f"{type(self).__name__}(total={self.total}, "
+            f"unread_payload_count={self.unread_payload_count})"
+        )
+
+
+#: The shape a :class:`WorldModel` built without a property pass carries. A
+#: module-level constant on the same terms as :data:`EMPTY_UNLOCK_STATE`: it is
+#: immutable and identical every time, and it is what lets
+#: :attr:`WorldModel.properties` be DEFAULTED - which keeps
+#: :func:`load_world_from_bytes` the one place in the tree that constructs a
+#: :class:`WorldModel` at all.
+EMPTY_WORLD_PROPERTIES: Final = WorldProperties(by_record_index=MappingProxyType({}))
+
+
+@dataclass(frozen=True, repr=False)
 class WorldModel:
     """Everything above the save layer is allowed to know about a world.
 
@@ -607,6 +1023,17 @@ class WorldModel:
             :class:`UnlockState`.
         nodes: Resource-node actors with their placement. Geometry only.
         warnings: Every layer's advisories, normalised into one stream.
+        properties: Each walked record's decoded properties, keyed by record
+            index. DECODED WORLD CONTENT in both halves of every entry - see
+            :class:`RecordProperties`. DEFAULTED to
+            :data:`EMPTY_WORLD_PROPERTIES` rather than required, which is what
+            keeps :func:`load_world_from_bytes` the only construction site of
+            this class in the tree: a field with no default would have to be
+            supplied at every future one, and the first thing a caller with no
+            payload in scope would reach for is a mapping it invented.
+            NOT ON THE WIRE. ``clockspeed/surface/api/world.py`` serializes a
+            fixed key set and this field has not joined it, asserted by
+            ``tests/save/test_world.py::test_no_body_byte_reaches_any_echo_path``.
     """
 
     token: str
@@ -615,6 +1042,7 @@ class WorldModel:
     unlocks: UnlockState
     nodes: tuple[ResourceNode, ...]
     warnings: tuple[WorldWarning, ...]
+    properties: WorldProperties = EMPTY_WORLD_PROPERTIES
 
     @property
     def contains_unmodeled_content(self) -> bool:
@@ -647,6 +1075,8 @@ class WorldModel:
             f"header_version={self.header.header_version}, "
             f"save_version={self.header.save_version}, "
             f"objects={len(self.objects.records)}, "
+            f"properties={self.properties.total}, "
+            f"unread_payloads={self.properties.unread_payload_count}, "
             f"nodes={len(self.nodes)}, "
             f"unmodelled_classes={len(self.objects.unknown_classes)}, "
             f"warnings={len(self.warnings)})"
@@ -944,6 +1374,212 @@ def _walk_body(
     )
 
 
+def _decode_properties(
+    payload: bytes, table: ObjectTable, mapping: PropertyMap | None
+) -> WorldProperties:
+    """Decode every walked record's properties, eagerly, in one pass.
+
+    THE SECOND PASS OVER THE BODY, AND IT LIVES HERE FOR ONE REASON: this is
+    the only scope in the project where the decompressed payload and the walked
+    record extents are both alive. Folding it into ``objects.parse_body``'s
+    return was refused - that return is parametrized over by
+    ``tests/save/test_objects.py`` and ``tests/save/test_phase4_gate.py``, and
+    the flat reader attributes no extent at all, so half the corpus would be
+    carrying a field it can never fill.
+
+    EAGER RATHER THAN LAZY, AND THE COST IS DELIBERATE. A lazy entry would have
+    to keep the decompressed body reachable for as long as any consumer held a
+    :class:`WorldModel`, which is every layer above this one. That is the one
+    thing no published type may do, and it is why neither new type declares a
+    field the shipped-tree carrier guard would fire on. Decoding now and
+    dropping the buffer is the only arrangement in which "the payload dies with
+    the walk" is a fact rather than a convention.
+
+    THE BODY IS A PARAMETER AND IT IS DELETED BEFORE ANY UNWIND, which is the
+    mechanism ``objects.read_properties`` and ``objects.parse_properties``
+    already use at their own raise sites. The MESSAGE was never the channel -
+    the frame is. A traceback renderer that shows locals, and pytest does,
+    prints ``payload`` verbatim, and that is the whole decompressed world under
+    non-negotiable 12. A deleted fast local is simply absent from
+    ``frame.f_locals``, which is what a renderer cannot reach around. The catch
+    is BROAD and unconditional on purpose: the frame carries the body out on
+    any unwind, not only on the one error this function documents, so narrowing
+    it to ``ObjectError`` would re-open the frame for every exception type a
+    later edit introduces. Because the re-raise is unconditional there is
+    nothing for the broad catch to swallow.
+
+    WHAT GRADES THAT SCRUB, STATED AT THE WIDTH IT WAS MEASURED AT.
+    ``tests/save/test_world.py::test_the_documented_property_overrun_scrubs_the_frame_that_holds_the_body``
+    drives the refusal below by handing this function a record whose extent
+    overruns, asserts this frame is IN the raised traceback, and asserts it
+    holds no payload; removing the ``del`` reddens it. An earlier wording said
+    the section-12 sweep walked "every refusal this layer has" and so covered
+    this one. IT DID NOT AND COULD NOT: that sweep drives three shapes through
+    ``load_world_from_bytes``, none of which reaches this branch, so the ``del``
+    below was executed by no test at all while a sentence here claimed it was.
+    A claim wider than its measurement is the failure this repository keeps
+    paying for.
+
+    THE BRANCH IS UNREACHABLE THROUGH ``load_world_from_bytes`` BY
+    CONSTRUCTION, WHICH IS WHY THE ARM INJECTS A RECORD. ``objects`` builds each
+    extent as ``(cursor.offset, length)`` and then skips ``length``, which
+    bounds-checks against the body, so an extent this walk produced cannot
+    overrun the body this walk read; and the flat reader attributes
+    ``body_length=0``, which ``read_properties`` skips outright. That is
+    stronger than "untested" and it is a reason to KEEP the branch rather than
+    delete it: the construction that makes it unreachable lives one layer down
+    and is free to move, and a scrub that only runs when that happens is
+    exactly the one nobody would notice was missing.
+
+    Args:
+        payload: The decompressed body the table was walked out of.
+        table: The walked table, for its records and their extents.
+        mapping: The property map, or None when none was resolved. It drives
+            the resolution report alone and never the decode - see
+            ``objects.read_properties``.
+
+    Returns:
+        One entry per walked record, keyed by that record's index in
+        ``table.records``.
+
+    Raises:
+        ObjectError: A record's declared payload extent runs past the body.
+            Deliberately NOT caught here - see the module docstring for why an
+            overrun is fatal where an unreadable payload is flagged.
+    """
+    decoded: dict[int, RecordProperties] = {}
+    try:
+        for index, record in enumerate(table.records):
+            decoded[index] = _record_properties(read_properties(payload, record, mapping))
+    except BaseException:
+        del payload, mapping
+        raise
+    return WorldProperties(by_record_index=MappingProxyType(decoded))
+
+
+def _published_value(value: object) -> object:
+    """Narrow one decoded value to what a higher layer is allowed to hold.
+
+    THE WHOLE JOB IS REMOVING ABSOLUTE POSITIONS, and it is recursive because
+    the positions are not all at the top. ``objects.ContainerValue`` holds
+    ``ContainerElement``s carrying ``start``; a ``ContainerElement``'s own value
+    can be another container or a struct; and ``objects.StructValue`` holds an
+    interior mapping that can hold either. A one-level narrowing would publish a
+    clean array of dirty structs.
+
+    EVERY OTHER VALUE IS RETURNED UNCHANGED AND THAT IS DELIBERATE. A scalar, a
+    string and an ``objects.ObjectReference`` carry no position at all - a
+    reference names a level and an object path, which is world content this
+    layer already publishes and not a place in a buffer - so copying them would
+    buy nothing and would put a second shape between the reader and the
+    consumer.
+
+    Args:
+        value: One decoded value from ``objects.PropertyResult.properties``, or
+            from inside another one.
+
+    Returns:
+        The value a :class:`RecordProperties` may carry.
+    """
+    if isinstance(value, ContainerValue):
+        return ContainerContents(
+            type_word=value.type_word,
+            element_words=value.element_words,
+            element_count=value.element_count,
+            entries=tuple(
+                ContainerEntry(
+                    type_word=element.type_word,
+                    length=element.length,
+                    value=_published_value(element.value),
+                )
+                for element in value.elements
+            ),
+            element_shape=value.element_shape,
+            struct_word=value.struct_word,
+        )
+    if isinstance(value, StructValue):
+        # THE INTERIOR IS REBUILT AND THE TYPE IS KEPT. `StructValue` declares
+        # no position of its own, so there is nothing here to narrow away and a
+        # third published type would be a shape with no fact behind it. What its
+        # `properties` mapping HOLDS can be a container - `objects.
+        # _decode_interior_tag` reads a container tag inside an interior on the
+        # same grammar as one at top level - so this cannot simply return the
+        # value, and a one-level narrowing would publish a clean array of dirty
+        # structs.
+        #
+        # EVERY FIELD IS NAMED RATHER THAN COPIED WITH `dataclasses.replace`,
+        # because `replace` is in the write-capable call vocabulary
+        # `tests/save/test_world.py::test_the_world_module_has_no_write_capable_
+        # call_site` enforces on this module - a name-keyed guard cannot tell
+        # `Path.replace` from this one, and widening it to let this through
+        # would cost the guard its point. Naming the fields is a coupling to
+        # `objects.StructValue`'s shape, and it is BOUND rather than left to
+        # review: `tests/save/test_world.py::test_the_struct_narrowing_names_
+        # every_field_objects_declares` fails if that type gains one.
+        return StructValue(
+            struct_word=value.struct_word,
+            form=value.form,
+            properties=MappingProxyType(
+                {name: _published_value(item) for name, item in value.properties.items()}
+            ),
+            unmeasured=value.unmeasured,
+            disagreed=value.disagreed,
+            depth=value.depth,
+        )
+    return value
+
+
+def _record_properties(result: PropertyResult) -> RecordProperties:
+    """Narrow one reader result to what a higher layer is allowed to hold.
+
+    THE NARROWING IS THE JOB. ``objects.PropertyResult`` carries reference
+    pairs, struct interiors and their tag denominators, every one of which is
+    save-layer diagnostic detail rather than a world fact - and publishing them
+    would put a second consumer on a shape ``objects`` is free to move.
+    ``resolved`` is the field carried VERBATIM and never derived: its three
+    states are ``objects``' own measurement, and the flattening this function
+    could do - answering False where the reader answered None - is exactly the
+    collapse of ABSENT into UNMODELLED that CS-960 removed one layer down.
+
+    THE VALUES ARE NARROWED RATHER THAN CARRIED, and CS-961's repair pass is
+    why. ``read_properties`` decodes an ``ArrayProperty``, a ``SetProperty`` or
+    a ``MapProperty`` to an ``objects.ContainerValue`` whose elements carry
+    ``start`` - an ABSOLUTE OFFSET INTO THE DECOMPRESSED BODY. Handing that
+    upward publishes a position in a buffer that is gone by the time any
+    consumer holds this object, which is the exact defect this item exists to
+    remove and which its acceptance names outright. :func:`_published_value`
+    rebuilds those, and only those, into :class:`ContainerContents`; every
+    element survives with its type word, its extent and its value.
+
+    ``payload_read`` IS DERIVED FROM THE WARNING RATHER THAN TRACKED BESIDE IT,
+    so the flag and the code cannot disagree about the same record. The reader
+    raises ``objects.WARN_UNPARSED_PROPERTY_PAYLOAD`` exactly when the payload
+    did not read under the measured grammar; a record the walk attributed no
+    extent to raises nothing and is True with an empty mapping, because there
+    was no payload to fail on.
+
+    Args:
+        result: One record's reader result.
+
+    Returns:
+        The published entry.
+    """
+    codes = tuple(
+        item.code for item in result.warnings if item.code not in _RESOLUTION_WARNING_CODES
+    )
+    return RecordProperties(
+        values=MappingProxyType(
+            {name: _published_value(value) for name, value in result.properties.items()}
+        ),
+        schema_name=result.schema_name,
+        resolved=result.resolved,
+        payload_read=WARN_UNPARSED_PROPERTY_PAYLOAD not in codes,
+        unmeasured_value_count=result.unmeasured_value_count,
+        disagreeing_value_count=result.disagreeing_value_count,
+        warning_codes=codes,
+    )
+
+
 def load_world_from_bytes(
     data: bytes,
     *,
@@ -962,6 +1598,14 @@ def load_world_from_bytes(
     which is what a second copy of a fact does. See the module docstring before
     reading a green result as "this reads saves" - what is measured is a
     SKELETON.
+
+    THE BODY IS WALKED TWICE, FOR TWO DIFFERENT FACTS. The first pass builds
+    the record table; the second decodes each record's payload into
+    :class:`WorldProperties`. Both run inside one guard and one stage, because
+    they are the same bytes and a failure in either is the same refusal. The
+    second pass is what makes this function the last scope in which the
+    decompressed body is reachable - see the module docstring for the four
+    bounds on what it may publish.
 
     Args:
         data: A whole save file's bytes.
@@ -983,41 +1627,82 @@ def load_world_from_bytes(
         ValueError: ``body_layout`` is not one of :data:`BODY_LAYOUTS`. Raised
             before anything is parsed, and NOT a ``WorldLoadError``.
     """
-    _checked_layout(body_layout)
-
+    # `data` IS THE WHOLE SAVE FILE, AND IT IS DROPPED FROM THIS FRAME BEFORE
+    # ANY UNWIND. That is the mechanism `objects.read_properties` and
+    # `objects.parse_properties` already use at their own raise sites, applied
+    # here for a stronger reason: what those hold is the decompressed BODY,
+    # where this holds the raw file - and the file's header carries the
+    # platform, the account id and the player display name in PLAINTEXT inside
+    # its options string (non-negotiable 12, `BOOTSTRAP.md` section 2.2).
+    # `header.parse_header` redacts that string on the object it returns, and a
+    # traceback renderer showing locals - pytest does - reads past the object to
+    # the bytes and prints them verbatim. A deleted fast local is what a
+    # renderer cannot reach around.
+    #
+    # THE GUARD WRAPS THE WHOLE FUNCTION, INCLUDING `_checked_layout`. Every way
+    # out of this frame is a way out carrying the file, so covering only the
+    # refusals this function documents would leave the caller-bug path - and
+    # every exception type a later edit introduces - holding it. Because the
+    # re-raise is unconditional there is nothing for the broad catch to swallow.
+    #
+    # tests/save/test_world.py::test_no_clockspeed_frame_holds_the_raw_save_on_
+    # any_refusal_path drives all four and walks the raised traceback. Its
+    # marker is planted in the header's OPTIONS STRING rather than in the
+    # payload, because a payload marker is deflated into the file and therefore
+    # can never appear in `data` - which is why the payload sweep in section 12
+    # of that file was green while this frame held the whole save.
     try:
-        parsed = parse_header(data)
-    except HeaderError as exc:
-        raise WorldLoadError(STAGE_HEADER, type(exc).__name__) from exc
+        _checked_layout(body_layout)
 
-    try:
-        body = decompress_body(data, parsed.body_offset, header_version=parsed.header_version)
-    except ChunkError as exc:
-        raise WorldLoadError(STAGE_CHUNKS, type(exc).__name__) from exc
+        try:
+            parsed = parse_header(data)
+        except HeaderError as exc:
+            raise WorldLoadError(STAGE_HEADER, type(exc).__name__) from exc
 
-    mapping, warnings = _resolve_property_map(property_map)
+        try:
+            body = decompress_body(data, parsed.body_offset, header_version=parsed.header_version)
+        except ChunkError as exc:
+            raise WorldLoadError(STAGE_CHUNKS, type(exc).__name__) from exc
 
-    try:
-        table = _walk_body(body.payload, parsed, mapping, body_layout)
-    except ObjectError as exc:
-        raise WorldLoadError(STAGE_OBJECTS, type(exc).__name__) from exc
+        mapping, warnings = _resolve_property_map(property_map)
 
-    unlocks, unlock_warnings = _read_unlocks()
-    nodes, node_warnings = _nodes_from(table)
+        try:
+            table = _walk_body(body.payload, parsed, mapping, body_layout)
+            # THE SECOND PASS, INSIDE THE SAME GUARD AND WHILE THE PAYLOAD IS
+            # STILL IN SCOPE. It is the same stage - the same bytes, walked
+            # twice for two different facts - so an overrunning extent reaches
+            # the caller as the object stage's refusal with no new stage and no
+            # new taxonomy. See the module docstring for why an overrun is fatal
+            # here where an unreadable payload is flagged and carried.
+            properties = _decode_properties(body.payload, table, mapping)
+        except ObjectError as exc:
+            # THE DECOMPRESSED BODY GOES TOO, and separately, because this is
+            # the only handler in which it is bound. `_decode_properties`
+            # scrubs its OWN frame; this frame holds the same bytes through
+            # `body` and would render them just as readily.
+            del body
+            raise WorldLoadError(STAGE_OBJECTS, type(exc).__name__) from exc
 
-    warnings.extend(unlock_warnings)
-    if nodes:
-        warnings.append(_warning(SOURCE_WORLD, WARN_NODE_SEMANTICS_UNAVAILABLE, len(nodes)))
-    warnings.extend(node_warnings)
+        unlocks, unlock_warnings = _read_unlocks()
+        nodes, node_warnings = _nodes_from(table)
 
-    return WorldModel(
-        token=parsed.world_token,
-        header=parsed,
-        objects=table,
-        unlocks=unlocks,
-        nodes=nodes,
-        warnings=(*_carried(parsed, body, mapping, table), *warnings),
-    )
+        warnings.extend(unlock_warnings)
+        if nodes:
+            warnings.append(_warning(SOURCE_WORLD, WARN_NODE_SEMANTICS_UNAVAILABLE, len(nodes)))
+        warnings.extend(node_warnings)
+
+        return WorldModel(
+            token=parsed.world_token,
+            header=parsed,
+            objects=table,
+            unlocks=unlocks,
+            nodes=nodes,
+            warnings=(*_carried(parsed, body, mapping, table), *warnings),
+            properties=properties,
+        )
+    except BaseException:
+        del data
+        raise
 
 
 def _carried(
@@ -1113,4 +1798,16 @@ def load_world(
     with copy.open("rb") as handle:
         data = handle.read()
 
-    return load_world_from_bytes(data, property_map=property_map, body_layout=body_layout)
+    # THE SAME SCRUB AS :func:`load_world_from_bytes`, AND FOR THE SAME REASON.
+    # This frame reads the whole file into a local of its own and hands it down,
+    # so a refusal raised below unwinds through TWO frames holding the same raw
+    # save - and a renderer showing locals prints the header's plaintext options
+    # string out of either one (non-negotiable 12). Repairing only the callee
+    # would have left this frame leaking on exactly the same failures.
+    # tests/save/test_world.py::test_no_clockspeed_frame_holds_the_raw_save_when_
+    # the_path_loader_refuses drives it through a real file on disk.
+    try:
+        return load_world_from_bytes(data, property_map=property_map, body_layout=body_layout)
+    except BaseException:
+        del data
+        raise

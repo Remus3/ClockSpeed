@@ -1065,8 +1065,6 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/header.py", 927): "2b49f05b544d",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/objects.py", 1756): "0e68b6914ed2",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/workdir.py", 688): "e2d30d6ce513",
-    ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/world.py", 991): "7b4d51124c45",
-    ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/world.py", 1111): "25062ba27287",
     (
         "docs/item_notes/phase4-followups-850.md",
         "tests/save/test_container_elements.py",
@@ -1224,7 +1222,24 @@ UNFORBIDDEN_LINE_POINTERS: Final[frozenset[tuple[str, str, int]]] = frozenset(
 #: gap filed as CS-937. Nothing else discharges it: a later record merely
 #: MENTIONING the file is the markdown keyword detector CS-899 already priced
 #: and REFUSED for failing in the permissive direction.
-FORGIVEN_LINE_POINTER_CEILING: Final = 66
+#:
+#: 66 TO 64, 2026-09-10 BY CS-961, AND IT IS THE RATCHET COMING DOWN RATHER THAN
+#: AN ARGUED RAISE. Two pins into `clockspeed/save/world.py` left the table
+#: because the doc that spelled them now names its two sites by their STAGE
+#: constant instead of by line, so there is no pointer left to forgive. A
+#: ceiling held at 66 over 64 forgivenesses is the slack half of this arm's own
+#: finding - room banked for the next append - so it comes down with them.
+#:
+#: WHY THOSE TWO WERE RETIRED RATHER THAN REPOINTED, since three other pins in
+#: this same item WERE repointed and stayed. A repoint is honest only while the
+#: digest carries over unchanged, which is the guard proving the new line holds
+#: byte-identical content. Those three did. The STAGE_HEADER raise did not: it
+#: gained an indent level when the raw save was scrubbed from the frame, so its
+#: line CHANGED as well as moved, and re-cutting a digest from today's tree is
+#: exactly the laundering the comment above forbids. Its neighbour went with it
+#: because the sentence carrying both reads as one claim. The doc already wrote
+#: a third such site in prose as a bare line number for this reason.
+FORGIVEN_LINE_POINTER_CEILING: Final = 64
 
 # --- resolution -------------------------------------------------------------
 
