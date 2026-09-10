@@ -185,16 +185,26 @@ __all__ = [
 
 
 # ---------------------------------------------------------------------------
-# The static set - a frozen three-name table, not a directory listing
+# The static set - a frozen name table, not a directory listing
 # ---------------------------------------------------------------------------
 
-#: Request path to (filename, content type). THE WHOLE STATIC SURFACE. Adding a
-#: fourth entry is an edit to this literal and nothing else; there is no
-#: directory walk, no suffix guess and no path join built from a request.
+#: Request path to (filename, content type). THE WHOLE STATIC SURFACE. Adding an
+#: entry is an edit to this literal and nothing else; there is no directory
+#: walk, no suffix guess and no path join built from a request.
+#:
+#: WHY THE PANEL MODULES ARE NAMED ONE BY ONE RATHER THAN GLOBBED (CS-960). A
+#: glob over ``web/`` would publish whatever is sitting in that directory,
+#: which turns a stray editor backup or a half-written module into a route this
+#: server serves. The point of a literal is that the served set is decided in
+#: source review and not by the state of a working tree.
 STATIC_ROUTES: Final[Mapping[str, tuple[str, str]]] = {
     "/": ("index.html", "text/html; charset=utf-8"),
     "/app.css": ("app.css", "text/css; charset=utf-8"),
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+    "/panel_registry.js": ("panel_registry.js", "text/javascript; charset=utf-8"),
+    "/panel_scope.js": ("panel_scope.js", "text/javascript; charset=utf-8"),
+    "/panel_solve.js": ("panel_solve.js", "text/javascript; charset=utf-8"),
+    "/panel_warnings.js": ("panel_warnings.js", "text/javascript; charset=utf-8"),
 }
 
 #: The filenames the table names, which is the closed set the asset reader is
