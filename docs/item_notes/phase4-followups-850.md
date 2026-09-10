@@ -734,8 +734,8 @@ account id and world name render in full. Archived in `docs/history_notes.md`. S
 **NOBODY OWNS IT AND BOTH CANDIDATES SAY SO IN WRITING.**
 `tests/test_redaction_scope.py:26-41` declares the chained cause out of scope and NAMED
 `clockspeed/save/world.py` line 971 as the site - a pointer that had ITSELF drifted, that
-statement having moved to `clockspeed/save/world.py:1367`. It was REPOINTED in session 44
-to `clockspeed/save/world.py:1495` rather than renumbered, because the claim it carries -
+statement having moved to that module's STAGE_HEADER raise. It was REPOINTED in session
+44 to its STAGE_COPY raise rather than renumbered, because the claim it carries -
 filename included - is FALSE at the STAGE_HEADER site: `parse_header` takes bytes, so the
 `HeaderError` it raises has no filename to carry. STAGE_COPY and STAGE_USMAP are the two
 of the five whose cause reaches an `OSError` that does. The CS-852 message guard declares

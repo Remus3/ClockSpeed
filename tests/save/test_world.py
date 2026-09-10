@@ -112,12 +112,14 @@ from __future__ import annotations
 import ast
 import hashlib
 import inspect
+import os
 import re
+import struct
 import traceback
-from collections.abc import Callable
-from dataclasses import fields
+from collections.abc import Callable, Mapping
+from dataclasses import fields, replace
 from pathlib import Path
-from types import MappingProxyType
+from types import FrameType, MappingProxyType
 from typing import Final
 
 import pytest
@@ -213,7 +215,31 @@ _NON_NODE_CLASS_PATH: Final = "/Synthetic/Parts/Build_SyntheticInput.Build_Synth
 # ---------------------------------------------------------------------------
 
 _PLANTED_SAVE_NAME: Final = "PlantedSaveNameMarker"
-_PLANTED_OPTIONS: Final = "?PlantedOptionsMarker=1"
+
+#: The options-string marker, and the string built around it. ONE CONSTANT
+#: RATHER THAN TWO SPELLINGS: the substring the sweeps grep for is named here
+#: and the options string is derived from it, so a marker that moves cannot
+#: leave a sweep looking for a value no fixture writes.
+#:
+#: IT IS ALSO CS-961's SECOND MARKER, and it exists as one because
+#: :data:`_PAYLOAD_MARKER` provably cannot catch the raw-save leak in section
+#: 13. THE PAYLOAD MARKER LIVES ONLY IN THE COMPRESSED REGION - every blob
+#: built here writes it into the body, which is deflated before it reaches the
+#: file, so it is absent from the raw bytes a caller hands
+#: ``load_world_from_bytes`` BY CONSTRUCTION. An oracle keyed on it cannot see
+#: the raw save sitting in that function's frame however leaky the frame is,
+#: which is exactly why the sweep in section 12 was green while the frame held
+#: the whole file.
+#:
+#: THE OPTIONS STRING IS THE RIGHT PLACE FOR THE SECOND ONE, not a convenient
+#: one. It is PLAINTEXT in the raw blob, and on a real save it carries the
+#: platform, the account id and the player display name (non-negotiable 12,
+#: ``BOOTSTRAP.md`` section 2.2) - so a frame holding the raw bytes leaks
+#: precisely this region and a marker planted here measures precisely that
+#: leak. The value is invented and obviously synthetic.
+_HEADER_MARKER: Final = "PlantedOptionsMarker"
+_PLANTED_OPTIONS: Final = f"?listenServer=0?{_HEADER_MARKER}=1"
+
 _PLANTED_SESSION: Final = "PlantedSessionMarker"
 _PLANTED_CLASS_PATH: Final = (
     "/Synthetic/Planted/Build_PlantedClassMarker.Build_PlantedClassMarker_C"
@@ -274,9 +300,18 @@ _PROPERTIES_FIELD: Final = "properties"
 _REQUIRED_PROPERTY_READER: Final = "read_properties"
 _FORBIDDEN_PROPERTY_READER: Final = "parse_properties"
 
-#: The two types CS-961 publishes. Asserted PRESENT by the structural arm below,
-#: so that arm cannot pass by scanning an empty population.
-_PUBLISHED_PROPERTY_TYPES: Final = ("RecordProperties", "WorldProperties")
+#: The types CS-961 publishes. Asserted PRESENT by the structural arm below, so
+#: that arm cannot pass by scanning an empty population.
+#:
+#: THE TWO CONTAINER TYPES JOINED UNDER CS-961's REPAIR PASS. They exist
+#: because ``objects.ContainerElement`` carries an absolute offset into the
+#: decompressed body and no published type may - see section 13.
+_PUBLISHED_PROPERTY_TYPES: Final = (
+    "ContainerContents",
+    "ContainerEntry",
+    "RecordProperties",
+    "WorldProperties",
+)
 
 #: Call names that can write, delete or move a file. Acceptance 8: workdir.py
 #: is the package's only writer, so NONE of these may appear in world.py.
@@ -465,7 +500,15 @@ def _planted_payload_parts() -> tuple[bytes, bytes]:
         save_version=save_version,
         grids=synthetic.LEVELLED_GRIDS,
     )
-    head = synthetic.build_header(header_version=header_version, save_version=save_version)
+    # THE HEADER CARRIES ITS OWN MARKER, IN THE OPTIONS STRING. It is written
+    # into the PLAINTEXT region of the file rather than into the deflated body,
+    # so the two markers measure two different channels off one fixture: the
+    # payload marker says what a decoded VALUE reaches, and this one says what
+    # the RAW SAVE reaches. See _HEADER_MARKER for why one marker could not do
+    # both jobs.
+    head = synthetic.build_header(
+        header_version=header_version, save_version=save_version, options=_PLANTED_OPTIONS
+    )
     return head, body
 
 
@@ -2616,6 +2659,637 @@ def _truncated_body_blob() -> bytes:
 
 
 # ---------------------------------------------------------------------------
+# 13 - CS-961 S3: the three defects an adversarial pass reproduced
+#
+# EVERY ARM HERE EXISTS BECAUSE SECTION 12 ABOVE WAS GREEN ON A DEFECT. That is
+# the reason to keep them apart rather than to widen the arms up there: each of
+# the three was invisible to a sweep that looked correct, and the shape of the
+# blindness is the lesson.
+#
+# a. The published values carried ``objects.ContainerElement.start``, an
+#    ABSOLUTE OFFSET into the decompressed body - the one thing the acceptance
+#    names ("through a stated model rather than by handing out offsets") and the
+#    exact defect the item exists to remove. Neither decodable fixture produces
+#    a container at all, so no arm had one to look at: the corpus was built
+#    parallel to the assumption instead of against it.
+# b. ``load_world_from_bytes``'s ``data`` parameter is the raw save, and it sat
+#    in the frame on every raise path. The existing privacy sweep could not see
+#    it, because its marker lives only in the COMPRESSED region and therefore
+#    can never appear in the raw bytes - see :data:`_HEADER_MARKER`.
+# c. The scrub inside ``world._decode_properties`` was claimed to be walked by
+#    section 12's sweep and was executed by no test at all, because the refusal
+#    it guards is unreachable through ``load_world_from_bytes`` BY
+#    CONSTRUCTION.
+#
+# THE WALK BELOW IS STRUCTURAL RATHER THAN A LIST OF KNOWN TYPES, and that is
+# the whole repair for (a). An arm naming ``ContainerContents`` would be green
+# the day a fourth published value type arrives carrying a position, which is
+# the same shape of blindness again one type later.
+# ---------------------------------------------------------------------------
+
+#: The container word the fixture below writes. ASSERTED against
+#: ``objects.CONTAINER_TYPE_WORDS`` rather than trusted, so a fixture built on a
+#: word that layer does not treat as a container fails loudly instead of
+#: decoding to a scalar and proving nothing.
+_CONTAINER_TYPE_WORD: Final = "ArrayProperty"
+
+_CONTAINER_PROPERTY_NAME: Final = "mSyntheticContainerArray"
+
+#: The element values the array declares. NEGATIVE ON PURPOSE. The offence
+#: oracle below asks whether any integer reachable from the published model
+#: falls inside the record's own payload EXTENT, and an extent is a run of
+#: non-negative offsets - so a decoded value can never be mistaken for one of
+#: the offsets being hunted, and the arm cannot go red on its own fixture.
+_CONTAINER_ELEMENT_VALUES: Final = (-101, -202, -303)
+
+#: The one named level the container fixture hangs from. Generic and carrying
+#: no marker, for the reason :data:`_PLANTED_PAYLOAD_LEVEL` gives.
+_CONTAINER_LEVEL: Final = "Persistent_Level:SyntheticContainerCell_0"
+
+#: How deep the reflexive walk follows a reference before giving up. A BOUND
+#: rather than a measurement: it stops a cycle the id memo somehow missed from
+#: running forever, and the published model is a handful of levels deep.
+_WALK_DEPTH_LIMIT: Final = 16
+
+
+def _i32(value: int) -> bytes:
+    """One little-endian signed 32-bit field.
+
+    ``synthetic``'s own encoder is private and that file belongs to another
+    slice, so the two bytes of arithmetic are spelled here rather than reached
+    for across a seam.
+
+    Args:
+        value: The integer.
+
+    Returns:
+        Four bytes.
+    """
+    return struct.pack("<i", value)
+
+
+def _container_property_blob() -> bytes:
+    """A LEVELLED save whose one record carries an ARRAY property.
+
+    THE FIRST FIXTURE IN THIS FILE THAT PRODUCES A ``ContainerValue``, which is
+    the whole reason it exists. Both decodable fixtures carry scalars only, so
+    every arm about what a published value may hold was, before this, asserting
+    over a population with no container in it.
+
+    Composed from the PUBLIC synthetic primitives - ``property_tag`` takes the
+    element type word as ``tag_extra``, which is where the measured grammar puts
+    it - so ``tests/save/synthetic.py`` stays untouched.
+
+    Returns:
+        A whole save blob.
+    """
+    header_version, save_version = _decodable_pair()
+    declared = _i32(len(_CONTAINER_ELEMENT_VALUES))
+    elements = b"".join(_i32(value) for value in _CONTAINER_ELEMENT_VALUES)
+    payload = synthetic.tagged_property_payload(
+        (
+            synthetic.property_tag(
+                _CONTAINER_PROPERTY_NAME,
+                _CONTAINER_TYPE_WORD,
+                declared + elements,
+                tag_extra=synthetic.fstring(synthetic.DECODABLE_INT_TYPE_WORD),
+            ),
+        ),
+        head=synthetic.actor_payload_head(synthetic.MAP_NAME, synthetic.DECODABLE_ROOT, ()),
+        trailing=synthetic.DECODABLE_TRAILING_RUN,
+    )
+    named = (
+        synthetic.SyntheticLevel(
+            name=_CONTAINER_LEVEL,
+            objects=(
+                synthetic.SyntheticObject(
+                    synthetic.DECODABLE_CLASS_PATH,
+                    synthetic.DECODABLE_ROOT,
+                    synthetic.DECODABLE_INSTANCE,
+                ),
+            ),
+            payloads=(payload,),
+        ),
+    )
+    body = synthetic.build_levelled_body(
+        named,
+        synthetic.SyntheticLevel(name=None),
+        header_version=header_version,
+        save_version=save_version,
+        grids=synthetic.LEVELLED_GRIDS,
+    )
+    head = synthetic.build_header(header_version=header_version, save_version=save_version)
+    return head + synthetic.build_chunks(
+        synthetic.body_with_prefix(body, header_version),
+        framing=synthetic.default_framing(header_version),
+    )
+
+
+#: The shipped package's own directory, derived from the module under test
+#: rather than written down. The sweeps below grade CLOCKSPEED frames, and this
+#: is what tells one from a frame belonging to the test that built the fixture.
+#: Deriving it also keeps a worktree path - which contains a directory whose
+#: name differs from the package's only in case - out of the decision.
+_PACKAGE_ROOT: Final = os.path.normcase(str(Path(world.__file__).resolve().parent.parent))
+
+
+def _clockspeed_frames(raised: BaseException) -> tuple[FrameType, ...]:
+    """The frames beneath the caller that belong to the shipped package.
+
+    THE FILTER IS NOT COSMETIC. ``_frames_beneath_the_caller`` excludes only the
+    frame that called in, so a helper in THIS file that holds the fixture on
+    purpose - a lambda driving one refusal, say - stays in the walk and reports
+    itself as a leak. What is asserted is what ``clockspeed`` leaves behind.
+
+    Args:
+        raised: The exception, taken as a parameter rather than rendered.
+
+    Returns:
+        The shipped frames, outermost first.
+    """
+    return tuple(
+        frame
+        for frame in test_properties._frames_beneath_the_caller(raised)  # noqa: SLF001
+        if os.path.normcase(frame.f_code.co_filename).startswith(_PACKAGE_ROOT)
+    )
+
+
+def _member_attributes(value: object) -> tuple[tuple[str, object], ...]:
+    """Every named member of an arbitrary object, ``__slots__`` included.
+
+    BOTH HOLDERS ARE READ because a type declaring ``__slots__`` has no
+    ``__dict__``, and a walk that asked only for the second would step straight
+    past it - reporting a clean sweep of an object it never opened.
+
+    Args:
+        value: The object.
+
+    Returns:
+        ``(name, member)`` pairs.
+    """
+    out: list[tuple[str, object]] = []
+    holder = getattr(value, "__dict__", None)
+    if isinstance(holder, Mapping):
+        out.extend(holder.items())
+    slots = getattr(type(value), "__slots__", ())
+    names = (slots,) if isinstance(slots, str) else tuple(slots)
+    out.extend((name, getattr(value, name)) for name in names if hasattr(value, name))
+    return tuple(out)
+
+
+def _reachable_integers(root: object) -> dict[int, str]:
+    """Every integer reachable from an object, with one path to each.
+
+    REFLEXIVE RATHER THAN TYPE-AWARE, which is the point. It knows about
+    mappings, sequences and named members and about nothing in this project, so
+    a published type added after this file was written is walked on arrival
+    rather than on somebody remembering to add it here.
+
+    ``bool`` is skipped: it is an ``int`` subclass, so a flag would otherwise
+    enter the population as 0 or 1 and say nothing about an offset. Strings and
+    byte buffers are leaves - iterating a ``str`` yields ``str``.
+
+    THE PATHS NAME POSITIONS AND MEMBER NAMES ONLY, never a mapping KEY. A key
+    in this model is a property name read out of the save's own bytes, and a
+    failure message is a rendering channel like any other (non-negotiable 12).
+
+    Args:
+        root: Where to start.
+
+    Returns:
+        Each integer found, to the first path that reached it.
+    """
+    found: dict[int, str] = {}
+    seen: set[int] = set()
+
+    def walk(value: object, path: str, depth: int) -> None:
+        if depth > _WALK_DEPTH_LIMIT or isinstance(value, bool):
+            return
+        if isinstance(value, int):
+            found.setdefault(value, path)
+            return
+        if isinstance(value, str | bytes | bytearray | memoryview):
+            return
+        if id(value) in seen:
+            return
+        seen.add(id(value))
+        if isinstance(value, Mapping):
+            for position, (key, item) in enumerate(value.items()):
+                walk(key, f"{path}.key[{position}]", depth + 1)
+                walk(item, f"{path}.value[{position}]", depth + 1)
+            return
+        if isinstance(value, tuple | list | set | frozenset):
+            for position, item in enumerate(value):
+                walk(item, f"{path}[{position}]", depth + 1)
+            return
+        for name, item in _member_attributes(value):
+            walk(item, f"{path}.{name}", depth + 1)
+
+    walk(root, type(root).__name__, 0)
+    return found
+
+
+def _offsets_into(root: object, extent: range) -> dict[int, str]:
+    """Every reachable integer that lands inside a record's payload extent.
+
+    THE ORACLE IS THE EXTENT RATHER THAN A FIELD NAME, deliberately. A name
+    census answers "is anything still spelled ``start``", which a rename
+    defeats; this answers "is any position in the body reachable at all", which
+    a rename does not.
+
+    Args:
+        root: Where to start.
+        extent: The record's payload extent, as offsets into the body.
+
+    Returns:
+        The offending integers, to the path that reached each.
+    """
+    return {value: path for value, path in _reachable_integers(root).items() if value in extent}
+
+
+def _container_fixture() -> tuple[world.WorldModel, bytes, int]:
+    """The container world, its decompressed body, and the record's index.
+
+    Args:
+        None.
+
+    Returns:
+        The loaded model, the decompressed body, and the index of the record
+        carrying the array property.
+    """
+    blob = _container_property_blob()
+    model = world.load_world_from_bytes(blob)
+    return model, _decompressed_payload(blob), _index_of(model, synthetic.DECODABLE_INSTANCE)
+
+
+def test_a_published_container_keeps_every_element_without_its_position() -> None:
+    """DEFECT (a), half one: the elements survive, and the offset does not.
+
+    NON-NEGOTIABLE 7 IS WHY THIS ARM COMES FIRST. The cheap way to stop
+    publishing an offset is to stop publishing the container, and that would
+    lose world content and make a property that IS set read as absent - a
+    confident wrong answer, which is worse than the leak it fixes. So the
+    element type word, the element extent and the decoded value are each
+    asserted present BY VALUE against what the fixture encoded, and only then is
+    the position asserted gone.
+
+    The fixture's own grammar is asserted against ``objects``' vocabulary
+    rather than assumed, so a word that layer stopped treating as a container
+    fails here instead of quietly decoding to something else.
+    """
+    assert _CONTAINER_TYPE_WORD in objects.CONTAINER_TYPE_WORDS, (
+        "the fixture's type word is not one objects treats as a container, so nothing "
+        "below is a measurement of what a container publishes"
+    )
+
+    model, _payload, index = _container_fixture()
+    entry = model.properties.by_record_index[index]
+
+    assert entry.payload_read is True, "the container payload did not read at all"
+    published = entry.values[_CONTAINER_PROPERTY_NAME]
+
+    assert isinstance(published, world.ContainerContents), (
+        "the world layer published the save layer's own container type, whose elements "
+        "carry an absolute offset into the decompressed body. CS-961's acceptance is "
+        "a stated model rather than a hand-out of offsets, and world.py's own docstring "
+        f"says the key is never a byte offset. Got {type(published).__name__}"
+    )
+    assert published.type_word == _CONTAINER_TYPE_WORD
+    assert published.element_words == (synthetic.DECODABLE_INT_TYPE_WORD,)
+    assert published.element_count == len(_CONTAINER_ELEMENT_VALUES)
+    assert published.element_shape in objects.ELEMENT_SHAPES
+    assert published.struct_word is None
+
+    # THE ELEMENTS, BY VALUE, AGAINST WHAT THE FIXTURE ENCODED. A container
+    # published with an empty entry tuple would satisfy every assertion above.
+    assert tuple(item.value for item in published.entries) == _CONTAINER_ELEMENT_VALUES
+    assert tuple(item.type_word for item in published.entries) == (
+        (synthetic.DECODABLE_INT_TYPE_WORD,) * len(_CONTAINER_ELEMENT_VALUES)
+    )
+    assert all(item.length == objects.INT32_SIZE for item in published.entries)
+
+    # THE POSITION IS GONE, asked of the shipped type rather than of an
+    # instance, so an entry that merely happened to hold zero cannot pass.
+    published_names = {field.name for field in fields(world.ContainerEntry)}
+    assert "start" not in published_names, (
+        f"world.ContainerEntry still declares a position: {sorted(published_names)}"
+    )
+
+
+def test_no_published_property_value_carries_an_absolute_body_offset() -> None:
+    """DEFECT (a), half two: the STRUCTURAL sweep, with the control in front.
+
+    THE WALK KNOWS NOTHING ABOUT THIS PROJECT'S TYPES. It follows mappings,
+    sequences, ``__dict__`` and ``__slots__``, memoised by identity and depth
+    bounded, and collects every integer it can reach from
+    ``WorldModel.properties``. An arm that instead listed the container types
+    known today would be green on the day a fourth one arrives carrying a
+    position, which is the failure this whole section is a correction for.
+
+    THE ROOT IS ``model.properties`` AND NOT ``model``, and that is a real
+    distinction rather than convenience. ``ObjectRecord.body_offset`` and
+    ``body_length`` are diagnostics this package reads and publishes to nobody,
+    they are reachable from ``model.objects`` on purpose, and world.py's
+    docstring says they stay where they are. What may not carry a position is
+    the property model.
+
+    THE CONTROL USES THE SWEEP'S OWN WALKER on the RAW reader result, which
+    genuinely holds ``ContainerElement.start``. An empty verdict below is
+    therefore a statement about world.py rather than about a walker that cannot
+    see an offset in the first place - the ABSOLUTE_PATH failure shape this
+    project has been bitten by before.
+    """
+    model, payload, index = _container_fixture()
+    record = model.objects.records[index]
+    extent = range(record.body_offset, record.body_offset + record.body_length)
+
+    assert len(extent) > 0, (
+        "the walk attributed no payload extent to the record, so the oracle below is an "
+        "empty range and every integer trivially passes it"
+    )
+
+    # CONTROL: the walker finds an offset when one IS present. `read_properties`
+    # is the same reader world.py calls, on the same bytes and the same record.
+    control = _offsets_into(objects.read_properties(payload, record, None).properties, extent)
+    assert control, (
+        "the walker found no body offset in the RAW reader result, which is the one "
+        "population that certainly holds one. The sweep below would pass on any tree"
+    )
+
+    offences = _offsets_into(model.properties, extent)
+    assert not offences, (
+        "a value reachable from WorldModel.properties is an absolute offset into the "
+        "decompressed body - a position in bytes this layer promised nothing above it "
+        f"would ever see. Offending value(s) and path(s): {offences}. The record's "
+        f"payload occupies [{extent.start}, {extent.stop})"
+    )
+
+
+def test_the_struct_narrowing_names_every_field_objects_declares() -> None:
+    """The coupling ``_published_value`` takes on, BOUND rather than reviewed.
+
+    A struct interior can hold a container - ``objects`` reads a container tag
+    inside an interior on the same grammar as one at top level - so
+    ``world._published_value`` has to rebuild an ``objects.StructValue`` with a
+    narrowed ``properties`` mapping rather than pass it through.
+
+    IT REBUILDS BY NAMING EVERY FIELD rather than by ``dataclasses.replace``,
+    because ``replace`` is in the write-capable vocabulary
+    ``test_the_world_module_has_no_write_capable_call_site`` enforces on
+    ``world.py`` and a name-keyed guard cannot tell it from ``Path.replace``.
+    The cost of naming fields is that a field ADDED to ``StructValue`` would be
+    dropped in silence - a value that IS set reading as absent, which
+    non-negotiable 7 forbids - so the two shapes are bound here.
+
+    THE ORACLE IS THE SHIPPED TYPE'S OWN FIELD SET against the keywords the
+    construction site spells, read from the AST. Neither side is written down
+    in this file, so the arm follows both.
+    """
+    declared = {field.name for field in fields(objects.StructValue)}
+    assert declared, "objects.StructValue declares no field, so this arm measures nothing"
+
+    calls = [
+        node
+        for node in ast.walk(_world_ast())
+        if isinstance(node, ast.Call) and _called_name(node) == objects.StructValue.__name__
+    ]
+    assert len(calls) == 1, (
+        f"world.py constructs objects.StructValue {len(calls)} times; this arm binds the "
+        "single narrowing site and cannot say which of several is meant"
+    )
+
+    spelled = {keyword.arg for keyword in calls[0].keywords if keyword.arg is not None}
+    assert spelled == declared, (
+        "world.py's struct narrowing does not name every field objects.StructValue "
+        f"declares. Missing: {sorted(declared - spelled)}. Unknown: {sorted(spelled - declared)}. "
+        "A field it does not name is a decoded value silently dropped on the way up"
+    )
+
+
+def _planted_refusal_calls(
+    blob: bytes,
+) -> tuple[tuple[str, bytes, Callable[[], object]], ...]:
+    """Every refusal ``load_world_from_bytes`` has, and the bytes it was handed.
+
+    THE BYTES ARE RETURNED ALONGSIDE THE CALL so the arm can assert, per case,
+    that the marker was actually IN what the loader was given. Three of the four
+    cases hand over a CUT blob, and a cut that removed the header region would
+    make an absence sweep pass while measuring nothing.
+
+    THE LAYOUT REFUSAL IS INCLUDED even though it is a ``ValueError`` rather
+    than a ``WorldLoadError``. The frame holds the raw save on that path exactly
+    as it does on the other three, and non-negotiable 12 does not care which
+    exception type is in flight.
+
+    Args:
+        blob: The planted save.
+
+    Returns:
+        ``(label, bytes handed over, call)`` triples, each of which raises.
+    """
+    body_start = header.parse_header(blob).body_offset
+    head_cut = blob[: body_start // 2]
+    chunk_cut = blob[:-1]
+    body_cut = _truncated_body_blob()
+    return (
+        ("truncated-header", head_cut, lambda: world.load_world_from_bytes(head_cut)),
+        ("truncated-chunk-stream", chunk_cut, lambda: world.load_world_from_bytes(chunk_cut)),
+        ("truncated-body", body_cut, lambda: world.load_world_from_bytes(body_cut)),
+        (
+            "unknown-body-layout",
+            blob,
+            lambda: world.load_world_from_bytes(blob, body_layout=_NOT_A_LAYOUT),
+        ),
+    )
+
+
+def test_no_clockspeed_frame_holds_the_raw_save_on_any_refusal_path() -> None:
+    """DEFECT (b): the frame holding the whole file, on every way out of it.
+
+    ``load_world_from_bytes``' ``data`` parameter IS the save file. A traceback
+    renderer that shows locals - pytest does - prints it verbatim, and on a real
+    save the header's options string carries the platform, the account id and
+    the player display name in plaintext (non-negotiable 12, ``BOOTSTRAP.md``
+    section 2.2). The leak predates CS-961; what CS-961 added was a fourth raise
+    site inside that frame and a claim of coverage.
+
+    WHY THE EXISTING SWEEP COULD NOT CATCH IT, stated because the same trap is
+    easy to re-set: its marker is planted in the payload, the payload is
+    deflated into the file, and so the marker cannot appear in ``data`` at all.
+    An oracle that can never see the leaking value returns an empty verdict
+    about itself. This arm plants a second marker in the PLAINTEXT header region
+    and asserts, per case, that it was in the bytes handed over.
+
+    EVERY RAISE PATH, not only the new one - three ``WorldLoadError`` shapes and
+    the ``ValueError`` a bad layout raises.
+    """
+    blob = _planted_payload_blob()
+    marker = _HEADER_MARKER.encode("ascii")
+
+    # CONTROL ONE: the marker is in the raw file and NOT in the decompressed
+    # body, which is what makes it a measurement of a different channel rather
+    # than a second run of the payload sweep.
+    assert marker in blob, "the header marker is not in the raw save"
+    assert marker not in _decompressed_payload(blob), (
+        "the header marker reached the decompressed body, so this arm is measuring the "
+        "same channel the payload sweep already covers rather than the raw-save channel"
+    )
+
+    # CONTROL TWO: the sweep's own oracle can see the marker in a value that
+    # holds it. `_leaking_locals` decides by `_safe_repr`, so this asks that
+    # function directly rather than a rendering that merely resembles it.
+    assert _HEADER_MARKER in test_properties._safe_repr(blob), (  # noqa: SLF001
+        "the sweep's oracle cannot see the marker in the raw save itself, so every empty "
+        "verdict below is a statement about the oracle and not about world.py"
+    )
+
+    for label, handed, call in _planted_refusal_calls(blob):
+        assert marker in handed, (
+            f"the {label} case hands over bytes that do not contain the header marker, so "
+            "its verdict below is vacuous"
+        )
+        with pytest.raises(Exception) as caught:  # noqa: PT011 - two exception types by design
+            call()
+        raised = caught.value
+
+        chain = "".join(traceback.format_exception(type(raised), raised, raised.__traceback__))
+        for surface in (str(raised), repr(raised), repr(raised.args), chain):
+            assert _HEADER_MARKER not in surface, (
+                f"the {label} failure renders the header marker on an error surface:\n  {surface}"
+            )
+
+        shipped = _clockspeed_frames(raised)
+        assert shipped, (
+            f"the {label} refusal left no clockspeed frame in the traceback, so the sweep "
+            "below inspects nothing"
+        )
+        leaks = {
+            frame.f_code.co_name: test_properties._leaking_locals(frame, _HEADER_MARKER)  # noqa: SLF001
+            for frame in shipped
+            if test_properties._leaking_locals(frame, _HEADER_MARKER)  # noqa: SLF001
+        }
+        assert not leaks, (
+            f"on the {label} failure a clockspeed frame in the raised traceback still "
+            "holds the raw save. A renderer showing locals prints the options string "
+            "verbatim, which on a real save names the platform, the account id and the "
+            f"player (non-negotiable 12). Offending frame(s) and local name(s): {leaks}"
+        )
+
+
+def test_no_clockspeed_frame_holds_the_raw_save_when_the_path_loader_refuses(
+    isolated_work_root: Path, tmp_path: Path
+) -> None:
+    """DEFECT (b)'s SIBLING, found by grepping for the same root cause.
+
+    ``load_world`` reads the file into a local of its own and hands it down, so
+    a refusal from ``load_world_from_bytes`` unwinds through a SECOND frame
+    holding the same raw save. Scrubbing only the frame the adversary named
+    would have repaired one of the two and left the other rendering the options
+    string on exactly the same failures - which is what makes this an arm rather
+    than a note.
+
+    The fixture is written and read as a file, so the path this exercises is the
+    one an operator actually takes.
+
+    Args:
+        isolated_work_root: Sends workdir's copies under ``tmp_path``.
+        tmp_path: Where the synthetic save is written.
+    """
+    assert isolated_work_root.parent == tmp_path, "the work root escaped tmp_path"
+
+    marker = _HEADER_MARKER.encode("ascii")
+    blob = _planted_payload_blob()
+    refused = blob[:-1]
+    assert marker in refused, "the cut removed the header region, so this arm is vacuous"
+
+    source = _write_save(tmp_path / "saves", "cs961-s3-planted.sav", refused)
+
+    with pytest.raises(world.WorldLoadError) as caught:
+        world.load_world(source)
+    raised = caught.value
+
+    shipped = _clockspeed_frames(raised)
+    entered = {frame.f_code.co_name for frame in shipped}
+    assert "load_world" in entered, (
+        f"the refusal did not pass through load_world, so its frame was never inspected. "
+        f"Frames reached: {sorted(entered)}"
+    )
+
+    leaks = {
+        frame.f_code.co_name: test_properties._leaking_locals(frame, _HEADER_MARKER)  # noqa: SLF001
+        for frame in shipped
+        if test_properties._leaking_locals(frame, _HEADER_MARKER)  # noqa: SLF001
+    }
+    assert not leaks, (
+        "the path loader leaves the raw save in a clockspeed frame (non-negotiable 12). "
+        f"Offending frame(s) and local name(s): {leaks}"
+    )
+
+
+def test_the_documented_property_overrun_scrubs_the_frame_that_holds_the_body() -> None:
+    """DEFECT (c): the branch the coverage claim named, actually driven.
+
+    ``world._decode_properties`` documents one refusal - a record whose declared
+    payload extent runs past the body - and scrubs its frame before letting it
+    out. Nothing executed that scrub: the branch is unreachable through
+    ``load_world_from_bytes`` BY CONSTRUCTION, because ``objects`` builds each
+    extent as ``(cursor.offset, length)`` and then skips ``length``, which
+    bounds-checks against the body, and the flat reader emits ``body_length=0``,
+    which ``read_properties`` skips outright.
+
+    UNREACHABLE BY CONSTRUCTION IS A REASON TO KEEP THE BRANCH AND A REASON TO
+    DRIVE IT HERE, not a reason to delete either. The construction that makes it
+    unreachable is one layer down and free to change; what may not stand is a
+    scrub no test has ever run, defended by a sentence claiming a sweep walked
+    it.
+
+    THE RECORD IS INJECTED RATHER THAN THE READER MONKEYPATCHED, so what raises
+    is ``objects``' own bounds check on its own terms - the real refusal the
+    docstring names - rather than a stand-in that proves only that the handler
+    catches things.
+
+    NON-VACUITY: the frame is asserted PRESENT in the raised traceback before it
+    is asserted clean. An arm that swept a traceback the function never entered
+    would report no leak for the wrong reason.
+    """
+    blob = _planted_payload_blob()
+    payload = _decompressed_payload(blob)
+    model = world.load_world_from_bytes(blob)
+    index = _index_of(model, synthetic.DECODABLE_INSTANCE)
+
+    overrunning = replace(
+        model.objects.records[index], body_offset=len(payload) - 1, body_length=len(payload)
+    )
+    injected = replace(model.objects, records=(overrunning,))
+
+    with pytest.raises(objects.ObjectError) as caught:
+        world._decode_properties(payload, injected, None)  # noqa: SLF001
+    raised = caught.value
+
+    frames = _clockspeed_frames(raised)
+    entered = {frame.f_code.co_name for frame in frames}
+    assert "_decode_properties" in entered, (
+        "the refusal did not pass through _decode_properties, so the scrub this arm is "
+        f"about was never on the path. Frames reached: {sorted(entered)}"
+    )
+
+    assert _PAYLOAD_MARKER in test_properties._safe_repr(payload), (  # noqa: SLF001
+        "the oracle cannot see the marker in the body itself, so the verdict below says "
+        "nothing about the frame"
+    )
+
+    leaks = {
+        frame.f_code.co_name: test_properties._leaking_locals(frame, _PAYLOAD_MARKER)  # noqa: SLF001
+        for frame in frames
+        if test_properties._leaking_locals(frame, _PAYLOAD_MARKER)  # noqa: SLF001
+    }
+    assert not leaks, (
+        "the documented overrun leaves the decompressed body in a clockspeed frame "
+        f"(non-negotiable 12). Offending frame(s) and local name(s): {leaks}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # The real library - SKIP IF ABSENT, shapes only, never a value
 # ---------------------------------------------------------------------------
 
@@ -2977,9 +3651,10 @@ _GRADED_LIBRARY_REACH: Final = MappingProxyType(
 _EXEMPT_LIBRARY_REACH: Final = MappingProxyType(
     {
         reach_guard.MODULE_SCOPE_REACH: (
-            "Path(__file__).resolve() at module scope, building this repo's "
-            "own root and this module's own path as constants. It resolves a "
-            "tracked source file, never a save directory and never the "
+            "Path(...).resolve() at module scope, building this repo's own "
+            "root, this module's own path and the shipped package's directory "
+            "as constants. Every one resolves a TRACKED SOURCE FILE - this "
+            "file, or world.py itself - never a save directory and never the "
             "account directory"
         ),
         "_fingerprint": (

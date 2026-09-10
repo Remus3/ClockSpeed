@@ -179,6 +179,8 @@ RECORDED_POPULATION: tuple[str, ...] = (
     "clockspeed/save/workdir.py::ForbiddenRoot",
     "clockspeed/save/workdir.py::ListingProblem",
     "clockspeed/save/workdir.py::SaveListing",
+    "clockspeed/save/world.py::ContainerContents",
+    "clockspeed/save/world.py::ContainerEntry",
     "clockspeed/save/world.py::RecordProperties",
     "clockspeed/save/world.py::ResourceNode",
     "clockspeed/save/world.py::UnlockState",
