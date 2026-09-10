@@ -3445,8 +3445,8 @@ def test_no_clockspeed_frame_holds_the_body_when_the_extent_raises(
     assert not leaks, (
         f"entered through objects.{entry_point} with a {map_state} call, a clockspeed "
         "frame in the raised traceback still holds the save body. A renderer showing "
-        "it verbatim, head and tail (non-negotiable 12). Offending frame(s) and local "
-        f"name(s): {leaks}"
+        "locals prints it verbatim, head and tail (non-negotiable 12). Offending "
+        f"frame(s) and local name(s): {leaks}"
     )
     # NON-VACUITY. Without this the sweep passes just as happily when the
     # marker was never in any frame to begin with, which is the ABSOLUTE_PATH
