@@ -1872,3 +1872,35 @@ def test_a_perturbed_decodable_payload_no_longer_yields_the_encoded_value() -> N
 
     assert result.properties[synthetic.DECODABLE_INT_NAME] == moved
     assert result.properties[synthetic.DECODABLE_INT_NAME] != synthetic.DECODABLE_INT_VALUE
+
+
+def test_the_two_encoders_disagree_on_the_empty_string_and_the_bound_is_recorded() -> None:
+    """THE CROSS-CHECK ABOVE IS VALID FOR NON-EMPTY TEXT AND THIS ARM SAYS SO.
+
+    Found by the adversarial pass over this slice, which could not break the
+    byte-equality check but did find the one input that escapes it. The two
+    encoders are independent, which is what makes the check evidence - and
+    independent encoders may also silently differ. On the empty string they do.
+
+    NEITHER IS BEING DECLARED RIGHT HERE, because neither has been measured.
+    ``synthetic.fstring`` says so in its own prose: the bare zero count is
+    MODELLED, the Unreal convention, and the one field shape in that module no
+    probe confirmed. ``test_properties._fstring`` takes no position at all - it
+    has no empty-string branch, so its answer is what its arithmetic happens to
+    produce on an input it was never handed.
+
+    WHAT THIS ARM BUYS IS THAT THE DIVERGENCE IS LOUD. A later CS-961 arm that
+    encodes an empty property name or an empty string value would silently lose
+    the second opinion, or take a red that says nothing about the code under
+    test. Pinned here, changing either encoder reddens this and the next author
+    has to decide deliberately rather than discover it as a puzzle.
+    """
+    assert synthetic.fstring("") != test_properties._fstring(""), (  # noqa: SLF001
+        "the two encoders now agree on the empty string, so either one was changed or "
+        "the shape was measured - if it was measured, record which, and retire this arm "
+        "rather than loosening it"
+    )
+    assert synthetic.fstring("x") == test_properties._fstring("x"), (  # noqa: SLF001
+        "the two encoders disagree on NON-empty text, which is the population the "
+        "byte-equality cross-check above rests on - that check is now worthless"
+    )
