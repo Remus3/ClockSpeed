@@ -3120,8 +3120,18 @@ def test_no_clockspeed_frame_holds_the_raw_save_on_any_refusal_path() -> None:
     about itself. This arm plants a second marker in the PLAINTEXT header region
     and asserts, per case, that it was in the bytes handed over.
 
-    EVERY RAISE PATH, not only the new one - three ``WorldLoadError`` shapes and
-    the ``ValueError`` a bad layout raises.
+    EVERY RAISE PATH OF THIS LAYER'S OWN FRAMES, not only the new one - three
+    ``WorldLoadError`` shapes and the ``ValueError`` a bad layout raises.
+
+    THE CAUSE CHAIN IS NOT GRADED HERE, AND IT STILL LEAKS. ``parse_header`` and
+    ``decompress_body`` bind the same raw save in THEIR OWN frames, and
+    ``raise ... from exc`` puts those frames in the rendered traceback, so
+    ``pytest --showlocals`` prints the plaintext options string out of them.
+    Neither module carries a single ``del``. The walker this arm uses follows
+    ``__traceback__`` only and never ``__cause__``, so it CANNOT fail for that
+    cause and must not be read as evidence about it. Measured by an adversarial
+    pass over this item and filed as CS-963 rather than repaired here, because
+    the fix lands in two modules this item never scoped.
     """
     blob = _planted_payload_blob()
     marker = _HEADER_MARKER.encode("ascii")

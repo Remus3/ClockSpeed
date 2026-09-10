@@ -112,12 +112,12 @@ matter of review:
 
   THAT SWEEP MEASURES THE DECODED VALUE AND NOT THE FILE, and the two are
   different channels. Its marker is deflated into the blob, so it can never
-  appear in the RAW save - which is what
-  :func:`load_world_from_bytes` takes as a parameter and what its frame held on
-  every raise path until CS-961's repair pass.
+  appear in the RAW save - which is what :func:`load_world_from_bytes` takes as
+  a parameter and what its own frame held on every raise path until CS-961.
   ``tests/save/test_world.py::test_no_clockspeed_frame_holds_the_raw_save_on_any_refusal_path``
-  plants a second marker in the header's plaintext options string and covers
-  that channel; see the scrub at the head of that function.
+  plants a second marker in the plaintext header and grades THIS LAYER'S OWN
+  FRAMES. The CAUSE CHAIN is not covered and still leaks the raw save out of
+  ``header`` and ``chunks``; that is CS-963, measured and filed, not fixed here.
 
 WHAT AN ENTRY MAY NOT DO IS READ AS "NOT SET" (non-negotiable 7). Every walked
 record gets an entry, and an entry whose payload did not read under the measured
