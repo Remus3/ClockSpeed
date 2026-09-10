@@ -1256,7 +1256,16 @@ class PropertyResult:
             "this property is not set". DECODED WORLD CONTENT: a caller that
             renders it is an echo path under non-negotiable 12.
         schema_name: The class name the type path resolved to.
-        resolved: Whether the property map models that class at all.
+        resolved: Whether the property map models that class at all. THREE
+            STATES, AND THE THIRD IS NOT A SHADE OF THE SECOND. None means NO
+            MAP WAS SUPPLIED, so nothing has been consulted and nothing is
+            claimed - the state CI and every fresh clone are in, because
+            ``usmap.cached_usmap()`` answers None with no game install. False
+            means a map WAS supplied and does not model this class. Collapsing
+            the two would report a world of unmodelled content on the strength
+            of having looked at nothing, which is the same distinction
+            ``known_classes=None`` already draws one layer up. NEITHER STATE
+            GATES THE DECODE - see :func:`read_properties`.
         warnings: What was flagged and skipped.
         unmeasured_value_count: How many tags carried a type whose value
             encoding is unmeasured. DEFAULTED so that adding it could not
@@ -1311,7 +1320,7 @@ class PropertyResult:
 
     properties: Mapping[str, object]
     schema_name: str
-    resolved: bool
+    resolved: bool | None
     warnings: tuple[ObjectWarning, ...]
     unmeasured_value_count: int = 0
     disagreeing_value_count: int = 0
@@ -5421,7 +5430,9 @@ def _as_reference(property_name: str, value: object) -> ObjectReference | None:
 # ---------------------------------------------------------------------------
 
 
-def read_properties(body: bytes, record: ObjectRecord, property_map: PropertyMap) -> PropertyResult:
+def read_properties(
+    body: bytes, record: ObjectRecord, property_map: PropertyMap | None = None
+) -> PropertyResult:
     """Decode one record's measured properties and report what was skipped.
 
     DECODING DOES NOT DEPEND ON THE SCHEMA RESOLVING, and that is a measurement
@@ -5442,6 +5453,26 @@ def read_properties(body: bytes, record: ObjectRecord, property_map: PropertyMap
     properties are still read; a property whose TYPE is unmeasured is skipped
     and counted whether the class resolved or not.
 
+    AND THE MAP IS OPTIONAL, WHICH IS THE SAME MEASUREMENT CARRIED TO ITS END
+    (CS-960). If the mapping is not an input to the decode then requiring one
+    buys nothing and costs everything: ``usmap.cached_usmap()`` answers None on
+    a machine with no game install, so a mandatory map meant CI and every fresh
+    clone decoded no property at all. Every use of the parameter below this
+    line is a membership test on a class name the record table already holds,
+    plus two ``del`` statements for privacy - no width, no offset and no type
+    word comes from it, and nothing beneath this function even accepts one.
+    The signature said "non-optional" because at the commit that wrote it this
+    function DECODED NOTHING and the schema lookup was its whole body; decoding
+    was added later and the signature was never revisited. A parameter's
+    necessity is a claim about the function as it is now.
+
+    WITH NO MAP, ``resolved`` IS None AND NO UNRESOLVED-SCHEMA WARNING IS
+    RAISED. Absent is not unmodelled: nothing was consulted, so nothing may be
+    claimed, and answering False there would flag every record in the world as
+    unknown content on a machine that simply has no install - the
+    confident-wrong answer non-negotiable 7 forbids. It is the position
+    ``parse_object_headers`` already takes with ``known_classes=None``.
+
     Nothing here raises for unknown content.
 
     THE STRUCTURAL CHECK RUNS FIRST, AND IT RUNS FOR EVERY RECORD. It used to
@@ -5457,8 +5488,10 @@ def read_properties(body: bytes, record: ObjectRecord, property_map: PropertyMap
     Args:
         body: The decompressed body the record was walked out of.
         record: The record to resolve.
-        property_map: The parsed mapping. Non-optional: handling the
-            no-install None is the world layer's job, not this one's.
+        property_map: The parsed mapping, or None when none was supplied.
+            OPTIONAL, and defaulted so that "no map" is the shape a caller
+            falls into rather than one it has to construct. It drives the
+            resolution report alone and never the decode.
 
     Returns:
         What resolved, what did not, and why.
@@ -5498,9 +5531,17 @@ def read_properties(body: bytes, record: ObjectRecord, property_map: PropertyMap
         )
 
     name = class_name_of(record.type_path)
-    resolved = name in property_map.schemas
+    # THE ONLY USE OF THE MAP IN THIS FUNCTION, and it feeds the report rather
+    # than the decode. None propagates as None: no map was consulted, so the
+    # question "does the mapping model this class" has no answer here.
+    resolved = None if property_map is None else name in property_map.schemas
+    # `is False` RATHER THAN A TRUTHINESS TEST. None is falsy, so `if not
+    # resolved` would raise the unresolved-schema warning for a record nothing
+    # was ever checked against - which is exactly the collapse of ABSENT into
+    # UNMODELLED that the field above forbids, and it would fire on every
+    # record on any machine with no game install.
     schema_warnings: tuple[ObjectWarning, ...] = (
-        () if resolved else (_warning(WARN_UNRESOLVED_SCHEMA, record.body_offset),)
+        (_warning(WARN_UNRESOLVED_SCHEMA, record.body_offset),) if resolved is False else ()
     )
 
     if record.body_length == 0:
@@ -5897,7 +5938,7 @@ def resolve_references(index: RecordIndex, result: PropertyResult) -> ReferenceR
 
 
 def parse_properties(
-    body: bytes, record: ObjectRecord, property_map: PropertyMap
+    body: bytes, record: ObjectRecord, property_map: PropertyMap | None = None
 ) -> Mapping[str, object]:
     """Resolve one record's properties, discarding the diagnostics.
 
@@ -5923,7 +5964,11 @@ def parse_properties(
     Args:
         body: The decompressed body the record was walked out of.
         record: The record to resolve.
-        property_map: The parsed mapping.
+        property_map: The parsed mapping, or None when none was supplied.
+            OPTIONAL on the same terms as :func:`read_properties`, and the
+            optionality matters MORE here: this is the accessor that discards
+            the diagnostics, so a caller reaching for it is one that wants
+            values and has no use for a mapping it may not have.
 
     Returns:
         Whatever :func:`read_properties` decoded, with its diagnostics dropped.

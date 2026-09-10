@@ -196,13 +196,37 @@ _CYCLE_MODULE_FLOOR: Final = 4
 #: ABOUT a line pointer is a line pointer to the forbid arm, which cannot tell
 #: the two apart and should not try. The target is named by its document and its
 #: section, and the number is left unspelled.
+#: `_ROT_FORM` 14 TO 13 AND `_ROT_EMPTY` 3 TO 4, 2026-09-09 BY CS-960, AND IT IS
+#: ONE POINTER RATHER THAN TWO FINDINGS. The archive names a line of
+#: `clockspeed/save/objects.py` meaning the `Raises` clause that spells
+#: `ObjectFormatError` for a discriminator with no measured record grammar.
+#: CS-960 made the property map optional and inserted nine lines above that
+#: clause, so the pointer stopped landing on a real line and started landing on
+#: the blank one that moved underneath it. NO NEW ROT ARRIVED and nothing in the
+#: archive was edited - one already-stale pointer changed bucket. That is the
+#: inversion CS-921 recorded in the other direction, and pooled it would have
+#: moved no total at all.
+#:
+#: THE RECORDED REASON COVERS THIS SITE, and the check is the same one CS-928
+#: applied rather than a fresh argument. The archive declares `Section status:
+#: HISTORICAL` and that it holds nothing current, so this citation was RIGHT
+#: WHEN WRITTEN and the module moved underneath it - rot by construction, which
+#: is the stated exemption. Repairing it would mean editing a record of what a
+#: past session measured, which is what the exemption exists to forbid. The live
+#: carriers that named the same declaration were repaired instead, in this same
+#: change, because nothing exempts them.
+#:
+#: NO COLON-NUMBER SHAPE APPEARS IN THIS COMMENT, per the note above: a comment
+#: ABOUT a line pointer is a line pointer to the forbid arm, which cannot tell
+#: the two apart and should not try. The target is named by its module and its
+#: clause, and the number is left unspelled.
 ARCHIVE_ROT: Final[Mapping[str, int]] = {
     _ROT_CITATION: 5,
     _ROT_RANGE: 0,
-    _ROT_EMPTY: 3,
+    _ROT_EMPTY: 4,
     _ROT_NAME: 3,
     _ROT_PATH: 4,
-    _ROT_FORM: 14,
+    _ROT_FORM: 13,
 }
 
 

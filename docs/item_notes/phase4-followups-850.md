@@ -417,7 +417,7 @@ expression into channels. E3 offers four proof forms; anything else is a finding
 **THE HEADLINE REFUTATION: NINE PATHS ISSUED POSITIVE FALSE PROOFS.** This is worse in
 kind than reporting silence - a `proven-*` verdict is a CLEARANCE a later session will
 cite. An adversary made a real save-body-derived value reach `args` in a real shipped
-class - `instance_name` from `cursor.string` at `clockspeed/save/objects.py:1747`,
+class - `instance_name` from `cursor.string` at `clockspeed/save/objects.py:1756`,
 interpolated into `ObjectFormatError` - while all 51 arms passed and the report was
 BYTE-IDENTICAL to pristine. The nine:
   - a BoolOp fallback `f"{name or 'unnamed'}"` graded `proven-scalar`. **THIS IS LIVE
@@ -734,8 +734,8 @@ account id and world name render in full. Archived in `docs/history_notes.md`. S
 **NOBODY OWNS IT AND BOTH CANDIDATES SAY SO IN WRITING.**
 `tests/test_redaction_scope.py:26-41` declares the chained cause out of scope and NAMED
 `clockspeed/save/world.py` line 971 as the site - a pointer that had ITSELF drifted, that
-statement having moved to `clockspeed/save/world.py:989`. It was REPOINTED in session 44
-to `clockspeed/save/world.py:1109` rather than renumbered, because the claim it carries -
+statement having moved to `clockspeed/save/world.py:991`. It was REPOINTED in session 44
+to `clockspeed/save/world.py:1111` rather than renumbered, because the claim it carries -
 filename included - is FALSE at the STAGE_HEADER site: `parse_header` takes bytes, so the
 `HeaderError` it raises has no filename to carry. STAGE_COPY and STAGE_USMAP are the two
 of the five whose cause reaches an `OSError` that does. The CS-852 message guard declares

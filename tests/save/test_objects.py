@@ -669,6 +669,64 @@ def test_the_corpus_unknown_actor_fixture_is_flagged_and_never_fatal() -> None:
     ]
 
 
+def test_class_flagging_and_schema_resolution_answer_from_separate_inputs() -> None:
+    """CS-960. Two mechanisms, two inputs, and neither derived from the other.
+
+    ``known_classes`` decides whether the WALK flags a class as unmodelled.
+    A property map decides whether the READER reports that class's schema as
+    resolved. They already answer from different arguments; what this arm
+    grades is that making the map optional did not quietly wire one to the
+    other - the tempting shortcut being to read an absent map as "unmodelled",
+    which would make every class on a machine with no install look flagged.
+
+    IT IS GRADED ON THE SAME RECORD BOTH WAYS. Asserting each mechanism against
+    its own fixture would let a coupling hide: a class the registry flagged has
+    to still be able to resolve, and a class the registry accepted has to still
+    be able to report an ABSENT map rather than a resolved one.
+    """
+    save = synthetic.unknown_actor_class()
+    unknown_name = objects.class_name_of(synthetic.UNKNOWN_ACTOR_CLASS_PATH)
+
+    flagging = _table_of(save, known_classes=_known(_KNOWN_CLASS_PATH_A))
+    no_registry = _table_of(save, known_classes=None)
+
+    assert [unknown.type_path for unknown in flagging.unknown_classes] == [
+        synthetic.UNKNOWN_ACTOR_CLASS_PATH
+    ]
+    assert no_registry.unknown_classes == (), "an absent registry claims nothing"
+
+    accepted = next(
+        record for record in flagging.records if record.type_path == _KNOWN_CLASS_PATH_A
+    )
+    rejected = next(
+        record
+        for record in flagging.records
+        if record.type_path == synthetic.UNKNOWN_ACTOR_CLASS_PATH
+    )
+
+    # The FLAT walk attributes no payload extent, so both reads take the early
+    # return and report resolution and nothing else - which is exactly the
+    # mechanism under test here. The decode itself is graded in
+    # ``tests/save/test_properties.py``.
+    assert accepted.body_length == 0
+    assert rejected.body_length == 0
+
+    # A class the registry FLAGGED still resolves when a map models it, and
+    # still reports ABSENT rather than unmodelled when no map was supplied.
+    assert objects.read_properties(b"", rejected, _property_map(unknown_name)).resolved is True
+    assert objects.read_properties(b"", rejected, None).resolved is None
+    # A class the registry ACCEPTED is not thereby resolved: the walk's verdict
+    # is not the reader's, and an absent map still answers ABSENT.
+    assert objects.read_properties(b"", accepted, None).resolved is None
+    assert objects.read_properties(b"", accepted, _property_map(unknown_name)).resolved is False
+
+    # And the walk's own verdict did not move under any of that.
+    assert [unknown.type_path for unknown in flagging.unknown_classes] == [
+        synthetic.UNKNOWN_ACTOR_CLASS_PATH
+    ]
+    assert no_registry.unknown_classes == ()
+
+
 def test_a_namespaced_mod_class_path_is_flagged_and_never_fatal() -> None:
     """Acceptance 5, BOOTSTRAP.md section 9.
 
