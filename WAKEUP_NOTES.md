@@ -34,6 +34,53 @@ the line becomes a pointer.
 
 ---
 
+## Session 78 - 2026-09-09 - a premise this project had built on was refuted in its own tree, and the dashboard turned out to be a self-diagnostic
+
+- Shipped: nothing CLOSED as an ITEM. CS-962's slice S0 merged. CS-960, CS-961
+  and CS-962 FILED. Detail in `docs/LEDGER.md`.
+
+- In flight: nothing. Tree clean, no stash. Two adversary worktrees survive on
+  disk under `.claude/worktrees/`, both clean and detached.
+
+- THE SESSION WAS SENT AT THE DASHBOARD AND FOUND THE DASHBOARD WAS NOT THE
+  PROBLEM. Three parallel read-only surveys established that the page is a
+  SELF-DIAGNOSTIC: it renders its own health, its own route table, six world
+  scalars and five counts. `/api/registry` is fetched every refresh and only
+  its HTTP STATUS reaches the DOM. `/api/solve` and `/api/optimize` answer 200
+  against real data and the page never calls them. `advisor/`, `audit/` and
+  `progress/` contain NO executable code at all - four docstring-only files.
+
+- THE FINDING THAT MATTERS IS THAT A USMAP IS NOT NEEDED TO DECODE A SAVE, and
+  it was settled IN THIS TREE rather than read off a third party. All four uses
+  of the `property_map` parameter below `read_properties` are a membership test
+  on a class name the stream already carries, or the parameter being passed
+  through or deleted for privacy. A probe decoded one synthetic payload twice,
+  the second time with a map holding ZERO schemas, and got the same 17 values
+  with identical references and struct interiors.
+
+- THE RECORDED REASON WAS STALE AND PROVABLY SO. The docstring justifies the
+  mandatory map as a layering choice. `git log -S` finds exactly one commit
+  introducing that signature, and at that commit `read_properties` DECODED
+  NOTHING - the schema lookup was the whole function. Decoding came later and
+  the signature was never revisited. A PARAMETER'S NECESSITY IS A CLAIM ABOUT
+  THE FUNCTION AS IT IS NOW. The tree's own prose already said the mapping is
+  not an input to the decode; nobody had acted on it.
+
+- Decisions: no ADR. Four operator rulings on CS-962 and a licence gate over
+  five save-parser candidates, all recorded with their fences in
+  `docs/LEDGER.md` and `docs/item_notes/phase4-followups-900.md`.
+
+- Surprises: nothing contradicted `BOOTSTRAP.md`. The refuted premise lives in
+  a docstring and an item note, not in the specification.
+
+- Failed paths: none abandoned. One brief was WRONG and the builder said so
+  rather than building to it - the route-table defect was already half-guarded.
+
+- Next action: dispatch CS-960. It is the smallest item with the largest
+  consequence and it is sized for one row.
+
+---
+
 ## Session 77 - 2026-09-08 - the red CI was a Windows assumption, and every claim this session made was refuted before it was believed
 
 - Shipped: nothing CLOSED as an ITEM. CS-958's F1, F4, F5, F6 and F8 closed
@@ -128,69 +175,3 @@ the line becomes a pointer.
 - Next action: REFUTE THE S1 REPAIR. It answered an adversary and has had no
   adversarial pass of its own, and it introduced an asymmetry it named but did
   not resolve.
-
-## Session 75 - 2026-09-08 - the grant was refused on a measurement, and every artifact this session built was refuted before it was believed
-
-- Shipped: CS-952 CLOSED. CS-956 and CS-958 FILED. CS-957 and CS-958 built and
-  hardened but OPEN by design. Detail in `docs/LEDGER.md`, not here.
-
-- In flight: nothing. Tree clean, no worktrees, no stash, nothing unpushed.
-
-- THE SESSION'S SHAPE WAS BUILD-THEN-REFUTE AND EVERY REFUTATION PAID. Seven
-  graders ran. Not one returned empty, and three found the defect in the
-  EVIDENCE rather than in the artifact - which is the part to carry forward.
-
-- CS-952: A FROZEN-FILE GRANT WAS ISSUED AND DELIBERATELY NOT SPENT. An
-  adjudicator granted the edit to `.claude/settings.json` with conditions. An
-  adversary then refuted the PREMISE: `moon_sync_inbox/` is itself gitignored,
-  so a fresh clone has no channel, the watcher answers that with exit 3, and a
-  `SessionStart` hook exiting non-zero has its stdout dropped. The tracked
-  wiring would have fired, failed and said nothing. A GRANT IS PERMISSION, NOT
-  AN INSTRUCTION. The claim was corrected instead - which this ledger already
-  recorded twice, under CS-928 and CS-931, and the proposal cited neither.
-
-- THE CHANNEL HALF WAS SENT. One note, 3712 bytes, to four sibling inboxes,
-  operator-authorised, bytes checked for ASCII and personal data BEFORE the send
-  was reported. Its only record is the ledger entry, which is CS-951
-  demonstrated rather than argued.
-
-- CS-957, the outbound leak gate: REFUTED THREE TIMES. The exclusion hatch it
-  relied on was consumed inside `discover_world_names`, which `PiiMatchers`
-  builds for BOTH gates - so silencing an outbound false positive would have
-  blinded the frozen commit gate to that real world name, permanently. Measured
-  1 to 0 diagnostics, blocklist 25 to 17. Split into its own key.
-
-- A MUTATION PASS THEN REFUTED THE SUITE, NOT THE CODE. Ten mutants, two shipped
-  green: `_canary_measured` hardcoded True, and the oracle reconciliation
-  no-op'd. The second was silently backstopping two other arms. FOURTEEN PASSING
-  ARMS WERE NOT EVIDENCE THEY GRADED ANYTHING.
-
-- CS-958, the send path: the gate had ZERO call sites, so it was an instrument
-  beside the channel rather than a gate in front of it. An adversary then
-  demonstrated four defects in the sender, including a real partial delivery
-  reported as "nothing was sent", and a TOCTOU window that delivered ungraded
-  bytes recorded as CLEAN.
-
-- Decisions: none needing an ADR. The CS-952 branch choice is recorded in the
-  ledger with its fence.
-
-- Surprises: nothing contradicted `BOOTSTRAP.md`. No spec update is owed.
-
-- Failed paths: tracking the watcher wiring (refused on measurement, do not
-  re-pitch); a higher length floor for the world-name class (the commit gate
-  already denied it by measurement - 8 of 25 real names would drop out of the
-  COMMIT gate too).
-
-- MY OWN FAULTS, KEPT VISIBLE BECAUSE THEY ARE THE TRANSFERABLE PART. A stash
-  used to attribute a test-count change reverted the tree BEFORE I snapshotted
-  it, so my "working copy" snapshot was already HEAD and restoring from it
-  restored HEAD - the whole repair sat in `stash@{0}` while the tree read clean.
-  Recovered by luck, not design. And twice I wrote a probe helper that accepted
-  an `env` argument and never passed it to the subprocess, which produced a
-  false negative I nearly banked as a verified fix, and wrote a real delivery
-  record into the repository's default location.
-
-- Next action: **REFUTE THE REPAIRED SENDER.** CS-958's four fixes answer the
-  pass against the PREVIOUS commit and have had no adversarial pass of their
-  own. Four demonstrated defects in the first cut is a reason to expect the
-  second cut is not clean.

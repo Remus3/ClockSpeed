@@ -160,6 +160,68 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-09 - CS-962 - NOT A COMPLETION RECORD. The dashboard's panel seam and a route-table binding merged, and a decomposition that proved its own disjointness collided twice anyway
+
+**CS-962 STAYS OPEN.** The seam is in and all four panels are stubs that
+register and render nothing. Nothing player-facing ships yet.
+
+**What shipped.** Merged files: `clockspeed/surface/server.py`,
+`clockspeed/surface/web/index.html`, `clockspeed/surface/web/app.js`, four new
+`clockspeed/surface/web/panel_*.js` stubs, `tests/surface/test_web_assets.py`,
+`tests/surface/test_panel_seam.py`, `tests/surface/test_route_table_binding.py`
+and `tests/surface/test_server.py`.
+
+- **The panel seam.** `registerPanel(id, mountFn)`; a panel receives a DOM root
+  and the ALREADY-FETCHED payloads and issues no fetch of its own, so `app.js`
+  keeps sole ownership of I/O. A panel whose mount throws does not stop the
+  others. Verified by
+  `tests/surface/test_panel_seam.py::test_a_panel_that_throws_does_not_stop_the_others`,
+  `::test_every_panel_module_registers_exactly_once`,
+  `::test_no_panel_module_issues_its_own_fetch`, and
+  `tests/surface/test_server.py::test_the_static_surface_is_exactly_the_names_the_page_loads`.
+  The isolation guard was measured rather than asserted: removing the `try`
+  reddened three arms.
+- **The route-table binding.** Two one-directional arms already existed, so the
+  briefed defect - "no test binds them" - was FALSE and the builder said so
+  instead of building to the brief. What had no guard was a row the page
+  carries that nothing publishes, a template written twice, and the table
+  silently REORDERED. Verified by
+  `tests/surface/test_route_table_binding.py::test_the_page_route_list_matches_the_health_template_list`
+  and `::test_the_binding_detector_fires_on_a_planted_divergence`. The second
+  arm exists because the first is green on today's tree and a test that has
+  never been red proves nothing - stubbing the comparator to accept everything
+  reddened the comparator arm while the live arm still PASSED.
+
+**TWO COLLISIONS THE DECOMPOSITION DID NOT SURVIVE, and both transfer.**
+
+1. **A WRITE-LIST IS DERIVED FROM WHO WRITES, AND WHAT BREAKS IS WHOEVER
+   READS.** The planner enumerated fifteen paths and proved no two slices shared
+   one. `tests/surface/test_server.py` still went red: it pinned the static
+   surface at exactly three names and no slice had listed it. The next
+   decomposition must ask what ASSERTS on a value, not only what edits a file.
+   The builder refused to widen its own write-list and reported it; the merger
+   repaired it. The count now DERIVES from the server's own table, because a
+   count maintained in two files is a count that gets updated in one - while
+   the names stay spelled out, which is the half a derived count cannot do.
+2. **TWO AGENTS ALLOCATING AN ID FROM ONE HIGH-WATER MARK IN PARALLEL WILL
+   COLLIDE.** The builder had no item, allocated `CS-960` itself and said so
+   plainly; the merger had given that id to the decode work in the same session
+   from the same reading. Ten references moved at merge. THE ID BELONGS IN THE
+   DISPATCH.
+
+**WHAT IS NOT MEASURED, carried from the builder's own report rather than
+rounded up.** No real browser ran. The behavioural arms use a hand-written DOM
+stand-in under node, so layout, focus and the `defer` load order are NOT graded
+- `defer` is asserted as markup only. A CS-600-style Chromium pass over the new
+panel host is owed. Node being on PATH in CI was unverified at merge and is now
+confirmed by measurement: CI's passed count rose by exactly the new arms while
+its skip count did not move, and these arms fail loudly rather than skipping.
+
+**How to verify this independently.** `python -m pytest tests/surface -q` from
+the repository root. Then delete the `try` from `mountPanel` in `app.js` and
+re-run: three arms must red. Then reorder two entries in the page's `ROUTES`
+array and re-run: the binding arm must red.
+
 ### 2026-09-09 - LICENCE GATE RESULT for the save-parser field, and a refuted premise this project had been building on. NOT A COMPLETION RECORD
 
 **Nothing closed. This is a gate verdict plus a measured correction**, recorded before
