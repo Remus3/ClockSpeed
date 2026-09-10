@@ -1065,8 +1065,8 @@ UNVERIFIED_LINE_POINTERS: Final[Mapping[tuple[str, str, int], str]] = {
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/header.py", 927): "2b49f05b544d",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/objects.py", 1756): "0e68b6914ed2",
     ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/workdir.py", 688): "e2d30d6ce513",
-    ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/world.py", 991): "7b4d51124c45",
-    ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/world.py", 1111): "25062ba27287",
+    ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/world.py", 1367): "7b4d51124c45",
+    ("docs/item_notes/phase4-followups-850.md", "clockspeed/save/world.py", 1495): "25062ba27287",
     (
         "docs/item_notes/phase4-followups-850.md",
         "tests/save/test_container_elements.py",
