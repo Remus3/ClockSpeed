@@ -211,3 +211,16 @@ the tree and still exits 0.**
   The fix must DERIVE the expected count rather than record one: a `--collect-only -q` pass
   before the run, compared against the total the run reports. A number written into a file
   would be a restated measurement and would drift on the next test added.
+
+- THREE LIVE DOC LINE POINTERS ARE STALE AND NO GUARD COVERS THEM, measured 2026-09-09
+  during the CS-960 re-check and stale at that item's BASE commit, so nothing this project
+  did broke them. `docs/item_notes/phase4.md` cites two declarations in
+  `clockspeed/save/objects.py` and `docs/LEDGER.md` cites a third; all three now land
+  elsewhere, one of them on a bare comment marker. None is in `UNVERIFIED_LINE_POINTERS`
+  or in a disposition, so the citation guard checks only that the line is in RANGE and is
+  silent on where it points. Repairing them is NOT the repointing CS-960 did: those five
+  moved to byte-identical content and the unchanged digest proved it, whereas these need
+  somebody to read each sentence and adjudicate which declaration it MEANT. Deriving the
+  target from today's tree instead would bake in whatever the pointer happens to hit and
+  ship green on the very defect it was filed for - the objection already recorded against
+  a content-anchored resolver.

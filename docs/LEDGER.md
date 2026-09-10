@@ -160,6 +160,83 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-09 - CS-960 - CLOSED. The decode path accepts an absent property map, and the requirement it dropped was self-imposed by a docstring written when the function decoded nothing
+
+**What shipped.** `objects.read_properties` and `objects.parse_properties` now take
+`PropertyMap | None` and decode either way. `PropertyResult.resolved` becomes
+`bool | None`: None means NO REGISTRY WAS SUPPLIED, and False keeps its only prior
+meaning - a registry was supplied and does not model this class.
+`WARN_UNRESOLVED_SCHEMA` is emitted only when a map was supplied, because with none
+there is nothing to be unresolved against. That mirrors the position
+`known_classes=None` already takes downstream, where no registry claims nothing.
+Merged files: `clockspeed/save/objects.py`, `clockspeed/save/world.py`. Verified by
+`tests/save/test_properties.py::test_a_decode_with_no_map_differs_from_the_mapped_one_in_nothing_but_resolution`,
+`::test_resolution_reports_absent_unmodelled_and_modelled_as_three_distinct_states`,
+`::test_no_unresolved_schema_warning_is_raised_when_no_map_was_supplied`,
+`::test_a_zero_length_payload_reports_an_absent_map_the_same_way`,
+`::test_no_clockspeed_frame_holds_the_body_when_the_extent_raises` and
+`tests/save/test_objects.py::test_class_flagging_and_schema_resolution_answer_from_separate_inputs`.
+
+**WHY IT WAS EVER MANDATORY, WHICH IS THE TRANSFERABLE PART.** The docstring said
+the parameter was non-optional because handling the no-install None was the world
+layer's job - a LAYERING assertion, never a measurement. `git log -S` finds exactly
+one commit introducing that signature, and at that commit the function DECODED
+NOTHING: the schema lookup was its entire body, so the map was mandatory because
+resolution WAS the function. Decoding was added later and the signature was never
+revisited. **A PARAMETER'S NECESSITY IS A CLAIM ABOUT THE FUNCTION AS IT IS NOW,
+NOT AS IT WAS WHEN THE PARAMETER WAS ADDED.** Until this closed, the project
+decoded no property on CI or in any fresh clone, because `cached_usmap()` returns
+None with no game install.
+
+**THE PROOF IS STRUCTURAL, NOT A SAMPLE, and the adversary is what made it so.** An
+arm over the fixtures its own authors chose is the weakest possible evidence for a
+universal. The refutation pass traced the parameter to exactly FOUR executable
+sites - one conditional expression, two privacy `del` statements and one
+pass-through - and established that no helper below `read_properties` accepts a
+map, and that there is no cache, module global or interned state. The value
+therefore flows from one expression into the two exempt fields and nowhere else, so
+NO PAYLOAD CAN DISTINGUISH the two decodes. The empirical half agreed: 23
+hand-built payloads verified BY CENSUS to have reached the shapes claimed - nested
+structs, arrays of structs, empty containers, sets, maps, enums, named and raw
+`ByteProperty`, `TextProperty`, `SoftObjectProperty`, unknown type words, both
+record kinds - plus 8000 fuzz payloads and every truncation prefix, each decoded
+mapped-hit, mapped-miss and unmapped, in both orders and repeated. Zero differences
+outside `resolved` and `warnings`. A NON-VACUITY CONTROL was run: putting `resolved`
+back into the comparator reddens it immediately.
+
+**FIVE LIVE LINE POINTERS WERE REPOINTED AND THE DIGEST IS WHAT MAKES THAT HONEST.**
+The change inserted nine lines above four cited declarations. Each pin moved to its
+new number with its DIGEST UNCHANGED, so the guard itself proves the new line holds
+byte-identical content; a repoint that had drifted would have reddened. All five
+were re-checked independently against the base commit.
+
+**ONE DEEP-ARCHIVE POINTER MOVED BUCKET AND WAS NOT REPAIRED.** `_ROT_FORM` 14 to 13
+and `_ROT_EMPTY` 3 to 4 are ONE pointer, not two findings - the same inversion
+CS-921 recorded in the other direction, and pooled it would have moved no total at
+all. `docs/history_notes.md` declares itself HISTORICAL and holds nothing current,
+so its citation was right when written and the module moved underneath it. That is
+rot by construction, which is the stated exemption; editing the archive to repair it
+is what the exemption exists to forbid. The pin was bumped with the reason recorded
+and no colon-number shape in the comment.
+
+**WHAT THE RE-CHECK FOUND THAT THE BUILDER AND THE MERGER BOTH MISSED.** Two things,
+neither load-bearing, and both worth the record. The failure message of the leak arm
+had lost the words "locals prints", so it read "A renderer showing it verbatim" and
+no longer named the mechanism it exists to explain - text that renders only on a red
+run, which is exactly when it has to be right. It was repaired in the same merge.
+And the five repaired pointers are not the whole population: THREE MORE live doc
+pointers sit past the insertion and now land elsewhere. All three were ALREADY STALE
+at the base commit, so this change did not break them, and none is covered by a pin
+or a disposition - the guard is range-only on them. Filed to `BACKLOG.md`, because
+repairing them means adjudicating what each intended rather than repointing to
+identical content.
+
+**Independently verified.** Whole suite re-run by an agent that did not produce the
+work: 6082 passed, 7 skipped, exit 0, twice. All 7 skips read and accounted for -
+four platform chmod skips naming ubuntu CI as the measuring platform, three
+`test_mypy_gate.py` skips because the gap record is empty. `ruff check`,
+`ruff format --check`, `mypy` over 185 files and `tools/drift_guard.py` all clean.
+
 ### 2026-09-09 - CS-962 - NOT A COMPLETION RECORD. The dashboard's panel seam and a route-table binding merged, and a decomposition that proved its own disjointness collided twice anyway
 
 **CS-962 STAYS OPEN.** The seam is in and all four panels are stubs that

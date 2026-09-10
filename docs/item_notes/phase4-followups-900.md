@@ -1127,52 +1127,30 @@ as a probe would flatten a corrupt one that `load_record` cannot parse.
    ordering fix for one property broke another property of the same function,
    and only an agent asking "what did this change break" found it.
 
-## CS-960 and CS-961
+## CS-961
 
-### FILED 2026-09-09 (session 78) after a premise this project had built on was REFUTED IN ITS OWN TREE
+### FILED 2026-09-09 (session 78), and CS-960 closed off it on 2026-09-09 (session 79)
 
-**THE PREMISE WAS THAT A SAVE'S PROPERTY PAYLOADS CANNOT BE DECODED WITHOUT A
-`.usmap`.** It is false, and the refutation is a measurement of this repository
-rather than a reading of anyone else's. `docs/LEDGER.md` carries the licence
-gate and the external context; this note carries what was measured here.
+**CS-960 IS CLOSED AND ITS DETAIL IS IN `docs/LEDGER.md`**, dated 2026-09-09. It
+made the decode path accept an absent property map. Nothing about it is repeated
+here: this leaf holds live detail for open work, and a completion record kept in
+two places is a record that will be updated in one.
 
-**THE BUCKET TABLE.** Every use of the `property_map` parameter below
-`read_properties` was traced. There are four. One is a membership test on a
-class name the record table already holds, which drives only the `resolved`
-field and one warning. Three are the parameter being passed through or deleted
-from a frame for privacy. **NONE of them is a width, an offset or a type word
-the stream does not carry.** Nothing beneath `read_properties` even accepts a
-map - every helper on the walk takes bytes and offsets only.
+**CS-961 IS THE REAL BLOCKER AND IT IS ARCHITECTURE.** With CS-960 landed the
+reader below is willing, and no layer above the save reader can decode anything
+regardless, because the published model drops the payload buffer. The shape to
+avoid is handing callers offsets into a buffer they do not hold; the shape to
+reach for is decoding during the walk that already has the bytes. The privacy
+clause is not optional garnish - a raw body in an error message is exactly the
+echo path non-negotiable 12 forbids.
 
-**THE KILL TEST, run read-only against the synthetic corpus.** One payload,
-decoded twice: once with the fixture's schema map, once with a map holding zero
-names and zero schemas. Same 17 values, identical references, identical struct
-interiors. The only difference is the `resolved` flag and one warning. Note also
-that even the resolving map carries `properties=()` per schema - it supplies
-zero field descriptors and the decode is complete regardless.
-
-**THE RECORDED REASON IS STALE, AND THAT IS THE TRANSFERABLE PART.** The
-docstring says the map is non-optional because "handling the no-install None is
-the world layer's job, not this one's" - a LAYERING assertion, never a
-measurement. `git log -S` finds exactly one commit introducing that signature,
-and at that commit `read_properties` DECODED NOTHING: its own docstring said so,
-and the schema lookup was the entire body. The map was mandatory because
-resolution WAS the function. Decoding was added later and the signature was
-never revisited. **A PARAMETER'S NECESSITY IS A CLAIM ABOUT THE FUNCTION AS IT
-IS NOW, NOT AS IT WAS WHEN THE PARAMETER WAS ADDED.**
-
-**AND THE TREE ALREADY SAID SO.** `clockspeed/save/objects.py` states in its own
-prose that a payload is TAGGED serialization and "the mapping is not an input to
-the decode at all", and ADR 0016 records that every `BP_*` carrier is flagged
-unresolved-schema and decodes fully anyway. The measurement did not discover
-this; it discovered that nobody had acted on it.
-
-**CS-961 IS THE REAL BLOCKER AND IT IS ARCHITECTURE.** Even with CS-960 landed,
-no layer above the save reader can decode anything, because the published model
-drops the payload buffer. The shape to avoid is handing callers offsets into a
-buffer they do not hold; the shape to reach for is decoding during the walk that
-already has the bytes. The privacy clause is not optional garnish - a raw body
-in an error message is exactly the echo path non-negotiable 12 forbids.
+**WHAT CS-960 ESTABLISHED THAT THIS ITEM INHERITS, one line each.** A payload is
+TAGGED serialization, so no mapping is an input to the decode. `resolved` is
+`bool | None`, where None means no registry was supplied and False means one was
+supplied and does not model the class - CS-961 must carry that distinction
+upward rather than flattening it. And the decode is proven identical with and
+without a map by a structural argument, not a sample, so this item may rely on
+it without re-measuring.
 
 ### THE (14,60) WALL - A NAMED TARGET, AND TWO CANDIDATES THAT ARE NOT DISCRIMINATED
 
