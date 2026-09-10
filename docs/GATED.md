@@ -537,6 +537,33 @@ finished is the synthetic closure this file's own rule forbids, one level up.
 
 ---
 
+#### The (14,60) wall - a named target - relocated from `docs/item_notes/phase4-followups-900.md` 2026-09-10
+
+This is CS-G05's territory and is NOT closed here. Recorded because the probe
+found where to look.
+
+**Nothing in this tree reads a UE5 file version.** The only such field anywhere
+is inside the `.usmap` container header, which is a different file. No `1011` or
+`1012` appears in the repository, and two external sources give that gating
+constant differently, so neither number may be hardcoded from a citation.
+
+**Where it would live.** `(14,60)` is the ONLY pair carrying a package summary,
+and that summary is read as a string, then **22 OPAQUE BYTES THAT ARE SKIPPED**,
+then a custom-version count and that many 20-byte entries. A package summary
+carrying a custom-version array is exactly where an engine writes its file
+versions. Those 22 discarded bytes are the one region in this tree that could
+hold the discriminator.
+
+**BUT THE CAUSE IS NOT ESTABLISHED, AND A RESEMBLANCE IS NOT A FINDING.**
+`(14,60)` is also the only pair with a per-payload int32 trailer and the only one
+whose second collectables block is unnamed - so it already differs in payload
+FRAMING, not only in tag content. A framing difference that puts a body offset
+one field out produces the identical symptom: zero payloads reaching a
+terminator. The observation that zero reached one "at every alignment tried"
+argues against a pure start-offset error, but the set of alignments tried was
+never recorded, so it does not settle it either. Do not close CS-G05 by
+resemblance to the three readable pairs - its own section forbids exactly that.
+
 ### CS-829 - StructProperty's interior, gated behind CS-G05
 
 **One line:** Read the interior of every `StructProperty` the shipped vocabulary names, and

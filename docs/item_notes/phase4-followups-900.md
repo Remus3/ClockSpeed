@@ -1127,136 +1127,39 @@ as a probe would flatten a corrupt one that `load_record` cannot parse.
    ordering fix for one property broke another property of the same function,
    and only an agent asking "what did this change break" found it.
 
-## CS-961
+## CS-963
 
-### FILED 2026-09-09 (session 78), and CS-960 closed off it on 2026-09-09 (session 79)
+### FILED 2026-09-10 (session 79) from an adversarial pass over CS-961, MEASURED not inferred
 
-**CS-960 IS CLOSED AND ITS DETAIL IS IN `docs/LEDGER.md`**, dated 2026-09-09. It
-made the decode path accept an absent property map. Nothing about it is repeated
-here: this leaf holds live detail for open work, and a completion record kept in
-two places is a record that will be updated in one.
+**WHAT LEAKS.** `clockspeed/save/header.py::parse_header` and
+`clockspeed/save/chunks.py::decompress_body` take the raw save as a parameter and
+bind it as a frame local. Neither module contains a single `del`. `world.py` scrubs
+its OWN frame, but `raise ... from exc` puts the cause's frames in the rendered
+traceback, so a locals-showing renderer prints the file out of them. Both
+`pytest --showlocals` and `traceback.TracebackException(capture_locals=True)` do.
 
-**CS-961 IS THE REAL BLOCKER AND IT IS ARCHITECTURE.** With CS-960 landed the
-reader below is willing, and no layer above the save reader can decode anything
-regardless, because the published model drops the payload buffer. The shape to
-avoid is handing callers offsets into a buffer they do not hold; the shape to
-reach for is decoding during the walk that already has the bytes. The privacy
-clause is not optional garnish - a raw body in an error message is exactly the
-echo path non-negotiable 12 forbids.
+**MEASURED, with a planted marker in the plaintext header region.** The
+truncated-header path renders `header.parse_header`. The truncated-chunk-stream path
+renders `chunks.decompress_body`, `chunks.iter_frames` and `chunks.read_frame`. On a
+real save that local is the file whose header carries the platform, the account id
+and the player display name in plaintext - non-negotiable 12's exact subject.
 
-**WHAT CS-960 ESTABLISHED THAT THIS ITEM INHERITS, one line each.** A payload is
-TAGGED serialization, so no mapping is an input to the decode. `resolved` is
-`bool | None`, where None means no registry was supplied and False means one was
-supplied and does not model the class - CS-961 must carry that distinction
-upward rather than flattening it. And the decode is proven identical with and
-without a map by a structural argument, not a sample, so this item may rely on
-it without re-measuring.
+**WHY NO ARM CATCHES IT, AND THIS IS THE TRANSFERABLE HALF.** The shared frame walker
+follows `exc.__traceback__` only and never `__cause__` or `__context__`, so EVERY
+privacy arm in the save layer is silent on the cause chain by construction. The arm
+that appeared to cover this returned an empty verdict about itself. An oracle that
+cannot observe the value it is asked about passes for that reason alone, and the pass
+is indistinguishable from a real one.
 
-### THE (14,60) WALL - A NAMED TARGET, AND TWO CANDIDATES THAT ARE NOT DISCRIMINATED
+**WHAT THE FIX MUST NOT BE.** Scrubbing only the sites named above answers this
+measurement and not the class. The walker is the defect that hid it, so the arm comes
+first: a cause-chain walker, fronted by a known-good control proving it sees a planted
+marker when one IS present, and reddening when any single scrub is removed. Then the
+scrubs. A repair that leaves the walker blind buys one fix and no guard.
 
-This is CS-G05's territory and is NOT closed here. Recorded because the probe
-found where to look.
-
-**Nothing in this tree reads a UE5 file version.** The only such field anywhere
-is inside the `.usmap` container header, which is a different file. No `1011` or
-`1012` appears in the repository, and two external sources give that gating
-constant differently, so neither number may be hardcoded from a citation.
-
-**Where it would live.** `(14,60)` is the ONLY pair carrying a package summary,
-and that summary is read as a string, then **22 OPAQUE BYTES THAT ARE SKIPPED**,
-then a custom-version count and that many 20-byte entries. A package summary
-carrying a custom-version array is exactly where an engine writes its file
-versions. Those 22 discarded bytes are the one region in this tree that could
-hold the discriminator.
-
-**BUT THE CAUSE IS NOT ESTABLISHED, AND A RESEMBLANCE IS NOT A FINDING.**
-`(14,60)` is also the only pair with a per-payload int32 trailer and the only one
-whose second collectables block is unnamed - so it already differs in payload
-FRAMING, not only in tag content. A framing difference that puts a body offset
-one field out produces the identical symptom: zero payloads reaching a
-terminator. The observation that zero reached one "at every alignment tried"
-argues against a pure start-offset error, but the set of alignments tried was
-never recorded, so it does not settle it either. Do not close CS-G05 by
-resemblance to the three readable pairs - its own section forbids exactly that.
-
-### WHAT THE SECOND PASS COSTS - MEASURED 2026-09-10 (session 79), one machine, one library
-
-**THIS IS A MEASUREMENT AND NOT A BUDGET.** No threshold is proposed here and no
-performance test was added, because no threshold is grounded yet. The planner
-declined to name one and that still stands; what was missing was the number, not
-the limit.
-
-**THE METHOD, STATED FIRST BECAUSE THE TWO CANDIDATE METHODS MEASURE DIFFERENT
-THINGS.** The "before" figure was NOT obtained by checking out a pre-CS-961
-`world.py`. It was obtained by timing the walk alone against the decode pass
-alone, in one process, on one already-decompressed body: `_walk_body` called
-directly, then `_decode_properties` called directly on the table it returned.
-That measures the MARGINAL cost of the second pass over a body the first pass
-already read. It does NOT measure the delta in `load_world_from_bytes` between
-two revisions, and it credits the decode with nothing the walk got slower by. A
-whole-load timing was taken alongside it as the cross-check, and the two agree:
-walk plus decode reproduces the full load to within the run-to-run spread, which
-says the header parse, the decompression, the usmap resolve, the unlock read and
-the node extraction together cost almost nothing beside these two - the usmap is
-cached by the time the timed runs begin.
-
-**WHICH SAVE.** The largest reachable save BY RECORD COUNT, which is NOT the
-largest by file size - a fact worth keeping, because picking by file size lands
-on a smaller world. Its body decompresses to about 18.0 MB. Nothing about the
-file, the world or the account is recorded here, per non-negotiables 3 and 11.
-
-**FIVE RUNS EACH, AND THE SPREAD IS REPORTED RATHER THAN A MEAN.**
-
-| Pass | Five runs, seconds | Spread |
-|---|---|---|
-| Whole `load_world_from_bytes` | 1.9745, 2.0035, 2.0074, 2.0143, 2.0091 | 0.040 s, about 2 percent |
-| Walk alone (`_walk_body`) | 0.1994, 0.2078, 0.1918, 0.1934, 0.1838 | 0.024 s, about 12 percent |
-| Decode alone (`_decode_properties`) | 1.8457, 1.8228, 1.8124, 1.8352, 1.8979 | 0.086 s, about 5 percent |
-
-The spread is narrow enough that the ordering is not in doubt: **the decode pass
-costs roughly nine to ten times the walk it follows, and is about nine tenths of
-the whole load.** A load that took about a fifth of a second now takes about two
-seconds. The walk figure carries the widest relative spread of the three and is
-the one to re-measure before anything is built on it.
-
-**COUNTS FROM THE SAME LOAD.** 25769 records walked; 25769 property entries, the
-mapping being TOTAL over the record table by construction; **0 entries reported
-`payload_read=False`**; 19721 entries carried at least one value, so 6048
-decoded to an empty mapping without being flagged; 45347 top-level values in
-all. Schema resolution split 7699 `True` against 18070 `False`, with 0 `None` -
-a map was supplied, so the third state does not arise on this run.
-
-**A DIFFERENT SAVE IN THE SAME LIBRARY REPORTED 3923 OF 3923 WITH
-`payload_read=False`**, which is the (14,60) wall above showing up as a whole
-world of unread payloads rather than as a refusal. It is recorded here only as
-the contrast that makes the 0 above meaningful; it settles nothing about CS-G05.
-
-**MEMORY, MEASURED BY DROP RATHER THAN BY SNAPSHOT DIFF.** Under `tracemalloc`,
-holding the decode's result and then releasing it moved the traced total by
-133321730, 133321722 and 133321714 bytes across three runs - about **133 MB
-retained, and the three runs agree to within 16 bytes.** Traced peak during the
-pass was 276814540 bytes, identical on all three. So the published model holds
-roughly **7.4 times the size of the body it was decoded from**, and the pass
-transiently touches about fifteen times it.
-
-**WHERE THOSE BYTES GO, AND IT IS NOT SPREAD EVENLY.** The dominant site is the
-`ContainerEntry` construction inside `clockspeed/save/world.py`'s
-`_published_value`: about 1.08 million live instances holding about 103 MB, some
-78 percent of everything retained. Those come from roughly six thousand
-container-valued properties. **The eager-versus-lazy choice is not what costs
-here - the container fan-out is**, and anything that wants this cheaper should
-look at how a container publishes its elements before it looks at the pass that
-builds them.
-
-**WHAT THIS FIGURE DOES NOT COVER, AND THE LIST IS NOT SHORT.** One machine, one
-library, one save, one Windows box with the game installed on it. It says
-nothing about a second machine and nothing about a different world. **It says
-nothing at all about CI**, where no install exists, every payload decodes with
-no map, and the corpus is synthetic - so `resolved` is `None` there where it was
-`True` or `False` here, and the container fan-out that dominates the memory
-figure is whatever a hand-authored fixture happens to build. Do not carry any
-number above into a CI expectation. It is also a measurement of the tree at the
-CS-961 merge and of nothing after it.
+**SCOPE, so the next session does not re-derive it.** The leak PREDATES CS-961 - that
+item scrubbed `world.py` and narrowed its own claims to match the measurement rather
+than absorbing this. Two modules are in play and neither was in CS-961's decomposition.
 
 ## CS-962
 
