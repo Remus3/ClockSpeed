@@ -121,12 +121,36 @@
     <ul class="paths" id="unmodeled-list"></ul>
   </section>
 
+  <!--
+    CS-960 - THE PANEL SEAM'S ONLY MARK ON THIS DOCUMENT, and it is deliberately
+    the last one it will ever need. Every panel module builds its own
+    section.panel inside this host, so adding a panel is a new file plus one
+    script tag and never an edit to the markup above.
+
+    IT IS EMPTY AT REST because it is filled from app.js after the probes land,
+    exactly as the two sections above are. A host that shipped a placeholder
+    heading would be announcing a panel before anything had decided there was
+    one to announce.
+  -->
+  <div id="panels"></div>
+
 </main>
 
 <footer class="foot">
   <p>Local, deterministic, read-only. Nothing on this page leaves this machine.</p>
 </footer>
 
+<!--
+  APP.JS FIRST, AND THE ORDER IS LOAD-BEARING. It declares registerPanel, which
+  every module below calls at load; a panel loaded first would throw on a name
+  that does not exist yet. All of these are defer, which runs them in DOCUMENT
+  ORDER after parsing, so the order written here is the order they execute in.
+  Neither async nor a module type would hold that.
+-->
 <script src="app.js" defer></script>
+<script src="panel_registry.js" defer></script>
+<script src="panel_scope.js" defer></script>
+<script src="panel_solve.js" defer></script>
+<script src="panel_warnings.js" defer></script>
 </body>
 </html>

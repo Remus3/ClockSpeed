@@ -424,6 +424,148 @@ function renderWorld(result) {
   }
 }
 
+/* --- the panel seam ----------------------------------------------------- */
+
+/*
+  CS-960 - WHY THIS SEAM EXISTS, AND WHAT IT IS NOT.
+
+  Every panel this page will grow wants to touch two files: this one and
+  index.html. That makes a queue out of work that has no reason to be ordered -
+  two panels written at once collide in the same function, in the same file, for
+  no better reason than that the page has only one script. The seam breaks that:
+  a panel is its own module, it calls registerPanel once at load, and it never
+  edits this file again.
+
+  THIS FILE STILL OWNS ALL I/O, AND THAT IS THE WHOLE POINT OF PASSING data IN.
+  refresh() probes the routes ONE AT A TIME, on a button and never on a timer,
+  and both of those are properties of a single loop a reader can find. A panel
+  that opened its own fetch would sit outside that loop, so the page's request
+  behaviour would stop being readable in the file that documents it - and there
+  would be nothing stopping ten panels from issuing ten concurrent requests on
+  every repaint. A mount is handed what was ALREADY FETCHED and asks for
+  nothing.
+
+  A PANEL IS UNTRUSTED CODE AS FAR AS THIS LOOP IS CONCERNED. A mount that
+  throws must cost its own panel and nothing else: without the guard below, one
+  bad module empties the page of every panel registered after it, and the
+  failure looks like "the dashboard is blank" rather than "one panel is
+  broken". Each mount is therefore called inside its own try, and the failure is
+  rendered where that panel would have been.
+
+  NOTHING FROM THE EXCEPTION REACHES THE DOM. An error's message and stack on
+  this machine can carry an absolute path, and a path here carries the Windows
+  account name - non-negotiable 3. The failure note is built from the panel's
+  own id, which is a string this repo authored.
+
+  THE SECTIONS ARE BUILT ONCE AND REFILLED, NEVER REBUILT. Discarding and
+  recreating a section on every repaint is the innerHTML fault in another
+  costume: whatever a keyboard reader was standing on inside a panel would be a
+  node no longer in the document. The host keeps each panel's section and the
+  mount is given an empty one.
+*/
+
+/* The element every panel's section is appended to, and the marker each carries. */
+var PANEL_HOST = "panels";
+var PANEL_STATE = "data-panel-state";
+var PANEL_MOUNTED = "mounted";
+var PANEL_FAILED = "failed";
+
+/*
+  Registered panels, in registration order, which is the order they render in.
+  NAMED panelEntries AND NOT panels because the host element's id IS "panels",
+  and a user agent exposes an id as a property of window - a top-level var of
+  the same name shadows it, which works and reads as a bug forever after.
+*/
+var panelEntries = [];
+
+/*
+  The payloads of the last completed repaint, or null before the first one.
+  A panel registering AFTER a repaint has landed is mounted immediately against
+  this rather than waiting for the next press - a module that loaded late would
+  otherwise leave a silent gap on the page until someone clicked Refresh.
+*/
+var panelPayloads = null;
+
+function registerPanel(id, mountFn) {
+  /*
+    A registration is refused rather than half-accepted. A duplicate id would
+    take a second slot pointing at the same section, so the two mounts would
+    overwrite each other every repaint and the loser would be whichever
+    happened to run first.
+  */
+  if (typeof id !== "string" || !id) {
+    return false;
+  }
+  if (typeof mountFn !== "function") {
+    return false;
+  }
+  for (var index = 0; index < panelEntries.length; index += 1) {
+    if (panelEntries[index].id === id) {
+      return false;
+    }
+  }
+
+  var entry = { id: id, mount: mountFn };
+  panelEntries.push(entry);
+  if (panelPayloads) {
+    mountPanel(entry, panelPayloads);
+  }
+  return true;
+}
+
+function panelSection(id) {
+  /* The section for one panel, created on first use and kept thereafter. */
+  var host = byId(PANEL_HOST);
+  var domId = "panel-" + id;
+  var existing = byId(domId);
+  if (existing) {
+    return existing;
+  }
+  var section = el("section", "panel", null);
+  section.id = domId;
+  host.appendChild(section);
+  return section;
+}
+
+function mountPanel(entry, data) {
+  /* One panel, mounted into its own emptied section, with its throw contained. */
+  var section = panelSection(entry.id);
+  clear(section);
+  try {
+    entry.mount(section, data);
+    section.setAttribute(PANEL_STATE, PANEL_MOUNTED);
+  } catch (mountFailure) {
+    clear(section);
+    section.setAttribute(PANEL_STATE, PANEL_FAILED);
+    section.appendChild(el("p", "note", "panel " + entry.id + " did not render"));
+  }
+}
+
+function panelData(probes) {
+  /*
+    What a mount is handed: the parsed data object of each route this page
+    probed, or null where that route did not answer with one. Keyed by the part
+    of the path that names the domain, so a panel reads data.world rather than
+    a path a future router could re-spell.
+  */
+  return {
+    health: bodyData(probes["/api/health"]),
+    world: bodyData(probes["/api/world"]),
+    registry: bodyData(probes["/api/registry"]),
+    advice: bodyData(probes["/api/advice"]),
+    audit: bodyData(probes["/api/audit"]),
+    plan: bodyData(probes["/api/plan"])
+  };
+}
+
+function mountPanels(probes) {
+  /* Every registered panel, in registration order, each isolated from the rest. */
+  panelPayloads = panelData(probes);
+  for (var index = 0; index < panelEntries.length; index += 1) {
+    mountPanel(panelEntries[index], panelPayloads);
+  }
+}
+
 /* --- one repaint, on demand, never on a schedule ------------------------ */
 
 /*
@@ -485,6 +627,13 @@ async function refresh() {
     var liveness = renderHeader(probes["/api/health"]);
     renderEndpoints(liveness, probes);
     renderWorld(probes["/api/world"]);
+    /*
+      AFTER THE PROBES HAVE RESOLVED AND NEVER BEFORE. A panel is handed data,
+      not a promise, so there is nothing for it to mount against until the
+      loop above has finished. mountPanels cannot throw - every mount it makes
+      is individually guarded - so it needs no try of its own here.
+    */
+    mountPanels(probes);
   } finally {
     /*
       A throw anywhere above must still give the button back. Without this the

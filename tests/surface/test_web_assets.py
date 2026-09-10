@@ -1,4 +1,4 @@
-"""CS-601 slice S5 - the dashboard's three static assets, graded at rest.
+"""CS-601 slice S5 - the dashboard's static assets, graded at rest.
 
 WHAT THIS MODULE GRADES, AND WHAT IT DOES NOT. Every arm here reads the three
 shipped asset files as BYTES off disk and asserts a property of what a human
@@ -63,6 +63,18 @@ INDEX: Final = "index.html"
 STYLESHEET: Final = "app.css"
 SCRIPT: Final = "app.js"
 
+#: The panel modules, in the order ``index.html`` loads them. CS-960 split the
+#: page's panels out of ``app.js`` so a future panel is a NEW FILE rather than
+#: an edit to the one script every other panel also wants to edit. The seam
+#: itself - ``registerPanel`` and the mount loop - stays in ``app.js``, which is
+#: why that file is still named apart from these four.
+PANEL_MODULES: Final = (
+    "panel_registry.js",
+    "panel_scope.js",
+    "panel_solve.js",
+    "panel_warnings.js",
+)
+
 #: The route template ``clockspeed/surface/api/world.py`` answers. Spelled here
 #: rather than imported because that module names it ``ENDPOINT``, which would
 #: collide with ``health.ENDPOINT`` at any shared import site.
@@ -121,19 +133,24 @@ def read_asset(name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def test_the_server_names_exactly_three_assets() -> None:
-    """The name set this module grades is the server's own, and holds three.
+def test_the_server_names_exactly_seven_assets() -> None:
+    """The name set this module grades is the server's own, and holds seven.
 
     An arm that grades a name set it invented would stay green while the server
-    served a fourth file nobody checked.
+    served an eighth file nobody checked.
+
+    SEVEN RATHER THAN THREE SINCE CS-960: the page, the sheet, the script and
+    the four panel modules the page loads after it. The count is asserted
+    against the names rather than beside them, so a module added to the table
+    without being added here goes red on the set and not only on the length.
     """
-    expected = 3
+    expected = 3 + len(PANEL_MODULES)
     assert len(ASSET_NAMES) == expected, ASSET_NAMES
-    assert set(ASSET_NAMES) == {INDEX, STYLESHEET, SCRIPT}, ASSET_NAMES
+    assert set(ASSET_NAMES) == {INDEX, STYLESHEET, SCRIPT, *PANEL_MODULES}, ASSET_NAMES
 
 
 def test_every_named_asset_exists_on_disk() -> None:
-    """Each of the three files the static table names is present and non-empty.
+    """Each file the static table names is present and non-empty.
 
     THIS ARM IS THE PRECONDITION FOR EVERY OTHER ARM IN THIS FILE. Without it,
     a detector arm that read a missing file would error rather than pass, but a
@@ -156,7 +173,7 @@ def test_the_asset_directory_is_not_a_python_package() -> None:
 
 
 # ---------------------------------------------------------------------------
-# b. Character set - 7-bit ASCII in every byte of all three assets
+# b. Character set - 7-bit ASCII in every byte of every asset
 # ---------------------------------------------------------------------------
 
 
@@ -254,7 +271,7 @@ def remote_references(text: str) -> tuple[str, ...]:
 
 
 def test_no_asset_references_a_remote_resource() -> None:
-    """None of the three assets names anything off this machine."""
+    """No asset names anything off this machine."""
     findings = {
         name: remote_references(read_asset(name))
         for name in ASSET_NAMES
@@ -283,11 +300,17 @@ def test_the_remote_reference_detector_fires_on_each_planted_shape() -> None:
     assert not silent, f"the remote-reference detector did not fire on: {silent}"
 
 
-def test_the_page_links_only_its_own_two_local_assets() -> None:
-    """``index.html`` pulls in ``app.css`` and ``app.js`` and nothing else.
+def test_the_page_links_only_its_own_local_assets() -> None:
+    """``index.html`` pulls in the sheet, the script and the panels, and no more.
 
     Counting the tags is what makes this a claim about the WHOLE document
     rather than about the two tags that happen to be correct.
+
+    THE SCRIPT ORDER IS PART OF THE ASSERTION, not incidental to it. ``app.js``
+    defines ``registerPanel`` and every panel module calls it at load, so a page
+    that loaded a panel first would throw on a name that does not exist yet.
+    Both are ``defer``, which runs them in document order, so the order written
+    here is the order they execute in.
 
     CS-875 SWEEP: comments come out first. This is an equality over every href
     and src in the file, so an ``href`` inside an HTML comment could stand in
@@ -298,7 +321,7 @@ def test_the_page_links_only_its_own_two_local_assets() -> None:
     hrefs = tuple(re.findall(r'href="([^"]*)"', markup))
     sources = tuple(re.findall(r'src="([^"]*)"', markup))
     assert hrefs == (STYLESHEET,), hrefs
-    assert sources == (SCRIPT,), sources
+    assert sources == (SCRIPT, *PANEL_MODULES), sources
 
 
 # ---------------------------------------------------------------------------
@@ -2108,10 +2131,31 @@ def test_the_page_issues_no_post_and_no_form() -> None:
 # ---------------------------------------------------------------------------
 
 
+#: The slice files that are not shipped assets. Named here once so the two
+#: sweeps below cannot disagree about what "this slice" covers, and so a file
+#: added to the slice is added in one place.
+NON_ASSET_SLICE_FILES: Final = (
+    "test_web_assets.py",
+    "test_panel_seam.py",
+    "audit_harness.py",
+)
+
+
+def slice_files() -> tuple[Path, ...]:
+    """Every file this slice ships or grades with, assets first.
+
+    Returns:
+        The shipped assets followed by this slice's own test modules.
+    """
+    here = Path(__file__).resolve().parent
+    return tuple(WEB_DIR / name for name in ASSET_NAMES) + tuple(
+        here / name for name in NON_ASSET_SLICE_FILES
+    )
+
+
 def test_no_file_in_this_slice_names_a_reserved_dashboard_port() -> None:
     """The band belongs to ``config/ports.json``; this slice binds port zero."""
-    here = Path(__file__).resolve()
-    files = [WEB_DIR / name for name in ASSET_NAMES] + [here, here.parent / "audit_harness.py"]
+    files = slice_files()
     findings: list[str] = []
     for path in files:
         if not path.is_file():
@@ -2241,7 +2285,7 @@ def test_the_harness_releases_its_port_and_a_restart_binds_a_fresh_one() -> None
         second.stop()
 
 
-def test_the_harness_serves_the_three_real_asset_files(
+def test_the_harness_serves_every_real_asset_file(
     harness: audit_harness.AuditHarness,
 ) -> None:
     """Every static route returns the bytes on disk, byte for byte.
@@ -2601,15 +2645,14 @@ def test_the_harness_is_test_code_and_no_shipping_module_reaches_it() -> None:
 
 
 def test_no_file_in_this_slice_holds_a_carriage_return() -> None:
-    """All five slice files are LF-terminated, asserted on raw bytes.
+    """Every slice file is LF-terminated, asserted on raw bytes.
 
     ``write_text`` converts LF to CRLF on Windows and ``read_text`` hides it, so
     a byte count is the only reading that sees the fault. Git normalises the
     blob and reports the tree clean while the working tree violates the rule.
     """
-    here = Path(__file__).resolve()
-    files = [WEB_DIR / name for name in ASSET_NAMES] + [here, here.parent / "audit_harness.py"]
-    expected = 5
+    files = slice_files()
+    expected = len(ASSET_NAMES) + len(NON_ASSET_SLICE_FILES)
     assert len(files) == expected, files
 
     findings = {
