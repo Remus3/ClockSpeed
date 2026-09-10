@@ -31,6 +31,15 @@ catch.
    personal-data-bearing artifact (non-negotiables 11 and 12), so the planted
    marker test below asserts over five surfaces rather than over the message.
 
+4. **Decoded payload content now reaches the type every layer above holds**
+   (CS-961). Property NAMES are read out of the save's own bytes and VALUES are
+   player-authored, so the seam gains an echo surface it did not have.
+   ``test_no_body_byte_reaches_any_echo_path`` sweeps six channels for a marker
+   planted in the payload, and fronts every one of them with a control proving
+   the marker was there to be found. The model is keyed by RECORD INDEX rather
+   than by byte offset, which is what keeps a consumer from holding a position
+   in bytes this layer promised it would never see.
+
 WHAT IS NOT PROVEN HERE, STATED PLAINLY
 -----------------------------------------
 Almost every byte parsed below is built by ``tests/save/synthetic.py``, and a
@@ -112,10 +121,18 @@ from types import MappingProxyType
 from typing import Final
 
 import pytest
+from _pytest._io.saferepr import saferepr
 
 from clockspeed.data import locate
 from clockspeed.data.locate import ENV_ACCOUNT_DIR, ENV_GAME_DIR, ENV_LOCAL_CONFIG, ENV_SAVE_ROOT
 from clockspeed.save import chunks, header, objects, usmap, workdir, world
+
+# THE WIRE, IMPORTED FROM THE LAYER THAT OWNS IT. ``surface/api/world.py``
+# publishes ``DATA_KEYS`` so a test can bind the serialized shape to the builder
+# rather than restate it; CS-961 needs the NEGATIVE of that binding - the field
+# it adds must not have joined the wire - and asking the owner is the only way
+# to get an answer that follows the owner when it moves.
+from clockspeed.surface.api import world as world_api
 
 # IMPORTED, NEVER COPIED, for the reason ``tests/save/test_decode_oracles.py``
 # states at its own import of this module: ``_library_save_paths`` closes the
@@ -124,6 +141,8 @@ from clockspeed.save import chunks, header, objects, usmap, workdir, world
 # is a piece of a containment grader. A third transcription of either is a
 # third place to get it subtly wrong. The module is imported whole so every use
 # site says out loud where the value came from.
+from tests.assertion_rendering_guard import annotation_names, declared_fields
+from tests.repr_rendering_guard import CARRIER_TYPES
 from tests.save import reach_guard, synthetic, test_properties, test_usmap
 
 # ---------------------------------------------------------------------------
@@ -219,6 +238,45 @@ _PLANTED_TOKENS: Final = (
     "PlantedInstanceMarker",
     "ClockspeedPlantedTok0",
 )
+
+#: CS-961. Planted in a property NAME and in a property VALUE - the two halves
+#: of the one channel this item opens. Both are decoded out of the payload and
+#: reach :class:`world.RecordProperties`, so the marker travels exactly as far
+#: as the new field does and no further.
+#:
+#: THE CLASS PATH AND THE INSTANCE NAME ARE DELIBERATELY NOT PLANTED HERE. They
+#: already have their own markers above and their own arms, and re-planting them
+#: would let this arm go red for a leak that predates the field it is about.
+#:
+#: NEITHER IS EMPTY, AND THAT IS LOAD-BEARING RATHER THAN INCIDENTAL.
+#: ``tests/save/test_synthetic.py``
+#: ``::test_the_two_encoders_disagree_on_the_empty_string_and_the_bound_is_recorded``
+#: pins that ``synthetic.fstring("")`` and ``test_properties._fstring("")`` do
+#: not agree on the empty string and that neither has been measured - so an
+#: empty name or value here would silently trade the independent cross-check
+#: for a red saying nothing about the code under test.
+_PAYLOAD_MARKER: Final = "PlantedPayloadMarker"
+_PLANTED_PROPERTY_NAME: Final = f"m{_PAYLOAD_MARKER}Name"
+_PLANTED_PROPERTY_VALUE: Final = f"{_PAYLOAD_MARKER}Value"
+
+#: The one named level the planted payload hangs from. A generic synthetic cell
+#: name carrying no marker, for the reason above.
+_PLANTED_PAYLOAD_LEVEL: Final = "Persistent_Level:SyntheticPlantedPayloadCell_0"
+
+#: The field :class:`world.WorldModel` gains under CS-961, named once so the
+#: wire assertion and the AST scan cannot disagree about which field they mean.
+_PROPERTIES_FIELD: Final = "properties"
+
+#: The reader CS-961 requires ``world.py`` to call, and the one it must not.
+#: ``parse_properties`` is the DISCARDING accessor - it throws away ``resolved``
+#: and the per-record warnings, both of which this item publishes - so calling
+#: it would be a defect rather than a stylistic choice.
+_REQUIRED_PROPERTY_READER: Final = "read_properties"
+_FORBIDDEN_PROPERTY_READER: Final = "parse_properties"
+
+#: The two types CS-961 publishes. Asserted PRESENT by the structural arm below,
+#: so that arm cannot pass by scanning an empty population.
+_PUBLISHED_PROPERTY_TYPES: Final = ("RecordProperties", "WorldProperties")
 
 #: Call names that can write, delete or move a file. Acceptance 8: workdir.py
 #: is the package's only writer, so NONE of these may appear in world.py.
@@ -329,6 +387,101 @@ def _planted_blob(**overrides: object) -> bytes:
     }
     kwargs.update(overrides)
     return _blob(**kwargs)  # type: ignore[arg-type]
+
+
+def _decodable_pair() -> tuple[int, int]:
+    """The version pair the one decodable fixture was built at.
+
+    TAKEN FROM THE FIXTURE RATHER THAN WRITTEN DOWN. ``synthetic`` chose (14,52)
+    because it is a pair whose payloads reach a terminator under the measured
+    tag grammar and (14,60) is not; restating the numbers here would put a
+    second copy of that choice in a file that does not own it.
+
+    Returns:
+        The header version and the save version.
+    """
+    fixture = synthetic.SAVE_LEVELLED_DECODABLE
+    return fixture.header_version, fixture.save_version
+
+
+def _planted_payload_blob() -> bytes:
+    """A LEVELLED save whose one record's payload decodes to the planted marker.
+
+    Returns:
+        A whole save blob.
+    """
+    header_version, _save_version = _decodable_pair()
+    head, body = _planted_payload_parts()
+    prefixed = synthetic.body_with_prefix(body, header_version)
+    framing = synthetic.default_framing(header_version)
+    return head + synthetic.build_chunks(prefixed, framing=framing)
+
+
+def _planted_payload_parts() -> tuple[bytes, bytes]:
+    """The planted save's header and its UNFRAMED, UNPREFIXED body.
+
+    Split out so the whole blob and the truncated-body blob are built from the
+    same bytes rather than from two descriptions of the same fixture.
+
+    Composed from the public synthetic primitives for the reason :func:`_blob`
+    gives: ``synthetic._assemble_levelled`` is private and ``tests/save/
+    synthetic.py`` is owned by a concurrent slice.
+
+    The persistent level is empty, so the record table holds exactly ONE record
+    and the arms never have to guess which entry they are asserting about.
+
+    Returns:
+        The header bytes and the body bytes.
+    """
+    header_version, save_version = _decodable_pair()
+    payload = synthetic.tagged_property_payload(
+        (
+            synthetic.property_tag(
+                _PLANTED_PROPERTY_NAME,
+                synthetic.DECODABLE_STR_TYPE_WORD,
+                synthetic.fstring(_PLANTED_PROPERTY_VALUE),
+            ),
+        ),
+        head=synthetic.actor_payload_head(synthetic.MAP_NAME, synthetic.DECODABLE_ROOT, ()),
+        trailing=synthetic.DECODABLE_TRAILING_RUN,
+    )
+    named = (
+        synthetic.SyntheticLevel(
+            name=_PLANTED_PAYLOAD_LEVEL,
+            objects=(
+                synthetic.SyntheticObject(
+                    synthetic.DECODABLE_CLASS_PATH,
+                    synthetic.DECODABLE_ROOT,
+                    synthetic.DECODABLE_INSTANCE,
+                ),
+            ),
+            payloads=(payload,),
+        ),
+    )
+    body = synthetic.build_levelled_body(
+        named,
+        synthetic.SyntheticLevel(name=None),
+        header_version=header_version,
+        save_version=save_version,
+        grids=synthetic.LEVELLED_GRIDS,
+    )
+    head = synthetic.build_header(header_version=header_version, save_version=save_version)
+    return head, body
+
+
+def _decompressed_payload(blob: bytes) -> bytes:
+    """The decompressed body of a blob, so a control can look inside it.
+
+    Args:
+        blob: A whole save blob.
+
+    Returns:
+        The decompressed body, length prefix included.
+    """
+    parsed = header.parse_header(blob)
+    return chunks.decompress_body(
+        blob, parsed.body_offset, header_version=parsed.header_version
+    ).payload
 
 
 def _property_map(*class_names: str) -> usmap.PropertyMap:
@@ -1921,10 +2074,25 @@ def test_the_module_docstring_records_which_pairs_can_actually_be_read() -> None
 #: claim about the pattern and not about the file. The mechanical half is the
 #: AST check below - world.py calls neither reader - and that is what the
 #: replacement prose actually rests on.
+#: GROWN UNDER CS-961, AND THE TWO NEW ENTRIES ARE A DIFFERENT KIND OF WRONG
+#: FROM THE FIRST THREE. Those three borrowed ``objects``' capability and went
+#: stale when it moved. These two were TRUE OF THIS MODULE and are falsified by
+#: this item: world.py now calls a reader and now publishes property values, so
+#: a docstring still saying it calls neither and publishes none is a false
+#: statement about the file it sits in.
+#:
+#: EACH ENTRY WAS VERIFIED PRESENT IN ``world.py`` BEFORE IT WAS ADDED, which is
+#: what makes this tuple red for the right reason rather than by a typo. They
+#: are short substrings for the same reason the first three are:
+#: :func:`_world_docstrings` collapses line wrapping, and a quotation long
+#: enough to span the shipped text's wrap points is a quotation that stops
+#: matching the day someone reflows the paragraph.
 _RETIRED_PROPERTY_CLAIMS: Final = (
     "never been measured by this project",
     "no code in this project decodes a property value",
     "decodes no property value",
+    "still does not call either reader at all",
+    "No property value reaches",
 )
 
 #: The two readers in ``objects`` whose capability world.py must not restate,
@@ -2000,26 +2168,35 @@ def test_no_docstring_below_module_level_restates_a_measured_version_pair() -> N
 
 
 def test_the_world_layer_states_no_property_capability_it_does_not_own() -> None:
-    """CS-418. Why this layer publishes no property value is ITS fact, not objects'.
+    """CS-418, REPLACED IN SUBSTANCE BY CS-961 AND DELIBERATELY NOT RENAMED.
 
-    THE DANGEROUS SHAPE, and the one this test exists for: a REASON that has
-    gone wrong carrying a CONCLUSION that is still right. world.py published no
-    property value and said the cause was that the object data section's grammar
-    had never been measured. CS-413 measured it, the conclusion stayed true, and
-    so the sentence went on reading as current.
+    THE DANGEROUS SHAPE IS UNCHANGED, and it is why this arm was rewritten
+    rather than deleted: a REASON that has gone wrong carrying a CONCLUSION that
+    is still right. world.py published no property value and said the cause was
+    that the object data section's grammar had never been measured. CS-413
+    measured it, the conclusion stayed true, and the sentence went on reading as
+    current. CS-961 makes the CONCLUSION wrong too - this module now calls a
+    reader and now publishes values - so the old assertions became false by
+    construction and something had to replace them. Deleting a guard because the
+    item it guards against has just happened is the defect it was written for.
 
-    THE GROUND TRUTH IS TAKEN FIRST AND FROM THE SYNTHETIC CORPUS, so the
-    refutation runs on a machine with no game installed rather than only where a
-    real library exists: the levelled walk attributes a payload extent to every
-    record it returns, which is precisely what "never located, never measured"
-    denies.
+    THE NAME STAYS because it is still exactly what is asserted: this layer must
+    not state a property CAPABILITY it does not own. ``clockspeed/save/world.py``
+    and ``docs/LEDGER.md`` both cite it by name, the ledger is append-only, and
+    a rename would spend a disposition in ``tests/test_docs_citations.py`` to
+    buy nothing - the sentence the name makes is not the sentence that changed.
 
-    What replaces the borrowed reason is a fact this module can prove about
-    itself - it calls NEITHER property reader, so no property value can reach a
-    ``WorldModel`` whatever those readers later learn to decode. Asserting that
-    by AST is what keeps the replacement wording true if the decoding half of
-    CS-413 lands: this layer's emptiness stops depending on the other module's
-    capability entirely.
+    WHAT THE AST NOW BINDS IS THE INVERSE OF WHAT IT USED TO. It used to assert
+    that NEITHER reader is called. It now asserts that
+    ``objects.read_properties`` IS called and ``objects.parse_properties`` is
+    NOT: the second is the DISCARDING accessor, which throws away ``resolved``
+    and the per-record warnings, and both are things this item publishes. So
+    reaching for it would be a real defect rather than a style preference, and
+    the difference is mechanical rather than a matter of review.
+
+    THE GROUND TRUTH IS STILL TAKEN FIRST AND STILL FROM THE SYNTHETIC CORPUS,
+    so the refutation runs on a machine with no game installed rather than only
+    where a real library exists.
     """
     model = world.load_world_from_bytes(synthetic.SAVE_LEVELLED_V36.blob)
 
@@ -2029,24 +2206,413 @@ def test_the_world_layer_states_no_property_capability_it_does_not_own() -> None
         "the data section is located and the retired claims below are not yet refuted"
     )
 
+    assert set(_PROPERTY_READERS) == {_REQUIRED_PROPERTY_READER, _FORBIDDEN_PROPERTY_READER}, (
+        "objects exposes a property reader this arm has no verdict on; decide whether "
+        "world.py may call it before the assertions below can mean anything"
+    )
+
     called = {_called_name(node) for node in ast.walk(_world_ast()) if isinstance(node, ast.Call)}
-    assert not called & set(_PROPERTY_READERS), (
-        "world.py calls a property reader, so what it publishes now DOES depend on what "
-        "that reader decodes and its docstrings may no longer say otherwise"
+    assert _REQUIRED_PROPERTY_READER in called, (
+        f"world.py does not call objects.{_REQUIRED_PROPERTY_READER}, so no property "
+        "value can reach a WorldModel and CS-961's acceptance is unmet"
+    )
+    assert _FORBIDDEN_PROPERTY_READER not in called, (
+        f"world.py calls objects.{_FORBIDDEN_PROPERTY_READER}, the accessor that "
+        "DISCARDS the three-state resolved flag and the per-record warnings - both of "
+        f"which CS-961 publishes. Call objects.{_REQUIRED_PROPERTY_READER} instead"
     )
 
     everywhere = _world_docstrings(include_module=True)
     assert "<module>" in {owner for owner, _ in everywhere}, (
-        "the collector did not reach the module docstring, which is where two of the "
-        "three retired claims lived"
+        "the collector did not reach the module docstring, which is where four of the "
+        "five retired claims lived"
     )
 
     for owner, docstring in everywhere:
         restated = [claim for claim in _RETIRED_PROPERTY_CLAIMS if claim in docstring]
         assert not restated, (
-            f"the docstring of {owner} restates {restated}: a capability and a reason "
-            "objects.py owns, contradicted by the extents measured above"
+            f"the docstring of {owner} restates {restated}: either a capability and a "
+            "reason objects.py owns, or a claim about this module that CS-961 falsified"
         )
+
+
+def test_no_published_world_type_annotates_a_carrier_field() -> None:
+    """CS-961's structural half. The new types must not hand a carrier to a renderer.
+
+    THIS IS NOT A STYLE RULE. ``tests/repr_rendering_guard.py`` defines
+    :data:`CARRIER_TYPES` as exactly ``bytes`` and ``Path`` and their spellings,
+    because those two annotations can carry raw save content and a home or
+    account directory respectively - a rendered ``Path`` defeats non-negotiable
+    3 without any save having been parsed. ``tests/test_repr_rendering.py``
+    grades the whole shipped tree against it.
+
+    The set is IMPORTED from that guard rather than restated, so a type word
+    joining it grades ``world.py`` on arrival. Obeying it is also what keeps
+    ``tests/test_repr_rendering.py`` off this item's write-lists entirely, which
+    is the practical reason to assert it here rather than discover it at merge.
+
+    THE POPULATION IS ASSERTED NON-EMPTY AND ASSERTED TO CONTAIN THE NEW TYPES.
+    A scan whose population is empty passes while measuring nothing, and this
+    one would have been empty on the day CS-961 was dispatched.
+    """
+    classes = {
+        node.name: node
+        for node in ast.walk(_world_ast())
+        if isinstance(node, ast.ClassDef) and node.name in set(world.__all__)
+    }
+
+    missing = [name for name in _PUBLISHED_PROPERTY_TYPES if name not in classes]
+    assert not missing, (
+        f"world.py exports no {missing}, so CS-961's published types do not exist and "
+        "the carrier scan below has nothing of this item's to measure"
+    )
+
+    offences = [
+        f"{name}.{field}"
+        for name, node in classes.items()
+        for field, annotation in declared_fields(node).items()
+        if annotation_names(annotation) & CARRIER_TYPES
+    ]
+    assert not offences, (
+        f"a published world type annotates a carrier field: {offences}. "
+        "tests/repr_rendering_guard.py names bytes and Path as the two annotations that "
+        "can render raw save content or a home directory, and every consumer above this "
+        "layer holds one of these objects"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 12 - CS-961: property values reach the world model, through a stated model
+#
+# THE MODEL IS KEYED BY RECORD INDEX, NEVER BY OFFSET. That is what discharges
+# the acceptance's "through a stated model rather than by handing out offsets":
+# an offset is a position in bytes this layer promised nothing above it would
+# ever see, and a consumer holding one is a consumer that has reached past its
+# neighbour. An index into ``WorldModel.objects.records`` is a position in a
+# collection the consumer already holds.
+# ---------------------------------------------------------------------------
+
+
+def _index_of(model: world.WorldModel, instance_name: str) -> int:
+    """Which record index carries a given instance name.
+
+    DERIVED RATHER THAN WRITTEN DOWN. A literal index would pin the fixture's
+    record ORDER into this file, where a change to ``synthetic``'s level layout
+    would move it silently and the arm would assert about a different record.
+
+    Args:
+        model: The loaded world.
+        instance_name: The record's instance name.
+
+    Returns:
+        The index.
+
+    Raises:
+        AssertionError: No record, or more than one, carries that name.
+    """
+    found = [
+        index
+        for index, record in enumerate(model.objects.records)
+        if record.instance_name == instance_name
+    ]
+    assert len(found) == 1, f"expected exactly one record for that instance, found {len(found)}"
+    return found[0]
+
+
+def test_a_synthetic_world_publishes_one_decoded_property_value_end_to_end() -> None:
+    """CS-961's first acceptance. A value the fixture ENCODED comes back out the top.
+
+    ``synthetic.SAVE_LEVELLED_DECODABLE`` is the first fixture in the corpus
+    whose payload bytes mean anything, and the values are written out in
+    ``synthetic`` independently of the encoder that writes them, so an encoder
+    bug and an expectation bug cannot cancel. This asserts against those
+    published constants BY VALUE rather than against whatever came back, which
+    is the difference between an end-to-end proof and a tautology.
+
+    EVERY RECORD GETS AN ENTRY, and the three states of an entry are all
+    asserted: a payload that decodes, and a payload that does not read under the
+    measured grammar - which is flagged with
+    ``objects.WARN_UNPARSED_PROPERTY_PAYLOAD`` rather than published as an empty
+    mapping. An absent value must never read as "not set" (non-negotiable 7).
+
+    ``resolved`` IS ASSERTED AS A THREE-STATE PROPERTY AND IS NEVER PINNED TO
+    None, and that distinction is the whole reason this paragraph exists. None
+    means NO REGISTRY WAS SUPPLIED; False means one was and does not model this
+    class; True means it does. CI and every fresh clone have no game install, so
+    ``usmap.cached_usmap()`` answers None there and every entry would be None -
+    an arm pinned to None is green on CI and RED on the operator's machine,
+    where an install exists and the shipped mapping resolves. So the property
+    asserted is the BICONDITIONAL against the warning that reports the absence,
+    which holds in both environments, and the two determinate states are then
+    pinned separately by supplying a mapping explicitly.
+    """
+    model = world.load_world_from_bytes(synthetic.SAVE_LEVELLED_DECODABLE.blob)
+
+    published = model.properties
+    indices = set(published.by_record_index)
+    assert indices == set(range(len(model.objects.records))), (
+        "every record must get an entry: a record absent from the mapping is "
+        "indistinguishable from a record whose payload held nothing"
+    )
+    assert published.total == len(model.objects.records)
+
+    actor = published.by_record_index[_index_of(model, synthetic.DECODABLE_INSTANCE)]
+    component = published.by_record_index[_index_of(model, synthetic.DECODABLE_COMPONENT_INSTANCE)]
+
+    assert actor.payload_read is True
+    assert dict(actor.values) == dict(synthetic.DECODABLE_PROPERTIES)
+    assert actor.values[synthetic.DECODABLE_INT_NAME] == synthetic.DECODABLE_INT_VALUE
+    assert actor.values[synthetic.DECODABLE_STR_NAME] == synthetic.DECODABLE_STR_VALUE
+    assert actor.schema_name == objects.class_name_of(synthetic.DECODABLE_CLASS_PATH)
+    assert (actor.unmeasured_value_count, actor.disagreeing_value_count) == (0, 0)
+    assert actor.warning_codes == ()
+
+    # THE COMPONENT IS A SEPARATE ARM RATHER THAN A SECOND EXAMPLE. Its payload
+    # carries NO actor head, which is the other branch of the grammar and the
+    # one that desynchronises immediately if a reader guesses; and its property
+    # is distinct from the actor's, so a decode that attributed the wrong
+    # payload to the wrong record cannot look right.
+    assert component.payload_read is True
+    assert dict(component.values) == dict(synthetic.DECODABLE_COMPONENT_PROPERTIES)
+
+    # THE FILLER RECORDS ARE THE NON-VACUITY CONTROL for "an absent value is
+    # never a value". Their payloads do not read under the measured grammar, so
+    # they must be FLAGGED rather than published as an empty mapping.
+    filler = published.by_record_index[_index_of(model, synthetic.FILLER_PAYLOAD_INSTANCE)]
+    assert filler.payload_read is False
+    assert dict(filler.values) == {}
+    assert objects.WARN_UNPARSED_PROPERTY_PAYLOAD in filler.warning_codes
+
+    # THE THREE-STATE PROPERTY, asserted in the one form that is true on a
+    # machine with an install AND on one without.
+    no_registry = any(item.code == world.WARN_NO_PROPERTY_MAP for item in model.warnings)
+    for index, entry in published.by_record_index.items():
+        assert (entry.resolved is None) is no_registry, (
+            f"record {index} reports resolved={entry.resolved!r} while the load "
+            f"{'did not resolve' if no_registry else 'resolved'} a registry; None means "
+            "nothing was consulted and must never stand in for 'not modelled'"
+        )
+
+
+def test_the_two_determinate_resolved_states_are_both_reachable() -> None:
+    """The other half of the three-state assertion, pinned on every machine.
+
+    The biconditional above is environment-independent and therefore says
+    nothing about WHICH bool a supplied registry yields. These two loads supply
+    one explicitly, so True and False are each observed rather than inferred -
+    and neither depends on whether this machine has a game install, because a
+    supplied mapping short-circuits ``usmap.cached_usmap`` entirely.
+    """
+    modelled_class = objects.class_name_of(synthetic.DECODABLE_CLASS_PATH)
+
+    known = world.load_world_from_bytes(
+        synthetic.SAVE_LEVELLED_DECODABLE.blob, property_map=_property_map(modelled_class)
+    )
+    unknown = world.load_world_from_bytes(
+        synthetic.SAVE_LEVELLED_DECODABLE.blob, property_map=_property_map(_KNOWN_CLASS_NAME_A)
+    )
+
+    assert modelled_class != _KNOWN_CLASS_NAME_A, "the two mappings model the same class"
+
+    actor_index = _index_of(known, synthetic.DECODABLE_INSTANCE)
+    assert known.properties.by_record_index[actor_index].resolved is True
+    assert unknown.properties.by_record_index[actor_index].resolved is False
+
+
+def _rendering_channels(value: object) -> tuple[str, ...]:
+    """Every text channel a logger, a formatter or the test runner would take.
+
+    ``test_properties._renderings`` already covers ``repr``, ``str``,
+    ``__format__`` and both f-string conversions, and it is IMPORTED rather than
+    transcribed for the reason this module's import of that file states.
+    ``saferepr`` is added because pytest renders a frame local through it rather
+    than through ``repr``, and it can differ - it elides the middle of a long
+    value and keeps BOTH ends.
+
+    Args:
+        value: The object under test.
+
+    Returns:
+        The renderings.
+    """
+    return (*test_properties._renderings(value), saferepr(value))  # noqa: SLF001
+
+
+def test_no_body_byte_reaches_any_echo_path() -> None:
+    """CS-961's second acceptance. Six channels, and a control in front of each sweep.
+
+    A save is a personal-data-bearing artifact (non-negotiables 11 and 12) and
+    this item is the first one to carry DECODED payload content up into the type
+    every layer above holds. The property NAMES are read out of the save's own
+    bytes and the VALUES are player-authored, so both halves of every entry are
+    world content.
+
+    THE CONTROL IS THE POINT, NOT THE SWEEP. This repository has three false
+    findings on record from a negative measurement taken with no known-good
+    control, so every absence asserted below is preceded by a positive: the
+    marker is proved to be IN the decompressed body, proved to have reached the
+    published model by value, and proved visible to the same sweep in a frame
+    that genuinely holds it.
+
+    The six channels:
+
+    a. ``repr`` and pytest's ``saferepr`` of the three published types.
+    b. Frame locals on every raise path, graded by WALKING the raised traceback
+       rather than by reading source - the shape
+       ``tests/save/test_properties.py::test_no_clockspeed_frame_holds_the_body_when_the_extent_raises``
+       already uses, and the only one that sees a local a renderer would print.
+    c. ``WorldLoadError``'s own message and its whole ``raise ... from`` cause
+       chain, which wrapping makes part of this module's formatted traceback.
+    d. ``WorldWarning.detail`` - a finished operator-facing sentence that ships
+       verbatim, so a detail built from content is shipped text.
+    e. The wire. The new field must not have joined
+       ``clockspeed/surface/api/world.py``'s ``DATA_KEYS``.
+    f. ``__str__`` and ``__format__``, which
+       ``tests/repr_rendering_guard.py`` names as the channels its own census
+       does not grade.
+    """
+    blob = _planted_payload_blob()
+    payload = _decompressed_payload(blob)
+
+    # CONTROL ONE: the marker really is in the bytes being parsed. Without this
+    # every absence below is satisfied by a fixture that never carried it.
+    assert _PAYLOAD_MARKER.encode("ascii") in payload, (
+        "the planted marker is not in the decompressed body, so nothing below is a "
+        "measurement of what this layer withholds"
+    )
+
+    model = world.load_world_from_bytes(blob)
+    index = _index_of(model, synthetic.DECODABLE_INSTANCE)
+    entry = model.properties.by_record_index[index]
+
+    # CONTROL TWO: the marker reached the published model BY VALUE. This is what
+    # makes the repr assertions a statement about withholding rather than about
+    # a decode that quietly produced nothing.
+    assert entry.values[_PLANTED_PROPERTY_NAME] == _PLANTED_PROPERTY_VALUE, (
+        "the planted property did not reach the model, so the rendering sweeps below "
+        "would pass on an object that never held the marker"
+    )
+
+    # (a) and (f). One sweep, because the channels differ only in which dunder
+    # the formatter reaches for and a value must be safe through all of them.
+    subjects: tuple[tuple[str, object], ...] = (
+        ("WorldModel", model),
+        ("WorldProperties", model.properties),
+        ("RecordProperties", entry),
+    )
+    for name, subject in subjects:
+        for rendering in _rendering_channels(subject):
+            assert _PAYLOAD_MARKER not in rendering, (
+                f"a {name} rendering carries a decoded property name or value:\n  {rendering}"
+            )
+            assert rendering.isascii()
+
+    # NON-VACUITY FOR (a). A repr that rendered nothing at all would satisfy the
+    # loop above while telling an operator nothing, which is the failure mode
+    # ``objects.PropertyResult``'s own repr test names. The counts are asserted
+    # UNDER THEIR LABELS rather than as bare digits: on a one-record world the
+    # digit 1 appears in half a dozen unrelated places, so a bare-digit check
+    # would be satisfied by a rendering that carries no count at all.
+    assert f"objects={len(model.objects.records)}" in repr(model)
+    assert f"total={model.properties.total}" in repr(model.properties)
+    assert f"values={len(entry.values)}" in repr(entry)
+    assert f"resolved={entry.resolved}" in repr(entry)
+
+    # (d). Every carried advisory's detail, on the SAME load - a detail table
+    # checked on a world with no decoded content proves nothing about this one.
+    for item in model.warnings:
+        assert _PAYLOAD_MARKER not in item.detail
+        assert item.subject is None or _PAYLOAD_MARKER not in item.subject
+
+    # (e). The wire, asked of the layer that owns it.
+    assert _PROPERTIES_FIELD not in world_api.DATA_KEYS, (
+        f"{_PROPERTIES_FIELD} joined the serialized body. Its values are decoded world "
+        "content and its keys are property names read out of the save's own bytes"
+    )
+    assert _PROPERTIES_FIELD in {field.name for field in fields(world.WorldModel)}, (
+        "the wire assertion above names a field WorldModel does not have, so it is "
+        "asserting the absence of something that never existed"
+    )
+
+    # (b) and (c). Every raise path this layer has, driven on the planted blob so
+    # the frames under the raise are the frames that were holding the payload.
+    for label, call in _planted_payload_failures(blob):
+        with pytest.raises(world.WorldLoadError) as caught:
+            call()
+        raised = caught.value
+
+        chain = "".join(traceback.format_exception(type(raised), raised, raised.__traceback__))
+        surfaces = (
+            str(raised),
+            repr(raised),
+            repr(raised.args),
+            "".join(getattr(raised, "__notes__", []) or []),
+            chain,
+        )
+        for surface in surfaces:
+            assert _PAYLOAD_MARKER not in surface, (
+                f"the {label} failure renders the planted marker on an error surface:\n  {surface}"
+            )
+
+        leaks = {
+            frame.f_code.co_name: test_properties._leaking_locals(frame, _PAYLOAD_MARKER)  # noqa: SLF001
+            for frame in test_properties._frames_beneath_the_caller(raised)  # noqa: SLF001
+            if test_properties._leaking_locals(frame, _PAYLOAD_MARKER)  # noqa: SLF001
+        }
+        assert not leaks, (
+            f"on the {label} failure a clockspeed frame in the raised traceback still "
+            "holds decoded payload content. A renderer showing locals prints it verbatim "
+            f"(non-negotiable 12). Offending frame(s) and local name(s): {leaks}"
+        )
+
+    # CONTROL THREE, for (b), AND IT USES THE SWEEP'S OWN ORACLE rather than a
+    # second rendering that merely resembles it. ``_leaking_locals`` decides by
+    # ``_safe_repr``, so asking that function directly is what proves an empty
+    # verdict above was a measurement rather than the oracle's own blindness -
+    # the ABSOLUTE_PATH failure shape this project has already been bitten by.
+    assert _PAYLOAD_MARKER in test_properties._safe_repr(payload), (  # noqa: SLF001
+        "the sweep's own oracle cannot see the marker in a value that holds it, so the "
+        "empty leak verdicts above are statements about the oracle and not about world.py"
+    )
+
+
+def _planted_payload_failures(blob: bytes) -> tuple[tuple[str, Callable[[], object]], ...]:
+    """Every way the loader refuses a save, driven on the PLANTED blob.
+
+    THE BLOB IS THE ONE THAT DECODES, and that is what makes these cases about
+    CS-961 rather than a re-run of the header-marker sweep already in this file.
+    A failure injected into a save whose payload holds nothing proves nothing
+    about what a frame holds when the payload holds the marker.
+
+    Args:
+        blob: The planted save.
+
+    Returns:
+        ``(label, call)`` pairs, each of which raises ``WorldLoadError``.
+    """
+    body_start = header.parse_header(blob).body_offset
+    return (
+        ("truncated-header", lambda: world.load_world_from_bytes(blob[: body_start // 2])),
+        ("truncated-chunk-stream", lambda: world.load_world_from_bytes(blob[:-1])),
+        ("truncated-body", lambda: world.load_world_from_bytes(_truncated_body_blob())),
+    )
+
+
+def _truncated_body_blob() -> bytes:
+    """A planted blob whose DECOMPRESSED body is cut in half.
+
+    A file-scope cut corrupts the inflate instead, which is a different failure
+    in a different layer. Cutting the body BEFORE it is framed, and re-framing
+    the remainder, reaches the OBJECT walk - the stage that runs with the whole
+    decompressed payload in scope, which is the frame this arm is about.
+
+    Returns:
+        A blob the object stage refuses.
+    """
+    header_version, _save_version = _decodable_pair()
+    head, body = _planted_payload_parts()
+    cut = synthetic.body_with_prefix(body[: len(body) // 2], header_version)
+    return head + synthetic.build_chunks(cut, framing=synthetic.default_framing(header_version))
 
 
 # ---------------------------------------------------------------------------
