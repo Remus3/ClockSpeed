@@ -85,7 +85,19 @@ MODELLED - a self-consistent construction, NOT a measurement:
   that anything can read a real mapping file. ``shipped=True`` carries that
   second claim,
 - the CONTENT of an object payload in the levelled layout (only its int32
-  length framing is measured).
+  length framing is measured) - IN EVERY FIXTURE BUT ONE. Corrected 2026-09-10
+  (CS-961), which is a NARROWING of this entry rather than a new one.
+  ``SAVE_LEVELLED_DECODABLE`` is the single exception, and exactly this much of
+  it is not modelled: its object payloads are assembled by
+  :func:`tagged_property_payload` from the TAG GRAMMAR - name, type word, size,
+  index, type-specific tag data, guid flag, value, repeating to a ``None``
+  terminator - which ``tests/save/test_properties.py`` measured against the
+  real library on the three pairs in its ``TAGGED_PAIRS``, and that fixture
+  sits on one of them. WHAT IS STILL INVENTED THERE IS EVERY VALUE AND EVERY
+  NAME, as everything in this file is invented, and the run after the
+  terminator, which is opaque on the real bytes too. Every OTHER fixture's
+  payloads remain a run of zero bytes: a slice decoding a field out of one of
+  those is decoding an invention.
 
 Each is flagged again where it is built.
 
@@ -1060,9 +1072,11 @@ class SyntheticLevel:
     expects a name there stops with four hundred thousand bytes unread.
 
     MODELLED, not measured: the CONTENT of each object payload. Only the framing
-    around it - an int32 length then that many bytes - is measured, so the
-    payloads here are opaque filler and any slice decoding a field out of one is
-    decoding an invention.
+    around it - an int32 length then that many bytes - is measured. ``payloads``
+    is the one door through which payload content that is not filler enters, and
+    what supplying it does and does not buy is stated ONCE, in this module's
+    docstring under MODELLED. It is deliberately not restated here: a capability
+    written down at two sites rots at the second one.
     """
 
     name: str | None
@@ -1091,6 +1105,14 @@ class SyntheticLevel:
     #: guarding this list are only gradeable against one that can.
     tail_entry_count: int | None = None
     summary: SyntheticPackageSummary = SyntheticPackageSummary()
+    #: One payload per record, in RECORD ORDER - every actor, then every
+    #: component, which is the order :meth:`encode` writes the table in and the
+    #: order the measured attribution pairs on. None keeps the corpus's original
+    #: behaviour exactly: ``payload_size`` zero bytes, repeated once per record.
+    #: A tuple must be exactly as long as the record table, because a shorter
+    #: one would make the fixture declare a payload count that disagrees with
+    #: its own record count - a disagreement a real body never carries.
+    payloads: tuple[bytes, ...] | None = None
 
     @property
     def record_count(self) -> int:
@@ -1118,9 +1140,11 @@ class SyntheticLevel:
 
         Raises:
             ValueError: A named level declares a second collectable block under
-                a layout that does not emit one. A fixture that declares bytes
-                it does not write is the defect class this corpus exists to
-                avoid, so it fails loudly rather than dropping them.
+                a layout that does not emit one, or supplies a ``payloads``
+                tuple whose length is not the record count. A fixture that
+                declares bytes it does not write, or that pairs a payload with
+                no record, is the defect class this corpus exists to avoid, so
+                it fails loudly rather than dropping them.
         """
         if (
             self.name is not None
@@ -1145,14 +1169,23 @@ class SyntheticLevel:
         # One payload per record, matching the real body, where the data
         # section's count equals the header table's count exactly - 2945 of
         # 2945 levels on the (14,52) corpus.
-        payload = bytes(self.payload_size)
-        entry = (
+        if self.payloads is None:
+            bodies: tuple[bytes, ...] = (bytes(self.payload_size),) * self.record_count
+        elif len(self.payloads) != self.record_count:
+            raise ValueError(
+                f"this level declares {self.record_count} records and supplies"
+                f" {len(self.payloads)} payloads; the measured attribution is positional,"
+                " so a fixture may not pair a payload with no record"
+            )
+        else:
+            bodies = self.payloads
+        data_section = _i32(self.record_count) + b"".join(
             bytes(layout.data_entry_lead)
             + _i32(len(payload))
             + payload
             + (_i32(0) if layout.data_entry_trailer else b"")
+            for payload in bodies
         )
-        data_section = _i32(self.record_count) + entry * self.record_count
 
         out: list[bytes] = []
         if self.name is not None:
@@ -1789,6 +1822,260 @@ LEVELLED_NAMED_BY_PAIR: Final = {
     (14, 60): LEVELLED_NAMED,
 }
 
+
+# ---------------------------------------------------------------------------
+# ONE REAL TAGGED PROPERTY PAYLOAD - CS-961
+#
+# WHAT THIS SECTION IS FOR. Every fixture above builds its object payloads as a
+# run of zero bytes, and that is correct for what those fixtures pin: the int32
+# length FRAMING around a payload is measured, its content is not, and a walk
+# that locates three quarters of a body is graded by where it lands rather than
+# by what it reads. The cost is that nothing in this repo could show a world
+# load reaching a DECODED VALUE without a real save on the machine, which
+# CLAUDE.md section 7 forbids the rule suite from requiring.
+#
+# WHAT IS MEASURED AND WHAT IS NOT, precisely, because this is the one place in
+# the corpus where a payload's interior means anything:
+#
+# MEASURED - the TAG GRAMMAR the encoder below writes. One tag is a name, a type
+# word, an int32 declared size, an int32 index, type-specific tag data, a
+# one-byte property-guid flag and then the value, repeating until the name is
+# the literal ``None``. An ACTOR's payload opens first with a parent reference
+# and its component list; a COMPONENT's opens directly with its tags.
+# ``tests/save/test_properties.py`` measured that against the real save library
+# and records what it does NOT claim - the walk is terminator-exact and not
+# boundary-exact, and one pair refuses the grammar outright.
+#
+# MODELLED, and no more so than anything else in this file - every NAME and
+# every VALUE below, and the opaque run written after the terminator. They are
+# invented, they are obviously synthetic, and a test asserting one of them is
+# asserting against a repo literal rather than against the game.
+#
+# THE ENCODER IS PUBLISHED rather than kept private, so a slice naming an
+# expected value reads it from here instead of re-deriving it, and so the arms
+# that grade it can be written against the same names.
+# ---------------------------------------------------------------------------
+
+#: The literal name that ends a tag walk. MEASURED - it is a property NAME slot
+#: carrying the four characters, not a sentinel word of this project's.
+PROPERTY_TERMINATOR: Final = "None"
+
+#: The clear property-guid flag. A set flag is followed by 16 further bytes,
+#: which nothing here writes.
+_GUID_FLAG_CLEAR: Final = b"\x00"
+
+
+def property_tag(name: str, type_word: str, value: bytes, *, tag_extra: bytes = b"") -> bytes:
+    """Encode one property tag in the measured grammar.
+
+    The declared size is computed from ``value`` rather than taken, so a fixture
+    cannot state a size that disagrees with the bytes it writes - the same rule
+    the duplicated section sizes above follow, and for the same reason.
+
+    Args:
+        name: The property name.
+        type_word: The tag's type word.
+        value: The encoded value. May be empty for a type whose value rides in
+            the tag data.
+        tag_extra: The type-specific tag data that sits between the index field
+            and the property-guid flag. Empty for the scalar types.
+
+    Returns:
+        The whole tag, value included.
+    """
+    return (
+        fstring(name)
+        + fstring(type_word)
+        + _i32(len(value))
+        + _i32(0)
+        + tag_extra
+        + _GUID_FLAG_CLEAR
+        + value
+    )
+
+
+def actor_payload_head(level: str, root: str, components: tuple[str, ...]) -> bytes:
+    """The parent reference and component list an ACTOR payload opens with.
+
+    A COMPONENT payload has no head at all, which is why this is a separate
+    function rather than a flag: reading one kind as the other desynchronises on
+    the first tag rather than failing at the head.
+
+    Args:
+        level: The level every reference in the head is paired with.
+        root: The parent object the actor hangs from.
+        components: The object path of each component the actor owns.
+
+    Returns:
+        The head, ending where the first tag begins.
+    """
+    out = [fstring(level), fstring(root), _i32(len(components))]
+    for path in components:
+        out.append(fstring(level))
+        out.append(fstring(path))
+    return b"".join(out)
+
+
+def tagged_property_payload(
+    tags: tuple[bytes, ...], *, head: bytes = b"", trailing: bytes = b""
+) -> bytes:
+    """Assemble one whole payload: head, tags, terminator, trailing run.
+
+    Args:
+        tags: The encoded tags, in file order.
+        head: The actor head, or empty for a component.
+        trailing: The opaque run after the terminator. A real payload carries
+            one of unmeasured grammar, so a fixture that omitted it would be a
+            shape no real save has.
+
+    Returns:
+        The payload bytes.
+    """
+    return head + b"".join(tags) + fstring(PROPERTY_TERMINATOR) + trailing
+
+
+#: The opaque run written after the terminator. INVENTED, and deliberately not
+#: zeros, so a reader that ran past the terminator into it produces garbage
+#: rather than a plausible empty tag.
+DECODABLE_TRAILING_RUN: Final = b"\x11\x22\x33\x44\x55\x66\x77\x88"
+
+#: The two type words the decodable payloads carry. Both are types whose VALUE
+#: encoding was measured, which is the whole point - a tag of an unmeasured type
+#: is counted and skipped rather than decoded, so a fixture built out of those
+#: would prove that a payload was walked and nothing about a value.
+DECODABLE_INT_TYPE_WORD: Final = "IntProperty"
+DECODABLE_STR_TYPE_WORD: Final = "StrProperty"
+
+#: The actor's own identity. Every string is invented; the level and the parent
+#: object are the generic game constants a real body also carries.
+DECODABLE_CLASS_PATH: Final = "/Synthetic/Parts/Build_SyntheticDecodable.Build_SyntheticDecodable_C"
+DECODABLE_ROOT: Final = "Persistent_Level:PersistentLevel"
+DECODABLE_INSTANCE: Final = "Persistent_Level:PersistentLevel.Build_SyntheticDecodable_C_0"
+
+#: The component the actor's head names, and which carries the second payload.
+#: The head's list and this record's parent path point at each other, which is
+#: the shape the measured payload attribution was proved against.
+DECODABLE_COMPONENT_CLASS_PATH: Final = (
+    "/Synthetic/Parts/Build_SyntheticDecodable.SyntheticDecodableComponent_C"
+)
+DECODABLE_COMPONENT_INSTANCE: Final = (
+    "Persistent_Level:PersistentLevel.SyntheticDecodableComponent_0"
+)
+DECODABLE_COMPONENT_PATH: Final = DECODABLE_COMPONENT_INSTANCE
+
+#: The actor's two properties. Names and values both invented. The integer is
+#: NEGATIVE and awkward on purpose: a value that survives a byte-order or width
+#: mistake proves less than one that does not.
+DECODABLE_INT_NAME: Final = "mSyntheticDecodableInt"
+DECODABLE_INT_VALUE: Final = -1234567
+DECODABLE_STR_NAME: Final = "mSyntheticDecodableStr"
+DECODABLE_STR_VALUE: Final = "SyntheticDecodableValue"
+
+#: The component's one property, distinct from the actor's so a decode that
+#: attributed the wrong payload to the wrong record cannot look right.
+DECODABLE_COMPONENT_INT_NAME: Final = "mSyntheticDecodableComponentInt"
+DECODABLE_COMPONENT_INT_VALUE: Final = 987654
+
+#: What each decodable property is encoded AS, so a grader can check the words
+#: against the reader's measured set rather than trusting this file's word for
+#: it. Kept beside the values rather than derived from the tags, so an encoder
+#: mistake and a table mistake cannot cancel.
+DECODABLE_TYPE_WORDS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        DECODABLE_INT_NAME: DECODABLE_INT_TYPE_WORD,
+        DECODABLE_STR_NAME: DECODABLE_STR_TYPE_WORD,
+        DECODABLE_COMPONENT_INT_NAME: DECODABLE_INT_TYPE_WORD,
+    }
+)
+
+#: What a reader of the measured grammar must get back from each payload.
+#: Written out rather than derived from the encoder, so that an encoder bug and
+#: an expectation bug cannot cancel each other out.
+DECODABLE_PROPERTIES: Final[Mapping[str, object]] = MappingProxyType(
+    {
+        DECODABLE_INT_NAME: DECODABLE_INT_VALUE,
+        DECODABLE_STR_NAME: DECODABLE_STR_VALUE,
+    }
+)
+DECODABLE_COMPONENT_PROPERTIES: Final[Mapping[str, object]] = MappingProxyType(
+    {DECODABLE_COMPONENT_INT_NAME: DECODABLE_COMPONENT_INT_VALUE}
+)
+
+#: The actor payload. An actor head, two tags of two different measured types,
+#: the terminator, and an opaque run.
+DECODABLE_ACTOR_PAYLOAD: Final = tagged_property_payload(
+    (
+        property_tag(DECODABLE_INT_NAME, DECODABLE_INT_TYPE_WORD, _i32(DECODABLE_INT_VALUE)),
+        property_tag(DECODABLE_STR_NAME, DECODABLE_STR_TYPE_WORD, fstring(DECODABLE_STR_VALUE)),
+    ),
+    head=actor_payload_head(MAP_NAME, DECODABLE_ROOT, (DECODABLE_COMPONENT_PATH,)),
+    trailing=DECODABLE_TRAILING_RUN,
+)
+
+#: The component payload - the same grammar with NO head, which is the other
+#: branch and the one that desynchronises immediately if a reader guesses.
+DECODABLE_COMPONENT_PAYLOAD: Final = tagged_property_payload(
+    (
+        property_tag(
+            DECODABLE_COMPONENT_INT_NAME,
+            DECODABLE_INT_TYPE_WORD,
+            _i32(DECODABLE_COMPONENT_INT_VALUE),
+        ),
+    ),
+    trailing=DECODABLE_TRAILING_RUN,
+)
+
+#: The record whose payload is FILLER in the same fixture. Published so the
+#: non-vacuity control names it rather than indexing into a tuple.
+FILLER_PAYLOAD_INSTANCE: Final = _OBJECTS[0].instance_name
+
+#: The one named level whose payloads are real. Its record table is an actor and
+#: the component that actor's head names, in that order, which is the order
+#: ``payloads`` is read in.
+DECODABLE_NAMED: Final = (
+    SyntheticLevel(
+        name="Persistent_Level:SyntheticDecodableCell_0",
+        objects=(SyntheticObject(DECODABLE_CLASS_PATH, DECODABLE_ROOT, DECODABLE_INSTANCE),),
+        components=(
+            SyntheticComponent(
+                DECODABLE_COMPONENT_CLASS_PATH,
+                DECODABLE_ROOT,
+                DECODABLE_COMPONENT_INSTANCE,
+                parent_object_root=DECODABLE_INSTANCE,
+            ),
+        ),
+        payloads=(DECODABLE_ACTOR_PAYLOAD, DECODABLE_COMPONENT_PAYLOAD),
+    ),
+)
+
+#: The persistent level KEEPS THE CORPUS'S FILLER PAYLOADS, deliberately. One
+#: body then carries both kinds, so the control that proves a run of zero bytes
+#: decodes to nothing runs against the same walk, the same layout and the same
+#: reader as the arm it is controlling for.
+DECODABLE_PERSISTENT: Final = SyntheticLevel(
+    name=None,
+    objects=_OBJECTS,
+    second_collectables=(SyntheticCollectable(),),
+)
+
+#: THE FIRST FIXTURE IN THIS CORPUS WHOSE PAYLOAD BYTES MEAN ANYTHING - CS-961.
+#:
+#: Header 14 with save 52. The pair is chosen rather than convenient: it is one
+#: of the three whose payloads the measured tag grammar reads to a terminator,
+#: and it is NOT (14,60), where not one real payload reaches a terminator and a
+#: fixture would therefore decode nothing however it was built.
+#:
+#: DELIBERATELY ABSENT FROM :data:`LEVELLED_SAVES`. That tuple is parametrized
+#: over by suites that assert a per-pair record count and a per-pair body shape,
+#: and widening it here would move assertions those suites own.
+SAVE_LEVELLED_DECODABLE: Final = _assemble_levelled(
+    "SAVE_LEVELLED_DECODABLE",
+    header_version=14,
+    save_version=52,
+    named=DECODABLE_NAMED,
+    persistent=DECODABLE_PERSISTENT,
+    grids=LEVELLED_GRIDS,
+)
 
 # ---------------------------------------------------------------------------
 # Truncation

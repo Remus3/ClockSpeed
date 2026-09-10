@@ -128,8 +128,8 @@ NOT measured, and deliberately not invented:
    parsed INDEPENDENTLY and then checked against each other. Across all 14 real
    saves the k-th alignment satisfies that cross-check on 9838 of 9838 testable
    actors and both neighbouring alignments satisfy it on 0. The corpus cannot
-   corroborate any of this: its payloads are opaque filler, so it pins the
-   tiling arithmetic and nothing about the grammar.
+   corroborate any of this: the payloads in its parametrized matrices are
+   filler, so they pin the tiling arithmetic and nothing about the grammar.
 
    Where a level's entry count and record count disagree the pairing is
    UNDEFINED, so none is invented - the level is flagged with
@@ -2415,7 +2415,7 @@ def _attribute_payloads(
     independently and then checked against each other. Across all 14 real saves
     the k-th alignment satisfies that cross-check on 9838 of 9838 testable
     actors and both neighbouring alignments satisfy it on 0. The corpus cannot
-    corroborate it: its payloads are opaque filler.
+    corroborate it: the payloads in its parametrized matrices are filler.
 
     THE COUNT GUARD IS NOT DECORATION. Attribution is only DEFINED when the two
     counts agree. Where they do not, no pairing is invented - a walker that
