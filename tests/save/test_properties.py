@@ -4648,49 +4648,100 @@ def _shipped_frame_names(raised: BaseException) -> set[str]:
 _STRUCTURAL_DEPTH: Final = 6
 
 
-def _reaches_the_needle(value: object, needle: bytes, depth: int, seen: set[int]) -> list[str]:
-    """Paths under ``value`` at which ``needle`` is reachable, as attribute text.
+def _slot_and_attribute_paths(
+    value: object, needle: bytes, depth: int, seen: dict[int, int]
+) -> list[str]:
+    """Paths through declared slots and instance attributes.
 
-    THE ORACLE THE REPR ONE CANNOT BE. :func:`_leaking_locals` asks what a frame
-    RENDERS, which is the right question for what a traceback prints and the
-    wrong one for what a frame HOLDS. A buffer one attribute hop inside an
-    object whose ``__repr__`` withholds is invisible to it - and that gap is not
-    theoretical, it is where the whole of this layer's remaining retention lives.
-
-    IT IS REFLEXIVE RATHER THAN A LIST OF KNOWN TYPES, deliberately. A sweep
-    that enumerated ``_Cursor._data`` and ``DecompressedBody.payload`` by name
-    would be silent the day a third holder is written, which is the failure this
-    whole item is about. Attributes, ``__slots__``, and container members are
-    all followed, with identity tracked so a cycle terminates.
+    THE MRO IS WALKED, NOT THE MOST-DERIVED CLASS. ``type(value).__slots__``
+    finds only the nearest declaration, so a slot inherited from a base was
+    invisible - and a slotted holder has no ``__dict__`` to fall back on, which
+    makes that the whole of its state.
 
     Args:
-        value: The local, or something reached from one.
+        value: The object to inspect.
         needle: The planted bytes.
         depth: How many hops have been taken.
-        seen: Identities already visited, for cycles and shared references.
+        seen: Identity to shallowest depth walked.
 
     Returns:
-        One path string per place the needle is reachable. Empty is a real
-        verdict ONLY alongside a control showing this function finds a planted
-        needle when one IS present.
+        The paths.
     """
-    if depth > _STRUCTURAL_DEPTH or id(value) in seen:
-        return []
-    seen.add(id(value))
-    if isinstance(value, (bytes, bytearray, memoryview)):
-        return [""] if needle in bytes(value) else []
-    if isinstance(value, str):
-        return []
-
     found: list[str] = []
-    for name in getattr(type(value), "__slots__", ()) or ():
-        if hasattr(value, name):
-            found += [
-                f".{name}{tail}"
-                for tail in _reaches_the_needle(getattr(value, name), needle, depth + 1, seen)
-            ]
+    for klass in type(value).__mro__:
+        for name in klass.__dict__.get("__slots__", ()) or ():
+            if isinstance(name, str) and hasattr(value, name):
+                found += [
+                    f".{name}{tail}"
+                    for tail in _reaches_the_needle(getattr(value, name), needle, depth + 1, seen)
+                ]
     for name, member in tuple((getattr(value, "__dict__", None) or {}).items()):
         found += [f".{name}{tail}" for tail in _reaches_the_needle(member, needle, depth + 1, seen)]
+    return found
+
+
+def _reference_paths(value: object, needle: bytes, depth: int, seen: dict[int, int]) -> list[str]:
+    """Paths through shapes that hold a reference WITHOUT an attribute.
+
+    Each was measured unreachable by the first cut of this sweep, and each can
+    hold a whole save: a closure cell, a partial's bound arguments, the receiver
+    of a bound method, and a suspended generator's frame - which is in no
+    traceback and is very much alive.
+
+    ``BaseException.args`` is excluded because an exception's args are the
+    message channel the repr oracle already grades, and including them would
+    report the same finding twice under two different names.
+
+    Args:
+        value: The object to inspect.
+        needle: The planted bytes.
+        depth: How many hops have been taken.
+        seen: Identity to shallowest depth walked.
+
+    Returns:
+        The paths.
+    """
+    found: list[str] = []
+    for name, member in (
+        ("__self__", getattr(value, "__self__", None)),
+        ("func", getattr(value, "func", None)),
+        ("gi_frame.f_locals", getattr(getattr(value, "gi_frame", None), "f_locals", None)),
+    ):
+        if member is not None:
+            found += [
+                f".{name}{tail}" for tail in _reaches_the_needle(member, needle, depth + 1, seen)
+            ]
+    for index, cell in enumerate(getattr(value, "__closure__", None) or ()):
+        try:
+            contents = cell.cell_contents
+        except ValueError:  # an empty cell is not a holder
+            continue
+        found += [
+            f".__closure__[{index}]{tail}"
+            for tail in _reaches_the_needle(contents, needle, depth + 1, seen)
+        ]
+    if not isinstance(value, BaseException):
+        for index, argument in enumerate(getattr(value, "args", None) or ()):
+            found += [
+                f".args[{index}]{tail}"
+                for tail in _reaches_the_needle(argument, needle, depth + 1, seen)
+            ]
+    return found
+
+
+def _member_paths(value: object, needle: bytes, depth: int, seen: dict[int, int]) -> list[str]:
+    """Paths through container members.
+
+    Args:
+        value: The container.
+        needle: The planted bytes.
+        depth: How many hops have been taken.
+        seen: Identity to shallowest depth walked.
+
+    Returns:
+        The paths.
+    """
+    found: list[str] = []
     if isinstance(value, (list, tuple, set, frozenset)):
         for index, member in enumerate(value):
             found += [
@@ -4702,6 +4753,69 @@ def _reaches_the_needle(value: object, needle: bytes, depth: int, seen: set[int]
                 f"[{key!r}]{tail}" for tail in _reaches_the_needle(member, needle, depth + 1, seen)
             ]
     return found
+
+
+def _reaches_the_needle(
+    value: object, needle: bytes, depth: int, seen: dict[int, int] | None = None
+) -> list[str]:
+    """Paths under ``value`` at which ``needle`` is reachable, as attribute text.
+
+    THE ORACLE THE REPR ONE CANNOT BE. :func:`_leaking_locals` asks what a frame
+    RENDERS, which is the right question for what a traceback prints and the
+    wrong one for what a frame HOLDS. A buffer one attribute hop inside an
+    object whose ``__repr__`` withholds is invisible to it - and that gap is not
+    theoretical, it is where this layer's remaining retention lives.
+
+    IT IS REFLEXIVE RATHER THAN A LIST OF KNOWN TYPES, deliberately. A sweep
+    enumerating ``_Cursor._data`` and ``DecompressedBody.payload`` by name would
+    be silent the day a third holder is written, which is the failure this whole
+    item is about.
+
+    ``seen`` MAPS IDENTITY TO THE SHALLOWEST DEPTH ALREADY WALKED, AND THAT IS A
+    BUG FIX RATHER THAN A REFINEMENT. It used to be a flat set: a value first
+    reached AT the depth boundary was recorded, its children were then cut off
+    by the boundary, and a SHALLOWER path to the same value afterwards hit the
+    set and returned nothing. The sweep came back EMPTY with the needle plainly
+    reachable two hops down - and an empty verdict is what every arm here reads
+    as a pass. Measured by an adversary at chain length five: the needle sat at
+    depth two and the walk reported nothing at all.
+
+    A DECODED STRING IS NOT SKIPPED. The first cut returned early for ``str`` on
+    the grounds that ``repr()`` shows a string, so the repr oracle covers it -
+    true of a bare local and false of a string held INSIDE an object that
+    withholds. On a real save the decoded strings are the session name and the
+    player display name, so skipping them skipped the subject.
+
+    Args:
+        value: The local, or something reached from one.
+        needle: The planted bytes.
+        depth: How many hops have been taken.
+        seen: Identity to shallowest depth walked. Omit at the call site.
+
+    Returns:
+        One path string per place the needle is reachable. Empty is a real
+        verdict ONLY alongside a control showing this function finds a planted
+        needle when one IS present.
+    """
+    if seen is None:
+        seen = {}
+    if depth > _STRUCTURAL_DEPTH or seen.get(id(value), _STRUCTURAL_DEPTH + 1) <= depth:
+        return []
+    seen[id(value)] = depth
+
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return [""] if needle in bytes(value) else []
+    if isinstance(value, str):
+        try:
+            return [""] if needle.decode("utf-8") in value else []
+        except UnicodeDecodeError:
+            return []
+
+    return (
+        _slot_and_attribute_paths(value, needle, depth, seen)
+        + _reference_paths(value, needle, depth, seen)
+        + _member_paths(value, needle, depth, seen)
+    )
 
 
 def _structural_holders(raised: BaseException, needle: bytes) -> dict[str, tuple[str, ...]]:
@@ -4720,7 +4834,7 @@ def _structural_holders(raised: BaseException, needle: bytes) -> dict[str, tuple
             continue
         paths: list[str] = []
         for name, value in tuple(frame.f_locals.items()):
-            paths += [name + tail for tail in _reaches_the_needle(value, needle, 0, set())]
+            paths += [name + tail for tail in _reaches_the_needle(value, needle, 0)]
         if paths:
             holders[frame.f_code.co_name] = tuple(sorted(paths))
     return holders
@@ -4809,9 +4923,9 @@ def test_the_structural_sweep_sees_what_the_repr_sweep_cannot() -> None:
     assert _STRUCTURAL_MARKER not in _safe_repr(held), (
         "the holder renders its buffer, so this arm is not measuring the gap it exists to measure"
     )
-    assert _reaches_the_needle(held, _STRUCTURAL_MARKER.encode("ascii"), 0, set()) == [
-        "._buffer"
-    ], "the structural sweep cannot reach a buffer one attribute hop away"
+    assert _reaches_the_needle(held, _STRUCTURAL_MARKER.encode("ascii"), 0) == ["._buffer"], (
+        "the structural sweep cannot reach a buffer one attribute hop away"
+    )
 
 
 def test_the_structural_sweep_terminates_on_a_reference_cycle() -> None:
@@ -4821,4 +4935,47 @@ def test_the_structural_sweep_terminates_on_a_reference_cycle() -> None:
     first._buffer = second  # type: ignore[assignment]  # noqa: SLF001 - building the cycle
     second._buffer = first  # type: ignore[assignment]  # noqa: SLF001
 
-    assert _reaches_the_needle(first, b"unreachable-now", 0, set()) == []
+    assert _reaches_the_needle(first, b"unreachable-now", 0) == []
+
+
+def test_the_structural_sweep_does_not_go_blind_when_a_deep_path_is_walked_first() -> None:
+    """F4 - THE FALSE CLEAN, pinned so it cannot come back.
+
+    ``seen`` used to be a flat identity set. A value first reached AT the depth
+    boundary went into it, its children were then cut off by the boundary, and a
+    SHALLOWER path to the same value afterwards hit the set and returned
+    nothing. The sweep came back EMPTY with the needle two hops down - and every
+    arm here reads an empty verdict as a pass.
+
+    THE ORDER IS THE FIXTURE. Attribute iteration follows insertion order, so
+    the long chain is bound first and the short one second, which is exactly the
+    order that used to poison the result. Asserting the SHORT path is found is
+    what makes this a measurement rather than a restatement of the fix.
+    """
+    buffer = _STRUCTURAL_MARKER.encode("ascii")
+    holder = _WithholdingHolder(buffer)
+
+    # THE CHAIN LENGTH IS THE FIXTURE AND IT IS EXACT. The bug only fires when
+    # the holder is first reached AT the boundary: one hop shallower and its
+    # child is still walked, one deeper and the holder is never recorded at all.
+    # Measured against a standalone copy of the old walker - at this length it
+    # returns nothing, at every neighbouring length it returns a path. A control
+    # that passed under the old walker too would pin nothing.
+    deep: object = holder
+    for _ in range(_STRUCTURAL_DEPTH - 1):
+        deep = _WithholdingHolder(deep)  # type: ignore[arg-type]
+
+    class _TwoWays:
+        def __init__(self) -> None:
+            self.a_deep = deep
+            self.z_short = holder
+
+        def __repr__(self) -> str:
+            return "<_TwoWays>"
+
+    found = _reaches_the_needle(_TwoWays(), buffer, 0)
+    assert ".z_short._buffer" in found, (
+        "the sweep missed the SHALLOW path to a buffer it had already reached deeply and "
+        f"truncated. That is an empty verdict about a live holder, which reads as a pass "
+        f"everywhere it is used. Paths found: {found}"
+    )

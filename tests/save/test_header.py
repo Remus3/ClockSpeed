@@ -1345,3 +1345,74 @@ def test_the_marker_sweep_is_not_blind_to_a_wide_encoded_header_string() -> None
         "On a real save that is the session name or the player display name, and no "
         f"ASCII sweep in this suite can see it (non-negotiable 12): {bare}"
     )
+
+
+def _wide_blob_with_an_undecodable_session_name() -> bytes:
+    """A WIDE session name that will not decode, the marker still legible.
+
+    An unpaired high surrogate is invalid UTF-16-LE, so this reaches the decode
+    failure in ``_Cursor.string`` down the WIDE branch - which is the branch a real
+    save takes for this field the moment a player types one non-ASCII character.
+
+    SAME-LENGTH, replacing the last character's two bytes rather than appending,
+    so the declared count still matches and the refusal is the decode rather than
+    a truncation.
+
+    Returns:
+        The blob.
+    """
+    blob = _wide_marker_blob()
+    field = synthetic.fstring(MARKER_SESSION, wide=True)
+    assert blob.count(field) == 1, (
+        f"the wide session field is not in the fixture exactly once, so the "
+        f"corruption below would be guessing. Found {blob.count(field)}"
+    )
+    # The field is count + text + two null bytes; the last text character is the
+    # two bytes before that terminator.
+    damaged = field[:-4] + b"\x00\xd8" + field[-2:]
+    assert len(damaged) == len(field)
+    return blob.replace(field, damaged, 1)
+
+
+def test_a_wide_undecodable_header_string_leaves_no_frame_holding_its_bytes() -> None:
+    """F5 - the encoding arm, DRIVEN rather than merely built.
+
+    The first version of this arm built a wide fixture and then drove a TRUNCATION,
+    which raises in ``_string_extent`` before ``raw`` is ever bound. Wide and narrow
+    produced byte-identical verdicts, and the only property it actually asserted was
+    that a cursor encapsulates its buffer - which every narrow arm in this file
+    already proves. An arm can carry a correct fixture and still measure nothing,
+    because what a sweep grades is the frames the refusal actually enters.
+
+    This one refuses on the DECODE, so ``_Cursor.string`` binds a slice of wide
+    bytes and the scrub on that branch is on the path.
+
+    THE GAP IS PINNED AS A POSITIVE FACT. The ASCII spelling is asserted absent
+    from the bytes, so an ASCII sweep over them is vacuous BY CONSTRUCTION - which
+    is the whole of CS-964 stated at one site.
+    """
+    blob = _wide_blob_with_an_undecodable_session_name()
+    wide = MARKER_SESSION.encode("utf-16-le")
+
+    assert MARKER_SESSION.encode("ascii") not in blob, (
+        "the fixture carries the ASCII spelling too, so it does not isolate the "
+        "encoding gap this arm exists to measure"
+    )
+
+    with pytest.raises(HeaderError) as caught:
+        header_module.reveal_strings(blob, reveal_personal_data=True)
+    raised = caught.value
+
+    entered = test_properties._shipped_frame_names(raised)  # noqa: SLF001
+    assert "string" in entered, (
+        f"the refusal did not reach _Cursor.string, so no frame in this sweep ever "
+        f"bound a wide slice. Frames reached: {sorted(entered)}"
+    )
+
+    held = test_properties._structural_holders(raised, wide)  # noqa: SLF001
+    bare = test_properties._bare_holders(held)  # noqa: SLF001
+    assert not bare, (
+        "a shipped frame local IS the wide-encoded session name across the decode "
+        "refusal. On a real save that is the player display name, and no ASCII "
+        f"sweep in this suite can see it (non-negotiable 12): {bare}"
+    )

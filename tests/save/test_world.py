@@ -4337,10 +4337,23 @@ def test_the_only_retained_buffers_are_encapsulated_and_every_holder_withholds()
                     "happens to, which is an accident a dataclass decorator silently "
                     "reverses"
                 )
-                assert marker not in test_properties._safe_repr(holder), (  # noqa: SLF001
-                    f"on the {label} refusal, {frame_name}:{path} renders the buffer it "
-                    f"holds through {declared.__name__}.__repr__"
-                )
+                # EVERY RENDERING CHANNEL, NOT ONLY `__repr__`. The first cut
+                # graded `repr()` alone, and a holder with a withholding
+                # `__repr__` and a disclosing `__str__` satisfied it while an
+                # f-string printed the buffer. `pytest --showlocals` goes
+                # through `saferepr`, but a log line, a report and an f-string
+                # do not - and non-negotiable 12 counts all of them as echo
+                # paths, which is why the channel list is the subject here
+                # rather than the one channel that happened to be checked.
+                for channel, rendered in (
+                    ("__repr__", test_properties._safe_repr(holder)),  # noqa: SLF001
+                    ("__str__", _safe_call(str, holder)),
+                    ("__format__", _safe_call(format, holder)),
+                ):
+                    assert marker not in rendered, (
+                        f"on the {label} refusal, {frame_name}:{path} renders the buffer "
+                        f"it holds through {declared.__name__}.{channel}"
+                    )
 
 
 def _holder_at(raised: BaseException, frame_name: str, local_name: str) -> object:
@@ -4414,7 +4427,7 @@ def test_the_world_loader_retains_no_decompressed_body_on_any_refusal() -> None:
 
         for frame in frames:
             retained = {
-                name: test_properties._reaches_the_needle(value, needle, 0, set())  # noqa: SLF001
+                name: test_properties._reaches_the_needle(value, needle, 0)  # noqa: SLF001
                 for name, value in tuple(frame.f_locals.items())
             }
             holding = {name: paths for name, paths in retained.items() if paths}
@@ -4424,3 +4437,161 @@ def test_the_world_loader_retains_no_decompressed_body_on_any_refusal() -> None:
                 "past this scope. A withholding __repr__ hides this from every other "
                 f"sweep in the layer: {holding}"
             )
+
+
+def _safe_call(render: Callable[[object], str], value: object) -> str:
+    """Render through one channel without letting a hostile one break the sweep.
+
+    Args:
+        render: ``str`` or ``format``.
+        value: The holder.
+
+    Returns:
+        The rendering, or an empty string if the channel itself raised.
+    """
+    try:
+        return render(value)
+    except (Exception, SystemExit):  # a broken channel is not this arm's subject
+        return ""
+
+
+#: What survives a same-length corruption of the planted level name: the name
+#: without its last character. Derived rather than spelled out, so it cannot
+#: drift away from the constant the fixture actually damages.
+_UNDECODABLE_LEVEL_NEEDLE: Final = _PLANTED_PAYLOAD_LEVEL[:-1]
+
+
+def _blob_with_an_undecodable_level_name() -> bytes:
+    """A save whose LEVEL NAME will not decode, its prefix still legible.
+
+    Drives ``objects._Cursor.string`` down its decode-failure branch through the
+    public entry point, which is the only way to reach the scrub that branch
+    carries. Nothing else in the suite takes that path.
+
+    THE CORRUPTION IS SAME-LENGTH, replacing the field's last content byte rather
+    than appending one. A levelled body carries offsets that a length change would
+    invalidate, and a fixture that refuses for the wrong reason measures the wrong
+    thing. The needle is therefore the name MINUS its last character, which is what
+    survives in the slice - asserted below rather than assumed, because a needle
+    the corruption destroyed is what makes a sweep vacuous.
+
+    Returns:
+        A whole save blob.
+    """
+    header_version, _save_version = _decodable_pair()
+    head, body = _planted_payload_parts()
+
+    field = synthetic.fstring(_PLANTED_PAYLOAD_LEVEL)
+    assert body.count(field) == 1, (
+        f"the level name is not in the body exactly once, so the corruption below "
+        f"would be guessing. Found {body.count(field)}"
+    )
+    damaged = field[:-2] + b"\xff" + field[-1:]
+    assert len(damaged) == len(field), (
+        "the corruption changed the field length, which moves every offset after it "
+        "and would make the refusal below a different one"
+    )
+    body = body.replace(field, damaged, 1)
+
+    assert _UNDECODABLE_LEVEL_NEEDLE.encode("utf-8") in body, (
+        "the corruption destroyed the needle it was meant to leave standing, which "
+        "is exactly what makes the sweep over it vacuous"
+    )
+
+    prefixed = synthetic.body_with_prefix(body, header_version)
+    framing = synthetic.default_framing(header_version)
+    return head + synthetic.build_chunks(prefixed, framing=framing)
+
+
+def test_an_undecodable_body_string_leaves_no_frame_holding_its_bytes() -> None:
+    """F1 - the byte-identical TWIN of a scrub this item had already applied.
+
+    ``objects._Cursor.string`` slices one decoded string out of the DECOMPRESSED
+    BODY - a level name, an actor instance name, an object path - and raises
+    ``ObjectFormatError`` from inside that frame when it will not decode. It is
+    the same code as ``header._Cursor.string``, against different bytes, and it
+    was left unscrubbed when that one was repaired.
+
+    THE COMMIT THAT SCRUBBED THE HEADER TWIN CLAIMED THE SIBLING GREP HAD BEEN
+    RUN. It had not been run against this module. That is the most transferable
+    thing here: a claimed grep is not a grep, and the claim was made in the
+    same change that added the comment saying the reasoning had condemned the
+    siblings. An adversary found it by reading the class the repair had just
+    been applied to elsewhere.
+
+    Reachable through ``world.load_world_from_bytes`` with default arguments,
+    which is the public entry point.
+    """
+    blob = _blob_with_an_undecodable_level_name()
+
+    with pytest.raises(world.WorldLoadError) as caught:
+        world.load_world_from_bytes(blob)
+    raised = caught.value
+
+    entered = test_properties._shipped_frame_names(raised)  # noqa: SLF001
+    assert "string" in entered, (
+        f"the refusal did not pass through objects._Cursor.string, so the scrub this arm "
+        f"is about was never on the path. Frames reached: {sorted(entered)}"
+    )
+
+    leaks = test_properties._shipped_frames(raised, _UNDECODABLE_LEVEL_NEEDLE)  # noqa: SLF001
+    assert not leaks, (
+        "the undecodable body string leaves its bytes in a shipped frame a renderer "
+        f"prints (non-negotiable 12). Offending frame(s) and local name(s): {leaks}"
+    )
+
+
+def test_the_world_loader_drops_the_body_on_a_refusal_after_the_object_stage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """F2 - the case that DISCRIMINATES, which the first version of this had none of.
+
+    The sibling arm claimed to cover every refusal shape after the chunk stage
+    and drove two cases that between them proved nothing about the scrub: the
+    unknown-layout case refuses in ``_checked_layout`` BEFORE ``body`` is ever
+    bound, and the object-stage case was already covered by the handler that was
+    deleted for being redundant. Removing the scrub left the suite green, and
+    that was read as evidence of redundancy when it was evidence of a blind arm.
+
+    THE STAND-IN RAISES ON PURPOSE, and that is sound here where it usually is
+    not. The subject is the UNWIND, not a value - there is no way to exercise a
+    handler without reaching it, and the fail-soft objection does not apply
+    because the guard re-raises unconditionally rather than swallowing.
+    ``_read_unlocks`` is chosen because it runs AFTER the body is bound and
+    outside every inner handler, which is exactly the region the deleted
+    per-handler scrub never covered.
+
+    Args:
+        monkeypatch: Replaces the post-body step with one that refuses.
+    """
+
+    def _refuse() -> tuple[object, ...]:
+        raise RuntimeError("a refusal after the body is bound")
+
+    monkeypatch.setattr(world, "_read_unlocks", _refuse)
+
+    blob = _planted_payload_blob()
+    needle = _PAYLOAD_MARKER.encode("ascii")
+
+    with pytest.raises(RuntimeError) as caught:
+        world.load_world_from_bytes(blob)
+    raised = caught.value
+
+    frames = [
+        frame
+        for frame in test_properties._frames_in_the_cause_chain(raised)  # noqa: SLF001
+        if frame.f_code.co_name == "load_world_from_bytes"
+    ]
+    assert frames, "the refusal never passed through load_world_from_bytes"
+
+    for frame in frames:
+        holding = {
+            name: paths
+            for name, value in tuple(frame.f_locals.items())
+            if (paths := test_properties._reaches_the_needle(value, needle, 0))  # noqa: SLF001
+        }
+        assert not holding, (
+            "on a refusal raised after the object stage, load_world_from_bytes still "
+            "reaches the decompressed body - the region the deleted per-handler scrub "
+            f"never covered: {holding}"
+        )

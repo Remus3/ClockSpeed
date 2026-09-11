@@ -1678,8 +1678,22 @@ class _Cursor:
         try:
             return raw.decode(encoding)
         except UnicodeDecodeError:
+            # THE CS-963 SCRUB, AND IT IS THE BYTE-IDENTICAL TWIN OF THE ONE IN
+            # `header._Cursor.string`. `raw` is one decoded string's worth of the
+            # DECOMPRESSED BODY - a level name, an actor instance name, an object
+            # path - and the raise happens inside this frame, so a locals-showing
+            # renderer prints those bytes beside the error saying they did not
+            # decode (non-negotiable 12). Reachable from
+            # `world.load_world_from_bytes` with default arguments.
+            #
+            # THE COMMIT THAT SCRUBBED THE HEADER TWIN CLAIMED THE SIBLING GREP
+            # HAD BEEN RUN AND IT HAD NOT BEEN - not against this module. A
+            # claimed grep is not a grep, and an adversary found this by reading
+            # the class the repair had just been applied to elsewhere.
+            #
             # Re-raised from None: a UnicodeDecodeError message QUOTES the
             # offending bytes, and exception context is an echo path.
+            del raw
             raise ObjectFormatError(
                 REASON_UNDECODABLE_TEXT, field=field, offset=at, actual=byte_count
             ) from None
