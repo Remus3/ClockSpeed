@@ -2565,7 +2565,10 @@ def run_child_pytest(
     stubbed, so this reproduces the unresolvable-shell condition under ANY
     invoking shell rather than only under the one that happens to have it.
     """
-    env = dict(os.environ)
+    # CS-968: a NESTED pytest inherits this environment, and everything it runs
+    # inherits it in turn - so an unscrubbed GIT_DIR reaches every git call in
+    # the child suite, not just the ones in this module.
+    env = scrub(dict(os.environ))
     for name in ("PYTEST_ADDOPTS", "PYTEST_CURRENT_TEST", "PYTEST_DEBUG_TEMPROOT"):
         env.pop(name, None)
     env["PYTHONPATH"] = str(plugin_directory)
