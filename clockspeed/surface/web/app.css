@@ -350,6 +350,91 @@ h3 {
   margin: 0;
 }
 
+/* --- the solve bench: labelled text inputs and the control beside them --- */
+
+/*
+  WHO THESE RULES ARE FOR, AND WHY THEY ARE HERE RATHER THAN WITH THE PANEL
+  THAT USES THEM. The bench is built by a panel module, and a panel module
+  ships no stylesheet - there is exactly one sheet on this page and four panels
+  cannot each own it. So the shape of a labelled text input is declared once,
+  here, and the panel writes class names against it.
+
+  THE INPUT IS SIZED THE WAY THE BUTTON IS, and for the same reason: it is a
+  pointer target, and a target below 24x24 CSS px is one a reader with an
+  imprecise pointer misses. 44px matches the button's own min-height rather
+  than the 24px floor, so a row of controls lines up on one baseline instead of
+  stepping - and the floor is a minimum, never a target to sit on.
+
+  EVERY COLOUR HERE READS A TOKEN, which is not a style preference on this
+  sheet: .hud-overlay redefines the palette whole for a layer that sits over a
+  game pixel, and a literal colour written here would arrive there unchanged
+  and paint a light value on a dark ground.
+*/
+
+.bench {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+  margin: 0.9rem 0 0;
+}
+
+.bench-field {
+  display: flex;
+  flex: 1 1 14rem;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.bench-label {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.bench-input {
+  min-width: 24px;
+  min-height: 44px;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  background: var(--surface-alt);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.95rem;
+}
+
+/*
+  THE PLACEHOLDER IS NOT A LABEL AND IS NOT COLOURED AS IF IT WERE. It sits on
+  --muted, the same token the label above uses, so the two cannot drift into
+  different contrasts; the label carries the meaning and the placeholder only
+  shows the shape of a legal value.
+*/
+.bench-input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+/*
+  WHERE THE BENCH PUTS ITS ANSWER. A result region the panel writes into on a
+  callback, never a repaint - so it has to be legible on its own rather than
+  as a row of a table that a repaint would have rebuilt around it.
+*/
+.bench-result {
+  flex: 1 1 100%;
+  margin: 0.9rem 0 0;
+  padding: 0.7rem 0.85rem;
+  background: var(--surface-alt);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+
 /* --- wide content owns its overflow, so the page never scrolls sideways - */
 
 .scroll-x {

@@ -35,7 +35,7 @@ import json
 import re
 import socket
 from pathlib import Path
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, NamedTuple
 
 import pytest
 
@@ -2099,12 +2099,128 @@ def test_the_page_shows_the_masked_token_and_the_world_scalars() -> None:
     assert not unread, f"version scalars the page never reads: {unread}"
 
 
-def test_the_page_issues_no_post_and_no_form() -> None:
-    """GET only, and no form to submit. CSRF is absent by construction.
+#: A ``fetch`` call AS A CALL. The lookbehind separates the call from the same
+#: six characters appearing inside a longer identifier or after a dot, which is
+#: the distinction :data:`_SINKS` above already had to make for ``.innerHTML``.
+_FETCH_CALL = re.compile(r"(?<![\w$.])fetch\s*\(")
 
-    The walking skeleton reads solve and optimize liveness from the health
-    body's endpoint map instead of exercising either route, so there is nothing
-    on this page that changes server state and nothing to forge a request to.
+#: The verb an options object names. Read out of THAT OBJECT and never out of a
+#: window of characters following the call, because the arm this feeds counts
+#: calls and a window cannot say which call it landed in.
+_OPTIONS_METHOD = re.compile(r'\bmethod\s*:\s*"([A-Za-z]+)"')
+
+#: A request body in an options object, spelled as a KEY - the name followed by
+#: a colon - so a local variable named ``body`` or a ``result.body`` read cannot
+#: be mistaken for one.
+_OPTIONS_BODY = re.compile(r"(?<![\w$.-])body\s*:")
+
+
+class FetchCall(NamedTuple):
+    """One ``fetch`` call site, split into the three things this section asks about.
+
+    Attributes:
+        target: The first argument exactly as written, so an arm may assert what
+            path a call asks for rather than only what verb it uses.
+        method: The verb its options name, or ``None`` where they name none.
+        sends_body: Whether its options carry a request body at all.
+    """
+
+    target: str
+    method: str | None
+    sends_body: bool
+
+
+def call_span(mask: str, start: int) -> tuple[int, int]:
+    """The half-open span INSIDE the first argument list opening at or after ``start``.
+
+    The paren-matching sibling of :func:`block_span`, and it exists for the same
+    reason: a fixed-width window of characters after ``fetch(`` is not a call.
+    The window the arm below replaced was 200 characters wide, which is both
+    longer than the whole of one call here and shorter than the options object
+    of a call somebody might write next.
+
+    Args:
+        mask: A :func:`string_free` result, so a parenthesis inside a string
+            literal cannot be mistaken for a delimiter.
+        start: Where to begin looking for the opening parenthesis.
+
+    Returns:
+        ``(first, last)`` - the offset just past the opening parenthesis, and
+        the offset OF the matching closing one.
+
+    Raises:
+        ValueError: If no call opens at or after ``start``, or if the one that
+            does is never closed.
+    """
+    opened = mask.find("(", start)
+    if opened < 0:
+        raise ValueError("no call opens at or after this offset")
+    depth = 0
+    for index in range(opened, len(mask)):
+        if mask[index] == "(":
+            depth += 1
+        elif mask[index] == ")":
+            depth -= 1
+            if depth == 0:
+                return opened + 1, index
+    raise ValueError("the call that opens here is never closed")
+
+
+def fetch_calls(code: str) -> tuple[FetchCall, ...]:
+    """Every ``fetch`` call in the script, in file order.
+
+    Args:
+        code: The script with its block comments already removed.
+
+    Returns:
+        One :class:`FetchCall` per call site.
+    """
+    mask = string_free(code)
+    calls: list[FetchCall] = []
+    for match in _FETCH_CALL.finditer(mask):
+        first, last = call_span(mask, match.end() - 1)
+        depth = 0
+        cut = last
+        for index in range(first, last):
+            char = mask[index]
+            if char in "([{":
+                depth += 1
+            elif char in ")]}":
+                depth -= 1
+            elif char == "," and depth == 0:
+                cut = index
+                break
+        options = code[cut + 1 : last] if cut < last else ""
+        named = _OPTIONS_METHOD.search(options)
+        calls.append(
+            FetchCall(
+                target=code[first:cut].strip(),
+                method=named.group(1) if named else None,
+                sends_body=_OPTIONS_BODY.search(options) is not None,
+            )
+        )
+    return tuple(calls)
+
+
+def test_the_page_issues_exactly_one_post_and_no_form() -> None:
+    """One non-GET request, to ``/api/solve``, with no body and still no form.
+
+    THE SUCCESSOR TO ``test_the_page_issues_no_post_and_no_form``, WHICH WAS
+    RIGHT UNTIL THE OPERATOR RULED OTHERWISE. That arm asserted the page named
+    POST nowhere outside its route table and that every fetch it issued was a
+    GET - true of the walking skeleton and false of a page carrying a solve
+    bench. CS-962 does not relax the claim, it re-aims it: the question a CSRF
+    reader needs answered is not "does this page ever POST" but "how many
+    state-changing requests can it make, where do they go, and what do they
+    carry". A count of ONE, pinned to ONE path, is a stronger statement than an
+    absence that any later slice could quietly spend.
+
+    AND THE PARAMETERS RIDE IN THE QUERY STRING, WHICH IS WHY THE BODY LEG IS
+    HERE. ``clockspeed/surface/server.py`` parses the query and reads the
+    request body nowhere at all, so a body would be ignored on arrival - and an
+    unread body on a kept-alive HTTP/1.1 connection is the classic desync. A
+    fetch with no ``body`` key sends ``Content-Length: 0``, which is safe; this
+    arm is what keeps it that way.
     """
     code = code_only(read_asset(SCRIPT))
     markup = read_asset(INDEX)
@@ -2113,17 +2229,69 @@ def test_the_page_issues_no_post_and_no_form() -> None:
     table = re.search(r"var ROUTES = \[[\s\S]*?\n\];", code)
     assert table is not None, "the route table is not where this arm expects it"
 
-    outside = code.replace(table.group(0), " ")
-    assert "POST" not in outside, "app.js names POST outside its own route table"
-
     verbs = re.findall(r"method: \"([A-Z]+)\"", table.group(0))
     posts = tuple(verb for verb in verbs if verb == "POST")
     expected_posts = 3
     assert len(posts) == expected_posts, f"the route table names {len(posts)} POST verb(s)"
 
-    calls = re.findall(r"fetch\([\s\S]{0,200}?method: \"([A-Z]+)\"", code)
-    assert calls, "no fetch call names a method at all"
-    assert set(calls) == {"GET"}, f"a fetch issues something other than GET: {sorted(set(calls))}"
+    calls = fetch_calls(code)
+    assert calls, "no fetch call parsed at all, so this arm grades nothing"
+
+    unnamed = tuple(call.target for call in calls if call.method is None)
+    assert not unnamed, f"a fetch names no method at all: {unnamed}"
+
+    non_get = tuple(call for call in calls if call.method != "GET")
+    total = len(non_get)
+    assert total == 1, (
+        f"the page issues {total} non-GET fetch(es) rather than exactly one: "
+        f"{tuple((call.method, call.target) for call in non_get)}"
+    )
+
+    only = non_get[0]
+    assert only.method == "POST", f"the one non-GET fetch issues {only.method}"
+    assert only.target.startswith('"/api/solve?'), (
+        f"the one non-GET fetch does not ask for /api/solve with a query string: {only.target}"
+    )
+
+    carried = tuple(f"{call.method} {call.target}" for call in calls if call.sends_body)
+    assert not carried, f"a fetch carries a request body the server never reads: {carried}"
+
+
+def test_the_request_detector_fires_on_a_planted_second_call_and_on_a_body() -> None:
+    """Both legs of the arm above are proved able to fire, on real edits.
+
+    A detector that parsed nothing would report zero non-GET calls and zero
+    bodies, and the arm above would then be green over a page that POSTs to
+    anywhere it likes. Each leg is therefore run once against the shipped text,
+    where the count is known, and once against that text with the banned edit
+    PLANTED, where it must move.
+    """
+    clean = code_only(read_asset(SCRIPT))
+    parsed = fetch_calls(clean)
+    minimum_calls = 2
+    assert len(parsed) >= minimum_calls, (
+        f"the detector read {len(parsed)} fetch call(s); the script issues more"
+    )
+    assert len(tuple(call for call in parsed if call.method != "GET")) == 1
+
+    planted = clean + (
+        "\nfunction plantedSecond() {\n"
+        '  return fetch("/api/optimize?targets=x", { method: "POST", cache: "no-store" });\n'
+        "}\n"
+    )
+    after = tuple(call for call in fetch_calls(planted) if call.method != "GET")
+    expected_after = 2
+    assert len(after) == expected_after, (
+        f"the detector saw {len(after)} non-GET call(s) after planting a second one"
+    )
+
+    bodied = clean + (
+        "\nfunction plantedBody() {\n"
+        '  return fetch("/api/solve?targets=x", { method: "POST", body: "targets=x" });\n'
+        "}\n"
+    )
+    seen = tuple(call for call in fetch_calls(bodied) if call.sends_body)
+    assert len(seen) == 1, f"the detector saw {len(seen)} body-carrying call(s) after planting one"
 
 
 # ---------------------------------------------------------------------------

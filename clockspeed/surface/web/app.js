@@ -29,24 +29,41 @@
   panel becomes mouse-only, invisibly." Refresh is the button in the header and
   nothing else repaints this page.
 
-  WHY THIS PAGE ISSUES NO POST AT ALL. Two of the ten routes take a body and
-  one takes a state change. Exercising any of them from here would put a
-  state-changing request on a page an operator leaves open, which is the whole
-  precondition for request forgery. Their liveness is read from the endpoint map
-  /api/health already publishes, so the skeleton stays GET-only and the question
-  does not arise.
+  WHY THIS PAGE ISSUES EXACTLY ONE POST, WHICH IS A COUNT AND NOT AN ABSENCE.
+  This block used to say the page issued none at all and that the question did
+  not arise. The operator has ruled that the solve bench may ask /api/solve for
+  a plan, so it does arise and the honest answer is a bound rather than a zero:
+  requestSolve below is the ONLY non-GET request this file can issue, it is
+  reachable only from a panel's own click handler, and it can ask for one path
+  and no other because app.js - never the panel - builds the query string from
+  a fixed table of the four names the solve endpoint requires. A panel cannot
+  smuggle a fifth parameter through it and cannot redirect it.
+
+  AND THE PARAMETERS RIDE IN THE QUERY STRING, NOT IN A BODY. The server splits
+  the request path at the question mark and parses only what follows it; no code
+  path under clockspeed/surface reads a request body at all. A body sent here
+  would be ignored on arrival, and an unread body on a kept-alive HTTP/1.1
+  connection desyncs whatever request follows it on that socket. The fetch
+  therefore carries no body key, which sends Content-Length: 0.
 
   WHY FOUR ROWS SAY "not probed". The two /api/advice/<id>/... routes need a
   card id, and this page has none to give: /api/advice is 501 until phase 5
   builds the advisor, so it returns no card list and there is no id to put in
   the path. Asking with an invented one would be asking about a card that does
-  not exist. The other two take a body this page will not send.
+  not exist. The other two are the POST routes, and the table below is a map of
+  what this page may safely ask for on a REPAINT: /api/solve is asked on a
+  click and answers into the panel that clicked, so the row still has no
+  transport code of its own to print and /api/optimize is asked not at all.
+  AN EARLIER VERSION OF THIS SENTENCE SAID THOSE TWO "take a body this page
+  will not send", and both halves of that were false - they take a query
+  string, and the page now sends one to one of them.
   For those four the page prints what /api/health says and names that as the
   source, rather than inventing a transport code it never observed.
 
   WHY /api/registry IS PROBED EVEN THOUGH ITS BODY IS LARGE. The four rows
-  above say "not probed" because the page CANNOT ask - it has no card id, or
-  the route wants a body this page will not send. Cost is not that reason, and
+  above say "not probed" because the page cannot ask on a repaint - it has no
+  card id, or the route is one a repaint has no parameters to ask it with.
+  Cost is not that reason, and
   making it one would quietly turn a rule about ABILITY into a rule about
   taste. /api/registry is a parameterless GET, so the page asks. Its body is the
   largest this page fetches - /api/world is the next largest - and the figures
@@ -554,7 +571,15 @@ function panelData(probes) {
     registry: bodyData(probes["/api/registry"]),
     advice: bodyData(probes["/api/advice"]),
     audit: bodyData(probes["/api/audit"]),
-    plan: bodyData(probes["/api/plan"])
+    plan: bodyData(probes["/api/plan"]),
+    /*
+      THE SEVENTH KEY IS NOT A PAYLOAD AND IS NAMED SO IT CANNOT BE READ AS
+      ONE. The six above are data a repaint already fetched; this one is a
+      door a panel may knock on. Calling it "solve" would have put a verb in
+      a list of nouns and invited the next reader to expect a solve RESULT
+      here, which no repaint has and no repaint will.
+    */
+    actions: { requestSolve: requestSolve }
   };
 }
 
@@ -564,6 +589,142 @@ function mountPanels(probes) {
   for (var index = 0; index < panelEntries.length; index += 1) {
     mountPanel(panelEntries[index], panelPayloads);
   }
+}
+
+/* --- the one request that is not a repaint ------------------------------ */
+
+/*
+  THE FOUR NAMES /api/solve REQUIRES, SPELLED HERE AND NOWHERE ELSE. This table
+  is the reason a panel cannot widen the request: requestSolve reads the four
+  names OUT OF THIS ARRAY and copies the caller's values across, so a fifth key
+  on the caller's object is not encoded - it makes the whole call refuse. The
+  endpoint answers 400 unknown_parameter to a fifth parameter anyway; what this
+  buys is that a bad request is refused HERE, where the panel that made it can
+  be told, rather than spent on a round trip.
+*/
+var SOLVE_PARAMS = ["targets", "recipes", "raw_items", "byproduct_policy"];
+
+/*
+  Whether a solve is already in flight. The sibling of repainting below, and it
+  exists for the same reason: one request at a time, refused rather than queued.
+*/
+var solving = false;
+
+function solveQuery(params) {
+  /*
+    The query string for exactly those four names, or null if the caller did
+    not hand over exactly those four strings.
+
+    EXACTLY, IN BOTH DIRECTIONS. The length check refuses a fifth key and the
+    hasOwnProperty check refuses a missing one, so neither a superset nor a
+    subset gets encoded. encodeURIComponent is applied to the NAME as well as
+    the value - the names here are literals and need no escaping today, which
+    is precisely why encoding them costs nothing and stops mattering only if
+    someone later builds this table from something that is not a literal.
+  */
+  if (!params || typeof params !== "object") {
+    return null;
+  }
+  if (Object.keys(params).length !== SOLVE_PARAMS.length) {
+    return null;
+  }
+
+  var parts = [];
+  for (var index = 0; index < SOLVE_PARAMS.length; index += 1) {
+    var name = SOLVE_PARAMS[index];
+    if (!Object.prototype.hasOwnProperty.call(params, name)) {
+      return null;
+    }
+    var value = params[name];
+    if (typeof value !== "string") {
+      return null;
+    }
+    parts.push(encodeURIComponent(name) + "=" + encodeURIComponent(value));
+  }
+  return parts.join("&");
+}
+
+async function runSolve(query, onSettled) {
+  /*
+    The one non-GET request this page issues, folded into the same outcome
+    shape probeRoute returns - with one difference that is load-bearing. The
+    body handed back is the FULL parsed envelope and not bodyData, because a
+    refusal carries its reason and its detail OUTSIDE data and a bench that
+    could not read them would have to render a 400 as silence.
+  */
+  var outcome = { reached: false, http: null, body: null };
+  try {
+    var response = await fetch("/api/solve?" + query, {
+      method: "POST",
+      headers: { "Accept": "application/json" },
+      cache: "no-store"
+    });
+    var payload = null;
+    try {
+      payload = await response.json();
+    } catch (parseFailure) {
+      payload = null;
+    }
+    outcome = { reached: true, http: response.status, body: payload };
+  } catch (networkFailure) {
+    outcome = { reached: false, http: null, body: null };
+  } finally {
+    /*
+      IN THE finally FOR THE REASON refresh() RELEASES ITS OWN FLAG THERE. A
+      solve that throws once is a bad solve; a solve that throws once and then
+      refuses every later one is a dead bench, recoverable only by a reload.
+    */
+    solving = false;
+  }
+
+  try {
+    onSettled(outcome);
+  } catch (settleFailure) {
+    /*
+      CONTAINED EXACTLY AS mountPanel CONTAINS A MOUNT, and swallowed rather
+      than rendered. A panel is untrusted code as far as this loop is
+      concerned, and an exception's message and stack on THIS machine carry an
+      absolute path under a home directory - so putting one on the page would
+      publish the operator's account name to whoever is looking at the screen.
+      The flag is already lowered above, so a thrower costs its own panel a
+      result and costs the bench nothing. The block is empty ON PURPOSE: there
+      is no safe thing to do with what is in settleFailure.
+    */
+  }
+}
+
+function requestSolve(params, onSettled) {
+  /*
+    Ask /api/solve for a plan on behalf of a panel, and hand that panel the
+    outcome when it settles. Returns true if the request was accepted, false if
+    it was refused - and a false return means onSettled is NEVER called, so a
+    caller that ignores the return value waits forever rather than seeing a
+    fabricated answer.
+
+    WHY A CALLBACK AND NOT A REPAINT. mountPanel empties a panel's section and
+    mounts it again, so repainting the bench to show its result would discard
+    the input the reader is standing in - verbatim the focus fault this file's
+    header and refresh() both document. The callback lets the panel write into
+    nodes it already holds, and nothing is torn down.
+
+    REFUSED WHILE A REPAINT IS IN FLIGHT, because a repaint is about to empty
+    and remount every section including the one that would receive this answer.
+  */
+  if (repainting || solving) {
+    return false;
+  }
+  if (typeof onSettled !== "function") {
+    return false;
+  }
+
+  var query = solveQuery(params);
+  if (query === null) {
+    return false;
+  }
+
+  solving = true;
+  runSolve(query, onSettled);
+  return true;
 }
 
 /* --- one repaint, on demand, never on a schedule ------------------------ */
