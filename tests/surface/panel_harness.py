@@ -71,10 +71,25 @@ report a failure would grade nothing.
 **NODE IS REQUIRED, NOT SKIPPED AROUND.** :func:`run` calls ``pytest.fail``
 when node is absent. A skipped gate reports PASS while measuring nothing.
 
-DUPLICATION WITH THE SEAM GRADER IS INTENTIONAL. ``test_panel_seam.py`` grades
-the seam; if it imported this module it would depend on the thing it grades.
-The cost is that the two stand-ins can drift. That is why the surface is
-reported and pinned rather than trusted: see :data:`STANDIN_NODE_SURFACE`.
+DUPLICATION WITH THE SEAM GRADER IS INTENTIONAL, AND IT IS ENFORCED RATHER
+THAN TRUSTED. ``test_panel_seam.py`` grades the seam; if it imported this
+module it would depend on the thing it grades, so the dependency runs the other
+way - this module imports the grader's stand-in TEXT and measures it. Every
+:func:`run` executes the grader's own ``makeNode`` and ``document`` in a
+separate vm context and asserts, as an EQUALITY and never a subset, that this
+harness offers neither one member more nor one member less. A subset check
+would pass forever while the harness grew permissive, which is exactly the
+failure it has to catch: adding ``classList`` to the node above would leave all
+four panel suites green while certifying panels the real grader rejects, and
+four suites built on one widened input agree with each other and with nothing
+else. NO MEMBER NAME IS TYPED INTO THIS FILE'S CHECK - a typed list is the copy
+that goes stale, which is the fault rather than the repair. The pinned tuples
+below are checked against the same measurement, so prose and code cannot drift
+apart either. The one documented exception is named explicitly and narrowly by
+:data:`RECORDING_MEMBER`: it is a member BOTH publish, so the difference is one
+of behaviour and never of surface, and a node that has actually been listened
+to is measured too - a listener store kept ON the node rather than in the
+``WeakMap`` would show up there as an extra property.
 """
 
 from __future__ import annotations
@@ -89,6 +104,7 @@ from typing import TYPE_CHECKING, Any, Final
 import pytest
 
 from clockspeed.surface import config
+from tests.surface import test_panel_seam
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping, Sequence
@@ -111,8 +127,10 @@ STATE_FAILED: Final = "failed"
 PAYLOAD_KEYS: Final = ("health", "world", "registry", "advice", "audit", "plan")
 
 #: Every own property a panel can see on a stand-in element. Pinned here so a
-#: caller can assert against the contract, and MEASURED at run time into the
-#: report's ``standin_surface`` so the two cannot silently disagree.
+#: caller can assert against the contract, MEASURED at run time into the
+#: report's ``standin_surface``, and checked by :func:`_check_standin` against
+#: the surface the seam grader actually builds - so neither this tuple nor the
+#: stand-in can drift away from the gate they feed.
 STANDIN_NODE_SURFACE: Final = (
     "addEventListener",
     "appendChild",
@@ -133,6 +151,7 @@ STANDIN_NODE_SURFACE: Final = (
 )
 
 #: Every member of the stand-in document. There is no ``querySelector``.
+#: Checked the same way :data:`STANDIN_NODE_SURFACE` is.
 STANDIN_DOCUMENT_SURFACE: Final = (
     "activeElement",
     "createElement",
@@ -140,6 +159,20 @@ STANDIN_DOCUMENT_SURFACE: Final = (
     "getElementById",
     "querySelectorAll",
 )
+
+#: The seam grader's stand-in, taken as TEXT from the module that owns it. This
+#: is the whole point of the check: the surface is derived by RUNNING the
+#: grader's own ``makeNode``, so no member name is retyped here and there is no
+#: second list to keep in step. The import direction is deliberate - the grader
+#: must not import this module, because it grades the seam this module drives.
+GRADER_STANDIN_SOURCE: Final = test_panel_seam.HARNESS_SOURCE
+
+#: THE ONE DOCUMENTED DIFFERENCE, named so the exception is visible in the
+#: check rather than being a hole in it. Here it records the handler into a
+#: WeakMap; in the grader it is a no-op. Both PUBLISH it, so it is a difference
+#: of behaviour and never of surface, and :func:`_check_standin` refuses to let
+#: it become one.
+RECORDING_MEMBER: Final = "addEventListener"
 
 #: How long one node run may take before it is a failure rather than a slow box.
 NODE_TIMEOUT_SECONDS: Final = 60.0
@@ -492,6 +525,69 @@ if (captured) {
   });
 }
 
+/*
+  THE GRADER'S OWN STAND-IN, MEASURED RATHER THAN RETYPED. request.grader_source
+  is the text of test_panel_seam.py's HARNESS_SOURCE, handed over by the Python
+  side from the module that OWNS it. It runs in a SEPARATE vm context whose fs
+  reads index.html and nothing else, so its main() dies at its first load() and
+  its app.js never reaches vm.runInThisContext - which is THIS context, not the
+  box. Its stdout, stderr and console are sinks, so the rejection it parks on
+  cannot reach the JSON this script writes. What survives is exactly what is
+  wanted: its makeNode and its document, measured the same way ours are.
+*/
+function graderStandin() {
+  var box = {
+    require: function (name) {
+      if (name !== "node:fs") {
+        return require(name);
+      }
+      return {
+        readFileSync: function (target, encoding) {
+          if (String(target).slice(-10) !== "index.html") {
+            throw new Error("the surface probe reads index.html and nothing else");
+          }
+          return fs.readFileSync(target, encoding);
+        }
+      };
+    },
+    process: {
+      argv: ["node", "grader_standin", webDir, "clean"],
+      stdout: { write: function () { return undefined; } },
+      stderr: { write: function () { return undefined; } }
+    },
+    console: {
+      log: function () { return undefined; },
+      warn: function () { return undefined; },
+      error: function () { return undefined; }
+    }
+  };
+  vm.createContext(box);
+  vm.runInContext(request.grader_source, box, { filename: "grader_standin.cjs" });
+  if (typeof box.makeNode !== "function" || !box.document) {
+    throw new Error("the seam grader published no makeNode/document to measure");
+  }
+  return {
+    node: Object.getOwnPropertyNames(box.makeNode("div")).sort(),
+    document: Object.keys(box.document).sort()
+  };
+}
+
+/*
+  THE ONE DELIBERATE DIFFERENCE, MEASURED. addEventListener records into a
+  WeakMap rather than onto the node, so a node that HAS been listened to must
+  still carry exactly the grader's property names. A store kept on the node
+  would appear here and nowhere else.
+*/
+function listenedSurface() {
+  var probe = makeNode("div");
+  probe.addEventListener("click", function () {
+    return undefined;
+  });
+  return Object.getOwnPropertyNames(probe).sort();
+}
+
+var graderSurface = graderStandin();
+
 var last = steps.length ? steps[steps.length - 1] : null;
 
 process.stdout.write(
@@ -506,11 +602,141 @@ process.stdout.write(
     steps: steps,
     standin_surface: {
       node: Object.getOwnPropertyNames(makeNode("div")).sort(),
-      document: Object.keys(globalThis.document).sort()
+      document: Object.keys(globalThis.document).sort(),
+      node_after_listener: listenedSurface(),
+      grader_node: graderSurface.node,
+      grader_document: graderSurface.document
     }
   })
 );
 """
+
+
+#: Why a wider stand-in is a defect, quoted into the failure so the reader of
+#: a red arm does not have to find this module to learn what broke.
+_WIDER_IS_WORSE: Final = (
+    "A test harness may be narrower than the gate it feeds and must never be "
+    "wider: a member offered here and not there certifies a panel that "
+    "test_panel_seam.py rejects, and it does it in all four panel suites at "
+    "once, so they agree with each other and with nothing else."
+)
+
+#: Why the pinned tuples are checked against the same measurement.
+_PIN_IS_A_COPY: Final = (
+    "This tuple is the only hand-typed list in the file and is therefore the "
+    "one thing here that can go stale. It is checked against the measurement "
+    "rather than trusted."
+)
+
+
+def _compare(
+    measured_label: str,
+    measured: tuple[str, ...],
+    expected_label: str,
+    expected: tuple[str, ...],
+    why: str,
+) -> None:
+    """Fail unless two member lists are EQUAL - never a subset, in either direction.
+
+    A subset check is what the mutant this guards against walks straight
+    through: it passes forever while the harness grows more permissive.
+
+    Args:
+        measured_label: What the left-hand list is, for the failure message.
+        measured: The member names measured on this harness.
+        expected_label: What the right-hand list is.
+        expected: The member names it must equal.
+        why: The sentence explaining why the difference matters.
+    """
+    if measured == expected:
+        return
+    widened = sorted(set(measured) - set(expected))
+    narrowed = sorted(set(expected) - set(measured))
+    pytest.fail(
+        f"{measured_label} is not {expected_label}. "
+        f"Offered here and not there: {widened}. "
+        f"Offered there and not here: {narrowed}. "
+        f"{why} "
+        f"Measured {measured_label}: {list(measured)}. "
+        f"Measured {expected_label}: {list(expected)}."
+    )
+
+
+def _check_standin(report: Mapping[str, Any], module: str) -> None:
+    """Fail unless the stand-in is member-for-member the seam grader's surface.
+
+    THIS RUNS ON EVERY :func:`run`, not in one arm of one suite, because this
+    module is not collected by pytest - it does not match ``test_*.py`` - so a
+    test function written here would never be executed and would report PASS
+    while measuring nothing. Riding on the call every panel suite already makes
+    is what gives the check a chance to fire.
+
+    Four equalities and one named exception:
+
+    1. The node surface equals the grader's MEASURED node surface.
+    2. The document surface equals the grader's MEASURED document surface.
+    3. A node that has been listened to STILL equals the grader's node surface,
+       which is what proves the recording store lives in the ``WeakMap`` rather
+       than on the node.
+    4. The pinned tuples in this file equal the same measurement, so the
+       documentation cannot drift away from the code.
+
+    And :data:`RECORDING_MEMBER` must be published by BOTH, so the documented
+    exception stays a difference of behaviour and never becomes one of surface.
+
+    Args:
+        report: The node side's report, carrying ``standin_surface``.
+        module: The panel module name, for the failure message.
+    """
+    surface = report["standin_surface"]
+    here = tuple(surface["node"])
+    there = tuple(surface["grader_node"])
+    _compare(
+        f"the stand-in node surface the harness measured mounting {module}",
+        here,
+        "the node surface tests/surface/test_panel_seam.py builds",
+        there,
+        _WIDER_IS_WORSE,
+    )
+    _compare(
+        "the stand-in document surface the harness measured",
+        tuple(surface["document"]),
+        "the document surface tests/surface/test_panel_seam.py builds",
+        tuple(surface["grader_document"]),
+        _WIDER_IS_WORSE,
+    )
+    _compare(
+        "the node surface measured AFTER a click listener was attached",
+        tuple(surface["node_after_listener"]),
+        "the node surface tests/surface/test_panel_seam.py builds",
+        there,
+        f"{RECORDING_MEMBER} is documented to record into a WeakMap precisely "
+        f"so it leaves no trace on the node. A member here and not there is "
+        f"that store leaking onto the node. " + _WIDER_IS_WORSE,
+    )
+    if RECORDING_MEMBER not in here or RECORDING_MEMBER not in there:
+        pytest.fail(
+            f"the one documented difference is that {RECORDING_MEMBER} RECORDS "
+            f"in this harness and is a no-op in the seam grader - a difference "
+            f"of behaviour inside a member they BOTH publish. One of them no "
+            f"longer publishes it, so the exception has become a difference of "
+            f"SURFACE, which is the widening this check refuses. "
+            f"Harness: {list(here)}. Grader: {list(there)}."
+        )
+    _compare(
+        "the node surface measured at run time",
+        here,
+        "the STANDIN_NODE_SURFACE tuple pinned in this module",
+        STANDIN_NODE_SURFACE,
+        _PIN_IS_A_COPY,
+    )
+    _compare(
+        "the document surface measured at run time",
+        tuple(surface["document"]),
+        "the STANDIN_DOCUMENT_SURFACE tuple pinned in this module",
+        STANDIN_DOCUMENT_SURFACE,
+        _PIN_IS_A_COPY,
+    )
 
 
 #: The row fields a click match and :func:`nodes_matching` may name. Anything
@@ -601,7 +827,10 @@ def run(
         * ``steps`` - one entry per step: the mount, then one per click. A
           click entry adds ``match``, ``matched``, ``handlers`` and ``threw``.
         * ``standin_surface`` - the measured ``node`` and ``document`` member
-          lists, so a caller can pin what a panel is allowed to touch.
+          lists, so a caller can pin what a panel is allowed to touch, plus
+          ``node_after_listener`` and the grader's own ``grader_node`` and
+          ``grader_document``, which :func:`_check_standin` has already
+          required this run to equal.
     """
     node = shutil.which("node")
     if node is None:
@@ -630,6 +859,7 @@ def run(
                 "module": str(target),
                 "data": dict(data),
                 "clicks": [dict(match) for match in clicks],
+                "grader_source": GRADER_STANDIN_SOURCE,
             }
         ).encode("ascii")
     )
@@ -651,6 +881,7 @@ def run(
         )
 
     report: Mapping[str, Any] = json.loads(completed.stdout)
+    _check_standin(report, target.name)
     for step in report["steps"]:
         if step["kind"] == "click" and step["matched"] != 1:
             pytest.fail(
