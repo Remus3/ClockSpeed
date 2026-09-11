@@ -34,6 +34,78 @@ the line becomes a pointer.
 
 ---
 
+## Session 82 - 2026-09-11 - the handoff's diagnosis was right, my refutation of it was wrong, and a green push shipped a red commit
+
+CS-968 IS CLOSED AND PROVEN END TO END. `git push` exports `GIT_DIR` to the pre-push
+hook WHEN AND ONLY WHEN the push comes from a LINKED WORKTREE. The hook runs
+`pytest tests`, so the suite ran holding a pointer at the real repository, and a
+throwaway `git init --bare` re-initialised it - putting `core.bare` and a fixture
+`[user]` block into the config every worktree SHARES. The full record is in
+`docs/LEDGER.md` under CS-968.
+
+THE THING WORTH CARRYING FORWARD IS HOW I GOT IT WRONG, TWICE, THE SAME WAY.
+
+FIRST: I measured a push from the MAIN CHECKOUT, found no `GIT_DIR`, and reported the
+handoff's mechanism REFUTED. That is the one arrangement in which the bug cannot fire.
+I then cited a sibling tree's note as independent corroboration - it has the identical
+blind spot, so two measurements agreed because both were taken in the wrong
+configuration. A NEGATIVE IS ONLY AS BROAD AS THE CONFIGURATION IT WAS MEASURED IN, and
+agreement between two agents is not evidence when they share a setup.
+
+SECOND: I called a failing arm a probe artifact because it "did not fail in either real
+worktree push". Those runs used `-x` and stopped on an earlier failure, so it never
+executed. ABSENCE UNDER `-x` IS NOT EVIDENCE OF PASSING. I read a gap in the data as a
+result.
+
+AND A THIRD, THE MOST EXPENSIVE: I SHIPPED A RED COMMIT TO `origin/main` AND REPORTED
+IT GREEN. The command was `git add`, then `git commit -q -F -` with a heredoc, then
+`git push`, all on one compound line. The commit FAILED - the commit-msg gate rejected a
+74-character subject - `-q` swallowed the message, and my grep only read the push
+markers. `git push` then ran with HEAD at the PREVIOUS commit while the working tree
+held the repair. The hook graded the WORKING TREE, found 6198 passed, and pushed a
+commit containing the version that fails `tests/test_archive_rot.py`. `origin/main` was
+red from `66c707f` until `77a43e2`. Caught by reading the PUSHED BLOB, not the exit
+code. FILED AS CS-972.
+
+A GREEN PUSH PROVES THE WORKING TREE WAS GREEN WHEN THE HOOK RAN. It proves nothing
+about the pushed commit unless the tree was clean, and nothing checked that.
+
+WHAT FOUND THE LEAKS THAT GREP MISSED: a DECOY. Plant `GIT_DIR` at a throwaway
+repository, run the suite, then ask THE DECOY what reached it. My first fix patched
+three helpers I had noticed and looked complete on a green suite; the decoy immediately
+found two more, including a NESTED `pytest` whose child inherits the pointer and hands
+it to everything beneath it. Grep tests whether your search was complete; the decoy
+tests the property.
+
+CS-968 HAS TWO INDEPENDENT HALVES and fixing only the first looks finished. The
+CHILD-SIDE half is the damaging one, fixed by `tests/git_env.py` at five spawn sites.
+The IN-PROCESS half is silent - `load_gate()` imports the gate in process and reads
+`os.environ` at call time - and no child-side measurement can see it. Fixed at the FOOT
+of `tests/conftest.py`, at import, because module-level code in a test module runs
+during COLLECTION before any fixture.
+
+THE SCRUB WENT AT THE FOOT OF THE FILE FOR A MEASURED REASON. Placed mid-file it
+inserted about thirty-five lines above every existing one, and the deep archive pins
+LINE NUMBERS into `tests/conftest.py`. One pointer changed bucket, `_ROT_FORM` 13 to 12
+and `_ROT_EMPTY` 4 to 5, and the guard offered to let me re-pin both counts. Re-pinning
+would have banked rot the change itself produced. EDITING A CITED FILE IS A LINE-NUMBER
+CHANGE BEFORE IT IS A CONTENT CHANGE - it bit twice this session.
+
+THE SHARED CONFIG WAS ALSO CARRYING A STRANDED FIXTURE IDENTITY and the handoff's claim
+that nothing was misattributed was FALSE. Three unpushed commits were authored
+`Gate Test <gate@example.invalid>`. Re-authored on an explicit operator ruling; tree
+hashes byte-identical across the rewrite, so only authorship changed.
+
+FOUR DEAD DOC CITATIONS were red at `57d70e4` and would have blocked the first push on
+their own - the handoff's "0 failed" was wrong about that too. Three were abbreviated
+module paths.
+
+BOTH BRANCHES ARE ON ORIGIN. `main` at `77a43e2`, tier1 CI SUCCESS. `cs964-seam` at
+`aa30cd5`, 6209 passed, CI was still running when this note was written.
+
+CS-964 IS STILL OPEN AND IS ONE ARM OF FIFTEEN. Pushing the branch published work in
+progress; it did not finish it.
+
 ## Session 81 - 2026-09-11 - the lane ran one row of twelve, and the machinery an item needed turned out not to exist
 
 **THE LANE WAS RE-ARMED AS INSTRUCTED AND IT RAN ONE ROW OF TWELVE.** Cycle 1
@@ -174,46 +246,3 @@ forward from the lane's own filings: CS-967 measured `python -m pytest tests -q
 - Next action: re-arm the `queue` lane, then CS-964 - the ASCII-only marker oracle.
 
 ---
-
-## Session 79 - 2026-09-10 - two items closed, and the one that mattered was refuted twice by the same lens after a green suite
-
-- Shipped: CS-960 and CS-961, both CLOSED. Detail in `docs/LEDGER.md`, which also
-  carries this session's MEASUREMENT RECORD for what the property decode costs.
-
-- In flight: nothing. Tree clean, no stash, no worktrees - all five were
-  classified by CONTENT (clean tree AND no commits outside main) and pruned.
-
-- CS-960 - the decode path now accepts an absent property map. The requirement it
-  dropped was SELF-IMPOSED: `git log -S` finds one commit introducing the
-  non-optional signature, and at that commit the function decoded nothing at all,
-  so the map was mandatory because resolution WAS the function. A PARAMETER'S
-  NECESSITY IS A CLAIM ABOUT THE FUNCTION AS IT IS NOW.
-
-- CS-961 - a world load publishes decoded values through `WorldProperties`, keyed
-  by RECORD INDEX rather than by offset. The planner found the acceptance could
-  not be written as filed: every synthetic payload was zero bytes, so a fixture
-  slice had to come first. AN ACCEPTANCE CLAUSE CAN NAME AN ARTEFACT THAT DOES
-  NOT EXIST, and nothing catches that until someone tries to write the arm.
-
-- Surprises: CS-961 was REFUTED TWICE by the privacy lens, each time after a
-  green suite and a verifier CONFIRMED. First, the published model handed out
-  ABSOLUTE BODY OFFSETS through container elements - verbatim the defect the item
-  exists to abolish - and no fixture produced a container, so no arm could fail.
-  Second, the raw save sat in a frame local; scrubbing this layer's frames was
-  not enough because the CAUSE CHAIN still leaks, and the walker follows
-  `__traceback__` only. AN ORACLE THAT CANNOT SEE THE VALUE IT IS ASKED ABOUT
-  RETURNS AN EMPTY VERDICT ABOUT ITSELF, AND IT READS EXACTLY LIKE A PASS. Filed
-  to harness memory as `an-oracle-can-be-blind-to-its-subject`.
-
-- Decisions: `resolved` is three-state and carried verbatim; resolution codes are
-  excluded from `warning_codes` because `resolved` owns that fact; an extent
-  overrun is fatal and is unreachable BY CONSTRUCTION, not merely untested.
-
-- Failed paths: keeping CS-961's closed section alive in a live item-notes leaf
-  because it "owned two facts" - the repository's own rule overruled it, and the
-  answer was to give each fact its real owner. Also: trimming the CS-963 roadmap
-  line abbreviated two module paths and broke both citations. TRIMMING PROSE IS A
-  WAY TO BREAK A CITATION.
-
-- Next action: fix CS-963. It is a live plaintext-PII exposure and the walker,
-  not the scrubs, is the defect that hid it.
