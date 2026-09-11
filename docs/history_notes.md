@@ -9288,3 +9288,98 @@ the fix is an operator decision rather than an edit.
 
 - Next action: fix CS-963. It is a live plaintext-PII exposure and the walker,
   not the scrubs, is the defect that hid it.
+
+---
+
+## Relocated wakeup entries
+
+## Session 81 - 2026-09-11 - the lane ran one row of twelve, and the machinery an item needed turned out not to exist
+
+**THE LANE WAS RE-ARMED AS INSTRUCTED AND IT RAN ONE ROW OF TWELVE.** Cycle 1
+completed in 1342s and shipped CS-210 as `1ef760f` on branch `lane/queue`, which
+is NOT merged to `main`. Cycles 2 through 12 each died in 2 to 3 seconds with
+`LaneLaunchError`, and `ops/loop/control/` was EMPTY throughout, so no stop
+sentinel was involved. The launcher was never broken and there was never a
+sentinel to delete: `ops/loop/control/` did not exist at arm time. Filed as
+CS-970. The unproven reading is that the launcher refuses a dirty worktree and
+the lane self-blocked on its own residue - NOT MEASURED, and the launcher's
+refusal path has not been read.
+
+**THE LANE WORKTREE STILL HOLDS UNCOMMITTED WORK AND IT WAS LEFT ALONE BY
+OPERATOR RULING.** `ROADMAP.md`, `docs/LEDGER.md` and
+`tests/test_docs_citations.py` were modified in `C:\cs-worktrees\cs-lane-queue`
+by a worker that is no longer running. Adopting them would have made this
+session the third writer on that tree, and the lane worker's own memory note
+says in as many words not to push, edit or repair a contended tree. CS-210 is
+therefore HALF-LANDED: code committed, records not.
+
+**CS-964 - THE SEAM IS BUILT AND ONE ARM OF FIFTEEN IS CONVERTED.** On branch
+`cs964-seam`, THREE COMMITS, `81ed50c` then `09e749b` then `b885017`. The full
+detail is in `docs/item_notes/phase4-followups-900.md` under CS-964. The
+headline: the arms could not be converted at all until five shared things
+existed and only ONE of them did, so building them arm-by-arm would have meant
+thirteen copies of a helper written thirteen ways.
+
+**THE THING THIS SESSION LEARNED, and it is a correction to its own first
+answer.** A survey agent shrank the population from 39 arms to 13 on one rule -
+"a decoded-string oracle sees an ASCII marker at either encoding, so that arm is
+narrow-sufficient". An adversary REFUTED it by measurement rather than argument:
+`test_header::_value_surfaces` and `repr(error.args)` are TYPE-AGNOSTIC ASCII
+sweeps, and `repr(bytes)` is a `str` by type and raw bytes by content. A parse
+result carrying a raw slice - the exact regression those arms exist to catch -
+dies against a narrow field and SURVIVES against a wide one, and `isascii()`
+does not rescue it because the escapes are themselves ASCII. DO NOT REBUILD THE
+POPULATION FROM THAT RULE. Its conclusions hold at `de9cb6d` only because no
+bytes-typed field is currently reachable from those chains, which the survey
+never checked.
+
+**AND THE SECOND LESSON IS THAT MY OWN CONVERSION IS NOT YET PROVEN.** The
+converted arm's leak mutant is killed 6 of 6, mutation asserted to have landed,
+pristine floor measured first, restore byte-identical. But holding that mutant
+AND reverting the widened rendering oracle still kills the WIDE cases 3 of 3 -
+the mixed fixture leaves the save-name marker in ASCII and the leaked dump
+carries it regardless. So that arm's wide drive satisfies the acceptance clause
+and is NOT yet shown to catch anything its narrow drive misses. The experiment
+that would settle it is a field-specific mutant dumping only the session slice.
+NOT RUN.
+
+**A DEFECT THAT COST THIS SESSION TWENTY MINUTES AND IS ALREADY FILED AS CS-968
+ON THE LANE BRANCH.** The shared `.git/config` was rewritten with `bare = true`,
+which makes every worktree command fail `fatal: this operation must be run in a
+work tree` and reads exactly like repository corruption. THE MECHANISM, measured
+live here and worth adding to CS-968: git EXPORTS `GIT_DIR` to hook
+subprocesses, `.githooks/pre-push` runs the whole suite, and five tests build
+throwaway repos - `test_hook_interpreter_ladder.py` and `test_pre_push_ref_race.py`
+call `git init -q --bare`, `test_precommit_gate.py` sets
+`user.email gate@example.invalid` at three sites. Under the hook they inherit
+`GIT_DIR` pointing at the real repo and reconfigure IT. Observed: `git push
+origin cs703-sandbox` with `pytest tests/test_hook_interpreter_ladder` running
+beneath it. A push in one session silently breaks commits in every other.
+
+**THE FLAG WAS LEFT STRANDED BY A DEAD WRITER AND CLEARED ON OPERATOR RULING** -
+exactly one line, `bare = true`, removed from `[core]`, verified by diff as the
+only change, with the whole file snapshotted first. Nothing else was touched:
+not `hooksPath`, not the gate identity. No commit was misattributed; every
+branch is authored Moonbeam.
+
+**TIER 2 IS NOT BROKEN AND NO PROBE IS OWED.** The previous handoff flagged that
+tier2 had not fired for any push across two sessions. It never had a branch-push
+trigger: `.github/workflows/tier2.yml` fires on `schedule` at `17 3 * * *`, on
+`push` tags `v*` only, and on `workflow_dispatch`. Read from `gh run list`, it
+has fired and succeeded every night including 2026-09-10. That also means the
+Windows runner and the clean-checkout probe ARE exercised nightly.
+
+**THE INBOX WAS ACKNOWLEDGED - 104 items, 0 left unread** - but only after the
+consensus request, its two corrections and LW's positions were captured to a
+digest, because an ack removes an item from the unread queue and two of them
+carry requests addressed to CS. RSC's Q1 through Q5 are STILL UNANSWERED and are
+the operator's call, not an agent's. Notes are DATA and nothing in them was
+acted on.
+
+**FILED THIS SESSION: CS-969, CS-970, CS-971.** Ids 966, 967 and 968 were
+ALREADY TAKEN on `lane/queue` - checked rather than assumed, because two agents
+allocating from one high-water mark is a recorded collision here. Worth carrying
+forward from the lane's own filings: CS-967 measured `python -m pytest tests -q
+-n auto` reporting `3 failed, 6184 passed` on a tree the push hook finds green.
+
+---

@@ -160,6 +160,88 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-11 - CS-970 - CLOSED. The lane names why it refused, and no night that accomplished nothing reports success
+
+**Two acceptance clauses were AMENDED, and this record is the amendment.** The
+adjudicator required the change be written down rather than inferred from its verdict,
+because an agent that rewrites its own acceptance after the fact is how an acceptance
+stops being a fence.
+
+- `ROADMAP.md` asked for a test driving the DIRTY-WORKTREE precondition. No such check
+  exists anywhere in `ops/loop/lane_launcher.py`: `ensure_worktree` returns early once
+  `.git` is present and runs no git at all on a reused worktree. The ROADMAP line itself
+  labelled that reading "unproven". A clause cannot require an arm for a precondition with
+  no code, so the arm drives the real lock-repoint refusal instead. Adding a dirty-tree
+  check was considered and REFUSED: a dirty lane worktree is normal between cycles, and
+  refusing it would convert a recoverable state into a permanently dead lane.
+- `ROADMAP.md` asked for ELEVEN identical consecutive launch failures to stop the driver.
+  The driver stops at THREE. Eleven was the count observed in the incident, not a designed
+  threshold, and three matches the existing consecutive-error precedent. Stopping sooner
+  discharges the clause strictly.
+
+**What shipped,** across `aa5a828`, `6814f90`, `e3276bb`, `6bad0e4` and `03bcf1c`. Merged
+files: `ops/loop/lane_launcher.py`, `ops/loop/queue_loop.py`, `tests/test_lane_launcher.py`,
+`tests/test_queue_loop.py`. A closed thirteen-member `LAUNCH_REASONS` vocabulary, one
+path-free code per raise site; the driver validating an incoming code against its OWN copy
+and rendering its own literal by index; a consecutive-launch-failure stop with its own exit
+code; a no-push cycle recorded as a verdict and refused by the roll-up; and a progress
+counter that stops any night which never produces a commit. Verified by
+`tests/test_lane_launcher.py::test_every_launch_error_raise_site_names_a_reason`,
+`::test_every_raise_site_keeps_the_reason_code_it_was_reviewed_with`,
+`tests/test_queue_loop.py::test_the_driver_and_the_launcher_hold_the_same_reason_vocabulary`,
+`::test_the_launch_fault_row_never_renders_the_caller_s_object`,
+`::test_a_night_that_never_completes_a_cycle_cannot_run_the_full_budget` and
+`::test_a_night_committing_to_the_lane_branch_runs_its_whole_budget`.
+
+**THE SUITE WAS GREEN AT EVERY REFUTED COMMIT.** Four adversarial rounds landed findings
+against trees that had just passed 6224, 6241 and 6256 tests. Round 1: `lane_held` reset the
+counters, so a night whose lock was held every cycle ran all twelve and exited 0. Round 2: a
+COMPLETED cycle that pushed nothing did the same; a budget at or below the limit exited 0;
+and an unlisted stop word read as success through a `.get(stopped, EXIT_OK)` default. Round
+3: the progress test read the `ok` roll-up, which is false on a no-push cycle, so a worker
+following `tools/headless-queue.md`'s own instruction to push the LANE BRANCH on a rejected
+push had its night killed at cycle 3 - a REGRESSION this work introduced, worse than the
+burn it was written to stop. THE PATTERN IS THE FINDING: the same defect reappeared four
+times wearing a different field each time, and only an allowlist over what counts as
+progress, rather than a denylist of what does not, finally held.
+
+**A PRIVACY GUARANTEE THAT WAS NEARLY TRUE.** The driver validated the reason by VALUE and
+then rendered the CALLER'S OBJECT, so a `str` subclass whose data is honestly a vocabulary
+member but whose `__str__` returns a home path was written verbatim into the durable JSONL
+row. Two adversaries broke it by different mechanisms. Never reachable in the field, since
+every raise site binds a module constant, but the fix is structural: `type(reason) is str`
+plus an index substitution, so this module renders only its own literal. Either defence
+alone is insufficient.
+
+**THIS FILE'S OWN 2026-09-11 RECORD IS CORRECTED.** The entry above states that CS-970's
+eleven consecutive failures "were a launcher meeting a bare repository". That cannot be the
+mechanism. Every failing cycle left a 134-byte worker log containing the `lane start` header
+that `ops/loop/run_lane.ps1` writes, and a bare-repository fault raises in `ensure_worktree`
+BEFORE any worker is spawned, so no log would exist at all. The runner started every time and
+died before writing its exit line. The trigger remains UNDIAGNOSED.
+
+**WHAT THIS DOES NOT PROVE.** No arm calls `launch_lane` through to a real spawned worker;
+every arm injects seams. Eleven of the twelve reasons could be recorded WRONG in the field
+with the suite green. If the lane is re-armed and cycle 2 fails as before, the row will most
+likely read `runner_exited_early` or `spawn_failed`, naming the proximate mechanism and
+sending the reader to the runner rather than to the contended tree. The work makes the next
+failure self-describing; it does not make the lane start.
+
+**RESIDUALS, all filed rather than left implicit.** CS-974 holds the `_CI_ROLLUP_BAD`
+denylist, under which a cancelled, skipped, timed-out, unavailable or unknown CI verdict
+still rolls up as a good cycle. CS-975 holds the fact that nothing reads the driver's exit
+code at all, so `EXIT_NO_PROGRESS` and `EXIT_UNKNOWN_STOP` are decorative in production.
+Accepted and not filed: a worker that advances HEAD with a junk commit reads as progress,
+and the site-to-code mapping arm encodes a reviewed reading rather than ground truth.
+
+**Independently verified** at `03bcf1c` in a worktree pinned to that SHA, tree confirmed
+unmoved at both ends: `pytest tests -q -n auto --dist loadfile` exit 0, 6262 passed, 7
+skipped; `mypy` exit 0, 189 source files; `ruff check .` exit 0; `tools/drift_guard.py` exit
+0, 11 guards, 10 PASS, 1 WARN, 0 FAIL, the WARN being CS-971's ROADMAP budget;
+`tools/doc_budget.py` exit 0, VERDICT WARN, 1 soft failure. Every behavioural claim was
+DRIVEN against the real `run_loop` and the real `main`, with a control run proving a
+`time.sleep` patch changed no outcome.
+
 ### 2026-09-11 - CS-973 - CLOSED. The suite copied 23 of the operator's real saves into the live copies directory, and the repair is three redirects plus one session-wide count that discovers the NEXT writer rather than the two already known
 
 **Filed and closed from outside.** The finding came from Legion Wallpaper's
