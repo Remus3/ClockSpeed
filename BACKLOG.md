@@ -224,3 +224,20 @@ the tree and still exits 0.**
   target from today's tree instead would bake in whatever the pointer happens to hit and
   ship green on the very defect it was filed for - the objection already recorded against
   a content-anchored resolver.
+
+- THE PUBLISHED PROPERTY MODEL RETAINS ABOUT 7.4x THE BODY IT WAS DECODED FROM, measured
+  2026-09-10 under CS-961 S4 and recorded in `docs/LEDGER.md` as that date's MEASUREMENT
+  RECORD. One world load holds about 133 MB against an 18 MB decompressed body, agreeing
+  to 16 bytes across three `tracemalloc` drops. The dominant site is `ContainerEntry` at
+  about 1.08M live instances and about 103 MB - 78 percent of the retained total. The
+  decode itself is about 90 percent of a 2.0 s load, roughly nine to ten times the walk.
+  **THE AXIS IS THE CONTAINER FAN-OUT AND NOT THE EAGER CHOICE**, which is the whole
+  reason this is filed rather than acted on: eager versus lazy was settled by CS-961's
+  acceptance, because lazy means retaining the payload buffer, and a session reading only
+  the headline number would reopen exactly the wrong decision. A shared or interned
+  representation for container entries is the shape to look at first.
+  CONDITIONAL TRIGGER: nothing holds a `WorldModel` today, so nothing pays this cost yet.
+  Revisit when a consumer above the save layer holds one for the life of a session - the
+  companion, the dashboard, or an audit pass over a real world - or when a real load is
+  measured against a machine with less headroom than the development box. Until then this
+  is a measured fact and not a defect, and it must not be optimised on speculation.

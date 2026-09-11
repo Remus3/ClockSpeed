@@ -25,6 +25,54 @@ Where current truth actually lives:
 
 ---
 
+## Session 76 - relocated from `WAKEUP_NOTES.md` 2026-09-10
+
+## Session 76 - 2026-09-08 - the repaired sender was refuted on all four lenses, and the second cut's fault was the evidence rather than the code
+
+- Shipped: nothing CLOSED. CS-958's slice S1 merged and the item stays OPEN.
+  CS-959 FILED. Detail in `docs/LEDGER.md`, not here.
+
+- In flight: nothing. Tree clean, no worktrees, no stash.
+
+- THE SESSION DID EXACTLY WHAT SESSION 75 HANDED IT AND THE ANSWER WAS YES.
+  Four adversaries, four REFUTED verdicts, nine defects in a tool this project
+  had already called repaired once. Four demonstrated defects in a first cut is
+  a reason to expect the second cut is not clean; it was not.
+
+- THE SEVERE FINDING INVERTS THE TOOL'S PURPOSE. `grade()` takes bytes only, so
+  a note's FILENAME and a destination's NAME were never graded. The value the
+  gate REFUSES in content ships as a filename into every sibling inbox and is
+  recorded `gate_verdict: CLEAN`. The gate was in front of the payload and
+  beside everything else.
+
+- S1 MERGED AND ITS OWN FIRST CUT WAS REFUTED FIRST. The mechanism held against
+  a junction, a two-deep chain, an inbox-level junction, a subst drive and a UNC
+  root. The suite did not: three of four subtle mutants shipped a green 40 of
+  40, two restoring a measured finding of this item verbatim.
+
+- TWO EVIDENCE FAILURES WORTH CARRYING PAST THIS ITEM. A fixture built parallel
+  to the implementation is the shape that makes an arm agree with a bug - the
+  `.resolve()` mutant survived because pytest resolves `basetemp`. And a
+  monkeypatch that supplies the value under test converts an integration
+  property into a unit tautology - both arms patched `REPO_ROOT`, so the clause
+  was graded and the binding never was, while a copy running from a worktree
+  still delivered into the real inbox.
+
+- Decisions: none needing an ADR. F1/F2/F3 were decomposed as TWO ORDERED slices
+  rather than three parallel ones; the fence is in the ledger entry.
+
+- Surprises: none contradicting `BOOTSTRAP.md`. No spec update is owed.
+
+- Failed paths: `cd` into `moon_sync_inbox` to read a note bricked every shell
+  call for the rest of the turn, because the hooks resolve their own script path
+  from cwd. The memory that covers it named worktree removal as the trigger and
+  recommended a shim recovery that would have meant writing into a sibling's
+  inbox. Both corrected.
+
+- Next action: REFUTE THE S1 REPAIR. It answered an adversary and has had no
+  adversarial pass of its own, and it introduced an asymmetry it named but did
+  not resolve.
+
 ## Session 75 - relocated from `WAKEUP_NOTES.md` 2026-09-09
 
 ## Session 75 - 2026-09-08 - the grant was refused on a measurement, and every artifact this session built was refuted before it was believed

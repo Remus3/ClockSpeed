@@ -34,6 +34,50 @@ the line becomes a pointer.
 
 ---
 
+## Session 79 - 2026-09-10 - two items closed, and the one that mattered was refuted twice by the same lens after a green suite
+
+- Shipped: CS-960 and CS-961, both CLOSED. Detail in `docs/LEDGER.md`, which also
+  carries this session's MEASUREMENT RECORD for what the property decode costs.
+
+- In flight: nothing. Tree clean, no stash, no worktrees - all five were
+  classified by CONTENT (clean tree AND no commits outside main) and pruned.
+
+- CS-960 - the decode path now accepts an absent property map. The requirement it
+  dropped was SELF-IMPOSED: `git log -S` finds one commit introducing the
+  non-optional signature, and at that commit the function decoded nothing at all,
+  so the map was mandatory because resolution WAS the function. A PARAMETER'S
+  NECESSITY IS A CLAIM ABOUT THE FUNCTION AS IT IS NOW.
+
+- CS-961 - a world load publishes decoded values through `WorldProperties`, keyed
+  by RECORD INDEX rather than by offset. The planner found the acceptance could
+  not be written as filed: every synthetic payload was zero bytes, so a fixture
+  slice had to come first. AN ACCEPTANCE CLAUSE CAN NAME AN ARTEFACT THAT DOES
+  NOT EXIST, and nothing catches that until someone tries to write the arm.
+
+- Surprises: CS-961 was REFUTED TWICE by the privacy lens, each time after a
+  green suite and a verifier CONFIRMED. First, the published model handed out
+  ABSOLUTE BODY OFFSETS through container elements - verbatim the defect the item
+  exists to abolish - and no fixture produced a container, so no arm could fail.
+  Second, the raw save sat in a frame local; scrubbing this layer's frames was
+  not enough because the CAUSE CHAIN still leaks, and the walker follows
+  `__traceback__` only. AN ORACLE THAT CANNOT SEE THE VALUE IT IS ASKED ABOUT
+  RETURNS AN EMPTY VERDICT ABOUT ITSELF, AND IT READS EXACTLY LIKE A PASS. Filed
+  to harness memory as `an-oracle-can-be-blind-to-its-subject`.
+
+- Decisions: `resolved` is three-state and carried verbatim; resolution codes are
+  excluded from `warning_codes` because `resolved` owns that fact; an extent
+  overrun is fatal and is unreachable BY CONSTRUCTION, not merely untested.
+
+- Failed paths: keeping CS-961's closed section alive in a live item-notes leaf
+  because it "owned two facts" - the repository's own rule overruled it, and the
+  answer was to give each fact its real owner. Also: trimming the CS-963 roadmap
+  line abbreviated two module paths and broke both citations. TRIMMING PROSE IS A
+  WAY TO BREAK A CITATION.
+
+- Next action: fix CS-963. It is a live plaintext-PII exposure and the walker,
+  not the scrubs, is the defect that hid it.
+
+
 ## Session 78 - 2026-09-09 - a premise this project had built on was refuted in its own tree, and the dashboard turned out to be a self-diagnostic
 
 - Shipped: nothing CLOSED as an ITEM. CS-962's slice S0 merged. CS-960, CS-961
@@ -129,49 +173,3 @@ the line becomes a pointer.
   DRAFTED and deliberately NOT filed on an operator standby ruling.
 
 ---
-
-## Session 76 - 2026-09-08 - the repaired sender was refuted on all four lenses, and the second cut's fault was the evidence rather than the code
-
-- Shipped: nothing CLOSED. CS-958's slice S1 merged and the item stays OPEN.
-  CS-959 FILED. Detail in `docs/LEDGER.md`, not here.
-
-- In flight: nothing. Tree clean, no worktrees, no stash.
-
-- THE SESSION DID EXACTLY WHAT SESSION 75 HANDED IT AND THE ANSWER WAS YES.
-  Four adversaries, four REFUTED verdicts, nine defects in a tool this project
-  had already called repaired once. Four demonstrated defects in a first cut is
-  a reason to expect the second cut is not clean; it was not.
-
-- THE SEVERE FINDING INVERTS THE TOOL'S PURPOSE. `grade()` takes bytes only, so
-  a note's FILENAME and a destination's NAME were never graded. The value the
-  gate REFUSES in content ships as a filename into every sibling inbox and is
-  recorded `gate_verdict: CLEAN`. The gate was in front of the payload and
-  beside everything else.
-
-- S1 MERGED AND ITS OWN FIRST CUT WAS REFUTED FIRST. The mechanism held against
-  a junction, a two-deep chain, an inbox-level junction, a subst drive and a UNC
-  root. The suite did not: three of four subtle mutants shipped a green 40 of
-  40, two restoring a measured finding of this item verbatim.
-
-- TWO EVIDENCE FAILURES WORTH CARRYING PAST THIS ITEM. A fixture built parallel
-  to the implementation is the shape that makes an arm agree with a bug - the
-  `.resolve()` mutant survived because pytest resolves `basetemp`. And a
-  monkeypatch that supplies the value under test converts an integration
-  property into a unit tautology - both arms patched `REPO_ROOT`, so the clause
-  was graded and the binding never was, while a copy running from a worktree
-  still delivered into the real inbox.
-
-- Decisions: none needing an ADR. F1/F2/F3 were decomposed as TWO ORDERED slices
-  rather than three parallel ones; the fence is in the ledger entry.
-
-- Surprises: none contradicting `BOOTSTRAP.md`. No spec update is owed.
-
-- Failed paths: `cd` into `moon_sync_inbox` to read a note bricked every shell
-  call for the rest of the turn, because the hooks resolve their own script path
-  from cwd. The memory that covers it named worktree removal as the trigger and
-  recommended a shim recovery that would have meant writing into a sibling's
-  inbox. Both corrected.
-
-- Next action: REFUTE THE S1 REPAIR. It answered an adversary and has had no
-  adversarial pass of its own, and it introduced an asymmetry it named but did
-  not resolve.
