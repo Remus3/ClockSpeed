@@ -181,7 +181,11 @@ per watched field, how many registry-published buildings carry it and how many d
 Merged files: `clockspeed/data/version.py`, `tests/data/test_version.py`,
 `tests/data/test_registry.py`, `tests/test_docs_citations.py`, `tests/test_archive_rot.py`,
 and the four doc files the closure moves - `ROADMAP.md`, `docs/item_notes.md`,
-`docs/history_notes.md` and this file.
+`docs/history_notes.md` and this file. The tenth path is a DELETION:
+the Phase 2 leaf under `docs/item_notes/`, whose only item was this one, so the
+leaf is named rather than spelled - a path this change deletes cannot resolve, and
+pinning a dead spelling would widen the bare-path exemption for a site that did not
+have to exist.
 
 Measured from the live install this cycle by `python tools/drift_guard.py --re-extract`:
 all four fields split 62 present, 6 absent over 68 published buildings. The absent half is
@@ -286,11 +290,83 @@ because the code was already right and only the record was wrong. Round two refu
 population fence, and that claim was FILED rather than re-litigated - which is the
 bounded-refutation rule taking effect, not a scope cut made for convenience.
 
-**Verification, and what this worker did not observe.** The local whole-suite run for the
-landing commit is recorded below with its verbatim summary line and the integer exit code
-of pytest itself, so the green claim is re-gradeable from this entry alone. The CI verdict
-for the pushed head is recorded by `ops/loop/queue_loop.py` and was NOT observed by this
-worker, which never blocks on a run it does not own.
+**Verification. Tier 2** - the census schema moved 1 to 2 and `census()` changed its public
+signature from a group sequence to the whole `DocsDocument`, so the whole tree was paid.
+Whole suite, run by this worker from the repo root in the pre-push hook's own configuration
+(`python -m pytest tests -q -n auto --dist loadfile`), written to a file and read back:
+
+```
+6187 passed, 7 skipped, 7 warnings in 445.36s (0:07:25)
+```
+
+with pytest's own integer exit code 0. Targeted first, before that:
+`tests/data/test_version.py`, `tests/data/test_registry.py`, `tests/data/test_phase2_gate.py`,
+`tests/test_archive_rot.py` and `tests/test_docs_citations.py` together, `494 passed in 95.53s`,
+exit 0. `python -m ruff check .` exit 0.
+
+
+**The whole-suite run for this landing commit.** Observed this cycle in the lane
+worktree, spelled the way `.githooks/pre-push` spells it:
+
+```
+python -m pytest tests -q -n auto --dist loadfile
+6187 passed, 7 skipped, 7 warnings in 449.57s (0:07:29)
+PYTEST_EXIT=0
+```
+
+A summary line was parsed AND pytest's own exit code was 0, which is the only shape this
+project accepts as green. `python -m ruff check .` printed `All checks passed!`, and a
+byte-level sweep of the nine authored files found no non-ASCII byte and no CRLF, with a
+positive control proving the sweep can see one.
+
+**A bare `-n auto` on this same tree is RED, and that is the scheduler rather than this
+change.** The first whole-tree run this cycle used xdist's DEFAULT scheduler and reported
+`3 failed, 6184 passed, 7 skipped, 7 warnings in 600.13s (0:10:00)`, pytest exit 1 - over
+the same 6187 collected tests. The three were
+`tests/test_hook_interpreter_ladder.py::test_pre_push_accepts_a_real_interpreter_named_in_the_variable`,
+`tests/save/test_properties.py::test_a_cursor_width_is_discriminated_and_never_on_a_majority_of_payloads`
+and
+`tests/save/test_properties.py::test_an_extent_width_cannot_desynchronise_and_is_caught_by_disagreement`.
+All three pass SERIALLY in this lane worktree with this change staged, and all three pass
+serially in a clean detached worktree at the base commit `de9cb6d` - so they are neither a
+regression from this item nor a red base tree. The default scheduler spreads one FILE's
+tests across separate workers; `--dist loadfile` keeps them together, which is the reason
+the hook passes it.
+
+**That trap is FILED as CS-967 and is NOT fixed here**, because it is outside this row.
+
+**A SECOND WORKER RAN THIS WORKTREE CONCURRENTLY AND MEASURED THE SAME RED WITH A
+DIFFERENT FAILURE SET, WHICH IS WHAT SETTLES THE ATTRIBUTION.** Its own default-scheduler
+run reported `1 failed, 6186 passed, 7 skipped, 7 warnings in 625.77s (0:10:25)` at pytest
+exit 1, the one failure being
+`tests/save/test_struct_interior.py::test_the_tag_list_finding_does_not_reach_the_undiscriminated_partition`
+raising `MemoryError` inside `clockspeed/save/objects.py` while walking a container
+declaring 1048576 elements - not one of the three above. Re-run alone and serially on the
+identical tree it reported `1 passed` at exit 0, and that worker's own
+`-n auto --dist loadfile` run reported `6187 passed, 7 skipped, 7 warnings in 445.36s
+(0:07:25)` at exit 0. **THE ATTRIBUTION THAT WORKER FIRST WROTE HERE WAS WRONG AND IS
+CORRECTED RATHER THAN DELETED:** it blamed the memory pressure on its own verifier pass,
+which was re-extracting the shipped document at the same moment, and a sibling run with no
+verifier beside it reddening three DIFFERENT tests under the same scheduler refutes that.
+The scheduler is the common cause and the two failure sets are two of its faces. Neither
+red touches a file this row changed. Recorded because a contention red and a defect red
+are indistinguishable from a summary line, and the save layer this row never touched is
+exactly where a wrong attribution would have sent the next cycle.
+
+**THE PUSH OF THIS COMMIT DID NOT LAND ON THE FIRST ATTEMPT, AND THE REASON IS OUTSIDE
+THIS REPOSITORY.** While the cycle wrapped, `C:\Clockspeed\.git\config` - the config the
+main checkout and every worktree share - was repeatedly rewritten with `bare = true`,
+which makes every worktree git command fail with `fatal: this operation must be run in a
+work tree` and leaves a push with no working tree to run its hook against. It was
+observed returning within seconds of an UNRELATED project's pytest run starting on this
+machine, and this worker cleared it with `git config --unset core.bare` three times in
+one cycle. The same rewrite also left `user.name = Gate Test` and
+`user.email = gate@example.invalid` in that file, which would silently mis-attribute any
+commit made while it stood. FILED as CS-968; the commit recorded here carries the correct
+authorship, which was checked rather than assumed.
+
+The CI verdict for the pushed head is recorded by `ops/loop/queue_loop.py` and was NOT
+observed by this worker, which never blocks on a run it does not own.
 
 **Provenance.** The implementation was drafted by an earlier session, preserved unmerged
 and ungraded on the lane branch, and re-derived against a tree 96 commits further on

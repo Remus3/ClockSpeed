@@ -954,7 +954,7 @@ DISPOSITIONS: Final[Mapping[tuple[str, str], Disposition]] = {
     # CS-210 GREW THE GENERATED PIN, so two sites this append-only file cites
     # slid down. Re-derived this cycle rather than carried: at the pre-change
     # commit line 352 was the pin's `"integrity"` VALUE line and line 815 was
-    # the `except ValueError as exc:` inside `extract_pin_block`. Neither
+    # inside `extract_pin_block`'s `except ValueError as exc:` handler. Neither
     # sentence may be repointed where it stands, and both describe declarations
     # that are still live and nameable, so both take a target rather than a
     # refusal. The integrity line is the harder of the two: it sat INSIDE the
