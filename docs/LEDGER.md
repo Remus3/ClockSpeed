@@ -160,6 +160,133 @@ machine-checked artifact that produces it.
 
 ## Entries
 
+### 2026-09-11 - CS-972 - FROZEN-FILE GRANT, recorded BEFORE the edit per CLAUDE.md section 6
+
+**This is a grant record, not a completion record.** It authorizes ONE edit to
+`.githooks/pre-push`, which is frozen. The closing record for CS-972 is a separate entry
+and does not exist yet. Nothing in `.githooks/` has been edited under this grant.
+
+**THE ROUTE.** A proposal was written by the session merger, frozen at sha256
+`71893fda7b6290459bc8c77b3baf60045a02bf040d6e2e833b38b5ef65aaf742`, and dispatched to an
+adjudicator that wrote neither the proposal, the hook, the item line nor the CS-968 work,
+against a candidate pinned at `7634f806ba609101664a9c2692c0f4d8d57a30d4` with a clean tree.
+The adjudicator re-verified the pin and the hash before reading, created one detached probe
+worktree and removed it, and the tree was confirmed unchanged afterward. Ruling: GRANT WITH
+CONDITIONS. The operator's standing authorization this session was "frozen grant approved if
+valid" - a conditional pre-authorization, which is why the validity question was put to an
+adjudicator rather than answered by the agent that wanted the edit.
+
+**THE PREMISE WAS RE-PROBED RATHER THAN ACCEPTED, TWICE, BY TWO PARTIES.** The item line
+claims `origin/main` was red from `66c707f` until `77a43e2`. `git reflog show
+refs/remotes/origin/main` records an `update by push` at each. A detached worktree at
+`66c707f` runs `tests/test_archive_rot.py` as `1 failed, 7 passed`, failing
+`test_the_deep_archives_rot_is_measured_and_pinned_per_arm` on two counts - "12 found
+against a pin of 13" and "5 found against a pin of 4". The merger reproduced the same
+module, the same verdict and the same two counts in a separate probe worktree of its own,
+because a subagent's test count is not evidence on this project.
+
+**AND THE MECHANISM IS SHARPER THAN THE ITEM LINE STATES.** `git show --stat 77a43e2`
+touches exactly one file, `tests/conftest.py`, 40 insertions and 35 deletions - and that
+same module is `8 passed` at `77a43e2`. The archive-rot arm counts line pointers into
+tracked modules, so moving the CS-968 scrub to the foot of `conftest.py` changed which
+archived pointer lands. The repaired `conftest.py` was therefore in the WORKING TREE when
+the hook graded it green, and in NO COMMIT when git shipped `66c707f`. That is the defect
+exactly: the hook grades the tree, git ships the commit, and the CS-954 ref check cannot see
+it because the ref never moved.
+
+**A NON-FROZEN ROUTE WAS FOUND AND REFUSED, AND IT IS RECORDED SO IT IS NOT RE-PITCHED AS
+THE CHEAP OPTION.** A test module under `tests/` asserting `git diff --quiet HEAD --` would
+block a push through a red suite and costs no grant. It fails on four grounds: it goes red
+on every ordinary hand-run `pytest tests` with uncommitted work, which is the normal state
+of development and collides with non-negotiable 9; it cannot tell a hook run from a hand run
+without an environment variable the hook would have to set, itself a frozen edit; it has no
+access to the ref list on stdin, so it can never compare against the PUSHED sha nor carry the
+state-loudly branch; and it grades the tree from inside the very run whose verdict is in
+question. CS-954's grant record already ruled out the wrapper script, the CI-side check and
+the second-hook route for this same file, and those findings are adopted rather than
+re-derived.
+
+**THE SEVENTEEN CONDITIONS BIND THE GRANT.** Recorded in full so the edit can be checked
+against them by someone who was not here.
+
+1. SINGLE-USE. One additive block in `.githooks/pre-push`. No other frozen file.
+2. No existing line in the file is modified, and the CS-954 block is not touched.
+3. The block runs BEFORE the suite. A POST-SUITE RE-CHECK IS NOT AUTHORIZED: the window in
+   which the tree changes DURING the suite stays open, and is filed as its own item rather
+   than absorbed into this one.
+4. Proven by measurement under a real linked-worktree push, WITH A POSITIVE CONTROL: from a
+   real linked worktree, with a tracked file dirtied, the block REFUSES and names that
+   worktree's own HEAD object id. A green clean-tree push alone does NOT discharge this.
+5. A delete - the all-zero local sha - is skipped, not refused.
+6. The remote URL, the raw stdin lines, and any path under a home directory are NEVER
+   echoed. Non-negotiables 3 and 12. Ref names and object ids only.
+7. The suite is never re-run. One decision, one run.
+8. With NO ref list - a terminal, or empty stdin - the block cannot know the pushed sha and
+   must SKIP, loudly, in the CS-954 register. It must NOT fall back to a bare HEAD
+   comparison.
+9. The arm is shown load-bearing by a mutation that REMOVES the check, plus a clean-tree
+   control, and it spawns through `tests/git_env.py` per the CS-968 closure.
+10. The not-covered register in the file names FOUR things: the tree modified after this
+    block and before the suite; the pushed-sha-is-not-HEAD case being stated only; untracked
+    files being stated only, including under `tests/`, where they change collection; and
+    `--no-verify`.
+11. CS-972 does not close CS-954 and must not be recorded as doing so.
+12. The grant expires when CS-972 closes or is abandoned. Any later edit to this file needs
+    a fresh grant.
+13. If a cheaper non-frozen change turns out to satisfy the acceptance clause, the grant is
+    left UNSPENT and that is recorded - the CS-952 precedent, where a granted exception was
+    deliberately not taken.
+14. The block resolves its repository EXPLICITLY rather than trusting ambient state: the
+    comparison runs in a subshell that unsets `GIT_DIR`, `GIT_WORK_TREE` and
+    `GIT_INDEX_FILE` and operates from `$ROOT`, so discovery walks up from the work tree.
+    Scoped to this block; the CS-954 region's existing git calls are not touched.
+15. Any non-zero status from the comparison REFUSES. A dirty answer and a failed git
+    invocation must not be distinguishable in a way that lets an error read as clean.
+16. Every new variable is initialised before first use, including on the rendering path,
+    per `set -u` and the `cs_probe` precedent. An unresolvable HEAD refuses.
+17. This record is committed BEFORE the edit, every added byte is 7-bit ASCII, and
+    `python scripts/install_hooks.py` runs clean afterward.
+
+**REFUSE VERSUS STATE, RULED.** Refuse on a tracked difference; state loudly on untracked
+files and on a pushed sha that is not HEAD. The file's own trade governs and it is written
+there twice: in a gate a LOUD FALSE REFUSAL beats a SILENT FALSE ACCEPT. The false-refusal
+surface is named rather than waved at - pushing a finished commit while work-in-progress
+edits sit in the tree, and the autonomous lane if it ever leaves a tracked modification
+uncommitted. Untracked files must STAY stated: refusing a new untracked file under `tests/`
+would break TDD's first step, which is non-negotiable 9. CRLF-only harness damage normalises
+clean under the same rules as `git status` and so is not a false refusal.
+
+**AND THE COMPARISON TARGET IS A PROXY, WHICH THE RULING CORRECTS.** `git diff --quiet HEAD
+--` asks about HEAD; the gate's real question is whether the graded tree equals the PUSHED
+local sha. Where they agree the comparison is identical. Where they differ - `git push
+origin HEAD~1:main`, or pushing a branch other than the checked-out one - the suite graded
+content that is a statement about no shipped commit at all, and the message must say the
+gate is VACUOUS FOR THAT REF in the CS-703 register, not merely that a different branch is
+being pushed. HEAD-equality decides refuse-versus-state; it is not the thing being asserted.
+
+**THE `GIT_DIR` RISK IS NOT DISCHARGED BY THE LANE PUSH, AND THE RULING DECLINES TO
+CONFLATE THEM.** CS-968 established that a push from a linked worktree exports `GIT_DIR` to
+this hook. A real push from `lane/queue` in a linked worktree completed this session and left
+the shared `.git/config` byte-identical but for an expected tracking block, which proves the
+CS-968 scrubs hold - and says nothing about whether git commands INSIDE the hook resolve the
+right work tree. Nor does line 78 working under a worktree push prove anything: with
+`GIT_DIR` set and `GIT_WORK_TREE` unset, `git rev-parse --show-toplevel` returns the current
+directory whatever repository `GIT_DIR` names, so `ROOT` resolving correctly is compatible
+with the pointer being wrong. If `GIT_DIR` resolved to the common dir rather than the linked
+worktree's gitdir, every lane push would false-refuse against main's HEAD. Hence condition 14
+- the block defends itself - rather than a single measurement trusted afterward. CS-968's own
+rule is binding here: a negative is only as broad as the configuration it was measured in,
+and a green clean-tree worktree push is a vacuous control.
+
+**WHAT THIS GRANT DOES NOT AUTHORIZE.** One additive block in `.githooks/pre-push` and
+nothing else. Not `.githooks/pre-commit`, `.githooks/commit-msg`, `scripts/install_hooks.py`,
+`tools/precommit_gate.py`, the Claude settings file or `LICENSE`. Not the standing
+trailer-range-scan proposal against this same file, which CS-906's grant already ruled needs
+its own. Not a post-suite re-check. Not any modification to the CS-954 block, the CS-703
+probe, the interpreter ladder, the CS-906 invocation, the exit-5 guard or the exit path - all
+survive byte-identical. It does not close CS-954. It expires when CS-972 closes or is
+abandoned. **Leaving it UNSPENT is a legitimate outcome.**
+
 ### 2026-09-11 - CS-968 - CLOSED. A push from a WORKTREE exports GIT_DIR, and the suite rewrote the repository it was running in
 
 **THE MECHANISM, MEASURED RATHER THAN ARGUED.** `git push` exports `GIT_DIR` to the
